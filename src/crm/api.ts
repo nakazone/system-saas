@@ -7,9 +7,11 @@ import { dashboardLeadsRouter } from "./routes/dashboard-leads.js";
 import { customersQuotesRouter } from "./routes/customers-quotes.js";
 import { buildersPricingRouter } from "./routes/builders-pricing.js";
 import { cadastroPayrollUsersRouter } from "./routes/cadastro-payroll-users.js";
+import { brandingRouter } from "./routes/branding.js";
 
 export const crmApiRouter = Router();
 
+crmApiRouter.use(brandingRouter);
 crmApiRouter.use(dashboardLeadsRouter);
 crmApiRouter.use(customersQuotesRouter);
 crmApiRouter.use(buildersPricingRouter);

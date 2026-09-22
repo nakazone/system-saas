@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a2036" />
+  <title>Ajustes — Branding</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260922-branding" />
+  <link rel="stylesheet" href="design-system.css?v=20260922-branding" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20260922-branding" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    .brand-ajustes { max-width: 720px; margin: 0 auto; padding: 8px 0 48px; }
+    .brand-ajustes h1 { margin: 0 0 6px; font-size: 1.5rem; color: var(--sf-navy, #1a2036); }
+    .brand-ajustes .lead { margin: 0 0 20px; color: var(--sf-muted, #8a8074); font-size: 0.95rem; }
+    .brand-card {
+      background: var(--sf-white, #fff);
+      border: 1px solid var(--sf-border, #d4c4ae);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .brand-card h2 { margin: 0 0 14px; font-size: 1.05rem; color: var(--sf-navy, #1a2036); }
+    .brand-field { margin-bottom: 14px; }
+    .brand-field label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px; }
+    .brand-field input[type="text"],
+    .brand-field input[type="email"] {
+      width: 100%;
+      max-width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--sf-border, #d4c4ae);
+      font: inherit;
+    }
+    .brand-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 640px) { .brand-colors { grid-template-columns: 1fr; } }
+    .brand-color-row { display: flex; align-items: center; gap: 10px; }
+    .brand-color-row input[type="color"] {
+      width: 48px; height: 40px; border: none; padding: 0; background: transparent; cursor: pointer;
+    }
+    .brand-logo-preview {
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      padding: 12px; border-radius: 10px; background: var(--sf-navy, #1a2036); min-height: 88px;
+    }
+    .brand-logo-preview img { max-height: 64px; max-width: 160px; object-fit: contain; background: #fff; border-radius: 8px; padding: 6px; }
+    .brand-logo-preview .placeholder { color: #fff; opacity: 0.7; font-size: 0.9rem; }
+    .brand-swatches { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .brand-swatch {
+      width: 36px; height: 36px; border-radius: 8px; border: 2px solid transparent; cursor: pointer;
+    }
+    .brand-swatch.is-active { border-color: var(--sf-navy, #1a2036); box-shadow: 0 0 0 2px var(--sf-gold, #d6b598); }
+    .brand-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .brand-actions .btn { min-width: 120px; }
+    .brand-hint { font-size: 0.8rem; color: var(--sf-muted, #8a8074); margin-top: 6px; }
+  </style>
+</head>
+<body class="dashboard-app-body">
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <a href="dashboard.html">
+          <img src="/assets/SeniorFloors.png" alt="" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+        </a>
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div class="sidebar-nav-group">
+          <a href="dashboard.html" class="nav-item">Dashboard</a>
+          <a href="ajustes.html" class="nav-item active" data-crm-permission="settings.manage">Ajustes</a>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="dashboard-main">
+      <div class="dashboard-content">
+        <div class="brand-ajustes">
+          <h1>Ajustes da empresa</h1>
+          <p class="lead">Personalize o logo e as cores do sistema para a sua organização. As alterações aparecem no CRM para toda a equipe.</p>
+
+          <form id="brandForm" class="brand-card" autocomplete="off">
+            <h2>Identidade</h2>
+            <div class="brand-field">
+              <label for="brandName">Nome da empresa</label>
+              <input type="text" id="brandName" name="name" required maxlength="120" />
+            </div>
+
+            <div class="brand-field">
+              <label>Logo</label>
+              <div class="brand-logo-preview" id="logoPreview">
+                <span class="placeholder" id="logoPlaceholder">Sem logo — será usado o padrão</span>
+                <img id="logoImg" alt="Logo" hidden />
+              </div>
+              <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/gif" />
+              <p class="brand-hint">PNG ou JPG, até 2,5 MB. Fundo transparente recomendado.</p>
+              <div class="brand-actions">
+                <button type="button" class="btn btn-secondary" id="btnClearLogo">Remover logo</button>
+              </div>
+            </div>
+          </form>
+
+          <div class="brand-card">
+            <h2>Paleta de cores</h2>
+            <div class="brand-colors">
+              <div class="brand-field">
+                <label for="primaryColor">Cor principal (sidebar / botões)</label>
+                <div class="brand-color-row">
+                  <input type="color" id="primaryColorPicker" value="#1a2036" />
+                  <input type="text" id="primaryColor" maxlength="7" placeholder="#1a2036" />
+                </div>
+              </div>
+              <div class="brand-field">
+                <label for="accentColor">Cor de destaque (acentos)</label>
+                <div class="brand-color-row">
+                  <input type="color" id="accentColorPicker" value="#d6b598" />
+                  <input type="text" id="accentColor" maxlength="7" placeholder="#d6b598" />
+                </div>
+              </div>
+            </div>
+            <p class="brand-hint">Presets rápidos:</p>
+            <div class="brand-swatches" id="brandSwatches" aria-label="Presets de cor"></div>
+          </div>
+
+          <div class="brand-actions">
+            <button type="button" class="btn btn-primary" id="btnSaveBrand">Salvar alterações</button>
+            <button type="button" class="btn btn-secondary" id="btnResetBrand">Restaurar padrão</button>
+            <a class="btn btn-secondary" href="dashboard.html">Voltar</a>
+          </div>
+          <p class="brand-hint" id="brandStatus" role="status"></p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="ajustes.js?v=20260922-branding"></script>
+</body>
+</html>

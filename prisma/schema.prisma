@@ -35,6 +35,8 @@ model Organization {
   plan             String    @default("starter")
   logoUrl          String?
   primaryColor     String?
+  /// Accent / secondary brand color (maps to SF gold tokens)
+  accentColor      String?
   contactEmail     String?
   contactPhone     String?
   stripeCustomerId String?

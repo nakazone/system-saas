@@ -4,6 +4,8 @@ import { z } from "zod";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { hashPassword } from "../../lib/auth/password.js";
+import { prisma } from "../../lib/prisma.js";
+import { buildBrandPalette } from "../../lib/branding/palette.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 
 export const cadastroPayrollUsersRouter = Router();
@@ -912,38 +914,56 @@ cadastroPayrollUsersRouter.delete(
 );
 
 /** UI config stub so SF chrome boots */
-cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (_req, res) => {
-  res.json({
-    success: true,
-    data: {
-      brand_name: "Senior Floors",
-      modules: {
-        dashboard: true,
-        leads: true,
-        quotes: true,
-        invoice: true,
-        cadastro: true,
-        builders: true,
-        pricing: true,
-        payroll: true,
-        users: true,
-        marketing: false,
-        schedule: false,
-        projects: false,
-        builder_forecast: false,
-        builder_portal: false,
-        gallery: false,
-        messages: false,
-        financial: false,
-        activities: false,
+cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const org = await prisma.organization.findUnique({
+      where: { id: req.organizationId! },
+      select: { name: true, logoUrl: true, primaryColor: true, accentColor: true },
+    });
+    const brand = org
+      ? buildBrandPalette({
+          name: org.name,
+          logoUrl: org.logoUrl,
+          primaryColor: org.primaryColor,
+          accentColor: org.accentColor,
+        })
+      : null;
+    res.json({
+      success: true,
+      data: {
+        brand_name: brand?.name || "Workspace",
+        branding: brand,
+        modules: {
+          dashboard: true,
+          leads: true,
+          quotes: true,
+          invoice: true,
+          cadastro: true,
+          builders: true,
+          pricing: true,
+          payroll: true,
+          users: true,
+          ajustes: true,
+          marketing: false,
+          schedule: false,
+          projects: false,
+          builder_forecast: false,
+          builder_portal: false,
+          gallery: false,
+          messages: false,
+          financial: false,
+          activities: false,
+        },
+        disabled_pages: [
+          "marketing",
+          "schedule",
+          "projects",
+          "activities",
+          "financeiro",
+        ],
       },
-      disabled_pages: [
-        "marketing",
-        "schedule",
-        "projects",
-        "activities",
-        "financeiro",
-      ],
-    },
-  });
+    });
+  } catch (error) {
+    next(error);
+  }
 });

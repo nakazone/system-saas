@@ -56,6 +56,11 @@ settingsRouter.post(
           .regex(/^#[0-9A-Fa-f]{6}$/)
           .optional()
           .or(z.literal("")),
+        accentColor: z
+          .string()
+          .regex(/^#[0-9A-Fa-f]{6}$/)
+          .optional()
+          .or(z.literal("")),
         contactEmail: z.string().email().optional().or(z.literal("")),
         contactPhone: z.string().max(40).optional().or(z.literal("")),
         logoDataUrl: z.string().optional().or(z.literal("")),
@@ -83,6 +88,7 @@ settingsRouter.post(
         data: {
           name: parsed.data.name,
           primaryColor: parsed.data.primaryColor || null,
+          accentColor: parsed.data.accentColor || null,
           contactEmail: parsed.data.contactEmail || null,
           contactPhone: parsed.data.contactPhone || null,
           ...(logoUrl ? { logoUrl } : {}),

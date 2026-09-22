@@ -18,6 +18,11 @@ import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const BRANDING_INJECT = [
+  '<link rel="stylesheet" href="/api/branding.css" data-saas-branding-css />',
+  '<script src="/saas-branding.js" defer data-saas-branding-js></script>',
+].join("\n    ");
+
 /**
  * Resolve CRM static roots for both `tsx src/` and `node dist/src/`.
  * Production previously resolved to `dist/crm/public` (missing) → Cannot GET /dashboard.html.
@@ -39,6 +44,34 @@ function resolveCrmDir(subdir: "public" | "assets"): string {
 
 export const CRM_PUBLIC_DIR = resolveCrmDir("public");
 export const CRM_ASSETS_DIR = resolveCrmDir("assets");
+
+function safePublicHtmlPath(urlPath: string): string | null {
+  const raw = String(urlPath || "")
+    .split("?")[0]
+    .replace(/^\//, "");
+  if (!raw || raw.includes("..") || raw.includes("\\") || path.isAbsolute(raw)) {
+    return null;
+  }
+  let rel = raw;
+  if (!rel.toLowerCase().endsWith(".html")) {
+    // express.static extensions:["html"] — allow /dashboard → dashboard.html
+    if (!rel.includes(".")) rel = `${rel}.html`;
+    else return null;
+  }
+  const full = path.resolve(CRM_PUBLIC_DIR, rel);
+  if (!full.startsWith(path.resolve(CRM_PUBLIC_DIR) + path.sep) && full !== path.resolve(CRM_PUBLIC_DIR)) {
+    return null;
+  }
+  return full;
+}
+
+function injectBranding(html: string): string {
+  if (html.includes("data-saas-branding-css")) return html;
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `    ${BRANDING_INJECT}\n</head>`);
+  }
+  return `${BRANDING_INJECT}\n${html}`;
+}
 
 export function createCrmRouter(): Router {
   const router = express.Router();
@@ -71,6 +104,25 @@ export function createCrmRouter(): Router {
       `[crm] dashboard.html not found under ${CRM_PUBLIC_DIR} (cwd=${process.cwd()}, __dirname=${__dirname})`,
     );
   }
+
+  // Inject tenant branding into CRM HTML shells
+  router.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      next();
+      return;
+    }
+    const full = safePublicHtmlPath(req.path);
+    if (!full || !fs.existsSync(full)) {
+      next();
+      return;
+    }
+    try {
+      const html = injectBranding(fs.readFileSync(full, "utf8"));
+      res.type("html").send(html);
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.use(
     express.static(CRM_PUBLIC_DIR, {

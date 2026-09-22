@@ -12,6 +12,7 @@ export type TenantRequest = Request & {
     status: string;
     logoUrl: string | null;
     primaryColor: string | null;
+    accentColor: string | null;
     contactEmail: string | null;
     contactPhone: string | null;
   };
@@ -59,6 +60,7 @@ async function loadOrganizationBySlug(slug: string) {
       status: true,
       logoUrl: true,
       primaryColor: true,
+      accentColor: true,
       contactEmail: true,
       contactPhone: true,
     },
@@ -75,6 +77,7 @@ async function loadOrganizationById(id: string) {
       status: true,
       logoUrl: true,
       primaryColor: true,
+      accentColor: true,
       contactEmail: true,
       contactPhone: true,
     },

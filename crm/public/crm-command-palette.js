@@ -10,6 +10,7 @@
     { id: 'onsite', label: 'Quick quote', sub: 'Field · 2 steps', href: 'onsite-quote.html', perm: 'quotes.create' },
     { id: 'cat', label: 'Catálogo de serviços', sub: '', href: 'quote-catalog.html', perm: 'quotes.edit' },
     { id: 'clients', label: 'Clientes', sub: '', href: 'dashboard.html?page=customers', perm: 'customers.view' },
+    { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores da empresa', href: 'ajustes.html', perm: 'settings.manage' },
   ];
 
   function can(perm) {
