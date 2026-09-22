@@ -3,6 +3,11 @@ import { z } from "zod";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { createOrganizationWithAdmin, validateSlug } from "./service.js";
 import { env } from "../../config/env.js";
+import {
+  subdomainTenantsSupported,
+  workspaceHomeUrl,
+  workspaceLoginUrl,
+} from "../../lib/tenant/workspace-url.js";
 
 export const organizationsRouter = Router();
 
@@ -12,17 +17,9 @@ function publicLocals(extra: Record<string, unknown> = {}) {
     productName: env.PRODUCT_NAME,
     appRootDomain: env.APP_ROOT_DOMAIN,
     appBaseUrl: env.APP_BASE_URL,
+    subdomainTenants: subdomainTenantsSupported(),
     ...extra,
   };
-}
-
-function workspaceUrl(slug: string): string {
-  const protocol = env.APP_BASE_URL.startsWith("https") ? "https" : "http";
-  const port =
-    env.NODE_ENV === "development" && env.PORT !== 80 && env.PORT !== 443
-      ? `:${env.PORT}`
-      : "";
-  return `${protocol}://${slug}.${env.APP_ROOT_DOMAIN}${port}/`;
 }
 
 organizationsRouter.get("/pricing", (_req, res) => {
@@ -76,7 +73,9 @@ organizationsRouter.post("/find-workspace", (req, res) => {
     return;
   }
 
-  res.redirect(workspaceUrl(slug) + "login");
+  // Stay on the apex host when subdomain TLS is unavailable (Railway default).
+  req.session.workspaceSlug = slug;
+  res.redirect(workspaceLoginUrl(slug));
 });
 
 organizationsRouter.get("/signup", (req, res) => {
@@ -146,17 +145,17 @@ organizationsRouter.post("/signup", async (req, res, next) => {
 
     req.session.userId = admin.id;
     req.session.organizationId = organization.id;
+    req.session.workspaceSlug = organization.slug;
 
-    // Do not redirect to {slug}.APP_ROOT_DOMAIN here — Railway default hostnames
-    // do not support arbitrary tenant subdomains. Show a confirmation page instead.
     res.render(
       "organizations/signup-success",
       publicLocals({
         title: "Workspace ready",
         organizationName: organization.name,
         slug: organization.slug,
-        workspaceUrl: workspaceUrl(organization.slug),
-        loginUrl: workspaceUrl(organization.slug) + "login",
+        workspaceUrl: workspaceHomeUrl(organization.slug),
+        loginUrl: workspaceLoginUrl(organization.slug),
+        subdomainTenants: subdomainTenantsSupported(),
       }),
     );
   } catch (error) {

@@ -10,7 +10,7 @@ export const authRouter = Router();
 
 authRouter.get("/login", (req: TenantRequest, res) => {
   if (!req.organization) {
-    res.redirect(`${req.protocol}://${req.get("host")?.replace(/^[^.]+\./, "")}/signup`);
+    res.redirect("/find-workspace");
     return;
   }
   res.render("auth/login", {
@@ -89,6 +89,9 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
 
     req.session.userId = user.id;
     req.session.organizationId = user.organizationId;
+    if (req.organization?.slug) {
+      req.session.workspaceSlug = req.organization.slug;
+    }
     res.redirect("/");
   } catch (error) {
     next(error);
@@ -96,7 +99,13 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
 });
 
 authRouter.post("/logout", requireAuth, (req: AuthedRequest, res) => {
+  const workspaceSlug = req.session.workspaceSlug;
   req.session.destroy(() => {
+    // Keep people on the apex host; they can pick the workspace again.
+    if (workspaceSlug) {
+      res.redirect("/find-workspace");
+      return;
+    }
     res.redirect("/login");
   });
 });

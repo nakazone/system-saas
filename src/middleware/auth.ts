@@ -16,6 +16,8 @@ declare module "express-session" {
   interface SessionData {
     userId?: string;
     organizationId?: string;
+    /** Active workspace slug on apex host (Railway / no wildcard DNS). */
+    workspaceSlug?: string;
   }
 }
 

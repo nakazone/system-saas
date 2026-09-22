@@ -13,7 +13,14 @@
         <a class="btn" href="/signup">Start 30-day free trial</a>
         <a class="btn btn-secondary" href="#calculator">Try the estimate calculator</a>
       </div>
-      <p class="mkt-fineprint">No credit card required. Your workspace lives at <code>{your-company}.<%= appRootDomain %></code></p>
+      <p class="mkt-fineprint">
+        No credit card required.
+        <% if (typeof subdomainTenants !== 'undefined' && subdomainTenants) { %>
+          Your workspace lives at <code>{your-company}.<%= appRootDomain %></code>
+        <% } else { %>
+          After signup you’ll use this site with your company slug (via Find your workspace).
+        <% } %>
+      </p>
       <div class="trust-row">
         <span class="trust-badge">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>

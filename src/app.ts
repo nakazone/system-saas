@@ -8,6 +8,7 @@ import pg from "pg";
 import { env } from "./config/env.js";
 import { DEFAULT_ESTIMATE_RULES } from "./lib/tenant/defaults.js";
 import { resolveTenant, requireTenant } from "./lib/tenant/resolve-tenant.js";
+import { subdomainTenantsSupported } from "./lib/tenant/workspace-url.js";
 import { bindTenantContext } from "./lib/tenant/bind-context.js";
 import { loadSessionUser } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -103,6 +104,7 @@ export function createApp() {
         productName: env.PRODUCT_NAME,
         appRootDomain: env.APP_ROOT_DOMAIN,
         appBaseUrl: env.APP_BASE_URL,
+        subdomainTenants: subdomainTenantsSupported(),
         estimateRules: DEFAULT_ESTIMATE_RULES,
       });
       return;

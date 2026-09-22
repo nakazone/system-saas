@@ -3,7 +3,7 @@
 <section class="auth-card-wrap">
   <div class="auth-card">
     <h1>Find your workspace</h1>
-    <p class="mkt-lead">Enter your company subdomain to open the sign-in page.</p>
+    <p class="mkt-lead">Enter your company slug to open the sign-in page.</p>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
@@ -21,7 +21,11 @@
         />
       </div>
       <p class="slug-live muted">
-        You’ll go to <strong><span id="slugPreview">your-company</span>.<%= appRootDomain %>/login</strong>
+        <% if (subdomainTenants) { %>
+          You’ll go to <strong><span id="slugPreview">your-company</span>.<%= appRootDomain %>/login</strong>
+        <% } else { %>
+          You’ll sign in on this site for workspace <strong><span id="slugPreview">your-company</span></strong>
+        <% } %>
       </p>
       <button class="btn" type="submit">Continue to sign in</button>
     </form>

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../prisma.js";
 import { env } from "../../config/env.js";
+import { subdomainTenantsSupported } from "./workspace-url.js";
 
 export type TenantRequest = Request & {
   organizationId?: string;
@@ -18,6 +19,12 @@ export type TenantRequest = Request & {
   isPublicHost?: boolean;
 };
 
+const PUBLIC_MARKETING_PATHS = new Set([
+  "/pricing",
+  "/signup",
+  "/find-workspace",
+]);
+
 function extractSubdomain(host: string, rootDomain: string): string | null {
   const hostname = host.split(":")[0]?.toLowerCase() ?? "";
   const root = rootDomain.toLowerCase();
@@ -29,13 +36,11 @@ function extractSubdomain(host: string, rootDomain: string): string | null {
   if (hostname.endsWith(`.${root}`)) {
     const sub = hostname.slice(0, -(root.length + 1));
     if (!sub || sub.includes(".")) {
-      // Only single-level subdomains are supported in v1
       return sub.includes(".") ? null : sub;
     }
     return sub;
   }
 
-  // Local development convenience: org-a.localhost
   if (root === "localhost" && hostname.endsWith(".localhost")) {
     const sub = hostname.replace(/\.localhost$/, "");
     return sub.includes(".") ? null : sub;
@@ -44,9 +49,53 @@ function extractSubdomain(host: string, rootDomain: string): string | null {
   return null;
 }
 
+async function loadOrganizationBySlug(slug: string) {
+  return prisma.organization.findUnique({
+    where: { slug },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      status: true,
+      logoUrl: true,
+      primaryColor: true,
+      contactEmail: true,
+      contactPhone: true,
+    },
+  });
+}
+
+async function loadOrganizationById(id: string) {
+  return prisma.organization.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      status: true,
+      logoUrl: true,
+      primaryColor: true,
+      contactEmail: true,
+      contactPhone: true,
+    },
+  });
+}
+
+function attachOrganization(
+  req: TenantRequest,
+  organization: NonNullable<Awaited<ReturnType<typeof loadOrganizationBySlug>>>,
+): boolean {
+  if (organization.status === "canceled") {
+    return false;
+  }
+  req.organizationId = organization.id;
+  req.organization = organization;
+  return true;
+}
+
 /**
- * Resolves the tenant from the request subdomain and attaches organization context.
- * Skips: root domain (signup), admin subdomain, health, and public quote tokens.
+ * Resolves the tenant from subdomain (custom domains) or session workspace
+ * (Railway default host / no wildcard DNS).
  */
 export async function resolveTenant(
   req: TenantRequest,
@@ -57,7 +106,6 @@ export async function resolveTenant(
     const host = req.get("host") ?? "";
     const subdomain = extractSubdomain(host, env.APP_ROOT_DOMAIN);
 
-    // Paths that never require a tenant
     if (req.path === "/health" || req.path.startsWith("/public/")) {
       req.isPublicHost = true;
       next();
@@ -70,38 +118,71 @@ export async function resolveTenant(
       return;
     }
 
-    // Root domain: signup / landing only
-    if (!subdomain) {
+    if (subdomain) {
+      const organization = await loadOrganizationBySlug(subdomain);
+      if (!organization || !attachOrganization(req, organization)) {
+        res.status(404).render("errors/not-found", {
+          title: "Organization not found",
+          message: "This organization does not exist or is no longer available.",
+          organization: null,
+        });
+        return;
+      }
+      next();
+      return;
+    }
+
+    // Apex host — marketing pages stay public
+    const isMarketingPath =
+      PUBLIC_MARKETING_PATHS.has(req.path) ||
+      (req.path === "/" && !req.session?.userId && !req.session?.workspaceSlug);
+
+    if (isMarketingPath) {
       req.isPublicHost = true;
       next();
       return;
     }
 
-    const organization = await prisma.organization.findUnique({
-      where: { slug: subdomain },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        status: true,
-        logoUrl: true,
-        primaryColor: true,
-        contactEmail: true,
-        contactPhone: true,
-      },
-    });
+    // Session-based tenant (used when subdomain certs are unavailable)
+    const workspaceSlug =
+      typeof req.session?.workspaceSlug === "string"
+        ? req.session.workspaceSlug.toLowerCase().trim()
+        : "";
+    const organizationId =
+      typeof req.session?.organizationId === "string" ? req.session.organizationId : "";
 
-    if (!organization || organization.status === "canceled") {
-      res.status(404).render("errors/not-found", {
-        title: "Organization not found",
-        message: "This organization does not exist or is no longer available.",
-        organization: null,
-      });
+    if (workspaceSlug) {
+      const organization = await loadOrganizationBySlug(workspaceSlug);
+      if (organization && attachOrganization(req, organization)) {
+        next();
+        return;
+      }
+    }
+
+    if (organizationId) {
+      const organization = await loadOrganizationById(organizationId);
+      if (organization && attachOrganization(req, organization)) {
+        if (req.session) {
+          req.session.workspaceSlug = organization.slug;
+        }
+        next();
+        return;
+      }
+    }
+
+    // /login on apex without a workspace — send people to the finder
+    if (req.path === "/login" || req.path === "/logout") {
+      res.redirect("/find-workspace");
       return;
     }
 
-    req.organizationId = organization.id;
-    req.organization = organization;
+    if (!subdomainTenantsSupported()) {
+      req.isPublicHost = true;
+      next();
+      return;
+    }
+
+    req.isPublicHost = true;
     next();
   } catch (error) {
     next(error);
@@ -116,7 +197,9 @@ export function requireTenant(
   if (!req.organizationId || !req.organization) {
     res.status(404).render("errors/not-found", {
       title: "Organization required",
-      message: "Access this application via your organization subdomain.",
+      message: subdomainTenantsSupported()
+        ? "Access this application via your organization subdomain."
+        : "Open your workspace from Find your workspace, then sign in.",
       organization: null,
     });
     return;

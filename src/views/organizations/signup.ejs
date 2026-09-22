@@ -4,7 +4,13 @@
   <aside class="signup-aside">
     <p class="mkt-eyebrow"><%= productName %></p>
     <h1>Create your company workspace</h1>
-    <p class="mkt-lead">Get a dedicated subdomain, invite your team, and start quoting jobs today.</p>
+    <p class="mkt-lead">
+      <% if (typeof subdomainTenants !== 'undefined' && subdomainTenants) { %>
+        Get a dedicated subdomain, invite your team, and start quoting jobs today.
+      <% } else { %>
+        Create your company workspace, invite your team, and start quoting jobs today.
+      <% } %>
+    </p>
     <ul class="trust-list">
       <li>30-day free trial — no card required</li>
       <li>Your data stays isolated to your organization</li>
@@ -32,7 +38,12 @@
           placeholder="acme-floors"
         />
         <p class="slug-live muted">
-          Workspace URL: <strong><span id="slugPreview">your-company</span>.<%= appRootDomain %></strong>
+          Workspace URL:
+          <% if (typeof subdomainTenants !== 'undefined' && subdomainTenants) { %>
+            <strong><span id="slugPreview">your-company</span>.<%= appRootDomain %></strong>
+          <% } else { %>
+            sign in on this site as workspace <strong><span id="slugPreview">your-company</span></strong>
+          <% } %>
         </p>
       </fieldset>
 
