@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc && mkdir -p dist/src && cp -R src/views dist/src/views && cp -R src/public dist/src/public",
-    "start": "prisma migrate deploy && node dist/src/server.js",
+    "start": "node dist/src/server.js",
+    "start:with-migrate": "prisma migrate deploy && node dist/src/server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -33,6 +34,7 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.0",
     "prisma": "^6.19.3",
     "uuid": "^14.0.2",
     "zod": "^4.6.5"
@@ -46,6 +48,7 @@
     "@types/express-session": "^1.18.2",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.9",
+    "@types/pg": "^8.23.1",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

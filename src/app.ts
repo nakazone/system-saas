@@ -4,6 +4,7 @@ import express from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import cookieParser from "cookie-parser";
+import pg from "pg";
 import { env } from "./config/env.js";
 import { resolveTenant, requireTenant } from "./lib/tenant/resolve-tenant.js";
 import { bindTenantContext } from "./lib/tenant/bind-context.js";
@@ -22,9 +23,22 @@ import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PgSession = connectPgSimple(session);
+const { Pool } = pg;
+
+function createSessionPool() {
+  const isProduction = env.NODE_ENV === "production";
+  return new Pool({
+    connectionString: env.DATABASE_URL,
+    // Railway (and most managed Postgres) require TLS.
+    ssl: isProduction ? { rejectUnauthorized: false } : undefined,
+    max: 10,
+    connectionTimeoutMillis: 10_000,
+  });
+}
 
 export function createApp() {
   const app = express();
+  const isProduction = env.NODE_ENV === "production";
 
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
@@ -35,28 +49,31 @@ export function createApp() {
   app.use(cookieParser());
   app.use("/assets", express.static(path.join(__dirname, "public")));
 
+  // Health must be registered before session/DB middleware so Railway probes never hang.
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
   app.use(
     session({
       store: new PgSession({
-        conString: env.DATABASE_URL,
+        pool: createSessionPool(),
         tableName: "session",
         createTableIfMissing: true,
+        pruneSessionInterval: isProduction ? 60 * 15 : false,
       }),
       secret: env.SESSION_SECRET,
       resave: false,
       saveUninitialized: false,
+      proxy: isProduction,
       cookie: {
         httpOnly: true,
         sameSite: "lax",
-        secure: env.NODE_ENV === "production",
+        secure: isProduction,
         maxAge: 7 * 24 * 60 * 60 * 1000,
       },
     }),
   );
-
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true });
-  });
 
   // Public quote links (token-based, no subdomain tenant required)
   app.use("/public", publicQuotesRouter);
