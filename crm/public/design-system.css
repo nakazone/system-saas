@@ -5,18 +5,18 @@
  */
 
 :root {
-  /* Palette */
-  --color-primary: #1a1a2e;
-  --color-primary-hover: #16213e;
-  --color-accent: #c8a96e;
-  --color-accent-hover: #b8954e;
+  /* Palette — ObraMate defaults */
+  --color-primary: #211d1a;
+  --color-primary-hover: #2c2723;
+  --color-accent: #e8792c;
+  --color-accent-hover: #c1652f;
   --color-surface: #ffffff;
-  --color-surface-secondary: #f8f7f5;
-  --color-surface-tertiary: #f0efe9;
-  --color-border: #e5e3dd;
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #6b6b6b;
-  --color-text-muted: #9b9b9b;
+  --color-surface-secondary: #f7f4ee;
+  --color-surface-tertiary: #efe8dc;
+  --color-border: #e2d9cc;
+  --color-text-primary: #211d1a;
+  --color-text-secondary: #6b645c;
+  --color-text-muted: #8a8074;
 
   --color-success: #22c55e;
   --color-warning: #f59e0b;
@@ -57,11 +57,11 @@
   /* Legacy aliases (existing styles.css) */
   --primary-color: var(--color-primary);
   --primary-hover: var(--color-primary-hover);
-  --primary-light: #252540;
-  --primary-dark: #12121f;
+  --primary-light: #3a332e;
+  --primary-dark: #161311;
   --secondary-color: var(--color-accent);
   --secondary-hover: var(--color-accent-hover);
-  --secondary-dark: #a68545;
+  --secondary-dark: #a85428;
   --text-dark: var(--color-text-primary);
   --text-light: var(--color-text-secondary);
   --text-muted: var(--color-text-muted);

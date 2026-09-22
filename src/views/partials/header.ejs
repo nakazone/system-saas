@@ -1,16 +1,20 @@
-<% const displayProductName = (typeof productName !== 'undefined' && productName) ? productName : 'Flooring Platform'; %>
-<% const accent = (typeof organization !== 'undefined' && organization && organization.primaryColor) ? organization.primaryColor : '#2554c7'; %>
+<% const displayProductName = (typeof productName !== 'undefined' && productName) ? productName : 'ObraMate'; %>
+<% const accent = (typeof organization !== 'undefined' && organization && organization.primaryColor)
+  ? (organization.accentColor || organization.primaryColor)
+  : '#e8792c'; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= typeof title !== 'undefined' ? title : 'App' %><% if (typeof organization !== 'undefined' && organization) { %> · <%= organization.name %><% } else { %> · <%= displayProductName %><% } %></title>
+  <link rel="icon" type="image/png" href="/assets/obramate-logo.png" />
+  <link rel="apple-touch-icon" href="/assets/obramate-logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/css/app.css" />
-  <style>:root { --brand: <%= accent %>; }</style>
+  <style>:root { --brand: <%= accent %>; --brand-dark: #c1652f; --brand-ink: #211d1a; --brand-surface: #f7f4ee; }</style>
 </head>
 <body class="<%= typeof organization !== 'undefined' && organization ? 'app-shell' : 'marketing-shell' %>">
   <% if (typeof organization !== 'undefined' && organization) { %>
@@ -18,6 +22,8 @@
     <div class="brand">
       <% if (organization.logoUrl) { %>
         <img src="<%= organization.logoUrl %>" alt="" class="brand-logo" />
+      <% } else { %>
+        <img src="/assets/obramate-logo.png" alt="<%= displayProductName %>" class="brand-logo" />
       <% } %>
       <a href="/" class="brand-name"><%= organization.name %></a>
     </div>
@@ -38,7 +44,10 @@
   <main class="container">
   <% } else { %>
   <header class="marketing-header">
-    <a href="/" class="marketing-logo"><%= displayProductName %></a>
+    <a href="/" class="marketing-logo">
+      <img src="/assets/obramate-logo.png" alt="" class="marketing-logo__img" width="36" height="36" />
+      <span class="marketing-logo__text"><span class="marketing-logo__obra">Obra</span><span class="marketing-logo__mate">Mate</span></span>
+    </a>
     <nav class="marketing-nav">
       <a href="/#features">Features</a>
       <a href="/#calculator">Estimate calculator</a>

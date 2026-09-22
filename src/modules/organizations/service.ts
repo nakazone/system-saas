@@ -7,6 +7,7 @@ import {
   DEFAULT_PIPELINE_STAGES,
   DEFAULT_ROLE_PERMISSIONS,
 } from "../../lib/tenant/defaults.js";
+import { DEFAULT_BRAND } from "../../lib/branding/palette.js";
 
 export type SignupInput = {
   organizationName: string;
@@ -72,6 +73,8 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
         slug: input.slug,
         status: "trial",
         plan: "starter",
+        primaryColor: DEFAULT_BRAND.primaryColor,
+        accentColor: DEFAULT_BRAND.accentColor,
         contactEmail: input.contactEmail ?? input.adminEmail,
         contactPhone: input.contactPhone,
         trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),

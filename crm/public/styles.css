@@ -3524,24 +3524,24 @@ body.lead-quick-sheet-open .pac-container {
 
 /* ========== Senior Floors design system (dashboard / sf-*) ========== */
 :root {
-    --sf-navy: #1a2036;
-    --sf-navy2: #252b47;
-    --sf-navy3: #2a3150;
-    --sf-gold: #d6b598;
-    --sf-gold2: #e0c4a8;
-    --sf-gold3: #c9a882;
-    --sf-gold4: #b8906a;
-    --sf-gold5: #a07850;
-    --sf-gold-soft: #f5ede0;
-    --sf-gold-bg: #f8f2ea;
-    --sf-gold-card: #ecdec8;
-    --sf-bg: #f0ede8;
+    --sf-navy: #211d1a;
+    --sf-navy2: #2c2723;
+    --sf-navy3: #3a332e;
+    --sf-gold: #e8792c;
+    --sf-gold2: #f09a5a;
+    --sf-gold3: #c1652f;
+    --sf-gold4: #a85428;
+    --sf-gold5: #8f4622;
+    --sf-gold-soft: #f8ebe0;
+    --sf-gold-bg: #f7f4ee;
+    --sf-gold-card: #f0e4d4;
+    --sf-bg: #f7f4ee;
     --sf-white: #ffffff;
-    --sf-border: #d4c4ae;
+    --sf-border: #e2d9cc;
     --sf-ok: #2d6e4a;
     --sf-warn: #8f5010;
     --sf-bad: #8f2020;
-    --sf-muted: #8a8074;
+    --sf-muted: #6b645c;
 }
 
 .sf-card {

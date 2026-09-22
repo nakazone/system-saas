@@ -1,6 +1,6 @@
 (function () {
   const PRESETS = [
-    { primary: "#1a2036", accent: "#d6b598", label: "Senior Floors" },
+    { primary: "#211d1a", accent: "#e8792c", label: "ObraMate" },
     { primary: "#0f172a", accent: "#38bdf8", label: "Slate / Sky" },
     { primary: "#14532d", accent: "#86efac", label: "Forest" },
     { primary: "#1e3a5f", accent: "#f59e0b", label: "Navy / Amber" },
@@ -25,10 +25,10 @@
   }
 
   function syncPickers() {
-    const p = $("primaryColor").value || "#1a2036";
-    const a = $("accentColor").value || "#d6b598";
-    $("primaryColorPicker").value = /^#[0-9A-Fa-f]{6}$/.test(p) ? p : "#1a2036";
-    $("accentColorPicker").value = /^#[0-9A-Fa-f]{6}$/.test(a) ? a : "#d6b598";
+    const p = $("primaryColor").value || "#211d1a";
+    const a = $("accentColor").value || "#e8792c";
+    $("primaryColorPicker").value = /^#[0-9A-Fa-f]{6}$/.test(p) ? p : "#211d1a";
+    $("accentColorPicker").value = /^#[0-9A-Fa-f]{6}$/.test(a) ? a : "#e8792c";
     applyLivePreview();
   }
 
@@ -89,8 +89,8 @@
     if (!j.success) throw new Error(j.error || "Falha ao carregar branding");
     const d = j.data;
     $("brandName").value = d.name || "";
-    $("primaryColor").value = d.primary_color || "#1a2036";
-    $("accentColor").value = d.accent_color || "#d6b598";
+    $("primaryColor").value = d.primary_color || "#211d1a";
+    $("accentColor").value = d.accent_color || "#e8792c";
     currentLogoUrl = d.logo_url || null;
     logoDataUrl = null;
     clearLogo = false;
@@ -170,8 +170,8 @@
   });
 
   $("btnResetBrand").addEventListener("click", () => {
-    $("primaryColor").value = "#1a2036";
-    $("accentColor").value = "#d6b598";
+    $("primaryColor").value = "#211d1a";
+    $("accentColor").value = "#e8792c";
     syncPickers();
   });
 

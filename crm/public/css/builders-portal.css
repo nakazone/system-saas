@@ -1,12 +1,12 @@
 /* Builder Partner Portal — brand-aligned */
 :root {
-  --bp-navy: #1a2036;
-  --bp-navy-deep: #141928;
-  --bp-tan: #d6b598;
-  --bp-tan-pale: #f5ede4;
-  --bp-off-white: #f7f8fc;
-  --bp-border: #e2e8f0;
-  --bp-muted: #6b7280;
+  --bp-navy: #211d1a;
+  --bp-navy-deep: #161311;
+  --bp-tan: #e8792c;
+  --bp-tan-pale: #f8ebe0;
+  --bp-off-white: #f7f4ee;
+  --bp-border: #e2d9cc;
+  --bp-muted: #6b645c;
 }
 
 .bp-page-body { background: var(--bp-off-white); min-height: 100vh; font-family: Inter, system-ui, sans-serif; }

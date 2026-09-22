@@ -4,25 +4,25 @@
  */
 
 :root {
-  --sf-bg-base: #f3f4f7;
+  --sf-bg-base: #f7f4ee;
   --sf-bg-card: #ffffff;
   --sf-bg-elevated: #ffffff;
-  --sf-bg-overlay: rgba(15, 23, 42, 0.45);
+  --sf-bg-overlay: rgba(33, 29, 26, 0.45);
 
-  --sf-accent: #b8954e;
-  --sf-accent-dim: rgba(184, 149, 78, 0.14);
-  --sf-accent-border: rgba(184, 149, 78, 0.35);
-  --sf-accent-hover: #9a7a3c;
+  --sf-accent: #e8792c;
+  --sf-accent-dim: rgba(232, 121, 44, 0.14);
+  --sf-accent-border: rgba(232, 121, 44, 0.35);
+  --sf-accent-hover: #c1652f;
 
-  --sf-navy: #1a2036;
-  --sf-text-primary: #1a2036;
-  --sf-text-secondary: #64748b;
-  --sf-text-muted: #94a3b8;
-  --sf-text-accent: #9a7a3c;
+  --sf-navy: #211d1a;
+  --sf-text-primary: #211d1a;
+  --sf-text-secondary: #6b645c;
+  --sf-text-muted: #8a8074;
+  --sf-text-accent: #c1652f;
 
-  --sf-border-subtle: #e8eaef;
-  --sf-border-mid: #d5d9e2;
-  --sf-border-accent: rgba(184, 149, 78, 0.45);
+  --sf-border-subtle: #ebe4d8;
+  --sf-border-mid: #e2d9cc;
+  --sf-border-accent: rgba(193, 101, 47, 0.45);
 
   --sf-viewed-bg: rgba(37, 99, 235, 0.1);
   --sf-viewed-text: #1d4ed8;

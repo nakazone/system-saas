@@ -2,9 +2,9 @@
  * Public quote page — visual match to modules/quotes/quotePdf.js (letter / Senior Floors brand).
  */
 :root {
-  --qp-primary: #1a2036;
+  --qp-primary: #211d1a;
   --qp-primary-muted: #2a3150;
-  --qp-secondary: #d6b598;
+  --qp-secondary: #e8792c;
   --qp-secondary-dark: #c4a588;
   --qp-panel-bg: #f0f2f8;
   --qp-muted: #5a5e6b;

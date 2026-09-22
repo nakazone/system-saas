@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#1a2036">
-    <title>Senior Floors - Admin Login</title>
-    <!-- Favicon (mesmo padrão do site Senior Floors) -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/assets/SeniorFloors.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
-    <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
+    <meta name="theme-color" content="#211d1a">
+    <title>ObraMate - Login</title>
+    <!-- Favicon (ObraMate) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/obramate-logo.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/obramate-logo.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/obramate-logo.png">
+    <link rel="icon" type="image/png" href="/assets/obramate-logo.png">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="design-system.css">
     <link rel="stylesheet" href="crm-toast.css">
@@ -21,11 +21,11 @@
     <div class="login-container">
         <div class="login-box">
             <div class="login-header">
-                <img src="assets/SeniorFloors.png" 
-                     alt="Senior Floors" 
+                <img src="/assets/obramate-logo.png" 
+                     alt="ObraMate" 
                      class="logo-image"
                      onerror="handleLogoError(this)">
-                <h1>Senior Floors</h1>
+                <h1>ObraMate</h1>
                 <p>CRM System</p>
             </div>
             
@@ -59,9 +59,9 @@
         function handleLogoError(img) {
             // Try alternative URLs
             const alternatives = [
-                '/assets/SeniorFloors.png',
-                'assets/SeniorFloors.png',
-                'https://www.senior-floors.com/assets/SeniorFloors.png',
+                '/assets/obramate-logo.png',
+                '/assets/obramate-logo.png',
+                'https://www.senior-floors.com/assets/obramate-logo.png',
                 'https://senior-floors.com/logoSeniorFloors.png',
                 'https://www.senior-floors.com/logoSeniorFloors.png'
             ];
@@ -76,7 +76,7 @@
                     img.style.display = 'none';
                     const textLogo = document.createElement('div');
                     textLogo.className = 'text-logo-fallback';
-                    textLogo.innerHTML = '<div style="font-size: 2rem; font-weight: 700; color: var(--primary-color); margin-bottom: 1rem;">Senior Floors</div>';
+                    textLogo.innerHTML = '<div style="font-size: 2rem; font-weight: 700; color: var(--primary-color); margin-bottom: 1rem;">ObraMate</div>';
                     img.parentNode.insertBefore(textLogo, img);
                 }
             };

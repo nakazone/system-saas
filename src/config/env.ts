@@ -7,7 +7,7 @@ loadDotenv({ path: ".env", quiet: true });
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(3000),
-  PRODUCT_NAME: z.string().min(1).default("Flooring Platform"),
+  PRODUCT_NAME: z.string().min(1).default("ObraMate"),
   APP_ROOT_DOMAIN: z.string().min(1),
   APP_BASE_URL: z.string().url(),
   SESSION_SECRET: z.string().min(16),

@@ -1,8 +1,12 @@
-/** Default Senior Floors palette used when a tenant has not customized branding. */
+/** Default ObraMate palette used when a tenant has not customized branding. */
 export const DEFAULT_BRAND = {
-  primaryColor: "#1a2036",
-  accentColor: "#d6b598",
+  primaryColor: "#211d1a",
+  accentColor: "#e8792c",
+  secondaryColor: "#c1652f",
+  surfaceColor: "#f7f4ee",
 } as const;
+
+export const DEFAULT_LOGO_PATH = "/assets/obramate-logo.png";
 
 function clamp(n: number, min = 0, max = 255): number {
   return Math.min(max, Math.max(min, Math.round(n)));
@@ -58,56 +62,74 @@ export type BrandInput = {
 
 export type BrandPalette = {
   name: string;
-  logo_url: string | null;
+  logo_url: string;
   primary_color: string;
   accent_color: string;
+  secondary_color: string;
+  surface_color: string;
   css_vars: Record<string, string>;
 };
 
 export function buildBrandPalette(org: BrandInput): BrandPalette {
   const primary = parseHexColor(org.primaryColor) || DEFAULT_BRAND.primaryColor;
   const accent = parseHexColor(org.accentColor) || DEFAULT_BRAND.accentColor;
+  const secondary = DEFAULT_BRAND.secondaryColor;
+  const surface = DEFAULT_BRAND.surfaceColor;
+  const logo_url = org.logoUrl || DEFAULT_LOGO_PATH;
 
   const css_vars: Record<string, string> = {
-    // SF dashboard tokens
+    // SF dashboard tokens (mapped to ObraMate)
     "--sf-navy": primary,
-    "--sf-navy2": lighten(primary, 0.08),
-    "--sf-navy3": lighten(primary, 0.14),
+    "--sf-navy2": lighten(primary, 0.1),
+    "--sf-navy3": lighten(primary, 0.18),
     "--sf-gold": accent,
     "--sf-gold2": lighten(accent, 0.12),
-    "--sf-gold3": darken(accent, 0.08),
-    "--sf-gold4": darken(accent, 0.18),
-    "--sf-gold5": darken(accent, 0.28),
-    "--sf-gold-soft": lighten(accent, 0.72),
-    "--sf-gold-bg": lighten(accent, 0.82),
-    "--sf-gold-card": lighten(accent, 0.55),
-    "--sf-bg": lighten(accent, 0.88),
-    "--sf-border": mix(accent, primary, 0.25),
+    "--sf-gold3": secondary,
+    "--sf-gold4": darken(accent, 0.12),
+    "--sf-gold5": darken(secondary, 0.08),
+    "--sf-gold-soft": mix(accent, surface, 0.88),
+    "--sf-gold-bg": surface,
+    "--sf-gold-card": mix(accent, surface, 0.72),
+    "--sf-bg": surface,
+    "--sf-white": "#ffffff",
+    "--sf-border": mix(secondary, surface, 0.55),
+    "--sf-muted": mix(primary, surface, 0.45),
     // Design-system tokens
     "--color-primary": primary,
-    "--color-primary-hover": darken(primary, 0.1),
+    "--color-primary-hover": darken(primary, 0.08),
     "--color-accent": accent,
-    "--color-accent-hover": darken(accent, 0.12),
+    "--color-accent-hover": secondary,
+    "--color-surface": "#ffffff",
+    "--color-surface-secondary": surface,
+    "--color-surface-tertiary": mix(accent, surface, 0.9),
+    "--color-border": mix(secondary, surface, 0.55),
+    "--color-text-primary": primary,
     "--primary-color": primary,
-    "--primary-hover": darken(primary, 0.1),
-    "--primary-light": lighten(primary, 0.12),
-    "--primary-dark": darken(primary, 0.15),
+    "--primary-hover": darken(primary, 0.08),
+    "--primary-light": lighten(primary, 0.14),
+    "--primary-dark": darken(primary, 0.12),
     "--secondary-color": accent,
-    "--secondary-hover": darken(accent, 0.12),
-    "--secondary-dark": darken(accent, 0.22),
-    "--brand": primary,
+    "--secondary-hover": secondary,
+    "--secondary-dark": darken(secondary, 0.1),
+    "--brand": accent,
+    "--brand-dark": secondary,
+    "--brand-ink": primary,
+    "--brand-surface": surface,
+    "--brand-secondary": secondary,
     // Builder portal aliases
     "--bp-navy": primary,
-    "--bp-navy-deep": darken(primary, 0.12),
+    "--bp-navy-deep": darken(primary, 0.1),
     "--bp-tan": accent,
-    "--bp-tan-pale": lighten(accent, 0.75),
+    "--bp-tan-pale": mix(accent, surface, 0.85),
   };
 
   return {
     name: org.name,
-    logo_url: org.logoUrl,
+    logo_url,
     primary_color: primary,
     accent_color: accent,
+    secondary_color: secondary,
+    surface_color: surface,
     css_vars,
   };
 }
