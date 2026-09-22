@@ -1,5 +1,8 @@
-import "dotenv/config";
+import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
+
+// Load .env in local/dev only — Railway injects vars into process.env directly.
+loadDotenv({ path: ".env", quiet: true });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -22,10 +25,23 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+const REQUIRED_IN_PRODUCTION = [
+  "APP_ROOT_DOMAIN",
+  "APP_BASE_URL",
+  "SESSION_SECRET",
+  "DATABASE_URL",
+  "JWT_SECRET",
+] as const;
+
 function loadEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
-    console.error("Invalid environment variables:", parsed.error.flatten().fieldErrors);
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    console.error("Invalid environment variables:", fieldErrors);
+    console.error(
+      "Set these variables in your host (Railway → Variables):",
+      REQUIRED_IN_PRODUCTION.join(", "),
+    );
     throw new Error("Invalid environment configuration");
   }
   return parsed.data;

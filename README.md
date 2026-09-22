@@ -49,3 +49,23 @@ npm run dev
 - Prisma extension injects `organizationId` from request context (never from the client)
 - Postgres RLS policies enforce `organizationId = current_setting('app.current_tenant_id')`
 - App connects as `app_user` (non-superuser) so RLS cannot be bypassed by table ownership
+
+## Deploy on Railway
+
+1. Create a Railway project from this repo.
+2. Add a **PostgreSQL** plugin and link it to the web service (injects `DATABASE_URL`).
+3. Set these **Variables** on the web service (required — the app will not start without them):
+
+| Variable | Example |
+|----------|---------|
+| `APP_ROOT_DOMAIN` | `your-app.up.railway.app` or `yourdomain.com` |
+| `APP_BASE_URL` | `https://your-app.up.railway.app` |
+| `SESSION_SECRET` | `openssl rand -base64 32` |
+| `JWT_SECRET` | `openssl rand -base64 32` |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (auto if plugin linked) |
+| `NODE_ENV` | `production` |
+
+4. Redeploy. `npm start` runs `prisma migrate deploy` then the server.
+5. Open `/signup` to create the first organization.
+
+**Note:** Real per-tenant subdomains need a custom domain with a wildcard DNS record (`*.yourdomain.com`). The default `*.up.railway.app` hostname does not support arbitrary org subdomains.
