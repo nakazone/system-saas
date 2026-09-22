@@ -52,6 +52,13 @@ Port with tenant scoping (Postgres + `organization_id`):
 3. Customers
 4. Quotes / estimates (SF quote builder)
 5. Dashboard stats the SF home screen needs
+6. Builders + Tabela de Valores (pricing)
+7. Cadastro ERP (suppliers/products/margins)
+8. Invoice (`QuoteInvoice` + receipts)
+9. Folha de Pagamento (construction payroll employees/periods/timesheets)
+10. Users CRUD + permissions matrix (SaaS roles)
+
+APIs live under `src/crm/` and serve the vendored SF UI.
 
 ### Phase 2 — Operations
 

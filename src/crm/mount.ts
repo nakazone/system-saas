@@ -4,7 +4,8 @@
  * Serves the vendored SF static UI at the tenant root (same paths as SF:
  * /dashboard.html, /login.html, /api/auth/*) so the product matches Senior Floors.
  *
- * Module APIs beyond auth are ported in later phases — see docs/CRM_PORT_PLAN.md.
+ * Module APIs: Dashboard, Leads, Quotes, Invoice, Cadastro, Builders,
+ * Tabela de Valores (pricing), Folha de Pagamento, Users — see src/crm/api.ts.
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";

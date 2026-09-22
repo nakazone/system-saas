@@ -32,6 +32,18 @@ const TENANT_MODELS = new Set([
   "Quote",
   "QuoteLineItem",
   "PartnerUser",
+  "Builder",
+  "PricingItem",
+  "Supplier",
+  "Product",
+  "CategoryMargin",
+  "QuoteCatalogItem",
+  "QuoteInvoice",
+  "InvoiceReceipt",
+  "Project",
+  "PayrollEmployee",
+  "PayrollPeriod",
+  "PayrollTimesheet",
 ]);
 
 type Operation =

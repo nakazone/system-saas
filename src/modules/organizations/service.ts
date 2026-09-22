@@ -47,24 +47,22 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
 
   const passwordHash = await hashPassword(input.password);
   let permissions = await prisma.permission.findMany();
-  // Bootstrap catalog if seed never ran (common on first Railway deploy).
-  if (permissions.length === 0) {
-    for (const permission of DEFAULT_PERMISSIONS) {
-      await prisma.permission.upsert({
-        where: { key: permission.key },
-        create: {
-          key: permission.key,
-          group: permission.group,
-          description: permission.description,
-        },
-        update: {
-          group: permission.group,
-          description: permission.description,
-        },
-      });
-    }
-    permissions = await prisma.permission.findMany();
+  // Keep global permission catalog in sync with defaults (new module keys).
+  for (const permission of DEFAULT_PERMISSIONS) {
+    await prisma.permission.upsert({
+      where: { key: permission.key },
+      create: {
+        key: permission.key,
+        group: permission.group,
+        description: permission.description,
+      },
+      update: {
+        group: permission.group,
+        description: permission.description,
+      },
+    });
   }
+  permissions = await prisma.permission.findMany();
   const permissionByKey = new Map(permissions.map((p) => [p.key, p]));
 
   return prisma.$transaction(async (tx) => {
@@ -123,8 +121,10 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
         data: {
           organizationId: organization.id,
           name: stage.name,
+          slug: stage.slug,
           order: stage.order,
           color: stage.color,
+          isClosed: stage.isClosed,
         },
       });
     }

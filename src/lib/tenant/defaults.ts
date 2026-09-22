@@ -11,11 +11,22 @@ export const DEFAULT_PERMISSIONS = [
   { key: "quotes.edit", group: "quotes", description: "Edit quotes" },
   { key: "quotes.delete", group: "quotes", description: "Delete quotes" },
   { key: "users.view", group: "users", description: "View users" },
+  { key: "users.create", group: "users", description: "Create users" },
+  { key: "users.edit", group: "users", description: "Edit users" },
+  { key: "users.delete", group: "users", description: "Delete users" },
   { key: "users.manage", group: "users", description: "Manage users and invitations" },
   { key: "roles.manage", group: "users", description: "Manage roles and permissions" },
   { key: "settings.manage", group: "settings", description: "Manage organization settings" },
   { key: "pipeline.manage", group: "leads", description: "Manage pipeline stages" },
   { key: "estimate_rules.manage", group: "quotes", description: "Manage estimate rules" },
+  { key: "builders.view", group: "builders", description: "View builders" },
+  { key: "builders.edit", group: "builders", description: "Edit builders" },
+  { key: "payroll.view", group: "payroll", description: "View payroll" },
+  { key: "payroll.manage", group: "payroll", description: "Manage payroll" },
+  { key: "projects.view", group: "projects", description: "View projects" },
+  { key: "reports.view", group: "reports", description: "View reports / marketing" },
+  { key: "contracts.view", group: "financial", description: "View financial / contracts" },
+  { key: "visits.view", group: "operations", description: "View schedule / visits" },
 ] as const;
 
 export type PermissionKey = (typeof DEFAULT_PERMISSIONS)[number]["key"];
@@ -32,6 +43,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     "quotes.view",
     "quotes.create",
     "quotes.edit",
+    "builders.view",
   ],
   project_manager: [
     "leads.view",
@@ -39,17 +51,22 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     "customers.edit",
     "quotes.view",
     "quotes.edit",
+    "projects.view",
+    "payroll.view",
+    "builders.view",
   ],
   support: ["leads.view", "customers.view", "quotes.view"],
 };
 
+/** Senior Floors kanban v9 stage set */
 export const DEFAULT_PIPELINE_STAGES = [
-  { name: "New", order: 1, color: "#64748b" },
-  { name: "Contacted", order: 2, color: "#2563eb" },
-  { name: "Qualified", order: 3, color: "#7c3aed" },
-  { name: "Proposal", order: 4, color: "#ea580c" },
-  { name: "Won", order: 5, color: "#16a34a" },
-  { name: "Lost", order: 6, color: "#dc2626" },
+  { name: "New Lead", slug: "new_lead", order: 1, color: "#3498db", isClosed: false },
+  { name: "Meeting Scheduled", slug: "meeting_scheduled", order: 2, color: "#90EE90", isClosed: false },
+  { name: "Quote Sent", slug: "quote_sent", order: 3, color: "#9b59b6", isClosed: false },
+  { name: "Follow Up", slug: "follow_up_1", order: 4, color: "#F1C40F", isClosed: false },
+  { name: "Stand By", slug: "stand_by", order: 5, color: "#f39c12", isClosed: false },
+  { name: "Won", slug: "won", order: 6, color: "#27ae60", isClosed: true },
+  { name: "Lost", slug: "lost", order: 7, color: "#c0392b", isClosed: true },
 ];
 
 export const DEFAULT_ESTIMATE_RULES = [
