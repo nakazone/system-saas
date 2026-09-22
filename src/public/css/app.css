@@ -159,7 +159,7 @@ textarea { min-height: 100px; resize: vertical; }
   max-width: var(--marketing-max);
   margin: 0 auto;
   padding: 1rem 1.5rem;
-  min-height: 72px;
+  min-height: 84px;
 }
 
 .marketing-logo {
@@ -171,9 +171,9 @@ textarea { min-height: 100px; resize: vertical; }
 }
 .marketing-logo__img {
   display: block;
-  height: 56px;
+  height: 72px;
   width: auto;
-  max-width: 280px;
+  max-width: 340px;
   object-fit: contain;
 }
 
