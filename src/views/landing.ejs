@@ -9,41 +9,149 @@
   </p>
   <div class="mkt-cta-row">
     <a class="btn" href="/signup">Start 30-day free trial</a>
-    <a class="btn btn-secondary" href="/pricing">See pricing</a>
+    <a class="btn btn-secondary" href="#calculator">Try the estimate calculator</a>
   </div>
   <p class="mkt-fineprint">No credit card required. Your workspace lives at <code>{your-company}.<%= appRootDomain %></code></p>
 </section>
 
 <section class="mkt-section">
   <div class="mkt-section-head">
-    <h2>Built for flooring operations</h2>
-    <p>The daily tools installers and sales teams actually use — without the ERP complexity.</p>
+    <h2>Is this for you?</h2>
+    <p>Qualify yourself before you spend time signing up.</p>
   </div>
-  <div class="feature-grid">
-    <article class="feature-card">
-      <h3>Lead capture &amp; pipeline</h3>
-      <p>Track every inquiry from first contact to won/lost with stages you can customize per company.</p>
+  <div class="audience-grid">
+    <article class="audience-card audience-yes">
+      <h3>A good fit if you…</h3>
+      <ul>
+        <li>Install hardwood, LVP, laminate, tile, or carpet</li>
+        <li>Need a shared pipeline for sales and office staff</li>
+        <li>Want estimates with waste &amp; markup rules you control</li>
+        <li>Prefer a focused tool over a full ERP rollout</li>
+      </ul>
     </article>
-    <article class="feature-card">
-      <h3>Customers in one place</h3>
-      <p>Convert qualified leads into customers and keep contact details ready for estimating and follow-up.</p>
+    <article class="audience-card audience-no">
+      <h3>Not the right fit (yet) if you…</h3>
+      <ul>
+        <li>Need crew scheduling or field payroll today</li>
+        <li>Require a builder/partner portal out of the box</li>
+        <li>Want full accounting / AR-AP in the same app</li>
+        <li>Need custom-domain wildcards before you can start</li>
+      </ul>
+      <p class="muted audience-note">Those items are on the roadmap — we won’t pretend they ship in the trial.</p>
     </article>
-    <article class="feature-card">
-      <h3>Flooring estimates</h3>
-      <p>Quote hardwood, LVP, laminate, tile, and carpet using waste and markup rules configured by your team.</p>
-    </article>
-    <article class="feature-card">
-      <h3>Team access control</h3>
-      <p>Invite staff with roles and permissions so sales, project managers, and admins see only what they need.</p>
-    </article>
-    <article class="feature-card">
-      <h3>Your brand, your workspace</h3>
-      <p>Set company name, logo, and primary color — reflected across the app without touching code.</p>
-    </article>
-    <article class="feature-card">
-      <h3>Tenant isolation</h3>
-      <p>Each organization runs on its own subdomain with application-level and database-level data isolation.</p>
-    </article>
+  </div>
+</section>
+
+<section class="mkt-section mkt-section-alt" id="features">
+  <div class="mkt-section-head">
+    <h2>Explore what’s available now</h2>
+    <p>Click a tab — Available now means it works in the product today. Roadmap means it does not.</p>
+  </div>
+
+  <div class="feature-tabs" data-feature-tabs>
+    <div class="feature-tablist" role="tablist" aria-label="Product areas">
+      <button type="button" class="feature-tab is-active" role="tab" aria-selected="true" data-tab="leads">Leads &amp; Pipeline</button>
+      <button type="button" class="feature-tab" role="tab" aria-selected="false" data-tab="estimates">Smart Estimates</button>
+      <button type="button" class="feature-tab" role="tab" aria-selected="false" data-tab="customers">Customers &amp; Quotes</button>
+      <button type="button" class="feature-tab" role="tab" aria-selected="false" data-tab="team">Team &amp; Permissions</button>
+      <button type="button" class="feature-tab" role="tab" aria-selected="false" data-tab="roadmap">Roadmap</button>
+    </div>
+
+    <div class="feature-panels">
+      <div class="feature-panel is-active" data-panel="leads" role="tabpanel">
+        <span class="status-pill status-now">Available now</span>
+        <h3>Leads &amp; pipeline</h3>
+        <p>Capture inquiries, assign owners, and move deals through stages your company defines.</p>
+        <div class="ui-mock">
+          <div class="ui-mock-row"><span class="mock-dot"></span> New lead · Website form</div>
+          <div class="ui-mock-row"><span class="mock-dot mock-dot-blue"></span> Contacted · Follow-up tomorrow</div>
+          <div class="ui-mock-row"><span class="mock-dot mock-dot-orange"></span> Proposal · Quote sent</div>
+        </div>
+      </div>
+      <div class="feature-panel" data-panel="estimates" role="tabpanel" hidden>
+        <span class="status-pill status-now">Available now</span>
+        <h3>Smart estimates</h3>
+        <p>Waste percent and markups come from organization settings — not hardcoded guesswork.</p>
+        <div class="ui-mock">
+          <div class="ui-mock-row">Flooring type · LVP</div>
+          <div class="ui-mock-row">Area · 420 sqft · Waste 8%</div>
+          <div class="ui-mock-row ui-mock-total">Estimated total · live preview below</div>
+        </div>
+      </div>
+      <div class="feature-panel" data-panel="customers" role="tabpanel" hidden>
+        <span class="status-pill status-now">Available now</span>
+        <h3>Customers &amp; quotes</h3>
+        <p>Convert a lead to a customer, then attach numbered quotes with material and labor line items.</p>
+        <div class="ui-mock">
+          <div class="ui-mock-row">Customer · Rivera Residence</div>
+          <div class="ui-mock-row">Quote #12 · Draft · Hardwood</div>
+          <div class="ui-mock-row">Public link · share when ready</div>
+        </div>
+      </div>
+      <div class="feature-panel" data-panel="team" role="tabpanel" hidden>
+        <span class="status-pill status-now">Available now</span>
+        <h3>Team &amp; permissions</h3>
+        <p>Invite staff by email. Roles and permission keys take effect immediately — including custom roles.</p>
+        <div class="ui-mock">
+          <div class="ui-mock-row">Admin · full access</div>
+          <div class="ui-mock-row">Sales rep · leads + quotes</div>
+          <div class="ui-mock-row">Support · view only</div>
+        </div>
+      </div>
+      <div class="feature-panel" data-panel="roadmap" role="tabpanel" hidden>
+        <span class="status-pill status-soon">Not available yet</span>
+        <h3>Roadmap (honest)</h3>
+        <p>These are planned — they are <strong>not</strong> in the current product:</p>
+        <ul class="roadmap-list">
+          <li>Projects &amp; job execution</li>
+          <li>Crew scheduling</li>
+          <li>Financials / invoicing</li>
+          <li>Field payroll</li>
+          <li>Partner / builder portal</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="mkt-section" id="calculator">
+  <div class="mkt-section-head">
+    <h2>Live estimate calculator</h2>
+    <p>
+      Same default waste and markup rules used when a new organization is created.
+      Change the flooring type or area to recalculate instantly.
+    </p>
+  </div>
+
+  <div class="calc-card" data-estimate-calculator>
+    <div class="calc-controls">
+      <label for="calcFlooring">Flooring type</label>
+      <select id="calcFlooring" data-calc-flooring>
+        <% estimateRules.forEach(function (rule) { %>
+          <option
+            value="<%= rule.flooringType %>"
+            data-waste="<%= rule.wastePercent %>"
+            data-price="<%= rule.defaultPricePerSqft %>"
+            data-labor="<%= rule.defaultLaborPerSqft %>"
+            data-mm="<%= rule.materialMarkup %>"
+            data-lm="<%= rule.laborMarkup %>"
+          ><%= rule.flooringType %></option>
+        <% }) %>
+      </select>
+
+      <label for="calcArea">Area (sqft)</label>
+      <input id="calcArea" type="number" min="1" step="1" value="350" data-calc-area />
+
+      <p class="calc-meta muted" data-calc-meta></p>
+    </div>
+
+    <div class="calc-results">
+      <div class="calc-result-row"><span>Billable area (incl. waste)</span><strong data-calc-billable>—</strong></div>
+      <div class="calc-result-row"><span>Material (with markup)</span><strong data-calc-material>—</strong></div>
+      <div class="calc-result-row"><span>Labor (with markup)</span><strong data-calc-labor>—</strong></div>
+      <div class="calc-result-row calc-total"><span>Estimated total</span><strong data-calc-total>—</strong></div>
+      <p class="mkt-fineprint">Illustrative defaults only. Each organization can change these rules in Settings.</p>
+    </div>
   </div>
 </section>
 
@@ -87,6 +195,100 @@
   </div>
 </section>
 
+<section class="mkt-section mkt-section-alt" id="compare">
+  <div class="mkt-section-head">
+    <h2>How we compare</h2>
+    <p>High-level categories — not an exhaustive vendor review, and this can change as the product grows.</p>
+  </div>
+  <div class="compare-scroll">
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th><%= productName %></th>
+          <th>Flooring ERPs<br><span class="th-sub">e.g. QFloors / RFMS</span></th>
+          <th>Field service apps<br><span class="th-sub">e.g. Jobber / Housecall Pro</span></th>
+          <th>Construction suites<br><span class="th-sub">e.g. Buildertrend / JobTread</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Built for flooring waste/markup estimates</td>
+          <td class="yes">Yes</td>
+          <td class="yes">Yes</td>
+          <td class="partial">Limited</td>
+          <td class="partial">Limited</td>
+        </tr>
+        <tr>
+          <td>Multi-tenant SaaS (many companies)</td>
+          <td class="yes">Yes</td>
+          <td class="partial">Usually single-company</td>
+          <td class="yes">Yes</td>
+          <td class="yes">Yes</td>
+        </tr>
+        <tr>
+          <td>Lead pipeline + quotes in one place</td>
+          <td class="yes">Yes</td>
+          <td class="yes">Yes</td>
+          <td class="yes">Yes</td>
+          <td class="yes">Yes</td>
+        </tr>
+        <tr>
+          <td>Crew scheduling / field payroll</td>
+          <td class="no">Roadmap</td>
+          <td class="partial">Varies</td>
+          <td class="yes">Yes</td>
+          <td class="partial">Varies</td>
+        </tr>
+        <tr>
+          <td>Full ERP / inventory depth</td>
+          <td class="no">Not the goal</td>
+          <td class="yes">Yes</td>
+          <td class="no">No</td>
+          <td class="partial">Varies</td>
+        </tr>
+        <tr>
+          <td>Fast to start (trial, low setup)</td>
+          <td class="yes">Yes</td>
+          <td class="no">Often heavy</td>
+          <td class="yes">Yes</td>
+          <td class="partial">Moderate</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="mkt-fineprint">Comparisons are directional. Vendor feature sets change — validate against your own requirements.</p>
+</section>
+
+<section class="mkt-section" id="faq">
+  <div class="mkt-section-head">
+    <h2>FAQ</h2>
+    <p>Straight answers for where the product is today.</p>
+  </div>
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary>Is my company’s data isolated from other tenants?</summary>
+      <p>Yes. Every business record is scoped to an organization. The app injects the tenant id automatically, and Postgres Row-Level Security is a second layer of protection.</p>
+    </details>
+    <details class="faq-item">
+      <summary>What happens after the 30-day trial?</summary>
+      <p>Today Starter is trial-only — there is no live Stripe billing yet. We’ll communicate paid plans before charging anyone. You can keep using the workspace while billing is still offline.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Can I import or export my data?</summary>
+      <p>There is no bulk CSV import/export UI in this version. Your data lives in Postgres and can be exported by your team or via support as we add tooling.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Can I cancel or delete my organization?</summary>
+      <p>Platform admins can change organization status (including canceled). Self-serve deletion from inside the app is not finished yet — contact support if you need a workspace removed.</p>
+    </details>
+    <details class="faq-item">
+      <summary>Which flooring types are supported in estimates?</summary>
+      <p>Hardwood, LVP, laminate, tile, and carpet — each with default waste and markup rules that you can edit per organization.</p>
+    </details>
+  </div>
+</section>
+
 <section class="mkt-section mkt-section-alt">
   <div class="mkt-section-head">
     <h2>Simple pricing</h2>
@@ -102,5 +304,94 @@
     <p class="mkt-fineprint"><a href="/pricing">Compare all plans →</a></p>
   </div>
 </section>
+
+<script>
+(function () {
+  // Feature tabs
+  const tabsRoot = document.querySelector('[data-feature-tabs]');
+  if (tabsRoot) {
+    const tabs = Array.from(tabsRoot.querySelectorAll('.feature-tab'));
+    const panels = Array.from(tabsRoot.querySelectorAll('.feature-panel'));
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const id = tab.getAttribute('data-tab');
+        tabs.forEach((t) => {
+          const active = t === tab;
+          t.classList.toggle('is-active', active);
+          t.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        panels.forEach((panel) => {
+          const match = panel.getAttribute('data-panel') === id;
+          panel.classList.toggle('is-active', match);
+          panel.hidden = !match;
+        });
+      });
+    });
+  }
+
+  // Mirrors src/lib/quotes/calculate.ts
+  function calculateQuote(input) {
+    const billableArea = input.areaSqft * (1 + input.wastePercent / 100);
+    const materialCost = billableArea * input.pricePerSqft;
+    const laborCost = input.areaSqft * input.laborPerSqft;
+    const materialWithMarkup = materialCost * (1 + input.materialMarkup / 100);
+    const laborWithMarkup = laborCost * (1 + input.laborMarkup / 100);
+    const total = materialWithMarkup + laborWithMarkup;
+    const round2 = (n) => Math.round(n * 100) / 100;
+    return {
+      billableArea: round2(billableArea),
+      materialWithMarkup: round2(materialWithMarkup),
+      laborWithMarkup: round2(laborWithMarkup),
+      total: round2(total),
+    };
+  }
+
+  function money(n) {
+    return '$' + n.toFixed(2);
+  }
+
+  const calcRoot = document.querySelector('[data-estimate-calculator]');
+  if (calcRoot) {
+    const flooring = calcRoot.querySelector('[data-calc-flooring]');
+    const areaInput = calcRoot.querySelector('[data-calc-area]');
+    const meta = calcRoot.querySelector('[data-calc-meta]');
+    const billableEl = calcRoot.querySelector('[data-calc-billable]');
+    const materialEl = calcRoot.querySelector('[data-calc-material]');
+    const laborEl = calcRoot.querySelector('[data-calc-labor]');
+    const totalEl = calcRoot.querySelector('[data-calc-total]');
+
+    const sync = () => {
+      const opt = flooring.selectedOptions[0];
+      if (!opt) return;
+      const areaSqft = Math.max(0, Number(areaInput.value) || 0);
+      const wastePercent = Number(opt.dataset.waste);
+      const pricePerSqft = Number(opt.dataset.price);
+      const laborPerSqft = Number(opt.dataset.labor);
+      const materialMarkup = Number(opt.dataset.mm);
+      const laborMarkup = Number(opt.dataset.lm);
+      meta.textContent =
+        'Defaults: waste ' + wastePercent + '%, material markup ' + materialMarkup +
+        '%, labor markup ' + laborMarkup + '%, $' + pricePerSqft.toFixed(2) + '/sqft material, $' +
+        laborPerSqft.toFixed(2) + '/sqft labor';
+      const result = calculateQuote({
+        areaSqft,
+        wastePercent,
+        pricePerSqft,
+        laborPerSqft,
+        materialMarkup,
+        laborMarkup,
+      });
+      billableEl.textContent = result.billableArea.toFixed(2) + ' sqft';
+      materialEl.textContent = money(result.materialWithMarkup);
+      laborEl.textContent = money(result.laborWithMarkup);
+      totalEl.textContent = money(result.total);
+    };
+
+    flooring.addEventListener('change', sync);
+    areaInput.addEventListener('input', sync);
+    sync();
+  }
+})();
+</script>
 
 <%- include('partials/footer') %>

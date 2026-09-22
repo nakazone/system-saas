@@ -6,6 +6,7 @@ import connectPgSimple from "connect-pg-simple";
 import cookieParser from "cookie-parser";
 import pg from "pg";
 import { env } from "./config/env.js";
+import { DEFAULT_ESTIMATE_RULES } from "./lib/tenant/defaults.js";
 import { resolveTenant, requireTenant } from "./lib/tenant/resolve-tenant.js";
 import { bindTenantContext } from "./lib/tenant/bind-context.js";
 import { loadSessionUser } from "./middleware/auth.js";
@@ -102,6 +103,7 @@ export function createApp() {
         productName: env.PRODUCT_NAME,
         appRootDomain: env.APP_ROOT_DOMAIN,
         appBaseUrl: env.APP_BASE_URL,
+        estimateRules: DEFAULT_ESTIMATE_RULES,
       });
       return;
     }
