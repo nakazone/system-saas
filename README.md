@@ -58,12 +58,14 @@ npm run dev
 
 | Variable | Example |
 |----------|---------|
-| `APP_ROOT_DOMAIN` | `your-app.up.railway.app` or `yourdomain.com` |
-| `APP_BASE_URL` | `https://your-app.up.railway.app` |
-| `SESSION_SECRET` | `openssl rand -base64 32` |
-| `JWT_SECRET` | `openssl rand -base64 32` |
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (auto if plugin linked) |
+| `APP_ROOT_DOMAIN` | `system-saas-production.up.railway.app` |
+| `APP_BASE_URL` | `https://system-saas-production.up.railway.app` |
+| `SESSION_SECRET` | output of `openssl rand -base64 32` |
+| `JWT_SECRET` | another `openssl rand -base64 32` |
+| `DATABASE_URL` | Variable Reference → Postgres → `DATABASE_URL` (or `DATABASE_PRIVATE_URL`) |
 | `NODE_ENV` | `production` |
+
+**Important:** if `DATABASE_URL` exists but is blank, delete it and recreate it as a reference from the Postgres service. A blank value overrides the plugin and crashes startup.
 
 4. Redeploy. `npm start` runs `prisma migrate deploy` then the server.
 5. Open `/signup` to create the first organization.
