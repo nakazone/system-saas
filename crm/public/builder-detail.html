@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perfil Builder — Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    .bd-layout { display: grid; grid-template-columns: 280px 1fr; gap: 1.25rem; align-items: start; }
+    .bd-avatar { width: 72px; height: 72px; border-radius: 50%; background: var(--bp-navy); color: var(--bp-tan); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; margin-bottom: 12px; }
+    .bd-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; border-bottom: 1px solid var(--bp-border); padding-bottom: 8px; }
+    .bd-tabs button { background: none; border: none; padding: 8px 12px; cursor: pointer; font-weight: 600; color: var(--bp-muted); border-radius: 8px; }
+    .bd-tabs button.active { background: var(--bp-tan-pale); color: var(--bp-navy); }
+    .bd-panel { display: none; }
+    .bd-panel.active { display: block; }
+    @media (max-width: 900px) { .bd-layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="dashboard-app-body bp-page-body payroll-sidebar-page">
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="bpSidebar">
+      <div class="sidebar-header"><img src="/assets/SeniorFloors.png" alt="" class="sidebar-brand-logo" width="104" height="104" onerror="this.style.display='none'" /></div>
+      <nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav>
+      <div class="sidebar-footer">
+        <button type="button" id="logoutBtn" class="sidebar-logout-btn">Sair</button>
+      </div>
+    </aside>
+    <main class="dashboard-main">
+      <div class="bp-main">
+        <p class="bp-eyebrow"><a href="builders.html">Builders</a> / Perfil</p>
+        <div class="bd-layout" id="detailRoot">
+          <p>A carregar…</p>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="crm-toast.js"></script>
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="builder-detail.js?v=20260819-del-builder"></script>
+</body>
+</html>

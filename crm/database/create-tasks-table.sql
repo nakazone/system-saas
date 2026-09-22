@@ -1,0 +1,27 @@
+-- Create tasks table for follow-ups
+CREATE TABLE IF NOT EXISTS `tasks` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `lead_id` int(11) DEFAULT NULL COMMENT 'Lead relacionado',
+  `customer_id` int(11) DEFAULT NULL COMMENT 'Cliente relacionado',
+  `project_id` int(11) DEFAULT NULL COMMENT 'Projeto relacionado',
+  `user_id` int(11) DEFAULT NULL COMMENT 'Usuário responsável pela tarefa',
+  `title` varchar(255) NOT NULL COMMENT 'Título da tarefa',
+  `description` text DEFAULT NULL COMMENT 'Descrição detalhada',
+  `due_date` datetime NOT NULL COMMENT 'Data/hora do follow-up',
+  `priority` varchar(20) DEFAULT 'medium' COMMENT 'low, medium, high',
+  `status` varchar(20) DEFAULT 'pending' COMMENT 'pending, in_progress, completed, cancelled',
+  `completed_at` datetime DEFAULT NULL COMMENT 'Data de conclusão',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_lead_id` (`lead_id`),
+  KEY `idx_customer_id` (`customer_id`),
+  KEY `idx_project_id` (`project_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_due_date` (`due_date`),
+  KEY `idx_status` (`status`),
+  CONSTRAINT `fk_tasks_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_tasks_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_tasks_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_tasks_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

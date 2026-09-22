@@ -1,0 +1,37 @@
+---
+description: UTF-8 encoding ó never introduce corrupted characters (U+FFFD / ù)
+alwaysApply: true
+---
+
+# UTF-8 encoding (mandatory)
+
+All source files in this repo are **UTF-8** (no BOM).
+
+## Never write corrupted characters
+
+- Do **not** use `ù` (U+FFFD) or mojibake like `√ß`, `√£`, `n√£o`, `Vis√£o`.
+- Use proper Unicode:
+  - Em dash: `ó` (titles, separators)
+  - En dash: `ñ` (ranges: `500 ñ 999`)
+  - Middle dot: `∑` (inline separators)
+  - Ellipsis: `Ö` (loading states: `A carregarÖ`)
+  - Portuguese accents: `„`, `Á`, `·`, `È`, `Ì`, `Û`, `˙`, `ı`, `‚`, `Í`, `Ù`, `‡`, `¡`, `⁄`, etc.
+  - Arrow: `?` (bidirectional links in comments)
+
+## HTML
+
+Every HTML file must include in `<head>`:
+
+```html
+<meta charset="UTF-8" />
+```
+
+## Before finishing edits
+
+Run `npm run check:encoding` and fix any reported files.
+
+## Saving files
+
+- Line endings: LF (`\n`)
+- Encoding: UTF-8
+- Project defaults: `.editorconfig`, `.gitattributes`

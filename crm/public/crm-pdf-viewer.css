@@ -1,0 +1,118 @@
+/* In-app PDF viewer — iPad / PWA safe close */
+.crm-pdf-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  flex-direction: column;
+  background: #1a2036;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s;
+}
+.crm-pdf-viewer.is-open {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+.crm-pdf-viewer__bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  padding-top: max(10px, env(safe-area-inset-top, 0px));
+  background: #141928;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  min-height: 52px;
+}
+.crm-pdf-viewer__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(214, 181, 152, 0.2);
+  color: #d6b598;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.crm-pdf-viewer__close:hover,
+.crm-pdf-viewer__close:focus-visible {
+  background: rgba(214, 181, 152, 0.35);
+  color: #fff;
+  outline: none;
+}
+.crm-pdf-viewer__close svg {
+  flex-shrink: 0;
+}
+.crm-pdf-viewer__title {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+.crm-pdf-viewer__download {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.crm-pdf-viewer__download:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.crm-pdf-viewer__body {
+  flex: 1;
+  min-height: 0;
+  background: #525659;
+  position: relative;
+}
+.crm-pdf-viewer__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #525659;
+}
+.crm-pdf-viewer__loading,
+.crm-pdf-viewer__error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #fff;
+  font-size: 15px;
+  text-align: center;
+}
+.crm-pdf-viewer__error {
+  color: #fecaca;
+}
+body.crm-pdf-viewer-open {
+  overflow: hidden;
+  touch-action: none;
+}

@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Folha de pagamento | Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .payroll-grid {
+      -webkit-overflow-scrolling: touch;
+    }
+    .payroll-grid input, .payroll-grid select { min-width: 0; }
+    .payroll-grid thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc; }
+    .payroll-grid td .flex { align-items: center; }
+    .payroll-num-input { font-size: 1.05rem; min-height: 2.5rem; text-align: center; }
+    .ts-numbtn, .ts-short, .payroll-grid .ts-del {
+      flex-shrink: 0;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+    }
+    .ts-numbtn {
+      min-width: 2.25rem; height: 2.25rem; padding: 0 0.35rem;
+      border: 1px solid #cbd5e1; border-radius: 0.375rem; background: #f8fafc;
+      font-size: 1.1rem; font-weight: 600; line-height: 1; color: #1e293b;
+    }
+    .ts-numbtn:active { background: #e2e8f0; }
+    .ts-numbtn:disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+    .ts-short:disabled { opacity: 0.55; cursor: not-allowed; }
+    .payroll-grid-scroll-hint {
+      display: none;
+      margin: 0;
+      font-size: 0.7rem;
+      color: #64748b;
+      text-align: center;
+      background: #f1f5f9;
+    }
+    @media (max-width: 1100px) {
+      .payroll-grid-scroll-hint { display: block; }
+    }
+    .payroll-hub-section { scroll-margin-top: 1rem; }
+    @media (max-width: 1366px) {
+      .payroll-hub-section {
+        scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 16px);
+      }
+    }
+    @media (max-width: 768px) {
+      body.payroll-sidebar-page .dashboard-main {
+        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+      }
+    }
+    .payroll-hub-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid #e5e3dd;
+    }
+    .payroll-hub-tab {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      font-size: var(--text-sm, 13px);
+      font-family: var(--font-sans, Inter, system-ui, sans-serif);
+      font-weight: var(--font-medium, 500);
+      color: var(--color-text-secondary, #6b6b6b);
+      text-decoration: none;
+      border-radius: var(--radius-md, 8px);
+      border: 1px solid transparent;
+      background: transparent;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .payroll-hub-tab:hover {
+      background: var(--color-surface-secondary, #f8f7f5);
+      color: var(--color-text-primary, #1a1a1a);
+    }
+    .payroll-hub-tab.active {
+      background: var(--sf-gold-bg, #f8f2ea);
+      color: var(--color-primary, #1a1a2e);
+      border-color: var(--color-accent, #c8a96e);
+    }
+    /* Crítico cedo: barra com hamburger visível em gaveta antes do JS / Tailwind */
+    @media (max-width: 1366px) {
+      body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
+        display: flex !important;
+        z-index: 1040 !important;
+      }
+    }
+    @media (min-width: 1367px) {
+      body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="dashboard-app-body payroll-sidebar-page bg-slate-100 text-slate-900 min-h-screen">
+  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="payrollSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Folha de pagamento</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="payrollSidebar" aria-label="Menu lateral">
+      <div class="sidebar-header">
+        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Navegação CRM">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <div class="dashboard-main">
+      <main class="max-w-[1400px] mx-auto w-full px-4 py-6 space-y-6 pb-16">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+      <div>
+        <h1 class="text-xl font-bold text-slate-900 leading-tight">Folha de pagamento</h1>
+        <p class="text-xs text-slate-500 mt-0.5 hidden sm:block">Uma única tela: equipe → período e horas → fechamento → relatórios</p>
+      </div>
+      <button type="button" id="btnReloadAll" class="btn btn-sm btn-secondary shrink-0">Atualizar</button>
+    </div>
+
+    <nav class="payroll-hub-tabs" aria-label="Seções desta página">
+      <a href="#hub-resumo" class="payroll-hub-tab payroll-nav-btn">Resumo</a>
+      <a href="#hub-func" class="payroll-hub-tab payroll-nav-btn">1 · Equipe</a>
+      <a href="#hub-quadro" class="payroll-hub-tab payroll-nav-btn">2 · Horas</a>
+      <a href="#hub-relatorios" class="payroll-hub-tab payroll-nav-btn">3 · Pagamentos</a>
+    </nav>
+
+    <div id="migrateBanner" class="hidden rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+      Migração pendente no servidor. No projeto <code class="bg-white/80 px-1 rounded">senior-floors-system</code> execute
+      <code class="bg-white/80 px-1 rounded">npm run migrate:construction-payroll</code> e
+      <code class="bg-white/80 px-1 rounded">npm run migrate:payroll-sector-reimbursement</code>.
+    </div>
+    <p id="authMsg" class="text-red-600 text-sm hidden"></p>
+
+    <div class="rounded-xl border border-[#d6b598]/40 bg-[#1a2036] text-white px-4 py-3 text-sm shadow-sm">
+      <p class="font-semibold text-[#d6b598] text-xs uppercase tracking-wide">Como usar</p>
+      <ol class="list-decimal list-inside mt-1 space-y-0.5 text-slate-100 text-sm">
+        <li>Cadastre a equipe (rápido ou formulário completo).</li>
+        <li>Escolha o período, lance dias e horas e salve a planilha.</li>
+        <li>Visualize a prévia da folha e os reembolsos, se precisar; encerre o período.</li>
+        <li>Gere o relatório de pagamentos no final da página.</li>
+      </ol>
+    </div>
+
+    <!-- Resumo -->
+    <section id="hub-resumo" class="payroll-hub-section grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="bg-white rounded-xl border shadow-sm p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Funcionários ativos</p>
+        <p id="dashActiveEmp" class="text-2xl font-bold text-slate-900 mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Períodos abertos</p>
+        <p id="dashOpenPeriods" class="text-2xl font-bold text-slate-900 mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Folha no mês</p>
+        <p id="dashMtd" class="text-2xl font-bold text-[#1a2036] mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-xl border shadow-sm p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase">Último fechamento</p>
+        <p id="dashLastClosed" class="text-sm font-medium text-slate-800 mt-1 leading-snug">—</p>
+      </div>
+    </section>
+
+    <!-- 1 · Equipa -->
+    <section id="hub-func" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-1 sm:gap-3 min-w-0">
+          <h2 class="text-base font-bold text-slate-900">1 · Equipe</h2>
+          <p id="equipaReadOnlyNote" class="hidden text-xs text-slate-500 font-normal leading-snug">
+            Somente leitura. Para editar, peça ao administrador para alterar seu perfil para <strong class="font-medium text-slate-600">Gestor de projeto</strong> ou ativar a gestão da folha nas suas permissões.
+          </p>
+        </div>
+        <button type="button" id="btnNewEmployee" class="btn btn-sm btn-primary hidden shrink-0">Formulário completo</button>
+      </div>
+      <div class="p-4 space-y-4">
+
+        <div id="quickEmpPanel" class="hidden rounded-xl border-2 border-[#d6b598]/50 bg-[#faf8f5] p-4 space-y-3">
+          <p class="text-sm font-bold text-slate-800">Cadastro rápido <span class="font-normal text-slate-500">(por dia — você pode editar depois)</span></p>
+          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Nome *</label>
+              <input id="empQuickName" class="w-full border rounded-lg px-3 py-2.5 text-sm" placeholder="Nome do funcionário" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Setor</label>
+              <select id="empQuickSector" class="w-full border rounded-lg px-3 py-2.5 text-sm">
+                <option value="">—</option>
+                <option value="installation">Installation</option>
+                <option value="sand_finish">Sand &amp; Finish</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Valor diária ($)</label>
+              <input id="empQuickDaily" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2.5 text-sm" placeholder="0" />
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="empQuickSave" class="btn btn-primary">Adicionar à equipe</button>
+            <span class="text-xs text-slate-500 self-center">Horas extras e tipo “por hora” no formulário completo.</span>
+          </div>
+          <p id="empQuickErr" class="text-red-600 text-sm hidden"></p>
+        </div>
+
+        <div id="empEmptyCta" class="hidden rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
+          <p class="mb-3">Ainda não há funcionários. Use o cadastro rápido acima ou o formulário completo.</p>
+          <button type="button" id="btnNewEmployeeEmpty" class="btn btn-primary hidden">Formulário completo</button>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="px-3 py-2">Nome</th>
+                <th class="px-3 py-2">Setor</th>
+                <th class="px-3 py-2 text-right" title="Soma de diárias na planilha do período selecionado">Diárias (período)</th>
+                <th class="px-3 py-2 text-right" title="Soma de horas extras na planilha do período selecionado">H. extras (período)</th>
+                <th class="px-3 py-2">Tipo</th>
+                <th class="px-3 py-2 text-right">Diária</th>
+                <th class="px-3 py-2 text-right">HE</th>
+                <th class="px-3 py-2">Pagamento</th>
+                <th class="px-3 py-2 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="employeeTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · Horas -->
+    <section id="hub-quadro" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3">
+        <h2 class="text-base font-bold text-slate-900">2 · Período e planilha de horas</h2>
+      </div>
+      <div class="p-4 space-y-4">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div class="min-w-[220px]">
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Período (semana Seg–Dom)</label>
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" id="btnOpenPeriodPicker" class="btn btn-sm btn-secondary">
+                Selecionar período…
+              </button>
+              <span id="periodSelectedLabel" class="text-sm text-slate-700 font-medium max-w-[min(100%,28rem)] leading-snug"></span>
+            </div>
+            <details class="mt-2 text-xs text-slate-500 max-w-md">
+              <summary class="cursor-pointer font-medium text-slate-600 select-none">Lista completa de períodos</summary>
+              <select id="periodSelect" class="mt-2 w-full border rounded-lg px-3 py-2 text-sm text-slate-800"></select>
+            </details>
+          </div>
+          <button type="button" id="btnNewPeriod" class="btn btn-sm btn-secondary hidden">Novo período</button>
+          <button type="button" id="btnDeletePeriod" class="btn btn-sm btn-danger hidden">Excluir período</button>
+          <button type="button" id="btnPreviewClose" class="btn btn-sm btn-primary hidden">Fechar período</button>
+          <button type="button" id="btnReopenPeriod" class="btn btn-sm btn-secondary hidden">Reabrir período</button>
+          <p id="periodMeta" class="text-xs text-slate-500 flex-1 min-w-[200px]"></p>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 space-y-1.5">
+          <p class="font-semibold text-slate-800">Como lançar dias e horas extras</p>
+          <ol class="list-decimal list-inside space-y-1 text-slate-600">
+            <li>Escolha o <strong>período</strong> em <strong>Selecionar período</strong> (calendário por semana Seg–Dom; gestores podem <strong>Criar período</strong> para a semana escolhida).</li>
+            <li>A planilha está <strong>dividida por setor</strong> (Installation e Sand &amp; Finish). Funcionários <strong>sem setor</strong> no cadastro aparecem na lista de Installation. Ao mudar a <strong>data</strong>, a <strong>linha seguinte no mesmo bloco</strong> recebe a mesma data.</li>
+            <li>Em cada linha: <strong>data</strong>, <strong>funcionário</strong>, opcionalmente <strong>projeto</strong>.</li>
+            <li>Opcional: em <strong>Diária linha</strong> indique um valor só para aquele dia (ex.: outra função com diária maior). <strong>Vazio</strong> usa a diária do cadastro. Não altera o cálculo para tipo <strong>por hora</strong>.</li>
+            <li>Preencha <strong>dias</strong> (ex.: 1, <strong>2</strong> ou ½) — para tipo <strong>por hora</strong>, use esta coluna como <strong>horas</strong> no mesmo campo. Tipo <strong>misto</strong> mostra <strong>horas normais</strong> extra na linha. Inclua <strong>horas extras</strong> na coluna HE (botões <strong>±</strong>, <strong>1d</strong>, <strong>2d</strong>, <strong>½</strong>, <strong>+1h/+2h/+4h</strong> em HE). No mesmo dia, no máximo <strong>2 diárias</strong> por funcionário (duas linhas de 1 ou uma de 2). No celular, <strong>deslize a tabela</strong> para a direita.</li>
+            <li>Funcionários com <strong>“datas fora da semana”</strong> no cadastro podem ter <strong>data de trabalho</strong> fora do intervalo Seg–Dom do período; o valor entra na folha <strong>deste</strong> fechamento.</li>
+            <li>Clique em <strong>Salvar planilha</strong> para gravar no servidor.</li>
+          </ol>
+          <p class="text-slate-500 pt-1 border-t border-slate-200">
+            <strong>Cálculo:</strong> tipo <em>diária</em> usa dias + HE; <em>por hora</em> usa a coluna de quantidade como <em>horas</em> (+ HE); <em>misto</em> combina dias, horas normais (bloco na linha) e HE. Defina valores no cadastro.
+          </p>
+          <p class="text-slate-500 pt-1 border-t border-slate-200 text-[11px]">
+            <strong>Permissões:</strong> com <code class="text-slate-600">payroll.view</code> você pode lançar e salvar a planilha enquanto o período está <strong>aberto</strong>. Com período <strong>fechado</strong>, só quem tem <code class="text-slate-600">payroll.manage</code> pode alterar ou excluir linhas já salvas e usar de novo <strong>Salvar planilha</strong>; não é possível adicionar linhas novas. Criar funcionários, períodos ou fechar período continua exigindo <code class="text-slate-600">payroll.manage</code>.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+          <span class="text-xs font-semibold text-slate-500">Total deste período:</span>
+          <span id="periodRunningTotal" class="text-base font-bold text-slate-900">$0.00</span>
+          <span id="periodLockBadge" class="hidden text-xs font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">Fechado</span>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 overflow-hidden bg-white">
+          <p class="payroll-grid-scroll-hint border-b border-slate-200 px-2 py-1.5" aria-hidden="true">
+            ← Deslize para a direita: Diária (linha), Dias/horas, Horas extras →
+          </p>
+          <div class="overflow-x-auto max-h-[min(640px,70vh)] payroll-grid">
+          <table id="timesheetTable" class="w-full text-sm min-w-[860px]">
+            <thead class="text-left text-xs text-slate-500 uppercase border-b">
+              <tr>
+                <th class="px-2 py-2 w-[118px]">Data</th>
+                <th class="px-2 py-2 min-w-[130px]">Funcionário</th>
+                <th class="px-2 py-2 min-w-[110px]">Projeto</th>
+                <th class="px-2 py-2 min-w-[88px]" title="Diária só neste dia; vazio = cadastro">Diária linha</th>
+                <th class="px-2 py-2 min-w-[140px]" title="Diárias ou, no tipo por hora, horas trabalhadas">Dias / horas</th>
+                <th class="px-2 py-2 min-w-[140px]">Horas extras</th>
+                <th class="px-2 py-2 min-w-[88px]">Notas</th>
+                <th class="px-2 py-2 w-[88px] text-right">Valor</th>
+                <th class="px-2 py-2 w-[100px]">Excluir</th>
+              </tr>
+            </thead>
+            <tbody id="timesheetTbodyInstallation" class="ts-sector-group" data-sector="installation">
+              <tr class="ts-sector-head bg-slate-100 border-t border-slate-200"><td colspan="9" class="px-2 py-2 text-xs font-bold text-slate-800">Installation</td></tr>
+            </tbody>
+            <tbody id="timesheetTbodySandFinish" class="ts-sector-group" data-sector="sand_finish">
+              <tr class="ts-sector-head bg-amber-50/80 border-t border-amber-100"><td colspan="9" class="px-2 py-2 text-xs font-bold text-amber-950">Sand &amp; Finish</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <div class="flex flex-wrap gap-2 items-center">
+            <button type="button" id="btnAddTimesheetRowInstallation" class="btn btn-sm btn-secondary hidden">+ Linha · Installation</button>
+            <button type="button" id="btnAddTimesheetRowSandFinish" class="btn btn-sm btn-secondary hidden">+ Linha · Sand &amp; Finish</button>
+            <button type="button" id="btnSaveTimesheet" class="btn btn-sm btn-primary hidden">Salvar planilha</button>
+            <button type="button" id="btnSharePaySlips" class="btn btn-sm btn-primary hidden w-full sm:w-auto order-first sm:order-none" title="Abre o menu nativo: WhatsApp, Mensagens…">
+              Compartilhar recibos (mensagem)
+            </button>
+            <button type="button" id="btnPreviewPayroll" class="btn btn-sm btn-secondary">Ver prévia deste período</button>
+            <button type="button" id="btnPrintIndividualReports" class="btn btn-sm btn-secondary" title="PDF com o mesmo layout do recibo (uma página por funcionário)">Relatórios individuais</button>
+          </div>
+          <details id="paySlipsMoreDetails" class="hidden text-sm">
+            <summary class="cursor-pointer text-slate-500 font-medium py-1 select-none">Mais opções · ZIP no PC · e-mail</summary>
+            <div class="flex flex-wrap gap-2 pt-2 pb-1">
+              <button type="button" id="btnPaySlipsPdfZip" class="btn btn-sm btn-secondary" title="Pacote PDF">ZIP PDF</button>
+              <button type="button" id="btnPaySlipsPngZip" class="btn btn-sm btn-secondary" title="Pacote PNG">ZIP PNG</button>
+              <button type="button" id="btnPaySlipsEmail" class="btn btn-sm btn-success">E-mail para todos</button>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · Relatórios -->
+    <section id="hub-relatorios" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3">
+        <h2 class="text-base font-bold text-slate-900">3 · Relatórios de pagamento</h2>
+        <p class="text-xs text-slate-500 mt-1">Mesmo intervalo para tudo — um clique gera o pacote completo. Os totais usam a <strong>data do trabalho</strong> de cada linha (não o nome do período de folha).</p>
+      </div>
+      <div class="p-4 space-y-4">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">De</label>
+            <input type="date" id="reportFrom" class="border rounded-lg px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Até</label>
+            <input type="date" id="reportTo" class="border rounded-lg px-3 py-2.5 text-sm" />
+          </div>
+          <button type="button" id="btnReportAll" class="btn btn-primary">Gerar relatório completo</button>
+        </div>
+        <p class="text-xs text-slate-400">Ou escolha só uma parte:</p>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" id="btnReportEmployees" class="btn btn-sm btn-secondary">Por funcionário</button>
+          <button type="button" id="btnReportProjects" class="btn btn-sm btn-secondary">Por projeto</button>
+          <button type="button" id="btnReportTotal" class="btn btn-sm btn-secondary">Só totais</button>
+        </div>
+        <div id="reportOut" class="overflow-x-auto text-sm space-y-6"></div>
+      </div>
+    </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Employee modal -->
+  <div id="empModal" class="fixed inset-0 z-[1100] hidden items-center justify-center p-4 bg-black/50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-3 max-h-[90vh] overflow-y-auto">
+      <h2 id="empModalTitle" class="text-lg font-bold">Funcionário</h2>
+      <input type="hidden" id="empEditId" />
+      <div><label class="text-xs font-semibold text-slate-500">Nome *</label><input id="empName" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Nome completo" /></div>
+      <div><label class="text-xs font-semibold text-slate-500">Função / cargo</label><input id="empRole" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ex.: instalador" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs font-semibold text-slate-500">Telefone</label><input id="empPhone" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-semibold text-slate-500">E-mail</label><input id="empEmail" type="email" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500">Setor</label>
+        <select id="empSector" class="w-full border rounded-lg px-3 py-2 text-sm">
+          <option value="">—</option>
+          <option value="installation">Installation</option>
+          <option value="sand_finish">Sand &amp; Finish</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500">Tipo de pagamento</label>
+        <select id="empPayType" class="w-full border rounded-lg px-3 py-2 text-sm">
+          <option value="daily">Por dia</option>
+          <option value="hourly">Por hora</option>
+          <option value="mixed">Misto (dia + hora)</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="text-xs font-semibold text-slate-500">Valor diária</label><input id="empDaily" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-semibold text-slate-500">Valor hora</label><input id="empHourly" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-semibold text-slate-500">Valor hora extra</label><input id="empOt" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+      <div><label class="text-xs font-semibold text-slate-500">Forma de pagamento</label><input id="empPayMethod" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="PIX, cheque, Zelle…" /></div>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <label class="inline-flex gap-2 text-sm items-start cursor-pointer">
+          <input type="checkbox" id="empAllowOutsideWeek" class="mt-0.5 shrink-0" />
+          <span><span class="font-medium text-slate-800">Datas fora da semana do período</span><span class="block text-xs text-slate-500 font-normal mt-0.5">Permite lançar a <strong>data do trabalho</strong> fora de Seg–Dom do período selecionado; o pagamento continua neste fechamento (útil para quem recebe numa semana diferente do calendário do trabalho).</span></span>
+        </label>
+      </div>
+      <div id="empActiveWrap" class="hidden"><label class="inline-flex gap-2 text-sm"><input type="checkbox" id="empActive" checked /> Ativo</label></div>
+      <p id="empFormErr" class="text-red-600 text-sm hidden"></p>
+      <div class="flex flex-wrap justify-between items-center gap-2 pt-1">
+        <button type="button" id="empDelete" class="btn btn-sm btn-danger hidden">Excluir cadastro</button>
+        <div class="flex gap-2 ml-auto">
+          <button type="button" id="empCancel" class="btn btn-secondary">Cancelar</button>
+          <button type="button" id="empSave" class="btn btn-primary">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Period picker (semanas Seg–Dom) -->
+  <div id="periodPickerModal" class="fixed inset-0 z-[1100] hidden items-center justify-center p-4 bg-black/50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Período semanal</h2>
+        <p class="text-xs text-slate-500 mt-1">Folha fechada de <strong>segunda a domingo</strong>. Clique em um dia para selecionar a semana.</p>
+      </div>
+      <div class="flex items-center justify-between gap-2">
+        <button type="button" id="periodPickerPrevM" class="btn btn-sm btn-secondary" aria-label="Mês anterior">←</button>
+        <span id="periodPickerMonthLabel" class="text-sm font-bold text-slate-800 capitalize"></span>
+        <button type="button" id="periodPickerNextM" class="btn btn-sm btn-secondary" aria-label="Próximo mês">→</button>
+      </div>
+      <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+        <div>Seg</div>
+        <div>Ter</div>
+        <div>Qua</div>
+        <div>Qui</div>
+        <div>Sex</div>
+        <div>Sáb</div>
+        <div>Dom</div>
+      </div>
+      <div id="periodPickerGrid" class="grid grid-cols-7 gap-1"></div>
+      <p id="periodPickerWeekSummary" class="text-sm text-slate-800 font-medium"></p>
+      <p id="periodPickerStatus" class="text-xs text-slate-600"></p>
+      <p id="periodPickerErr" class="text-red-600 text-sm hidden"></p>
+      <div class="flex flex-wrap justify-end gap-2 pt-1">
+        <button type="button" id="periodPickerCancel" class="btn btn-secondary">Fechar</button>
+        <button type="button" id="periodPickerUse" class="btn btn-secondary">Usar período</button>
+        <button type="button" id="periodPickerCreate" class="btn btn-primary hidden">Criar período</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview modal -->
+  <div id="previewModal" class="fixed inset-0 z-[1100] hidden items-center justify-center p-4 bg-black/50">
+    <div class="bg-white rounded-xl shadow-xl max-w-4xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <h2 id="previewTitle" class="text-lg font-bold">Prévia da folha</h2>
+      <p id="previewSubtitle" class="text-sm text-slate-500"></p>
+      <p id="previewReimHint" class="hidden text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+        Preencha <strong>reembolsos</strong> e <strong>descontos</strong> por funcionário antes de encerrar. Total por linha = folha + reembolso − desconto; total geral = folha + reembolsos − descontos.
+      </p>
+      <div class="flex justify-end">
+        <button type="button" id="previewPrintIndividualReports" class="btn btn-sm btn-secondary" title="PDF no layout do recibo; usa reembolsos e descontos desta tela">
+          Relatórios individuais
+        </button>
+      </div>
+      <div class="overflow-x-auto border rounded-lg">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+              <th class="px-3 py-2">Funcionário</th>
+              <th class="px-3 py-2 text-left min-w-[120px]" title="Datas com 2 diárias no dia (double)">Double</th>
+              <th class="px-3 py-2 text-right">Diárias</th>
+              <th class="px-3 py-2 text-right">Horas Extras</th>
+              <th class="px-3 py-2 text-right">Valor</th>
+              <th class="px-3 py-2 text-right min-w-[100px]">Reembolso</th>
+              <th class="px-3 py-2 text-right min-w-[100px]">Desconto</th>
+              <th class="px-3 py-2 text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody id="previewTbody"></tbody>
+          <tfoot>
+            <tr class="font-bold border-t bg-slate-50">
+              <td class="px-3 py-2" colspan="4">Totais</td>
+              <td class="px-3 py-2 text-right" id="previewGrandSheet">—</td>
+              <td class="px-3 py-2 text-right" id="previewGrandReim">—</td>
+              <td class="px-3 py-2 text-right" id="previewGrandDisc">—</td>
+              <td class="px-3 py-2 text-right text-[#1a2036]" id="previewGrandTotal">—</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div id="previewCloseActions" class="hidden flex flex-wrap justify-end gap-2">
+        <button type="button" id="previewSaveAdjustments" class="btn btn-sm btn-secondary">Salvar reembolsos e descontos</button>
+        <button type="button" id="previewCancelClose" class="btn btn-secondary">Voltar</button>
+        <button type="button" id="previewConfirmClose" class="btn btn-sm btn-primary">Fechar período</button>
+      </div>
+      <div class="flex justify-end">
+        <button type="button" id="previewCloseOnly" class="btn btn-secondary">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Partilhar recibos (imagem / menu nativo) -->
+  <div id="shareSlipsModal" class="fixed inset-0 z-[1120] hidden">
+    <div id="shareSlipsModalBackdrop" class="absolute inset-0 bg-black/50" aria-hidden="true"></div>
+    <div class="absolute inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none">
+      <div
+        id="shareSlipsModalPanel"
+        class="pointer-events-auto w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-xl shadow-xl max-h-[88vh] flex flex-col border border-slate-200/80"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shareSlipsModalTitle"
+      >
+        <div class="flex items-start justify-between gap-3 px-4 pt-4 pb-2 border-b border-slate-100 shrink-0">
+          <div>
+            <h2 id="shareSlipsModalTitle" class="text-lg font-bold text-[#1a2036]">Compartilhar recibos</h2>
+            <p class="text-xs text-slate-500 mt-1 pr-2">
+              Um de cada vez — escolha WhatsApp, Mensagens etc. Se o menu não aparecer, o PNG será baixado para você anexar.
+            </p>
+          </div>
+          <button type="button" id="shareSlipsModalClose" class="btn btn-sm btn-secondary shrink-0" aria-label="Fechar">×</button>
+        </div>
+        <div id="shareSlipsList" class="overflow-y-auto flex-1 min-h-0 px-2 pb-6 pt-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tailwind no fim: sem preflight para não alterar tipografia/larguras do menu (igual dashboard) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { corePlugins: { preflight: false } };
+  </script>
+  <style id="payrollShellLayoutLock">
+    /* Largura alinhada a design-system.css (--crm-sidebar-width, hoje 264px) */
+    @media (min-width: 1367px) {
+      body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        transform: none !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 1000 !important;
+        width: var(--crm-sidebar-width, 264px) !important;
+        box-sizing: border-box !important;
+      }
+      body.payroll-sidebar-page .dashboard-main {
+        margin-left: var(--crm-sidebar-width, 264px) !important;
+      }
+      body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
+        display: none !important;
+      }
+      body.payroll-sidebar-page .mobile-overlay {
+        display: none !important;
+        pointer-events: none !important;
+      }
+    }
+    @media (max-width: 1366px) {
+      body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar {
+        transform: translateX(-100%) !important;
+        transition: transform 0.3s ease !important;
+        width: min(288px, 92vw) !important;
+        box-sizing: border-box !important;
+        z-index: 1100 !important;
+      }
+      body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar.mobile-open {
+        transform: translateX(0) !important;
+        box-shadow: 12px 0 40px rgba(0, 0, 0, 0.22) !important;
+      }
+      body.payroll-sidebar-page .dashboard-main {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-top: calc(52px + env(safe-area-inset-top, 0px) + 12px) !important;
+        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+      }
+      body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
+        display: flex !important;
+        z-index: 1040 !important;
+      }
+      body.payroll-sidebar-page .mobile-overlay {
+        display: block !important;
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 1080 !important;
+        background: rgba(0, 0, 0, 0.5) !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        transition: opacity 0.3s ease, visibility 0.3s ease !important;
+      }
+      body.payroll-sidebar-page .mobile-overlay.active {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+      }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+  <script>
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+  <script src="crm-toast.js?v=2"></script>
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="payroll-module.js?v=20260819-ipad-layout"></script>
+</body>
+</html>

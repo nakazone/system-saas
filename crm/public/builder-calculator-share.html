@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shared estimate &mdash; Senior Floors</title>
+  <link rel="stylesheet" href="css/builders-portal.css" />
+</head>
+<body class="bp-page-body">
+  <div class="bp-main" style="max-width:560px;margin:2rem auto">
+    <img src="/assets/SeniorFloors.png" alt="Senior Floors" width="64" style="display:block;margin-bottom:16px" onerror="this.style.display='none'" />
+    <div id="shareContent"><p class="bp-muted">Loading...</p></div>
+  </div>
+  <script>
+    (async function () {
+      const token = new URLSearchParams(location.search).get('token');
+      const host = document.getElementById('shareContent');
+      if (!token) {
+        host.innerHTML = '<p>Invalid link.</p>';
+        return;
+      }
+      const r = await fetch(`/api/builder-calculations/share/${encodeURIComponent(token)}`);
+      const j = await r.json();
+      if (r.status === 410) {
+        host.innerHTML = '<h1 class="bp-title">Link expired</h1><p class="bp-muted">This share link is no longer valid. Ask your Senior Floors partner for a new estimate link.</p>';
+        return;
+      }
+      if (!r.ok || !j.success) {
+        host.innerHTML = '<p>Estimate not found or link expired.</p>';
+        return;
+      }
+      const d = j.data;
+      const fmt = (n) => '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+      const savingsLo = (d.items || []).reduce((s, l) => s + (l.public_savings_low || 0), 0);
+      const savingsHi = (d.items || []).reduce((s, l) => s + (l.public_savings_high || 0), 0);
+      const expiry = d.share_expires_at
+        ? `<p class="bp-muted" style="font-size:12px">Link valid until ${new Date(d.share_expires_at).toLocaleDateString('en-US')}</p>`
+        : '';
+      host.innerHTML = `
+        <h1 class="bp-title">Partner estimate</h1>
+        <p class="bp-muted">Prepared by ${escapeHtml(d.builder_name || 'Senior Floors partner')} &mdash; ${String(d.created_at).slice(0, 10)}</p>
+        ${d.label ? `<p><strong>${escapeHtml(d.label)}</strong></p>` : ''}
+        ${expiry}
+        <div class="bp-card bp-calc-result" style="margin:16px 0">
+          <p class="bp-calc-result__label">Estimated partner range</p>
+          <p class="bp-calc-result__range">${fmt(d.total_low)} \u2013 ${fmt(d.total_high)}</p>
+          ${savingsLo > 0 ? `<p class="bp-calc-result__savings">Partner savings vs public: ${fmt(savingsLo)}${savingsHi > savingsLo ? ` \u2013 ${fmt(savingsHi)}` : ''}</p>` : ''}
+          <p class="bp-muted" style="margin:8px 0 0;font-size:12px">${d.area_sqft_total ? d.area_sqft_total + ' sq ft total' : ''}</p>
+        </div>
+        <div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Service</th><th>Area</th><th>Partner</th><th>Public</th></tr></thead>
+        <tbody>${(d.items || [])
+          .map(
+            (l) =>
+              `<tr><td>${escapeHtml(l.service || '')}</td><td>${l.area_sqft || ''} ${escapeHtml(l.unit || '')}</td><td>${fmt(l.estimate_low_discounted)} \u2013 ${fmt(l.estimate_high_discounted)}</td><td>${fmt(l.public_estimate_low)} \u2013 ${fmt(l.public_estimate_high)}</td></tr>`
+          )
+          .join('')}</tbody></table></div>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="bp-btn-tan" id="btnPrintShare">Print / PDF</button>
+        </div>
+        <p style="font-size:11px;color:var(--bp-muted);margin-top:20px">Ballpark estimate only &mdash; not a binding quote. Contact Senior Floors for a formal proposal.</p>`;
+
+      document.getElementById('btnPrintShare')?.addEventListener('click', () => window.print());
+    })();
+  </script>
+</body>
+</html>

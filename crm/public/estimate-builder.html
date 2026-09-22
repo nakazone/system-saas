@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estimate Builder - Senior Floors CRM</title>
+    <!-- Favicon (mesmo padrão do site Senior Floors) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="crm-shared-nav.css?v=8">
+    <link rel="stylesheet" href="crm-toast.css">
+    <style>
+        .estimate-builder {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: var(--spacing-md);
+            padding: var(--spacing-md);
+        }
+        
+        .builder-main {
+            background: var(--bg-white);
+            border-radius: 8px;
+            padding: var(--spacing-md);
+        }
+        
+        .builder-sidebar {
+            background: var(--bg-white);
+            border-radius: 8px;
+            padding: var(--spacing-md);
+            position: sticky;
+            top: var(--spacing-md);
+            max-height: calc(100vh - var(--spacing-md) * 2);
+            overflow-y: auto;
+        }
+        
+        .project-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-md);
+            padding: var(--spacing-md);
+            background: var(--bg-light);
+            border-radius: 8px;
+        }
+        
+        .form-group {
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: var(--spacing-xs);
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: var(--spacing-xs);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.95rem;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-sm);
+        }
+        
+        .items-section {
+            margin-top: var(--spacing-md);
+        }
+        
+        .item-card {
+            background: var(--bg-light);
+            padding: var(--spacing-sm);
+            border-radius: 6px;
+            margin-bottom: var(--spacing-sm);
+            border-left: 3px solid var(--primary-color);
+        }
+        
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .item-category {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .item-category.material { background: #e3f2fd; color: #1976d2; }
+        .item-category.labor { background: #fff3e0; color: #f57c00; }
+        .item-category.equipment { background: #f3e5f5; color: #7b1fa2; }
+        
+        .cost-breakdown {
+            background: var(--bg-light);
+            padding: var(--spacing-md);
+            border-radius: 8px;
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .cost-row {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--spacing-xs) 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .cost-row.total {
+            font-weight: 700;
+            font-size: 1.1rem;
+            border-top: 2px solid var(--primary-color);
+            margin-top: var(--spacing-xs);
+            padding-top: var(--spacing-sm);
+        }
+        
+        .margin-visualization {
+            margin-top: var(--spacing-md);
+            padding: var(--spacing-md);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+        }
+        
+        .margin-bar {
+            height: 30px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            margin-top: var(--spacing-sm);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .margin-fill {
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            transition: width 0.3s ease;
+        }
+        
+        .scenario-controls {
+            margin-top: var(--spacing-md);
+        }
+        
+        .slider-group {
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .slider-group label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .slider-group input[type="range"] {
+            width: 100%;
+        }
+        
+        .slider-value {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        @media (max-width: 1024px) {
+            .estimate-builder {
+                grid-template-columns: 1fr;
+            }
+            
+            .builder-sidebar {
+                position: static;
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body class="crm-standalone-page">
+    <div id="crmSharedNavRoot"></div>
+    <div class="dashboard-container">
+        <div class="dashboard-content">
+            <div class="estimate-builder">
+                <div class="builder-main">
+                    <div class="page-header">
+                        <h1>Estimate Builder</h1>
+                        <div>
+                            <button class="btn btn-secondary" onclick="loadProject()">Load Project</button>
+                            <button class="btn btn-primary" onclick="saveEstimate()">Save Estimate</button>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" id="estimateId" value="">
+                    <input type="hidden" id="projectId" value="">
+                    
+                    <!-- Project Info -->
+                    <div class="project-info">
+                        <div class="form-group">
+                            <label>Project Type</label>
+                            <select id="projectType" onchange="updateCalculations()">
+                                <option value="residential">Residential</option>
+                                <option value="commercial">Commercial</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Service Type</label>
+                            <select id="serviceType" onchange="updateCalculations()">
+                                <option value="installation">Installation</option>
+                                <option value="replacement">Replacement</option>
+                                <option value="repair">Repair</option>
+                                <option value="refinish">Refinish</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Flooring Type</label>
+                            <select id="flooringType" onchange="applySmartRules()">
+                                <option value="">Select...</option>
+                                <option value="hardwood">Hardwood</option>
+                                <option value="engineered">Engineered</option>
+                                <option value="lvp">LVP</option>
+                                <option value="laminate">Laminate</option>
+                                <option value="tile">Tile</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Total Sqft</label>
+                            <input type="number" id="totalSqft" step="0.01" onchange="updateCalculations()">
+                        </div>
+                        <div class="form-group">
+                            <label>Waste %</label>
+                            <div style="display: flex; gap: var(--spacing-xs); align-items: center;">
+                                <input type="number" id="wastePercentage" step="0.1" value="7" onchange="updateCalculations()" style="flex: 1;">
+                                <button class="btn btn-sm" onclick="resetWaste()">Auto</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Adjusted Sqft</label>
+                            <input type="number" id="adjustedSqft" readonly style="background: #f5f5f5;">
+                        </div>
+                        <div class="form-group">
+                            <label>Subfloor Type</label>
+                            <select id="subfloorType" onchange="applySmartRules()">
+                                <option value="">Select...</option>
+                                <option value="concrete">Concrete</option>
+                                <option value="plywood">Plywood</option>
+                                <option value="existing">Existing</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Level Condition</label>
+                            <select id="levelCondition" onchange="applySmartRules()">
+                                <option value="good">Good</option>
+                                <option value="minor">Minor Issues</option>
+                                <option value="major">Major Issues</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Stairs Count</label>
+                            <input type="number" id="stairsCount" value="0" min="0" onchange="applySmartRules()">
+                        </div>
+                        <div class="form-group">
+                            <label>Rooms Count</label>
+                            <input type="number" id="roomsCount" value="0" min="0">
+                        </div>
+                    </div>
+                    
+                    <!-- Items Section -->
+                    <div class="items-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                            <h2>Estimate Items</h2>
+                            <button class="btn btn-primary" onclick="addItem()">+ Add Item</button>
+                        </div>
+                        
+                        <div id="itemsList"></div>
+                    </div>
+                </div>
+                
+                <div class="builder-sidebar">
+                    <h2>Cost Breakdown</h2>
+                    <div class="cost-breakdown">
+                        <div class="cost-row">
+                            <span>Material Cost:</span>
+                            <span id="materialTotal">$0.00</span>
+                        </div>
+                        <div class="cost-row">
+                            <span>Labor Cost:</span>
+                            <span id="laborTotal">$0.00</span>
+                        </div>
+                        <div class="cost-row">
+                            <span>Equipment Cost:</span>
+                            <span id="equipmentTotal">$0.00</span>
+                        </div>
+                        <div class="cost-row">
+                            <span>Direct Cost:</span>
+                            <span id="directCost">$0.00</span>
+                        </div>
+                        <div class="cost-row">
+                            <span>Overhead (<span id="overheadPercent">15</span>%):</span>
+                            <span id="overheadAmount">$0.00</span>
+                        </div>
+                        <div class="cost-row">
+                            <span>Profit (<span id="profitPercent">25</span>%):</span>
+                            <span id="profitAmount">$0.00</span>
+                        </div>
+                        <div class="cost-row total">
+                            <span>Final Price:</span>
+                            <span id="finalPrice">$0.00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="margin-visualization">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: var(--spacing-xs);">
+                            <span>Gross Profit:</span>
+                            <span id="grossProfit">$0.00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Margin:</span>
+                            <span id="marginPercent">0%</span>
+                        </div>
+                        <div class="margin-bar">
+                            <div class="margin-fill" id="marginBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="scenario-controls">
+                        <h3>Scenario Simulator</h3>
+                        <div class="slider-group">
+                            <label>
+                                <span>Overhead %</span>
+                                <span class="slider-value" id="overheadSliderValue">15%</span>
+                            </label>
+                            <input type="range" id="overheadSlider" min="0" max="50" value="15" step="0.5" oninput="updateScenario()">
+                        </div>
+                        <div class="slider-group">
+                            <label>
+                                <span>Profit Margin %</span>
+                                <span class="slider-value" id="profitSliderValue">25%</span>
+                            </label>
+                            <input type="range" id="profitSlider" min="0" max="100" value="25" step="0.5" oninput="updateScenario()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="crm-toast.js"></script>
+    <script src="crm-shared-nav.js?v=13"></script>
+    <script src="estimate-builder.js"></script>
+</body>
+</html>

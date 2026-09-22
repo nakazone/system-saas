@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Request estimate � Builder Portal</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-crm-nav" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body bp-page-body" data-bp-page="estimate">
+  <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="dashboardSidebar">&#9776;</button>
+  <div class="dashboard-container" id="portalShell">
+    <div class="mobile-overlay" id="mobileOverlay" aria-hidden="true"></div>
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <a href="builder-portal.html" title="Dashboard">
+          <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+        </a>
+      </div>
+      <nav class="sidebar-nav" id="bpPortalNav" aria-label="Partner portal"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <a href="builder-profile.html" class="sidebar-user-bar__avatar" id="bpSidebarAvatar" title="Profile">B</a>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="bpSidebarName">Partner</span>
+            <span class="sidebar-user-bar__role" id="bpSidebarRole">Partner portal</span>
+          </div>
+          <div id="bpSidebarNotifWrap"></div>
+          <button type="button" id="btnPortalLogout" class="sidebar-logout-btn" title="Logout" aria-label="Logout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <main class="dashboard-main bp-portal-main">
+<div class="bp-main" style="max-width:720px">
+        <header class="bp-page-header" style="padding-top:0">
+          <div class="bp-page-header__text">
+            <p class="bp-eyebrow">Senior Floors Partner</p>
+            <h1 class="bp-title">Request formal estimate</h1>
+            <p class="bp-page-header__sub">Submit project details for a formal quote from Senior Floors.</p>
+          </div>
+        </header>
+
+        <form id="estForm" class="bp-card bp-form-grid">
+          <div class="bp-form-full">
+            <label for="estProjectType">Project type</label>
+            <select id="estProjectType" name="project_type" required>
+              <option value="my_client">New client of mine</option>
+              <option value="my_project">My own project</option>
+              <option value="sf_referral">Direct referral to Senior Floors</option>
+            </select>
+          </div>
+          <div class="bp-form-full">
+            <label for="estAddress">Project address</label>
+            <input type="text" id="estAddress" name="address" required placeholder="Start typing the address�" autocomplete="off" />
+            <p class="bp-form-hint sf-address-autocomplete-hint hidden" id="estAddressHint">Google Maps autocomplete active</p>
+          </div>
+          <div class="bp-form-full">
+            <label>Services needed</label>
+            <div class="bp-check-group">
+              <label><input type="checkbox" name="svc" value="Sanding & Refinishing" /> Sanding &amp; Refinishing</label>
+              <label><input type="checkbox" name="svc" value="Hardwood Installation" /> Hardwood Installation</label>
+              <label><input type="checkbox" name="svc" value="Engineered Wood" /> Engineered Wood</label>
+              <label><input type="checkbox" name="svc" value="LVP" /> LVP</label>
+              <label><input type="checkbox" name="svc" value="Tile" /> Tile</label>
+              <label><input type="checkbox" name="svc" value="Custom" /> Custom</label>
+            </div>
+          </div>
+          <div>
+            <label for="estArea">Estimated area (sq ft)</label>
+            <input type="number" id="estArea" name="area_sqft" min="1" required />
+          </div>
+          <div>
+            <label for="estStart">Desired start date</label>
+            <input type="date" id="estStart" name="desired_start" />
+          </div>
+          <div class="bp-form-full">
+            <label for="estUrgency">Urgency</label>
+            <select id="estUrgency" name="urgency">
+              <option value="flexible">Flexible</option>
+              <option value="moderate">Moderate</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div class="bp-form-full">
+            <label for="estNotes">Notes / specifications</label>
+            <textarea id="estNotes" name="notes" rows="4" placeholder="Scope, finishes, access instructions�"></textarea>
+          </div>
+          <div class="bp-form-full">
+            <label for="estFiles">Plans or photos (optional)</label>
+            <p class="bp-form-hint">Up to 5 files � JPG, PNG, WebP or PDF. Max 20 MB each.</p>
+            <input type="file" id="estFiles" name="attachments" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" multiple />
+            <div id="estFilePreview" class="bp-est-file-preview" aria-live="polite"></div>
+          </div>
+          <div class="bp-form-full">
+            <label><input type="checkbox" id="estSiteAccess" name="site_access" value="1" /> I can provide site access before the estimate</label>
+          </div>
+          <div class="bp-form-full">
+            <button type="submit" class="bp-btn-tan" id="estSubmitBtn">Submit request</button>
+          </div>
+        </form>
+
+        <div id="estSuccess" class="bp-card bp-est-success hidden" aria-live="polite">
+          <p class="bp-est-success__eyebrow">Request received</p>
+          <p class="bp-est-success__ref" id="estRef"></p>
+          <p class="bp-muted">A confirmation email was sent to your account. Our team will contact you within <strong>48 hours</strong>.</p>
+          <div id="estSummary" class="bp-est-summary"></div>
+          <div class="bp-est-success__actions">
+            <a href="builder-referrals.html" class="bp-btn-tan" style="text-decoration:none">Track status in Referrals</a>
+            <a href="builder-estimate-request.html" class="bp-btn-ghost" style="text-decoration:none;margin-left:8px">Submit another</a>
+          </div>
+        </div>
+      </div>
+        </main>
+  </div>
+  <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=20260531-crm-nav"></script>
+  <script src="builder-portal-common.js?v=20260531-crm-nav"></script>
+  <script src="builder-estimate-request.js?v=20260531-ui"></script>
+</body>
+</html>

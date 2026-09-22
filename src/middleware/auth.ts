@@ -18,6 +18,12 @@ declare module "express-session" {
     organizationId?: string;
     /** Active workspace slug on apex host (Railway / no wildcard DNS). */
     workspaceSlug?: string;
+    /** Senior Floors CRM session fields (UI compatibility). */
+    userEmail?: string;
+    userName?: string;
+    userRole?: string;
+    permissionKeys?: string[];
+    mustChangePassword?: boolean;
   }
 }
 

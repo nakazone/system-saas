@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projetos — Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    .proj-page-body { background: var(--sf-gold-bg); min-height: 100vh; }
+    .proj-main { padding: 1rem 1.25rem 2rem; max-width: 1400px; margin: 0 auto; }
+    .proj-topbar {
+      display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .proj-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sf-gold4); margin: 0 0 4px; }
+    .proj-title { font-size: 1.5rem; font-weight: 700; color: var(--sf-navy); margin: 0; }
+    .proj-kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+    .proj-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 1rem; }
+    .proj-filters select, .proj-filters input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--sf-border); font-size: 13px; min-width: 0; }
+    .proj-filters input[type="search"] { flex: 1; min-width: 140px; max-width: 280px; }
+    .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .project-card { cursor: pointer; }
+    .proj-modal-backdrop { position: fixed; inset: 0; background: rgba(26,32,54,.45); z-index: 8000; display: none; align-items: center; justify-content: center; padding: 16px; }
+    .proj-modal-backdrop.open { display: flex; }
+    .proj-modal { background: var(--sf-gold-bg); border-radius: 12px; border: 1px solid var(--sf-border); max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 18px; box-shadow: 0 12px 40px rgba(26,32,54,.2); }
+    .proj-modal h3 { margin: 0 0 12px; color: var(--sf-navy); font-size: 1.1rem; }
+    .proj-form-row { margin-bottom: 10px; }
+    .proj-form-row label { display: block; font-size: 11px; font-weight: 600; color: var(--sf-navy2); margin-bottom: 4px; }
+    .proj-form-row input, .proj-form-row select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--sf-border); box-sizing: border-box; }
+    .proj-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  </style>
+</head>
+<body class="dashboard-app-body proj-page-body payroll-sidebar-page">
+  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="projectsSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Projetos</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="projectsSidebar" aria-label="Menu lateral">
+      <div class="sidebar-header">
+        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Navegação CRM">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="dashboard-main">
+      <div class="proj-main">
+        <div class="proj-topbar">
+          <div>
+            <p class="proj-eyebrow">Visão geral</p>
+            <h1 class="proj-title">Projetos</h1>
+          </div>
+          <button type="button" class="btn btn-primary" id="btnNewProject">+ Novo Projeto</button>
+        </div>
+
+        <div class="proj-kpi-grid" id="proj-kpi-grid">
+          <div class="sf-card sf-ok"><div class="sf-card__head"><span class="sf-card-badge">Ativos</span></div><div class="sf-card-val" id="kpi-active">—</div><div class="sf-card-label">Em andamento</div></div>
+          <div class="sf-card"><div class="sf-card__head"><span class="sf-card-badge">Mês</span></div><div class="sf-card-val" id="kpi-completed">—</div><div class="sf-card-label">Concluídos (mês)</div></div>
+          <div class="sf-card sf-warn"><div class="sf-card__head"><span class="sf-card-badge">Receita</span></div><div class="sf-card-val" id="kpi-revenue">—</div><div class="sf-card-label">Receita do mês</div></div>
+          <div class="sf-card"><div class="sf-card__head"><span class="sf-card-badge">Margem</span></div><div class="sf-card-val" id="kpi-margin">—</div><div class="sf-card-label">Margem média</div></div>
+        </div>
+
+        <div class="proj-filters">
+          <select id="filter-status" aria-label="Status">
+            <option value="">Todos os status</option>
+            <option value="scheduled">Agendado</option>
+            <option value="in_progress">Em andamento</option>
+            <option value="on_hold">Pausado</option>
+            <option value="completed">Concluído</option>
+            <option value="cancelled">Cancelado</option>
+          </select>
+          <select id="filter-client-type" aria-label="Tipo de cliente">
+            <option value="">Builder / Customer</option>
+            <option value="customer">Customer</option>
+            <option value="builder">Builder</option>
+          </select>
+          <select id="filter-flooring" aria-label="Tipo de piso">
+            <option value="">Flooring</option>
+            <option value="hardwood">hardwood</option>
+            <option value="lvp">lvp</option>
+            <option value="tile">tile</option>
+            <option value="laminate">laminate</option>
+            <option value="engineered">engineered</option>
+            <option value="other">other</option>
+          </select>
+          <input type="search" id="filter-search" placeholder="Buscar nome ou endereço…" autocomplete="off" />
+        </div>
+
+        <div class="proj-grid" id="projects-grid"></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="proj-modal-backdrop" id="modalNewProject" role="dialog" aria-modal="true" aria-labelledby="modalNewTitle">
+    <div class="proj-modal">
+      <h3 id="modalNewTitle">Novo projeto</h3>
+      <form id="formNewProject">
+        <div class="proj-form-row"><label for="np-name">Nome *</label><input id="np-name" name="name" required /></div>
+        <div class="proj-form-row"><label for="np-lead">Lead</label><select id="np-lead" name="lead_id"><option value="">—</option></select></div>
+        <div class="proj-form-row"><label for="np-client-type">Tipo de cliente</label>
+          <select id="np-client-type" name="client_type"><option value="customer">Customer</option><option value="builder">Builder</option></select>
+        </div>
+        <div class="proj-form-row" id="np-builder-wrap">
+          <label for="np-builder-partner">Parceiro builder (portal)</label>
+          <select id="np-builder-partner" name="builder_partner_id">
+            <option value="">— Nenhum / cliente direto —</option>
+          </select>
+          <p style="font-size:11px;color:var(--sf-muted);margin:6px 0 0">O projeto aparece em &quot;My Projects&quot; no portal do builder selecionado.</p>
+        </div>
+        <div class="proj-form-row"><label for="np-flooring">Flooring</label>
+          <select id="np-flooring" name="flooring_type">
+            <option value="">—</option>
+            <option value="hardwood">hardwood</option>
+            <option value="lvp">lvp</option>
+            <option value="tile">tile</option>
+            <option value="laminate">laminate</option>
+            <option value="engineered">engineered</option>
+            <option value="other">other</option>
+          </select>
+        </div>
+        <div class="proj-form-row"><label for="np-sqft">Total sqft</label><input id="np-sqft" name="total_sqft" type="number" step="0.01" /></div>
+        <div class="proj-form-row"><label for="np-start">Data início</label><input id="np-start" name="start_date" type="date" /></div>
+        <div class="proj-form-row"><label for="np-days">Dias estimados</label><input id="np-days" name="days_estimated" type="number" min="1" /></div>
+        <div class="proj-form-row"><label for="np-contract">Valor contrato</label><input id="np-contract" name="contract_value" type="number" step="0.01" /></div>
+        <div class="proj-form-row"><label>Divisão serviços (USD)</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+            <input id="np-supply" placeholder="Supply" type="number" step="0.01" />
+            <input id="np-install" placeholder="Installation" type="number" step="0.01" />
+            <input id="np-sand" placeholder="Sand &amp; finish" type="number" step="0.01" />
+          </div>
+        </div>
+        <div class="proj-form-row"><label for="np-crew">Equipe (crew)</label><select id="np-crew" name="crew_id"><option value="">—</option></select></div>
+        <div class="proj-form-row"><label for="np-assigned">Responsável</label><select id="np-assigned" name="assigned_to"><option value="">—</option></select></div>
+        <div class="proj-modal-actions">
+          <button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primary">Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="projects.js?v=1"></script>
+  <script>
+    (function () {
+      var t = document.getElementById('mobileMenuToggle');
+      var s = document.getElementById('projectsSidebar');
+      var o = document.getElementById('mobileOverlay');
+      if (t && s && o) {
+        t.addEventListener('click', function () {
+          var open = s.classList.toggle('mobile-open');
+          o.classList.toggle('active', open);
+          t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        o.addEventListener('click', function () {
+          s.classList.remove('mobile-open');
+          o.classList.remove('active');
+          t.setAttribute('aria-expanded', 'false');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

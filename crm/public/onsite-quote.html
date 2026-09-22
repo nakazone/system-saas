@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a2036" />
+  <title>Quick Quote — Senior Floors</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="design-system.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { corePlugins: { preflight: false } };
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=8" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <style>
+    html { font-family: Inter, system-ui, sans-serif; }
+    #crmSharedNavRoot { position: relative; top: auto; z-index: 1; max-height: min(32vh, 240px); overflow-y: auto; transition: max-height 0.2s ease, opacity 0.2s ease; }
+    #osTopFixed.os-crm-nav-collapsed #crmSharedNavRoot { max-height: 0; opacity: 0; overflow: hidden; pointer-events: none; margin: 0; padding: 0; border: none; }
+    #osTopFixed.os-crm-nav-collapsed { max-height: none; }
+    #mainScroll { -webkit-overflow-scrolling: touch; }
+    #mainScroll.os-pt-compact { padding-top: 148px !important; }
+    .os-safe-pb { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+    .os-safe-pt { padding-top: max(0.5rem, env(safe-area-inset-top)); }
+    .os-step-dot { width: 10px; height: 10px; border-radius: 9999px; background: rgba(255,255,255,0.22); transition: background 0.2s, transform 0.2s; }
+    .os-step-dot--on { background: #d6b598; transform: scale(1.2); }
+    .os-card-tap { transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.15s ease; }
+    .os-card-tap:active { transform: scale(0.98); }
+    .os-card-tap.os-card-tap--sel { box-shadow: 0 0 0 2px #d6b598; border-color: #d6b598 !important; }
+    .os-sq-input { font-size: clamp(1.75rem, 8vw, 2.25rem); font-weight: 800; letter-spacing: -0.02em; }
+    details.os-details > summary { list-style: none; cursor: pointer; user-select: none; }
+    details.os-details > summary::-webkit-details-marker { display: none; }
+    details.os-details > summary::after { content: '▾'; float: right; opacity: 0.5; font-size: 0.75rem; }
+    details.os-details:not([open]) > summary::after { transform: rotate(-90deg); display: inline-block; }
+  </style>
+</head>
+<body class="crm-standalone-page bg-slate-100 text-slate-900 min-h-screen">
+  <p id="authBanner" class="hidden fixed top-0 left-0 right-0 z-[10060] bg-red-600 text-white text-center text-sm py-2 px-3 os-safe-pt"></p>
+
+  <div id="osTopFixed" class="fixed top-0 left-0 right-0 z-[10040] flex flex-col shadow-lg os-safe-pt">
+    <div id="crmSharedNavRoot"></div>
+    <header class="shrink-0 bg-[#1a2036] text-white border-t border-white/10">
+      <div class="flex items-center justify-between gap-2 px-3 py-2">
+        <div class="flex items-center gap-1.5 shrink-0">
+          <a href="dashboard.html?page=quotes" class="text-sm font-medium text-white/90 hover:text-white">← CRM</a>
+          <button type="button" id="btnToggleCrmNav" class="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md bg-white/15 hover:bg-white/25 text-white/95" aria-expanded="true" aria-controls="crmSharedNavRoot">Nav</button>
+        </div>
+        <div class="text-center min-w-0 flex-1">
+          <div class="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Field quote</div>
+          <h1 class="text-sm font-bold truncate tracking-tight">Quick Quote</h1>
+        </div>
+        <span id="stepLabel" class="text-[11px] text-[#d6b598] font-bold shrink-0 whitespace-nowrap uppercase tracking-wide">Build</span>
+      </div>
+      <div id="stepperDots" class="flex justify-center gap-2 px-3 pb-1.5" aria-hidden="true"></div>
+      <div class="px-3 pb-2 border-t border-white/10">
+        <div class="flex items-center justify-between gap-2 bg-white/10 rounded-xl px-3 py-2.5">
+          <span class="text-[11px] font-semibold text-white/75 uppercase tracking-wide">Total</span>
+          <span id="pricingTotal" class="text-xl font-bold text-[#d6b598] tabular-nums tracking-tight">$0.00</span>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <main id="mainScroll" class="overflow-y-auto overscroll-contain px-3 pb-28 min-h-screen" style="padding-top: min(42vh, 320px);">
+    <p id="migrateMsg" class="text-amber-800 text-xs mb-3 hidden"></p>
+
+    <!-- STEP 1: everything to price the job -->
+    <section id="osPanelBuild" class="step-panel space-y-3 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+        <label for="inputTotalSqft" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Square feet</label>
+        <div id="heroSqftEditable">
+          <input id="inputTotalSqft" type="number" inputmode="numeric" min="0" step="1" placeholder="0"
+            class="os-sq-input w-full rounded-xl border-2 border-slate-200 px-3 py-2 tabular-nums text-[#1a2036] focus:border-[#1a2036] focus:outline-none" value="0" />
+        </div>
+        <div id="heroSqftReadonly" class="hidden rounded-xl border-2 border-dashed border-slate-200 px-3 py-3 bg-slate-50">
+          <div id="heroEffectiveSqft" class="os-sq-input tabular-nums text-[#1a2036]">0</div>
+          <p class="text-[11px] text-slate-500 mt-1">Total from rooms below</p>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-2">Enter sq ft first — it drives labor, material, and add-on defaults.</p>
+
+        <details class="os-details mt-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+          <summary class="text-sm font-semibold text-[#1a2036]">Room-by-room</summary>
+          <div class="pt-3 space-y-3">
+            <div class="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-bold">
+              <button type="button" id="modeTotal" class="flex-1 py-2.5 bg-[#1a2036] text-white">Use total above</button>
+              <button type="button" id="modeRooms" class="flex-1 py-2.5 bg-white text-slate-700">Sum rooms</button>
+            </div>
+            <div id="blockRooms" class="hidden space-y-2">
+              <div id="roomList" class="space-y-2"></div>
+              <button type="button" id="btnAddRoom" class="w-full py-3 rounded-xl bg-slate-800 text-white font-bold text-sm os-card-tap">+ Room</button>
+              <div class="flex justify-between text-sm font-bold pt-1 border-t border-slate-200">
+                <span class="text-slate-600">Effective sq ft</span>
+                <span id="roomSumDisplay" class="text-[#1a2036] tabular-nums">0</span>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Contact</h2>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Name <span class="text-red-500">*</span></label>
+            <input id="clientName" type="text" autocomplete="name" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-base" placeholder="Client name" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Phone</label>
+            <input id="clientPhone" type="tel" autocomplete="tel" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-base" placeholder="Mobile" />
+          </div>
+        </div>
+        <details class="os-details rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+          <summary class="text-sm font-semibold text-slate-700">More (email, address)</summary>
+          <div class="pt-3 space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Email <span class="text-slate-400 font-normal">(optional)</span></label>
+              <input id="clientEmail" type="email" autocomplete="email" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-base" placeholder="name@email.com" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Job address</label>
+              <input id="clientAddress" type="text" autocomplete="street-address" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-base" placeholder="Street, city" />
+            </div>
+            <p id="placesHint" class="text-[11px] text-slate-500 hidden">Google address suggestions enabled.</p>
+            <div id="addressSuggestions" class="hidden rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 max-h-36 overflow-y-auto text-sm"></div>
+            <button type="button" id="btnUseLocation" class="w-full py-2.5 rounded-xl border-2 border-[#1a2036]/25 font-semibold text-[#1a2036] text-sm os-card-tap">Use current location</button>
+          </div>
+        </details>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+        <h2 class="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2">Service</h2>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" data-svc="installation" class="svc-card os-card-tap rounded-xl border-2 border-slate-200 p-2.5 text-center">
+            <div class="font-bold text-[#1a2036] text-xs leading-tight">Install</div>
+            <div class="text-[10px] text-slate-500 mt-0.5 leading-tight">New floors</div>
+          </button>
+          <button type="button" data-svc="sand" class="svc-card os-card-tap rounded-xl border-2 border-slate-200 p-2.5 text-center">
+            <div class="font-bold text-[#1a2036] text-xs leading-tight">Sand</div>
+            <div class="text-[10px] text-slate-500 mt-0.5 leading-tight">Refinish</div>
+          </button>
+          <button type="button" data-svc="both" class="svc-card os-card-tap rounded-xl border-2 border-slate-200 p-2.5 text-center">
+            <div class="font-bold text-[#1a2036] text-xs leading-tight">Both</div>
+            <div class="text-[10px] text-slate-500 mt-0.5 leading-tight">Full scope</div>
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-2">Selected: <span id="svcSelectedLabel" class="font-semibold text-slate-700">Installation</span></p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Material</h2>
+        <div class="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-bold">
+          <button type="button" id="matWe" class="flex-1 py-2.5 bg-[#1a2036] text-white">We supply</button>
+          <button type="button" id="matCust" class="flex-1 py-2.5 bg-white text-slate-700">Customer supplies</button>
+        </div>
+        <div id="blockProductSearch" class="space-y-2">
+          <label class="block text-xs font-semibold text-slate-600">Product search</label>
+          <div class="relative">
+            <input id="productSearch" type="search" class="w-full rounded-xl border border-slate-200 pl-3 pr-9 py-2.5 text-sm" placeholder="SKU, name…" autocomplete="off" />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" aria-hidden="true">⌕</span>
+          </div>
+          <div id="productPickList" class="hidden rounded-xl border border-slate-200 max-h-32 overflow-y-auto text-sm divide-y divide-slate-100"></div>
+          <div id="productSelected" class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm space-y-1 hidden">
+            <div class="font-bold text-[#1a2036] text-sm" id="prodName"></div>
+            <div class="text-xs text-slate-600">Cost <span id="prodCost"></span> · Margin <span id="prodMargin"></span>% · Sell <span id="prodSell"></span></div>
+            <label class="block text-xs font-semibold text-slate-600 pt-1">Qty (sq ft)</label>
+            <input id="productQty" type="number" min="0" step="1" class="w-full rounded-lg border border-slate-200 px-2 py-2 tabular-nums" />
+          </div>
+        </div>
+        <p id="matCustNote" class="hidden text-xs text-slate-500">No material line — customer provides flooring.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Add-ons</h2>
+          <div class="flex gap-1.5">
+            <button type="button" id="presetBasic" class="px-2 py-1 rounded-lg border border-slate-200 text-[10px] font-bold os-card-tap">Basic</button>
+            <button type="button" id="presetStandard" class="px-2 py-1 rounded-lg border border-slate-200 text-[10px] font-bold os-card-tap">Std</button>
+            <button type="button" id="presetPremium" class="px-2 py-1 rounded-lg border border-slate-200 text-[10px] font-bold os-card-tap">Pro</button>
+          </div>
+        </div>
+        <div id="addonToggles" class="grid grid-cols-1 gap-0"></div>
+      </div>
+    </section>
+
+    <!-- STEP 2: review & commit -->
+    <section id="osPanelReview" class="step-panel hidden space-y-3 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-base font-bold text-[#1a2036]">Review</h2>
+        <div id="summaryLines" class="text-sm space-y-2 border-b border-slate-100 pb-3"></div>
+        <div class="flex justify-between text-lg font-bold">
+          <span>Total</span>
+          <span id="summaryTotal" class="text-[#1a2036] tabular-nums">$0.00</span>
+        </div>
+        <label class="flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-dashed border-slate-300 text-sm font-semibold text-slate-600 cursor-pointer">
+          Photos
+          <input id="photoInput" type="file" accept="image/*" capture="environment" multiple class="hidden" />
+        </label>
+        <div id="photoThumbs" class="flex flex-wrap gap-2"></div>
+        <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+          <input type="checkbox" id="chkGbb" class="rounded border-slate-300" />
+          Good / Better / Best packages before send
+        </label>
+        <button type="button" id="btnOpenGbb" class="w-full py-2.5 rounded-xl bg-violet-100 text-violet-900 font-semibold text-sm">Preview packages</button>
+      </div>
+    </section>
+
+    <section id="panelGbb" class="step-panel hidden space-y-3 pb-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+        <h2 class="text-base font-bold text-[#1a2036]">Pick a package</h2>
+        <div id="gbbCards" class="space-y-3"></div>
+        <button type="button" id="gbbBack" class="w-full py-3 rounded-xl border border-slate-200 font-semibold text-sm">Back</button>
+      </div>
+    </section>
+  </main>
+
+  <footer id="actionFooter" class="fixed bottom-0 left-0 right-0 z-[10100] bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] os-safe-pb">
+    <div id="footerNav" class="flex gap-2 p-3">
+      <button type="button" id="btnBack" class="flex-1 py-3.5 rounded-xl border-2 border-slate-200 font-semibold text-slate-700 text-sm hidden">Back</button>
+      <button type="button" id="btnNext" class="flex-[2] py-3.5 rounded-xl bg-[#1a2036] text-white font-bold text-sm shadow-md">Review &amp; save →</button>
+    </div>
+    <div id="footerFinal" class="hidden p-3 space-y-2">
+      <button type="button" id="btnSendQuote" class="w-full py-3.5 rounded-xl bg-[#1a2036] text-white font-bold text-sm">Save &amp; open quote</button>
+      <div class="flex gap-2">
+        <button type="button" id="btnApprove" class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-xs">Approve</button>
+        <button type="button" id="btnDeposit" class="flex-1 py-2.5 rounded-xl bg-amber-500 text-white font-semibold text-xs">Deposit</button>
+      </div>
+    </div>
+  </footer>
+
+  <button type="button" id="fabAdd" class="fixed z-[10120] w-14 h-14 rounded-full bg-[#d6b598] text-[#1a2036] font-bold text-2xl shadow-lg flex items-center justify-center bottom-24 right-4 border-2 border-white/90 os-safe-pb" style="margin-bottom: env(safe-area-inset-bottom);" aria-label="Add line">+</button>
+
+  <div id="sheetBackdrop" class="hidden fixed inset-0 z-[10140] bg-black/40" aria-hidden="true"></div>
+  <div id="sheetAdd" class="hidden fixed z-[10150] left-2 right-2 bottom-2 max-h-[70vh] rounded-2xl bg-white shadow-2xl p-4 overflow-y-auto os-safe-pb" role="dialog" aria-labelledby="sheetAddTitle">
+    <h3 id="sheetAddTitle" class="font-bold text-[#1a2036] mb-3">Quick line</h3>
+    <label class="block text-xs font-semibold text-slate-600">Description</label>
+    <input id="quickLineName" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2 mb-2" placeholder="e.g. Closet" />
+    <label class="block text-xs font-semibold text-slate-600">Amount ($)</label>
+    <input id="quickLineAmt" type="number" min="0" step="0.01" class="w-full rounded-xl border border-slate-200 px-3 py-2 mb-3 tabular-nums" />
+    <div class="flex gap-2">
+      <button type="button" id="sheetCancel" class="flex-1 py-2.5 rounded-xl border border-slate-200 font-semibold text-sm">Cancel</button>
+      <button type="button" id="sheetSaveLine" class="flex-1 py-2.5 rounded-xl bg-[#1a2036] text-white font-semibold text-sm">Add</button>
+    </div>
+    <p class="text-[11px] text-slate-500 mt-3">Voice: use the mic in the keyboard on mobile.</p>
+    <button type="button" id="btnVoice" class="mt-2 w-full py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm">Try voice</button>
+  </div>
+
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="crm-toast.js"></script>
+  <script src="onsite-quote.js"></script>
+</body>
+</html>

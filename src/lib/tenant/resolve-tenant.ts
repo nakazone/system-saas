@@ -170,8 +170,14 @@ export async function resolveTenant(
       }
     }
 
-    // /login on apex without a workspace — send people to the finder
-    if (req.path === "/login" || req.path === "/logout") {
+    // /login without workspace → finder; HTML CRM entry points need a workspace too
+    if (
+      req.path === "/login" ||
+      req.path === "/logout" ||
+      req.path === "/login.html" ||
+      req.path === "/dashboard.html" ||
+      req.path === "/change-password.html"
+    ) {
       res.redirect("/find-workspace");
       return;
     }

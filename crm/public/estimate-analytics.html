@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estimate Analytics - Senior Floors CRM</title>
+    <!-- Favicon (mesmo padrão do site Senior Floors) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="crm-shared-nav.css?v=8">
+    <link rel="stylesheet" href="crm-toast.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        .analytics-container {
+            padding: var(--spacing-md);
+        }
+        
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .analytics-card {
+            background: var(--bg-white);
+            padding: var(--spacing-md);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+        
+        .analytics-card h3 {
+            margin-top: 0;
+            color: var(--text-dark);
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: var(--spacing-sm) 0;
+        }
+        
+        .chart-container {
+            background: var(--bg-white);
+            padding: var(--spacing-md);
+            border-radius: 8px;
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow);
+        }
+        
+        .chart-container canvas {
+            max-height: 400px;
+        }
+    </style>
+</head>
+<body class="crm-standalone-page">
+    <div id="crmSharedNavRoot"></div>
+    <div class="dashboard-container">
+        <div class="dashboard-content">
+            <div class="analytics-container">
+                <div class="page-header">
+                    <h1>Estimate Analytics</h1>
+                    <button class="btn btn-secondary" onclick="loadAnalytics()">Refresh</button>
+                </div>
+                
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h3>Acceptance Rate</h3>
+                        <div class="metric-value" id="acceptanceRate">-</div>
+                        <div id="acceptanceDetails"></div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Average Margin</h3>
+                        <div class="metric-value" id="avgMargin">-</div>
+                        <div id="marginDetails"></div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Total Revenue</h3>
+                        <div class="metric-value" id="totalRevenue">-</div>
+                        <div id="revenueDetails"></div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>Margin by Project Type</h3>
+                    <canvas id="marginByTypeChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>Revenue by Flooring Type</h3>
+                    <canvas id="revenueByFlooringChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="crm-toast.js"></script>
+    <script src="crm-shared-nav.js?v=13"></script>
+    <script src="estimate-analytics.js"></script>
+</body>
+</html>

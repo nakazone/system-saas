@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "installCommand": "npm install",
+  "rewrites": [
+    { "source": "/send-lead", "destination": "/api/send-lead" },
+    { "source": "/send-lead.php", "destination": "/api/send-lead" }
+  ]
+}

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile - Builder Portal</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-crm-nav" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body bp-page-body" data-bp-page="profile">
+  <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="dashboardSidebar">&#9776;</button>
+  <div class="dashboard-container" id="portalShell">
+    <div class="mobile-overlay" id="mobileOverlay" aria-hidden="true"></div>
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <a href="builder-portal.html" title="Dashboard">
+          <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+        </a>
+      </div>
+      <nav class="sidebar-nav" id="bpPortalNav" aria-label="Partner portal"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <a href="builder-profile.html" class="sidebar-user-bar__avatar" id="bpSidebarAvatar" title="Profile">B</a>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="bpSidebarName">Partner</span>
+            <span class="sidebar-user-bar__role" id="bpSidebarRole">Partner portal</span>
+          </div>
+          <div id="bpSidebarNotifWrap"></div>
+          <button type="button" id="btnPortalLogout" class="sidebar-logout-btn" title="Logout" aria-label="Logout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <main class="dashboard-main bp-portal-main">
+<div class="bp-main bp-profile-main">
+        <h1 class="bp-title">Profile &amp; settings</h1>
+
+        <section class="bp-card" id="profileSection">
+          <h2 class="bp-profile-section__title">Personal &amp; company</h2>
+          <form id="profileForm" class="bp-form-grid">
+            <div><label for="first_name">First name</label><input name="first_name" id="first_name" required /></div>
+            <div><label for="last_name">Last name</label><input name="last_name" id="last_name" required /></div>
+            <div><label for="phone">Phone</label><input name="phone" id="phone" type="tel" /></div>
+            <div><label for="company">Company</label><input name="company" id="company" /></div>
+            <div class="bp-form-full"><label for="website">Website</label><input name="website" id="website" type="url" placeholder="https://" /></div>
+            <div class="bp-form-full"><label for="company_logo_url">Company logo URL</label><input name="company_logo_url" id="company_logo_url" type="url" placeholder="https://� (used on client PDF reports)" /></div>
+            <div class="bp-form-full"><label for="email">Email (login)</label><input id="email" readonly disabled /></div>
+            <div class="bp-form-full"><button type="submit" class="bp-btn-tan">Save changes</button></div>
+          </form>
+        </section>
+
+        <section class="bp-card bp-profile-manager" id="managerBlock"></section>
+
+        <section class="bp-card" id="passwordSection">
+          <h2 class="bp-profile-section__title">Change password</h2>
+          <p class="bp-muted bp-profile-hint">Use at least 8 characters with letters and numbers. You will receive a confirmation email after saving.</p>
+          <form id="passwordForm" class="bp-form-grid">
+            <div class="bp-form-full" id="currentPasswordWrap">
+              <label for="current_password">Current password</label>
+              <input type="password" id="current_password" autocomplete="current-password" />
+            </div>
+            <div class="bp-form-full">
+              <label for="new_password">New password</label>
+              <input type="password" id="new_password" autocomplete="new-password" required minlength="8" />
+            </div>
+            <div class="bp-form-full">
+              <label for="confirm_password">Confirm new password</label>
+              <input type="password" id="confirm_password" autocomplete="new-password" required minlength="8" />
+            </div>
+            <div class="bp-form-full">
+              <button type="submit" class="bp-btn-tan">Update password</button>
+            </div>
+            <p id="passwordStatus" class="bp-muted" style="min-height:1.2em"></p>
+          </form>
+        </section>
+
+        <section class="bp-card" id="documents">
+          <h2 class="bp-profile-section__title">Partner documents</h2>
+          <p class="bp-muted bp-profile-hint">Upload W-9, Certificate of Insurance, business license, and other files. Senior Floors reviews each upload.</p>
+          <div id="docRequiredList" class="bp-doc-required"></div>
+          <div id="docList"></div>
+          <form id="docUploadForm" class="bp-doc-upload">
+            <h3 class="bp-profile-section__subtitle">Upload or replace document</h3>
+            <input type="hidden" id="replaceDocId" value="" />
+            <div class="bp-form-grid">
+              <div><label for="docName">Document name</label><input name="name" id="docName" placeholder="e.g. GL Certificate 2026" /></div>
+              <div><label for="docType">Type</label>
+                <select id="docType">
+                  <option value="w9">W-9</option>
+                  <option value="insurance">Certificate of Insurance</option>
+                  <option value="license">Business License</option>
+                  <option value="contract">Contract</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div><label for="docExpires">Expires (optional)</label><input type="date" id="docExpires" /></div>
+              <div class="bp-form-full"><label for="docFile">File (PDF or image)</label><input type="file" id="docFile" accept=".pdf,.jpg,.jpeg,.png,.webp" required /></div>
+              <div class="bp-form-full" style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="submit" class="bp-btn-tan" id="btnDocUpload">Upload for review</button>
+                <button type="button" class="bp-btn-ghost hidden" id="btnCancelReplace">Cancel replace</button>
+              </div>
+            </div>
+            <p id="docUploadStatus" class="bp-muted" style="min-height:1.2em"></p>
+          </form>
+        </section>
+
+        <section class="bp-card" id="notifications">
+          <h2 class="bp-profile-section__title">Email notifications</h2>
+          <label class="bp-pref-row"><input type="checkbox" id="pref_project" /> Project status updates</label>
+          <label class="bp-pref-row"><input type="checkbox" id="pref_message" /> New messages from Senior Floors</label>
+          <label class="bp-pref-row"><input type="checkbox" id="pref_checklist" /> Checklist items assigned to you</label>
+          <label class="bp-pref-row"><input type="checkbox" id="pref_documents" /> Document expiry reminders</label>
+          <button type="button" class="bp-btn-tan" id="btnSavePrefs" style="margin-top:12px">Save preferences</button>
+        </section>
+      </div>
+        </main>
+  </div>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=20260531-crm-nav"></script>
+  <script src="builder-portal-common.js?v=20260531-crm-nav"></script>
+  <script src="builder-profile.js?v=20260531-ui"></script>
+</body>
+</html>

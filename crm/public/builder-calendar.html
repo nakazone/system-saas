@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendar - Builder Portal</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-crm-nav" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body bp-page-body" data-bp-page="calendar">
+  <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="dashboardSidebar">&#9776;</button>
+  <div class="dashboard-container" id="portalShell">
+    <div class="mobile-overlay" id="mobileOverlay" aria-hidden="true"></div>
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <a href="builder-portal.html" title="Dashboard">
+          <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+        </a>
+      </div>
+      <nav class="sidebar-nav" id="bpPortalNav" aria-label="Partner portal"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <a href="builder-profile.html" class="sidebar-user-bar__avatar" id="bpSidebarAvatar" title="Profile">B</a>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="bpSidebarName">Partner</span>
+            <span class="sidebar-user-bar__role" id="bpSidebarRole">Partner portal</span>
+          </div>
+          <div id="bpSidebarNotifWrap"></div>
+          <button type="button" id="btnPortalLogout" class="sidebar-logout-btn" title="Logout" aria-label="Logout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <main class="dashboard-main bp-portal-main">
+<header class="bp-page-header">
+        <div class="bp-page-header__text">
+          <p class="bp-eyebrow">Senior Floors Partner</p>
+          <h1 class="bp-title">Schedule</h1>
+          <p class="bp-page-header__sub">Confirmed visits and your pending requests.</p>
+        </div>
+        <div class="bp-page-header__actions">
+          <button type="button" class="bp-btn-tan" id="btnNewVisit">Request visit</button>
+          <a href="#" id="btnExportIcs" class="bp-btn-ghost" style="text-decoration:none">Export .ics</a>
+        </div>
+      </header>
+      <div class="bp-cal-view-toggle" style="margin-bottom:12px">
+        <button type="button" class="bp-btn-tan active" id="viewListCal">List</button>
+        <button type="button" class="bp-btn-ghost" id="viewMonthCal">Month</button>
+      </div>
+      <div id="calendarMonth" class="bp-cal-month hidden"></div>
+      <div class="bp-toolbar bp-calendar-filters">
+        <div>
+          <label class="bp-form-grid label" style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">From</label>
+          <input type="date" id="filterFrom" aria-label="From date" />
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">To</label>
+          <input type="date" id="filterTo" aria-label="To date" />
+        </div>
+        <button type="button" class="bp-btn-ghost" id="btnApplyFilter">Apply</button>
+      </div>
+      <div id="calendarList"></div>
+    </main>
+  </div>
+  <div class="bp-modal" id="visitModal">
+    <div class="bp-modal__box">
+      <h3 style="margin-top:0">Request a site visit</h3>
+      <form id="visitForm" class="bp-form-grid">
+        <div class="bp-form-full">
+          <label>Project (optional)</label>
+          <select id="visitProject"><option value="">General / new site</option></select>
+        </div>
+        <div class="bp-form-full">
+          <label>Visit type</label>
+          <select id="visitType">
+            <option value="evaluation">Site evaluation</option>
+            <option value="measurement">Measurement</option>
+            <option value="materials">Materials presentation</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="bp-form-full">
+          <label>Date &amp; time *</label>
+          <input type="datetime-local" id="visitWhen" required />
+        </div>
+        <div class="bp-form-full">
+          <label>Address line 1 *</label>
+          <input id="visitLine1" required />
+        </div>
+        <div>
+          <label>City *</label>
+          <input id="visitCity" required />
+        </div>
+        <div>
+          <label>ZIP</label>
+          <input id="visitZip" />
+        </div>
+        <div class="bp-form-full">
+          <label>Notes</label>
+          <textarea id="visitNotes" rows="3"></textarea>
+        </div>
+        <div class="bp-form-full" style="display:flex;gap:8px">
+          <button type="submit" class="bp-btn-tan">Submit request</button>
+          <button type="button" class="bp-btn-ghost" id="visitCancel">Cancel</button>
+        </div>
+      </form>
+      <p id="visitFormStatus" class="bp-muted" style="min-height:1.2em"></p>
+    </div>
+  </div>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=20260531-crm-nav"></script>
+  <script src="builder-portal-common.js?v=20260531-crm-nav"></script>
+  <script src="builder-calendar.js?v=20260531-ui"></script>
+</body>
+</html>

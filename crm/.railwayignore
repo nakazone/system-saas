@@ -1,0 +1,11 @@
+# Menos ficheiros no `railway up` → upload mais rápido (o servidor não precisa disto em runtime)
+node_modules
+.git
+.env
+.env.*
+.DS_Store
+*.md
+docs
+.vscode
+.idea
+coverage

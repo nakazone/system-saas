@@ -22,6 +22,8 @@ import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
 import { platformAdminRouter } from "./platform-admin/routes.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
+import { createCrmRouter } from "./crm/mount.js";
+import { CRM_ASSETS_DIR } from "./crm/mount.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PgSession = connectPgSimple(session);
@@ -49,6 +51,7 @@ export function createApp() {
   app.use(express.urlencoded({ extended: true, limit: "5mb" }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
+  app.use("/assets", express.static(CRM_ASSETS_DIR));
   app.use("/assets", express.static(path.join(__dirname, "public")));
 
   // Health must be registered before session/DB middleware so Railway probes never hang.
@@ -116,6 +119,9 @@ export function createApp() {
   app.use(requireTenant);
   app.use(bindTenantContext);
   app.use(loadSessionUser);
+
+  // Senior Floors CRM UI + /api/auth bridge (primary product experience)
+  app.use(createCrmRouter());
 
   app.use(authRouter);
   app.use("/invitations", invitationsRouter);

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your quote — Senior Floors</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="quote-public.css" />
+  <link rel="stylesheet" href="crm-toast.css" />
+</head>
+<body class="qp-page">
+  <div class="qp-wrap">
+    <div id="quoteDocument" class="qp-doc" hidden>
+      <div class="qp-accent-bar" aria-hidden="true"></div>
+      <div class="qp-doc-inner" id="quoteDocumentInner"></div>
+    </div>
+    <div id="quoteActions" class="qp-actions" hidden></div>
+    <p id="quoteApprovedMsg" class="qp-approved qp-approved-msg" hidden></p>
+    <div id="quoteError" class="qp-error hidden"></div>
+    <p id="quoteLoading" class="qp-error" style="color: var(--qp-muted);">Loading…</p>
+  </div>
+
+  <div id="qpSignModal" class="qp-sign-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qpSignTitle">
+    <div class="qp-sign-modal__backdrop" id="qpSignBackdrop"></div>
+    <div class="qp-sign-modal__panel">
+      <h2 id="qpSignTitle" class="qp-sign-modal__title">Approve &amp; sign</h2>
+      <p class="qp-sign-modal__sub">A assinatura é gerada automaticamente a partir do seu nome. Pode desenhar por cima para personalizar.</p>
+      <label class="qp-sign-field" for="qpSignerName">Your full name</label>
+      <input type="text" id="qpSignerName" class="qp-sign-input" autocomplete="name" placeholder="Full name" />
+      <label class="qp-sign-field" for="qpSignCanvas">Your signature</label>
+      <div class="qp-sign-canvas-wrap">
+        <canvas id="qpSignCanvas" width="520" height="140" aria-label="Draw your signature"></canvas>
+      </div>
+      <div class="qp-sign-modal__actions">
+        <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear">Clear</button>
+        <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel">Cancel</button>
+        <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit">Approve quote</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="quote-signature-auto.js?v=20260708"></script>
+  <script src="quote-public.js?v=20260819-quote-job-builder"></script>
+</body>
+</html>

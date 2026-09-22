@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estimate - Senior Floors</title>
+    <!-- Favicon (mesmo padrão do site Senior Floors) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="crm-toast.css">
+    <style>
+        .estimate-view {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: var(--spacing-md);
+        }
+        
+        .estimate-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: var(--spacing-lg);
+            border-radius: 8px;
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .estimate-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .info-card {
+            background: var(--bg-white);
+            padding: var(--spacing-md);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+        
+        .info-card h3 {
+            margin: 0 0 var(--spacing-xs) 0;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        
+        .info-card .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        
+        .scope-section {
+            background: var(--bg-white);
+            padding: var(--spacing-md);
+            border-radius: 8px;
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .items-grouped {
+            margin-top: var(--spacing-md);
+        }
+        
+        .items-group {
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .items-group h4 {
+            color: var(--primary-color);
+            margin-bottom: var(--spacing-sm);
+            padding-bottom: var(--spacing-xs);
+            border-bottom: 2px solid var(--primary-color);
+        }
+        
+        .item-line {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--spacing-xs) 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .item-line:last-child {
+            border-bottom: none;
+        }
+        
+        .payment-schedule {
+            background: var(--bg-light);
+            padding: var(--spacing-md);
+            border-radius: 8px;
+            margin-top: var(--spacing-md);
+        }
+        
+        .payment-item {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--spacing-sm) 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .payment-item:last-child {
+            border-bottom: none;
+        }
+        
+        .total-box {
+            background: var(--primary-color);
+            color: white;
+            padding: var(--spacing-lg);
+            border-radius: 8px;
+            text-align: center;
+            margin-top: var(--spacing-md);
+        }
+        
+        .total-box .label {
+            font-size: 1.2rem;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .total-box .amount {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-lg);
+            justify-content: center;
+        }
+        
+        @media (max-width: 768px) {
+            .estimate-view {
+                padding: var(--spacing-sm);
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="estimate-view">
+        <div class="estimate-header">
+            <h1>Flooring Estimate</h1>
+            <p id="estimateNumber" style="margin: 0; opacity: 0.9;">Loading...</p>
+        </div>
+        
+        <div class="estimate-info">
+            <div class="info-card">
+                <h3>Total Sqft</h3>
+                <div class="value" id="totalSqft">-</div>
+            </div>
+            <div class="info-card">
+                <h3>Flooring Type</h3>
+                <div class="value" id="flooringType" style="font-size: 1.2rem;">-</div>
+            </div>
+            <div class="info-card">
+                <h3>Project Type</h3>
+                <div class="value" id="projectType" style="font-size: 1.2rem;">-</div>
+            </div>
+            <div class="info-card">
+                <h3>Valid Until</h3>
+                <div class="value" id="expirationDate" style="font-size: 1rem;">-</div>
+            </div>
+        </div>
+        
+        <div class="scope-section">
+            <h2>Scope of Work</h2>
+            <div id="scopeDescription" style="color: var(--text-light); margin-top: var(--spacing-sm);">
+                Loading...
+            </div>
+            
+            <div class="items-grouped" id="itemsGrouped"></div>
+        </div>
+        
+        <div class="payment-schedule" id="paymentSchedule" style="display: none;">
+            <h3>Payment Schedule</h3>
+            <div id="paymentItems"></div>
+        </div>
+        
+        <div class="total-box">
+            <div class="label">Total Estimate</div>
+            <div class="amount" id="finalPrice">$0.00</div>
+        </div>
+        
+        <div class="action-buttons">
+            <button class="btn btn-primary" onclick="acceptEstimate()" style="min-width: 200px;">Accept Estimate</button>
+            <button class="btn btn-secondary" onclick="declineEstimate()" style="min-width: 200px;">Decline</button>
+        </div>
+    </div>
+    
+    <script src="crm-toast.js"></script>
+    <script src="estimate-view.js"></script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Builders & Parceiros — Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body bp-page-body payroll-sidebar-page">
+  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-controls="bpSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Builders</h1>
+    </div>
+  </header>
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="bpSidebar" aria-label="Menu lateral">
+      <div class="sidebar-header">
+        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Navegação CRM">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="dashboard-main">
+      <div class="bp-main">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:1rem">
+          <div>
+            <p class="bp-eyebrow">Builders / Cadastro</p>
+            <h1 class="bp-title">Builders & Parceiros</h1>
+          </div>
+          <button type="button" class="bp-btn-tan" id="btnNewBuilder">+ Novo Builder</button>
+        </div>
+        <div class="bp-metrics" id="metricsRow"></div>
+        <div class="bp-filters">
+          <div><label class="bp-eyebrow">Busca</label><input type="search" id="filterSearch" placeholder="Nome ou empresa" /></div>
+          <div><label class="bp-eyebrow">Tipo</label>
+            <select id="filterType"><option value="">Todos</option><option value="contractor">General Contractor</option><option value="architect">Architect</option><option value="designer">Interior Designer</option><option value="developer">Developer</option><option value="subcontractor">Subcontractor</option></select>
+          </div>
+          <div><label class="bp-eyebrow">Status</label>
+            <select id="filterStatus"><option value="">Todos</option><option value="active">Ativo</option><option value="pending">Pendente</option><option value="inactive">Inativo</option></select>
+          </div>
+        </div>
+        <div class="bp-table-wrap">
+          <table class="bp-table" id="buildersTable">
+            <thead><tr><th>#</th><th>Builder</th><th>Tipo</th><th>Empresa</th><th>Região</th><th>Projetos</th><th>Status</th><th>Último login</th><th>Ações</th></tr></thead>
+            <tbody id="buildersTbody"><tr><td colspan="9">A carregar…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div class="bp-modal" id="builderModal" aria-hidden="true">
+    <div class="bp-modal__box" role="dialog">
+      <h2 class="bp-title" id="modalTitle" style="margin-bottom:1rem">Novo Builder</h2>
+      <form id="builderForm" class="bp-form-grid">
+        <div><label>First Name *</label><input name="first_name" required /></div>
+        <div><label>Last Name *</label><input name="last_name" required /></div>
+        <div><label>Email *</label><input name="email" type="email" required /></div>
+        <div><label>Phone</label><input name="phone" /></div>
+        <div><label>Empresa / Studio</label><input name="company" /></div>
+        <div><label>Website</label><input name="website" /></div>
+        <div><label>Tipo</label>
+          <select name="type"><option value="contractor">General Contractor</option><option value="architect">Architect</option><option value="designer">Interior Designer</option><option value="developer">Developer</option><option value="subcontractor">Subcontractor</option></select>
+        </div>
+        <div><label>Status</label>
+          <select name="status"><option value="pending">Pendente</option><option value="active">Ativo</option><option value="inactive">Inativo</option></select>
+        </div>
+        <div class="bp-form-full"><label><input type="checkbox" name="portal_access" id="portalAccess" /> Criar acesso ao portal</label></div>
+        <div class="bp-form-full"><label>Nota interna</label><textarea name="internal_note" rows="3"></textarea></div>
+        <div class="bp-form-full" style="display:flex;gap:8px;justify-content:flex-end">
+          <button type="button" class="btn btn-secondary" id="modalCancel">Cancelar</button>
+          <button type="submit" class="bp-btn-tan">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script src="crm-toast.js"></script>
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="builders.js?v=20260819-del-builder"></script>
+</body>
+</html>

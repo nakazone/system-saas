@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f3f4f7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Senior Floors - Dashboard</title>
+    <link rel="manifest" href="/manifest.json">
+    <!-- Favicon (mesmo padrão do site Senior Floors) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
+    <link rel="stylesheet" href="styles.css?v=20260915-qb-action-bar">
+    <link rel="stylesheet" href="design-system.css?v=20260819-menu-fix-v2">
+    <link rel="stylesheet" href="mobile-design-system.css?v=20260918-sticky-search">
+    <link rel="stylesheet" href="crm-toast.css">
+    <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
+    <link rel="stylesheet" href="crm-command-palette.css">
+    <link rel="stylesheet" href="dashboard-insights.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dashboard-app-body">
+    <header class="mobile-app-header" id="mobileAppHeader">
+        <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu completo" aria-expanded="false" aria-controls="dashboardSidebar">
+            <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+        </button>
+        <div class="mobile-app-header__brand">
+            <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'">
+            <h1 class="mobile-app-header__title" id="mobileAppTitle">Dashboard</h1>
+        </div>
+    </header>
+
+    <div class="mobile-more-backdrop" id="mobileMoreBackdrop" hidden aria-hidden="true"></div>
+    <div class="mobile-more-sheet" id="mobileMoreSheet" role="dialog" aria-modal="true" aria-labelledby="mobileMoreSheetTitle" hidden>
+        <div class="mobile-more-sheet__handle" aria-hidden="true"></div>
+        <h2 class="mobile-more-sheet__title" id="mobileMoreSheetTitle">Mais opções</h2>
+        <nav class="mobile-more-sheet__nav" aria-label="Mais módulos">
+            <a href="marketing.html" class="mobile-more-sheet__btn" data-crm-permission="reports.view"><span class="mobile-more-sheet__emoji" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="display:block;margin:0 auto;color:var(--text-dark)" aria-hidden="true"><path d="M3 11v2a1 1 0 001 1h2l4 9V4L6 11H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 8"/><path d="M19 6a8 8 0 010 12"/></svg></span> Marketing</a>
+            <button type="button" class="mobile-more-sheet__btn" data-page="leads" data-crm-permission="leads.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Leads</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="invoices" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Invoices</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="schedule" data-crm-permission="visits.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📅</span> Agenda</button>
+            <a href="projects.html" class="mobile-more-sheet__btn" data-crm-permission="projects.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🔧</span> Projetos</a>
+            <a href="financial.html" class="mobile-more-sheet__btn" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</a>
+            <a href="payroll-module.html" class="mobile-more-sheet__btn" data-crm-permission="payroll.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👷</span> Folha de pagamento</a>
+            <details class="mobile-more-sheet__cadastro">
+                <summary class="mobile-more-sheet__btn mobile-more-sheet__cadastro-summary"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Cadastros</summary>
+                <div class="mobile-more-sheet__cadastro-panel">
+                    <a href="products-erp.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📦</span> Produtos</a>
+                    <a href="financial.html#vendors" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏷</span> Fornecedores</a>
+                    <a href="quote-catalog.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="quotes.edit"><span class="mobile-more-sheet__emoji" aria-hidden="true">📑</span> Serviços</a>
+                    <a href="dashboard.html?page=customers" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</a>
+                    <a href="dashboard.html?page=customers&amp;type=builder" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗</span> Builders</a>
+                    <a href="financial.html#notas-recibos" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Notas / recibos</a>
+                    <a href="financial.html#recebimentos" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Recebimentos</a>
+                </div>
+            </details>
+            <button type="button" class="mobile-more-sheet__btn" data-page="activities" data-crm-permission="activities.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📝</span> Atividades</button>
+            <button type="button" class="mobile-more-sheet__btn" data-page="users" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Utilizadores</button>
+            <a href="change-password.html" class="mobile-more-sheet__btn">Definições da conta</a>
+        </nav>
+        <button type="button" class="mobile-more-sheet__btn mobile-more-sheet__btn--danger" id="mobileMoreLogout">Sair da conta</button>
+    </div>
+
+    <div class="mobile-more-backdrop" id="sfFabBackdrop" hidden aria-hidden="true"></div>
+    <div class="mobile-more-sheet sf-fab-sheet" id="sfFabSheet" role="dialog" aria-modal="true" aria-labelledby="sfFabSheetTitle" hidden>
+        <div class="sf-fab-sheet__handle mobile-more-sheet__handle" aria-hidden="true"></div>
+        <h2 class="sf-fab-sheet__title" id="sfFabSheetTitle">Criar rápido</h2>
+        <nav class="mobile-more-sheet__nav sf-fab-sheet__nav" aria-label="Ações">
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewQuote" data-crm-permission="quotes.edit">
+                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg></span>
+                <span class="sf-fab-sheet__txt"><strong>Orçamento</strong><small>Novo quote</small></span>
+            </button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewClient" data-crm-permission="customers.create">
+                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg></span>
+                <span class="sf-fab-sheet__txt"><strong>Cliente</strong><small>Novo cadastro</small></span>
+            </button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewLead" data-crm-permission="leads.view">
+                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                <span class="sf-fab-sheet__txt"><strong>Lead</strong><small>Novo no pipeline</small></span>
+            </button>
+            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewVisit" data-crm-permission="visits.view">
+                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg></span>
+                <span class="sf-fab-sheet__txt"><strong>Visita</strong><small>Abrir agenda</small></span>
+            </button>
+        </nav>
+    </div>
+
+    <nav class="sf-bottom-nav mobile-tab-bar" id="mobileTabBar" aria-label="Navegação principal">
+        <div class="mobile-tab-bar__thumb" id="mobileTabThumb" aria-hidden="true"></div>
+        <button type="button" class="mobile-tab-bar__item mobile-tab-bar__item--active touchable" data-mobile-tab="dashboard" aria-current="page">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>
+            </span>
+            <span class="mobile-tab-bar__label">Home</span>
+        </button>
+        <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="quotes">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+            </span>
+            <span class="mobile-tab-bar__label">Quotes</span>
+        </button>
+        <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="customers">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </span>
+            <span class="mobile-tab-bar__label">Clients</span>
+        </button>
+        <div class="sf-bottom-nav__fab-slot">
+            <button type="button" class="sf-fab touchable" id="sfMobileFab" aria-label="Criar" aria-expanded="false" aria-controls="sfFabSheet">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            </button>
+        </div>
+        <button type="button" class="mobile-tab-bar__item touchable" data-mobile-tab="more" aria-label="Mais módulos">
+            <span class="mobile-tab-bar__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            </span>
+            <span class="mobile-tab-bar__label">Mais</span>
+        </button>
+    </nav>
+
+    <div class="dashboard-container">
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+        
+        <!-- Fixed Sidebar -->
+        <aside class="dashboard-sidebar" id="dashboardSidebar">
+            <div class="sidebar-header">
+                <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'">
+            </div>
+            
+            <nav class="sidebar-nav" aria-label="Principal">
+                <div class="sidebar-nav-group">
+                    <a href="#" class="nav-item active" data-page="dashboard">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                        Dashboard
+                    </a>
+                </div>
+                <div class="sidebar-nav-group">
+                    <p class="sidebar-nav-group-label">Comercial</p>
+                    <a href="marketing.html" class="nav-item" data-crm-permission="reports.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 11v2a1 1 0 001 1h2l4 9V4L6 11H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 8"/><path d="M19 6a8 8 0 010 12"/></svg>
+                        Marketing
+                    </a>
+                    <a href="#" class="nav-item" data-page="leads" data-crm-permission="leads.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
+                        Leads
+                    </a>
+                </div>
+                <div class="sidebar-nav-group">
+                    <p class="sidebar-nav-group-label">Operações</p>
+                    <a href="#" class="nav-item" data-page="quotes" data-crm-permission="quotes.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                        Quotes
+                    </a>
+                    <a href="#" class="nav-item" data-page="invoices" data-crm-permission="quotes.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>
+                        Invoices
+                    </a>
+                    <a href="#" class="nav-item" data-page="schedule" data-crm-permission="visits.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+                        Schedule
+                    </a>
+                    <a href="projects.html" class="nav-item" data-crm-permission="projects.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/><path d="M5 3l4 4"/></svg>
+                        Projetos
+                    </a>
+                    <a href="builder-payments-forecast.html" class="nav-item" data-crm-permission="projects.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/><path d="M5 3l4 4"/></svg>
+                        Previsão builders
+                    </a>
+                    <details class="sidebar-nav-dropdown" id="sidebarCadastroDropdown">
+                        <summary class="nav-item nav-item--dropdown">
+                            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                            Cadastro
+                        </summary>
+                        <div class="sidebar-nav-dropdown__panel">
+                            <a href="products-erp.html" class="nav-item nav-item--sub" data-crm-permission="quotes.view">
+                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                                Produtos
+                            </a>
+                            <a href="financial.html#vendors" class="nav-item nav-item--sub" data-crm-permission="contracts.view">
+                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                                Fornecedores
+                            </a>
+                            <a href="quote-catalog.html" class="nav-item nav-item--sub" data-crm-permission="quotes.edit">
+                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                                Serviços
+                            </a>
+                            <a href="#" class="nav-item nav-item--sub" data-page="customers" data-crm-permission="customers.view">
+                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                                Clientes
+                            </a>
+                            <a href="#" class="nav-item nav-item--sub" data-page="customers" data-customers-type="builder" data-crm-permission="customers.view">
+                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                                Builders
+                            </a>
+                            <a href="financial.html#notas-recibos" class="nav-item nav-item--sub" data-crm-permission="contracts.view">
+                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                                Notas / recibos
+                            </a>
+                            <a href="financial.html#recebimentos" class="nav-item nav-item--sub" data-crm-permission="contracts.view">
+                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                                Recebimentos
+                            </a>
+                        </div>
+                    </details>
+                </div>
+                <div class="sidebar-nav-group" data-crm-permission="builders.view">
+                    <p class="sidebar-nav-group-label">Builders</p>
+                    <a href="builders.html" class="nav-item" data-crm-permission="builders.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        Builders
+                    </a>
+                    <a href="builder-portal.html" class="nav-item" target="_blank" rel="noopener" data-crm-permission="builders.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>
+                        Portal do Builder
+                    </a>
+                    <a href="projects.html" class="nav-item" data-crm-permission="projects.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+                        Projetos Builders
+                    </a>
+                    <a href="builder-pricing-admin.html" class="nav-item" data-crm-permission="builders.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                        Tabela de Valores
+                    </a>
+                    <a href="builder-gallery-admin.html" class="nav-item" data-crm-permission="builders.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                        Galeria de Projetos
+                    </a>
+                    <a href="builder-messages-admin.html" class="nav-item" data-crm-permission="builders.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                        Mensagens
+                    </a>
+                </div>
+                <div class="sidebar-nav-group">
+                    <p class="sidebar-nav-group-label">Financeiro &amp; registo</p>
+                    <a href="financial.html" class="nav-item" data-crm-permission="contracts.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                        Financeiro
+                    </a>
+                    <a href="payroll-module.html" class="nav-item" data-crm-permission="payroll.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        Folha de pagamento
+                    </a>
+                    <a href="#" class="nav-item" data-page="activities" data-crm-permission="activities.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Activities
+                    </a>
+                </div>
+                <div class="sidebar-nav-group">
+                    <p class="sidebar-nav-group-label">Sistema</p>
+                    <a href="#" class="nav-item" data-page="users" data-crm-permission="users.view">
+                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        Users
+                    </a>
+                </div>
+            </nav>
+                
+            <div class="sidebar-footer">
+                <div class="sidebar-user-bar">
+                    <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+                    <div class="sidebar-user-bar__text">
+                        <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+                        <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+                    </div>
+                    <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                    </button>
+                </div>
+            </div>
+        </aside>
+        
+        <main class="dashboard-main">
+            
+            <div class="dashboard-content">
+                <div id="loading" class="loading" style="display: none;">Loading...</div>
+                <div id="error" class="error-message" style="display: none;"></div>
+                
+                <!-- Dashboard Page -->
+                <div id="dashboardPage" class="page-content">
+                    <div id="urgentLeadsBanner" class="urgent-leads-banner" style="display: none;">
+                        <span id="urgentLeadsBannerText"></span>
+                        <a href="#" onclick="showPage('leads'); return false;" id="urgentLeadsBannerLink">Ver leads</a>
+                    </div>
+
+                    <div id="dashErrorBanner" class="dash-error-banner" style="display: none;" role="alert"></div>
+
+                    <div id="sfMobileHomeBlock" class="sf-mobile-only">
+                        <div class="sf-ptr-indicator" id="dashboardPtrIndicator" aria-hidden="true">↓ Puxe para atualizar</div>
+                        <p class="sf-caption" id="sfMobileGreeting" style="margin:0 0 12px;">Bom dia</p>
+                        <nav class="sf-main-menu" id="sfMobileMainMenu" aria-label="Menus principais">
+                            <p class="sf-main-menu__label">Menus principais</p>
+                            <div class="sf-main-menu__grid">
+                                <button type="button" class="sf-main-menu__btn sf-main-menu__btn--dashboard touchable" onclick="showPage('dashboard')">
+                                    <span class="sf-main-menu__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>
+                                    </span>
+                                    <span>
+                                        <span class="sf-main-menu__name">Dashboard</span>
+                                        <span class="sf-main-menu__hint">Visão geral</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="sf-main-menu__btn sf-main-menu__btn--leads touchable" data-crm-permission="leads.view" onclick="showPage('leads')">
+                                    <span class="sf-main-menu__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                    </span>
+                                    <span>
+                                        <span class="sf-main-menu__name">Leads</span>
+                                        <span class="sf-main-menu__hint">Pipeline CRM</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="sf-main-menu__btn sf-main-menu__btn--quotes touchable" data-crm-permission="quotes.view" onclick="showPage('quotes')">
+                                    <span class="sf-main-menu__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+                                    </span>
+                                    <span>
+                                        <span class="sf-main-menu__name">Quotes</span>
+                                        <span class="sf-main-menu__hint">Orçamentos</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="sf-main-menu__btn sf-main-menu__btn--payroll touchable" data-crm-permission="payroll.view" onclick="location.href='payroll-module.html'">
+                                    <span class="sf-main-menu__icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+                                    </span>
+                                    <span>
+                                        <span class="sf-main-menu__name">Folha de Pagamento</span>
+                                        <span class="sf-main-menu__hint">Payroll</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </nav>
+                        <div class="sf-hero">
+                            <div class="sf-period" id="sfMobilePeriod" role="tablist" aria-label="Período">
+                                <span class="sf-period__thumb" id="sfMobilePeriodThumb" aria-hidden="true"></span>
+                                <button type="button" class="sf-period__btn" role="tab" data-sf-period="today">Hoje</button>
+                                <button type="button" class="sf-period__btn" role="tab" data-sf-period="week">7 dias</button>
+                                <button type="button" class="sf-period__btn is-active" role="tab" data-sf-period="month" aria-selected="true">Mês</button>
+                            </div>
+                            <div id="sfMobileKpiGrid" class="sf-kpi-grid"></div>
+                        </div>
+                        <div class="sf-quick-actions sf-mobile-only--flex" id="sfMobileQuickActions"></div>
+                        <p class="sf-title" style="margin:12px 0 8px;">Atividades pendentes</p>
+                        <div id="sfMobileActivityChips" class="sf-quick-actions sf-mobile-only--flex"></div>
+                        <p class="sf-title" style="margin:12px 0 8px;">Orçamentos recentes</p>
+                        <div id="sfMobileRecentQuotes" class="sf-quotes-card-list"></div>
+                    </div>
+
+                    <div id="dashInsightsRoot" class="dash-insights dash-insights--sf sf-desktop-dashboard-block">
+                        <header class="dash-insights__header sf-dash-topbar">
+                            <div class="dash-insights__titles">
+                                <p class="sf-page-eyebrow" id="dashPageEyebrow">Visão geral</p>
+                                <h2 class="page-title sf-page-title" style="margin:0;">Dashboard</h2>
+                                <p class="dash-insights__greet sf-dash-greet" id="dashGreetingLine">Bom dia</p>
+                                <p class="dash-insights__sub" id="dashSubtitleLine">Atualizado agora</p>
+                            </div>
+                            <div class="dash-insights__toolbar">
+                                <div class="dash-period-group sf-period-pills" role="group" aria-label="Período">
+                                    <button type="button" class="sf-pill" data-dash-period="today">Hoje</button>
+                                    <button type="button" class="sf-pill" data-dash-period="week">Semana</button>
+                                    <button type="button" class="sf-pill active dash-period--active" data-dash-period="month">Mês</button>
+                                    <button type="button" class="sf-pill" data-dash-period="overall">Overall</button>
+                                </div>
+                                <button type="button" class="sf-btn-refresh dash-insights__refresh" id="dashRefreshBtn" onclick="loadDashboard(currentDashboardPeriod)" title="Atualizar">
+                                    <span aria-hidden="true">↻</span> Atualizar
+                                </button>
+                            </div>
+                        </header>
+
+                        <div id="dashAlertsBar" class="dash-alerts sf-dash-alerts"></div>
+
+                        <div id="dashKpiRow1" class="dash-kpi-grid sf-dash-kpi-row sf-dash-kpi-row--7"></div>
+                        <div id="dashKpiRow2" class="dash-kpi-grid sf-dash-kpi-row sf-dash-kpi-row--5"></div>
+
+                        <section id="charts-section" class="dash-charts-section">
+                            <div class="sf-card" id="card-chart-sources">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                                    <div>
+                                        <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Leads por origem</div>
+                                        <div style="font-size:10px;color:var(--sf-muted);margin-top:1px" id="chart-sources-sub">— total</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:12px">
+                                    <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+                                        <canvas id="chart-sources" width="80" height="80" aria-label="Leads por origem"></canvas>
+                                        <div id="chart-sources-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                                            <span style="font-size:16px;font-weight:700;color:var(--sf-navy)" id="chart-sources-total">—</span>
+                                            <span style="font-size:8px;color:var(--sf-muted)">leads</span>
+                                        </div>
+                                    </div>
+                                    <div id="chart-sources-legend" style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0"></div>
+                                </div>
+                            </div>
+                            <div class="sf-card sf-warn" id="card-chart-proposals">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                                    <div>
+                                        <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Estimates</div>
+                                        <div style="font-size:10px;color:var(--sf-muted);margin-top:1px">Distribuição por status</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:12px">
+                                    <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+                                        <canvas id="chart-proposals" width="80" height="80" aria-label="Estimates por status"></canvas>
+                                        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                                            <span style="font-size:16px;font-weight:700;color:var(--sf-navy)" id="chart-proposals-total">—</span>
+                                            <span style="font-size:8px;color:var(--sf-muted)">total</span>
+                                        </div>
+                                    </div>
+                                    <div id="chart-proposals-legend" style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0"></div>
+                                </div>
+                            </div>
+                            <div class="sf-card sf-ok" id="card-chart-services">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                                    <div>
+                                        <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Receita por serviço</div>
+                                        <div style="font-size:10px;color:var(--sf-muted);margin-top:1px">Supply · Install · Sand</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:12px">
+                                    <div style="position:relative;width:80px;height:80px;flex-shrink:0">
+                                        <canvas id="chart-services" width="80" height="80" aria-label="Receita por serviço"></canvas>
+                                        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+                                            <span style="font-size:13px;font-weight:700;color:var(--sf-navy)" id="chart-services-total">—</span>
+                                            <span style="font-size:8px;color:var(--sf-muted)">receita</span>
+                                        </div>
+                                    </div>
+                                    <div id="chart-services-legend" style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0"></div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div class="sf-card sf-gold dash-chart-revenue-card" style="margin-top:10px">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+                                <div>
+                                    <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Receita mensal</div>
+                                    <div style="font-size:10px;color:var(--sf-muted);margin-top:1px">Últimos 6 meses (estimates aceites)</div>
+                                </div>
+                                <div style="display:flex;gap:16px">
+                                    <div style="text-align:right">
+                                        <div style="font-size:9px;color:var(--sf-muted)">Média</div>
+                                        <div style="font-size:13px;font-weight:700;color:var(--sf-navy)" id="chart-revenue-avg">—</div>
+                                    </div>
+                                    <div style="text-align:right">
+                                        <div style="font-size:9px;color:var(--sf-muted)">vs anterior</div>
+                                        <div style="font-size:13px;font-weight:700;color:var(--sf-ok)" id="chart-revenue-trend">—</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="position:relative;height:140px">
+                                <canvas id="chart-revenue"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="sf-card dash-chart-trend-card" style="margin-top:10px">
+                            <div style="margin-bottom:10px">
+                                <div style="font-size:10px;font-weight:700;color:var(--sf-navy);letter-spacing:.04em;text-transform:uppercase">Novos leads</div>
+                                <div style="font-size:10px;color:var(--sf-muted);margin-top:1px">Últimos 7 dias</div>
+                            </div>
+                            <div style="position:relative;height:120px">
+                                <canvas id="chart-leads-trend"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="dash-panels sf-dash-panels">
+                            <div class="dash-panel sf-panel">
+                                <div class="sf-panel-header">
+                                    <div class="sf-panel-title-group">
+                                        <div class="sf-panel-dot" aria-hidden="true"></div>
+                                        <h3 class="sf-panel-title">Funil do pipeline</h3>
+                                    </div>
+                                    <a href="#" class="sf-panel-link" onclick="event.preventDefault(); showPage('leads');">Ver pipeline →</a>
+                                </div>
+                                <div id="funnel-rows" class="dash-funnel-rows"></div>
+                            </div>
+                            <div class="dash-panel sf-panel">
+                                <div class="sf-panel-header">
+                                    <div class="sf-panel-title-group">
+                                        <div class="sf-panel-dot" aria-hidden="true"></div>
+                                        <h3 class="sf-panel-title">Leads recentes</h3>
+                                    </div>
+                                    <a href="#" class="sf-panel-link" onclick="event.preventDefault(); showPage('leads');">Ver todos →</a>
+                                </div>
+                                <ul id="dashRecentLeads" class="dash-list sf-dash-recent-list"></ul>
+                                <h3 class="sf-panel-subheading">Visitas de hoje</h3>
+                                <ul id="dashVisitsToday" class="dash-list sf-dash-recent-list"></ul>
+                            </div>
+                        </div>
+
+                        <section class="dash-insights__insights sf-dash-insights-section">
+                            <div class="sf-panel sf-panel--flat">
+                                <div class="sf-panel-header">
+                                    <div class="sf-panel-title-group">
+                                        <div class="sf-panel-dot" aria-hidden="true"></div>
+                                        <h3 class="sf-panel-title">Ações recomendadas</h3>
+                                    </div>
+                                </div>
+                                <div id="dashInsightCards" class="dash-insight-cards sf-dash-insight-cards"></div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+                
+                <!-- Leads Page -->
+                <div id="leadsPage" class="page-content" style="display: none;">
+                    <div class="sf-ptr-indicator" id="leadsPtrIndicator" aria-hidden="true">↓ Puxe para atualizar</div>
+
+                    <div id="leadsMobileShell" class="sf-mobile-only">
+                        <div class="leads-mobile-head">
+                            <div class="leads-mobile-head__titles">
+                                <p class="sf-title" style="margin:0;">Leads</p>
+                                <p class="sf-caption" id="leadsMobileSubtitle" style="margin:2px 0 0;">Pipeline</p>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-cta-primary touchable" onclick="showNewLeadModal()" data-crm-permission="leads.view">+ Novo Lead</button>
+                        </div>
+                        <div class="sf-mobile-sticky-chrome">
+                            <div class="sf-quotes-toolbar leads-mobile-toolbar">
+                                <input type="search" id="leadsMobileSearch" class="sf-quotes-search" placeholder="Buscar nome, telefone, e-mail ou ID…" autocomplete="off" aria-label="Buscar leads" />
+                            </div>
+                            <div class="chiptrack" id="leadsMobileChiptrack" role="tablist" aria-label="Estágios do pipeline">
+                                <div class="chiptrack__scroll" id="leadsMobileChips"></div>
+                                <div class="chiptrack__bar" id="leadsMobileChipBar" aria-hidden="true"></div>
+                            </div>
+                            <div class="stagebar" id="leadsMobileStagebar" aria-live="polite">
+                                <span class="stagebar__count" id="leadsMobileStageCount">0 leads</span>
+                                <strong class="stagebar__value" id="leadsMobileStageValue">$0</strong>
+                            </div>
+                        </div>
+                        <div id="leadsMobileList" class="llist" aria-label="Leads do estágio"></div>
+                    </div>
+
+                    <div class="sf-desktop-leads-block">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
+                            <h2 class="page-title">Leads</h2>
+                            <div style="display: flex; gap: var(--spacing-sm);">
+                                <button class="btn btn-secondary" onclick="showNewLeadModal()">+ Novo Lead</button>
+                                <button class="btn btn-secondary" onclick="refreshLeads()">Refresh</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm); align-items: center; margin-bottom: var(--spacing-md);">
+                            <input type="search" id="leadsListSearchInput" placeholder="Buscar por nome, email, telefone ou ID…" style="min-width: 12rem; flex: 1; max-width: 22rem; padding: 0.45rem 0.65rem; border-radius: var(--radius-sm, 6px); border: 1px solid var(--border-color, #ccc);" onkeydown="if (event.key === 'Enter') { event.preventDefault(); leadsSearchSubmit(); }" />
+                            <button type="button" class="btn btn-secondary" onclick="leadsSearchSubmit()">Buscar</button>
+                            <button type="button" class="btn btn-secondary" onclick="leadsSearchClear()">Limpar</button>
+                        </div>
+
+                        <div id="kanbanView" class="kanban-view-wrap">
+                            <div class="kanban-board-toolbar" id="kanbanBoardToolbar">
+                                <button
+                                    type="button"
+                                    id="kanbanToggleLostBtn"
+                                    class="btn btn-secondary btn-sm kanban-lost-toggle"
+                                    aria-pressed="false"
+                                    aria-expanded="false"
+                                    title="Mostrar ou ocultar coluna Lost"
+                                >
+                                    <span class="kanban-lost-toggle__label">Ver Lost</span>
+                                    <span class="kanban-lost-toggle__count" id="kanbanLostCount" aria-hidden="true">0</span>
+                                </button>
+                            </div>
+                            <div class="kanban-board-wrap">
+                                <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Marketing Analytics -->
+                <div id="marketingPage" class="page-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
+                        <h2 class="page-title">Marketing &amp; campanhas</h2>
+                        <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm); align-items: center;">
+                            <button type="button" class="btn btn-secondary" onclick="exportMarketingLeadsCsv()">Exportar leads CSV</button>
+                            <button type="button" class="btn btn-primary" onclick="loadMarketingDashboard()">Atualizar</button>
+                        </div>
+                    </div>
+                    <p id="mktPeriodLabel" class="text-muted" style="margin-bottom: var(--spacing-sm);"></p>
+                    <div id="mktUrgentBanner" class="mkt-urgent-banner" style="display: none;" role="status" aria-live="polite"></div>
+                    <div id="mktError" class="error-message" style="display: none; margin-bottom: var(--spacing-sm);"></div>
+                    <div class="form-row" style="margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
+                        <div class="form-group">
+                            <label>Início</label>
+                            <input type="date" id="mktDateStart">
+                        </div>
+                        <div class="form-group">
+                            <label>Fim</label>
+                            <input type="date" id="mktDateEnd">
+                        </div>
+                        <div class="form-group">
+                            <label>UTM campaign</label>
+                            <input type="text" id="mktUtmCampaign" placeholder="opcional">
+                        </div>
+                        <div class="form-group">
+                            <label>Plataforma</label>
+                            <select id="mktPlatform">
+                                <option value="">Todas</option>
+                                <option value="Meta">Meta</option>
+                                <option value="Google">Google</option>
+                                <option value="Organic">Organic</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Fonte (source)</label>
+                            <input type="text" id="mktSource" placeholder="ex. LP-Hero">
+                        </div>
+                        <div class="form-group" style="align-self: flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="loadMarketingDashboard()">Aplicar filtros</button>
+                        </div>
+                    </div>
+                    <div id="mktKpiGrid" class="stats-grid" style="margin-bottom: var(--spacing-md);"></div>
+                    <div class="charts-container" style="margin-bottom: var(--spacing-md);">
+                        <div class="chart-card">
+                            <h3>Leads ao longo do tempo</h3>
+                            <div class="chart-container"><canvas id="mktChartLeadsTime"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Receita ao longo do tempo</h3>
+                            <div class="chart-container"><canvas id="mktChartRevenueTime"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Funil (estágios no período)</h3>
+                            <div class="chart-container"><canvas id="mktChartFunnel"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Receita por campanha (UTM)</h3>
+                            <div class="chart-container"><canvas id="mktChartRevCampaign"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="chart-card" style="margin-bottom: var(--spacing-md);">
+                        <h3>Receita por campanha (tabela)</h3>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Campanha</th><th>Deals</th><th>Receita</th></tr></thead>
+                                <tbody id="mktRevByCampaignBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="chart-card" style="margin-bottom: var(--spacing-md);">
+                        <h3>Gasto em mídia (Ad spend)</h3>
+                        <p>Total no período: <strong id="mktAdSpendSum">—</strong></p>
+                        <form id="mktAdSpendForm" onsubmit="submitAdSpend(event)" style="margin-bottom: var(--spacing-md);">
+                            <div class="form-row flex-wrap">
+                                <div class="form-group"><label>Plataforma</label>
+                                    <select name="platform" required><option value="Meta">Meta</option><option value="Google">Google</option><option value="Other">Other</option></select>
+                                </div>
+                                <div class="form-group"><label>Campaign name</label><input name="campaign_name" required></div>
+                                <div class="form-group"><label>UTM campaign (match)</label><input name="utm_campaign" placeholder="opcional"></div>
+                                <div class="form-group"><label>Spend ($)</label><input name="spend" type="number" step="0.01" required></div>
+                                <div class="form-group"><label>Data</label><input name="spend_date" type="date" id="mktSpendDate" required></div>
+                                <div class="form-group"><label>Notas</label><input name="notes"></div>
+                                <div class="form-group" style="align-self: flex-end;"><button type="submit" class="btn btn-primary">Adicionar</button></div>
+                            </div>
+                        </form>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead><tr><th>Data</th><th>Plataforma</th><th>Campaign</th><th>UTM</th><th>Spend</th><th></th></tr></thead>
+                                <tbody id="mktAdSpendBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <p class="text-muted" style="font-size: 0.85rem;">Rode no servidor após deploy: <code>node database/migrate-marketing-analytics.js</code> — cria colunas UTM em <code>leads</code> e tabela <code>ad_spend</code>.</p>
+                </div>
+                
+                <!-- Modals -->
+                <!-- New Lead Modal -->
+                <div id="newLeadModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Novo Lead</h3>
+                            <button class="modal-close" onclick="closeModal('newLeadModal')">&times;</button>
+                        </div>
+                        <form id="newLeadForm" onsubmit="createLeadManual(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Nome *</label>
+                                    <input type="text" name="name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Email *</label>
+                                    <input type="email" name="email" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Telefone *</label>
+                                    <input type="tel" name="phone" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>CEP *</label>
+                                    <input type="text" name="zipcode" pattern="[0-9]{5}" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Fonte</label>
+                                    <select name="source">
+                                        <option value="Manual">Manual</option>
+                                        <option value="Referral">Indicação</option>
+                                        <option value="Website">Website</option>
+                                        <option value="Social Media">Redes Sociais</option>
+                                        <option value="Other">Outro</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Designar para</label>
+                                    <select name="owner_id" id="newLeadOwnerSelect">
+                                        <option value="">Não designar</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Estágio / status</label>
+                                <select id="newLeadPipelineStage" name="pipeline_stage_slug" aria-label="Pipeline stage">
+                                    <option value="new_lead" selected>New Lead</option>
+                                    <option value="meeting_scheduled">Meeting Scheduled</option>
+                                    <option value="quote_sent">Quote Sent</option>
+                                    <option value="follow_up_1">Follow Up</option>
+                                    <option value="stand_by">Stand By</option>
+                                    <option value="won">Won</option>
+                                    <option value="lost">Lost</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Prioridade</label>
+                                    <select name="priority">
+                                        <option value="low">Baixa</option>
+                                        <option value="medium" selected>Média</option>
+                                        <option value="high">Alta</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Valor Estimado</label>
+                                    <input type="number" name="estimated_value" step="0.01" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Mensagem</label>
+                                <textarea name="message" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Notas</label>
+                                <textarea name="notes" rows="2"></textarea>
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('newLeadModal')">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Criar Lead</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Assign Lead Modal -->
+                <div id="assignLeadModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Designar Lead</h3>
+                            <button class="modal-close" onclick="closeModal('assignLeadModal')">&times;</button>
+                        </div>
+                        <form id="assignLeadForm" onsubmit="assignLead(event)">
+                            <input type="hidden" id="assignLeadId" name="lead_id">
+                            <div class="form-group">
+                                <label>Designar para</label>
+                                <select name="owner_id" id="assignLeadOwnerSelect" required>
+                                    <option value="">Selecione um usuário...</option>
+                                </select>
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('assignLeadModal')">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Designar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Follow-up Modal -->
+                <div id="followupModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Novo Follow-up</h3>
+                            <button class="modal-close" onclick="closeModal('followupModal')">&times;</button>
+                        </div>
+                        <form id="followupForm" onsubmit="createFollowup(event)">
+                            <input type="hidden" id="followupLeadId" name="lead_id">
+                            <div class="form-group">
+                                <label>Título *</label>
+                                <input type="text" name="title" required placeholder="ex: Ligar para cliente">
+                            </div>
+                            <div class="form-group">
+                                <label>Descrição</label>
+                                <textarea name="description" rows="3"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Data/Hora *</label>
+                                    <input type="datetime-local" name="due_date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Prioridade</label>
+                                    <select name="priority">
+                                        <option value="low">Baixa</option>
+                                        <option value="medium" selected>Média</option>
+                                        <option value="high">Alta</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Designar para</label>
+                                <select name="assigned_to" id="followupAssignedSelect">
+                                    <option value="">Eu mesmo</option>
+                                </select>
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('followupModal')">Cancelar</button>
+                                <button type="submit" class="btn btn-primary">Criar Follow-up</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Importar PDF Invoice2Go / orçamento externo -->
+                <div id="importInvoicePdfModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Importar PDF (ex.: Invoice2Go)</h3>
+                            <button type="button" class="modal-close" onclick="closeModal('importInvoicePdfModal')">&times;</button>
+                        </div>
+                        <form id="importInvoicePdfForm">
+                            <p class="text-muted" style="font-size:0.9rem;margin-bottom:12px;">1. Escolha o PDF. 2. Só depois aparece o campo para o <strong>valor final</strong> do orçamento no CRM.</p>
+                            <div class="form-group">
+                                <label for="importInvoicePdfFile">Ficheiro PDF *</label>
+                                <input type="file" id="importInvoicePdfFile" accept=".pdf,application/pdf" required>
+                            </div>
+                            <div id="importInvoicePdfAmountSection" class="form-group" style="display: none;">
+                                <label for="importInvoicePdfAmount">Valor final do quote ($) *</label>
+                                <input type="number" id="importInvoicePdfAmount" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('importInvoicePdfModal')">Cancelar</button>
+                                <button type="submit" class="btn btn-primary" id="importInvoicePdfSubmit" disabled>Guardar quote</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Cliente (cadastro / edição) -->
+                <div id="clientModal" class="modal" style="display: none;">
+                    <div class="modal-content" style="max-width: 560px;">
+                        <div class="modal-header">
+                            <h3 id="clientModalTitle">Novo cliente</h3>
+                            <button type="button" class="modal-close" onclick="closeModal('clientModal')">&times;</button>
+                        </div>
+                        <form id="clientForm" onsubmit="submitClientForm(event)">
+                            <input type="hidden" id="clientFormId" value="">
+                            <input type="hidden" id="clientFormLeadId" value="">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientType">Tipo *</label>
+                                    <select id="clientType" required>
+                                        <option value="residential">Cliente final (residencial)</option>
+                                        <option value="builder">Builder</option>
+                                        <option value="commercial">Comercial</option>
+                                        <option value="property_manager">Property manager</option>
+                                        <option value="investor">Investidor</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="clientNonBuilderNameRow" class="form-row">
+                                <div class="form-group" style="flex: 1;">
+                                    <label for="clientName">Nome *</label>
+                                    <input type="text" id="clientName" required maxlength="255" autocomplete="name">
+                                </div>
+                            </div>
+                            <div id="clientBuilderNameRow" class="form-row" style="display: none;">
+                                <div class="form-group">
+                                    <label for="clientCompanyName">Empresa *</label>
+                                    <input type="text" id="clientCompanyName" maxlength="255" autocomplete="organization">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientResponsibleName">Responsável *</label>
+                                    <input type="text" id="clientResponsibleName" maxlength="255" autocomplete="name">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientEmail">Email *</label>
+                                    <input type="email" id="clientEmail" required maxlength="255" autocomplete="email">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientPhone">Telefone</label>
+                                    <input type="tel" id="clientPhone" maxlength="14" autocomplete="tel" inputmode="numeric" placeholder="(XXX) XXX-XXXX" title="Formato: (XXX) XXX-XXXX">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="clientAddress">Morada</label>
+                                <input type="text" id="clientAddress" maxlength="500" placeholder="Comece a digitar a morada…" autocomplete="off">
+                                <p class="form-hint sf-address-autocomplete-hint" hidden>Google Maps autocomplete ativo</p>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientCity">Cidade</label>
+                                    <input type="text" id="clientCity" maxlength="100">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientState">Estado</label>
+                                    <input type="text" id="clientState" maxlength="50">
+                                </div>
+                                <div class="form-group">
+                                    <label for="clientZip">ZIP</label>
+                                    <input type="text" id="clientZip" maxlength="10" inputmode="numeric">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="clientStatus">Estado</label>
+                                    <select id="clientStatus">
+                                        <option value="active">Ativo</option>
+                                        <option value="inactive">Inativo</option>
+                                        <option value="archived">Arquivado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="clientNotes">Notas</label>
+                                <textarea id="clientNotes" rows="3" maxlength="8000"></textarea>
+                            </div>
+                            <p id="clientFormError" class="text-muted" style="color:#c0392b;display:none;font-size:0.9rem;"></p>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button>
+                                <button type="submit" class="btn btn-primary" id="clientFormSubmit">Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Cliente: visualizar (lead / builder) -->
+                <div id="customerViewModal" class="modal" style="display: none;">
+                    <div class="modal-content" style="max-width: 820px; max-height: 92vh; overflow: hidden; display: flex; flex-direction: column;">
+                        <div class="modal-header">
+                            <h3 id="customerViewTitle">Cliente</h3>
+                            <button type="button" class="modal-close" onclick="closeModal('customerViewModal')">&times;</button>
+                        </div>
+                        <div id="customerViewBody" class="customer-view-body" style="padding: 0 1.25rem 1.25rem; overflow-y: auto; flex: 1;">
+                            <p class="text-center text-muted" style="padding: 2rem;">A carregar…</p>
+                        </div>
+                        <div class="btn-group" style="padding: 0 1.25rem 1.25rem; gap: 8px; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('customerViewModal')">Fechar</button>
+                            <button type="button" class="btn btn-primary" id="customerViewEditBtn" onclick="customerViewOpenEdit()">Editar cliente</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Clients (API: /api/customers — builders e clientes finais) -->
+                <div id="customersPage" class="page-content" style="display: none;">
+                    <header class="crm-page-header">
+                        <div class="crm-page-header__titles">
+                            <h2 class="crm-page-header__title" id="customersPageTitle">Clientes</h2>
+                            <p class="crm-page-header__subtitle" id="customersPageSubtitle">Builders e clientes finais</p>
+                        </div>
+                        <div class="crm-page-header__actions">
+                            <button type="button" class="btn btn-primary" onclick="showNewCustomerModal()" data-crm-permission="customers.create">+ Novo cliente</button>
+                        </div>
+                    </header>
+
+                    <div class="customers-list-toolbar quotes-list-toolbar" role="search" aria-label="Filtrar clientes">
+                        <input
+                            type="search"
+                            id="customersSearchInput"
+                            class="quotes-list-toolbar__search"
+                            placeholder="Buscar nome, email, telefone ou responsável…"
+                            autocomplete="off"
+                            aria-label="Buscar clientes"
+                            onkeydown="if (event.key === 'Enter') { event.preventDefault(); customersSearchSubmit(); }"
+                        />
+                        <select id="customersTypeSelect" class="customers-list-toolbar__select" aria-label="Tipo de cliente">
+                            <option value="">Todos os tipos</option>
+                            <option value="builder">Builder</option>
+                            <option value="residential">Cliente final</option>
+                            <option value="commercial">Comercial</option>
+                            <option value="property_manager">Property manager</option>
+                            <option value="investor">Investidor</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="customersSearchSubmit()">Buscar</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="customersSearchClear()">Limpar</button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr id="customersTableHeadRow">
+                                    <th>ID</th>
+                                    <th id="customersColName">Nome</th>
+                                    <th id="customersColResponsible" class="customers-col-responsible" style="display: none;">Contato (responsável)</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>City</th>
+                                    <th>Type</th>
+                                    <th>Lead</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customersTableBody">
+                                <tr><td colspan="10" class="text-center">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination">
+                        <button id="prevPageCustomers" class="btn btn-secondary" onclick="changePageCustomers(-1)">Previous</button>
+                        <span id="pageInfoCustomers">Page 1</span>
+                        <button id="nextPageCustomers" class="btn btn-secondary" onclick="changePageCustomers(1)">Next</button>
+                    </div>
+                </div>
+                
+                <!-- Quotes Page -->
+                <div id="quotesPage" class="page-content" style="display: none;">
+                    <div id="quotesMobileShell" class="sf-mobile-only">
+                        <p class="sf-title" style="margin-bottom:4px;">Orçamentos</p>
+                        <p class="sf-caption" id="quotesMobileSubtitle" style="margin:0 0 10px;"> </p>
+                        <div class="quotes-mobile-actions" role="toolbar" aria-label="Ações de orçamentos">
+                            <button type="button" class="btn btn-primary btn-cta-primary" onclick="location.href='quote-builder.html'" data-crm-permission="quotes.edit">+ Novo orçamento</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='onsite-quote.html'" data-crm-permission="quotes.create">Quick quote</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='quote-catalog.html'" data-crm-permission="quotes.edit">Catálogo</button>
+                            <button type="button" class="btn btn-secondary" onclick="openImportInvoicePdfModal()">Importar PDF</button>
+                        </div>
+                        <div class="sf-ptr-indicator" id="quotesPtrIndicator" aria-hidden="true">↓ Largar para atualizar</div>
+                        <div class="sf-mobile-sticky-chrome">
+                            <div class="sf-quotes-toolbar quotes-list-toolbar quotes-list-toolbar--mobile">
+                                <input type="search" id="quotesMobileSearch" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar cliente, nº quote ou e-mail…" autocomplete="off" aria-label="Buscar orçamentos" />
+                                <div class="quotes-list-toolbar__total" aria-live="polite">
+                                    <span class="quotes-list-toolbar__total-label" id="quotesMobileTotalFilterLabel">Total</span>
+                                    <strong class="quotes-list-toolbar__total-value" id="quotesMobileFilterTotalAmount">$0.00</strong>
+                                    <span class="quotes-list-toolbar__total-meta" id="quotesMobileTotalCountMeta"></span>
+                                </div>
+                            </div>
+                            <div class="chiptrack chiptrack--quotes" id="quotesMobileChiptrack" role="toolbar" aria-label="Filtros">
+                                <div class="chiptrack__scroll">
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="viewed" onclick="setQuotesFilter('viewed')">Visto</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="approved" onclick="setQuotesFilter('approved')">Aprovado</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="rejected" onclick="setQuotesFilter('rejected')">Rejeitado</button>
+                                    <button type="button" class="quotes-filter-chip chiptrack__chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7d</button>
+                                </div>
+                                <div class="chiptrack__bar" id="quotesMobileChipBar" aria-hidden="true"></div>
+                            </div>
+                        </div>
+                        <div id="quotesMobileList" class="sf-quotes-card-list"></div>
+                        <div class="quotes-mobile-load-more" style="text-align:center;padding:12px;">
+                            <button type="button" class="btn btn-secondary" id="quotesMobileLoadMore">Carregar mais</button>
+                        </div>
+                    </div>
+                    <header class="crm-page-header sf-desktop-quotes-toolbar">
+                        <div class="crm-page-header__titles">
+                            <h2 class="crm-page-header__title">Orçamentos</h2>
+                            <p class="crm-page-header__subtitle" id="quotesListSubtitle">A carregar…</p>
+                        </div>
+                        <div class="crm-page-header__actions">
+                            <button type="button" class="btn btn-primary btn-cta-primary" onclick="location.href='quote-builder.html'" data-crm-permission="quotes.edit">+ Novo orçamento</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='onsite-quote.html'" data-crm-permission="quotes.create" title="2-step field quote">Quick quote</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='quote-catalog.html'" data-crm-permission="quotes.edit">Catálogo de serviços</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='suppliers.html'" data-crm-permission="quotes.view">Fornecedores</button>
+                            <button type="button" class="btn btn-secondary" onclick="location.href='products-erp.html'" data-crm-permission="quotes.view">Produtos (ERP)</button>
+                            <button type="button" class="btn btn-secondary" onclick="openImportInvoicePdfModal()">📄 Importar PDF (Invoice2Go)</button>
+                            <button type="button" class="btn btn-secondary" onclick="loadEstimateAnalytics()">Analytics</button>
+                        </div>
+                    </header>
+
+                    <div class="quotes-list-toolbar sf-desktop-quotes-toolbar" role="region" aria-label="Busca e total">
+                        <input type="search" id="quotesDesktopSearch" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar cliente, nº quote ou e-mail…" autocomplete="off" aria-label="Buscar orçamentos" />
+                        <div class="quotes-list-toolbar__total" aria-live="polite">
+                            <span class="quotes-list-toolbar__total-label" id="quotesTotalFilterLabel">Total</span>
+                            <strong class="quotes-list-toolbar__total-value" id="quotesFilterTotalAmount">$0.00</strong>
+                            <span class="quotes-list-toolbar__total-meta" id="quotesTotalCountMeta"></span>
+                        </div>
+                    </div>
+
+                    <div class="quotes-filter-chips sf-desktop-quotes-toolbar" role="toolbar" aria-label="Filtrar orçamentos">
+                        <button type="button" class="quotes-filter-chip quotes-filter-chip--active" data-quotes-filter="all" onclick="setQuotesFilter('all')">Todos</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="draft" onclick="setQuotesFilter('draft')">Rascunho</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="sent" onclick="setQuotesFilter('sent')">Enviado</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="viewed" onclick="setQuotesFilter('viewed')">Visto</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="approved" onclick="setQuotesFilter('approved')">Aprovado</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="rejected" onclick="setQuotesFilter('rejected')">Rejeitado</button>
+                        <button type="button" class="quotes-filter-chip" data-quotes-filter="expiring7" onclick="setQuotesFilter('expiring7')">Expira ≤7 dias</button>
+                    </div>
+                    
+                    <div class="table-container sf-desktop-quotes-toolbar">
+                        <table class="data-table quotes-data-table">
+                            <thead>
+                                <tr>
+                                    <th>Quote #</th>
+                                    <th>Client</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>PDF</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quotesTableBody">
+                                <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination sf-desktop-quotes-toolbar">
+                        <button id="prevPageQuotes" class="btn btn-secondary" onclick="changePageQuotes(-1)">Previous</button>
+                        <span id="pageInfoQuotes">Page 1</span>
+                        <button id="nextPageQuotes" class="btn btn-secondary" onclick="changePageQuotes(1)">Next</button>
+                    </div>
+                </div>
+
+                <!-- Invoices Page (sent client invoices) -->
+                <div id="invoicesPage" class="page-content" style="display: none;">
+                    <header class="crm-page-header">
+                        <div class="crm-page-header__titles">
+                            <h2 class="crm-page-header__title">Invoices</h2>
+                            <p class="crm-page-header__subtitle" id="invoicesListSubtitle">A carregar…</p>
+                        </div>
+                    </header>
+
+                    <div class="quotes-list-toolbar" role="region" aria-label="Busca e total de invoices">
+                        <input type="search" id="invoicesSearchInput" class="sf-quotes-search quotes-list-toolbar__search" placeholder="Buscar invoice, quote, cliente…" autocomplete="off" aria-label="Buscar invoices" />
+                        <div class="quotes-list-toolbar__total" aria-live="polite">
+                            <span class="quotes-list-toolbar__total-label">Total</span>
+                            <strong class="quotes-list-toolbar__total-value" id="invoicesFilterTotalAmount">$0.00</strong>
+                            <span class="quotes-list-toolbar__total-meta" id="invoicesTotalCountMeta"></span>
+                        </div>
+                    </div>
+
+                    <div class="quotes-filter-chips" role="toolbar" aria-label="Filtrar invoices">
+                        <button type="button" class="quotes-filter-chip quotes-filter-chip--active" data-invoices-filter="sent" onclick="setInvoicesFilter('sent')">Enviados</button>
+                        <button type="button" class="quotes-filter-chip" data-invoices-filter="paid" onclick="setInvoicesFilter('paid')">Pagos</button>
+                        <button type="button" class="quotes-filter-chip" data-invoices-filter="issued" onclick="setInvoicesFilter('issued')">Emitidos</button>
+                        <button type="button" class="quotes-filter-chip" data-invoices-filter="all" onclick="setInvoicesFilter('all')">Todos</button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Quote #</th>
+                                    <th>Client</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Sent</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoicesTableBody">
+                                <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination">
+                        <button id="prevPageInvoices" class="btn btn-secondary" onclick="changePageInvoices(-1)">Previous</button>
+                        <span id="pageInfoInvoices">Page 1</span>
+                        <button id="nextPageInvoices" class="btn btn-secondary" onclick="changePageInvoices(1)">Next</button>
+                    </div>
+
+                    <div id="dashReceiptModal" class="modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="dashReceiptModalTitle">
+                        <div class="modal-content" style="max-width:440px;">
+                            <div class="modal-header">
+                                <h3 id="dashReceiptModalTitle">Receber pagamento</h3>
+                                <button type="button" class="modal-close" onclick="closeDashReceiptModal()">&times;</button>
+                            </div>
+                            <form id="dashReceiptForm" onsubmit="submitDashReceiptForm(event)">
+                                <input type="hidden" id="dashRcpInvoiceId" value="" />
+                                <p id="dashRcpMeta" class="text-sm" style="margin:0 0 12px;color:#64748b;"></p>
+                                <div class="form-group">
+                                    <label for="dashRcpAmount">Valor recebido ($)</label>
+                                    <input type="number" id="dashRcpAmount" class="form-control" min="0.01" step="0.01" required />
+                                </div>
+                                <div class="form-group">
+                                    <label for="dashRcpDate">Data do pagamento</label>
+                                    <input type="date" id="dashRcpDate" class="form-control" required />
+                                </div>
+                                <div class="form-group">
+                                    <label for="dashRcpMethod">Método</label>
+                                    <select id="dashRcpMethod" class="form-control">
+                                        <option value="check">Check</option>
+                                        <option value="zelle">Zelle</option>
+                                        <option value="venmo">Venmo</option>
+                                        <option value="bank_transfer">Bank transfer</option>
+                                        <option value="credit_card">Credit card</option>
+                                        <option value="cash">Cash</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dashRcpRef">Referência</label>
+                                    <input type="text" id="dashRcpRef" class="form-control" maxlength="120" placeholder="Nº check / confirmação" />
+                                </div>
+                                <div class="form-group">
+                                    <label for="dashRcpNotes">Nota</label>
+                                    <textarea id="dashRcpNotes" class="form-control" rows="2"></textarea>
+                                </div>
+                                <label style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:14px;">
+                                    <input type="checkbox" id="dashRcpSendEmail" checked />
+                                    Enviar recibo por e-mail ao cliente
+                                </label>
+                                <div class="form-actions" style="display:flex;gap:8px;justify-content:flex-end;">
+                                    <button type="button" class="btn btn-secondary" onclick="closeDashReceiptModal()">Cancelar</button>
+                                    <button type="submit" class="btn btn-primary" id="dashRcpSubmit">Gerar recibo e dar baixa</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Projects Page -->
+                <div id="projectsPage" class="page-content" style="display: none;">
+                    <div class="page-header">
+                        <h2>Projects</h2>
+                        <button class="btn btn-primary" onclick="showNewProjectModal()">+ New Project</button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Client</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Est. Cost</th>
+                                    <th>Start Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectsTableBody">
+                                <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination">
+                        <button id="prevPageProjects" class="btn btn-secondary" onclick="changePageProjects(-1)">Previous</button>
+                        <span id="pageInfoProjects">Page 1</span>
+                        <button id="nextPageProjects" class="btn btn-secondary" onclick="changePageProjects(1)">Next</button>
+                    </div>
+                </div>
+                
+                <!-- Schedule Page (Smart Scheduling Engine) -->
+                <div id="schedulePage" class="page-content" style="display: none;">
+                    <p id="googleCalendarSyncBanner" style="display: none; font-size: 0.85rem; margin-bottom: var(--spacing-sm); padding: 8px 12px; border-radius: 8px; background: var(--bg-light, #f5f5f5);"></p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
+                        <h2 class="page-title">Smart Scheduling</h2>
+                        <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
+                            <button class="btn btn-secondary" onclick="showScheduleView('month')">Month</button>
+                            <button class="btn btn-secondary" onclick="showScheduleView('week')">Week</button>
+                            <button class="btn btn-secondary" onclick="showScheduleView('crew')">Crew Timeline</button>
+                            <button class="btn btn-primary" onclick="showNewScheduleModal()">+ Schedule Project</button>
+                            <button class="btn btn-secondary" onclick="loadScheduleDashboard()">Refresh</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Forecast Dashboard -->
+                    <div id="scheduleForecast" class="stats-grid" style="margin-bottom: var(--spacing-md);">
+                        <!-- Forecast stats will be loaded here -->
+                    </div>
+                    
+                    <!-- Calendar Views -->
+                    <div id="scheduleMonthView" class="schedule-view">
+                        <div id="scheduleCalendar" style="background: var(--bg-white); border-radius: 8px; padding: var(--spacing-md);">
+                            <!-- Calendar will be rendered here -->
+                        </div>
+                    </div>
+                    
+                    <div id="scheduleWeekView" class="schedule-view" style="display: none;">
+                        <div id="scheduleWeekCalendar" style="background: var(--bg-white); border-radius: 8px; padding: var(--spacing-md);">
+                            <!-- Week view will be rendered here -->
+                        </div>
+                    </div>
+                    
+                    <div id="scheduleCrewView" class="schedule-view" style="display: none;">
+                        <div id="scheduleCrewTimeline" style="background: var(--bg-white); border-radius: 8px; padding: var(--spacing-md);">
+                            <!-- Crew timeline will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Financeiro Page (Financial Management) -->
+                <div id="financeiroPage" class="page-content" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md); flex-wrap: wrap; gap: var(--spacing-sm);">
+                        <h2 class="page-title">Financial Management</h2>
+                        <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
+                            <button class="btn btn-secondary" onclick="showFinancialView('dashboard')">Dashboard</button>
+                            <button class="btn btn-secondary" onclick="showFinancialView('expenses')">Expenses</button>
+                            <button class="btn btn-secondary" onclick="showFinancialView('payroll')">Payroll</button>
+                            <button class="btn btn-primary" onclick="showNewExpenseModal()">+ New Expense</button>
+                            <button class="btn btn-primary" onclick="showNewPayrollModal()">+ Payroll Entry</button>
+                            <button class="btn btn-secondary" onclick="loadFinancialDashboard()">Refresh</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Financial Dashboard View -->
+                    <div id="financialDashboardView" class="financial-view">
+                        <div class="stats-grid" style="margin-bottom: var(--spacing-md);">
+                            <div class="stat-card">
+                                <h3>Total Revenue</h3>
+                                <div class="stat-value" id="totalRevenue">$0</div>
+                                <div class="stat-details">
+                                    <span id="revenueVariance">Est: $0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <h3>Total Cost</h3>
+                                <div class="stat-value" id="totalCost">$0</div>
+                                <div class="stat-details">
+                                    <span id="costVariance">Est: $0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <h3>Total Profit</h3>
+                                <div class="stat-value" id="totalProfit">$0</div>
+                                <div class="stat-details">
+                                    <span id="profitVariance">Est: $0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <h3>Profit Margin</h3>
+                                <div class="stat-value" id="profitMargin">0%</div>
+                                <div class="stat-details">
+                                    <span id="marginVariance">Est: 0%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: var(--spacing-md);">
+                            <div class="chart-card">
+                                <h3>Revenue vs Cost</h3>
+                                <div class="chart-container">
+                                    <canvas id="revenueCostChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Expense Breakdown</h3>
+                                <div class="chart-container">
+                                    <canvas id="expenseBreakdownChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Monthly Cash Flow</h3>
+                                <div class="chart-container">
+                                    <canvas id="cashFlowChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Crew Cost Analysis</h3>
+                                <div class="chart-container">
+                                    <canvas id="crewCostChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-card" style="margin-top: var(--spacing-md);">
+                            <h3>Project Profitability Ranking</h3>
+                            <div id="profitabilityRanking" style="max-height: 400px; overflow-y: auto;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Expenses View -->
+                    <div id="financialExpensesView" class="financial-view" style="display: none;">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Category</th>
+                                        <th>Vendor</th>
+                                        <th>Description</th>
+                                        <th>Amount</th>
+                                        <th>Project</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expensesTableBody">
+                                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Payroll View -->
+                    <div id="financialPayrollView" class="financial-view" style="display: none;">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Employee</th>
+                                        <th>Hours</th>
+                                        <th>Rate</th>
+                                        <th>Total</th>
+                                        <th>Project</th>
+                                        <th>Crew</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="payrollTableBody">
+                                    <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Financial Modals -->
+                <!-- New Expense Modal -->
+                <div id="newExpenseModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>New Expense</h3>
+                            <button class="modal-close" onclick="closeModal('newExpenseModal')">&times;</button>
+                        </div>
+                        <form id="newExpenseForm" onsubmit="createExpense(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Category *</label>
+                                    <select name="category" required>
+                                        <option value="material">Material</option>
+                                        <option value="labor">Labor</option>
+                                        <option value="equipment">Equipment</option>
+                                        <option value="travel">Travel</option>
+                                        <option value="office">Office</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Project</label>
+                                    <select name="project_id" id="expenseProjectSelect">
+                                        <option value="">General Overhead</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Vendor</label>
+                                    <input type="text" name="vendor">
+                                </div>
+                                <div class="form-group">
+                                    <label>Expense Date *</label>
+                                    <input type="date" name="expense_date" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Description *</label>
+                                <textarea name="description" rows="3" required></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Amount *</label>
+                                    <input type="number" name="amount" step="0.01" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Tax Amount</label>
+                                    <input type="number" name="tax_amount" step="0.01" value="0">
+                                </div>
+                                <div class="form-group">
+                                    <label>Payment Method</label>
+                                    <select name="payment_method">
+                                        <option value="cash">Cash</option>
+                                        <option value="check">Check</option>
+                                        <option value="credit_card">Credit Card</option>
+                                        <option value="bank_transfer">Bank Transfer</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Receipt (URL)</label>
+                                <input type="url" name="receipt_url" placeholder="https://...">
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('newExpenseModal')">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Create Expense</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- New Payroll Modal -->
+                <div id="newPayrollModal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>New Payroll Entry</h3>
+                            <button class="modal-close" onclick="closeModal('newPayrollModal')">&times;</button>
+                        </div>
+                        <form id="newPayrollForm" onsubmit="createPayrollEntry(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Employee *</label>
+                                    <select name="employee_id" id="payrollEmployeeSelect" required>
+                                        <option value="">Select employee...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Date *</label>
+                                    <input type="date" name="date" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Project</label>
+                                    <select name="project_id" id="payrollProjectSelect">
+                                        <option value="">General Overhead</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Crew</label>
+                                    <select name="crew_id" id="payrollCrewSelect">
+                                        <option value="">Select crew...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Hours Worked *</label>
+                                    <input type="number" name="hours_worked" step="0.25" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Hourly Rate *</label>
+                                    <input type="number" name="hourly_rate" step="0.01" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Overtime Hours</label>
+                                    <input type="number" name="overtime_hours" step="0.25" value="0">
+                                </div>
+                                <div class="form-group">
+                                    <label>Overtime Rate</label>
+                                    <input type="number" name="overtime_rate" step="0.01" placeholder="Auto (1.5x)">
+                                </div>
+                            </div>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="closeModal('newPayrollModal')">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Create Entry</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Activities Page -->
+                <div id="activitiesPage" class="page-content" style="display: none;">
+                    <div class="page-header">
+                        <h2>Activities</h2>
+                        <button class="btn btn-primary" onclick="showNewActivityModal()">+ New Activity</button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Subject</th>
+                                    <th>Related To</th>
+                                    <th>User</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activitiesTableBody">
+                                <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination">
+                        <button id="prevPageActivities" class="btn btn-secondary" onclick="changePageActivities(-1)">Previous</button>
+                        <span id="pageInfoActivities">Page 1</span>
+                        <button id="nextPageActivities" class="btn btn-secondary" onclick="changePageActivities(1)">Next</button>
+                    </div>
+                </div>
+                
+                <!-- Users Page -->
+                <div id="usersPage" class="page-content" style="display: none;">
+                    <div class="page-header">
+                        <h2>Utilizadores</h2>
+                        <button type="button" class="btn btn-primary" id="crmNewUserBtn" onclick="showNewUserModal()">+ Novo utilizador</button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr><td colspan="8" class="text-center">A carregar…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination">
+                        <button type="button" id="prevPageUsers" class="btn btn-secondary" onclick="changePageUsers(-1)">Anterior</button>
+                        <span id="pageInfoUsers">Página 1</span>
+                        <button type="button" id="nextPageUsers" class="btn btn-secondary" onclick="changePageUsers(1)">Seguinte</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="crmUserModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="crmUserModalTitle">
+        <div class="modal-content" style="max-width: 640px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 id="crmUserModalTitle">Utilizador</h3>
+                <button type="button" class="modal-close" onclick="closeCrmUserModal()" aria-label="Fechar">&times;</button>
+            </div>
+            <form id="crmUserForm" class="modal-body" style="overflow-y: auto; flex: 1;">
+                <input type="hidden" id="crmUserFormId" value="">
+                <div class="crm-user-avatar-field">
+                    <label>Foto de perfil</label>
+                    <div class="crm-user-avatar-row">
+                        <div class="crm-user-avatar-preview" id="crmUserAvatarPreview" aria-hidden="true">
+                            <img id="crmUserAvatarImg" class="crm-user-avatar-preview__img hidden" alt="">
+                            <div id="crmUserAvatarInitials" class="crm-user-avatar-preview__init">?</div>
+                        </div>
+                        <div class="crm-user-avatar-actions">
+                            <input type="file" id="crmUserAvatarInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+                            <button type="button" class="btn btn-secondary btn-sm" id="crmUserAvatarChooseBtn">Escolher foto</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="crmUserAvatarRemoveBtn" style="display:none">Remover</button>
+                            <p class="crm-user-avatar-hint">JPG, PNG, WebP ou GIF. Máx. 5 MB.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="crmUserName">Nome</label>
+                    <input type="text" id="crmUserName" required maxlength="255" autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label for="crmUserEmail">Email</label>
+                    <input type="email" id="crmUserEmail" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="crmUserPhone">Telefone</label>
+                    <input type="text" id="crmUserPhone" maxlength="50" autocomplete="tel">
+                </div>
+                <div class="form-group">
+                    <label for="crmUserRole">Função</label>
+                    <select id="crmUserRole">
+                        <option value="sales_rep">Comercial</option>
+                        <option value="project_manager">Gestor de projeto</option>
+                        <option value="support">Suporte</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="crmUserPassword">Senha <span id="crmUserPasswordHint" style="font-weight:400;color:#64748b">(opcional ao editar)</span></label>
+                    <input type="password" id="crmUserPassword" minlength="8" autocomplete="new-password" placeholder="Mín. 8 caracteres">
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                        <input type="checkbox" id="crmUserForcePwChange" checked>
+                        Obrigar troca de senha no próximo login
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                        <input type="checkbox" id="crmUserActive" checked>
+                        Conta ativa
+                    </label>
+                </div>
+                <div id="crmUserPermsSection" style="margin-top:1rem;border-top:1px solid var(--border-color, #e2e8f0);padding-top:1rem;display:none;">
+                    <h4 style="margin:0 0 0.5rem;font-size:1rem;">Módulos e permissões</h4>
+                    <p id="crmUserPermsHelp" style="font-size:0.85rem;color:#64748b;margin:0 0 0.75rem;">Marque o que este utilizador pode fazer. Administradores têm acesso total.</p>
+                    <div id="crmUserPermsGroups" style="max-height:220px;overflow-y:auto;font-size:0.9rem;"></div>
+                </div>
+                <p id="crmUserFormError" class="error-message" style="display:none;margin-top:0.75rem;"></p>
+                <div class="modal-footer-lightbox" style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeCrmUserModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="crmUserFormSubmit">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="notification-bell-wrap" id="notificationBellWrap">
+        <button type="button" id="notificationBellBtn" class="notification-bell-btn" aria-label="Notificações" aria-expanded="false" aria-controls="notificationPanel" title="Notificações">
+            <span class="notification-bell-icon" aria-hidden="true">🔔</span>
+            <span id="notificationBellBadge" class="notification-bell-badge" hidden>0</span>
+        </button>
+        <div id="notificationPanel" class="notification-panel" role="region" aria-label="Lista de notificações" hidden>
+            <div class="notification-panel-header">
+                <h3 class="notification-panel-title">Notificações</h3>
+                <div class="notification-panel-actions">
+                    <button type="button" class="btn-notification-text" id="notificationMarkAllRead">Marcar lidas</button>
+                    <button type="button" class="btn-notification-text btn-notification-text--danger" id="notificationClearAll">Limpar</button>
+                </div>
+            </div>
+            <div id="notificationPanelList" class="notification-panel-list"></div>
+        </div>
+    </div>
+    
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+    
+    <div id="crmCmdPalette" class="crm-cmd-palette" aria-hidden="true">
+        <div class="crm-cmd-palette__panel" role="dialog" aria-modal="true" aria-label="Comandos rápidos">
+            <div class="crm-cmd-palette__head">
+                <input type="search" id="crmCmdPaletteInput" class="crm-cmd-palette__input" placeholder="Ir para…" autocomplete="off" aria-label="Pesquisar" />
+                <kbd>Esc</kbd>
+            </div>
+            <div id="crmCmdPaletteList" class="crm-cmd-palette__list"></div>
+        </div>
+    </div>
+
+    <div id="leadQuickSheet" class="lead-quick-sheet lead-quick-sheet--minimal" aria-hidden="true">
+        <div class="lead-quick-sheet__backdrop" id="leadQuickSheetBackdrop"></div>
+        <div class="lead-quick-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="leadQuickSheetTitle">
+            <div class="lead-quick-sheet__handle" aria-hidden="true"></div>
+            <header class="lead-quick-sheet__header">
+                <div class="lead-quick-sheet__header-row">
+                    <button type="button" class="lead-quick-sheet__close" id="leadQuickSheetClose" aria-label="Fechar">✕</button>
+                </div>
+                <h2 id="leadQuickSheetTitle" class="lead-quick-sheet__title">Lead</h2>
+                <div id="leadQuickSheetBadges" class="lead-quick-sheet__badges"></div>
+            </header>
+            <div id="leadQuickSheetBody" class="lead-quick-sheet__body">
+                <div class="lead-quick-sheet__loading">A carregar…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup agendar visita (sem sair do dashboard / painel do lead) -->
+    <div id="lqsScheduleVisitModal" class="modal modal-lightbox lqs-visit-modal" aria-hidden="true">
+        <div class="modal-backdrop lqs-visit-modal__backdrop" data-lqs-visit-close tabindex="-1" aria-hidden="true"></div>
+        <div class="modal-content modal-content-lightbox lqs-visit-modal__sheet">
+            <div class="lead-quick-sheet__handle lqs-visit-modal__grab" aria-hidden="true"></div>
+            <header class="lqs-visit-modal__header">
+                <h2 class="lqs-visit-modal__title">Agendar visita</h2>
+                <button type="button" class="lead-quick-sheet__close lqs-visit-modal__close-btn" data-lqs-visit-close aria-label="Fechar">&times;</button>
+            </header>
+            <form id="lqsNewVisitForm">
+                <div class="modal-body">
+                    <div class="form-group form-group-readonly">
+                        <label>Cliente</label>
+                        <p id="lqsVisitClientName" class="form-readonly-value">—</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Data e hora * <span class="optional">(:00 ou :30)</span></label>
+                        <input type="datetime-local" id="lqsVisitScheduledAt" name="scheduled_at" required step="1800">
+                    </div>
+                    <div class="form-group">
+                        <label>Morada (linha 1) *</label>
+                        <input type="text" id="lqsVisitAddressLine1" name="address_line1" required placeholder="Rua, número">
+                    </div>
+                    <div class="form-group">
+                        <label>Morada (linha 2) <span class="optional">(opcional)</span></label>
+                        <input type="text" id="lqsVisitAddressLine2" name="address_line2" placeholder="Complemento">
+                    </div>
+                    <div class="form-group form-row-2">
+                        <div class="form-group">
+                            <label>Cidade *</label>
+                            <input type="text" id="lqsVisitCity" name="city" required placeholder="Cidade">
+                        </div>
+                        <div class="form-group">
+                            <label>CEP</label>
+                            <input type="text" id="lqsVisitZipCode" name="zipcode" placeholder="CEP">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Notas <span class="optional">(opcional)</span></label>
+                        <textarea id="lqsVisitNotes" name="notes" rows="3" placeholder="Instruções, portaria, código…"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Destinar visita para</label>
+                        <select name="assigned_to" id="lqsVisitAssignedSelect">
+                            <option value="">Eu mesmo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer-lightbox lqs-visit-modal__footer">
+                    <button type="button" class="lead-quick-sheet__edit-cancel lqs-visit-modal__btn-cancel" data-lqs-visit-close>Cancelar</button>
+                    <button type="submit" class="lead-quick-sheet__edit-save lqs-visit-modal__btn-submit">Agendar visita</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="crm-toast.js"></script>
+    <script src="crm-pdf-viewer.js?v=20260531"></script>
+    <script src="crm-command-palette.js"></script>
+    <script src="notification-center.js"></script>
+    <script src="marketing-dashboard.js"></script>
+    <script src="dashboard.js?v=20260918-leads-quotes-mobile"></script>
+    <script src="pipeline-stage-labels.js?v=20260915-followup-yellow"></script>
+    <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
+    <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
+    <script src="lead-visit-calendar-format.js?v=20260528-cal-address"></script>
+    <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
+    <script src="lead-quote-engagement-icons.js?v=20260528-badge-check-x"></script>
+    <script src="lead-quick-sheet.js?v=20260918-leads-quotes-mobile"></script>
+    <script src="leads-kanban.js?v=20260918-leads-quotes-mobile"></script>
+    <script src="schedule-engine.js"></script>
+    <script src="financial-engine.js"></script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+// Reference schema — logical equivalent of MySQL tables used by senior-floors-system ERP + quotes.
+// Production CRM uses Express + mysql2 + migrations in database/migrate-supplier-product-erp.js.
+// Use this if you port to PostgreSQL + Prisma; adjust enums and Decimal as needed.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Supplier {
+  id           Int       @id @default(autoincrement())
+  name         String    @db.VarChar(255)
+  contact_name String?   @db.VarChar(255)
+  phone        String?   @db.VarChar(64)
+  email        String?   @db.VarChar(255)
+  address      String?   @db.Text
+  notes        String?   @db.Text
+  active       Boolean   @default(true)
+  created_at   DateTime? @default(now())
+  updated_at   DateTime? @updatedAt
+  products     Product[]
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  supplier_id Int
+  supplier    Supplier  @relation(fields: [supplier_id], references: [id], onDelete: Restrict)
+  name        String    @db.VarChar(255)
+  category    String    @db.VarChar(64) // Hardwood | LVP | Engineered | Accessories
+  unit_type   String    @default("sq_ft") @db.VarChar(32) // sq_ft | box | piece
+  cost_price  Decimal   @default(0) @db.Decimal(12, 4)
+  sku         String?   @db.VarChar(128)
+  description String?   @db.Text
+  stock_qty   Int?
+  active      Boolean   @default(true)
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @updatedAt
+
+  @@index([supplier_id])
+  @@index([category])
+  @@index([active])
+}
+
+model CategoryMarginDefault {
+  category            String   @id @db.VarChar(64)
+  margin_percentage   Decimal  @db.Decimal(8, 4) // e.g. 35 = 35%
+  updated_at          DateTime? @updatedAt
+}
+
+// --- Quotes: simplified view of quote_items extension (full Quote has many more columns in app) ---
+
+enum ItemType {
+  service
+  product
+}
+
+model Quote {
+  id              Int         @id @default(autoincrement())
+  quote_number    String?     @db.VarChar(64)
+  customer_id     Int?
+  subtotal        Decimal?    @db.Decimal(12, 2)
+  tax_total       Decimal?    @db.Decimal(12, 2)
+  total_amount    Decimal?    @db.Decimal(12, 2)
+  discount_type   String?     @db.VarChar(32)
+  discount_value  Decimal?    @db.Decimal(12, 4)
+  items           QuoteItem[]
+}
+
+model QuoteItem {
+  id                    Int      @id @default(autoincrement())
+  quote_id              Int
+  quote                 Quote    @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+  item_type             ItemType @default(service)
+  product_id            Int?
+  cost_price            Decimal? @db.Decimal(12, 4)
+  markup_percentage     Decimal? @db.Decimal(8, 4)
+  sell_price            Decimal? @db.Decimal(12, 4)
+  quantity              Decimal  @db.Decimal(12, 4)
+  unit_price            Decimal? @db.Decimal(12, 4)
+  total_price           Decimal? @db.Decimal(12, 4)
+  name                  String?  @db.VarChar(255)
+  description           String?  @db.Text
+  unit_type             String   @default("sq_ft") @db.VarChar(32)
+  // service_catalog_id, notes, service_type, etc. omitted for brevity
+
+  @@index([quote_id])
+  @@index([product_id])
+}

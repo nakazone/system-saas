@@ -13,11 +13,8 @@ authRouter.get("/login", (req: TenantRequest, res) => {
     res.redirect("/find-workspace");
     return;
   }
-  res.render("auth/login", {
-    title: "Sign in",
-    organization: req.organization,
-    error: null,
-  });
+  // CRM UI login (Senior Floors parity)
+  res.redirect("/login.html");
 });
 
 authRouter.post("/login", async (req: TenantRequest, res, next) => {
@@ -92,7 +89,9 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
     if (req.organization?.slug) {
       req.session.workspaceSlug = req.organization.slug;
     }
-    res.redirect("/");
+    req.session.userEmail = user.email;
+    req.session.userName = user.name;
+    res.redirect("/dashboard.html");
   } catch (error) {
     next(error);
   }

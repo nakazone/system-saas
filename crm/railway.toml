@@ -1,0 +1,10 @@
+# Railway config-as-code: https://docs.railway.com/reference/config-as-code
+# Docker: cache da camada `npm ci` quando só altera código (deploy mais rápido que Nixpacks).
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300

@@ -1,0 +1,480 @@
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Denver's #1 Hardwood Flooring Company | Senior Floors | Free In-Home Estimates | Licensed & Insured | 5-Star Rated | Serving Denver, Cherry Creek, Greenwood Village, Lakewood, Morrison | Hardwood Installation, Refinishing, LVP, Laminate | Call (720) 573-0326">
+    <meta name="keywords" content="Denver flooring, hardwood flooring Denver, flooring contractor Denver CO, floor installation Denver, hardwood refinishing Denver, luxury vinyl plank Denver, laminate flooring Denver, flooring company Denver metro, Cherry Creek flooring, Greenwood Village flooring, Lakewood flooring, Morrison flooring, Denver flooring contractor, hardwood floors Denver">
+    <title>Denver Hardwood Flooring Experts | Senior Floors | Free Estimate | (720) 751-9813</title>
+    
+    <!-- Favicon (cache-bust ?v=4 para ícone ao salvar no celular) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/SeniorFloors.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" href="assets/SeniorFloors.png">
+    
+    <link rel="stylesheet" href="styles.css">
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Form URL: same-origin /api/send-lead on Vercel (incl. custom domain lp.senior-floors.com); else Hostinger PHP. -->
+    <script>
+    (function() {
+      var h = window.location.hostname || '';
+      var isVercel =
+        h.includes('vercel.app') ||
+        h.includes('vercel.sh') ||
+        (h.indexOf('lp.') === 0 && h.endsWith('senior-floors.com'));
+      if (isVercel) {
+        window.SENIOR_FLOORS_FORM_URL = '/api/send-lead';
+        /* receive-lead runs inside send-lead serverless; no separate /api route on this project */
+        window.SENIOR_FLOORS_RECEIVE_LEAD_URL = '';
+      } else {
+        window.SENIOR_FLOORS_FORM_URL = 'https://senior-floors.com/send-lead.php';
+        window.SENIOR_FLOORS_RECEIVE_LEAD_URL = 'https://senior-floors.com/system.php?api=receive-lead';
+      }
+    })();
+    </script>
+</head>
+<body>
+    <!-- Header with Navigation -->
+    <header class="header" id="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <a href="#hero" class="logo-link">
+                        <img src="assets/SeniorFloors.png" alt="Senior Floors" class="logo-image">
+                    </a>
+                </div>
+                
+                <nav class="nav" id="nav">
+                    <ul class="nav-list">
+                        <li><a href="#why-trust" class="nav-link">Why Trust Us</a></li>
+                        <li><a href="#services" class="nav-link">Services</a></li>
+                        <li><a href="#why-choose" class="nav-link">Why Choose Us</a></li>
+                        <li><a href="#process" class="nav-link">Process</a></li>
+                        <li><a href="#contact" class="nav-link">Contact</a></li>
+                    </ul>
+                </nav>
+                
+                <div class="header-cta">
+                    <a href="#contact" class="btn btn-call">Get Free Estimate</a>
+                    <a href="tel:+17207519813" class="btn btn-call">Call Now</a>
+                </div>
+                
+                <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle mobile menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section - Above the fold conversion focus -->
+    <section class="hero" id="hero">
+        <div class="hero-overlay"></div>
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <!-- Certificate Badge -->
+                    <div class="certificate-badge">
+                        <div class="certificate-stars">★★★★★ Google Reviews</div>
+                        <div class="certificate-text">Hardwood Flooring Specialists</div>
+                    </div>
+                    <!-- Title -->
+                    <h1 class="hero-headline">
+                        Denver's #1 Hardwood Flooring<br>Installation & Refinishing Experts
+                    </h1>
+                    <p class="hero-subheadline">Transform your Denver home with premium hardwood flooring installation, refinishing, and luxury vinyl plank. Licensed & insured flooring contractors serving Cherry Creek, Greenwood Village, Lakewood, Morrison, and all Denver metro areas. Free in-home estimates. 5-star rated on Google.</p>
+                    
+                    <!-- Trust Elements -->
+                    <div class="trust-badges" role="list">
+                        <div class="trust-badge" role="listitem">Licensed & Insured</div>
+                        <div class="trust-badge" role="listitem">Premium Materials</div>
+                        <div class="trust-badge" role="listitem">Local Company</div>
+                    </div>
+
+                    <!-- Phone CTA -->
+                    <div class="hero-phone">
+                        <div class="hero-ctas">
+                            <a href="#contact" class="btn btn-primary">Free In-Home Estimates</a>
+                            <a href="tel:+17207519813" class="btn btn-secondary">Call (720) 751-9813</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Hero Form -->
+                <div class="hero-form-wrapper">
+                    <div class="success-message" id="heroSuccessMessage" style="display: none;">
+                        <strong>Submitted successfully!</strong> Thank you. We'll contact you within 24 hours.
+                    </div>
+                    <div class="error-message-general" id="heroErrorMessage"></div>
+                    <form class="hero-form" id="heroForm" name="hero-form" method="POST" action="https://senior-floors.com/send-lead.php" novalidate aria-label="Quick estimate form" onsubmit="if(window.submitLPForm){window.submitLPForm(event);} return false;">
+                        <input type="hidden" name="form-name" value="hero-form">
+                        <h2 class="hero-form-title">Get Your Free In-Home Flooring Estimate</h2>
+                        <p class="hero-form-subtitle">Schedule your free consultation today. We'll visit your Denver home within 24 hours to provide a detailed, no-obligation estimate.</p>
+                        
+                        <div class="form-group">
+                            <label for="hero-name">Full Name *</label>
+                            <input type="text" id="hero-name" name="name" aria-required="true" autocomplete="name">
+                            <div class="error-message" id="hero-nameError">Name is required</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="hero-phone">Phone Number *</label>
+                            <input type="tel" id="hero-phone" name="phone" aria-required="true" autocomplete="tel">
+                            <div class="error-message" id="hero-phoneError">Phone number is required</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="hero-email">Email Address *</label>
+                            <input type="email" id="hero-email" name="email" aria-required="true" autocomplete="email">
+                            <div class="error-message" id="hero-emailError">Valid email is required</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="hero-zipcode">Zip Code *</label>
+                            <input type="text" id="hero-zipcode" name="zipcode" aria-required="true" autocomplete="postal-code" pattern="[0-9]{5}" placeholder="12345" maxlength="5" inputmode="numeric">
+                            <div class="error-message" id="hero-zipcodeError">Please enter a valid 5-digit US zip code</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Get My Free Estimate</button>
+                        <p class="form-disclaimer">✓ No obligation · ✓ Free in-home consultation · ✓ Clear pricing, no hidden fees</p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 2: WHY HOMEOWNERS TRUST SENIOR FLOORS -->
+    <section class="why-trust" id="why-trust">
+        <div class="container">
+            <h2 class="section-title">Why Denver Homeowners Choose Senior Floors</h2>
+            <p class="section-subtitle">Denver's most trusted hardwood flooring company — licensed, insured, and 5-star rated by homeowners across the metro area.</p>
+            <div class="trust-content">
+                <p>Whether you're refinishing existing hardwood floors in your Cherry Creek home, installing new luxury vinyl plank in Greenwood Village, or restoring damaged floors in Lakewood, Senior Floors delivers flawless results. As Denver's premier flooring contractor, we specialize in hardwood installation, refinishing, sanding, and luxury vinyl plank installation. Our expert craftsmanship, premium materials, and attention to detail transform your floors while increasing your home's value. Serving Denver, Cherry Creek, Greenwood Village, Lakewood, Morrison, and surrounding Colorado communities.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 3: SOCIAL PROOF / REVIEWS -->
+    <section class="social-proof">
+        <div class="container">
+            <div class="rating-header">
+                <div class="rating-stars-minimal">★★★★★</div>
+                <p class="rating-text-minimal">Average rating from verified homeowners</p>
+                <h2 class="section-title">5-Star Rated Flooring Company</h2>
+                <a href="https://share.google/hLQEgyVnPVm99mozg" target="_blank" rel="noopener noreferrer" class="reviews-link">Read all reviews on Google →</a>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"Senior Floors exceeded our expectations. The team was professional, clean, and organized throughout the entire installation. Our new hardwood floors look absolutely stunning!"</p>
+                    <p class="testimonial-author">— Sarah M., Homeowner</p>
+                </div>
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"Outstanding quality workmanship and reliability. They helped us choose the perfect luxury vinyl plank for our kitchen, and the installation was flawless. Highly recommend!"</p>
+                    <p class="testimonial-author">— James R., Homeowner</p>
+                </div>
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"From consultation to completion, the experience was excellent. Clear communication, transparent pricing, and beautiful results. Couldn't be happier with our new floors!"</p>
+                    <p class="testimonial-author">— Maria L., Homeowner</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 4: SERVICES OVERVIEW -->
+    <section class="services" id="services">
+        <div class="container">
+            <h2 class="section-title">Denver Flooring Services We Offer</h2>
+            <p class="section-subtitle">Complete hardwood flooring solutions for Denver homes — from installation to refinishing to repairs.</p>
+            <div class="services-grid">
+                <div class="service-card">
+                    <div class="service-icon">
+                        <img src="assets/parquet.png" alt="Hardwood Sanding & Refinishing" loading="lazy">
+                    </div>
+                    <h3 class="service-title">Hardwood Sanding & Refinishing</h3>
+                    <p class="service-description">Renew old floors, fix scratches and stains, apply custom stain and finish that enhances your home's value.</p>
+                    <p class="service-description" style="margin-top:0.65rem;"><a href="https://senior-floors-website.vercel.app/services/hardwood-refinishing" style="font-weight:600;" rel="noopener">Learn more about refinishing →</a></p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <img src="assets/hammer.png" alt="Hardwood & Engineered Wood Installation" loading="lazy">
+                    </div>
+                    <h3 class="service-title">Hardwood & Engineered Wood Installation Denver</h3>
+                    <p class="service-description">Expert hardwood floor installation in Denver homes. We handle subfloor preparation, moisture testing, and precise installation of solid hardwood and engineered wood. Serving all Denver metro neighborhoods with premium materials and professional craftsmanship.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <img src="assets/laminating.png" alt="Luxury Vinyl Plank (LVP) & Laminate" loading="lazy">
+                    </div>
+                    <h3 class="service-title">Luxury Vinyl Plank (LVP) & Laminate</h3>
+                    <p class="service-description">Durable, versatile solutions for high-traffic areas with wood-like appearance and easy maintenance.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <img src="assets/stairs.png" alt="Stairs, Rails & Custom Layouts" loading="lazy">
+                    </div>
+                    <h3 class="service-title">Stairs, Rails & Custom Flooring Patterns</h3>
+                    <p class="service-description">Custom hardwood stair installation, handrail updates, and specialty patterns (chevron, herringbone, medallions) for luxury Denver homes. Expert craftsmanship for high-end residential projects in Cherry Creek, Greenwood Village, and Morrison.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <img src="assets/tools.png" alt="Repairs & Floor Restoration" loading="lazy">
+                    </div>
+                    <h3 class="service-title">Repairs & Floor Restoration</h3>
+                    <p class="service-description">Fix loose pieces, damaged areas, transitions, and leveling to extend the life of your floors.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <img src="assets/house.png" alt="Residential & Select Commercial" loading="lazy">
+                    </div>
+                    <h3 class="service-title">Residential & Commercial Flooring Denver</h3>
+                    <p class="service-description">Premium flooring installation for Denver residential homes and select commercial spaces. We maintain the same high-quality standards whether you're updating a single-family home in Lakewood or a commercial space in the Denver Tech Center.</p>
+                </div>
+            </div>
+            <div class="services-cta">
+                <p class="services-cta-text">Not sure what you need?</p>
+                <a href="#contact" class="btn btn-primary">Talk to a Flooring Specialist</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 5: WHY CHOOSE US (DIFFERENTIATORS) -->
+    <section class="why-choose" id="why-choose">
+        <div class="container">
+            <h2 class="section-title">Why Choose Senior Floors Over Other Denver Flooring Companies</h2>
+            <div class="differentiators-grid">
+                <div class="differentiator-item">
+                    <div class="differentiator-icon">✓</div>
+                    <p class="differentiator-text">Free in-home estimates with transparent pricing — no hidden fees</p>
+                </div>
+                <div class="differentiator-item">
+                    <div class="differentiator-icon">✓</div>
+                    <p class="differentiator-text">Premium materials only — we never cut corners on quality</p>
+                </div>
+                <div class="differentiator-item">
+                    <div class="differentiator-icon">✓</div>
+                    <p class="differentiator-text">Licensed & insured Denver flooring contractors with 10+ years experience</p>
+                </div>
+                <div class="differentiator-item">
+                    <div class="differentiator-icon">✓</div>
+                    <p class="differentiator-text">5-star Google rating — trusted by hundreds of Denver homeowners</p>
+                </div>
+                <div class="differentiator-item">
+                    <div class="differentiator-icon">✓</div>
+                    <p class="differentiator-text">Local Denver company — fast response times, same-day estimates</p>
+                </div>
+                <div class="differentiator-item">
+                    <div class="differentiator-icon">✓</div>
+                    <p class="differentiator-text">Satisfaction guarantee — we stand behind every installation</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 6: OUR PROCESS -->
+    <section class="process" id="process">
+        <div class="container">
+            <h2 class="section-title">Our Simple Flooring Process</h2>
+            <div class="process-steps">
+                <div class="process-step">
+                    <div class="step-number">1</div>
+                    <h3 class="step-title">Free Consultation and Estimate</h3>
+                    <p class="step-description">We visit your home to assess your needs and provide a detailed, no-obligation estimate.</p>
+                </div>
+                <div class="process-step">
+                    <div class="step-number">2</div>
+                    <h3 class="step-title">Material Selection with Expert Guidance</h3>
+                    <p class="step-description">Choose from premium flooring options with expert guidance to find the perfect match for your style and budget.</p>
+                </div>
+                <div class="process-step">
+                    <div class="step-number">3</div>
+                    <h3 class="step-title">Professional Installation with Minimal Disruption</h3>
+                    <p class="step-description">Our expert team handles everything with precision and care, working efficiently to minimize disruption to your daily life.</p>
+                </div>
+                <div class="process-step">
+                    <div class="step-number">4</div>
+                    <h3 class="step-title">Final Walkthrough and Satisfaction Guarantee</h3>
+                    <p class="step-description">We conduct a thorough walkthrough to ensure everything meets our high standards. Your satisfaction is our guarantee.</p>
+                </div>
+            </div>
+            <div class="process-cta">
+                <a href="#contact" class="btn btn-primary">Start with a Free Consultation</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 7: LOCAL TRUST & SERVICE AREA -->
+    <section class="local-trust">
+        <div class="container">
+            <div class="local-content">
+                <h2 class="section-title">Denver's Local Flooring Experts You Can Trust</h2>
+                <p class="local-text">As a locally owned and operated Denver flooring company, we understand the unique needs of Colorado homes. We proudly serve residential homeowners across Denver, Cherry Creek, Greenwood Village, Lakewood, Morrison, and the entire metro area with fast response times, local expertise, and dependable service. When you choose Senior Floors, you're supporting a local business that values your time, your home, and your community.</p>
+                <div class="local-cta">
+                    <a href="tel:+17207519813" class="btn btn-secondary">Call Your Local Experts</a>
+                    <a href="#contact" class="btn btn-primary">Request Free Estimate</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 8: LEAD CAPTURE / FORM with Gallery -->
+    <section class="contact" id="contact">
+        <div class="container">
+            <div class="contact-header">
+                <h2 class="section-title">Ready to Transform Your Denver Home's Floors?</h2>
+                <p class="section-subtitle">Get your free in-home estimate today. We'll visit your Denver area home to assess your flooring needs and provide a detailed, no-obligation quote within 24 hours.</p>
+            </div>
+            <div class="contact-content-with-gallery">
+                <!-- Recent Work Gallery -->
+                <div class="gallery-section">
+                    <h3 class="gallery-title">Recent Work Gallery</h3>
+                    <div class="gallery-container">
+                        <div class="gallery-viewport">
+                            <div class="gallery-slider" id="gallerySlider">
+                                <div class="gallery-item active">
+                                    <img src="assets/project1.jpg" alt="Recent flooring work 1" loading="lazy">
+                                    <div class="gallery-description active">Full hardwood refinishing – single-family home in Cherry Creek, Denver, CO</div>
+                                </div>
+                                <div class="gallery-item">
+                                    <img src="assets/project2.jpg" alt="Recent flooring work 2" loading="lazy">
+                                    <div class="gallery-description">New white oak installation – open concept living room in Greenwood Village (DTC)</div>
+                                </div>
+                                <div class="gallery-item">
+                                    <img src="assets/project3.jpg" alt="Recent flooring work 3" loading="lazy">
+                                    <div class="gallery-description">Chevron pattern installation – luxury home near Morrison</div>
+                                </div>
+                                <div class="gallery-item">
+                                    <img src="assets/project4.jpg" alt="Recent flooring work 4" loading="lazy">
+                                    <div class="gallery-description">Stair refinishing and handrail update – Lakewood residence</div>
+                                </div>
+                            </div>
+                            <button class="gallery-btn gallery-btn-prev" aria-label="Previous image" id="galleryPrev">‹</button>
+                            <button class="gallery-btn gallery-btn-next" aria-label="Next image" id="galleryNext">›</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contact Form -->
+                <div class="contact-form-wrapper">
+                    <div class="success-message" id="contactSuccessMessage" style="display: none;">
+                        <strong>Submitted successfully!</strong> Thank you. We'll contact you within 24 hours.
+                    </div>
+                    <div class="error-message-general" id="contactErrorMessage"></div>
+                    <form class="contact-form" id="contactForm" name="contact-form" method="POST" action="https://senior-floors.com/send-lead.php" novalidate aria-label="Contact form" onsubmit="if(window.submitLPForm){window.submitLPForm(event);} return false;">
+                        <input type="hidden" name="form-name" value="contact-form">
+                        <h3 class="form-title">Get Your Free Flooring Estimate</h3>
+                        <p class="form-subtitle">Fill out the form below and we'll contact you within 24 hours</p>
+                        
+                        <div class="form-group">
+                            <label for="name">Full Name *</label>
+                            <input type="text" id="name" name="name" aria-required="true" autocomplete="name">
+                            <div class="error-message" id="nameError">Name is required</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone Number *</label>
+                            <input type="tel" id="phone" name="phone" aria-required="true" autocomplete="tel">
+                            <div class="error-message" id="phoneError">Phone number is required</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email Address *</label>
+                            <input type="email" id="email" name="email" aria-required="true" autocomplete="email">
+                            <div class="error-message" id="emailError">Valid email is required</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="zipcode">Zip Code *</label>
+                            <input type="text" id="zipcode" name="zipcode" aria-required="true" autocomplete="postal-code" pattern="[0-9]{5}" placeholder="12345" maxlength="5" inputmode="numeric">
+                            <div class="error-message" id="zipcodeError">Please enter a valid 5-digit US zip code</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="message">Message (Optional)</label>
+                            <textarea id="message" name="message" rows="4" placeholder="Tell us about your project..." aria-label="Project details"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block" aria-label="Submit contact form">Request My Free Estimate Now</button>
+                        <p class="form-disclaimer">✓ No obligation · ✓ Free in-home consultation · ✓ Same-day response · ✓ Serving all Denver metro areas · ✓ Transparent pricing, no hidden fees</p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 9: FINAL CTA / CLOSING -->
+    <section class="final-cta">
+        <div class="container">
+            <h2 class="final-cta-title">Ready to Transform Your Denver Home's Floors?</h2>
+            <p class="final-cta-text">Join hundreds of satisfied Denver homeowners who chose Senior Floors for their hardwood installation, refinishing, and luxury vinyl plank projects. Get your free in-home estimate today — no obligation, same-day response.</p>
+            <div class="final-cta-buttons">
+                <a href="#contact" class="btn btn-primary btn-large">Get a Free Estimate Today</a>
+                <a href="tel:+17207519813" class="btn btn-secondary btn-large">Call (720) 751-9813</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sticky Mobile CTA - Conversion-focused -->
+    <div class="sticky-cta" id="stickyCta" aria-label="Quick contact options">
+        <a href="#contact" class="btn btn-primary btn-sticky" aria-label="Get free estimate">Get a Free Estimate</a>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <img src="assets/SeniorFloors.png" alt="Senior Floors" class="footer-logo">
+                    <p class="footer-description">Elegant, durable flooring installed with precision and care. Denver's trusted hardwood flooring experts serving medium to high-end homes across the metro area.</p>
+                    <div class="trust-badges" role="list">
+                        <div class="trust-badge" role="listitem">Licensed</div>
+                        <div class="trust-badge" role="listitem">Insured</div>
+                        <div class="trust-badge" role="listitem">10+ Years Experience</div>
+                    </div>
+                    <div class="certificate-badge">
+                        <div class="certificate-stars">★★★★★ Google Reviews</div>
+                        <div class="certificate-text">Hardwood Flooring Specialists</div>
+                    </div>
+                </div>
+                
+                <div class="footer-column">
+                    <h4 class="footer-heading">Our Services</h4>
+                    <ul class="footer-links">
+                        <li><a href="https://senior-floors-website.vercel.app/services/hardwood-refinishing" rel="noopener">Hardwood Sanding &amp; Refinishing</a></li>
+                        <li>Hardwood Installation</li>
+                        <li>Luxury Vinyl Plank (LVP)</li>
+                        <li>Stairs & Custom Layouts</li>
+                        <li>Floor Repairs & Restoration</li>
+                        <li>Residential & Commercial</li>
+                    </ul>
+                </div>
+                
+                <div class="footer-column">
+                    <h4 class="footer-heading">Contact Us</h4>
+                    <div class="footer-contact-info">
+                        <p class="footer-contact-item">
+                            <strong>Phone:</strong><br>
+                            <a href="tel:+17207519813">(720) 751-9813</a>
+                        </p>
+                        <p class="footer-contact-item">
+                            <strong>Email:</strong><br>
+                            <a href="mailto:contact@senior-floors.com">contact@senior-floors.com</a>
+                        </p>
+                        <p class="footer-contact-item">
+                            <strong>Service Areas:</strong><br>
+                            Denver, Cherry Creek, Greenwood Village,<br>Lakewood, Morrison, DTC, & Metro Area
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <div class="footer-bottom-content">
+                    <p>&copy; 2026 Senior Floors. All rights reserved.</p>
+                    <p style="margin-top: 8px; font-size: 12px; opacity: 0.8;"><a href="system.php" style="color: inherit;">Acesso ao painel (Admin)</a></p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

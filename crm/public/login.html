@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a2036">
+    <title>Senior Floors - Admin Login</title>
+    <!-- Favicon (mesmo padrão do site Senior Floors) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/SeniorFloors.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/SeniorFloors.png">
+    <link rel="icon" type="image/png" href="/assets/SeniorFloors.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="crm-toast.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <img src="assets/SeniorFloors.png" 
+                     alt="Senior Floors" 
+                     class="logo-image"
+                     onerror="handleLogoError(this)">
+                <h1>Senior Floors</h1>
+                <p>CRM System</p>
+            </div>
+            
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required autofocus>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+                <div id="errorMessage" class="error-message" style="display: none;"></div>
+                
+                <button type="submit" class="btn btn-primary btn-login-full" id="loginBtn" style="text-align: center;">
+                    Login
+                </button>
+            </form>
+            
+            <div class="login-footer">
+                <p>Need help? Contact support</p>
+            </div>
+        </div>
+    </div>
+    
+    <script src="crm-toast.js"></script>
+    <script>
+        // Handle logo loading error with fallback
+        function handleLogoError(img) {
+            // Try alternative URLs
+            const alternatives = [
+                '/assets/SeniorFloors.png',
+                'assets/SeniorFloors.png',
+                'https://www.senior-floors.com/assets/SeniorFloors.png',
+                'https://senior-floors.com/logoSeniorFloors.png',
+                'https://www.senior-floors.com/logoSeniorFloors.png'
+            ];
+            
+            let currentIndex = 0;
+            const tryNext = () => {
+                if (currentIndex < alternatives.length) {
+                    img.src = alternatives[currentIndex];
+                    currentIndex++;
+                } else {
+                    // Final fallback: show text logo
+                    img.style.display = 'none';
+                    const textLogo = document.createElement('div');
+                    textLogo.className = 'text-logo-fallback';
+                    textLogo.innerHTML = '<div style="font-size: 2rem; font-weight: 700; color: var(--primary-color); margin-bottom: 1rem;">Senior Floors</div>';
+                    img.parentNode.insertBefore(textLogo, img);
+                }
+            };
+            
+            img.onerror = tryNext;
+            tryNext();
+        }
+        
+        // Check if already logged in
+        fetch('/api/auth/session', {
+            credentials: 'include'
+        })
+            .then(async (r) => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    const el = document.getElementById('errorMessage');
+                    const msg =
+                        data.message ||
+                        (r.status === 503
+                            ? 'Base de dados ou sessão indisponível no servidor.'
+                            : 'Erro ao contactar o servidor.');
+                    const hint = data.hint ? ' ' + data.hint : '';
+                    if (el) {
+                        el.textContent = msg + hint;
+                        el.style.display = 'block';
+                    }
+                    return;
+                }
+                if (data.authenticated) {
+                    var u = data.user || {};
+                    window.location.href = u.must_change_password ? '/change-password.html' : '/dashboard.html';
+                }
+            })
+            .catch(err => {
+                console.log('Session check:', err);
+            });
+        
+        // Função de login
+        async function performLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMessage');
+            const loginBtn = document.getElementById('loginBtn');
+            
+            if (!email || !password) {
+                errorDiv.textContent = 'Please fill in all fields';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    var u = data.user || {};
+                    var dest = u.must_change_password ? '/change-password.html' : '/dashboard.html';
+                    setTimeout(() => {
+                        window.location.href = dest;
+                    }, 100);
+                } else {
+                    errorDiv.textContent =
+                        (data.error || 'Login failed') + (data.message ? ' — ' + data.message : '');
+                    errorDiv.style.display = 'block';
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Login';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.style.display = 'block';
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login';
+                if (typeof window.crmNotify === 'function') {
+                    window.crmNotify('Connection error. Please try again.', 'error');
+                }
+            }
+        }
+        
+        // Submit do formulário
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            performLogin();
+        });
+        
+        // Enter key nos campos de input
+        document.getElementById('email').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('password').focus();
+            }
+        });
+        
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performLogin();
+            }
+        });
+    </script>
+</body>
+</html>

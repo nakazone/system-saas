@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pedidos de estimativa — Senior Floors</title>
+  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="css/builders-portal.css" />
+</head>
+<body class="dashboard-app-body bp-page-body payroll-sidebar-page">
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar"><nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav></aside>
+    <main class="dashboard-main">
+      <div class="bp-main">
+        <p class="bp-eyebrow">Builders</p>
+        <h1 class="bp-title">Pedidos de estimativa (portal)</h1>
+        <div class="bp-filters"><select id="filterSt"><option value="">Todos</option><option value="pending">Pendente</option><option value="in_review">Em análise</option><option value="quoted">Orçado</option><option value="closed">Fechado</option></select></div>
+        <div class="bp-table-wrap"><table class="bp-table"><thead><tr>
+          <th>Ref</th><th>Builder</th><th>Endereço</th><th>Área</th><th>Status</th><th>Lead</th><th>Data</th><th></th>
+        </tr></thead><tbody id="estTbody"></tbody></table></div>
+      </div>
+    </main>
+  </div>
+  <script src="crm-toast.js"></script>
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="builder-estimate-requests.js?v=1"></script>
+</body>
+</html>

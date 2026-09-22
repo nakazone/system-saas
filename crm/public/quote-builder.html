@@ -1,0 +1,2360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quote — Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260915-qb-action-bar" />
+  <link rel="stylesheet" href="design-system.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { corePlugins: { preflight: false } };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <style>
+    .qb-dashboard-inner { font-family: Inter, system-ui, sans-serif; }
+    body.qb-sidebar-page .dashboard-container {
+      min-height: 100vh;
+    }
+    body.qb-dashboard-inner .dashboard-main {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 0;
+      overflow: hidden;
+    }
+    body.qb-dashboard-inner .qb-page {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      max-width: none !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .qb-topbar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.65rem 1.25rem;
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      min-height: 52px;
+    }
+    .qb-topbar__left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+    .qb-topbar__back {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .qb-topbar__back:hover {
+      text-decoration: underline;
+    }
+    .qb-topbar__title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .qb-topbar__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+    .qb-topbar__actions .btn {
+      white-space: nowrap;
+    }
+    .qb-email-sent-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .qb-email-sent-badge.hidden {
+      display: none !important;
+    }
+    .qb-email-sent-badge__icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #475569;
+    }
+    .qb-email-sent-badge__icon svg {
+      display: block;
+      width: 18px;
+      height: 18px;
+    }
+    .qb-email-sent-badge__check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #22c55e;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .qb-email-sent-badge__check svg {
+      display: block;
+      width: 12px;
+      height: 12px;
+    }
+    .qb-email-sent-badge__label {
+      max-width: 12rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @media (max-width: 520px) {
+      .qb-email-sent-badge__label,
+      .qb-quote-viewed-badge__label,
+      .qb-pdf-viewed-badge__label {
+        display: none;
+      }
+    }
+    .qb-quote-viewed-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .qb-quote-viewed-badge.hidden {
+      display: none !important;
+    }
+    .qb-quote-viewed-badge__icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #475569;
+    }
+    .qb-quote-viewed-badge__icon svg {
+      display: block;
+      width: 18px;
+      height: 18px;
+    }
+    .qb-quote-viewed-badge__check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #22c55e;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .qb-quote-viewed-badge__check svg {
+      display: block;
+      width: 12px;
+      height: 12px;
+    }
+    .qb-quote-viewed-badge__label {
+      max-width: 12rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .qb-pdf-viewed-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .qb-pdf-viewed-badge.hidden {
+      display: none !important;
+    }
+    .qb-pdf-viewed-badge__icon svg {
+      display: block;
+      width: 18px;
+      height: 18px;
+      color: #475569;
+    }
+    .qb-pdf-viewed-badge__check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #22c55e;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .qb-pdf-viewed-badge__check svg {
+      display: block;
+      width: 12px;
+      height: 12px;
+    }
+    .qb-pdf-viewed-badge__label {
+      max-width: 12rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .estimate-builder {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) min(400px, 36vw);
+      min-height: 0;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      gap: 0;
+      align-items: stretch;
+    }
+    .builder-main {
+      background: #f1f5f9;
+      min-width: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 1.25rem;
+    }
+    .builder-sidebar {
+      background: #fff;
+      border-left: 1px solid #e2e8f0;
+      min-width: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      box-shadow: -4px 0 24px rgba(15, 23, 42, 0.04);
+    }
+    .qb-preview {
+      padding: 1.25rem 1.35rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .qb-preview__head {
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .qb-preview__label {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin: 0 0 0.25rem;
+    }
+    .qb-preview__number {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 0.5rem;
+      line-height: 1.2;
+    }
+    .qb-preview__date {
+      font-size: 0.8125rem;
+      color: #64748b;
+      margin: 0;
+    }
+    .qb-preview__rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .qb-preview__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      font-size: 0.875rem;
+      color: #334155;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .qb-preview__row--edit {
+      flex-wrap: wrap;
+      align-items: flex-end;
+      padding: 0.65rem 0;
+    }
+    .qb-preview__row--total {
+      border-bottom: none;
+      padding-top: 0.75rem;
+      margin-top: 0.25rem;
+      border-top: 2px solid var(--secondary-color);
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--primary-color);
+    }
+    .qb-preview__row--balance {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #0f172a;
+      border-bottom: none;
+    }
+    .qb-preview__value {
+      font-weight: 600;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+    .qb-preview__profit {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid #e2e8f0;
+    }
+    .qb-below-row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+      align-items: stretch;
+    }
+    .builder-sidebar .margin-visualization {
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+    .builder-sidebar .cost-breakdown {
+      margin-bottom: 0;
+    }
+    .qb-sidebar-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border-color);
+    }
+    .qb-sidebar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .qb-sidebar-actions .btn {
+      flex: 1 1 auto;
+      min-width: 140px;
+    }
+    .cost-breakdown {
+      background: var(--bg-primary-light);
+      padding: var(--spacing-md);
+      border-radius: 8px;
+      margin-bottom: var(--spacing-md);
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow);
+    }
+    .cost-row {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--spacing-xs) 0;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9rem;
+      color: var(--text-dark);
+    }
+    .cost-row.total {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--primary-color);
+      border-top: 2px solid var(--secondary-color);
+      margin-top: var(--spacing-xs);
+      padding-top: var(--spacing-sm);
+      border-bottom: none;
+    }
+    .cost-row.total span:last-child {
+      color: var(--primary-color);
+    }
+    .qb-resumo-title {
+      color: var(--text-dark);
+      border-bottom: 2px solid var(--secondary-color);
+      padding-bottom: 0.35rem;
+      margin-bottom: 1rem;
+    }
+    .margin-visualization {
+      margin-top: var(--spacing-md);
+      margin-bottom: var(--spacing-md);
+      padding: var(--spacing-md);
+      background: linear-gradient(145deg, var(--primary-color) 0%, var(--primary-dark) 50%, #161b2e 100%);
+      color: rgba(247, 248, 252, 0.95);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      border: 1px solid rgba(214, 181, 152, 0.4);
+      box-shadow: var(--shadow-primary);
+    }
+    .margin-visualization .qb-profit-heading {
+      color: var(--secondary-color);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .margin-bar {
+      height: 28px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      margin-top: var(--spacing-sm);
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(214, 181, 152, 0.25);
+    }
+    .margin-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--secondary-dark) 0%, var(--secondary-color) 55%, var(--secondary-hover) 100%);
+      transition: width 0.25s ease;
+      max-width: 100%;
+    }
+    .qb-sidebar-notes textarea {
+      width: 100%;
+      padding: var(--spacing-xs);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+    /* Notificação envio e-mail (substitui alert nativo) */
+    .qb-notify {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 1.25rem;
+      padding-top: max(1.25rem, env(safe-area-inset-top));
+      background: rgba(26, 32, 54, 0.45);
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+    }
+    .qb-notify.hidden {
+      display: none !important;
+    }
+    .qb-notify__panel {
+      margin-top: 0.5rem;
+      max-width: min(420px, 100%);
+      width: 100%;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+      padding: 1.35rem 1.5rem 1.25rem;
+      position: relative;
+      border-top: 4px solid #1a2036;
+      animation: qbNotifyIn 0.22s ease-out;
+    }
+    @keyframes qbNotifyIn {
+      from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .qb-notify--success .qb-notify__panel {
+      border-top-color: #059669;
+    }
+    .qb-notify--error .qb-notify__panel {
+      border-top-color: #b91c1c;
+    }
+    .qb-party-tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.85rem;
+    }
+    .qb-party-tab {
+      flex: 1;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: inherit;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .qb-party-tab.is-active {
+      background: #1a2036;
+      border-color: #1a2036;
+      color: #fff;
+    }
+    .qb-builder-select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      background: #fff;
+      box-sizing: border-box;
+    }
+    .qb-job-fields {
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .qb-job-fields__title {
+      margin: 0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+    .qb-job-fields label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .qb-job-fields input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      box-sizing: border-box;
+    }
+    .qb-extra-emails {
+      margin-top: 0.85rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #e2e8f0;
+    }
+    .qb-extra-emails__label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.35rem;
+    }
+    .qb-extra-emails__hint {
+      margin: 0 0 0.5rem;
+      font-size: 0.7rem;
+      color: #94a3b8;
+    }
+    .qb-extra-emails__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 0.45rem;
+      min-height: 0;
+    }
+    .qb-extra-emails__chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      max-width: 100%;
+      padding: 0.25rem 0.35rem 0.25rem 0.55rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e3a8a;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .qb-extra-emails__chip span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .qb-extra-emails__chip-remove {
+      border: 0;
+      background: transparent;
+      color: #1d4ed8;
+      cursor: pointer;
+      font-size: 0.9rem;
+      line-height: 1;
+      padding: 0 0.25rem;
+      border-radius: 999px;
+    }
+    .qb-extra-emails__chip-remove:hover {
+      background: #dbeafe;
+    }
+    .qb-extra-emails__input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      box-sizing: border-box;
+    }
+    .qb-pricing-active {
+      font-size: 0.8125rem;
+      color: #0f172a;
+      margin: 0.25rem 0 0;
+    }
+    .qb-client-search {
+      position: relative;
+      z-index: 5;
+    }
+    .qb-client-search__input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      background: #fff;
+      box-sizing: border-box;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .qb-client-search__results {
+      position: absolute;
+      z-index: 4000;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      max-height: min(320px, 45vh);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+    }
+    .qb-client-search__results.hidden {
+      display: none !important;
+    }
+    .qb-client-search__item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.65rem 0.75rem;
+      border: 0;
+      border-bottom: 1px solid #f1f5f9;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.8125rem;
+      line-height: 1.35;
+      color: #0f172a;
+    }
+    .qb-client-search__item:last-child {
+      border-bottom: 0;
+    }
+    .qb-client-search__item:hover,
+    .qb-client-search__item:focus {
+      background: #f1f5f9;
+      outline: none;
+    }
+    .qb-client-search__item.is-active,
+    .qb-client-search__item.qb-client-search__item--active {
+      background: #dbeafe;
+      color: #0f172a;
+      box-shadow: inset 3px 0 0 #2563eb;
+    }
+    .qb-client-search__item.is-active:hover,
+    .qb-client-search__item.qb-client-search__item--active:hover {
+      background: #bfdbfe;
+    }
+    .qb-client-search__item-name {
+      display: block;
+      font-weight: 600;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .qb-client-search__item-meta {
+      display: block;
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .qb-client-search__empty {
+      padding: 0.75rem;
+      font-size: 0.8125rem;
+      color: #64748b;
+      text-align: center;
+    }
+    .qb-notify__close {
+      position: absolute;
+      top: 0.4rem;
+      right: 0.4rem;
+      width: 2.25rem;
+      height: 2.25rem;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .qb-notify__close:hover {
+      background: #f1f5f9;
+      color: #1a2036;
+    }
+    .qb-notify__icon {
+      font-size: 2rem;
+      line-height: 1;
+      margin-bottom: 0.35rem;
+    }
+    .qb-notify__title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #1a2036;
+      margin: 0 2rem 0.5rem 0;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    .qb-notify__msg {
+      font-size: 0.9rem;
+      color: #4b5563;
+      margin: 0;
+      line-height: 1.45;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    /* Quote sheet — estilo cartões (referência Jobber) */
+    .qb-sheet {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .qb-sheet__section {
+      background: var(--bg-white);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    /* Dropdown do catálogo precisa sair da secção sem ser cortado */
+    #qbItemsSection.qb-sheet__section {
+      overflow: visible;
+    }
+    #qbItemsSection .qb-sheet__body {
+      overflow: visible;
+    }
+    #qbItemsSection .qb-item-editor {
+      overflow: visible;
+      position: relative;
+      z-index: 20;
+    }
+    #modalServiceSearchWrap.qb-client-search {
+      z-index: 30;
+    }
+    #modalServiceResults.qb-client-search__results {
+      z-index: 50;
+    }
+    .qb-sheet__title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin: 0;
+      padding: 1rem 1.25rem 0.75rem;
+    }
+    .qb-sheet__body {
+      padding: 0 1.25rem 1.25rem;
+    }
+    .qb-client-add {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      background: none;
+      border: 0;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .qb-client-add:hover {
+      color: var(--secondary-dark);
+    }
+    .qb-client-add__icon {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      background: rgba(26, 32, 54, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+    .qb-client-details {
+      margin-top: 0.75rem;
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      background: var(--bg-primary-light);
+      border: 1px solid var(--border-color);
+      min-width: 0;
+      max-width: 100%;
+    }
+    .qb-client-details.hidden {
+      display: none !important;
+    }
+    .qb-client-details__list {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .qb-client-details__row {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.2rem;
+      min-width: 0;
+      max-width: 100%;
+      font-size: 0.8125rem;
+      line-height: 1.45;
+    }
+    .qb-client-details__row dt {
+      margin: 0;
+      font-weight: 600;
+      color: #64748b;
+    }
+    .qb-client-details__row dd,
+    #qbClientName,
+    #qbClientPhone,
+    #qbClientEmail,
+    #qbClientAddress {
+      display: block;
+      margin: 0;
+      color: #0f172a;
+      min-width: 0;
+      max-width: 100%;
+      width: 100%;
+      box-sizing: border-box;
+      white-space: pre-wrap !important;
+      overflow-wrap: anywhere !important;
+      word-break: break-word !important;
+      word-break: break-all;
+    }
+    .qb-client-meta {
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .qb-client-meta__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+    }
+    .qb-client-meta__pricing {
+      padding: 0.65rem 0;
+    }
+    .qb-client-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .qb-client-actions .btn-link {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      background: none;
+      border: 0;
+      padding: 0.35rem 0;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+    }
+    .qb-client-actions .btn-link:hover {
+      text-decoration: underline;
+    }
+    .qb-client-actions .btn-link.hidden {
+      display: none !important;
+    }
+    .qb-client-form {
+      margin-top: 0.75rem;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+    }
+    .qb-client-form.hidden {
+      display: none !important;
+    }
+    .qb-client-form__title {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #334155;
+      margin: 0 0 0.75rem;
+    }
+    .qb-client-form__grid {
+      display: grid;
+      gap: 0.65rem;
+    }
+    .qb-client-form__grid label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.2rem;
+    }
+    .qb-client-form__grid input,
+    .qb-client-form__grid textarea {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .qb-client-form__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .qb-money-field {
+      position: relative;
+      flex: 1 1 7rem;
+      min-width: 7rem;
+      max-width: 12rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .qb-money-field__prefix {
+      position: absolute;
+      left: 0.6rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a2036;
+      line-height: 1;
+      pointer-events: none;
+      user-select: none;
+      z-index: 1;
+    }
+    .qb-money-field__input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      border: 0;
+      padding: 0.5rem 0.65rem 0.5rem 1.45rem;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      background: transparent;
+      font-family: inherit;
+    }
+    .qb-money-field__input:focus {
+      outline: none;
+    }
+    .qb-money-field:focus-within {
+      outline: 2px solid rgba(26, 32, 54, 0.15);
+      border-color: var(--primary-color);
+    }
+    .qb-items-bar {
+      background: #f1f5f9;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #475569;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .qb-items-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .qb-items-list:empty::after {
+      content: 'Nenhum serviço neste orçamento.';
+      display: block;
+      padding: 2rem 1.25rem;
+      text-align: center;
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+    .qb-item-card {
+      display: flex;
+      gap: 0.65rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #e2e8f0;
+      align-items: flex-start;
+      transition: background 0.15s;
+    }
+    .qb-item-card:hover {
+      background: #fafbfc;
+    }
+    .qb-item-card__grip {
+      color: #64748b;
+      font-size: 1.125rem;
+      letter-spacing: -1px;
+      line-height: 1;
+      padding: 0.1rem 0.35rem 0 0;
+      min-width: 1.35rem;
+      user-select: none;
+      cursor: grab;
+      touch-action: none;
+    }
+    .qb-item-card__grip:active {
+      cursor: grabbing;
+    }
+    .qb-item-card.sortable-ghost {
+      opacity: 0.45;
+      background: #f1f5f9;
+    }
+    .qb-cat-section__head {
+      padding: 0.55rem 1.25rem;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .qb-cat-items:empty {
+      display: none;
+    }
+    .qb-item-card__body {
+      flex: 1;
+      min-width: 0;
+    }
+    .qb-item-card__top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .qb-item-card__name {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.3;
+    }
+    .qb-item-card__total {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+    .qb-item-card__desc {
+      margin: 0.25rem 0 0;
+      font-size: 0.8125rem;
+      color: #64748b;
+      line-height: 1.4;
+    }
+    .qb-item-card__meta {
+      margin: 0.35rem 0 0;
+      font-size: 0.8125rem;
+      color: #475569;
+    }
+    .qb-item-card__badge {
+      display: inline-block;
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      margin-left: 0.35rem;
+      vertical-align: middle;
+    }
+    .qb-item-card__badge--auto {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .qb-item-card__badge--product {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+    .qb-item-card__badge--cat {
+      background: #e2e8f0;
+      color: #475569;
+    }
+    .qb-item-card__actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+    .qb-item-card__btn {
+      border: 0;
+      background: transparent;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      cursor: pointer;
+      padding: 0.2rem 0.35rem;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+    .qb-item-card__btn:hover {
+      background: rgba(26, 32, 54, 0.06);
+    }
+    .qb-item-card__btn--danger {
+      color: #b91c1c;
+    }
+    .qb-item-editor {
+      margin: 0;
+      padding: 1.25rem;
+      border-top: 1px solid #e2e8f0;
+      background: #fff;
+    }
+    .qb-item-editor.hidden {
+      display: none !important;
+    }
+    .qb-item-editor__field {
+      margin-bottom: 0.75rem;
+    }
+    .qb-item-editor__field label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .qb-item-editor__input,
+    .qb-item-editor__textarea,
+    .qb-item-editor__select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.875rem;
+      font-family: inherit;
+      background: #fff;
+    }
+    .qb-item-editor__textarea {
+      resize: vertical;
+      min-height: 2.5rem;
+    }
+    .qb-item-editor__row {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .qb-item-editor__row--pricing {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.65rem;
+    }
+    .qb-item-editor__pricing {
+      display: grid;
+      grid-template-columns: minmax(4.25rem, 0.8fr) auto minmax(5.5rem, 1.1fr) minmax(4.5rem, 0.75fr) auto minmax(5.75rem, 1fr);
+      gap: 0.35rem 0.4rem;
+      align-items: end;
+      width: 100%;
+      min-width: 0;
+    }
+    .qb-pricing-cell label {
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.2rem;
+      letter-spacing: 0.02em;
+    }
+    .qb-pricing-sep {
+      color: #94a3b8;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-align: center;
+    }
+    .qb-item-editor__pricing #modalServiceQty {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.875rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .qb-item-editor__pricing .qb-money-field {
+      flex: none;
+      min-width: 0;
+      max-width: none;
+      width: 100%;
+    }
+    .qb-margin-field {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .qb-margin-field input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      padding: 0.5rem 0.35rem 0.5rem 0.65rem;
+      font-size: 0.875rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      background: transparent;
+    }
+    .qb-margin-field__suffix {
+      padding-right: 0.55rem;
+      font-size: 0.8125rem;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .qb-pricing-total {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.9375rem;
+      font-weight: 700;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #0f172a;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      min-height: 2.375rem;
+      line-height: 1.35;
+    }
+    @media (max-width: 640px) {
+      .qb-item-editor__pricing {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+          'qty qty'
+          'base margin'
+          'eq eq'
+          'total total';
+      }
+      .qb-pricing-cell--qty { grid-area: qty; }
+      .qb-pricing-cell--base { grid-area: base; }
+      .qb-pricing-cell--margin { grid-area: margin; }
+      .qb-pricing-sep--eq { grid-area: eq; }
+      .qb-pricing-cell--total { grid-area: total; }
+      .qb-pricing-sep--mul { display: none; }
+    }
+    /* Toast de rascunho guardado — topo central */
+    body.qb-dashboard-inner #crmToastHost {
+      top: max(1rem, env(safe-area-inset-top));
+      bottom: auto;
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+      align-items: center;
+    }
+    body.qb-dashboard-inner #crmToastHost .crm-toast {
+      animation: qbToastInTop 0.22s ease-out;
+    }
+    @keyframes qbToastInTop {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .qb-item-editor__more {
+      margin-top: 0.75rem;
+    }
+    .qb-item-editor__more summary {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+    .qb-item-editor__more summary::-webkit-details-marker {
+      display: none;
+    }
+    .qb-item-editor__more-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .qb-item-editor__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .qb-items-foot {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 1rem;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border-color);
+    }
+    .qb-items-foot__add {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      background: none;
+      border: 0;
+      cursor: pointer;
+      padding: 0.25rem 0;
+      font-family: inherit;
+    }
+    .qb-items-foot__add:hover {
+      color: var(--secondary-dark);
+    }
+    .qb-items-foot__sep {
+      color: #cbd5e1;
+      font-size: 0.875rem;
+    }
+    .qb-items-foot__catalog {
+      flex: 1;
+      min-width: 180px;
+      max-width: 320px;
+    }
+    .qb-items-foot__catalog select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.45rem 0.65rem;
+      font-size: 0.8125rem;
+      background: #fff;
+    }
+    .qb-sqft-toolbar {
+      padding: 0 1.25rem 1rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .qb-sqft-toolbar__inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.75rem;
+      padding-top: 0.75rem;
+    }
+    .qb-accordion {
+      margin-bottom: var(--spacing-md);
+    }
+    .qb-accordion > summary {
+      list-style: none;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #1e293b;
+      cursor: pointer;
+      padding: 0.15rem 0;
+      user-select: none;
+    }
+    .qb-accordion > summary::-webkit-details-marker {
+      display: none;
+    }
+    .qb-accordion > summary::after {
+      content: '▾';
+      float: right;
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+    .qb-accordion:not([open]) > summary::after {
+      transform: rotate(-90deg);
+      display: inline-block;
+    }
+    .qb-action-bar {
+      position: fixed;
+      left: var(--crm-sidebar-width, 264px);
+      right: 0;
+      bottom: 0;
+      /* Acima do #mobileOverlay (1080) para taps no iPad; abaixo do sidebar aberto (1100) */
+      z-index: 1090;
+      background: #fff;
+      border-top: 1px solid #e2e8f0;
+      box-shadow: 0 -6px 28px rgba(15, 23, 42, 0.1);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      pointer-events: auto;
+      isolation: isolate;
+    }
+    .qb-action-bar__inner {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      width: 100%;
+      max-width: 100%;
+      min-height: 3.25rem;
+    }
+    .qb-action-bar .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: unset;
+      min-width: 0;
+      min-height: 48px;
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      border-right: 1px solid #e2e8f0;
+      padding: 0.75rem 0.5rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      position: relative;
+      z-index: 1;
+    }
+    .qb-action-bar .btn:last-child {
+      border-right: none;
+    }
+    .qb-action-bar .btn .qb-action-bar__short {
+      display: none;
+    }
+    .qb-action-bar .btn-primary {
+      background: var(--primary-color);
+      color: #fff;
+    }
+    .qb-action-bar .btn-primary:hover:not(:disabled) {
+      filter: brightness(1.08);
+    }
+    .qb-action-bar .btn-secondary {
+      background: #f8fafc;
+      color: var(--primary-color);
+    }
+    .qb-action-bar .btn-secondary:hover:not(:disabled) {
+      background: #f1f5f9;
+    }
+    .qb-action-bar .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    /* Overlay do menu não pode roubar taps da barra quando fechado */
+    body.qb-sidebar-page .mobile-overlay {
+      pointer-events: none !important;
+    }
+    body.qb-sidebar-page .mobile-overlay.active {
+      pointer-events: auto !important;
+    }
+    body.qb-dashboard-inner {
+      padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+    }
+    body.qb-dashboard-inner .qb-page {
+      padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+    }
+    @media (max-width: 1366px) {
+      .qb-action-bar {
+        left: 0;
+      }
+      .qb-action-bar__inner {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .qb-action-bar .btn {
+        min-height: 52px;
+        font-size: 0.8125rem;
+        padding: 0.85rem 0.45rem;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .qb-action-bar .btn:nth-child(3n) {
+        border-right: none;
+      }
+      .qb-action-bar .btn .qb-action-bar__full {
+        display: none;
+      }
+      .qb-action-bar .btn .qb-action-bar__short {
+        display: inline;
+      }
+      body.qb-dashboard-inner,
+      body.qb-dashboard-inner .qb-page {
+        padding-bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
+      }
+    }
+    @media (max-width: 1100px) {
+      .qb-topbar {
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .qb-topbar__actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+    @media (max-width: 900px) {
+      body.qb-dashboard-inner .dashboard-main {
+        min-height: calc(100vh - 52px);
+      }
+    }
+    @media (max-width: 900px) {
+      .estimate-builder {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+      .builder-sidebar {
+        border-left: 0;
+        border-top: 1px solid #e2e8f0;
+        max-height: 45vh;
+        box-shadow: none;
+      }
+    }
+    .qb-send-menu {
+      position: fixed;
+      z-index: 10020;
+      min-width: 220px;
+      max-width: min(320px, calc(100vw - 16px));
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+      padding: 0.35rem 0;
+      overflow: hidden;
+    }
+    .qb-send-menu.hidden {
+      display: none !important;
+    }
+    .qb-send-menu__item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border: 0;
+      background: #fff;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #1a2036;
+      cursor: pointer;
+      font-family: inherit;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .qb-send-menu__item:last-child {
+      border-bottom: 0;
+    }
+    .qb-send-menu__item:hover {
+      background: #f8fafc;
+    }
+    .qb-send-menu__item small {
+      display: block;
+      font-weight: 400;
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 0.15rem;
+    }
+    .qb-invoices-panel.hidden { display: none; }
+    .qb-invoices-list { display: flex; flex-direction: column; gap: 8px; }
+    .qb-invoice-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      font-size: 12px;
+    }
+    .qb-invoice-card__head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; color: #1a2036; }
+    .qb-invoice-card__meta { color: #64748b; margin: 4px 0 8px; font-size: 11px; }
+    .qb-invoice-card__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+    .qb-invoice-card__actions .btn { font-size: 11px; padding: 4px 8px; }
+    .qb-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 11000;
+      background: rgba(26, 32, 54, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .qb-modal.hidden { display: none; }
+    .qb-modal__panel {
+      background: #fff;
+      border-radius: 12px;
+      max-width: 440px;
+      width: 100%;
+      padding: 1.25rem;
+      box-shadow: 0 12px 40px rgba(26, 32, 54, 0.18);
+    }
+    .qb-modal__title { margin: 0 0 6px; font-size: 1.1rem; color: #1a2036; }
+    .qb-modal__sub { margin: 0 0 14px; }
+    .qb-modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .qb-invoice-form { display: flex; flex-direction: column; gap: 10px; }
+    .qb-invoice-form__label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #334155; }
+    .qb-invoice-form__input {
+      font-weight: 400;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    @media (max-width: 520px) {
+      .qb-action-bar__inner {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .qb-action-bar .btn {
+        min-height: 48px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .qb-action-bar .btn:nth-child(3n) {
+        border-right: 1px solid #e2e8f0;
+      }
+      .qb-action-bar .btn:nth-child(even) {
+        border-right: none;
+      }
+      body.qb-dashboard-inner,
+      body.qb-dashboard-inner .qb-page {
+        padding-bottom: calc(9.5rem + env(safe-area-inset-bottom, 0px));
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531" />
+</head>
+<body class="qb-dashboard-inner dashboard-app-body qb-sidebar-page">
+  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="quoteBuilderSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title" id="mobileAppTitle">Orçamento</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="quoteBuilderSidebar" aria-label="Menu lateral">
+      <div class="sidebar-header">
+        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Navegação CRM">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <main class="dashboard-main">
+      <div class="qb-page">
+      <header class="qb-topbar">
+        <div class="qb-topbar__left">
+          <a href="dashboard.html?page=quotes" class="qb-topbar__back">← Orçamentos</a>
+          <h1 class="qb-topbar__title" id="topbarTitle">Novo orçamento</h1>
+        </div>
+        <div class="qb-topbar__actions">
+          <span
+            id="qbEmailSentBadge"
+            class="qb-email-sent-badge hidden"
+            role="status"
+            aria-live="polite"
+            aria-label="E-mail do orçamento ainda não enviado"
+          >
+            <span class="qb-email-sent-badge__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+            </span>
+            <span class="qb-email-sent-badge__check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
+            <span class="qb-email-sent-badge__label" id="qbEmailSentBadgeLabel">E-mail enviado</span>
+          </span>
+          <span
+            id="qbQuoteViewedBadge"
+            class="qb-quote-viewed-badge hidden"
+            role="status"
+            aria-live="polite"
+            aria-label="Orçamento ainda não aberto pelo cliente"
+          >
+            <span class="qb-quote-viewed-badge__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </span>
+            <span class="qb-quote-viewed-badge__check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
+            <span class="qb-quote-viewed-badge__label" id="qbQuoteViewedBadgeLabel">Aberto pelo cliente</span>
+          </span>
+          <span
+            id="qbPdfViewedBadge"
+            class="qb-pdf-viewed-badge hidden"
+            role="status"
+            aria-live="polite"
+            aria-label="PDF ainda não descarregado pelo cliente"
+          >
+            <span class="qb-pdf-viewed-badge__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </span>
+            <span class="qb-pdf-viewed-badge__check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
+            <span class="qb-pdf-viewed-badge__label" id="qbPdfViewedBadgeLabel">PDF descarregado</span>
+          </span>
+        </div>
+      </header>
+
+      <div class="estimate-builder">
+        <div class="builder-main">
+          <p id="authMsg" class="text-red-600 text-sm hidden mb-4"></p>
+          <p id="leadContextHint" class="text-sm text-slate-600 mb-4 hidden"></p>
+
+          <div class="qb-sheet">
+            <section class="qb-sheet__section" id="qbClientSection">
+              <h2 class="qb-sheet__title">Cliente</h2>
+              <div class="qb-sheet__body">
+                <div class="qb-party-tabs" role="tablist" aria-label="Tipo de cliente">
+                  <button type="button" class="qb-party-tab is-active" id="qbPartyLead" data-party="lead">Leads</button>
+                  <button type="button" class="qb-party-tab" id="qbPartyBuilder" data-party="builder">Builders</button>
+                </div>
+                <div id="qbLeadPanel">
+                <div class="qb-client-search" id="qbClientSearchWrap">
+                  <input
+                    type="search"
+                    id="customerSearch"
+                    class="qb-client-search__input"
+                    autocomplete="off"
+                    placeholder="Pesquisar lead por nome, email, telefone…"
+                    aria-label="Pesquisar cliente"
+                  />
+                  <input type="hidden" id="customerId" value="" />
+                  <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads"></div>
+                </div>
+                <div class="qb-client-actions">
+                  <button type="button" id="btnAddClientManual" class="btn-link">+ Cliente manual</button>
+                  <button type="button" id="btnEditClient" class="btn-link hidden">Editar cliente</button>
+                  <a id="btnOpenLeadInCrm" class="btn-link hidden" href="#" target="_blank" rel="noopener">Abrir no CRM</a>
+                </div>
+                <div id="qbClientManualForm" class="qb-client-form hidden" aria-label="Novo cliente manual">
+                  <p class="qb-client-form__title">Novo cliente (cria lead no CRM)</p>
+                  <div class="qb-client-form__grid">
+                    <div><label for="manualClientName">Name *</label><input type="text" id="manualClientName" autocomplete="name" /></div>
+                    <div><label for="manualClientPhone">Phone *</label><input type="tel" id="manualClientPhone" autocomplete="tel" /></div>
+                    <div><label for="manualClientEmail">Email *</label><input type="email" id="manualClientEmail" autocomplete="email" /></div>
+                    <div><label for="manualClientZip">ZIP *</label><input type="text" id="manualClientZip" inputmode="numeric" maxlength="10" placeholder="80202" /></div>
+                    <div><label for="manualClientAddress">Address</label><input type="text" id="manualClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
+                  </div>
+                  <p id="manualClientError" class="text-red-600 text-sm hidden mt-2"></p>
+                  <div class="qb-client-form__actions">
+                    <button type="button" id="btnManualClientCancel" class="px-3 py-1.5 text-sm text-slate-600">Cancelar</button>
+                    <button type="button" id="btnManualClientSave" class="px-3 py-1.5 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">Criar e selecionar</button>
+                  </div>
+                </div>
+                <div id="qbClientEditForm" class="qb-client-form hidden" aria-label="Editar cliente">
+                  <p class="qb-client-form__title">Editar cliente (atualiza o lead no CRM)</p>
+                  <div class="qb-client-form__grid">
+                    <div><label for="editClientName">Name</label><input type="text" id="editClientName" autocomplete="name" /></div>
+                    <div><label for="editClientPhone">Phone</label><input type="tel" id="editClientPhone" autocomplete="tel" /></div>
+                    <div><label for="editClientEmail">Email</label><input type="email" id="editClientEmail" autocomplete="email" /></div>
+                    <div><label for="editClientZip">ZIP</label><input type="text" id="editClientZip" inputmode="numeric" maxlength="10" /></div>
+                    <div><label for="editClientAddress">Address</label><input type="text" id="editClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
+                  </div>
+                  <p id="editClientError" class="text-red-600 text-sm hidden mt-2"></p>
+                  <div class="qb-client-form__actions">
+                    <button type="button" id="btnEditClientCancel" class="px-3 py-1.5 text-sm text-slate-600">Cancelar</button>
+                    <button type="button" id="btnEditClientSave" class="px-3 py-1.5 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">Guardar no CRM</button>
+                  </div>
+                </div>
+                <div id="qbClientDetails" class="qb-client-details hidden" aria-live="polite">
+                  <dl class="qb-client-details__list">
+                    <div class="qb-client-details__row">
+                      <dt>Name</dt>
+                      <dd id="qbClientName">—</dd>
+                    </div>
+                    <div class="qb-client-details__row">
+                      <dt>Phone</dt>
+                      <dd id="qbClientPhone">—</dd>
+                    </div>
+                    <div class="qb-client-details__row">
+                      <dt>Email</dt>
+                      <dd id="qbClientEmail">—</dd>
+                    </div>
+                    <div class="qb-client-details__row">
+                      <dt>Address</dt>
+                      <dd id="qbClientAddress">—</dd>
+                    </div>
+                  </dl>
+                </div>
+                </div>
+                <div id="qbBuilderPanel" class="hidden">
+                  <label class="block text-xs font-semibold text-slate-500 mb-1" for="quoteBuilderSelect">Builder cadastrado</label>
+                  <select id="quoteBuilderSelect" class="qb-builder-select" aria-label="Selecionar builder">
+                    <option value="">Selecionar builder…</option>
+                  </select>
+                  <p class="text-xs text-slate-500 mt-2">Ao escolher um builder, o catálogo passa automaticamente para a taxa builder.</p>
+                  <div id="qbBuilderDetails" class="qb-client-details hidden" aria-live="polite">
+                    <dl class="qb-client-details__list">
+                      <div class="qb-client-details__row">
+                        <dt>Empresa</dt>
+                        <dd id="qbBuilderCompany">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>Contato</dt>
+                        <dd id="qbBuilderContact">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>Email</dt>
+                        <dd id="qbBuilderEmail">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>Phone</dt>
+                        <dd id="qbBuilderPhone">—</dd>
+                      </div>
+                    </dl>
+                  </div>
+                  <div id="qbBuilderExtraEmailsWrap" class="qb-extra-emails">
+                    <label class="qb-extra-emails__label" for="qbBuilderExtraEmailInput">Emails extras (CC)</label>
+                    <p class="qb-extra-emails__hint">Além do e-mail principal do builder. Enter ou vírgula para adicionar.</p>
+                    <div class="qb-extra-emails__chips" id="qbBuilderEmailChips" aria-live="polite"></div>
+                    <input
+                      type="email"
+                      id="qbBuilderExtraEmailInput"
+                      class="qb-extra-emails__input"
+                      autocomplete="off"
+                      placeholder="ex.: pm@builder.com"
+                      aria-label="Adicionar e-mail extra"
+                    />
+                  </div>
+                  <div class="qb-job-fields">
+                    <p class="qb-job-fields__title">Projeto deste quote</p>
+                    <div>
+                      <label for="quoteJobName">Nome do projeto</label>
+                      <input type="text" id="quoteJobName" autocomplete="off" placeholder="Ex.: Residência Smith — living room" />
+                    </div>
+                    <div>
+                      <label for="quoteJobAddress">Endereço do projeto</label>
+                      <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." />
+                    </div>
+                  </div>
+                </div>
+                <div class="qb-client-meta">
+                  <div class="qb-client-meta__grid">
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-500 mb-1" for="status">Status</label>
+                      <select id="status" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="draft">Draft</option>
+                        <option value="sent">Sent</option>
+                        <option value="viewed">Viewed</option>
+                        <option value="approved">Approved</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-slate-500 mb-1" for="expirationDate">Expiração</label>
+                      <input type="date" id="expirationDate" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                  <div class="qb-client-meta__pricing">
+                    <span class="block text-xs font-semibold text-slate-500 mb-1">Tabela de preços</span>
+                    <p id="qbPricingActiveLabel" class="qb-pricing-active">Taxa cliente final (leads)</p>
+                    <div class="flex flex-wrap gap-4 text-sm hidden" id="qbPricingRadios">
+                      <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="customer" checked class="rounded border-slate-300" /> Taxa cliente final</label>
+                      <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="builder" class="rounded border-slate-300" /> Taxa builder</label>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1" for="templateSelect">Template</label>
+                    <div class="flex gap-2 flex-wrap">
+                      <select id="templateSelect" class="flex-1 min-w-[200px] border border-slate-300 rounded-lg px-3 py-2 text-sm"></select>
+                      <button type="button" id="btnApplyTemplate" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-medium whitespace-nowrap">Aplicar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="qb-sheet__section" id="qbItemsSection">
+              <div class="qb-items-bar" id="itemsCountBar">Itens — <span id="itemsCountLabel">0 adicionados</span></div>
+              <div id="itemsList" class="qb-items-list" role="list"></div>
+              <div id="addItemPanel" class="qb-item-editor hidden" aria-label="Adicionar ou editar serviço">
+                <div class="qb-item-editor__field qb-client-search" id="modalServiceSearchWrap">
+                  <label for="modalServiceName">Nome do serviço</label>
+                  <input type="search" id="modalServiceName" class="qb-item-editor__input" autocomplete="off" placeholder="Pesquisar no catálogo…" />
+                  <div id="modalServiceResults" class="qb-client-search__results hidden" role="listbox" aria-label="Serviços do catálogo"></div>
+                </div>
+                <div class="qb-item-editor__field">
+                  <label for="modalServiceDesc">Descrição <span class="font-normal">(PDF / público)</span></label>
+                  <textarea id="modalServiceDesc" class="qb-item-editor__textarea" rows="2" placeholder="Texto longo no PDF e na página pública"></textarea>
+                </div>
+                <div class="qb-item-editor__row qb-item-editor__row--pricing">
+                  <div class="qb-item-editor__pricing">
+                    <div class="qb-pricing-cell qb-pricing-cell--qty">
+                      <label for="modalServiceQty">Quantidade</label>
+                      <input type="text" id="modalServiceQty" inputmode="decimal" value="1" aria-label="Quantidade" autocomplete="off" />
+                    </div>
+                    <span class="qb-pricing-sep qb-pricing-sep--mul" aria-hidden="true">×</span>
+                    <div class="qb-pricing-cell qb-pricing-cell--base">
+                      <label for="modalServiceRate">Valor (catálogo)</label>
+                      <div class="qb-money-field">
+                        <span class="qb-money-field__prefix" aria-hidden="true">$</span>
+                        <input type="text" id="modalServiceRate" class="qb-money-field__input" inputmode="decimal" value="0.00" aria-label="Valor cadastrado no sistema" autocomplete="off" />
+                      </div>
+                    </div>
+                    <div class="qb-pricing-cell qb-pricing-cell--margin">
+                      <label for="modalServiceMarkup">Margem</label>
+                      <div class="qb-margin-field">
+                        <input type="text" id="modalServiceMarkup" inputmode="decimal" value="" aria-label="Margem percentual" autocomplete="off" placeholder="0" />
+                        <span class="qb-margin-field__suffix" aria-hidden="true">%</span>
+                      </div>
+                    </div>
+                    <span class="qb-pricing-sep qb-pricing-sep--eq" aria-hidden="true">=</span>
+                    <div class="qb-pricing-cell qb-pricing-cell--total">
+                      <label>Total</label>
+                      <span class="qb-pricing-total" id="inlineItemTotal" aria-live="polite">$0.00</span>
+                    </div>
+                  </div>
+                </div>
+                <details class="qb-item-editor__more">
+                  <summary>Mais opções (tipo, unidade, nota)</summary>
+                  <div class="qb-item-editor__more-grid">
+                    <div class="qb-item-editor__field">
+                      <label for="modalServiceType">Tipo de trabalho</label>
+                      <select id="modalServiceType" class="qb-item-editor__select">
+                        <option value="Supply">Supply</option>
+                        <option value="Installation">Installation</option>
+                        <option value="Sand & Finishing">Sand &amp; Finish</option>
+                      </select>
+                    </div>
+                    <div class="qb-item-editor__field">
+                      <label for="modalServiceUnit">Unidade</label>
+                      <select id="modalServiceUnit" class="qb-item-editor__select">
+                        <option value="sq_ft">Sq Ft</option>
+                        <option value="linear_ft">Linear Ft</option>
+                        <option value="inches">Inches</option>
+                        <option value="fixed">Fixed</option>
+                        <option value="box">Box</option>
+                        <option value="piece">Piece</option>
+                      </select>
+                    </div>
+                    <div class="qb-item-editor__field" style="grid-column: 1 / -1">
+                      <label for="inlineItemNote">Nota na linha (PDF)</label>
+                      <input type="text" id="inlineItemNote" class="qb-item-editor__input" placeholder="Opcional" />
+                    </div>
+                  </div>
+                </details>
+                <p id="modalError" class="text-red-600 text-sm hidden mt-2"></p>
+                <div class="qb-item-editor__actions">
+                  <button type="button" id="modalCancel" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900">Cancelar</button>
+                  <button type="button" id="modalConfirmService" class="px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-bold hover:opacity-95">Guardar</button>
+                </div>
+              </div>
+              <div class="qb-items-foot">
+                <button type="button" id="btnAddLine" class="qb-items-foot__add">+ Adicionar serviço</button>
+              </div>
+              <div class="qb-sqft-toolbar">
+                <div class="qb-sqft-toolbar__inner">
+                  <div class="flex-1 min-w-[140px]">
+                    <label for="quoteProjectSqft" class="block text-xs font-semibold text-slate-500 mb-1">Sq ft do projeto</label>
+                    <input type="number" id="quoteProjectSqft" step="0.01" min="0" placeholder="ex. 1200" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <button type="button" id="btnApplySqftToLines" class="btn btn-primary btn-sm whitespace-nowrap">Aplicar nas linhas Sq Ft</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <details class="qb-accordion bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6" id="qbProjectDetails">
+            <summary>Contexto do projeto (regras do estimate)</summary>
+            <div class="space-y-4 mt-4">
+            <p class="text-xs text-slate-500 max-w-3xl">
+              Mesmas regras do Estimate Builder: madeira em concreto → barreira de humidade; nível «major» → massa niveladora; escadas → mão-de-obra por degrau.
+              As linhas marcadas <strong>auto</strong> são recalculadas ao alterar estes campos.
+            </p>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Tipo de projeto</label>
+                <select id="qbProjectType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="residential">Residencial</option>
+                  <option value="commercial">Comercial</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Tipo de serviço</label>
+                <select id="qbServiceType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="installation">Instalação</option>
+                  <option value="replacement">Substituição</option>
+                  <option value="repair">Reparo</option>
+                  <option value="refinish">Refinish</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Piso</label>
+                <select id="qbFlooringType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">—</option>
+                  <option value="hardwood">Hardwood</option>
+                  <option value="engineered">Engineered</option>
+                  <option value="lvp">LVP</option>
+                  <option value="laminate">Laminate</option>
+                  <option value="tile">Tile</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Total sq ft</label>
+                <input type="number" id="qbTotalSqft" step="0.01" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" value="" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Desperdício %</label>
+                <div class="flex gap-2 items-center">
+                  <input type="number" id="qbWastePct" step="0.1" value="7" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  <button type="button" id="btnQbWasteAuto" class="btn btn-secondary btn-sm whitespace-nowrap">Auto</button>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Sq ft ajustado</label>
+                <input type="text" id="qbAdjustedSqft" readonly class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50" value="0" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Subpiso</label>
+                <select id="qbSubfloorType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">—</option>
+                  <option value="concrete">Concrete</option>
+                  <option value="plywood">Plywood</option>
+                  <option value="existing">Existing</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Nivelamento</label>
+                <select id="qbLevelCondition" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="good">Bom</option>
+                  <option value="minor">Problemas menores</option>
+                  <option value="major">Problemas maiores</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Degraus (escadas)</label>
+                <input type="number" id="qbStairsCount" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Divisões</label>
+                <input type="number" id="qbRoomsCount" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div class="mt-4">
+              <button type="button" id="btnQbApplyRules" class="btn btn-primary btn-sm">Aplicar regras agora</button>
+            </div>
+            </div>
+          </details>
+
+        </div>
+
+        <aside class="builder-sidebar" aria-label="Resumo do orçamento">
+          <div class="qb-preview">
+            <div class="qb-preview__head">
+              <p class="qb-preview__label">Orçamento</p>
+              <p class="qb-preview__number" id="previewEstimateNo">—</p>
+              <p class="qb-preview__date" id="previewEstimateDate"></p>
+            </div>
+
+            <div class="qb-preview__rows">
+              <div class="qb-preview__row">
+                <span>Subtotal</span>
+                <span class="qb-preview__value" id="dispSubtotal">$0.00</span>
+              </div>
+              <div class="qb-preview__row qb-preview__row--edit">
+                <span>Desconto</span>
+                <div class="flex flex-wrap gap-1 justify-end items-center">
+                  <select id="discountType" class="border rounded px-2 py-1 text-xs max-w-[110px]">
+                    <option value="percentage">%</option>
+                    <option value="fixed">$</option>
+                  </select>
+                  <input type="number" id="discountValue" step="0.01" value="0" class="border rounded px-2 py-1 text-xs w-20 text-right" aria-label="Valor do desconto" />
+                  <span class="qb-preview__value" id="dispDiscount">$0.00</span>
+                </div>
+              </div>
+              <div class="qb-preview__row qb-preview__row--edit">
+                <span>Imposto</span>
+                <div class="flex items-center gap-2 justify-end">
+                  <input type="number" id="taxTotal" step="0.01" value="0" class="border rounded px-2 py-1 text-xs w-24 text-right" aria-label="Imposto" />
+                  <span class="qb-preview__value" id="dispTax">$0.00</span>
+                </div>
+              </div>
+              <div class="qb-preview__row qb-preview__row--total">
+                <span>Total</span>
+                <span class="qb-preview__value" id="dispTotal">$0.00</span>
+              </div>
+              <div class="qb-preview__row qb-preview__row--balance">
+                <span>Saldo</span>
+                <span class="qb-preview__value" id="dispBalance">$0.00</span>
+              </div>
+            </div>
+
+            <details class="qb-preview__profit">
+              <summary class="text-xs font-semibold text-slate-600 cursor-pointer">Lucro (materiais)</summary>
+              <div class="margin-visualization mt-3" id="profitPanel" style="font-size: 0.8rem">
+                <div class="flex justify-between mb-1"><span>Custo</span><span id="dispCost">$0.00</span></div>
+                <div class="flex justify-between mb-1"><span>Receita</span><span id="dispRevenue">$0.00</span></div>
+                <div class="flex justify-between font-semibold mb-1"><span>Lucro</span><span id="dispProfit">$0.00</span></div>
+                <div class="flex justify-between mb-2"><span>Margem</span><span id="dispMarginPct">—</span></div>
+                <div class="margin-bar"><div class="margin-fill" id="marginBarFill" style="width: 0%"></div></div>
+              </div>
+            </details>
+
+            <div class="qb-sidebar-notes space-y-2 pt-2 border-t border-slate-100">
+              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notas &amp; termos</h3>
+              <textarea id="notes" rows="2" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Notas para o cliente"></textarea>
+              <textarea id="terms" rows="3" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Termos e condições"></textarea>
+            </div>
+
+            <div id="qbOwnerSignaturePanel" class="qb-owner-sig space-y-2 pt-2 border-t border-slate-100">
+              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Assinatura do responsável</h3>
+              <p class="text-xs text-slate-500">Defina uma vez — aplica-se a todos os orçamentos. A assinatura é gerada a partir do nome; pode desenhar por cima.</p>
+              <label class="flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
+                <input type="checkbox" id="ownerSignAutoDefault" class="mt-0.5" checked />
+                <span>Usar assinatura automática como padrão em todos os orçamentos</span>
+              </label>
+              <label class="block text-xs font-medium text-slate-600" for="ownerSignName">Nome (assinatura)</label>
+              <input type="text" id="ownerSignName" class="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5" placeholder="Ex.: John Smith" />
+              <label class="block text-xs font-medium text-slate-600" for="ownerSignTitle">Cargo (fixo)</label>
+              <input type="text" id="ownerSignTitle" class="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5" placeholder="Ex.: Owner" />
+              <div class="qb-sign-canvas-wrap border border-slate-200 rounded-lg bg-slate-50 overflow-hidden">
+                <canvas id="ownerSignCanvas" width="280" height="90" class="w-full block touch-none" aria-label="Desenhar assinatura"></canvas>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" id="btnOwnerSignClear" class="btn btn-sm btn-ghost">Limpar</button>
+                <button type="button" id="btnOwnerSignSave" class="btn btn-sm btn-secondary">Guardar assinatura padrão</button>
+              </div>
+              <div id="ownerSignSavedMeta" class="hidden text-xs text-slate-500"></div>
+              <img id="ownerSignPreview" class="hidden max-h-16 border border-slate-200 rounded p-1 bg-white" alt="Assinatura guardada" />
+            </div>
+
+            <div id="qbClientSignaturePanel" class="hidden space-y-2 pt-2 border-t border-slate-100">
+              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Assinatura do cliente</h3>
+              <img id="clientSignPreview" class="max-h-20 border border-slate-200 rounded p-1 bg-white" alt="Assinatura do cliente" />
+              <p id="clientSignMeta" class="text-xs text-slate-500"></p>
+            </div>
+
+            <div id="quoteInvoicesPanel" class="qb-invoices-panel hidden pt-2 border-t border-slate-100">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Invoices</h3>
+                <button type="button" id="btnOpenInvoiceModal" class="btn btn-sm btn-secondary">Emitir</button>
+              </div>
+              <p class="text-xs text-slate-500 mb-2">Cobrança ao cliente após aprovação do orçamento.</p>
+              <p id="quoteInvoiceBalance" class="text-xs text-slate-600 mb-2 hidden"></p>
+              <div id="quoteInvoicesList" class="qb-invoices-list"></div>
+            </div>
+
+            <div class="qb-sidebar-footer pt-2 border-t border-slate-100">
+              <p class="text-xs text-slate-500 hidden" id="quoteMeta">Novo orçamento</p>
+              <p class="text-xs break-all hidden" id="publicLinkWrap"><span class="font-semibold">Link:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
+            </div>
+          </div>
+        </aside>
+      </div>
+      </div>
+    </main>
+  </div>
+
+  <nav class="qb-action-bar" id="qbActionBar" aria-label="Ações do orçamento">
+    <div class="qb-action-bar__inner">
+      <button type="button" id="btnSave" class="btn btn-primary" title="Guardar rascunho">
+        <span class="qb-action-bar__full">Guardar rascunho</span>
+        <span class="qb-action-bar__short">Guardar</span>
+      </button>
+      <button type="button" id="btnPdf" class="btn btn-secondary" disabled title="Gerar PDF">
+        <span class="qb-action-bar__full">Gerar PDF</span>
+        <span class="qb-action-bar__short">PDF</span>
+      </button>
+      <button type="button" id="btnInvoice" class="btn btn-secondary hidden" disabled title="Emitir invoice">
+        <span class="qb-action-bar__full">Emitir invoice</span>
+        <span class="qb-action-bar__short">Invoice</span>
+      </button>
+      <button type="button" id="btnSend" class="btn btn-secondary" disabled title="Enviar" aria-haspopup="menu" aria-expanded="false" aria-controls="quoteSendMenu">
+        <span class="qb-action-bar__full">Enviar</span>
+        <span class="qb-action-bar__short">Enviar</span>
+      </button>
+      <button type="button" id="btnDup" class="btn btn-secondary" disabled title="Duplicar">
+        <span class="qb-action-bar__full">Duplicar</span>
+        <span class="qb-action-bar__short">Duplicar</span>
+      </button>
+      <button type="button" id="btnSaveTpl" class="btn btn-secondary" title="Guardar template">
+        <span class="qb-action-bar__full">Guardar template</span>
+        <span class="qb-action-bar__short">Template</span>
+      </button>
+    </div>
+  </nav>
+
+  <div id="quoteSendMenu" class="qb-send-menu hidden" role="menu" aria-label="Enviar orçamento">
+    <button type="button" class="qb-send-menu__item" id="quoteSendBySms" role="menuitem">
+      Mensagem (SMS)
+      <small>Abre a app de mensagens com o link do orçamento</small>
+    </button>
+    <button type="button" class="qb-send-menu__item" id="quoteSendByEmail" role="menuitem">
+      E-mail
+      <small>Só link seguro no e-mail — orçamento e PDF na página online</small>
+    </button>
+  </div>
+
+  <div id="qbInvoiceModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbInvoiceModalTitle">
+    <div class="qb-modal__panel">
+      <h2 id="qbInvoiceModalTitle" class="qb-modal__title">Emitir invoice</h2>
+      <p class="qb-modal__sub text-sm text-slate-500">Fatura de pagamento ao cliente com base no orçamento aprovado.</p>
+      <p id="invBalanceHint" class="text-sm text-slate-600 mb-3 hidden"></p>
+      <form id="qbInvoiceForm" class="qb-invoice-form">
+        <label class="qb-invoice-form__label">Tipo de cobrança
+          <select id="invType" class="qb-invoice-form__input">
+            <option value="deposit" selected>Depósito (%)</option>
+            <option value="final">Saldo restante</option>
+            <option value="full">Valor total</option>
+            <option value="progress">Parcela / progresso</option>
+            <option value="custom">Valor personalizado</option>
+          </select>
+        </label>
+        <label class="qb-invoice-form__label" id="invDepositWrap">Percentagem do depósito
+          <input type="number" id="invDepositPct" class="qb-invoice-form__input" min="1" max="100" value="50" />
+        </label>
+        <p id="invFinalHint" class="text-xs text-slate-500 hidden mb-2">O valor será o saldo ainda não faturado do orçamento.</p>
+        <label class="qb-invoice-form__label hidden" id="invCustomWrap">Valor ($)
+          <input type="number" id="invCustomAmount" class="qb-invoice-form__input" min="0" step="0.01" />
+        </label>
+        <label class="qb-invoice-form__label">Data de vencimento
+          <input type="date" id="invDueDate" class="qb-invoice-form__input" />
+        </label>
+        <label class="qb-invoice-form__label">Instruções de pagamento
+          <textarea id="invPaymentInstructions" class="qb-invoice-form__input" rows="2" placeholder="Zelle, cheque, transferência…"></textarea>
+        </label>
+        <label class="qb-invoice-form__label">Nota no invoice (opcional)
+          <textarea id="invNotes" class="qb-invoice-form__input" rows="2"></textarea>
+        </label>
+        <div class="qb-modal__actions">
+          <button type="button" class="btn btn-ghost" id="btnInvoiceModalCancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnInvoiceModalSubmit">Emitir invoice</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="qbReceiptModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbReceiptModalTitle">
+    <div class="qb-modal__panel">
+      <h2 id="qbReceiptModalTitle" class="qb-modal__title">Receber pagamento</h2>
+      <p class="qb-modal__sub text-sm text-slate-500">Gera recibo (parcial ou total), dá baixa no invoice e opcionalmente envia ao cliente.</p>
+      <p id="rcpInvoiceMeta" class="text-sm text-slate-600 mb-3"></p>
+      <form id="qbReceiptForm" class="qb-invoice-form">
+        <input type="hidden" id="rcpInvoiceId" value="" />
+        <label class="qb-invoice-form__label">Valor recebido ($)
+          <input type="number" id="rcpAmount" class="qb-invoice-form__input" min="0.01" step="0.01" required />
+        </label>
+        <p id="rcpBalanceHint" class="text-xs text-slate-500 mb-1"></p>
+        <label class="qb-invoice-form__label">Data do pagamento
+          <input type="date" id="rcpPaymentDate" class="qb-invoice-form__input" required />
+        </label>
+        <label class="qb-invoice-form__label">Método
+          <select id="rcpMethod" class="qb-invoice-form__input">
+            <option value="check">Check</option>
+            <option value="zelle">Zelle</option>
+            <option value="venmo">Venmo</option>
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="credit_card">Credit card</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="qb-invoice-form__label">Referência (nº check / confirmação)
+          <input type="text" id="rcpReference" class="qb-invoice-form__input" maxlength="120" placeholder="Opcional" />
+        </label>
+        <label class="qb-invoice-form__label">Nota (opcional)
+          <textarea id="rcpNotes" class="qb-invoice-form__input" rows="2"></textarea>
+        </label>
+        <label class="qb-invoice-form__label" style="flex-direction:row;align-items:center;gap:8px;font-weight:500;">
+          <input type="checkbox" id="rcpSendEmail" checked />
+          Enviar recibo por e-mail ao cliente
+        </label>
+        <div class="qb-modal__actions">
+          <button type="button" class="btn btn-ghost" id="btnReceiptModalCancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnReceiptModalSubmit">Gerar recibo e dar baixa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
+    <div class="qb-notify__panel" role="document">
+      <button type="button" class="qb-notify__close" id="qbNotifyClose" aria-label="Fechar">×</button>
+      <div class="qb-notify__icon" id="qbNotifyIcon" aria-hidden="true"></div>
+      <h2 id="qbNotifyTitle" class="qb-notify__title"></h2>
+      <p id="qbNotifyMsg" class="qb-notify__msg"></p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="crm-address-autocomplete.js?v=20260819-quote-job"></script>
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="crm-toast.js"></script>
+  <script src="crm-pdf-viewer.js?v=20260531"></script>
+  <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
+  <script src="quote-signature-auto.js?v=20260708"></script>
+  <script src="quote-builder.js?v=20260918-quote-sent-fix2"></script>
+  <script>
+    (function () {
+      var t = document.getElementById('mobileMenuToggle');
+      var s = document.getElementById('quoteBuilderSidebar');
+      var o = document.getElementById('mobileOverlay');
+      if (t && s && o) {
+        t.addEventListener('click', function () {
+          var open = s.classList.toggle('mobile-open');
+          o.classList.toggle('active', open);
+          t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        o.addEventListener('click', function () {
+          s.classList.remove('mobile-open');
+          o.classList.remove('active');
+          t.setAttribute('aria-expanded', 'false');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

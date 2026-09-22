@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Projects - Builder Portal</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-crm-nav" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body bp-page-body" data-bp-page="projects">
+  <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="dashboardSidebar">&#9776;</button>
+  <div class="dashboard-container" id="portalShell">
+    <div class="mobile-overlay" id="mobileOverlay" aria-hidden="true"></div>
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <a href="builder-portal.html" title="Dashboard">
+          <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+        </a>
+      </div>
+      <nav class="sidebar-nav" id="bpPortalNav" aria-label="Partner portal"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <a href="builder-profile.html" class="sidebar-user-bar__avatar" id="bpSidebarAvatar" title="Profile">B</a>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="bpSidebarName">Partner</span>
+            <span class="sidebar-user-bar__role" id="bpSidebarRole">Partner portal</span>
+          </div>
+          <div id="bpSidebarNotifWrap"></div>
+          <button type="button" id="btnPortalLogout" class="sidebar-logout-btn" title="Logout" aria-label="Logout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <main class="dashboard-main bp-portal-main">
+<header class="bp-page-header">
+        <div class="bp-page-header__text">
+          <p class="bp-eyebrow">Senior Floors Partner</p>
+          <h1 class="bp-title">My Projects</h1>
+          <p class="bp-page-header__sub">Track all your jobs with Senior Floors.</p>
+        </div>
+      </header>
+      <div class="bp-toolbar bp-proj-toolbar">
+        <input type="search" id="projSearch" placeholder="Search name or address..." class="bp-gallery-search" aria-label="Search projects" />
+        <select id="filterYear" aria-label="Filter by year"><option value="">All years</option></select>
+        <select id="filterService" aria-label="Filter by service"><option value="">All services</option></select>
+        <button type="button" class="bp-btn-tan bp-filter-btn active" data-filter="active">Active</button>
+        <button type="button" class="bp-btn-ghost bp-filter-btn" data-filter="all">All</button>
+        <button type="button" class="bp-btn-ghost bp-filter-btn" data-filter="completed">Completed</button>
+        <div class="bp-view-toggle">
+          <button type="button" class="bp-btn-ghost active" id="viewList" title="List view">List</button>
+          <button type="button" class="bp-btn-ghost" id="viewGrid" title="Grid view">Grid</button>
+        </div>
+      </div>
+      <div id="projectsHost"><p class="bp-card">Loading projects...</p></div>
+        </main>
+  </div>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=20260531-crm-nav"></script>
+  <script src="builder-portal-common.js?v=20260531-crm-nav"></script>
+  <script src="builder-projects.js?v=20260531-ui"></script>
+</body>
+</html>

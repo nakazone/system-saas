@@ -1,0 +1,14 @@
+# Senior Floors CRM - UTF-8 by default for all text files
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{js,mjs,cjs,ts,html,css,json,md,sql,yml,yaml}]
+charset = utf-8
+
+[*.md]
+trim_trailing_whitespace = false

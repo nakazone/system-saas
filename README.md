@@ -42,6 +42,16 @@ npm run dev
 | `npm run lint` | Typecheck |
 | `npm test` | Unit + tenant isolation tests |
 | `npx prisma migrate deploy` | Apply migrations |
+| `./scripts/sync-senior-floors-crm.sh` | Re-sync Senior Floors CRM into `crm/` |
+
+## Internal CRM (Senior Floors)
+
+The staff product UI is the Senior Floors System (vendored under `crm/`), adapted for multi-tenant SaaS.
+
+- After **Find your workspace** → login, you land on `/dashboard.html` (SF CRM).
+- Plan: [docs/CRM_PORT_PLAN.md](docs/CRM_PORT_PLAN.md)
+- Phase 0 done: UI + `/api/auth/*` + minimal leads/dashboard APIs on Postgres.
+- Next phases port the remaining SF `/api/*` modules with `organization_id`.
 
 ## Multi-tenant model
 

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Price calculator &mdash; Builder Portal</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-crm-nav" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body bp-page-body" data-bp-page="calculator">
+  <button type="button" class="bp-menu-toggle" id="bpMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="dashboardSidebar">&#9776;</button>
+  <div class="dashboard-container" id="portalShell">
+    <div class="mobile-overlay" id="mobileOverlay" aria-hidden="true"></div>
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <a href="builder-portal.html" title="Dashboard">
+          <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+        </a>
+      </div>
+      <nav class="sidebar-nav" id="bpPortalNav" aria-label="Partner portal"></nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <a href="builder-profile.html" class="sidebar-user-bar__avatar" id="bpSidebarAvatar" title="Profile">B</a>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="bpSidebarName">Partner</span>
+            <span class="sidebar-user-bar__role" id="bpSidebarRole">Partner portal</span>
+          </div>
+          <div id="bpSidebarNotifWrap"></div>
+          <button type="button" id="btnPortalLogout" class="sidebar-logout-btn" title="Logout" aria-label="Logout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <main class="dashboard-main bp-portal-main">
+<div class="bp-main bp-calc-page">
+        <header class="bp-page-header" style="padding-top:0">
+          <div class="bp-page-header__text">
+            <p class="bp-eyebrow">Senior Floors Partner</p>
+            <h1 class="bp-title">Quick estimate</h1>
+            <p class="bp-page-header__sub">Ballpark range from your partner rates (not a formal quote).</p>
+          </div>
+        </header>
+
+        <div class="bp-calc-mode" role="radiogroup" aria-label="Calculator mode">
+          <label class="bp-calc-mode__opt">
+            <input type="radio" name="calcMode" value="quick" checked />
+            <span>Single service</span>
+          </label>
+          <label class="bp-calc-mode__opt">
+            <input type="radio" name="calcMode" value="full" />
+            <span>Full project</span>
+          </label>
+        </div>
+        <p id="calcModeHint" class="bp-muted bp-calc-mode-hint">One service and area. Use the slider or type sq ft.</p>
+
+        <div class="bp-card">
+          <p class="bp-calc-lines-title">Project lines</p>
+          <div id="calcLines"></div>
+          <button type="button" class="bp-btn-ghost hidden" id="btnAddLine" style="margin-top:8px">+ Add service</button>
+        </div>
+
+        <button type="button" class="bp-btn-tan" id="btnCalc" style="margin-top:12px">Calculate total</button>
+
+        <div id="calcResult" class="bp-card bp-calc-result hidden">
+          <p class="bp-calc-result__label">Your partner estimate</p>
+          <p id="calcRange" class="bp-calc-result__range"></p>
+          <p id="calcRangeBefore" class="bp-calc-result__before"></p>
+          <p id="calcPublic" class="bp-calc-result__public"></p>
+          <p id="calcSavings" class="bp-calc-result__savings"></p>
+          <p id="calcVol" class="bp-calc-result__vol"></p>
+          <p class="bp-calc-result__disclaimer">This is an estimate only. Final pricing depends on site conditions and scope complexity.</p>
+          <div class="bp-calc-result__actions">
+            <button type="button" class="bp-btn-tan" id="btnSaveCalc">Save estimate</button>
+            <button type="button" class="bp-btn-ghost bp-calc-result__ghost-btn" id="btnShareCalc">Copy share link</button>
+            <button type="button" class="bp-btn-ghost bp-calc-result__ghost-btn" id="btnPrintCalc">Print / PDF</button>
+          </div>
+          <p id="calcShareNote" class="bp-calc-result__share-note hidden"></p>
+        </div>
+
+        <div id="calcBreakdown" class="bp-card hidden" style="margin-top:12px"></div>
+
+        <h2 class="bp-calc-recent-title">Recent estimates</h2>
+        <div id="calcRecent"></div>
+
+        <p style="margin-top:1rem">
+          <a href="builder-estimate-request.html" class="bp-btn-tan" style="text-decoration:none;display:inline-block">Request formal estimate</a>
+        </p>
+      </div>
+        </main>
+  </div>
+  <script src="builder-auth.js?v=3"></script>
+  <script src="builder-portal-nav.js?v=20260531-crm-nav"></script>
+  <script src="builder-portal-common.js?v=20260531-crm-nav"></script>
+  <script src="builder-calculator.js?v=3"></script>
+</body>
+</html>

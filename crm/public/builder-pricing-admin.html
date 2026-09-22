@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tabela de Valores - Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260530-pricing-split" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body bp-page-body payroll-sidebar-page">
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar"><nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav></aside>
+    <main class="dashboard-main">
+      <div class="bp-main">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:1rem">
+          <div>
+            <p class="bp-eyebrow">Builders</p>
+            <h1 class="bp-title">Tabela de Valores</h1>
+            <p class="bp-muted">Edite aqui os precos exibidos no portal do builder (somente leitura para parceiros).</p>
+          </div>
+          <button type="button" class="bp-btn-tan" id="btnAddService">+ Servico</button>
+        </div>
+        <p id="adminReadOnlyBanner" class="bp-card hidden" style="margin-bottom:12px;background:#fff8e6;border:1px solid #e8c96a">
+          Modo somente leitura. Solicite permissao <strong>builders.edit</strong> para alterar a tabela.
+        </p>
+        <div class="bp-table-wrap bp-pricing-admin-wrap">
+          <table class="bp-table bp-pricing-admin-table" id="pricingTable">
+            <thead>
+              <tr>
+                <th title="Ordem de exibicao">#</th>
+                <th>Servico</th>
+                <th>Categoria</th>
+                <th>Unidade</th>
+                <th>Min publico</th>
+                <th>Max publico</th>
+                <th>Preco parceiro</th>
+                <th>Notas (portal)</th>
+                <th>Visivel</th>
+                <th>Bloqueado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="pricingTbody"></tbody>
+          </table>
+        </div>
+        <h2 class="bp-title" style="font-size:1rem;margin-top:1.5rem">Desconto por volume</h2>
+        <div class="bp-card" id="volumeDiscounts"></div>
+      </div>
+    </main>
+  </div>
+  <script src="crm-toast.js"></script>
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="builder-pricing-admin.js?v=20260531-perm-fix"></script>
+</body>
+</html>

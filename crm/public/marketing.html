@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a2036" />
+  <title>Marketing — Senior Floors CRM</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="marketing.css?v=4" />
+</head>
+<body class="dashboard-app-body marketing-page payroll-sidebar-page">
+  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="marketingSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/SeniorFloors.png" alt="" class="mobile-app-header__logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Marketing</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="marketingSidebar" aria-label="Menu lateral">
+      <div class="sidebar-header">
+        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo logo-image" width="104" height="104" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Navegação CRM">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="dashboard-main marketing-main">
+      <header class="mk-page-head">
+        <h1 class="mk-page-title">Marketing</h1>
+        <p class="mk-page-sub">Gastos em mídia, leads e metas — tudo no mesmo período.</p>
+      </header>
+
+      <div class="mk-toolbar" role="toolbar" aria-label="Período e ações">
+        <div class="mk-toolbar__left">
+          <span class="mk-toolbar__label" id="mk-period-label">Período</span>
+          <div class="mk-pills" role="group" aria-labelledby="mk-period-label">
+            <button type="button" class="mk-pill mk-pill--active" data-period="month">Este mês</button>
+            <button type="button" class="mk-pill" data-period="quarter">Trimestre</button>
+            <button type="button" class="mk-pill" data-period="year">Ano</button>
+          </div>
+        </div>
+        <div class="mk-toolbar__actions">
+          <button type="button" class="mk-btn mk-btn--ghost" id="btnGoals" title="Metas do mês">Metas</button>
+          <button type="button" class="mk-btn mk-btn--ghost" id="btnImport" title="CSV / Excel">Importar</button>
+          <button type="button" class="mk-btn mk-btn--primary" id="btnManual">Adicionar gasto</button>
+        </div>
+      </div>
+
+      <div id="mkSetupBanner" class="mk-banner mk-banner--warn" role="alert" hidden></div>
+
+      <div class="mk-goals-stack">
+        <div id="mkGoalsBar" data-skeleton class="mk-goals-bar" style="display: none" aria-label="Progresso das metas"></div>
+        <div id="mkGoalsEmpty" class="mk-banner mk-banner--muted" style="display: none">
+          <span>Nenhuma meta definida para este mês.</span>
+          <a href="#" id="linkDefineGoals" class="mk-inline-link">Definir metas</a>
+        </div>
+      </div>
+
+      <section class="mk-section" aria-labelledby="mk-kpi-heading">
+        <h2 id="mk-kpi-heading" class="mk-section__title">Indicadores do período</h2>
+        <div id="mkKpiSection" data-skeleton class="mk-kpi-grid">
+        <div class="mk-kpi-card" style="border-left-color: #94a3b8"><div class="mk-kpi-card__icon">💸</div><div class="mk-kpi-card__value" id="kpiSpend">—</div><div class="mk-kpi-card__label">Total investido</div><div class="mk-kpi-card__sub">no período</div></div>
+        <div class="mk-kpi-card" style="border-left-color: #3b82f6"><div class="mk-kpi-card__icon">🖱️</div><div class="mk-kpi-card__value" id="kpiCpc">—</div><div class="mk-kpi-card__label">CPC</div><div class="mk-kpi-card__sub" id="kpiCpcSub">—</div></div>
+        <div class="mk-kpi-card" style="border-left-color: #22c55e"><div class="mk-kpi-card__icon">🎯</div><div class="mk-kpi-card__value" id="kpiCpl">—</div><div class="mk-kpi-card__label">CPL</div><div class="mk-kpi-card__sub" id="kpiCplSub">—</div><span class="mk-kpi-badge" id="kpiCplBadge"></span></div>
+        <div class="mk-kpi-card" style="border-left-color: #f59e0b"><div class="mk-kpi-card__icon">🏆</div><div class="mk-kpi-card__value" id="kpiCpa">—</div><div class="mk-kpi-card__label">CPA</div><div class="mk-kpi-card__sub" id="kpiCpaSub">—</div><span class="mk-kpi-badge" id="kpiCpaBadge"></span></div>
+        <div class="mk-kpi-card" style="border-left-color: #8b5cf6"><div class="mk-kpi-card__icon">📈</div><div class="mk-kpi-card__value" id="kpiRoas">—</div><div class="mk-kpi-card__label">ROAS</div><div class="mk-kpi-card__sub">retorno por $ investido</div><span class="mk-kpi-badge" id="kpiRoasBadge"></span></div>
+        <div class="mk-kpi-card" style="border-left-color: #38bdf8"><div class="mk-kpi-card__icon">👁️</div><div class="mk-kpi-card__value" id="kpiCtr">—</div><div class="mk-kpi-card__label">CTR</div><div class="mk-kpi-card__sub" id="kpiCtrSub">—</div></div>
+        <div class="mk-kpi-card" style="border-left-color: #a855f7"><div class="mk-kpi-card__icon">🔄</div><div class="mk-kpi-card__value" id="kpiConv">—</div><div class="mk-kpi-card__label">Taxa de conversão</div><div class="mk-kpi-card__sub">cliques → lead (ads)</div></div>
+        <div class="mk-kpi-card" style="border-left-color: var(--color-accent)"><div class="mk-kpi-card__icon">💰</div><div class="mk-kpi-card__value" id="kpiRev">—</div><div class="mk-kpi-card__label">Receita atribuída</div><div class="mk-kpi-card__sub">valor de conversão (ads)</div></div>
+        </div>
+      </section>
+
+      <section class="mk-section" aria-labelledby="mk-plat-heading">
+        <div class="mk-section__head">
+          <h2 id="mk-plat-heading" class="mk-section__title">Por plataforma</h2>
+          <p class="mk-section__hint">Clique num cartão para filtrar a tabela de gastos.</p>
+        </div>
+        <div id="mkPlatformSection" data-skeleton class="mk-platform-grid"></div>
+      </section>
+
+      <section class="mk-section" aria-labelledby="mk-insights-heading">
+        <h2 id="mk-insights-heading" class="mk-section__title">Leads e tendência</h2>
+        <div class="mk-panels">
+        <div class="mk-panel" id="mkSourcesPanel" data-skeleton>
+          <h3 class="mk-panel__title">Origem dos leads</h3>
+          <div id="mkSourcesBars" class="mk-panel__body"></div>
+        </div>
+        <div class="mk-panel" id="mkTrendPanel" data-skeleton>
+          <h3 class="mk-panel__title">Últimos 6 meses</h3>
+          <div class="mk-table-scroll mk-table-scroll--trend">
+            <table class="mk-data mk-trend" id="mkTrendTable">
+              <thead>
+                <tr><th>Mês</th><th>Investido</th><th>Leads</th><th>CPL</th><th>Receita</th><th>ROAS</th></tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot></tfoot>
+            </table>
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <section class="mk-section" aria-labelledby="mk-spend-heading" id="mkTableSection" data-skeleton>
+        <div class="mk-table-card">
+          <div class="mk-table-card__head">
+            <div>
+              <h2 id="mk-spend-heading" class="mk-table-card__title">Registos de gasto</h2>
+              <p class="mk-table-card__sub">Linhas importadas ou criadas manualmente</p>
+            </div>
+          </div>
+          <div class="mk-table-tools">
+            <input type="search" id="mkSearch" class="mk-input" placeholder="Buscar campanha…" autocomplete="off" />
+            <select id="mkFilterPlat" class="mk-select" aria-label="Filtrar por plataforma">
+              <option value="all">Todas as plataformas</option>
+              <option value="google_ads">Google Ads</option>
+              <option value="meta">Meta</option>
+              <option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option>
+              <option value="other">Outras</option>
+            </select>
+            <button type="button" class="mk-btn mk-btn--ghost" id="mkClearFilters">Limpar filtros</button>
+          </div>
+          <div class="mk-table-scroll">
+            <table class="mk-data mk-data--spend">
+          <thead>
+            <tr>
+              <th>Plataforma</th>
+              <th>Campanha</th>
+              <th>Período</th>
+              <th class="mk-num">Investido</th>
+              <th class="mk-num">Cliques</th>
+              <th class="mk-num">Impr.</th>
+              <th class="mk-num">Leads</th>
+              <th class="mk-num">CPL</th>
+              <th class="mk-actions-col">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="mkSpendBody"></tbody>
+        </table>
+          </div>
+          <div class="mk-table-footer">
+            <span id="mkPageInfo" class="mk-table-footer__info"></span>
+            <div class="mk-table-footer__nav">
+              <button type="button" class="mk-btn mk-btn--ghost" id="mkPrev">Anterior</button>
+              <button type="button" class="mk-btn mk-btn--ghost" id="mkNext">Seguinte</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal Metas -->
+  <div id="modalGoals" class="mk-modal-backdrop" hidden>
+    <div class="mk-modal">
+      <div class="mk-modal__head">
+        <h2 id="modalGoalsTitle" style="margin: 0; font-size: 1.1rem">Metas de Marketing</h2>
+        <button type="button" class="mk-modal__close" data-close="modalGoals" aria-label="Fechar"><span aria-hidden="true">×</span></button>
+      </div>
+      <div class="mk-modal__body">
+        <div class="mk-form-row">
+          <label for="goalMonth">Mês</label>
+          <input type="month" id="goalMonth" />
+        </div>
+        <div class="mk-form-row">
+          <label for="goalBudget">Budget máximo (USD)</label>
+          <input type="number" step="0.01" id="goalBudget" />
+        </div>
+        <div class="mk-form-row">
+          <label for="goalLeadsN">Meta de leads</label>
+          <input type="number" id="goalLeadsN" />
+        </div>
+        <div class="mk-form-row">
+          <label for="goalCpl">CPL máximo aceitável (USD)</label>
+          <input type="number" step="0.01" id="goalCpl" />
+          <small class="mk-kpi-card__sub">Acima disso aparece alerta</small>
+        </div>
+        <div class="mk-form-row">
+          <label for="goalRoas">ROAS mínimo aceitável</label>
+          <input type="number" step="0.01" id="goalRoas" />
+          <small class="mk-kpi-card__sub">Abaixo disso aparece alerta</small>
+        </div>
+        <div class="mk-form-row">
+          <label for="goalCpa">CPA máximo (USD)</label>
+          <input type="number" step="0.01" id="goalCpa" />
+        </div>
+        <div class="mk-form-row">
+          <label for="goalNotes">Notas</label>
+          <textarea id="goalNotes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="mk-modal__foot">
+        <button type="button" class="mk-btn" data-close="modalGoals">Cancelar</button>
+        <button type="button" class="mk-btn mk-btn--primary" id="goalSave">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Manual -->
+  <div id="modalManual" class="mk-modal-backdrop" hidden>
+    <div class="mk-modal mk-modal--wide">
+      <div class="mk-modal__head">
+        <h2 style="margin: 0; font-size: 1.1rem">Novo registo de gasto</h2>
+        <button type="button" class="mk-modal__close" data-close="modalManual" aria-label="Fechar"><span aria-hidden="true">×</span></button>
+      </div>
+      <div class="mk-modal__body">
+        <div class="mk-form-row">
+          <label for="mPlatform">Plataforma</label>
+          <select id="mPlatform">
+            <option value="google_ads">Google Ads</option>
+            <option value="meta">Meta</option>
+            <option value="instagram">Instagram</option>
+            <option value="tiktok">TikTok</option>
+            <option value="other">Outras</option>
+          </select>
+        </div>
+        <div class="mk-form-row">
+          <label for="mCampaign">Nome da campanha</label>
+          <input id="mCampaign" required />
+        </div>
+        <div class="mk-form-row">
+          <label for="mAdset">Ad set (opcional)</label>
+          <input id="mAdset" />
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem">
+          <div class="mk-form-row">
+            <label for="mPStart">Período de</label>
+            <input type="date" id="mPStart" required />
+          </div>
+          <div class="mk-form-row">
+            <label for="mPEnd">Até</label>
+            <input type="date" id="mPEnd" required />
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem">
+          <div class="mk-form-row"><label for="mSpend">Investido ($)</label><input type="number" step="0.01" id="mSpend" /></div>
+          <div class="mk-form-row"><label for="mImp">Impressões</label><input type="number" id="mImp" /></div>
+          <div class="mk-form-row"><label for="mClk">Cliques</label><input type="number" id="mClk" /></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem">
+          <div class="mk-form-row"><label for="mConv">Conversões (ads)</label><input type="number" id="mConv" /></div>
+          <div class="mk-form-row"><label for="mCval">Receita atribuída ($)</label><input type="number" step="0.01" id="mCval" /></div>
+        </div>
+        <div class="mk-form-row"><label for="mNotes">Notas</label><textarea id="mNotes" rows="2"></textarea></div>
+        <p class="mk-kpi-card__sub">CPL (prévia): <strong id="mPreviewCpl">—</strong> · ROAS (prévia): <strong id="mPreviewRoas">—</strong></p>
+      </div>
+      <div class="mk-modal__foot">
+        <button type="button" class="mk-btn" data-close="modalManual">Cancelar</button>
+        <button type="button" class="mk-btn mk-btn--primary" id="mSave">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Import -->
+  <div id="modalImport" class="mk-modal-backdrop" hidden>
+    <div class="mk-modal mk-modal--wide">
+      <div class="mk-modal__head">
+        <h2 style="margin: 0; font-size: 1.1rem">Importar gastos</h2>
+        <button type="button" class="mk-modal__close" data-close="modalImport" aria-label="Fechar"><span aria-hidden="true">×</span></button>
+      </div>
+      <div class="mk-modal__body">
+        <div class="mk-import-steps">
+          <span id="st1" class="active">① Plataforma</span>
+          <span>→</span>
+          <span id="st2">② Ficheiro</span>
+          <span>→</span>
+          <span id="st3">③ Importar</span>
+        </div>
+        <div id="importStep1" class="mk-platform-pick">
+          <button type="button" data-plat="google_ads">🔍 Google Ads</button>
+          <button type="button" data-plat="meta">📘 Meta Ads</button>
+          <button type="button" data-plat="instagram">📸 Instagram</button>
+          <button type="button" data-plat="tiktok">🎵 TikTok</button>
+        </div>
+        <div id="importStep2" hidden>
+          <p class="mk-kpi-card__sub" id="importHint"></p>
+          <div class="mk-drop" id="importDrop">📁 Arraste CSV ou Excel aqui ou clique para escolher<input type="file" id="importFile" accept=".csv,.xlsx,.xls" hidden /></div>
+          <p id="importFileMeta" class="mk-kpi-card__sub"></p>
+          <div id="importPreviewWrap" style="overflow: auto; max-height: 160px; margin-bottom: 1rem"></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem">
+            <div class="mk-form-row"><label>De</label><input type="date" id="impStart" /></div>
+            <div class="mk-form-row"><label>Até</label><input type="date" id="impEnd" /></div>
+          </div>
+          <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem">
+            <button type="button" class="mk-btn" id="impBack2">Voltar</button>
+            <button type="button" class="mk-btn mk-btn--primary" id="impNext2">Seguinte</button>
+          </div>
+        </div>
+        <div id="importStep3" hidden>
+          <p id="importSummary" class="mk-kpi-card__sub"></p>
+          <label style="display: flex; gap: 0.5rem; align-items: center; margin: 1rem 0; font-size: 0.875rem">
+            <input type="checkbox" id="impReplace" /> Substituir registos existentes deste período e plataforma
+          </label>
+          <div id="importErr" style="color: #b91c1c; font-size: 0.85rem; margin-bottom: 0.5rem"></div>
+          <div id="importOk" style="color: #15803d; font-weight: 600; margin-bottom: 0.5rem"></div>
+          <div style="display: flex; gap: 0.5rem; justify-content: flex-end">
+            <button type="button" class="mk-btn" id="impBack3">Voltar</button>
+            <button type="button" class="mk-btn mk-btn--primary" id="impDo">Importar agora</button>
+          </div>
+          <p id="importSpinner" class="mk-kpi-card__sub" style="display: none">A processar…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar linha -->
+  <div id="modalEdit" class="mk-modal-backdrop" hidden>
+    <div class="mk-modal mk-modal--wide">
+      <div class="mk-modal__head">
+        <h2 style="margin: 0; font-size: 1.1rem">Editar gasto</h2>
+        <button type="button" class="mk-modal__close" data-close="modalEdit" aria-label="Fechar"><span aria-hidden="true">×</span></button>
+      </div>
+      <div class="mk-modal__body">
+        <input type="hidden" id="eId" />
+        <div class="mk-form-row"><label>Plataforma</label><select id="ePlatform"></select></div>
+        <div class="mk-form-row"><label>Campanha</label><input id="eCampaign" /></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem">
+          <div class="mk-form-row"><label>De</label><input type="date" id="eStart" /></div>
+          <div class="mk-form-row"><label>Até</label><input type="date" id="eEnd" /></div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem">
+          <div class="mk-form-row"><label>Spend</label><input type="number" step="0.01" id="eSpend" /></div>
+          <div class="mk-form-row"><label>Cliques</label><input type="number" id="eClk" /></div>
+          <div class="mk-form-row"><label>Impressões</label><input type="number" id="eImp" /></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem">
+          <div class="mk-form-row"><label>Conversões</label><input type="number" id="eConv" /></div>
+          <div class="mk-form-row"><label>Receita conv.</label><input type="number" step="0.01" id="eCval" /></div>
+        </div>
+        <div class="mk-form-row"><label>Notas</label><textarea id="eNotes" rows="2"></textarea></div>
+      </div>
+      <div class="mk-modal__foot">
+        <button type="button" class="mk-btn" data-close="modalEdit">Cancelar</button>
+        <button type="button" class="mk-btn mk-btn--primary" id="eSave">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="crm-shared-nav.js?v=13"></script>
+  <script src="marketing.js?v=4"></script>
+  <script>
+    (function () {
+      var t = document.getElementById('mobileMenuToggle');
+      var s = document.getElementById('marketingSidebar');
+      var o = document.getElementById('mobileOverlay');
+      if (t && s && o) {
+        t.addEventListener('click', function () {
+          var open = s.classList.toggle('mobile-open');
+          o.classList.toggle('active', open);
+          t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        o.addEventListener('click', function () {
+          s.classList.remove('mobile-open');
+          o.classList.remove('active');
+          t.setAttribute('aria-expanded', 'false');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

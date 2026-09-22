@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#141928" />
+  <title>Builder Portal — Senior Floors</title>
+  <link rel="icon" type="image/png" href="/assets/SeniorFloors.png" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260531-ui" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="bp-login-page">
+  <div class="bp-login-box">
+    <img src="/assets/SeniorFloors.png" alt="Senior Floors" width="72" height="72" style="display:block;margin:0 auto 20px" onerror="this.style.display='none'" />
+    <h1>Builder Partner Portal</h1>
+    <p class="bp-muted" style="font-size:14px;margin:0 0 24px;text-align:center">Sign in to track your projects with Senior Floors.</p>
+    <form id="loginForm" class="bp-login-form">
+      <label for="email">Email</label>
+      <input type="email" id="email" required autocomplete="username" />
+      <label for="password">Password</label>
+      <input type="password" id="password" required autocomplete="current-password" />
+      <p id="loginError" style="color:#dc2626;font-size:13px;display:none"></p>
+      <p style="text-align:right;margin:0 0 16px;font-size:13px"><a href="builder-forgot-password.html">Forgot password?</a></p>
+      <button type="submit" class="bp-btn-tan">Sign in</button>
+    </form>
+  </div>
+  <script src="builder-auth.js?v=3"></script>
+</body>
+</html>

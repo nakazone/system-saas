@@ -1,0 +1,267 @@
+/**
+ * Barra CRM partilhada — alinhada ao menu lateral do dashboard.html
+ */
+#crmSharedNavRoot {
+  position: sticky;
+  top: 0;
+  z-index: 10050;
+  flex-shrink: 0;
+}
+
+#crmSharedNavRoot[data-layout="sidebar"] {
+  position: static;
+  z-index: auto;
+}
+
+.crm-sidebar-nav-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.crm-sidebar-section-label {
+  margin: 0.65rem 0 0.25rem;
+  padding: 0.2rem var(--spacing-sm, 0.5rem) 0;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.crm-shared-nav {
+  background: var(--color-primary, #1a1a2e);
+  color: #fff;
+  box-shadow: var(--shadow-md, 0 2px 12px rgba(0, 0, 0, 0.15));
+  border-bottom: 2px solid var(--color-accent, #c8a96e);
+}
+
+.crm-shared-nav__inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0.5rem 0.75rem 0.55rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+}
+
+.crm-shared-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-right: 0.35rem;
+  text-decoration: none;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius-md, 8px);
+  flex-shrink: 0;
+}
+
+.crm-shared-nav__brand--logo-only {
+  padding: 0.25rem 0.45rem;
+}
+
+.crm-shared-nav__brand:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.crm-shared-nav__brand img,
+.crm-shared-nav__brand-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  display: block;
+}
+
+.crm-shared-nav__sep {
+  width: 1px;
+  height: 1.25rem;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 0.15rem;
+  flex-shrink: 0;
+}
+
+.crm-shared-nav__label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+  width: 100%;
+  padding: 0.15rem 0.25rem 0;
+  flex-basis: 100%;
+}
+
+.crm-shared-nav__label--tools {
+  margin-top: 0.15rem;
+}
+
+.crm-shared-nav__link {
+  display: inline-block;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.crm-shared-nav__link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.crm-shared-nav__link--active {
+  background: rgba(200, 169, 110, 0.22);
+  border-color: rgba(200, 169, 110, 0.45);
+  color: var(--color-accent, #c8a96e);
+}
+
+.crm-shared-nav__dropdown {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.crm-shared-nav__dropdown-toggle {
+  display: inline-block;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.crm-shared-nav__dropdown-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.crm-shared-nav__dropdown-toggle::after {
+  content: ' ▾';
+  font-size: 0.65em;
+  opacity: 0.75;
+}
+
+.crm-shared-nav__dropdown-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.crm-shared-nav__dropdown-toggle--active {
+  background: rgba(200, 169, 110, 0.22);
+  border-color: rgba(200, 169, 110, 0.45);
+  color: var(--color-accent, #c8a96e);
+}
+
+.crm-shared-nav__dropdown[open] > .crm-shared-nav__dropdown-toggle {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.crm-shared-nav__dropdown-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  min-width: 11rem;
+  padding: 0.35rem 0;
+  margin: 0;
+  background: var(--color-primary, #1a1a2e);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 10060;
+}
+
+.crm-shared-nav__dropdown-link {
+  display: block;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.crm-shared-nav__dropdown-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.crm-shared-nav__dropdown-link--active {
+  background: rgba(200, 169, 110, 0.18);
+  color: var(--color-accent, #c8a96e);
+}
+
+.crm-shared-nav__dropdown-toggle:focus-visible,
+.crm-shared-nav__dropdown-link:focus-visible {
+  outline: 2px solid #d6b598;
+  outline-offset: 2px;
+}
+
+.crm-shared-nav__logout {
+  margin-left: auto;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1a2036;
+  background: #d6b598;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.crm-shared-nav__logout:hover {
+  filter: brightness(1.05);
+}
+
+/* Páginas só com barra superior (sem sidebar fixo) */
+body.crm-standalone-page .dashboard-container {
+  flex-direction: column;
+  margin-left: 0;
+}
+
+body.crm-standalone-page .dashboard-sidebar {
+  display: none !important;
+}
+
+body.crm-standalone-page .dashboard-content,
+body.crm-standalone-page .dashboard-main {
+  margin-left: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+@media (max-width: 640px) {
+  .crm-shared-nav__inner {
+    padding: 0.3rem 0.5rem 0.45rem;
+  }
+  .crm-shared-nav__logout {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+}
+
+/* —— UX global CRM (todas as páginas que carregam esta folha) —— */
+.crm-shared-nav__link:focus-visible,
+.crm-shared-nav__logout:focus-visible,
+.crm-shared-nav__brand:focus-visible {
+  outline: 2px solid #d6b598;
+  outline-offset: 2px;
+}
+
+/* Toques: feedback ligeiro em botões “tipo CRM” sem afetar inputs */
+button.crm-shared-nav__logout:active {
+  transform: scale(0.98);
+}

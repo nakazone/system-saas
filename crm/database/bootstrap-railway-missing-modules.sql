@@ -1,0 +1,172 @@
+-- =============================================================================
+-- Módulos opcionais em falta no MySQL do Railway (equipas, agenda, propostas)
+-- Executar uma vez: Railway → MySQL → Query, ou: mysql ... < bootstrap-railway-missing-modules.sql
+-- "Duplicate column" / "already exists" ao repetir: ignorar.
+-- =============================================================================
+
+-- Coluna usada pelo CRM em /api/users
+ALTER TABLE users ADD COLUMN phone VARCHAR(50) NULL;
+
+CREATE TABLE IF NOT EXISTS `crews` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL COMMENT 'Nome da equipe',
+  `crew_leader_id` int(11) DEFAULT NULL COMMENT 'FK users - líder da equipe',
+  `crew_members` json DEFAULT NULL COMMENT 'Array de IDs de usuários da equipe',
+  `specializations` json DEFAULT NULL COMMENT 'Tipos de piso',
+  `base_productivity_sqft_per_day` decimal(10,2) DEFAULT 500.00 COMMENT 'Produtividade base em sqft/dia',
+  `max_daily_capacity_sqft` decimal(10,2) DEFAULT 800.00 COMMENT 'Capacidade máxima diária',
+  `hourly_rate` decimal(10,2) DEFAULT NULL COMMENT 'Taxa horária da equipe',
+  `is_active` tinyint(1) DEFAULT 1 COMMENT 'Equipe ativa',
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_crew_leader` (`crew_leader_id`),
+  KEY `idx_is_active` (`is_active`),
+  CONSTRAINT `fk_crews_leader` FOREIGN KEY (`crew_leader_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `crew_performance_stats` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `crew_id` int(11) NOT NULL COMMENT 'FK crews',
+  `period_start` date NOT NULL COMMENT 'Início do período',
+  `period_end` date NOT NULL COMMENT 'Fim do período',
+  `avg_productivity_sqft_per_day` decimal(10,2) DEFAULT NULL COMMENT 'Produtividade média',
+  `avg_delay_percentage` decimal(5,2) DEFAULT NULL COMMENT 'Percentual médio de atraso',
+  `avg_profit_margin` decimal(5,2) DEFAULT NULL COMMENT 'Margem de lucro média',
+  `projects_completed` int(11) DEFAULT 0 COMMENT 'Projetos completados',
+  `projects_on_time` int(11) DEFAULT 0 COMMENT 'Projetos no prazo',
+  `total_revenue` decimal(10,2) DEFAULT 0.00 COMMENT 'Receita total',
+  `total_profit` decimal(10,2) DEFAULT 0.00 COMMENT 'Lucro total',
+  `total_sqft_completed` decimal(10,2) DEFAULT 0.00 COMMENT 'Metragem total completada',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_crew_period` (`crew_id`, `period_start`, `period_end`),
+  KEY `idx_crew_id` (`crew_id`),
+  KEY `idx_period` (`period_start`, `period_end`),
+  CONSTRAINT `fk_crew_performance_crew` FOREIGN KEY (`crew_id`) REFERENCES `crews` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `project_schedules` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `project_id` int(11) NOT NULL COMMENT 'FK projects',
+  `crew_id` int(11) NOT NULL COMMENT 'FK crews',
+  `estimate_id` int(11) DEFAULT NULL COMMENT 'FK estimates (opcional)',
+  `start_date` date NOT NULL COMMENT 'Data de início',
+  `end_date` date NOT NULL COMMENT 'Data de término',
+  `estimated_days` int(11) NOT NULL COMMENT 'Dias estimados',
+  `total_sqft` decimal(10,2) NOT NULL COMMENT 'Metragem total do projeto',
+  `allocated_sqft` decimal(10,2) DEFAULT 0.00 COMMENT 'Metragem já alocada',
+  `status` varchar(50) DEFAULT 'scheduled' COMMENT 'scheduled | in_progress | completed | delayed | cancelled',
+  `priority` varchar(20) DEFAULT 'normal' COMMENT 'low | normal | high',
+  `locked` tinyint(1) DEFAULT 0 COMMENT '1=bloqueado para ajustes automáticos',
+  `projected_profit` decimal(10,2) DEFAULT NULL COMMENT 'Lucro projetado',
+  `projected_margin` decimal(5,2) DEFAULT NULL COMMENT 'Margem projetada (%)',
+  `delay_risk_level` varchar(20) DEFAULT 'low' COMMENT 'low | medium | high',
+  `actual_start_date` date DEFAULT NULL COMMENT 'Data real de início',
+  `actual_end_date` date DEFAULT NULL COMMENT 'Data real de término',
+  `actual_days` int(11) DEFAULT NULL COMMENT 'Dias reais',
+  `notes` text DEFAULT NULL,
+  `google_calendar_event_id` varchar(255) DEFAULT NULL COMMENT 'Google Calendar event id',
+  `created_by` int(11) DEFAULT NULL COMMENT 'FK users - quem criou',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_project_id` (`project_id`),
+  KEY `idx_crew_id` (`crew_id`),
+  KEY `idx_start_date` (`start_date`),
+  KEY `idx_end_date` (`end_date`),
+  KEY `idx_status` (`status`),
+  KEY `idx_priority` (`priority`),
+  CONSTRAINT `fk_project_schedules_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_project_schedules_crew` FOREIGN KEY (`crew_id`) REFERENCES `crews` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_project_schedules_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `proposals` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `lead_id` int(11) NOT NULL COMMENT 'FK leads',
+  `version` int(11) DEFAULT 1 COMMENT 'Versão da proposta',
+  `proposal_number` varchar(50) DEFAULT NULL COMMENT 'Número da proposta',
+  `total_value` decimal(10,2) NOT NULL COMMENT 'Valor total',
+  `subtotal` decimal(10,2) DEFAULT NULL COMMENT 'Subtotal (antes de impostos)',
+  `tax_rate` decimal(5,2) DEFAULT NULL COMMENT 'Taxa de imposto (%)',
+  `tax_amount` decimal(10,2) DEFAULT NULL COMMENT 'Valor do imposto',
+  `discount_amount` decimal(10,2) DEFAULT 0 COMMENT 'Desconto',
+  `discount_percentage` decimal(5,2) DEFAULT 0 COMMENT 'Desconto em %',
+  `status` varchar(50) DEFAULT 'draft' COMMENT 'draft, sent, accepted, rejected, expired',
+  `valid_until` date DEFAULT NULL COMMENT 'Válido até',
+  `sent_at` timestamp NULL DEFAULT NULL,
+  `viewed_at` timestamp NULL DEFAULT NULL,
+  `accepted_at` timestamp NULL DEFAULT NULL,
+  `rejected_at` timestamp NULL DEFAULT NULL,
+  `rejection_reason` text DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL COMMENT 'FK users',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_lead_id` (`lead_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_proposal_number` (`proposal_number`),
+  KEY `idx_valid_until` (`valid_until`),
+  KEY `idx_created_by` (`created_by`),
+  CONSTRAINT `fk_proposals_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_proposals_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `proposal_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `proposal_id` int(11) NOT NULL COMMENT 'FK proposals',
+  `product` varchar(255) NOT NULL COMMENT 'Nome do produto/serviço',
+  `product_code` varchar(100) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `quantity` decimal(10,2) NOT NULL DEFAULT 1,
+  `unit` varchar(50) DEFAULT 'sqft',
+  `unit_price` decimal(10,2) NOT NULL,
+  `labor_cost` decimal(10,2) DEFAULT 0,
+  `material_cost` decimal(10,2) DEFAULT 0,
+  `margin_percentage` decimal(5,2) DEFAULT NULL,
+  `line_total` decimal(10,2) NOT NULL,
+  `order` int(11) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_proposal_id` (`proposal_id`),
+  KEY `idx_order` (`order`),
+  CONSTRAINT `fk_proposal_items_proposal` FOREIGN KEY (`proposal_id`) REFERENCES `proposals` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Financeiro por projeto (se ainda não existir — ver também database/schema-financial-engine.sql completo)
+CREATE TABLE IF NOT EXISTS `project_financials` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `project_id` int(11) NOT NULL,
+  `estimate_id` int(11) DEFAULT NULL,
+  `estimated_revenue` decimal(10,2) DEFAULT 0.00,
+  `estimated_material_cost` decimal(10,2) DEFAULT 0.00,
+  `estimated_labor_cost` decimal(10,2) DEFAULT 0.00,
+  `estimated_overhead` decimal(10,2) DEFAULT 0.00,
+  `estimated_profit` decimal(10,2) DEFAULT 0.00,
+  `estimated_margin_percentage` decimal(5,2) DEFAULT 0.00,
+  `actual_revenue` decimal(10,2) DEFAULT 0.00,
+  `actual_material_cost` decimal(10,2) DEFAULT 0.00,
+  `actual_labor_cost` decimal(10,2) DEFAULT 0.00,
+  `actual_overhead` decimal(10,2) DEFAULT 0.00,
+  `actual_total_cost` decimal(10,2) DEFAULT 0.00,
+  `actual_profit` decimal(10,2) DEFAULT 0.00,
+  `actual_margin_percentage` decimal(5,2) DEFAULT 0.00,
+  `profit_variance` decimal(10,2) DEFAULT 0.00,
+  `cost_variance` decimal(10,2) DEFAULT 0.00,
+  `revenue_variance` decimal(10,2) DEFAULT 0.00,
+  `is_locked` tinyint(1) DEFAULT 0,
+  `locked_at` datetime DEFAULT NULL,
+  `locked_by` int(11) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_project_financial` (`project_id`),
+  KEY `idx_estimate_id` (`estimate_id`),
+  KEY `idx_is_locked` (`is_locked`),
+  CONSTRAINT `fk_project_financials_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
