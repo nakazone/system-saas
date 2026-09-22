@@ -1,18 +1,92 @@
 <%- include('partials/header') %>
 
 <section class="mkt-hero">
-  <p class="mkt-eyebrow"><%= productName %></p>
-  <h1>Run your flooring company from one workspace</h1>
-  <p class="mkt-lead">
-    Capture leads, move deals through a sales pipeline, convert customers, and build accurate estimates —
-    with every company’s data isolated on its own subdomain.
-  </p>
-  <div class="mkt-cta-row">
-    <a class="btn" href="/signup">Start 30-day free trial</a>
-    <a class="btn btn-secondary" href="#calculator">Try the estimate calculator</a>
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <p class="mkt-eyebrow"><%= productName %></p>
+      <h1>Run your flooring company from one workspace</h1>
+      <p class="mkt-lead">
+        Capture leads, move deals through a sales pipeline, convert customers, and build accurate estimates —
+        with every company’s data isolated on its own subdomain.
+      </p>
+      <div class="mkt-cta-row">
+        <a class="btn" href="/signup">Start 30-day free trial</a>
+        <a class="btn btn-secondary" href="#calculator">Try the estimate calculator</a>
+      </div>
+      <p class="mkt-fineprint">No credit card required. Your workspace lives at <code>{your-company}.<%= appRootDomain %></code></p>
+      <div class="trust-row">
+        <span class="trust-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          Data isolated per company
+        </span>
+        <span class="trust-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          No credit card required
+        </span>
+        <span class="trust-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          30-day free trial
+        </span>
+      </div>
+    </div>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="browser-frame">
+        <div class="browser-frame-bar">
+          <span class="browser-dot"></span>
+          <span class="browser-dot"></span>
+          <span class="browser-dot"></span>
+        </div>
+        <div class="browser-frame-body">
+          <div class="ui-mock">
+            <div class="ui-mock-row"><span class="mock-dot"></span> New lead · Website form</div>
+            <div class="ui-mock-row"><span class="mock-dot mock-dot-blue"></span> Contacted · Follow-up tomorrow</div>
+            <div class="ui-mock-row"><span class="mock-dot mock-dot-orange"></span> Proposal · Quote sent</div>
+            <div class="ui-mock-row ui-mock-total">Won · Hardwood install booked</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-float-card">
+        <span class="hero-float-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <span>
+          <span class="label">Sample estimate</span>
+          <span class="value">$4,280</span>
+        </span>
+      </div>
+    </div>
   </div>
-  <p class="mkt-fineprint">No credit card required. Your workspace lives at <code>{your-company}.<%= appRootDomain %></code></p>
 </section>
+
+<div class="stat-strip">
+  <div class="stat-strip-item">
+    <span class="stat-strip-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    </span>
+    <span>
+      <span class="value">5 flooring types</span>
+      <span class="label">Preloaded estimate rules</span>
+    </span>
+  </div>
+  <div class="stat-strip-item">
+    <span class="stat-strip-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    </span>
+    <span>
+      <span class="value">Row-level isolation</span>
+      <span class="label">Enforced at the database layer</span>
+    </span>
+  </div>
+  <div class="stat-strip-item">
+    <span class="stat-strip-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </span>
+    <span>
+      <span class="value">30 days free</span>
+      <span class="label">No card needed to start</span>
+    </span>
+  </div>
+</div>
 
 <section class="mkt-section">
   <div class="mkt-section-head">
@@ -59,56 +133,108 @@
 
     <div class="feature-panels">
       <div class="feature-panel is-active" data-panel="leads" role="tabpanel">
-        <span class="status-pill status-now">Available now</span>
-        <h3>Leads &amp; pipeline</h3>
-        <p>Capture inquiries, assign owners, and move deals through stages your company defines.</p>
-        <div class="ui-mock">
-          <div class="ui-mock-row"><span class="mock-dot"></span> New lead · Website form</div>
-          <div class="ui-mock-row"><span class="mock-dot mock-dot-blue"></span> Contacted · Follow-up tomorrow</div>
-          <div class="ui-mock-row"><span class="mock-dot mock-dot-orange"></span> Proposal · Quote sent</div>
+        <div class="feature-panel-grid">
+          <div>
+            <span class="status-pill status-now">Available now</span>
+            <h3>Leads &amp; pipeline</h3>
+            <p>Capture inquiries, assign owners, and move deals through stages your company defines.</p>
+          </div>
+          <div class="ui-mock-frame" aria-hidden="true">
+            <div class="browser-frame-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="ui-mock-frame-body">
+              <div class="ui-mock">
+                <div class="ui-mock-row"><span class="mock-dot"></span> New lead · Website form</div>
+                <div class="ui-mock-row"><span class="mock-dot mock-dot-blue"></span> Contacted · Follow-up tomorrow</div>
+                <div class="ui-mock-row"><span class="mock-dot mock-dot-orange"></span> Proposal · Quote sent</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="feature-panel" data-panel="estimates" role="tabpanel" hidden>
-        <span class="status-pill status-now">Available now</span>
-        <h3>Smart estimates</h3>
-        <p>Waste percent and markups come from organization settings — not hardcoded guesswork.</p>
-        <div class="ui-mock">
-          <div class="ui-mock-row">Flooring type · LVP</div>
-          <div class="ui-mock-row">Area · 420 sqft · Waste 8%</div>
-          <div class="ui-mock-row ui-mock-total">Estimated total · live preview below</div>
+        <div class="feature-panel-grid">
+          <div>
+            <span class="status-pill status-now">Available now</span>
+            <h3>Smart estimates</h3>
+            <p>Waste percent and markups come from organization settings — not hardcoded guesswork.</p>
+            <a href="#calculator" class="btn btn-secondary btn-sm">Try the calculator ↓</a>
+          </div>
+          <div class="ui-mock-frame" aria-hidden="true">
+            <div class="browser-frame-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="ui-mock-frame-body">
+              <div class="ui-mock">
+                <div class="ui-mock-row">Flooring type · LVP</div>
+                <div class="ui-mock-row">Area · 420 sqft · Waste 8%</div>
+                <div class="ui-mock-row ui-mock-total">Estimated total · live preview below</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="feature-panel" data-panel="customers" role="tabpanel" hidden>
-        <span class="status-pill status-now">Available now</span>
-        <h3>Customers &amp; quotes</h3>
-        <p>Convert a lead to a customer, then attach numbered quotes with material and labor line items.</p>
-        <div class="ui-mock">
-          <div class="ui-mock-row">Customer · Rivera Residence</div>
-          <div class="ui-mock-row">Quote #12 · Draft · Hardwood</div>
-          <div class="ui-mock-row">Public link · share when ready</div>
+        <div class="feature-panel-grid">
+          <div>
+            <span class="status-pill status-now">Available now</span>
+            <h3>Customers &amp; quotes</h3>
+            <p>Convert a lead to a customer, then attach numbered quotes with material and labor line items.</p>
+          </div>
+          <div class="ui-mock-frame" aria-hidden="true">
+            <div class="browser-frame-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="ui-mock-frame-body">
+              <div class="ui-mock">
+                <div class="ui-mock-row">Customer · Rivera Residence</div>
+                <div class="ui-mock-row">Quote #12 · Draft · Hardwood</div>
+                <div class="ui-mock-row">Public link · share when ready</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="feature-panel" data-panel="team" role="tabpanel" hidden>
-        <span class="status-pill status-now">Available now</span>
-        <h3>Team &amp; permissions</h3>
-        <p>Invite staff by email. Roles and permission keys take effect immediately — including custom roles.</p>
-        <div class="ui-mock">
-          <div class="ui-mock-row">Admin · full access</div>
-          <div class="ui-mock-row">Sales rep · leads + quotes</div>
-          <div class="ui-mock-row">Support · view only</div>
+        <div class="feature-panel-grid">
+          <div>
+            <span class="status-pill status-now">Available now</span>
+            <h3>Team &amp; permissions</h3>
+            <p>Invite staff by email. Roles and permission keys take effect immediately — including custom roles.</p>
+          </div>
+          <div class="ui-mock-frame" aria-hidden="true">
+            <div class="browser-frame-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="ui-mock-frame-body">
+              <div class="ui-mock">
+                <div class="ui-mock-row">Admin · full access</div>
+                <div class="ui-mock-row">Sales rep · leads + quotes</div>
+                <div class="ui-mock-row">Support · view only</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="feature-panel" data-panel="roadmap" role="tabpanel" hidden>
-        <span class="status-pill status-soon">Not available yet</span>
-        <h3>Roadmap (honest)</h3>
-        <p>These are planned — they are <strong>not</strong> in the current product:</p>
-        <ul class="roadmap-list">
-          <li>Projects &amp; job execution</li>
-          <li>Crew scheduling</li>
-          <li>Financials / invoicing</li>
-          <li>Field payroll</li>
-          <li>Partner / builder portal</li>
-        </ul>
+        <div class="feature-panel-grid">
+          <div>
+            <span class="status-pill status-soon">Not available yet</span>
+            <h3>Roadmap (honest)</h3>
+            <p>These are planned — they are <strong>not</strong> in the current product:</p>
+            <ul class="roadmap-list">
+              <li>Projects &amp; job execution</li>
+              <li>Crew scheduling</li>
+              <li>Financials / invoicing</li>
+              <li>Field payroll</li>
+              <li>Partner / builder portal</li>
+            </ul>
+          </div>
+          <div class="ui-mock-frame" aria-hidden="true">
+            <div class="browser-frame-bar"><span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span></div>
+            <div class="ui-mock-frame-body">
+              <div class="ui-mock">
+                <div class="ui-mock-row ui-mock-total">✓ Leads, estimates, customers, team</div>
+                <div class="ui-mock-row">Projects &amp; scheduling</div>
+                <div class="ui-mock-row">Financials &amp; payroll</div>
+                <div class="ui-mock-row">Partner portal</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -155,7 +281,7 @@
   </div>
 </section>
 
-<section class="mkt-section mkt-section-alt">
+<section class="mkt-section mkt-section-ink">
   <div class="mkt-section-head">
     <h2>How it works</h2>
     <p>From signup to first quote in minutes.</p>
@@ -187,10 +313,10 @@
 
 <section class="mkt-section">
   <div class="credibility">
-    <h2>Designed for multi-company SaaS from day one</h2>
     <p>
-      Every business record belongs to an organization. Isolation is enforced in the application layer and
-      reinforced with Postgres Row-Level Security — so one company’s data never leaks into another’s workspace.
+      This platform grew out of the day-to-day system used by a real flooring installation company —
+      not a generic template. We’re opening it up to other flooring companies while we’re still early,
+      which is exactly why the first 30 days are free.
     </p>
   </div>
 </section>

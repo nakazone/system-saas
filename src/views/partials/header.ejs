@@ -6,6 +6,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= typeof title !== 'undefined' ? title : 'App' %><% if (typeof organization !== 'undefined' && organization) { %> · <%= organization.name %><% } else { %> · <%= displayProductName %><% } %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/css/app.css" />
   <style>:root { --brand: <%= accent %>; }</style>
 </head>
@@ -37,6 +40,8 @@
   <header class="marketing-header">
     <a href="/" class="marketing-logo"><%= displayProductName %></a>
     <nav class="marketing-nav">
+      <a href="/#features">Features</a>
+      <a href="/#calculator">Estimate calculator</a>
       <a href="/pricing">Pricing</a>
       <a href="/find-workspace">Sign in</a>
       <a class="btn btn-sm" href="/signup">Start free trial</a>
