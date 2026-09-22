@@ -1,5 +1,5 @@
 /**
- * Single-project client handoff PDF — Senior Floors + optional builder co-branding.
+ * Single-project client handoff PDF â€” Senior Floors + optional builder co-branding.
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
@@ -182,7 +182,7 @@ export async function buildBuilderClientReportPdfBuffer(opts) {
     y -= 14;
   }
   drawTxt(
-    `Completed: ${String(project.end_date_actual || project.end_date_estimated || '').slice(0, 10) || '—'}`,
+    `Completed: ${String(project.end_date_actual || project.end_date_estimated || '').slice(0, 10) || 'â€”'}`,
     margin,
     y,
     9,
@@ -194,9 +194,9 @@ export async function buildBuilderClientReportPdfBuffer(opts) {
   ensureSpace(120);
   page.drawRectangle({ x: margin, y: y - 52, width: contentW, height: 52, color: PAL.panelBg });
   const details = [
-    ['Floor type', project.flooring_type || '—'],
-    ['Area', project.total_sqft ? `${project.total_sqft} sq ft` : '—'],
-    ['Service', project.service_type || '—'],
+    ['Floor type', project.flooring_type || 'â€”'],
+    ['Area', project.total_sqft ? `${project.total_sqft} sq ft` : 'â€”'],
+    ['Service', project.service_type || 'â€”'],
     ['Project #', project.project_number || String(project.id || '')],
   ];
   let dy = y - 14;
@@ -217,7 +217,7 @@ export async function buildBuilderClientReportPdfBuffer(opts) {
     project.total_sqft ? `${project.total_sqft} sq ft installed` : null,
   ]
     .filter(Boolean)
-    .join(' · ');
+    .join(' Â· ');
   drawTxt(serviceLine || 'Professional floor installation and finishing by Senior Floors.', margin, y, 9, font);
   y -= 20;
 
@@ -226,7 +226,7 @@ export async function buildBuilderClientReportPdfBuffer(opts) {
     y -= 14;
     for (const m of materials.slice(0, 12)) {
       ensureSpace(40);
-      const line = `• ${m.product_name || 'Material'}${m.material_color ? ` — ${m.material_color}` : ''}${m.sku ? ` (${m.sku})` : ''}`;
+      const line = `â€¢ ${m.product_name || 'Material'}${m.material_color ? ` â€” ${m.material_color}` : ''}${m.sku ? ` (${m.sku})` : ''}`;
       drawTxt(line.slice(0, 90), margin + 4, y, 8, font);
       y -= lineH;
       if (m.material_spec) {
@@ -289,7 +289,7 @@ export async function buildBuilderClientReportPdfBuffer(opts) {
 
   ensureSpace(50);
   drawTxt(
-    `Report generated ${new Date().toLocaleDateString('en-US')} — ${COMPANY.name}`,
+    `Report generated ${new Date().toLocaleDateString('en-US')} â€” ${COMPANY.name}`,
     margin,
     margin + 8,
     8,

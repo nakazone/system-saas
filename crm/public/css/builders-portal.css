@@ -1,4 +1,4 @@
-/* Builder Partner Portal ù brand-aligned */
+/* Builder Partner Portal ‚Äî brand-aligned */
 :root {
   --bp-navy: #1a2036;
   --bp-navy-deep: #141928;
@@ -411,7 +411,7 @@
 .bp-doc-list li { padding: 8px 0; border-bottom: 1px solid var(--bp-border); }
 .bp-doc-list a { font-weight: 600; color: var(--bp-navy); }
 .bp-manager-phone { margin-top: 4px; }
-/* Light cards (project detail, profile) ù not the dark welcome card */
+/* Light cards (project detail, profile) ‚Äî not the dark welcome card */
 .bp-card:not(.bp-welcome) .bp-manager-phone a,
 .bp-manager-card .bp-manager-phone a {
   color: var(--bp-navy);
@@ -788,7 +788,7 @@
 .bp-ref-timeline__note { font-size: 11px; color: var(--bp-muted); }
 .hidden { display: none !important; }
 
-/* Partner pricing ù admin table + service notes tooltip */
+/* Partner pricing ‚Äî admin table + service notes tooltip */
 .bp-pricing-admin-wrap { overflow-x: auto; }
 .bp-pricing-admin-table .bp-inline { width: 100%; min-width: 0; font-size: 12px; padding: 6px 8px; }
 .bp-pricing-admin-table input[type="number"].bp-inline { width: 72px; }
@@ -828,7 +828,7 @@
 .bp-tooltip-wrap:hover .bp-tooltip,
 .bp-tooltip-wrap:focus-within .bp-tooltip { display: block; }
 
-/* Partner pricing ù project simulations */
+/* Partner pricing ‚Äî project simulations */
 .bp-pricing-sims { margin: 1.75rem 0 1rem; padding-top: 1.25rem; border-top: 1px solid var(--bp-border); }
 .bp-pricing-sims__title { font-size: 1rem; margin: 0 0 6px; color: var(--bp-navy); font-family: Poppins, Inter, sans-serif; }
 .bp-pricing-sims__intro { margin: 0 0 14px; font-size: 13px; }

@@ -1,5 +1,5 @@
 /**
- * Builder completed-projects portfolio PDF (pdf-lib) — Senior Floors brand.
+ * Builder completed-projects portfolio PDF (pdf-lib) â€” Senior Floors brand.
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
@@ -195,7 +195,7 @@ export async function buildBuilderHistoryPdfBuffer(opts) {
 
   ensureSpace(40);
   drawTxt(
-    `Generated ${new Date().toLocaleDateString('en-US')} — Senior Floors Builder Portal`,
+    `Generated ${new Date().toLocaleDateString('en-US')} â€” Senior Floors Builder Portal`,
     margin,
     margin + 8,
     8,

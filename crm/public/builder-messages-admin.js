@@ -1,5 +1,5 @@
 /**
- * CRM admin  builder messaging (conversations list, internal notes, project filter).
+ * CRM admin â€” builder messaging (conversations list, internal notes, project filter).
  */
 /* global crmNotify */
 (function () {
@@ -109,7 +109,7 @@
     }
     html += '</div>';
     html += `<footer class="bp-msg-compose">
-      <label class="bp-msg-internal"><input type="checkbox" id="internalNote" /> Nota interna (s equipa)</label>
+      <label class="bp-msg-internal"><input type="checkbox" id="internalNote" /> Nota interna (sâ€” equipa)</label>
       <textarea id="msgInput" rows="2" placeholder="Escreva uma mensagem..."></textarea>
       <div class="bp-msg-compose__actions">
         <button type="button" class="bp-btn-tan" id="btnSend">Enviar</button>

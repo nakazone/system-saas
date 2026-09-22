@@ -1,5 +1,5 @@
 /**
- * Builder portal  referral tracker (estimates + leads, status timeline).
+ * Builder portal â€” referral tracker (estimates + leads, status timeline).
  */
 (function () {
   const REFERRAL_CTA = 'builder-estimate-request.html?project_type=sf_referral';

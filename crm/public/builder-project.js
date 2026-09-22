@@ -16,7 +16,7 @@
   }
 
   function fmtDate(d) {
-    if (!d) return '�';
+    if (!d) return '—';
     try {
       return new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', {
         day: 'numeric',
@@ -115,7 +115,7 @@
       completed: ['completed', 'Completed'],
       cancelled: ['cancelled', 'Cancelled'],
     };
-    const m = map[s] || ['pending', s || '�'];
+    const m = map[s] || ['pending', s || '—'];
     return `<span class="bp-badge bp-badge--${m[0]}">${escapeHtml(m[1])}</span>`;
   }
 
@@ -141,7 +141,7 @@
   function photoMeta(p) {
     const who = p.partner_upload ? 'You' : 'Senior Floors';
     const when = p.created_at ? fmtDate(p.created_at) : '';
-    return [when, who].filter(Boolean).join(' � ');
+    return [when, who].filter(Boolean).join(' — ');
   }
 
   function renderPhotos(photos) {
@@ -202,7 +202,7 @@
         : '';
     const renderItem = (it, canToggle) => {
       const checked = it.checked === 1 || it.checked === true;
-      const due = it.due_date ? `<span class="bp-muted"> � Due ${fmtDate(it.due_date)}</span>` : '';
+      const due = it.due_date ? `<span class="bp-muted"> — Due ${fmtDate(it.due_date)}</span>` : '';
       const resp = `<span class="bp-muted" style="display:block;font-size:11px">Responsible: ${responsibleLabel(it.assigned_to)}${due}</span>`;
       const notes = it.notes ? `<span class="bp-muted" style="display:block;font-size:11px">${escapeHtml(it.notes)}</span>` : '';
       return `<div class="bp-check-item ${checked ? 'bp-check-item--done' : ''}">
@@ -240,7 +240,7 @@
       const p = photos[curr];
       if (!p) return;
       img.src = p.url;
-      cap.textContent = `${photoMeta(p)} � ${curr + 1} / ${photos.length}`;
+      cap.textContent = `${photoMeta(p)} — ${curr + 1} / ${photos.length}`;
       nav.innerHTML = '';
       if (curr > 0) {
         const prev = document.createElement('button');
@@ -718,10 +718,10 @@
         <div class="bp-summary-grid">
           <div class="bp-card">
             <h3 style="margin:0 0 10px;font-size:14px">Project details</h3>
-            <p><strong>Floor:</strong> ${escapeHtml(p.flooring_type || '�')}</p>
-            <p><strong>Area:</strong> ${p.total_sqft ? `${p.total_sqft} sq ft` : '�'}</p>
-            <p><strong>Service:</strong> ${escapeHtml(p.service_type || '�')}</p>
-            <p><strong>Address:</strong> ${escapeHtml(p.address || '�')}</p>
+            <p><strong>Floor:</strong> ${escapeHtml(p.flooring_type || '—')}</p>
+            <p><strong>Area:</strong> ${p.total_sqft ? `${p.total_sqft} sq ft` : '—'}</p>
+            <p><strong>Service:</strong> ${escapeHtml(p.service_type || '—')}</p>
+            <p><strong>Address:</strong> ${escapeHtml(p.address || '—')}</p>
             <p><strong>Start:</strong> ${fmtDate(p.start_date)}</p>
             <p><strong>Est. completion:</strong> ${fmtDate(p.end_date_estimated)}</p>
           </div>
@@ -870,7 +870,7 @@
       row.innerHTML = `<span class="bp-upload-progress-item__name"></span><div class="bp-upload-progress-item__bar"><div class="bp-upload-progress-item__fill"></div></div>`;
       list.appendChild(row);
     }
-    row.querySelector('.bp-upload-progress-item__name').textContent = `${fileName} � ${pct}%`;
+    row.querySelector('.bp-upload-progress-item__name').textContent = `${fileName} — ${pct}%`;
     const fill = row.querySelector('.bp-upload-progress-item__fill');
     if (fill) fill.style.width = `${pct}%`;
   }
@@ -955,7 +955,7 @@
       <div class="bp-star-rating" id="evalStars" role="group" aria-label="Rating">
         ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="bp-star" data-star="${n}" aria-label="${n} stars">&#9733;</button>`).join('')}
       </div>
-      <textarea id="evalComment" rows="3" style="width:100%;box-sizing:border-box;margin-top:12px" placeholder="Optional comment�"></textarea>
+      <textarea id="evalComment" rows="3" style="width:100%;box-sizing:border-box;margin-top:12px" placeholder="Optional comment—"></textarea>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
         <button type="button" class="bp-btn-tan" id="evalSubmit" disabled>Submit feedback</button>
         <button type="button" class="bp-btn-ghost" id="evalLater">Remind me later</button>

@@ -1,5 +1,5 @@
 /**
- * Builder portal activity log — real events for dashboard feed.
+ * Builder portal activity log â€” real events for dashboard feed.
  */
 import {
   buildProjectBuilderMatch,
@@ -137,7 +137,7 @@ export async function logEstimateEvent(pool, builderId, refNumber, status, note)
   await logBuilderActivity(pool, {
     builderId,
     type: 'estimate',
-    text: `${lbl} — ${refNumber || 'request'}${extra}`,
+    text: `${lbl} â€” ${refNumber || 'request'}${extra}`,
     href: 'builder-estimate-history.html',
   });
 }

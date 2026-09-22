@@ -20,7 +20,7 @@
   }
 
   function fmtDate(iso) {
-    if (!iso) return '�';
+    if (!iso) return '—';
     try {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return escapeHtml(String(iso));
@@ -31,7 +31,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || n === '') return '�';
+    if (n == null || n === '') return '—';
     const x = parseFloat(n);
     if (Number.isNaN(x)) return escapeHtml(String(n));
     return escapeHtml(
@@ -108,7 +108,7 @@
     if (typeof global.pipelineStageDisplayName === 'function') {
       return global.pipelineStageDisplayName(slug, name);
     }
-    return name || slug || '�';
+    return name || slug || '—';
   }
 
   function formatFieldValue(key, val) {
@@ -862,7 +862,7 @@
 
   function onStatusMenuDocClick(e) {
     if (e.target.closest('#lqsStatusPicker')) return;
-    /* Menu pode estar em document.body (dropdown fixo); clique na lista n�o fecha antes de aplicar */
+    /* Menu pode estar em document.body (dropdown fixo); clique na lista n—o fecha antes de aplicar */
     if (e.target.closest('#lqsStatusMenu')) return;
     closeStatusMenu();
   }
@@ -980,7 +980,7 @@
           row.kind === 'quote'
             ? '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--quote">Quote</span>'
             : '<span class="lead-quick-sheet__qbadge lead-quick-sheet__qbadge--proposal">Proposta</span>';
-        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '�';
+        const when = row.created_at ? new Date(row.created_at).toLocaleDateString('pt-BR') : '—';
         const exp =
           row.expires && row.kind === 'quote'
             ? `<p class="lead-quick-sheet__qmeta"><strong>Expira:</strong> ${escapeHtml(
@@ -1476,7 +1476,7 @@
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar�</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar—</div>';
 
     const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),

@@ -1,5 +1,5 @@
 /**
- * Builder portal in-app notifications — project events, document expiry, etc.
+ * Builder portal in-app notifications â€” project events, document expiry, etc.
  */
 import { getBuilderIdsForProject, stepsCrossed } from './builderActivityLog.js';
 
@@ -75,7 +75,7 @@ export async function notifyBuilderProjectCrmUpdate(pool, projectId, prevRow, bo
 }
 
 /**
- * Create document expiry alerts (30 / 15 / 7 days) — deduped per doc + threshold.
+ * Create document expiry alerts (30 / 15 / 7 days) â€” deduped per doc + threshold.
  */
 export async function ensureDocumentExpiryNotifications(pool, builderId) {
   if (!pool || !builderId) return;

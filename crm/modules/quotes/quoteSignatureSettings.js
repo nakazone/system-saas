@@ -87,10 +87,10 @@ export async function setOwnerSignature(pool, opts = {}) {
 
   let buf = signatureBuffer || parsePngBase64(signaturePngBase64);
   if (!buf || !buf.length) {
-    return { ok: false, error: 'Assinatura inv·lida. Desenhe ou gere a partir do nome.' };
+    return { ok: false, error: 'Assinatura inv√°lida. Desenhe ou gere a partir do nome.' };
   }
   if (!signName || signName.length < 2) {
-    return { ok: false, error: 'Indique o nome do respons·vel.' };
+    return { ok: false, error: 'Indique o nome do respons√°vel.' };
   }
 
   await pool.execute(

@@ -1,5 +1,5 @@
 ---
-description: UTF-8 encoding — never introduce corrupted characters (U+FFFD / )
+description: UTF-8 encoding â€” never introduce corrupted characters (U+FFFD)
 alwaysApply: true
 ---
 
@@ -9,14 +9,13 @@ All source files in this repo are **UTF-8** (no BOM).
 
 ## Never write corrupted characters
 
-- Do **not** use `` (U+FFFD) or mojibake like `Ã§`, `Ã£`, `nÃ£o`, `VisÃ£o`.
+- Do **not** use U+FFFD or mojibake like `ÃƒÂ§`, `ÃƒÂ£`, `nÃƒÂ£o`, `VisÃƒÂ£o`.
 - Use proper Unicode:
-  - Em dash: `—` (titles, separators)
-  - En dash: `–` (ranges: `500 – 999`)
-  - Middle dot: `·` (inline separators)
-  - Ellipsis: `…` (loading states: `A carregar…`)
-  - Portuguese accents: `ã`, `ç`, `á`, `é`, `í`, `ó`, `ú`, `õ`, `â`, `ê`, `ô`, `à`, `Á`, `Ú`, etc.
-  - Arrow: `?` (bidirectional links in comments)
+  - Em dash: `â€”` (titles, separators)
+  - En dash: `â€“` (ranges: `500 â€“ 999`)
+  - Middle dot: `Â·` (inline separators)
+  - Ellipsis: `â€¦` (loading states: `A carregarâ€¦`)
+  - Portuguese accents: `Ã£`, `Ã§`, `Ã¡`, `Ã©`, `Ã­`, `Ã³`, `Ãº`, `Ãµ`, `Ã¢`, `Ãª`, `Ã´`, `Ã `, `Ã`, `Ãš`, etc.
 
 ## HTML
 
@@ -28,10 +27,9 @@ Every HTML file must include in `<head>`:
 
 ## Before finishing edits
 
-Run `npm run check:encoding` and fix any reported files.
+Ensure all text files decode as UTF-8 (Nixpacks/Railway fail the build otherwise).
 
 ## Saving files
 
 - Line endings: LF (`\n`)
 - Encoding: UTF-8
-- Project defaults: `.editorconfig`, `.gitattributes`

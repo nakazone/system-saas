@@ -1,5 +1,5 @@
 /**
- * CRM admin — manage inspiration gallery (builders see published projects only).
+ * CRM admin â€” manage inspiration gallery (builders see published projects only).
  */
 /* global crmNotify */
 (function () {
@@ -64,7 +64,7 @@
         <div class="bp-form-full"><label>Descricao</label><textarea name="description" rows="3">${escapeHtml(g.description || '')}</textarea></div>
         <div><label>Tipo de piso</label>
           <select name="floor_type">
-            <option value="">—</option>
+            <option value="">â€”</option>
             <option value="hardwood">Hardwood</option>
             <option value="engineered">Engineered</option>
             <option value="lvp">LVP</option>

@@ -1,5 +1,5 @@
 /**
- * Builder portal ù partner pricing (read-only static table).
+ * Builder portal ‚Äî partner pricing (read-only static table).
  */
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -11,7 +11,7 @@
     { range: '5,000+ sq ft', pct: 15 },
   ];
 
-  /** Example complete projects ù service lines resolved by name against partner table */
+  /** Example complete projects ‚Äî service lines resolved by name against partner table */
   const PROJECT_SIMULATIONS = [
     {
       id: 'condo-refresh',

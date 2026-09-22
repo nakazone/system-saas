@@ -1,5 +1,5 @@
 /**
- * Builder portal ù material display enrichment and SF notifications.
+ * Builder portal ‚Äî material display enrichment and SF notifications.
  */
 import { adminNotifyEmail, sendBuilderNotification } from './builderNotify.js';
 
@@ -101,13 +101,13 @@ export async function notifySfMaterialAction(pool, {
   let subject;
   let bodyHtml;
   if (action === 'approve_all') {
-    subject = `Builder approved all materials ù ${projLabel}`;
+    subject = `Builder approved all materials ‚Äî ${projLabel}`;
     bodyHtml = `<p>Partner approved <strong>${count || 0}</strong> pending material(s) on <strong>${projLabel}</strong>.</p>`;
   } else if (action === 'change_requested') {
-    subject = `Builder requested material change ù ${projLabel}`;
+    subject = `Builder requested material change ‚Äî ${projLabel}`;
     bodyHtml = `<p>Partner requested a change for material <strong>${productName || 'item'}</strong> on <strong>${projLabel}</strong>.</p>`;
   } else {
-    subject = `Builder ${action} material ù ${projLabel}`;
+    subject = `Builder ${action} material ‚Äî ${projLabel}`;
     bodyHtml = `<p>Material <strong>${productName || 'item'}</strong> was <strong>${action}</strong> by the partner on <strong>${projLabel}</strong>.</p>`;
   }
   if (comment) {

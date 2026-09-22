@@ -1,5 +1,5 @@
 /**
- * Visualizador PDF in-app com bot„o Fechar (iPad / PWA).
+ * Visualizador PDF in-app com bot√£o Fechar (iPad / PWA).
  */
 (function () {
   let root = null;
@@ -24,7 +24,7 @@
         <a href="#" class="crm-pdf-viewer__download hidden" id="crmPdfViewerDownload" download>Descarregar</a>
       </header>
       <div class="crm-pdf-viewer__body" id="crmPdfViewerBody">
-        <p class="crm-pdf-viewer__loading" id="crmPdfViewerLoading">A carregar PDFÖ</p>
+        <p class="crm-pdf-viewer__loading" id="crmPdfViewerLoading">A carregar PDF‚Ä¶</p>
       </div>`;
     document.body.appendChild(root);
 
@@ -110,7 +110,7 @@
     }
 
     const body = root.querySelector('#crmPdfViewerBody');
-    body.innerHTML = '<p class="crm-pdf-viewer__loading" id="crmPdfViewerLoading">A carregar PDFÖ</p>';
+    body.innerHTML = '<p class="crm-pdf-viewer__loading" id="crmPdfViewerLoading">A carregar PDF‚Ä¶</p>';
 
     root.classList.add('is-open');
     root.setAttribute('aria-hidden', 'false');
@@ -119,7 +119,7 @@
     if (src) {
       showFrame(src);
     } else {
-      showError('PDF indisponÌvel.');
+      showError('PDF indispon√≠vel.');
     }
 
     root.querySelector('#crmPdfViewerClose')?.focus();
@@ -133,7 +133,7 @@
     revokeUrl();
     const body = root.querySelector('#crmPdfViewerBody');
     if (body) {
-      body.innerHTML = '<p class="crm-pdf-viewer__loading" id="crmPdfViewerLoading">A carregar PDFÖ</p>';
+      body.innerHTML = '<p class="crm-pdf-viewer__loading" id="crmPdfViewerLoading">A carregar PDF‚Ä¶</p>';
     }
   }
 
@@ -154,13 +154,13 @@
       }
       if (!ct.includes('pdf') && !ct.includes('octet-stream')) {
         const j = await r.json().catch(() => ({}));
-        throw new Error(j.error || 'Resposta inv·lida');
+        throw new Error(j.error || 'Resposta inv√°lida');
       }
       const blob = await r.blob();
       open({ blob, title, filename });
     } catch (e) {
-      showError(e.message || 'N„o foi possÌvel abrir o PDF.');
-      window.crmToast?.error?.(e.message || 'N„o foi possÌvel abrir o PDF.');
+      showError(e.message || 'N√£o foi poss√≠vel abrir o PDF.');
+      window.crmToast?.error?.(e.message || 'N√£o foi poss√≠vel abrir o PDF.');
     }
   }
 

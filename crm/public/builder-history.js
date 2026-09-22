@@ -1,5 +1,5 @@
 /**
- * Builder portal — completed project history (summary, filters, CSV/PDF export).
+ * Builder portal â€” completed project history (summary, filters, CSV/PDF export).
  */
 (function () {
   let rows = [];

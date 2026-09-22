@@ -207,7 +207,7 @@ export async function postMessage(req, res) {
           const fromName = b[0]?.company || `${b[0]?.first_name || ''}`.trim() || 'Builder';
           sendBuilderNotification({
             to: adminTo,
-            subject: `New builder message ù ${fromName}`,
+            subject: `New builder message ‚Äî ${fromName}`,
             html: `<p>Message from partner:</p><p>${message.slice(0, 800)}</p><p><a href="${process.env.PUBLIC_CRM_URL || ''}/builder-messages-admin.html?builder_id=${builderId}">Reply in CRM</a></p>`,
           }).catch((e) => console.warn('[builderMessages] notify admin:', e));
         }

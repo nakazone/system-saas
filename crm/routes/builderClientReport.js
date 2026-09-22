@@ -1,5 +1,5 @@
 /**
- * Builder portal — per-project client handoff PDF.
+ * Builder portal â€” per-project client handoff PDF.
  */
 import { getDBConnection } from '../config/db.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';

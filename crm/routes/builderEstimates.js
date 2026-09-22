@@ -465,7 +465,7 @@ export async function getBuilderHistoryPdf(req, res) {
  const filterParts = [];
  if (year) filterParts.push(`Year ${year}`);
  if (q.trim()) filterParts.push(`Search "${q.trim()}"`);
- const filterLabel = filterParts.length ? filterParts.join('  ') : 'All completed projects';
+ const filterLabel = filterParts.length ? filterParts.join(' â€” ') : 'All completed projects';
 
  const pdfBuf = await buildBuilderHistoryPdfBuffer({
   projects: filtered.map((p) => ({

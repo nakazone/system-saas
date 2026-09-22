@@ -1,5 +1,5 @@
 /**
- * Builder portal ù project tracking, photos, checklist (scoped to logged-in partner).
+ * Builder portal ‚Äî project tracking, photos, checklist (scoped to logged-in partner).
  */
 import path from 'path';
 import { getDBConnection } from '../config/db.js';

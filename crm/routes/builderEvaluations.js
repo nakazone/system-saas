@@ -1,5 +1,5 @@
 /**
- * Builder portal ù post-project evaluations (NPS-style).
+ * Builder portal ‚Äî post-project evaluations (NPS-style).
  */
 import { getDBConnection } from '../config/db.js';
 import { requireBuilderAuth } from '../middleware/builderAuth.js';
@@ -67,7 +67,7 @@ export async function postBuilderProjectEvaluation(req, res) {
 
     const rating = parseInt(req.body?.rating, 10);
     if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
-      return res.status(400).json({ success: false, error: 'Rating must be 1ù5' });
+      return res.status(400).json({ success: false, error: 'Rating must be 1‚Äî5' });
     }
     const comment =
       req.body?.comment != null ? String(req.body.comment).slice(0, 2000).trim() : '';
@@ -100,7 +100,7 @@ export async function postBuilderProjectEvaluation(req, res) {
       const stars = '?'.repeat(rating) + '?'.repeat(5 - rating);
       await sendBuilderNotification({
         to: adminTo,
-        subject: `Builder feedback (${rating}/5) ù ${projLabel}`,
+        subject: `Builder feedback (${rating}/5) ‚Äî ${projLabel}`,
         html: `<p><strong>${partnerLabel}</strong> rated Senior Floors <strong>${rating}/5</strong> (${stars}) on <strong>${projLabel}</strong>.</p>
 ${comment ? `<p><em>${comment.replace(/</g, '&lt;')}</em></p>` : ''}`,
       }).catch(() => {});
@@ -110,7 +110,7 @@ ${comment ? `<p><em>${comment.replace(/</g, '&lt;')}</em></p>` : ''}`,
       const pub = process.env.PUBLIC_CRM_URL || 'https://app.senior-floors.com';
       await sendBuilderNotification({
         to: b.email,
-        subject: 'Thank you ù share your experience on Google',
+        subject: 'Thank you ‚Äî share your experience on Google',
         html: `<p>Hi ${b.first_name || 'there'},</p>
 <p>Thank you for your feedback on <strong>${projLabel}</strong>. We appreciate partnering with you.</p>
 <p>If you had a great experience with Senior Floors, we would be grateful for a quick review on Google:</p>

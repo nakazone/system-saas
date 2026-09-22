@@ -1,5 +1,5 @@
 /**
- * Client invoices from approved quotes — idempotent on startup.
+ * Client invoices from approved quotes â€” idempotent on startup.
  */
 async function tableExists(pool, name) {
   const [rows] = await pool.query(

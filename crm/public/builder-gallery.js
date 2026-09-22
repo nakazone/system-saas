@@ -1,5 +1,5 @@
 /**
- * Builder portal ù project gallery (read-only inspiration).
+ * Builder portal ‚Äî project gallery (read-only inspiration).
  */
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -93,7 +93,7 @@
   function renderPortalGrid(items, host) {
     if (!items.length) {
       host.innerHTML =
-        '<p class="bp-card">No published projects yet. Our team is adding inspiration photos ù check back soon.</p>';
+        '<p class="bp-card">No published projects yet. Our team is adding inspiration photos ‚Äî check back soon.</p>';
       return;
     }
     host.innerHTML = items.map(cardHtml).join('');

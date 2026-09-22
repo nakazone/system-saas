@@ -1,5 +1,5 @@
 /**
- * Builder portal — messages thread (read/send, project filter, attachments).
+ * Builder portal â€” messages thread (read/send, project filter, attachments).
  */
 (function () {
   const params = new URLSearchParams(location.search);

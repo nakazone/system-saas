@@ -1,5 +1,5 @@
 /**
- * Builder Partner Portal ù tabelas e colunas (idempotente no arranque).
+ * Builder Partner Portal ‚Äî tabelas e colunas (idempotente no arranque).
  */
 async function tableExists(pool, name) {
   const [rows] = await pool.query(

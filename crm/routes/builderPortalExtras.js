@@ -1,5 +1,5 @@
 /**
- * Builder portal ù photos delete, materials approval, confirm access, activity.
+ * Builder portal ‚Äî photos delete, materials approval, confirm access, activity.
  */
 import path from 'path';
 import fs from 'fs';
@@ -175,7 +175,7 @@ export async function postBuilderConfirmAccess(req, res) {
     if (adminTo) {
       await sendBuilderNotification({
         to: adminTo,
-        subject: `Builder confirmed property access ù ${project.name || projectId}`,
+        subject: `Builder confirmed property access ‚Äî ${project.name || projectId}`,
         html: `<p>Partner confirmed site access for project <strong>${project.name || projectId}</strong>.</p><p>${project.address || ''}</p>`,
       });
     }

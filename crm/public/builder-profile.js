@@ -1,5 +1,5 @@
 /**
- * Builder portal ù profile, password, documents, manager, notification prefs.
+ * Builder portal ‚Äî profile, password, documents, manager, notification prefs.
  */
 (function () {
   let me = null;
@@ -338,7 +338,7 @@
       await window.builderAuth.fetch(`/api/builder-documents/${replaceDocId}`, { method: 'DELETE' });
       cancelReplace();
     }
-    statusEl.textContent = 'Uploaded ù pending Senior Floors review.';
+    statusEl.textContent = 'Uploaded ‚Äî pending Senior Floors review.';
     e.target.reset();
     document.getElementById('docType').value = 'w9';
     loadDocs();

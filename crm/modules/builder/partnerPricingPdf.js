@@ -1,5 +1,5 @@
 /**
- * Partner pricing table PDF (pdf-lib) ù same brand layout as modules/quotes/quotePdf.js.
+ * Partner pricing table PDF (pdf-lib) ‚Äî same brand layout as modules/quotes/quotePdf.js.
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
