@@ -67,7 +67,8 @@ npm run dev
 
 **Important:** if `DATABASE_URL` exists but is blank, delete it and recreate it as a reference from the Postgres service. A blank value overrides the plugin and crashes startup.
 
-4. Redeploy. `npm start` runs `prisma migrate deploy` then the server.
-5. Open `/signup` to create the first organization.
+4. Redeploy. `npm start` resolves `DATABASE_URL` (including Railway Postgres fallbacks) and runs `prisma migrate deploy` before the server starts.
+5. Optionally run `npm run db:seed` once (or wait — signup bootstraps the permission catalog if empty).
+6. Open `/signup` to create the first organization.
 
 **Note:** Real per-tenant subdomains need a custom domain with a wildcard DNS record (`*.yourdomain.com`). The default `*.up.railway.app` hostname does not support arbitrary org subdomains.

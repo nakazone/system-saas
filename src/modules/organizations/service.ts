@@ -3,6 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 import { hashPassword } from "../../lib/auth/password.js";
 import {
   DEFAULT_ESTIMATE_RULES,
+  DEFAULT_PERMISSIONS,
   DEFAULT_PIPELINE_STAGES,
   DEFAULT_ROLE_PERMISSIONS,
 } from "../../lib/tenant/defaults.js";
@@ -45,7 +46,25 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
   }
 
   const passwordHash = await hashPassword(input.password);
-  const permissions = await prisma.permission.findMany();
+  let permissions = await prisma.permission.findMany();
+  // Bootstrap catalog if seed never ran (common on first Railway deploy).
+  if (permissions.length === 0) {
+    for (const permission of DEFAULT_PERMISSIONS) {
+      await prisma.permission.upsert({
+        where: { key: permission.key },
+        create: {
+          key: permission.key,
+          group: permission.group,
+          description: permission.description,
+        },
+        update: {
+          group: permission.group,
+          description: permission.description,
+        },
+      });
+    }
+    permissions = await prisma.permission.findMany();
+  }
   const permissionByKey = new Map(permissions.map((p) => [p.key, p]));
 
   return prisma.$transaction(async (tx) => {

@@ -3,9 +3,10 @@ builder = "NIXPACKS"
 buildCommand = "npm run build"
 
 [deploy]
-# Run migrations before traffic switches to the new release
-releaseCommand = "npx prisma migrate deploy"
-startCommand = "node dist/src/server.js"
+# Migrations also run in `npm start` (scripts/migrate-deploy.mjs) so a failed
+# or skipped release phase cannot leave production on an empty schema.
+releaseCommand = "node scripts/migrate-deploy.mjs"
+startCommand = "npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
