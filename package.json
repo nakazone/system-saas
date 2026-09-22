@@ -6,7 +6,7 @@
   "description": "Multi-tenant SaaS platform for flooring installation companies",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "prisma generate && tsc && mkdir -p dist/src && cp -R src/views dist/src/views && cp -R src/public dist/src/public",
+    "build": "prisma generate && tsc && mkdir -p dist/src dist/crm && cp -R src/views dist/src/views && cp -R src/public dist/src/public && cp -R crm/public dist/crm/public && cp -R crm/assets dist/crm/assets",
     "start": "node scripts/migrate-deploy.mjs && node dist/src/server.js",
     "start:with-migrate": "node scripts/migrate-deploy.mjs && node dist/src/server.js",
     "db:generate": "prisma generate",
