@@ -10,8 +10,6 @@
     { id: 'onsite', label: 'Quick quote', sub: 'Field · 2 steps', href: 'onsite-quote.html', perm: 'quotes.create' },
     { id: 'cat', label: 'Catálogo de serviços', sub: '', href: 'quote-catalog.html', perm: 'quotes.edit' },
     { id: 'clients', label: 'Clientes', sub: '', href: 'dashboard.html?page=customers', perm: 'customers.view' },
-    { id: 'proj', label: 'Projetos', sub: '', href: 'projects.html', perm: 'projects.view' },
-    { id: 'sched', label: 'Agenda', sub: '', href: 'dashboard.html?page=schedule', perm: 'visits.view' },
   ];
 
   function can(perm) {

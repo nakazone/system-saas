@@ -927,7 +927,23 @@ cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (_req, re
         pricing: true,
         payroll: true,
         users: true,
+        marketing: false,
+        schedule: false,
+        projects: false,
+        builder_forecast: false,
+        builder_portal: false,
+        gallery: false,
+        messages: false,
+        financial: false,
+        activities: false,
       },
+      disabled_pages: [
+        "marketing",
+        "schedule",
+        "projects",
+        "activities",
+        "financeiro",
+      ],
     },
   });
 });

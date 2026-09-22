@@ -14,6 +14,7 @@ import express, { type Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { crmAuthRouter } from "./auth-api.js";
 import { crmApiRouter } from "./api.js";
+import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,6 +51,19 @@ export function createCrmRouter(): Router {
 
   router.get("/", requireAuth, (_req, res) => {
     res.redirect("/dashboard.html");
+  });
+
+  // Block excluded SF modules in SaaS (deep links / bookmarks)
+  router.use((req, res, next) => {
+    const base = String(req.path || "")
+      .split("?")[0]
+      .replace(/^\//, "")
+      .toLowerCase();
+    if (base && SAAS_DISABLED_HTML.has(base)) {
+      res.redirect(302, "/dashboard.html");
+      return;
+    }
+    next();
   });
 
   if (!fs.existsSync(path.join(CRM_PUBLIC_DIR, "dashboard.html"))) {

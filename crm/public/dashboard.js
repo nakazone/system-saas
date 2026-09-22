@@ -778,6 +778,18 @@ function showPage(pageName) {
 
     if (pageName === 'crm') pageName = 'leads';
 
+    // SaaS: modules not offered in this product surface
+    const saasDisabledPages = new Set([
+      'marketing',
+      'schedule',
+      'projects',
+      'activities',
+      'financeiro',
+    ]);
+    if (saasDisabledPages.has(pageName)) {
+      pageName = 'dashboard';
+    }
+
     if (pageName === 'financeiro') {
         window.location.href = 'financial.html';
         return;
@@ -1769,7 +1781,7 @@ function renderDashboardStats() {
                 <div class="sf-dash-insight__ic" aria-hidden="true">📅</div>
                 <div class="sf-dash-insight__body">
                   <p><strong>${pl.visits_today}</strong> visita(s) hoje.</p>
-                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('schedule')">Ver agenda →</button>
+                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('leads')">Ver leads →</button>
                 </div>
             </div>`);
         }
@@ -1795,7 +1807,7 @@ function renderDashboardStats() {
                 <div class="sf-dash-insight__ic" aria-hidden="true">⚠</div>
                 <div class="sf-dash-insight__body">
                   <p>Margem negativa este mês. Revise os custos.</p>
-                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('financeiro')">Financeiro →</button>
+                  <button type="button" class="sf-dash-insight__btn" onclick="showPage('quotes')">Ver quotes →</button>
                 </div>
             </div>`);
         }
@@ -1866,9 +1878,7 @@ function renderSfMobileDashboardBlocks() {
     if (qa) {
         qa.innerHTML = `
             <button type="button" class="sf-quick-pill touchable" data-crm-permission="quotes.edit" onclick="location.href='quote-builder.html'"><span aria-hidden="true">+</span> Quote</button>
-            <button type="button" class="sf-quick-pill touchable" data-crm-permission="customers.create" onclick="showPage('customers'); showNewCustomerModal();"><span aria-hidden="true">+</span> Cliente</button>
-            <button type="button" class="sf-quick-pill touchable" data-crm-permission="visits.view" onclick="showPage('schedule')">Agenda</button>
-            <button type="button" class="sf-quick-pill touchable" data-crm-permission="contracts.view" onclick="showPage('financeiro')">Financeiro</button>`;
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="customers.create" onclick="showPage('customers'); showNewCustomerModal();"><span aria-hidden="true">+</span> Cliente</button>`;
     }
     if (typeof applyCrmNavPermissions === 'function') {
         applyCrmNavPermissions(crmUserPermissions, crmUserRole);
@@ -1886,7 +1896,7 @@ function renderSfMobileDashboardBlocks() {
         (d.upcoming_visits || []).slice(0, 6).forEach((v) => {
             const label = escapeHtmlCrm(v.lead_name || v.customer_name || v.project_name || 'Visita');
             chips.push(
-                `<button type="button" class="sf-quick-pill touchable" onclick="showPage('schedule')">${label}</button>`
+                `<button type="button" class="sf-quick-pill touchable" onclick="showPage('leads')">${label}</button>`
             );
         });
         act.innerHTML =

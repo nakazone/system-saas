@@ -40,26 +40,18 @@
         <div class="mobile-more-sheet__handle" aria-hidden="true"></div>
         <h2 class="mobile-more-sheet__title" id="mobileMoreSheetTitle">Mais opções</h2>
         <nav class="mobile-more-sheet__nav" aria-label="Mais módulos">
-            <a href="marketing.html" class="mobile-more-sheet__btn" data-crm-permission="reports.view"><span class="mobile-more-sheet__emoji" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="display:block;margin:0 auto;color:var(--text-dark)" aria-hidden="true"><path d="M3 11v2a1 1 0 001 1h2l4 9V4L6 11H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 8"/><path d="M19 6a8 8 0 010 12"/></svg></span> Marketing</a>
             <button type="button" class="mobile-more-sheet__btn" data-page="leads" data-crm-permission="leads.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Leads</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="invoices" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Invoices</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="schedule" data-crm-permission="visits.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📅</span> Agenda</button>
-            <a href="projects.html" class="mobile-more-sheet__btn" data-crm-permission="projects.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🔧</span> Projetos</a>
-            <a href="financial.html" class="mobile-more-sheet__btn" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💵</span> Financeiro</a>
             <a href="payroll-module.html" class="mobile-more-sheet__btn" data-crm-permission="payroll.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👷</span> Folha de pagamento</a>
             <details class="mobile-more-sheet__cadastro">
                 <summary class="mobile-more-sheet__btn mobile-more-sheet__cadastro-summary"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Cadastros</summary>
                 <div class="mobile-more-sheet__cadastro-panel">
                     <a href="products-erp.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📦</span> Produtos</a>
-                    <a href="financial.html#vendors" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏷</span> Fornecedores</a>
                     <a href="quote-catalog.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="quotes.edit"><span class="mobile-more-sheet__emoji" aria-hidden="true">📑</span> Serviços</a>
                     <a href="dashboard.html?page=customers" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</a>
                     <a href="dashboard.html?page=customers&amp;type=builder" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗</span> Builders</a>
-                    <a href="financial.html#notas-recibos" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Notas / recibos</a>
-                    <a href="financial.html#recebimentos" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="contracts.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Recebimentos</a>
                 </div>
             </details>
-            <button type="button" class="mobile-more-sheet__btn" data-page="activities" data-crm-permission="activities.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📝</span> Atividades</button>
             <button type="button" class="mobile-more-sheet__btn" data-page="users" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Utilizadores</button>
             <a href="change-password.html" class="mobile-more-sheet__btn">Definições da conta</a>
         </nav>
@@ -82,10 +74,6 @@
             <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewLead" data-crm-permission="leads.view">
                 <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                 <span class="sf-fab-sheet__txt"><strong>Lead</strong><small>Novo no pipeline</small></span>
-            </button>
-            <button type="button" class="sf-fab-sheet__btn mobile-more-sheet__btn" id="sfFabNewVisit" data-crm-permission="visits.view">
-                <span class="sf-fab-sheet__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg></span>
-                <span class="sf-fab-sheet__txt"><strong>Visita</strong><small>Abrir agenda</small></span>
             </button>
         </nav>
     </div>
@@ -141,10 +129,6 @@
                 </div>
                 <div class="sidebar-nav-group">
                     <p class="sidebar-nav-group-label">Comercial</p>
-                    <a href="marketing.html" class="nav-item" data-crm-permission="reports.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 11v2a1 1 0 001 1h2l4 9V4L6 11H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 8"/><path d="M19 6a8 8 0 010 12"/></svg>
-                        Marketing
-                    </a>
                     <a href="#" class="nav-item" data-page="leads" data-crm-permission="leads.view">
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
                         Leads
@@ -160,18 +144,6 @@
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>
                         Invoices
                     </a>
-                    <a href="#" class="nav-item" data-page="schedule" data-crm-permission="visits.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
-                        Schedule
-                    </a>
-                    <a href="projects.html" class="nav-item" data-crm-permission="projects.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/><path d="M5 3l4 4"/></svg>
-                        Projetos
-                    </a>
-                    <a href="builder-payments-forecast.html" class="nav-item" data-crm-permission="projects.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/><path d="M5 3l4 4"/></svg>
-                        Previsão builders
-                    </a>
                     <details class="sidebar-nav-dropdown" id="sidebarCadastroDropdown">
                         <summary class="nav-item nav-item--dropdown">
                             <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
@@ -181,10 +153,6 @@
                             <a href="products-erp.html" class="nav-item nav-item--sub" data-crm-permission="quotes.view">
                                 <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
                                 Produtos
-                            </a>
-                            <a href="financial.html#vendors" class="nav-item nav-item--sub" data-crm-permission="contracts.view">
-                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                                Fornecedores
                             </a>
                             <a href="quote-catalog.html" class="nav-item nav-item--sub" data-crm-permission="quotes.edit">
                                 <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
@@ -198,14 +166,6 @@
                                 <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                                 Builders
                             </a>
-                            <a href="financial.html#notas-recibos" class="nav-item nav-item--sub" data-crm-permission="contracts.view">
-                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                                Notas / recibos
-                            </a>
-                            <a href="financial.html#recebimentos" class="nav-item nav-item--sub" data-crm-permission="contracts.view">
-                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                                Recebimentos
-                            </a>
                         </div>
                     </details>
                 </div>
@@ -215,40 +175,16 @@
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                         Builders
                     </a>
-                    <a href="builder-portal.html" class="nav-item" target="_blank" rel="noopener" data-crm-permission="builders.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>
-                        Portal do Builder
-                    </a>
-                    <a href="projects.html" class="nav-item" data-crm-permission="projects.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-                        Projetos Builders
-                    </a>
                     <a href="builder-pricing-admin.html" class="nav-item" data-crm-permission="builders.view">
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                         Tabela de Valores
                     </a>
-                    <a href="builder-gallery-admin.html" class="nav-item" data-crm-permission="builders.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                        Galeria de Projetos
-                    </a>
-                    <a href="builder-messages-admin.html" class="nav-item" data-crm-permission="builders.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                        Mensagens
-                    </a>
                 </div>
                 <div class="sidebar-nav-group">
-                    <p class="sidebar-nav-group-label">Financeiro &amp; registo</p>
-                    <a href="financial.html" class="nav-item" data-crm-permission="contracts.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                        Financeiro
-                    </a>
+                    <p class="sidebar-nav-group-label">Pessoas</p>
                     <a href="payroll-module.html" class="nav-item" data-crm-permission="payroll.view">
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                         Folha de pagamento
-                    </a>
-                    <a href="#" class="nav-item" data-page="activities" data-crm-permission="activities.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        Activities
                     </a>
                 </div>
                 <div class="sidebar-nav-group">
