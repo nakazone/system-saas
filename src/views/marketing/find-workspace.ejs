@@ -1,0 +1,47 @@
+<%- include('../partials/header') %>
+
+<section class="auth-card-wrap">
+  <div class="auth-card">
+    <h1>Find your workspace</h1>
+    <p class="mkt-lead">Enter your company subdomain to open the sign-in page.</p>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+    <form method="post" action="/find-workspace" class="auth-form">
+      <label for="slug">Organization slug</label>
+      <div class="slug-preview-row">
+        <input
+          id="slug"
+          name="slug"
+          required
+          pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+          placeholder="acme-floors"
+          value="<%= values.slug || '' %>"
+          autocomplete="organization"
+        />
+      </div>
+      <p class="slug-live muted">
+        You’ll go to <strong><span id="slugPreview">your-company</span>.<%= appRootDomain %>/login</strong>
+      </p>
+      <button class="btn" type="submit">Continue to sign in</button>
+    </form>
+
+    <p class="auth-alt muted">New here? <a href="/signup">Create an organization</a></p>
+  </div>
+</section>
+
+<script>
+  (function () {
+    const input = document.getElementById('slug');
+    const preview = document.getElementById('slugPreview');
+    if (!input || !preview) return;
+    const sync = () => {
+      const value = (input.value || 'your-company').toLowerCase().trim() || 'your-company';
+      preview.textContent = value;
+    };
+    input.addEventListener('input', sync);
+    sync();
+  })();
+</script>
+
+<%- include('../partials/footer') %>

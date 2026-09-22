@@ -1,3 +1,17 @@
+<% if (typeof organization !== 'undefined' && organization) { %>
 </main>
+<% } else { %>
+</main>
+<footer class="marketing-footer">
+  <div class="marketing-footer-inner">
+    <span><%= (typeof productName !== 'undefined' && productName) ? productName : 'Flooring Platform' %></span>
+    <nav>
+      <a href="/pricing">Pricing</a>
+      <a href="/signup">Start free trial</a>
+      <a href="/find-workspace">Sign in</a>
+    </nav>
+  </div>
+</footer>
+<% } %>
 </body>
 </html>

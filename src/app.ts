@@ -97,9 +97,11 @@ export function createApp() {
     }
     if (req.path === "/" || req.path === "") {
       res.render("landing", {
-        title: "Flooring operations platform",
+        title: env.PRODUCT_NAME,
         organization: null,
+        productName: env.PRODUCT_NAME,
         appRootDomain: env.APP_ROOT_DOMAIN,
+        appBaseUrl: env.APP_BASE_URL,
       });
       return;
     }

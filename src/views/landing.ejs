@@ -1,10 +1,106 @@
 <%- include('partials/header') %>
-<section class="hero-landing">
-  <h1>Operations platform for flooring companies</h1>
-  <p>Multi-tenant lead, customer, and estimate management — each organization runs on its own subdomain with isolated data.</p>
-  <p class="form-actions" style="justify-content:center">
-    <a class="btn" href="/signup">Create organization</a>
+
+<section class="mkt-hero">
+  <p class="mkt-eyebrow"><%= productName %></p>
+  <h1>Run your flooring company from one workspace</h1>
+  <p class="mkt-lead">
+    Capture leads, move deals through a sales pipeline, convert customers, and build accurate estimates —
+    with every company’s data isolated on its own subdomain.
   </p>
-  <p class="muted">After signup, access your workspace at <code>{slug}.<%= appRootDomain %></code></p>
+  <div class="mkt-cta-row">
+    <a class="btn" href="/signup">Start 30-day free trial</a>
+    <a class="btn btn-secondary" href="/pricing">See pricing</a>
+  </div>
+  <p class="mkt-fineprint">No credit card required. Your workspace lives at <code>{your-company}.<%= appRootDomain %></code></p>
 </section>
+
+<section class="mkt-section">
+  <div class="mkt-section-head">
+    <h2>Built for flooring operations</h2>
+    <p>The daily tools installers and sales teams actually use — without the ERP complexity.</p>
+  </div>
+  <div class="feature-grid">
+    <article class="feature-card">
+      <h3>Lead capture &amp; pipeline</h3>
+      <p>Track every inquiry from first contact to won/lost with stages you can customize per company.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Customers in one place</h3>
+      <p>Convert qualified leads into customers and keep contact details ready for estimating and follow-up.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Flooring estimates</h3>
+      <p>Quote hardwood, LVP, laminate, tile, and carpet using waste and markup rules configured by your team.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Team access control</h3>
+      <p>Invite staff with roles and permissions so sales, project managers, and admins see only what they need.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Your brand, your workspace</h3>
+      <p>Set company name, logo, and primary color — reflected across the app without touching code.</p>
+    </article>
+    <article class="feature-card">
+      <h3>Tenant isolation</h3>
+      <p>Each organization runs on its own subdomain with application-level and database-level data isolation.</p>
+    </article>
+  </div>
+</section>
+
+<section class="mkt-section mkt-section-alt">
+  <div class="mkt-section-head">
+    <h2>How it works</h2>
+    <p>From signup to first quote in minutes.</p>
+  </div>
+  <ol class="steps">
+    <li>
+      <span class="step-num">1</span>
+      <div>
+        <h3>Create your organization</h3>
+        <p>Choose a company name and subdomain. You become the first admin.</p>
+      </div>
+    </li>
+    <li>
+      <span class="step-num">2</span>
+      <div>
+        <h3>Invite your team</h3>
+        <p>Send invitations and assign roles — permissions take effect immediately.</p>
+      </div>
+    </li>
+    <li>
+      <span class="step-num">3</span>
+      <div>
+        <h3>Run the pipeline</h3>
+        <p>Add leads, convert customers, and generate estimates with your flooring rules.</p>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<section class="mkt-section">
+  <div class="credibility">
+    <h2>Designed for multi-company SaaS from day one</h2>
+    <p>
+      Every business record belongs to an organization. Isolation is enforced in the application layer and
+      reinforced with Postgres Row-Level Security — so one company’s data never leaks into another’s workspace.
+    </p>
+  </div>
+</section>
+
+<section class="mkt-section mkt-section-alt">
+  <div class="mkt-section-head">
+    <h2>Simple pricing</h2>
+    <p>Start with a free trial. Higher tiers are listed so you can plan ahead.</p>
+  </div>
+  <div class="pricing-teaser">
+    <div class="pricing-teaser-card">
+      <h3>Starter</h3>
+      <p class="price-line"><span class="price">Free</span> <span class="muted">30-day trial</span></p>
+      <p>Leads, customers, quotes, team invites, and branding.</p>
+      <a class="btn" href="/signup">Start free trial</a>
+    </div>
+    <p class="mkt-fineprint"><a href="/pricing">Compare all plans →</a></p>
+  </div>
+</section>
+
 <%- include('partials/footer') %>

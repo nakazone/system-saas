@@ -1,0 +1,27 @@
+<%- include('../partials/header') %>
+
+<section class="auth-card-wrap">
+  <div class="auth-card success-card">
+    <p class="mkt-eyebrow">You’re all set</p>
+    <h1><%= organizationName %> is ready</h1>
+    <p class="mkt-lead">Your workspace was created. Open it with the link below.</p>
+
+    <div class="workspace-link-box">
+      <label>Workspace URL</label>
+      <a class="workspace-link" href="<%= workspaceUrl %>"><%= workspaceUrl %></a>
+    </div>
+
+    <div class="mkt-cta-row">
+      <a class="btn" href="<%= loginUrl %>">Open workspace sign-in</a>
+      <a class="btn btn-secondary" href="/">Back to home</a>
+    </div>
+
+    <p class="mkt-fineprint">
+      If the subdomain link does not open yet (common on default Railway hostnames without a wildcard DNS domain),
+      bookmark this URL and use <a href="/find-workspace">Find your workspace</a> once your custom domain is configured.
+      Your organization slug (<strong><%= slug %></strong>) is already saved.
+    </p>
+  </div>
+</section>
+
+<%- include('../partials/footer') %>

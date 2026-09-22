@@ -1,35 +1,102 @@
 <%- include('../partials/header') %>
-<div class="page-header">
-  <h1>Create your organization</h1>
-</div>
-<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
-<div class="panel" style="max-width:560px">
-  <form method="post" action="/signup">
-    <label>Organization name</label>
-    <input name="organizationName" required value="<%= values.organizationName || '' %>" />
 
-    <label>Subdomain slug</label>
-    <input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value="<%= values.slug || '' %>" />
-    <p class="muted">Your app will be at <strong>{slug}.<%= appRootDomain %></strong></p>
+<section class="signup-layout">
+  <aside class="signup-aside">
+    <p class="mkt-eyebrow"><%= productName %></p>
+    <h1>Create your company workspace</h1>
+    <p class="mkt-lead">Get a dedicated subdomain, invite your team, and start quoting jobs today.</p>
+    <ul class="trust-list">
+      <li>30-day free trial — no card required</li>
+      <li>Your data stays isolated to your organization</li>
+      <li>Brand the workspace with your logo and colors</li>
+      <li>Invite staff with roles and permissions</li>
+    </ul>
+  </aside>
 
-    <label>Admin name</label>
-    <input name="adminName" required value="<%= values.adminName || '' %>" />
+  <div class="signup-form-panel auth-card">
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
-    <label>Admin email</label>
-    <input type="email" name="adminEmail" required value="<%= values.adminEmail || '' %>" />
+    <form method="post" action="/signup" class="auth-form" id="signupForm">
+      <fieldset>
+        <legend>Company</legend>
+        <label for="organizationName">Organization name</label>
+        <input id="organizationName" name="organizationName" required value="<%= values.organizationName || '' %>" />
 
-    <label>Password</label>
-    <input type="password" name="password" required minlength="8" />
+        <label for="slug">Subdomain slug</label>
+        <input
+          id="slug"
+          name="slug"
+          required
+          pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+          value="<%= values.slug || '' %>"
+          placeholder="acme-floors"
+        />
+        <p class="slug-live muted">
+          Workspace URL: <strong><span id="slugPreview">your-company</span>.<%= appRootDomain %></strong>
+        </p>
+      </fieldset>
 
-    <label>Contact email (optional)</label>
-    <input type="email" name="contactEmail" value="<%= values.contactEmail || '' %>" />
+      <fieldset>
+        <legend>Admin account</legend>
+        <label for="adminName">Your name</label>
+        <input id="adminName" name="adminName" required value="<%= values.adminName || '' %>" />
 
-    <label>Contact phone (optional)</label>
-    <input name="contactPhone" value="<%= values.contactPhone || '' %>" />
+        <label for="adminEmail">Work email</label>
+        <input id="adminEmail" type="email" name="adminEmail" required value="<%= values.adminEmail || '' %>" />
 
-    <div class="form-actions">
-      <button class="btn" type="submit">Create organization</button>
-    </div>
-  </form>
-</div>
+        <label for="password">Password</label>
+        <input id="password" type="password" name="password" required minlength="8" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Contact <span class="muted">(optional)</span></legend>
+        <label for="contactEmail">Public contact email</label>
+        <input id="contactEmail" type="email" name="contactEmail" value="<%= values.contactEmail || '' %>" />
+
+        <label for="contactPhone">Public contact phone</label>
+        <input id="contactPhone" name="contactPhone" value="<%= values.contactPhone || '' %>" />
+      </fieldset>
+
+      <button class="btn" type="submit">Create workspace</button>
+      <p class="auth-alt muted">Already have a workspace? <a href="/find-workspace">Sign in</a></p>
+    </form>
+  </div>
+</section>
+
+<script>
+  (function () {
+    const input = document.getElementById('slug');
+    const preview = document.getElementById('slugPreview');
+    const nameInput = document.getElementById('organizationName');
+    if (!input || !preview) return;
+
+    const toSlug = (value) =>
+      value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48);
+
+    const sync = () => {
+      const value = (input.value || 'your-company').toLowerCase().trim() || 'your-company';
+      preview.textContent = value;
+    };
+
+    input.addEventListener('input', sync);
+    if (nameInput) {
+      nameInput.addEventListener('input', () => {
+        if (!input.dataset.touched) {
+          input.value = toSlug(nameInput.value);
+          sync();
+        }
+      });
+      input.addEventListener('input', () => {
+        input.dataset.touched = '1';
+      });
+    }
+    sync();
+  })();
+</script>
+
 <%- include('../partials/footer') %>

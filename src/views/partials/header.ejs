@@ -1,14 +1,15 @@
-<% const accent = (typeof organization !== 'undefined' && organization && organization.primaryColor) ? organization.primaryColor : '#0f766e'; %>
+<% const displayProductName = (typeof productName !== 'undefined' && productName) ? productName : 'Flooring Platform'; %>
+<% const accent = (typeof organization !== 'undefined' && organization && organization.primaryColor) ? organization.primaryColor : '#2554c7'; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= typeof title !== 'undefined' ? title : 'App' %><% if (typeof organization !== 'undefined' && organization) { %> · <%= organization.name %><% } %></title>
+  <title><%= typeof title !== 'undefined' ? title : 'App' %><% if (typeof organization !== 'undefined' && organization) { %> · <%= organization.name %><% } else { %> · <%= displayProductName %><% } %></title>
   <link rel="stylesheet" href="/assets/css/app.css" />
   <style>:root { --brand: <%= accent %>; }</style>
 </head>
-<body>
+<body class="<%= typeof organization !== 'undefined' && organization ? 'app-shell' : 'marketing-shell' %>">
   <% if (typeof organization !== 'undefined' && organization) { %>
   <header class="app-header">
     <div class="brand">
@@ -31,5 +32,15 @@
     </nav>
     <% } %>
   </header>
-  <% } %>
   <main class="container">
+  <% } else { %>
+  <header class="marketing-header">
+    <a href="/" class="marketing-logo"><%= displayProductName %></a>
+    <nav class="marketing-nav">
+      <a href="/pricing">Pricing</a>
+      <a href="/find-workspace">Sign in</a>
+      <a class="btn btn-sm" href="/signup">Start free trial</a>
+    </nav>
+  </header>
+  <main class="marketing-main">
+  <% } %>
