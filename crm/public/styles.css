@@ -1307,12 +1307,12 @@ input.score-auto {
 }
 
 .login-header .logo-image {
-    height: 80px;
+    height: 64px;
     margin-bottom: 1.5rem;
     display: block;
     margin-left: auto;
     margin-right: auto;
-    max-width: 100%;
+    max-width: 280px;
     object-fit: contain;
     width: auto;
 }

@@ -136,8 +136,8 @@ body.dashboard-app-body {
 
 .sidebar-header .sidebar-brand-logo,
 .sidebar-header img.sidebar-brand-logo {
-  width: 104px;
-  height: 104px;
+  width: auto;
+  height: 44px;
   max-width: 100%;
   object-fit: contain;
 }

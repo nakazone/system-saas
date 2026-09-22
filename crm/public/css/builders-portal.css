@@ -71,7 +71,7 @@
   box-sizing: border-box;
 }
 .dashboard-sidebar .sidebar-header a { display: block; text-align: center; }
-.dashboard-sidebar .sidebar-header .sidebar-brand-logo { height: auto; max-width: 104px; width: 100%; }
+.dashboard-sidebar .sidebar-header .sidebar-brand-logo { height: 44px; max-width: 100%; width: auto; object-fit: contain; }
 #bpSidebarNotifWrap.bp-notif-wrap { position: relative; flex-shrink: 0; }
 .bp-sidebar-notif-btn {
   width: 40px;

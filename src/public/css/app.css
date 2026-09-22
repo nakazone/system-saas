@@ -173,7 +173,7 @@ textarea { min-height: 100px; resize: vertical; }
   display: block;
   height: 56px;
   width: auto;
-  max-width: 260px;
+  max-width: 280px;
   object-fit: contain;
 }
 
