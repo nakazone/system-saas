@@ -164,21 +164,16 @@ textarea { min-height: 100px; resize: vertical; }
 .marketing-logo {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  font-weight: 800;
-  font-size: 1.15rem;
-  color: var(--brand-ink, var(--text));
-  letter-spacing: -0.02em;
   text-decoration: none;
+  line-height: 0;
 }
 .marketing-logo__img {
-  width: 36px;
-  height: 36px;
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: 180px;
   object-fit: contain;
-  border-radius: 8px;
 }
-.marketing-logo__obra { color: var(--brand-ink, #211d1a); }
-.marketing-logo__mate { color: var(--brand, #e8792c); }
 
 .marketing-nav {
   display: flex;
