@@ -1,0 +1,16 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Accept invitation</h1>
+</div>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<div class="panel" style="max-width:480px">
+  <p>You were invited to join <strong><%= organization.name %></strong> as <code><%= invitation.email %></code>.</p>
+  <form method="post" action="/invitations/<%= invitation.token %>">
+    <label>Your name</label>
+    <input name="name" required />
+    <label>Choose a password</label>
+    <input type="password" name="password" required minlength="8" />
+    <button class="btn" type="submit">Create account</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

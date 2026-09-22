@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: flooring_saas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      APP_ROOT_DOMAIN: localhost
+      APP_BASE_URL: http://localhost:3000
+      SESSION_SECRET: test-session-secret-min-16-chars
+      JWT_SECRET: test-jwt-secret-min-16-chars
+      JWT_EXPIRES_IN: 7d
+      EMAIL_PROVIDER: console
+      EMAIL_FROM: test@localhost
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Apply migrations (superuser)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/flooring_saas_test?schema=public
+        run: npx prisma migrate deploy
+      - name: Grant database access to app_user
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d flooring_saas_test -c "GRANT CONNECT ON DATABASE flooring_saas_test TO app_user;"
+          psql -h localhost -U postgres -d flooring_saas_test -c "GRANT USAGE, CREATE ON SCHEMA public TO app_user;"
+          psql -h localhost -U postgres -d flooring_saas_test -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;"
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        env:
+          DATABASE_URL: postgresql://app_user:app_user@localhost:5432/flooring_saas_test?schema=public
+        run: npm test

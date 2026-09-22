@@ -1,0 +1,21 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= customer ? 'Edit customer' : 'New customer' %></h1>
+</div>
+<div class="panel" style="max-width:560px">
+  <form method="post" action="<%= customer ? '/customers/' + customer.id : '/customers' %>">
+    <label>Name</label>
+    <input name="name" required value="<%= customer ? customer.name : '' %>" />
+    <label>Email</label>
+    <input type="email" name="email" value="<%= customer && customer.email ? customer.email : '' %>" />
+    <label>Phone</label>
+    <input name="phone" value="<%= customer && customer.phone ? customer.phone : '' %>" />
+    <label>Address</label>
+    <input name="address" value="<%= customer && customer.address ? customer.address : '' %>" />
+    <div class="form-actions">
+      <button class="btn" type="submit">Save</button>
+      <a class="btn btn-secondary" href="/customers">Cancel</a>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

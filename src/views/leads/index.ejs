@@ -1,0 +1,38 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Leads</h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/pipeline">Pipeline stages</a>
+    <a class="btn" href="/leads/new">New lead</a>
+  </div>
+</div>
+<div class="panel">
+  <% if (!leads.length) { %>
+    <p class="muted">No leads yet. <a href="/leads/new">Create the first one</a>.</p>
+  <% } else { %>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Stage</th><th>Source</th><th>Owner</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% leads.forEach(lead => { %>
+        <tr>
+          <td><a href="/leads/<%= lead.id %>/edit"><%= lead.name %></a></td>
+          <td><%= lead.pipelineStage ? lead.pipelineStage.name : '—' %></td>
+          <td><%= lead.source || '—' %></td>
+          <td><%= lead.owner ? lead.owner.name : '—' %></td>
+          <td><%= lead.status %></td>
+          <td>
+            <% if (lead.status !== 'converted') { %>
+            <form method="post" action="/leads/<%= lead.id %>/convert" class="inline">
+              <button class="linkish" type="submit">Convert</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

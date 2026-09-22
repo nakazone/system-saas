@@ -1,0 +1,31 @@
+<%- include('../partials/header') %>
+<div class="page-header"><h1>Platform admin</h1></div>
+<div class="panel">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Slug</th><th>Status</th><th>Plan</th><th>Users</th><th>Created</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% organizations.forEach(org => { %>
+        <tr>
+          <td><%= org.name %></td>
+          <td><code><%= org.slug %></code></td>
+          <td><%= org.status %></td>
+          <td><%= org.plan %></td>
+          <td><%= org._count.users %></td>
+          <td><%= org.createdAt.toISOString().slice(0,10) %></td>
+          <td>
+            <form method="post" action="/organizations/<%= org.id %>/status" class="inline">
+              <select name="status" onchange="this.form.submit()">
+                <% ['trial','active','past_due','canceled'].forEach(s => { %>
+                  <option value="<%= s %>" <%= org.status === s ? 'selected' : '' %>><%= s %></option>
+                <% }) %>
+              </select>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

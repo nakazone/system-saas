@@ -1,0 +1,27 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Quotes</h1>
+  <a class="btn" href="/quotes/new">New quote</a>
+</div>
+<div class="panel">
+  <% if (!quotes.length) { %>
+    <p class="muted">No quotes yet.</p>
+  <% } else { %>
+  <table>
+    <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      <% quotes.forEach(q => { %>
+        <tr>
+          <td><a href="/quotes/<%= q.id %>"><%= q.number %></a></td>
+          <td><%= q.title %></td>
+          <td><%= q.flooringType %></td>
+          <td><%= q.customer ? q.customer.name : '—' %></td>
+          <td>$<%= Number(q.total).toFixed(2) %></td>
+          <td><%= q.status %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,35 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Create your organization</h1>
+</div>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<div class="panel" style="max-width:560px">
+  <form method="post" action="/signup">
+    <label>Organization name</label>
+    <input name="organizationName" required value="<%= values.organizationName || '' %>" />
+
+    <label>Subdomain slug</label>
+    <input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value="<%= values.slug || '' %>" />
+    <p class="muted">Your app will be at <strong>{slug}.<%= appRootDomain %></strong></p>
+
+    <label>Admin name</label>
+    <input name="adminName" required value="<%= values.adminName || '' %>" />
+
+    <label>Admin email</label>
+    <input type="email" name="adminEmail" required value="<%= values.adminEmail || '' %>" />
+
+    <label>Password</label>
+    <input type="password" name="password" required minlength="8" />
+
+    <label>Contact email (optional)</label>
+    <input type="email" name="contactEmail" value="<%= values.contactEmail || '' %>" />
+
+    <label>Contact phone (optional)</label>
+    <input name="contactPhone" value="<%= values.contactPhone || '' %>" />
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Create organization</button>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

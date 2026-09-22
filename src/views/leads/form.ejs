@@ -1,0 +1,40 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= lead ? 'Edit lead' : 'New lead' %></h1>
+</div>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<div class="panel" style="max-width:560px">
+  <form method="post" action="<%= lead ? '/leads/' + lead.id : '/leads' %>">
+    <label>Name</label>
+    <input name="name" required value="<%= lead ? lead.name : '' %>" />
+    <label>Email</label>
+    <input type="email" name="email" value="<%= lead && lead.email ? lead.email : '' %>" />
+    <label>Phone</label>
+    <input name="phone" value="<%= lead && lead.phone ? lead.phone : '' %>" />
+    <label>Source</label>
+    <input name="source" value="<%= lead && lead.source ? lead.source : '' %>" />
+    <% if (lead) { %>
+    <label>Status</label>
+    <input name="status" value="<%= lead.status %>" />
+    <% } %>
+    <label>Pipeline stage</label>
+    <select name="pipelineStageId">
+      <option value="">—</option>
+      <% stages.forEach(s => { %>
+        <option value="<%= s.id %>" <%= lead && lead.pipelineStageId === s.id ? 'selected' : '' %>><%= s.name %></option>
+      <% }) %>
+    </select>
+    <label>Notes</label>
+    <textarea name="notes"><%= lead && lead.notes ? lead.notes : '' %></textarea>
+    <div class="form-actions">
+      <button class="btn" type="submit">Save</button>
+      <a class="btn btn-secondary" href="/leads">Cancel</a>
+    </div>
+  </form>
+  <% if (lead) { %>
+  <form method="post" action="/leads/<%= lead.id %>/delete" style="margin-top:1rem" onsubmit="return confirm('Delete this lead?')">
+    <button class="btn btn-danger" type="submit">Delete</button>
+  </form>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

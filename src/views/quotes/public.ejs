@@ -1,0 +1,30 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= quote.title %></h1>
+</div>
+<div class="panel">
+  <p class="muted">Prepared by <%= organization.name %></p>
+  <% if (organization.contactEmail || organization.contactPhone) { %>
+    <p class="muted">
+      <%= organization.contactEmail || '' %>
+      <%= organization.contactEmail && organization.contactPhone ? ' · ' : '' %>
+      <%= organization.contactPhone || '' %>
+    </p>
+  <% } %>
+  <p><strong>Flooring:</strong> <%= quote.flooringType %> · <%= Number(quote.areaSqft).toFixed(2) %> sqft</p>
+</div>
+<div class="panel">
+  <table>
+    <thead><tr><th>Description</th><th>Amount</th></tr></thead>
+    <tbody>
+      <% quote.lineItems.forEach(li => { %>
+        <tr>
+          <td><%= li.description %></td>
+          <td>$<%= Number(li.amount).toFixed(2) %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <p style="text-align:right;font-size:1.3rem;font-weight:700">Total: $<%= Number(quote.total).toFixed(2) %></p>
+</div>
+<%- include('../partials/footer') %>

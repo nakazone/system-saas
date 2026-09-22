@@ -1,0 +1,35 @@
+<% const accent = (typeof organization !== 'undefined' && organization && organization.primaryColor) ? organization.primaryColor : '#0f766e'; %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= typeof title !== 'undefined' ? title : 'App' %><% if (typeof organization !== 'undefined' && organization) { %> · <%= organization.name %><% } %></title>
+  <link rel="stylesheet" href="/assets/css/app.css" />
+  <style>:root { --brand: <%= accent %>; }</style>
+</head>
+<body>
+  <% if (typeof organization !== 'undefined' && organization) { %>
+  <header class="app-header">
+    <div class="brand">
+      <% if (organization.logoUrl) { %>
+        <img src="<%= organization.logoUrl %>" alt="" class="brand-logo" />
+      <% } %>
+      <a href="/" class="brand-name"><%= organization.name %></a>
+    </div>
+    <% if (typeof user !== 'undefined' && user) { %>
+    <nav class="app-nav">
+      <a href="/">Dashboard</a>
+      <a href="/leads">Leads</a>
+      <a href="/customers">Customers</a>
+      <a href="/quotes">Quotes</a>
+      <a href="/users">Users</a>
+      <a href="/settings">Settings</a>
+      <form action="/logout" method="post" class="inline">
+        <button type="submit" class="linkish">Sign out (<%= user.name %>)</button>
+      </form>
+    </nav>
+    <% } %>
+  </header>
+  <% } %>
+  <main class="container">

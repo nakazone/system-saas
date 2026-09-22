@@ -1,0 +1,51 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Dashboard</h1>
+</div>
+
+<div class="grid grid-3">
+  <div class="stat"><div class="label">Leads</div><div class="value"><%= stats.leadCount %></div></div>
+  <div class="stat"><div class="label">Customers</div><div class="value"><%= stats.customerCount %></div></div>
+  <div class="stat"><div class="label">Quotes</div><div class="value"><%= stats.quoteCount %></div></div>
+</div>
+
+<div class="panel" style="margin-top:1rem">
+  <h2>Leads by stage</h2>
+  <table>
+    <thead><tr><th>Stage</th><th>Count</th></tr></thead>
+    <tbody>
+      <% stats.stages.forEach(stage => { %>
+        <tr>
+          <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<%= stage.color || '#94a3b8' %>;margin-right:6px"></span><%= stage.name %></td>
+          <td><%= stage._count.leads %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <div class="page-header">
+    <h2>Recent quotes</h2>
+    <a class="btn btn-secondary" href="/quotes/new">New quote</a>
+  </div>
+  <% if (!stats.recentQuotes.length) { %>
+    <p class="muted">No quotes yet.</p>
+  <% } else { %>
+  <table>
+    <thead><tr><th>#</th><th>Title</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      <% stats.recentQuotes.forEach(q => { %>
+        <tr>
+          <td><a href="/quotes/<%= q.id %>"><%= q.number %></a></td>
+          <td><%= q.title %></td>
+          <td><%= q.customer ? q.customer.name : '—' %></td>
+          <td>$<%= Number(q.total).toFixed(2) %></td>
+          <td><%= q.status %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

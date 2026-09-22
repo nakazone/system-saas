@@ -1,0 +1,34 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= customer.name %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/customers/<%= customer.id %>/edit">Edit</a>
+    <a class="btn" href="/quotes/new?customerId=<%= customer.id %>">New quote</a>
+  </div>
+</div>
+<div class="panel">
+  <p><strong>Email:</strong> <%= customer.email || '—' %></p>
+  <p><strong>Phone:</strong> <%= customer.phone || '—' %></p>
+  <p><strong>Address:</strong> <%= customer.address || '—' %></p>
+</div>
+<div class="panel">
+  <h2>Quotes</h2>
+  <% if (!customer.quotes.length) { %>
+    <p class="muted">No quotes for this customer.</p>
+  <% } else { %>
+  <table>
+    <thead><tr><th>#</th><th>Title</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      <% customer.quotes.forEach(q => { %>
+        <tr>
+          <td><a href="/quotes/<%= q.id %>"><%= q.number %></a></td>
+          <td><%= q.title %></td>
+          <td>$<%= Number(q.total).toFixed(2) %></td>
+          <td><%= q.status %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

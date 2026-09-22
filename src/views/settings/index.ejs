@@ -1,0 +1,101 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Settings</h1>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel" style="max-width:640px">
+  <h2>Organization branding</h2>
+  <form method="post" action="/settings/organization" id="orgForm">
+    <label>Name</label>
+    <input name="name" required value="<%= organization.name %>" />
+    <label>Primary color</label>
+    <input name="primaryColor" placeholder="#0f766e" value="<%= organization.primaryColor || '' %>" />
+    <label>Contact email</label>
+    <input type="email" name="contactEmail" value="<%= organization.contactEmail || '' %>" />
+    <label>Contact phone</label>
+    <input name="contactPhone" value="<%= organization.contactPhone || '' %>" />
+    <label>Logo</label>
+    <input type="file" id="logoFile" accept="image/*" />
+    <input type="hidden" name="logoDataUrl" id="logoDataUrl" />
+    <% if (organization.logoUrl) { %>
+      <p><img src="<%= organization.logoUrl %>" alt="" style="max-height:48px" /></p>
+    <% } %>
+    <button class="btn" type="submit">Save branding</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Estimate rules (waste &amp; markup)</h2>
+  <form method="post" action="/settings/estimate-rules">
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th><th>Waste %</th><th>Mat. markup %</th><th>Labor markup %</th>
+          <th>$/sqft mat.</th><th>$/sqft labor</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% estimateRules.forEach(r => { %>
+          <tr>
+            <td><%= r.flooringType %><input type="hidden" name="id" value="<%= r.id %>" /></td>
+            <td><input name="wastePercent" type="number" step="0.01" value="<%= Number(r.wastePercent) %>" /></td>
+            <td><input name="materialMarkup" type="number" step="0.01" value="<%= Number(r.materialMarkup) %>" /></td>
+            <td><input name="laborMarkup" type="number" step="0.01" value="<%= Number(r.laborMarkup) %>" /></td>
+            <td><input name="defaultPricePerSqft" type="number" step="0.01" value="<%= Number(r.defaultPricePerSqft || 0) %>" /></td>
+            <td><input name="defaultLaborPerSqft" type="number" step="0.01" value="<%= Number(r.defaultLaborPerSqft || 0) %>" /></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <button class="btn" type="submit">Save rules</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Roles</h2>
+  <table>
+    <thead><tr><th>Key</th><th>Name</th><th>System</th><th>Permissions</th></tr></thead>
+    <tbody>
+      <% roles.forEach(r => { %>
+        <tr>
+          <td><code><%= r.key %></code></td>
+          <td><%= r.name %></td>
+          <td><%= r.isSystem ? 'yes' : 'no' %></td>
+          <td class="muted"><%= r.permissions.map(p => p.permission.key).join(', ') %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <h3>Create custom role</h3>
+  <form method="post" action="/settings/roles">
+    <label>Key</label>
+    <input name="key" required pattern="[a-z][a-z0-9_]*" placeholder="estimator" />
+    <label>Name</label>
+    <input name="name" required placeholder="Estimator" />
+    <label>Permissions</label>
+    <div class="stack">
+      <% permissions.forEach(p => { %>
+        <label style="font-weight:500">
+          <input type="checkbox" name="permissionKeys" value="<%= p.key %>" style="width:auto;margin-right:6px" />
+          <%= p.key %> <span class="muted">(<%= p.group %>)</span>
+        </label>
+      <% }) %>
+    </div>
+    <button class="btn" type="submit">Create role</button>
+  </form>
+</div>
+
+<script>
+  document.getElementById('logoFile')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.getElementById('logoDataUrl').value = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+</script>
+<%- include('../partials/footer') %>

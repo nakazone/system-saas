@@ -1,0 +1,17 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Sign in</h1>
+</div>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<div class="panel" style="max-width:420px">
+  <form method="post" action="/login">
+    <label>Email</label>
+    <input type="email" name="email" required autofocus />
+    <label>Password</label>
+    <input type="password" name="password" required />
+    <div class="form-actions">
+      <button class="btn" type="submit">Sign in</button>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,66 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>New quote</h1>
+</div>
+<div class="panel" style="max-width:640px">
+  <form method="post" action="/quotes">
+    <label>Title</label>
+    <input name="title" required placeholder="Kitchen LVP install" />
+
+    <label>Customer</label>
+    <select name="customerId">
+      <option value="">—</option>
+      <% customers.forEach(c => { %>
+        <option value="<%= c.id %>" <%= preselectedCustomerId === c.id ? 'selected' : '' %>><%= c.name %></option>
+      <% }) %>
+    </select>
+
+    <label>Flooring type</label>
+    <select name="flooringType" id="flooringType" required>
+      <% rules.forEach(r => { %>
+        <option
+          value="<%= r.flooringType %>"
+          data-waste="<%= r.wastePercent %>"
+          data-price="<%= r.defaultPricePerSqft %>"
+          data-labor="<%= r.defaultLaborPerSqft %>"
+          data-mm="<%= r.materialMarkup %>"
+          data-lm="<%= r.laborMarkup %>"
+        ><%= r.flooringType %></option>
+      <% }) %>
+    </select>
+    <p class="muted" id="ruleHint"></p>
+
+    <label>Area (sqft)</label>
+    <input type="number" step="0.01" min="0.01" name="areaSqft" required />
+
+    <label>Material price / sqft (optional override)</label>
+    <input type="number" step="0.01" min="0" name="pricePerSqft" id="pricePerSqft" />
+
+    <label>Labor price / sqft (optional override)</label>
+    <input type="number" step="0.01" min="0" name="laborPerSqft" id="laborPerSqft" />
+
+    <label>Notes</label>
+    <textarea name="notes"></textarea>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Calculate &amp; save</button>
+      <a class="btn btn-secondary" href="/quotes">Cancel</a>
+    </div>
+  </form>
+</div>
+<script>
+  const select = document.getElementById('flooringType');
+  const hint = document.getElementById('ruleHint');
+  const price = document.getElementById('pricePerSqft');
+  const labor = document.getElementById('laborPerSqft');
+  function sync() {
+    const opt = select.selectedOptions[0];
+    if (!opt) return;
+    hint.textContent = `Defaults: waste ${opt.dataset.waste}%, material markup ${opt.dataset.mm}%, labor markup ${opt.dataset.lm}%`;
+    if (!price.value) price.placeholder = opt.dataset.price;
+    if (!labor.value) labor.placeholder = opt.dataset.labor;
+  }
+  select.addEventListener('change', sync);
+  sync();
+</script>
+<%- include('../partials/footer') %>

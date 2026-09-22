@@ -1,0 +1,30 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Pipeline stages</h1>
+</div>
+<div class="panel">
+  <table>
+    <thead><tr><th>Order</th><th>Name</th><th>Color</th><th>Active</th></tr></thead>
+    <tbody>
+      <% stages.forEach(s => { %>
+        <tr>
+          <td><%= s.order %></td>
+          <td><%= s.name %></td>
+          <td><%= s.color || '—' %></td>
+          <td><%= s.isActive ? 'yes' : 'no' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<div class="panel" style="max-width:420px">
+  <h2>Add stage</h2>
+  <form method="post" action="/pipeline">
+    <label>Name</label>
+    <input name="name" required />
+    <label>Color</label>
+    <input name="color" placeholder="#2563eb" />
+    <button class="btn" type="submit">Add</button>
+  </form>
+</div>
+<%- include('../partials/footer') %>

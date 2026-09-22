@@ -1,0 +1,25 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Customers</h1>
+  <a class="btn" href="/customers/new">New customer</a>
+</div>
+<div class="panel">
+  <% if (!customers.length) { %>
+    <p class="muted">No customers yet.</p>
+  <% } else { %>
+  <table>
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th></th></tr></thead>
+    <tbody>
+      <% customers.forEach(c => { %>
+        <tr>
+          <td><a href="/customers/<%= c.id %>"><%= c.name %></a></td>
+          <td><%= c.email || '—' %></td>
+          <td><%= c.phone || '—' %></td>
+          <td><a href="/customers/<%= c.id %>/edit">Edit</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

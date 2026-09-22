@@ -1,0 +1,73 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Users</h1>
+</div>
+<div class="panel">
+  <table>
+    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+      <% users.forEach(u => { %>
+        <tr>
+          <td><%= u.name %></td>
+          <td><%= u.email %></td>
+          <td>
+            <form method="post" action="/users/<%= u.id %>/role" class="inline">
+              <select name="roleId" onchange="this.form.submit()">
+                <% roles.forEach(r => { %>
+                  <option value="<%= r.id %>" <%= u.roleId === r.id ? 'selected' : '' %>><%= r.name %></option>
+                <% }) %>
+              </select>
+            </form>
+          </td>
+          <td><%= u.status %></td>
+          <td>
+            <% if (u.id !== user.id) { %>
+            <form method="post" action="/users/<%= u.id %>/status" class="inline">
+              <select name="status" onchange="this.form.submit()">
+                <% ['active','suspended','disabled'].forEach(s => { %>
+                  <option value="<%= s %>" <%= u.status === s ? 'selected' : '' %>><%= s %></option>
+                <% }) %>
+              </select>
+            </form>
+            <% } else { %>
+              <span class="muted">you</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<div class="panel" style="max-width:480px">
+  <h2>Invite user</h2>
+  <form method="post" action="/users/invite">
+    <label>Email</label>
+    <input type="email" name="email" required />
+    <label>Role</label>
+    <select name="roleId" required>
+      <% roles.forEach(r => { %>
+        <option value="<%= r.id %>"><%= r.name %></option>
+      <% }) %>
+    </select>
+    <button class="btn" type="submit">Send invitation</button>
+  </form>
+</div>
+
+<% if (invitations.length) { %>
+<div class="panel">
+  <h2>Pending invitations</h2>
+  <table>
+    <thead><tr><th>Email</th><th>Expires</th></tr></thead>
+    <tbody>
+      <% invitations.forEach(inv => { %>
+        <tr>
+          <td><%= inv.email %></td>
+          <td><%= inv.expiresAt.toISOString().slice(0,10) %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+<%- include('../partials/footer') %>
