@@ -4,12 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#211d1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ObraMate" />
   <title>Ajustes — Branding</title>
+  <link rel="manifest" href="/manifest.json" />
   <link rel="icon" type="image/png" href="/assets/obramate-logo.png" />
+  <link rel="apple-touch-icon" href="/assets/obramate-logo.png" />
   <link rel="stylesheet" href="styles.css?v=20260922-branding" />
   <link rel="stylesheet" href="design-system.css?v=20260922-branding" />
   <link rel="stylesheet" href="mobile-design-system.css?v=20260922-branding" />
   <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -166,6 +172,16 @@
           </div>
           <p class="brand-hint" id="brandStatus" role="status"></p>
 
+          <section class="brand-card" id="instalar-app" style="margin-top: 28px;">
+            <h2>Instalar no dispositivo</h2>
+            <p class="brand-hint" style="margin-top:0;margin-bottom:14px;">
+              Baixe o ObraMate como aplicativo na tela inicial do celular, tablet ou computador — sem App Store ou Google Play.
+            </p>
+            <div class="brand-actions">
+              <button type="button" class="btn btn-primary" data-crm-pwa-install>Instalar app</button>
+            </div>
+          </section>
+
           <section class="brand-card" id="suporte" style="margin-top: 28px;">
             <h2>Falar com o suporte</h2>
             <p class="brand-hint" style="margin-top:0;margin-bottom:14px;">
@@ -205,6 +221,7 @@
   </div>
 
   <script src="crm-toast.js"></script>
+  <script src="crm-pwa-install.js?v=20260923-pwa"></script>
   <script src="ajustes.js?v=20260923-support"></script>
 </body>
 </html>

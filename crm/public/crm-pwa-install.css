@@ -1,0 +1,193 @@
+/* Modal + botões Instalar app (PWA) */
+
+.crm-topbar__install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border, #e2d9cc);
+  background: var(--color-surface-secondary, #f7f4ee);
+  color: var(--color-text-primary, #211d1a);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.crm-topbar__install-btn:hover,
+.crm-topbar__install-btn:focus-visible {
+  background: #fff;
+  border-color: var(--color-accent, #e8792c);
+  outline: none;
+}
+
+.crm-topbar__install-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  flex-shrink: 0;
+}
+
+.mobile-app-header__install {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: 0;
+  border: none;
+  border-radius: 10px;
+  background: rgba(33, 29, 26, 0.06);
+  color: var(--color-text-primary, #211d1a);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-app-header__install[hidden] {
+  display: none !important;
+}
+
+.crm-topbar__install-btn[hidden],
+[data-crm-pwa-install][hidden] {
+  display: none !important;
+}
+
+.crm-pwa-install {
+  position: fixed;
+  inset: 0;
+  z-index: 12050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+
+.crm-pwa-install--open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.crm-pwa-install__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(33, 29, 26, 0.45);
+}
+
+.crm-pwa-install__panel {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: min(90vh, 640px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem 1.35rem 1.25rem;
+  box-shadow: 0 20px 50px rgba(33, 29, 26, 0.22);
+  border: 1px solid var(--color-border, #e2d9cc);
+}
+
+.crm-pwa-install__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-text-muted, #8a8074);
+  cursor: pointer;
+}
+
+.crm-pwa-install__close:hover {
+  background: var(--color-surface-secondary, #f7f4ee);
+  color: var(--color-text-primary, #211d1a);
+}
+
+.crm-pwa-install__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(232, 121, 44, 0.12);
+  color: var(--color-accent, #e8792c);
+  margin-bottom: 0.85rem;
+}
+
+.crm-pwa-install__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+  color: var(--color-text-primary, #211d1a);
+}
+
+.crm-pwa-install__lead {
+  margin: 0 0 1rem;
+  color: var(--color-text-secondary, #6b645c);
+  font-size: 0.925rem;
+  line-height: 1.45;
+}
+
+.crm-pwa-install__steps {
+  margin: 0 0 0.75rem;
+  padding-left: 1.2rem;
+  color: var(--color-text-primary, #211d1a);
+  font-size: 0.925rem;
+  line-height: 1.55;
+}
+
+.crm-pwa-install__steps li {
+  margin-bottom: 0.45rem;
+}
+
+.crm-pwa-install__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #8a8074);
+}
+
+.crm-pwa-install__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.15rem;
+}
+
+.crm-pwa-install__actions .btn {
+  min-width: 120px;
+}
+
+@media (max-width: 1024px) {
+  .crm-topbar__install-btn {
+    display: none !important;
+  }
+
+  .mobile-app-header__install:not([hidden]) {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+  }
+
+  .dashboard-app-body.sf-mobile-shell .mobile-app-header__install:not([hidden]) {
+    background: rgba(33, 29, 26, 0.06);
+    color: var(--sf-text-primary, #211d1a);
+  }
+
+  .mobile-app-header .notification-bell-wrap--mobile {
+    margin-left: 0;
+  }
+}

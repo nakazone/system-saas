@@ -14,6 +14,7 @@
     { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'payroll-module.html', perm: 'payroll.view' },
     { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores', href: 'ajustes.html', perm: 'settings.manage' },
     { id: 'support', label: 'Falar com suporte', sub: 'Dúvidas e sugestões', href: 'ajustes.html#suporte', perm: null },
+    { id: 'install', label: 'Instalar app', sub: 'Baixar no dispositivo', href: '#pwa-install', perm: null },
     { id: 'users', label: 'Users', sub: '', href: 'dashboard.html?page=users', perm: 'users.view' },
   ];
 
@@ -77,8 +78,12 @@
     list.querySelectorAll('.crm-cmd-palette__item').forEach((btn) => {
       btn.addEventListener('click', () => {
         const h = btn.getAttribute('data-href');
-        if (h) window.location.href = h;
         close();
+        if (h === '#pwa-install') {
+          if (typeof window.openCrmPwaInstall === 'function') window.openCrmPwaInstall();
+          return;
+        }
+        if (h) window.location.href = h;
       });
     });
   }

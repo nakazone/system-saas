@@ -1,13 +1,15 @@
 /**
  * Senior Floors — service worker mínimo (assets estáticos).
  */
-const CACHE = 'sf-static-v30';
+const CACHE = 'sf-static-v31';
 const PRECACHE = [
   '/dashboard.html',
   '/styles.css',
   '/design-system.css',
   '/mobile-design-system.css',
   '/manifest.json',
+  '/crm-shell.css',
+  '/crm-pwa-install.css',
 ];
 
 self.addEventListener('install', (event) => {
