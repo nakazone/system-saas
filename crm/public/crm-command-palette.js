@@ -13,6 +13,7 @@
     { id: 'pricing', label: 'Tabela de Valores', sub: '', href: 'builder-pricing-admin.html', perm: 'builders.view' },
     { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'payroll-module.html', perm: 'payroll.view' },
     { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores', href: 'ajustes.html', perm: 'settings.manage' },
+    { id: 'support', label: 'Falar com suporte', sub: 'Dúvidas e sugestões', href: 'ajustes.html#suporte', perm: null },
     { id: 'users', label: 'Users', sub: '', href: 'dashboard.html?page=users', perm: 'users.view' },
   ];
 

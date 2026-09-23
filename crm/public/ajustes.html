@@ -56,6 +56,34 @@
     .brand-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
     .brand-actions .btn { min-width: 120px; }
     .brand-hint { font-size: 0.8rem; color: var(--sf-muted, #8a8074); margin-top: 6px; }
+    .brand-field textarea,
+    .brand-field select {
+      width: 100%;
+      max-width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--sf-border, #d4c4ae);
+      font: inherit;
+      resize: vertical;
+    }
+    .support-history { margin-top: 16px; }
+    .support-history__item {
+      border-top: 1px solid var(--sf-border, #d4c4ae);
+      padding: 12px 0;
+    }
+    .support-history__meta {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      font-size: 0.8rem; color: var(--sf-muted, #8a8074); margin-bottom: 4px;
+    }
+    .support-history__badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      background: #f0ebe3; color: var(--sf-navy, #211d1a);
+    }
+    .support-history__badge--open { background: #e8f5e9; color: #1b5e20; }
+    .support-history__badge--closed { background: #eceff1; color: #455a64; }
+    .support-history__subject { font-weight: 600; color: var(--sf-navy, #211d1a); margin: 0 0 4px; }
+    .support-history__body { margin: 0; font-size: 0.9rem; white-space: pre-wrap; color: #444; }
   </style>
 </head>
 <body class="dashboard-app-body">
@@ -137,12 +165,46 @@
             <a class="btn btn-secondary" href="dashboard.html">Voltar</a>
           </div>
           <p class="brand-hint" id="brandStatus" role="status"></p>
+
+          <section class="brand-card" id="suporte" style="margin-top: 28px;">
+            <h2>Falar com o suporte</h2>
+            <p class="brand-hint" style="margin-top:0;margin-bottom:14px;">
+              Envie dúvidas, sugestões ou problemas diretamente para a equipe ObraMate. Respondemos pelo e-mail da sua conta.
+            </p>
+            <form id="supportForm" autocomplete="off">
+              <div class="brand-field">
+                <label for="supportCategory">Tipo</label>
+                <select id="supportCategory" name="category">
+                  <option value="question">Dúvida</option>
+                  <option value="suggestion">Sugestão</option>
+                  <option value="bug">Problema / bug</option>
+                  <option value="other">Outro</option>
+                </select>
+              </div>
+              <div class="brand-field">
+                <label for="supportSubject">Assunto</label>
+                <input type="text" id="supportSubject" name="subject" required maxlength="160" placeholder="Ex.: Como exportar orçamentos?" />
+              </div>
+              <div class="brand-field">
+                <label for="supportBody">Mensagem</label>
+                <textarea id="supportBody" name="body" rows="5" required maxlength="8000" placeholder="Descreva com o máximo de detalhe possível…"></textarea>
+              </div>
+              <div class="brand-actions">
+                <button type="submit" class="btn btn-primary" id="btnSendSupport">Enviar mensagem</button>
+              </div>
+              <p class="brand-hint" id="supportStatus" role="status"></p>
+            </form>
+            <div class="support-history" id="supportHistory" hidden>
+              <h2 style="margin-top:8px;">Suas mensagens recentes</h2>
+              <div id="supportHistoryList"></div>
+            </div>
+          </section>
         </div>
       </div>
     </main>
   </div>
 
   <script src="crm-toast.js"></script>
-  <script src="ajustes.js?v=20260922-branding"></script>
+  <script src="ajustes.js?v=20260923-support"></script>
 </body>
 </html>

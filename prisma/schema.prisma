@@ -97,6 +97,7 @@ model Organization {
   communicationLogs  CommunicationLog[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
+  supportTickets     SupportTicket[]
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +128,7 @@ model User {
   projectEvents ProjectEvent[] @relation("ProjectEventActor")
   laborRates LaborRate[]
   laborEntries LaborEntry[]
+  supportTickets SupportTicket[] @relation("SupportTicketAuthor")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -1272,4 +1274,29 @@ model CommunicationLog {
   @@index([organizationId, createdAt])
   @@index([customerId])
   @@index([scheduledMessageId])
+}
+
+// ---------------------------------------------------------------------------
+// Support (tenant → platform)
+// ---------------------------------------------------------------------------
+
+model SupportTicket {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdByUserId  String?  @db.Uuid
+  createdByUser    User?    @relation("SupportTicketAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  /// question | suggestion | bug | other
+  category         String   @default("question")
+  subject          String
+  body             String   @db.Text
+  /// open | closed
+  status           String   @default("open")
+  adminNote        String?  @db.Text
+  closedAt         DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
 }

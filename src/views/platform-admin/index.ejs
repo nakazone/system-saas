@@ -1,5 +1,11 @@
 <%- include('../partials/header') %>
-<div class="page-header"><h1>Platform admin</h1></div>
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
+  <h1>Platform admin</h1>
+  <nav style="display:flex;gap:0.75rem;flex-wrap:wrap">
+    <a href="/" class="btn btn-secondary">Organizações</a>
+    <a href="/support" class="btn">Suporte<% if (typeof openCount === 'number' && openCount > 0) { %> (<%= openCount %>)<% } %></a>
+  </nav>
+</div>
 <div class="panel">
   <table>
     <thead>

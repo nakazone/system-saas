@@ -104,7 +104,7 @@
       const j = await r.json();
       if (!j.authenticated) {
         location.href = "/login.html";
-        return;
+        return null;
       }
       const nameEl = $("sidebarUserName");
       const roleEl = $("sidebarUserRole");
@@ -112,14 +112,28 @@
       if (roleEl) roleEl.textContent = j.user?.role || "";
       const perms = j.user?.permissions || [];
       const isAdmin = j.user?.role === "admin";
-      if (!isAdmin && !perms.includes("settings.manage")) {
-        notify("Sem permissão para gerenciar ajustes.", "error");
-        setTimeout(() => {
-          location.href = "/dashboard.html";
-        }, 1200);
+      const canBrand = isAdmin || perms.includes("settings.manage");
+      if (!canBrand) {
+        document
+          .querySelectorAll(".brand-ajustes > .brand-card, .brand-ajustes > form.brand-card, .brand-ajustes > .brand-actions")
+          .forEach((el) => {
+            if (el.id === "suporte") return;
+            el.style.display = "none";
+          });
+        const lead = document.querySelector(".brand-ajustes > .lead");
+        const h1 = document.querySelector(".brand-ajustes > h1");
+        if (h1) h1.textContent = "Suporte";
+        if (lead) {
+          lead.textContent =
+            "Envie dúvidas, sugestões ou problemas diretamente para a equipe ObraMate.";
+        }
+        const brandStatus = $("brandStatus");
+        if (brandStatus) brandStatus.style.display = "none";
       }
+      return { canBrand };
     } catch {
       location.href = "/login.html";
+      return null;
     }
   }
 
@@ -210,8 +224,111 @@
     }
   });
 
-  renderSwatches();
-  loadSession().then(loadBranding).catch((err) => {
-    notify(err.message || "Erro", "error");
+  const CAT_LABEL = {
+    question: "Dúvida",
+    suggestion: "Sugestão",
+    bug: "Problema",
+    other: "Outro",
+  };
+
+  function formatWhen(iso) {
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso || "";
+      return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    } catch {
+      return iso || "";
+    }
+  }
+
+  async function loadSupportHistory() {
+    const host = $("supportHistory");
+    const list = $("supportHistoryList");
+    if (!host || !list) return;
+    try {
+      const r = await fetch("/api/support/tickets", { credentials: "include", cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok || !j.success) return;
+      const rows = Array.isArray(j.data) ? j.data : [];
+      if (rows.length === 0) {
+        host.hidden = true;
+        list.innerHTML = "";
+        return;
+      }
+      host.hidden = false;
+      list.innerHTML = rows
+        .map((t) => {
+          const status = t.status === "closed" ? "closed" : "open";
+          const statusLabel = status === "closed" ? "Resolvido" : "Aberto";
+          const cat = CAT_LABEL[t.category] || t.category || "";
+          const body = String(t.body || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+          const subject = String(t.subject || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+          return (
+            `<article class="support-history__item">` +
+            `<div class="support-history__meta">` +
+            `<span class="support-history__badge support-history__badge--${status}">${statusLabel}</span>` +
+            `<span>${cat}</span>` +
+            `<span>${formatWhen(t.created_at)}</span>` +
+            `</div>` +
+            `<p class="support-history__subject">${subject}</p>` +
+            `<p class="support-history__body">${body}</p>` +
+            `</article>`
+          );
+        })
+        .join("");
+    } catch {
+      /* ignore history errors */
+    }
+  }
+
+  $("supportForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("btnSendSupport");
+    const status = $("supportStatus");
+    const payload = {
+      category: $("supportCategory").value,
+      subject: $("supportSubject").value.trim(),
+      body: $("supportBody").value.trim(),
+    };
+    if (btn) btn.disabled = true;
+    if (status) status.textContent = "Enviando…";
+    try {
+      const r = await fetch("/api/support/tickets", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.success) throw new Error(j.error || "Falha ao enviar");
+      notify("Mensagem enviada ao suporte.", "success");
+      if (status) status.textContent = "Enviado. Obrigado!";
+      $("supportSubject").value = "";
+      $("supportBody").value = "";
+      $("supportCategory").value = "question";
+      await loadSupportHistory();
+    } catch (err) {
+      notify(err.message || "Erro ao enviar", "error");
+      if (status) status.textContent = err.message || "Erro";
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   });
+
+  renderSwatches();
+  loadSession()
+    .then((session) => {
+      if (session?.canBrand) return loadBranding();
+      return null;
+    })
+    .then(loadSupportHistory)
+    .catch((err) => {
+      notify(err.message || "Erro", "error");
+    });
 })();

@@ -22,6 +22,8 @@ const envSchema = z.object({
   S3_PUBLIC_URL: z.string().optional(),
   EMAIL_PROVIDER: z.enum(["console", "smtp"]).default("console"),
   EMAIL_FROM: z.string().default("noreply@localhost"),
+  /** Inbox for tenant support tickets (falls back to first platform admin email). */
+  SUPPORT_INBOX_EMAIL: z.string().email().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

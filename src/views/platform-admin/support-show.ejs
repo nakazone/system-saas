@@ -1,0 +1,42 @@
+<%- include('../partials/header') %>
+<%
+  const catLabel = { question: 'Dúvida', suggestion: 'Sugestão', bug: 'Problema', other: 'Outro' };
+%>
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
+  <h1>Ticket de suporte</h1>
+  <nav style="display:flex;gap:0.75rem;flex-wrap:wrap">
+    <a href="/support" class="btn btn-secondary">← Voltar</a>
+    <a href="/" class="btn btn-secondary">Organizações</a>
+  </nav>
+</div>
+
+<div class="panel" style="max-width:720px">
+  <p class="muted" style="margin:0 0 0.5rem"><%= ticket.createdAt.toISOString().slice(0, 16).replace('T', ' ') %> · <%= ticket.status %></p>
+  <h2 style="margin:0 0 0.75rem"><%= ticket.subject %></h2>
+  <p><strong>Empresa:</strong> <%= ticket.organization.name %> (<code><%= ticket.organization.slug %></code>)</p>
+  <p><strong>Tipo:</strong> <%= catLabel[ticket.category] || ticket.category %></p>
+  <p><strong>De:</strong>
+    <% if (ticket.createdByUser) { %>
+      <%= ticket.createdByUser.name %> &lt;<%= ticket.createdByUser.email %>&gt;
+    <% } else { %>—<% } %>
+  </p>
+  <div style="white-space:pre-wrap;border:1px solid #ddd;border-radius:8px;padding:1rem;margin:1rem 0;background:#fafafa"><%= ticket.body %></div>
+
+  <% if (ticket.adminNote) { %>
+    <p><strong>Nota interna:</strong></p>
+    <div style="white-space:pre-wrap;border:1px solid #ddd;border-radius:8px;padding:0.75rem;margin-bottom:1rem"><%= ticket.adminNote %></div>
+  <% } %>
+
+  <% if (ticket.status === 'open') { %>
+  <form method="post" action="/support/<%= ticket.id %>/close">
+    <label for="adminNote">Nota ao fechar (opcional)</label>
+    <textarea id="adminNote" name="adminNote" rows="3" style="width:100%;max-width:100%"></textarea>
+    <div style="margin-top:0.75rem">
+      <button type="submit" class="btn">Marcar como resolvido</button>
+    </div>
+  </form>
+  <% } else if (ticket.closedAt) { %>
+    <p class="muted">Fechado em <%= ticket.closedAt.toISOString().slice(0, 16).replace('T', ' ') %></p>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

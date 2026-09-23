@@ -70,6 +70,7 @@ const TENANT_MODELS = new Set([
   "PayrollEmployee",
   "PayrollPeriod",
   "PayrollTimesheet",
+  "SupportTicket",
 ]);
 
 type Operation =
