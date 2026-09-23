@@ -1,0 +1,67 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Schedule measurement</h1>
+</div>
+<div class="panel" style="max-width:560px">
+  <form method="post" action="/assessments">
+    <label>Lead</label>
+    <select name="leadId" id="leadId">
+      <option value="">—</option>
+      <% leads.forEach(l => { %>
+        <option value="<%= l.id %>" <%= String(preselectedLeadId || '') === l.id ? 'selected' : '' %>><%= l.name %></option>
+      <% }) %>
+    </select>
+
+    <label>Customer</label>
+    <select name="customerId" id="customerId">
+      <option value="">—</option>
+      <% customers.forEach(c => { %>
+        <option value="<%= c.id %>" <%= String(preselectedCustomerId || '') === c.id ? 'selected' : '' %>
+          data-properties='<%= JSON.stringify((c.properties||[]).map(p => ({id:p.id,label:p.label||p.line1}))) %>'
+        ><%= c.name %></option>
+      <% }) %>
+    </select>
+
+    <label>Property</label>
+    <select name="propertyId" id="propertyId"><option value="">—</option></select>
+
+    <label>Assignee</label>
+    <select name="assignedUserId">
+      <% users.forEach(u => { %>
+        <option value="<%= u.id %>" <%= user.id === u.id ? 'selected' : '' %>><%= u.name %></option>
+      <% }) %>
+    </select>
+
+    <label>Start</label>
+    <input type="datetime-local" name="scheduledStart" />
+    <label>End</label>
+    <input type="datetime-local" name="scheduledEnd" />
+
+    <label>Instructions</label>
+    <textarea name="instructions" rows="3"></textarea>
+
+    <div class="form-actions">
+      <button class="btn" type="submit">Create</button>
+      <a class="btn btn-secondary" href="/assessments">Cancel</a>
+    </div>
+  </form>
+</div>
+<script>
+  const customerSel = document.getElementById('customerId');
+  const propertySel = document.getElementById('propertyId');
+  function syncProps() {
+    propertySel.innerHTML = '<option value="">—</option>';
+    const opt = customerSel.selectedOptions[0];
+    if (!opt) return;
+    try {
+      JSON.parse(opt.dataset.properties || '[]').forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.id; o.textContent = p.label;
+        propertySel.appendChild(o);
+      });
+    } catch (_) {}
+  }
+  customerSel.addEventListener('change', syncProps);
+  syncProps();
+</script>
+<%- include('../partials/footer') %>

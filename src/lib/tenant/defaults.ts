@@ -44,6 +44,9 @@ export const DEFAULT_PERMISSIONS = [
   { key: "visits.view", group: "operations", description: "View schedule / visits" },
   { key: "pricing.view", group: "pricing", description: "View prices, costs, totals, and margins" },
   { key: "imports.manage", group: "settings", description: "Import customers and leads from CSV" },
+  { key: "assessments.view", group: "operations", description: "View site assessments" },
+  { key: "assessments.manage", group: "operations", description: "Create and complete site assessments" },
+  { key: "checklists.manage", group: "settings", description: "Manage checklist templates" },
 ] as const;
 
 export type PermissionKey = (typeof DEFAULT_PERMISSIONS)[number]["key"];
@@ -74,6 +77,9 @@ const OFFICE_KEYS: PermissionKey[] = [
   "pricing.view",
   "imports.manage",
   "reports.view",
+  "assessments.view",
+  "assessments.manage",
+  "checklists.manage",
 ];
 
 const SALES_KEYS: PermissionKey[] = [
@@ -89,6 +95,8 @@ const SALES_KEYS: PermissionKey[] = [
   "pipeline.manage",
   "builders.view",
   "pricing.view",
+  "assessments.view",
+  "assessments.manage",
 ];
 
 const CREW_LEAD_KEYS: PermissionKey[] = [
@@ -96,9 +104,15 @@ const CREW_LEAD_KEYS: PermissionKey[] = [
   "customers.view",
   "projects.view",
   "visits.view",
+  "assessments.view",
+  "assessments.manage",
 ];
 
-const INSTALLER_KEYS: PermissionKey[] = ["visits.view", "projects.view"];
+const INSTALLER_KEYS: PermissionKey[] = [
+  "visits.view",
+  "projects.view",
+  "assessments.view",
+];
 
 export const DEFAULT_ROLE_META: Record<
   string,

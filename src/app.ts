@@ -21,6 +21,8 @@ import { customersRouter } from "./modules/customers/routes.js";
 import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
 import { importRouter } from "./modules/imports/routes.js";
+import { checklistsRouter } from "./modules/checklists/routes.js";
+import { assessmentsRouter } from "./modules/assessments/routes.js";
 import { platformAdminRouter } from "./platform-admin/routes.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
@@ -130,10 +132,12 @@ export function createApp() {
   app.use("/users", usersRouter);
   app.use("/settings", settingsRouter);
   app.use("/settings/import", importRouter);
+  app.use("/settings/checklists", checklistsRouter);
   app.use("/leads", leadsRouter);
   app.use("/pipeline", pipelineRouter);
   app.use("/customers", customersRouter);
   app.use("/quotes", quotesRouter);
+  app.use("/assessments", assessmentsRouter);
 
   app.use(errorHandler);
   return app;

@@ -71,6 +71,9 @@ model Organization {
   quoteAddOns        QuoteAddOn[]
   quoteInvoices      QuoteInvoice[]
   publicAccessTokens PublicAccessToken[]
+  checklistTemplates ChecklistTemplate[]
+  checklistResponses ChecklistResponse[]
+  siteAssessments    SiteAssessment[]
   projects           Project[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
@@ -97,6 +100,8 @@ model User {
   permissions UserPermission[]
   ownedLeads  Lead[]           @relation("LeadOwner")
   salesQuotes Quote[]          @relation("QuoteSalesperson")
+  assignedAssessments SiteAssessment[] @relation("AssessmentAssignee")
+  completedChecklists ChecklistResponse[] @relation("ChecklistCompleter")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -227,6 +232,7 @@ model Lead {
   updatedAt       DateTime @updatedAt
 
   customers Customer[]
+  siteAssessments SiteAssessment[]
 
   @@index([organizationId])
   @@index([organizationId, pipelineStageId])
@@ -251,6 +257,7 @@ model Customer {
 
   quotes     Quote[]
   properties Property[]
+  siteAssessments SiteAssessment[]
 
   @@index([organizationId])
 }
@@ -280,6 +287,7 @@ model Property {
   @@index([organizationId, customerId])
 
   quotes Quote[]
+  siteAssessments SiteAssessment[]
 }
 
 /// Immutable audit log. Application must never update or delete rows.
@@ -297,6 +305,86 @@ model ActivityEvent {
 
   @@index([organizationId, entityType, entityId, createdAt])
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Checklists (generic) + site assessments (measurement visits)
+// ---------------------------------------------------------------------------
+
+model ChecklistTemplate {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  /// site_assessment | visit
+  appliesTo      String
+  /// For visit templates: removal | subfloor_prep | installation | sanding_finishing | final_walkthrough | other
+  visitPhase     String?
+  /// Ordered fields: { id, label, type, options?, required }
+  fields         Json
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  responses ChecklistResponse[]
+
+  @@index([organizationId])
+  @@index([organizationId, appliesTo])
+}
+
+model ChecklistResponse {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  templateId     String?   @db.Uuid
+  template       ChecklistTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  /// Snapshot of template fields at fill time (immutable for historical answers)
+  templateSnapshot Json
+  /// site_assessment | visit | …
+  entityType     String
+  entityId       String    @db.Uuid
+  answers        Json      @default("{}")
+  completedAt    DateTime?
+  completedById  String?   @db.Uuid
+  completedBy    User?     @relation("ChecklistCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  siteAssessments SiteAssessment[]
+
+  @@index([organizationId])
+  @@index([organizationId, entityType, entityId])
+  @@index([templateId])
+}
+
+model SiteAssessment {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String?   @db.Uuid
+  lead           Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customerId     String?   @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  propertyId     String?   @db.Uuid
+  property       Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  assignedUserId String?   @db.Uuid
+  assignedUser   User?     @relation("AssessmentAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  /// unscheduled | scheduled | completed | canceled
+  status         String    @default("unscheduled")
+  instructions   String?   @db.Text
+  checklistResponseId String? @db.Uuid
+  checklistResponse   ChecklistResponse? @relation(fields: [checklistResponseId], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, assignedUserId])
+  @@index([leadId])
+  @@index([customerId])
 }
 
 // ---------------------------------------------------------------------------

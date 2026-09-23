@@ -341,5 +341,6 @@ Each milestone: branch `feat/phase2-mN-<slug>` from updated `main` → migration
 
 - [x] M0 — recon + plan  
 - [x] M1 — foundations  
-- [x] M2 — quotes v2 (this branch)  
-- [ ] **Await review approval before M3** (`feat/phase2-m3-site-assessment`)
+- [x] M2 — quotes v2  
+- [x] M3 — site assessment + checklist engine (this branch)  
+- [ ] **Await review approval before M4** (`feat/phase2-m4-payments`)

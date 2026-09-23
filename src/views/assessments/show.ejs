@@ -1,0 +1,40 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Site assessment</h1>
+  <div class="form-actions">
+    <a class="btn" href="/assessments/<%= assessment.id %>/fill">Fill on mobile</a>
+  </div>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel">
+  <p><strong>Status:</strong> <%= assessment.status %><% if (overdue) { %> <span style="color:#b91c1c">· overdue</span><% } %></p>
+  <p><strong>Lead:</strong> <%= assessment.lead ? assessment.lead.name : '—' %></p>
+  <p><strong>Customer:</strong> <%= assessment.customer ? assessment.customer.name : '—' %></p>
+  <p><strong>Property:</strong>
+    <% if (assessment.property) { %><%= assessment.property.line1 %><% } else { %>—<% } %>
+  </p>
+  <p><strong>Assignee:</strong> <%= assessment.assignedUser ? assessment.assignedUser.name : '—' %></p>
+  <p><strong>Scheduled:</strong>
+    <%= assessment.scheduledStart ? new Date(assessment.scheduledStart).toLocaleString() : '—' %>
+    <% if (assessment.scheduledEnd) { %> → <%= new Date(assessment.scheduledEnd).toLocaleString() %><% } %>
+  </p>
+  <% if (assessment.instructions) { %><p><strong>Instructions:</strong> <%= assessment.instructions %></p><% } %>
+  <p class="muted">Checklist: <%= templateName %><% if (assessment.checklistResponse && assessment.checklistResponse.completedAt) { %> · completed<% } %></p>
+</div>
+
+<div class="panel">
+  <h2>Actions</h2>
+  <div class="form-actions">
+    <form method="post" action="/assessments/<%= assessment.id %>/convert-quote">
+      <button class="btn" type="submit">Convert to quote</button>
+    </form>
+    <% if (assessment.status !== 'canceled' && assessment.status !== 'completed') { %>
+    <form method="post" action="/assessments/<%= assessment.id %>/cancel">
+      <button class="btn btn-secondary" type="submit">Cancel</button>
+    </form>
+    <% } %>
+  </div>
+</div>
+<%- include('../partials/footer') %>

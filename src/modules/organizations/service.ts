@@ -7,6 +7,7 @@ import {
 } from "../../lib/tenant/defaults.js";
 import { DEFAULT_BRAND } from "../../lib/branding/palette.js";
 import { syncPermissionCatalog } from "../../lib/tenant/ensure-default-roles.js";
+import { seedDefaultChecklistTemplates } from "../../lib/checklists/engine.js";
 import { hashPassword } from "../../lib/auth/password.js";
 import { prisma } from "../../lib/prisma.js";
 import { Prisma } from "@prisma/client";
@@ -146,6 +147,8 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
         },
       });
     }
+
+    await seedDefaultChecklistTemplates(tx as never, organization.id);
 
     return { organization, admin };
   });
