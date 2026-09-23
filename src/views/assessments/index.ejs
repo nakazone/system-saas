@@ -1,0 +1,41 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Site assessments</h1>
+  <a class="btn" href="/assessments/new">Schedule measurement</a>
+</div>
+<div class="panel">
+  <form method="get" action="/assessments" style="margin-bottom:1rem">
+    <select name="status" onchange="this.form.submit()">
+      <option value="">All statuses</option>
+      <% ['unscheduled','scheduled','completed','canceled'].forEach(s => { %>
+        <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option>
+      <% }) %>
+    </select>
+  </form>
+  <% if (!assessments.length) { %>
+    <p class="muted">No assessments yet.</p>
+  <% } else { %>
+  <table>
+    <thead>
+      <tr><th>Party</th><th>When</th><th>Assignee</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% assessments.forEach(a => { %>
+        <tr>
+          <td>
+            <%= a.customer ? a.customer.name : (a.lead ? a.lead.name : '—') %>
+            <% if (a.overdue) { %><span style="color:#b91c1c;font-weight:600"> · overdue</span><% } %>
+          </td>
+          <td class="muted">
+            <%= a.scheduledStart ? new Date(a.scheduledStart).toLocaleString() : 'Unscheduled' %>
+          </td>
+          <td><%= a.assignedUser ? a.assignedUser.name : '—' %></td>
+          <td><%= a.status %></td>
+          <td><a href="/assessments/<%= a.id %>">Open</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

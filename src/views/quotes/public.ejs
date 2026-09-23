@@ -1,30 +1,250 @@
-<%- include('../partials/header') %>
-<div class="page-header">
-  <h1><%= quote.title %></h1>
-</div>
-<div class="panel">
-  <p class="muted">Prepared by <%= organization.name %></p>
-  <% if (organization.contactEmail || organization.contactPhone) { %>
-    <p class="muted">
-      <%= organization.contactEmail || '' %>
-      <%= organization.contactEmail && organization.contactPhone ? ' · ' : '' %>
-      <%= organization.contactPhone || '' %>
-    </p>
-  <% } %>
-  <p><strong>Flooring:</strong> <%= quote.flooringType %> · <%= Number(quote.areaSqft).toFixed(2) %> sqft</p>
-</div>
-<div class="panel">
-  <table>
-    <thead><tr><th>Description</th><th>Amount</th></tr></thead>
-    <tbody>
-      <% quote.lineItems.forEach(li => { %>
-        <tr>
-          <td><%= li.description %></td>
-          <td>$<%= Number(li.amount).toFixed(2) %></td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-  <p style="text-align:right;font-size:1.3rem;font-weight:700">Total: $<%= Number(quote.total).toFixed(2) %></p>
-</div>
-<%- include('../partials/footer') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <style>
+    :root {
+      --brand: <%= organization.primaryColor || '#211d1a' %>;
+      --accent: <%= organization.accentColor || '#e8792c' %>;
+    }
+    body { font-family: Georgia, 'Times New Roman', serif; margin: 0; background: #f7f4ee; color: #211d1a; }
+    header { background: var(--brand); color: #fff; padding: 1.25rem 1.5rem; }
+    header img { max-height: 40px; }
+    main { max-width: 720px; margin: 0 auto; padding: 1.5rem; }
+    .panel { background: #fff; padding: 1.25rem; margin-bottom: 1rem; border-radius: 4px; }
+    .muted { color: #6b7280; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.4rem 0; border-bottom: 1px solid #eee; }
+    .total { font-size: 1.35rem; font-weight: 700; text-align: right; margin-top: 1rem; }
+    button, .btn { background: var(--accent); color: #fff; border: 0; padding: 0.7rem 1.1rem; cursor: pointer; font-size: 1rem; }
+    button.secondary { background: #64748b; }
+    canvas { border: 1px solid #ccc; width: 100%; max-width: 420px; height: 140px; touch-action: none; background: #fff; }
+    .alert { padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 4px; }
+    .alert-ok { background: #dcfce7; }
+    .alert-error { background: #fee2e2; }
+    @media print {
+      header { background: #fff; color: #000; }
+      button, .no-print { display: none !important; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <% if (organization.logoUrl) { %>
+      <img src="<%= organization.logoUrl %>" alt="<%= organization.name %>" />
+    <% } else { %>
+      <strong><%= organization.name %></strong>
+    <% } %>
+  </header>
+  <main>
+    <% if (typeof success !== 'undefined' && success === 'approved') { %>
+      <div class="alert alert-ok">Thank you — this quote is approved.</div>
+    <% } %>
+    <% if (typeof success !== 'undefined' && success === 'changes') { %>
+      <div class="alert alert-ok">Your change request was sent.</div>
+    <% } %>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert alert-error"><%= error === 'invalid' ? 'Please complete all approval fields.' : error %></div>
+    <% } %>
+
+    <div class="panel">
+      <h1><%= quote.title %></h1>
+      <p class="muted">Quote #<%= quote.number %> · <%= organization.name %></p>
+      <% if (organization.contactEmail || organization.contactPhone) { %>
+        <p class="muted"><%= [organization.contactEmail, organization.contactPhone].filter(Boolean).join(' · ') %></p>
+      <% } %>
+      <% if (quote.validUntil) { %>
+        <p><strong>Valid until:</strong> <%= quote.validUntil.toISOString().slice(0,10) %></p>
+      <% } %>
+      <% if (quote.clientMessage) { %><p><%= quote.clientMessage %></p><% } %>
+      <p class="no-print">
+        <a href="/public/quotes/<%= token %>/pdf" target="_blank">Download PDF</a>
+        · <a href="#" onclick="window.print();return false;">Print</a>
+      </p>
+    </div>
+
+    <% if (clientView.showRoomBreakdown && quote.rooms.length) { %>
+    <div class="panel">
+      <h2>Rooms</h2>
+      <ul>
+        <% quote.rooms.forEach(r => { %>
+          <li><%= r.name %> — <%= Number(r.areaSqft).toFixed(2) %> sqft</li>
+        <% }) %>
+      </ul>
+    </div>
+    <% } %>
+
+    <form id="quotePublicForm" method="post" action="/public/quotes/<%= token %>/approve">
+      <% if (quote.optionGroups.length) { %>
+      <div class="panel">
+        <h2>Choose an option</h2>
+        <% quote.optionGroups.forEach((g, i) => { %>
+          <label style="display:block;margin:0.4rem 0">
+            <input type="radio" name="selectedOptionGroupId" value="<%= g.id %>"
+              <%= (quote.selectedOptionGroupId === g.id || (!quote.selectedOptionGroupId && i===0)) ? 'checked' : '' %>
+              <%= readOnly ? 'disabled' : '' %> />
+            <%= g.name %>
+          </label>
+        <% }) %>
+      </div>
+      <% } %>
+
+      <div class="panel">
+        <h2>Line items</h2>
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Item</th>
+              <% if (clientView.showQuantities) { %><th>Qty</th><% } %>
+              <% if (clientView.showUnitPrices) { %><th>Price</th><% } %>
+              <% if (clientView.showLineTotals) { %><th>Amount</th><% } %>
+            </tr>
+          </thead>
+          <tbody id="linesBody">
+            <% quote.lineItems.forEach(li => { %>
+              <tr
+                data-id="<%= li.id %>"
+                data-optional="<%= li.isOptional ? '1' : '0' %>"
+                data-group="<%= li.optionGroupId || '' %>"
+                data-qty="<%= Number(li.quantity) %>"
+                data-unit-price="<%= Number(li.unitPrice) %>"
+                data-amount="<%= Number(li.amount) %>"
+              >
+                <td>
+                  <% if (li.isOptional) { %>
+                    <input type="checkbox" name="selectedOptionalIds" value="<%= li.id %>"
+                      <%= li.isSelected ? 'checked' : '' %> <%= readOnly ? 'disabled' : '' %> class="opt-check" />
+                  <% } %>
+                </td>
+                <td><%= li.description %></td>
+                <% if (clientView.showQuantities) { %><td><%= Number(li.quantity).toFixed(2) %> <%= li.unit %></td><% } %>
+                <% if (clientView.showUnitPrices) { %><td>$<%= Number(li.unitPrice).toFixed(2) %></td><% } %>
+                <% if (clientView.showLineTotals) { %><td class="line-amt">$<%= Number(li.amount).toFixed(2) %></td><% } %>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+        <p class="total">Total: $<span id="totalDisplay"><%= Number(quote.total).toFixed(2) %></span></p>
+      </div>
+
+      <% if (quote.terms) { %>
+      <div class="panel">
+        <h2>Terms</h2>
+        <p style="white-space:pre-wrap"><%= quote.terms %></p>
+      </div>
+      <% } %>
+
+      <% if (organization.paymentInstructions) { %>
+      <div class="panel">
+        <h2>Payment instructions</h2>
+        <p style="white-space:pre-wrap"><%= organization.paymentInstructions %></p>
+      </div>
+      <% } %>
+
+      <% if (!readOnly) { %>
+      <div class="panel no-print">
+        <h2>Approve</h2>
+        <label>Your name</label><br />
+        <input name="signedByName" required style="width:100%;max-width:320px;padding:0.5rem;margin:0.4rem 0 1rem" />
+        <label>Signature</label><br />
+        <canvas id="sig" width="420" height="140"></canvas>
+        <input type="hidden" name="signatureDataUrl" id="signatureDataUrl" />
+        <p>
+          <button type="button" class="secondary" id="clearSig">Clear</button>
+        </p>
+        <label>
+          <input type="checkbox" name="acceptTerms" required /> I accept the terms above
+        </label>
+        <p style="margin-top:1rem">
+          <button type="submit">Approve quote</button>
+        </p>
+      </div>
+      <% } else if (quote.signedByName) { %>
+      <div class="panel">
+        <h2>Approved</h2>
+        <p>Signed by <%= quote.signedByName %></p>
+        <% if (quote.signatureUrl) { %><p><img src="<%= quote.signatureUrl %>" alt="Signature" style="max-width:280px" /></p><% } %>
+      </div>
+      <% } %>
+    </form>
+
+    <% if (!readOnly) { %>
+    <div class="panel no-print">
+      <h2>Request changes</h2>
+      <form method="post" action="/public/quotes/<%= token %>/request-changes">
+        <textarea name="note" required rows="3" style="width:100%" placeholder="What would you like changed?"></textarea>
+        <p><button type="submit" class="secondary">Request changes</button></p>
+      </form>
+    </div>
+    <% } %>
+  </main>
+  <script>
+    (function () {
+      const readOnly = <%= readOnly ? 'true' : 'false' %>;
+      const canvas = document.getElementById('sig');
+      if (canvas && !readOnly) {
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        function pos(e) {
+          const r = canvas.getBoundingClientRect();
+          const t = e.touches ? e.touches[0] : e;
+          return { x: (t.clientX - r.left) * (canvas.width / r.width), y: (t.clientY - r.top) * (canvas.height / r.height) };
+        }
+        function start(e) { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+        function move(e) { if (!drawing) return; const p = pos(e); ctx.lineWidth = 2; ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+        function end() { drawing = false; document.getElementById('signatureDataUrl').value = canvas.toDataURL('image/png'); }
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', move);
+        canvas.addEventListener('mouseup', end);
+        canvas.addEventListener('mouseleave', end);
+        canvas.addEventListener('touchstart', start, { passive: false });
+        canvas.addEventListener('touchmove', move, { passive: false });
+        canvas.addEventListener('touchend', end);
+        document.getElementById('clearSig')?.addEventListener('click', () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          document.getElementById('signatureDataUrl').value = '';
+        });
+        document.getElementById('quotePublicForm')?.addEventListener('submit', (e) => {
+          if (!document.getElementById('signatureDataUrl').value) {
+            e.preventDefault();
+            alert('Please sign before approving.');
+          }
+        });
+      }
+
+      async function recalc() {
+        const selectedOptionGroupId = document.querySelector('input[name="selectedOptionGroupId"]:checked')?.value || null;
+        const selectedOptionalIds = [...document.querySelectorAll('.opt-check:checked')].map(el => el.value);
+        const res = await fetch('/public/quotes/<%= token %>/recalculate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selectedOptionGroupId, selectedOptionalIds }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          document.getElementById('totalDisplay').textContent = Number(json.data.total).toFixed(2);
+        }
+        document.querySelectorAll('#linesBody tr').forEach(tr => {
+          const group = tr.dataset.group;
+          const optional = tr.dataset.optional === '1';
+          let show = true;
+          if (group && selectedOptionGroupId && group !== selectedOptionGroupId) show = false;
+          if (optional) {
+            const cb = tr.querySelector('.opt-check');
+            if (cb && !cb.checked) show = false;
+          }
+          tr.style.display = show ? '' : 'none';
+        });
+      }
+      document.querySelectorAll('input[name="selectedOptionGroupId"], .opt-check').forEach(el => {
+        el.addEventListener('change', recalc);
+      });
+      if (!readOnly) recalc();
+    })();
+  </script>
+</body>
+</html>

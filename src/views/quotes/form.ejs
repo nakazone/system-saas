@@ -2,20 +2,34 @@
 <div class="page-header">
   <h1>New quote</h1>
 </div>
-<div class="panel" style="max-width:640px">
-  <form method="post" action="/quotes">
+<div class="panel" style="max-width:720px">
+  <form method="post" action="/quotes" id="quoteForm">
     <label>Title</label>
     <input name="title" required placeholder="Kitchen LVP install" />
 
     <label>Customer</label>
-    <select name="customerId">
+    <select name="customerId" id="customerId">
       <option value="">—</option>
       <% customers.forEach(c => { %>
-        <option value="<%= c.id %>" <%= preselectedCustomerId === c.id ? 'selected' : '' %>><%= c.name %></option>
+        <option value="<%= c.id %>" <%= preselectedCustomerId === c.id ? 'selected' : '' %>
+          data-properties='<%= JSON.stringify((c.properties||[]).map(p => ({id:p.id,label:p.label||p.line1}))) %>'
+        ><%= c.name %></option>
       <% }) %>
     </select>
 
-    <label>Flooring type</label>
+    <label>Property</label>
+    <select name="propertyId" id="propertyId">
+      <option value="">—</option>
+    </select>
+
+    <label>Salesperson</label>
+    <select name="salespersonId">
+      <% salespeople.forEach(u => { %>
+        <option value="<%= u.id %>" <%= user.id === u.id ? 'selected' : '' %>><%= u.name %></option>
+      <% }) %>
+    </select>
+
+    <label>Flooring type (default / option A)</label>
     <select name="flooringType" id="flooringType" required>
       <% rules.forEach(r => { %>
         <option
@@ -30,16 +44,31 @@
     </select>
     <p class="muted" id="ruleHint"></p>
 
-    <label>Area (sqft)</label>
-    <input type="number" step="0.01" min="0.01" name="areaSqft" required />
+    <label>Total area (sqft) — used if no rooms listed</label>
+    <input type="number" step="0.01" min="0.01" name="areaSqft" id="areaSqft" required />
 
+    <% if (canViewPricing) { %>
     <label>Material price / sqft (optional override)</label>
     <input type="number" step="0.01" min="0" name="pricePerSqft" id="pricePerSqft" />
-
     <label>Labor price / sqft (optional override)</label>
     <input type="number" step="0.01" min="0" name="laborPerSqft" id="laborPerSqft" />
+    <% } %>
 
-    <label>Notes</label>
+    <h3>Rooms (optional — one per line: Name, sqft)</h3>
+    <textarea id="roomsText" rows="4" placeholder="Kitchen, 180&#10;Living room, 320&#10;Hall, 45"></textarea>
+    <input type="hidden" name="roomsJson" id="roomsJson" />
+
+    <h3>Option groups (optional — one per line: Name | flooringType)</h3>
+    <textarea id="optionsText" rows="3" placeholder="Option A: LVP | lvp&#10;Option B: Hardwood | hardwood"></textarea>
+    <input type="hidden" name="optionGroupsJson" id="optionGroupsJson" />
+
+    <label>Message to client</label>
+    <textarea name="clientMessage"></textarea>
+
+    <label>Terms</label>
+    <textarea name="terms"><%= orgSettings && orgSettings.defaultQuoteTerms ? orgSettings.defaultQuoteTerms : '' %></textarea>
+
+    <label>Notes (internal)</label>
     <textarea name="notes"></textarea>
 
     <div class="form-actions">
@@ -57,10 +86,54 @@
     const opt = select.selectedOptions[0];
     if (!opt) return;
     hint.textContent = `Defaults: waste ${opt.dataset.waste}%, material markup ${opt.dataset.mm}%, labor markup ${opt.dataset.lm}%`;
-    if (!price.value) price.placeholder = opt.dataset.price;
-    if (!labor.value) labor.placeholder = opt.dataset.labor;
+    if (price && !price.value) price.placeholder = opt.dataset.price;
+    if (labor && !labor.value) labor.placeholder = opt.dataset.labor;
   }
   select.addEventListener('change', sync);
   sync();
+
+  const customerSel = document.getElementById('customerId');
+  const propertySel = document.getElementById('propertyId');
+  function syncProps() {
+    propertySel.innerHTML = '<option value="">—</option>';
+    const opt = customerSel.selectedOptions[0];
+    if (!opt) return;
+    try {
+      const props = JSON.parse(opt.dataset.properties || '[]');
+      props.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = p.label;
+        propertySel.appendChild(o);
+      });
+    } catch (_) {}
+  }
+  customerSel.addEventListener('change', syncProps);
+  syncProps();
+
+  document.getElementById('quoteForm').addEventListener('submit', () => {
+    const rooms = [];
+    document.getElementById('roomsText').value.split(/\n/).forEach(line => {
+      const t = line.trim();
+      if (!t) return;
+      const parts = t.split(',');
+      const name = parts[0].trim();
+      const area = parseFloat(parts[1]);
+      if (name && area > 0) rooms.push({ name, areaSqft: area });
+    });
+    document.getElementById('roomsJson').value = JSON.stringify(rooms);
+
+    const groups = [];
+    document.getElementById('optionsText').value.split(/\n/).forEach(line => {
+      const t = line.trim();
+      if (!t) return;
+      const [namePart, typePart] = t.split('|');
+      groups.push({
+        name: (namePart || t).trim(),
+        flooringType: (typePart || '').trim() || undefined,
+      });
+    });
+    document.getElementById('optionGroupsJson').value = JSON.stringify(groups);
+  });
 </script>
 <%- include('../partials/footer') %>

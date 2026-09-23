@@ -1,20 +1,46 @@
 <%- include('../partials/header') %>
 <div class="page-header">
-  <h1>Dashboard</h1>
+  <h1>Home</h1>
+  <a class="btn btn-secondary" href="/reports">Reports</a>
 </div>
 
-<div class="grid grid-3">
-  <div class="stat"><div class="label">Leads</div><div class="value"><%= stats.leadCount %></div></div>
-  <div class="stat"><div class="label">Customers</div><div class="value"><%= stats.customerCount %></div></div>
-  <div class="stat"><div class="label">Quotes</div><div class="value"><%= stats.quoteCount %></div></div>
+<div class="panel">
+  <h2>Needs your attention</h2>
+  <% if (!blocks.length) { %>
+    <p class="muted">Nothing queued.</p>
+  <% } else { %>
+  <div class="grid grid-3">
+    <% blocks.forEach(b => { %>
+      <a class="stat" href="<%= b.href %>" style="text-decoration:none;color:inherit">
+        <div class="label"><%= b.label %></div>
+        <div class="value"><%= b.count %><% if (typeof b.amount === 'number' && canViewPricing) { %> <span class="muted" style="font-size:0.85rem">($<%= b.amount.toFixed(2) %>)</span><% } %></div>
+      </a>
+    <% }) %>
+  </div>
+  <% } %>
 </div>
 
-<div class="panel" style="margin-top:1rem">
+<% if (todayVisitsByCrew.length) { %>
+<div class="panel">
+  <h2>Today's visits by crew</h2>
+  <table>
+    <thead><tr><th>Crew</th><th>Visits</th></tr></thead>
+    <tbody>
+      <% todayVisitsByCrew.forEach(row => { %>
+        <tr><td><%= row.crewName %></td><td><%= row.count %></td></tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <p style="margin-top:0.5rem"><a href="/schedule">Open schedule</a> · <a href="/schedule/my-day">My Day</a></p>
+</div>
+<% } %>
+
+<div class="panel">
   <h2>Leads by stage</h2>
   <table>
     <thead><tr><th>Stage</th><th>Count</th></tr></thead>
     <tbody>
-      <% stats.stages.forEach(stage => { %>
+      <% stages.forEach(stage => { %>
         <tr>
           <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<%= stage.color || '#94a3b8' %>;margin-right:6px"></span><%= stage.name %></td>
           <td><%= stage._count.leads %></td>
@@ -22,6 +48,7 @@
       <% }) %>
     </tbody>
   </table>
+  <p style="margin-top:0.5rem"><a href="/leads/board">Open kanban</a></p>
 </div>
 
 <div class="panel">
@@ -29,18 +56,26 @@
     <h2>Recent quotes</h2>
     <a class="btn btn-secondary" href="/quotes/new">New quote</a>
   </div>
-  <% if (!stats.recentQuotes.length) { %>
+  <% if (!recentQuotes.length) { %>
     <p class="muted">No quotes yet.</p>
   <% } else { %>
   <table>
-    <thead><tr><th>#</th><th>Title</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+    <thead>
+      <tr>
+        <th>#</th><th>Title</th><th>Customer</th>
+        <% if (canViewPricing) { %><th>Total</th><% } %>
+        <th>Status</th>
+      </tr>
+    </thead>
     <tbody>
-      <% stats.recentQuotes.forEach(q => { %>
+      <% recentQuotes.forEach(q => { %>
         <tr>
           <td><a href="/quotes/<%= q.id %>"><%= q.number %></a></td>
           <td><%= q.title %></td>
           <td><%= q.customer ? q.customer.name : '—' %></td>
-          <td>$<%= Number(q.total).toFixed(2) %></td>
+          <% if (canViewPricing) { %>
+            <td>$<%= Number(q.total).toFixed(2) %></td>
+          <% } %>
           <td><%= q.status %></td>
         </tr>
       <% }) %>

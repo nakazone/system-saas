@@ -1,13 +1,18 @@
-import { Prisma } from "@prisma/client";
-import { prisma } from "../../lib/prisma.js";
-import { hashPassword } from "../../lib/auth/password.js";
 import {
   DEFAULT_ESTIMATE_RULES,
-  DEFAULT_PERMISSIONS,
+  DEFAULT_LOSS_REASONS,
   DEFAULT_PIPELINE_STAGES,
+  DEFAULT_QUOTE_ADDONS,
+  DEFAULT_ROLE_META,
   DEFAULT_ROLE_PERMISSIONS,
 } from "../../lib/tenant/defaults.js";
 import { DEFAULT_BRAND } from "../../lib/branding/palette.js";
+import { syncPermissionCatalog } from "../../lib/tenant/ensure-default-roles.js";
+import { seedDefaultChecklistTemplates } from "../../lib/checklists/engine.js";
+import { seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
+import { hashPassword } from "../../lib/auth/password.js";
+import { prisma } from "../../lib/prisma.js";
+import { Prisma } from "@prisma/client";
 
 export type SignupInput = {
   organizationName: string;
@@ -47,23 +52,8 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
   }
 
   const passwordHash = await hashPassword(input.password);
-  let permissions = await prisma.permission.findMany();
-  // Keep global permission catalog in sync with defaults (new module keys).
-  for (const permission of DEFAULT_PERMISSIONS) {
-    await prisma.permission.upsert({
-      where: { key: permission.key },
-      create: {
-        key: permission.key,
-        group: permission.group,
-        description: permission.description,
-      },
-      update: {
-        group: permission.group,
-        description: permission.description,
-      },
-    });
-  }
-  permissions = await prisma.permission.findMany();
+  await syncPermissionCatalog();
+  const permissions = await prisma.permission.findMany();
   const permissionByKey = new Map(permissions.map((p) => [p.key, p]));
 
   return prisma.$transaction(async (tx) => {
@@ -77,6 +67,7 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
         accentColor: DEFAULT_BRAND.accentColor,
         contactEmail: input.contactEmail ?? input.adminEmail,
         contactPhone: input.contactPhone,
+        timezone: "America/New_York",
         trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
@@ -86,14 +77,13 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
 
     const roleRecords: Record<string, string> = {};
     for (const [roleKey, permKeys] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+      const meta = DEFAULT_ROLE_META[roleKey];
       const role = await tx.role.create({
         data: {
           organizationId: organization.id,
           key: roleKey,
-          name: roleKey
-            .split("_")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" "),
+          name: meta?.name ?? roleKey,
+          description: meta?.description ?? null,
           isSystem: true,
         },
       });
@@ -128,6 +118,18 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
           order: stage.order,
           color: stage.color,
           isClosed: stage.isClosed,
+          isSystemMilestone: stage.isSystemMilestone,
+        },
+      });
+    }
+
+    for (const reason of DEFAULT_LOSS_REASONS) {
+      await tx.lossReason.create({
+        data: {
+          organizationId: organization.id,
+          name: reason.name,
+          slug: reason.slug,
+          sortOrder: reason.sortOrder,
         },
       });
     }
@@ -145,6 +147,23 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
         },
       });
     }
+
+    for (const addOn of DEFAULT_QUOTE_ADDONS) {
+      await tx.quoteAddOn.create({
+        data: {
+          organizationId: organization.id,
+          name: addOn.name,
+          description: addOn.description,
+          unit: addOn.unit,
+          unitCost: new Prisma.Decimal(addOn.unitCost),
+          unitPrice: new Prisma.Decimal(addOn.unitPrice),
+          sortOrder: addOn.sortOrder,
+        },
+      });
+    }
+
+    await seedDefaultChecklistTemplates(tx as never, organization.id);
+    await seedDefaultPaymentTemplates(tx as never, organization.id);
 
     return { organization, admin };
   });

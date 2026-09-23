@@ -1,34 +1,271 @@
 <%- include('../partials/header') %>
 <div class="page-header">
   <h1>Quote #<%= quote.number %> — <%= quote.title %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/quotes/<%= quote.id %>/pdf" target="_blank">PDF</a>
+  </div>
 </div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
 <div class="panel">
   <p><strong>Status:</strong> <%= quote.status %></p>
   <p><strong>Customer:</strong> <%= quote.customer ? quote.customer.name : '—' %></p>
+  <p><strong>Property:</strong>
+    <% if (quote.property) { %>
+      <%= quote.property.line1 %><% if (quote.property.city) { %>, <%= quote.property.city %><% } %>
+    <% } else { %>—<% } %>
+  </p>
+  <p><strong>Salesperson:</strong> <%= quote.salesperson ? quote.salesperson.name : '—' %></p>
+  <p><strong>Valid until:</strong> <%= quote.validUntil ? quote.validUntil.toISOString().slice(0,10) : '—' %></p>
+  <% if (quote.viewedAt) { %>
+    <p class="muted"><strong>Client first viewed:</strong> <%= new Date(quote.viewedAt).toLocaleString() %></p>
+  <% } %>
+  <% if (quote.changeRequestNote) { %>
+    <p><strong>Change request:</strong> <%= quote.changeRequestNote %></p>
+  <% } %>
+  <% if (canViewPricing) { %>
   <p><strong>Flooring:</strong> <%= quote.flooringType %> · <%= Number(quote.areaSqft).toFixed(2) %> sqft</p>
-  <p><strong>Waste:</strong> <%= Number(quote.wastePercent).toFixed(2) %>% ·
-     <strong>Material markup:</strong> <%= Number(quote.materialMarkup).toFixed(2) %>% ·
-     <strong>Labor markup:</strong> <%= Number(quote.laborMarkup).toFixed(2) %>%</p>
-  <% if (quote.publicToken) { %>
-    <p><strong>Public link:</strong> <a href="/public/quotes/<%= quote.publicToken %>" target="_blank">/public/quotes/<%= quote.publicToken %></a></p>
+  <% } else { %>
+  <p><strong>Flooring:</strong> <%= quote.flooringType %></p>
   <% } %>
 </div>
+
+<% if (quote.rooms && quote.rooms.length) { %>
+<div class="panel">
+  <h2>Rooms</h2>
+  <ul>
+    <% quote.rooms.forEach(r => { %>
+      <li><%= r.name %> — <%= Number(r.areaSqft).toFixed(2) %> sqft</li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>
+
+<% if (quote.optionGroups && quote.optionGroups.length) { %>
+<div class="panel">
+  <h2>Options</h2>
+  <ul>
+    <% quote.optionGroups.forEach(g => { %>
+      <li><%= g.name %><% if (quote.selectedOptionGroupId === g.id) { %> <strong>(selected)</strong><% } %></li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>
+
 <div class="panel">
   <table>
-    <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Amount</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Description</th><th>Qty</th>
+        <% if (canViewPricing) { %><th>Unit</th><th>Amount</th><% } %>
+        <th>Flags</th>
+      </tr>
+    </thead>
     <tbody>
       <% quote.lineItems.forEach(li => { %>
         <tr>
           <td><%= li.description %></td>
           <td><%= Number(li.quantity).toFixed(2) %> <%= li.unit %></td>
-          <td>$<%= Number(li.unitPrice).toFixed(2) %></td>
-          <td>$<%= Number(li.amount).toFixed(2) %></td>
+          <% if (canViewPricing) { %>
+            <td>$<%= Number(li.unitPrice).toFixed(2) %></td>
+            <td>$<%= Number(li.amount).toFixed(2) %></td>
+          <% } %>
+          <td class="muted">
+            <% if (li.isOptional) { %>optional<%= li.isSelected ? '' : ' (off)' %><% } %>
+          </td>
         </tr>
       <% }) %>
     </tbody>
   </table>
+  <% if (canViewPricing) { %>
   <p style="text-align:right;font-size:1.2rem;font-weight:700;margin-top:1rem">
     Total: $<%= Number(quote.total).toFixed(2) %>
   </p>
+  <% } %>
 </div>
+
+<div class="panel">
+  <h2>Actions</h2>
+  <div class="form-actions" style="flex-wrap:wrap">
+    <form method="post" action="/quotes/<%= quote.id %>/send">
+      <button class="btn" type="submit">Send by email</button>
+    </form>
+    <form method="post" action="/quotes/<%= quote.id %>/send">
+      <input type="hidden" name="markOnly" value="1" />
+      <button class="btn btn-secondary" type="submit">Mark as sent</button>
+    </form>
+    <form method="post" action="/quotes/<%= quote.id %>/approve" style="display:flex;gap:0.5rem;align-items:end">
+      <div>
+        <label>Approval note</label>
+        <input name="note" required placeholder="Verbal approval…" />
+      </div>
+      <button class="btn btn-secondary" type="submit">Mark approved</button>
+    </form>
+    <form method="post" action="/quotes/<%= quote.id %>/archive" style="display:flex;gap:0.5rem;align-items:end">
+      <div>
+        <label>Archive reason</label>
+        <input name="reason" required placeholder="Lost — price…" />
+      </div>
+      <button class="btn btn-secondary" type="submit">Archive</button>
+    </form>
+    <% if (quote.status === 'expired') { %>
+    <form method="post" action="/quotes/<%= quote.id %>/renew">
+      <button class="btn" type="submit">Renew validity</button>
+    </form>
+    <% } %>
+    <form method="post" action="/quotes/<%= quote.id %>/duplicate">
+      <button class="btn btn-secondary" type="submit">Create similar quote</button>
+    </form>
+    <% if (quote.status === 'approved' && !quote.project) { %>
+    <form method="post" action="/projects/from-quote/<%= quote.id %>">
+      <button class="btn" type="submit">Convert to project</button>
+    </form>
+    <% } else if (quote.project) { %>
+      <a class="btn" href="/projects/<%= quote.project.id %>">Open project</a>
+    <% } %>
+  </div>
+</div>
+
+<% if (quote.status === 'draft' && addOns && addOns.length) { %>
+<div class="panel">
+  <h2>Add optional add-on</h2>
+  <form method="post" action="/quotes/<%= quote.id %>/add-ons">
+    <select name="addOnId" required>
+      <% addOns.forEach(a => { %>
+        <option value="<%= a.id %>"><%= a.name %><% if (canViewPricing) { %> — $<%= Number(a.unitPrice).toFixed(2) %>/<%= a.unit %><% } %></option>
+      <% }) %>
+    </select>
+    <button class="btn" type="submit">Add as optional</button>
+  </form>
+</div>
+<% } %>
+
+<div class="panel">
+  <h2>Payment schedule</h2>
+  <% if (quote.paymentSchedule && quote.paymentSchedule.lockedAt) { %>
+    <p class="muted">Locked <%= new Date(quote.paymentSchedule.lockedAt).toLocaleString() %></p>
+  <% } %>
+  <% if (quote.paymentSchedule && quote.paymentSchedule.items.length) { %>
+    <table>
+      <thead><tr><th>Label</th><th>%</th><th>Trigger</th><th></th></tr></thead>
+      <tbody>
+        <% quote.paymentSchedule.items.forEach(it => { %>
+          <tr>
+            <td><%= it.label %></td>
+            <td><%= it.percent != null ? Number(it.percent) : '—' %></td>
+            <td><%= it.trigger %></td>
+            <td>
+              <% if (canManageInvoices && !quote.paymentSchedule.lockedAt) { %>
+              <form method="post" action="/invoices/from-schedule-item" class="inline">
+                <input type="hidden" name="quoteId" value="<%= quote.id %>" />
+                <input type="hidden" name="scheduleItemId" value="<%= it.id %>" />
+                <button class="btn btn-secondary" type="submit">Create invoice</button>
+              </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %>
+    <p class="muted">No payment schedule yet.</p>
+  <% } %>
+
+  <% if (canManageInvoices && !(quote.paymentSchedule && quote.paymentSchedule.lockedAt)) { %>
+    <% if (paymentTemplates && paymentTemplates.length) { %>
+      <form method="post" action="/payment-schedules/quotes/<%= quote.id %>/apply-template" style="margin:0.75rem 0;display:flex;gap:0.5rem;align-items:end">
+        <div>
+          <label>Apply template</label>
+          <select name="templateId" required>
+            <% paymentTemplates.forEach(t => { %>
+              <option value="<%= t.id %>"><%= t.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <button class="btn btn-secondary" type="submit">Apply</button>
+      </form>
+    <% } %>
+    <form method="post" action="/payment-schedules/quotes/<%= quote.id %>">
+      <div id="schedRows"></div>
+      <button type="button" class="btn btn-secondary" id="addSchedRow">Add row</button>
+      <input type="hidden" name="itemsJson" id="itemsJson" value="<%= JSON.stringify((quote.paymentSchedule && quote.paymentSchedule.items || []).map(i => ({label:i.label,percent:i.percent!=null?Number(i.percent):null,trigger:i.trigger,sortOrder:i.sortOrder}))) %>" />
+      <p style="margin-top:0.75rem"><button class="btn" type="submit">Save schedule</button></p>
+    </form>
+    <script>
+      let schedItems = JSON.parse(document.getElementById('itemsJson').value || '[]');
+      if (!schedItems.length) schedItems = [{label:'Deposit',percent:50,trigger:'on_approve',sortOrder:1},{label:'Final',percent:50,trigger:'manual',sortOrder:2}];
+      const triggers = ['manual','on_send','on_approve','on_phase_start','on_phase_complete'];
+      const box = document.getElementById('schedRows');
+      function renderSched() {
+        box.innerHTML = '';
+        schedItems.forEach((it, i) => {
+          const d = document.createElement('div');
+          d.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1.2fr auto;gap:0.4rem;margin:0.35rem 0';
+          d.innerHTML = '<input data-i="'+i+'" data-k="label" value="'+(it.label||'')+'" />' +
+            '<input data-i="'+i+'" data-k="percent" type="number" step="0.01" value="'+(it.percent??'')+'" placeholder="%" />' +
+            '<select data-i="'+i+'" data-k="trigger">' + triggers.map(t => '<option value="'+t+'" '+(it.trigger===t?'selected':'')+'>'+t+'</option>').join('') + '</select>' +
+            '<button type="button" data-del="'+i+'">×</button>';
+          box.appendChild(d);
+        });
+        document.getElementById('itemsJson').value = JSON.stringify(schedItems.map((it,i)=>({label:it.label,percent:it.percent!=null&&it.percent!==''?Number(it.percent):null,fixedAmount:null,trigger:it.trigger||'manual',sortOrder:i+1})));
+      }
+      box.addEventListener('input', (e) => {
+        const t = e.target; if (t.dataset.i == null) return;
+        const i = Number(t.dataset.i);
+        if (t.dataset.k === 'percent') schedItems[i].percent = t.value === '' ? null : Number(t.value);
+        else schedItems[i][t.dataset.k] = t.value;
+        document.getElementById('itemsJson').value = JSON.stringify(schedItems);
+      });
+      box.addEventListener('change', () => box.dispatchEvent(new Event('input', {bubbles:true})));
+      box.addEventListener('click', (e) => { if (e.target.dataset.del != null) { schedItems.splice(Number(e.target.dataset.del),1); renderSched(); }});
+      document.getElementById('addSchedRow').onclick = () => { schedItems.push({label:'Payment',percent:0,trigger:'manual'}); renderSched(); };
+      document.querySelector('form[action*="payment-schedules"]').addEventListener('submit', () => {
+        document.getElementById('itemsJson').value = JSON.stringify(schedItems.map((it,i)=>({label:it.label,percent:it.percent!=null&&it.percent!==''?Number(it.percent):null,fixedAmount:null,trigger:it.trigger||'manual',sortOrder:i+1})));
+      });
+      renderSched();
+    </script>
+  <% } %>
+</div>
+
+<% if (quote.invoices && quote.invoices.length) { %>
+<div class="panel">
+  <h2>Invoices</h2>
+  <table>
+    <thead><tr><th>Number</th><th>Type</th><th>Status</th><% if (canViewPricing) { %><th>Amount</th><% } %></tr></thead>
+    <tbody>
+      <% quote.invoices.forEach(inv => { %>
+        <tr>
+          <td><a href="/invoices/<%= inv.id %>"><%= inv.invoiceNumber || inv.id.slice(0,8) %></a></td>
+          <td><%= inv.invoiceType %></td>
+          <td><%= inv.status %></td>
+          <% if (canViewPricing) { %><td>$<%= Number(inv.amount).toFixed(2) %></td><% } %>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<% if (canManageInvoices && canViewPricing) { %>
+<div class="panel">
+  <h2>Manual invoice</h2>
+  <form method="post" action="/invoices/manual" style="max-width:360px;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end">
+    <input type="hidden" name="quoteId" value="<%= quote.id %>" />
+    <div><label>Amount</label><input name="amount" type="number" step="0.01" required value="<%= Number(quote.total).toFixed(2) %>" /></div>
+    <div><label>Type</label>
+      <select name="invoiceType">
+        <option value="deposit">deposit</option>
+        <option value="progress">progress</option>
+        <option value="final">final</option>
+        <option value="full">full</option>
+        <option value="other">other</option>
+      </select>
+    </div>
+    <button class="btn" type="submit">Create draft</button>
+  </form>
+</div>
+<% } %>
+
+<%- include('../partials/activity-history', { activity }) %>
 <%- include('../partials/footer') %>

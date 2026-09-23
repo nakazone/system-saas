@@ -1,0 +1,56 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Crews</h1>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel">
+  <% crews.forEach(c => { %>
+    <div style="margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid #e5e7eb">
+      <h2 style="margin:0 0 0.35rem"><%= c.name %><% if (!c.active) { %> <span class="muted">(inactive)</span><% } %></h2>
+      <p class="muted"><%= c._count.visits %> visits</p>
+      <ul>
+        <% c.members.forEach(m => { %>
+          <li>
+            <%= m.user.name %> · <%= m.role %>
+            <% if (canManage) { %>
+              <form method="post" action="/crews/<%= c.id %>/members/<%= m.id %>/remove" class="inline" style="display:inline">
+                <button type="submit" class="linkish">Remove</button>
+              </form>
+            <% } %>
+          </li>
+        <% }) %>
+      </ul>
+      <% if (canManage) { %>
+        <form method="post" action="/crews/<%= c.id %>/members" style="display:flex;gap:0.5rem;align-items:end;max-width:480px">
+          <div style="flex:1">
+            <label>Add member</label>
+            <select name="userId" required>
+              <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.name %></option><% }) %>
+            </select>
+          </div>
+          <div>
+            <label>Role</label>
+            <select name="role"><option value="member">member</option><option value="lead">lead</option></select>
+          </div>
+          <button class="btn btn-secondary" type="submit">Add</button>
+        </form>
+      <% } %>
+    </div>
+  <% }) %>
+</div>
+
+<% if (canManage) { %>
+<div class="panel" style="max-width:400px">
+  <h2>New crew</h2>
+  <form method="post" action="/crews">
+    <label>Name</label>
+    <input name="name" required />
+    <label>Color</label>
+    <input name="color" placeholder="#e8792c" />
+    <button class="btn" type="submit">Create</button>
+  </form>
+</div>
+<% } %>
+<%- include('../partials/footer') %>

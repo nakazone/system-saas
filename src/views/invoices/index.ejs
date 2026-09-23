@@ -1,0 +1,48 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Invoices</h1>
+</div>
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Shown</div><div class="value"><%= metrics.total %></div></div>
+  <div class="stat"><div class="label">Overdue</div><div class="value"><%= metrics.overdue %></div></div>
+  <% if (canViewPricing) { %>
+  <div class="stat"><div class="label">Open balance</div><div class="value">$<%= Number(metrics.openBalance).toFixed(2) %></div></div>
+  <% } %>
+</div>
+<% if (filters.filter) { %><p class="muted">Filter: <%= filters.filter %> · <a href="/invoices">Clear</a></p><% } %>
+<form method="get" class="filters" style="margin-bottom:1rem">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">All statuses</option>
+    <% ['draft','sent','partially_paid','paid','void'].forEach(s => { %>
+      <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option>
+    <% }) %>
+  </select>
+</form>
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Number</th><th>Customer</th><th>Quote</th><th>Type</th><th>Status</th>
+        <% if (canViewPricing) { %><th>Amount</th><th>Balance</th><% } %>
+        <th>Due</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% invoices.forEach(inv => { %>
+        <tr>
+          <td><a href="/invoices/<%= inv.id %>"><%= inv.invoiceNumber || '—' %></a></td>
+          <td><%= inv.customer ? inv.customer.name : '—' %></td>
+          <td><a href="/quotes/<%= inv.quoteId %>">#<%= inv.quote.number %></a></td>
+          <td><%= inv.invoiceType %></td>
+          <td><%= inv.status %></td>
+          <% if (canViewPricing) { %>
+            <td>$<%= Number(inv.amount).toFixed(2) %></td>
+            <td>$<%= Number(inv.balance).toFixed(2) %></td>
+          <% } %>
+          <td><%= inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

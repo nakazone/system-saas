@@ -1,6 +1,11 @@
 <%- include('../partials/header') %>
 <div class="page-header">
   <h1>Settings</h1>
+  <a class="btn btn-secondary" href="/settings/import">Import data</a>
+  <a class="btn btn-secondary" href="/settings/checklists">Checklists</a>
+  <a class="btn btn-secondary" href="/settings/payment-templates">Payment templates</a>
+  <a class="btn btn-secondary" href="/settings/labor-rates">Labor rates</a>
+  <a class="btn btn-secondary" href="/settings/automations">Automations</a>
 </div>
 <% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
 <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
@@ -10,6 +15,8 @@
   <form method="post" action="/settings/organization" id="orgForm">
     <label>Name</label>
     <input name="name" required value="<%= organization.name %>" />
+    <label>Timezone (IANA)</label>
+    <input name="timezone" placeholder="America/New_York" value="<%= organization.timezone || 'America/New_York' %>" />
     <label>Primary color</label>
     <input name="primaryColor" placeholder="#211d1a" value="<%= organization.primaryColor || '' %>" />
     <label>Accent color</label>
@@ -28,8 +35,40 @@
   </form>
 </div>
 
+<div class="panel" style="max-width:640px">
+  <h2>Quotes</h2>
+  <form method="post" action="/settings/organization">
+    <input type="hidden" name="name" value="<%= organization.name %>" />
+    <input type="hidden" name="timezone" value="<%= organization.timezone || 'America/New_York' %>" />
+    <input type="hidden" name="primaryColor" value="<%= organization.primaryColor || '' %>" />
+    <input type="hidden" name="accentColor" value="<%= organization.accentColor || '' %>" />
+    <input type="hidden" name="contactEmail" value="<%= organization.contactEmail || '' %>" />
+    <input type="hidden" name="contactPhone" value="<%= organization.contactPhone || '' %>" />
+    <label>Default validity (days)</label>
+    <input type="number" name="quoteValidityDays" min="1" max="365" value="<%= organization.quoteValidityDays ?? 30 %>" />
+    <label>Default tax rate (%)</label>
+    <input type="number" step="0.01" name="quoteTaxRate" value="<%= Number(organization.quoteTaxRate || 0) %>" />
+    <label>Default terms</label>
+    <textarea name="defaultQuoteTerms" rows="4"><%= organization.defaultQuoteTerms || '' %></textarea>
+    <label>Payment instructions (shown on public quote / invoices)</label>
+    <textarea name="paymentInstructions" rows="3"><%= organization.paymentInstructions || '' %></textarea>
+    <button class="btn" type="submit">Save quote settings</button>
+  </form>
+  <% if (typeof addOns !== 'undefined' && addOns.length) { %>
+    <h3>Suggested add-ons</h3>
+    <ul>
+      <% addOns.forEach(a => { %>
+        <li><%= a.name %> <span class="muted">(<%= a.unit %>)</span></li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
 <div class="panel">
   <h2>Estimate rules (waste &amp; markup)</h2>
+  <% if (typeof canViewPricing !== 'undefined' && !canViewPricing) { %>
+    <p class="muted">Pricing details are hidden for your role.</p>
+  <% } else { %>
   <form method="post" action="/settings/estimate-rules">
     <table>
       <thead>
@@ -53,6 +92,7 @@
     </table>
     <button class="btn" type="submit">Save rules</button>
   </form>
+  <% } %>
 </div>
 
 <div class="panel">

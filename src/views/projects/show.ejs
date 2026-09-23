@@ -1,0 +1,275 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= project.name %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/projects">All projects</a>
+    <% if (project.quoteId) { %><a class="btn btn-secondary" href="/quotes/<%= project.quoteId %>">Quote</a><% } %>
+  </div>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel">
+  <p><strong>Status:</strong> <%= project.status %><% if (project.number) { %> · #<%= project.number %><% } %></p>
+  <p><strong>Customer:</strong> <%= project.customer ? project.customer.name : '—' %></p>
+  <p><strong>Address:</strong> <%= project.address || '—' %></p>
+  <% if (canManage) { %>
+    <form method="post" action="/projects/<%= project.id %>/status" style="display:flex;gap:0.5rem;align-items:end;margin-top:0.75rem">
+      <div>
+        <label>Set status</label>
+        <select name="status">
+          <% ['planning','scheduled','in_progress','needs_invoicing','completed','canceled'].forEach(s => { %>
+            <option value="<%= s %>" <%= project.status === s ? 'selected' : '' %>><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
+      <button class="btn" type="submit">Update</button>
+      <button class="btn btn-secondary" formaction="/projects/<%= project.id %>/refresh-status" formmethod="post">Refresh derived</button>
+    </form>
+  <% } %>
+</div>
+
+<% if (project.paymentSchedule && project.paymentSchedule.items.length) { %>
+<div class="panel">
+  <h2>Payment schedule (locked)</h2>
+  <ul>
+    <% project.paymentSchedule.items.forEach(it => { %>
+      <li><%= it.label %> — <%= it.percent != null ? Number(it.percent) + '%' : '' %> · <%= it.trigger %><% if (it.phaseKey) { %> (<%= it.phaseKey %>)<% } %></li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>
+
+<% if (canViewCosts && costSummary) { %>
+<div class="panel">
+  <div class="page-header" style="margin:0 0 0.75rem;padding:0">
+    <h2 style="margin:0">Costs & profitability</h2>
+    <a class="btn btn-secondary" href="/projects/<%= project.id %>/costs.csv">Download CSV</a>
+  </div>
+  <% if (canViewPricing) { %>
+    <p>
+      <strong>Revenue:</strong> $<%= costSummary.revenue.toFixed(2) %>
+      · <strong>Budgeted:</strong> $<%= costSummary.budgeted.total.toFixed(2) %>
+      · <strong>Committed:</strong> $<%= costSummary.committed.total.toFixed(2) %>
+      · <strong>Actual:</strong> $<%= costSummary.actual.total.toFixed(2) %>
+      · <strong>Margin:</strong> $<%= costSummary.margin.toFixed(2) %><% if (costSummary.marginPercent != null) { %> (<%= costSummary.marginPercent %>%)<% } %>
+    </p>
+    <p class="muted">
+      Budget mat $<%= costSummary.budgeted.material.toFixed(2) %> / labor $<%= costSummary.budgeted.labor.toFixed(2) %>
+      · Actual mat $<%= costSummary.actual.material.toFixed(2) %> / labor $<%= costSummary.actual.labor.toFixed(2) %> / expenses $<%= costSummary.actual.expenses.toFixed(2) %>
+      <% if (costSummary.actual.expensesLinkedToOrders > 0) { %>
+        · Linked PO expenses excluded: $<%= costSummary.actual.expensesLinkedToOrders.toFixed(2) %>
+      <% } %>
+    </p>
+  <% } else { %>
+    <p class="muted">Cost totals hidden without pricing.view.</p>
+  <% } %>
+
+  <% if (project.budgetLines && project.budgetLines.length) { %>
+    <h3>Frozen budget</h3>
+    <table>
+      <thead><tr><th>Category</th><th>Description</th><th>Qty</th><% if (canViewPricing) { %><th>Amount</th><% } %></tr></thead>
+      <tbody>
+        <% project.budgetLines.forEach(b => { %>
+          <tr>
+            <td><%= b.category %></td>
+            <td><%= b.description %></td>
+            <td><%= Number(b.quantity).toFixed(2) %></td>
+            <% if (canViewPricing) { %><td>$<%= Number(b.amount).toFixed(2) %></td><% } %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %>
+    <p class="muted">No budget frozen yet (convert from an approved quote).</p>
+  <% } %>
+
+  <h3>Material orders</h3>
+  <% if (project.materialOrders && project.materialOrders.length) { %>
+    <table>
+      <thead><tr><th>Description</th><th>Ordered</th><th>Received</th><th>Used</th><th>Status</th><% if (canViewPricing) { %><th>Unit</th><% } %><th></th></tr></thead>
+      <tbody>
+        <% project.materialOrders.forEach(o => { %>
+          <tr>
+            <td><%= o.description %></td>
+            <td><%= Number(o.quantityOrdered).toFixed(2) %></td>
+            <td><%= Number(o.quantityReceived).toFixed(2) %></td>
+            <td><%= Number(o.quantityUsed).toFixed(2) %></td>
+            <td><%= o.status %></td>
+            <% if (canViewPricing) { %><td>$<%= Number(o.unitCost).toFixed(2) %></td><% } %>
+            <td>
+              <% if (canManage) { %>
+              <form method="post" action="/projects/<%= project.id %>/materials/<%= o.id %>" style="display:flex;gap:0.25rem;flex-wrap:wrap">
+                <input name="quantityReceived" type="number" step="0.01" min="0" placeholder="recv" style="width:70px" />
+                <input name="quantityUsed" type="number" step="0.01" min="0" placeholder="used" style="width:70px" />
+                <select name="status">
+                  <% ['ordered','partial','received','canceled'].forEach(s => { %>
+                    <option value="<%= s %>" <%= o.status === s ? 'selected' : '' %>><%= s %></option>
+                  <% }) %>
+                </select>
+                <button class="btn btn-secondary" type="submit">Update</button>
+              </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %><p class="muted">No material orders.</p><% } %>
+
+  <% if (canManage) { %>
+    <form method="post" action="/projects/<%= project.id %>/materials" style="max-width:520px;margin-top:0.75rem">
+      <label>New material order</label>
+      <input name="description" required placeholder="Hardwood plank" />
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
+        <div><label>Qty ordered</label><input name="quantityOrdered" type="number" step="0.01" min="0" required value="0" /></div>
+        <div><label>Unit cost</label><input name="unitCost" type="number" step="0.01" min="0" required value="0" /></div>
+        <div><label>Vendor</label><input name="vendor" /></div>
+      </div>
+      <button class="btn" type="submit">Add order</button>
+    </form>
+  <% } %>
+
+  <h3>Labor entries</h3>
+  <% if (project.laborEntries && project.laborEntries.length) { %>
+    <table>
+      <thead><tr><th>Date</th><th>Person</th><th>Hours</th><% if (canViewPricing) { %><th>Rate</th><th>Amount</th><% } %></tr></thead>
+      <tbody>
+        <% project.laborEntries.forEach(e => { %>
+          <tr>
+            <td><%= new Date(e.workDate).toLocaleDateString() %></td>
+            <td><%= e.user ? e.user.name : '—' %></td>
+            <td><%= Number(e.hours).toFixed(2) %></td>
+            <% if (canViewPricing) { %>
+              <td>$<%= Number(e.rateSnapshot).toFixed(2) %></td>
+              <td>$<%= Number(e.amount).toFixed(2) %></td>
+            <% } %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %><p class="muted">No labor entries.</p><% } %>
+  <% if (canManage) { %>
+    <form method="post" action="/projects/<%= project.id %>/labor" style="max-width:520px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.5rem;align-items:end">
+      <div><label>Person</label>
+        <select name="userId"><option value="">—</option><% users.forEach(u => { %><option value="<%= u.id %>"><%= u.name %></option><% }) %></select>
+      </div>
+      <div><label>Date</label><input name="workDate" type="date" required /></div>
+      <div><label>Hours</label><input name="hours" type="number" step="0.25" min="0.25" required /></div>
+      <div><label>Rate override</label><input name="hourlyRate" type="number" step="0.01" min="0" placeholder="auto" /></div>
+      <button class="btn" type="submit">Add labor</button>
+    </form>
+  <% } %>
+
+  <h3>Expenses</h3>
+  <% if (project.expenses && project.expenses.length) { %>
+    <table>
+      <thead><tr><th>Date</th><th>Category</th><th>Description</th><% if (canViewPricing) { %><th>Amount</th><% } %><th>Linked PO</th></tr></thead>
+      <tbody>
+        <% project.expenses.forEach(e => { %>
+          <tr>
+            <td><%= new Date(e.incurredOn).toLocaleDateString() %></td>
+            <td><%= e.category %></td>
+            <td><%= e.description %></td>
+            <% if (canViewPricing) { %><td>$<%= Number(e.amount).toFixed(2) %></td><% } %>
+            <td><%= e.materialOrderId ? 'yes' : '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %><p class="muted">No expenses.</p><% } %>
+  <% if (canManage) { %>
+    <form method="post" action="/projects/<%= project.id %>/expenses" style="max-width:520px;margin-top:0.5rem">
+      <input name="description" required placeholder="Dumpster rental" />
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
+        <div><label>Category</label>
+          <select name="category"><option value="other">other</option><option value="material">material</option><option value="labor">labor</option><option value="travel">travel</option></select>
+        </div>
+        <div><label>Amount</label><input name="amount" type="number" step="0.01" min="0.01" required /></div>
+        <div><label>Date</label><input name="incurredOn" type="date" required /></div>
+      </div>
+      <% if (project.materialOrders && project.materialOrders.length) { %>
+        <label>Link to material order (anti double-count)</label>
+        <select name="materialOrderId">
+          <option value="">—</option>
+          <% project.materialOrders.forEach(o => { %><option value="<%= o.id %>"><%= o.description %></option><% }) %>
+        </select>
+      <% } %>
+      <button class="btn" type="submit">Add expense</button>
+    </form>
+  <% } %>
+
+  <% if (costSummary.wasteHints && costSummary.wasteHints.length) { %>
+    <h3>Material usage vs budget</h3>
+    <p class="muted">Collected for future waste tuning (no auto-suggest yet).</p>
+    <ul>
+      <% costSummary.wasteHints.forEach(w => { %>
+        <li><%= w.description %>: budgeted <%= w.budgetedQty %> · used <%= w.usedQty %> · Δ <%= w.deltaQty %></li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+<% } %>
+
+<div class="panel">
+  <h2>Visits</h2>
+  <% if (project.visits.length) { %>
+    <table>
+      <thead><tr><th>When</th><th>Phase</th><th>Crew</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% project.visits.forEach(v => { %>
+          <tr>
+            <td><%= new Date(v.scheduledStart).toLocaleString() %></td>
+            <td><%= v.phase %></td>
+            <td><%= v.crew ? v.crew.name : (v.assignedUser ? v.assignedUser.name : '—') %></td>
+            <td><%= v.status %></td>
+            <td><a href="/visits/<%= v.id %>">Open</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %><p class="muted">No visits yet.</p><% } %>
+
+  <% if (canManageVisits) { %>
+    <h3>Schedule visit</h3>
+    <form method="post" action="/visits" style="max-width:520px">
+      <input type="hidden" name="projectId" value="<%= project.id %>" />
+      <label>Title</label>
+      <input name="title" placeholder="Day 1 install" />
+      <label>Phase</label>
+      <select name="phase">
+        <% ['removal','subfloor_prep','installation','sanding_finishing','final_walkthrough','other'].forEach(p => { %>
+          <option value="<%= p %>" <%= p === 'installation' ? 'selected' : '' %>><%= p %></option>
+        <% }) %>
+      </select>
+      <label>Start</label>
+      <input type="datetime-local" name="scheduledStart" required />
+      <label>End</label>
+      <input type="datetime-local" name="scheduledEnd" required />
+      <label>Crew</label>
+      <select name="crewId">
+        <option value="">—</option>
+        <% crews.forEach(c => { %><option value="<%= c.id %>"><%= c.name %></option><% }) %>
+      </select>
+      <label>Assignee</label>
+      <select name="assignedUserId">
+        <option value="">—</option>
+        <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.name %></option><% }) %>
+      </select>
+      <label>Instructions</label>
+      <textarea name="instructions" rows="2"></textarea>
+      <button class="btn" type="submit">Create visit</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="panel">
+  <h2>Activity</h2>
+  <% if (!project.events.length) { %><p class="muted">No events.</p><% } %>
+  <ul>
+    <% project.events.forEach(e => { %>
+      <li class="muted"><%= new Date(e.createdAt).toLocaleString() %> — <%= e.type %></li>
+    <% }) %>
+  </ul>
+</div>
+<%- include('../partials/footer') %>

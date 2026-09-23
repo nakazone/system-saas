@@ -1,0 +1,64 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Pipeline board</h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/leads">List</a>
+    <a class="btn" href="/leads/new">New lead</a>
+  </div>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<form method="get" action="/leads/board" style="margin-bottom:1rem;max-width:320px">
+  <label>Owner</label>
+  <select name="ownerId" onchange="this.form.submit()">
+    <option value="">All</option>
+    <% owners.forEach(o => { %>
+      <option value="<%= o.id %>" <%= filters.ownerId === o.id ? 'selected' : '' %>><%= o.name %></option>
+    <% }) %>
+  </select>
+</form>
+
+<div style="display:flex;gap:0.75rem;overflow-x:auto;padding-bottom:1rem;align-items:flex-start">
+  <% columns.forEach(col => { %>
+    <div class="panel" style="min-width:240px;max-width:280px;flex:0 0 auto;margin:0">
+      <h2 style="font-size:1rem;margin:0 0 0.5rem;display:flex;align-items:center;gap:0.4rem">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<%= col.stage.color || '#94a3b8' %>"></span>
+        <%= col.stage.name %>
+        <span class="muted" style="font-weight:400">(<%= col.leads.length %>)</span>
+        <% if (col.stage.isSystemMilestone) { %><span class="muted" style="font-size:0.75rem">system</span><% } %>
+      </h2>
+      <% col.leads.forEach(lead => { %>
+        <div style="border:1px solid #e5e7eb;border-radius:8px;padding:0.6rem;margin-bottom:0.5rem;background:#fff">
+          <a href="/leads/<%= lead.id %>" style="font-weight:600"><%= lead.name %></a>
+          <div class="muted" style="font-size:0.85rem"><%= lead.owner ? lead.owner.name : 'Unassigned' %></div>
+          <% if (canViewPricing && lead.quoteTotal != null) { %>
+            <div style="font-size:0.9rem">$<%= lead.quoteTotal.toFixed(2) %></div>
+          <% } %>
+          <details style="margin-top:0.4rem">
+            <summary class="muted" style="cursor:pointer;font-size:0.85rem">Move</summary>
+            <form method="post" action="/leads/<%= lead.id %>/move" style="margin-top:0.4rem">
+              <label>Stage</label>
+              <select name="stageId" required>
+                <% columns.forEach(c => { %>
+                  <option value="<%= c.stage.id %>" <%= c.stage.id === col.stage.id ? 'selected' : '' %>><%= c.stage.name %></option>
+                <% }) %>
+              </select>
+              <% if (columns.some(c => c.stage.slug === 'lost')) { %>
+              <label>Loss reason (required for Lost)</label>
+              <select name="lossReasonId">
+                <option value="">—</option>
+                <% lossReasons.forEach(r => { %>
+                  <option value="<%= r.id %>"><%= r.name %></option>
+                <% }) %>
+              </select>
+              <% } %>
+              <button class="btn btn-secondary" type="submit" style="margin-top:0.4rem">Move</button>
+            </form>
+          </details>
+        </div>
+      <% }) %>
+    </div>
+  <% }) %>
+</div>
+<%- include('../partials/footer') %>

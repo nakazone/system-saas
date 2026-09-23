@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 420px; margin: 3rem auto; padding: 1rem; }
+    input { width: 100%; padding: 0.6rem; margin: 0.35rem 0 1rem; box-sizing: border-box; }
+    button { background: #e8792c; color: #fff; border: 0; padding: 0.7rem 1rem; width: 100%; cursor: pointer; }
+    .error { background: #fee2e2; padding: 0.75rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Verify to view quote</h1>
+  <p>This link is more than 14 days old. Confirm your email or the last 4 digits of your phone on file.</p>
+  <% if (error) { %><div class="error"><%= error %></div><% } %>
+  <form method="post" action="/public/quotes/<%= token %>/verify">
+    <label>Email</label>
+    <input type="email" name="email" placeholder="you@example.com" />
+    <label>Phone last 4</label>
+    <input name="phoneLast4" maxlength="4" pattern="[0-9]{4}" placeholder="1234" />
+    <button type="submit">Continue</button>
+  </form>
+</body>
+</html>

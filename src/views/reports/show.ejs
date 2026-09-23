@@ -1,0 +1,91 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= title %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/reports">All reports</a>
+    <a class="btn" href="/reports/<%= kind %>?from=<%= from %>&to=<%= to %>&format=csv">Export CSV</a>
+  </div>
+</div>
+<p class="muted">Period: <%= from %> → <%= to %></p>
+
+<div class="panel">
+  <% if (kind === 'conversion-source') { %>
+    <table>
+      <thead><tr><th>Source</th><th>Total</th><th>Won</th><th>Lost</th><th>Conv %</th></tr></thead>
+      <tbody>
+        <% payload.rows.forEach(r => { %>
+          <tr><td><%= r.source %></td><td><%= r.total %></td><td><%= r.won %></td><td><%= r.lost %></td><td><%= r.conversionRate %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else if (kind === 'conversion-salesperson') { %>
+    <table>
+      <thead><tr><th>Salesperson</th><th>Quotes</th><th>Won</th><% if (canViewPricing) { %><th>Value</th><th>Won value</th><% } %><th>Conv %</th></tr></thead>
+      <tbody>
+        <% payload.rows.forEach(r => { %>
+          <tr>
+            <td><%= r.name %></td><td><%= r.quotes %></td><td><%= r.won %></td>
+            <% if (canViewPricing) { %><td>$<%= r.value.toFixed(2) %></td><td>$<%= r.wonValue.toFixed(2) %></td><% } %>
+            <td><%= r.conversionRate %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else if (kind === 'loss-reasons') { %>
+    <table>
+      <thead><tr><th>Reason</th><th>Count</th></tr></thead>
+      <tbody>
+        <% payload.rows.forEach(r => { %>
+          <tr><td><%= r.reason %></td><td><%= r.count %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else if (kind === 'projected-revenue') { %>
+    <p><strong>Total open:</strong> <% if (canViewPricing) { %>$<%= payload.data.total.toFixed(2) %><% } else { %>—<% } %></p>
+    <table>
+      <thead><tr><th>Month</th><th>Amount</th></tr></thead>
+      <tbody>
+        <% payload.data.byMonth.forEach(r => { %>
+          <tr><td><%= r.month %></td><td><% if (canViewPricing) { %>$<%= r.amount.toFixed(2) %><% } else { %>—<% } %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else if (kind === 'ar-aging') { %>
+    <p><strong>Total:</strong> <% if (canViewPricing) { %>$<%= payload.data.total.toFixed(2) %><% } else { %>—<% } %></p>
+    <table>
+      <thead><tr><th>Bucket</th><th>Amount</th></tr></thead>
+      <tbody>
+        <% Object.entries(payload.data.buckets).forEach(([k, v]) => { %>
+          <tr><td><%= k %></td><td><% if (canViewPricing) { %>$<%= Number(v).toFixed(2) %><% } else { %>—<% } %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else if (kind === 'profitability') { %>
+    <h2>By flooring type</h2>
+    <table>
+      <thead><tr><th>Type</th><th>Projects</th><% if (canViewPricing) { %><th>Revenue</th><th>Actual</th><th>Margin</th><% } %></tr></thead>
+      <tbody>
+        <% payload.data.byFlooringType.forEach(r => { %>
+          <tr>
+            <td><%= r.flooringType %></td><td><%= r.count %></td>
+            <% if (canViewPricing) { %><td>$<%= r.revenue.toFixed(2) %></td><td>$<%= r.actual.toFixed(2) %></td><td>$<%= r.margin.toFixed(2) %></td><% } %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <h2 style="margin-top:1rem">By project</h2>
+    <table>
+      <thead><tr><th>Project</th><th>Type</th><% if (canViewPricing) { %><th>Revenue</th><th>Actual</th><th>Margin</th><% } %></tr></thead>
+      <tbody>
+        <% payload.data.byProject.forEach(r => { %>
+          <tr>
+            <td><a href="/projects/<%= r.projectId %>"><%= r.name %></a></td>
+            <td><%= r.flooringType %></td>
+            <% if (canViewPricing) { %><td>$<%= r.revenue.toFixed(2) %></td><td>$<%= r.actual.toFixed(2) %></td><td>$<%= r.margin.toFixed(2) %></td><% } %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

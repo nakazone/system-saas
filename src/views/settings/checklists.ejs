@@ -1,0 +1,132 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Checklists</h1>
+  <a class="btn btn-secondary" href="/settings">Back to settings</a>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel">
+  <h2>Templates</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Applies to</th><th>Phase</th><th>Fields</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+      <% templates.forEach(t => { %>
+        <tr>
+          <td><%= t.name %></td>
+          <td><%= t.appliesTo %></td>
+          <td><%= t.visitPhase || '—' %></td>
+          <td><%= Array.isArray(t.fields) ? t.fields.length : 0 %></td>
+          <td><%= t.active ? 'yes' : 'no' %></td>
+          <td><a href="/settings/checklists/<%= t.id %>/edit">Edit</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <h3>New template</h3>
+  <form method="post" action="/settings/checklists" style="max-width:420px">
+    <label>Name</label>
+    <input name="name" required />
+    <label>Applies to</label>
+    <select name="appliesTo">
+      <option value="site_assessment">site_assessment</option>
+      <option value="visit">visit</option>
+    </select>
+    <label>Visit phase (optional)</label>
+    <input name="visitPhase" placeholder="installation" />
+    <button class="btn" type="submit">Create</button>
+  </form>
+</div>
+
+<% if (editing) { %>
+<div class="panel">
+  <h2>Edit: <%= editing.name %></h2>
+  <p class="muted">Changes apply to new responses only. Existing responses keep their field snapshot.</p>
+  <form method="post" action="/settings/checklists/<%= editing.id %>" id="editForm">
+    <label>Name</label>
+    <input name="name" required value="<%= editing.name %>" />
+    <label>Applies to</label>
+    <select name="appliesTo">
+      <option value="site_assessment" <%= editing.appliesTo === 'site_assessment' ? 'selected' : '' %>>site_assessment</option>
+      <option value="visit" <%= editing.appliesTo === 'visit' ? 'selected' : '' %>>visit</option>
+    </select>
+    <label>Visit phase</label>
+    <input name="visitPhase" value="<%= editing.visitPhase || '' %>" />
+    <label style="font-weight:500">
+      <input type="checkbox" name="active" <%= editing.active ? 'checked' : '' %> style="width:auto" /> Active
+    </label>
+
+    <h3>Fields</h3>
+    <div id="fieldsList"></div>
+    <button type="button" class="btn btn-secondary" id="addField">Add field</button>
+    <input type="hidden" name="fieldsJson" id="fieldsJson" />
+    <p style="margin-top:1rem"><button class="btn" type="submit">Save template</button></p>
+  </form>
+</div>
+<script>
+  let fields = <%- JSON.stringify(Array.isArray(editing.fields) ? editing.fields : []) %>;
+  const list = document.getElementById('fieldsList');
+  const types = ['checkbox','text','long_text','number','select','photo','signature','measurement_rooms'];
+
+  function render() {
+    list.innerHTML = '';
+    fields.forEach((f, i) => {
+      const div = document.createElement('div');
+      div.style.cssText = 'border:1px solid #e5e7eb;padding:0.75rem;margin:0.5rem 0;border-radius:6px';
+      div.innerHTML = '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end">' +
+        '<div><label>Id</label><input data-i="'+i+'" data-k="id" value="'+(f.id||'')+'" /></div>' +
+        '<div style="flex:1"><label>Label</label><input data-i="'+i+'" data-k="label" value="'+(f.label||'')+'" /></div>' +
+        '<div><label>Type</label><select data-i="'+i+'" data-k="type">' +
+          types.map(t => '<option value="'+t+'" '+(f.type===t?'selected':'')+'>'+t+'</option>').join('') +
+        '</select></div>' +
+        '<div><label>Options (comma)</label><input data-i="'+i+'" data-k="options" value="'+((f.options||[]).join(','))+'" /></div>' +
+        '<label style="font-weight:500"><input type="checkbox" data-i="'+i+'" data-k="required" '+(f.required?'checked':'')+' style="width:auto" /> Required</label>' +
+        '<button type="button" data-up="'+i+'">↑</button><button type="button" data-down="'+i+'">↓</button>' +
+        '<button type="button" data-del="'+i+'">Remove</button></div>';
+      list.appendChild(div);
+    });
+    document.getElementById('fieldsJson').value = JSON.stringify(fields.map(f => ({
+      id: f.id, label: f.label, type: f.type,
+      options: f.type === 'select' ? String(f.optionsText || (f.options||[]).join(',')).split(',').map(s=>s.trim()).filter(Boolean) : undefined,
+      required: !!f.required,
+    })));
+  }
+
+  list.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.dataset.i == null) return;
+    const i = Number(t.dataset.i);
+    if (t.dataset.k === 'options') fields[i].options = t.value.split(',').map(s => s.trim()).filter(Boolean);
+    else if (t.dataset.k === 'required') fields[i].required = t.checked;
+    else fields[i][t.dataset.k] = t.value;
+    document.getElementById('fieldsJson').value = JSON.stringify(fields);
+  });
+  list.addEventListener('change', (e) => list.dispatchEvent(new Event('input', { bubbles: true })));
+  list.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.dataset.del != null) { fields.splice(Number(t.dataset.del), 1); render(); }
+    if (t.dataset.up != null) {
+      const i = Number(t.dataset.up);
+      if (i > 0) { const x = fields[i]; fields[i] = fields[i-1]; fields[i-1] = x; render(); }
+    }
+    if (t.dataset.down != null) {
+      const i = Number(t.dataset.down);
+      if (i < fields.length - 1) { const x = fields[i]; fields[i] = fields[i+1]; fields[i+1] = x; render(); }
+    }
+  });
+  document.getElementById('addField').addEventListener('click', () => {
+    fields.push({ id: 'field_' + Date.now(), label: 'New field', type: 'text', required: false });
+    render();
+  });
+  document.getElementById('editForm').addEventListener('submit', () => {
+    document.getElementById('fieldsJson').value = JSON.stringify(fields.map(f => ({
+      id: f.id, label: f.label, type: f.type,
+      options: f.type === 'select' ? (f.options || []) : undefined,
+      required: !!f.required,
+    })));
+  });
+  render();
+</script>
+<% } %>
+<%- include('../partials/footer') %>

@@ -15,6 +15,9 @@ describe("tenant isolation", () => {
   let orgBId: string;
   let leadAId: string;
   let leadBId: string;
+  let customerAId: string;
+  let propertyAId: string;
+  let activityAId: string;
 
   beforeAll(async () => {
     for (const permission of DEFAULT_PERMISSIONS) {
@@ -62,6 +65,41 @@ describe("tenant isolation", () => {
         });
       })
     ).id;
+
+    const seeded = await withTenantTransaction(orgAId, async (tx) => {
+      const customer = await tx.customer.create({
+        data: {
+          organizationId: orgAId,
+          name: "Customer A",
+          email: `cust-a-${suffix}@example.com`,
+        },
+      });
+      const property = await tx.property.create({
+        data: {
+          organizationId: orgAId,
+          customerId: customer.id,
+          label: "Primary",
+          line1: "100 Secret Lane",
+          city: "Austin",
+          state: "TX",
+          postalCode: "78701",
+          country: "US",
+        },
+      });
+      const activity = await tx.activityEvent.create({
+        data: {
+          organizationId: orgAId,
+          entityType: "customer",
+          entityId: customer.id,
+          actorType: "system",
+          action: "created",
+        },
+      });
+      return { customer, property, activity };
+    });
+    customerAId = seeded.customer.id;
+    propertyAId = seeded.property.id;
+    activityAId = seeded.activity.id;
   });
 
   afterAll(async () => {
@@ -142,5 +180,85 @@ describe("tenant isolation", () => {
       return client.lead.findMany();
     });
     expect(result.every((l: { organizationId: string }) => l.organizationId === orgAId)).toBe(true);
+  });
+
+  it("isolates Property across tenants via RLS", async () => {
+    const rows = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${orgBId}, true)`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "Property" WHERE id = ${propertyAId}::uuid
+      `;
+    });
+    expect(rows).toHaveLength(0);
+
+    const visible = await withTenantTransaction(orgAId, async (tx) => {
+      return tx.property.findFirst({ where: { id: propertyAId } });
+    });
+    expect(visible?.customerId).toBe(customerAId);
+  });
+
+  it("isolates ActivityEvent across tenants via RLS", async () => {
+    const rows = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${orgBId}, true)`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "ActivityEvent" WHERE id = ${activityAId}::uuid
+      `;
+    });
+    expect(rows).toHaveLength(0);
+
+    const visible = await withTenantTransaction(orgAId, async (tx) => {
+      return tx.activityEvent.findFirst({ where: { id: activityAId } });
+    });
+    expect(visible?.entityId).toBe(customerAId);
+  });
+
+  it("isolates PublicAccessToken and QuoteRoom across tenants", async () => {
+    const seeded = await withTenantTransaction(orgAId, async (tx) => {
+      const maxNumber = await tx.quote.aggregate({ _max: { number: true } });
+      const quote = await tx.quote.create({
+        data: {
+          organizationId: orgAId,
+          number: (maxNumber._max.number ?? 0) + 1,
+          title: "Isolation quote",
+          status: "draft",
+          flooringType: "lvp",
+        },
+      });
+      const room = await tx.quoteRoom.create({
+        data: {
+          organizationId: orgAId,
+          quoteId: quote.id,
+          name: "Kitchen",
+          areaSqft: 100,
+          sortOrder: 1,
+        },
+      });
+      const token = await tx.publicAccessToken.create({
+        data: {
+          organizationId: orgAId,
+          entityType: "quote",
+          entityId: quote.id,
+          tokenHash: `hash-${quote.id}`,
+          expiresAt: new Date(Date.now() + 86400000),
+        },
+      });
+      return { roomId: room.id, tokenId: token.id };
+    });
+
+    const rooms = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${orgBId}, true)`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "QuoteRoom" WHERE id = ${seeded.roomId}::uuid
+      `;
+    });
+    expect(rooms).toHaveLength(0);
+
+    const tokens = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${orgBId}, true)`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "PublicAccessToken" WHERE id = ${seeded.tokenId}::uuid
+      `;
+    });
+    expect(tokens).toHaveLength(0);
   });
 });

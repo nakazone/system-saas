@@ -1,12 +1,20 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import { canViewPricing } from "../../lib/pricing/visibility.js";
+import { buildActionHome } from "../../lib/home/actions.js";
 
 export const dashboardRouter = Router();
 
 dashboardRouter.get("/", requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const stats = await withTenantTransaction(req.organizationId!, async (tx) => {
+    if (req.user?.roleKey === "installer") {
+      res.redirect("/schedule/my-day");
+      return;
+    }
+
+    const home = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const action = await buildActionHome(tx);
       const stages = await tx.pipelineStage.findMany({
         where: { isActive: true },
         orderBy: { order: "asc" },
@@ -17,17 +25,18 @@ dashboardRouter.get("/", requireAuth, async (req: AuthedRequest, res, next) => {
         orderBy: { createdAt: "desc" },
         include: { customer: true },
       });
-      const leadCount = await tx.lead.count();
-      const customerCount = await tx.customer.count();
-      const quoteCount = await tx.quote.count();
-      return { stages, recentQuotes, leadCount, customerCount, quoteCount };
+      return { action, stages, recentQuotes };
     });
 
     res.render("dashboard/index", {
-      title: "Dashboard",
+      title: "Home",
       organization: req.organization,
       user: req.user,
-      stats,
+      blocks: home.action.blocks,
+      todayVisitsByCrew: home.action.todayVisitsByCrew,
+      stages: home.stages,
+      recentQuotes: home.recentQuotes,
+      canViewPricing: canViewPricing(req.user),
     });
   } catch (error) {
     next(error);

@@ -1,0 +1,37 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= visit.title || visit.phase %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/projects/<%= visit.projectId %>">Project</a>
+    <a class="btn" href="/visits/<%= visit.id %>/fill">Fill checklist</a>
+  </div>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel">
+  <p><strong>Project:</strong> <%= visit.project.name %></p>
+  <p><strong>Customer:</strong> <%= visit.project.customer ? visit.project.customer.name : '—' %></p>
+  <p><strong>Phase:</strong> <%= visit.phase %></p>
+  <p><strong>Status:</strong> <%= visit.status %></p>
+  <p><strong>Window:</strong> <%= new Date(visit.scheduledStart).toLocaleString() %> → <%= new Date(visit.scheduledEnd).toLocaleString() %></p>
+  <p><strong>Crew:</strong> <%= visit.crew ? visit.crew.name : '—' %></p>
+  <p><strong>Assignee:</strong> <%= visit.assignedUser ? visit.assignedUser.name : '—' %></p>
+  <% if (visit.instructions) { %><p><strong>Instructions:</strong> <%= visit.instructions %></p><% } %>
+</div>
+
+<% if (canManage) { %>
+<div class="panel">
+  <h2>Update status</h2>
+  <form method="post" action="/visits/<%= visit.id %>/status" style="display:flex;gap:0.5rem;align-items:end">
+    <select name="status">
+      <% ['scheduled','in_progress','completed','canceled'].forEach(s => { %>
+        <option value="<%= s %>" <%= visit.status === s ? 'selected' : '' %>><%= s %></option>
+      <% }) %>
+    </select>
+    <button class="btn" type="submit">Save</button>
+  </form>
+  <p class="muted">Starting a visit fires on_phase_start invoices; completing fires on_phase_complete.</p>
+</div>
+<% } %>
+<%- include('../partials/footer') %>

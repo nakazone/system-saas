@@ -19,7 +19,22 @@ import { usersRouter, invitationsRouter } from "./modules/users/routes.js";
 import { leadsRouter, pipelineRouter } from "./modules/leads/routes.js";
 import { customersRouter } from "./modules/customers/routes.js";
 import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
+import { invoicesRouter } from "./modules/invoices/routes.js";
+import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
+import { paymentSchedulesRouter } from "./modules/invoices/schedule-routes.js";
+import { paymentTemplatesRouter } from "./modules/invoices/templates-routes.js";
+import { projectsRouter } from "./modules/projects/routes.js";
+import { projectCostsRouter } from "./modules/projects/costs-routes.js";
+import { laborRatesRouter } from "./modules/projects/labor-rates-routes.js";
+import { automationsRouter } from "./modules/automations/routes.js";
+import { reportsRouter } from "./modules/reports/routes.js";
+import { visitsRouter } from "./modules/visits/routes.js";
+import { crewsRouter } from "./modules/crews/routes.js";
+import { scheduleRouter } from "./modules/schedule/routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
+import { importRouter } from "./modules/imports/routes.js";
+import { checklistsRouter } from "./modules/checklists/routes.js";
+import { assessmentsRouter } from "./modules/assessments/routes.js";
 import { platformAdminRouter } from "./platform-admin/routes.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
@@ -48,11 +63,15 @@ export function createApp() {
   app.set("views", path.join(__dirname, "views"));
   app.set("trust proxy", 1);
 
-  app.use(express.urlencoded({ extended: true, limit: "5mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "12mb" }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
   app.use("/assets", express.static(CRM_ASSETS_DIR));
   app.use("/assets", express.static(path.join(__dirname, "public")));
+  app.get("/manifest.webmanifest", (_req, res) => {
+    res.type("application/manifest+json");
+    res.sendFile(path.join(__dirname, "../public/manifest.webmanifest"));
+  });
 
   // Health must be registered before session/DB middleware so Railway probes never hang.
   app.get("/health", (_req, res) => {
@@ -82,6 +101,7 @@ export function createApp() {
 
   // Public quote links (token-based, no subdomain tenant required)
   app.use("/public", publicQuotesRouter);
+  app.use("/public/invoices", publicInvoicesRouter);
 
   app.use(resolveTenant);
 
@@ -128,10 +148,24 @@ export function createApp() {
   app.use(dashboardRouter);
   app.use("/users", usersRouter);
   app.use("/settings", settingsRouter);
+  app.use("/settings/import", importRouter);
+  app.use("/settings/checklists", checklistsRouter);
+  app.use("/settings/payment-templates", paymentTemplatesRouter);
+  app.use("/settings/labor-rates", laborRatesRouter);
+  app.use("/settings/automations", automationsRouter);
+  app.use("/reports", reportsRouter);
   app.use("/leads", leadsRouter);
   app.use("/pipeline", pipelineRouter);
   app.use("/customers", customersRouter);
   app.use("/quotes", quotesRouter);
+  app.use("/payment-schedules", paymentSchedulesRouter);
+  app.use("/invoices", invoicesRouter);
+  app.use("/assessments", assessmentsRouter);
+  app.use("/projects", projectsRouter);
+  app.use("/projects", projectCostsRouter);
+  app.use("/visits", visitsRouter);
+  app.use("/crews", crewsRouter);
+  app.use("/schedule", scheduleRouter);
 
   app.use(errorHandler);
   return app;

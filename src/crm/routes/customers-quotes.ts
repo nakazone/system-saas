@@ -5,8 +5,41 @@ import { randomBytes } from "node:crypto";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../http.js";
+import { canViewPricing, withPricingGate } from "../../lib/pricing/visibility.js";
+import { recordActivity } from "../../lib/activity/record.js";
+import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 
 export const customersQuotesRouter = Router();
+
+function mapProperty(p: {
+  id: string;
+  customerId: string;
+  label: string | null;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: p.id,
+    customer_id: p.customerId,
+    label: p.label,
+    line1: p.line1,
+    line2: p.line2,
+    city: p.city,
+    state: p.state,
+    postal_code: p.postalCode,
+    country: p.country,
+    notes: p.notes,
+    created_at: p.createdAt,
+    updated_at: p.updatedAt,
+  };
+}
 
 function mapCustomer(c: {
   id: string;
@@ -80,7 +113,8 @@ function mapQuote(q: {
     number: q.number,
     quote_number: q.quoteNumber || String(q.number),
     title: q.title,
-    status: q.status,
+    status: normalizeQuoteStatus(q.status),
+    status_raw: q.status,
     flooring_type: q.flooringType,
     area_sqft: dec(q.areaSqft),
     waste_percent: dec(q.wastePercent),
@@ -117,6 +151,13 @@ function mapQuote(q: {
   };
 }
 
+function mapQuoteForUser(
+  q: Parameters<typeof mapQuote>[0],
+  user: AuthedRequest["user"],
+) {
+  return withPricingGate(user, mapQuote(q));
+}
+
 customersQuotesRouter.get("/api/customers", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -150,17 +191,179 @@ customersQuotesRouter.get("/api/customers", requireCrmAuth, async (req: AuthedRe
 customersQuotesRouter.get("/api/customers/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const row = await withTenantTransaction(req.organizationId!, async (tx) =>
-      tx.customer.findFirst({ where: { id: String(req.params.id) } }),
+      tx.customer.findFirst({
+        where: { id: String(req.params.id) },
+        include: { properties: { orderBy: { createdAt: "asc" } } },
+      }),
     );
     if (!row) {
       res.status(404).json({ success: false, error: "Customer not found" });
       return;
     }
-    res.json({ success: true, data: mapCustomer(row) });
+    res.json({
+      success: true,
+      data: {
+        ...mapCustomer(row),
+        properties: row.properties.map(mapProperty),
+      },
+    });
   } catch (error) {
     next(error);
   }
 });
+
+customersQuotesRouter.get(
+  "/api/customers/:id/properties",
+  requireCrmAuth,
+  requireCrmPermission("customers.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+        tx.property.findMany({
+          where: { customerId: String(req.params.id) },
+          orderBy: { createdAt: "asc" },
+        }),
+      );
+      res.json({ success: true, data: rows.map(mapProperty) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersQuotesRouter.post(
+  "/api/customers/:id/properties",
+  requireCrmAuth,
+  requireCrmPermission("customers.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const body = req.body || {};
+      const line1 = String(body.line1 || body.address || "").trim();
+      if (!line1) {
+        res.status(400).json({ success: false, error: "line1 is required" });
+        return;
+      }
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const customer = await tx.customer.findFirst({ where: { id: String(req.params.id) } });
+        if (!customer) return null;
+        const property = await tx.property.create({
+          data: {
+            organizationId: req.organizationId!,
+            customerId: customer.id,
+            label: body.label ? String(body.label) : null,
+            line1,
+            line2: body.line2 ? String(body.line2) : null,
+            city: String(body.city || ""),
+            state: String(body.state || ""),
+            postalCode: String(body.postal_code || body.postalCode || ""),
+            country: String(body.country || "US"),
+            notes: body.notes ? String(body.notes) : null,
+          },
+        });
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "property",
+          entityId: property.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action: "created",
+        });
+        return property;
+      });
+      if (!row) {
+        res.status(404).json({ success: false, error: "Customer not found" });
+        return;
+      }
+      res.status(201).json({ success: true, data: mapProperty(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersQuotesRouter.put(
+  "/api/properties/:id",
+  requireCrmAuth,
+  requireCrmPermission("customers.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const body = req.body || {};
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const existing = await tx.property.findFirst({ where: { id: String(req.params.id) } });
+        if (!existing) return null;
+        const updated = await tx.property.update({
+          where: { id: existing.id },
+          data: {
+            label: body.label !== undefined ? String(body.label || "") || null : undefined,
+            line1: body.line1 !== undefined ? String(body.line1) : undefined,
+            line2: body.line2 !== undefined ? String(body.line2 || "") || null : undefined,
+            city: body.city !== undefined ? String(body.city || "") : undefined,
+            state: body.state !== undefined ? String(body.state || "") : undefined,
+            postalCode:
+              body.postal_code !== undefined || body.postalCode !== undefined
+                ? String(body.postal_code || body.postalCode || "")
+                : undefined,
+            country: body.country !== undefined ? String(body.country || "US") : undefined,
+            notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
+          },
+        });
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "property",
+          entityId: updated.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action: "updated",
+        });
+        return updated;
+      });
+      if (!row) {
+        res.status(404).json({ success: false, error: "Property not found" });
+        return;
+      }
+      res.json({ success: true, data: mapProperty(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersQuotesRouter.get(
+  "/api/activity",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const entityType = String(req.query.entity_type || "");
+      const entityId = String(req.query.entity_id || "");
+      if (!entityType || !entityId) {
+        res.status(400).json({ success: false, error: "entity_type and entity_id required" });
+        return;
+      }
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+        tx.activityEvent.findMany({
+          where: { entityType, entityId },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        }),
+      );
+      res.json({
+        success: true,
+        data: rows.map((ev) => ({
+          id: ev.id,
+          entity_type: ev.entityType,
+          entity_id: ev.entityId,
+          actor_type: ev.actorType,
+          actor_id: ev.actorId,
+          action: ev.action,
+          changes: ev.changes,
+          created_at: ev.createdAt,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 customersQuotesRouter.get("/api/customers/:id/insight", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
@@ -172,12 +375,14 @@ customersQuotesRouter.get("/api/customers/:id/insight", requireCrmAuth, async (r
         orderBy: { createdAt: "desc" },
         take: 10,
       });
-      const total = quotes.reduce((s, q) => s + dec(q.total), 0);
+      const total = canViewPricing(req.user)
+        ? quotes.reduce((s, q) => s + dec(q.total), 0)
+        : null;
       return {
         customer: mapCustomer(customer),
         quotes_count: quotes.length,
         quotes_total: total,
-        recent_quotes: quotes.map((q) => mapQuote(q)),
+        recent_quotes: quotes.map((q) => mapQuoteForUser(q, req.user)),
       };
     });
     if (!insight) {
@@ -223,8 +428,8 @@ customersQuotesRouter.post(
         res.status(400).json({ success: false, error: "Invalid customer payload" });
         return;
       }
-      const row = await withTenantTransaction(req.organizationId!, async (tx) =>
-        tx.customer.create({
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const created = await tx.customer.create({
           data: {
             organizationId: req.organizationId!,
             name: parsed.data.name,
@@ -236,8 +441,31 @@ customersQuotesRouter.post(
             notes: parsed.data.notes || null,
             leadId: parsed.data.lead_id || null,
           },
-        }),
-      );
+        });
+        if (parsed.data.address) {
+          await tx.property.create({
+            data: {
+              organizationId: req.organizationId!,
+              customerId: created.id,
+              label: "Primary",
+              line1: parsed.data.address,
+              city: "",
+              state: "",
+              postalCode: "",
+              country: "US",
+            },
+          });
+        }
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "customer",
+          entityId: created.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action: "created",
+        });
+        return created;
+      });
       res.status(201).json({ success: true, data: mapCustomer(row) });
     } catch (error) {
       next(error);
@@ -351,7 +579,7 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
         }),
       ] as const;
     });
-    res.json({ success: true, data: rows.map(mapQuote), total, page, limit });
+    res.json({ success: true, data: rows.map((q) => mapQuoteForUser(q, req.user)), total, page, limit });
   } catch (error) {
     next(error);
   }
@@ -389,7 +617,7 @@ customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedR
       res.status(404).json({ success: false, error: "Quote not found" });
       return;
     }
-    res.json({ success: true, data: mapQuote(row) });
+    res.json({ success: true, data: mapQuoteForUser(row, req.user) });
   } catch (error) {
     next(error);
   }
@@ -480,7 +708,7 @@ customersQuotesRouter.post(
         });
         return quote;
       });
-      res.status(201).json({ success: true, data: mapQuote(row) });
+      res.status(201).json({ success: true, data: mapQuoteForUser(row, req.user) });
     } catch (error) {
       next(error);
     }
@@ -566,7 +794,7 @@ customersQuotesRouter.put(
         res.status(404).json({ success: false, error: "Quote not found" });
         return;
       }
-      res.json({ success: true, data: mapQuote(row) });
+      res.json({ success: true, data: mapQuoteForUser(row, req.user) });
     } catch (error) {
       next(error);
     }
@@ -635,7 +863,7 @@ customersQuotesRouter.post(
         res.status(404).json({ success: false, error: "Quote not found" });
         return;
       }
-      res.status(201).json({ success: true, data: mapQuote(row) });
+      res.status(201).json({ success: true, data: mapQuoteForUser(row, req.user) });
     } catch (error) {
       next(error);
     }
@@ -678,22 +906,25 @@ customersQuotesRouter.get("/api/quotes/:id/invoices", requireCrmAuth, async (req
     );
     res.json({
       success: true,
-      data: rows.map((inv) => ({
-        id: inv.id,
-        quote_id: inv.quoteId,
-        invoice_number: inv.invoiceNumber,
-        status: inv.status,
-        amount: dec(inv.amount),
-        due_date: inv.dueDate,
-        notes: inv.notes,
-        created_at: inv.createdAt,
-        receipts: inv.receipts.map((r) => ({
-          id: r.id,
-          amount: dec(r.amount),
-          paid_at: r.paidAt,
-          method: r.method,
+      data: withPricingGate(
+        req.user,
+        rows.map((inv) => ({
+          id: inv.id,
+          quote_id: inv.quoteId,
+          invoice_number: inv.invoiceNumber,
+          status: inv.status,
+          amount: dec(inv.amount),
+          due_date: inv.dueDate,
+          notes: inv.notes,
+          created_at: inv.createdAt,
+          receipts: inv.receipts.map((r) => ({
+            id: r.id,
+            amount: dec(r.amount),
+            paid_at: r.paidAt,
+            method: r.method,
+          })),
         })),
-      })),
+      ),
     });
   } catch (error) {
     next(error);
@@ -709,14 +940,18 @@ customersQuotesRouter.post(
       const quoteId = String(req.params.id);
       const body = req.body || {};
       const inv = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const { nextInvoiceNumber } = await import("../../lib/payments/engine.js");
         const quote = await tx.quote.findFirst({ where: { id: quoteId } });
         if (!quote) return null;
-        const count = await tx.quoteInvoice.count({ where: { quoteId } });
+        const invoiceNumber =
+          body.invoice_number || (await nextInvoiceNumber(tx, req.organizationId!));
         return tx.quoteInvoice.create({
           data: {
             organizationId: req.organizationId!,
             quoteId,
-            invoiceNumber: body.invoice_number || `INV-${quote.number}-${count + 1}`,
+            customerId: quote.customerId,
+            invoiceNumber,
+            invoiceType: String(body.invoice_type || body.type || "other"),
             status: String(body.status || "draft"),
             amount: new Prisma.Decimal(Number(body.amount != null ? body.amount : quote.total) || 0),
             dueDate: body.due_date ? new Date(body.due_date) : null,
@@ -731,13 +966,13 @@ customersQuotesRouter.post(
       }
       res.status(201).json({
         success: true,
-        data: {
+        data: withPricingGate(req.user, {
           id: inv.id,
           quote_id: inv.quoteId,
           invoice_number: inv.invoiceNumber,
           status: inv.status,
           amount: dec(inv.amount),
-        },
+        }),
       });
     } catch (error) {
       next(error);
@@ -768,18 +1003,21 @@ customersQuotesRouter.get("/api/invoices", requireCrmAuth, async (req: AuthedReq
 
     res.json({
       success: true,
-      data: rows.map((inv) => ({
-        id: inv.id,
-        quote_id: inv.quoteId,
-        quote_title: inv.quote.title,
-        quote_number: inv.quote.quoteNumber || String(inv.quote.number),
-        invoice_number: inv.invoiceNumber,
-        status: inv.status,
-        amount: dec(inv.amount),
-        due_date: inv.dueDate,
-        paid_total: inv.receipts.reduce((s, r) => s + dec(r.amount), 0),
-        created_at: inv.createdAt,
-      })),
+      data: withPricingGate(
+        req.user,
+        rows.map((inv) => ({
+          id: inv.id,
+          quote_id: inv.quoteId,
+          quote_title: inv.quote.title,
+          quote_number: inv.quote.quoteNumber || String(inv.quote.number),
+          invoice_number: inv.invoiceNumber,
+          status: inv.status,
+          amount: dec(inv.amount),
+          due_date: inv.dueDate,
+          paid_total: inv.receipts.reduce((s, r) => s + dec(r.amount), 0),
+          created_at: inv.createdAt,
+        })),
+      ),
       total,
       page,
       limit,
@@ -796,19 +1034,59 @@ customersQuotesRouter.get("/api/quote-catalog", requireCrmAuth, async (req: Auth
     );
     res.json({
       success: true,
-      data: rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        service_type: r.serviceType,
-        unit_type: r.unitType,
-        unit_price: dec(r.unitPrice),
-        description: r.description,
-      })),
+      data: withPricingGate(
+        req.user,
+        rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          service_type: r.serviceType,
+          unit_type: r.unitType,
+          unit_price: dec(r.unitPrice),
+          description: r.description,
+        })),
+      ),
     });
   } catch (error) {
     next(error);
   }
 });
+
+customersQuotesRouter.post(
+  "/api/quote-invoices/:id/receipts",
+  requireCrmAuth,
+  requireCrmPermission("invoices.record_payment"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const body = req.body || {};
+      const receipt = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const { recordInvoicePayment } = await import("../../lib/payments/engine.js");
+        return recordInvoicePayment(tx, {
+          organizationId: req.organizationId!,
+          invoiceId: String(req.params.id),
+          amount: Number(body.amount),
+          method: body.method || body.payment_method || null,
+          referenceNumber: body.reference_number || null,
+          notes: body.notes || null,
+          paidAt: body.paid_at || body.payment_date ? new Date(body.paid_at || body.payment_date) : new Date(),
+          actorId: req.user?.id ?? null,
+          externalPaymentId: body.external_payment_id || null,
+          processor: body.processor || null,
+        });
+      });
+      res.status(201).json({
+        success: true,
+        data: withPricingGate(req.user, {
+          id: receipt.id,
+          amount: dec(receipt.amount),
+          paid_at: receipt.paidAt,
+          method: receipt.method,
+        }),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 customersQuotesRouter.post(
   "/api/quote-catalog",

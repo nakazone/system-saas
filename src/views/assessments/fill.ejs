@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title><%= title %></title>
+  <style>
+    :root { --brand: <%= organization.primaryColor || '#211d1a' %>; --accent: <%= organization.accentColor || '#e8792c' %>; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #f7f4ee; color: #211d1a; }
+    header { background: var(--brand); color: #fff; padding: 0.9rem 1rem; position: sticky; top: 0; z-index: 2; }
+    header a { color: #fff; text-decoration: none; font-size: 0.9rem; }
+    main { padding: 1rem; max-width: 480px; margin: 0 auto; padding-bottom: 5rem; }
+    label { display: block; font-weight: 600; margin: 1rem 0 0.35rem; font-size: 0.95rem; }
+    input[type=text], input[type=number], select, textarea {
+      width: 100%; padding: 0.85rem; font-size: 1.05rem; border: 1px solid #d1d5db; border-radius: 8px;
+    }
+    textarea { min-height: 100px; }
+    .room-row { display: grid; grid-template-columns: 1fr 100px auto; gap: 0.4rem; margin-bottom: 0.5rem; }
+    .btn {
+      display: block; width: 100%; padding: 1rem; font-size: 1.1rem; border: 0; border-radius: 10px;
+      background: var(--accent); color: #fff; font-weight: 700; margin-top: 0.75rem; cursor: pointer;
+    }
+    .btn.secondary { background: #64748b; }
+    .bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; padding: 0.75rem 1rem; box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
+    .bar-inner { max-width: 480px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .muted { color: #6b7280; font-size: 0.9rem; }
+    .photos img { max-width: 100%; border-radius: 8px; margin-top: 0.35rem; }
+    canvas { width: 100%; height: 140px; border: 1px solid #ccc; background: #fff; border-radius: 8px; touch-action: none; }
+    .ok { background: #dcfce7; padding: 0.65rem; border-radius: 8px; margin-bottom: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="<%= typeof backHref !== 'undefined' && backHref ? backHref : ('/assessments/' + assessment.id) %>">← Back</a>
+    <div style="font-weight:700;margin-top:0.25rem"><%= templateName %></div>
+  </header>
+  <main>
+    <% if (typeof success !== 'undefined' && success) { %><div class="ok">Saved.</div><% } %>
+    <p class="muted"><%= assessment.customer ? assessment.customer.name : (assessment.lead ? assessment.lead.name : '') %></p>
+
+    <form id="fillForm" method="post" action="<%= typeof fillAction !== 'undefined' && fillAction ? fillAction : ('/assessments/' + assessment.id + '/save') %>">
+      <% fields.forEach(field => { %>
+        <label><%= field.label %><% if (field.required) { %> *<% } %></label>
+
+        <% if (field.type === 'measurement_rooms') { %>
+          <div id="rooms_<%= field.id %>"></div>
+          <button type="button" class="btn secondary" data-add-room="<%= field.id %>">+ Add room</button>
+          <input type="hidden" name="field_<%= field.id %>" id="field_<%= field.id %>" />
+        <% } else if (field.type === 'checkbox') { %>
+          <label style="font-weight:500">
+            <input type="checkbox" name="field_<%= field.id %>" <%= answers[field.id] ? 'checked' : '' %> style="width:auto;transform:scale(1.3)" />
+            Yes
+          </label>
+        <% } else if (field.type === 'select') { %>
+          <select name="field_<%= field.id %>">
+            <option value="">—</option>
+            <% (field.options || []).forEach(opt => { %>
+              <option value="<%= opt %>" <%= answers[field.id] === opt ? 'selected' : '' %>><%= opt %></option>
+            <% }) %>
+          </select>
+        <% } else if (field.type === 'long_text') { %>
+          <textarea name="field_<%= field.id %>"><%= answers[field.id] || '' %></textarea>
+        <% } else if (field.type === 'number') { %>
+          <input type="number" step="any" name="field_<%= field.id %>" value="<%= answers[field.id] != null ? answers[field.id] : '' %>" />
+        <% } else if (field.type === 'photo') { %>
+          <input type="file" accept="image/*" capture="environment" data-photo="<%= field.id %>" />
+          <input type="hidden" name="field_<%= field.id %>" id="photo_<%= field.id %>" />
+          <div class="photos" id="preview_<%= field.id %>">
+            <% const photos = Array.isArray(answers[field.id]) ? answers[field.id] : (answers[field.id] ? [answers[field.id]] : []); %>
+            <% photos.forEach(url => { %><img src="<%= url %>" alt="" /><% }) %>
+          </div>
+        <% } else if (field.type === 'signature') { %>
+          <canvas id="sig_<%= field.id %>" width="400" height="140"></canvas>
+          <input type="hidden" name="field_<%= field.id %>" id="sigdata_<%= field.id %>" />
+          <button type="button" class="btn secondary" data-clear-sig="<%= field.id %>">Clear signature</button>
+        <% } else { %>
+          <input type="text" name="field_<%= field.id %>" value="<%= answers[field.id] || '' %>" />
+        <% } %>
+      <% }) %>
+
+      <div style="height:4.5rem"></div>
+      <div class="bar">
+        <div class="bar-inner">
+          <button class="btn secondary" type="submit" name="complete" value="0">Save</button>
+          <button class="btn" type="submit" name="complete" value="1">Complete</button>
+        </div>
+      </div>
+    </form>
+  </main>
+  <script>
+    const answers = <%- JSON.stringify(answers || {}) %>;
+
+    function bindRooms(fieldId) {
+      const wrap = document.getElementById('rooms_' + fieldId);
+      const hidden = document.getElementById('field_' + fieldId);
+      let rooms = Array.isArray(answers[fieldId]) ? answers[fieldId].slice() : [];
+      function render() {
+        wrap.innerHTML = '';
+        rooms.forEach((r, i) => {
+          const row = document.createElement('div');
+          row.className = 'room-row';
+          row.innerHTML = '<input type="text" placeholder="Room name" value="' + (r.name || '').replace(/"/g,'&quot;') + '" data-i="' + i + '" data-k="name" />' +
+            '<input type="number" step="0.01" placeholder="sqft" value="' + (r.areaSqft || '') + '" data-i="' + i + '" data-k="areaSqft" />' +
+            '<button type="button" data-del="' + i + '">✕</button>';
+          wrap.appendChild(row);
+        });
+        hidden.value = JSON.stringify(rooms);
+      }
+      wrap.addEventListener('input', (e) => {
+        const t = e.target;
+        if (!t.dataset.i) return;
+        const i = Number(t.dataset.i);
+        rooms[i] = rooms[i] || { name: '', areaSqft: 0 };
+        rooms[i][t.dataset.k] = t.dataset.k === 'areaSqft' ? Number(t.value) : t.value;
+        hidden.value = JSON.stringify(rooms);
+      });
+      wrap.addEventListener('click', (e) => {
+        const t = e.target;
+        if (t.dataset.del != null) {
+          rooms.splice(Number(t.dataset.del), 1);
+          render();
+        }
+      });
+      document.querySelector('[data-add-room="' + fieldId + '"]')?.addEventListener('click', () => {
+        rooms.push({ name: '', areaSqft: 0 });
+        render();
+      });
+      if (!rooms.length) rooms = [{ name: '', areaSqft: 0 }];
+      render();
+    }
+
+    document.querySelectorAll('[id^="rooms_"]').forEach(el => bindRooms(el.id.replace('rooms_', '')));
+
+    document.querySelectorAll('[data-photo]').forEach(input => {
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const id = input.dataset.photo;
+        const reader = new FileReader();
+        reader.onload = () => {
+          document.getElementById('photo_' + id).value = reader.result;
+          const prev = document.getElementById('preview_' + id);
+          const img = document.createElement('img');
+          img.src = reader.result;
+          prev.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    document.querySelectorAll('[id^="sig_"]').forEach(canvas => {
+      const id = canvas.id.replace('sig_', '');
+      const ctx = canvas.getContext('2d');
+      let drawing = false;
+      function pos(e) {
+        const r = canvas.getBoundingClientRect();
+        const t = e.touches ? e.touches[0] : e;
+        return { x: (t.clientX - r.left) * (canvas.width / r.width), y: (t.clientY - r.top) * (canvas.height / r.height) };
+      }
+      function start(e) { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+      function move(e) { if (!drawing) return; const p = pos(e); ctx.lineWidth = 2; ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+      function end() { drawing = false; document.getElementById('sigdata_' + id).value = canvas.toDataURL('image/png'); }
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', move);
+      canvas.addEventListener('mouseup', end);
+      canvas.addEventListener('touchstart', start, { passive: false });
+      canvas.addEventListener('touchmove', move, { passive: false });
+      canvas.addEventListener('touchend', end);
+      document.querySelector('[data-clear-sig="' + id + '"]')?.addEventListener('click', () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        document.getElementById('sigdata_' + id).value = '';
+      });
+    });
+  </script>
+</body>
+</html>

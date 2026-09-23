@@ -1,0 +1,97 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Import data</h1>
+  <a class="btn btn-secondary" href="/settings">Back to settings</a>
+</div>
+
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<% if (step === 'upload') { %>
+<div class="panel" style="max-width:640px">
+  <p class="muted">Upload customers (with optional property fields) or leads. Max 5,000 rows.</p>
+  <form method="post" action="/settings/import/preview" id="importForm">
+    <label>Type</label>
+    <select name="entity">
+      <option value="customers" <%= entity === 'customers' ? 'selected' : '' %>>Customers (+ property)</option>
+      <option value="leads" <%= entity === 'leads' ? 'selected' : '' %>>Leads</option>
+    </select>
+    <label>CSV file</label>
+    <input type="file" id="csvFile" accept=".csv,text/csv" />
+    <label>Or paste CSV</label>
+    <textarea name="csvText" id="csvText" rows="10" required placeholder="name,email,phone,..."></textarea>
+    <button class="btn" type="submit">Preview &amp; map columns</button>
+  </form>
+</div>
+<script>
+  document.getElementById('csvFile')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { document.getElementById('csvText').value = reader.result; };
+    reader.readAsText(file);
+  });
+</script>
+<% } %>
+
+<% if (step === 'map') { %>
+<div class="panel">
+  <p><strong><%= totalRows %></strong> data rows · mapping for <strong><%= entity %></strong></p>
+  <form method="post" action="/settings/import/commit">
+    <label>Duplicates</label>
+    <select name="duplicateMode">
+      <option value="skip">Skip duplicates (email/phone)</option>
+      <option value="update">Update existing</option>
+    </select>
+    <h3>Column mapping</h3>
+    <% const fields = entity === 'customers'
+      ? ['name','email','phone','company','notes','label','line1','line2','city','state','postalCode','country']
+      : ['name','email','phone','source','notes']; %>
+    <% fields.forEach(field => { %>
+      <label><%= field %></label>
+      <select name="map_<%= field %>">
+        <option value="">—</option>
+        <% headers.forEach(h => { %>
+          <option value="<%= h %>" <%= mapping[field] === h ? 'selected' : '' %>><%= h %></option>
+        <% }) %>
+      </select>
+    <% }) %>
+    <h3>Preview (first 10)</h3>
+    <table>
+      <thead>
+        <tr><th>Line</th><th>Data</th><th>Validation</th></tr>
+      </thead>
+      <tbody>
+        <% preview.forEach(row => { %>
+          <tr>
+            <td><%= row.line %></td>
+            <td><code style="font-size:0.8rem"><%= JSON.stringify(row.data) %></code></td>
+            <td><%= row.errors.length ? row.errors.join('; ') : 'ok' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <button class="btn" type="submit">Run import</button>
+  </form>
+</div>
+<% } %>
+
+<% if (step === 'done' && result) { %>
+<div class="panel">
+  <h2>Import complete</h2>
+  <p>Imported: <strong><%= result.imported %></strong> · Updated: <strong><%= result.updated %></strong> · Skipped: <strong><%= result.skipped %></strong></p>
+  <% if (result.ignored.length) { %>
+    <h3>Skipped / ignored (sample)</h3>
+    <table>
+      <thead><tr><th>Line</th><th>Reason</th></tr></thead>
+      <tbody>
+        <% result.ignored.forEach(row => { %>
+          <tr><td><%= row.line %></td><td><%= row.reason %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+  <a class="btn" href="/settings/import">Import another file</a>
+</div>
+<% } %>
+
+<%- include('../partials/footer') %>

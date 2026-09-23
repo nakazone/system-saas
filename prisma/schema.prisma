@@ -39,6 +39,15 @@ model Organization {
   accentColor      String?
   contactEmail     String?
   contactPhone     String?
+  /// IANA timezone for displaying visit times (stored UTC in DB)
+  timezone         String    @default("America/New_York")
+  /// Default quote validity window in days (M2)
+  quoteValidityDays Int      @default(30)
+  defaultQuoteTerms String?  @db.Text
+  quoteTaxRate     Decimal   @default(0) @db.Decimal(5, 2)
+  paymentInstructions String? @db.Text
+  /// Automation toggles/delays: quoteFollowUpEnabled, quoteFollowUpDays, visitReminderEnabled, visitReminderHours
+  automationSettings Json?
   stripeCustomerId String?
   trialEndsAt      DateTime?
   createdAt        DateTime  @default(now())
@@ -48,8 +57,11 @@ model Organization {
   roles              Role[]
   invitations        Invitation[]
   pipelineStages     PipelineStage[]
+  lossReasons        LossReason[]
   leads              Lead[]
   customers          Customer[]
+  properties         Property[]
+  activityEvents     ActivityEvent[]
   quotes             Quote[]
   estimateRules      EstimateRule[]
   partnerUsers       PartnerUser[]
@@ -59,8 +71,30 @@ model Organization {
   products           Product[]
   categoryMargins    CategoryMargin[]
   quoteCatalogItems  QuoteCatalogItem[]
+  quoteAddOns        QuoteAddOn[]
   quoteInvoices      QuoteInvoice[]
+  invoiceLineItems   InvoiceLineItem[]
+  invoiceReceipts    InvoiceReceipt[]
+  publicAccessTokens PublicAccessToken[]
+  checklistTemplates ChecklistTemplate[]
+  checklistResponses ChecklistResponse[]
+  siteAssessments    SiteAssessment[]
+  paymentSchedules   PaymentSchedule[]
+  paymentScheduleItems PaymentScheduleItem[]
+  orgPaymentTemplates OrgPaymentTemplate[]
+  documentSequences  DocumentSequence[]
   projects           Project[]
+  projectEvents      ProjectEvent[]
+  visits             Visit[]
+  crews              Crew[]
+  crewMembers        CrewMember[]
+  laborRates         LaborRate[]
+  laborEntries       LaborEntry[]
+  materialOrders     MaterialOrder[]
+  expenses           Expense[]
+  projectBudgetLines ProjectBudgetLine[]
+  scheduledMessages  ScheduledMessage[]
+  communicationLogs  CommunicationLog[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
 }
@@ -85,6 +119,14 @@ model User {
 
   permissions UserPermission[]
   ownedLeads  Lead[]           @relation("LeadOwner")
+  salesQuotes Quote[]          @relation("QuoteSalesperson")
+  assignedAssessments SiteAssessment[] @relation("AssessmentAssignee")
+  completedChecklists ChecklistResponse[] @relation("ChecklistCompleter")
+  assignedVisits Visit[] @relation("VisitAssignee")
+  crewMemberships CrewMember[]
+  projectEvents ProjectEvent[] @relation("ProjectEventActor")
+  laborRates LaborRate[]
+  laborEntries LaborEntry[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -189,12 +231,31 @@ model PipelineStage {
   color          String?
   isClosed       Boolean @default(false)
   isActive       Boolean @default(true)
+  /// Fixed system milestones: new | assessment_scheduled | quote_sent | won | lost
+  isSystemMilestone Boolean @default(false)
 
   leads Lead[]
 
   @@index([organizationId])
   @@unique([organizationId, order])
   @@unique([organizationId, slug])
+}
+
+model LossReason {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  slug           String
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  leads Lead[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
 }
 
 model Lead {
@@ -211,13 +272,20 @@ model Lead {
   pipelineStage   PipelineStage? @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
   ownerId         String?  @db.Uuid
   owner           User?    @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  lossReasonId    String?  @db.Uuid
+  lossReason      LossReason? @relation(fields: [lossReasonId], references: [id], onDelete: SetNull)
+  lostAt          DateTime?
+  lastContactedAt DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   customers Customer[]
+  siteAssessments SiteAssessment[]
 
   @@index([organizationId])
   @@index([organizationId, pipelineStageId])
+  @@index([lossReasonId])
+  @@index([ownerId])
 }
 
 model Customer {
@@ -229,16 +297,154 @@ model Customer {
   name           String
   email          String?
   phone          String?
+  /// @deprecated Prefer Property records. Kept for back-compat; do not remove in M1.
   address        String?
   customerType   String   @default("residential") // residential | builder | commercial
   company        String?
   notes          String?  @db.Text
+  /// Opt-in for marketing blasts (future). Transactional emails ignore this.
+  marketingConsent Boolean @default(true)
+  /// When true, skip transactional automations (quote follow-ups, visit reminders).
+  transactionalOptOut Boolean @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  quotes Quote[]
+  quotes     Quote[]
+  properties Property[]
+  siteAssessments SiteAssessment[]
+  invoices   QuoteInvoice[]
+  projects   Project[]
+  scheduledMessages ScheduledMessage[]
+  communicationLogs CommunicationLog[]
 
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Properties (job site addresses) + immutable activity history
+// ---------------------------------------------------------------------------
+
+model Property {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerId     String   @db.Uuid
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label          String?
+  line1          String
+  line2          String?
+  city           String
+  state          String
+  postalCode     String
+  country        String   @default("US")
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, customerId])
+
+  quotes Quote[]
+  siteAssessments SiteAssessment[]
+  projects Project[]
+}
+
+/// Immutable audit log. Application must never update or delete rows.
+model ActivityEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entityType     String // quote | project | visit | invoice | payment | lead | customer | property
+  entityId       String   @db.Uuid
+  actorType      String // user | customer | system
+  actorId        String?  @db.Uuid
+  action         String // created | status_changed | updated | approved | signed | ...
+  changes        Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, entityType, entityId, createdAt])
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Checklists (generic) + site assessments (measurement visits)
+// ---------------------------------------------------------------------------
+
+model ChecklistTemplate {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  /// site_assessment | visit
+  appliesTo      String
+  /// For visit templates: removal | subfloor_prep | installation | sanding_finishing | final_walkthrough | other
+  visitPhase     String?
+  /// Ordered fields: { id, label, type, options?, required }
+  fields         Json
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  responses ChecklistResponse[]
+
+  @@index([organizationId])
+  @@index([organizationId, appliesTo])
+}
+
+model ChecklistResponse {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  templateId     String?   @db.Uuid
+  template       ChecklistTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  /// Snapshot of template fields at fill time (immutable for historical answers)
+  templateSnapshot Json
+  /// site_assessment | visit | …
+  entityType     String
+  entityId       String    @db.Uuid
+  answers        Json      @default("{}")
+  completedAt    DateTime?
+  completedById  String?   @db.Uuid
+  completedBy    User?     @relation("ChecklistCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  siteAssessments SiteAssessment[]
+  visits          Visit[]
+
+  @@index([organizationId])
+  @@index([organizationId, entityType, entityId])
+  @@index([templateId])
+}
+
+model SiteAssessment {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String?   @db.Uuid
+  lead           Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customerId     String?   @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  propertyId     String?   @db.Uuid
+  property       Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  assignedUserId String?   @db.Uuid
+  assignedUser   User?     @relation("AssessmentAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  /// unscheduled | scheduled | completed | canceled
+  status         String    @default("unscheduled")
+  instructions   String?   @db.Text
+  checklistResponseId String? @db.Uuid
+  checklistResponse   ChecklistResponse? @relation(fields: [checklistResponseId], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, assignedUserId])
+  @@index([leadId])
+  @@index([customerId])
 }
 
 // ---------------------------------------------------------------------------
@@ -268,13 +474,19 @@ model Quote {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customerId     String?  @db.Uuid
   customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  propertyId     String?  @db.Uuid
+  property       Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  salespersonId  String?  @db.Uuid
+  salesperson    User?    @relation("QuoteSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
   leadId         String?  @db.Uuid
   builderId      String?  @db.Uuid
   builder        Builder? @relation(fields: [builderId], references: [id], onDelete: SetNull)
   number         Int
   quoteNumber    String?
   title          String
-  status         String   @default("draft") // draft | sent | accepted | rejected | expired | invoiced
+  /// draft | sent | changes_requested | approved | converted | archived | expired
+  /// Legacy: accepted→approved, rejected→archived (migrated in M2)
+  status         String   @default("draft")
   flooringType   String   @default("hardwood")
   areaSqft       Decimal  @default(0) @db.Decimal(12, 2)
   wastePercent   Decimal  @default(0) @db.Decimal(5, 2)
@@ -283,11 +495,28 @@ model Quote {
   materialMarkup Decimal  @default(0) @db.Decimal(5, 2)
   laborMarkup    Decimal  @default(0) @db.Decimal(5, 2)
   subtotal       Decimal  @default(0) @db.Decimal(12, 2)
-  total          Decimal  @default(0) @db.Decimal(12, 2)
+  discountType   String?  // percent | fixed
+  discountValue  Decimal  @default(0) @db.Decimal(12, 2)
+  taxRate        Decimal  @default(0) @db.Decimal(5, 2)
   taxTotal       Decimal  @default(0) @db.Decimal(12, 2)
+  total          Decimal  @default(0) @db.Decimal(12, 2)
   notes          String?  @db.Text
+  clientMessage  String?  @db.Text
   terms          String?  @db.Text
+  /// Flags: showQuantities, showUnitPrices, showLineTotals, showRoomBreakdown
+  clientView     Json?
+  validUntil     DateTime?
+  selectedOptionGroupId String? @db.Uuid
+  archiveReason  String?
+  signatureUrl   String?
+  signedByName   String?
+  signedAt       DateTime?
+  approvedIp     String?
+  approvedUserAgent String?
+  changeRequestNote String? @db.Text
+  viewedAt       DateTime?
   serviceType    String?
+  /// @deprecated M2: prefer PublicAccessToken. Kept for dual-read during migration.
   publicToken    String?  @unique
   /// Full SF quote-builder payload for parity while APIs evolve
   payload        Json?
@@ -295,12 +524,48 @@ model Quote {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  lineItems QuoteLineItem[]
-  invoices  QuoteInvoice[]
+  lineItems    QuoteLineItem[]
+  rooms        QuoteRoom[]
+  optionGroups QuoteOptionGroup[]
+  invoices     QuoteInvoice[]
+  paymentSchedule PaymentSchedule?
+  project      Project?
 
   @@unique([organizationId, number])
   @@index([organizationId])
   @@index([organizationId, status])
+  @@index([organizationId, salespersonId])
+}
+
+model QuoteRoom {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  quoteId        String  @db.Uuid
+  quote          Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  name           String
+  areaSqft       Decimal @db.Decimal(12, 2)
+  notes          String?
+  sortOrder      Int     @default(0)
+
+  lineItems QuoteLineItem[]
+
+  @@index([organizationId])
+  @@index([quoteId])
+}
+
+model QuoteOptionGroup {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  quoteId        String  @db.Uuid
+  quote          Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  name           String
+  flooringType   String?
+  sortOrder      Int     @default(0)
+
+  lineItems QuoteLineItem[]
+
+  @@index([organizationId])
+  @@index([quoteId])
 }
 
 model QuoteLineItem {
@@ -308,19 +573,69 @@ model QuoteLineItem {
   organizationId String  @db.Uuid
   quoteId        String  @db.Uuid
   quote          Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  roomId         String? @db.Uuid
+  room           QuoteRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  optionGroupId  String? @db.Uuid
+  optionGroup    QuoteOptionGroup? @relation(fields: [optionGroupId], references: [id], onDelete: SetNull)
+  name           String?
   description    String
   quantity       Decimal @db.Decimal(12, 2)
   unit           String  @default("sqft")
+  unitCost       Decimal @default(0) @db.Decimal(12, 2)
   unitPrice      Decimal @db.Decimal(12, 2)
   amount         Decimal @db.Decimal(12, 2)
+  isOptional     Boolean @default(false)
+  isSelected     Boolean @default(true)
   itemType       String  @default("service") // service | product
   productId      String? @db.Uuid
   catalogId      String? @db.Uuid
   sortOrder      Int     @default(0)
   meta           Json?
 
+  budgetLines ProjectBudgetLine[]
+  expenses    Expense[]
+
   @@index([organizationId])
   @@index([quoteId])
+  @@index([roomId])
+  @@index([optionGroupId])
+}
+
+/// Suggested optional add-ons for quotes (Settings → Quotes)
+model QuoteAddOn {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  unit           String   @default("each")
+  unitCost       Decimal  @default(0) @db.Decimal(12, 2)
+  unitPrice      Decimal  @default(0) @db.Decimal(12, 2)
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+/// Hashed magic-link tokens for public portals (quotes, invoices, …)
+model PublicAccessToken {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entityType     String // quote | invoice | …
+  entityId       String    @db.Uuid
+  tokenHash      String
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
+  viewedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([tokenHash])
+  @@index([organizationId])
+  @@index([organizationId, entityType, entityId])
 }
 
 // ---------------------------------------------------------------------------
@@ -448,55 +763,396 @@ model QuoteInvoice {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   quoteId        String   @db.Uuid
   quote          Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  /// Canonical Phase 2 invoice model (evolved from thin QuoteInvoice — avoid dual Invoice stack).
   invoiceNumber  String?
-  status         String   @default("draft") // draft | sent | paid | void
+  /// deposit | progress | final | full | other
+  invoiceType    String   @default("other")
+  status         String   @default("draft") // draft | sent | partially_paid | paid | void
   amount         Decimal  @default(0) @db.Decimal(12, 2)
   dueDate        DateTime?
+  issuedAt       DateTime?
+  paidAt         DateTime?
   pdfPath        String?
   notes          String?  @db.Text
+  paymentInstructions String? @db.Text
+  scheduleItemId String?  @db.Uuid
+  scheduleItem   PaymentScheduleItem? @relation(fields: [scheduleItemId], references: [id], onDelete: SetNull)
+  /// Reserved for future payment processor webhooks
+  externalPaymentId String?
+  processor      String?
   payload        Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  receipts InvoiceReceipt[]
+  lineItems InvoiceLineItem[]
+  receipts  InvoiceReceipt[]
 
+  @@unique([organizationId, invoiceNumber])
   @@index([organizationId])
   @@index([quoteId])
+  @@index([customerId])
   @@index([organizationId, status])
+  @@index([scheduleItemId])
 }
 
+model InvoiceLineItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String  @db.Uuid
+  invoice        QuoteInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Decimal @default(1) @db.Decimal(12, 2)
+  unitPrice      Decimal @default(0) @db.Decimal(12, 2)
+  amount         Decimal @default(0) @db.Decimal(12, 2)
+  sortOrder      Int     @default(0)
+
+  @@index([organizationId])
+  @@index([invoiceId])
+}
+
+/// Manual / processor payment against an invoice (Phase 2 "Payment").
 model InvoiceReceipt {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoiceId      String   @db.Uuid
   invoice        QuoteInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   amount         Decimal  @db.Decimal(12, 2)
   paidAt         DateTime @default(now())
-  method         String?
+  method         String?  // cash | check | card | ach | other
+  referenceNumber String?
   notes          String?
+  /// Reserved for Stripe/etc.
+  externalPaymentId String?
+  processor      String?
   createdAt      DateTime @default(now())
 
   @@index([organizationId])
   @@index([invoiceId])
 }
 
+/// Per-org monotonic counters (invoice numbers, etc.) — lock row in tx.
+model DocumentSequence {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  kind           String // invoice | project | …
+  nextValue      Int    @default(1)
+
+  @@unique([organizationId, kind])
+  @@index([organizationId])
+}
+
+model OrgPaymentTemplate {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  /// [{ label, percent?, fixedAmount?, trigger, phaseKey?, sortOrder }]
+  items          Json
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model PaymentSchedule {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Quote-owned schedule (editable until locked). Optional after copy to project.
+  quoteId        String?   @unique @db.Uuid
+  quote          Quote?    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  /// Immutable project copy created on quote→project convert.
+  projectId      String?   @unique @db.Uuid
+  project        Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lockedAt       DateTime?
+  sourceTemplateId String? @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  items PaymentScheduleItem[]
+
+  @@index([organizationId])
+  @@index([projectId])
+}
+
+model PaymentScheduleItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scheduleId     String   @db.Uuid
+  schedule       PaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  label          String
+  percent        Decimal? @db.Decimal(5, 2)
+  fixedAmount    Decimal? @db.Decimal(12, 2)
+  /// manual | on_send | on_approve | on_phase_start | on_phase_complete
+  trigger        String   @default("manual")
+  phaseKey       String?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  invoices QuoteInvoice[]
+
+  @@index([organizationId])
+  @@index([scheduleId])
+}
+
 model Project {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  number         Int?
+  quoteId        String?  @unique @db.Uuid
+  quote          Quote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  propertyId     String?  @db.Uuid
+  property       Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   builderId      String?  @db.Uuid
   builder        Builder? @relation(fields: [builderId], references: [id], onDelete: SetNull)
   name           String
-  status         String   @default("active")
+  /// planning | scheduled | in_progress | needs_invoicing | completed | canceled | active (legacy)
+  status         String   @default("planning")
   address        String?
   notes          String?  @db.Text
   deletedAt      DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  timesheets PayrollTimesheet[]
+  timesheets       PayrollTimesheet[]
+  visits           Visit[]
+  events           ProjectEvent[]
+  paymentSchedule  PaymentSchedule?
+  budgetLines      ProjectBudgetLine[]
+  materialOrders   MaterialOrder[]
+  expenses         Expense[]
+  laborEntries     LaborEntry[]
+  budgetFrozenAt   DateTime?
+  /// Snapshot totals at convert (informational; prefer budgetLines)
+  budgetedMaterial Decimal @default(0) @db.Decimal(12, 2)
+  budgetedLabor    Decimal @default(0) @db.Decimal(12, 2)
+  budgetedOther    Decimal @default(0) @db.Decimal(12, 2)
+
+  @@unique([organizationId, number])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([customerId])
+}
+
+model ProjectEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String   @db.Uuid
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  visitId        String?  @db.Uuid
+  visit          Visit?   @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  /// status_changed | visit_created | visit_updated | visit_canceled | phase_started | phase_completed | note | converted
+  type           String
+  payload        Json?
+  actorId        String?  @db.Uuid
+  actor          User?    @relation("ProjectEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
 
   @@index([organizationId])
+  @@index([projectId, createdAt])
+  @@index([visitId])
+}
+
+model Visit {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String    @db.Uuid
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  crewId         String?   @db.Uuid
+  crew           Crew?     @relation(fields: [crewId], references: [id], onDelete: SetNull)
+  assignedUserId String?   @db.Uuid
+  assignedUser   User?     @relation("VisitAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  title          String?
+  /// removal | subfloor_prep | installation | sanding_finishing | final_walkthrough | other
+  phase          String    @default("installation")
+  /// scheduled | in_progress | completed | canceled
+  status         String    @default("scheduled")
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+  instructions   String?   @db.Text
+  checklistResponseId String? @db.Uuid
+  checklistResponse   ChecklistResponse? @relation(fields: [checklistResponseId], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  events ProjectEvent[]
+  laborEntries LaborEntry[]
+
+  @@index([organizationId])
+  @@index([organizationId, scheduledStart])
+  @@index([projectId])
+  @@index([crewId])
+  @@index([assignedUserId])
+  @@index([organizationId, status])
+}
+
+model Crew {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  color          String?
+  active         Boolean  @default(true)
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  members CrewMember[]
+  visits  Visit[]
+
+  @@index([organizationId])
+}
+
+model CrewMember {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  crewId         String @db.Uuid
+  crew           Crew   @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  userId         String @db.Uuid
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// lead | member
+  role           String @default("member")
+
+  @@unique([crewId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+/// Frozen budget line at quote→project convert (immutable for history).
+model ProjectBudgetLine {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String  @db.Uuid
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  quoteLineItemId String? @db.Uuid
+  quoteLineItem  QuoteLineItem? @relation(fields: [quoteLineItemId], references: [id], onDelete: SetNull)
+  /// material | labor | other
+  category       String
+  description    String
+  quantity       Decimal @default(1) @db.Decimal(12, 2)
+  unitCost       Decimal @default(0) @db.Decimal(12, 2)
+  amount         Decimal @default(0) @db.Decimal(12, 2)
+  sortOrder      Int     @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([projectId])
+}
+
+model LaborRate {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?   @db.Uuid
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Fallback when userId is null (e.g. installer, crew_lead)
+  roleKey        String?
+  label          String?
+  hourlyRate     Decimal   @db.Decimal(12, 2)
+  effectiveFrom  DateTime  @db.Date
+  effectiveTo    DateTime? @db.Date
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, userId])
+  @@index([organizationId, roleKey])
+}
+
+model LaborEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String   @db.Uuid
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId         String?  @db.Uuid
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  visitId        String?  @db.Uuid
+  visit          Visit?   @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  workDate       DateTime @db.Date
+  hours          Decimal  @db.Decimal(8, 2)
+  /// Snapshot of hourly rate at entry time
+  rateSnapshot   Decimal  @db.Decimal(12, 2)
+  amount         Decimal  @db.Decimal(12, 2)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([visitId])
+}
+
+model MaterialOrder {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String   @db.Uuid
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  description    String
+  sku            String?
+  vendor         String?
+  quantityOrdered Decimal @default(0) @db.Decimal(12, 2)
+  quantityReceived Decimal @default(0) @db.Decimal(12, 2)
+  quantityUsed   Decimal  @default(0) @db.Decimal(12, 2)
+  unitCost       Decimal  @default(0) @db.Decimal(12, 2)
+  /// ordered | partial | received | canceled
+  status         String   @default("ordered")
+  orderedAt      DateTime @default(now())
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  expenses Expense[]
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([organizationId, status])
+}
+
+model Expense {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String?  @db.Uuid
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  /// When set, this expense is a payment for a material order — excluded from double-count vs order actuals
+  materialOrderId String? @db.Uuid
+  materialOrder  MaterialOrder? @relation(fields: [materialOrderId], references: [id], onDelete: SetNull)
+  quoteLineItemId String? @db.Uuid
+  quoteLineItem  QuoteLineItem? @relation(fields: [quoteLineItemId], references: [id], onDelete: SetNull)
+  category       String   @default("other") // material | labor | travel | other
+  description    String
+  amount         Decimal  @db.Decimal(12, 2)
+  incurredOn     DateTime @db.Date
+  /// draft | approved | void
+  status         String   @default("approved")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([materialOrderId])
+  @@index([quoteLineItemId])
 }
 
 model PayrollEmployee {
@@ -552,4 +1208,68 @@ model PayrollTimesheet {
   @@index([organizationId])
   @@index([periodId])
   @@index([employeeId])
+}
+
+// ---------------------------------------------------------------------------
+// Communication automations (M7)
+// ---------------------------------------------------------------------------
+
+model ScheduledMessage {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// email | sms (sms reserved)
+  channel        String    @default("email")
+  /// quote_follow_up | visit_reminder
+  triggerKey     String
+  entityType     String
+  entityId       String    @db.Uuid
+  customerId     String?   @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  toAddress      String
+  subject        String
+  body           String    @db.Text
+  scheduledFor   DateTime
+  /// pending | processing | sent | canceled | failed | skipped
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  lastError      String?
+  payload        Json?
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  logs CommunicationLog[]
+
+  @@index([organizationId])
+  @@index([organizationId, status, scheduledFor])
+  @@index([entityType, entityId])
+  @@index([customerId])
+}
+
+model CommunicationLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel        String   @default("email")
+  direction      String   @default("outbound")
+  triggerKey     String?
+  entityType     String?
+  entityId       String?  @db.Uuid
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  toAddress      String
+  subject        String?
+  body           String   @db.Text
+  /// sent | failed | skipped
+  status         String
+  skipReason     String?
+  scheduledMessageId String? @db.Uuid
+  scheduledMessage   ScheduledMessage? @relation(fields: [scheduledMessageId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([customerId])
+  @@index([scheduledMessageId])
 }

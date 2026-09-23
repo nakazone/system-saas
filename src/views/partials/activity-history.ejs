@@ -1,0 +1,30 @@
+<div class="panel">
+  <h2>History</h2>
+  <% if (!activity || !activity.length) { %>
+    <p class="muted">No activity yet.</p>
+  <% } else { %>
+    <ul class="activity-list" style="list-style:none;padding:0;margin:0">
+      <% activity.forEach(ev => { %>
+        <li style="padding:0.65rem 0;border-bottom:1px solid #e5e7eb">
+          <div>
+            <strong><%= ev.action.replace(/_/g, ' ') %></strong>
+            <span class="muted">· <%= ev.actorType %><% if (ev.actorId) { %> (<%= String(ev.actorId).slice(0,8) %>…)<% } %></span>
+          </div>
+          <div class="muted" style="font-size:0.85rem"><%= new Date(ev.createdAt).toLocaleString() %></div>
+          <% if (ev.changes && typeof ev.changes === 'object') { %>
+            <ul style="margin:0.35rem 0 0;padding-left:1.1rem;font-size:0.9rem">
+              <% Object.entries(ev.changes).forEach(([field, delta]) => { %>
+                <li>
+                  <code><%= field %></code>:
+                  <span class="muted"><%= delta && delta.from != null ? String(delta.from) : '—' %></span>
+                  →
+                  <strong><%= delta && delta.to != null ? String(delta.to) : '—' %></strong>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>

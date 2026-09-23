@@ -1,0 +1,93 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Payment templates</h1>
+  <a class="btn btn-secondary" href="/settings">Back to settings</a>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel">
+  <table>
+    <thead><tr><th>Name</th><th>Items</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+      <% templates.forEach(t => { %>
+        <tr>
+          <td><%= t.name %></td>
+          <td><%= Array.isArray(t.items) ? t.items.length : 0 %></td>
+          <td><%= t.active ? 'yes' : 'no' %></td>
+          <td><a href="/settings/payment-templates/<%= t.id %>/edit">Edit</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <h3>New template</h3>
+  <form method="post" action="/settings/payment-templates" style="max-width:400px">
+    <label>Name</label>
+    <input name="name" required />
+    <label>Description</label>
+    <input name="description" />
+    <button class="btn" type="submit">Create</button>
+  </form>
+</div>
+
+<% if (editing) { %>
+<div class="panel">
+  <h2>Edit: <%= editing.name %></h2>
+  <form method="post" action="/settings/payment-templates/<%= editing.id %>" id="tplForm">
+    <label>Name</label>
+    <input name="name" value="<%= editing.name %>" required />
+    <label>Description</label>
+    <input name="description" value="<%= editing.description || '' %>" />
+    <label style="font-weight:500"><input type="checkbox" name="active" <%= editing.active ? 'checked' : '' %> style="width:auto" /> Active</label>
+    <h3>Items</h3>
+    <div id="items"></div>
+    <button type="button" class="btn btn-secondary" id="addItem">Add item</button>
+    <input type="hidden" name="itemsJson" id="itemsJson" />
+    <p style="margin-top:1rem"><button class="btn" type="submit">Save</button></p>
+  </form>
+</div>
+<script>
+  let items = <%- JSON.stringify(Array.isArray(editing.items) ? editing.items : []) %>;
+  const triggers = ['manual','on_send','on_approve','on_phase_start','on_phase_complete'];
+  const box = document.getElementById('items');
+  function render() {
+    box.innerHTML = '';
+    items.forEach((it, i) => {
+      const d = document.createElement('div');
+      d.style.cssText = 'border:1px solid #e5e7eb;padding:0.75rem;margin:0.5rem 0;border-radius:6px;display:grid;gap:0.35rem;grid-template-columns:2fr 1fr 1fr auto';
+      d.innerHTML = '<input data-i="'+i+'" data-k="label" value="'+(it.label||'')+'" placeholder="Label" />' +
+        '<input data-i="'+i+'" data-k="percent" type="number" step="0.01" value="'+(it.percent??'')+'" placeholder="%" />' +
+        '<select data-i="'+i+'" data-k="trigger">' + triggers.map(t => '<option value="'+t+'" '+(it.trigger===t?'selected':'')+'>'+t+'</option>').join('') + '</select>' +
+        '<button type="button" data-del="'+i+'">Remove</button>';
+      box.appendChild(d);
+    });
+    document.getElementById('itemsJson').value = JSON.stringify(items.map((it, i) => ({
+      label: it.label, percent: it.percent != null && it.percent !== '' ? Number(it.percent) : null,
+      fixedAmount: null, trigger: it.trigger || 'manual', phaseKey: it.phaseKey || null, sortOrder: i + 1
+    })));
+  }
+  box.addEventListener('input', (e) => {
+    const t = e.target; if (t.dataset.i == null) return;
+    const i = Number(t.dataset.i);
+    if (t.dataset.k === 'percent') items[i].percent = t.value === '' ? null : Number(t.value);
+    else items[i][t.dataset.k] = t.value;
+    document.getElementById('itemsJson').value = JSON.stringify(items);
+  });
+  box.addEventListener('change', () => box.dispatchEvent(new Event('input', { bubbles: true })));
+  box.addEventListener('click', (e) => {
+    if (e.target.dataset.del != null) { items.splice(Number(e.target.dataset.del), 1); render(); }
+  });
+  document.getElementById('addItem').onclick = () => {
+    items.push({ label: 'Payment', percent: 0, trigger: 'manual', sortOrder: items.length + 1 });
+    render();
+  };
+  document.getElementById('tplForm').onsubmit = () => {
+    document.getElementById('itemsJson').value = JSON.stringify(items.map((it, i) => ({
+      label: it.label, percent: it.percent != null && it.percent !== '' ? Number(it.percent) : null,
+      fixedAmount: null, trigger: it.trigger || 'manual', phaseKey: it.phaseKey || null, sortOrder: i + 1
+    })));
+  };
+  render();
+</script>
+<% } %>
+<%- include('../partials/footer') %>

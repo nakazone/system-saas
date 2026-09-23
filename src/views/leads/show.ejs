@@ -1,0 +1,24 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= lead.name %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/leads/<%= lead.id %>/edit">Edit</a>
+    <a class="btn btn-secondary" href="/assessments/new?leadId=<%= lead.id %>">Schedule measurement</a>
+    <% if (lead.status !== 'converted') { %>
+      <form method="post" action="/leads/<%= lead.id %>/convert" class="inline">
+        <button class="btn" type="submit">Convert to customer</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+<div class="panel">
+  <p><strong>Status:</strong> <%= lead.status %></p>
+  <p><strong>Email:</strong> <%= lead.email || '—' %></p>
+  <p><strong>Phone:</strong> <%= lead.phone || '—' %></p>
+  <p><strong>Source:</strong> <%= lead.source || '—' %></p>
+  <p><strong>Stage:</strong> <%= lead.pipelineStage ? lead.pipelineStage.name : '—' %></p>
+  <p><strong>Owner:</strong> <%= lead.owner ? lead.owner.name : '—' %></p>
+  <% if (lead.notes) { %><p><strong>Notes:</strong> <%= lead.notes %></p><% } %>
+</div>
+<%- include('../partials/activity-history', { activity }) %>
+<%- include('../partials/footer') %>

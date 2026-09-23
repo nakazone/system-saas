@@ -27,6 +27,9 @@ settingsRouter.get(
         });
       });
       const permissions = await prisma.permission.findMany({ orderBy: [{ group: "asc" }, { key: "asc" }] });
+      const addOns = await withTenantTransaction(req.organizationId!, async (tx) => {
+        return tx.quoteAddOn.findMany({ orderBy: { sortOrder: "asc" } });
+      });
 
       res.render("settings/index", {
         title: "Settings",
@@ -35,6 +38,8 @@ settingsRouter.get(
         estimateRules,
         roles,
         permissions,
+        addOns,
+        canViewPricing: req.user?.permissions.includes("pricing.view") || req.user?.roleKey === "admin",
         error: null,
         success: req.query.saved === "1" ? "Settings saved." : null,
       });
@@ -63,6 +68,11 @@ settingsRouter.post(
           .or(z.literal("")),
         contactEmail: z.string().email().optional().or(z.literal("")),
         contactPhone: z.string().max(40).optional().or(z.literal("")),
+        timezone: z.string().min(3).max(64).optional().or(z.literal("")),
+        quoteValidityDays: z.coerce.number().int().min(1).max(365).optional(),
+        defaultQuoteTerms: z.string().max(20000).optional().or(z.literal("")),
+        quoteTaxRate: z.coerce.number().min(0).max(100).optional(),
+        paymentInstructions: z.string().max(5000).optional().or(z.literal("")),
         logoDataUrl: z.string().optional().or(z.literal("")),
       });
       const parsed = schema.safeParse(req.body);
@@ -91,6 +101,15 @@ settingsRouter.post(
           accentColor: parsed.data.accentColor || null,
           contactEmail: parsed.data.contactEmail || null,
           contactPhone: parsed.data.contactPhone || null,
+          ...(parsed.data.timezone ? { timezone: parsed.data.timezone } : {}),
+          ...(parsed.data.quoteValidityDays != null
+            ? { quoteValidityDays: parsed.data.quoteValidityDays }
+            : {}),
+          defaultQuoteTerms: parsed.data.defaultQuoteTerms || null,
+          ...(parsed.data.quoteTaxRate != null
+            ? { quoteTaxRate: parsed.data.quoteTaxRate }
+            : {}),
+          paymentInstructions: parsed.data.paymentInstructions || null,
           ...(logoUrl ? { logoUrl } : {}),
         },
       });

@@ -1,0 +1,25 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Reports</h1>
+  <a class="btn btn-secondary" href="/">Home</a>
+</div>
+<form method="get" action="/reports" class="panel" style="max-width:480px">
+  <label>From</label>
+  <input type="date" name="from" value="<%= from %>" />
+  <label>To</label>
+  <input type="date" name="to" value="<%= to %>" />
+  <p class="muted">Period applies when you open a report below.</p>
+</form>
+<div class="panel">
+  <ul>
+    <li><a href="/reports/conversion-source?from=<%= encodeURIComponent(from) %>&to=<%= encodeURIComponent(to) %>">Conversion by lead source</a></li>
+    <li><a href="/reports/conversion-salesperson?from=<%= encodeURIComponent(from) %>&to=<%= encodeURIComponent(to) %>">Conversion by salesperson</a></li>
+    <li><a href="/reports/loss-reasons?from=<%= encodeURIComponent(from) %>&to=<%= encodeURIComponent(to) %>">Loss reasons</a></li>
+    <li><a href="/reports/projected-revenue">Projected revenue (open installments)</a></li>
+    <li><a href="/reports/ar-aging">Accounts receivable aging</a></li>
+    <% if (canViewPricing) { %>
+    <li><a href="/reports/profitability">Profitability by project / flooring type</a></li>
+    <% } %>
+  </ul>
+</div>
+<%- include('../partials/footer') %>

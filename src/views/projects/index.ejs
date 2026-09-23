@@ -1,0 +1,36 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Projects</h1>
+  <a class="btn btn-secondary" href="/schedule">Schedule</a>
+</div>
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Shown</div><div class="value"><%= metrics.total %></div></div>
+  <div class="stat"><div class="label">In progress</div><div class="value"><%= metrics.inProgress %></div></div>
+  <div class="stat"><div class="label">Needs invoicing</div><div class="value"><%= metrics.needsInvoicing %></div></div>
+</div>
+<% if (filters.filter) { %><p class="muted">Filter: <%= filters.filter %> · <a href="/projects">Clear</a></p><% } %>
+<form method="get" style="margin-bottom:1rem">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">All statuses</option>
+    <% ['planning','scheduled','in_progress','needs_invoicing','completed','canceled'].forEach(s => { %>
+      <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option>
+    <% }) %>
+  </select>
+</form>
+<div class="panel">
+  <table>
+    <thead><tr><th>#</th><th>Name</th><th>Customer</th><th>Status</th><th>Visits</th></tr></thead>
+    <tbody>
+      <% projects.forEach(p => { %>
+        <tr>
+          <td><%= p.number || '—' %></td>
+          <td><a href="/projects/<%= p.id %>"><%= p.name %></a></td>
+          <td><%= p.customer ? p.customer.name : '—' %></td>
+          <td><%= p.status %></td>
+          <td><%= p._count.visits %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

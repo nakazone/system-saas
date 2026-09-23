@@ -1,0 +1,72 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Automations</h1>
+  <a class="btn btn-secondary" href="/settings">Back</a>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel" style="max-width:520px">
+  <h2>Email automations</h2>
+  <p class="muted">SMS channel is reserved for later. Transactional emails respect customer opt-out.</p>
+  <form method="post" action="/settings/automations">
+    <label style="font-weight:500">
+      <input type="checkbox" name="quoteFollowUpEnabled" <%= settings.quoteFollowUpEnabled ? 'checked' : '' %> style="width:auto" />
+      Quote follow-up after send
+    </label>
+    <label>Follow-up delay (days)</label>
+    <input name="quoteFollowUpDays" type="number" min="0" max="90" value="<%= settings.quoteFollowUpDays %>" />
+
+    <label style="font-weight:500;margin-top:1rem;display:block">
+      <input type="checkbox" name="visitReminderEnabled" <%= settings.visitReminderEnabled ? 'checked' : '' %> style="width:auto" />
+      Visit reminder before start
+    </label>
+    <label>Reminder lead time (hours)</label>
+    <input name="visitReminderHours" type="number" min="0" max="168" value="<%= settings.visitReminderHours %>" />
+
+    <button class="btn" type="submit" style="margin-top:1rem">Save</button>
+  </form>
+  <form method="post" action="/settings/automations/run-due" style="margin-top:0.75rem">
+    <button class="btn btn-secondary" type="submit">Run due messages now</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Pending</h2>
+  <% if (!pending.length) { %><p class="muted">None queued.</p><% } else { %>
+  <table>
+    <thead><tr><th>When</th><th>Trigger</th><th>To</th><th>Subject</th></tr></thead>
+    <tbody>
+      <% pending.forEach(m => { %>
+        <tr>
+          <td><%= new Date(m.scheduledFor).toLocaleString() %></td>
+          <td><%= m.triggerKey %></td>
+          <td><%= m.toAddress %></td>
+          <td><%= m.subject %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+
+<div class="panel">
+  <h2>Recent log</h2>
+  <% if (!logs.length) { %><p class="muted">No sends yet.</p><% } else { %>
+  <table>
+    <thead><tr><th>At</th><th>Status</th><th>Trigger</th><th>To</th><th>Note</th></tr></thead>
+    <tbody>
+      <% logs.forEach(l => { %>
+        <tr>
+          <td><%= new Date(l.createdAt).toLocaleString() %></td>
+          <td><%= l.status %></td>
+          <td><%= l.triggerKey || '—' %></td>
+          <td><%= l.toAddress %></td>
+          <td class="muted"><%= l.skipReason || '—' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>
