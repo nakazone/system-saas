@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="mobile-design-system.css?v=20260922-branding" />
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa" />
+  <link rel="stylesheet" href="crm-push.css?v=20260923-push" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -182,6 +183,16 @@
             </div>
           </section>
 
+          <section class="brand-card" id="alertas-push" style="margin-top: 16px;">
+            <h2>Alertas no dispositivo</h2>
+            <p class="brand-hint" style="margin-top:0;margin-bottom:10px;" data-crm-push-status>
+              Receba avisos de novos leads mesmo com o app fechado (iPhone/iPad: use o app instalado na Tela de Início).
+            </p>
+            <div class="brand-actions">
+              <button type="button" class="btn btn-primary" data-crm-push-enable data-label-off="Ativar alertas" data-label-on="Alertas ativos — desativar">Ativar alertas</button>
+            </div>
+          </section>
+
           <section class="brand-card" id="suporte" style="margin-top: 28px;">
             <h2>Falar com o suporte</h2>
             <p class="brand-hint" style="margin-top:0;margin-bottom:14px;">
@@ -222,6 +233,7 @@
 
   <script src="crm-toast.js"></script>
   <script src="crm-pwa-install.js?v=20260923-pwa"></script>
+  <script src="crm-push.js?v=20260923-push"></script>
   <script src="ajustes.js?v=20260923-support"></script>
 </body>
 </html>

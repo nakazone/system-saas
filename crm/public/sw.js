@@ -1,7 +1,7 @@
 /**
- * Senior Floors — service worker mínimo (assets estáticos).
+ * Senior Floors / ObraMate — service worker (cache + Web Push).
  */
-const CACHE = 'sf-static-v31';
+const CACHE = 'sf-static-v32';
 const PRECACHE = [
   '/dashboard.html',
   '/styles.css',
@@ -37,12 +37,60 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((res) => {
         const copy = res.clone();
-        // Não cachear .js: evita Kanban/CRM com bundle antigo após deploy.
         if (res.ok && /\.(css|png|jpg|svg|woff2?)$/i.test(url.pathname)) {
           caches.open(CACHE).then((c) => c.put(event.request, copy));
         }
         return res;
       })
       .catch(() => caches.match(event.request).then((r) => r || Promise.reject()))
+  );
+});
+
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'ObraMate',
+    body: 'Nova atualização',
+    url: '/dashboard.html',
+    tag: 'obramate',
+  };
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      data = { ...data, ...parsed };
+    }
+  } catch (_) {
+    try {
+      const text = event.data && event.data.text();
+      if (text) data.body = text;
+    } catch (_) {}
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'ObraMate', {
+      body: data.body || '',
+      icon: '/assets/obramate-logo.png',
+      badge: '/assets/obramate-logo.png',
+      tag: data.tag || 'obramate',
+      renotify: true,
+      data: { url: data.url || '/dashboard.html' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const raw = (event.notification.data && event.notification.data.url) || '/dashboard.html';
+  const url = new URL(raw, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+      return undefined;
+    })
   );
 });

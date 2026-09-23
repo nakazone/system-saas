@@ -71,6 +71,7 @@ const TENANT_MODELS = new Set([
   "PayrollPeriod",
   "PayrollTimesheet",
   "SupportTicket",
+  "PushSubscription",
 ]);
 
 type Operation =

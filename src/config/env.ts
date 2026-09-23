@@ -24,6 +24,10 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().default("noreply@localhost"),
   /** Inbox for tenant support tickets (falls back to first platform admin email). */
   SUPPORT_INBOX_EMAIL: z.string().email().optional(),
+  /** Web Push VAPID (optional — generated & stored in DB if missing). */
+  VAPID_PUBLIC_KEY: z.string().min(20).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(20).optional(),
+  VAPID_SUBJECT: z.string().default("mailto:support@obramate.app"),
 });
 
 export type Env = z.infer<typeof envSchema>;

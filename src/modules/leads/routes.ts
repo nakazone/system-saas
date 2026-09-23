@@ -6,6 +6,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { diffFields, recordActivity } from "../../lib/activity/record.js";
 import { canViewPricing } from "../../lib/pricing/visibility.js";
 import { staleNewLeadWhere } from "../../lib/home/actions.js";
+import { notifyNewLeadPush } from "../../lib/push/notify.js";
 import {
   assertCanDeleteOrReorderStage,
   moveLeadToSystemStage,
@@ -292,6 +293,11 @@ leadsRouter.post(
         });
         return created;
       });
+      notifyNewLeadPush(
+        req.organizationId!,
+        { id: lead.id, name: lead.name },
+        { excludeUserId: req.user?.id },
+      );
       res.redirect(`/leads/${lead.id}`);
     } catch (error) {
       next(error);

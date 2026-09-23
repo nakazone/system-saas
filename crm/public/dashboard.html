@@ -22,6 +22,7 @@
     <link rel="stylesheet" href="crm-command-palette.css">
     <link rel="stylesheet" href="crm-shell.css?v=20260923-shell">
     <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa">
+    <link rel="stylesheet" href="crm-push.css?v=20260923-push">
     <link rel="stylesheet" href="dashboard-insights.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -61,6 +62,10 @@
                             <button type="button" class="btn-notification-text" id="notificationMarkAllRead">Marcar lidas</button>
                             <button type="button" class="btn-notification-text btn-notification-text--danger" id="notificationClearAll">Limpar</button>
                         </div>
+                    </div>
+                    <div class="crm-push-panel">
+                        <p class="crm-push-panel__status" data-crm-push-status>Receba avisos de novos leads mesmo com o app fechado.</p>
+                        <button type="button" class="crm-push-panel__btn" data-crm-push-enable data-label-off="Ativar alertas no dispositivo" data-label-on="Alertas ativos — tocar para desativar">Ativar alertas no dispositivo</button>
                     </div>
                     <div id="notificationPanelList" class="notification-panel-list"></div>
                 </div>
@@ -1776,6 +1781,7 @@
     <script src="crm-command-palette.js"></script>
     <script src="crm-shell.js?v=20260923-shell"></script>
     <script src="crm-pwa-install.js?v=20260923-pwa"></script>
+    <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js?v=20260918-leads-quotes-mobile"></script>

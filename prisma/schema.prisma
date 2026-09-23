@@ -98,6 +98,7 @@ model Organization {
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
   supportTickets     SupportTicket[]
+  pushSubscriptions  PushSubscription[]
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +130,7 @@ model User {
   laborRates LaborRate[]
   laborEntries LaborEntry[]
   supportTickets SupportTicket[] @relation("SupportTicketAuthor")
+  pushSubscriptions PushSubscription[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -1299,4 +1301,37 @@ model SupportTicket {
 
   @@index([organizationId, createdAt])
   @@index([status, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Platform / system settings (no tenant RLS — e.g. VAPID keys)
+// ---------------------------------------------------------------------------
+
+model SystemSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Web Push subscriptions (PWA — iOS Home Screen + Android/Desktop)
+// ---------------------------------------------------------------------------
+
+model PushSubscription {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint       String   @db.Text
+  p256dh         String
+  auth           String
+  userAgent      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([endpoint])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([organizationId, userId])
 }

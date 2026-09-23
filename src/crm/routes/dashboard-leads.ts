@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
+import { notifyNewLeadPush } from "../../lib/push/notify.js";
 
 export const dashboardLeadsRouter = Router();
 
@@ -168,6 +169,12 @@ dashboardLeadsRouter.post("/api/leads", requireCrmAuth, async (req: AuthedReques
         include: { pipelineStage: true, owner: { select: { id: true, name: true, email: true } } },
       });
     });
+
+    notifyNewLeadPush(
+      req.organizationId!,
+      { id: lead.id, name: lead.name },
+      { excludeUserId: req.user?.id },
+    );
 
     res.status(201).json({ success: true, data: mapLead(lead), lead_id: lead.id });
   } catch (error) {
