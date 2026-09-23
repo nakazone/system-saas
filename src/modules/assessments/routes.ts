@@ -56,7 +56,6 @@ assessmentsRouter.get(
           orderBy: [{ scheduledStart: "asc" }, { createdAt: "desc" }],
         });
       });
-      const now = new Date();
       const assessments = rows.map((a) => ({
         ...a,
         overdue: isAssessmentOverdue(a, now),

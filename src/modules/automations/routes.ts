@@ -87,7 +87,7 @@ automationsRouter.post(
 automationsRouter.post(
   "/run-due",
   requirePermission("automations.manage"),
-  async (req: AuthedRequest, res, next) => {
+  async (_req: AuthedRequest, res, next) => {
     try {
       const result = await processDueScheduledMessages();
       res.redirect(
