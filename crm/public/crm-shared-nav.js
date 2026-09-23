@@ -1,38 +1,29 @@
 /**
  * Menu CRM padrão (mesma estrutura, grupos e ícones que dashboard.html) em páginas standalone.
  * Respeita permissões via GET /api/auth/session.
+ * Apenas módulos padrão: Dashboard, Leads, Quotes, Invoices, Cadastro,
+ * Tabela de Valores, Folha de Pagamento, Ajustes, Users.
  */
 (function () {
   const ICONS = {
     dashboard:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>',
-    marketing:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 11v2a1 1 0 001 1h2l4 9V4L6 11H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 8"/><path d="M19 6a8 8 0 010 12"/></svg>',
     leads:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>',
-    crm:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
     customers:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
     quotes:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>',
-    schedule:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>',
-    projects:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/><path d="M5 3l4 4"/></svg>',
-    financial:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
     payroll:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
-    activities:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
     users:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    settings:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
   };
 
   const CADASTRO_CHILDREN = [
     { href: 'products-erp.html', label: 'Produtos', perm: 'quotes.view', page: '', iconKey: 'quotes' },
-    { href: 'financial.html#vendors', label: 'Fornecedores', perm: 'contracts.view', page: '', iconKey: 'financial' },
     { href: 'quote-catalog.html', label: 'Serviços', perm: 'quotes.edit', page: '', iconKey: 'quotes' },
     { href: 'dashboard.html?page=customers', label: 'Clientes', perm: 'customers.view', page: 'customers', iconKey: 'customers' },
     {
@@ -43,11 +34,9 @@
       iconKey: 'customers',
       customerType: 'builder',
     },
-    { href: 'financial.html#notas-recibos', label: 'Notas / recibos', perm: 'contracts.view', page: '', iconKey: 'financial' },
-    { href: 'financial.html#recebimentos', label: 'Recebimentos', perm: 'contracts.view', page: '', iconKey: 'financial' },
   ];
 
-  /** Grupos alinhados a dashboard.html */
+  /** Grupos alinhados a dashboard.html — só módulos padrão do sistema */
   const SIDEBAR_GROUPS = [
     {
       label: null,
@@ -58,7 +47,6 @@
     {
       label: 'Comercial',
       items: [
-        { href: 'marketing.html', label: 'Marketing', perm: 'reports.view', page: '', iconKey: 'marketing' },
         { href: 'dashboard.html?page=leads', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
       ],
     },
@@ -67,61 +55,35 @@
       items: [
         { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
         { href: 'dashboard.html?page=invoices', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'quotes' },
-        { href: 'dashboard.html?page=schedule', label: 'Schedule', perm: 'visits.view', page: 'schedule', iconKey: 'schedule' },
-        { href: 'projects.html', label: 'Projetos', perm: 'projects.view', page: '', iconKey: 'projects' },
-        {
-          href: 'builder-payments-forecast.html',
-          label: 'Previsão builders',
-          perm: 'projects.view',
-          page: '',
-          iconKey: 'projects',
-        },
         { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'quotes', children: CADASTRO_CHILDREN },
-      ],
-    },
-    {
-      label: 'Builders',
-      items: [
-        { href: 'builders.html', label: 'Builders', perm: 'builders.view', page: '', iconKey: 'customers' },
-        { href: 'builder-portal.html', label: 'Portal do Builder', perm: 'builders.view', page: '', iconKey: 'customers' },
-        { href: 'projects.html?client_type=builder', label: 'Projetos Builders', perm: 'projects.view', page: '', iconKey: 'projects' },
-        { href: 'builder-pricing-admin.html', label: 'Tabela de Valores', perm: 'builders.view', page: '', iconKey: 'quotes' },
-        { href: 'builder-gallery-admin.html', label: 'Galeria de Projetos', perm: 'builders.view', page: '', iconKey: 'projects' },
-        { href: 'builder-messages-admin.html', label: 'Mensagens', perm: 'builders.view', page: '', iconKey: 'activities' },
         {
-          href: 'builder-estimate-requests.html',
-          label: 'Pedidos estimativa',
+          href: 'builder-pricing-admin.html',
+          label: 'Tabela de Valores',
           perm: 'builders.view',
           page: '',
-          iconKey: 'leads',
+          iconKey: 'quotes',
         },
-      ],
-    },
-    {
-      label: 'Financeiro & registo',
-      items: [
-        { href: 'financial.html', label: 'Financeiro', perm: 'contracts.view', page: '', iconKey: 'financial' },
-        { href: 'payroll-module.html', label: 'Folha de pagamento', perm: 'payroll.view', page: '', iconKey: 'payroll' },
-        { href: 'dashboard.html?page=activities', label: 'Activities', perm: 'activities.view', page: 'activities', iconKey: 'activities' },
+        {
+          href: 'payroll-module.html',
+          label: 'Folha de Pagamento',
+          perm: 'payroll.view',
+          page: '',
+          iconKey: 'payroll',
+        },
       ],
     },
     {
       label: 'Sistema',
-      items: [{ href: 'dashboard.html?page=users', label: 'Users', perm: 'users.view', page: 'users', iconKey: 'users' }],
+      items: [
+        { href: 'ajustes.html', label: 'Ajustes', perm: 'settings.manage', page: '', iconKey: 'settings' },
+        { href: 'dashboard.html?page=users', label: 'Users', perm: 'users.view', page: 'users', iconKey: 'users' },
+      ],
     },
   ];
 
   const MAIN_NAV = SIDEBAR_GROUPS.flatMap((g) => g.items).filter(
     (item) => item.showInTopBar !== false && item.type !== 'dropdown'
   );
-
-  /** Só na barra horizontal (páginas sem sidebar); não aparece no menu lateral fixo. */
-  const TOOL_NAV = [
-    { href: 'quote-builder.html', label: 'Novo orçamento', perm: 'quotes.edit' },
-    { href: 'onsite-quote.html', label: 'Quick quote', perm: 'quotes.create' },
-    { href: 'estimate-builder.html', label: 'Estimate', perm: 'quotes.view' },
-    { href: 'estimate-analytics.html', label: 'Est. analytics', perm: 'quotes.view' },
-  ];
 
   function currentFile() {
     const p = (window.location.pathname || '').split('/').pop() || '';
@@ -135,14 +97,7 @@
   function linkActive(item, file, page) {
     const h = item.href || '';
     const pathAndQuery = h.split('#')[0];
-    const wantHash = (h.split('#')[1] || '').toLowerCase();
     const base = pathAndQuery.split('?')[0].split('/').pop().toLowerCase();
-
-    if (base === 'financial.html' && file === 'financial.html') {
-      const curHash = (location.hash || '').replace(/^#/, '').toLowerCase();
-      if (wantHash) return curHash === wantHash;
-      return !curHash;
-    }
 
     if (file === 'lead-detail.html') {
       return base === 'dashboard.html' && (item.page || '') === 'leads';
@@ -151,23 +106,11 @@
       if ((item.page || '') === 'quotes') return true;
       if (base === 'quote-builder.html') return true;
     }
-    if (base === 'marketing.html') {
-      return file === 'marketing.html';
-    }
-    if (base === 'projects.html') {
-      return file === 'projects.html';
-    }
-    if (base === 'builder-payments-forecast.html') {
-      return file === 'builder-payments-forecast.html';
-    }
-    if (base === 'builders.html') return file === 'builders.html';
-    if (base === 'builder-detail.html') return file === 'builder-detail.html';
     if (base === 'builder-pricing-admin.html') return file === 'builder-pricing-admin.html';
-    if (base === 'builder-gallery-admin.html') return file === 'builder-gallery-admin.html';
-    if (base === 'builder-messages-admin.html') return file === 'builder-messages-admin.html';
-    if (base === 'builder-portal.html') return file === 'builder-portal.html';
-    if (base === 'builder-estimate-requests.html') return file === 'builder-estimate-requests.html';
-    if (base === 'builder-calculator.html') return file === 'builder-calculator.html';
+    if (base === 'payroll-module.html') return file === 'payroll-module.html';
+    if (base === 'ajustes.html') return file === 'ajustes.html';
+    if (base === 'products-erp.html') return file === 'products-erp.html';
+    if (base === 'quote-catalog.html') return file === 'quote-catalog.html';
     if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
       if (file !== 'dashboard.html') return false;
       const expected = item.page || '';
@@ -365,25 +308,6 @@
     });
 
     appendTopBarCadastroDropdown(inner, keys, role, file, page);
-
-    const sep = document.createElement('span');
-    sep.className = 'crm-shared-nav__sep';
-    sep.setAttribute('aria-hidden', 'true');
-    inner.appendChild(sep);
-
-    const lab = document.createElement('span');
-    lab.className = 'crm-shared-nav__label crm-shared-nav__label--tools';
-    lab.textContent = 'Ferramentas';
-    inner.appendChild(lab);
-
-    TOOL_NAV.forEach((item) => {
-      if (!canSee(item.perm, role, keys)) return;
-      const a = document.createElement('a');
-      a.href = item.href;
-      a.className = 'crm-shared-nav__link' + (linkActive(item, file, page) ? ' crm-shared-nav__link--active' : '');
-      a.textContent = item.label;
-      inner.appendChild(a);
-    });
 
     const logout = document.createElement('button');
     logout.type = 'button';

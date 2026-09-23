@@ -143,6 +143,32 @@ export function createApp() {
   // Senior Floors CRM UI + /api/auth bridge (primary product experience)
   app.use(createCrmRouter());
 
+  // Phase 2 EJS surfaces are not part of the product nav — send deep links to CRM
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      next();
+      return;
+    }
+    const p = String(req.path || "").replace(/\/$/, "") || "/";
+    const phase2Ui =
+      p === "/home" ||
+      p === "/leads/board" ||
+      p === "/schedule" ||
+      p === "/schedule/my-day" ||
+      p === "/assessments" ||
+      p === "/reports" ||
+      p === "/settings/automations" ||
+      p === "/projects" ||
+      /^\/projects\/\d+$/.test(p) ||
+      /^\/assessments\/\d+/.test(p) ||
+      /^\/reports\/[^/]+$/.test(p);
+    if (phase2Ui) {
+      res.redirect(302, "/dashboard.html");
+      return;
+    }
+    next();
+  });
+
   app.use(authRouter);
   app.use("/invitations", invitationsRouter);
   app.use(dashboardRouter);

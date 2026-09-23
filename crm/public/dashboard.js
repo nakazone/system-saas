@@ -172,8 +172,8 @@ fetch('/api/auth/session', { credentials: 'include' })
         startNewLeadPolling();
         const pageParam = new URLSearchParams(window.location.search).get('page');
         const routePage = pageParam === 'crm' ? 'leads' : pageParam;
-        if (pageParam === 'projects') {
-            window.location.replace('/projects.html');
+        if (pageParam === 'projects' || pageParam === 'schedule') {
+            showPage('dashboard');
             return;
         }
         if (pageParam === 'customers') {
@@ -944,15 +944,11 @@ function hideDashboardSkeletons() {
 function handleDashboardActionUrl(url) {
     if (!url) return;
     const u = String(url).toLowerCase();
-    if (u.includes('schedule') || u.endsWith('/schedule')) {
-        showPage('schedule');
+    if (u.includes('schedule') || u.endsWith('/schedule') || u.includes('/projects') || u.includes('/reports')) {
+        showPage('dashboard');
         return;
     }
-    if (u.includes('lead') || u.includes('filter=no_contact')) {
-        showPage('leads');
-        return;
-    }
-    if (u.includes('crm')) {
+    if (u.includes('lead') || u.includes('filter=no_contact') || u.includes('crm')) {
         showPage('leads');
         return;
     }

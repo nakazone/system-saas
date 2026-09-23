@@ -4,19 +4,16 @@
 (function () {
   const ACTIONS = [
     { id: 'dash', label: 'Dashboard', sub: 'Visão geral', href: 'dashboard.html', perm: null },
-    { id: 'home', label: 'Action home', sub: 'O que precisa de si', href: '/home', perm: 'leads.view' },
     { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'dashboard.html?page=leads', perm: 'leads.view' },
-    { id: 'board', label: 'Pipeline board', sub: 'Kanban Phase 2', href: '/leads/board', perm: 'leads.view' },
-    { id: 'quotes', label: 'Orçamentos', sub: 'Lista de quotes', href: 'dashboard.html?page=quotes', perm: 'quotes.view' },
-    { id: 'newq', label: 'Novo orçamento', sub: 'Quote builder', href: 'quote-builder.html', perm: 'quotes.edit' },
-    { id: 'onsite', label: 'Quick quote', sub: 'Field · 2 steps', href: 'onsite-quote.html', perm: 'quotes.create' },
-    { id: 'cat', label: 'Catálogo de serviços', sub: '', href: 'quote-catalog.html', perm: 'quotes.edit' },
-    { id: 'clients', label: 'Clientes', sub: '', href: 'dashboard.html?page=customers', perm: 'customers.view' },
-    { id: 'projects', label: 'Projects', sub: 'Obras e visitas', href: '/projects', perm: 'projects.view' },
-    { id: 'myday', label: 'My Day', sub: 'Visitas de hoje', href: '/schedule/my-day', perm: 'visits.view' },
-    { id: 'reports', label: 'Reports', sub: 'CSV e métricas', href: '/reports', perm: 'reports.view' },
-    { id: 'auto', label: 'Automations', sub: 'Emails agendados', href: '/settings/automations', perm: 'automations.manage' },
-    { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores da empresa', href: 'ajustes.html', perm: 'settings.manage' },
+    { id: 'quotes', label: 'Quotes', sub: 'Orçamentos', href: 'dashboard.html?page=quotes', perm: 'quotes.view' },
+    { id: 'invoices', label: 'Invoices', sub: 'Faturas', href: 'dashboard.html?page=invoices', perm: 'quotes.view' },
+    { id: 'clients', label: 'Clientes', sub: 'Cadastro', href: 'dashboard.html?page=customers', perm: 'customers.view' },
+    { id: 'cat', label: 'Catálogo de serviços', sub: 'Cadastro', href: 'quote-catalog.html', perm: 'quotes.edit' },
+    { id: 'products', label: 'Produtos', sub: 'Cadastro', href: 'products-erp.html', perm: 'quotes.view' },
+    { id: 'pricing', label: 'Tabela de Valores', sub: '', href: 'builder-pricing-admin.html', perm: 'builders.view' },
+    { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'payroll-module.html', perm: 'payroll.view' },
+    { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores', href: 'ajustes.html', perm: 'settings.manage' },
+    { id: 'users', label: 'Users', sub: '', href: 'dashboard.html?page=users', perm: 'users.view' },
   ];
 
   function can(perm) {

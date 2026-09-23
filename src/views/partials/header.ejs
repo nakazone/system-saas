@@ -30,19 +30,15 @@
     </div>
     <% if (typeof user !== 'undefined' && user) { %>
     <nav class="app-nav">
-      <a href="/">Home</a>
-      <a href="/leads">Leads</a>
-      <a href="/leads/board">Board</a>
-      <a href="/customers">Customers</a>
-      <a href="/quotes">Quotes</a>
-      <a href="/invoices">Invoices</a>
-      <a href="/projects">Projects</a>
-      <a href="/schedule">Schedule</a>
-      <a href="/schedule/my-day">My Day</a>
-      <a href="/assessments">Assessments</a>
-      <a href="/reports">Reports</a>
-      <a href="/users">Users</a>
-      <a href="/settings">Settings</a>
+      <a href="/dashboard.html">Dashboard</a>
+      <a href="/dashboard.html?page=leads">Leads</a>
+      <a href="/dashboard.html?page=quotes">Quotes</a>
+      <a href="/dashboard.html?page=invoices">Invoices</a>
+      <a href="/dashboard.html?page=customers">Cadastro</a>
+      <a href="/builder-pricing-admin.html">Tabela de Valores</a>
+      <a href="/payroll-module.html">Folha de Pagamento</a>
+      <a href="/ajustes.html">Ajustes</a>
+      <a href="/dashboard.html?page=users">Users</a>
       <form action="/logout" method="post" class="inline">
         <button type="submit" class="linkish">Sign out (<%= user.name %>)</button>
       </form>
