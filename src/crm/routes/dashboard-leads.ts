@@ -128,22 +128,47 @@ dashboardLeadsRouter.get("/api/leads/:id", requireCrmAuth, async (req: AuthedReq
 
 dashboardLeadsRouter.post("/api/leads", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
+    const emptyToUndef = (v: unknown) =>
+      v === null || v === undefined || v === "" || v === "null" ? undefined : v;
+
     const parsed = z
       .object({
         name: z.string().min(1),
-        email: z.string().email().optional().or(z.literal("")),
-        phone: z.string().optional(),
-        source: z.string().optional(),
-        notes: z.string().optional(),
-        status: z.string().optional(),
-        pipeline_stage_id: z.string().uuid().optional().nullable(),
-        owner_id: z.string().uuid().optional().nullable(),
+        email: z.preprocess(
+          emptyToUndef,
+          z.string().email().optional(),
+        ),
+        phone: z.preprocess(emptyToUndef, z.string().optional()),
+        source: z.preprocess(emptyToUndef, z.string().optional()),
+        notes: z.preprocess(emptyToUndef, z.string().optional()),
+        status: z.preprocess(emptyToUndef, z.string().optional()),
+        zipcode: z.preprocess(emptyToUndef, z.string().optional()),
+        message: z.preprocess(emptyToUndef, z.string().optional()),
+        priority: z.preprocess(emptyToUndef, z.string().optional()),
+        estimated_value: z.preprocess(
+          (v) => (v === null || v === undefined || v === "" ? undefined : v),
+          z.union([z.number(), z.string()]).optional(),
+        ),
+        pipeline_stage_id: z.preprocess(
+          emptyToUndef,
+          z.string().uuid().optional(),
+        ),
+        owner_id: z.preprocess(emptyToUndef, z.string().uuid().optional()),
       })
       .safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Invalid lead payload" });
+      res.status(400).json({
+        success: false,
+        error: "Invalid lead payload",
+        details: parsed.error.flatten(),
+      });
       return;
     }
+
+    const noteParts = [parsed.data.notes, parsed.data.message, parsed.data.zipcode ? `CEP: ${parsed.data.zipcode}` : null]
+      .filter(Boolean)
+      .map(String);
+    const notesMerged = noteParts.length ? noteParts.join("\n") : null;
 
     const lead = await withTenantTransaction(req.organizationId!, async (tx) => {
       let stageId = parsed.data.pipeline_stage_id ?? null;
@@ -157,11 +182,11 @@ dashboardLeadsRouter.post("/api/leads", requireCrmAuth, async (req: AuthedReques
       return tx.lead.create({
         data: {
           organizationId: req.organizationId!,
-          name: parsed.data.name,
+          name: parsed.data.name.trim(),
           email: parsed.data.email || null,
           phone: parsed.data.phone || null,
           source: parsed.data.source || null,
-          notes: parsed.data.notes || null,
+          notes: notesMerged,
           status: parsed.data.status || "new",
           pipelineStageId: stageId,
           ownerId: parsed.data.owner_id ?? req.user?.id ?? null,

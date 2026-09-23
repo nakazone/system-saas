@@ -869,23 +869,35 @@ async function createLeadManual(e) {
     const stageSelect = document.getElementById('newLeadPipelineStage');
     const stageSlug = (stageSelect && stageSelect.value) || 'new_lead';
     const stageOpt = stageSelect && stageSelect.options[stageSelect.selectedIndex];
-    const stageIdRaw = stageOpt && stageOpt.dataset && stageOpt.dataset.stageId;
-    const pipelineStageId = stageIdRaw ? parseInt(stageIdRaw, 10) : null;
+    const stageIdRaw = stageOpt && stageOpt.dataset && stageOpt.dataset.stageId
+      ? String(stageOpt.dataset.stageId).trim()
+      : '';
+    // SaaS stages use UUID strings — never parseInt (corrupts UUIDs that start with digits)
+    const pipelineStageId =
+      stageIdRaw && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stageIdRaw)
+        ? stageIdRaw
+        : null;
+
+    const ownerRaw = formData.get('owner_id');
+    const ownerId =
+      ownerRaw && String(ownerRaw).trim() && String(ownerRaw) !== 'null'
+        ? String(ownerRaw).trim()
+        : null;
 
     const leadData = {
-        name: formData.get('name'),
-        email: formData.get('email'),
-        phone: formData.get('phone'),
-        zipcode: formData.get('zipcode'),
-        message: formData.get('message'),
-        source: formData.get('source') || 'Manual',
-        priority: formData.get('priority') || 'medium',
-        owner_id: formData.get('owner_id') || null,
-        estimated_value: parseFloat(formData.get('estimated_value')) || null,
-        notes: formData.get('notes'),
+        name: String(formData.get('name') || '').trim(),
+        email: String(formData.get('email') || '').trim(),
+        phone: String(formData.get('phone') || '').trim(),
+        zipcode: String(formData.get('zipcode') || '').trim() || null,
+        message: String(formData.get('message') || '').trim() || null,
+        source: String(formData.get('source') || 'Manual').trim() || 'Manual',
+        priority: String(formData.get('priority') || 'medium'),
+        owner_id: ownerId,
+        estimated_value: parseFloat(String(formData.get('estimated_value') || '')) || null,
+        notes: String(formData.get('notes') || '').trim() || null,
         status: stageSlug,
     };
-    if (Number.isFinite(pipelineStageId)) {
+    if (pipelineStageId) {
         leadData.pipeline_stage_id = pipelineStageId;
     }
     
