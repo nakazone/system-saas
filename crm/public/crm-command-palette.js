@@ -13,7 +13,7 @@
     { id: 'pricing', label: 'Tabela de Valores', sub: '', href: 'builder-pricing-admin.html', perm: 'builders.view' },
     { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'payroll-module.html', perm: 'payroll.view' },
     { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores', href: 'ajustes.html', perm: 'settings.manage' },
-    { id: 'support', label: 'Falar com suporte', sub: 'Dúvidas e sugestões', href: 'ajustes.html#suporte', perm: null },
+    { id: 'support', label: 'Ajuda / suporte', sub: 'Help center e contato', href: '#help', perm: null },
     { id: 'install', label: 'Instalar app', sub: 'Baixar no dispositivo', href: '#pwa-install', perm: null },
     { id: 'users', label: 'Equipe', sub: 'Utilizadores e permissões', href: 'dashboard.html?page=users', perm: 'users.view' },
   ];
@@ -81,6 +81,12 @@
         close();
         if (h === '#pwa-install') {
           if (typeof window.openCrmPwaInstall === 'function') window.openCrmPwaInstall();
+          return;
+        }
+        if (h === '#help') {
+          if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === 'function') {
+            window.__crmHelpPanel.open();
+          }
           return;
         }
         if (h) window.location.href = h;
