@@ -19,12 +19,55 @@
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
     <link rel="stylesheet" href="crm-command-palette.css">
+    <link rel="stylesheet" href="crm-shell.css?v=20260923-shell">
     <link rel="stylesheet" href="dashboard-insights.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="dashboard-app-body">
+    <script>
+      try {
+        if (window.matchMedia('(min-width: 1025px)').matches && localStorage.getItem('crm_sidebar_collapsed') === '1') {
+          document.body.classList.add('sidebar-collapsed');
+        }
+      } catch (e) {}
+    </script>
+    <header class="crm-topbar" id="crmTopbar" aria-label="Barra superior">
+        <a href="dashboard.html" class="crm-topbar__brand" aria-label="ObraMate — início">
+            <img src="/assets/obramate-logo.png" alt="ObraMate" width="160" height="36" onerror="this.style.display='none'" />
+        </a>
+        <div class="crm-topbar__right">
+            <button type="button" class="crm-topbar__search" id="crmTopbarSearchBtn" aria-label="Pesquisar no sistema" title="Pesquisar (⌘K)">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                <span class="crm-topbar__search-text">Pesquisar…</span>
+                <kbd>⌘K</kbd>
+            </button>
+            <div class="notification-bell-wrap" id="notificationBellWrap">
+                <button type="button" id="notificationBellBtn" class="notification-bell-btn" aria-label="Notificações" aria-expanded="false" aria-controls="notificationPanel" title="Notificações">
+                    <span class="notification-bell-icon" aria-hidden="true">🔔</span>
+                    <span id="notificationBellBadge" class="notification-bell-badge" hidden>0</span>
+                </button>
+                <div id="notificationPanel" class="notification-panel" role="region" aria-label="Lista de notificações" hidden>
+                    <div class="notification-panel-header">
+                        <h3 class="notification-panel-title">Notificações</h3>
+                        <div class="notification-panel-actions">
+                            <button type="button" class="btn-notification-text" id="notificationMarkAllRead">Marcar lidas</button>
+                            <button type="button" class="btn-notification-text btn-notification-text--danger" id="notificationClearAll">Limpar</button>
+                        </div>
+                    </div>
+                    <div id="notificationPanelList" class="notification-panel-list"></div>
+                </div>
+            </div>
+            <a href="ajustes.html#suporte" class="crm-topbar__icon-btn" id="crmTopbarHelpBtn" title="Ajuda / Suporte" aria-label="Ajuda e suporte">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+            </a>
+            <a href="ajustes.html" class="crm-topbar__icon-btn" id="crmTopbarSettingsBtn" data-crm-permission="settings.manage" title="Configurações do sistema" aria-label="Configurações do sistema">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            </a>
+        </div>
+    </header>
+
     <header class="mobile-app-header" id="mobileAppHeader">
         <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu completo" aria-expanded="false" aria-controls="dashboardSidebar">
             <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
@@ -120,6 +163,9 @@
         <aside class="dashboard-sidebar" id="dashboardSidebar">
             <div class="sidebar-header">
                 <img src="/assets/obramate-logo.png" alt="ObraMate" class="sidebar-brand-logo logo-image" width="220" height="44" onerror="this.style.display='none'">
+                <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="false" aria-label="Recolher menu lateral" title="Recolher menu">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
             </div>
             
             <nav class="sidebar-nav" aria-label="Principal">
@@ -1628,23 +1674,6 @@
         </div>
     </div>
 
-    <div class="notification-bell-wrap" id="notificationBellWrap">
-        <button type="button" id="notificationBellBtn" class="notification-bell-btn" aria-label="Notificações" aria-expanded="false" aria-controls="notificationPanel" title="Notificações">
-            <span class="notification-bell-icon" aria-hidden="true">🔔</span>
-            <span id="notificationBellBadge" class="notification-bell-badge" hidden>0</span>
-        </button>
-        <div id="notificationPanel" class="notification-panel" role="region" aria-label="Lista de notificações" hidden>
-            <div class="notification-panel-header">
-                <h3 class="notification-panel-title">Notificações</h3>
-                <div class="notification-panel-actions">
-                    <button type="button" class="btn-notification-text" id="notificationMarkAllRead">Marcar lidas</button>
-                    <button type="button" class="btn-notification-text btn-notification-text--danger" id="notificationClearAll">Limpar</button>
-                </div>
-            </div>
-            <div id="notificationPanelList" class="notification-panel-list"></div>
-        </div>
-    </div>
-    
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
     
     <div id="crmCmdPalette" class="crm-cmd-palette" aria-hidden="true">
@@ -1735,6 +1764,7 @@
     <script src="crm-toast.js"></script>
     <script src="crm-pdf-viewer.js?v=20260531"></script>
     <script src="crm-command-palette.js"></script>
+    <script src="crm-shell.js?v=20260923-shell"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
     <script src="dashboard.js?v=20260918-leads-quotes-mobile"></script>

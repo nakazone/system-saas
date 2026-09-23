@@ -58,6 +58,8 @@
     input.focus();
   }
 
+  window.openCrmCommandPalette = openPalette;
+
   function renderList(q) {
     const list = document.getElementById('crmCmdPaletteList');
     if (!list) return;
