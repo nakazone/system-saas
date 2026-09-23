@@ -169,14 +169,14 @@
 
   /* Header topo */
   .dashboard-app-body.sf-mobile-shell .mobile-app-header {
-    background: rgba(255, 255, 255, 0.92);
+    background: #f7f4ee;
     border-bottom: 1px solid var(--sf-border-subtle);
-    box-shadow: var(--sf-shadow-sm);
+    box-shadow: none;
     min-height: calc(var(--sf-header-height) + var(--sf-safe-top));
     padding-top: calc(var(--sf-safe-top) + 8px);
     padding-bottom: 10px;
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   .dashboard-app-body.sf-mobile-shell .mobile-app-header__title {

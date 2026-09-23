@@ -11,10 +11,11 @@
     --text-dark: #1a1a1a;
     --text-light: #6b6b6b;
     --text-muted: #9b9b9b;
-    --bg-light: #f8f7f5;
+    --bg-light: #f7f4ee;
     --bg-white: #ffffff;
-    --bg-primary-light: #f0efe9;
-    --border-color: #e5e3dd;
+    --bg-primary-light: #efe8dc;
+    --border-color: #e2d9cc;
+    --crm-chrome-bg: #f7f4ee;
     --font-family: 'Inter', system-ui, sans-serif;
     --font-size-base: 14px;
     --line-height-base: 1.55;
@@ -148,8 +149,9 @@ body {
 /* Sidebar - Fixed */
 .dashboard-sidebar {
     width: var(--crm-sidebar-width, 264px);
-    background: var(--primary-color);
-    box-shadow: var(--shadow-lg);
+    background: var(--crm-chrome-bg, #f7f4ee);
+    box-shadow: none;
+    border-right: 1px solid var(--color-border, #e2d9cc);
     padding: 0;
     height: 100vh;
     position: fixed;
