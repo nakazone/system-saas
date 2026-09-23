@@ -1,5 +1,5 @@
 /**
- * Help slide-over panel (left)
+ * Help slide-over panel (right — same side as the top-bar help icon)
  */
 .crm-help-backdrop {
   position: fixed;
@@ -17,7 +17,8 @@
 .crm-help-panel {
   position: fixed;
   top: 0;
-  left: 0;
+  right: 0;
+  left: auto;
   z-index: 1410;
   display: flex;
   flex-direction: column;
@@ -25,8 +26,8 @@
   height: 100%;
   max-height: 100dvh;
   background: #fff;
-  box-shadow: 8px 0 32px rgba(33, 29, 26, 0.18);
-  transform: translateX(-104%);
+  box-shadow: -8px 0 32px rgba(33, 29, 26, 0.18);
+  transform: translateX(104%);
   transition: transform 0.28s ease;
   color: #211d1a;
 }

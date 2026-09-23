@@ -1,5 +1,5 @@
 /**
- * Left slide-over Help panel (top-bar ? icon).
+ * Right slide-over Help panel (top-bar ? icon).
  */
 (function () {
   var PANEL_ID = "crmHelpPanel";
