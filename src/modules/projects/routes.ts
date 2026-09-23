@@ -3,6 +3,8 @@ import { param } from "../../lib/http/params.js";
 import { requireAuth, requirePermission, type AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { convertQuoteToProject, refreshProjectStatus } from "../../lib/projects/convert.js";
+import { summarizeProjectCosts } from "../../lib/projects/costs.js";
+import { canViewPricing } from "../../lib/pricing/visibility.js";
 
 export const projectsRouter = Router();
 projectsRouter.use(requireAuth);
@@ -60,6 +62,14 @@ projectsRouter.get(
             },
             events: { orderBy: { createdAt: "desc" }, take: 40 },
             paymentSchedule: { include: { items: { orderBy: { sortOrder: "asc" } } } },
+            budgetLines: { orderBy: { sortOrder: "asc" } },
+            materialOrders: { orderBy: { orderedAt: "desc" } },
+            expenses: { orderBy: { incurredOn: "desc" }, take: 50 },
+            laborEntries: {
+              include: { user: true },
+              orderBy: { workDate: "desc" },
+              take: 50,
+            },
           },
         });
         const crews = await tx.crew.findMany({
@@ -70,12 +80,15 @@ projectsRouter.get(
           where: { status: "active" },
           orderBy: { name: "asc" },
         });
-        return { project, crews, users };
+        const costSummary = project ? await summarizeProjectCosts(tx, project.id) : null;
+        return { project, crews, users, costSummary };
       });
       if (!result.project) {
         res.status(404).send("Not found");
         return;
       }
+      const canViewCosts =
+        req.user?.permissions.includes("costs.view") || req.user?.roleKey === "admin";
       res.render("projects/show", {
         title: result.project.name,
         organization: req.organization,
@@ -83,8 +96,11 @@ projectsRouter.get(
         project: result.project,
         crews: result.crews,
         users: result.users,
+        costSummary: result.costSummary,
         canManage: req.user?.permissions.includes("projects.manage"),
         canManageVisits: req.user?.permissions.includes("visits.manage"),
+        canViewCosts,
+        canViewPricing: canViewPricing(req.user),
         error: typeof req.query.error === "string" ? req.query.error : null,
         success: typeof req.query.success === "string" ? req.query.success : null,
       });

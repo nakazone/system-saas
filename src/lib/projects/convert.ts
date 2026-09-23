@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
 import { transitionQuote } from "../quotes/transitions.js";
+import { freezeProjectBudget } from "./costs.js";
 
 export async function nextProjectNumber(
   tx: TenantPrisma,
@@ -138,6 +139,12 @@ export async function convertQuoteToProject(
       });
     }
   }
+
+  await freezeProjectBudget(tx, {
+    organizationId: params.organizationId,
+    projectId: project.id,
+    quoteId: quote.id,
+  });
 
   if (quote.status === "approved") {
     const result = transitionQuote(quote.status, "convert");

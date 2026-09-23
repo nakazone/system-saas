@@ -24,6 +24,8 @@ import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
 import { paymentSchedulesRouter } from "./modules/invoices/schedule-routes.js";
 import { paymentTemplatesRouter } from "./modules/invoices/templates-routes.js";
 import { projectsRouter } from "./modules/projects/routes.js";
+import { projectCostsRouter } from "./modules/projects/costs-routes.js";
+import { laborRatesRouter } from "./modules/projects/labor-rates-routes.js";
 import { visitsRouter } from "./modules/visits/routes.js";
 import { crewsRouter } from "./modules/crews/routes.js";
 import { scheduleRouter } from "./modules/schedule/routes.js";
@@ -147,6 +149,7 @@ export function createApp() {
   app.use("/settings/import", importRouter);
   app.use("/settings/checklists", checklistsRouter);
   app.use("/settings/payment-templates", paymentTemplatesRouter);
+  app.use("/settings/labor-rates", laborRatesRouter);
   app.use("/leads", leadsRouter);
   app.use("/pipeline", pipelineRouter);
   app.use("/customers", customersRouter);
@@ -155,6 +158,7 @@ export function createApp() {
   app.use("/invoices", invoicesRouter);
   app.use("/assessments", assessmentsRouter);
   app.use("/projects", projectsRouter);
+  app.use("/projects", projectCostsRouter);
   app.use("/visits", visitsRouter);
   app.use("/crews", crewsRouter);
   app.use("/schedule", scheduleRouter);

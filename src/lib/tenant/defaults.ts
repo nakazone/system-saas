@@ -52,6 +52,7 @@ export const DEFAULT_PERMISSIONS = [
   { key: "invoices.record_payment", group: "financial", description: "Record payments against invoices" },
   { key: "projects.manage", group: "projects", description: "Create projects and manage crews" },
   { key: "visits.manage", group: "operations", description: "Create and update visits / schedule" },
+  { key: "costs.view", group: "financial", description: "View project costs, budgets, and profitability" },
 ] as const;
 
 export type PermissionKey = (typeof DEFAULT_PERMISSIONS)[number]["key"];
@@ -90,6 +91,7 @@ const OFFICE_KEYS: PermissionKey[] = [
   "invoices.record_payment",
   "projects.manage",
   "visits.manage",
+  "costs.view",
 ];
 
 const SALES_KEYS: PermissionKey[] = [

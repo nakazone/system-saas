@@ -85,6 +85,11 @@ model Organization {
   visits             Visit[]
   crews              Crew[]
   crewMembers        CrewMember[]
+  laborRates         LaborRate[]
+  laborEntries       LaborEntry[]
+  materialOrders     MaterialOrder[]
+  expenses           Expense[]
+  projectBudgetLines ProjectBudgetLine[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
 }
@@ -115,6 +120,8 @@ model User {
   assignedVisits Visit[] @relation("VisitAssignee")
   crewMemberships CrewMember[]
   projectEvents ProjectEvent[] @relation("ProjectEventActor")
+  laborRates LaborRate[]
+  laborEntries LaborEntry[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -549,6 +556,9 @@ model QuoteLineItem {
   sortOrder      Int     @default(0)
   meta           Json?
 
+  budgetLines ProjectBudgetLine[]
+  expenses    Expense[]
+
   @@index([organizationId])
   @@index([quoteId])
   @@index([roomId])
@@ -885,6 +895,15 @@ model Project {
   visits           Visit[]
   events           ProjectEvent[]
   paymentSchedule  PaymentSchedule?
+  budgetLines      ProjectBudgetLine[]
+  materialOrders   MaterialOrder[]
+  expenses         Expense[]
+  laborEntries     LaborEntry[]
+  budgetFrozenAt   DateTime?
+  /// Snapshot totals at convert (informational; prefer budgetLines)
+  budgetedMaterial Decimal @default(0) @db.Decimal(12, 2)
+  budgetedLabor    Decimal @default(0) @db.Decimal(12, 2)
+  budgetedOther    Decimal @default(0) @db.Decimal(12, 2)
 
   @@unique([organizationId, number])
   @@index([organizationId])
@@ -936,6 +955,7 @@ model Visit {
   updatedAt      DateTime  @updatedAt
 
   events ProjectEvent[]
+  laborEntries LaborEntry[]
 
   @@index([organizationId])
   @@index([organizationId, scheduledStart])
@@ -976,6 +996,127 @@ model CrewMember {
   @@unique([crewId, userId])
   @@index([organizationId])
   @@index([userId])
+}
+
+/// Frozen budget line at quote→project convert (immutable for history).
+model ProjectBudgetLine {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String  @db.Uuid
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  quoteLineItemId String? @db.Uuid
+  quoteLineItem  QuoteLineItem? @relation(fields: [quoteLineItemId], references: [id], onDelete: SetNull)
+  /// material | labor | other
+  category       String
+  description    String
+  quantity       Decimal @default(1) @db.Decimal(12, 2)
+  unitCost       Decimal @default(0) @db.Decimal(12, 2)
+  amount         Decimal @default(0) @db.Decimal(12, 2)
+  sortOrder      Int     @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([projectId])
+}
+
+model LaborRate {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?   @db.Uuid
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Fallback when userId is null (e.g. installer, crew_lead)
+  roleKey        String?
+  label          String?
+  hourlyRate     Decimal   @db.Decimal(12, 2)
+  effectiveFrom  DateTime  @db.Date
+  effectiveTo    DateTime? @db.Date
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, userId])
+  @@index([organizationId, roleKey])
+}
+
+model LaborEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String   @db.Uuid
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId         String?  @db.Uuid
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  visitId        String?  @db.Uuid
+  visit          Visit?   @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  workDate       DateTime @db.Date
+  hours          Decimal  @db.Decimal(8, 2)
+  /// Snapshot of hourly rate at entry time
+  rateSnapshot   Decimal  @db.Decimal(12, 2)
+  amount         Decimal  @db.Decimal(12, 2)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([visitId])
+}
+
+model MaterialOrder {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String   @db.Uuid
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  description    String
+  sku            String?
+  vendor         String?
+  quantityOrdered Decimal @default(0) @db.Decimal(12, 2)
+  quantityReceived Decimal @default(0) @db.Decimal(12, 2)
+  quantityUsed   Decimal  @default(0) @db.Decimal(12, 2)
+  unitCost       Decimal  @default(0) @db.Decimal(12, 2)
+  /// ordered | partial | received | canceled
+  status         String   @default("ordered")
+  orderedAt      DateTime @default(now())
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  expenses Expense[]
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([organizationId, status])
+}
+
+model Expense {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId      String?  @db.Uuid
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  /// When set, this expense is a payment for a material order — excluded from double-count vs order actuals
+  materialOrderId String? @db.Uuid
+  materialOrder  MaterialOrder? @relation(fields: [materialOrderId], references: [id], onDelete: SetNull)
+  quoteLineItemId String? @db.Uuid
+  quoteLineItem  QuoteLineItem? @relation(fields: [quoteLineItemId], references: [id], onDelete: SetNull)
+  category       String   @default("other") // material | labor | travel | other
+  description    String
+  amount         Decimal  @db.Decimal(12, 2)
+  incurredOn     DateTime @db.Date
+  /// draft | approved | void
+  status         String   @default("approved")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([materialOrderId])
+  @@index([quoteLineItemId])
 }
 
 model PayrollEmployee {

@@ -259,10 +259,11 @@ Immutable `ActivityEvent`; single helper `recordActivity(...)` inside the same D
 
 ### M6 — Project costs
 
-**Models:** `MaterialOrder`, `Expense`, `LaborEntry`, `LaborRate` (dated rates).  
-**Logic:** budgeted (frozen at conversion) vs committed vs actual; anti-double-count when expense linked to line item; profitability report CSV; collect actual vs estimated material for future waste tuning (no auto-suggest yet).
+**Models:** `ProjectBudgetLine` (frozen at convert), `MaterialOrder`, `Expense`, `LaborEntry`, `LaborRate` (dated rates).  
 
-**Permissions:** `costs.view` (+ `pricing.view` as needed).
+**Logic:** budgeted (frozen at conversion) vs committed (POs ordered) vs actual (received/used + labor + unlinked expenses); anti-double-count when expense linked to material order; profitability CSV; collect actual vs estimated material qty for future waste tuning (no auto-suggest yet).
+
+**Permissions:** `costs.view` (+ `pricing.view` for money display).
 
 ---
 
@@ -346,5 +347,6 @@ Each milestone: branch `feat/phase2-mN-<slug>` from updated `main` → migration
 - [x] M2 — quotes v2  
 - [x] M3 — site assessment + checklist engine  
 - [x] M4 — payment schedules, invoices, payments  
-- [x] M5 — projects, visits, crews, schedule / My Day (this branch)  
-- [ ] **Await review approval before M6** (`feat/phase2-m6-project-costs`)
+- [x] M5 — projects, visits, crews, schedule / My Day  
+- [x] M6 — project costs (this branch)  
+- [ ] **Await review approval before M7** (`feat/phase2-m7-automations`)
