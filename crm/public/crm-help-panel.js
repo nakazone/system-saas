@@ -43,8 +43,8 @@
       "<span>Manage clients and builders, and keep communications organized across your team.</span>" +
       "</a>" +
       "</div>" +
-      '<a class="crm-help-panel__link-row" href="ajustes.html#suporte@obramate" target="_blank" rel="noopener noreferrer">' +
-      "<span>Watch ObraMate tips</span>" +
+      '<a class="crm-help-panel__link-row" href="mailto:support@obramate.com?subject=ObraMate%20video%20guides">' +
+      "<span>Watch ObraMate Videos</span>" +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>' +
       "</a>" +
       '<div class="crm-help-panel__contact">' +
