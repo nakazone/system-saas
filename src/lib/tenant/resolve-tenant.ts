@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../prisma.js";
 import { env } from "../../config/env.js";
 import { subdomainTenantsSupported } from "./workspace-url.js";
+import { isReservedTenantSlug } from "./reserved-slugs.js";
 
 export type TenantRequest = Request & {
   organizationId?: string;
@@ -118,6 +119,15 @@ export async function resolveTenant(
     if (subdomain === "admin") {
       req.isPlatformAdminHost = true;
       next();
+      return;
+    }
+
+    if (subdomain && isReservedTenantSlug(subdomain)) {
+      res.status(404).render("errors/not-found", {
+        title: "Reserved hostname",
+        message: "This subdomain is reserved for the ObraMate platform.",
+        organization: null,
+      });
       return;
     }
 

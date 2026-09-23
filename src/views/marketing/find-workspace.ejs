@@ -3,7 +3,13 @@
 <section class="auth-card-wrap">
   <div class="auth-card">
     <h1>Find your workspace</h1>
-    <p class="mkt-lead">Enter your company slug to open the sign-in page.</p>
+    <p class="mkt-lead">
+      <% if (subdomainTenants) { %>
+        Enter your company slug to open <strong>sua-empresa.<%= appRootDomain %></strong>.
+      <% } else { %>
+        Enter your company slug to open the sign-in page.
+      <% } %>
+    </p>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 

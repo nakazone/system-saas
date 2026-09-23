@@ -15,7 +15,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:domain": "node scripts/check-obramate-domain.mjs"
   },
   "engines": {
     "node": ">=18"

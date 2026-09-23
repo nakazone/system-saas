@@ -75,7 +75,23 @@ export function createApp() {
 
   // Health must be registered before session/DB middleware so Railway probes never hang.
   app.get("/health", (_req, res) => {
-    res.status(200).json({ ok: true });
+    res.status(200).json({
+      ok: true,
+      rootDomain: env.APP_ROOT_DOMAIN,
+      tenantRouting: subdomainTenantsSupported() ? "subdomain" : "session",
+    });
+  });
+
+  // Canonical host: www → apex (obramate.com)
+  app.use((req, res, next) => {
+    const hostname = (req.get("host") || "").split(":")[0]?.toLowerCase() ?? "";
+    const root = env.APP_ROOT_DOMAIN.toLowerCase();
+    if (hostname === `www.${root}`) {
+      const proto = isProduction ? "https" : req.protocol;
+      res.redirect(301, `${proto}://${root}${req.originalUrl || "/"}`);
+      return;
+    }
+    next();
   });
 
   app.use(

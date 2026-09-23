@@ -13,6 +13,7 @@ import { seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
 import { hashPassword } from "../../lib/auth/password.js";
 import { prisma } from "../../lib/prisma.js";
 import { Prisma } from "@prisma/client";
+import { isReservedTenantSlug } from "../../lib/tenant/reserved-slugs.js";
 
 export type SignupInput = {
   organizationName: string;
@@ -25,7 +26,6 @@ export type SignupInput = {
 };
 
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const RESERVED_SLUGS = new Set(["admin", "www", "api", "app", "mail", "status", "static"]);
 
 export function validateSlug(slug: string): string | null {
   if (!SLUG_REGEX.test(slug)) {
@@ -34,7 +34,7 @@ export function validateSlug(slug: string): string | null {
   if (slug.length < 2 || slug.length > 48) {
     return "Slug must be between 2 and 48 characters";
   }
-  if (RESERVED_SLUGS.has(slug)) {
+  if (isReservedTenantSlug(slug)) {
     return "This slug is reserved";
   }
   return null;

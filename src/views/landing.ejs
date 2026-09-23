@@ -16,9 +16,11 @@
       <p class="mkt-fineprint">
         No credit card required.
         <% if (typeof subdomainTenants !== 'undefined' && subdomainTenants) { %>
-          Your workspace lives at <code>{your-company}.<%= appRootDomain %></code>
+          Your company workspace: <code>sua-empresa.<%= appRootDomain %></code>
+          · Admin platform: <code>admin.<%= appRootDomain %></code>
         <% } else { %>
-          After signup you’ll use this site with your company slug (via Find your workspace).
+          After signup, open your company via <a href="/find-workspace">Find your workspace</a>
+          (subdomain routing activates once <code>*.<%= appRootDomain %></code> DNS is live).
         <% } %>
       </p>
       <div class="trust-row">
