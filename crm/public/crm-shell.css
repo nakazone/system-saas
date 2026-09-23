@@ -186,16 +186,22 @@
     transition: margin-left 0.2s ease;
   }
 
-  /* Logo some da sidebar (fica na top bar) */
+  /* Company logo in sidebar; ObraMate stays in the top bar */
   body.dashboard-app-body .dashboard-sidebar .sidebar-header .sidebar-brand-logo {
-    display: none;
+    display: block;
+    height: 40px;
+    width: auto;
+    max-width: calc(100% - 8px);
+    object-fit: contain;
   }
 
   body.dashboard-app-body .dashboard-sidebar .sidebar-header {
-    padding: 0.65rem 0.5rem;
+    padding: 0.75rem 0.65rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   /* ---------- Collapse ---------- */
@@ -225,6 +231,11 @@
     fill: none;
     stroke-width: 2;
     transition: transform 0.2s ease;
+  }
+
+  body.sidebar-collapsed .dashboard-sidebar .sidebar-header .sidebar-brand-logo {
+    height: 28px;
+    max-width: 44px;
   }
 
   body.sidebar-collapsed .sidebar-collapse-btn svg {

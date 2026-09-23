@@ -52,7 +52,11 @@
   function setLogoPreview(url) {
     const img = $("logoImg");
     const ph = $("logoPlaceholder");
-    if (url) {
+    const isDefault =
+      !url ||
+      url === "/assets/obramate-logo.png" ||
+      String(url).endsWith("/obramate-logo.png");
+    if (url && !isDefault) {
       img.src = url;
       img.hidden = false;
       ph.hidden = true;

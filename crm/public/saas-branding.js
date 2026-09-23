@@ -37,10 +37,21 @@
   function applyCompanyLogo(url, name) {
     var src = url || DEFAULT_LOGO;
     var alt = name || DEFAULT_NAME;
-    document.querySelectorAll("img.sidebar-brand-logo").forEach(function (el) {
+    var nodes = document.querySelectorAll(
+      "img.sidebar-brand-logo, .sidebar-header > img, .sidebar-header a > img",
+    );
+    nodes.forEach(function (el) {
+      // Never overwrite fixed system marks if misclassified
+      if (el.classList && el.classList.contains("crm-system-logo")) return;
       el.setAttribute("src", src);
       el.setAttribute("alt", alt);
       el.style.display = "";
+      el.onerror = function () {
+        // Keep slot visible with system fallback instead of hiding forever
+        if (el.getAttribute("src") !== DEFAULT_LOGO) {
+          el.setAttribute("src", DEFAULT_LOGO);
+        }
+      };
     });
   }
 
