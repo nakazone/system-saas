@@ -65,6 +65,8 @@ customersRouter.post(
         email: z.string().email().optional().or(z.literal("")),
         phone: z.string().max(40).optional().or(z.literal("")),
         address: z.string().max(300).optional().or(z.literal("")),
+        marketingConsent: z.string().optional(),
+        transactionalOptOut: z.string().optional(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
@@ -79,6 +81,8 @@ customersRouter.post(
             email: parsed.data.email || null,
             phone: parsed.data.phone || null,
             address: parsed.data.address || null,
+            marketingConsent: parsed.data.marketingConsent === "on",
+            transactionalOptOut: parsed.data.transactionalOptOut === "on",
           },
         });
         if (parsed.data.address) {
@@ -344,6 +348,8 @@ customersRouter.post(
         email: z.string().email().optional().or(z.literal("")),
         phone: z.string().max(40).optional().or(z.literal("")),
         address: z.string().max(300).optional().or(z.literal("")),
+        marketingConsent: z.string().optional(),
+        transactionalOptOut: z.string().optional(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
@@ -360,12 +366,14 @@ customersRouter.post(
             email: parsed.data.email || null,
             phone: parsed.data.phone || null,
             address: parsed.data.address || null,
+            marketingConsent: parsed.data.marketingConsent === "on",
+            transactionalOptOut: parsed.data.transactionalOptOut === "on",
           },
         });
         const changes = diffFields(
           before as unknown as Record<string, unknown>,
           after as unknown as Record<string, unknown>,
-          ["name", "email", "phone", "address"],
+          ["name", "email", "phone", "address", "marketingConsent", "transactionalOptOut"],
         );
         await recordActivity(tx, {
           organizationId: req.organizationId!,

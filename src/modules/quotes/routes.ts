@@ -13,6 +13,10 @@ import { buildQuotePdf } from "../../lib/quotes/pdf.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { runScheduleTriggers, seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
 import {
+  cancelPendingMessages,
+  scheduleQuoteFollowUp,
+} from "../../lib/automations/schedule.js";
+import {
   applyQuoteTransition,
   defaultClientViewJson,
   defaultValidUntil,
@@ -496,6 +500,20 @@ quotesRouter.post(
       });
 
       const link = `${req.protocol}://${req.get("host")}/public/quotes/${result.issued.rawToken}`;
+      await withTenantTransaction(req.organizationId!, async (tx) => {
+        await scheduleQuoteFollowUp(tx, {
+          organizationId: req.organizationId!,
+          quoteId: result.quote.id,
+          customerId: result.quote.customerId,
+          customerEmail: result.quote.customer?.email ?? null,
+          customerName: result.quote.customer?.name ?? null,
+          quoteTitle: result.quote.title,
+          orgName: result.quote.organization.name,
+          automationSettings: result.quote.organization.automationSettings,
+          publicLink: link,
+        });
+      });
+
       if (!result.markOnly && result.quote.customer?.email) {
         await email.send({
           to: result.quote.customer.email,
@@ -546,6 +564,11 @@ quotesRouter.post(
           trigger: "on_approve",
           actorId: req.user!.id,
         });
+        await cancelPendingMessages(tx, {
+          entityType: "quote",
+          entityId: param(req, "id"),
+          triggerKey: "quote_follow_up",
+        });
       });
       res.redirect(`/quotes/${param(req, "id")}?success=${encodeURIComponent("Marked approved")}`);
     } catch (error) {
@@ -569,6 +592,10 @@ quotesRouter.post(
           actorId: req.user!.id,
           note: reason,
           extraData: { archiveReason: reason },
+        });
+        await cancelPendingMessages(tx, {
+          entityType: "quote",
+          entityId: param(req, "id"),
         });
       });
       res.redirect(`/quotes/${param(req, "id")}?success=${encodeURIComponent("Archived")}`);

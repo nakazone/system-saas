@@ -46,6 +46,8 @@ model Organization {
   defaultQuoteTerms String?  @db.Text
   quoteTaxRate     Decimal   @default(0) @db.Decimal(5, 2)
   paymentInstructions String? @db.Text
+  /// Automation toggles/delays: quoteFollowUpEnabled, quoteFollowUpDays, visitReminderEnabled, visitReminderHours
+  automationSettings Json?
   stripeCustomerId String?
   trialEndsAt      DateTime?
   createdAt        DateTime  @default(now())
@@ -90,6 +92,8 @@ model Organization {
   materialOrders     MaterialOrder[]
   expenses           Expense[]
   projectBudgetLines ProjectBudgetLine[]
+  scheduledMessages  ScheduledMessage[]
+  communicationLogs  CommunicationLog[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
 }
@@ -272,6 +276,10 @@ model Customer {
   customerType   String   @default("residential") // residential | builder | commercial
   company        String?
   notes          String?  @db.Text
+  /// Opt-in for marketing blasts (future). Transactional emails ignore this.
+  marketingConsent Boolean @default(true)
+  /// When true, skip transactional automations (quote follow-ups, visit reminders).
+  transactionalOptOut Boolean @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -280,6 +288,8 @@ model Customer {
   siteAssessments SiteAssessment[]
   invoices   QuoteInvoice[]
   projects   Project[]
+  scheduledMessages ScheduledMessage[]
+  communicationLogs CommunicationLog[]
 
   @@index([organizationId])
 }
@@ -1172,4 +1182,68 @@ model PayrollTimesheet {
   @@index([organizationId])
   @@index([periodId])
   @@index([employeeId])
+}
+
+// ---------------------------------------------------------------------------
+// Communication automations (M7)
+// ---------------------------------------------------------------------------
+
+model ScheduledMessage {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// email | sms (sms reserved)
+  channel        String    @default("email")
+  /// quote_follow_up | visit_reminder
+  triggerKey     String
+  entityType     String
+  entityId       String    @db.Uuid
+  customerId     String?   @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  toAddress      String
+  subject        String
+  body           String    @db.Text
+  scheduledFor   DateTime
+  /// pending | processing | sent | canceled | failed | skipped
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  lastError      String?
+  payload        Json?
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  logs CommunicationLog[]
+
+  @@index([organizationId])
+  @@index([organizationId, status, scheduledFor])
+  @@index([entityType, entityId])
+  @@index([customerId])
+}
+
+model CommunicationLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel        String   @default("email")
+  direction      String   @default("outbound")
+  triggerKey     String?
+  entityType     String?
+  entityId       String?  @db.Uuid
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  toAddress      String
+  subject        String?
+  body           String   @db.Text
+  /// sent | failed | skipped
+  status         String
+  skipReason     String?
+  scheduledMessageId String? @db.Uuid
+  scheduledMessage   ScheduledMessage? @relation(fields: [scheduledMessageId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([customerId])
+  @@index([scheduledMessageId])
 }

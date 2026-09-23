@@ -16,6 +16,7 @@ import { persistQuoteTotals, quoteDetailInclude, recomputeTotalsFromQuote } from
 import { applyQuoteTransition } from "./service.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { runScheduleTriggers } from "../../lib/payments/engine.js";
+import { cancelPendingMessages } from "../../lib/automations/schedule.js";
 
 export const publicQuotesRouter = Router();
 
@@ -331,6 +332,12 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
         quoteId: quote.id,
         trigger: "on_approve",
         actorId: null,
+      });
+
+      await cancelPendingMessages(tx, {
+        entityType: "quote",
+        entityId: quote.id,
+        triggerKey: "quote_follow_up",
       });
 
       return { quote, totals };

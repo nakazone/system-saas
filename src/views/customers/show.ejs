@@ -13,6 +13,8 @@
   <% if (customer.address) { %>
     <p class="muted"><strong>Legacy address:</strong> <%= customer.address %></p>
   <% } %>
+  <p><strong>Marketing consent:</strong> <%= customer.marketingConsent ? 'Yes' : 'No' %></p>
+  <p><strong>Transactional emails:</strong> <%= customer.transactionalOptOut ? 'Opted out' : 'Allowed' %></p>
 </div>
 
 <div class="panel">

@@ -12,6 +12,14 @@
     <input name="phone" value="<%= customer && customer.phone ? customer.phone : '' %>" />
     <label>Address</label>
     <input name="address" value="<%= customer && customer.address ? customer.address : '' %>" />
+    <label style="font-weight:500;margin-top:0.75rem;display:block">
+      <input type="checkbox" name="marketingConsent" <%= !customer || customer.marketingConsent !== false ? 'checked' : '' %> style="width:auto" />
+      Marketing consent
+    </label>
+    <label style="font-weight:500;display:block">
+      <input type="checkbox" name="transactionalOptOut" <%= customer && customer.transactionalOptOut ? 'checked' : '' %> style="width:auto" />
+      Opt out of transactional emails (quotes, visit reminders)
+    </label>
     <div class="form-actions">
       <button class="btn" type="submit">Save</button>
       <a class="btn btn-secondary" href="/customers">Cancel</a>

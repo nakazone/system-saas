@@ -53,6 +53,7 @@ export const DEFAULT_PERMISSIONS = [
   { key: "projects.manage", group: "projects", description: "Create projects and manage crews" },
   { key: "visits.manage", group: "operations", description: "Create and update visits / schedule" },
   { key: "costs.view", group: "financial", description: "View project costs, budgets, and profitability" },
+  { key: "automations.manage", group: "settings", description: "Manage communication automations" },
 ] as const;
 
 export type PermissionKey = (typeof DEFAULT_PERMISSIONS)[number]["key"];
@@ -92,6 +93,7 @@ const OFFICE_KEYS: PermissionKey[] = [
   "projects.manage",
   "visits.manage",
   "costs.view",
+  "automations.manage",
 ];
 
 const SALES_KEYS: PermissionKey[] = [

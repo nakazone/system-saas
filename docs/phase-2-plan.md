@@ -1,6 +1,6 @@
 # Phase 2 technical plan — operational modules
 
-**Status:** M1 implemented on `feat/phase2-m1-foundations`. M0 plan kept below.  
+**Status:** M1–M6 shipped on prior branches. M7 in progress on `feat/phase2-m7-automations`.  
 **Branch:** `feat/phase2-m1-foundations`  
 **Repo conventions win on style; Phase 2 rules 2–4 (tenant RLS, public tokens, English names) win on security.**
 
@@ -269,11 +269,13 @@ Immutable `ActivityEvent`; single helper `recordActivity(...)` inside the same D
 
 ### M7 — Communication automations
 
-**Infra:** Postgres-backed queue (`pg-boss` or `ScheduledMessage` + worker); tenant set per job.  
-**Models:** automation settings, `CommunicationLog`; customer `marketingConsent` / `transactionalOptOut`.  
-**Channel:** `email | sms` enum-ready; implement email only.
+**Infra:** `ScheduledMessage` + in-process poll worker (org-by-org `withTenantTransaction`, same pattern as quote expiry). No `pg-boss`.  
+**Models:** `Organization.automationSettings` JSON; `ScheduledMessage`; `CommunicationLog`; customer `marketingConsent` / `transactionalOptOut`.  
+**Triggers:** quote follow-up on send (canceled on approve/archive); visit reminder on create (canceled on cancel).  
+**Channel:** `email | sms` enum-ready; email only. Settings UI at `/settings/automations` (`automations.manage`).  
+**Logic:** `transactionalOptOut` skips send + logs; injectable `automationClock` for follow-up scheduling.
 
-**Risks:** worker must never run org A job under org B context (isolation test); clock-mockable follow-ups.
+**Risks:** worker must never run org A job under org B context (isolation test); clock-mockable follow-ups. — covered in `tests/automations-m7.test.ts`.
 
 ---
 

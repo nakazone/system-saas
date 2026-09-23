@@ -9,6 +9,11 @@ import { refreshProjectStatus } from "../../lib/projects/convert.js";
 import { ensureVisitChecklistResponse } from "../../lib/projects/visit-checklist.js";
 import { runScheduleTriggers } from "../../lib/payments/engine.js";
 import { email } from "../../lib/email/index.js";
+import {
+  cancelPendingMessages,
+  scheduleVisitReminder,
+} from "../../lib/automations/schedule.js";
+import { prisma } from "../../lib/prisma.js";
 import { seedDefaultChecklistTemplates } from "../../lib/checklists/engine.js";
 import type { ChecklistField } from "../../lib/checklists/defaults.js";
 
@@ -204,6 +209,23 @@ visitsRouter.post(
             text: `A visit (${visit.phase}) is scheduled for ${start.toLocaleString()} – ${end.toLocaleString()}.`,
           });
         }
+        const org = await prisma.organization.findUniqueOrThrow({
+          where: { id: req.organizationId! },
+        });
+        await scheduleVisitReminder(tx, {
+          organizationId: req.organizationId!,
+          visitId: visit.id,
+          projectId: visit.projectId,
+          projectName: project?.name || "your project",
+          phase: visit.phase,
+          scheduledStart: start,
+          customerId: project?.customerId ?? null,
+          customerEmail: project?.customer?.email ?? null,
+          customerName: project?.customer?.name ?? null,
+          orgName: org.name,
+          timezone: org.timezone,
+          automationSettings: org.automationSettings,
+        });
         return visit.id;
       });
 
@@ -235,6 +257,14 @@ visitsRouter.post(
         if (status === "canceled") eventType = "visit_canceled";
         if (status === "in_progress" && prev !== "in_progress") eventType = "phase_started";
         if (status === "completed" && prev !== "completed") eventType = "phase_completed";
+
+        if (status === "canceled") {
+          await cancelPendingMessages(tx, {
+            entityType: "visit",
+            entityId: visit.id,
+            triggerKey: "visit_reminder",
+          });
+        }
 
         await tx.projectEvent.create({
           data: {

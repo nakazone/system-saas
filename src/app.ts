@@ -26,6 +26,7 @@ import { paymentTemplatesRouter } from "./modules/invoices/templates-routes.js";
 import { projectsRouter } from "./modules/projects/routes.js";
 import { projectCostsRouter } from "./modules/projects/costs-routes.js";
 import { laborRatesRouter } from "./modules/projects/labor-rates-routes.js";
+import { automationsRouter } from "./modules/automations/routes.js";
 import { visitsRouter } from "./modules/visits/routes.js";
 import { crewsRouter } from "./modules/crews/routes.js";
 import { scheduleRouter } from "./modules/schedule/routes.js";
@@ -150,6 +151,7 @@ export function createApp() {
   app.use("/settings/checklists", checklistsRouter);
   app.use("/settings/payment-templates", paymentTemplatesRouter);
   app.use("/settings/labor-rates", laborRatesRouter);
+  app.use("/settings/automations", automationsRouter);
   app.use("/leads", leadsRouter);
   app.use("/pipeline", pipelineRouter);
   app.use("/customers", customersRouter);

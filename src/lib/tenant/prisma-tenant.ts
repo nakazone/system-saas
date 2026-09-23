@@ -64,6 +64,8 @@ const TENANT_MODELS = new Set([
   "LaborEntry",
   "MaterialOrder",
   "Expense",
+  "ScheduledMessage",
+  "CommunicationLog",
   "PayrollEmployee",
   "PayrollPeriod",
   "PayrollTimesheet",
