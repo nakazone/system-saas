@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
     <link rel="stylesheet" href="crm-command-palette.css">
-    <link rel="stylesheet" href="crm-shell.css?v=20260923-shell">
+    <link rel="stylesheet" href="crm-shell.css?v=20260923-account">
     <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa">
     <link rel="stylesheet" href="crm-push.css?v=20260923-push">
     <link rel="stylesheet" href="dashboard-insights.css">
@@ -73,7 +73,7 @@
             <a href="ajustes.html#suporte" class="crm-topbar__icon-btn" id="crmTopbarHelpBtn" title="Ajuda / Suporte" aria-label="Ajuda e suporte">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
             </a>
-            <a href="ajustes.html" class="crm-topbar__icon-btn" id="crmTopbarSettingsBtn" data-crm-permission="settings.manage" title="Configurações do sistema" aria-label="Configurações do sistema">
+            <a href="ajustes.html" class="crm-topbar__icon-btn" id="crmTopbarSettingsBtn" title="Menu da conta" aria-label="Menu da conta">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
             </a>
         </div>
@@ -110,10 +110,10 @@
                     <a href="dashboard.html?page=customers&amp;type=builder" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗</span> Builders</a>
                 </div>
             </details>
-            <button type="button" class="mobile-more-sheet__btn" data-page="users" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Users</button>
-            <a href="ajustes.html" class="mobile-more-sheet__btn" data-crm-permission="settings.manage"><span class="mobile-more-sheet__emoji" aria-hidden="true">🎨</span> Ajustes</a>
+            <button type="button" class="mobile-more-sheet__btn" data-page="users" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Equipe</button>
+            <a href="ajustes.html" class="mobile-more-sheet__btn" data-crm-permission="settings.manage"><span class="mobile-more-sheet__emoji" aria-hidden="true">🎨</span> Configurações</a>
+            <a href="change-password.html" class="mobile-more-sheet__btn">Sua Conta</a>
             <button type="button" class="mobile-more-sheet__btn" data-crm-pwa-install><span class="mobile-more-sheet__emoji" aria-hidden="true">⬇️</span> Instalar app</button>
-            <a href="change-password.html" class="mobile-more-sheet__btn">Definições da conta</a>
         </nav>
         <button type="button" class="mobile-more-sheet__btn mobile-more-sheet__btn--danger" id="mobileMoreLogout">Sair da conta</button>
     </div>
@@ -245,10 +245,6 @@
                     <a href="ajustes.html" class="nav-item" data-crm-permission="settings.manage">
                         <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                         Ajustes
-                    </a>
-                    <a href="#" class="nav-item" data-page="users" data-crm-permission="users.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                        Users
                     </a>
                 </div>
             </nav>
@@ -1779,7 +1775,9 @@
     <script src="crm-toast.js"></script>
     <script src="crm-pdf-viewer.js?v=20260531"></script>
     <script src="crm-command-palette.js"></script>
-    <script src="crm-shell.js?v=20260923-shell"></script>
+    <script src="crm-i18n.js?v=20260923-i18n"></script>
+    <script src="crm-account-menu.js?v=20260923-account"></script>
+    <script src="crm-shell.js?v=20260923-shell2"></script>
     <script src="crm-pwa-install.js?v=20260923-pwa"></script>
     <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>

@@ -2,7 +2,7 @@
  * Menu CRM padrão (mesma estrutura, grupos e ícones que dashboard.html) em páginas standalone.
  * Respeita permissões via GET /api/auth/session.
  * Apenas módulos padrão: Dashboard, Leads, Quotes, Invoices, Cadastro,
- * Tabela de Valores, Folha de Pagamento, Ajustes, Users.
+ * Tabela de Valores, Folha de Pagamento, Ajustes.
  */
 (function () {
   const ICONS = {
@@ -76,7 +76,6 @@
       label: 'Sistema',
       items: [
         { href: 'ajustes.html', label: 'Ajustes', perm: 'settings.manage', page: '', iconKey: 'settings' },
-        { href: 'dashboard.html?page=users', label: 'Users', perm: 'users.view', page: 'users', iconKey: 'users' },
       ],
     },
   ];

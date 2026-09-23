@@ -71,9 +71,16 @@ function applyCrmNavPermissions(permissions, role) {
     const isAdmin = role === 'admin';
     window.__crmPaletteRole = role || '';
     window.__crmPalettePerms = Array.isArray(permissions) ? permissions.slice() : [];
+    window.__crmPermissionKeys = Array.isArray(permissions) ? permissions.slice() : [];
+    window.__crmUserRole = role || '';
     document.querySelectorAll('[data-crm-permission]').forEach((el) => {
         const need = el.getAttribute('data-crm-permission');
         if (!need) return;
+        // Keep account-menu items in the flow — they use [hidden], not display
+        if (el.closest && el.closest('#crmAccountMenu')) {
+            el.hidden = !(isAdmin || keys.has(need));
+            return;
+        }
         if (isAdmin || keys.has(need)) {
             el.style.display = '';
         } else {
