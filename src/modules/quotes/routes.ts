@@ -11,6 +11,7 @@ import { recordActivity } from "../../lib/activity/record.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { buildQuotePdf } from "../../lib/quotes/pdf.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
+import { runScheduleTriggers, seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
 import {
   applyQuoteTransition,
   defaultClientViewJson,
@@ -407,7 +408,19 @@ quotesRouter.get(
           where: { active: true },
           orderBy: { sortOrder: "asc" },
         });
-        return { quote, activity, addOns };
+        const paymentTemplates = await tx.orgPaymentTemplate.findMany({
+          where: { active: true },
+          orderBy: { sortOrder: "asc" },
+        });
+        await seedDefaultPaymentTemplates(tx, req.organizationId!);
+        const paymentTemplatesFresh =
+          paymentTemplates.length > 0
+            ? paymentTemplates
+            : await tx.orgPaymentTemplate.findMany({
+                where: { active: true },
+                orderBy: { sortOrder: "asc" },
+              });
+        return { quote, activity, addOns, paymentTemplates: paymentTemplatesFresh };
       });
       if (!result) {
         res.status(404).render("errors/not-found", {
@@ -425,7 +438,9 @@ quotesRouter.get(
         quote: result.quote,
         activity: result.activity,
         addOns: result.addOns,
+        paymentTemplates: result.paymentTemplates,
         canViewPricing: canViewPricing(req.user),
+        canManageInvoices: req.user?.permissions.includes("invoices.manage"),
         error: typeof req.query.error === "string" ? req.query.error : null,
         success: typeof req.query.success === "string" ? req.query.success : null,
       });
@@ -455,6 +470,13 @@ quotesRouter.post(
           quoteId: quote.id,
           event,
           actorType: "user",
+          actorId: req.user!.id,
+        });
+
+        await runScheduleTriggers(tx, {
+          organizationId: req.organizationId!,
+          quoteId: quote.id,
+          trigger: "on_send",
           actorId: req.user!.id,
         });
 
@@ -517,6 +539,12 @@ quotesRouter.post(
             signedAt: new Date(),
             changeRequestNote: null,
           },
+        });
+        await runScheduleTriggers(tx, {
+          organizationId: req.organizationId!,
+          quoteId: param(req, "id"),
+          trigger: "on_approve",
+          actorId: req.user!.id,
         });
       });
       res.redirect(`/quotes/${param(req, "id")}?success=${encodeURIComponent("Marked approved")}`);

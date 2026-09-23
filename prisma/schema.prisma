@@ -70,10 +70,16 @@ model Organization {
   quoteCatalogItems  QuoteCatalogItem[]
   quoteAddOns        QuoteAddOn[]
   quoteInvoices      QuoteInvoice[]
+  invoiceLineItems   InvoiceLineItem[]
+  invoiceReceipts    InvoiceReceipt[]
   publicAccessTokens PublicAccessToken[]
   checklistTemplates ChecklistTemplate[]
   checklistResponses ChecklistResponse[]
   siteAssessments    SiteAssessment[]
+  paymentSchedules   PaymentSchedule[]
+  paymentScheduleItems PaymentScheduleItem[]
+  orgPaymentTemplates OrgPaymentTemplate[]
+  documentSequences  DocumentSequence[]
   projects           Project[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
@@ -258,6 +264,7 @@ model Customer {
   quotes     Quote[]
   properties Property[]
   siteAssessments SiteAssessment[]
+  invoices   QuoteInvoice[]
 
   @@index([organizationId])
 }
@@ -468,6 +475,7 @@ model Quote {
   rooms        QuoteRoom[]
   optionGroups QuoteOptionGroup[]
   invoices     QuoteInvoice[]
+  paymentSchedule PaymentSchedule?
 
   @@unique([organizationId, number])
   @@index([organizationId])
@@ -698,36 +706,142 @@ model QuoteInvoice {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   quoteId        String   @db.Uuid
   quote          Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  /// Canonical Phase 2 invoice model (evolved from thin QuoteInvoice — avoid dual Invoice stack).
   invoiceNumber  String?
-  status         String   @default("draft") // draft | sent | paid | void
+  /// deposit | progress | final | full | other
+  invoiceType    String   @default("other")
+  status         String   @default("draft") // draft | sent | partially_paid | paid | void
   amount         Decimal  @default(0) @db.Decimal(12, 2)
   dueDate        DateTime?
+  issuedAt       DateTime?
+  paidAt         DateTime?
   pdfPath        String?
   notes          String?  @db.Text
+  paymentInstructions String? @db.Text
+  scheduleItemId String?  @db.Uuid
+  scheduleItem   PaymentScheduleItem? @relation(fields: [scheduleItemId], references: [id], onDelete: SetNull)
+  /// Reserved for future payment processor webhooks
+  externalPaymentId String?
+  processor      String?
   payload        Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  receipts InvoiceReceipt[]
+  lineItems InvoiceLineItem[]
+  receipts  InvoiceReceipt[]
 
+  @@unique([organizationId, invoiceNumber])
   @@index([organizationId])
   @@index([quoteId])
+  @@index([customerId])
   @@index([organizationId, status])
+  @@index([scheduleItemId])
 }
 
+model InvoiceLineItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceId      String  @db.Uuid
+  invoice        QuoteInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Decimal @default(1) @db.Decimal(12, 2)
+  unitPrice      Decimal @default(0) @db.Decimal(12, 2)
+  amount         Decimal @default(0) @db.Decimal(12, 2)
+  sortOrder      Int     @default(0)
+
+  @@index([organizationId])
+  @@index([invoiceId])
+}
+
+/// Manual / processor payment against an invoice (Phase 2 "Payment").
 model InvoiceReceipt {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoiceId      String   @db.Uuid
   invoice        QuoteInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   amount         Decimal  @db.Decimal(12, 2)
   paidAt         DateTime @default(now())
-  method         String?
+  method         String?  // cash | check | card | ach | other
+  referenceNumber String?
   notes          String?
+  /// Reserved for Stripe/etc.
+  externalPaymentId String?
+  processor      String?
   createdAt      DateTime @default(now())
 
   @@index([organizationId])
   @@index([invoiceId])
+}
+
+/// Per-org monotonic counters (invoice numbers, etc.) — lock row in tx.
+model DocumentSequence {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  kind           String // invoice | project | …
+  nextValue      Int    @default(1)
+
+  @@unique([organizationId, kind])
+  @@index([organizationId])
+}
+
+model OrgPaymentTemplate {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  /// [{ label, percent?, fixedAmount?, trigger, phaseKey?, sortOrder }]
+  items          Json
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model PaymentSchedule {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quoteId        String    @unique @db.Uuid
+  quote          Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  /// Set when schedule is frozen (e.g. quote approved). M5 copies to project.
+  lockedAt       DateTime?
+  sourceTemplateId String? @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  items PaymentScheduleItem[]
+
+  @@index([organizationId])
+}
+
+model PaymentScheduleItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  scheduleId     String   @db.Uuid
+  schedule       PaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  label          String
+  percent        Decimal? @db.Decimal(5, 2)
+  fixedAmount    Decimal? @db.Decimal(12, 2)
+  /// manual | on_send | on_approve | on_phase_start | on_phase_complete
+  trigger        String   @default("manual")
+  phaseKey       String?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  invoices QuoteInvoice[]
+
+  @@index([organizationId])
+  @@index([scheduleId])
 }
 
 model Project {

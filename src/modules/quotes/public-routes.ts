@@ -15,6 +15,7 @@ import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
 import { persistQuoteTotals, quoteDetailInclude, recomputeTotalsFromQuote } from "./service.js";
 import { applyQuoteTransition } from "./service.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
+import { runScheduleTriggers } from "../../lib/payments/engine.js";
 
 export const publicQuotesRouter = Router();
 
@@ -323,6 +324,13 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
           approvedUserAgent: req.get("user-agent") || null,
           changeRequestNote: null,
         },
+      });
+
+      await runScheduleTriggers(tx, {
+        organizationId: ref.organizationId,
+        quoteId: quote.id,
+        trigger: "on_approve",
+        actorId: null,
       });
 
       return { quote, totals };

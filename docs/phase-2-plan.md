@@ -225,17 +225,19 @@ Immutable `ActivityEvent`; single helper `recordActivity(...)` inside the same D
 
 ### M4 — Payment schedule, invoices, payments
 
+**Decision:** Evolve existing `QuoteInvoice` / `InvoiceReceipt` as the canonical Prisma invoice/payment models (add Phase 2 fields) rather than introducing a parallel `Invoice` stack. Legacy CRM MySQL invoice routes remain for the vendored SF shell; SaaS EJS + Prisma CRM bridge use the evolved models.
+
 **Models**
 
-- `PaymentSchedule` + `PaymentScheduleItem` on quote; copy immutable to project on convert/approve rules.
-- Org payment templates + payment instructions text.
-- Prefer new `Invoice` / `InvoiceLineItem` / `Payment` (or evolve `QuoteInvoice`/`InvoiceReceipt` with clear migration) — **decision in M4 PR:** new names matching Phase 2 doc if CRM can be updated; else alias layer.
-- Sequence table with row lock for `INV-0001`-style numbers per org.
-- Portal via `PublicAccessToken`; fields reserved for `externalPaymentId` / `processor`.
+- `PaymentSchedule` + `PaymentScheduleItem` on quote (locked on approve; M5 copies to project).
+- `OrgPaymentTemplate` + org `paymentInstructions` (already present).
+- Evolved `QuoteInvoice` (+ line items, type, schedule link, processor fields) and `InvoiceReceipt` as Payment.
+- `DocumentSequence` with `FOR UPDATE` for `INV-0001` numbering.
+- Portal via `PublicAccessToken` (`entityType: invoice`).
 
-**Logic:** schedule validation (100% / fixed = total; last line absorbs cents); triggers create draft invoices; manual payments; customer statement.
+**Logic:** schedule validation (100% / fixed = total; last line absorbs cents); `on_send` / `on_approve` triggers create draft invoices; manual payments; customer statement.
 
-**Risks:** coexistence with SF `QuoteInvoice` APIs; concurrency test for numbering.
+**Risks:** coexistence with SF `QuoteInvoice` MySQL APIs; concurrency test for numbering.
 
 ---
 
@@ -342,5 +344,6 @@ Each milestone: branch `feat/phase2-mN-<slug>` from updated `main` → migration
 - [x] M0 — recon + plan  
 - [x] M1 — foundations  
 - [x] M2 — quotes v2  
-- [x] M3 — site assessment + checklist engine (this branch)  
-- [ ] **Await review approval before M4** (`feat/phase2-m4-payments`)
+- [x] M3 — site assessment + checklist engine  
+- [x] M4 — payment schedules, invoices, payments (this branch)  
+- [ ] **Await review approval before M5** (`feat/phase2-m5-projects-visits`)

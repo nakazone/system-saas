@@ -1,0 +1,36 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Statement — <%= customer.name %></h1>
+  <a class="btn btn-secondary" href="/customers/<%= customer.id %>">Back</a>
+</div>
+<div class="panel">
+  <% if (canViewPricing) { %>
+    <p><strong>Invoiced:</strong> $<%= totals.invoiced.toFixed(2) %>
+      · <strong>Paid:</strong> $<%= totals.paid.toFixed(2) %>
+      · <strong>Balance:</strong> $<%= totals.balance.toFixed(2) %></p>
+  <% } %>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Invoice</th><th>Quote</th><th>Status</th>
+        <% if (canViewPricing) { %><th>Amount</th><th>Paid</th><th>Balance</th><% } %>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(r => { %>
+        <tr>
+          <td><%= new Date(r.createdAt).toLocaleDateString() %></td>
+          <td><a href="/invoices/<%= r.id %>"><%= r.invoiceNumber || '—' %></a></td>
+          <td><a href="/quotes/<%= r.quoteId %>">#<%= r.quote.number %></a></td>
+          <td><%= r.status %></td>
+          <% if (canViewPricing) { %>
+            <td>$<%= Number(r.amount).toFixed(2) %></td>
+            <td>$<%= Number(r.paid).toFixed(2) %></td>
+            <td>$<%= Number(r.balance).toFixed(2) %></td>
+          <% } %>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

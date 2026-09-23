@@ -1,0 +1,104 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= invoice.invoiceNumber || 'Invoice' %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/invoices">All invoices</a>
+    <% if (invoice.quoteId) { %><a class="btn btn-secondary" href="/quotes/<%= invoice.quoteId %>">Quote</a><% } %>
+  </div>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<% if (portalLink) { %><div class="alert alert-ok">Portal: <a href="<%= portalLink %>"><%= portalLink %></a></div><% } %>
+
+<div class="panel">
+  <p><strong>Status:</strong> <%= invoice.status %></p>
+  <p><strong>Type:</strong> <%= invoice.invoiceType %></p>
+  <p><strong>Customer:</strong> <%= invoice.customer ? invoice.customer.name : '—' %></p>
+  <p><strong>Due:</strong> <%= invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : '—' %></p>
+  <% if (canViewPricing) { %>
+    <p><strong>Amount:</strong> $<%= Number(invoice.amount).toFixed(2) %></p>
+    <p><strong>Paid:</strong> $<%= Number(paid).toFixed(2) %></p>
+    <p><strong>Balance:</strong> $<%= Number(balance).toFixed(2) %></p>
+  <% } %>
+  <% if (invoice.notes) { %><p><strong>Notes:</strong> <%= invoice.notes %></p><% } %>
+  <% if (invoice.paymentInstructions) { %><p><strong>Payment instructions:</strong> <%= invoice.paymentInstructions %></p><% } %>
+</div>
+
+<% if (invoice.lineItems && invoice.lineItems.length) { %>
+<div class="panel">
+  <h2>Line items</h2>
+  <table>
+    <thead><tr><th>Description</th><th>Qty</th><% if (canViewPricing) { %><th>Amount</th><% } %></tr></thead>
+    <tbody>
+      <% invoice.lineItems.forEach(li => { %>
+        <tr>
+          <td><%= li.description %></td>
+          <td><%= Number(li.quantity).toFixed(2) %></td>
+          <% if (canViewPricing) { %><td>$<%= Number(li.amount).toFixed(2) %></td><% } %>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<div class="panel">
+  <h2>Actions</h2>
+  <div class="form-actions">
+    <% if (canManage && invoice.status !== 'void' && invoice.status !== 'paid') { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/send" class="inline">
+        <button class="btn" type="submit">Send portal link</button>
+      </form>
+      <form method="post" action="/invoices/<%= invoice.id %>/send" class="inline">
+        <input type="hidden" name="markOnly" value="1" />
+        <button class="btn btn-secondary" type="submit">Mark sent</button>
+      </form>
+      <form method="post" action="/invoices/<%= invoice.id %>/void" class="inline" onsubmit="return confirm('Void this invoice?')">
+        <button class="btn btn-secondary" type="submit">Void</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Payments</h2>
+  <% if (invoice.receipts.length) { %>
+    <table>
+      <thead><tr><th>Date</th><% if (canViewPricing) { %><th>Amount</th><% } %><th>Method</th><th>Ref</th></tr></thead>
+      <tbody>
+        <% invoice.receipts.forEach(r => { %>
+          <tr>
+            <td><%= new Date(r.paidAt).toLocaleString() %></td>
+            <% if (canViewPricing) { %><td>$<%= Number(r.amount).toFixed(2) %></td><% } %>
+            <td><%= r.method || '—' %></td>
+            <td><%= r.referenceNumber || '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %><p class="muted">No payments yet.</p><% } %>
+
+  <% if (canRecordPayment && invoice.status !== 'void' && invoice.status !== 'paid' && canViewPricing) { %>
+    <h3>Record payment</h3>
+    <form method="post" action="/invoices/<%= invoice.id %>/payments" style="max-width:360px">
+      <label>Amount</label>
+      <input name="amount" type="number" step="0.01" min="0.01" required value="<%= Number(balance).toFixed(2) %>" />
+      <label>Method</label>
+      <select name="method">
+        <option value="check">check</option>
+        <option value="card">card</option>
+        <option value="ach">ach</option>
+        <option value="cash">cash</option>
+        <option value="other">other</option>
+      </select>
+      <label>Reference</label>
+      <input name="referenceNumber" />
+      <label>Paid at</label>
+      <input name="paidAt" type="datetime-local" />
+      <label>Notes</label>
+      <textarea name="notes" rows="2"></textarea>
+      <button class="btn" type="submit">Record payment</button>
+    </form>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

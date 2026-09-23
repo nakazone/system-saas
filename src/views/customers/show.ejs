@@ -3,6 +3,7 @@
   <h1><%= customer.name %></h1>
   <div class="form-actions">
     <a class="btn btn-secondary" href="/customers/<%= customer.id %>/edit">Edit</a>
+    <a class="btn btn-secondary" href="/customers/<%= customer.id %>/statement">Statement</a>
     <a class="btn" href="/quotes/new?customerId=<%= customer.id %>">New quote</a>
   </div>
 </div>

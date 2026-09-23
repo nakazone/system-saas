@@ -113,6 +113,56 @@ customersRouter.post(
 );
 
 customersRouter.get(
+  "/:id/statement",
+  requirePermission("invoices.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const customer = await tx.customer.findFirst({ where: { id: param(req, "id") } });
+        if (!customer) return null;
+        const invoices = await tx.quoteInvoice.findMany({
+          where: { customerId: customer.id, status: { not: "void" } },
+          include: { receipts: true, quote: true },
+          orderBy: { createdAt: "asc" },
+        });
+        return { customer, invoices };
+      });
+      if (!result) {
+        res.status(404).send("Not found");
+        return;
+      }
+      const rows = result.invoices.map((inv) => {
+        const paid = inv.receipts.reduce((s, r) => s + Number(r.amount), 0);
+        return {
+          ...inv,
+          paid,
+          balance: Number(inv.amount) - paid,
+        };
+      });
+      const totals = rows.reduce(
+        (acc, r) => ({
+          invoiced: acc.invoiced + Number(r.amount),
+          paid: acc.paid + r.paid,
+          balance: acc.balance + r.balance,
+        }),
+        { invoiced: 0, paid: 0, balance: 0 },
+      );
+      res.render("customers/statement", {
+        title: `Statement — ${result.customer.name}`,
+        organization: req.organization,
+        user: req.user,
+        customer: result.customer,
+        rows,
+        totals,
+        canViewPricing: canViewPricing(req.user),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersRouter.get(
   "/:id",
   requirePermission("customers.view"),
   async (req: AuthedRequest, res, next) => {

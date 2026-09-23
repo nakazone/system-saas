@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %> · <%= organization.name %></title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f7f4ee; color: #211d1a; }
+    header { background: <%= organization.primaryColor || '#211d1a' %>; color: #fff; padding: 1.25rem 1.5rem; }
+    main { max-width: 640px; margin: 0 auto; padding: 1.5rem; }
+    .card { background: #fff; border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+    .muted { color: #6b7280; }
+    .total { font-size: 1.25rem; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="font-weight:700"><%= organization.name %></div>
+    <div><%= invoice.invoiceNumber %></div>
+  </header>
+  <main>
+    <div class="card">
+      <p><strong>Status:</strong> <%= invoice.status %></p>
+      <p><strong>Bill to:</strong> <%= invoice.customer ? invoice.customer.name : 'Customer' %></p>
+      <p><strong>Due:</strong> <%= invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : '—' %></p>
+      <p class="total">Amount due: $<%= Number(balance).toFixed(2) %></p>
+      <p class="muted">Invoice total $<%= Number(invoice.amount).toFixed(2) %> · Paid $<%= Number(paid).toFixed(2) %></p>
+    </div>
+    <% if (invoice.lineItems && invoice.lineItems.length) { %>
+    <div class="card">
+      <table>
+        <thead><tr><th>Description</th><th>Amount</th></tr></thead>
+        <tbody>
+          <% invoice.lineItems.forEach(li => { %>
+            <tr><td><%= li.description %></td><td>$<%= Number(li.amount).toFixed(2) %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+    <% if (invoice.paymentInstructions || organization.paymentInstructions) { %>
+    <div class="card">
+      <h3>How to pay</h3>
+      <p style="white-space:pre-wrap"><%= invoice.paymentInstructions || organization.paymentInstructions %></p>
+    </div>
+    <% } %>
+  </main>
+</body>
+</html>

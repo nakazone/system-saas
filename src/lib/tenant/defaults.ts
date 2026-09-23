@@ -47,6 +47,9 @@ export const DEFAULT_PERMISSIONS = [
   { key: "assessments.view", group: "operations", description: "View site assessments" },
   { key: "assessments.manage", group: "operations", description: "Create and complete site assessments" },
   { key: "checklists.manage", group: "settings", description: "Manage checklist templates" },
+  { key: "invoices.view", group: "financial", description: "View invoices and customer statements" },
+  { key: "invoices.manage", group: "financial", description: "Create and send invoices / edit payment schedules" },
+  { key: "invoices.record_payment", group: "financial", description: "Record payments against invoices" },
 ] as const;
 
 export type PermissionKey = (typeof DEFAULT_PERMISSIONS)[number]["key"];
@@ -80,6 +83,9 @@ const OFFICE_KEYS: PermissionKey[] = [
   "assessments.view",
   "assessments.manage",
   "checklists.manage",
+  "invoices.view",
+  "invoices.manage",
+  "invoices.record_payment",
 ];
 
 const SALES_KEYS: PermissionKey[] = [
@@ -97,6 +103,8 @@ const SALES_KEYS: PermissionKey[] = [
   "pricing.view",
   "assessments.view",
   "assessments.manage",
+  "invoices.view",
+  "invoices.manage",
 ];
 
 const CREW_LEAD_KEYS: PermissionKey[] = [

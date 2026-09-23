@@ -940,14 +940,18 @@ customersQuotesRouter.post(
       const quoteId = String(req.params.id);
       const body = req.body || {};
       const inv = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const { nextInvoiceNumber } = await import("../../lib/payments/engine.js");
         const quote = await tx.quote.findFirst({ where: { id: quoteId } });
         if (!quote) return null;
-        const count = await tx.quoteInvoice.count({ where: { quoteId } });
+        const invoiceNumber =
+          body.invoice_number || (await nextInvoiceNumber(tx, req.organizationId!));
         return tx.quoteInvoice.create({
           data: {
             organizationId: req.organizationId!,
             quoteId,
-            invoiceNumber: body.invoice_number || `INV-${quote.number}-${count + 1}`,
+            customerId: quote.customerId,
+            invoiceNumber,
+            invoiceType: String(body.invoice_type || body.type || "other"),
             status: String(body.status || "draft"),
             amount: new Prisma.Decimal(Number(body.amount != null ? body.amount : quote.total) || 0),
             dueDate: body.due_date ? new Date(body.due_date) : null,
@@ -1046,6 +1050,43 @@ customersQuotesRouter.get("/api/quote-catalog", requireCrmAuth, async (req: Auth
     next(error);
   }
 });
+
+customersQuotesRouter.post(
+  "/api/quote-invoices/:id/receipts",
+  requireCrmAuth,
+  requireCrmPermission("invoices.record_payment"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const body = req.body || {};
+      const receipt = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const { recordInvoicePayment } = await import("../../lib/payments/engine.js");
+        return recordInvoicePayment(tx, {
+          organizationId: req.organizationId!,
+          invoiceId: String(req.params.id),
+          amount: Number(body.amount),
+          method: body.method || body.payment_method || null,
+          referenceNumber: body.reference_number || null,
+          notes: body.notes || null,
+          paidAt: body.paid_at || body.payment_date ? new Date(body.paid_at || body.payment_date) : new Date(),
+          actorId: req.user?.id ?? null,
+          externalPaymentId: body.external_payment_id || null,
+          processor: body.processor || null,
+        });
+      });
+      res.status(201).json({
+        success: true,
+        data: withPricingGate(req.user, {
+          id: receipt.id,
+          amount: dec(receipt.amount),
+          paid_at: receipt.paidAt,
+          method: receipt.method,
+        }),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 customersQuotesRouter.post(
   "/api/quote-catalog",

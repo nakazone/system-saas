@@ -19,6 +19,10 @@ import { usersRouter, invitationsRouter } from "./modules/users/routes.js";
 import { leadsRouter, pipelineRouter } from "./modules/leads/routes.js";
 import { customersRouter } from "./modules/customers/routes.js";
 import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
+import { invoicesRouter } from "./modules/invoices/routes.js";
+import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
+import { paymentSchedulesRouter } from "./modules/invoices/schedule-routes.js";
+import { paymentTemplatesRouter } from "./modules/invoices/templates-routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
 import { importRouter } from "./modules/imports/routes.js";
 import { checklistsRouter } from "./modules/checklists/routes.js";
@@ -85,6 +89,7 @@ export function createApp() {
 
   // Public quote links (token-based, no subdomain tenant required)
   app.use("/public", publicQuotesRouter);
+  app.use("/public/invoices", publicInvoicesRouter);
 
   app.use(resolveTenant);
 
@@ -133,10 +138,13 @@ export function createApp() {
   app.use("/settings", settingsRouter);
   app.use("/settings/import", importRouter);
   app.use("/settings/checklists", checklistsRouter);
+  app.use("/settings/payment-templates", paymentTemplatesRouter);
   app.use("/leads", leadsRouter);
   app.use("/pipeline", pipelineRouter);
   app.use("/customers", customersRouter);
   app.use("/quotes", quotesRouter);
+  app.use("/payment-schedules", paymentSchedulesRouter);
+  app.use("/invoices", invoicesRouter);
   app.use("/assessments", assessmentsRouter);
 
   app.use(errorHandler);

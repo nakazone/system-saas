@@ -134,5 +134,131 @@
 </div>
 <% } %>
 
+<div class="panel">
+  <h2>Payment schedule</h2>
+  <% if (quote.paymentSchedule && quote.paymentSchedule.lockedAt) { %>
+    <p class="muted">Locked <%= new Date(quote.paymentSchedule.lockedAt).toLocaleString() %></p>
+  <% } %>
+  <% if (quote.paymentSchedule && quote.paymentSchedule.items.length) { %>
+    <table>
+      <thead><tr><th>Label</th><th>%</th><th>Trigger</th><th></th></tr></thead>
+      <tbody>
+        <% quote.paymentSchedule.items.forEach(it => { %>
+          <tr>
+            <td><%= it.label %></td>
+            <td><%= it.percent != null ? Number(it.percent) : '—' %></td>
+            <td><%= it.trigger %></td>
+            <td>
+              <% if (canManageInvoices && !quote.paymentSchedule.lockedAt) { %>
+              <form method="post" action="/invoices/from-schedule-item" class="inline">
+                <input type="hidden" name="quoteId" value="<%= quote.id %>" />
+                <input type="hidden" name="scheduleItemId" value="<%= it.id %>" />
+                <button class="btn btn-secondary" type="submit">Create invoice</button>
+              </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %>
+    <p class="muted">No payment schedule yet.</p>
+  <% } %>
+
+  <% if (canManageInvoices && !(quote.paymentSchedule && quote.paymentSchedule.lockedAt)) { %>
+    <% if (paymentTemplates && paymentTemplates.length) { %>
+      <form method="post" action="/payment-schedules/quotes/<%= quote.id %>/apply-template" style="margin:0.75rem 0;display:flex;gap:0.5rem;align-items:end">
+        <div>
+          <label>Apply template</label>
+          <select name="templateId" required>
+            <% paymentTemplates.forEach(t => { %>
+              <option value="<%= t.id %>"><%= t.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <button class="btn btn-secondary" type="submit">Apply</button>
+      </form>
+    <% } %>
+    <form method="post" action="/payment-schedules/quotes/<%= quote.id %>">
+      <div id="schedRows"></div>
+      <button type="button" class="btn btn-secondary" id="addSchedRow">Add row</button>
+      <input type="hidden" name="itemsJson" id="itemsJson" value="<%= JSON.stringify((quote.paymentSchedule && quote.paymentSchedule.items || []).map(i => ({label:i.label,percent:i.percent!=null?Number(i.percent):null,trigger:i.trigger,sortOrder:i.sortOrder}))) %>" />
+      <p style="margin-top:0.75rem"><button class="btn" type="submit">Save schedule</button></p>
+    </form>
+    <script>
+      let schedItems = JSON.parse(document.getElementById('itemsJson').value || '[]');
+      if (!schedItems.length) schedItems = [{label:'Deposit',percent:50,trigger:'on_approve',sortOrder:1},{label:'Final',percent:50,trigger:'manual',sortOrder:2}];
+      const triggers = ['manual','on_send','on_approve','on_phase_start','on_phase_complete'];
+      const box = document.getElementById('schedRows');
+      function renderSched() {
+        box.innerHTML = '';
+        schedItems.forEach((it, i) => {
+          const d = document.createElement('div');
+          d.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1.2fr auto;gap:0.4rem;margin:0.35rem 0';
+          d.innerHTML = '<input data-i="'+i+'" data-k="label" value="'+(it.label||'')+'" />' +
+            '<input data-i="'+i+'" data-k="percent" type="number" step="0.01" value="'+(it.percent??'')+'" placeholder="%" />' +
+            '<select data-i="'+i+'" data-k="trigger">' + triggers.map(t => '<option value="'+t+'" '+(it.trigger===t?'selected':'')+'>'+t+'</option>').join('') + '</select>' +
+            '<button type="button" data-del="'+i+'">×</button>';
+          box.appendChild(d);
+        });
+        document.getElementById('itemsJson').value = JSON.stringify(schedItems.map((it,i)=>({label:it.label,percent:it.percent!=null&&it.percent!==''?Number(it.percent):null,fixedAmount:null,trigger:it.trigger||'manual',sortOrder:i+1})));
+      }
+      box.addEventListener('input', (e) => {
+        const t = e.target; if (t.dataset.i == null) return;
+        const i = Number(t.dataset.i);
+        if (t.dataset.k === 'percent') schedItems[i].percent = t.value === '' ? null : Number(t.value);
+        else schedItems[i][t.dataset.k] = t.value;
+        document.getElementById('itemsJson').value = JSON.stringify(schedItems);
+      });
+      box.addEventListener('change', () => box.dispatchEvent(new Event('input', {bubbles:true})));
+      box.addEventListener('click', (e) => { if (e.target.dataset.del != null) { schedItems.splice(Number(e.target.dataset.del),1); renderSched(); }});
+      document.getElementById('addSchedRow').onclick = () => { schedItems.push({label:'Payment',percent:0,trigger:'manual'}); renderSched(); };
+      document.querySelector('form[action*="payment-schedules"]').addEventListener('submit', () => {
+        document.getElementById('itemsJson').value = JSON.stringify(schedItems.map((it,i)=>({label:it.label,percent:it.percent!=null&&it.percent!==''?Number(it.percent):null,fixedAmount:null,trigger:it.trigger||'manual',sortOrder:i+1})));
+      });
+      renderSched();
+    </script>
+  <% } %>
+</div>
+
+<% if (quote.invoices && quote.invoices.length) { %>
+<div class="panel">
+  <h2>Invoices</h2>
+  <table>
+    <thead><tr><th>Number</th><th>Type</th><th>Status</th><% if (canViewPricing) { %><th>Amount</th><% } %></tr></thead>
+    <tbody>
+      <% quote.invoices.forEach(inv => { %>
+        <tr>
+          <td><a href="/invoices/<%= inv.id %>"><%= inv.invoiceNumber || inv.id.slice(0,8) %></a></td>
+          <td><%= inv.invoiceType %></td>
+          <td><%= inv.status %></td>
+          <% if (canViewPricing) { %><td>$<%= Number(inv.amount).toFixed(2) %></td><% } %>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<% if (canManageInvoices && canViewPricing) { %>
+<div class="panel">
+  <h2>Manual invoice</h2>
+  <form method="post" action="/invoices/manual" style="max-width:360px;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end">
+    <input type="hidden" name="quoteId" value="<%= quote.id %>" />
+    <div><label>Amount</label><input name="amount" type="number" step="0.01" required value="<%= Number(quote.total).toFixed(2) %>" /></div>
+    <div><label>Type</label>
+      <select name="invoiceType">
+        <option value="deposit">deposit</option>
+        <option value="progress">progress</option>
+        <option value="final">final</option>
+        <option value="full">full</option>
+        <option value="other">other</option>
+      </select>
+    </div>
+    <button class="btn" type="submit">Create draft</button>
+  </form>
+</div>
+<% } %>
+
 <%- include('../partials/activity-history', { activity }) %>
 <%- include('../partials/footer') %>
