@@ -1,6 +1,7 @@
 import {
   DEFAULT_ESTIMATE_RULES,
   DEFAULT_PIPELINE_STAGES,
+  DEFAULT_QUOTE_ADDONS,
   DEFAULT_ROLE_META,
   DEFAULT_ROLE_PERMISSIONS,
 } from "../../lib/tenant/defaults.js";
@@ -128,6 +129,20 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
           laborMarkup: new Prisma.Decimal(rule.laborMarkup),
           defaultPricePerSqft: new Prisma.Decimal(rule.defaultPricePerSqft),
           defaultLaborPerSqft: new Prisma.Decimal(rule.defaultLaborPerSqft),
+        },
+      });
+    }
+
+    for (const addOn of DEFAULT_QUOTE_ADDONS) {
+      await tx.quoteAddOn.create({
+        data: {
+          organizationId: organization.id,
+          name: addOn.name,
+          description: addOn.description,
+          unit: addOn.unit,
+          unitCost: new Prisma.Decimal(addOn.unitCost),
+          unitPrice: new Prisma.Decimal(addOn.unitPrice),
+          sortOrder: addOn.sortOrder,
         },
       });
     }

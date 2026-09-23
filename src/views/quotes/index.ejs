@@ -3,16 +3,58 @@
   <h1>Quotes</h1>
   <a class="btn" href="/quotes/new">New quote</a>
 </div>
+
+<% if (canViewPricing && metrics) { %>
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat">
+    <div class="label">Sent (period)</div>
+    <div class="value"><%= metrics.sentCount %></div>
+    <div class="muted">$<%= Number(metrics.sentValue).toFixed(0) %></div>
+  </div>
+  <div class="stat">
+    <div class="label">Approved</div>
+    <div class="value"><%= metrics.approvedCount %></div>
+    <div class="muted">$<%= Number(metrics.approvedValue).toFixed(0) %></div>
+  </div>
+  <div class="stat">
+    <div class="label">Conversion</div>
+    <div class="value"><%= (metrics.conversionRate * 100).toFixed(0) %>%</div>
+    <div class="muted">trend <%= metrics.conversionTrend >= 0 ? '+' : '' %><%= (metrics.conversionTrend * 100).toFixed(0) %> pts</div>
+  </div>
+</div>
+<% } %>
+
 <div class="panel">
+  <form method="get" action="/quotes" class="form-actions" style="gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem">
+    <select name="status">
+      <option value="">All statuses</option>
+      <% ['draft','sent','changes_requested','approved','converted','archived','expired'].forEach(s => { %>
+        <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option>
+      <% }) %>
+    </select>
+    <select name="salespersonId">
+      <option value="">All salespeople</option>
+      <% salespeople.forEach(u => { %>
+        <option value="<%= u.id %>" <%= filters.salespersonId === u.id ? 'selected' : '' %>><%= u.name %></option>
+      <% }) %>
+    </select>
+    <select name="period">
+      <option value="30d" <%= filters.period === '30d' ? 'selected' : '' %>>Last 30 days</option>
+      <option value="90d" <%= filters.period === '90d' ? 'selected' : '' %>>Last 90 days</option>
+      <option value="365d" <%= filters.period === '365d' ? 'selected' : '' %>>Last year</option>
+    </select>
+    <button class="btn btn-secondary" type="submit">Filter</button>
+  </form>
+
   <% if (!quotes.length) { %>
     <p class="muted">No quotes yet.</p>
   <% } else { %>
   <table>
     <thead>
       <tr>
-        <th>#</th><th>Title</th><th>Type</th><th>Customer</th>
+        <th>#</th><th>Title</th><th>Customer</th><th>Sales</th>
         <% if (canViewPricing) { %><th>Total</th><% } %>
-        <th>Status</th>
+        <th>Status</th><th>Valid</th>
       </tr>
     </thead>
     <tbody>
@@ -20,12 +62,13 @@
         <tr>
           <td><a href="/quotes/<%= q.id %>"><%= q.number %></a></td>
           <td><%= q.title %></td>
-          <td><%= q.flooringType %></td>
           <td><%= q.customer ? q.customer.name : '—' %></td>
+          <td><%= q.salesperson ? q.salesperson.name : '—' %></td>
           <% if (canViewPricing) { %>
             <td>$<%= Number(q.total).toFixed(2) %></td>
           <% } %>
           <td><%= q.status %></td>
+          <td class="muted"><%= q.validUntil ? q.validUntil.toISOString().slice(0,10) : '—' %></td>
         </tr>
       <% }) %>
     </tbody>

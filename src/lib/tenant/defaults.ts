@@ -189,3 +189,53 @@ export const DEFAULT_ESTIMATE_RULES = [
     defaultLaborPerSqft: 1.5,
   },
 ];
+
+export const DEFAULT_QUOTE_ADDONS = [
+  {
+    name: "Existing floor removal",
+    description: "Remove existing flooring",
+    unit: "sqft",
+    unitCost: 0.5,
+    unitPrice: 1.75,
+    sortOrder: 1,
+  },
+  {
+    name: "New baseboards",
+    description: "Supply and install new baseboards",
+    unit: "lf",
+    unitCost: 2,
+    unitPrice: 6.5,
+    sortOrder: 2,
+  },
+  {
+    name: "Stair tread finish",
+    description: "Finish per stair tread",
+    unit: "each",
+    unitCost: 15,
+    unitPrice: 45,
+    sortOrder: 3,
+  },
+  {
+    name: "Move furniture",
+    description: "Move furniture within the work area",
+    unit: "each",
+    unitCost: 50,
+    unitPrice: 150,
+    sortOrder: 4,
+  },
+  {
+    name: "Subfloor leveling",
+    description: "Level subfloor as needed",
+    unit: "sqft",
+    unitCost: 1,
+    unitPrice: 3.25,
+    sortOrder: 5,
+  },
+];
+
+export const DEFAULT_CLIENT_VIEW = {
+  showQuantities: true,
+  showUnitPrices: true,
+  showLineTotals: true,
+  showRoomBreakdown: true,
+} as const;

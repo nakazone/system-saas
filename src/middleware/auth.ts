@@ -30,6 +30,11 @@ declare module "express-session" {
       csvText: string;
       headers: string[];
     };
+    /** Light verify for old public quote links. */
+    publicQuoteVerify?: {
+      quoteId: string;
+      verifiedAt: number;
+    };
   }
 }
 

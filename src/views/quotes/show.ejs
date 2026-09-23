@@ -1,26 +1,65 @@
 <%- include('../partials/header') %>
 <div class="page-header">
   <h1>Quote #<%= quote.number %> — <%= quote.title %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/quotes/<%= quote.id %>/pdf" target="_blank">PDF</a>
+  </div>
 </div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
 <div class="panel">
   <p><strong>Status:</strong> <%= quote.status %></p>
   <p><strong>Customer:</strong> <%= quote.customer ? quote.customer.name : '—' %></p>
-  <p><strong>Flooring:</strong> <%= quote.flooringType %> · <%= Number(quote.areaSqft).toFixed(2) %> sqft</p>
-  <% if (canViewPricing) { %>
-  <p><strong>Waste:</strong> <%= Number(quote.wastePercent).toFixed(2) %>% ·
-     <strong>Material markup:</strong> <%= Number(quote.materialMarkup).toFixed(2) %>% ·
-     <strong>Labor markup:</strong> <%= Number(quote.laborMarkup).toFixed(2) %>%</p>
+  <p><strong>Property:</strong>
+    <% if (quote.property) { %>
+      <%= quote.property.line1 %><% if (quote.property.city) { %>, <%= quote.property.city %><% } %>
+    <% } else { %>—<% } %>
+  </p>
+  <p><strong>Salesperson:</strong> <%= quote.salesperson ? quote.salesperson.name : '—' %></p>
+  <p><strong>Valid until:</strong> <%= quote.validUntil ? quote.validUntil.toISOString().slice(0,10) : '—' %></p>
+  <% if (quote.viewedAt) { %>
+    <p class="muted"><strong>Client first viewed:</strong> <%= new Date(quote.viewedAt).toLocaleString() %></p>
   <% } %>
-  <% if (quote.publicToken) { %>
-    <p><strong>Public link:</strong> <a href="/public/quotes/<%= quote.publicToken %>" target="_blank">/public/quotes/<%= quote.publicToken %></a></p>
+  <% if (quote.changeRequestNote) { %>
+    <p><strong>Change request:</strong> <%= quote.changeRequestNote %></p>
+  <% } %>
+  <% if (canViewPricing) { %>
+  <p><strong>Flooring:</strong> <%= quote.flooringType %> · <%= Number(quote.areaSqft).toFixed(2) %> sqft</p>
+  <% } else { %>
+  <p><strong>Flooring:</strong> <%= quote.flooringType %></p>
   <% } %>
 </div>
+
+<% if (quote.rooms && quote.rooms.length) { %>
+<div class="panel">
+  <h2>Rooms</h2>
+  <ul>
+    <% quote.rooms.forEach(r => { %>
+      <li><%= r.name %> — <%= Number(r.areaSqft).toFixed(2) %> sqft</li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>
+
+<% if (quote.optionGroups && quote.optionGroups.length) { %>
+<div class="panel">
+  <h2>Options</h2>
+  <ul>
+    <% quote.optionGroups.forEach(g => { %>
+      <li><%= g.name %><% if (quote.selectedOptionGroupId === g.id) { %> <strong>(selected)</strong><% } %></li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>
+
 <div class="panel">
   <table>
     <thead>
       <tr>
         <th>Description</th><th>Qty</th>
-        <% if (canViewPricing) { %><th>Unit price</th><th>Amount</th><% } %>
+        <% if (canViewPricing) { %><th>Unit</th><th>Amount</th><% } %>
+        <th>Flags</th>
       </tr>
     </thead>
     <tbody>
@@ -32,6 +71,9 @@
             <td>$<%= Number(li.unitPrice).toFixed(2) %></td>
             <td>$<%= Number(li.amount).toFixed(2) %></td>
           <% } %>
+          <td class="muted">
+            <% if (li.isOptional) { %>optional<%= li.isSelected ? '' : ' (off)' %><% } %>
+          </td>
         </tr>
       <% }) %>
     </tbody>
@@ -42,4 +84,55 @@
   </p>
   <% } %>
 </div>
+
+<div class="panel">
+  <h2>Actions</h2>
+  <div class="form-actions" style="flex-wrap:wrap">
+    <form method="post" action="/quotes/<%= quote.id %>/send">
+      <button class="btn" type="submit">Send by email</button>
+    </form>
+    <form method="post" action="/quotes/<%= quote.id %>/send">
+      <input type="hidden" name="markOnly" value="1" />
+      <button class="btn btn-secondary" type="submit">Mark as sent</button>
+    </form>
+    <form method="post" action="/quotes/<%= quote.id %>/approve" style="display:flex;gap:0.5rem;align-items:end">
+      <div>
+        <label>Approval note</label>
+        <input name="note" required placeholder="Verbal approval…" />
+      </div>
+      <button class="btn btn-secondary" type="submit">Mark approved</button>
+    </form>
+    <form method="post" action="/quotes/<%= quote.id %>/archive" style="display:flex;gap:0.5rem;align-items:end">
+      <div>
+        <label>Archive reason</label>
+        <input name="reason" required placeholder="Lost — price…" />
+      </div>
+      <button class="btn btn-secondary" type="submit">Archive</button>
+    </form>
+    <% if (quote.status === 'expired') { %>
+    <form method="post" action="/quotes/<%= quote.id %>/renew">
+      <button class="btn" type="submit">Renew validity</button>
+    </form>
+    <% } %>
+    <form method="post" action="/quotes/<%= quote.id %>/duplicate">
+      <button class="btn btn-secondary" type="submit">Create similar quote</button>
+    </form>
+  </div>
+</div>
+
+<% if (quote.status === 'draft' && addOns && addOns.length) { %>
+<div class="panel">
+  <h2>Add optional add-on</h2>
+  <form method="post" action="/quotes/<%= quote.id %>/add-ons">
+    <select name="addOnId" required>
+      <% addOns.forEach(a => { %>
+        <option value="<%= a.id %>"><%= a.name %><% if (canViewPricing) { %> — $<%= Number(a.unitPrice).toFixed(2) %>/<%= a.unit %><% } %></option>
+      <% }) %>
+    </select>
+    <button class="btn" type="submit">Add as optional</button>
+  </form>
+</div>
+<% } %>
+
+<%- include('../partials/activity-history', { activity }) %>
 <%- include('../partials/footer') %>

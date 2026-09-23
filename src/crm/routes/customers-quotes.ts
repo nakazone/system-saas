@@ -3,10 +3,11 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
 import type { AuthedRequest } from "../../middleware/auth.js";
-import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../http.js";
 import { canViewPricing, withPricingGate } from "../../lib/pricing/visibility.js";
 import { recordActivity } from "../../lib/activity/record.js";
+import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 
 export const customersQuotesRouter = Router();
 
@@ -112,7 +113,8 @@ function mapQuote(q: {
     number: q.number,
     quote_number: q.quoteNumber || String(q.number),
     title: q.title,
-    status: q.status,
+    status: normalizeQuoteStatus(q.status),
+    status_raw: q.status,
     flooring_type: q.flooringType,
     area_sqft: dec(q.areaSqft),
     waste_percent: dec(q.wastePercent),

@@ -6,7 +6,25 @@
 
 ---
 
-## M1 delivery notes (2026-09-23)
+## M2 delivery notes
+
+### Shipped (branch `feat/phase2-m2-quotes-v2`, based on M1)
+- Quote status machine (`transitionQuote`) + legacy status normalization (`accepted`→`approved`, etc.)
+- Rooms, option groups, line items with `unitCost`/`isOptional`/`isSelected`; server totals
+- `PublicAccessToken` (hashed) + dual-read of legacy `Quote.publicToken`; SECURITY DEFINER lookup
+- Public portal: options/optionals, live recalc, canvas signature, request changes, PDF, 14-day light verify
+- Internal list metrics/filters; send / mark sent / approve / archive / renew / duplicate; add-ons
+- Org quote settings (validity days, terms, tax, payment instructions); default add-on seed
+- Hourly expire job for past-`validUntil` quotes
+- PDF via **pdfkit** (lightweight, no browser)
+- Tests: transitions, totals, public token cross-org isolation, RLS for QuoteRoom/PublicAccessToken
+
+### Decisions
+- M2 branch cut from `feat/phase2-m1-foundations` (M1 not yet on `main`)
+- CRM `mapQuote` exposes normalized `status` plus `status_raw`
+- Single option group auto-created when none provided so estimate lines attach cleanly
+
+---
 
 ### Shipped
 - **Schema/migration** `20260923000000_phase2_m1_foundations`: `Organization.timezone`, `Property`, `ActivityEvent`, RLS policies, backfill Property from `Customer.address` (column kept, marked deprecated).
@@ -322,5 +340,6 @@ Each milestone: branch `feat/phase2-mN-<slug>` from updated `main` → migration
 ## 8. Milestone status
 
 - [x] M0 — recon + plan  
-- [x] M1 — foundations (this branch)  
-- [ ] **Await review approval before M2** (`feat/phase2-m2-quotes-v2`)
+- [x] M1 — foundations  
+- [x] M2 — quotes v2 (this branch)  
+- [ ] **Await review approval before M3** (`feat/phase2-m3-site-assessment`)

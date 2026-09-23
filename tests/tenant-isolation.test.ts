@@ -211,4 +211,54 @@ describe("tenant isolation", () => {
     });
     expect(visible?.entityId).toBe(customerAId);
   });
+
+  it("isolates PublicAccessToken and QuoteRoom across tenants", async () => {
+    const seeded = await withTenantTransaction(orgAId, async (tx) => {
+      const maxNumber = await tx.quote.aggregate({ _max: { number: true } });
+      const quote = await tx.quote.create({
+        data: {
+          organizationId: orgAId,
+          number: (maxNumber._max.number ?? 0) + 1,
+          title: "Isolation quote",
+          status: "draft",
+          flooringType: "lvp",
+        },
+      });
+      const room = await tx.quoteRoom.create({
+        data: {
+          organizationId: orgAId,
+          quoteId: quote.id,
+          name: "Kitchen",
+          areaSqft: 100,
+          sortOrder: 1,
+        },
+      });
+      const token = await tx.publicAccessToken.create({
+        data: {
+          organizationId: orgAId,
+          entityType: "quote",
+          entityId: quote.id,
+          tokenHash: `hash-${quote.id}`,
+          expiresAt: new Date(Date.now() + 86400000),
+        },
+      });
+      return { roomId: room.id, tokenId: token.id };
+    });
+
+    const rooms = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${orgBId}, true)`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "QuoteRoom" WHERE id = ${seeded.roomId}::uuid
+      `;
+    });
+    expect(rooms).toHaveLength(0);
+
+    const tokens = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${orgBId}, true)`;
+      return tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "PublicAccessToken" WHERE id = ${seeded.tokenId}::uuid
+      `;
+    });
+    expect(tokens).toHaveLength(0);
+  });
 });

@@ -41,6 +41,11 @@ model Organization {
   contactPhone     String?
   /// IANA timezone for displaying visit times (stored UTC in DB)
   timezone         String    @default("America/New_York")
+  /// Default quote validity window in days (M2)
+  quoteValidityDays Int      @default(30)
+  defaultQuoteTerms String?  @db.Text
+  quoteTaxRate     Decimal   @default(0) @db.Decimal(5, 2)
+  paymentInstructions String? @db.Text
   stripeCustomerId String?
   trialEndsAt      DateTime?
   createdAt        DateTime  @default(now())
@@ -63,7 +68,9 @@ model Organization {
   products           Product[]
   categoryMargins    CategoryMargin[]
   quoteCatalogItems  QuoteCatalogItem[]
+  quoteAddOns        QuoteAddOn[]
   quoteInvoices      QuoteInvoice[]
+  publicAccessTokens PublicAccessToken[]
   projects           Project[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
@@ -89,6 +96,7 @@ model User {
 
   permissions UserPermission[]
   ownedLeads  Lead[]           @relation("LeadOwner")
+  salesQuotes Quote[]          @relation("QuoteSalesperson")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -270,6 +278,8 @@ model Property {
 
   @@index([organizationId])
   @@index([organizationId, customerId])
+
+  quotes Quote[]
 }
 
 /// Immutable audit log. Application must never update or delete rows.
@@ -316,13 +326,19 @@ model Quote {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customerId     String?  @db.Uuid
   customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  propertyId     String?  @db.Uuid
+  property       Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  salespersonId  String?  @db.Uuid
+  salesperson    User?    @relation("QuoteSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
   leadId         String?  @db.Uuid
   builderId      String?  @db.Uuid
   builder        Builder? @relation(fields: [builderId], references: [id], onDelete: SetNull)
   number         Int
   quoteNumber    String?
   title          String
-  status         String   @default("draft") // draft | sent | accepted | rejected | expired | invoiced
+  /// draft | sent | changes_requested | approved | converted | archived | expired
+  /// Legacy: accepted→approved, rejected→archived (migrated in M2)
+  status         String   @default("draft")
   flooringType   String   @default("hardwood")
   areaSqft       Decimal  @default(0) @db.Decimal(12, 2)
   wastePercent   Decimal  @default(0) @db.Decimal(5, 2)
@@ -331,11 +347,28 @@ model Quote {
   materialMarkup Decimal  @default(0) @db.Decimal(5, 2)
   laborMarkup    Decimal  @default(0) @db.Decimal(5, 2)
   subtotal       Decimal  @default(0) @db.Decimal(12, 2)
-  total          Decimal  @default(0) @db.Decimal(12, 2)
+  discountType   String?  // percent | fixed
+  discountValue  Decimal  @default(0) @db.Decimal(12, 2)
+  taxRate        Decimal  @default(0) @db.Decimal(5, 2)
   taxTotal       Decimal  @default(0) @db.Decimal(12, 2)
+  total          Decimal  @default(0) @db.Decimal(12, 2)
   notes          String?  @db.Text
+  clientMessage  String?  @db.Text
   terms          String?  @db.Text
+  /// Flags: showQuantities, showUnitPrices, showLineTotals, showRoomBreakdown
+  clientView     Json?
+  validUntil     DateTime?
+  selectedOptionGroupId String? @db.Uuid
+  archiveReason  String?
+  signatureUrl   String?
+  signedByName   String?
+  signedAt       DateTime?
+  approvedIp     String?
+  approvedUserAgent String?
+  changeRequestNote String? @db.Text
+  viewedAt       DateTime?
   serviceType    String?
+  /// @deprecated M2: prefer PublicAccessToken. Kept for dual-read during migration.
   publicToken    String?  @unique
   /// Full SF quote-builder payload for parity while APIs evolve
   payload        Json?
@@ -343,12 +376,46 @@ model Quote {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  lineItems QuoteLineItem[]
-  invoices  QuoteInvoice[]
+  lineItems    QuoteLineItem[]
+  rooms        QuoteRoom[]
+  optionGroups QuoteOptionGroup[]
+  invoices     QuoteInvoice[]
 
   @@unique([organizationId, number])
   @@index([organizationId])
   @@index([organizationId, status])
+  @@index([organizationId, salespersonId])
+}
+
+model QuoteRoom {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  quoteId        String  @db.Uuid
+  quote          Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  name           String
+  areaSqft       Decimal @db.Decimal(12, 2)
+  notes          String?
+  sortOrder      Int     @default(0)
+
+  lineItems QuoteLineItem[]
+
+  @@index([organizationId])
+  @@index([quoteId])
+}
+
+model QuoteOptionGroup {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  quoteId        String  @db.Uuid
+  quote          Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  name           String
+  flooringType   String?
+  sortOrder      Int     @default(0)
+
+  lineItems QuoteLineItem[]
+
+  @@index([organizationId])
+  @@index([quoteId])
 }
 
 model QuoteLineItem {
@@ -356,11 +423,19 @@ model QuoteLineItem {
   organizationId String  @db.Uuid
   quoteId        String  @db.Uuid
   quote          Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  roomId         String? @db.Uuid
+  room           QuoteRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  optionGroupId  String? @db.Uuid
+  optionGroup    QuoteOptionGroup? @relation(fields: [optionGroupId], references: [id], onDelete: SetNull)
+  name           String?
   description    String
   quantity       Decimal @db.Decimal(12, 2)
   unit           String  @default("sqft")
+  unitCost       Decimal @default(0) @db.Decimal(12, 2)
   unitPrice      Decimal @db.Decimal(12, 2)
   amount         Decimal @db.Decimal(12, 2)
+  isOptional     Boolean @default(false)
+  isSelected     Boolean @default(true)
   itemType       String  @default("service") // service | product
   productId      String? @db.Uuid
   catalogId      String? @db.Uuid
@@ -369,6 +444,45 @@ model QuoteLineItem {
 
   @@index([organizationId])
   @@index([quoteId])
+  @@index([roomId])
+  @@index([optionGroupId])
+}
+
+/// Suggested optional add-ons for quotes (Settings → Quotes)
+model QuoteAddOn {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  unit           String   @default("each")
+  unitCost       Decimal  @default(0) @db.Decimal(12, 2)
+  unitPrice      Decimal  @default(0) @db.Decimal(12, 2)
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+/// Hashed magic-link tokens for public portals (quotes, invoices, …)
+model PublicAccessToken {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entityType     String // quote | invoice | …
+  entityId       String    @db.Uuid
+  tokenHash      String
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
+  viewedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([tokenHash])
+  @@index([organizationId])
+  @@index([organizationId, entityType, entityId])
 }
 
 // ---------------------------------------------------------------------------
