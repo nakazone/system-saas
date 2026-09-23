@@ -22,6 +22,8 @@ import {
   recomputeTotalsFromQuote,
 } from "../quotes/service.js";
 import { toDecimal } from "../../lib/quotes/calculate.js";
+import { moveLeadToSystemStage } from "../../lib/pipeline/move.js";
+import { overdueAssessmentWhere } from "../../lib/home/actions.js";
 
 export const assessmentsRouter = Router();
 
@@ -41,10 +43,15 @@ assessmentsRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const status = typeof req.query.status === "string" ? req.query.status : "";
+      const filter = typeof req.query.filter === "string" ? req.query.filter : "";
+      const now = new Date();
       const rows = await withTenantTransaction(req.organizationId!, async (tx) => {
         await seedDefaultChecklistTemplates(tx, req.organizationId!);
+        const where: Record<string, unknown> = {};
+        if (status) where.status = status;
+        if (filter === "overdue") Object.assign(where, overdueAssessmentWhere(now));
         return tx.siteAssessment.findMany({
-          where: status ? { status } : undefined,
+          where,
           include: assessmentInclude,
           orderBy: [{ scheduledStart: "asc" }, { createdAt: "desc" }],
         });
@@ -160,6 +167,24 @@ assessmentsRouter.post(
           action: "updated",
           changes: { siteAssessment: { from: null, to: row.id } },
         });
+        if (status === "scheduled") {
+          let leadId = parsed.data.leadId || null;
+          if (!leadId && parsed.data.customerId) {
+            const cust = await tx.customer.findFirst({
+              where: { id: parsed.data.customerId },
+            });
+            leadId = cust?.leadId ?? null;
+          }
+          if (leadId) {
+            await moveLeadToSystemStage(tx, {
+              organizationId: req.organizationId!,
+              leadId,
+              slug: "assessment_scheduled",
+              actorType: "user",
+              actorId: req.user!.id,
+            });
+          }
+        }
         return row;
       });
       res.redirect(`/assessments/${created.id}`);

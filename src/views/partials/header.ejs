@@ -30,8 +30,9 @@
     </div>
     <% if (typeof user !== 'undefined' && user) { %>
     <nav class="app-nav">
-      <a href="/">Dashboard</a>
+      <a href="/">Home</a>
       <a href="/leads">Leads</a>
+      <a href="/leads/board">Board</a>
       <a href="/customers">Customers</a>
       <a href="/quotes">Quotes</a>
       <a href="/invoices">Invoices</a>
@@ -39,6 +40,7 @@
       <a href="/schedule">Schedule</a>
       <a href="/schedule/my-day">My Day</a>
       <a href="/assessments">Assessments</a>
+      <a href="/reports">Reports</a>
       <a href="/users">Users</a>
       <a href="/settings">Settings</a>
       <form action="/logout" method="post" class="inline">

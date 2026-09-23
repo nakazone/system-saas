@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth, requirePermission, type AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { calculateQuote, toDecimal } from "../../lib/quotes/calculate.js";
+import { staleQuoteWhere, expiringQuoteWhere } from "../../lib/home/actions.js";
 import { prisma } from "../../lib/prisma.js";
 import { canViewPricing } from "../../lib/pricing/visibility.js";
 import { email } from "../../lib/email/index.js";
@@ -16,6 +17,7 @@ import {
   cancelPendingMessages,
   scheduleQuoteFollowUp,
 } from "../../lib/automations/schedule.js";
+import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
 import {
   applyQuoteTransition,
   defaultClientViewJson,
@@ -52,21 +54,22 @@ quotesRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const status = typeof req.query.status === "string" ? req.query.status : "";
+      const filter = typeof req.query.filter === "string" ? req.query.filter : "";
       const salespersonId =
         typeof req.query.salespersonId === "string" ? req.query.salespersonId : "";
       const period = typeof req.query.period === "string" ? req.query.period : "30d";
       const { start, end, prevStart, prevEnd } = periodBounds(period);
       const showPricing = canViewPricing(req.user);
+      const now = new Date();
 
       const { quotes, metrics, salespeople } = await withTenantTransaction(
         req.organizationId!,
         async (tx) => {
-          const where: {
-            status?: string;
-            salespersonId?: string;
-          } = {};
+          const where: Record<string, unknown> = {};
           if (status) where.status = status;
           if (salespersonId) where.salespersonId = salespersonId;
+          if (filter === "stale") Object.assign(where, staleQuoteWhere(now));
+          if (filter === "expiring") Object.assign(where, expiringQuoteWhere(now));
 
           const quotesList = await tx.quote.findMany({
             where,
@@ -496,6 +499,14 @@ quotesRouter.post(
           data: { publicToken: null },
         });
 
+        await moveLeadForQuoteEvent(tx, {
+          organizationId: req.organizationId!,
+          quoteId: quote.id,
+          slug: "quote_sent",
+          actorType: "user",
+          actorId: req.user!.id,
+        });
+
         return { quote, issued, markOnly };
       });
 
@@ -568,6 +579,13 @@ quotesRouter.post(
           entityType: "quote",
           entityId: param(req, "id"),
           triggerKey: "quote_follow_up",
+        });
+        await moveLeadForQuoteEvent(tx, {
+          organizationId: req.organizationId!,
+          quoteId: param(req, "id"),
+          slug: "won",
+          actorType: "user",
+          actorId: req.user!.id,
         });
       });
       res.redirect(`/quotes/${param(req, "id")}?success=${encodeURIComponent("Marked approved")}`);

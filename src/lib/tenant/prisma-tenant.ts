@@ -26,6 +26,7 @@ const TENANT_MODELS = new Set([
   "Role",
   "Invitation",
   "PipelineStage",
+  "LossReason",
   "Lead",
   "Customer",
   "Property",

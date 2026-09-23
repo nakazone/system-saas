@@ -17,6 +17,7 @@ import { applyQuoteTransition } from "./service.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { runScheduleTriggers } from "../../lib/payments/engine.js";
 import { cancelPendingMessages } from "../../lib/automations/schedule.js";
+import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
 
 export const publicQuotesRouter = Router();
 
@@ -338,6 +339,13 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
         entityType: "quote",
         entityId: quote.id,
         triggerKey: "quote_follow_up",
+      });
+
+      await moveLeadForQuoteEvent(tx, {
+        organizationId: ref.organizationId,
+        quoteId: quote.id,
+        slug: "won",
+        actorType: "system",
       });
 
       return { quote, totals };

@@ -57,6 +57,7 @@ model Organization {
   roles              Role[]
   invitations        Invitation[]
   pipelineStages     PipelineStage[]
+  lossReasons        LossReason[]
   leads              Lead[]
   customers          Customer[]
   properties         Property[]
@@ -230,12 +231,31 @@ model PipelineStage {
   color          String?
   isClosed       Boolean @default(false)
   isActive       Boolean @default(true)
+  /// Fixed system milestones: new | assessment_scheduled | quote_sent | won | lost
+  isSystemMilestone Boolean @default(false)
 
   leads Lead[]
 
   @@index([organizationId])
   @@unique([organizationId, order])
   @@unique([organizationId, slug])
+}
+
+model LossReason {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  slug           String
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  leads Lead[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
 }
 
 model Lead {
@@ -252,6 +272,10 @@ model Lead {
   pipelineStage   PipelineStage? @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
   ownerId         String?  @db.Uuid
   owner           User?    @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  lossReasonId    String?  @db.Uuid
+  lossReason      LossReason? @relation(fields: [lossReasonId], references: [id], onDelete: SetNull)
+  lostAt          DateTime?
+  lastContactedAt DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -260,6 +284,8 @@ model Lead {
 
   @@index([organizationId])
   @@index([organizationId, pipelineStageId])
+  @@index([lossReasonId])
+  @@index([ownerId])
 }
 
 model Customer {

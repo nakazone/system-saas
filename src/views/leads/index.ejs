@@ -2,10 +2,22 @@
 <div class="page-header">
   <h1>Leads</h1>
   <div class="form-actions">
+    <a class="btn btn-secondary" href="/leads/board">Kanban</a>
     <a class="btn btn-secondary" href="/pipeline">Pipeline stages</a>
     <a class="btn" href="/leads/new">New lead</a>
   </div>
 </div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Shown</div><div class="value"><%= metrics.total %></div></div>
+  <div class="stat"><div class="label">Open</div><div class="value"><%= metrics.open %></div></div>
+  <div class="stat"><div class="label">Won / Lost</div><div class="value"><%= metrics.won %> / <%= metrics.lost %></div></div>
+</div>
+
+<% if (filters.filter) { %>
+  <p class="muted">Filter: <%= filters.filter %> · <a href="/leads">Clear</a></p>
+<% } %>
+
 <div class="panel">
   <% if (!leads.length) { %>
     <p class="muted">No leads yet. <a href="/leads/new">Create the first one</a>.</p>
@@ -21,9 +33,9 @@
           <td><%= lead.pipelineStage ? lead.pipelineStage.name : '—' %></td>
           <td><%= lead.source || '—' %></td>
           <td><%= lead.owner ? lead.owner.name : '—' %></td>
-          <td><%= lead.status %></td>
+          <td><%= lead.status %><% if (lead.lossReason) { %> <span class="muted">(<%= lead.lossReason.name %>)</span><% } %></td>
           <td>
-            <% if (lead.status !== 'converted') { %>
+            <% if (lead.status !== 'converted' && lead.status !== 'won' && lead.status !== 'lost') { %>
             <form method="post" action="/leads/<%= lead.id %>/convert" class="inline">
               <button class="linkish" type="submit">Convert</button>
             </form>

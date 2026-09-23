@@ -1,5 +1,6 @@
 import {
   DEFAULT_ESTIMATE_RULES,
+  DEFAULT_LOSS_REASONS,
   DEFAULT_PIPELINE_STAGES,
   DEFAULT_QUOTE_ADDONS,
   DEFAULT_ROLE_META,
@@ -117,6 +118,18 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
           order: stage.order,
           color: stage.color,
           isClosed: stage.isClosed,
+          isSystemMilestone: stage.isSystemMilestone,
+        },
+      });
+    }
+
+    for (const reason of DEFAULT_LOSS_REASONS) {
+      await tx.lossReason.create({
+        data: {
+          organizationId: organization.id,
+          name: reason.name,
+          slug: reason.slug,
+          sortOrder: reason.sortOrder,
         },
       });
     }

@@ -168,15 +168,83 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   installer: INSTALLER_KEYS,
 };
 
-/** Senior Floors kanban v9 stage set */
+/** Phase 2 system milestones + optional custom stages between them. */
+export const SYSTEM_PIPELINE_SLUGS = [
+  "new",
+  "assessment_scheduled",
+  "quote_sent",
+  "won",
+  "lost",
+] as const;
+
+export type SystemPipelineSlug = (typeof SYSTEM_PIPELINE_SLUGS)[number];
+
 export const DEFAULT_PIPELINE_STAGES = [
-  { name: "New Lead", slug: "new_lead", order: 1, color: "#3498db", isClosed: false },
-  { name: "Meeting Scheduled", slug: "meeting_scheduled", order: 2, color: "#90EE90", isClosed: false },
-  { name: "Quote Sent", slug: "quote_sent", order: 3, color: "#9b59b6", isClosed: false },
-  { name: "Follow Up", slug: "follow_up_1", order: 4, color: "#F1C40F", isClosed: false },
-  { name: "Stand By", slug: "stand_by", order: 5, color: "#f39c12", isClosed: false },
-  { name: "Won", slug: "won", order: 6, color: "#27ae60", isClosed: true },
-  { name: "Lost", slug: "lost", order: 7, color: "#c0392b", isClosed: true },
+  {
+    name: "New",
+    slug: "new",
+    order: 1,
+    color: "#3498db",
+    isClosed: false,
+    isSystemMilestone: true,
+  },
+  {
+    name: "Assessment scheduled",
+    slug: "assessment_scheduled",
+    order: 2,
+    color: "#90EE90",
+    isClosed: false,
+    isSystemMilestone: true,
+  },
+  {
+    name: "Quote sent",
+    slug: "quote_sent",
+    order: 3,
+    color: "#9b59b6",
+    isClosed: false,
+    isSystemMilestone: true,
+  },
+  {
+    name: "Follow Up",
+    slug: "follow_up_1",
+    order: 4,
+    color: "#F1C40F",
+    isClosed: false,
+    isSystemMilestone: false,
+  },
+  {
+    name: "Stand By",
+    slug: "stand_by",
+    order: 5,
+    color: "#f39c12",
+    isClosed: false,
+    isSystemMilestone: false,
+  },
+  {
+    name: "Won",
+    slug: "won",
+    order: 6,
+    color: "#27ae60",
+    isClosed: true,
+    isSystemMilestone: true,
+  },
+  {
+    name: "Lost",
+    slug: "lost",
+    order: 7,
+    color: "#c0392b",
+    isClosed: true,
+    isSystemMilestone: true,
+  },
+];
+
+export const DEFAULT_LOSS_REASONS = [
+  { name: "Price", slug: "price", sortOrder: 1 },
+  { name: "Timeline", slug: "timeline", sortOrder: 2 },
+  { name: "Chose competitor", slug: "chose_competitor", sortOrder: 3 },
+  { name: "No response", slug: "no_response", sortOrder: 4 },
+  { name: "Project postponed", slug: "project_postponed", sortOrder: 5 },
+  { name: "Other", slug: "other", sortOrder: 6 },
 ];
 
 export const DEFAULT_ESTIMATE_RULES = [

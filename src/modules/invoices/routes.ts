@@ -28,9 +28,17 @@ invoicesRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const status = typeof req.query.status === "string" ? req.query.status : "";
+      const filter = typeof req.query.filter === "string" ? req.query.filter : "";
+      const now = new Date();
       const invoices = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const where: Record<string, unknown> = {};
+        if (status) where.status = status;
+        if (filter === "overdue") {
+          where.status = { in: ["sent", "partially_paid"] };
+          where.dueDate = { lt: now };
+        }
         return tx.quoteInvoice.findMany({
-          where: status ? { status } : undefined,
+          where,
           include: {
             quote: true,
             customer: true,
@@ -40,16 +48,31 @@ invoicesRouter.get(
           take: 200,
         });
       });
+      const mapped = invoices.map((inv) => ({
+        ...inv,
+        paid: fromCents(paidTotalCents(inv.receipts)),
+        balance: fromCents(toCents(inv.amount) - paidTotalCents(inv.receipts)),
+      }));
+      const metrics = {
+        total: mapped.length,
+        openBalance: Number(
+          mapped.reduce((s, i) => s + (i.status === "paid" || i.status === "void" ? 0 : i.balance), 0).toFixed(2),
+        ),
+        overdue: mapped.filter(
+          (i) =>
+            i.dueDate &&
+            i.dueDate < now &&
+            i.balance > 0 &&
+            ["sent", "partially_paid"].includes(i.status),
+        ).length,
+      };
       res.render("invoices/index", {
         title: "Invoices",
         organization: req.organization,
         user: req.user,
-        invoices: invoices.map((inv) => ({
-          ...inv,
-          paid: fromCents(paidTotalCents(inv.receipts)),
-          balance: fromCents(toCents(inv.amount) - paidTotalCents(inv.receipts)),
-        })),
-        filters: { status },
+        invoices: mapped,
+        metrics,
+        filters: { status, filter },
         canViewPricing:
           req.user?.permissions.includes("pricing.view") || req.user?.roleKey === "admin",
       });

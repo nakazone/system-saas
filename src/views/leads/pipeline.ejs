@@ -2,28 +2,64 @@
 <div class="page-header">
   <h1>Pipeline stages</h1>
 </div>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <div class="panel">
+  <p class="muted">System milestones (New, Assessment scheduled, Quote sent, Won, Lost) cannot be deleted or reordered. Add custom stages between them.</p>
   <table>
-    <thead><tr><th>Order</th><th>Name</th><th>Color</th><th>Active</th></tr></thead>
+    <thead><tr><th>Order</th><th>Name</th><th>Slug</th><th>Color</th><th>System</th><th></th></tr></thead>
     <tbody>
       <% stages.forEach(s => { %>
         <tr>
           <td><%= s.order %></td>
           <td><%= s.name %></td>
+          <td class="muted"><%= s.slug || '—' %></td>
           <td><%= s.color || '—' %></td>
-          <td><%= s.isActive ? 'yes' : 'no' %></td>
+          <td><%= s.isSystemMilestone ? 'yes' : 'no' %></td>
+          <td>
+            <% if (!s.isSystemMilestone) { %>
+            <form method="post" action="/pipeline/<%= s.id %>/delete" class="inline" onsubmit="return confirm('Delete this stage?')">
+              <button class="linkish" type="submit">Delete</button>
+            </form>
+            <% } %>
+          </td>
         </tr>
       <% }) %>
     </tbody>
   </table>
 </div>
 <div class="panel" style="max-width:420px">
-  <h2>Add stage</h2>
+  <h2>Add custom stage</h2>
   <form method="post" action="/pipeline">
     <label>Name</label>
     <input name="name" required />
     <label>Color</label>
     <input name="color" placeholder="#2563eb" />
+    <button class="btn" type="submit">Add</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Loss reasons</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Slug</th><th>Active</th></tr></thead>
+    <tbody>
+      <% lossReasons.forEach(r => { %>
+        <tr>
+          <td><%= r.name %></td>
+          <td class="muted"><%= r.slug %></td>
+          <td><%= r.isActive ? 'yes' : 'no' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<div class="panel" style="max-width:420px">
+  <h2>Add loss reason</h2>
+  <form method="post" action="/pipeline/loss-reasons">
+    <label>Name</label>
+    <input name="name" required />
+    <label>Slug (optional)</label>
+    <input name="slug" placeholder="price" />
     <button class="btn" type="submit">Add</button>
   </form>
 </div>

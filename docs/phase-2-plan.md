@@ -1,6 +1,6 @@
 # Phase 2 technical plan — operational modules
 
-**Status:** M1–M6 shipped on prior branches. M7 in progress on `feat/phase2-m7-automations`.  
+**Status:** M1–M7 shipped on prior branches. M8 in progress on `feat/phase2-m8-kanban-home-reports`.  
 **Branch:** `feat/phase2-m1-foundations`  
 **Repo conventions win on style; Phase 2 rules 2–4 (tenant RLS, public tokens, English names) win on security.**
 
@@ -281,12 +281,11 @@ Immutable `ActivityEvent`; single helper `recordActivity(...)` inside the same D
 
 ### M8 — Kanban, action home, reports
 
-- System milestones fixed: New → Assessment scheduled → Quote sent → Won / Lost; custom stages between.
-- Auto-move cards from real entity events; Lost requires loss reason.
-- Action-oriented home replacing/augmenting dashboard; installer → My Day.
-- Reports + CSV exports listed in Phase 2 §11.3.
-
-**Risks:** current `DEFAULT_PIPELINE_STAGES` already similar but not identical (e.g. Meeting Scheduled vs Assessment scheduled) — migrate stages carefully without deleting org customizations.
+**Pipeline:** system milestones `new` → `assessment_scheduled` → `quote_sent` → `won` / `lost` (`isSystemMilestone`); custom stages insert before Won. Legacy `new_lead` / `meeting_scheduled` renamed in migration.  
+**Auto-move:** assessment scheduled → Assessment; quote send → Quote sent; approve/convert → Won. Manual Lost requires `LossReason`.  
+**UI:** `/leads/board` kanban + list; action Home at `/` (installer → My Day); `/reports` with period + CSV.  
+**Reports:** conversion by source/salesperson, loss reasons, projected revenue (open installment balances), AR aging, profitability.  
+**Tests:** `tests/kanban-home-m8.test.ts` — lost requires reason, approve→Won, home counts match filters, projected revenue sums open balances.
 
 ---
 
@@ -350,5 +349,6 @@ Each milestone: branch `feat/phase2-mN-<slug>` from updated `main` → migration
 - [x] M3 — site assessment + checklist engine  
 - [x] M4 — payment schedules, invoices, payments  
 - [x] M5 — projects, visits, crews, schedule / My Day  
-- [x] M6 — project costs (this branch)  
-- [ ] **Await review approval before M7** (`feat/phase2-m7-automations`)
+- [x] M6 — project costs  
+- [x] M7 — communication automations  
+- [x] M8 — kanban, action home, reports (this branch)

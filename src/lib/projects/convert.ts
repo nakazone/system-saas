@@ -3,6 +3,7 @@ import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
 import { transitionQuote } from "../quotes/transitions.js";
 import { freezeProjectBudget } from "./costs.js";
+import { moveLeadForQuoteEvent } from "../pipeline/move.js";
 
 export async function nextProjectNumber(
   tx: TenantPrisma,
@@ -183,6 +184,14 @@ export async function convertQuoteToProject(
     actorId: params.actorId ?? null,
     action: "created",
     changes: { fromQuote: { from: null, to: quote.id } },
+  });
+
+  await moveLeadForQuoteEvent(tx, {
+    organizationId: params.organizationId,
+    quoteId: quote.id,
+    slug: "won",
+    actorType: params.actorId ? "user" : "system",
+    actorId: params.actorId,
   });
 
   return project;

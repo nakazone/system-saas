@@ -15,11 +15,13 @@ projectsRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const status = typeof req.query.status === "string" ? req.query.status : "";
+      const filter = typeof req.query.filter === "string" ? req.query.filter : "";
       const projects = await withTenantTransaction(req.organizationId!, async (tx) => {
         return tx.project.findMany({
           where: {
             deletedAt: null,
             ...(status ? { status } : {}),
+            ...(filter === "needs_invoicing" ? { status: "needs_invoicing" } : {}),
           },
           include: {
             customer: true,
@@ -30,12 +32,18 @@ projectsRouter.get(
           take: 200,
         });
       });
+      const metrics = {
+        total: projects.length,
+        needsInvoicing: projects.filter((p) => p.status === "needs_invoicing").length,
+        inProgress: projects.filter((p) => p.status === "in_progress").length,
+      };
       res.render("projects/index", {
         title: "Projects",
         organization: req.organization,
         user: req.user,
         projects,
-        filters: { status },
+        metrics,
+        filters: { status, filter },
         canManage: req.user?.permissions.includes("projects.manage"),
       });
     } catch (error) {

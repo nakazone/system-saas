@@ -2,6 +2,14 @@
 <div class="page-header">
   <h1>Invoices</h1>
 </div>
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <div class="stat"><div class="label">Shown</div><div class="value"><%= metrics.total %></div></div>
+  <div class="stat"><div class="label">Overdue</div><div class="value"><%= metrics.overdue %></div></div>
+  <% if (canViewPricing) { %>
+  <div class="stat"><div class="label">Open balance</div><div class="value">$<%= Number(metrics.openBalance).toFixed(2) %></div></div>
+  <% } %>
+</div>
+<% if (filters.filter) { %><p class="muted">Filter: <%= filters.filter %> · <a href="/invoices">Clear</a></p><% } %>
 <form method="get" class="filters" style="margin-bottom:1rem">
   <select name="status" onchange="this.form.submit()">
     <option value="">All statuses</option>
