@@ -24,6 +24,12 @@ declare module "express-session" {
     userRole?: string;
     permissionKeys?: string[];
     mustChangePassword?: boolean;
+    /** Staged CSV import (Settings → Import). */
+    importDraft?: {
+      entity: "customers" | "leads";
+      csvText: string;
+      headers: string[];
+    };
   }
 }
 

@@ -20,6 +20,7 @@ import { leadsRouter, pipelineRouter } from "./modules/leads/routes.js";
 import { customersRouter } from "./modules/customers/routes.js";
 import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
+import { importRouter } from "./modules/imports/routes.js";
 import { platformAdminRouter } from "./platform-admin/routes.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
@@ -48,7 +49,7 @@ export function createApp() {
   app.set("views", path.join(__dirname, "views"));
   app.set("trust proxy", 1);
 
-  app.use(express.urlencoded({ extended: true, limit: "5mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "12mb" }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
   app.use("/assets", express.static(CRM_ASSETS_DIR));
@@ -128,6 +129,7 @@ export function createApp() {
   app.use(dashboardRouter);
   app.use("/users", usersRouter);
   app.use("/settings", settingsRouter);
+  app.use("/settings/import", importRouter);
   app.use("/leads", leadsRouter);
   app.use("/pipeline", pipelineRouter);
   app.use("/customers", customersRouter);

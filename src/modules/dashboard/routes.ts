@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import { canViewPricing } from "../../lib/pricing/visibility.js";
 
 export const dashboardRouter = Router();
 
@@ -28,6 +29,7 @@ dashboardRouter.get("/", requireAuth, async (req: AuthedRequest, res, next) => {
       organization: req.organization,
       user: req.user,
       stats,
+      canViewPricing: canViewPricing(req.user),
     });
   } catch (error) {
     next(error);

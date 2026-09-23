@@ -28,6 +28,8 @@ const TENANT_MODELS = new Set([
   "PipelineStage",
   "Lead",
   "Customer",
+  "Property",
+  "ActivityEvent",
   "EstimateRule",
   "Quote",
   "QuoteLineItem",

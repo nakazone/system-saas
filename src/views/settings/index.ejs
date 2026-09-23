@@ -1,6 +1,7 @@
 <%- include('../partials/header') %>
 <div class="page-header">
   <h1>Settings</h1>
+  <a class="btn btn-secondary" href="/settings/import">Import data</a>
 </div>
 <% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
 <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
@@ -10,6 +11,8 @@
   <form method="post" action="/settings/organization" id="orgForm">
     <label>Name</label>
     <input name="name" required value="<%= organization.name %>" />
+    <label>Timezone (IANA)</label>
+    <input name="timezone" placeholder="America/New_York" value="<%= organization.timezone || 'America/New_York' %>" />
     <label>Primary color</label>
     <input name="primaryColor" placeholder="#211d1a" value="<%= organization.primaryColor || '' %>" />
     <label>Accent color</label>
@@ -30,6 +33,9 @@
 
 <div class="panel">
   <h2>Estimate rules (waste &amp; markup)</h2>
+  <% if (typeof canViewPricing !== 'undefined' && !canViewPricing) { %>
+    <p class="muted">Pricing details are hidden for your role.</p>
+  <% } else { %>
   <form method="post" action="/settings/estimate-rules">
     <table>
       <thead>
@@ -53,6 +59,7 @@
     </table>
     <button class="btn" type="submit">Save rules</button>
   </form>
+  <% } %>
 </div>
 
 <div class="panel">

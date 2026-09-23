@@ -9,21 +9,103 @@
 <div class="panel">
   <p><strong>Email:</strong> <%= customer.email || '—' %></p>
   <p><strong>Phone:</strong> <%= customer.phone || '—' %></p>
-  <p><strong>Address:</strong> <%= customer.address || '—' %></p>
+  <% if (customer.address) { %>
+    <p class="muted"><strong>Legacy address:</strong> <%= customer.address %></p>
+  <% } %>
 </div>
+
+<div class="panel">
+  <h2>Properties</h2>
+  <% if (!customer.properties.length) { %>
+    <p class="muted">No properties yet.</p>
+  <% } else { %>
+    <table>
+      <thead>
+        <tr><th>Label</th><th>Address</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% customer.properties.forEach(p => { %>
+          <tr>
+            <td><%= p.label || '—' %></td>
+            <td>
+              <%= p.line1 %><% if (p.line2) { %>, <%= p.line2 %><% } %>
+              <% if (p.city || p.state || p.postalCode) { %>
+                <br /><span class="muted"><%= [p.city, p.state, p.postalCode].filter(Boolean).join(', ') %></span>
+              <% } %>
+            </td>
+            <td>
+              <details>
+                <summary>Edit</summary>
+                <form method="post" action="/customers/<%= customer.id %>/properties/<%= p.id %>" style="margin-top:0.5rem">
+                  <label>Label</label>
+                  <input name="label" value="<%= p.label || '' %>" />
+                  <label>Line 1</label>
+                  <input name="line1" required value="<%= p.line1 %>" />
+                  <label>Line 2</label>
+                  <input name="line2" value="<%= p.line2 || '' %>" />
+                  <label>City</label>
+                  <input name="city" value="<%= p.city || '' %>" />
+                  <label>State</label>
+                  <input name="state" value="<%= p.state || '' %>" />
+                  <label>Postal code</label>
+                  <input name="postalCode" value="<%= p.postalCode || '' %>" />
+                  <label>Country</label>
+                  <input name="country" value="<%= p.country || 'US' %>" />
+                  <label>Notes</label>
+                  <textarea name="notes" rows="2"><%= p.notes || '' %></textarea>
+                  <button class="btn" type="submit">Save</button>
+                </form>
+              </details>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <h3>Add property</h3>
+  <form method="post" action="/customers/<%= customer.id %>/properties" style="max-width:480px">
+    <label>Label</label>
+    <input name="label" placeholder="Home, Unit 12…" />
+    <label>Line 1</label>
+    <input name="line1" required />
+    <label>Line 2</label>
+    <input name="line2" />
+    <label>City</label>
+    <input name="city" />
+    <label>State</label>
+    <input name="state" />
+    <label>Postal code</label>
+    <input name="postalCode" />
+    <label>Country</label>
+    <input name="country" value="US" />
+    <label>Notes</label>
+    <textarea name="notes" rows="2"></textarea>
+    <button class="btn" type="submit">Add property</button>
+  </form>
+</div>
+
 <div class="panel">
   <h2>Quotes</h2>
   <% if (!customer.quotes.length) { %>
     <p class="muted">No quotes for this customer.</p>
   <% } else { %>
   <table>
-    <thead><tr><th>#</th><th>Title</th><th>Total</th><th>Status</th></tr></thead>
+    <thead>
+      <tr>
+        <th>#</th><th>Title</th>
+        <% if (canViewPricing) { %><th>Total</th><% } %>
+        <th>Status</th>
+      </tr>
+    </thead>
     <tbody>
       <% customer.quotes.forEach(q => { %>
         <tr>
           <td><a href="/quotes/<%= q.id %>"><%= q.number %></a></td>
           <td><%= q.title %></td>
-          <td>$<%= Number(q.total).toFixed(2) %></td>
+          <% if (canViewPricing) { %>
+            <td>$<%= Number(q.total).toFixed(2) %></td>
+          <% } %>
           <td><%= q.status %></td>
         </tr>
       <% }) %>
@@ -31,4 +113,6 @@
   </table>
   <% } %>
 </div>
+
+<%- include('../partials/activity-history', { activity }) %>
 <%- include('../partials/footer') %>

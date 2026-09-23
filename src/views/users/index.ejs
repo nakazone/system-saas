@@ -2,6 +2,22 @@
 <div class="page-header">
   <h1>Users</h1>
 </div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<% if (missingDefaultRoles && missingDefaultRoles.length) { %>
+<div class="panel">
+  <h2>Default roles</h2>
+  <p class="muted">
+    Missing Phase 2 roles: <code><%= missingDefaultRoles.join(', ') %></code>.
+    Existing roles are left unchanged.
+  </p>
+  <form method="post" action="/users/ensure-default-roles">
+    <button class="btn" type="submit">Add missing default roles</button>
+  </form>
+</div>
+<% } %>
+
 <div class="panel">
   <table>
     <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>

@@ -8,6 +8,8 @@ import { email } from "../../lib/email/index.js";
 import { requireAuth, requirePermission, type AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { env } from "../../config/env.js";
+import { ensureDefaultRoles } from "../../lib/tenant/ensure-default-roles.js";
+import { DEFAULT_ROLE_PERMISSIONS } from "../../lib/tenant/defaults.js";
 
 export const usersRouter = Router();
 
@@ -33,6 +35,10 @@ usersRouter.get(
       const roles = await withTenantTransaction(req.organizationId!, async (tx) => {
         return tx.role.findMany({ orderBy: { name: "asc" } });
       });
+      const existingKeys = new Set(roles.map((r) => r.key));
+      const missingDefaultRoles = Object.keys(DEFAULT_ROLE_PERMISSIONS).filter(
+        (k) => !existingKeys.has(k),
+      );
 
       res.render("users/index", {
         title: "Users",
@@ -41,9 +47,29 @@ usersRouter.get(
         users,
         invitations,
         roles,
-        error: null,
-        success: null,
+        missingDefaultRoles,
+        error: typeof req.query.error === "string" ? req.query.error : null,
+        success: typeof req.query.success === "string" ? req.query.success : null,
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+usersRouter.post(
+  "/ensure-default-roles",
+  requirePermission("roles.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const { created } = await withTenantTransaction(req.organizationId!, async (tx) => {
+        return ensureDefaultRoles(req.organizationId!, tx);
+      });
+      const msg =
+        created.length > 0
+          ? `Added roles: ${created.join(", ")}`
+          : "All default roles already present.";
+      res.redirect(`/users?success=${encodeURIComponent(msg)}`);
     } catch (error) {
       next(error);
     }

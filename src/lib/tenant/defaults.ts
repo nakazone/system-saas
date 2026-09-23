@@ -1,3 +1,18 @@
+/**
+ * Default permission catalog and role matrices for new organizations.
+ *
+ * Role key mapping (Phase 2 M1):
+ * - admin → full access including settings/users
+ * - general_manager → all operational + reports; no account settings/roles
+ * - office → leads, customers, quotes, projects, schedule, invoices, imports
+ * - sales → leads, customers, quotes, pipeline (with pricing.view)
+ * - crew_lead → schedule/visits/projects context; no pricing.view
+ * - installer → visits only; no pricing.view
+ *
+ * Legacy keys (sales_rep, project_manager, support) are not seeded for new orgs.
+ * Existing orgs keep their roles; Settings → Users can add missing Phase 2 defaults.
+ */
+
 export const DEFAULT_PERMISSIONS = [
   { key: "leads.view", group: "leads", description: "View leads" },
   { key: "leads.create", group: "leads", description: "Create leads" },
@@ -27,35 +42,98 @@ export const DEFAULT_PERMISSIONS = [
   { key: "reports.view", group: "reports", description: "View reports / marketing" },
   { key: "contracts.view", group: "financial", description: "View financial / contracts" },
   { key: "visits.view", group: "operations", description: "View schedule / visits" },
+  { key: "pricing.view", group: "pricing", description: "View prices, costs, totals, and margins" },
+  { key: "imports.manage", group: "settings", description: "Import customers and leads from CSV" },
 ] as const;
 
 export type PermissionKey = (typeof DEFAULT_PERMISSIONS)[number]["key"];
 
+const ALL: PermissionKey[] = DEFAULT_PERMISSIONS.map((p) => p.key);
+
+const WITHOUT_ACCOUNT_SETTINGS: PermissionKey[] = ALL.filter(
+  (k) => k !== "settings.manage" && k !== "roles.manage",
+);
+
+const OFFICE_KEYS: PermissionKey[] = [
+  "leads.view",
+  "leads.create",
+  "leads.edit",
+  "leads.delete",
+  "customers.view",
+  "customers.create",
+  "customers.edit",
+  "quotes.view",
+  "quotes.create",
+  "quotes.edit",
+  "quotes.delete",
+  "pipeline.manage",
+  "projects.view",
+  "visits.view",
+  "contracts.view",
+  "builders.view",
+  "pricing.view",
+  "imports.manage",
+  "reports.view",
+];
+
+const SALES_KEYS: PermissionKey[] = [
+  "leads.view",
+  "leads.create",
+  "leads.edit",
+  "customers.view",
+  "customers.create",
+  "customers.edit",
+  "quotes.view",
+  "quotes.create",
+  "quotes.edit",
+  "pipeline.manage",
+  "builders.view",
+  "pricing.view",
+];
+
+const CREW_LEAD_KEYS: PermissionKey[] = [
+  "leads.view",
+  "customers.view",
+  "projects.view",
+  "visits.view",
+];
+
+const INSTALLER_KEYS: PermissionKey[] = ["visits.view", "projects.view"];
+
+export const DEFAULT_ROLE_META: Record<
+  string,
+  { name: string; description: string }
+> = {
+  admin: { name: "Admin", description: "Full access including settings and users" },
+  general_manager: {
+    name: "General Manager",
+    description: "All operations and reports; no account settings",
+  },
+  office: {
+    name: "Office",
+    description: "Leads, customers, quotes, projects, schedule, invoices",
+  },
+  sales: {
+    name: "Sales",
+    description: "Leads, customers, quotes, and pipeline",
+  },
+  crew_lead: {
+    name: "Crew Lead",
+    description: "Crew schedule, visits, checklists; no pricing",
+  },
+  installer: {
+    name: "Installer",
+    description: "Own visits only; no pricing",
+  },
+};
+
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
-  admin: DEFAULT_PERMISSIONS.map((p) => p.key),
-  sales_rep: [
-    "leads.view",
-    "leads.create",
-    "leads.edit",
-    "customers.view",
-    "customers.create",
-    "customers.edit",
-    "quotes.view",
-    "quotes.create",
-    "quotes.edit",
-    "builders.view",
-  ],
-  project_manager: [
-    "leads.view",
-    "customers.view",
-    "customers.edit",
-    "quotes.view",
-    "quotes.edit",
-    "projects.view",
-    "payroll.view",
-    "builders.view",
-  ],
-  support: ["leads.view", "customers.view", "quotes.view"],
+  admin: ALL,
+  general_manager: WITHOUT_ACCOUNT_SETTINGS,
+  office: OFFICE_KEYS,
+  sales: SALES_KEYS,
+  crew_lead: CREW_LEAD_KEYS,
+  installer: INSTALLER_KEYS,
 };
 
 /** Senior Floors kanban v9 stage set */

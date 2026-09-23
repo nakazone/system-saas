@@ -6,6 +6,7 @@ import { requireAuth, requirePermission, type AuthedRequest } from "../../middle
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { calculateQuote, toDecimal } from "../../lib/quotes/calculate.js";
 import { prisma } from "../../lib/prisma.js";
+import { canViewPricing } from "../../lib/pricing/visibility.js";
 
 export const quotesRouter = Router();
 
@@ -27,6 +28,7 @@ quotesRouter.get(
         organization: req.organization,
         user: req.user,
         quotes,
+        canViewPricing: canViewPricing(req.user),
       });
     } catch (error) {
       next(error);
@@ -184,6 +186,7 @@ quotesRouter.get(
         organization: req.organization,
         user: req.user,
         quote,
+        canViewPricing: canViewPricing(req.user),
       });
     } catch (error) {
       next(error);

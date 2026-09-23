@@ -3,6 +3,7 @@ import { param } from "../../lib/http/params.js";
 import { z } from "zod";
 import { requireAuth, requirePermission, type AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import { diffFields, recordActivity } from "../../lib/activity/record.js";
 
 export const leadsRouter = Router();
 
@@ -82,8 +83,8 @@ leadsRouter.post(
         return;
       }
 
-      await withTenantTransaction(req.organizationId!, async (tx) => {
-        await tx.lead.create({
+      const lead = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const created = await tx.lead.create({
           data: {
             organizationId: req.organizationId!,
             name: parsed.data.name,
@@ -96,8 +97,57 @@ leadsRouter.post(
             status: "new",
           },
         });
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "lead",
+          entityId: created.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action: "created",
+        });
+        return created;
       });
-      res.redirect("/leads");
+      res.redirect(`/leads/${lead.id}`);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+leadsRouter.get(
+  "/:id",
+  requirePermission("leads.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const lead = await tx.lead.findFirst({
+          where: { id: param(req, "id") },
+          include: { pipelineStage: true, owner: true },
+        });
+        if (!lead) return null;
+        const activity = await tx.activityEvent.findMany({
+          where: { entityType: "lead", entityId: lead.id },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        });
+        return { lead, activity };
+      });
+      if (!result) {
+        res.status(404).render("errors/not-found", {
+          title: "Lead not found",
+          message: "Lead not found.",
+          organization: req.organization,
+          user: req.user,
+        });
+        return;
+      }
+      res.render("leads/show", {
+        title: result.lead.name,
+        organization: req.organization,
+        user: req.user,
+        lead: result.lead,
+        activity: result.activity,
+      });
     } catch (error) {
       next(error);
     }
@@ -161,7 +211,9 @@ leadsRouter.post(
       }
 
       await withTenantTransaction(req.organizationId!, async (tx) => {
-        await tx.lead.update({
+        const before = await tx.lead.findFirst({ where: { id: param(req, "id") } });
+        if (!before) throw new Error("Lead not found");
+        const after = await tx.lead.update({
           where: { id: param(req, "id") },
           data: {
             name: parsed.data.name,
@@ -173,8 +225,24 @@ leadsRouter.post(
             notes: parsed.data.notes || null,
           },
         });
+        const changes = diffFields(
+          before as unknown as Record<string, unknown>,
+          after as unknown as Record<string, unknown>,
+          ["name", "email", "phone", "source", "status", "pipelineStageId", "notes"],
+        );
+        const action =
+          before.status !== after.status ? "status_changed" : "updated";
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "lead",
+          entityId: after.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action,
+          changes,
+        });
       });
-      res.redirect("/leads");
+      res.redirect(`/leads/${param(req, "id")}`);
     } catch (error) {
       next(error);
     }
@@ -216,6 +284,24 @@ leadsRouter.post(
         await tx.lead.update({
           where: { id: lead.id },
           data: { status: "converted" },
+        });
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "lead",
+          entityId: lead.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action: "status_changed",
+          changes: { status: { from: lead.status, to: "converted" } },
+        });
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "customer",
+          entityId: created.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action: "created",
+          changes: { leadId: { from: null, to: lead.id } },
         });
         return created;
       });

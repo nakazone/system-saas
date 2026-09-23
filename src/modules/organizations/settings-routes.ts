@@ -35,6 +35,7 @@ settingsRouter.get(
         estimateRules,
         roles,
         permissions,
+        canViewPricing: req.user?.permissions.includes("pricing.view") || req.user?.roleKey === "admin",
         error: null,
         success: req.query.saved === "1" ? "Settings saved." : null,
       });
@@ -63,6 +64,7 @@ settingsRouter.post(
           .or(z.literal("")),
         contactEmail: z.string().email().optional().or(z.literal("")),
         contactPhone: z.string().max(40).optional().or(z.literal("")),
+        timezone: z.string().min(3).max(64).optional().or(z.literal("")),
         logoDataUrl: z.string().optional().or(z.literal("")),
       });
       const parsed = schema.safeParse(req.body);
@@ -91,6 +93,7 @@ settingsRouter.post(
           accentColor: parsed.data.accentColor || null,
           contactEmail: parsed.data.contactEmail || null,
           contactPhone: parsed.data.contactPhone || null,
+          ...(parsed.data.timezone ? { timezone: parsed.data.timezone } : {}),
           ...(logoUrl ? { logoUrl } : {}),
         },
       });

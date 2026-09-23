@@ -17,7 +17,7 @@
     <tbody>
       <% leads.forEach(lead => { %>
         <tr>
-          <td><a href="/leads/<%= lead.id %>/edit"><%= lead.name %></a></td>
+          <td><a href="/leads/<%= lead.id %>"><%= lead.name %></a></td>
           <td><%= lead.pipelineStage ? lead.pipelineStage.name : '—' %></td>
           <td><%= lead.source || '—' %></td>
           <td><%= lead.owner ? lead.owner.name : '—' %></td>

@@ -6,29 +6,40 @@
   <p><strong>Status:</strong> <%= quote.status %></p>
   <p><strong>Customer:</strong> <%= quote.customer ? quote.customer.name : '—' %></p>
   <p><strong>Flooring:</strong> <%= quote.flooringType %> · <%= Number(quote.areaSqft).toFixed(2) %> sqft</p>
+  <% if (canViewPricing) { %>
   <p><strong>Waste:</strong> <%= Number(quote.wastePercent).toFixed(2) %>% ·
      <strong>Material markup:</strong> <%= Number(quote.materialMarkup).toFixed(2) %>% ·
      <strong>Labor markup:</strong> <%= Number(quote.laborMarkup).toFixed(2) %>%</p>
+  <% } %>
   <% if (quote.publicToken) { %>
     <p><strong>Public link:</strong> <a href="/public/quotes/<%= quote.publicToken %>" target="_blank">/public/quotes/<%= quote.publicToken %></a></p>
   <% } %>
 </div>
 <div class="panel">
   <table>
-    <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Amount</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Description</th><th>Qty</th>
+        <% if (canViewPricing) { %><th>Unit price</th><th>Amount</th><% } %>
+      </tr>
+    </thead>
     <tbody>
       <% quote.lineItems.forEach(li => { %>
         <tr>
           <td><%= li.description %></td>
           <td><%= Number(li.quantity).toFixed(2) %> <%= li.unit %></td>
-          <td>$<%= Number(li.unitPrice).toFixed(2) %></td>
-          <td>$<%= Number(li.amount).toFixed(2) %></td>
+          <% if (canViewPricing) { %>
+            <td>$<%= Number(li.unitPrice).toFixed(2) %></td>
+            <td>$<%= Number(li.amount).toFixed(2) %></td>
+          <% } %>
         </tr>
       <% }) %>
     </tbody>
   </table>
+  <% if (canViewPricing) { %>
   <p style="text-align:right;font-size:1.2rem;font-weight:700;margin-top:1rem">
     Total: $<%= Number(quote.total).toFixed(2) %>
   </p>
+  <% } %>
 </div>
 <%- include('../partials/footer') %>
