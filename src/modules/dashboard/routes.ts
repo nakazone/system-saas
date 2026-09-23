@@ -1,3 +1,4 @@
+import type { Response, NextFunction } from "express";
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
@@ -6,7 +7,11 @@ import { buildActionHome } from "../../lib/home/actions.js";
 
 export const dashboardRouter = Router();
 
-dashboardRouter.get("/", requireAuth, async (req: AuthedRequest, res, next) => {
+async function renderActionHome(
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
     if (req.user?.roleKey === "installer") {
       res.redirect("/schedule/my-day");
@@ -41,4 +46,8 @@ dashboardRouter.get("/", requireAuth, async (req: AuthedRequest, res, next) => {
   } catch (error) {
     next(error);
   }
-});
+}
+
+/** CRM mounts `/` → dashboard.html; action home lives at `/home`. */
+dashboardRouter.get("/", requireAuth, renderActionHome);
+dashboardRouter.get("/home", requireAuth, renderActionHome);
