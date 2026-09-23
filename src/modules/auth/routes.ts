@@ -8,44 +8,73 @@ import type { TenantRequest } from "../../lib/tenant/resolve-tenant.js";
 
 export const authRouter = Router();
 
-authRouter.get("/login", (req: TenantRequest, res) => {
-  if (!req.organization) {
-    res.redirect("/find-workspace");
-    return;
-  }
-  // CRM UI login (Senior Floors parity)
+authRouter.get("/login", (_req: TenantRequest, res) => {
   res.redirect("/login.html");
 });
 
 authRouter.post("/login", async (req: TenantRequest, res, next) => {
   try {
-    if (!req.organizationId || !req.organization) {
-      res.status(404).send("Organization required");
-      return;
-    }
-
     const schema = z.object({
       email: z.string().email(),
       password: z.string().min(1),
+      organizationId: z.string().uuid().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).render("auth/login", {
         title: "Sign in",
-        organization: req.organization,
+        organization: req.organization ?? null,
         error: "Invalid email or password.",
       });
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        organizationId_email: {
-          organizationId: req.organizationId,
-          email: parsed.data.email.toLowerCase(),
+    const email = parsed.data.email.toLowerCase().trim();
+    const orgId = parsed.data.organizationId || req.organizationId;
+
+    let user = null as Awaited<ReturnType<typeof prisma.user.findFirst>>;
+
+    if (orgId) {
+      user = await prisma.user.findUnique({
+        where: {
+          organizationId_email: {
+            organizationId: orgId,
+            email,
+          },
         },
-      },
-    });
+        include: { organization: { select: { slug: true, status: true } } },
+      });
+    } else {
+      const candidates = await prisma.user.findMany({
+        where: { email, status: "active" },
+        include: { organization: { select: { slug: true, status: true } } },
+      });
+      for (const candidate of candidates) {
+        if (candidate.organization?.status === "canceled") continue;
+        const ok = await verifyPassword(parsed.data.password, candidate.passwordHash);
+        if (ok) {
+          user = candidate;
+          break;
+        }
+      }
+      if (!user) {
+        res.status(401).render("auth/login", {
+          title: "Sign in",
+          organization: null,
+          error: "Invalid email or password.",
+        });
+        return;
+      }
+      // password already verified above for email-first path
+      req.session.userId = user.id;
+      req.session.organizationId = user.organizationId;
+      req.session.workspaceSlug =
+        (user as { organization?: { slug?: string } }).organization?.slug;
+      req.session.userEmail = user.email;
+      req.session.userName = user.name;
+      res.redirect("/dashboard.html");
+      return;
+    }
 
     if (!user) {
       res.status(401).render("auth/login", {
@@ -86,8 +115,11 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
 
     req.session.userId = user.id;
     req.session.organizationId = user.organizationId;
-    if (req.organization?.slug) {
-      req.session.workspaceSlug = req.organization.slug;
+    const slug =
+      req.organization?.slug ||
+      (user as { organization?: { slug?: string } }).organization?.slug;
+    if (slug) {
+      req.session.workspaceSlug = slug;
     }
     req.session.userEmail = user.email;
     req.session.userName = user.name;
@@ -98,13 +130,7 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
 });
 
 authRouter.post("/logout", requireAuth, (req: AuthedRequest, res) => {
-  const workspaceSlug = req.session.workspaceSlug;
   req.session.destroy(() => {
-    // Keep people on the apex host; they can pick the workspace again.
-    if (workspaceSlug) {
-      res.redirect("/find-workspace");
-      return;
-    }
-    res.redirect("/login");
+    res.redirect("/login.html");
   });
 });

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#211d1a">
     <title>ObraMate - Login</title>
-    <!-- Favicon (ObraMate) -->
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/obramate-logo.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/obramate-logo.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/obramate-logo.png">
@@ -16,63 +15,76 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      .workspace-picker { margin-top: 1rem; display: none; }
+      .workspace-picker h2 { font-size: 1rem; margin: 0 0 0.75rem; }
+      .workspace-option {
+        display: block; width: 100%; text-align: left;
+        margin: 0.4rem 0; padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color, #ddd); border-radius: 8px;
+        background: #fff; cursor: pointer; font: inherit;
+      }
+      .workspace-option:hover { border-color: var(--primary-color, #211d1a); }
+      .workspace-option strong { display: block; }
+      .workspace-option span { font-size: 0.85rem; opacity: 0.7; }
+      .login-alt { margin-top: 1rem; font-size: 0.875rem; text-align: center; }
+      .login-alt a { color: inherit; }
+    </style>
 </head>
 <body>
     <div class="login-container">
         <div class="login-box">
             <div class="login-header">
-                <img src="/assets/obramate-logo.png" 
-                     alt="ObraMate" 
+                <img src="/assets/obramate-logo.png"
+                     alt="ObraMate"
                      class="logo-image"
                      onerror="handleLogoError(this)">
                 <h1>ObraMate</h1>
-                <p>CRM System</p>
+                <p>Sign in with your work email</p>
             </div>
-            
+
             <form id="loginForm" class="login-form">
                 <div class="form-group">
                     <label for="email">Email</label>
-                    <input type="email" id="email" name="email" required autofocus>
+                    <input type="email" id="email" name="email" required autofocus autocomplete="username">
                 </div>
-                
+
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
                 </div>
-                
+
                 <div id="errorMessage" class="error-message" style="display: none;"></div>
-                
+
                 <button type="submit" class="btn btn-primary btn-login-full" id="loginBtn" style="text-align: center;">
                     Login
                 </button>
             </form>
-            
+
+            <div id="workspacePicker" class="workspace-picker" aria-live="polite">
+                <h2>Choose your company</h2>
+                <div id="workspaceList"></div>
+            </div>
+
             <div class="login-footer">
-                <p>Need help? Contact support</p>
+                <p class="login-alt">New company? <a href="/signup">Start free trial</a></p>
             </div>
         </div>
     </div>
-    
+
     <script src="crm-toast.js"></script>
     <script>
-        // Handle logo loading error with fallback
         function handleLogoError(img) {
-            // Try alternative URLs
             const alternatives = [
                 '/assets/obramate-logo.png',
-                '/assets/obramate-logo.png',
-                'https://www.senior-floors.com/assets/obramate-logo.png',
-                'https://senior-floors.com/logoSeniorFloors.png',
-                'https://www.senior-floors.com/logoSeniorFloors.png'
+                '/assets/obramate-logo.png'
             ];
-            
             let currentIndex = 0;
             const tryNext = () => {
                 if (currentIndex < alternatives.length) {
                     img.src = alternatives[currentIndex];
                     currentIndex++;
                 } else {
-                    // Final fallback: show text logo
                     img.style.display = 'none';
                     const textLogo = document.createElement('div');
                     textLogo.className = 'text-logo-fallback';
@@ -80,27 +92,19 @@
                     img.parentNode.insertBefore(textLogo, img);
                 }
             };
-            
             img.onerror = tryNext;
             tryNext();
         }
-        
-        // Check if already logged in
-        fetch('/api/auth/session', {
-            credentials: 'include'
-        })
+
+        let pendingPassword = '';
+
+        fetch('/api/auth/session', { credentials: 'include' })
             .then(async (r) => {
                 const data = await r.json().catch(() => ({}));
                 if (!r.ok) {
                     const el = document.getElementById('errorMessage');
-                    const msg =
-                        data.message ||
-                        (r.status === 503
-                            ? 'Base de dados ou sessão indisponível no servidor.'
-                            : 'Erro ao contactar o servidor.');
-                    const hint = data.hint ? ' ' + data.hint : '';
                     if (el) {
-                        el.textContent = msg + hint;
+                        el.textContent = data.message || 'Erro ao contactar o servidor.';
                         el.style.display = 'block';
                     }
                     return;
@@ -110,47 +114,83 @@
                     window.location.href = u.must_change_password ? '/change-password.html' : '/dashboard.html';
                 }
             })
-            .catch(err => {
-                console.log('Session check:', err);
+            .catch(() => {});
+
+        function showWorkspaces(workspaces) {
+            const picker = document.getElementById('workspacePicker');
+            const list = document.getElementById('workspaceList');
+            const form = document.getElementById('loginForm');
+            list.innerHTML = '';
+            workspaces.forEach(function (ws) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'workspace-option';
+                btn.innerHTML = '<strong></strong><span></span>';
+                btn.querySelector('strong').textContent = ws.name || ws.slug;
+                btn.querySelector('span').textContent = ws.slug;
+                btn.addEventListener('click', function () {
+                    performLogin(ws.id);
+                });
+                list.appendChild(btn);
             });
-        
-        // Função de login
-        async function performLogin() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            form.style.display = 'none';
+            picker.style.display = 'block';
+        }
+
+        async function performLogin(organizationId) {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value || pendingPassword;
             const errorDiv = document.getElementById('errorMessage');
             const loginBtn = document.getElementById('loginBtn');
-            
+
             if (!email || !password) {
                 errorDiv.textContent = 'Please fill in all fields';
                 errorDiv.style.display = 'block';
                 return;
             }
-            
+
             errorDiv.style.display = 'none';
-            loginBtn.disabled = true;
-            loginBtn.textContent = 'Logging in...';
-            
+            if (loginBtn) {
+                loginBtn.disabled = true;
+                loginBtn.textContent = 'Logging in...';
+            }
+
             try {
+                const body = { email, password };
+                if (organizationId) body.organizationId = organizationId;
+
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify(body)
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     var u = data.user || {};
                     var dest = u.must_change_password ? '/change-password.html' : '/dashboard.html';
-                    setTimeout(() => {
+                    setTimeout(function () {
                         window.location.href = dest;
                     }, 100);
-                } else {
-                    errorDiv.textContent =
-                        (data.error || 'Login failed') + (data.message ? ' — ' + data.message : '');
-                    errorDiv.style.display = 'block';
+                    return;
+                }
+
+                if (data.error === 'multiple_workspaces' && Array.isArray(data.workspaces)) {
+                    pendingPassword = password;
+                    showWorkspaces(data.workspaces);
+                    if (loginBtn) {
+                        loginBtn.disabled = false;
+                        loginBtn.textContent = 'Login';
+                    }
+                    return;
+                }
+
+                errorDiv.textContent =
+                    (data.error || 'Login failed') + (data.message ? ' — ' + data.message : '');
+                errorDiv.style.display = 'block';
+                if (loginBtn) {
                     loginBtn.disabled = false;
                     loginBtn.textContent = 'Login';
                 }
@@ -158,33 +198,19 @@
                 console.error('Login error:', error);
                 errorDiv.textContent = 'Connection error. Please try again.';
                 errorDiv.style.display = 'block';
-                loginBtn.disabled = false;
-                loginBtn.textContent = 'Login';
+                if (loginBtn) {
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Login';
+                }
                 if (typeof window.crmNotify === 'function') {
                     window.crmNotify('Connection error. Please try again.', 'error');
                 }
             }
         }
-        
-        // Submit do formulário
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+
+        document.getElementById('loginForm').addEventListener('submit', function (e) {
             e.preventDefault();
             performLogin();
-        });
-        
-        // Enter key nos campos de input
-        document.getElementById('email').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                document.getElementById('password').focus();
-            }
-        });
-        
-        document.getElementById('password').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                performLogin();
-            }
         });
     </script>
 </body>

@@ -28,7 +28,8 @@ function buildPermissionKeys(user: {
 
 crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
   try {
-    if (!req.session?.userId || !req.organizationId) {
+    const organizationId = req.organizationId || req.session?.organizationId;
+    if (!req.session?.userId || !organizationId) {
       res.json({ success: true, authenticated: false });
       return;
     }
@@ -36,7 +37,7 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
     const user = await prisma.user.findFirst({
       where: {
         id: req.session.userId,
-        organizationId: req.organizationId,
+        organizationId,
         status: "active",
       },
       include: {
@@ -81,20 +82,70 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
   }
 });
 
-crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
-  try {
-    if (!req.organizationId || !req.organization) {
-      res.status(404).json({
-        success: false,
-        error: "Organization required. Use Find your workspace first.",
-      });
+const userAuthInclude = {
+  organization: {
+    select: { id: true, slug: true, name: true, status: true },
+  },
+  role: {
+    include: { permissions: { include: { permission: true } } },
+  },
+  permissions: { include: { permission: true } },
+} as const;
+
+type AuthUser = Awaited<
+  ReturnType<
+    typeof prisma.user.findFirst<{ include: typeof userAuthInclude }>
+  >
+>;
+
+function establishSession(
+  req: TenantRequest,
+  user: NonNullable<AuthUser>,
+  res: import("express").Response,
+) {
+  const permissionKeys = buildPermissionKeys(user);
+  const slug = user.organization.slug;
+
+  req.session.userId = user.id;
+  req.session.organizationId = user.organizationId;
+  req.session.workspaceSlug = slug;
+  req.session.userEmail = user.email;
+  req.session.userName = user.name;
+  req.session.userRole = user.role?.key ?? "staff";
+  req.session.permissionKeys = permissionKeys;
+  req.session.mustChangePassword = user.mustChangePassword;
+
+  req.session.save((err) => {
+    if (err) {
+      res.status(500).json({ success: false, error: "Could not establish session" });
       return;
     }
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role?.key ?? "staff",
+        name: user.name,
+        must_change_password: user.mustChangePassword,
+        permissions: permissionKeys,
+        organization: {
+          id: user.organization.id,
+          slug: user.organization.slug,
+          name: user.organization.name,
+        },
+      },
+    });
+  });
+}
 
+crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
+  try {
     const parsed = z
       .object({
         email: z.string().email(),
         password: z.string().min(1),
+        organizationId: z.string().uuid().optional(),
       })
       .safeParse(req.body);
 
@@ -103,60 +154,73 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        organizationId_email: {
-          organizationId: req.organizationId,
-          email: parsed.data.email.toLowerCase(),
+    const email = parsed.data.email.toLowerCase().trim();
+    const password = parsed.data.password;
+    const preferredOrgId =
+      parsed.data.organizationId || req.organizationId || undefined;
+
+    // Tenant host (subdomain) or explicit org: keep lookup scoped.
+    if (preferredOrgId) {
+      const user = await prisma.user.findUnique({
+        where: {
+          organizationId_email: {
+            organizationId: preferredOrgId,
+            email,
+          },
         },
-      },
-      include: {
-        role: {
-          include: { permissions: { include: { permission: true } } },
-        },
-        permissions: { include: { permission: true } },
-      },
-    });
+        include: userAuthInclude,
+      });
 
-    if (!user || user.status !== "active") {
-      res.status(401).json({ success: false, error: "Invalid email or password." });
-      return;
-    }
-
-    const ok = await verifyPassword(parsed.data.password, user.passwordHash);
-    if (!ok) {
-      res.status(401).json({ success: false, error: "Invalid email or password." });
-      return;
-    }
-
-    const permissionKeys = buildPermissionKeys(user);
-
-    req.session.userId = user.id;
-    req.session.organizationId = user.organizationId;
-    req.session.workspaceSlug = req.organization.slug;
-    req.session.userEmail = user.email;
-    req.session.userName = user.name;
-    req.session.userRole = user.role?.key ?? "staff";
-    req.session.permissionKeys = permissionKeys;
-    req.session.mustChangePassword = user.mustChangePassword;
-
-    req.session.save((err) => {
-      if (err) {
-        res.status(500).json({ success: false, error: "Could not establish session" });
+      if (!user || user.status !== "active" || user.organization.status === "canceled") {
+        res.status(401).json({ success: false, error: "Invalid email or password." });
         return;
       }
-      res.json({
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role?.key ?? "staff",
-          name: user.name,
-          must_change_password: user.mustChangePassword,
-          permissions: permissionKeys,
-        },
-      });
+
+      const ok = await verifyPassword(password, user.passwordHash);
+      if (!ok) {
+        res.status(401).json({ success: false, error: "Invalid email or password." });
+        return;
+      }
+
+      establishSession(req, user, res);
+      return;
+    }
+
+    // Apex email-first: resolve workspace from email + password (no slug).
+    const candidates = await prisma.user.findMany({
+      where: { email, status: "active" },
+      include: userAuthInclude,
     });
+
+    const matches: NonNullable<AuthUser>[] = [];
+    for (const candidate of candidates) {
+      if (!candidate.organization || candidate.organization.status === "canceled") {
+        continue;
+      }
+      const ok = await verifyPassword(password, candidate.passwordHash);
+      if (ok) matches.push(candidate);
+    }
+
+    if (matches.length === 0) {
+      res.status(401).json({ success: false, error: "Invalid email or password." });
+      return;
+    }
+
+    if (matches.length > 1) {
+      res.status(200).json({
+        success: false,
+        error: "multiple_workspaces",
+        message: "Choose which company workspace to open.",
+        workspaces: matches.map((u) => ({
+          id: u.organization.id,
+          slug: u.organization.slug,
+          name: u.organization.name,
+        })),
+      });
+      return;
+    }
+
+    establishSession(req, matches[0]!, res);
   } catch (error) {
     next(error);
   }

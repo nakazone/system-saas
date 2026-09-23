@@ -27,6 +27,15 @@ const PUBLIC_MARKETING_PATHS = new Set([
   "/find-workspace",
 ]);
 
+/** Apex paths that work before a workspace is chosen (email-first login). */
+const PUBLIC_AUTH_PATHS = new Set([
+  "/login",
+  "/login.html",
+  "/api/auth/login",
+  "/api/auth/session",
+  "/api/auth/logout",
+]);
+
 function extractSubdomain(host: string, rootDomain: string): string | null {
   const hostname = host.split(":")[0]?.toLowerCase() ?? "";
   const root = rootDomain.toLowerCase();
@@ -183,15 +192,23 @@ export async function resolveTenant(
       }
     }
 
-    // /login without workspace → finder; HTML CRM entry points need a workspace too
+    // Email-first login on apex (no workspace slug required)
     if (
-      req.path === "/login" ||
+      PUBLIC_AUTH_PATHS.has(req.path) ||
       req.path === "/logout" ||
-      req.path === "/login.html" ||
-      req.path === "/dashboard.html" ||
-      req.path === "/change-password.html"
+      // Login page assets (css/js) before a workspace exists
+      (/\.(css|js)$/i.test(req.path) &&
+        !req.session?.organizationId &&
+        !req.session?.workspaceSlug)
     ) {
-      res.redirect("/find-workspace");
+      req.isPublicHost = true;
+      next();
+      return;
+    }
+
+    // CRM entry points without a session → login form (not find-workspace)
+    if (req.path === "/dashboard.html" || req.path === "/change-password.html") {
+      res.redirect("/login.html");
       return;
     }
 
@@ -217,8 +234,8 @@ export function requireTenant(
     res.status(404).render("errors/not-found", {
       title: "Organization required",
       message: subdomainTenantsSupported()
-        ? "Access this application via your organization subdomain."
-        : "Open your workspace from Find your workspace, then sign in.",
+        ? "Access this application via your organization subdomain, or sign in at /login.html."
+        : "Sign in at /login.html with your email and password.",
       organization: null,
     });
     return;

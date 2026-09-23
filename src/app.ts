@@ -15,6 +15,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { organizationsRouter } from "./modules/organizations/routes.js";
 import { settingsRouter } from "./modules/organizations/settings-routes.js";
 import { authRouter } from "./modules/auth/routes.js";
+import { publicEmailLogin } from "./modules/auth/public-login.js";
 import { usersRouter, invitationsRouter } from "./modules/users/routes.js";
 import { leadsRouter, pipelineRouter } from "./modules/leads/routes.js";
 import { customersRouter } from "./modules/customers/routes.js";
@@ -149,6 +150,25 @@ export function createApp() {
       return;
     }
     organizationsRouter(req, res, next);
+  });
+
+  // Apex email-first login (before requireTenant)
+  app.use((req: TenantRequest, res, next) => {
+    if (req.organizationId || !req.isPublicHost) {
+      next();
+      return;
+    }
+    const p = String(req.path || "").split("?")[0] || "";
+    if (
+      p === "/login" ||
+      p === "/login.html" ||
+      p.startsWith("/api/auth/") ||
+      /\.(css|js|map|png|jpg|jpeg|gif|svg|webp|ico|woff2?)$/i.test(p)
+    ) {
+      publicEmailLogin(req, res, next);
+      return;
+    }
+    next();
   });
 
   // Tenant-scoped application
