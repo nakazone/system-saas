@@ -1,38 +1,60 @@
 /**
- * Applies multi-tenant branding (logo + palette) across CRM HTML pages.
- * Colors also come from /api/branding.css; this script updates logos/titles.
+ * Applies multi-tenant branding across CRM HTML pages.
+ * - System chrome (top bar, mobile header, favicons, login) = fixed ObraMate
+ * - Company logo = sidebar only (img.sidebar-brand-logo)
+ * Colors also come from /api/branding.css.
  */
 (function () {
   var DEFAULT_LOGO = "/assets/obramate-logo.png";
   var DEFAULT_NAME = "ObraMate";
 
-  function applyLogo(url, name) {
+  /** Fixed ObraMate marks — never swap for tenant logo. */
+  function lockSystemLogos() {
+    document
+      .querySelectorAll(
+        [
+          ".crm-topbar__brand img",
+          "img.crm-system-logo",
+          "img.mobile-app-header__logo",
+          "img.crm-shared-nav__brand-logo",
+          ".login-header img.logo-image",
+          'link[rel="icon"]',
+          'link[rel="apple-touch-icon"]',
+        ].join(", "),
+      )
+      .forEach(function (el) {
+        if (el.tagName === "LINK") {
+          el.setAttribute("href", DEFAULT_LOGO);
+        } else {
+          el.setAttribute("src", DEFAULT_LOGO);
+          el.setAttribute("alt", DEFAULT_NAME);
+          el.style.display = "";
+        }
+      });
+  }
+
+  /** Tenant-configurable logo — sidebar only. */
+  function applyCompanyLogo(url, name) {
     var src = url || DEFAULT_LOGO;
-    var imgs = document.querySelectorAll(
-      'img.sidebar-brand-logo, img.logo-image, img.mobile-app-header__logo, link[rel="icon"], link[rel="apple-touch-icon"]',
-    );
-    imgs.forEach(function (el) {
-      if (el.tagName === "LINK") {
-        el.setAttribute("href", src);
-      } else {
-        el.setAttribute("src", src);
-        if (name) el.setAttribute("alt", name);
-        el.style.display = "";
-      }
+    var alt = name || DEFAULT_NAME;
+    document.querySelectorAll("img.sidebar-brand-logo").forEach(function (el) {
+      el.setAttribute("src", src);
+      el.setAttribute("alt", alt);
+      el.style.display = "";
     });
   }
 
   function applyName(name) {
     var n = name || DEFAULT_NAME;
-    document.querySelectorAll(".login-header h1, .sidebar-brand-name").forEach(function (el) {
+    document.querySelectorAll(".sidebar-brand-name").forEach(function (el) {
       el.textContent = n;
     });
+    // Keep product title as ObraMate; only rewrite legacy Senior Floors labels.
     var title = document.title || "";
-    if (/Senior Floors|ObraMate|Flooring Platform/i.test(title)) {
+    if (/Senior Floors|Flooring Platform/i.test(title)) {
       document.title = title
-        .replace(/Senior Floors/gi, n)
-        .replace(/Flooring Platform/gi, n)
-        .replace(/ObraMate/gi, n);
+        .replace(/Senior Floors/gi, DEFAULT_NAME)
+        .replace(/Flooring Platform/gi, DEFAULT_NAME);
     }
   }
 
@@ -50,22 +72,25 @@
   }
 
   async function boot() {
+    lockSystemLogos();
     try {
       var r = await fetch("/api/branding", { credentials: "include", cache: "no-store" });
       var j = await r.json();
       if (!j || !j.success || !j.data) {
-        applyLogo(DEFAULT_LOGO, DEFAULT_NAME);
+        applyCompanyLogo(DEFAULT_LOGO, DEFAULT_NAME);
         applyName(DEFAULT_NAME);
         return;
       }
       var d = j.data;
       window.__saasBrand = d;
       applyCssVars(d.css_vars);
-      applyLogo(d.logo_url || DEFAULT_LOGO, d.name || DEFAULT_NAME);
+      applyCompanyLogo(d.logo_url || DEFAULT_LOGO, d.name || DEFAULT_NAME);
       applyName(d.name || DEFAULT_NAME);
+      lockSystemLogos();
     } catch (e) {
-      applyLogo(DEFAULT_LOGO, DEFAULT_NAME);
+      applyCompanyLogo(DEFAULT_LOGO, DEFAULT_NAME);
       applyName(DEFAULT_NAME);
+      lockSystemLogos();
     }
   }
 

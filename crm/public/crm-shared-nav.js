@@ -293,9 +293,9 @@
     const brand = document.createElement('a');
     brand.className = 'crm-shared-nav__brand crm-shared-nav__brand--logo-only';
     brand.href = 'dashboard.html';
-    brand.setAttribute('aria-label', 'Senior Floors CRM — início');
+    brand.setAttribute('aria-label', 'ObraMate — início');
     brand.innerHTML =
-      '<img src="/assets/SeniorFloors.png" alt="" class="crm-shared-nav__brand-logo" width="64" height="64" onerror="this.style.display=\'none\'" />';
+      '<img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-shared-nav__brand-logo crm-system-logo" width="64" height="64" onerror="this.style.display=\'none\'" />';
     inner.appendChild(brand);
 
     MAIN_NAV.forEach((item) => {
