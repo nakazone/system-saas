@@ -1,6 +1,8 @@
 import type { NextFunction, Response } from "express";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { prisma } from "../lib/prisma.js";
+import { withTenantTransaction } from "../lib/tenant/prisma-tenant.js";
+import { ensureOrgPermissionsSynced } from "../lib/tenant/ensure-default-roles.js";
 
 export type SessionUser = {
   id: string;
@@ -59,6 +61,11 @@ export async function loadSessionUser(
       next();
       return;
     }
+
+    // Backfill Phase 2 permission keys onto system roles (once per org/process)
+    await withTenantTransaction(req.organizationId, async (tx) => {
+      await ensureOrgPermissionsSynced(req.organizationId!, tx);
+    });
 
     const user = await prisma.user.findFirst({
       where: {

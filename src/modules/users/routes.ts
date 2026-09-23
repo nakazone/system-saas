@@ -62,13 +62,16 @@ usersRouter.post(
   requirePermission("roles.manage"),
   async (req: AuthedRequest, res, next) => {
     try {
-      const { created } = await withTenantTransaction(req.organizationId!, async (tx) => {
-        return ensureDefaultRoles(req.organizationId!, tx);
-      });
-      const msg =
-        created.length > 0
-          ? `Added roles: ${created.join(", ")}`
-          : "All default roles already present.";
+      const { created, permissionsAdded } = await withTenantTransaction(
+        req.organizationId!,
+        async (tx) => {
+          return ensureDefaultRoles(req.organizationId!, tx);
+        },
+      );
+      const parts: string[] = [];
+      if (created.length > 0) parts.push(`Added roles: ${created.join(", ")}`);
+      if (permissionsAdded > 0) parts.push(`Granted ${permissionsAdded} missing permissions`);
+      const msg = parts.length > 0 ? parts.join(". ") : "All default roles and permissions already present.";
       res.redirect(`/users?success=${encodeURIComponent(msg)}`);
     } catch (error) {
       next(error);
