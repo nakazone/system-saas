@@ -1,0 +1,104 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1><%= project.name %></h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/projects">All projects</a>
+    <% if (project.quoteId) { %><a class="btn btn-secondary" href="/quotes/<%= project.quoteId %>">Quote</a><% } %>
+  </div>
+</div>
+<% if (success) { %><div class="alert alert-ok"><%= success %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="panel">
+  <p><strong>Status:</strong> <%= project.status %><% if (project.number) { %> · #<%= project.number %><% } %></p>
+  <p><strong>Customer:</strong> <%= project.customer ? project.customer.name : '—' %></p>
+  <p><strong>Address:</strong> <%= project.address || '—' %></p>
+  <% if (canManage) { %>
+    <form method="post" action="/projects/<%= project.id %>/status" style="display:flex;gap:0.5rem;align-items:end;margin-top:0.75rem">
+      <div>
+        <label>Set status</label>
+        <select name="status">
+          <% ['planning','scheduled','in_progress','needs_invoicing','completed','canceled'].forEach(s => { %>
+            <option value="<%= s %>" <%= project.status === s ? 'selected' : '' %>><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
+      <button class="btn" type="submit">Update</button>
+      <button class="btn btn-secondary" formaction="/projects/<%= project.id %>/refresh-status" formmethod="post">Refresh derived</button>
+    </form>
+  <% } %>
+</div>
+
+<% if (project.paymentSchedule && project.paymentSchedule.items.length) { %>
+<div class="panel">
+  <h2>Payment schedule (locked)</h2>
+  <ul>
+    <% project.paymentSchedule.items.forEach(it => { %>
+      <li><%= it.label %> — <%= it.percent != null ? Number(it.percent) + '%' : '' %> · <%= it.trigger %><% if (it.phaseKey) { %> (<%= it.phaseKey %>)<% } %></li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>
+
+<div class="panel">
+  <h2>Visits</h2>
+  <% if (project.visits.length) { %>
+    <table>
+      <thead><tr><th>When</th><th>Phase</th><th>Crew</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% project.visits.forEach(v => { %>
+          <tr>
+            <td><%= new Date(v.scheduledStart).toLocaleString() %></td>
+            <td><%= v.phase %></td>
+            <td><%= v.crew ? v.crew.name : (v.assignedUser ? v.assignedUser.name : '—') %></td>
+            <td><%= v.status %></td>
+            <td><a href="/visits/<%= v.id %>">Open</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } else { %><p class="muted">No visits yet.</p><% } %>
+
+  <% if (canManageVisits) { %>
+    <h3>Schedule visit</h3>
+    <form method="post" action="/visits" style="max-width:520px">
+      <input type="hidden" name="projectId" value="<%= project.id %>" />
+      <label>Title</label>
+      <input name="title" placeholder="Day 1 install" />
+      <label>Phase</label>
+      <select name="phase">
+        <% ['removal','subfloor_prep','installation','sanding_finishing','final_walkthrough','other'].forEach(p => { %>
+          <option value="<%= p %>" <%= p === 'installation' ? 'selected' : '' %>><%= p %></option>
+        <% }) %>
+      </select>
+      <label>Start</label>
+      <input type="datetime-local" name="scheduledStart" required />
+      <label>End</label>
+      <input type="datetime-local" name="scheduledEnd" required />
+      <label>Crew</label>
+      <select name="crewId">
+        <option value="">—</option>
+        <% crews.forEach(c => { %><option value="<%= c.id %>"><%= c.name %></option><% }) %>
+      </select>
+      <label>Assignee</label>
+      <select name="assignedUserId">
+        <option value="">—</option>
+        <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.name %></option><% }) %>
+      </select>
+      <label>Instructions</label>
+      <textarea name="instructions" rows="2"></textarea>
+      <button class="btn" type="submit">Create visit</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="panel">
+  <h2>Activity</h2>
+  <% if (!project.events.length) { %><p class="muted">No events.</p><% } %>
+  <ul>
+    <% project.events.forEach(e => { %>
+      <li class="muted"><%= new Date(e.createdAt).toLocaleString() %> — <%= e.type %></li>
+    <% }) %>
+  </ul>
+</div>
+<%- include('../partials/footer') %>

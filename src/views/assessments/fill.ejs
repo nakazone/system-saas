@@ -32,14 +32,14 @@
 </head>
 <body>
   <header>
-    <a href="/assessments/<%= assessment.id %>">← Back</a>
+    <a href="<%= typeof backHref !== 'undefined' && backHref ? backHref : ('/assessments/' + assessment.id) %>">← Back</a>
     <div style="font-weight:700;margin-top:0.25rem"><%= templateName %></div>
   </header>
   <main>
     <% if (typeof success !== 'undefined' && success) { %><div class="ok">Saved.</div><% } %>
     <p class="muted"><%= assessment.customer ? assessment.customer.name : (assessment.lead ? assessment.lead.name : '') %></p>
 
-    <form id="fillForm" method="post" action="/assessments/<%= assessment.id %>/save">
+    <form id="fillForm" method="post" action="<%= typeof fillAction !== 'undefined' && fillAction ? fillAction : ('/assessments/' + assessment.id + '/save') %>">
       <% fields.forEach(field => { %>
         <label><%= field.label %><% if (field.required) { %> *<% } %></label>
 

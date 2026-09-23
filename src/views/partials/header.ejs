@@ -10,6 +10,7 @@
   <title><%= typeof title !== 'undefined' ? title : 'App' %><% if (typeof organization !== 'undefined' && organization) { %> · <%= organization.name %><% } else { %> · <%= displayProductName %><% } %></title>
   <link rel="icon" type="image/png" href="/assets/obramate-logo.png" />
   <link rel="apple-touch-icon" href="/assets/obramate-logo.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -34,6 +35,9 @@
       <a href="/customers">Customers</a>
       <a href="/quotes">Quotes</a>
       <a href="/invoices">Invoices</a>
+      <a href="/projects">Projects</a>
+      <a href="/schedule">Schedule</a>
+      <a href="/schedule/my-day">My Day</a>
       <a href="/assessments">Assessments</a>
       <a href="/users">Users</a>
       <a href="/settings">Settings</a>

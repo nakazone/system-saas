@@ -117,6 +117,13 @@
     <form method="post" action="/quotes/<%= quote.id %>/duplicate">
       <button class="btn btn-secondary" type="submit">Create similar quote</button>
     </form>
+    <% if (quote.status === 'approved' && !quote.project) { %>
+    <form method="post" action="/projects/from-quote/<%= quote.id %>">
+      <button class="btn" type="submit">Convert to project</button>
+    </form>
+    <% } else if (quote.project) { %>
+      <a class="btn" href="/projects/<%= quote.project.id %>">Open project</a>
+    <% } %>
   </div>
 </div>
 

@@ -1,0 +1,30 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Projects</h1>
+  <a class="btn btn-secondary" href="/schedule">Schedule</a>
+</div>
+<form method="get" style="margin-bottom:1rem">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">All statuses</option>
+    <% ['planning','scheduled','in_progress','needs_invoicing','completed','canceled'].forEach(s => { %>
+      <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option>
+    <% }) %>
+  </select>
+</form>
+<div class="panel">
+  <table>
+    <thead><tr><th>#</th><th>Name</th><th>Customer</th><th>Status</th><th>Visits</th></tr></thead>
+    <tbody>
+      <% projects.forEach(p => { %>
+        <tr>
+          <td><%= p.number || '—' %></td>
+          <td><a href="/projects/<%= p.id %>"><%= p.name %></a></td>
+          <td><%= p.customer ? p.customer.name : '—' %></td>
+          <td><%= p.status %></td>
+          <td><%= p._count.visits %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

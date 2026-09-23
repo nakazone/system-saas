@@ -1,0 +1,31 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>My Day</h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/schedule/my-day?date=<%= prevDate %>">←</a>
+    <a class="btn btn-secondary" href="/schedule/my-day?date=<%= nextDate %>">→</a>
+    <a class="btn btn-secondary" href="/schedule">Full schedule</a>
+  </div>
+</div>
+<p class="muted"><%= day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) %></p>
+
+<% if (!visits.length) { %>
+  <div class="panel"><p class="muted">No visits assigned to you today.</p></div>
+<% } %>
+
+<% visits.forEach(v => { %>
+  <div class="panel">
+    <h2 style="margin-top:0"><%= v.title || v.phase %></h2>
+    <p><strong><%= v.project.name %></strong><% if (v.project.customer) { %> · <%= v.project.customer.name %><% } %></p>
+    <p class="muted"><%= new Date(v.scheduledStart).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) %> – <%= new Date(v.scheduledEnd).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) %></p>
+    <% if (v.project.property) { %>
+      <p><%= v.project.property.line1 %><% if (v.project.property.city) { %>, <%= v.project.property.city %><% } %></p>
+    <% } %>
+    <p>Status: <%= v.status %></p>
+    <div class="form-actions">
+      <a class="btn" href="/visits/<%= v.id %>/fill">Checklist</a>
+      <a class="btn btn-secondary" href="/visits/<%= v.id %>">Details</a>
+    </div>
+  </div>
+<% }) %>
+<%- include('../partials/footer') %>

@@ -245,15 +245,15 @@ Immutable `ActivityEvent`; single helper `recordActivity(...)` inside the same D
 
 **Models**
 
-- Evolve `Project` (quote conversion, numbering, statuses including derived `needs_invoicing`).
+- Evolved `Project` (quote conversion, numbering, statuses including derived `needs_invoicing`).
 - `Visit`, `ProjectEvent`, `Crew`, `CrewMember`.
-- Reuse checklist engine; wire payment triggers on phase start/complete.
+- Checklist engine reused for visit phases; payment schedule copied immutably onto project; `on_phase_start` / `on_phase_complete` triggers wired.
 
-**UI:** week/month crew schedule; `/my-day` default for installer/crew_lead; `manifest.webmanifest` (no SW offline).
+**UI:** week/month schedule; `/schedule/my-day` for installer/crew_lead; `manifest.webmanifest` (no SW offline).
 
-**Logic:** pure schedule conflict detection + tests; email on visit changes; optional crew scoring → TODO if not ported.
+**Logic:** pure schedule conflict detection + tests; email on visit changes; crew scoring deferred (TODO).
 
-**Risks:** naming clash with thin `Project` + payroll timesheets; installer permission scoping (own visits only).
+**Risks:** thin `Project` coexistence with payroll timesheets (same table, extended); installer scoped to assigned/crew visits.
 
 ---
 
@@ -345,5 +345,6 @@ Each milestone: branch `feat/phase2-mN-<slug>` from updated `main` → migration
 - [x] M1 — foundations  
 - [x] M2 — quotes v2  
 - [x] M3 — site assessment + checklist engine  
-- [x] M4 — payment schedules, invoices, payments (this branch)  
-- [ ] **Await review approval before M5** (`feat/phase2-m5-projects-visits`)
+- [x] M4 — payment schedules, invoices, payments  
+- [x] M5 — projects, visits, crews, schedule / My Day (this branch)  
+- [ ] **Await review approval before M6** (`feat/phase2-m6-project-costs`)

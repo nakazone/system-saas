@@ -23,6 +23,10 @@ import { invoicesRouter } from "./modules/invoices/routes.js";
 import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
 import { paymentSchedulesRouter } from "./modules/invoices/schedule-routes.js";
 import { paymentTemplatesRouter } from "./modules/invoices/templates-routes.js";
+import { projectsRouter } from "./modules/projects/routes.js";
+import { visitsRouter } from "./modules/visits/routes.js";
+import { crewsRouter } from "./modules/crews/routes.js";
+import { scheduleRouter } from "./modules/schedule/routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
 import { importRouter } from "./modules/imports/routes.js";
 import { checklistsRouter } from "./modules/checklists/routes.js";
@@ -60,6 +64,10 @@ export function createApp() {
   app.use(cookieParser());
   app.use("/assets", express.static(CRM_ASSETS_DIR));
   app.use("/assets", express.static(path.join(__dirname, "public")));
+  app.get("/manifest.webmanifest", (_req, res) => {
+    res.type("application/manifest+json");
+    res.sendFile(path.join(__dirname, "../public/manifest.webmanifest"));
+  });
 
   // Health must be registered before session/DB middleware so Railway probes never hang.
   app.get("/health", (_req, res) => {
@@ -146,6 +154,10 @@ export function createApp() {
   app.use("/payment-schedules", paymentSchedulesRouter);
   app.use("/invoices", invoicesRouter);
   app.use("/assessments", assessmentsRouter);
+  app.use("/projects", projectsRouter);
+  app.use("/visits", visitsRouter);
+  app.use("/crews", crewsRouter);
+  app.use("/schedule", scheduleRouter);
 
   app.use(errorHandler);
   return app;

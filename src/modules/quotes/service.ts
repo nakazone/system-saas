@@ -14,6 +14,7 @@ export const quoteDetailInclude = {
   lineItems: { orderBy: { sortOrder: "asc" as const } },
   invoices: { orderBy: { createdAt: "desc" as const }, include: { receipts: true } },
   paymentSchedule: { include: { items: { orderBy: { sortOrder: "asc" as const } } } },
+  project: true,
 } as const;
 
 export async function applyQuoteTransition(

@@ -1,0 +1,22 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Visits</h1>
+  <a class="btn btn-secondary" href="/schedule/my-day">My Day</a>
+</div>
+<div class="panel">
+  <table>
+    <thead><tr><th>When</th><th>Project</th><th>Phase</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      <% visits.forEach(v => { %>
+        <tr>
+          <td><%= new Date(v.scheduledStart).toLocaleString() %></td>
+          <td><%= v.project.name %><% if (v.project.customer) { %> · <%= v.project.customer.name %><% } %></td>
+          <td><%= v.phase %></td>
+          <td><%= v.status %></td>
+          <td><a href="/visits/<%= v.id %>">Open</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

@@ -251,19 +251,43 @@ export async function runScheduleTriggers(
   tx: TenantPrisma,
   params: {
     organizationId: string;
-    quoteId: string;
-    trigger: "on_send" | "on_approve";
+    quoteId?: string;
+    projectId?: string;
+    trigger: "on_send" | "on_approve" | "on_phase_start" | "on_phase_complete";
+    phaseKey?: string | null;
     actorId?: string | null;
   },
 ): Promise<string[]> {
-  const schedule = await tx.paymentSchedule.findFirst({
-    where: { quoteId: params.quoteId },
-    include: { items: { orderBy: { sortOrder: "asc" } } },
-  });
+  const schedule = params.projectId
+    ? await tx.paymentSchedule.findFirst({
+        where: { projectId: params.projectId },
+        include: { items: { orderBy: { sortOrder: "asc" } } },
+      })
+    : params.quoteId
+      ? await tx.paymentSchedule.findFirst({
+          where: { quoteId: params.quoteId },
+          include: { items: { orderBy: { sortOrder: "asc" } } },
+        })
+      : null;
   if (!schedule) return [];
 
-  const quote = await tx.quote.findFirst({ where: { id: params.quoteId } });
-  if (!quote) return [];
+  let quoteId = schedule.quoteId;
+  let quoteTotal = 0;
+  if (params.projectId) {
+    const project = await tx.project.findFirst({
+      where: { id: params.projectId },
+      include: { quote: true },
+    });
+    if (!project?.quote) return [];
+    quoteId = project.quote.id;
+    quoteTotal = Number(project.quote.total);
+  } else if (quoteId) {
+    const quote = await tx.quote.findFirst({ where: { id: quoteId } });
+    if (!quote) return [];
+    quoteTotal = Number(quote.total);
+  } else {
+    return [];
+  }
 
   const validation = validatePaymentSchedule(
     schedule.items.map((i) => ({
@@ -274,7 +298,7 @@ export async function runScheduleTriggers(
       phaseKey: i.phaseKey,
       sortOrder: i.sortOrder,
     })),
-    Number(quote.total),
+    quoteTotal,
   );
   if (!validation.ok) return [];
 
@@ -289,9 +313,17 @@ export async function runScheduleTriggers(
   for (let i = 0; i < schedule.items.length; i++) {
     const item = schedule.items[i]!;
     if (item.trigger !== params.trigger) continue;
+    if (
+      (params.trigger === "on_phase_start" || params.trigger === "on_phase_complete") &&
+      params.phaseKey &&
+      item.phaseKey &&
+      item.phaseKey !== params.phaseKey
+    ) {
+      continue;
+    }
     const inv = await createInvoiceFromScheduleItem(tx, {
       organizationId: params.organizationId,
-      quoteId: params.quoteId,
+      quoteId: quoteId!,
       scheduleItemId: item.id,
       amountCents: validation.amountsCents[i]!,
       actorId: params.actorId,

@@ -1,0 +1,27 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h1>Schedule</h1>
+  <div class="form-actions">
+    <a class="btn btn-secondary" href="/schedule?mode=week&date=<%= prevDate %>">← Prev</a>
+    <a class="btn btn-secondary" href="/schedule?mode=<%= mode === 'week' ? 'month' : 'week' %>"><%= mode === 'week' ? 'Month' : 'Week' %></a>
+    <a class="btn btn-secondary" href="/schedule?mode=week&date=<%= nextDate %>">Next →</a>
+    <a class="btn" href="/schedule/my-day">My Day</a>
+  </div>
+</div>
+<p class="muted"><%= rangeStart.toLocaleDateString() %> – <%= rangeEnd.toLocaleDateString() %></p>
+<div style="display:grid;gap:0.75rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+  <% days.forEach(d => { %>
+    <div class="panel" style="margin:0;padding:0.75rem">
+      <strong><%= d.label %></strong>
+      <% if (!d.visits.length) { %><p class="muted" style="margin:0.5rem 0 0">—</p><% } %>
+      <% d.visits.forEach(v => { %>
+        <div style="margin-top:0.5rem;font-size:0.9rem">
+          <a href="/visits/<%= v.id %>"><%= v.phase %></a>
+          <div class="muted"><%= v.project.name %></div>
+          <div class="muted"><%= new Date(v.scheduledStart).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) %></div>
+        </div>
+      <% }) %>
+    </div>
+  <% }) %>
+</div>
+<%- include('../partials/footer') %>
