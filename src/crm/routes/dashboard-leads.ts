@@ -79,12 +79,38 @@ async function resolveStageBySlug(
   slug: string,
 ) {
   if (!slug) return null;
-  return tx.pipelineStage.findFirst({
+  const hit = await tx.pipelineStage.findFirst({
     where: {
       isActive: true,
       OR: [{ slug }, { name: { equals: slug, mode: "insensitive" } }],
     },
   });
+  if (hit) return hit;
+  return null;
+}
+
+/** Stage for a scheduled lead visit — supports CRM + SaaS slug variants. */
+async function resolveVisitScheduledStage(
+  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
+) {
+  const candidates = ["meeting_scheduled", "visit_scheduled", "assessment_scheduled"];
+  for (const slug of candidates) {
+    const hit = await resolveStageBySlug(tx, slug);
+    if (hit) return hit;
+  }
+  const byName = await tx.pipelineStage.findFirst({
+    where: {
+      isActive: true,
+      OR: [
+        { name: { equals: "Meeting Scheduled", mode: "insensitive" } },
+        { name: { equals: "Assessment scheduled", mode: "insensitive" } },
+        { name: { contains: "Meeting", mode: "insensitive" } },
+        { name: { contains: "Assessment", mode: "insensitive" } },
+      ],
+    },
+    orderBy: { order: "asc" },
+  });
+  return byName;
 }
 
 async function loadLeadOrNull(
@@ -567,14 +593,17 @@ dashboardLeadsRouter.post("/api/visits", requireCrmAuth, async (req: AuthedReque
       };
       list.unshift(item);
       meta.visits = list;
-      const meetingStage = await resolveStageBySlug(tx, "meeting_scheduled");
+      const meetingStage = await resolveVisitScheduledStage(tx);
       await tx.lead.update({
         where: { id: leadId },
         data: {
           metadata: meta as Prisma.InputJsonValue,
           ...(meetingStage
-            ? { pipelineStageId: meetingStage.id, status: meetingStage.slug || "meeting_scheduled" }
-            : {}),
+            ? {
+                pipelineStageId: meetingStage.id,
+                status: meetingStage.slug || "meeting_scheduled",
+              }
+            : { status: "meeting_scheduled" }),
         },
       });
       const updatedLead = await loadLeadOrNull(tx, leadId);

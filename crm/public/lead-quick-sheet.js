@@ -668,8 +668,8 @@
     try {
       if (updatedLead && typeof global.patchKanbanLeadCache === 'function') {
         global.patchKanbanLeadCache(updatedLead);
-        return;
       }
+      // Always reload board after visit/stage moves so UUID + slug aliases stay in sync
       if (typeof global.loadKanbanBoard === 'function') void global.loadKanbanBoard();
       else if (typeof global.loadCRMKanban === 'function') void global.loadCRMKanban();
     } catch (_) {}
@@ -682,9 +682,13 @@
     const list = Array.isArray(stagesList) ? stagesList : sheetStagesCache;
     const hit = list.find((s) => slugMatchesCurrent(s.slug, raw));
     const canonical = hit && hit.slug ? String(hit.slug).trim() : raw;
-    const id = hit && hit.id != null ? Number(hit.id) : NaN;
-    if (Number.isFinite(id) && id > 0) {
-      return { status: canonical, pipeline_stage_id: id };
+    const idRaw = hit && hit.id != null ? hit.id : null;
+    const idNum = idRaw != null ? Number(idRaw) : NaN;
+    if (Number.isFinite(idNum) && idNum > 0) {
+      return { status: canonical, pipeline_stage_id: idNum };
+    }
+    if (idRaw != null && String(idRaw).trim()) {
+      return { status: canonical, pipeline_stage_id: String(idRaw) };
     }
     return { status: canonical };
   }

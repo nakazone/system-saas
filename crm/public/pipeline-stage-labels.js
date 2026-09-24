@@ -32,6 +32,7 @@
     contact_made: 'stand_by',
     qualified: 'stand_by',
     visit_scheduled: 'meeting_scheduled',
+    assessment_scheduled: 'meeting_scheduled',
     measurement_done: 'follow_up_1',
     followup_1: 'follow_up_1',
     follow_up1: 'follow_up_1',
