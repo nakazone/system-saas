@@ -260,6 +260,9 @@
   async function init() {
     const host = document.getElementById('crmSharedNavRoot');
     if (!host) return;
+    // Avoid double-mount
+    if (host.dataset.mounted === '1' && host.children.length) return;
+    host.innerHTML = '';
 
     let user = null;
     let perms = [];
@@ -274,6 +277,11 @@
       }
     } catch (_) {}
 
+    window.__crmPermissionKeys = perms;
+    window.__crmUserRole = role;
+    window.__crmPalettePerms = perms;
+    window.__crmPaletteRole = role;
+
     const keys = new Set(perms);
     const file = currentFile();
     const page = pageParam();
@@ -281,6 +289,7 @@
     if (host.dataset.layout === 'sidebar') {
       mountSidebarNav(host, perms, role);
       initSidebarUserFooter(user, role);
+      host.dataset.mounted = '1';
       return;
     }
 
@@ -324,7 +333,19 @@
 
     nav.appendChild(inner);
     host.appendChild(nav);
+    host.dataset.mounted = '1';
   }
+
+  function remount() {
+    const host = document.getElementById('crmSharedNavRoot');
+    if (host) {
+      host.dataset.mounted = '0';
+      host.innerHTML = '';
+    }
+    return init();
+  }
+
+  window.__crmSharedNav = { init, remount };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
