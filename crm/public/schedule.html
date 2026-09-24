@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="crm-shell.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20260924-delete" />
-  <link rel="stylesheet" href="schedule.css?v=20260924-delete" />
+  <link rel="stylesheet" href="schedule.css?v=20260924-maps2" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body sched-body">
@@ -163,6 +163,7 @@
     <h2 id="eventModalTitle">Evento</h2>
     <div id="eventModalBody" class="gcal-popover__body"></div>
     <div class="gcal-popover__actions">
+      <a class="btn btn-secondary btn-sm" id="btnOpenJob" href="jobs.html" hidden>Abrir job</a>
       <button type="button" class="btn btn-primary btn-sm" id="btnEditEvent" hidden>Editar</button>
       <button type="button" class="btn btn-danger btn-sm" id="btnDeleteEvent" hidden>Excluir</button>
       <button type="button" class="btn btn-secondary btn-sm" id="btnCloseEvent2">Fechar</button>
@@ -234,8 +235,8 @@
   <script src="saas-branding.js"></script>
   <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
   <script src="crm-shell.js?v=20260924-addr"></script>
-  <script src="crm-shared-nav.js?v=20260924-shell2"></script>
-  <script src="crm-job-modal.js?v=20260924-delete"></script>
-  <script src="schedule.js?v=20260924-delete"></script>
+  <script src="crm-shared-nav.js?v=20260924-jobber"></script>
+  <script src="crm-job-modal.js?v=20260924-jobber"></script>
+  <script src="schedule.js?v=20260924-maps2"></script>
 </body>
 </html>

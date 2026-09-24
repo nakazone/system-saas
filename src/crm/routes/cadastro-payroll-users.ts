@@ -937,6 +937,8 @@ cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (req: Aut
           process.env.GOOGLE_MAPS_JS_KEY ||
           process.env.GOOGLE_MAPS_API_KEY ||
           process.env.GOOGLE_PLACES_JS_KEY ||
+          process.env.Google_Maps_JS_Key ||
+          process.env.GOOGLE_MAPS_KEY ||
           null,
         modules: {
           dashboard: true,

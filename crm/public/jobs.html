@@ -13,29 +13,11 @@
   <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
   <link rel="stylesheet" href="crm-toast.css" />
-  <link rel="stylesheet" href="crm-shell.css?v=20260924-shell2" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260924-addr" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20260924-delete" />
+  <link rel="stylesheet" href="jobs.css?v=20260924-jobber" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    .jobs-page { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
-    .jobs-toolbar { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: end; margin-bottom: 1rem; }
-    .jobs-toolbar label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; font-weight: 600; color: #6b645c; }
-    .jobs-toolbar input, .jobs-toolbar select { min-height: 2.35rem; padding: 0.4rem 0.65rem; border: 1px solid #e2d9cc; border-radius: 8px; background: #fff; font: inherit; }
-    .jobs-toolbar .grow { flex: 1; min-width: 160px; }
-    .jobs-table-wrap { background: #fff; border: 1px solid #e2d9cc; border-radius: 12px; overflow: auto; }
-    .jobs-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    .jobs-table th, .jobs-table td { padding: 0.75rem 0.85rem; text-align: left; border-bottom: 1px solid #ebe4da; }
-    .jobs-table th { background: #faf8f5; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #8a8074; }
-    .jobs-table tr { cursor: pointer; }
-    .jobs-table tr:hover td { background: #faf8f5; }
-    .job-status { display: inline-flex; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; text-transform: capitalize; background: #efe8dc; color: #211d1a; }
-    .job-status.is-scheduled { background: #dbeafe; color: #1d4ed8; }
-    .job-status.is-in_progress { background: #ffedd5; color: #c2410c; }
-    .job-status.is-completed { background: #d1fae5; color: #065f46; }
-    .job-status.is-canceled { background: #fee2e2; color: #991b1b; }
-    .jobs-empty { padding: 2rem; text-align: center; color: #8a8074; }
-  </style>
 </head>
 <body class="dashboard-app-body">
   <header class="mobile-app-header" id="mobileAppHeader">
@@ -72,24 +54,49 @@
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
       <div class="jobs-page">
-        <div class="crm-page-header">
-          <div>
-            <h1>Jobs / Work Orders</h1>
-            <p class="muted" style="margin:0.25rem 0 0;color:#6b645c;font-size:0.9rem;">Trabalhos de builders e contractors fora do fluxo de leads/quotes.</p>
-          </div>
-          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-            <a class="btn btn-secondary" href="schedule.html">Abrir Schedule</a>
-            <button type="button" class="btn btn-primary" id="btnNewJob" data-crm-permission="work_orders.manage">+ Novo job</button>
+        <div class="jobs-page-header">
+          <h1>Jobs</h1>
+          <div class="jobs-page-header__actions">
+            <a class="btn btn-secondary" href="schedule.html">Schedule</a>
+            <button type="button" class="btn btn-primary" id="btnNewJob" data-crm-permission="work_orders.manage">Novo job</button>
           </div>
         </div>
 
+        <div class="jobs-overview" id="jobsOverview" aria-label="Resumo">
+          <div class="jobs-ov-card">
+            <p class="jobs-ov-card__title">Overview</p>
+            <ul class="jobs-ov-list" id="ovStatusList">
+              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-unscheduled"></span> Sem schedule</span><strong id="ovUnscheduled">0</strong></li>
+              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-late"></span> Atrasados</span><strong id="ovLate">0</strong></li>
+              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-scheduled"></span> Scheduled</span><strong id="ovScheduled">0</strong></li>
+              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-progress"></span> Em progresso</span><strong id="ovProgress">0</strong></li>
+              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-done"></span> Concluídos</span><strong id="ovDone">0</strong></li>
+            </ul>
+          </div>
+          <div class="jobs-ov-card">
+            <p class="jobs-ov-card__title">Próximos 30 dias</p>
+            <div class="jobs-ov-card__stat" id="ovNext30">0</div>
+            <div class="jobs-ov-card__sub">Jobs com início neste período</div>
+          </div>
+          <div class="jobs-ov-card">
+            <p class="jobs-ov-card__title">Últimos 30 dias</p>
+            <div class="jobs-ov-card__stat" id="ovPast30">0</div>
+            <div class="jobs-ov-card__sub">Jobs concluídos recentemente</div>
+          </div>
+          <div class="jobs-ov-card jobs-ov-card--promo">
+            <p>Organize a equipa e os jobs no Schedule.</p>
+            <a href="schedule.html">Abrir Schedule →</a>
+          </div>
+        </div>
+
+        <div class="jobs-list-head">
+          <h2>All jobs <span class="jobs-list-head__count" id="jobsResultCount">(0)</span></h2>
+        </div>
+
         <div class="jobs-toolbar">
-          <label class="grow">Buscar
-            <input type="search" id="filterQ" placeholder="Título, origem, endereço…" />
-          </label>
           <label>Status
             <select id="filterStatus">
-              <option value="">Todos</option>
+              <option value="">All</option>
               <option value="draft">Draft</option>
               <option value="scheduled">Scheduled</option>
               <option value="in_progress">In progress</option>
@@ -99,12 +106,15 @@
           </label>
           <label>Origem
             <select id="filterSource">
-              <option value="">Todas</option>
+              <option value="">All</option>
               <option value="builder">Builder</option>
               <option value="contractor">Contractor</option>
               <option value="internal">Internal</option>
               <option value="other">Other</option>
             </select>
+          </label>
+          <label class="grow">Search
+            <input type="search" id="filterQ" placeholder="Search jobs…" />
           </label>
           <button type="button" class="btn btn-secondary" id="btnReload">Atualizar</button>
         </div>
@@ -113,12 +123,12 @@
           <table class="jobs-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Título</th>
-                <th>Origem</th>
+                <th>Client</th>
+                <th>Job number</th>
+                <th>Property</th>
+                <th>Schedule</th>
                 <th>Status</th>
-                <th>Quando</th>
-                <th>Responsável</th>
+                <th>Assigned</th>
               </tr>
             </thead>
             <tbody id="jobsTableBody">
@@ -135,8 +145,8 @@
   <script src="saas-branding.js"></script>
   <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
   <script src="crm-shell.js?v=20260924-addr"></script>
-  <script src="crm-shared-nav.js?v=20260924-shell2"></script>
-  <script src="crm-job-modal.js?v=20260924-delete"></script>
-  <script src="jobs.js?v=20260924-jobmodal"></script>
+  <script src="crm-shared-nav.js?v=20260924-jobber"></script>
+  <script src="crm-job-modal.js?v=20260924-jobber"></script>
+  <script src="jobs.js?v=20260924-jobber"></script>
 </body>
 </html>

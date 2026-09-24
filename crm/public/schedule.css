@@ -335,6 +335,7 @@
 .sched-map-canvas-wrap {
   position: relative;
   min-height: 360px;
+  height: 100%;
 }
 .sched-map-canvas {
   position: absolute;

@@ -50,7 +50,7 @@ function mapWorkOrder(wo: {
   scheduledEnd: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { id: string; name: string } | null;
+  customer?: { id: string; name: string; email?: string | null; phone?: string | null } | null;
   builder?: { id: string; firstName: string; lastName: string; company: string | null } | null;
   assignedUser?: { id: string; name: string } | null;
   crew?: { id: string; name: string; color: string | null } | null;
@@ -73,7 +73,12 @@ function mapWorkOrder(wo: {
     created_at: wo.createdAt.toISOString(),
     updated_at: wo.updatedAt.toISOString(),
     customer: wo.customer
-      ? { id: wo.customer.id, name: wo.customer.name }
+      ? {
+          id: wo.customer.id,
+          name: wo.customer.name,
+          email: wo.customer.email ?? null,
+          phone: wo.customer.phone ?? null,
+        }
       : null,
     builder: wo.builder
       ? {
@@ -126,7 +131,7 @@ function mapMeeting(m: {
 }
 
 const woInclude = {
-  customer: { select: { id: true, name: true } },
+  customer: { select: { id: true, name: true, email: true, phone: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },

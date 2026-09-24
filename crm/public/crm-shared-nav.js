@@ -112,7 +112,7 @@
     if (base === 'builder-pricing-admin.html') return file === 'builder-pricing-admin.html';
     if (base === 'payroll-module.html') return file === 'payroll-module.html';
     if (base === 'schedule.html') return file === 'schedule.html';
-    if (base === 'jobs.html') return file === 'jobs.html';
+    if (base === 'jobs.html') return file === 'jobs.html' || file === 'job-detail.html';
     if (base === 'ajustes.html') return file === 'ajustes.html';
     if (base === 'products-erp.html') return file === 'products-erp.html';
     if (base === 'quote-catalog.html') return file === 'quote-catalog.html';

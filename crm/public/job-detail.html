@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Job | ObraMate</title>
+  <link rel="icon" type="image/png" href="/assets/obramateLogoSmallTransp.png" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="/assets/obramateLogoSmallTransp.png" />
+  <link rel="stylesheet" href="styles.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260924-addr" />
+  <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20260924-delete" />
+  <link rel="stylesheet" href="jobs.css?v=20260924-jobber" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body">
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Job</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/obramate-logo.png" alt="Empresa" class="sidebar-brand-logo" width="220" height="44" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="dashboard-main">
+      <div class="job-detail-page" id="jobDetailRoot">
+        <a class="job-back-link" href="jobs.html">← All jobs</a>
+
+        <div class="job-detail-top">
+          <div class="job-detail-top__left">
+            <div class="job-detail-crumb">
+              <span class="job-status" id="jobStatusBadge">—</span>
+            </div>
+            <div class="job-detail-title-row">
+              <h1 id="jobDetailTitle">Job</h1>
+              <button type="button" class="job-detail-edit-icon" id="btnEditJob" title="Editar job" aria-label="Editar job" data-crm-permission="work_orders.manage">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="job-detail-top__actions">
+            <a class="btn btn-secondary" id="btnOpenSchedule" href="schedule.html">Ver no Schedule</a>
+            <button type="button" class="btn btn-danger" id="btnDeleteJob" data-crm-permission="work_orders.manage">Excluir</button>
+          </div>
+        </div>
+
+        <div class="job-detail-grid">
+          <div class="job-detail-main">
+            <section class="job-card">
+              <div class="job-overview">
+                <div class="job-client-box">
+                  <p class="job-client-box__name" id="jobClientName">—</p>
+                  <p class="job-client-box__addr" id="jobProperty">—</p>
+                  <div class="job-client-box__contact" id="jobClientContact"></div>
+                </div>
+                <dl class="job-meta-list">
+                  <div><dt>Job #</dt><dd id="jobMetaNumber">—</dd></div>
+                  <div><dt>Origem</dt><dd id="jobMetaSource">—</dd></div>
+                  <div><dt>Starts on</dt><dd id="jobMetaStart">—</dd></div>
+                  <div><dt>Ends on</dt><dd id="jobMetaEnd">—</dd></div>
+                  <div><dt>Assigned</dt><dd id="jobMetaAssignee">—</dd></div>
+                </dl>
+              </div>
+            </section>
+
+            <section class="job-card">
+              <div class="job-card__head">
+                <h2>Product / Service</h2>
+                <button type="button" class="job-card__link" disabled>Add Line Item</button>
+              </div>
+              <div class="job-empty-block">
+                <p>Mantenha materiais e serviços deste job num só sítio. Em breve poderá adicionar line items aqui.</p>
+              </div>
+            </section>
+
+            <section class="job-card">
+              <div class="job-card__head">
+                <h2>Labor</h2>
+                <button type="button" class="job-card__link" disabled>Add Time Entry</button>
+              </div>
+              <div class="job-empty-block">
+                <p>O tempo registado neste job aparecerá aqui.</p>
+              </div>
+            </section>
+
+            <section class="job-card">
+              <div class="job-card__head">
+                <h2>Expenses</h2>
+                <button type="button" class="job-card__link" disabled>Add Expense</button>
+              </div>
+              <div class="job-empty-block">
+                <p>Acompanhe todas as despesas deste job num só lugar.</p>
+              </div>
+            </section>
+
+            <section class="job-card">
+              <div class="job-card__head">
+                <h2>Scheduled visits</h2>
+                <a class="job-card__link" id="btnEditSchedule" href="schedule.html">Edit in Schedule</a>
+              </div>
+              <div id="jobVisitsBody">
+                <p class="jobs-empty" style="padding:1rem 0">Sem agendamento.</p>
+              </div>
+            </section>
+
+            <section class="job-card">
+              <div class="job-card__head">
+                <h2>Billing</h2>
+                <button type="button" class="job-card__link" disabled>Edit Invoice Settings</button>
+              </div>
+              <div class="job-empty-block">
+                <p>Faturação ligada a este job estará disponível em breve.</p>
+              </div>
+            </section>
+
+            <section class="job-card">
+              <div class="job-card__head">
+                <h2>Notes</h2>
+                <button type="button" class="job-card__link" id="btnSaveNotes" data-crm-permission="work_orders.manage">Save</button>
+              </div>
+              <textarea class="job-notes-area" id="jobNotes" placeholder="Leave an internal note for yourself or a team member." maxlength="8000"></textarea>
+            </section>
+          </div>
+
+          <aside class="job-detail-rail">
+            <section class="job-card job-rail-total">
+              <p class="job-rail-total__label">Total cost to date</p>
+              <p class="job-rail-total__value">—</p>
+              <ul class="job-rail-breakdown">
+                <li><span>Revenue</span><span>—</span></li>
+                <li><span>Cost</span><span>—</span></li>
+                <li><span>Profit</span><span>—</span></li>
+              </ul>
+            </section>
+            <section class="job-card">
+              <div class="job-card__head">
+                <h2>Notes</h2>
+              </div>
+              <div class="job-rail-notes-empty" id="jobRailNotesPreview">
+                Leave an internal note for yourself or a team member.
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js?v=20260923-i18n"></script>
+  <script src="saas-branding.js"></script>
+  <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
+  <script src="crm-shell.js?v=20260924-addr"></script>
+  <script src="crm-shared-nav.js?v=20260924-jobber"></script>
+  <script src="crm-job-modal.js?v=20260924-jobber"></script>
+  <script src="job-detail.js?v=20260924-jobber"></script>
+</body>
+</html>

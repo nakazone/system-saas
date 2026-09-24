@@ -621,6 +621,16 @@
 
     const canEdit =
       (ev.type === "job" && canManageJobs) || (ev.type === "meeting" && canManageMeetings);
+    const openJobBtn = $("btnOpenJob");
+    if (openJobBtn) {
+      if (ev.type === "job") {
+        openJobBtn.hidden = false;
+        openJobBtn.href = `job-detail.html?id=${encodeURIComponent(ev.id)}`;
+      } else {
+        openJobBtn.hidden = true;
+        openJobBtn.removeAttribute("href");
+      }
+    }
     const editBtn = $("btnEditEvent");
     if (editBtn) {
       editBtn.hidden = !canEdit;
@@ -806,37 +816,94 @@
     return window.L;
   }
 
+  function googleMapsReady() {
+    return !!(window.google && window.google.maps && typeof window.google.maps.Map === "function");
+  }
+
+  function loadGoogleMapsOnce(key) {
+    return new Promise((resolve, reject) => {
+      if (googleMapsReady()) {
+        resolve();
+        return;
+      }
+
+      const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+      if (existing) {
+        let settled = false;
+        const done = (ok, err) => {
+          if (settled) return;
+          settled = true;
+          if (ok) resolve();
+          else reject(err || new Error("Falha ao carregar Google Maps"));
+        };
+        existing.addEventListener("load", () => done(googleMapsReady()));
+        existing.addEventListener("error", () => done(false));
+        let n = 0;
+        const t = setInterval(() => {
+          n += 1;
+          if (googleMapsReady()) {
+            clearInterval(t);
+            done(true);
+          } else if (n > 60) {
+            clearInterval(t);
+            done(false, new Error("Timeout Google Maps"));
+          }
+        }, 100);
+        return;
+      }
+
+      const cb = `__schedMapsInit_${Date.now()}`;
+      window[cb] = () => {
+        try {
+          delete window[cb];
+        } catch (_) {}
+        if (googleMapsReady()) resolve();
+        else reject(new Error("Google Maps API indisponível"));
+      };
+      window.gm_authFailure = () => {
+        reject(new Error("Chave Google Maps inválida ou restrita (gm_authFailure)"));
+      };
+      const s = document.createElement("script");
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=${cb}`;
+      s.async = true;
+      s.onerror = () => reject(new Error("Falha ao carregar Google Maps"));
+      document.head.appendChild(s);
+    });
+  }
+
   async function ensureMapEngine() {
-    if (mapEngine === "google" && window.google?.maps) return "google";
+    if (mapEngine === "google" && googleMapsReady()) return "google";
     if (mapEngine === "leaflet" && window.L) return "leaflet";
     if (mapsApiReady) return mapsApiReady;
 
     mapsApiReady = (async () => {
-      let key = null;
       try {
-        const cfg = await api("/api/config/ui");
-        key = cfg.data?.googleMapsJsKey ? String(cfg.data.googleMapsJsKey).trim() : null;
-      } catch (_) {}
-
-      if (key) {
-        await new Promise((resolve, reject) => {
-          if (window.google?.maps) {
-            resolve();
-            return;
+        // Reuse the shared CRM loader so we never inject Maps twice
+        // (address autocomplete already loads it on Schedule).
+        if (typeof window.sfEnsureCrmAddressAutocomplete === "function") {
+          const ok = await window.sfEnsureCrmAddressAutocomplete(false);
+          if (ok && googleMapsReady()) {
+            mapEngine = "google";
+            return "google";
           }
-          const cb = `__schedMapsInit_${Date.now()}`;
-          window[cb] = () => {
-            delete window[cb];
-            resolve();
-          };
-          const s = document.createElement("script");
-          s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&callback=${cb}`;
-          s.async = true;
-          s.onerror = () => reject(new Error("Falha ao carregar Google Maps"));
-          document.head.appendChild(s);
-        });
-        mapEngine = "google";
-        return "google";
+        }
+
+        let key = null;
+        try {
+          const cfg = await api("/api/config/ui");
+          key = cfg.data?.googleMapsJsKey ? String(cfg.data.googleMapsJsKey).trim() : null;
+        } catch (_) {}
+
+        if (key) {
+          await loadGoogleMapsOnce(key);
+          if (googleMapsReady()) {
+            mapEngine = "google";
+            return "google";
+          }
+        }
+      } catch (err) {
+        console.warn("[schedule] Google Maps indisponível, a usar OpenStreetMap", err);
+        mapsApiReady = null;
       }
 
       await ensureLeaflet();
@@ -844,7 +911,14 @@
       return "leaflet";
     })();
 
-    return mapsApiReady;
+    try {
+      return await mapsApiReady;
+    } catch (err) {
+      mapsApiReady = null;
+      await ensureLeaflet();
+      mapEngine = "leaflet";
+      return "leaflet";
+    }
   }
 
   function sleep(ms) {
@@ -1207,7 +1281,8 @@
       const canvas = $("schedMapCanvas");
 
       if (engine === "google") {
-        if (!mapInstance || mapEngine !== "google") {
+        if (!mapInstance || mapEngine !== "google" || !(mapInstance instanceof window.google.maps.Map)) {
+          canvas.innerHTML = "";
           mapInstance = new window.google.maps.Map(canvas, {
             center: { lat: 39.8283, lng: -98.5795 },
             zoom: 4,
@@ -1215,11 +1290,16 @@
             streetViewControl: false,
             fullscreenControl: true,
           });
+          requestAnimationFrame(() => {
+            try {
+              window.google.maps.event.trigger(mapInstance, "resize");
+            } catch (_) {}
+          });
         } else {
           window.google.maps.event.trigger(mapInstance, "resize");
         }
       } else {
-        if (!mapInstance || mapEngine !== "leaflet") {
+        if (!mapInstance || mapEngine !== "leaflet" || !window.L || !(mapInstance instanceof window.L.Map)) {
           canvas.innerHTML = "";
           mapInstance = window.L.map(canvas, { scrollWheelZoom: true }).setView([39.8283, -98.5795], 4);
           window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -1242,8 +1322,8 @@
       }
     } catch (err) {
       $("mapList").innerHTML = `<p class="sched-map-empty">${escapeHtml(err.message || "Erro no mapa")}</p>`;
-      $("mapHint").textContent = "";
-      throw err;
+      $("mapHint").textContent = err.message || "Erro no mapa";
+      notify(err.message || "Erro no mapa", "error");
     }
   }
 

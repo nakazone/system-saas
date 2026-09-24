@@ -116,6 +116,7 @@
       <textarea id="jobNotes" rows="3" maxlength="8000"></textarea>
     </label>
     <div class="jobs-modal-actions">
+      <a class="btn btn-secondary" id="btnViewJob" href="jobs.html" hidden>Abrir job</a>
       <a class="btn btn-secondary" id="btnViewSchedule" href="schedule.html" hidden>Ver no Schedule</a>
       <button type="button" class="btn btn-secondary" id="btnCancelJob">Cancelar</button>
       <button type="button" class="btn btn-danger" id="btnCancelWo" hidden>Excluir job</button>
@@ -181,6 +182,16 @@
     $("jobModal").classList.add("is-open");
     $("jobModalBackdrop").classList.add("is-open");
     $("btnCancelWo").hidden = !editingId || !canManage;
+    const onDetail = /job-detail\.html/i.test(location.pathname);
+    const viewJob = $("btnViewJob");
+    if (viewJob) {
+      if (editingId && !onDetail) {
+        viewJob.hidden = false;
+        viewJob.href = `job-detail.html?id=${encodeURIComponent(editingId)}`;
+      } else {
+        viewJob.hidden = true;
+      }
+    }
     const hasSchedule = Boolean($("jobStart").value);
     const viewBtn = $("btnViewSchedule");
     if (viewBtn) {
@@ -197,6 +208,8 @@
     if ($("jobId")) $("jobId").value = "";
     const viewBtn = $("btnViewSchedule");
     if (viewBtn) viewBtn.hidden = true;
+    const viewJob = $("btnViewJob");
+    if (viewJob) viewJob.hidden = true;
   }
 
   async function openCreate(opts) {
