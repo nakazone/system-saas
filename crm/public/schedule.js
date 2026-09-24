@@ -376,7 +376,7 @@
         const top = Math.max(0, topPx(s));
         const hgt = heightPx(s, e);
         html += `<button type="button" class="gcal-event" data-ev="${ev.type}:${ev.id}"
-          style="top:${top}px;height:${hgt}px;background:${escapeAttr(ev.color || (ev.type === "job" ? "#e8792c" : "#039be5"))}">
+          style="top:${top}px;height:${hgt}px;background:${escapeAttr(ev.color || (ev.type === "job" ? "#e8792c" : "#3b6ea5"))}">
           <span class="gcal-event__time">${fmtTime(ev.start)}</span>
           ${escapeHtml(ev.title)}
         </button>`;
@@ -444,7 +444,7 @@
       html += `<div class="gcal-month-cell${outside ? " is-outside" : ""}${key === today ? " is-today" : ""}" data-month-day="${key}">
         <div class="gcal-month-num">${day.getDate()}</div>`;
       show.forEach((ev) => {
-        html += `<button type="button" class="gcal-month-pill" data-ev="${ev.type}:${ev.id}" style="background:${escapeAttr(ev.color || (ev.type === "job" ? "#e8792c" : "#039be5"))}">${escapeHtml(ev.title)}</button>`;
+        html += `<button type="button" class="gcal-month-pill" data-ev="${ev.type}:${ev.id}" style="background:${escapeAttr(ev.color || (ev.type === "job" ? "#e8792c" : "#3b6ea5"))}">${escapeHtml(ev.title)}</button>`;
       });
       if (more > 0) {
         html += `<button type="button" class="gcal-month-more" data-goto-day="${key}">+${more} mais</button>`;
@@ -538,7 +538,7 @@
 
   function showEvent(ev) {
     $("eventModalTitle").textContent = ev.title;
-    $("eventAccent").style.background = ev.color || (ev.type === "job" ? "#e8792c" : "#039be5");
+    $("eventAccent").style.background = ev.color || (ev.type === "job" ? "#e8792c" : "#3b6ea5");
     const meta = ev.meta || {};
     const when = `${new Date(ev.start).toLocaleString()} → ${new Date(ev.end).toLocaleString()}`;
     let body = `<p><strong>${ev.type === "job" ? "Job" : "Meeting"}</strong> · ${escapeHtml(ev.status)}</p>`;

@@ -716,7 +716,7 @@ scheduleJobsRouter.get(
           status: m.status,
           start: m.scheduledStart.toISOString(),
           end: m.scheduledEnd.toISOString(),
-          color: "#3b82f6",
+          color: "#3b6ea5",
           meta: mapMeeting(m),
         })),
       ].sort((a, b) => a.start.localeCompare(b.start));
