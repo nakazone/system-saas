@@ -817,11 +817,34 @@
   }
 
   function googleMapsReady() {
-    return !!(window.google && window.google.maps && typeof window.google.maps.Map === "function");
+    return !(
+      window.__crmGoogleMapsAuthFailed ||
+      !(window.google && window.google.maps && typeof window.google.maps.Map === "function")
+    );
+  }
+
+  function installGoogleAuthHook() {
+    if (window.__crmGoogleMapsAuthHooked) return;
+    window.__crmGoogleMapsAuthHooked = true;
+    const prev = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      window.__crmGoogleMapsAuthFailed = true;
+      console.warn("[schedule] Google Maps auth failure — will use OpenStreetMap");
+      if (typeof prev === "function") {
+        try {
+          prev();
+        } catch (_) {}
+      }
+    };
   }
 
   function loadGoogleMapsOnce(key) {
     return new Promise((resolve, reject) => {
+      installGoogleAuthHook();
+      if (window.__crmGoogleMapsAuthFailed) {
+        reject(new Error("Google Maps auth failed"));
+        return;
+      }
       if (googleMapsReady()) {
         resolve();
         return;
@@ -836,12 +859,15 @@
           if (ok) resolve();
           else reject(err || new Error("Falha ao carregar Google Maps"));
         };
-        existing.addEventListener("load", () => done(googleMapsReady()));
+        existing.addEventListener("load", () => done(googleMapsReady() && !window.__crmGoogleMapsAuthFailed));
         existing.addEventListener("error", () => done(false));
         let n = 0;
         const t = setInterval(() => {
           n += 1;
-          if (googleMapsReady()) {
+          if (window.__crmGoogleMapsAuthFailed) {
+            clearInterval(t);
+            done(false, new Error("Google Maps auth failed"));
+          } else if (googleMapsReady()) {
             clearInterval(t);
             done(true);
           } else if (n > 60) {
@@ -857,11 +883,11 @@
         try {
           delete window[cb];
         } catch (_) {}
-        if (googleMapsReady()) resolve();
-        else reject(new Error("Google Maps API indisponível"));
-      };
-      window.gm_authFailure = () => {
-        reject(new Error("Chave Google Maps inválida ou restrita (gm_authFailure)"));
+        if (window.__crmGoogleMapsAuthFailed || !googleMapsReady()) {
+          reject(new Error("Google Maps API indisponível"));
+          return;
+        }
+        resolve();
       };
       const s = document.createElement("script");
       s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=${cb}`;
@@ -872,16 +898,21 @@
   }
 
   async function ensureMapEngine() {
+    installGoogleAuthHook();
+    if (window.__crmGoogleMapsAuthFailed) {
+      await ensureLeaflet();
+      mapEngine = "leaflet";
+      return "leaflet";
+    }
     if (mapEngine === "google" && googleMapsReady()) return "google";
     if (mapEngine === "leaflet" && window.L) return "leaflet";
     if (mapsApiReady) return mapsApiReady;
 
     mapsApiReady = (async () => {
       try {
-        // Reuse the shared CRM loader so we never inject Maps twice
-        // (address autocomplete already loads it on Schedule).
         if (typeof window.sfEnsureCrmAddressAutocomplete === "function") {
           const ok = await window.sfEnsureCrmAddressAutocomplete(false);
+          if (window.__crmGoogleMapsAuthFailed) throw new Error("Google Maps auth failed");
           if (ok && googleMapsReady()) {
             mapEngine = "google";
             return "google";
@@ -896,6 +927,7 @@
 
         if (key) {
           await loadGoogleMapsOnce(key);
+          if (window.__crmGoogleMapsAuthFailed) throw new Error("Google Maps auth failed");
           if (googleMapsReady()) {
             mapEngine = "google";
             return "google";
@@ -1268,6 +1300,23 @@
     }
   }
 
+  async function mountLeafletMap(canvas) {
+    await ensureLeaflet();
+    mapEngine = "leaflet";
+    canvas.innerHTML = "";
+    mapInstance = window.L.map(canvas, { scrollWheelZoom: true }).setView([39.8283, -98.5795], 4);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(mapInstance);
+    leafletLayer = window.L.layerGroup().addTo(mapInstance);
+    setTimeout(() => {
+      try {
+        mapInstance.invalidateSize();
+      } catch (_) {}
+    }, 50);
+  }
+
   async function openMapPanel() {
     $("mapPanel").hidden = false;
     $("mapBackdrop").hidden = false;
@@ -1277,10 +1326,10 @@
     mapSelection = [];
 
     try {
-      const engine = await ensureMapEngine();
+      let engine = await ensureMapEngine();
       const canvas = $("schedMapCanvas");
 
-      if (engine === "google") {
+      if (engine === "google" && !window.__crmGoogleMapsAuthFailed) {
         if (!mapInstance || mapEngine !== "google" || !(mapInstance instanceof window.google.maps.Map)) {
           canvas.innerHTML = "";
           mapInstance = new window.google.maps.Map(canvas, {
@@ -1298,17 +1347,27 @@
         } else {
           window.google.maps.event.trigger(mapInstance, "resize");
         }
+        // AuthFailure often fires right after Map() — wait before committing to Google.
+        await sleep(700);
+        if (window.__crmGoogleMapsAuthFailed) {
+          mapInstance = null;
+          mapMarkers = [];
+          mapPolyline = null;
+          mapsApiReady = null;
+          await mountLeafletMap(canvas);
+          engine = "leaflet";
+          notify(
+            "Google Maps recusou a chave (billing/API). A usar OpenStreetMap.",
+            "warning",
+          );
+        }
       } else {
         if (!mapInstance || mapEngine !== "leaflet" || !window.L || !(mapInstance instanceof window.L.Map)) {
-          canvas.innerHTML = "";
-          mapInstance = window.L.map(canvas, { scrollWheelZoom: true }).setView([39.8283, -98.5795], 4);
-          window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          }).addTo(mapInstance);
-          leafletLayer = window.L.layerGroup().addTo(mapInstance);
+          await mountLeafletMap(canvas);
+        } else {
+          setTimeout(() => mapInstance.invalidateSize(), 50);
         }
-        setTimeout(() => mapInstance.invalidateSize(), 50);
+        engine = "leaflet";
       }
 
       const engineLabel = engine === "google" ? "Google Maps" : "OpenStreetMap";

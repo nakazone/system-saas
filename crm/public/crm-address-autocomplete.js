@@ -102,6 +102,10 @@
 
   function loadGoogleMapsScript(key) {
     return new Promise(function (resolve, reject) {
+      if (global.__crmGoogleMapsAuthFailed) {
+        reject(new Error('Google Maps auth failed'));
+        return;
+      }
       if (global.google && global.google.maps && global.google.maps.places) {
         resolve(true);
         return;
@@ -116,19 +120,37 @@
         });
         return;
       }
+      if (typeof global.gm_authFailure !== 'function' || !global.__crmGoogleMapsAuthHooked) {
+        global.__crmGoogleMapsAuthHooked = true;
+        var prev = global.gm_authFailure;
+        global.gm_authFailure = function () {
+          global.__crmGoogleMapsAuthFailed = true;
+          console.warn('[crm-address-autocomplete] Google Maps auth failure (billing, API ou restrições da chave)');
+          if (typeof prev === 'function') {
+            try {
+              prev();
+            } catch (_) {}
+          }
+        };
+      }
       var cbName = '__sfCrmPlacesInit';
       global[cbName] = function () {
         try {
           delete global[cbName];
         } catch (_) {}
+        if (global.__crmGoogleMapsAuthFailed) {
+          reject(new Error('Google Maps auth failed'));
+          return;
+        }
         resolve(true);
       };
       var s = document.createElement('script');
       s.async = true;
+      // Do not use loading=async with classic callback — it breaks Map init.
       s.src =
         'https://maps.googleapis.com/maps/api/js?key=' +
         encodeURIComponent(key) +
-        '&libraries=places&loading=async&callback=' +
+        '&libraries=places&callback=' +
         cbName;
       s.onerror = function () {
         reject(new Error('Google Maps script failed'));
