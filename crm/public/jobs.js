@@ -159,8 +159,20 @@
     editingId = null;
     $("jobForm").reset();
     $("jobId").value = "";
-    $("jobStatus").value = "draft";
+    $("jobStatus").value = "scheduled";
     $("jobSourceType").value = "builder";
+    const pref = sessionStorage.getItem("obramate_job_pref_start");
+    if (pref) {
+      sessionStorage.removeItem("obramate_job_pref_start");
+      const start = new Date(pref);
+      if (!Number.isNaN(start.getTime())) {
+        $("jobStart").value = toLocalInput(start.toISOString());
+        const end = new Date(start);
+        end.setHours(end.getHours() + 2);
+        $("jobEnd").value = toLocalInput(end.toISOString());
+        $("jobStatus").value = "scheduled";
+      }
+    }
     openModal("Novo job");
   }
 

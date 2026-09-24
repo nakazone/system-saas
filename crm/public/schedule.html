@@ -6,16 +6,16 @@
   <meta name="theme-color" content="#f7f4ee" />
   <title>Schedule | ObraMate</title>
   <link rel="icon" type="image/png" href="/assets/obramate-logo.png" />
-  <link rel="stylesheet" href="styles.css?v=20260923-chrome" />
-  <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
-  <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="styles.css?v=20260924-gcal" />
+  <link rel="stylesheet" href="design-system.css?v=20260924-gcal" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20260924-gcal" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
   <link rel="stylesheet" href="crm-toast.css" />
-  <link rel="stylesheet" href="crm-shell.css?v=20260923-chrome" />
-  <link rel="stylesheet" href="schedule.css?v=20260923-schedule" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260924-gcal" />
+  <link rel="stylesheet" href="schedule.css?v=20260924-gcal" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
-<body class="dashboard-app-body">
+<body class="dashboard-app-body sched-body">
   <header class="mobile-app-header" id="mobileAppHeader">
     <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
       <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
@@ -24,6 +24,9 @@
       <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
       <h1 class="mobile-app-header__title">Schedule</h1>
     </div>
+    <button type="button" class="sched-mobile-filters-btn" id="btnToggleCalSidebar" aria-label="Filtros">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+    </button>
   </header>
 
   <div class="dashboard-container">
@@ -48,52 +51,116 @@
       </div>
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
-    <main class="dashboard-main">
-      <div class="sched-page">
-        <div class="crm-page-header">
-          <div>
-            <h1>Schedule</h1>
-            <p class="sched-lead">Jobs e meetings no mesmo calendário.</p>
-          </div>
-          <div class="sched-actions">
-            <a class="btn btn-secondary" href="jobs.html">Jobs</a>
-            <button type="button" class="btn btn-secondary" id="btnNewMeeting" data-crm-permission="schedule.manage">+ Meeting</button>
-            <a class="btn btn-primary" href="jobs.html" data-crm-permission="work_orders.manage">+ Job</a>
-          </div>
-        </div>
 
-        <div class="sched-toolbar">
-          <div class="sched-nav">
-            <button type="button" class="btn btn-secondary btn-sm" id="btnPrev">‹</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnToday">Hoje</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnNext">›</button>
-            <h2 id="schedRangeLabel">—</h2>
+    <main class="dashboard-main sched-main">
+      <!-- Google Calendar–style top chrome -->
+      <header class="gcal-topbar">
+        <div class="gcal-topbar__left">
+          <button type="button" class="gcal-create" id="btnCreate" data-crm-permission="schedule.manage" aria-haspopup="menu" aria-expanded="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Criar
+          </button>
+          <div class="gcal-create-menu" id="createMenu" hidden role="menu">
+            <button type="button" role="menuitem" id="menuNewMeeting" data-crm-permission="schedule.manage">Meeting</button>
+            <a role="menuitem" href="jobs.html" data-crm-permission="work_orders.manage">Job</a>
           </div>
-          <div class="sched-view-toggle" role="group" aria-label="Vista">
-            <button type="button" class="sched-view-btn is-active" data-view="month">Mês</button>
-            <button type="button" class="sched-view-btn" data-view="week">Semana</button>
+          <button type="button" class="gcal-today" id="btnToday">Hoje</button>
+          <div class="gcal-nav-arrows">
+            <button type="button" class="gcal-icon-btn" id="btnPrev" aria-label="Anterior">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <button type="button" class="gcal-icon-btn" id="btnNext" aria-label="Seguinte">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
           </div>
-          <div class="sched-legend">
-            <span><i class="sched-dot sched-dot--job"></i> Job</span>
-            <span><i class="sched-dot sched-dot--meeting"></i> Meeting</span>
-          </div>
+          <h1 class="gcal-range" id="schedRangeLabel">—</h1>
         </div>
+        <div class="gcal-topbar__right">
+          <label class="gcal-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="search" id="filterQ" placeholder="Pesquisar jobs e meetings" autocomplete="off" />
+          </label>
+          <div class="gcal-view-toggle" role="group" aria-label="Vista">
+            <button type="button" class="gcal-view-btn" data-view="day">Dia</button>
+            <button type="button" class="gcal-view-btn is-active" data-view="week">Semana</button>
+            <button type="button" class="gcal-view-btn" data-view="month">Mês</button>
+            <button type="button" class="gcal-view-btn" data-view="agenda">Agenda</button>
+          </div>
+          <a class="gcal-link-jobs" href="jobs.html">Jobs</a>
+        </div>
+      </header>
 
-        <div id="schedCalendar" class="sched-calendar" aria-live="polite"></div>
+      <div class="gcal-layout">
+        <!-- Left rail: mini month + business calendars/filters -->
+        <aside class="gcal-rail" id="gcalRail">
+          <div class="gcal-mini" id="miniMonth" aria-label="Mini calendário"></div>
+
+          <div class="gcal-cal-section">
+            <p class="gcal-cal-section__title">Calendários</p>
+            <label class="gcal-check">
+              <input type="checkbox" id="filterJobs" checked />
+              <span class="gcal-swatch gcal-swatch--job"></span>
+              Jobs
+            </label>
+            <label class="gcal-check">
+              <input type="checkbox" id="filterMeetings" checked />
+              <span class="gcal-swatch gcal-swatch--meeting"></span>
+              Meetings
+            </label>
+          </div>
+
+          <div class="gcal-cal-section">
+            <p class="gcal-cal-section__title">Filtros do negócio</p>
+            <label class="gcal-field">Responsável
+              <select id="filterAssignee"><option value="">Todos</option></select>
+            </label>
+            <label class="gcal-field">Origem
+              <select id="filterSource">
+                <option value="">Todas</option>
+                <option value="builder">Builder</option>
+                <option value="contractor">Contractor</option>
+                <option value="internal">Internal</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label class="gcal-field">Status do job
+              <select id="filterStatus">
+                <option value="">Todos</option>
+                <option value="draft">Draft</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+            <label class="gcal-check gcal-check--solo">
+              <input type="checkbox" id="filterMine" />
+              Só os meus
+            </label>
+          </div>
+        </aside>
+        <div class="gcal-rail-backdrop" id="gcalRailBackdrop" hidden></div>
+
+        <section class="gcal-board" aria-live="polite">
+          <div id="schedCalendar" class="gcal-board__inner"></div>
+        </section>
       </div>
     </main>
   </div>
 
-  <div class="sched-modal-backdrop" id="eventBackdrop"></div>
-  <div class="sched-modal" id="eventModal" role="dialog" aria-modal="true">
+  <!-- Event popover -->
+  <div class="gcal-popover-backdrop" id="eventBackdrop" hidden></div>
+  <div class="gcal-popover" id="eventModal" role="dialog" aria-modal="true" hidden>
+    <button type="button" class="gcal-popover__close" id="btnCloseEvent" aria-label="Fechar">×</button>
+    <div class="gcal-popover__accent" id="eventAccent"></div>
     <h2 id="eventModalTitle">Evento</h2>
-    <div id="eventModalBody" class="sched-event-body"></div>
-    <div class="sched-modal-actions">
-      <button type="button" class="btn btn-secondary" id="btnCloseEvent">Fechar</button>
-      <a class="btn btn-primary" id="btnOpenJob" hidden href="jobs.html">Abrir job</a>
+    <div id="eventModalBody" class="gcal-popover__body"></div>
+    <div class="gcal-popover__actions">
+      <a class="btn btn-primary btn-sm" id="btnOpenJob" hidden href="jobs.html">Abrir job</a>
+      <button type="button" class="btn btn-secondary btn-sm" id="btnCloseEvent2">Fechar</button>
     </div>
   </div>
 
+  <!-- New meeting -->
   <div class="sched-modal-backdrop" id="meetingBackdrop"></div>
   <div class="sched-modal" id="meetingModal" role="dialog" aria-modal="true">
     <h2>Novo meeting</h2>
@@ -125,11 +192,17 @@
     </form>
   </div>
 
+  <!-- Quick create chooser when clicking empty slot -->
+  <div class="gcal-slot-menu" id="slotMenu" hidden role="menu">
+    <button type="button" role="menuitem" id="slotNewMeeting">+ Meeting neste horário</button>
+    <a role="menuitem" id="slotNewJob" href="jobs.html">+ Job neste horário</a>
+  </div>
+
   <script src="crm-toast.js"></script>
   <script src="crm-i18n.js?v=20260923-i18n"></script>
   <script src="saas-branding.js"></script>
   <script src="crm-shared-nav.js?v=20260923-jobs"></script>
   <script src="crm-shell.js?v=20260923-chrome"></script>
-  <script src="schedule.js?v=20260923-schedule"></script>
+  <script src="schedule.js?v=20260924-gcal"></script>
 </body>
 </html>
