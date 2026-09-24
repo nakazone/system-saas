@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-maps4";
+  const SHELL_VER = "20260924-pwa";
 
   const TOPBAR_HTML = `
 <header class="crm-topbar" id="crmTopbar" aria-label="Barra superior">
@@ -421,7 +421,7 @@
       jobs.push(ensureScript(`crm-help-panel.js?v=${SHELL_VER}`).catch(() => {}));
     }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
-      jobs.push(ensureScript("saas-branding.js").catch(() => {}));
+      jobs.push(ensureScript("saas-branding.js?v=20260924-pwa").catch(() => {}));
     }
     if (!window.sfBootCrmAddressAutocomplete && !document.querySelector('script[src*="crm-address-autocomplete.js"]')) {
       jobs.push(

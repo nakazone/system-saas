@@ -72,7 +72,13 @@ export function createApp() {
   app.use("/assets", express.static(path.join(__dirname, "public")));
   app.get("/favicon.ico", (_req, res) => {
     res.type("image/x-icon");
+    res.setHeader("Cache-Control", "public, max-age=86400");
     res.sendFile(path.join(CRM_ASSETS_DIR, "favicon.ico"));
+  });
+  app.get("/manifest.json", (_req, res) => {
+    res.type("application/manifest+json");
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.resolve(process.cwd(), "crm/public/manifest.json"));
   });
   app.get("/obramateLogoSmallTransp.png", (_req, res) => {
     const candidates = [

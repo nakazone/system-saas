@@ -1,13 +1,14 @@
 /**
  * Senior Floors / ObraMate — service worker (cache + Web Push).
  */
-const CACHE = 'sf-static-v32';
+const CACHE = 'sf-static-v33';
 const PRECACHE = [
   '/dashboard.html',
   '/styles.css',
   '/design-system.css',
   '/mobile-design-system.css',
-  '/manifest.json',
+  '/manifest.json?v=20260924-pwa',
+  '/assets/favicon-192.png?v=20260924-pwa',
   '/crm-shell.css',
   '/crm-pwa-install.css',
 ];
@@ -68,8 +69,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'ObraMate', {
       body: data.body || '',
-      icon: '/assets/obramate-logo.png',
-      badge: '/assets/obramate-logo.png',
+      icon: '/assets/favicon-192.png?v=20260924-pwa',
+      badge: '/assets/favicon-192.png?v=20260924-pwa',
       tag: data.tag || 'obramate',
       renotify: true,
       data: { url: data.url || '/dashboard.html' },

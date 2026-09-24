@@ -107,9 +107,8 @@
       '<div class="crm-pwa-install__panel" role="dialog" aria-modal="true" aria-labelledby="crmPwaInstallTitle">' +
       '<button type="button" class="crm-pwa-install__close" data-crm-pwa-close aria-label="Fechar">×</button>' +
       '<div class="crm-pwa-install__icon" aria-hidden="true">' +
-      '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.75">' +
-      '<path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/>' +
-      '</svg></div>' +
+      '<img src="/assets/favicon-192.png?v=20260924-pwa" alt="" width="56" height="56" />' +
+      '</div>' +
       '<h2 id="crmPwaInstallTitle" class="crm-pwa-install__title">Instalar ObraMate</h2>' +
       '<p class="crm-pwa-install__lead">Use o sistema como app no seu dispositivo — sem loja de aplicativos.</p>' +
       '<div id="crmPwaInstallBody" class="crm-pwa-install__body"></div>' +

@@ -7,6 +7,10 @@
 (function () {
   var DEFAULT_LOGO = "/assets/obramate-logo.png";
   var DEFAULT_NAME = "ObraMate";
+  /** Square mark for tab / PWA / home-screen — never use the wordmark here */
+  var SYSTEM_APP_ICON = "/assets/favicon-192.png?v=20260924-pwa";
+  var SYSTEM_TOUCH_ICON = "/assets/favicon-180.png?v=20260924-pwa";
+  var SYSTEM_FAVICON_ICO = "/favicon.ico?v=20260924-pwa";
 
   /** Fixed ObraMate marks — never swap for tenant logo. */
   function lockSystemLogos() {
@@ -18,19 +22,25 @@
           "img.mobile-app-header__logo",
           "img.crm-shared-nav__brand-logo",
           ".login-header img.logo-image",
-          'link[rel="icon"]',
-          'link[rel="apple-touch-icon"]',
         ].join(", "),
       )
       .forEach(function (el) {
-        if (el.tagName === "LINK") {
-          el.setAttribute("href", DEFAULT_LOGO);
-        } else {
-          el.setAttribute("src", DEFAULT_LOGO);
-          el.setAttribute("alt", DEFAULT_NAME);
-          el.style.display = "";
-        }
+        el.setAttribute("src", DEFAULT_LOGO);
+        el.setAttribute("alt", DEFAULT_NAME);
+        el.style.display = "";
       });
+
+    document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function (el) {
+      el.setAttribute("href", SYSTEM_TOUCH_ICON);
+    });
+    document.querySelectorAll('link[rel="icon"]').forEach(function (el) {
+      var type = (el.getAttribute("type") || "").toLowerCase();
+      if (type.indexOf("png") >= 0) {
+        el.setAttribute("href", SYSTEM_APP_ICON);
+      } else {
+        el.setAttribute("href", SYSTEM_FAVICON_ICO);
+      }
+    });
   }
 
   /** Tenant-configurable logo — sidebar only. */
