@@ -74,8 +74,19 @@ export function createApp() {
     res.sendFile(path.join(CRM_ASSETS_DIR, "favicon.ico"));
   });
   app.get("/obramateLogoSmallTransp.png", (_req, res) => {
+    const candidates = [
+      path.join(CRM_ASSETS_DIR, "obramateLogoSmallTransp.png"),
+      path.resolve(process.cwd(), "public/obramateLogoSmallTransp.png"),
+      path.join(__dirname, "../public/obramateLogoSmallTransp.png"),
+      path.join(__dirname, "../../public/obramateLogoSmallTransp.png"),
+    ];
+    const file = candidates.find((p) => fs.existsSync(p));
+    if (!file) {
+      res.status(404).end();
+      return;
+    }
     res.type("image/png");
-    res.sendFile(path.join(__dirname, "../public/obramateLogoSmallTransp.png"));
+    res.sendFile(file);
   });
   app.get("/manifest.webmanifest", (_req, res) => {
     res.type("application/manifest+json");
