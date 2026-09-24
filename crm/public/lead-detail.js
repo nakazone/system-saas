@@ -4,6 +4,8 @@
 
 let currentLeadId = null;
 let currentLead = null;
+let leadWorkItems = [];
+let leadWorkFilter = 'all';
 
 // Check authentication and get lead ID from URL
 window.addEventListener('DOMContentLoaded', () => {
@@ -25,7 +27,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 window.location.href = '/login.html';
                 return;
             }
-            const un = document.getElementById('userName');
+            const un = document.getElementById('userName') || document.getElementById('sidebarUserName');
             if (un) un.textContent = data.user.name || data.user.email;
             loadLead();
         })
@@ -35,13 +37,16 @@ window.addEventListener('DOMContentLoaded', () => {
         });
 
     // Logout
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-        window.location.href = '/login.html';
-    });
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            window.location.href = '/login.html';
+        });
+    }
 
-    // Tab switching
-    document.querySelectorAll('.tab').forEach(tab => {
+    // Tab switching (new lead-tab + legacy .tab)
+    document.querySelectorAll('.lead-tab, .tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const tabName = tab.dataset.tab;
             switchTab(tabName);
@@ -52,6 +57,7 @@ window.addEventListener('DOMContentLoaded', () => {
     attachQualificationScoreListeners();
 
     wireVisitScheduleHalfHourInputs_();
+    wireLeadDetailChrome_();
 
     // Menu lateral fixo: toggle mobile
     const sidebar = document.getElementById('dashboardSidebar');
@@ -72,6 +78,174 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function wireLeadDetailChrome_() {
+    const editBtn = document.getElementById('btnEditLead');
+    const editPanel = document.getElementById('leadEditPanel');
+    const cancelEdit = document.getElementById('btnCancelLeadEdit');
+    const openEdit = () => {
+        if (!editPanel) return;
+        editPanel.classList.add('is-open');
+        if (editBtn) editBtn.classList.add('is-active');
+        editPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    const closeEdit = () => {
+        if (!editPanel) return;
+        editPanel.classList.remove('is-open');
+        if (editBtn) editBtn.classList.remove('is-active');
+    };
+    if (editBtn) editBtn.addEventListener('click', () => {
+        if (editPanel && editPanel.classList.contains('is-open')) closeEdit();
+        else openEdit();
+    });
+    if (cancelEdit) cancelEdit.addEventListener('click', closeEdit);
+    const addProp = document.getElementById('btnAddProperty');
+    if (addProp) addProp.addEventListener('click', openEdit);
+
+    const createBtn = document.getElementById('btnLeadCreate');
+    const createMenu = document.getElementById('leadCreateMenu');
+    if (createBtn && createMenu) {
+        createBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            createMenu.classList.toggle('is-open');
+        });
+        createMenu.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-create]');
+            if (!btn) return;
+            createMenu.classList.remove('is-open');
+            const kind = btn.getAttribute('data-create');
+            if (kind === 'visit') showNewVisitModal();
+            else if (kind === 'interaction') { switchTab('communication'); showNewInteractionModal(); }
+            else if (kind === 'followup') { switchTab('communication'); showNewFollowupModal(); }
+            else if (kind === 'proposal') showNewProposalModal();
+        });
+        document.addEventListener('click', () => createMenu.classList.remove('is-open'));
+    }
+    const workCreate = document.getElementById('btnWorkCreate');
+    if (workCreate && createBtn) {
+        workCreate.addEventListener('click', () => createBtn.click());
+    }
+
+    document.querySelectorAll('[data-work-filter]').forEach((pill) => {
+        pill.addEventListener('click', () => {
+            leadWorkFilter = pill.getAttribute('data-work-filter') || 'all';
+            document.querySelectorAll('[data-work-filter]').forEach((p) => {
+                p.classList.toggle('is-active', p === pill);
+            });
+            renderWorkOverview();
+        });
+    });
+
+    const saveNotes = document.getElementById('btnSaveRailNotes');
+    if (saveNotes) {
+        saveNotes.addEventListener('click', () => {
+            void saveLeadNotesOnly_();
+        });
+    }
+}
+
+async function saveLeadNotesOnly_() {
+    const notesEl = document.getElementById('leadNotes');
+    if (!notesEl || !currentLeadId) return;
+    try {
+        const response = await fetch(`/api/leads/${currentLeadId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ notes: notesEl.value }),
+        });
+        const data = await response.json();
+        if (data.success) {
+            if (currentLead) currentLead.notes = notesEl.value;
+            if (typeof window.showCrmToast === 'function') {
+                window.showCrmToast('Notes saved', 'success');
+            }
+        } else {
+            alert('Erro ao salvar notas: ' + (data.error || 'Desconhecido'));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Erro ao salvar notas');
+    }
+}
+
+function formatMoney_(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return '$0.00';
+    return '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function priorityLabel_(p) {
+    if (p === 'high') return 'High';
+    if (p === 'low') return 'Low';
+    if (p === 'medium') return 'Medium';
+    return p || '—';
+}
+
+function renderLeadProperty_() {
+    const body = document.getElementById('leadPropertyBody');
+    if (!body || !currentLead) return;
+    const addr = String(currentLead.address || '').trim();
+    const zip = String(currentLead.zipcode || '').trim();
+    const line = [addr, zip].filter(Boolean).join(addr && zip && !addr.includes(zip) ? ', ' : '');
+    if (!line) {
+        body.innerHTML = '<p class="lead-property-empty">No property address yet.</p>';
+        return;
+    }
+    body.innerHTML =
+        '<div class="lead-property-row">' +
+        '<span class="lead-property-row__icon" aria-hidden="true">' +
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+        '</span>' +
+        '<div class="lead-property-row__text">' + escapeHtml(line) + '</div>' +
+        '<button type="button" class="lead-property-row__edit" id="btnEditPropertyInline" title="Edit address" aria-label="Edit address">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>' +
+        '</button></div>';
+    const editInline = document.getElementById('btnEditPropertyInline');
+    const editBtn = document.getElementById('btnEditLead');
+    if (editInline && editBtn) editInline.addEventListener('click', () => editBtn.click());
+}
+
+function upsertWorkItem_(item) {
+    const idx = leadWorkItems.findIndex((x) => x.key === item.key);
+    if (idx >= 0) leadWorkItems[idx] = item;
+    else leadWorkItems.push(item);
+}
+
+function renderWorkOverview() {
+    const body = document.getElementById('leadWorkOverviewBody');
+    if (!body) return;
+    const filtered = leadWorkItems.filter((it) => leadWorkFilter === 'all' || it.kind === leadWorkFilter);
+    filtered.sort((a, b) => (b.sort || 0) - (a.sort || 0));
+    if (!filtered.length) {
+        body.innerHTML = '<p class="lead-empty">No work items yet.</p>';
+        return;
+    }
+    body.innerHTML =
+        '<table class="lead-work-table"><thead><tr><th>Item</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead><tbody>' +
+        filtered
+            .map((it) => {
+                return (
+                    '<tr>' +
+                    '<td><span class="lead-work-item"><span class="lead-work-item__icon">' +
+                    escapeHtml(it.icon || '•') +
+                    '</span>' +
+                    escapeHtml(it.title) +
+                    '</span></td>' +
+                    '<td>' +
+                    escapeHtml(it.dateLabel || '—') +
+                    '</td>' +
+                    '<td><span class="lead-status-badge">' +
+                    escapeHtml(it.statusLabel || '—') +
+                    '</span></td>' +
+                    '<td>' +
+                    escapeHtml(it.amountLabel || '—') +
+                    '</td></tr>'
+                );
+            })
+            .join('') +
+        '</tbody></table>';
+}
+
 async function loadLead() {
     try {
         const response = await fetch(`/api/leads/${currentLeadId}`, { credentials: 'include' });
@@ -79,6 +253,7 @@ async function loadLead() {
         
         if (data.success) {
             currentLead = data.data;
+            leadWorkItems = [];
             if (typeof window.sfPrefetchLeadVisitIcs === 'function' && currentLead.id) {
                 void window.sfPrefetchLeadVisitIcs(currentLead.id);
             }
@@ -165,11 +340,67 @@ function renderLead() {
     if (!currentLead) return;
 
     document.getElementById('leadName').textContent = currentLead.name || 'Sem nome';
-    document.getElementById('leadEmail').textContent = currentLead.email || '-';
-    document.getElementById('leadPhone').textContent = currentLead.phone || '-';
+    document.title = (currentLead.name || 'Lead') + ' | ObraMate';
+
+    const phoneEl = document.getElementById('leadPhone');
+    const phoneLink = document.getElementById('leadPhoneLink');
+    const emailEl = document.getElementById('leadEmail');
+    const emailLink = document.getElementById('leadEmailLink');
+    const phone = currentLead.phone || '';
+    const email = currentLead.email || '';
+
+    if (phone && phoneLink) {
+        const tel = typeof window.sfBuildTelHref === 'function' ? window.sfBuildTelHref(phone) : 'tel:' + phone.replace(/\D/g, '');
+        phoneLink.textContent = phone;
+        phoneLink.href = tel || '#';
+        phoneLink.hidden = !tel;
+        if (phoneEl) phoneEl.hidden = true;
+    } else {
+        if (phoneLink) phoneLink.hidden = true;
+        if (phoneEl) {
+            phoneEl.hidden = false;
+            phoneEl.textContent = '—';
+        }
+    }
+
+    if (email && emailLink) {
+        emailLink.textContent = email;
+        emailLink.href = 'mailto:' + email;
+        emailLink.hidden = false;
+        if (emailEl) emailEl.hidden = true;
+    } else {
+        if (emailLink) emailLink.hidden = true;
+        if (emailEl) {
+            emailEl.hidden = false;
+            emailEl.textContent = '—';
+        }
+    }
+
+    const emailBtn = document.getElementById('btnLeadEmail');
+    if (emailBtn) {
+        if (email) {
+            emailBtn.hidden = false;
+            emailBtn.href = 'mailto:' + email;
+        } else {
+            emailBtn.hidden = true;
+        }
+    }
+
     renderLeadContactActions(currentLead);
     var nextStepsEl = document.getElementById('leadNextSteps');
     if (nextStepsEl) nextStepsEl.textContent = currentLead.next_steps || currentLead.next_steps_notes || '-';
+
+    const srcEl = document.getElementById('leadSourceDisplay');
+    if (srcEl) srcEl.textContent = currentLead.source || '—';
+    const priEl = document.getElementById('leadPriorityDisplay');
+    if (priEl) priEl.textContent = priorityLabel_(currentLead.priority);
+
+    const railVal = document.getElementById('leadRailValue');
+    if (railVal) railVal.textContent = formatMoney_(currentLead.estimated_value);
+    const railBal = document.getElementById('leadRailBalance');
+    if (railBal) railBal.textContent = '$0.00';
+
+    renderLeadProperty_();
 
     // Form fields
     var fn = document.getElementById('leadFullName');
@@ -182,9 +413,12 @@ function renderLead() {
     if (fa) fa.value = currentLead.address != null ? currentLead.address : '';
     var z = document.getElementById('leadSummaryZip');
     if (z) z.value = currentLead.zipcode || '';
-    document.getElementById('leadNotes').value = currentLead.notes || '';
-    document.getElementById('leadPriority').value = currentLead.priority || 'medium';
-    document.getElementById('leadEstimatedValue').value = currentLead.estimated_value || '';
+    const notesEl = document.getElementById('leadNotes');
+    if (notesEl) notesEl.value = currentLead.notes || '';
+    const priSelect = document.getElementById('leadPriority');
+    if (priSelect) priSelect.value = currentLead.priority || 'medium';
+    const estEl = document.getElementById('leadEstimatedValue');
+    if (estEl) estEl.value = currentLead.estimated_value || '';
     // Status select is filled by loadPipelineStages and synced here
     const statusSelect = document.getElementById('leadStatusSelect');
     if (statusSelect && statusSelect.options.length) {
@@ -247,6 +481,7 @@ async function loadPipelineStages() {
 
     try {
         const select = document.getElementById('leadStatusSelect');
+        if (!select) return;
         select.innerHTML = '<option value="">Selecione...</option>';
         stages.forEach(stage => {
             const option = document.createElement('option');
@@ -261,18 +496,21 @@ async function loadPipelineStages() {
             select.appendChild(option);
         });
         // Save status when user changes dropdown (header)
-        select.addEventListener('change', function onStatusChange() {
-            const newStatus = select.value;
-            if (!newStatus || !currentLeadId) return;
-            fetch(`/api/leads/${currentLeadId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ status: newStatus })
-            }).then(r => r.json()).then(data => {
-                if (data.success) currentLead.status = newStatus;
-            }).catch(() => {});
-        });
+        if (!select.dataset.boundChange) {
+            select.dataset.boundChange = '1';
+            select.addEventListener('change', function onStatusChange() {
+                const newStatus = select.value;
+                if (!newStatus || !currentLeadId) return;
+                fetch(`/api/leads/${currentLeadId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ status: newStatus })
+                }).then(r => r.json()).then(data => {
+                    if (data.success) currentLead.status = newStatus;
+                }).catch(() => {});
+            });
+        }
     } catch (error) {
         console.error('Error loading pipeline stages:', error);
     }
@@ -325,6 +563,10 @@ async function saveLead() {
 
         const data = await response.json();
         if (data.success) {
+            const editPanel = document.getElementById('leadEditPanel');
+            const editBtn = document.getElementById('btnEditLead');
+            if (editPanel) editPanel.classList.remove('is-open');
+            if (editBtn) editBtn.classList.remove('is-active');
             loadLead();
         } else {
             alert('Erro ao atualizar: ' + (data.error || 'Desconhecido'));
@@ -425,6 +667,7 @@ function renderQualificationSummary(qual) {
     const el = document.getElementById('qualificationSummaryContent');
     const block = document.getElementById('qualificationSummaryBlock');
     const form = document.getElementById('qualificationForm');
+    const emptyHint = document.getElementById('qualificationEmptyHint');
     if (!el || !block || !form) return;
     var html = '';
     html += '<div class="qualification-summary-item"><span class="label">Tipo de Propriedade</span><div class="value">' + getQualificationLabel('property_type', qual.property_type) + '</div></div>';
@@ -445,6 +688,7 @@ function renderQualificationSummary(qual) {
     el.innerHTML = html;
     block.style.display = 'block';
     form.style.display = 'none';
+    if (emptyHint) emptyHint.style.display = 'none';
 }
 
 function escapeHtml(text) {
@@ -456,7 +700,9 @@ function escapeHtml(text) {
 function showQualificationEditForm() {
     var block = document.getElementById('qualificationSummaryBlock');
     var form = document.getElementById('qualificationForm');
+    var emptyHint = document.getElementById('qualificationEmptyHint');
     if (block) block.style.display = 'none';
+    if (emptyHint) emptyHint.style.display = 'none';
     if (form) form.style.display = 'block';
 }
 
@@ -487,16 +733,20 @@ async function loadQualification() {
             updateQualificationScoreDisplay();
             var block = document.getElementById('qualificationSummaryBlock');
             var form = document.getElementById('qualificationForm');
+            var emptyHint = document.getElementById('qualificationEmptyHint');
             if (block) block.style.display = 'none';
-            if (form) form.style.display = 'block';
+            if (form) form.style.display = 'none';
+            if (emptyHint) emptyHint.style.display = 'block';
         }
     } catch (error) {
         console.log('Qualification not found or error:', error);
         updateQualificationScoreDisplay();
         var block = document.getElementById('qualificationSummaryBlock');
         var form = document.getElementById('qualificationForm');
+        var emptyHint = document.getElementById('qualificationEmptyHint');
         if (block) block.style.display = 'none';
-        if (form) form.style.display = 'block';
+        if (form) form.style.display = 'none';
+        if (emptyHint) emptyHint.style.display = 'block';
     }
 }
 
@@ -613,11 +863,22 @@ async function loadFollowups() {
         const data = await response.json();
         const list = document.getElementById('followupsList');
         if (!list) return;
+        leadWorkItems = leadWorkItems.filter((x) => x.kind !== 'followup');
         if (data.success && data.data && data.data.length > 0) {
             list.innerHTML = data.data.map(f => {
                 const due = f.due_date ? new Date(f.due_date).toLocaleString('pt-BR') : '-';
                 const status = f.status === 'completed' ? 'Concluído' : f.status === 'cancelled' ? 'Cancelado' : 'Pendente';
                 const priority = f.priority === 'high' ? 'Alta' : f.priority === 'low' ? 'Baixa' : 'Média';
+                upsertWorkItem_({
+                    key: 'followup-' + f.id,
+                    kind: 'followup',
+                    icon: '📌',
+                    title: f.title || 'Follow-up',
+                    dateLabel: f.due_date ? 'Due ' + new Date(f.due_date).toLocaleDateString() : '—',
+                    statusLabel: status,
+                    amountLabel: '—',
+                    sort: f.due_date ? new Date(f.due_date).getTime() : 0,
+                });
                 return `<li class="followup-item">
                     <div class="followup-item-header">
                         <strong>${escapeHtml(f.title)}</strong>
@@ -630,6 +891,7 @@ async function loadFollowups() {
         } else {
             list.innerHTML = '<li class="empty-state">Nenhum follow-up agendado.</li>';
         }
+        renderWorkOverview();
     } catch (error) {
         console.error('Error loading followups:', error);
         var list = document.getElementById('followupsList');
@@ -767,32 +1029,55 @@ async function loadVisits() {
             return;
         }
         const items = data.data || [];
+        leadWorkItems = leadWorkItems.filter((x) => x.kind !== 'visit');
         if (items.length > 0) {
-            container.innerHTML = items.map(visit => {
+            const rows = items.map((visit) => {
                 const dateStr = visit.scheduled_at ? new Date(visit.scheduled_at).toLocaleString() : '-';
-                const address = visit.address ? escapeHtml(visit.address) : '-';
                 const status = getVisitStatusLabel(visit.status);
-                const assigned = visit.assigned_to_name ? escapeHtml(visit.assigned_to_name) : '';
-                const notes = visit.notes ? escapeHtml(String(visit.notes)) : '';
-                const leadName = visit.lead_name ? escapeHtml(visit.lead_name) : (currentLead && currentLead.name ? escapeHtml(currentLead.name) : '');
+                const assigned = visit.assigned_to_name ? escapeHtml(visit.assigned_to_name) : '—';
+                const initials = assigned !== '—'
+                    ? assigned.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+                    : '—';
                 const visitId = visit.id != null ? Number(visit.id) : null;
-                return `<div class="visit-card">
-                    <div class="visit-card-header">
-                        <span class="visit-card-date"><span class="visit-card-date-icon">D</span> ${dateStr}</span>
-                        <span class="visit-card-status visit-status-${(visit.status || 'scheduled')}">${status}</span>
-                    </div>
-                    ${leadName ? `<p class="visit-card-client"><strong>Cliente:</strong> ${leadName}</p>` : ''}
-                    <p class="visit-card-address"><strong>Endereço:</strong> ${address}</p>
-                    ${assigned ? `<p class="visit-card-assigned"><strong>Responsável:</strong> ${assigned}</p>` : ''}
-                    ${notes ? `<p class="visit-card-notes">${notes}</p>` : ''}
-                    <div class="visit-card-actions">
-                        ${visitId ? `<button type="button" class="btn btn-secondary btn-sm" onclick="showEditVisitModal(${visitId})">Editar visita</button>` : ''}
-                    </div>
-                </div>`;
-            }).join('');
+                const title = 'Visit' + (visitId ? ' #' + visitId : '');
+                upsertWorkItem_({
+                    key: 'visit-' + visit.id,
+                    kind: 'visit',
+                    icon: '🏠',
+                    title: title,
+                    dateLabel: visit.scheduled_at
+                        ? 'Scheduled for ' + new Date(visit.scheduled_at).toLocaleDateString()
+                        : '—',
+                    statusLabel: status,
+                    amountLabel: '—',
+                    sort: visit.scheduled_at ? new Date(visit.scheduled_at).getTime() : 0,
+                });
+                return (
+                    '<tr>' +
+                    '<td>' + escapeHtml(dateStr) + '</td>' +
+                    '<td>' + escapeHtml(title) + '</td>' +
+                    '<td><span class="lead-assignee"><span class="lead-assignee__av">' +
+                    escapeHtml(initials) +
+                    '</span>' +
+                    assigned +
+                    '</span></td>' +
+                    '<td>' +
+                    (visitId
+                        ? '<button type="button" class="btn btn-secondary btn-sm" onclick="showEditVisitModal(' +
+                          visitId +
+                          ')">Edit</button>'
+                        : '') +
+                    '</td></tr>'
+                );
+            });
+            container.innerHTML =
+                '<table class="lead-schedule-table"><thead><tr><th>Schedule</th><th>Title</th><th>Assigned</th><th></th></tr></thead><tbody>' +
+                rows.join('') +
+                '</tbody></table>';
         } else {
             container.innerHTML = '<div class="empty-state">Nenhuma visita agendada ainda.</div>';
         }
+        renderWorkOverview();
     } catch (error) {
         console.error('Error loading visits:', error);
         container.innerHTML = '<div class="empty-state">Erro ao carregar visitas. ' + escapeHtml(error.message || '') + '</div>';
@@ -805,8 +1090,10 @@ async function loadProposals() {
         const data = await response.json();
         
         const container = document.getElementById('proposalsList');
+        leadWorkItems = leadWorkItems.filter((x) => x.kind !== 'quote');
         if (data.success && data.data && data.data.length > 0) {
-            container.innerHTML = data.data.map(proposal => `
+            if (container) {
+                container.innerHTML = data.data.map(proposal => `
                 <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px;">
                     <h3>${proposal.proposal_number || `Proposta #${proposal.id}`}</h3>
                     <p><strong>Valor:</strong> $${parseFloat(proposal.total_value || 0).toLocaleString()}</p>
@@ -814,20 +1101,58 @@ async function loadProposals() {
                     <p><strong>Criada em:</strong> ${new Date(proposal.created_at).toLocaleDateString()}</p>
                 </div>
             `).join('');
-        } else {
+            }
+            data.data.forEach((proposal) => {
+                upsertWorkItem_({
+                    key: 'quote-' + proposal.id,
+                    kind: 'quote',
+                    icon: '💰',
+                    title: proposal.proposal_number || ('Quote #' + proposal.id),
+                    dateLabel: proposal.created_at
+                        ? new Date(proposal.created_at).toLocaleDateString()
+                        : '—',
+                    statusLabel: proposal.status || 'draft',
+                    amountLabel: formatMoney_(proposal.total_value),
+                    sort: proposal.created_at ? new Date(proposal.created_at).getTime() : 0,
+                });
+            });
+        } else if (container) {
             container.innerHTML = '<div class="empty-state">Nenhuma proposta criada ainda.</div>';
         }
+        renderWorkOverview();
     } catch (error) {
         console.error('Error loading proposals:', error);
     }
 }
 
+function normalizeLeadTab_(tabName) {
+    const map = {
+        summary: 'info',
+        qualification: 'info',
+        visits: 'info',
+        proposals: 'info',
+        contract: 'info',
+        production: 'info',
+        measurements: 'files',
+        interactions: 'communication',
+        followups: 'communication',
+        info: 'info',
+        communication: 'communication',
+        files: 'files',
+    };
+    return map[tabName] || tabName || 'info';
+}
+
 function switchTab(tabName) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-    document.getElementById(`${tabName}Tab`).classList.add('active');
+    const resolved = normalizeLeadTab_(tabName);
+    document.querySelectorAll('.lead-tab, .tab').forEach((t) => {
+        const on = t.dataset.tab === resolved;
+        t.classList.toggle('active', on);
+        if (t.hasAttribute('aria-selected')) t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.lead-tab-panel, .tab-content').forEach((t) => t.classList.remove('active'));
+    const panel = document.getElementById(resolved + 'Tab');
+    if (panel) panel.classList.add('active');
 }
 
 function showNewInteractionModal() {
@@ -1103,7 +1428,7 @@ async function createVisit(payload, submitBtn) {
         if (data.success) {
             closeVisitModal();
             await loadLead();
-            switchTab('visits');
+            switchTab('info');
         } else {
             alert('Erro ao agendar visita: ' + (data.error || 'Desconhecido'));
         }
@@ -1130,7 +1455,7 @@ async function createInteraction(interaction) {
         const data = await response.json();
         if (data.success) {
             await loadInteractions();
-            switchTab('interactions');
+            switchTab('communication');
         } else {
             alert('Erro: ' + (data.error || 'Desconhecido'));
         }

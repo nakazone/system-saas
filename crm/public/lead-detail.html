@@ -1,734 +1,611 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lead Details - Senior Floors CRM</title>
-    <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2">
-  <link rel="stylesheet" href="crm-shell.css?v=20260924-shell" />
-    <style>
-        .lead-detail-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .lead-header {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .lead-header h1,
-        .lead-title {
-            margin: 0 0 10px 0;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .lead-title-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            background: var(--primary-color);
-            color: var(--bg-white);
-            border: 2px solid var(--secondary-color);
-            font-size: 1.35rem;
-        }
-        .lead-meta {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            margin-top: 15px;
-        }
-        .lead-meta-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .lead-contact-actions {
-            display: inline-flex;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-        .lead-contact-actions__btn {
-            text-decoration: none;
-            white-space: nowrap;
-        }
-        .lead-meta-item strong {
-            color: #666;
-        }
-        .lead-contact-edit-card {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 24px;
-        }
-        .lead-contact-edit-card h3 {
-            margin: 0 0 8px 0;
-            font-size: 1.1rem;
-            color: #1e293b;
-        }
-        .lead-contact-edit-hint {
-            font-size: 0.875rem;
-            color: #64748b;
-            margin: 0 0 16px 0;
-            line-height: 1.45;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .tabs {
-            display: flex;
-            gap: 10px;
-            border-bottom: 2px solid #e0e0e0;
-            margin-bottom: 20px;
-            overflow-x: auto;
-        }
-        .tab {
-            padding: 12px 20px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            color: #666;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            transition: all 0.2s;
-        }
-        .tab:hover {
-            color: #3498db;
-        }
-        .tab.active {
-            color: #3498db;
-            border-bottom-color: #3498db;
-            font-weight: 600;
-        }
-        .tab-content {
-            display: none;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #333;
-        }
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        .form-group textarea {
-            min-height: 100px;
-            resize: vertical;
-        }
-        .form-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }
-        .form-row .form-group.full-width {
-            grid-column: 1 / -1;
-        }
-        .form-row-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        @media (max-width: 480px) {
-            .form-row-2 { grid-template-columns: 1fr; }
-        }
-        .qualification-section-title {
-            font-size: 1rem;
-            margin: 24px 0 12px;
-            color: #333;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-        }
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .timeline {
-            list-style: none;
-            padding: 0;
-        }
-        .timeline-item {
-            padding: 15px;
-            border-left: 3px solid #3498db;
-            margin-bottom: 15px;
-            background: #f9f9f9;
-            border-radius: 4px;
-        }
-        .timeline-item-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-        }
-        .timeline-item-title {
-            font-weight: 600;
-            color: #333;
-        }
-        .timeline-item-date {
-            color: #666;
-            font-size: 12px;
-        }
-        .timeline-item-content {
-            color: #666;
-            margin-top: 5px;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Lead | ObraMate</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="stylesheet" href="styles.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260924-maps4" />
+  <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-pwa" />
+  <link rel="stylesheet" href="lead-detail.css?v=20260924-leadui" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
-<body>
-    <div class="dashboard-container">
-        <button class="mobile-menu-toggle" id="mobileMenuToggle">☰</button>
-        <div class="mobile-overlay" id="mobileOverlay"></div>
-        <aside class="dashboard-sidebar" id="dashboardSidebar">
-            <div class="sidebar-header">
-                <img src="assets/SeniorFloors.png" alt="Senior Floors" class="logo-image" onerror="this.style.display='none'">
-                <h1><span class="mobile-hidden">Senior Floors CRM</span><span class="mobile-only">CRM</span></h1>
-            </div>
-            <nav class="sidebar-nav">
-                <a href="dashboard.html" class="nav-item"><span>📊</span> Dashboard</a>
-                <a href="dashboard.html?page=leads" class="nav-item"><span>📋</span> Leads</a>
-                <a href="dashboard.html?page=customers" class="nav-item"><span>👥</span> Customers</a>
-                <a href="dashboard.html?page=quotes" class="nav-item"><span>💰</span> Quotes</a>
-                <a href="dashboard.html?page=projects" class="nav-item"><span>🏗️</span> Projects</a>
-                <a href="dashboard.html?page=schedule" class="nav-item"><span>📅</span> Schedule</a>
-                <a href="dashboard.html?page=financeiro" class="nav-item"><span>💵</span> Financeiro</a>
-                <a href="dashboard.html?page=activities" class="nav-item"><span>📝</span> Activities</a>
-            </nav>
-            <div class="sidebar-footer">
-                <button id="logoutBtn" class="btn">Logout</button>
-            </div>
-        </aside>
-
-        <main class="dashboard-main">
-            <div class="lead-detail-container">
-                <div class="lead-header">
-                    <h1 class="lead-title">
-                        <span class="lead-title-icon" aria-hidden="true">👤</span>
-                        <span id="leadName">Loading...</span>
-                    </h1>
-                    <div class="lead-meta">
-                        <div class="lead-meta-item">
-                            <strong>Status:</strong>
-                            <select id="leadStatusSelect" class="lead-status-select"></select>
-                        </div>
-                        <div class="lead-meta-item">
-                            <strong>Email:</strong>
-                            <span id="leadEmail">-</span>
-                            <span id="leadEmailActions" class="lead-contact-actions"></span>
-                        </div>
-                        <div class="lead-meta-item">
-                            <strong>Phone:</strong>
-                            <span id="leadPhone">-</span>
-                            <span id="leadPhoneActions" class="lead-contact-actions"></span>
-                        </div>
-                        <div class="lead-meta-item">
-                            <strong>Next Steps:</strong>
-                            <span id="leadNextSteps">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tabs">
-                    <button class="tab active" data-tab="summary">📋 Resumo</button>
-                    <button class="tab" data-tab="qualification">✅ Qualificação</button>
-                    <button class="tab" data-tab="followups">📌 Follow-ups</button>
-                    <button class="tab" data-tab="interactions">💬 Interações</button>
-                    <button class="tab" data-tab="visits">🏠 Visitas</button>
-                    <button class="tab" data-tab="measurements">📏 Medições</button>
-                    <button class="tab" data-tab="proposals">💰 Propostas</button>
-                    <button class="tab" data-tab="contract">📄 Contrato</button>
-                    <button class="tab" data-tab="production">🏗️ Produção</button>
-                </div>
-
-                <!-- Tab: Summary -->
-                <div id="summaryTab" class="tab-content active">
-                    <h2>Resumo do Lead</h2>
-                    <div class="lead-contact-edit-card">
-                        <h3>Dados de contato e endereço</h3>
-                        <p class="lead-contact-edit-hint">Use estes campos para corrigir nome, telefone, email ou endereço quando o lead veio errado da planilha ou do formulário.</p>
-                        <div class="form-group">
-                            <label>Full name</label>
-                            <input type="text" id="leadFullName" maxlength="255" autocomplete="name" placeholder="Nome completo">
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Phone</label>
-                                <input type="text" id="leadSummaryPhone" maxlength="50" autocomplete="tel" placeholder="(303) 555-0100">
-                            </div>
-                            <div class="form-group">
-                                <label>Email</label>
-                                <input type="email" id="leadSummaryEmail" maxlength="255" autocomplete="email" placeholder="email@exemplo.com">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Full address</label>
-                            <input type="text" id="leadFullAddress" maxlength="500" placeholder="Rua, numero, cidade, estado…" autocomplete="off">
-                        </div>
-                        <div class="form-group">
-                            <label>ZIP code <span class="optional">(5 dígitos US)</span></label>
-                            <input type="text" id="leadSummaryZip" maxlength="10" inputmode="numeric" placeholder="80202">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Notas</label>
-                        <textarea id="leadNotes" placeholder="Adicione notas sobre este lead..."></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Prioridade</label>
-                            <select id="leadPriority">
-                                <option value="low">Baixa</option>
-                                <option value="medium">Média</option>
-                                <option value="high">Alta</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Valor Estimado</label>
-                            <input type="number" id="leadEstimatedValue" step="0.01" placeholder="0.00">
-                        </div>
-                    </div>
-                    <div class="btn-group">
-                        <button class="btn btn-primary" onclick="saveLead()">Salvar Alterações</button>
-                    </div>
-                </div>
-
-                <!-- Tab: Qualification -->
-                <div id="qualificationTab" class="tab-content">
-                    <h2>Qualificação</h2>
-                    <!-- Bloco com informações salvas (visível quando há qualificação) -->
-                    <div id="qualificationSummaryBlock" class="qualification-summary-block" style="display: none;">
-                        <div class="qualification-summary-card">
-                            <div class="qualification-summary-header">
-                                <span>Informações da qualificação</span>
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="showQualificationEditForm()">✏️ Editar informações</button>
-                            </div>
-                            <div id="qualificationSummaryContent" class="qualification-summary-content"></div>
-                        </div>
-                    </div>
-                    <!-- Formulário (visível para preencher ou editar) -->
-                    <form id="qualificationForm">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Tipo de Propriedade <span class="required">*</span></label>
-                                <select id="qualPropertyType" required>
-                                    <option value="">Selecione...</option>
-                                    <option value="house">Casa</option>
-                                    <option value="apartment">Apartamento</option>
-                                    <option value="commercial">Comercial</option>
-                                    <option value="other">Outro</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Tipo de Serviço <span class="required">*</span></label>
-                                <select id="qualServiceType" required>
-                                    <option value="">Selecione...</option>
-                                    <option value="installation">Instalação</option>
-                                    <option value="repair">Reparo</option>
-                                    <option value="renovation">Renovação</option>
-                                    <option value="other">Outro</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Área Estimada (sqft) <span class="required">*</span></label>
-                                <input type="number" id="qualEstimatedArea" step="0.01" min="0" required placeholder="ex: 500">
-                            </div>
-                            <div class="form-group">
-                                <label>Orçamento Estimado <span class="required">*</span></label>
-                                <div class="input-currency">
-                                    <span class="input-currency-symbol">$</span>
-                                    <input type="number" id="qualEstimatedBudget" step="0.01" min="0" required placeholder="15000">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Urgência <span class="required">*</span></label>
-                                <select id="qualUrgency" required>
-                                    <option value="low">Baixa</option>
-                                    <option value="medium" selected>Média</option>
-                                    <option value="high">Alta</option>
-                                    <option value="urgent">Urgente</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Tomador de Decisão</label>
-                                <input type="text" id="qualDecisionMaker" placeholder="Opcional">
-                            </div>
-                            <div class="form-group">
-                                <label>Prazo de Decisão</label>
-                                <input type="text" id="qualDecisionTimeline" placeholder="ex: 1 semana, 1 mês">
-                            </div>
-                            <div class="form-group">
-                                <label>Tipo de Pagamento</label>
-                                <select id="qualPaymentType">
-                                    <option value="">Selecione...</option>
-                                    <option value="cash">Dinheiro</option>
-                                    <option value="financing">Financiamento</option>
-                                    <option value="insurance">Seguro</option>
-                                </select>
-                            </div>
-                        </div>
-                        <h3 class="qualification-section-title">Endereço completo do lead (serviço)</h3>
-                        <div class="form-row">
-                            <div class="form-group full-width">
-                                <label>Rua e número</label>
-                                <input type="text" id="qualAddressStreet" placeholder="ex: 123 Oak Street" maxlength="255" autocomplete="street-address">
-                            </div>
-                            <div class="form-group full-width">
-                                <label>Complemento</label>
-                                <input type="text" id="qualAddressLine2" placeholder="Apto, suite, unidade…" maxlength="255">
-                            </div>
-                            <div class="form-group">
-                                <label>Cidade</label>
-                                <input type="text" id="qualAddressCity" maxlength="120" autocomplete="address-level2">
-                            </div>
-                            <div class="form-group">
-                                <label>Estado</label>
-                                <input type="text" id="qualAddressState" placeholder="ex: FL" maxlength="50" autocomplete="address-level1">
-                            </div>
-                            <div class="form-group">
-                                <label>CEP / ZIP</label>
-                                <input type="text" id="qualAddressZip" placeholder="ex: 33101" maxlength="20" autocomplete="postal-code">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Score de Qualificação (automático)</label>
-                            <input type="number" id="qualScore" min="0" max="100" readonly class="score-auto">
-                        </div>
-                        <div class="form-group">
-                            <label>Notas de Qualificação</label>
-                            <textarea id="qualNotes" rows="4"></textarea>
-                        </div>
-                        <div class="btn-group">
-                            <button type="button" class="btn btn-primary" onclick="saveQualification()">Salvar Qualificação</button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Tab: Follow-ups -->
-                <div id="followupsTab" class="tab-content">
-                    <h2>Follow-ups</h2>
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-primary" onclick="showNewFollowupModal()">+ Novo Follow-up</button>
-                    </div>
-                    <ul id="followupsList" class="followups-list"></ul>
-                </div>
-
-                <!-- Tab: Interactions -->
-                <div id="interactionsTab" class="tab-content">
-                    <h2>Interações</h2>
-                    <div class="btn-group">
-                        <button class="btn btn-primary" onclick="showNewInteractionModal()">+ Nova Interação</button>
-                    </div>
-                    <ul id="interactionsList" class="timeline"></ul>
-                </div>
-
-                <!-- Tab: Visits -->
-                <div id="visitsTab" class="tab-content">
-                    <h2>Visitas</h2>
-                    <div class="btn-group">
-                        <button class="btn btn-primary" onclick="showNewVisitModal()">+ Agendar Visita</button>
-                    </div>
-                    <div id="visitsList"></div>
-                </div>
-
-                <!-- Tab: Measurements -->
-                <div id="measurementsTab" class="tab-content">
-                    <h2>Medições</h2>
-                    <div id="measurementsContent">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📏</div>
-                            <p>Nenhuma medição registrada ainda.</p>
-                            <p>Complete uma visita primeiro para adicionar medições.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tab: Proposals -->
-                <div id="proposalsTab" class="tab-content">
-                    <h2>Propostas</h2>
-                    <div class="btn-group">
-                        <button class="btn btn-primary" onclick="showNewProposalModal()">+ Nova Proposta</button>
-                    </div>
-                    <div id="proposalsList"></div>
-                </div>
-
-                <!-- Tab: Contract -->
-                <div id="contractTab" class="tab-content">
-                    <h2>Contrato</h2>
-                    <div id="contractContent">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📄</div>
-                            <p>Nenhum contrato associado ainda.</p>
-                            <p>Após aceitar uma proposta, o contrato será criado automaticamente.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tab: Production -->
-                <div id="productionTab" class="tab-content">
-                    <h2>Produção / Obra</h2>
-                    <div id="productionContent">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🏗️</div>
-                            <p>Nenhum projeto em produção ainda.</p>
-                            <p>Após assinar o contrato, o projeto será criado automaticamente.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
+<body class="dashboard-app-body">
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Lead</h1>
     </div>
+  </header>
 
-    <!-- Lightbox: Novo Follow-up -->
-    <div id="newFollowupModal" class="modal modal-lightbox" aria-hidden="true">
-        <div class="modal-backdrop" onclick="closeFollowupModal()"></div>
-        <div class="modal-content modal-content-lightbox">
-            <div class="modal-header modal-header-lightbox">
-                <h3>📌 Novo Follow-up</h3>
-                <button type="button" class="modal-close modal-close-lightbox" onclick="closeFollowupModal()" aria-label="Fechar">&times;</button>
-            </div>
-            <form id="newFollowupForm" onsubmit="return submitFollowupForm(event)">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Título *</label>
-                        <input type="text" id="followupTitle" name="title" required placeholder="ex: Ligar para cliente">
-                    </div>
-                    <div class="form-group">
-                        <label>Descrição</label>
-                        <textarea id="followupDescription" name="description" rows="3" placeholder="Opcional"></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Data/Hora *</label>
-                            <input type="datetime-local" id="followupDueDate" name="due_date" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Prioridade</label>
-                            <select id="followupPriority" name="priority">
-                                <option value="low">Baixa</option>
-                                <option value="medium" selected>Média</option>
-                                <option value="high">Alta</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Designar para</label>
-                        <select name="assigned_to" id="followupAssignedSelect">
-                            <option value="">Eu mesmo</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer-lightbox">
-                    <button type="button" class="btn btn-secondary" onclick="closeFollowupModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Criar Follow-up</button>
-                </div>
-            </form>
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/obramate-logo.png" alt="Empresa" class="sidebar-brand-logo" width="220" height="44" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
         </div>
-    </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
 
-    <!-- Lightbox: Nova Interação -->
-    <div id="newInteractionModal" class="modal modal-lightbox" aria-hidden="true">
-        <div class="modal-backdrop" onclick="closeInteractionModal()"></div>
-        <div class="modal-content modal-content-lightbox">
-            <div class="modal-header modal-header-lightbox">
-                <h3>💬 Nova Interação</h3>
-                <button type="button" class="modal-close modal-close-lightbox" onclick="closeInteractionModal()" aria-label="Fechar">&times;</button>
+    <main class="dashboard-main">
+      <div class="lead-detail-page crm-page" id="leadDetailRoot">
+        <a class="lead-back-link" href="dashboard.html?page=leads">← All leads</a>
+
+        <div class="lead-top">
+          <div class="lead-top__left">
+            <div class="lead-top__crumb">
+              <span class="lead-avatar" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </span>
+              <span class="lead-status-pill">
+                <span class="lead-status-pill__dot" aria-hidden="true"></span>
+                <select id="leadStatusSelect" class="lead-status-select" aria-label="Status do lead"></select>
+              </span>
             </div>
-            <form id="newInteractionForm" onsubmit="return submitInteractionForm(event)">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Tipo de interação</label>
-                        <select name="type" id="interactionType" required>
-                            <option value="">Selecione...</option>
-                            <option value="call">📞 Chamada</option>
-                            <option value="whatsapp">💬 WhatsApp</option>
-                            <option value="email">📧 Email</option>
-                            <option value="visit">🏠 Visita</option>
-                            <option value="meeting">🤝 Reunião</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Assunto <span class="optional">(opcional)</span></label>
-                        <input type="text" name="subject" id="interactionSubject" placeholder="ex: Retorno de ligação">
-                    </div>
-                    <div class="form-group">
-                        <label>Notas</label>
-                        <textarea name="notes" id="interactionNotes" rows="4" required placeholder="Descreva o que foi tratado..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer-lightbox">
-                    <button type="button" class="btn btn-secondary" onclick="closeInteractionModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Salvar interação</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Lightbox: Agendar Visita -->
-    <div id="newVisitModal" class="modal modal-lightbox" aria-hidden="true">
-        <div class="modal-backdrop" onclick="closeVisitModal()"></div>
-        <div class="modal-content modal-content-lightbox">
-            <div class="modal-header modal-header-lightbox">
-                <h3>Agendar Visita</h3>
-                <button type="button" class="modal-close modal-close-lightbox" onclick="closeVisitModal()" aria-label="Fechar">&times;</button>
+            <div class="lead-title-row">
+              <h1 id="leadName">Loading…</h1>
+              <button type="button" class="lead-edit-icon" id="btnEditLead" title="Edit lead" aria-label="Edit lead">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              </button>
             </div>
-            <form id="newVisitForm" onsubmit="return submitVisitForm(event)">
-                <div class="modal-body">
-                    <div class="form-group form-group-readonly">
-                        <label>Cliente</label>
-                        <p id="newVisitClientName" class="form-readonly-value">—</p>
-                    </div>
-                    <div class="form-group">
-                        <label>Data e hora * <span class="optional">(apenas :00 ou :30)</span></label>
-                        <input type="datetime-local" id="visitScheduledAt" name="scheduled_at" required step="1800">
-                    </div>
-                    <div class="form-group">
-                        <label>Address line 1 *</label>
-                        <input type="text" id="visitAddressLine1" name="address_line1" required placeholder="Rua, número">
-                    </div>
-                    <div class="form-group">
-                        <label>Address line 2 <span class="optional">(opcional)</span></label>
-                        <input type="text" id="visitAddressLine2" name="address_line2" placeholder="Complemento, bairro">
-                    </div>
-                    <div class="form-group form-row-2">
-                        <div class="form-group">
-                            <label>City *</label>
-                            <input type="text" id="visitCity" name="city" required placeholder="Cidade">
-                        </div>
-                        <div class="form-group">
-                            <label>Zip code</label>
-                            <input type="text" id="visitZipCode" name="zipcode" placeholder="CEP">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Notas <span class="optional">(opcional)</span></label>
-                        <textarea id="visitNotes" name="notes" rows="3" placeholder="Instruções, portaria, código de acesso, etc."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Destinar visita para</label>
-                        <select name="assigned_to" id="visitAssignedSelect">
-                            <option value="">Eu mesmo</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer-lightbox">
-                    <button type="button" class="btn btn-secondary" onclick="closeVisitModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Agendar visita</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Lightbox: Editar Visita -->
-    <div id="editVisitModal" class="modal modal-lightbox" aria-hidden="true">
-        <div class="modal-backdrop" onclick="closeEditVisitModal()"></div>
-        <div class="modal-content modal-content-lightbox">
-            <div class="modal-header modal-header-lightbox">
-                <h3>Editar Visita</h3>
-                <button type="button" class="modal-close modal-close-lightbox" onclick="closeEditVisitModal()" aria-label="Fechar">&times;</button>
+          </div>
+          <div class="lead-top__actions">
+            <a class="lead-icon-btn" id="btnLeadEmail" href="#" title="Email" aria-label="Email" hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 7l8 6 8-6"/></svg>
+            </a>
+            <div class="lead-create-wrap">
+              <button type="button" class="btn btn-primary" id="btnLeadCreate">+ Create</button>
+              <div class="lead-create-menu" id="leadCreateMenu" role="menu">
+                <button type="button" role="menuitem" data-create="visit">Schedule visit</button>
+                <button type="button" role="menuitem" data-create="interaction">Log interaction</button>
+                <button type="button" role="menuitem" data-create="followup">New follow-up</button>
+                <button type="button" role="menuitem" data-create="proposal">New quote</button>
+              </div>
             </div>
-            <form id="editVisitForm" onsubmit="return submitEditVisitForm(event)">
-                <input type="hidden" id="editVisitId" name="visit_id">
-                <div class="modal-body">
-                    <div class="form-group form-group-readonly">
-                        <label>Cliente</label>
-                        <p id="editVisitClientName" class="form-readonly-value">—</p>
-                    </div>
-                    <div class="form-group">
-                        <label>Data e hora * <span class="optional">(apenas :00 ou :30)</span></label>
-                        <input type="datetime-local" id="editVisitScheduledAt" name="scheduled_at" required step="1800">
-                    </div>
-                    <div class="form-group">
-                        <label>Address line 1 *</label>
-                        <input type="text" id="editVisitAddressLine1" name="address_line1" required placeholder="Rua, número">
-                    </div>
-                    <div class="form-group">
-                        <label>Address line 2 <span class="optional">(opcional)</span></label>
-                        <input type="text" id="editVisitAddressLine2" name="address_line2" placeholder="Complemento, bairro">
-                    </div>
-                    <div class="form-group form-row-2">
-                        <div class="form-group">
-                            <label>City *</label>
-                            <input type="text" id="editVisitCity" name="city" required placeholder="Cidade">
-                        </div>
-                        <div class="form-group">
-                            <label>Zip code</label>
-                            <input type="text" id="editVisitZipCode" name="zipcode" placeholder="CEP">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Notas <span class="optional">(opcional)</span></label>
-                        <textarea id="editVisitNotes" name="notes" rows="3" placeholder="Instruções, portaria, etc."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Destinar visita para</label>
-                        <select name="seller_id" id="editVisitAssignedSelect">
-                            <option value="">Eu mesmo</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select id="editVisitStatus" name="status">
-                            <option value="scheduled">Agendada</option>
-                            <option value="completed">Realizada</option>
-                            <option value="cancelled">Cancelada</option>
-                            <option value="no_show">Não compareceu</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer-lightbox">
-                    <button type="button" class="btn btn-secondary" onclick="closeEditVisitModal()">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Salvar alterações</button>
-                </div>
-            </form>
+          </div>
         </div>
-    </div>
 
-    <script src="pipeline-stage-labels.js?v=20260915-stand-by"></script>
-    <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
-    <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
-    <script src="lead-visit-calendar-format.js?v=20260528-cal-address"></script>
-    <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
-    <script src="lead-detail.js?v=20260924-leads-uuid"></script>
-  <script src="crm-shell.js?v=20260924-shell"></script>
+        <div class="lead-meta-grid">
+          <div class="lead-meta-item">
+            <span class="lead-meta-item__label">Main phone</span>
+            <div class="lead-meta-item__value">
+              <a id="leadPhoneLink" href="#" hidden></a>
+              <span id="leadPhone">—</span>
+              <span id="leadPhoneActions" class="lead-contact-actions"></span>
+            </div>
+          </div>
+          <div class="lead-meta-item">
+            <span class="lead-meta-item__label">Priority</span>
+            <div class="lead-meta-item__value" id="leadPriorityDisplay">—</div>
+          </div>
+          <div class="lead-meta-item">
+            <span class="lead-meta-item__label">Main email</span>
+            <div class="lead-meta-item__value">
+              <a id="leadEmailLink" href="#" hidden></a>
+              <span id="leadEmail">—</span>
+              <span id="leadEmailActions" class="lead-contact-actions"></span>
+            </div>
+          </div>
+          <div class="lead-meta-item">
+            <span class="lead-meta-item__label">Lead source</span>
+            <div class="lead-meta-item__value" id="leadSourceDisplay">—</div>
+          </div>
+        </div>
+        <p id="leadNextSteps" class="visually-hidden" hidden>—</p>
+
+        <div class="lead-tabs" role="tablist">
+          <button type="button" class="lead-tab active" role="tab" data-tab="info" aria-selected="true">Lead information</button>
+          <button type="button" class="lead-tab" role="tab" data-tab="communication" aria-selected="false">Communication</button>
+          <button type="button" class="lead-tab" role="tab" data-tab="files" aria-selected="false">Files and media</button>
+        </div>
+
+        <!-- Tab: Lead information -->
+        <div id="infoTab" class="lead-tab-panel active" role="tabpanel">
+          <div class="lead-detail-grid">
+            <div class="lead-detail-main">
+              <div class="lead-edit-panel" id="leadEditPanel">
+                <h3>Contact &amp; address</h3>
+                <p class="lead-edit-panel__hint">Update name, phone, email or address when the lead data needs correcting.</p>
+                <div class="form-group">
+                  <label for="leadFullName">Full name</label>
+                  <input type="text" id="leadFullName" maxlength="255" autocomplete="name" placeholder="Full name" />
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="leadSummaryPhone">Phone</label>
+                    <input type="text" id="leadSummaryPhone" maxlength="50" autocomplete="tel" placeholder="(303) 555-0100" />
+                  </div>
+                  <div class="form-group">
+                    <label for="leadSummaryEmail">Email</label>
+                    <input type="email" id="leadSummaryEmail" maxlength="255" autocomplete="email" placeholder="email@example.com" />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="leadFullAddress">Full address</label>
+                  <input type="text" id="leadFullAddress" maxlength="500" placeholder="Street, city, state…" autocomplete="off" />
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="leadSummaryZip">ZIP code</label>
+                    <input type="text" id="leadSummaryZip" maxlength="10" inputmode="numeric" placeholder="80202" />
+                  </div>
+                  <div class="form-group">
+                    <label for="leadPriority">Priority</label>
+                    <select id="leadPriority">
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="leadEstimatedValue">Estimated value</label>
+                  <input type="number" id="leadEstimatedValue" step="0.01" placeholder="0.00" />
+                </div>
+                <div class="btn-group" style="display:flex;gap:0.5rem;margin-top:0.5rem">
+                  <button type="button" class="btn btn-primary" onclick="saveLead()">Save changes</button>
+                  <button type="button" class="btn btn-secondary" id="btnCancelLeadEdit">Cancel</button>
+                </div>
+              </div>
+
+              <section class="lead-card">
+                <div class="lead-card__head">
+                  <h2>Properties</h2>
+                  <button type="button" class="lead-card__icon-btn" id="btnAddProperty" title="Edit address" aria-label="Edit address">+</button>
+                </div>
+                <div id="leadPropertyBody">
+                  <p class="lead-property-empty">No property address yet.</p>
+                </div>
+              </section>
+
+              <div class="lead-banner">
+                <div class="lead-banner__left">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                  <span><strong>Contacts</strong> — Add contacts to keep track of everyone you communicate with</span>
+                </div>
+                <button type="button" class="lead-card__link" id="btnAddContact" disabled title="Coming soon">Add Contact</button>
+              </div>
+
+              <section class="lead-card">
+                <div class="lead-card__head">
+                  <h2>Work overview</h2>
+                  <button type="button" class="lead-card__icon-btn" id="btnWorkCreate" title="Create" aria-label="Create work item">+</button>
+                </div>
+                <div class="lead-work-filters" id="leadWorkFilters">
+                  <button type="button" class="lead-filter-pill is-active" data-work-filter="all">Status | All</button>
+                  <button type="button" class="lead-filter-pill" data-work-filter="visit">Visits</button>
+                  <button type="button" class="lead-filter-pill" data-work-filter="quote">Quotes</button>
+                  <button type="button" class="lead-filter-pill" data-work-filter="followup">Follow-ups</button>
+                </div>
+                <div id="leadWorkOverviewBody">
+                  <p class="lead-empty">No work items yet.</p>
+                </div>
+              </section>
+
+              <section class="lead-card">
+                <div class="lead-card__head">
+                  <h2>Qualification</h2>
+                  <button type="button" class="lead-card__link" onclick="showQualificationEditForm()">Edit</button>
+                </div>
+                <div id="qualificationSummaryBlock" style="display:none">
+                  <div id="qualificationSummaryContent" class="lead-qual-summary"></div>
+                </div>
+                <form id="qualificationForm" style="display:none;margin-top:0.75rem">
+                  <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.75rem">
+                    <div class="form-group">
+                      <label>Property type *</label>
+                      <select id="qualPropertyType" required>
+                        <option value="">Select…</option>
+                        <option value="house">House</option>
+                        <option value="apartment">Apartment</option>
+                        <option value="commercial">Commercial</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>Service type *</label>
+                      <select id="qualServiceType" required>
+                        <option value="">Select…</option>
+                        <option value="installation">Installation</option>
+                        <option value="repair">Repair</option>
+                        <option value="renovation">Renovation</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>Estimated area (sqft) *</label>
+                      <input type="number" id="qualEstimatedArea" step="0.01" min="0" required placeholder="500" />
+                    </div>
+                    <div class="form-group">
+                      <label>Estimated budget *</label>
+                      <input type="number" id="qualEstimatedBudget" step="0.01" min="0" required placeholder="15000" />
+                    </div>
+                    <div class="form-group">
+                      <label>Urgency *</label>
+                      <select id="qualUrgency" required>
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>Decision maker</label>
+                      <input type="text" id="qualDecisionMaker" placeholder="Optional" />
+                    </div>
+                    <div class="form-group">
+                      <label>Decision timeline</label>
+                      <input type="text" id="qualDecisionTimeline" placeholder="e.g. 1 week" />
+                    </div>
+                    <div class="form-group">
+                      <label>Payment type</label>
+                      <select id="qualPaymentType">
+                        <option value="">Select…</option>
+                        <option value="cash">Cash</option>
+                        <option value="financing">Financing</option>
+                        <option value="insurance">Insurance</option>
+                      </select>
+                    </div>
+                  </div>
+                  <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem">Service address</h3>
+                  <div class="form-group">
+                    <label>Street</label>
+                    <input type="text" id="qualAddressStreet" maxlength="255" autocomplete="street-address" />
+                  </div>
+                  <div class="form-group">
+                    <label>Line 2</label>
+                    <input type="text" id="qualAddressLine2" maxlength="255" />
+                  </div>
+                  <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem">
+                    <div class="form-group">
+                      <label>City</label>
+                      <input type="text" id="qualAddressCity" maxlength="120" />
+                    </div>
+                    <div class="form-group">
+                      <label>State</label>
+                      <input type="text" id="qualAddressState" maxlength="50" />
+                    </div>
+                    <div class="form-group">
+                      <label>ZIP</label>
+                      <input type="text" id="qualAddressZip" maxlength="20" />
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Qualification score</label>
+                    <input type="number" id="qualScore" min="0" max="100" readonly class="score-auto" />
+                  </div>
+                  <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="qualNotes" rows="3"></textarea>
+                  </div>
+                  <div class="btn-group" style="display:flex;gap:0.5rem;margin-top:0.5rem">
+                    <button type="button" class="btn btn-primary" onclick="saveQualification()">Save qualification</button>
+                  </div>
+                </form>
+                <p id="qualificationEmptyHint" class="lead-empty" style="display:none">No qualification yet. <button type="button" class="lead-card__link" onclick="showQualificationEditForm()">Add qualification</button></p>
+              </section>
+
+              <section class="lead-card">
+                <div class="lead-card__head">
+                  <h2>Lead schedule</h2>
+                  <button type="button" class="lead-card__icon-btn" onclick="showNewVisitModal()" title="Schedule visit" aria-label="Schedule visit">+</button>
+                </div>
+                <div id="visitsList"></div>
+              </section>
+
+              <!-- Hidden mounts for legacy loaders -->
+              <div id="proposalsList" hidden></div>
+              <div id="contractContent" hidden></div>
+              <div id="productionContent" hidden></div>
+            </div>
+
+            <aside class="lead-detail-rail">
+              <section class="lead-card">
+                <div class="lead-card__head"><h2>Overview</h2></div>
+                <div class="lead-rail-overview">
+                  <div>
+                    <p class="lead-rail-stat__value" id="leadRailValue">$0.00</p>
+                    <p class="lead-rail-stat__label">Estimated value</p>
+                  </div>
+                  <div>
+                    <p class="lead-rail-stat__value" id="leadRailBalance">$0.00</p>
+                    <p class="lead-rail-stat__label">Current balance</p>
+                  </div>
+                </div>
+              </section>
+              <section class="lead-card">
+                <div class="lead-card__head">
+                  <h2>Tags</h2>
+                  <button type="button" class="lead-card__icon-btn" disabled title="Coming soon">+</button>
+                </div>
+                <p class="lead-rail-empty">This lead has no tags.</p>
+              </section>
+              <section class="lead-card">
+                <div class="lead-card__head">
+                  <h2>Notes</h2>
+                  <button type="button" class="lead-card__link" id="btnSaveRailNotes">Save</button>
+                </div>
+                <textarea class="lead-notes-area" id="leadNotes" placeholder="Leave an internal note for yourself or a team member." maxlength="8000"></textarea>
+              </section>
+            </aside>
+          </div>
+        </div>
+
+        <!-- Tab: Communication -->
+        <div id="communicationTab" class="lead-tab-panel" role="tabpanel">
+          <div class="lead-card">
+            <div class="lead-comm-toolbar">
+              <button type="button" class="btn btn-primary" onclick="showNewInteractionModal()">+ Log interaction</button>
+              <button type="button" class="btn btn-secondary" onclick="showNewFollowupModal()">+ Follow-up</button>
+            </div>
+            <div class="lead-comm-section">
+              <h3>Interactions</h3>
+              <ul id="interactionsList" class="timeline"></ul>
+            </div>
+            <div class="lead-comm-section">
+              <h3>Follow-ups</h3>
+              <ul id="followupsList" class="followups-list"></ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Files -->
+        <div id="filesTab" class="lead-tab-panel" role="tabpanel">
+          <div class="lead-card">
+            <div class="lead-card__head"><h2>Files and media</h2></div>
+            <div id="measurementsContent">
+              <div class="empty-state">
+                <div class="empty-state-icon">📁</div>
+                <p>No files or media yet.</p>
+                <p>Measurements and attachments for this lead will appear here.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Lightbox: Novo Follow-up -->
+  <div id="newFollowupModal" class="modal modal-lightbox" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeFollowupModal()"></div>
+    <div class="modal-content modal-content-lightbox">
+      <div class="modal-header modal-header-lightbox">
+        <h3>New follow-up</h3>
+        <button type="button" class="modal-close modal-close-lightbox" onclick="closeFollowupModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="newFollowupForm" onsubmit="return submitFollowupForm(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Title *</label>
+            <input type="text" id="followupTitle" name="title" required placeholder="e.g. Call client" />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="followupDescription" name="description" rows="3" placeholder="Optional"></textarea>
+          </div>
+          <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+            <div class="form-group">
+              <label>Date / time *</label>
+              <input type="datetime-local" id="followupDueDate" name="due_date" required />
+            </div>
+            <div class="form-group">
+              <label>Priority</label>
+              <select id="followupPriority" name="priority">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Assign to</label>
+            <select name="assigned_to" id="followupAssignedSelect">
+              <option value="">Myself</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer-lightbox">
+          <button type="button" class="btn btn-secondary" onclick="closeFollowupModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create follow-up</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lightbox: Nova Interação -->
+  <div id="newInteractionModal" class="modal modal-lightbox" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeInteractionModal()"></div>
+    <div class="modal-content modal-content-lightbox">
+      <div class="modal-header modal-header-lightbox">
+        <h3>Log interaction</h3>
+        <button type="button" class="modal-close modal-close-lightbox" onclick="closeInteractionModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="newInteractionForm" onsubmit="return submitInteractionForm(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Type</label>
+            <select name="type" id="interactionType" required>
+              <option value="">Select…</option>
+              <option value="call">Call</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="email">Email</option>
+              <option value="visit">Visit</option>
+              <option value="meeting">Meeting</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Subject <span class="optional">(optional)</span></label>
+            <input type="text" name="subject" id="interactionSubject" placeholder="e.g. Follow-up call" />
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea name="notes" id="interactionNotes" rows="4" required placeholder="What was discussed…"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer-lightbox">
+          <button type="button" class="btn btn-secondary" onclick="closeInteractionModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save interaction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lightbox: Agendar Visita -->
+  <div id="newVisitModal" class="modal modal-lightbox" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeVisitModal()"></div>
+    <div class="modal-content modal-content-lightbox">
+      <div class="modal-header modal-header-lightbox">
+        <h3>Schedule visit</h3>
+        <button type="button" class="modal-close modal-close-lightbox" onclick="closeVisitModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="newVisitForm" onsubmit="return submitVisitForm(event)">
+        <div class="modal-body">
+          <div class="form-group form-group-readonly">
+            <label>Client</label>
+            <p id="newVisitClientName" class="form-readonly-value">—</p>
+          </div>
+          <div class="form-group">
+            <label>Date and time * <span class="optional">(:00 or :30 only)</span></label>
+            <input type="datetime-local" id="visitScheduledAt" name="scheduled_at" required step="1800" />
+          </div>
+          <div class="form-group">
+            <label>Address line 1 *</label>
+            <input type="text" id="visitAddressLine1" name="address_line1" required placeholder="Street, number" />
+          </div>
+          <div class="form-group">
+            <label>Address line 2 <span class="optional">(optional)</span></label>
+            <input type="text" id="visitAddressLine2" name="address_line2" placeholder="Unit, suite" />
+          </div>
+          <div class="form-group form-row-2" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+            <div class="form-group">
+              <label>City *</label>
+              <input type="text" id="visitCity" name="city" required placeholder="City" />
+            </div>
+            <div class="form-group">
+              <label>Zip code</label>
+              <input type="text" id="visitZipCode" name="zipcode" placeholder="ZIP" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes <span class="optional">(optional)</span></label>
+            <textarea id="visitNotes" name="notes" rows="3" placeholder="Gate code, parking, etc."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Assign visit to</label>
+            <select name="assigned_to" id="visitAssignedSelect">
+              <option value="">Myself</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer-lightbox">
+          <button type="button" class="btn btn-secondary" onclick="closeVisitModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Schedule visit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lightbox: Editar Visita -->
+  <div id="editVisitModal" class="modal modal-lightbox" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeEditVisitModal()"></div>
+    <div class="modal-content modal-content-lightbox">
+      <div class="modal-header modal-header-lightbox">
+        <h3>Edit visit</h3>
+        <button type="button" class="modal-close modal-close-lightbox" onclick="closeEditVisitModal()" aria-label="Close">&times;</button>
+      </div>
+      <form id="editVisitForm" onsubmit="return submitEditVisitForm(event)">
+        <input type="hidden" id="editVisitId" name="visit_id" />
+        <div class="modal-body">
+          <div class="form-group form-group-readonly">
+            <label>Client</label>
+            <p id="editVisitClientName" class="form-readonly-value">—</p>
+          </div>
+          <div class="form-group">
+            <label>Date and time * <span class="optional">(:00 or :30 only)</span></label>
+            <input type="datetime-local" id="editVisitScheduledAt" name="scheduled_at" required step="1800" />
+          </div>
+          <div class="form-group">
+            <label>Address line 1 *</label>
+            <input type="text" id="editVisitAddressLine1" name="address_line1" required placeholder="Street, number" />
+          </div>
+          <div class="form-group">
+            <label>Address line 2 <span class="optional">(optional)</span></label>
+            <input type="text" id="editVisitAddressLine2" name="address_line2" placeholder="Unit, suite" />
+          </div>
+          <div class="form-group form-row-2" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+            <div class="form-group">
+              <label>City *</label>
+              <input type="text" id="editVisitCity" name="city" required placeholder="City" />
+            </div>
+            <div class="form-group">
+              <label>Zip code</label>
+              <input type="text" id="editVisitZipCode" name="zipcode" placeholder="ZIP" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes <span class="optional">(optional)</span></label>
+            <textarea id="editVisitNotes" name="notes" rows="3" placeholder="Gate code, parking, etc."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Assign visit to</label>
+            <select name="seller_id" id="editVisitAssignedSelect">
+              <option value="">Myself</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="editVisitStatus" name="status">
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="no_show">No show</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer-lightbox">
+          <button type="button" class="btn btn-secondary" onclick="closeEditVisitModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js?v=20260923-i18n"></script>
+  <script src="saas-branding.js?v=20260924-pwa"></script>
+  <script src="pipeline-stage-labels.js?v=20260915-stand-by"></script>
+  <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
+  <script src="crm-address-autocomplete.js?v=20260924-maps4"></script>
+  <script src="lead-visit-calendar-format.js?v=20260528-cal-address"></script>
+  <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
+  <script src="crm-shell.js?v=20260924-pwa"></script>
+  <script src="crm-shared-nav.js?v=20260924-jobs2"></script>
+  <script src="lead-detail.js?v=20260924-leadui"></script>
 </body>
 </html>
