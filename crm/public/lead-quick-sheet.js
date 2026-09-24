@@ -345,6 +345,10 @@
     const catalog = document.querySelector('[data-lqs-catalog]');
     if (primary) primary.innerHTML = renderPrimaryStaticSummary(sheetLead);
     if (catalog) catalog.innerHTML = renderLeadCatalogFields(sheetLead);
+    const prop = document.querySelector('[data-lqs-property]');
+    if (prop) prop.innerHTML = renderPropertyBlock_(sheetLead);
+    const notes = document.querySelector('[data-lqs-notes]');
+    if (notes && document.activeElement !== notes) notes.value = sheetLead.notes || '';
   }
 
   async function enterFieldEdit(fieldKey) {
@@ -1089,16 +1093,113 @@
 
   async function refreshQuotesOnly() {
     if (!sheetLeadId) return;
-    const [quotesRes, proposalsRes] = await Promise.all([
+    const [quotesRes, proposalsRes, visitsRes] = await Promise.all([
       fetchJson('/api/quotes?lead_id=' + encodeURIComponent(String(sheetLeadId)) + '&limit=50'),
       fetchJson('/api/leads/' + sheetLeadId + '/proposals'),
+      fetchJson('/api/visits?lead_id=' + encodeURIComponent(String(sheetLeadId))),
     ]);
     const rows = mergeQuoteRows(
       quotesRes.ok ? quotesRes.data : {},
       proposalsRes.ok ? proposalsRes.data : {}
     );
+    const visits =
+      visitsRes.ok && visitsRes.data && visitsRes.data.success && Array.isArray(visitsRes.data.data)
+        ? visitsRes.data.data
+        : [];
     const mount = document.querySelector('[data-lqs-quotes-list]');
     if (mount) mount.innerHTML = renderQuotesRows(rows, sheetLeadId);
+    const work = document.querySelector('[data-lqs-work-overview]');
+    if (work) work.innerHTML = renderWorkOverviewRows_(rows, visits);
+  }
+
+  function formatMoneyLqs_(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return '$0.00';
+    return (
+      '$' +
+      v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    );
+  }
+
+  function priorityLabelLqs_(p) {
+    const v = String(p || 'medium').toLowerCase();
+    if (v === 'high') return 'High';
+    if (v === 'low') return 'Low';
+    return 'Medium';
+  }
+
+  function renderWorkOverviewRows_(quoteRows, visits) {
+    const items = [];
+    (quoteRows || []).forEach((row) => {
+      items.push({
+        kind: row.kind === 'proposal' ? 'quote' : 'quote',
+        icon: '💰',
+        title: row.label,
+        dateLabel: row.created_at ? new Date(row.created_at).toLocaleDateString() : '—',
+        statusLabel: String(row.status || 'draft'),
+        amountLabel: formatMoneyLqs_(row.amount),
+        sort: row.created_at ? new Date(row.created_at).getTime() : 0,
+        rowHtml: null,
+        quoteRow: row,
+      });
+    });
+    (visits || []).forEach((v) => {
+      items.push({
+        kind: 'visit',
+        icon: '🏠',
+        title: 'Visit' + (v.id != null ? ' #' + v.id : ''),
+        dateLabel: v.scheduled_at
+          ? 'Scheduled for ' + new Date(v.scheduled_at).toLocaleDateString()
+          : '—',
+        statusLabel: String(v.status || 'scheduled'),
+        amountLabel: '—',
+        sort: v.scheduled_at ? new Date(v.scheduled_at).getTime() : 0,
+      });
+    });
+    items.sort((a, b) => (b.sort || 0) - (a.sort || 0));
+    if (!items.length) {
+      return '<p class="lqs-ov-empty">No work items yet.</p>';
+    }
+    return (
+      '<table class="lqs-work-table"><thead><tr><th>Item</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead><tbody>' +
+      items
+        .map(
+          (it) =>
+            '<tr data-lqs-work-kind="' +
+            escapeHtml(it.kind) +
+            '"><td><span class="lqs-work-item"><span class="lqs-work-item__icon">' +
+            escapeHtml(it.icon) +
+            '</span>' +
+            escapeHtml(it.title) +
+            '</span></td><td>' +
+            escapeHtml(it.dateLabel) +
+            '</td><td><span class="lqs-status-badge">' +
+            escapeHtml(it.statusLabel) +
+            '</span></td><td>' +
+            escapeHtml(it.amountLabel) +
+            '</td></tr>'
+        )
+        .join('') +
+      '</tbody></table>'
+    );
+  }
+
+  function renderPropertyBlock_(lead) {
+    const addr = String(lead.address || '').trim();
+    const zip = String(lead.zipcode || '').trim();
+    const line = [addr, zip].filter(Boolean).join(addr && zip && !addr.includes(zip) ? ', ' : '');
+    if (!line) {
+      return '<p class="lqs-ov-empty">No property address yet. <button type="button" class="lqs-link" data-lqs-edit-toggle>Add address</button></p>';
+    }
+    return (
+      '<div class="lqs-property-row">' +
+      '<span class="lqs-property-row__icon" aria-hidden="true">📍</span>' +
+      '<div class="lqs-property-row__text">' +
+      escapeHtml(line) +
+      '</div>' +
+      '<button type="button" class="lqs-property-row__edit" data-lqs-edit-toggle title="Edit" aria-label="Edit address">✎</button>' +
+      '</div>'
+    );
   }
 
   function renderSheetBody(lead, bundle) {
@@ -1112,9 +1213,14 @@
         : lead.phone
           ? `tel:${String(lead.phone).replace(/[^\d+]/g, '')}`
           : '';
-    const tele = telHref
-      ? `<a class="lead-quick-sheet__action" href="${escapeHtml(telHref)}">Ligar</a>`
-      : '';
+    const phoneDisplay = lead.phone
+      ? telHref
+        ? `<a class="lqs-meta-link" href="${escapeHtml(telHref)}">${escapeHtml(lead.phone)}</a>`
+        : escapeHtml(lead.phone)
+      : '—';
+    const emailDisplay = lead.email
+      ? `<a class="lqs-meta-link" href="mailto:${escapeHtml(lead.email)}">${escapeHtml(lead.email)}</a>`
+      : '—';
     const sms =
       typeof global.sfRenderLeadSmsActionHtml === 'function'
         ? global.sfRenderLeadSmsActionHtml(lead, 'lead-quick-sheet__action')
@@ -1125,47 +1231,145 @@
         : lead.email
           ? `<a class="lead-quick-sheet__action" href="mailto:${escapeHtml(lead.email)}">Email</a>`
           : '';
-    const quoteNew = `<a class="lead-quick-sheet__action" href="quote-builder.html?lead_id=${sid}" target="_blank" rel="noopener">Novo orcamento</a>`;
-    const scheduleVisit = `<button type="button" class="lead-quick-sheet__action" data-lqs-open-schedule>Agendar visita</button>`;
+    const tele = telHref
+      ? `<a class="lead-quick-sheet__action" href="${escapeHtml(telHref)}">Call</a>`
+      : '';
 
     const quoteRows = mergeQuoteRows(bundle.quotesPayload, bundle.proposalsPayload);
+    const visits = Array.isArray(bundle.visits) ? bundle.visits : [];
     const priLow = pri === 'low';
     const priHigh = pri === 'high';
+    const estVal = formatMoneyLqs_(lead.estimated_value);
 
     return `
-      <div class="lead-quick-sheet__toolbar lead-quick-sheet__toolbar--minimal">
-        <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--actions">
-          ${tele}${sms}${mail}${quoteNew}${scheduleVisit}
-        </div>
-        <div class="lead-quick-sheet__toolbar-row lead-quick-sheet__toolbar-row--controls">
-          <label class="lead-quick-sheet__inline lead-quick-sheet__inline--status">
-            <span class="lead-quick-sheet__status-label-row">
-              <span>Status</span>
-            </span>
+      <div class="lqs-ov">
+        <div class="lqs-ov-top">
+          <div class="lqs-ov-top__status">
             ${renderStatusPicker(stages, currentSlug)}
-          </label>
-          <div class="lead-quick-sheet__inline lead-quick-sheet__inline--pri-icons">
-            <span class="lead-quick-sheet__status-label-row">
-              <span>Prioridade</span>
-            </span>
-            <div class="lead-quick-sheet__pri-btns" role="group" aria-label="Prioridade">
-              <button type="button" class="lead-quick-sheet__pri-icon${priLow ? ' is-active' : ''}" data-lqs-priority="low" title="Baixa (frio)" aria-pressed="${priLow ? 'true' : 'false'}">\u{1F9CA}</button>
-              <button type="button" class="lead-quick-sheet__pri-icon${priHigh ? ' is-active' : ''}" data-lqs-priority="high" title="Alta (quente)" aria-pressed="${priHigh ? 'true' : 'false'}">\u{1F525}</button>
+          </div>
+          <div class="lqs-ov-top__actions">
+            ${tele}${sms}${mail}
+            <button type="button" class="btn btn-primary lqs-create-btn" data-lqs-create-toggle>+ Create</button>
+            <div class="lqs-create-menu" id="lqsCreateMenu" hidden>
+              <button type="button" data-lqs-open-schedule>Schedule visit</button>
+              <a href="quote-builder.html?lead_id=${encodeURIComponent(String(sid))}" target="_blank" rel="noopener">New quote</a>
+              <a class="lqs-full-page" href="lead-detail.html?id=${encodeURIComponent(String(sid))}">Open full page</a>
             </div>
           </div>
         </div>
-      </div>
 
-      <section class="lead-quick-sheet__section lead-quick-sheet__section--static">
-        <h3 class="lead-quick-sheet__h3 lead-quick-sheet__h3--minimal">Resumo</h3>
-        <div data-lqs-primary-summary>${renderPrimaryStaticSummary(lead)}</div>
-        <div data-lqs-catalog>${renderLeadCatalogFields(lead)}</div>
-      </section>
+        <div class="lqs-meta-grid">
+          <div class="lqs-meta-item">
+            <span class="lqs-meta-item__label">Main phone</span>
+            <div class="lqs-meta-item__value">${phoneDisplay}</div>
+          </div>
+          <div class="lqs-meta-item">
+            <span class="lqs-meta-item__label">Priority</span>
+            <div class="lqs-meta-item__value lqs-meta-item__value--pri">
+              <span>${escapeHtml(priorityLabelLqs_(pri))}</span>
+              <div class="lead-quick-sheet__pri-btns" role="group" aria-label="Priority">
+                <button type="button" class="lead-quick-sheet__pri-icon${priLow ? ' is-active' : ''}" data-lqs-priority="low" title="Low" aria-pressed="${priLow ? 'true' : 'false'}">\u{1F9CA}</button>
+                <button type="button" class="lead-quick-sheet__pri-icon${priHigh ? ' is-active' : ''}" data-lqs-priority="high" title="High" aria-pressed="${priHigh ? 'true' : 'false'}">\u{1F525}</button>
+              </div>
+            </div>
+          </div>
+          <div class="lqs-meta-item">
+            <span class="lqs-meta-item__label">Main email</span>
+            <div class="lqs-meta-item__value">${emailDisplay}</div>
+          </div>
+          <div class="lqs-meta-item">
+            <span class="lqs-meta-item__label">Lead source</span>
+            <div class="lqs-meta-item__value">${escapeHtml(lead.source || '—')}</div>
+          </div>
+        </div>
 
-      <section class="lead-quick-sheet__section lead-quick-sheet__section--quotes">
-        <h3 class="lead-quick-sheet__h3 lead-quick-sheet__h3--minimal">Orcamentos</h3>
-        <div data-lqs-quotes-list>${renderQuotesRows(quoteRows, sid)}</div>
-      </section>`;
+        <div class="lqs-tabs" role="tablist">
+          <button type="button" class="lqs-tab is-active" data-lqs-tab="info" role="tab" aria-selected="true">Lead information</button>
+          <button type="button" class="lqs-tab" data-lqs-tab="communication" role="tab" aria-selected="false">Communication</button>
+          <button type="button" class="lqs-tab" data-lqs-tab="files" role="tab" aria-selected="false">Files and media</button>
+        </div>
+
+        <div class="lqs-tab-panel is-active" data-lqs-panel="info">
+          <div class="lqs-ov-grid">
+            <div class="lqs-ov-main">
+              <section class="lqs-card">
+                <div class="lqs-card__head">
+                  <h3>Properties</h3>
+                  <button type="button" class="lqs-card__plus" data-lqs-edit-toggle aria-label="Edit address">+</button>
+                </div>
+                <div data-lqs-property>${renderPropertyBlock_(lead)}</div>
+              </section>
+
+              <div class="lqs-banner">
+                <span><strong>Contacts</strong> — Add contacts to keep track of everyone you communicate with</span>
+                <button type="button" class="lqs-link" disabled title="Coming soon">Add Contact</button>
+              </div>
+
+              <section class="lqs-card">
+                <div class="lqs-card__head">
+                  <h3>Work overview</h3>
+                  <button type="button" class="lqs-card__plus" data-lqs-create-toggle aria-label="Create">+</button>
+                </div>
+                <div class="lqs-work-filters">
+                  <button type="button" class="lqs-filter is-active" data-lqs-work-filter="all">Status | All</button>
+                  <button type="button" class="lqs-filter" data-lqs-work-filter="visit">Visits</button>
+                  <button type="button" class="lqs-filter" data-lqs-work-filter="quote">Quotes</button>
+                </div>
+                <div data-lqs-work-overview>${renderWorkOverviewRows_(quoteRows, visits)}</div>
+                <div class="lqs-quotes-detail" data-lqs-quotes-list hidden>${renderQuotesRows(quoteRows, sid)}</div>
+              </section>
+
+              <section class="lqs-card lqs-card--edit" data-lqs-edit-panel hidden>
+                <div class="lqs-card__head">
+                  <h3>Edit contact &amp; details</h3>
+                  <button type="button" class="lqs-link" data-lqs-edit-toggle>Close</button>
+                </div>
+                <div data-lqs-primary-summary>${renderPrimaryStaticSummary(lead)}</div>
+                <div data-lqs-catalog>${renderLeadCatalogFields(lead)}</div>
+              </section>
+            </div>
+
+            <aside class="lqs-ov-rail">
+              <section class="lqs-card">
+                <div class="lqs-card__head"><h3>Overview</h3></div>
+                <p class="lqs-rail-stat">${escapeHtml(estVal)}</p>
+                <p class="lqs-rail-label">Estimated value</p>
+                <p class="lqs-rail-stat">$0.00</p>
+                <p class="lqs-rail-label">Current balance</p>
+              </section>
+              <section class="lqs-card">
+                <div class="lqs-card__head">
+                  <h3>Tags</h3>
+                  <button type="button" class="lqs-card__plus" disabled title="Coming soon">+</button>
+                </div>
+                <p class="lqs-ov-empty">This lead has no tags.</p>
+              </section>
+              <section class="lqs-card">
+                <div class="lqs-card__head">
+                  <h3>Notes</h3>
+                  <button type="button" class="lqs-link" data-lqs-save-notes>Save</button>
+                </div>
+                <textarea class="lqs-notes" data-lqs-notes maxlength="8000" placeholder="Leave an internal note for yourself or a team member.">${escapeHtml(lead.notes || '')}</textarea>
+              </section>
+            </aside>
+          </div>
+        </div>
+
+        <div class="lqs-tab-panel" data-lqs-panel="communication" hidden>
+          <section class="lqs-card">
+            <p class="lqs-ov-empty">Log calls and messages from the actions above. Full interaction history is on the <a href="lead-detail.html?id=${encodeURIComponent(String(sid))}">full lead page</a>.</p>
+            <div class="lqs-comm-actions">${tele}${sms}${mail}
+              <button type="button" class="lead-quick-sheet__action" data-lqs-open-schedule>Schedule visit</button>
+            </div>
+          </section>
+        </div>
+
+        <div class="lqs-tab-panel" data-lqs-panel="files" hidden>
+          <section class="lqs-card">
+            <p class="lqs-ov-empty">No files or media yet.</p>
+          </section>
+        </div>
+      </div>`;
   }
 
   function onSheetBodyClick(e) {
@@ -1187,7 +1391,64 @@
     }
     if (e.target.closest('[data-lqs-open-schedule]')) {
       e.preventDefault();
+      const createMenu = document.getElementById('lqsCreateMenu');
+      if (createMenu) createMenu.hidden = true;
       void openLqsScheduleVisitInDeviceCalendar();
+      return;
+    }
+    const createToggle = e.target.closest('[data-lqs-create-toggle]');
+    if (createToggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      const menu = document.getElementById('lqsCreateMenu');
+      if (menu) menu.hidden = !menu.hidden;
+      return;
+    }
+    const editToggle = e.target.closest('[data-lqs-edit-toggle]');
+    if (editToggle) {
+      e.preventDefault();
+      const panel = document.querySelector('[data-lqs-edit-panel]');
+      if (panel) {
+        if (panel.hasAttribute('hidden')) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', '');
+      }
+      return;
+    }
+    const tabBtn = e.target.closest('[data-lqs-tab]');
+    if (tabBtn) {
+      e.preventDefault();
+      const name = tabBtn.getAttribute('data-lqs-tab');
+      document.querySelectorAll('[data-lqs-tab]').forEach((t) => {
+        const on = t === tabBtn;
+        t.classList.toggle('is-active', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-lqs-panel]').forEach((p) => {
+        const on = p.getAttribute('data-lqs-panel') === name;
+        p.classList.toggle('is-active', on);
+        if (on) p.removeAttribute('hidden');
+        else p.setAttribute('hidden', '');
+      });
+      return;
+    }
+    const workFilter = e.target.closest('[data-lqs-work-filter]');
+    if (workFilter) {
+      e.preventDefault();
+      const kind = workFilter.getAttribute('data-lqs-work-filter') || 'all';
+      document.querySelectorAll('[data-lqs-work-filter]').forEach((b) => {
+        b.classList.toggle('is-active', b === workFilter);
+      });
+      document.querySelectorAll('[data-lqs-work-kind]').forEach((row) => {
+        const k = row.getAttribute('data-lqs-work-kind');
+        row.style.display = kind === 'all' || k === kind ? '' : 'none';
+      });
+      return;
+    }
+    const saveNotes = e.target.closest('[data-lqs-save-notes]');
+    if (saveNotes && sheetLeadId) {
+      e.preventDefault();
+      const ta = document.querySelector('[data-lqs-notes]');
+      void patchLead({ notes: ta ? ta.value : '' });
       return;
     }
     const priBtn = e.target.closest('[data-lqs-priority]');
@@ -1202,6 +1463,8 @@
       const fk = editBtn.getAttribute('data-lqs-edit');
       if (fk) {
         e.preventDefault();
+        const panel = document.querySelector('[data-lqs-edit-panel]');
+        if (panel) panel.removeAttribute('hidden');
         void enterFieldEdit(fk);
       }
       return;
@@ -1474,15 +1737,17 @@
     wireLqsVisitModalOnce();
 
     root.classList.add('is-open');
+    root.classList.add('lead-quick-sheet--overview');
     root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('lead-quick-sheet-open');
-    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar—</div>';
+    body.innerHTML = '<div class="lead-quick-sheet__loading">A carregar…</div>';
 
-    const [leadRes, stagesRes, quotesRes, proposalsRes] = await Promise.all([
+    const [leadRes, stagesRes, quotesRes, proposalsRes, visitsRes] = await Promise.all([
       fetchJson('/api/leads/' + sid),
       fetchJson('/api/pipeline-stages'),
       fetchJson('/api/quotes?lead_id=' + encodeURIComponent(String(sid)) + '&limit=50'),
       fetchJson('/api/leads/' + sid + '/proposals'),
+      fetchJson('/api/visits?lead_id=' + encodeURIComponent(String(sid))),
     ]);
 
     const ld = leadRes.data;
@@ -1505,10 +1770,16 @@
     const stages = normalizeStages(stagesRes);
     sheetStagesCache = stages;
 
+    const visits =
+      visitsRes.ok && visitsRes.data && visitsRes.data.success && Array.isArray(visitsRes.data.data)
+        ? visitsRes.data.data
+        : [];
+
     const bundle = {
       stages,
       quotesPayload: quotesRes.ok ? quotesRes.data : {},
       proposalsPayload: proposalsRes.ok ? proposalsRes.data : {},
+      visits,
     };
 
     body.innerHTML = renderSheetBody(lead, bundle);
@@ -1590,9 +1861,19 @@
 
   const origViewLead = typeof global.viewLead === 'function' ? global.viewLead : null;
   global.viewLead = function (id, ev) {
-    const sid = String(id || '').trim();
-    if (!sid) return;
-    // Full lead page (overview layout) — not the quick sheet overlay
-    window.location.href = 'lead-detail.html?id=' + encodeURIComponent(sid);
+    const r = document.getElementById('leadQuickSheet');
+    let anchorEl = null;
+    if (ev && ev.currentTarget && ev.currentTarget.closest) {
+      anchorEl = ev.currentTarget.closest('.kanban-card, .lcard, [data-lcard-open]');
+    } else if (ev && ev.target && ev.target.closest) {
+      anchorEl = ev.target.closest('.kanban-card, .lcard, [data-lcard-open]');
+    }
+    if (r && typeof openLeadQuickSheet === 'function') {
+      void openLeadQuickSheet(id, anchorEl);
+    } else if (origViewLead) {
+      origViewLead(id);
+    } else {
+      window.location.href = 'lead-detail.html?id=' + encodeURIComponent(id);
+    }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
