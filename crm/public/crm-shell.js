@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-omapp4";
+  const SHELL_VER = "20260924-omapp5";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -88,7 +88,7 @@
   const SIDEBAR_HTML = `
 <aside class="dashboard-sidebar" id="dashboardSidebar">
   <div class="sidebar-header">
-    <img src="/assets/obramate-logo.png" alt="Empresa" class="sidebar-brand-logo" width="220" height="44" onerror="this.style.display='none'" />
+    <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
     <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="false" aria-label="Recolher menu lateral" title="Recolher menu">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
@@ -217,15 +217,22 @@
     }
     if (!header.querySelector(".sidebar-brand-logo")) {
       const img = document.createElement("img");
-      img.src = "/assets/obramate-logo.png";
-      img.alt = "Empresa";
-      img.className = "sidebar-brand-logo";
-      img.width = 220;
-      img.height = 44;
+      img.src = "/assets/favicon-192.png?v=20260924-pwa";
+      img.alt = "ObraMate";
+      img.className = "sidebar-brand-logo crm-system-logo";
+      img.width = 32;
+      img.height = 32;
       img.onerror = function () {
         this.style.display = "none";
       };
       header.insertBefore(img, header.firstChild);
+    } else {
+      const existing = header.querySelector(".sidebar-brand-logo");
+      existing.src = "/assets/favicon-192.png?v=20260924-pwa";
+      existing.alt = "ObraMate";
+      existing.classList.add("crm-system-logo");
+      existing.width = 32;
+      existing.height = 32;
     }
     if (!header.querySelector("#sidebarCollapseBtn")) {
       const btn = document.createElement("button");

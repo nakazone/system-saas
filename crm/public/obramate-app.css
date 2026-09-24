@@ -896,7 +896,15 @@ body.om-app .dashboard-main {
     width: auto;
   }
 
+  /*
+   * Shared geometry (expanded + collapsed):
+   * rail 72px, pad-x 14px → 44px content column; icon 20px inset 12px
+   * so icons keep the same X when toggling.
+   */
   body.om-app #dashboardSidebar.dashboard-sidebar {
+    --om-rail-pad-x: 14px;
+    --om-nav-hit: 44px;
+    --om-icon-inset: 12px;
     position: fixed !important;
     inset: 0 auto 0 0 !important;
     top: 0 !important;
@@ -905,7 +913,7 @@ body.om-app .dashboard-main {
     min-width: var(--crm-sidebar-width) !important;
     max-width: var(--crm-sidebar-width) !important;
     height: 100vh !important;
-    padding: 0.85rem 0.65rem 1rem !important;
+    padding: 0.85rem var(--om-rail-pad-x) 1rem !important;
     margin: 0 !important;
     background: rgba(255, 255, 255, 0.92) !important;
     border-right: 1px solid var(--plab-line) !important;
@@ -921,34 +929,38 @@ body.om-app .dashboard-main {
 
   body.om-app #dashboardSidebar .sidebar-header {
     display: flex !important;
-    flex-direction: row !important;
-    justify-content: space-between !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
     align-items: center !important;
-    padding: 0.15rem 0.25rem 0.75rem !important;
+    padding: 0 0 0.65rem !important;
     margin: 0 !important;
     border: none !important;
-    width: 100%;
-    gap: 0.35rem;
+    width: var(--om-nav-hit);
+    max-width: 100%;
+    gap: 0.45rem;
     background: transparent !important;
+    flex-shrink: 0;
   }
 
   body.om-app #dashboardSidebar .sidebar-brand-logo {
-    width: auto !important;
+    width: 28px !important;
     height: 28px !important;
-    max-width: 140px !important;
+    max-width: 28px !important;
     object-fit: contain;
+    display: block;
+    flex-shrink: 0;
   }
 
   body.om-app #dashboardSidebar .sidebar-collapse-btn {
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
-    width: 36px !important;
-    height: 36px !important;
-    min-width: 36px;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px;
     flex-shrink: 0;
     border: 1px solid var(--plab-line) !important;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
     background: #fff !important;
     color: var(--plab-muted) !important;
     cursor: pointer;
@@ -961,8 +973,8 @@ body.om-app .dashboard-main {
   }
 
   body.om-app #dashboardSidebar .sidebar-collapse-btn svg {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     stroke: currentColor;
     fill: none;
     stroke-width: 2;
@@ -992,17 +1004,21 @@ body.om-app .dashboard-main {
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--plab-muted);
-    padding: 0.35rem 0.55rem 0.2rem;
+    padding: 0.35rem 0 0.2rem var(--om-icon-inset);
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   body.om-app #dashboardSidebar .nav-item,
   body.om-app #dashboardSidebar .nav-item--dropdown,
   body.om-app #dashboardSidebar summary.nav-item {
+    display: flex !important;
+    align-items: center !important;
     width: 100% !important;
-    height: auto !important;
-    min-height: 40px !important;
+    height: var(--om-nav-hit) !important;
+    min-height: var(--om-nav-hit) !important;
     margin: 0 !important;
-    padding: 0.45rem 0.55rem !important;
+    padding: 0 0.5rem 0 var(--om-icon-inset) !important;
     border-radius: 10px !important;
     border-left: none !important;
     justify-content: flex-start !important;
@@ -1010,6 +1026,7 @@ body.om-app .dashboard-main {
     background: transparent !important;
     color: var(--plab-muted) !important;
     list-style: none;
+    box-sizing: border-box !important;
   }
 
   body.om-app #dashboardSidebar summary.nav-item::-webkit-details-marker {
@@ -1021,6 +1038,8 @@ body.om-app .dashboard-main {
     font-size: 0.9rem;
     font-weight: 600;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   body.om-app #dashboardSidebar .nav-item:hover,
@@ -1055,8 +1074,10 @@ body.om-app .dashboard-main {
     flex-direction: row;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.35rem !important;
+    padding: 0 !important;
+    padding-left: var(--om-icon-inset) !important;
     width: 100%;
+    min-height: var(--om-nav-hit);
   }
 
   body.om-app #dashboardSidebar .sidebar-user-bar__text {
@@ -1066,16 +1087,16 @@ body.om-app .dashboard-main {
   }
 
   body.om-app #dashboardSidebar .sidebar-user-bar__avatar {
-    width: 36px !important;
-    height: 36px !important;
-    font-size: 0.85rem !important;
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 0.75rem !important;
     flex-shrink: 0;
   }
 
   body.om-app #dashboardSidebar .sidebar-logout-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
     margin-left: auto;
   }
 
@@ -1084,7 +1105,7 @@ body.om-app .dashboard-main {
     display: none;
     flex-direction: column;
     gap: 0.15rem;
-    padding: 0.15rem 0 0.15rem 0.85rem;
+    padding: 0.15rem 0 0.15rem calc(var(--om-icon-inset) + 20px);
     margin: 0;
     position: static;
     background: transparent;
@@ -1097,68 +1118,35 @@ body.om-app .dashboard-main {
   }
 
   body.om-app:not(.sidebar-collapsed) #dashboardSidebar .sidebar-nav-dropdown__panel .nav-item {
+    height: 34px !important;
     min-height: 34px !important;
-    padding: 0.35rem 0.55rem !important;
+    padding: 0 0.55rem 0 var(--om-icon-inset) !important;
   }
 
-  /* ——— Collapsed icon rail ——— */
+  /* ——— Collapsed: hide labels only — keep icon geometry identical ——— */
   body.om-app.sidebar-collapsed #dashboardSidebar.dashboard-sidebar {
-    padding: 1rem 0 1.1rem !important;
-    align-items: center !important;
     overflow: visible !important;
-  }
-
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-header {
-    justify-content: center !important;
-    flex-direction: column !important;
-    padding: 0 0 0.65rem !important;
-    gap: 0.45rem;
-  }
-
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-brand-logo {
-    width: 28px !important;
-    height: 28px !important;
-    max-width: 28px !important;
   }
 
   body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav {
     overflow: visible !important;
   }
 
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-group-label,
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-group-label {
+    visibility: hidden !important;
+    display: block !important;
+    pointer-events: none;
+  }
+
   body.om-app.sidebar-collapsed #dashboardSidebar .nav-item__label,
   body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown summary .nav-item__label,
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-user-bar__text {
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-user-bar__text,
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-logout-btn {
     display: none !important;
   }
 
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-group {
-    align-items: center;
-  }
-
-  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item,
-  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item--dropdown,
-  body.om-app.sidebar-collapsed #dashboardSidebar summary.nav-item {
-    width: 44px !important;
-    height: 44px !important;
-    min-height: 44px !important;
-    padding: 0 !important;
-    justify-content: center !important;
-    gap: 0 !important;
-  }
-
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-footer {
-    justify-content: center;
-  }
-
   body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-user-bar {
-    flex-direction: column;
-    justify-content: center;
-    padding: 0 !important;
-  }
-
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-logout-btn {
-    display: none;
+    justify-content: flex-start;
   }
 
   /* Cadastro flyout on rail (must escape overflow) */

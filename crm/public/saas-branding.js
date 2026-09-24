@@ -1,13 +1,13 @@
 /**
  * Applies multi-tenant branding across CRM HTML pages.
- * - System chrome (top bar, mobile header, favicons, login) = fixed ObraMate
- * - Company logo = sidebar only (img.sidebar-brand-logo)
+ * - System chrome (top bar, mobile header, favicons, login, sidebar mark) = fixed ObraMate
+ * - Sidebar brand mark = same square favicon (logo only, no wordmark)
  * Colors also come from /api/branding.css.
  */
 (function () {
   var DEFAULT_LOGO = "/assets/obramate-logo.png";
   var DEFAULT_NAME = "ObraMate";
-  /** Square mark for tab / PWA / home-screen — never use the wordmark here */
+  /** Square mark for tab / PWA / home-screen / sidebar — never use the wordmark here */
   var SYSTEM_APP_ICON = "/assets/favicon-192.png?v=20260924-pwa";
   var SYSTEM_TOUCH_ICON = "/assets/favicon-180.png?v=20260924-pwa";
   var SYSTEM_FAVICON_ICO = "/favicon.ico?v=20260924-pwa";
@@ -18,7 +18,7 @@
       .querySelectorAll(
         [
           ".crm-topbar__brand img",
-          "img.crm-system-logo",
+          "img.crm-system-logo:not(.sidebar-brand-logo)",
           "img.mobile-app-header__logo",
           "img.crm-shared-nav__brand-logo",
           ".login-header img.logo-image",
@@ -29,6 +29,15 @@
         el.setAttribute("alt", DEFAULT_NAME);
         el.style.display = "";
       });
+
+    /* Sidebar: square app icon only (same as favicon), never wordmark / tenant logo */
+    document.querySelectorAll("img.sidebar-brand-logo").forEach(function (el) {
+      el.setAttribute("src", SYSTEM_APP_ICON);
+      el.setAttribute("alt", DEFAULT_NAME);
+      el.setAttribute("width", "32");
+      el.setAttribute("height", "32");
+      el.style.display = "";
+    });
 
     document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function (el) {
       el.setAttribute("href", SYSTEM_TOUCH_ICON);
@@ -43,21 +52,19 @@
     });
   }
 
-  /** Tenant-configurable logo — sidebar only. */
+  /** Tenant name / legacy slots — never overwrite the sidebar system mark. */
   function applyCompanyLogo(url, name) {
     var src = url || DEFAULT_LOGO;
     var alt = name || DEFAULT_NAME;
     var nodes = document.querySelectorAll(
-      "img.sidebar-brand-logo, .sidebar-header > img, .sidebar-header a > img",
+      ".sidebar-header > img:not(.sidebar-brand-logo), .sidebar-header a > img:not(.sidebar-brand-logo)",
     );
     nodes.forEach(function (el) {
-      // Never overwrite fixed system marks if misclassified
       if (el.classList && el.classList.contains("crm-system-logo")) return;
       el.setAttribute("src", src);
       el.setAttribute("alt", alt);
       el.style.display = "";
       el.onerror = function () {
-        // Keep slot visible with system fallback instead of hiding forever
         if (el.getAttribute("src") !== DEFAULT_LOGO) {
           el.setAttribute("src", DEFAULT_LOGO);
         }
