@@ -12,6 +12,7 @@
   let canManageJobs = false;
   let currentUserId = null;
   let slotAnchor = null;
+  let editingMeetingId = null;
 
   const filters = {
     jobs: true,
@@ -321,10 +322,16 @@
   }
 
   function eventPlaceStyle(item) {
+    // Side-by-side with a light overlap so stacked cards stay readable (GCal-like).
     const gap = 2;
-    const pct = 100 / item.colCount;
-    const left = item.col * pct;
-    return `top:${item.top}px;height:${item.height}px;left:calc(${left}% + ${gap}px);width:calc(${pct}% - ${gap * 2}px);right:auto;background:${escapeAttr(item.ev.color || (item.ev.type === "job" ? "#e8792c" : "#3b6ea5"))}`;
+    const n = Math.max(1, item.colCount);
+    const col = item.col;
+    const base = 100 / n;
+    const overlap = n > 1 ? base * 0.22 : 0;
+    const left = col * base;
+    const width = Math.min(100 - left, base + overlap) - (gap * 2) / 10;
+    const z = 2 + col;
+    return `top:${item.top}px;height:${item.height}px;left:calc(${left}% + ${gap}px);width:calc(${width}% - ${gap}px);right:auto;z-index:${z};background:${escapeAttr(item.ev.color || (item.ev.type === "job" ? "#e8792c" : "#3b6ea5"))}`;
   }
 
   function nowLineHtml(day) {
@@ -603,23 +610,32 @@
     if (ev.type === "job") {
       body += `<p>${escapeHtml(meta.source_name || meta.source_type || "")}</p>`;
       if (meta.address) body += `<p>📍 ${escapeHtml(meta.address)}</p>`;
-      $("btnOpenJob").hidden = false;
-      $("btnOpenJob").removeAttribute("href");
-      $("btnOpenJob").onclick = (e) => {
-        e.preventDefault();
-        closeEvent();
-        if (window.__crmJobModal) {
-          window.__crmJobModal.openEdit(ev.id).catch((err) => notify(err.message, "error"));
-        }
-      };
-    } else {
-      if (meta.location) body += `<p>📍 ${escapeHtml(meta.location)}</p>`;
-      $("btnOpenJob").hidden = true;
-      $("btnOpenJob").onclick = null;
+    } else if (meta.location) {
+      body += `<p>📍 ${escapeHtml(meta.location)}</p>`;
     }
     if (meta.assigned_user?.name) body += `<p>👤 ${escapeHtml(meta.assigned_user.name)}</p>`;
     if (meta.notes) body += `<p>${escapeHtml(meta.notes)}</p>`;
     $("eventModalBody").innerHTML = body;
+
+    const editBtn = $("btnEditEvent");
+    const canEdit =
+      (ev.type === "job" && canManageJobs) || (ev.type === "meeting" && canManageMeetings);
+    if (editBtn) {
+      editBtn.hidden = !canEdit;
+      editBtn.textContent = ev.type === "job" ? "Editar job" : "Editar meeting";
+      editBtn.onclick = (e) => {
+        e.preventDefault();
+        closeEvent();
+        if (ev.type === "job") {
+          if (window.__crmJobModal) {
+            window.__crmJobModal.openEdit(ev.id).catch((err) => notify(err.message, "error"));
+          }
+        } else {
+          openMeetingModal(null, ev);
+        }
+      };
+    }
+
     $("eventModal").hidden = false;
     $("eventBackdrop").hidden = false;
   }
@@ -629,18 +645,34 @@
     $("eventBackdrop").hidden = true;
   }
 
-  function openMeetingModal(prefStart) {
+  function openMeetingModal(prefStart, existing) {
     if (!canManageMeetings) return;
-    const now = prefStart ? new Date(prefStart) : new Date();
-    now.setMinutes(0, 0, 0);
-    if (!prefStart) now.setHours(now.getHours() + 1);
-    const end = new Date(now);
-    end.setHours(end.getHours() + 1);
-    $("mtgTitle").value = "";
-    $("mtgStart").value = toLocalInput(now);
-    $("mtgEnd").value = toLocalInput(end);
-    $("mtgLocation").value = "";
-    $("mtgNotes").value = "";
+    editingMeetingId = existing ? existing.id : null;
+    const titleEl = $("meetingModalTitle");
+    if (titleEl) titleEl.textContent = editingMeetingId ? "Editar meeting" : "Novo meeting";
+
+    if (existing) {
+      const meta = existing.meta || {};
+      $("mtgTitle").value = existing.title || "";
+      $("mtgStart").value = toLocalInput(new Date(existing.start));
+      $("mtgEnd").value = toLocalInput(new Date(existing.end));
+      $("mtgLocation").value = meta.location || "";
+      $("mtgNotes").value = meta.notes || "";
+      $("mtgAssignee").value = meta.assigned_user_id || meta.assigned_user?.id || "";
+    } else {
+      const now = prefStart ? new Date(prefStart) : new Date();
+      now.setMinutes(0, 0, 0);
+      if (!prefStart) now.setHours(now.getHours() + 1);
+      const end = new Date(now);
+      end.setHours(end.getHours() + 1);
+      $("mtgTitle").value = "";
+      $("mtgStart").value = toLocalInput(now);
+      $("mtgEnd").value = toLocalInput(end);
+      $("mtgLocation").value = "";
+      $("mtgNotes").value = "";
+      $("mtgAssignee").value = "";
+    }
+
     $("meetingModal").classList.add("is-open");
     $("meetingBackdrop").classList.add("is-open");
     closeSlotMenu();
@@ -650,6 +682,7 @@
   function closeMeetingModal() {
     $("meetingModal").classList.remove("is-open");
     $("meetingBackdrop").classList.remove("is-open");
+    editingMeetingId = null;
   }
 
   function closeCreateMenu() {
@@ -1133,18 +1166,27 @@
         try {
           const start = new Date($("mtgStart").value);
           const end = new Date($("mtgEnd").value);
-          await api("/api/meetings", {
-            method: "POST",
-            body: JSON.stringify({
-              title: $("mtgTitle").value.trim(),
-              scheduled_start: start.toISOString(),
-              scheduled_end: end.toISOString(),
-              location: $("mtgLocation").value.trim() || null,
-              notes: $("mtgNotes").value.trim() || null,
-              assigned_user_id: $("mtgAssignee").value || null,
-            }),
-          });
-          notify("Meeting criado.", "success");
+          const payload = {
+            title: $("mtgTitle").value.trim(),
+            scheduled_start: start.toISOString(),
+            scheduled_end: end.toISOString(),
+            location: $("mtgLocation").value.trim() || null,
+            notes: $("mtgNotes").value.trim() || null,
+            assigned_user_id: $("mtgAssignee").value || null,
+          };
+          if (editingMeetingId) {
+            await api(`/api/meetings/${editingMeetingId}`, {
+              method: "PUT",
+              body: JSON.stringify(payload),
+            });
+            notify("Meeting atualizado.", "success");
+          } else {
+            await api("/api/meetings", {
+              method: "POST",
+              body: JSON.stringify(payload),
+            });
+            notify("Meeting criado.", "success");
+          }
           closeMeetingModal();
           await loadEvents();
         } catch (err) {

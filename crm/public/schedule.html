@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="crm-shell.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20260924-jobmodal" />
-  <link rel="stylesheet" href="schedule.css?v=20260924-map" />
+  <link rel="stylesheet" href="schedule.css?v=20260924-overlap" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body sched-body">
@@ -163,15 +163,15 @@
     <h2 id="eventModalTitle">Evento</h2>
     <div id="eventModalBody" class="gcal-popover__body"></div>
     <div class="gcal-popover__actions">
-      <a class="btn btn-primary btn-sm" id="btnOpenJob" hidden href="jobs.html">Abrir job</a>
+      <button type="button" class="btn btn-primary btn-sm" id="btnEditEvent" hidden>Editar</button>
       <button type="button" class="btn btn-secondary btn-sm" id="btnCloseEvent2">Fechar</button>
     </div>
   </div>
 
-  <!-- New meeting -->
+  <!-- Meeting create / edit -->
   <div class="sched-modal-backdrop" id="meetingBackdrop"></div>
   <div class="sched-modal" id="meetingModal" role="dialog" aria-modal="true">
-    <h2>Novo meeting</h2>
+    <h2 id="meetingModalTitle">Novo meeting</h2>
     <form id="meetingForm" class="sched-form">
       <label>Título *
         <input type="text" id="mtgTitle" required maxlength="200" />
@@ -234,6 +234,6 @@
   <script src="crm-shell.js?v=20260924-shell2"></script>
   <script src="crm-shared-nav.js?v=20260924-shell2"></script>
   <script src="crm-job-modal.js?v=20260924-jobmodal"></script>
-  <script src="schedule.js?v=20260924-map"></script>
+  <script src="schedule.js?v=20260924-overlap"></script>
 </body>
 </html>
