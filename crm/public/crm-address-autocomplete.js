@@ -346,7 +346,109 @@
       country: 'us',
       map: { combined: '#estAddress' },
     },
+    {
+      input: '#jobAddress',
+      country: 'us',
+      map: { combined: '#jobAddress' },
+    },
+    {
+      input: '#mtgLocation',
+      country: 'us',
+      map: { combined: '#mtgLocation' },
+    },
+    {
+      input: '#visitLine1',
+      country: 'us',
+      map: {
+        line1: '#visitLine1',
+        city: '#visitCity',
+        zip: '#visitZip',
+      },
+    },
+    {
+      input: '#fAddress',
+      country: 'us',
+      map: { combined: '#fAddress' },
+    },
+    {
+      input: '#v-addr',
+      country: 'us',
+      map: { combined: '#v-addr' },
+    },
   ];
+
+  var SECONDARY_RE =
+    /(line2|address_line2|complement|suite|apto|apt|unit|city|state|zip|postal|cep|bairro|search|filter|query|buscar|filtrar)/i;
+  var PRIMARY_ID_RE =
+    /(^|[^a-z0-9])(address|addr|location|morada|endereco|endereço|street|rua)([^a-z0-9]|$)/i;
+  var PRIMARY_PLACEHOLDER_RE =
+    /(digite a morada|google maps|comece a digitar|start typing.*(address|morada)|street,\s*city|rua,?\s*n[uú]mero|endere[cç]o)/i;
+
+  function isPrimaryAddressInput(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.tagName !== 'INPUT') return false;
+    var type = (el.getAttribute('type') || 'text').toLowerCase();
+    if (type && type !== 'text' && type !== 'search') return false;
+    if (type === 'search') return false;
+    if (el.readOnly || el.disabled) return false;
+    if (el.getAttribute('data-crm-address-autocomplete') === 'off') return false;
+    if (el.getAttribute('data-crm-address-autocomplete') === '1') return true;
+    if ((el.getAttribute('autocomplete') || '') === 'street-address') return true;
+
+    var idName = ((el.id || '') + ' ' + (el.name || '')).trim();
+    var ph = el.placeholder || '';
+    if (SECONDARY_RE.test(idName)) return false;
+    if (/search|filter|query|buscar|filtrar/i.test(idName + ' ' + ph)) return false;
+    if (PRIMARY_ID_RE.test(idName)) return true;
+    if (PRIMARY_PLACEHOLDER_RE.test(ph)) return true;
+    return false;
+  }
+
+  function guessMapForInput(el) {
+    var id = el.id;
+    if (!id) return { combined: el };
+    var map = { combined: '#' + id };
+    var pairs = [
+      ['City', 'city'],
+      ['State', 'state'],
+      ['Zip', 'zip'],
+      ['ZipCode', 'zip'],
+      ['ZIP', 'zip'],
+      ['Postal', 'zip'],
+    ];
+    // e.g. visitAddressLine1 → visitCity / visitZipCode
+    var base = id
+      .replace(/(AddressLine1|address_line1|Address|Addr|Street|Location|Line1)$/i, '')
+      .replace(/(Full)?$/i, '');
+    if (base && base !== id) {
+      pairs.forEach(function (p) {
+        var cand = document.getElementById(base + p[0]);
+        if (cand) map[p[1]] = '#' + cand.id;
+      });
+      if (map.combined === '#' + id && /Line1|Street/i.test(id)) {
+        map.line1 = '#' + id;
+        delete map.combined;
+      }
+    }
+    return map;
+  }
+
+  function scanAndAttachAll() {
+    var nodes = document.querySelectorAll(
+      'input[type="text"], input:not([type]), input[autocomplete="street-address"], input[data-crm-address-autocomplete]',
+    );
+    nodes.forEach(function (el) {
+      if (!isPrimaryAddressInput(el)) return;
+      if (attached.has(el)) return;
+      var preset = PRESETS.find(function (p) {
+        return p.input === '#' + el.id;
+      });
+      attachAddressAutocomplete(el, {
+        country: (preset && preset.country) || 'us',
+        map: (preset && preset.map) || guessMapForInput(el),
+      });
+    });
+  }
 
   function initCrmAddressAutocomplete() {
     PRESETS.forEach(function (preset) {
@@ -356,16 +458,33 @@
         map: preset.map,
       });
     });
+    scanAndAttachAll();
+  }
+
+  var observerStarted = false;
+  function startDomObserver() {
+    if (observerStarted || typeof MutationObserver === 'undefined' || !document.body) return;
+    observerStarted = true;
+    var timer = null;
+    var obs = new MutationObserver(function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        scanAndAttachAll();
+      }, 250);
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
   }
 
   global.sfAttachAddressAutocomplete = attachAddressAutocomplete;
   global.sfInitCrmAddressAutocomplete = initCrmAddressAutocomplete;
+  global.sfScanCrmAddressAutocomplete = scanAndAttachAll;
   global.sfEnsureCrmAddressAutocomplete = ensureMapsReady;
   global.sfParseGooglePlaceComponents = parsePlaceComponents;
   global.sfDismissPacDropdown = dismissPacDropdown;
 
   function bootAfterAuth() {
     initCrmAddressAutocomplete();
+    startDomObserver();
   }
 
   global.sfBootCrmAddressAutocomplete = bootAfterAuth;

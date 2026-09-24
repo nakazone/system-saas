@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-shell2";
+  const SHELL_VER = "20260924-addr";
 
   const TOPBAR_HTML = `
 <header class="crm-topbar" id="crmTopbar" aria-label="Barra superior">
@@ -423,9 +423,33 @@
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
       jobs.push(ensureScript("saas-branding.js").catch(() => {}));
     }
+    if (!window.sfBootCrmAddressAutocomplete && !document.querySelector('script[src*="crm-address-autocomplete.js"]')) {
+      jobs.push(
+        ensureScript(`crm-address-autocomplete.js?v=${SHELL_VER}`)
+          .then(() => {
+            if (typeof window.sfBootCrmAddressAutocomplete === "function") {
+              window.sfBootCrmAddressAutocomplete();
+            }
+          })
+          .catch(() => {}),
+      );
+    } else if (typeof window.sfBootCrmAddressAutocomplete === "function") {
+      try {
+        window.sfBootCrmAddressAutocomplete();
+      } catch (_) {}
+    } else if (typeof window.sfScanCrmAddressAutocomplete === "function") {
+      try {
+        window.sfScanCrmAddressAutocomplete();
+      } catch (_) {}
+    }
     await Promise.all(jobs);
     if (window.__crmAccountMenu && typeof window.__crmAccountMenu.init === "function") {
       window.__crmAccountMenu.init();
+    }
+    if (typeof window.sfScanCrmAddressAutocomplete === "function") {
+      try {
+        window.sfScanCrmAddressAutocomplete();
+      } catch (_) {}
     }
   }
 

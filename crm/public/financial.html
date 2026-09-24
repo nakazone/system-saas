@@ -278,7 +278,7 @@
         <input id="v-email" type="email" placeholder="Email" />
         <input id="v-phone" placeholder="Telefone" />
         <input id="v-web" class="fin-form-full" placeholder="Website" />
-        <textarea id="v-addr" class="fin-form-full" rows="2" placeholder="Endereço"></textarea>
+        <input type="text" id="v-addr" class="fin-form-full" placeholder="Endereço" autocomplete="street-address" data-crm-address-autocomplete="1" />
         <input id="v-terms" placeholder="Payment terms" />
         <input id="v-tax" placeholder="Tax ID" />
         <input id="v-rating" type="number" min="1" max="5" placeholder="Rating 1-5" />
@@ -317,7 +317,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="crm-shell.js?v=20260924-shell"></script>
+  <script src="crm-shell.js?v=20260924-addr"></script>
   <script src="crm-shared-nav.js?v=20260924-shell"></script>
   <script src="financial.js?v=14"></script>
 </body>
