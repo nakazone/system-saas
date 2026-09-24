@@ -5,6 +5,10 @@
  * Schedule, Jobs, Tabela de Valores, Folha de Pagamento.
  */
 (function () {
+  // Shell may inject this script while the page also has a static <script> tag —
+  // a second IIFE would race and duplicate sidebar groups.
+  if (window.__crmSharedNav) return;
+
   const ICONS = {
     dashboard:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>',
@@ -135,7 +139,18 @@
 
   function createSidebarLink(item, file, page) {
     const a = document.createElement('a');
-    a.href = item.href;
+    const onDashboard = file === 'dashboard.html';
+    const isDashPage = (item.href || '').indexOf('dashboard.html') >= 0 && item.page != null && item.page !== undefined;
+    // Soft-nav on dashboard SPA; real links everywhere else
+    if (onDashboard && isDashPage) {
+      a.href = '#';
+      if (item.page) a.setAttribute('data-page', item.page);
+      else a.setAttribute('data-page', 'dashboard');
+    } else {
+      a.href = item.href;
+      if (item.page) a.setAttribute('data-page', item.page);
+    }
+    if (item.customerType) a.setAttribute('data-customers-type', item.customerType);
     a.className = 'nav-item' + (linkActive(item, file, page) ? ' active' : '');
     if (item.perm) a.setAttribute('data-crm-permission', item.perm);
     const tpl = document.createElement('template');
@@ -257,11 +272,16 @@
     }
   }
 
+  let initInFlight = null;
+
   async function init() {
     const host = document.getElementById('crmSharedNavRoot');
     if (!host) return;
-    // Avoid double-mount
+    // Avoid double-mount / concurrent init races (shell remount + script onload)
     if (host.dataset.mounted === '1' && host.children.length) return;
+    if (initInFlight) return initInFlight;
+
+    initInFlight = (async () => {
     host.innerHTML = '';
 
     let user = null;
@@ -334,9 +354,21 @@
     nav.appendChild(inner);
     host.appendChild(nav);
     host.dataset.mounted = '1';
+    })();
+
+    try {
+      await initInFlight;
+    } finally {
+      initInFlight = null;
+    }
   }
 
-  function remount() {
+  async function remount() {
+    if (initInFlight) {
+      try {
+        await initInFlight;
+      } catch (_) {}
+    }
     const host = document.getElementById('crmSharedNavRoot');
     if (host) {
       host.dataset.mounted = '0';

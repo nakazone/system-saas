@@ -4,6 +4,8 @@
  * - iOS / Safari / demais: modal com passos "Adicionar à tela de início"
  */
 (function () {
+  if (window.__crmPwaInstall) return;
+
   const DISMISS_KEY = 'crm_pwa_install_dismissed_v1';
   let deferredPrompt = null;
 
@@ -246,6 +248,8 @@
   window.openCrmPwaInstall = function () {
     void runInstall(false);
   };
+
+  window.__crmPwaInstall = { init, bindButtons, open: window.openCrmPwaInstall };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

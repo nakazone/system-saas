@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-shell";
+  const SHELL_VER = "20260924-shell2";
 
   const TOPBAR_HTML = `
 <header class="crm-topbar" id="crmTopbar" aria-label="Barra superior">
@@ -194,7 +194,6 @@
 
     let root = nav.querySelector("#crmSharedNavRoot");
     if (!root) {
-      // Replace hardcoded nav items with shared root
       nav.innerHTML = "";
       root = document.createElement("div");
       root.id = "crmSharedNavRoot";
@@ -202,7 +201,10 @@
       nav.appendChild(root);
     } else {
       root.setAttribute("data-layout", "sidebar");
-      // Remove top-bar style shared nav if previously mounted horizontally
+      // Drop any hardcoded sibling groups left beside the shared root
+      [...nav.children].forEach((child) => {
+        if (child !== root) child.remove();
+      });
       const oldTop = root.querySelector(".crm-shared-nav");
       if (oldTop) oldTop.remove();
     }
@@ -400,8 +402,14 @@
 
     const jobs = [];
     if (!window.CrmI18n) jobs.push(ensureScript(`crm-i18n.js?v=${SHELL_VER}`).catch(() => {}));
-    if (!document.querySelector('script[src*="crm-shared-nav.js"]')) {
+    if (!window.__crmSharedNav && !document.querySelector('script[src*="crm-shared-nav.js"]')) {
       jobs.push(ensureScript(`crm-shared-nav.js?v=${SHELL_VER}`).catch(() => {}));
+    }
+    if (!window.__crmPwaInstall && !document.querySelector('script[src*="crm-pwa-install.js"]')) {
+      ensureStylesheet(`crm-pwa-install.css?v=${SHELL_VER}`);
+      jobs.push(ensureScript(`crm-pwa-install.js?v=${SHELL_VER}`).catch(() => {}));
+    } else {
+      ensureStylesheet(`crm-pwa-install.css?v=${SHELL_VER}`);
     }
     if (!window.__crmAccountMenu) {
       jobs.push(ensureScript(`crm-account-menu.js?v=${SHELL_VER}`).catch(() => {}));
@@ -442,7 +450,9 @@
     });
 
     await loadCompanionAssets();
-    if (window.__crmSharedNav && typeof window.__crmSharedNav.remount === "function") {
+    const host = document.getElementById("crmSharedNavRoot");
+    const needsNav = host && (!host.dataset.mounted || host.dataset.mounted !== "1" || !host.children.length);
+    if (needsNav && window.__crmSharedNav && typeof window.__crmSharedNav.remount === "function") {
       await window.__crmSharedNav.remount();
     }
     // Re-wrap labels after shared nav mounts

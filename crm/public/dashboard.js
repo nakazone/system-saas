@@ -183,13 +183,31 @@ fetch('/api/auth/session', { credentials: 'include' })
             showPage('dashboard');
             return;
         }
-        if (pageParam === 'customers') {
-            const tp = new URLSearchParams(window.location.search).get('type');
-            customersTypeFilter = tp === 'builder' ? 'builder' : '';
-            customersSearchFilter = '';
-            showPage('customers');
-        } else if (routePage && document.querySelector(`#dashboardSidebar [data-page="${routePage}"]`)) {
-            showPage(routePage);
+        const goRoutedPage = () => {
+            if (pageParam === 'customers') {
+                const tp = new URLSearchParams(window.location.search).get('type');
+                customersTypeFilter = tp === 'builder' ? 'builder' : '';
+                customersSearchFilter = '';
+                showPage('customers');
+            } else if (routePage && document.querySelector(`#dashboardSidebar [data-page="${routePage}"]`)) {
+                showPage(routePage);
+            } else if (routePage) {
+                // Shared nav may still be mounting — soft-route anyway
+                showPage(routePage);
+            }
+        };
+        const host = document.getElementById('crmSharedNavRoot');
+        if (host && !host.children.length) {
+            let tries = 0;
+            const waitNav = setInterval(() => {
+                tries += 1;
+                if (host.children.length || tries > 40) {
+                    clearInterval(waitNav);
+                    goRoutedPage();
+                }
+            }, 50);
+        } else {
+            goRoutedPage();
         }
     })
     .catch((err) => {
@@ -760,23 +778,24 @@ document.addEventListener('keydown', (e) => {
 
 // Navigation (só links da sidebar — nunca misturar com .nav-item noutros blocos)
 const dashboardSidebarEl = document.getElementById('dashboardSidebar');
-if (dashboardSidebarEl) {
-    dashboardSidebarEl.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            if (item.tagName === 'SUMMARY') return;
-            const href = (item.getAttribute('href') || '').trim();
-            /* Folha obra e outros links reais (.html) — não interceptar */
-            if (href && href !== '#' && !href.startsWith('#')) {
-                return;
-            }
-            e.preventDefault();
-            const page = item.dataset.page;
-            const ct = item.getAttribute('data-customers-type');
-            if (page === 'customers') {
-                customersTypeFilter = ct === 'builder' ? 'builder' : '';
-            }
-            if (page) showPage(page);
-        });
+if (dashboardSidebarEl && !dashboardSidebarEl.dataset.navBound) {
+    dashboardSidebarEl.dataset.navBound = '1';
+    dashboardSidebarEl.addEventListener('click', (e) => {
+        const item = e.target.closest('.nav-item');
+        if (!item || !dashboardSidebarEl.contains(item)) return;
+        if (item.tagName === 'SUMMARY') return;
+        const href = (item.getAttribute('href') || '').trim();
+        /* Folha obra e outros links reais (.html) — não interceptar */
+        if (href && href !== '#' && !href.startsWith('#')) {
+            return;
+        }
+        e.preventDefault();
+        const page = item.dataset.page;
+        const ct = item.getAttribute('data-customers-type');
+        if (page === 'customers') {
+            customersTypeFilter = ct === 'builder' ? 'builder' : '';
+        }
+        if (page) showPage(page);
     });
 }
 

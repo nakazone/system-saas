@@ -19,9 +19,10 @@
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
     <link rel="stylesheet" href="crm-command-palette.css">
-    <link rel="stylesheet" href="crm-shell.css?v=20260924-shell">
+    <link rel="stylesheet" href="crm-shell.css?v=20260924-shell2">
+    <link rel="stylesheet" href="crm-shared-nav.css?v=12">
     <link rel="stylesheet" href="crm-help-panel.css?v=20260923-help-right">
-    <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa">
+    <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2">
     <link rel="stylesheet" href="crm-push.css?v=20260923-push">
     <link rel="stylesheet" href="dashboard-insights.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -186,70 +187,7 @@
             </div>
             
             <nav class="sidebar-nav" aria-label="Principal">
-                <div class="sidebar-nav-group">
-                    <a href="#" class="nav-item active" data-page="dashboard">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-                        Dashboard
-                    </a>
-                </div>
-                <div class="sidebar-nav-group">
-                    <p class="sidebar-nav-group-label">Comercial</p>
-                    <a href="#" class="nav-item" data-page="leads" data-crm-permission="leads.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
-                        Leads
-                    </a>
-                </div>
-                <div class="sidebar-nav-group">
-                    <p class="sidebar-nav-group-label">Operações</p>
-                    <a href="#" class="nav-item" data-page="quotes" data-crm-permission="quotes.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                        Quotes
-                    </a>
-                    <a href="#" class="nav-item" data-page="invoices" data-crm-permission="quotes.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>
-                        Invoices
-                    </a>
-                    <a href="schedule.html" class="nav-item" data-crm-permission="schedule.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
-                        Schedule
-                    </a>
-                    <a href="jobs.html" class="nav-item" data-crm-permission="work_orders.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>
-                        Jobs
-                    </a>
-                    <details class="sidebar-nav-dropdown" id="sidebarCadastroDropdown">
-                        <summary class="nav-item nav-item--dropdown">
-                            <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                            Cadastro
-                        </summary>
-                        <div class="sidebar-nav-dropdown__panel">
-                            <a href="products-erp.html" class="nav-item nav-item--sub" data-crm-permission="quotes.view">
-                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                                Produtos
-                            </a>
-                            <a href="quote-catalog.html" class="nav-item nav-item--sub" data-crm-permission="quotes.edit">
-                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                                Serviços
-                            </a>
-                            <a href="#" class="nav-item nav-item--sub" data-page="customers" data-crm-permission="customers.view">
-                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                                Clientes
-                            </a>
-                            <a href="#" class="nav-item nav-item--sub" data-page="customers" data-customers-type="builder" data-crm-permission="customers.view">
-                                <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                                Builders
-                            </a>
-                        </div>
-                    </details>
-                    <a href="builder-pricing-admin.html" class="nav-item" data-crm-permission="builders.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                        Tabela de Valores
-                    </a>
-                    <a href="payroll-module.html" class="nav-item" data-crm-permission="payroll.view">
-                        <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                        Folha de Pagamento
-                    </a>
-                </div>
+                <div id="crmSharedNavRoot" data-layout="sidebar"></div>
             </nav>
                 
             <div class="sidebar-footer">
@@ -1799,7 +1737,8 @@
     <script src="crm-i18n.js?v=20260923-i18n"></script>
     <script src="crm-account-menu.js?v=20260923-account"></script>
     <script src="crm-help-panel.js?v=20260923-help"></script>
-    <script src="crm-shell.js?v=20260924-shell"></script>
+    <script src="crm-shell.js?v=20260924-shell2"></script>
+    <script src="crm-shared-nav.js?v=20260924-shell2"></script>
     <script src="crm-pwa-install.js?v=20260923-pwa"></script>
     <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>
