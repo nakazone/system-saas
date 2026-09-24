@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#f4f2ef" />
   <title>Dashboard | ObraMate</title>
-  <style id="om-chrome-critical">html{--plab-rail:72px}body.om-app.dashboard-app-body{--crm-sidebar-width:72px;--crm-topbar-height:0px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:72px!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:72px!important;min-width:72px!important;max-width:72px!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40;overflow-x:hidden!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:0!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app .nav-item__label,body.om-app .sidebar-nav-group-label,body.om-app .sidebar-user-bar__text,body.om-app .sidebar-collapse-btn{display:none!important}}</style>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:0px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:0!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-nav-group-label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}}</style>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -14,11 +14,21 @@
   <link rel="stylesheet" href="styles.css?v=20260924-omapp" />
   <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
   <link rel="stylesheet" href="crm-toast.css" />
-  <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp3" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp4" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
-  <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp3" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp4" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed plab">
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <a class="plab-skip" href="#plabMain">Saltar para conteúdo</a>
 
   <header class="mobile-app-header" id="mobileAppHeader">
@@ -35,6 +45,9 @@
     <aside class="dashboard-sidebar" id="dashboardSidebar">
       <div class="sidebar-header">
         <img src="/assets/obramate-logo.png" alt="Empresa" class="sidebar-brand-logo" width="220" height="44" onerror="this.style.display='none'" />
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
       </div>
       <nav class="sidebar-nav" aria-label="Principal">
         <div id="crmSharedNavRoot" data-layout="sidebar"></div>
@@ -161,8 +174,8 @@
 
   <script src="crm-toast.js"></script>
   <script src="saas-branding.js"></script>
-  <script src="crm-shared-nav.js?v=20260924-omapp3"></script>
-  <script src="crm-shell.js?v=20260924-omapp3"></script>
+  <script src="crm-shared-nav.js?v=20260924-omapp4"></script>
+  <script src="crm-shell.js?v=20260924-omapp4"></script>
   
   <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
   <script src="pipeline-lab.js?v=20260924-omapp"></script>

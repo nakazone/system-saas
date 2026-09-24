@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-omapp3";
+  const SHELL_VER = "20260924-omapp4";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -351,40 +351,36 @@
     const sidebar = getSidebar();
     wrapNavLabels(sidebar);
 
-    // New app chrome is always an icon rail — never animate width/collapse on load
-    if (document.body.classList.contains("om-app")) {
-      document.body.classList.add("sidebar-collapsed");
-      try {
-        localStorage.setItem(STORAGE_KEY, "1");
-      } catch (_) {}
-      const btn = document.getElementById("sidebarCollapseBtn");
-      if (btn) btn.style.display = "none";
-      return;
-    }
-
-    let saved = false;
+    let saved = true; // default: icon rail
     try {
-      saved = localStorage.getItem(STORAGE_KEY) === "1";
+      const v = localStorage.getItem(STORAGE_KEY);
+      if (v === "0") saved = false;
+      else if (v === "1") saved = true;
     } catch (_) {}
+
     if (window.matchMedia("(min-width: 1025px)").matches) setCollapsed(saved);
     else setCollapsed(false);
 
     const btn = document.getElementById("sidebarCollapseBtn");
-    if (btn && !btn.dataset.bound) {
-      btn.dataset.bound = "1";
-      btn.addEventListener("click", () => {
-        if (!window.matchMedia("(min-width: 1025px)").matches) return;
-        setCollapsed(!isCollapsed());
-      });
+    if (btn) {
+      btn.style.display = "";
+      if (!btn.dataset.bound) {
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", () => {
+          if (!window.matchMedia("(min-width: 1025px)").matches) return;
+          setCollapsed(!isCollapsed());
+        });
+      }
     }
 
     window.matchMedia("(min-width: 1025px)").addEventListener("change", (e) => {
       if (!e.matches) setCollapsed(false);
       else {
         try {
-          setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
+          const v = localStorage.getItem(STORAGE_KEY);
+          setCollapsed(v !== "0");
         } catch (_) {
-          setCollapsed(false);
+          setCollapsed(true);
         }
       }
     });
@@ -525,7 +521,8 @@
     if (isAuthPage()) return;
     if (document.body.dataset.crmShellBoot === "1") return;
     document.body.dataset.crmShellBoot = "1";
-    document.body.classList.add("dashboard-app-body", "om-app", "sidebar-collapsed", "om-chrome-ready");
+    document.body.classList.add("dashboard-app-body", "om-app", "om-chrome-ready");
+    // sidebar-collapsed is set by HTML (FOUC) + initCollapse from localStorage
 
     promoteStandaloneToShell();
     ensureTopbar();

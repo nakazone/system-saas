@@ -838,6 +838,11 @@ body.om-app {
 
 body.om-app.dashboard-app-body {
   --crm-topbar-height: 0px;
+  --crm-sidebar-expanded-width: 232px;
+  --crm-sidebar-width: var(--crm-sidebar-expanded-width);
+}
+
+body.om-app.dashboard-app-body.sidebar-collapsed {
   --crm-sidebar-width: var(--plab-rail);
 }
 
@@ -882,28 +887,27 @@ body.om-app .dashboard-main {
   }
 }
 
-/* Transform existing sidebar into icon rail */
+/* Transform existing sidebar — expanded (labels) + collapsed (icon rail) */
 @media (min-width: 1025px) {
   body.om-app .dashboard-container {
     display: block !important;
-    margin-left: var(--plab-rail);
+    margin-left: var(--crm-sidebar-width) !important;
     min-height: 100vh;
     width: auto;
   }
 
-  body.om-app #dashboardSidebar.dashboard-sidebar,
-  body.om-app.sidebar-collapsed #dashboardSidebar.dashboard-sidebar {
+  body.om-app #dashboardSidebar.dashboard-sidebar {
     position: fixed !important;
     inset: 0 auto 0 0 !important;
     top: 0 !important;
     left: 0 !important;
-    width: var(--plab-rail) !important;
-    min-width: var(--plab-rail) !important;
-    max-width: var(--plab-rail) !important;
+    width: var(--crm-sidebar-width) !important;
+    min-width: var(--crm-sidebar-width) !important;
+    max-width: var(--crm-sidebar-width) !important;
     height: 100vh !important;
-    padding: 1rem 0 1.1rem !important;
+    padding: 0.85rem 0.65rem 1rem !important;
     margin: 0 !important;
-    background: rgba(255, 255, 255, 0.88) !important;
+    background: rgba(255, 255, 255, 0.92) !important;
     border-right: 1px solid var(--plab-line) !important;
     backdrop-filter: blur(12px);
     z-index: 40;
@@ -911,29 +915,57 @@ body.om-app .dashboard-main {
     overflow-y: auto !important;
     display: flex !important;
     flex-direction: column !important;
-    align-items: center !important;
+    align-items: stretch !important;
     transform: none !important;
   }
 
   body.om-app #dashboardSidebar .sidebar-header {
     display: flex !important;
-    justify-content: center !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
     align-items: center !important;
-    padding: 0 0 0.65rem !important;
+    padding: 0.15rem 0.25rem 0.75rem !important;
     margin: 0 !important;
     border: none !important;
     width: 100%;
+    gap: 0.35rem;
+    background: transparent !important;
   }
 
   body.om-app #dashboardSidebar .sidebar-brand-logo {
-    width: 28px !important;
+    width: auto !important;
     height: 28px !important;
-    max-width: 28px !important;
+    max-width: 140px !important;
     object-fit: contain;
   }
 
   body.om-app #dashboardSidebar .sidebar-collapse-btn {
-    display: none !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px;
+    flex-shrink: 0;
+    border: 1px solid var(--plab-line) !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    color: var(--plab-muted) !important;
+    cursor: pointer;
+    padding: 0 !important;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-collapse-btn:hover {
+    background: var(--plab-soft) !important;
+    color: var(--plab-ink) !important;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-collapse-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
   }
 
   body.om-app #dashboardSidebar .sidebar-nav {
@@ -944,37 +976,51 @@ body.om-app .dashboard-main {
     padding: 0 !important;
   }
 
-  body.om-app #dashboardSidebar .sidebar-nav-group-label,
-  body.om-app #dashboardSidebar .nav-item__label,
-  body.om-app #dashboardSidebar .sidebar-nav-dropdown summary .nav-item__label,
-  body.om-app #dashboardSidebar .sidebar-user-bar__text,
-  body.om-app #dashboardSidebar .sidebar-nav-dropdown__panel {
-    display: none !important;
-  }
-
   body.om-app #dashboardSidebar .sidebar-nav-group {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-    margin: 0 0 0.35rem !important;
+    align-items: stretch;
+    gap: 0.2rem;
+    margin: 0 0 0.55rem !important;
     padding: 0 !important;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-nav-group-label {
+    display: block !important;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--plab-muted);
+    padding: 0.35rem 0.55rem 0.2rem;
   }
 
   body.om-app #dashboardSidebar .nav-item,
   body.om-app #dashboardSidebar .nav-item--dropdown,
   body.om-app #dashboardSidebar summary.nav-item {
-    width: 44px !important;
-    height: 44px !important;
-    min-height: 44px !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 40px !important;
     margin: 0 !important;
-    padding: 0 !important;
-    border-radius: 12px !important;
+    padding: 0.45rem 0.55rem !important;
+    border-radius: 10px !important;
     border-left: none !important;
-    justify-content: center !important;
-    gap: 0 !important;
+    justify-content: flex-start !important;
+    gap: 0.65rem !important;
     background: transparent !important;
     color: var(--plab-muted) !important;
+    list-style: none;
+  }
+
+  body.om-app #dashboardSidebar summary.nav-item::-webkit-details-marker {
+    display: none;
+  }
+
+  body.om-app #dashboardSidebar .nav-item__label {
+    display: inline !important;
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   body.om-app #dashboardSidebar .nav-item:hover,
@@ -993,6 +1039,7 @@ body.om-app .dashboard-main {
     width: 20px !important;
     height: 20px !important;
     margin: 0 !important;
+    flex-shrink: 0;
   }
 
   body.om-app #dashboardSidebar .sidebar-footer {
@@ -1001,25 +1048,157 @@ body.om-app .dashboard-main {
     padding: 0.5rem 0 0 !important;
     margin: 0 !important;
     display: flex;
-    justify-content: center;
+    justify-content: stretch;
   }
 
   body.om-app #dashboardSidebar .sidebar-user-bar {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem !important;
+    width: 100%;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-user-bar__text {
+    display: flex !important;
     flex-direction: column;
-    gap: 0.35rem;
-    padding: 0 !important;
+    min-width: 0;
   }
 
   body.om-app #dashboardSidebar .sidebar-user-bar__avatar {
     width: 36px !important;
     height: 36px !important;
     font-size: 0.85rem !important;
+    flex-shrink: 0;
   }
 
   body.om-app #dashboardSidebar .sidebar-logout-btn {
     width: 36px;
     height: 36px;
     border-radius: 10px;
+    margin-left: auto;
+  }
+
+  /* Inline Cadastro panel when expanded */
+  body.om-app:not(.sidebar-collapsed) #dashboardSidebar .sidebar-nav-dropdown__panel {
+    display: none;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.15rem 0 0.15rem 0.85rem;
+    margin: 0;
+    position: static;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  body.om-app:not(.sidebar-collapsed) #dashboardSidebar .sidebar-nav-dropdown[open] > .sidebar-nav-dropdown__panel {
+    display: flex !important;
+  }
+
+  body.om-app:not(.sidebar-collapsed) #dashboardSidebar .sidebar-nav-dropdown__panel .nav-item {
+    min-height: 34px !important;
+    padding: 0.35rem 0.55rem !important;
+  }
+
+  /* ——— Collapsed icon rail ——— */
+  body.om-app.sidebar-collapsed #dashboardSidebar.dashboard-sidebar {
+    padding: 1rem 0 1.1rem !important;
+    align-items: center !important;
+    overflow: visible !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-header {
+    justify-content: center !important;
+    flex-direction: column !important;
+    padding: 0 0 0.65rem !important;
+    gap: 0.45rem;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-brand-logo {
+    width: 28px !important;
+    height: 28px !important;
+    max-width: 28px !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav {
+    overflow: visible !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-group-label,
+  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item__label,
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown summary .nav-item__label,
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-user-bar__text {
+    display: none !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-group {
+    align-items: center;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item,
+  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item--dropdown,
+  body.om-app.sidebar-collapsed #dashboardSidebar summary.nav-item {
+    width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+    gap: 0 !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-footer {
+    justify-content: center;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-user-bar {
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-logout-btn {
+    display: none;
+  }
+
+  /* Cadastro flyout on rail (must escape overflow) */
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown {
+    position: relative;
+    overflow: visible;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown__panel {
+    display: none !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown[open] > .sidebar-nav-dropdown__panel {
+    display: flex !important;
+    flex-direction: column;
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 0;
+    min-width: 200px;
+    background: #fff;
+    border: 1px solid var(--plab-line);
+    border-radius: 12px;
+    box-shadow: var(--plab-shadow);
+    padding: 0.4rem;
+    z-index: 80;
+    gap: 0.15rem;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown__panel .nav-item {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 36px !important;
+    justify-content: flex-start !important;
+    padding: 0.45rem 0.65rem !important;
+    border-radius: 8px !important;
+    gap: 0.55rem !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown__panel .nav-item__label {
+    display: inline !important;
   }
 
   body.om-app .dashboard-main {
@@ -1035,10 +1214,6 @@ body.om-app .dashboard-main {
     min-height: 100vh !important;
     background: transparent !important;
     box-sizing: border-box !important;
-  }
-
-  body.om-app.sidebar-collapsed .dashboard-main {
-    margin-left: 0 !important;
   }
 
   body.om-app .dashboard-content,
@@ -1121,7 +1296,7 @@ body.om-app .btn-primary {
 }
 
 body.om-app.plab .plab-dock {
-  transform: translateX(calc(-50% + var(--plab-rail) / 2));
+  transform: translateX(calc(-50% + var(--crm-sidebar-width, var(--plab-rail)) / 2));
 }
 @media (max-width: 1024px) {
   body.om-app.plab .plab-dock {
@@ -1136,7 +1311,7 @@ body.om-app .om-dock {
   position: fixed;
   left: 50%;
   bottom: 1.15rem;
-  transform: translateX(calc(-50% + var(--plab-rail) / 2));
+  transform: translateX(calc(-50% + var(--crm-sidebar-width, var(--plab-rail)) / 2));
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -1190,32 +1365,5 @@ body.om-app .om-dock__btn svg { width: 16px; height: 16px; }
   body.om-app .om-dock__btn span { display: none; }
 }
 
-/* Cadastro overflow menu on rail */
-body.om-app #dashboardSidebar .sidebar-nav-dropdown {
-  position: relative;
-}
-body.om-app #dashboardSidebar .sidebar-nav-dropdown[open] > .sidebar-nav-dropdown__panel {
-  display: flex !important;
-  flex-direction: column;
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 0;
-  min-width: 180px;
-  background: #fff;
-  border: 1px solid var(--plab-line);
-  border-radius: 12px;
-  box-shadow: var(--plab-shadow);
-  padding: 0.35rem;
-  z-index: 60;
-}
-body.om-app #dashboardSidebar .sidebar-nav-dropdown__panel .nav-item {
-  width: 100% !important;
-  height: auto !important;
-  min-height: 36px !important;
-  justify-content: flex-start !important;
-  padding: 0.45rem 0.65rem !important;
-  border-radius: 8px !important;
-}
-body.om-app #dashboardSidebar .sidebar-nav-dropdown__panel .nav-item__label {
-  display: inline !important;
-}
+/* (Cadastro flyout styles live under .sidebar-collapsed / expanded blocks above) */
+
