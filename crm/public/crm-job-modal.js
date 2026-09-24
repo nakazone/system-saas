@@ -118,7 +118,7 @@
     <div class="jobs-modal-actions">
       <a class="btn btn-secondary" id="btnViewSchedule" href="schedule.html" hidden>Ver no Schedule</a>
       <button type="button" class="btn btn-secondary" id="btnCancelJob">Cancelar</button>
-      <button type="button" class="btn btn-secondary" id="btnCancelWo" hidden>Marcar cancelado</button>
+      <button type="button" class="btn btn-danger" id="btnCancelWo" hidden>Excluir job</button>
       <button type="submit" class="btn btn-primary" id="btnSaveJob">Salvar</button>
     </div>
   </form>
@@ -291,10 +291,10 @@
 
   async function cancelJob() {
     if (!editingId || !canManage) return;
-    if (!confirm("Marcar este job como cancelado?")) return;
+    if (!confirm("Excluir este job? Ele será marcado como cancelado e sairá da agenda.")) return;
     try {
       await api(`/api/work-orders/${editingId}`, { method: "DELETE" });
-      notify("Job cancelado.", "success");
+      notify("Job excluído.", "success");
       close();
       savedListeners.forEach((fn) => {
         try {

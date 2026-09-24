@@ -840,9 +840,17 @@
 .gcal-popover__actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.4rem;
   margin-top: 0.9rem;
   margin-left: 0.4rem;
+}
+.gcal-popover__actions #btnDeleteEvent {
+  margin-right: auto;
+}
+
+.sched-modal-actions #btnDeleteMeeting {
+  margin-right: auto;
 }
 
 .gcal-slot-menu {

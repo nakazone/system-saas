@@ -15,8 +15,8 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20260924-jobmodal" />
-  <link rel="stylesheet" href="schedule.css?v=20260924-overlap" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20260924-delete" />
+  <link rel="stylesheet" href="schedule.css?v=20260924-delete" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body sched-body">
@@ -164,6 +164,7 @@
     <div id="eventModalBody" class="gcal-popover__body"></div>
     <div class="gcal-popover__actions">
       <button type="button" class="btn btn-primary btn-sm" id="btnEditEvent" hidden>Editar</button>
+      <button type="button" class="btn btn-danger btn-sm" id="btnDeleteEvent" hidden>Excluir</button>
       <button type="button" class="btn btn-secondary btn-sm" id="btnCloseEvent2">Fechar</button>
     </div>
   </div>
@@ -194,6 +195,7 @@
         <textarea id="mtgNotes" rows="3" maxlength="8000"></textarea>
       </label>
       <div class="sched-modal-actions">
+        <button type="button" class="btn btn-danger" id="btnDeleteMeeting" hidden>Excluir</button>
         <button type="button" class="btn btn-secondary" id="btnCancelMeeting">Cancelar</button>
         <button type="submit" class="btn btn-primary">Salvar</button>
       </div>
@@ -233,7 +235,7 @@
   <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
   <script src="crm-shell.js?v=20260924-shell2"></script>
   <script src="crm-shared-nav.js?v=20260924-shell2"></script>
-  <script src="crm-job-modal.js?v=20260924-jobmodal"></script>
-  <script src="schedule.js?v=20260924-osm"></script>
+  <script src="crm-job-modal.js?v=20260924-delete"></script>
+  <script src="schedule.js?v=20260924-delete"></script>
 </body>
 </html>

@@ -13,6 +13,7 @@
   let currentUserId = null;
   let slotAnchor = null;
   let editingMeetingId = null;
+  let viewingEvent = null;
 
   const filters = {
     jobs: true,
@@ -601,6 +602,7 @@
   }
 
   function showEvent(ev) {
+    viewingEvent = ev;
     $("eventModalTitle").textContent = ev.title;
     $("eventAccent").style.background = ev.color || (ev.type === "job" ? "#e8792c" : "#3b6ea5");
     const meta = ev.meta || {};
@@ -617,9 +619,9 @@
     if (meta.notes) body += `<p>${escapeHtml(meta.notes)}</p>`;
     $("eventModalBody").innerHTML = body;
 
-    const editBtn = $("btnEditEvent");
     const canEdit =
       (ev.type === "job" && canManageJobs) || (ev.type === "meeting" && canManageMeetings);
+    const editBtn = $("btnEditEvent");
     if (editBtn) {
       editBtn.hidden = !canEdit;
       editBtn.textContent = ev.type === "job" ? "Editar job" : "Editar meeting";
@@ -635,6 +637,15 @@
         }
       };
     }
+    const delBtn = $("btnDeleteEvent");
+    if (delBtn) {
+      delBtn.hidden = !canEdit;
+      delBtn.textContent = ev.type === "job" ? "Excluir job" : "Excluir meeting";
+      delBtn.onclick = (e) => {
+        e.preventDefault();
+        deleteEvent(ev).catch((err) => notify(err.message, "error"));
+      };
+    }
 
     $("eventModal").hidden = false;
     $("eventBackdrop").hidden = false;
@@ -643,6 +654,25 @@
   function closeEvent() {
     $("eventModal").hidden = true;
     $("eventBackdrop").hidden = true;
+    viewingEvent = null;
+  }
+
+  async function deleteEvent(ev) {
+    if (!ev) return;
+    const label = ev.type === "job" ? "job" : "meeting";
+    if (!confirm(`Excluir este ${label}? Ele será cancelado e sairá da agenda.`)) return;
+    if (ev.type === "job") {
+      if (!canManageJobs) return;
+      await api(`/api/work-orders/${ev.id}`, { method: "DELETE" });
+      notify("Job excluído.", "success");
+    } else {
+      if (!canManageMeetings) return;
+      await api(`/api/meetings/${ev.id}`, { method: "DELETE" });
+      notify("Meeting excluído.", "success");
+    }
+    closeEvent();
+    closeMeetingModal();
+    await loadEvents();
   }
 
   function openMeetingModal(prefStart, existing) {
@@ -650,6 +680,8 @@
     editingMeetingId = existing ? existing.id : null;
     const titleEl = $("meetingModalTitle");
     if (titleEl) titleEl.textContent = editingMeetingId ? "Editar meeting" : "Novo meeting";
+    const delBtn = $("btnDeleteMeeting");
+    if (delBtn) delBtn.hidden = !editingMeetingId;
 
     if (existing) {
       const meta = existing.meta || {};
@@ -683,6 +715,8 @@
     $("meetingModal").classList.remove("is-open");
     $("meetingBackdrop").classList.remove("is-open");
     editingMeetingId = null;
+    const delBtn = $("btnDeleteMeeting");
+    if (delBtn) delBtn.hidden = true;
   }
 
   function closeCreateMenu() {
@@ -1329,6 +1363,14 @@
       $("eventBackdrop").addEventListener("click", closeEvent);
       $("btnCancelMeeting").addEventListener("click", closeMeetingModal);
       $("meetingBackdrop").addEventListener("click", closeMeetingModal);
+      $("btnDeleteMeeting")?.addEventListener("click", () => {
+        if (!editingMeetingId) return;
+        const ev =
+          viewingEvent && viewingEvent.type === "meeting" && viewingEvent.id === editingMeetingId
+            ? viewingEvent
+            : { type: "meeting", id: editingMeetingId };
+        deleteEvent(ev).catch((err) => notify(err.message, "error"));
+      });
 
       ["filterJobs", "filterMeetings", "filterAssignee", "filterSource", "filterStatus", "filterMine"].forEach(
         (id) => {
