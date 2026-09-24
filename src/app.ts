@@ -69,6 +69,10 @@ export function createApp() {
   app.use(cookieParser());
   app.use("/assets", express.static(CRM_ASSETS_DIR));
   app.use("/assets", express.static(path.join(__dirname, "public")));
+  app.get("/favicon.ico", (_req, res) => {
+    res.type("image/x-icon");
+    res.sendFile(path.join(CRM_ASSETS_DIR, "favicon.ico"));
+  });
   app.get("/manifest.webmanifest", (_req, res) => {
     res.type("application/manifest+json");
     res.sendFile(path.join(__dirname, "../public/manifest.webmanifest"));
