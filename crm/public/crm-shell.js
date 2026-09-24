@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-omapp5";
+  const SHELL_VER = "20260924-omapp6";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -163,7 +163,7 @@
       span.className = "nav-item__label";
       span.textContent = label;
       el.appendChild(span);
-      if (!el.getAttribute("title")) el.setAttribute("title", label);
+      el.removeAttribute("title");
       el.setAttribute("aria-label", label);
     });
   }

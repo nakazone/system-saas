@@ -172,8 +172,8 @@
     if (item.customerType) a.setAttribute('data-customers-type', item.customerType);
     a.className = 'nav-item' + (linkActive(item, file, page) ? ' active' : '');
     if (item.perm) a.setAttribute('data-crm-permission', item.perm);
-    a.setAttribute('title', item.label);
     a.setAttribute('aria-label', item.label);
+    a.removeAttribute('title');
     const iconHtml = ICONS[item.iconKey] || ICONS.dashboard;
     const tpl = document.createElement('template');
     tpl.innerHTML = iconHtml.trim();
@@ -194,8 +194,8 @@
     if (anyActive) det.setAttribute('open', '');
     const sum = document.createElement('summary');
     sum.className = 'nav-item nav-item--dropdown' + (anyActive ? ' active' : '');
-    sum.setAttribute('title', item.label);
     sum.setAttribute('aria-label', item.label);
+    sum.removeAttribute('title');
     const stpl = document.createElement('template');
     stpl.innerHTML = (ICONS[item.iconKey] || ICONS.cadastro).trim();
     sum.appendChild(stpl.content);

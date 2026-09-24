@@ -1149,6 +1149,55 @@ body.om-app .dashboard-main {
     justify-content: flex-start;
   }
 
+  /* Hover labels when collapsed (instant tooltip to the right of the rail) */
+  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item:not(.nav-item--sub),
+  body.om-app.sidebar-collapsed #dashboardSidebar summary.nav-item {
+    position: relative;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item:not(.nav-item--sub)::after,
+  body.om-app.sidebar-collapsed #dashboardSidebar summary.nav-item::after {
+    content: attr(aria-label);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0.4rem 0.7rem;
+    border-radius: 8px;
+    background: var(--plab-ink, #1a1d26);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: 120;
+    box-shadow: 0 6px 18px rgba(26, 29, 38, 0.18);
+    transition: opacity 0.1s ease, visibility 0.1s ease;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item:not(.nav-item--sub):hover::after,
+  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item:not(.nav-item--sub):focus-visible::after,
+  body.om-app.sidebar-collapsed #dashboardSidebar summary.nav-item:hover::after,
+  body.om-app.sidebar-collapsed #dashboardSidebar summary.nav-item:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* Hide tooltip while Cadastro flyout is open (panel already names the items) */
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown[open] > summary.nav-item::after {
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown__panel .nav-item::after {
+    content: none !important;
+    display: none !important;
+  }
+
   /* Cadastro flyout on rail (must escape overflow) */
   body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown {
     position: relative;
