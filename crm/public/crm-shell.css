@@ -1,11 +1,63 @@
 /**
- * CRM shell — top bar desktop + sidebar collapse
+ * CRM shell — top bar desktop + sidebar collapse + page frame
  */
 
 :root {
   --crm-topbar-height: 56px;
   --crm-sidebar-collapsed-width: 72px;
   --crm-chrome-bg: #f7f4ee;
+
+  /* Page frame — shared inset / width so modules feel continuous when switching menus */
+  --crm-page-pad-x: 1.5rem;
+  --crm-page-pad-y: 1.25rem;
+  --crm-page-pad-bottom: 2rem;
+  --crm-page-max: 1280px;
+  --crm-page-max-wide: 1400px;
+  --crm-page-gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --crm-page-pad-x: 1rem;
+    --crm-page-pad-y: 1rem;
+    --crm-page-pad-bottom: 1.5rem;
+  }
+}
+
+/* ---------- Page frame (all viewports) ---------- */
+body.dashboard-app-body .dashboard-main {
+  padding: var(--crm-page-pad-y) var(--crm-page-pad-x) var(--crm-page-pad-bottom);
+  box-sizing: border-box;
+}
+
+body.dashboard-app-body .dashboard-main > .crm-page {
+  width: 100%;
+  max-width: var(--crm-page-max);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+/* Legacy dashboard-content stays on the wide measure for dense tables */
+body.dashboard-app-body .dashboard-content {
+  width: 100%;
+  max-width: var(--crm-page-max-wide);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+body.dashboard-app-body .dashboard-main > .crm-page--wide,
+body.dashboard-app-body .dashboard-content.crm-page--wide {
+  max-width: var(--crm-page-max-wide);
+}
+
+body.dashboard-app-body .dashboard-main > .crm-page--fluid {
+  max-width: none;
+}
+
+body.dashboard-app-body .dashboard-main.crm-main--flush {
+  padding: 0;
 }
 
 /* ---------- Top bar (desktop) ---------- */

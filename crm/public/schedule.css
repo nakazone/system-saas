@@ -20,8 +20,7 @@
 .sched-body .dashboard-main.sched-main {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--crm-topbar-height, 0px));
-  padding: 0.75rem 0.85rem 1rem !important;
+  min-height: calc(100vh - var(--crm-topbar-height, 0px) - var(--crm-page-pad-y) - var(--crm-page-pad-bottom));
   background: var(--sched-chrome);
   gap: 0.65rem;
 }
@@ -966,9 +965,6 @@
 .sched-mobile-filters-btn:hover { background: rgba(33, 29, 26, 0.06); }
 
 @media (max-width: 900px) {
-  .sched-body .dashboard-main.sched-main {
-    padding: 0.5rem 0.5rem 1rem !important;
-  }
   .gcal-layout { gap: 0; }
   .gcal-rail {
     position: fixed;

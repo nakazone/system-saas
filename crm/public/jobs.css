@@ -14,12 +14,6 @@
   --jobs-radius: 12px;
 }
 
-.jobs-page {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 1.25rem 1.15rem 3rem;
-}
-
 .jobs-page-header {
   display: flex;
   flex-wrap: wrap;
@@ -288,12 +282,6 @@
 }
 
 /* —— Detail layout —— */
-.job-detail-page {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 1rem 1.15rem 3rem;
-}
-
 .job-detail-top {
   display: flex;
   flex-wrap: wrap;
@@ -613,9 +601,5 @@
 @media (max-width: 640px) {
   .jobs-overview {
     grid-template-columns: 1fr;
-  }
-  .jobs-page,
-  .job-detail-page {
-    padding: 0.85rem 0.75rem 2.5rem;
   }
 }
