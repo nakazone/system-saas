@@ -501,7 +501,7 @@
     if (zip) zip.value = o.zipcode || '';
   }
 
-  async function loadLqsVisitUsers() {
+  async function loadLqsVisitUsers(selectedId) {
     const sel = document.getElementById('lqsVisitAssignedSelect');
     if (!sel) return;
     try {
@@ -514,6 +514,7 @@
           const opt = document.createElement('option');
           opt.value = u.id;
           opt.textContent = u.name || u.email || 'User ' + u.id;
+          if (selectedId != null && String(selectedId) === String(u.id)) opt.selected = true;
           sel.appendChild(opt);
         });
       }
@@ -521,6 +522,7 @@
   }
 
   let lqsVisitModalWired = false;
+  let lqsEditingVisitId = null;
 
   function wireLqsVisitModalOnce() {
     if (lqsVisitModalWired) return;
@@ -534,8 +536,58 @@
     form.addEventListener('submit', onLqsVisitFormSubmit);
   }
 
+  function setLqsVisitModalTitle_(isEdit) {
+    const title = document.querySelector('#lqsScheduleVisitModal .lqs-visit-modal__title');
+    if (title) title.textContent = isEdit ? 'Edit visit' : 'Schedule visit';
+    const submit = document.querySelector('#lqsNewVisitForm button[type="submit"]');
+    if (submit) submit.textContent = isEdit ? 'Save visit' : 'Agendar visita';
+  }
+
+  function forceLeadToMeetingScheduled_(leadPayload) {
+    const stage =
+      (sheetStagesCache || []).find((s) => {
+        const slug = String(s.slug || '');
+        if (typeof global.normalizePipelineSlug === 'function') {
+          return global.normalizePipelineSlug(slug) === 'meeting_scheduled';
+        }
+        return slug === 'meeting_scheduled' || slug === 'assessment_scheduled';
+      }) || null;
+    const patch = {
+      status: (stage && stage.slug) || 'meeting_scheduled',
+    };
+    if (stage && stage.id != null && String(stage.id).trim()) {
+      patch.pipeline_stage_id = String(stage.id);
+    }
+    const addrFull = [
+      (document.getElementById('lqsVisitAddressLine1') || {}).value,
+      (document.getElementById('lqsVisitAddressLine2') || {}).value,
+      (document.getElementById('lqsVisitCity') || {}).value,
+      (document.getElementById('lqsVisitZipCode') || {}).value,
+    ]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .join(', ');
+    const zip = String((document.getElementById('lqsVisitZipCode') || {}).value || '').trim();
+    if (addrFull) patch.address = addrFull;
+    if (zip) patch.zipcode = zip;
+
+    return patchLead(patch).then((data) => {
+      const lead = (data && data.data) || leadPayload || sheetLead;
+      if (lead) {
+        sheetLead = { ...sheetLead, ...lead };
+        if (addrFull) sheetLead.address = addrFull;
+        if (zip) sheetLead.zipcode = zip;
+        updateHeaderBadges(sheetLead);
+        syncStatusPickerFromLead(sheetLead);
+        const prop = document.querySelector('[data-lqs-property]');
+        if (prop) prop.innerHTML = renderPropertyBlock_(sheetLead);
+      }
+      maybeRefreshKanban(sheetLead);
+      return lead;
+    });
+  }
+
   function openLqsScheduleVisitInDeviceCalendar() {
-    // Legacy external calendar path kept for rare callers; prefer in-app modal.
     openLqsScheduleVisitModal();
   }
 
@@ -547,6 +599,8 @@
       notifySheet('Modal de agendamento não encontrado.', 'error');
       return;
     }
+    lqsEditingVisitId = null;
+    setLqsVisitModalTitle_(false);
     const clientEl = document.getElementById('lqsVisitClientName');
     if (clientEl) clientEl.textContent = sheetLead.name ? String(sheetLead.name) : '\u2014';
     const scheduled = document.getElementById('lqsVisitScheduledAt');
@@ -566,12 +620,63 @@
     document.body.style.overflow = 'hidden';
   }
 
+  async function openLqsEditVisitModal(visitId) {
+    wireLqsVisitModalOnce();
+    if (!sheetLead || !sheetLeadId || !visitId) return;
+    const modal = document.getElementById('lqsScheduleVisitModal');
+    if (!modal) return;
+    lqsEditingVisitId = String(visitId);
+    setLqsVisitModalTitle_(true);
+    const clientEl = document.getElementById('lqsVisitClientName');
+    if (clientEl) clientEl.textContent = sheetLead.name ? String(sheetLead.name) : '\u2014';
+
+    let visit = null;
+    try {
+      const res = await fetchJson(
+        '/api/visits?lead_id=' + encodeURIComponent(String(sheetLeadId))
+      );
+      const list =
+        res.ok && res.data && res.data.success && Array.isArray(res.data.data) ? res.data.data : [];
+      visit = list.find((v) => String(v.id) === String(visitId)) || null;
+    } catch (_) {}
+
+    const scheduled = document.getElementById('lqsVisitScheduledAt');
+    if (scheduled) {
+      if (visit && visit.scheduled_at) {
+        const d = new Date(visit.scheduled_at);
+        if (!Number.isNaN(d.getTime())) {
+          d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+          scheduled.value = snapVisitDatetimeLocalToHalfHour(d.toISOString().slice(0, 16));
+        }
+      }
+    }
+    if (visit) {
+      setLqsVisitAddressFields({
+        address_line1: visit.address_line1 || '',
+        address_line2: visit.address_line2 || '',
+        city: visit.city || '',
+        zipcode: visit.zipcode || '',
+      });
+      if (!visit.address_line1 && visit.address) {
+        setLqsVisitAddressFields(parseAddressForVisit(String(visit.address)));
+      }
+      const notesEl = document.getElementById('lqsVisitNotes');
+      if (notesEl) notesEl.value = visit.notes || '';
+    }
+    void loadLqsVisitUsers(visit && visit.seller_id ? String(visit.seller_id) : null);
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
   function closeLqsScheduleVisitModal() {
     const modal = document.getElementById('lqsScheduleVisitModal');
     if (modal) {
       modal.classList.remove('active');
       modal.setAttribute('aria-hidden', 'true');
     }
+    lqsEditingVisitId = null;
+    setLqsVisitModalTitle_(false);
     const root = document.getElementById('leadQuickSheet');
     if (!root || !root.classList.contains('is-open')) {
       document.body.style.overflow = '';
@@ -596,57 +701,58 @@
       return false;
     }
     const btn = document.querySelector('#lqsNewVisitForm button[type="submit"]');
+    const editingId = lqsEditingVisitId;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'A agendar...';
+      btn.textContent = editingId ? 'A guardar...' : 'A agendar...';
     }
+    const payload = {
+      lead_id: sheetLeadId,
+      scheduled_at: scheduledAt,
+      address_line1: addressLine1,
+      address_line2: addressLine2 || null,
+      city: city,
+      zipcode: zipcode || null,
+      notes: notes,
+      seller_id: sellerId || null,
+    };
     try {
-      const response = await fetch('/api/visits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          lead_id: sheetLeadId,
-          scheduled_at: scheduledAt,
-          address_line1: addressLine1,
-          address_line2: addressLine2 || null,
-          city: city,
-          zipcode: zipcode || null,
-          notes: notes,
-          seller_id: sellerId || null,
-        }),
-      });
+      const response = await fetch(
+        editingId ? '/api/visits/' + encodeURIComponent(editingId) : '/api/visits',
+        {
+          method: editingId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        }
+      );
       const data = await response.json().catch(() => ({}));
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'Agendar visita';
+        btn.textContent = editingId ? 'Save visit' : 'Agendar visita';
       }
       if (data.success) {
         closeLqsScheduleVisitModal();
-        notifySheet('Visita agendada no Schedule.', 'success');
+        notifySheet(editingId ? 'Visita atualizada.' : 'Visita agendada no Schedule.', 'success');
         if (data.lead) {
           sheetLead = { ...sheetLead, ...data.lead };
-          updateHeaderBadges(sheetLead);
-          syncStatusPickerFromLead(sheetLead);
-          maybeRefreshKanban(data.lead);
-        } else {
-          sheetLead = {
-            ...sheetLead,
-            status: 'meeting_scheduled',
-            pipeline_stage_slug: 'meeting_scheduled',
-          };
-          updateHeaderBadges(sheetLead);
-          syncStatusPickerFromLead(sheetLead);
-          maybeRefreshKanban(sheetLead);
         }
+        const addrFull = [addressLine1, addressLine2, city, zipcode].filter(Boolean).join(', ');
+        if (addrFull) sheetLead.address = addrFull;
+        if (zipcode) sheetLead.zipcode = zipcode;
+        updateHeaderBadges(sheetLead);
+        syncStatusPickerFromLead(sheetLead);
+        const prop = document.querySelector('[data-lqs-property]');
+        if (prop) prop.innerHTML = renderPropertyBlock_(sheetLead);
+        await forceLeadToMeetingScheduled_(data.lead || sheetLead);
         void refreshQuotesOnly();
       } else {
-        notifySheet(data.error || 'Nao foi possivel agendar a visita.', 'error');
+        notifySheet(data.error || 'Nao foi possivel guardar a visita.', 'error');
       }
     } catch (err) {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'Agendar visita';
+        btn.textContent = editingId ? 'Save visit' : 'Agendar visita';
       }
       notifySheet(err.message || 'Erro de rede', 'error');
     }
@@ -1163,16 +1269,18 @@
       });
     });
     (visits || []).forEach((v) => {
+      const vid = v.id != null ? String(v.id) : '';
       items.push({
         kind: 'visit',
         icon: '🏠',
-        title: 'Visit' + (v.id != null ? ' #' + v.id : ''),
+        title: 'Visit' + (vid ? ' #' + vid.slice(0, 8) : ''),
         dateLabel: v.scheduled_at
           ? 'Scheduled for ' + new Date(v.scheduled_at).toLocaleDateString()
           : '—',
         statusLabel: String(v.status || 'scheduled'),
         amountLabel: '—',
         sort: v.scheduled_at ? new Date(v.scheduled_at).getTime() : 0,
+        visitId: vid,
       });
     });
     items.sort((a, b) => (b.sort || 0) - (a.sort || 0));
@@ -1180,10 +1288,16 @@
       return '<p class="lqs-ov-empty">No work items yet.</p>';
     }
     return (
-      '<table class="lqs-work-table"><thead><tr><th>Item</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead><tbody>' +
+      '<table class="lqs-work-table"><thead><tr><th>Item</th><th>Date</th><th>Status</th><th>Amount</th><th></th></tr></thead><tbody>' +
       items
-        .map(
-          (it) =>
+        .map((it) => {
+          const editBtn =
+            it.kind === 'visit' && it.visitId
+              ? '<button type="button" class="btn btn-secondary btn-sm" data-lqs-edit-visit="' +
+                escapeHtml(it.visitId) +
+                '">Edit</button>'
+              : '';
+          return (
             '<tr data-lqs-work-kind="' +
             escapeHtml(it.kind) +
             '"><td><span class="lqs-work-item"><span class="lqs-work-item__icon">' +
@@ -1196,8 +1310,11 @@
             escapeHtml(it.statusLabel) +
             '</span></td><td>' +
             escapeHtml(it.amountLabel) +
+            '</td><td>' +
+            editBtn +
             '</td></tr>'
-        )
+          );
+        })
         .join('') +
       '</tbody></table>'
     );
@@ -1414,6 +1531,13 @@
       const createMenu = document.getElementById('lqsCreateMenu');
       if (createMenu) createMenu.hidden = true;
       openLqsScheduleVisitModal();
+      return;
+    }
+    const editVisitBtn = e.target.closest('[data-lqs-edit-visit]');
+    if (editVisitBtn) {
+      e.preventDefault();
+      const vid = editVisitBtn.getAttribute('data-lqs-edit-visit');
+      if (vid) void openLqsEditVisitModal(vid);
       return;
     }
     const createToggle = e.target.closest('[data-lqs-create-toggle]');

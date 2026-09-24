@@ -351,9 +351,13 @@ async function loadKanbanBoard() {
 
 function getVisitScheduledPipelineStage() {
     return (
-        pipelineStages.find((s) => s.slug === 'meeting_scheduled') ||
-        pipelineStages.find((s) => s.slug === 'visit_scheduled') ||
-        null
+        pipelineStages.find((s) => {
+            const slug = String(s.slug || '');
+            if (typeof normalizePipelineSlug === 'function') {
+                return normalizePipelineSlug(slug) === 'meeting_scheduled';
+            }
+            return slug === 'meeting_scheduled' || slug === 'assessment_scheduled' || slug === 'visit_scheduled';
+        }) || null
     );
 }
 
@@ -361,11 +365,16 @@ function leadIsInVisitScheduledStage(lead, visitStage) {
     if (!visitStage || !lead) return false;
     const sid = kanbanLeadId(visitStage.id);
     const lid = kanbanLeadId(lead.pipeline_stage_id);
-    const sameStageById = Number.isFinite(sid) && Number.isFinite(lid) && lid === sid;
-    const sameBySlugOnly =
-        lead.status === visitStage.slug &&
-        (lead.pipeline_stage_id == null || lead.pipeline_stage_id === '');
-    return sameStageById || sameBySlugOnly;
+    const sameStageById = Boolean(sid && lid && lid === sid);
+    const leadSlug =
+        typeof normalizePipelineSlug === 'function'
+            ? normalizePipelineSlug(lead.status || lead.pipeline_stage_slug || '')
+            : String(lead.status || lead.pipeline_stage_slug || '');
+    const stageSlug =
+        typeof normalizePipelineSlug === 'function'
+            ? normalizePipelineSlug(visitStage.slug || '')
+            : String(visitStage.slug || '');
+    return sameStageById || (leadSlug && stageSlug && leadSlug === stageSlug);
 }
 
 /** Visitas a mostrar na coluna dedicada: scheduled e lead ainda em "Visita Agendada" */
@@ -387,7 +396,7 @@ function getScheduledVisitsForKanbanColumn() {
     const deduped = [];
     for (const v of filtered) {
         const lid = kanbanLeadId(v.lead_id);
-        if (!Number.isFinite(lid) || seenLeadIds.has(lid)) continue;
+        if (!lid || seenLeadIds.has(lid)) continue;
         seenLeadIds.add(lid);
         deduped.push(v);
     }

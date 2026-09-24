@@ -43,7 +43,8 @@ function mapLead(l: {
   owner?: { id: string; name: string; email: string } | null;
 }) {
   const meta = asMeta(l.metadata);
-  const statusSlug = l.pipelineStage?.slug || l.status;
+  // Prefer explicit lead.status (set by visit/automation) over stale pipeline join
+  const statusSlug = (l.status && String(l.status).trim()) || l.pipelineStage?.slug || "";
   return {
     id: l.id,
     name: l.name,
@@ -61,7 +62,7 @@ function mapLead(l: {
     pipeline_stage_id: l.pipelineStageId,
     pipeline_stage_name: l.pipelineStage?.name ?? null,
     pipeline_stage_color: l.pipelineStage?.color ?? null,
-    pipeline_stage_slug: l.pipelineStage?.slug ?? null,
+    pipeline_stage_slug: l.pipelineStage?.slug || statusSlug || null,
     owner_id: l.ownerId,
     owner_name: l.owner?.name ?? null,
     created_at: l.createdAt.toISOString(),
@@ -106,11 +107,21 @@ async function resolveVisitScheduledStage(
         { name: { equals: "Assessment scheduled", mode: "insensitive" } },
         { name: { contains: "Meeting", mode: "insensitive" } },
         { name: { contains: "Assessment", mode: "insensitive" } },
+        { name: { contains: "Visita", mode: "insensitive" } },
       ],
     },
     orderBy: { order: "asc" },
   });
-  return byName;
+  if (byName) return byName;
+
+  // Fallback: second active stage by order (typical "meeting / assessment" column)
+  const ordered = await tx.pipelineStage.findMany({
+    where: { isActive: true },
+    orderBy: { order: "asc" },
+    take: 5,
+  });
+  if (ordered.length >= 2) return ordered[1];
+  return ordered[0] || null;
 }
 
 async function loadLeadOrNull(
@@ -593,17 +604,19 @@ dashboardLeadsRouter.post("/api/visits", requireCrmAuth, async (req: AuthedReque
       };
       list.unshift(item);
       meta.visits = list;
+      // Persist visit address onto the lead so Properties stay in sync
+      if (addr) meta.address = String(addr);
+      if (body.zipcode != null && String(body.zipcode).trim()) {
+        meta.zipcode = String(body.zipcode).trim();
+      }
       const meetingStage = await resolveVisitScheduledStage(tx);
+      const stageStatus = meetingStage?.slug || "meeting_scheduled";
       await tx.lead.update({
         where: { id: leadId },
         data: {
           metadata: meta as Prisma.InputJsonValue,
-          ...(meetingStage
-            ? {
-                pipelineStageId: meetingStage.id,
-                status: meetingStage.slug || "meeting_scheduled",
-              }
-            : { status: "meeting_scheduled" }),
+          status: stageStatus,
+          ...(meetingStage ? { pipelineStageId: meetingStage.id } : {}),
         },
       });
       const updatedLead = await loadLeadOrNull(tx, leadId);
@@ -626,30 +639,132 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmAuth, async (req: AuthedRe
   try {
     const visitId = String(req.params.id);
     const body = (req.body || {}) as Record<string, unknown>;
-    const leadId = body.lead_id != null ? String(body.lead_id) : null;
-    const updated = await withTenantTransaction(req.organizationId!, async (tx) => {
-      const leads = await tx.lead.findMany({ take: 500, orderBy: { updatedAt: "desc" } });
+    const leadIdHint = body.lead_id != null ? String(body.lead_id) : null;
+    const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const leads = await tx.lead.findMany({ take: 2000, orderBy: { updatedAt: "desc" } });
       for (const lead of leads) {
         const meta = asMeta(lead.metadata);
         const list = Array.isArray(meta.visits) ? meta.visits : [];
         const idx = list.findIndex((v) => String(v.id) === visitId);
         if (idx < 0) continue;
-        if (leadId && lead.id !== leadId) continue;
-        list[idx] = { ...list[idx], ...body, id: visitId, updated_at: new Date().toISOString() };
+        if (leadIdHint && lead.id !== leadIdHint) continue;
+
+        const prev = list[idx] as Record<string, unknown>;
+        const addressLine1 =
+          body.address_line1 != null ? String(body.address_line1) : prev.address_line1;
+        const addressLine2 =
+          body.address_line2 != null ? String(body.address_line2) : prev.address_line2;
+        const city = body.city != null ? String(body.city) : prev.city;
+        const zipcode = body.zipcode != null ? String(body.zipcode) : prev.zipcode;
+        const addr =
+          [addressLine1, addressLine2, city, zipcode].filter(Boolean).join(", ") ||
+          (body.address != null ? String(body.address) : prev.address);
+
+        const scheduledRaw =
+          body.scheduled_at != null ? String(body.scheduled_at) : String(prev.scheduled_at || "");
+        const start = scheduledRaw ? new Date(scheduledRaw) : null;
+        const end =
+          start && !Number.isNaN(start.getTime())
+            ? new Date(start.getTime() + 60 * 60 * 1000)
+            : null;
+
+        let assigneeId: string | null =
+          body.seller_id != null && String(body.seller_id).trim()
+            ? String(body.seller_id).trim()
+            : prev.seller_id != null
+              ? String(prev.seller_id)
+              : null;
+        if (assigneeId) {
+          const userOk = await tx.user.findFirst({
+            where: { id: assigneeId, organizationId: req.organizationId! },
+            select: { id: true },
+          });
+          if (!userOk) assigneeId = null;
+        }
+
+        let meetingId = prev.meeting_id != null ? String(prev.meeting_id) : null;
+        if (start && end && !Number.isNaN(start.getTime())) {
+          if (meetingId) {
+            const existingMtg = await tx.meeting.findFirst({ where: { id: meetingId } });
+            if (existingMtg) {
+              await tx.meeting.update({
+                where: { id: meetingId },
+                data: {
+                  title: `Visit — ${lead.name}`,
+                  scheduledStart: start,
+                  scheduledEnd: end,
+                  location: addr ? String(addr) : null,
+                  notes: body.notes != null ? String(body.notes) : (prev.notes as string | null),
+                  assignedUserId: assigneeId,
+                  status: body.status != null ? String(body.status) : existingMtg.status,
+                },
+              });
+            } else {
+              meetingId = null;
+            }
+          }
+          if (!meetingId) {
+            const meeting = await tx.meeting.create({
+              data: {
+                organizationId: req.organizationId!,
+                title: `Visit — ${lead.name}`,
+                status: "scheduled",
+                scheduledStart: start,
+                scheduledEnd: end,
+                location: addr ? String(addr) : null,
+                notes: body.notes != null ? String(body.notes) : null,
+                assignedUserId: assigneeId,
+              },
+            });
+            meetingId = meeting.id;
+          }
+        }
+
+        const nextVisit = {
+          ...prev,
+          scheduled_at:
+            start && !Number.isNaN(start.getTime()) ? start.toISOString() : scheduledRaw || null,
+          address: addr,
+          address_line1: addressLine1 ?? null,
+          address_line2: addressLine2 ?? null,
+          city: city ?? null,
+          zipcode: zipcode ?? null,
+          notes: body.notes != null ? String(body.notes) : prev.notes,
+          seller_id: assigneeId,
+          status: body.status != null ? String(body.status) : prev.status || "scheduled",
+          meeting_id: meetingId,
+          updated_at: new Date().toISOString(),
+          id: visitId,
+          lead_id: lead.id,
+          lead_name: lead.name,
+        };
+        list[idx] = nextVisit;
         meta.visits = list;
+        if (addr) meta.address = String(addr);
+        if (zipcode != null && String(zipcode).trim()) meta.zipcode = String(zipcode).trim();
+
+        const meetingStage = await resolveVisitScheduledStage(tx);
         await tx.lead.update({
           where: { id: lead.id },
-          data: { metadata: meta as Prisma.InputJsonValue },
+          data: {
+            metadata: meta as Prisma.InputJsonValue,
+            status: meetingStage?.slug || lead.status || "meeting_scheduled",
+            ...(meetingStage ? { pipelineStageId: meetingStage.id } : {}),
+          },
         });
-        return list[idx];
+        const updatedLead = await loadLeadOrNull(tx, lead.id);
+        return {
+          visit: nextVisit,
+          lead: updatedLead ? mapLead(updatedLead) : null,
+        };
       }
       return null;
     });
-    if (!updated) {
+    if (!result) {
       res.status(404).json({ success: false, error: "Visit not found" });
       return;
     }
-    res.json({ success: true, data: updated });
+    res.json({ success: true, data: result.visit, lead: result.lead });
   } catch (error) {
     next(error);
   }
@@ -753,7 +868,11 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmAuth, async (req: AuthedReq
       let status: string | undefined = body.status !== undefined ? String(body.status) : undefined;
 
       if (pipelineStageId === undefined && status) {
-        const stage = await resolveStageBySlug(tx, status);
+        const stage =
+          (await resolveStageBySlug(tx, status)) ||
+          (["meeting_scheduled", "visit_scheduled"].includes(status)
+            ? await resolveVisitScheduledStage(tx)
+            : null);
         if (stage) {
           pipelineStageId = stage.id;
           status = stage.slug || status;
