@@ -7,13 +7,13 @@ let currentLead = null;
 
 // Check authentication and get lead ID from URL
 window.addEventListener('DOMContentLoaded', () => {
-    // Get lead ID from URL
+    // Get lead ID from URL (UUID or legacy numeric)
     const urlParams = new URLSearchParams(window.location.search);
-    currentLeadId = parseInt(urlParams.get('id'));
+    currentLeadId = String(urlParams.get('id') || '').trim();
 
-    if (!currentLeadId) {
+    if (!currentLeadId || currentLeadId === 'null' || currentLeadId === 'undefined') {
         alert('Lead ID não encontrado na URL');
-        window.location.href = 'dashboard.html';
+        window.location.href = 'dashboard.html?page=leads';
         return;
     }
 
@@ -1031,7 +1031,7 @@ function submitEditVisitForm(e) {
         scheduled_at: scheduledAt,
         address: address,
         notes: notes,
-        seller_id: sellerId ? parseInt(sellerId, 10) : null,
+        seller_id: sellerId || null,
         status: status
     }, btn);
     return false;
@@ -1078,14 +1078,14 @@ function submitVisitForm(e) {
     var btn = document.querySelector('#newVisitForm button[type="submit"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Agendando...'; }
     createVisit({
-        lead_id: parseInt(currentLeadId, 10),
+        lead_id: currentLeadId,
         scheduled_at: scheduledAt,
         address_line1: addressLine1,
         address_line2: addressLine2 || null,
         city: city,
         zipcode: zipcode || null,
         notes: notes,
-        seller_id: sellerId ? parseInt(sellerId, 10) : null
+        seller_id: sellerId || null
     }, btn);
     return false;
 }

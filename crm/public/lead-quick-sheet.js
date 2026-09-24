@@ -602,14 +602,14 @@
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          lead_id: parseInt(String(sheetLeadId), 10),
+          lead_id: sheetLeadId,
           scheduled_at: scheduledAt,
           address_line1: addressLine1,
           address_line2: addressLine2 || null,
           city: city,
           zipcode: zipcode || null,
           notes: notes,
-          seller_id: sellerId ? parseInt(sellerId, 10) : null,
+          seller_id: sellerId || null,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -1404,8 +1404,8 @@
    * @returns {Promise<boolean>}
    */
   async function updateLeadPipelineStage(leadId, stageSlug) {
-    const id = parseInt(String(leadId), 10);
-    if (!Number.isFinite(id) || id <= 0 || !stageSlug) return false;
+    const id = String(leadId || '').trim();
+    if (!id || !stageSlug) return false;
     let stages = sheetStagesCache;
     if (!stages.length && typeof global.getKanbanBoardStages === 'function') {
       try {
@@ -1421,7 +1421,7 @@
     const payload = payloadForStatusSlug(stageSlug, stages);
     if (!payload.status) return false;
     try {
-      const r = await fetch(`/api/leads/${id}`, {
+      const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1455,8 +1455,8 @@
   }
 
   async function openLeadQuickSheet(id, anchorEl) {
-    const sid = parseInt(id, 10);
-    if (!Number.isFinite(sid)) return;
+    const sid = String(id || '').trim();
+    if (!sid) return;
     sheetLeadId = sid;
     sheetAnchorEl = anchorEl || null;
 

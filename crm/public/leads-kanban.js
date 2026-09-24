@@ -22,15 +22,15 @@ let kanbanLostToggleBound = false;
 /** Chave = slug do estágio (ex.: meeting_scheduled); usado em "Ver mais" */
 let kanbanColumnVisible = {};
 
-function kanbanNumericId(v) {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : NaN;
+function kanbanLeadId(v) {
+    if (v == null || v === '') return null;
+    return String(v);
 }
 
 function findLeadByIdKanban(leadId) {
-    const n = kanbanNumericId(leadId);
-    if (!Number.isFinite(n)) return undefined;
-    return allLeads.find((l) => kanbanNumericId(l.id) === n);
+    const id = kanbanLeadId(leadId);
+    if (!id) return undefined;
+    return allLeads.find((l) => kanbanLeadId(l.id) === id);
 }
 
 function escapeKanbanHtml(s) {
@@ -229,7 +229,7 @@ function resolveStageForLead(lead) {
         });
         if (bySlug) return bySlug;
     }
-    const byId = pipelineStages.find((s) => kanbanNumericId(s.id) === kanbanNumericId(lead.pipeline_stage_id));
+    const byId = pipelineStages.find((s) => kanbanLeadId(s.id) === kanbanLeadId(lead.pipeline_stage_id));
     if (byId) return byId;
     return pipelineStages[0];
 }
@@ -237,9 +237,9 @@ function resolveStageForLead(lead) {
 /** Atualiza lead em memoria e re-renderiza colunas (apos PUT do painel). */
 function patchKanbanLeadCache(updatedLead) {
     if (!updatedLead || updatedLead.id == null) return;
-    const nid = kanbanNumericId(updatedLead.id);
+    const nid = kanbanLeadId(updatedLead.id);
     if (!Number.isFinite(nid)) return;
-    const idx = allLeads.findIndex((l) => kanbanNumericId(l.id) === nid);
+    const idx = allLeads.findIndex((l) => kanbanLeadId(l.id) === nid);
     if (idx >= 0) {
         const merged = { ...allLeads[idx], ...updatedLead };
         if (updatedLead.status) {
@@ -281,7 +281,7 @@ function leadMatchesKanbanColumn(lead, stage) {
     if (typeof normalizePipelineSlug === 'function') {
         return normalizePipelineSlug(st.slug || '') === normalizePipelineSlug(stage.slug || '');
     }
-    return kanbanNumericId(st.id) === kanbanNumericId(stage.id);
+    return kanbanLeadId(st.id) === kanbanLeadId(stage.id);
 }
 
 function setKanbanBoardMessage(html) {
@@ -355,8 +355,8 @@ function getVisitScheduledPipelineStage() {
 
 function leadIsInVisitScheduledStage(lead, visitStage) {
     if (!visitStage || !lead) return false;
-    const sid = kanbanNumericId(visitStage.id);
-    const lid = kanbanNumericId(lead.pipeline_stage_id);
+    const sid = kanbanLeadId(visitStage.id);
+    const lid = kanbanLeadId(lead.pipeline_stage_id);
     const sameStageById = Number.isFinite(sid) && Number.isFinite(lid) && lid === sid;
     const sameBySlugOnly =
         lead.status === visitStage.slug &&
@@ -382,7 +382,7 @@ function getScheduledVisitsForKanbanColumn() {
     const seenLeadIds = new Set();
     const deduped = [];
     for (const v of filtered) {
-        const lid = kanbanNumericId(v.lead_id);
+        const lid = kanbanLeadId(v.lead_id);
         if (!Number.isFinite(lid) || seenLeadIds.has(lid)) continue;
         seenLeadIds.add(lid);
         deduped.push(v);
@@ -598,7 +598,7 @@ function renderVisitKanbanCard(visit) {
     const when = formatVisitKanbanDateTime(visit.scheduled_at);
     const addr = escapeKanbanHtml(visitKanbanAddress(visit) || '—');
     const assignee = escapeKanbanHtml(visit.assigned_to_name || '');
-    const leadId = kanbanNumericId(visit.lead_id);
+    const leadId = kanbanLeadId(visit.lead_id);
     const leadIdAttr = Number.isFinite(leadId) ? leadId : '';
     const titleBtn = Number.isFinite(leadId)
         ? `<span class="kanban-card-title-btn">${name}</span>`
@@ -944,11 +944,11 @@ async function assignLead(e) {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
-    const leadId = parseInt(formData.get('lead_id'));
+    const leadId = String(formData.get('lead_id') || '').trim();
     const ownerId = formData.get('owner_id') || null;
     
     try {
-        const response = await fetch(`/api/leads/${leadId}`, {
+        const response = await fetch(`/api/leads/${encodeURIComponent(leadId)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -997,7 +997,7 @@ async function createFollowup(e) {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
-    const leadId = parseInt(formData.get('lead_id'));
+    const leadId = String(formData.get('lead_id') || '').trim();
     
     const followupData = {
         title: formData.get('title'),
@@ -1008,7 +1008,7 @@ async function createFollowup(e) {
     };
     
     try {
-        const response = await fetch(`/api/leads/${leadId}/followups`, {
+        const response = await fetch(`/api/leads/${encodeURIComponent(leadId)}/followups`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -1118,7 +1118,7 @@ function leadsMobileTelHref(phone) {
 }
 
 function renderLeadsMobileCard(lead, stage, stages) {
-    const id = kanbanNumericId(lead.id);
+    const id = kanbanLeadId(lead.id);
     const name = escapeKanbanHtml(lead.name || 'Sem nome');
     const phone = lead.phone ? escapeKanbanHtml(lead.phone) : '';
     const tel = leadsMobileTelHref(lead.phone);
@@ -1294,7 +1294,7 @@ function notifyLeadsMobile(msg, kind) {
 
 async function advanceLeadMobileStage(leadId) {
     const stages = getKanbanBoardStages();
-    const lead = allLeads.find((l) => kanbanNumericId(l.id) === kanbanNumericId(leadId));
+    const lead = allLeads.find((l) => kanbanLeadId(l.id) === kanbanLeadId(leadId));
     if (!lead || !stages.length) return;
     const cur = resolveStageForLead(lead);
     const idx = stages.findIndex(
@@ -1427,7 +1427,7 @@ function bindLeadsMobileListInteractions(container) {
                 e.preventDefault();
                 e.stopPropagation();
                 const id = parseInt(callBtn.getAttribute('data-lcard-call'), 10);
-                const lead = allLeads.find((l) => kanbanNumericId(l.id) === id);
+                const lead = allLeads.find((l) => kanbanLeadId(l.id) === id);
                 const href = lead ? leadsMobileTelHref(lead.phone) : '';
                 if (href) window.location.href = href;
                 else notifyLeadsMobile('Este lead não tem telefone.', 'error');

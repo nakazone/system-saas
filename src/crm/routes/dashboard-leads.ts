@@ -1,12 +1,30 @@
 import { Router } from "express";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { notifyNewLeadPush } from "../../lib/push/notify.js";
 
 export const dashboardLeadsRouter = Router();
+
+type LeadMeta = {
+  address?: string | null;
+  zipcode?: string | null;
+  priority?: string | null;
+  estimated_value?: number | string | null;
+  next_steps?: string | null;
+  qualification?: Record<string, unknown> | null;
+  interactions?: Array<Record<string, unknown>>;
+  followups?: Array<Record<string, unknown>>;
+  visits?: Array<Record<string, unknown>>;
+};
+
+function asMeta(raw: unknown): LeadMeta {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return raw as LeadMeta;
+}
 
 function mapLead(l: {
   id: string;
@@ -16,6 +34,7 @@ function mapLead(l: {
   source: string | null;
   status: string;
   notes: string | null;
+  metadata?: unknown;
   pipelineStageId: string | null;
   ownerId: string | null;
   createdAt: Date;
@@ -23,23 +42,56 @@ function mapLead(l: {
   pipelineStage?: { name: string; color: string | null; slug: string | null; isClosed: boolean } | null;
   owner?: { id: string; name: string; email: string } | null;
 }) {
+  const meta = asMeta(l.metadata);
+  const statusSlug = l.pipelineStage?.slug || l.status;
   return {
     id: l.id,
     name: l.name,
     email: l.email,
     phone: l.phone,
     source: l.source,
-    status: l.status,
+    status: statusSlug,
     notes: l.notes,
+    address: meta.address ?? null,
+    zipcode: meta.zipcode ?? null,
+    priority: meta.priority ?? "medium",
+    estimated_value: meta.estimated_value ?? null,
+    next_steps: meta.next_steps ?? null,
+    next_steps_notes: meta.next_steps ?? null,
     pipeline_stage_id: l.pipelineStageId,
     pipeline_stage_name: l.pipelineStage?.name ?? null,
     pipeline_stage_color: l.pipelineStage?.color ?? null,
     pipeline_stage_slug: l.pipelineStage?.slug ?? null,
     owner_id: l.ownerId,
     owner_name: l.owner?.name ?? null,
-    created_at: l.createdAt,
-    updated_at: l.updatedAt,
+    created_at: l.createdAt.toISOString(),
+    updated_at: l.updatedAt.toISOString(),
   };
+}
+
+const leadInclude = {
+  pipelineStage: true,
+  owner: { select: { id: true, name: true, email: true } },
+} as const;
+
+async function resolveStageBySlug(
+  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
+  slug: string,
+) {
+  if (!slug) return null;
+  return tx.pipelineStage.findFirst({
+    where: {
+      isActive: true,
+      OR: [{ slug }, { name: { equals: slug, mode: "insensitive" } }],
+    },
+  });
+}
+
+async function loadLeadOrNull(
+  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
+  id: string,
+) {
+  return tx.lead.findFirst({ where: { id }, include: leadInclude });
 }
 
 dashboardLeadsRouter.get("/api/pipeline-stages", requireCrmAuth, async (req: AuthedRequest, res, next) => {
@@ -108,19 +160,375 @@ dashboardLeadsRouter.get("/api/leads", requireCrmAuth, async (req: AuthedRequest
   }
 });
 
+dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmAuth, async (_req: AuthedRequest, res, next) => {
+  try {
+    res.json({ success: true, data: {} });
+  } catch (error) {
+    next(error);
+  }
+});
+
 dashboardLeadsRouter.get("/api/leads/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
-      tx.lead.findFirst({
-        where: { id: String(req.params.id) },
-        include: { pipelineStage: true, owner: { select: { id: true, name: true, email: true } } },
-      }),
+      loadLeadOrNull(tx, String(req.params.id)),
     );
     if (!lead) {
       res.status(404).json({ success: false, error: "Lead not found" });
       return;
     }
     res.json({ success: true, data: mapLead(lead) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.get("/api/leads/:id/qualification", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
+      loadLeadOrNull(tx, String(req.params.id)),
+    );
+    if (!lead) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    const qual = asMeta(lead.metadata).qualification || null;
+    res.json({ success: true, data: qual });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.post("/api/leads/:id/qualification", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const lead = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const existing = await loadLeadOrNull(tx, id);
+      if (!existing) return null;
+      const meta = asMeta(existing.metadata);
+      meta.qualification = {
+        property_type: body.property_type ?? null,
+        service_type: body.service_type ?? null,
+        estimated_area: body.estimated_area ?? null,
+        estimated_budget: body.estimated_budget ?? null,
+        urgency: body.urgency ?? "medium",
+        decision_maker: body.decision_maker ?? null,
+        decision_timeline: body.decision_timeline ?? null,
+        payment_type: body.payment_type ?? null,
+        address_street: body.address_street ?? null,
+        address_line2: body.address_line2 ?? null,
+        address_city: body.address_city ?? null,
+        address_state: body.address_state ?? null,
+        address_zip: body.address_zip ?? null,
+        qualification_notes: body.qualification_notes ?? null,
+        score: body.score ?? null,
+        updated_at: new Date().toISOString(),
+      };
+      return tx.lead.update({
+        where: { id },
+        data: { metadata: meta as Prisma.InputJsonValue },
+        include: leadInclude,
+      });
+    });
+    if (!lead) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    res.json({ success: true, data: asMeta(lead.metadata).qualification });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.put("/api/leads/:id/qualification", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const lead = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const existing = await loadLeadOrNull(tx, id);
+      if (!existing) return null;
+      const meta = asMeta(existing.metadata);
+      meta.qualification = {
+        ...(typeof meta.qualification === "object" && meta.qualification ? meta.qualification : {}),
+        property_type: body.property_type ?? null,
+        service_type: body.service_type ?? null,
+        estimated_area: body.estimated_area ?? null,
+        estimated_budget: body.estimated_budget ?? null,
+        urgency: body.urgency ?? "medium",
+        decision_maker: body.decision_maker ?? null,
+        decision_timeline: body.decision_timeline ?? null,
+        payment_type: body.payment_type ?? null,
+        address_street: body.address_street ?? null,
+        address_line2: body.address_line2 ?? null,
+        address_city: body.address_city ?? null,
+        address_state: body.address_state ?? null,
+        address_zip: body.address_zip ?? null,
+        qualification_notes: body.qualification_notes ?? null,
+        score: body.score ?? null,
+        updated_at: new Date().toISOString(),
+      };
+      return tx.lead.update({
+        where: { id },
+        data: { metadata: meta as Prisma.InputJsonValue },
+        include: leadInclude,
+      });
+    });
+    if (!lead) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    res.json({ success: true, data: asMeta(lead.metadata).qualification });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.get("/api/leads/:id/interactions", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
+      loadLeadOrNull(tx, String(req.params.id)),
+    );
+    if (!lead) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    res.json({ success: true, data: asMeta(lead.metadata).interactions || [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.post("/api/leads/:id/interactions", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const existing = await loadLeadOrNull(tx, id);
+      if (!existing) return null;
+      const meta = asMeta(existing.metadata);
+      const list = Array.isArray(meta.interactions) ? meta.interactions : [];
+      const item = {
+        id: randomUUID(),
+        type: String(body.type || "note"),
+        subject: body.subject != null ? String(body.subject) : null,
+        notes: body.notes != null ? String(body.notes) : null,
+        user_id: req.user?.id || null,
+        user_name: req.user?.name || req.user?.email || null,
+        created_at: new Date().toISOString(),
+      };
+      list.unshift(item);
+      meta.interactions = list;
+      await tx.lead.update({
+        where: { id },
+        data: { metadata: meta as Prisma.InputJsonValue, lastContactedAt: new Date() },
+      });
+      return item;
+    });
+    if (!row) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    res.status(201).json({ success: true, data: row });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.get("/api/leads/:id/followups", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
+      loadLeadOrNull(tx, String(req.params.id)),
+    );
+    if (!lead) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    res.json({ success: true, data: asMeta(lead.metadata).followups || [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.post("/api/leads/:id/followups", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const existing = await loadLeadOrNull(tx, id);
+      if (!existing) return null;
+      const meta = asMeta(existing.metadata);
+      const list = Array.isArray(meta.followups) ? meta.followups : [];
+      const item = {
+        id: randomUUID(),
+        title: String(body.title || "Follow-up"),
+        description: body.description != null ? String(body.description) : null,
+        due_date: body.due_date != null ? String(body.due_date) : null,
+        priority: String(body.priority || "medium"),
+        status: "pending",
+        assigned_to: body.assigned_to || null,
+        assigned_to_name: null,
+        created_at: new Date().toISOString(),
+      };
+      list.unshift(item);
+      meta.followups = list;
+      await tx.lead.update({
+        where: { id },
+        data: { metadata: meta as Prisma.InputJsonValue },
+      });
+      return item;
+    });
+    if (!row) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    res.status(201).json({ success: true, data: row });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.get("/api/leads/:id/proposals", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const rows = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const lead = await tx.lead.findFirst({ where: { id }, select: { id: true } });
+      if (!lead) return null;
+      const customers = await tx.customer.findMany({ where: { leadId: id }, select: { id: true } });
+      const customerIds = customers.map((c) => c.id);
+      if (!customerIds.length) return [];
+      const quotes = await tx.quote.findMany({
+        where: {
+          OR: [
+            { leadId: id },
+            ...(customerIds.length ? [{ customerId: { in: customerIds } }] : []),
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+      return quotes.map((q) => ({
+        id: q.id,
+        title: q.title || `Quote #${q.number ?? q.id.slice(0, 8)}`,
+        status: q.status,
+        total: q.total != null ? Number(q.total) : null,
+        created_at: q.createdAt.toISOString(),
+        lead_id: id,
+      }));
+    });
+    if (rows === null) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.get("/api/visits", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const leadId = req.query.lead_id ? String(req.query.lead_id) : null;
+    if (!leadId) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+    const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
+      loadLeadOrNull(tx, leadId),
+    );
+    if (!lead) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+    res.json({ success: true, data: asMeta(lead.metadata).visits || [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.post("/api/visits", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const leadId = body.lead_id != null ? String(body.lead_id) : "";
+    if (!leadId) {
+      res.status(400).json({ success: false, error: "lead_id required" });
+      return;
+    }
+    const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const existing = await loadLeadOrNull(tx, leadId);
+      if (!existing) return null;
+      const meta = asMeta(existing.metadata);
+      const list = Array.isArray(meta.visits) ? meta.visits : [];
+      const addr =
+        [body.address_line1, body.address_line2, body.city, body.zipcode].filter(Boolean).join(", ") ||
+        (body.address != null ? String(body.address) : null);
+      const item = {
+        id: randomUUID(),
+        lead_id: leadId,
+        lead_name: existing.name,
+        scheduled_at: body.scheduled_at != null ? String(body.scheduled_at) : null,
+        address: addr,
+        address_line1: body.address_line1 != null ? String(body.address_line1) : null,
+        address_line2: body.address_line2 != null ? String(body.address_line2) : null,
+        city: body.city != null ? String(body.city) : null,
+        zipcode: body.zipcode != null ? String(body.zipcode) : null,
+        notes: body.notes != null ? String(body.notes) : null,
+        seller_id: body.seller_id != null ? String(body.seller_id) : null,
+        status: String(body.status || "scheduled"),
+        created_at: new Date().toISOString(),
+      };
+      list.unshift(item);
+      meta.visits = list;
+      const meetingStage = await resolveStageBySlug(tx, "meeting_scheduled");
+      await tx.lead.update({
+        where: { id: leadId },
+        data: {
+          metadata: meta as Prisma.InputJsonValue,
+          ...(meetingStage
+            ? { pipelineStageId: meetingStage.id, status: meetingStage.slug || "meeting_scheduled" }
+            : {}),
+        },
+      });
+      return item;
+    });
+    if (!row) {
+      res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    res.status(201).json({ success: true, data: row });
+  } catch (error) {
+    next(error);
+  }
+});
+
+dashboardLeadsRouter.put("/api/visits/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const visitId = String(req.params.id);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const leadId = body.lead_id != null ? String(body.lead_id) : null;
+    const updated = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const leads = await tx.lead.findMany({ take: 500, orderBy: { updatedAt: "desc" } });
+      for (const lead of leads) {
+        const meta = asMeta(lead.metadata);
+        const list = Array.isArray(meta.visits) ? meta.visits : [];
+        const idx = list.findIndex((v) => String(v.id) === visitId);
+        if (idx < 0) continue;
+        if (leadId && lead.id !== leadId) continue;
+        list[idx] = { ...list[idx], ...body, id: visitId, updated_at: new Date().toISOString() };
+        meta.visits = list;
+        await tx.lead.update({
+          where: { id: lead.id },
+          data: { metadata: meta as Prisma.InputJsonValue },
+        });
+        return list[idx];
+      }
+      return null;
+    });
+    if (!updated) {
+      res.status(404).json({ success: false, error: "Visit not found" });
+      return;
+    }
+    res.json({ success: true, data: updated });
   } catch (error) {
     next(error);
   }
@@ -214,6 +622,35 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmAuth, async (req: AuthedReq
     const lead = await withTenantTransaction(req.organizationId!, async (tx) => {
       const existing = await tx.lead.findFirst({ where: { id } });
       if (!existing) return null;
+
+      let pipelineStageId: string | null | undefined =
+        body.pipeline_stage_id !== undefined
+          ? body.pipeline_stage_id
+            ? String(body.pipeline_stage_id)
+            : null
+          : undefined;
+      let status: string | undefined = body.status !== undefined ? String(body.status) : undefined;
+
+      if (pipelineStageId === undefined && status) {
+        const stage = await resolveStageBySlug(tx, status);
+        if (stage) {
+          pipelineStageId = stage.id;
+          status = stage.slug || status;
+        }
+      } else if (pipelineStageId) {
+        const stage = await tx.pipelineStage.findFirst({ where: { id: pipelineStageId } });
+        if (stage?.slug) status = stage.slug;
+      }
+
+      const meta = asMeta(existing.metadata);
+      let metaChanged = false;
+      for (const key of ["address", "zipcode", "priority", "estimated_value", "next_steps"] as const) {
+        if (body[key] !== undefined) {
+          (meta as Record<string, unknown>)[key] = body[key] === "" || body[key] == null ? null : body[key];
+          metaChanged = true;
+        }
+      }
+
       return tx.lead.update({
         where: { id },
         data: {
@@ -222,17 +659,13 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmAuth, async (req: AuthedReq
           phone: body.phone !== undefined ? String(body.phone || "") || null : undefined,
           source: body.source !== undefined ? String(body.source || "") || null : undefined,
           notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
-          status: body.status !== undefined ? String(body.status) : undefined,
-          pipelineStageId:
-            body.pipeline_stage_id !== undefined
-              ? body.pipeline_stage_id
-                ? String(body.pipeline_stage_id)
-                : null
-              : undefined,
+          status,
+          pipelineStageId,
           ownerId:
             body.owner_id !== undefined ? (body.owner_id ? String(body.owner_id) : null) : undefined,
+          ...(metaChanged ? { metadata: meta as Prisma.InputJsonValue } : {}),
         },
-        include: { pipelineStage: true, owner: { select: { id: true, name: true, email: true } } },
+        include: leadInclude,
       });
     });
     if (!lead) {

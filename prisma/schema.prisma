@@ -276,6 +276,8 @@ model Lead {
   source          String?
   status          String   @default("new")
   notes           String?  @db.Text
+  /// Extra CRM fields (qualification, interactions, followups, address, etc.) for SF UI parity
+  metadata        Json?
   pipelineStageId String?  @db.Uuid
   pipelineStage   PipelineStage? @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
   ownerId         String?  @db.Uuid
