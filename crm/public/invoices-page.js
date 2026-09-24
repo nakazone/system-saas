@@ -37,6 +37,7 @@
       paid: "Paid",
       overdue: "Overdue",
       issued: "Issued",
+      partially_paid: "Partial",
       void: "Void",
     };
     const s = String(status || "").toLowerCase();
@@ -44,7 +45,9 @@
   }
 
   function statusSlug(status) {
-    return String(status || "").toLowerCase().replace(/[^a-z0-9_-]/g, "") || "sent";
+    const s = String(status || "").toLowerCase().replace(/[^a-z0-9_-]/g, "") || "sent";
+    if (s === "partially_paid") return "sent";
+    return s;
   }
 
   function fmtMoney(n) {
@@ -59,7 +62,7 @@
 
   function remainingOf(inv) {
     const amt = Number(inv.amount || 0);
-    const paid = Number(inv.paid_amount || 0);
+    const paid = Number(inv.paid_amount != null ? inv.paid_amount : inv.paid_total || 0);
     if (inv.remaining_amount != null) return Math.max(0, Number(inv.remaining_amount));
     return Math.max(0, amt - paid);
   }
@@ -83,6 +86,10 @@
 
       if (st !== "paid" && st !== "void") {
         outstanding += remainingOf(inv);
+        if (st !== "overdue" && inv.due_date) {
+          const due = new Date(inv.due_date).getTime();
+          if (due < now) overdue += 1;
+        }
       }
 
       if (st === "paid") {
@@ -115,14 +122,14 @@
       .map((inv) => {
         const invNum = escapeHtml(inv.invoice_number || String(inv.id));
         const qNum = escapeHtml(inv.quote_number || "—");
-        const client = escapeHtml(inv.customer_name || "—");
+        const client = escapeHtml(inv.customer_name || inv.quote_title || "—");
         const amt = Number(inv.amount || 0).toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
         const slug = statusSlug(inv.status);
         let sentAt = "—";
-        const raw = inv.email_sent_at || inv.created_at;
+        const raw = inv.email_sent_at || inv.issued_at || inv.created_at;
         if (raw) {
           try {
             sentAt = new Date(raw).toLocaleDateString();
@@ -149,24 +156,42 @@
     });
   }
 
-  async function loadOverviewStats(q) {
-    const params = new URLSearchParams({ page: "1", limit: "100", status: "all" });
+  function buildListParams(status, q, pageNum, limit) {
+    const params = new URLSearchParams({
+      page: String(pageNum),
+      limit: String(limit),
+    });
+    if (status && status !== "all") params.set("status", status);
+    else params.set("status", "all");
     if (q) params.set("q", q);
-    const j = await api(`/api/quote-invoices?${params}`);
+    return params;
+  }
+
+  async function fetchInvoiceList(params) {
+    // Prefer SF-compatible path; fall back to SaaS /api/invoices
+    try {
+      return await api(`/api/quote-invoices?${params}`);
+    } catch (e1) {
+      try {
+        return await api(`/api/invoices?${params}`);
+      } catch (e2) {
+        throw e1;
+      }
+    }
+  }
+
+  async function loadOverviewStats(q) {
+    const params = buildListParams("all", q, 1, 100);
+    const j = await fetchInvoiceList(params);
     renderOverview(j.data || []);
   }
 
   async function loadInvoices() {
     const q = $("filterQ").value.trim();
-    const status = $("filterStatus").value || "sent";
-    const params = new URLSearchParams({
-      page: String(page),
-      limit: String(LIMIT),
-      status,
-    });
-    if (q) params.set("q", q);
+    const status = $("filterStatus").value || "all";
+    const params = buildListParams(status, q, page, LIMIT);
 
-    const j = await api(`/api/quote-invoices?${params}`);
+    const j = await fetchInvoiceList(params);
     const rows = j.data || [];
     const total = typeof j.total === "number" ? j.total : rows.length;
     renderTable(rows);
@@ -206,20 +231,28 @@
       });
       $("filterStatus").addEventListener("change", () => {
         page = 1;
-        loadInvoices().catch(() => {});
+        loadInvoices().catch((e) => notify(e.message, "error"));
       });
       $("filterQ").addEventListener("input", () => {
         clearTimeout($("filterQ")._t);
         $("filterQ")._t = setTimeout(() => {
           page = 1;
-          loadInvoices().catch(() => {});
+          loadInvoices().catch((e) => notify(e.message, "error"));
         }, 280);
       });
 
       await loadInvoices();
     } catch (err) {
       notify(err.message || "Falha ao carregar", "error");
-      location.href = "/login.html";
+      // Only bounce to login when session check failed
+      if (/HTTP 401|não autenticado|unauth|session/i.test(String(err.message || ""))) {
+        location.href = "/login.html";
+      } else {
+        const tbody = $("invoicesTableBody");
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="6" class="mod-empty">${escapeHtml(err.message || "Erro ao carregar invoices")}</td></tr>`;
+        }
+      }
     }
   }
 

@@ -58,6 +58,24 @@
   border-radius: var(--mod-radius);
   padding: 0.95rem 1rem;
   min-height: 118px;
+  box-shadow: 0 1px 2px rgba(33, 29, 26, 0.05);
+}
+
+/* Lead kanban cards — keep visible edges on module panel pages */
+.mod-kanban-wrap .kanban-column {
+  border: 1px solid var(--mod-border);
+  background: var(--mod-surface-soft);
+}
+
+.mod-kanban-wrap .kanban-card {
+  background: var(--mod-surface);
+  border: 1px solid var(--mod-border);
+  border-left: 3px solid var(--primary-color, var(--mod-accent));
+  box-shadow: 0 1px 3px rgba(33, 29, 26, 0.08);
+}
+
+.mod-kanban-wrap .kanban-card--visit {
+  border-left-color: #0d9488;
 }
 
 .mod-ov-card__title,

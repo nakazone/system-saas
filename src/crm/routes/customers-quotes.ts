@@ -980,52 +980,102 @@ customersQuotesRouter.post(
   },
 );
 
-customersQuotesRouter.get("/api/invoices", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+async function listInvoicesForCrm(req: AuthedRequest, res: import("express").Response, next: import("express").NextFunction) {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
     const skip = (page - 1) * limit;
-    const status = req.query.status ? String(req.query.status) : null;
+    const statusRaw = String(req.query.status || "").trim().toLowerCase();
+    const q = String(req.query.q || req.query.search || "").trim();
 
-    const [total, rows] = await withTenantTransaction(req.organizationId!, async (tx) => {
-      const where: Prisma.QuoteInvoiceWhereInput = status ? { status } : {};
+    const where: Prisma.QuoteInvoiceWhereInput = {};
+    if (statusRaw && statusRaw !== "all") {
+      if (statusRaw === "sent") {
+        where.OR = [{ status: "sent" }, { status: "paid" }, { issuedAt: { not: null } }];
+      } else if (statusRaw === "overdue") {
+        where.status = { notIn: ["paid", "void"] };
+        where.dueDate = { lt: new Date() };
+      } else {
+        where.status = statusRaw;
+      }
+    } else {
+      where.status = { not: "void" };
+    }
+
+    if (q) {
+      where.AND = [
+        {
+          OR: [
+            { invoiceNumber: { contains: q, mode: "insensitive" } },
+            { quote: { quoteNumber: { contains: q, mode: "insensitive" } } },
+            { customer: { name: { contains: q, mode: "insensitive" } } },
+            { customer: { email: { contains: q, mode: "insensitive" } } },
+            { quote: { title: { contains: q, mode: "insensitive" } } },
+          ],
+        },
+      ];
+    }
+
+    const [total, rows, amountAgg] = await withTenantTransaction(req.organizationId!, async (tx) => {
       return [
         await tx.quoteInvoice.count({ where }),
         await tx.quoteInvoice.findMany({
           where,
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ issuedAt: "desc" }, { createdAt: "desc" }],
           skip,
           take: limit,
-          include: { quote: { select: { title: true, quoteNumber: true, number: true } }, receipts: true },
+          include: {
+            quote: { select: { title: true, quoteNumber: true, number: true } },
+            customer: { select: { name: true, email: true } },
+            receipts: true,
+          },
         }),
+        await tx.quoteInvoice.aggregate({ where, _sum: { amount: true } }),
       ] as const;
+    });
+
+    const data = rows.map((inv) => {
+      const amount = dec(inv.amount);
+      const paidAmount = inv.receipts.reduce((s, r) => s + dec(r.amount), 0);
+      return {
+        id: inv.id,
+        quote_id: inv.quoteId,
+        quote_title: inv.quote.title,
+        quote_number: inv.quote.quoteNumber || String(inv.quote.number),
+        invoice_number: inv.invoiceNumber,
+        invoice_type: inv.invoiceType,
+        status: inv.status,
+        amount,
+        paid_amount: paidAmount,
+        paid_total: paidAmount,
+        remaining_amount: Math.max(0, amount - paidAmount),
+        due_date: inv.dueDate,
+        paid_at: inv.paidAt,
+        email_sent_at: inv.issuedAt,
+        created_at: inv.createdAt,
+        updated_at: inv.updatedAt,
+        customer_name: inv.customer?.name || null,
+        customer_email: inv.customer?.email || null,
+        has_pdf: !!inv.pdfPath,
+      };
     });
 
     res.json({
       success: true,
-      data: withPricingGate(
-        req.user,
-        rows.map((inv) => ({
-          id: inv.id,
-          quote_id: inv.quoteId,
-          quote_title: inv.quote.title,
-          quote_number: inv.quote.quoteNumber || String(inv.quote.number),
-          invoice_number: inv.invoiceNumber,
-          status: inv.status,
-          amount: dec(inv.amount),
-          due_date: inv.dueDate,
-          paid_total: inv.receipts.reduce((s, r) => s + dec(r.amount), 0),
-          created_at: inv.createdAt,
-        })),
-      ),
+      data: withPricingGate(req.user, data),
       total,
+      total_amount: dec(amountAgg._sum.amount),
       page,
       limit,
     });
   } catch (error) {
     next(error);
   }
-});
+}
+
+customersQuotesRouter.get("/api/invoices", requireCrmAuth, listInvoicesForCrm);
+/** SF-compatible alias used by invoices list UI */
+customersQuotesRouter.get("/api/quote-invoices", requireCrmAuth, listInvoicesForCrm);
 
 customersQuotesRouter.get("/api/quote-catalog", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
