@@ -238,7 +238,7 @@ function resolveStageForLead(lead) {
 function patchKanbanLeadCache(updatedLead) {
     if (!updatedLead || updatedLead.id == null) return;
     const nid = kanbanLeadId(updatedLead.id);
-    if (!Number.isFinite(nid)) return;
+    if (!nid) return;
     const idx = allLeads.findIndex((l) => kanbanLeadId(l.id) === nid);
     if (idx >= 0) {
         const merged = { ...allLeads[idx], ...updatedLead };
@@ -246,6 +246,9 @@ function patchKanbanLeadCache(updatedLead) {
             merged.status = updatedLead.status;
             merged.pipeline_stage_slug =
                 updatedLead.pipeline_stage_slug || updatedLead.status;
+        }
+        if (updatedLead.pipeline_stage_id != null) {
+            merged.pipeline_stage_id = updatedLead.pipeline_stage_id;
         }
         allLeads[idx] = merged;
     } else {

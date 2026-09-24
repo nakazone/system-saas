@@ -535,19 +535,18 @@
   }
 
   function openLqsScheduleVisitInDeviceCalendar() {
-    if (!sheetLead || !sheetLeadId) return;
-    if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
-      const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
-      if (ok) return;
-    }
-    notifySheet('Não foi possível abrir o calendário. Tente outro browser.', 'error');
+    // Legacy external calendar path kept for rare callers; prefer in-app modal.
+    openLqsScheduleVisitModal();
   }
 
   function openLqsScheduleVisitModal() {
     wireLqsVisitModalOnce();
     if (!sheetLead || !sheetLeadId) return;
     const modal = document.getElementById('lqsScheduleVisitModal');
-    if (!modal) return;
+    if (!modal) {
+      notifySheet('Modal de agendamento não encontrado.', 'error');
+      return;
+    }
     const clientEl = document.getElementById('lqsVisitClientName');
     if (clientEl) clientEl.textContent = sheetLead.name ? String(sheetLead.name) : '\u2014';
     const scheduled = document.getElementById('lqsVisitScheduledAt');
@@ -564,6 +563,7 @@
     void loadLqsVisitUsers();
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
   }
 
   function closeLqsScheduleVisitModal() {
@@ -623,8 +623,23 @@
       }
       if (data.success) {
         closeLqsScheduleVisitModal();
-        notifySheet('Visita agendada.', 'success');
-        maybeRefreshKanban();
+        notifySheet('Visita agendada no Schedule.', 'success');
+        if (data.lead) {
+          sheetLead = { ...sheetLead, ...data.lead };
+          updateHeaderBadges(sheetLead);
+          syncStatusPickerFromLead(sheetLead);
+          maybeRefreshKanban(data.lead);
+        } else {
+          sheetLead = {
+            ...sheetLead,
+            status: 'meeting_scheduled',
+            pipeline_stage_slug: 'meeting_scheduled',
+          };
+          updateHeaderBadges(sheetLead);
+          syncStatusPickerFromLead(sheetLead);
+          maybeRefreshKanban(sheetLead);
+        }
+        void refreshQuotesOnly();
       } else {
         notifySheet(data.error || 'Nao foi possivel agendar a visita.', 'error');
       }
@@ -1394,7 +1409,7 @@
       e.preventDefault();
       const createMenu = document.getElementById('lqsCreateMenu');
       if (createMenu) createMenu.hidden = true;
-      void openLqsScheduleVisitInDeviceCalendar();
+      openLqsScheduleVisitModal();
       return;
     }
     const createToggle = e.target.closest('[data-lqs-create-toggle]');

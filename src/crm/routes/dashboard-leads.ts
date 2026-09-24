@@ -429,18 +429,65 @@ dashboardLeadsRouter.get("/api/leads/:id/proposals", requireCrmAuth, async (req:
 dashboardLeadsRouter.get("/api/visits", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const leadId = req.query.lead_id ? String(req.query.lead_id) : null;
-    if (!leadId) {
-      res.json({ success: true, data: [] });
+    const dateFrom = req.query.date_from ? String(req.query.date_from) : null;
+    const dateTo = req.query.date_to ? String(req.query.date_to) : null;
+    const fromTs = dateFrom ? new Date(dateFrom).getTime() : null;
+    const toTs = dateTo ? new Date(dateTo + (dateTo.length <= 10 ? "T23:59:59" : "")).getTime() : null;
+
+    const inRange = (v: Record<string, unknown>) => {
+      if (fromTs == null && toTs == null) return true;
+      const raw = v.scheduled_at != null ? String(v.scheduled_at) : "";
+      if (!raw) return false;
+      const t = new Date(raw).getTime();
+      if (Number.isNaN(t)) return false;
+      if (fromTs != null && t < fromTs) return false;
+      if (toTs != null && t > toTs) return false;
+      return true;
+    };
+
+    if (leadId) {
+      const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
+        loadLeadOrNull(tx, leadId),
+      );
+      if (!lead) {
+        res.json({ success: true, data: [] });
+        return;
+      }
+      const visits = (asMeta(lead.metadata).visits || []).filter(
+        (v) => v && typeof v === "object" && inRange(v as Record<string, unknown>),
+      );
+      res.json({ success: true, data: visits });
       return;
     }
-    const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
-      loadLeadOrNull(tx, leadId),
-    );
-    if (!lead) {
-      res.json({ success: true, data: [] });
-      return;
-    }
-    res.json({ success: true, data: asMeta(lead.metadata).visits || [] });
+
+    const visits = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const leads = await tx.lead.findMany({
+        take: 2000,
+        orderBy: { updatedAt: "desc" },
+        select: { id: true, name: true, metadata: true },
+      });
+      const out: Array<Record<string, unknown>> = [];
+      for (const lead of leads) {
+        const list = asMeta(lead.metadata).visits || [];
+        for (const v of list) {
+          if (!v || typeof v !== "object") continue;
+          const row = v as Record<string, unknown>;
+          if (!inRange(row)) continue;
+          out.push({
+            ...row,
+            lead_id: row.lead_id || lead.id,
+            lead_name: row.lead_name || lead.name,
+          });
+        }
+      }
+      out.sort((a, b) => {
+        const ta = a.scheduled_at ? new Date(String(a.scheduled_at)).getTime() : 0;
+        const tb = b.scheduled_at ? new Date(String(b.scheduled_at)).getTime() : 0;
+        return ta - tb;
+      });
+      return out;
+    });
+    res.json({ success: true, data: visits });
   } catch (error) {
     next(error);
   }
@@ -454,7 +501,7 @@ dashboardLeadsRouter.post("/api/visits", requireCrmAuth, async (req: AuthedReque
       res.status(400).json({ success: false, error: "lead_id required" });
       return;
     }
-    const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+    const result = await withTenantTransaction(req.organizationId!, async (tx) => {
       const existing = await loadLeadOrNull(tx, leadId);
       if (!existing) return null;
       const meta = asMeta(existing.metadata);
@@ -462,19 +509,60 @@ dashboardLeadsRouter.post("/api/visits", requireCrmAuth, async (req: AuthedReque
       const addr =
         [body.address_line1, body.address_line2, body.city, body.zipcode].filter(Boolean).join(", ") ||
         (body.address != null ? String(body.address) : null);
+
+      const scheduledRaw = body.scheduled_at != null ? String(body.scheduled_at) : "";
+      const start = scheduledRaw ? new Date(scheduledRaw) : null;
+      const end =
+        start && !Number.isNaN(start.getTime())
+          ? new Date(start.getTime() + 60 * 60 * 1000)
+          : null;
+
+      let assigneeId: string | null =
+        body.seller_id != null && String(body.seller_id).trim()
+          ? String(body.seller_id).trim()
+          : body.assigned_to != null && String(body.assigned_to).trim()
+            ? String(body.assigned_to).trim()
+            : null;
+      if (assigneeId) {
+        const userOk = await tx.user.findFirst({
+          where: { id: assigneeId, organizationId: req.organizationId! },
+          select: { id: true },
+        });
+        if (!userOk) assigneeId = null;
+      }
+
+      let meetingId: string | null = null;
+      if (start && end && !Number.isNaN(start.getTime())) {
+        const meeting = await tx.meeting.create({
+          data: {
+            organizationId: req.organizationId!,
+            title: `Visit — ${existing.name}`,
+            status: "scheduled",
+            scheduledStart: start,
+            scheduledEnd: end,
+            location: addr ? String(addr) : null,
+            notes: body.notes != null ? String(body.notes) : null,
+            assignedUserId: assigneeId,
+          },
+        });
+        meetingId = meeting.id;
+      }
+
       const item = {
         id: randomUUID(),
         lead_id: leadId,
         lead_name: existing.name,
-        scheduled_at: body.scheduled_at != null ? String(body.scheduled_at) : null,
+        scheduled_at: start && !Number.isNaN(start.getTime()) ? start.toISOString() : scheduledRaw || null,
         address: addr,
         address_line1: body.address_line1 != null ? String(body.address_line1) : null,
         address_line2: body.address_line2 != null ? String(body.address_line2) : null,
         city: body.city != null ? String(body.city) : null,
         zipcode: body.zipcode != null ? String(body.zipcode) : null,
         notes: body.notes != null ? String(body.notes) : null,
-        seller_id: body.seller_id != null ? String(body.seller_id) : null,
+        seller_id: assigneeId,
+        assigned_to_name: null as string | null,
         status: String(body.status || "scheduled"),
+        meeting_id: meetingId,
         created_at: new Date().toISOString(),
       };
       list.unshift(item);
@@ -489,13 +577,17 @@ dashboardLeadsRouter.post("/api/visits", requireCrmAuth, async (req: AuthedReque
             : {}),
         },
       });
-      return item;
+      const updatedLead = await loadLeadOrNull(tx, leadId);
+      return {
+        visit: item,
+        lead: updatedLead ? mapLead(updatedLead) : null,
+      };
     });
-    if (!row) {
+    if (!result) {
       res.status(404).json({ success: false, error: "Lead not found" });
       return;
     }
-    res.status(201).json({ success: true, data: row });
+    res.status(201).json({ success: true, data: result.visit, lead: result.lead });
   } catch (error) {
     next(error);
   }

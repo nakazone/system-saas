@@ -1187,16 +1187,6 @@ function submitInteractionForm(e) {
 
 async function showNewVisitModal() {
     if (!currentLead) return;
-    if (typeof window.sfOpenLeadVisitInDeviceCalendar === 'function') {
-        try {
-            const ok = window.sfOpenLeadVisitInDeviceCalendar(currentLead);
-            if (ok) return;
-        } catch (err) {
-            if (typeof crmNotify === 'function') {
-                crmNotify(err.message || 'Não foi possível abrir o calendário.', 'error');
-            }
-        }
-    }
     const modal = document.getElementById('newVisitModal');
     if (!modal) return;
     var clientEl = document.getElementById('newVisitClientName');
