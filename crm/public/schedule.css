@@ -208,6 +208,160 @@
   text-decoration: none;
 }
 
+.gcal-map-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 36px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--sched-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--sched-ink);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gcal-map-btn:hover {
+  border-color: var(--sched-accent);
+  background: var(--sched-accent-soft);
+}
+.gcal-map-btn svg { flex-shrink: 0; }
+
+/* —— Map panel —— */
+.sched-map-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(33, 29, 26, 0.45);
+  z-index: 1600;
+}
+.sched-map-panel {
+  position: fixed;
+  inset: 3vh 3vw;
+  z-index: 1610;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(33, 29, 26, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sched-map-panel[hidden],
+.sched-map-backdrop[hidden] {
+  display: none !important;
+}
+.sched-map-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--sched-border);
+}
+.sched-map-panel__head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.sched-map-panel__sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: #8a8074;
+}
+.sched-map-panel__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+}
+.sched-map-list {
+  overflow: auto;
+  border-right: 1px solid var(--sched-border);
+  padding: 0.65rem;
+  background: #faf8f5;
+}
+.sched-map-list__day {
+  margin: 0.65rem 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a8074;
+}
+.sched-map-list__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.35rem;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.sched-map-list__item:hover { border-color: #e2d9cc; }
+.sched-map-list__item.is-selected {
+  border-color: var(--sched-accent);
+  box-shadow: 0 0 0 1px var(--sched-accent);
+}
+.sched-map-list__item.is-missing { opacity: 0.55; }
+.sched-map-list__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: block;
+}
+.sched-map-list__meta {
+  font-size: 0.72rem;
+  color: #8a8074;
+  margin-top: 0.15rem;
+}
+.sched-map-list__dist {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+.sched-map-list__total {
+  margin: 0.75rem 0.25rem;
+  padding: 0.65rem;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e2d9cc;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.sched-map-canvas-wrap {
+  position: relative;
+  min-height: 360px;
+}
+.sched-map-canvas {
+  position: absolute;
+  inset: 0;
+  background: #ebe4da;
+}
+.sched-map-hint {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 0.78rem;
+  color: #6b645c;
+  pointer-events: none;
+  z-index: 2;
+}
+.sched-map-empty {
+  padding: 1.25rem;
+  color: #8a8074;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
 /* —— Layout —— */
 .gcal-layout {
   display: flex;
@@ -439,22 +593,27 @@
   position: absolute;
   left: 3px;
   right: 3px;
+  width: auto;
+  box-sizing: border-box;
   border-radius: 6px;
-  padding: 0.2rem 0.4rem;
+  padding: 0.2rem 0.35rem;
   font-size: 0.72rem;
   font-weight: 600;
   color: #fff;
   cursor: pointer;
   overflow: hidden;
   z-index: 2;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   text-align: left;
   line-height: 1.25;
-  box-shadow: 0 1px 2px rgba(33, 29, 26, 0.1);
+  box-shadow: 0 1px 2px rgba(33, 29, 26, 0.12);
+}
+.gcal-event.is-packed {
+  right: auto;
 }
 .gcal-event:hover {
   filter: brightness(1.04);
-  z-index: 3;
+  z-index: 5;
 }
 .gcal-event__time {
   opacity: 0.88;
@@ -820,6 +979,18 @@
   .sched-mobile-filters-btn { display: inline-flex; }
   .gcal-range { font-size: 1rem; }
   .gcal-search input { min-width: 88px; }
+  .sched-map-panel {
+    inset: 0;
+    border-radius: 0;
+  }
+  .sched-map-panel__body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(160px, 38%) 1fr;
+  }
+  .sched-map-list {
+    border-right: none;
+    border-bottom: 1px solid #e2d9cc;
+  }
 }
 
 @media (max-width: 640px) {

@@ -1,0 +1,71 @@
+/* Shared Jobs create/edit modal (Jobs page + Schedule) */
+
+.jobs-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(33, 29, 26, 0.4);
+  z-index: 1500;
+  display: none;
+}
+.jobs-modal-backdrop.is-open {
+  display: block;
+}
+.jobs-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 14px;
+  z-index: 1510;
+  padding: 1.15rem 1.2rem 1.25rem;
+  box-shadow: 0 16px 40px rgba(33, 29, 26, 0.2);
+  display: none;
+}
+.jobs-modal.is-open {
+  display: block;
+}
+.jobs-modal h2 {
+  margin: 0 0 0.85rem;
+  font-size: 1.15rem;
+}
+.jobs-form {
+  display: grid;
+  gap: 0.7rem;
+}
+.jobs-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6b645c;
+}
+.jobs-form input,
+.jobs-form select,
+.jobs-form textarea {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #e2d9cc;
+  border-radius: 8px;
+  font: inherit;
+}
+.jobs-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+@media (max-width: 640px) {
+  .jobs-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+.jobs-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.85rem;
+}

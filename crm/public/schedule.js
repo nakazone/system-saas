@@ -280,6 +280,53 @@
     return Math.max(18, (mins / 60) * HOUR_PX);
   }
 
+  /** Pack overlapping events into side-by-side columns (Google Calendar style). */
+  function packDayEvents(items) {
+    if (!items.length) return;
+    items.sort((a, b) => a.startMs - b.startMs || b.endMs - a.endMs || String(a.ev.title).localeCompare(String(b.ev.title)));
+
+    let cluster = [];
+    let clusterEnd = -Infinity;
+    const flush = () => {
+      if (!cluster.length) return;
+      const colEnds = [];
+      cluster.forEach((item) => {
+        let col = colEnds.findIndex((end) => end <= item.startMs);
+        if (col < 0) {
+          col = colEnds.length;
+          colEnds.push(item.endMs);
+        } else {
+          colEnds[col] = item.endMs;
+        }
+        item.col = col;
+      });
+      const n = Math.max(1, colEnds.length);
+      cluster.forEach((item) => {
+        item.colCount = n;
+      });
+      cluster = [];
+    };
+
+    items.forEach((item) => {
+      if (!cluster.length || item.startMs < clusterEnd) {
+        cluster.push(item);
+        clusterEnd = Math.max(clusterEnd, item.endMs);
+      } else {
+        flush();
+        cluster = [item];
+        clusterEnd = item.endMs;
+      }
+    });
+    flush();
+  }
+
+  function eventPlaceStyle(item) {
+    const gap = 2;
+    const pct = 100 / item.colCount;
+    const left = item.col * pct;
+    return `top:${item.top}px;height:${item.height}px;left:calc(${left}% + ${gap}px);width:calc(${pct}% - ${gap * 2}px);right:auto;background:${escapeAttr(item.ev.color || (item.ev.type === "job" ? "#e8792c" : "#3b6ea5"))}`;
+  }
+
   function nowLineHtml(day) {
     const now = new Date();
     if (ymd(now) !== ymd(day)) return "";
@@ -317,9 +364,6 @@
     });
     $("slotNewMeeting").style.display = canManageMeetings ? "" : "none";
     $("slotNewJob").style.display = canManageJobs ? "" : "none";
-    if (canManageJobs) {
-      sessionStorage.setItem("obramate_job_pref_start", date.toISOString());
-    }
   }
 
   function closeSlotMenu() {
@@ -363,6 +407,7 @@
         const s = new Date(ev.start);
         return s.getHours() >= HOUR_START || new Date(ev.end).getHours() > HOUR_START;
       });
+      const packed = [];
       dayEvents.forEach((ev) => {
         let s = new Date(ev.start);
         let e = new Date(ev.end);
@@ -375,10 +420,22 @@
         }
         const top = Math.max(0, topPx(s));
         const hgt = heightPx(s, e);
-        html += `<button type="button" class="gcal-event" data-ev="${ev.type}:${ev.id}"
-          style="top:${top}px;height:${hgt}px;background:${escapeAttr(ev.color || (ev.type === "job" ? "#e8792c" : "#3b6ea5"))}">
-          <span class="gcal-event__time">${fmtTime(ev.start)}</span>
-          ${escapeHtml(ev.title)}
+        packed.push({
+          ev,
+          startMs: s.getTime(),
+          endMs: Math.max(s.getTime() + 15 * 60000, e.getTime()),
+          top,
+          height: hgt,
+          col: 0,
+          colCount: 1,
+        });
+      });
+      packDayEvents(packed);
+      packed.forEach((item) => {
+        html += `<button type="button" class="gcal-event is-packed" data-ev="${item.ev.type}:${item.ev.id}"
+          style="${eventPlaceStyle(item)}">
+          <span class="gcal-event__time">${fmtTime(item.ev.start)}</span>
+          ${escapeHtml(item.ev.title)}
         </button>`;
       });
       html += nowLineHtml(day);
@@ -547,11 +604,18 @@
       body += `<p>${escapeHtml(meta.source_name || meta.source_type || "")}</p>`;
       if (meta.address) body += `<p>📍 ${escapeHtml(meta.address)}</p>`;
       $("btnOpenJob").hidden = false;
-      $("btnOpenJob").href = "jobs.html";
-      $("btnOpenJob").onclick = () => sessionStorage.setItem("obramate_open_job", ev.id);
+      $("btnOpenJob").removeAttribute("href");
+      $("btnOpenJob").onclick = (e) => {
+        e.preventDefault();
+        closeEvent();
+        if (window.__crmJobModal) {
+          window.__crmJobModal.openEdit(ev.id).catch((err) => notify(err.message, "error"));
+        }
+      };
     } else {
       if (meta.location) body += `<p>📍 ${escapeHtml(meta.location)}</p>`;
       $("btnOpenJob").hidden = true;
+      $("btnOpenJob").onclick = null;
     }
     if (meta.assigned_user?.name) body += `<p>👤 ${escapeHtml(meta.assigned_user.name)}</p>`;
     if (meta.notes) body += `<p>${escapeHtml(meta.notes)}</p>`;
@@ -607,6 +671,341 @@
     render();
   }
 
+  /* —— Map / distances —— */
+  const geoCache = new Map();
+  let mapsApiReady = null;
+  let mapInstance = null;
+  let mapMarkers = [];
+  let mapPolyline = null;
+  let mapSelection = [];
+  let mapPoints = [];
+
+  function eventAddress(ev) {
+    const meta = ev.meta || {};
+    return String(meta.address || meta.location || "").trim();
+  }
+
+  function haversineKm(a, b) {
+    const R = 6371;
+    const toRad = (d) => (d * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const h =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }
+
+  function fmtKm(km) {
+    if (km == null || Number.isNaN(km)) return "—";
+    if (km < 1) return `${Math.round(km * 1000)} m`;
+    return `${km.toFixed(km < 10 ? 1 : 0)} km`;
+  }
+
+  async function ensureGoogleMaps() {
+    if (window.google && window.google.maps) return window.google.maps;
+    if (mapsApiReady) return mapsApiReady;
+    mapsApiReady = (async () => {
+      const cfg = await api("/api/config/ui");
+      const key = cfg.data?.googleMapsJsKey;
+      if (!key) throw new Error("Google Maps não configurado (GOOGLE_MAPS_JS_KEY).");
+      await new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+        if (existing && window.google && window.google.maps) {
+          resolve();
+          return;
+        }
+        const cb = `__schedMapsInit_${Date.now()}`;
+        window[cb] = () => {
+          delete window[cb];
+          resolve();
+        };
+        const s = document.createElement("script");
+        s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&callback=${cb}`;
+        s.async = true;
+        s.onerror = () => reject(new Error("Falha ao carregar Google Maps"));
+        document.head.appendChild(s);
+      });
+      return window.google.maps;
+    })();
+    return mapsApiReady;
+  }
+
+  function geocodeAddress(maps, address) {
+    const key = address.toLowerCase();
+    if (geoCache.has(key)) return Promise.resolve(geoCache.get(key));
+    return new Promise((resolve) => {
+      const geocoder = new maps.Geocoder();
+      geocoder.geocode({ address }, (results, status) => {
+        if (status === "OK" && results && results[0]) {
+          const loc = results[0].geometry.location;
+          const pt = { lat: loc.lat(), lng: loc.lng(), formatted: results[0].formatted_address };
+          geoCache.set(key, pt);
+          resolve(pt);
+        } else {
+          geoCache.set(key, null);
+          resolve(null);
+        }
+      });
+    });
+  }
+
+  async function buildMapPoints() {
+    const maps = await ensureGoogleMaps();
+    const withAddr = filtered
+      .map((ev) => ({ ev, address: eventAddress(ev) }))
+      .filter((x) => x.address);
+    const points = [];
+    for (const row of withAddr) {
+      const geo = await geocodeAddress(maps, row.address);
+      points.push({
+        key: `${row.ev.type}:${row.ev.id}`,
+        ev: row.ev,
+        address: row.address,
+        lat: geo?.lat ?? null,
+        lng: geo?.lng ?? null,
+        formatted: geo?.formatted || row.address,
+      });
+    }
+    return points;
+  }
+
+  function clearMapOverlays() {
+    mapMarkers.forEach((m) => m.setMap(null));
+    mapMarkers = [];
+    if (mapPolyline) {
+      mapPolyline.setMap(null);
+      mapPolyline = null;
+    }
+  }
+
+  function updateMapSelectionUi() {
+    $("mapList")
+      ?.querySelectorAll("[data-map-key]")
+      .forEach((el) => {
+        el.classList.toggle("is-selected", mapSelection.includes(el.getAttribute("data-map-key")));
+      });
+
+    const hint = $("mapHint");
+    if (mapSelection.length === 2) {
+      const a = mapPoints.find((p) => p.key === mapSelection[0]);
+      const b = mapPoints.find((p) => p.key === mapSelection[1]);
+      if (a?.lat != null && b?.lat != null) {
+        const km = haversineKm(a, b);
+        if (hint) hint.textContent = `Distância em linha reta: ${fmtKm(km)} · ${a.ev.title} → ${b.ev.title}`;
+        drawPairLine(a, b);
+        return;
+      }
+    }
+    if (hint) {
+      hint.textContent =
+        mapSelection.length === 1
+          ? "Selecione outro evento para medir a distância."
+          : "Eventos com endereço aparecem no mapa. Selecione dois na lista para medir a distância.";
+    }
+    if (mapPolyline) {
+      mapPolyline.setMap(null);
+      mapPolyline = null;
+    }
+  }
+
+  function drawPairLine(a, b) {
+    if (!mapInstance || !window.google) return;
+    if (mapPolyline) mapPolyline.setMap(null);
+    mapPolyline = new window.google.maps.Polyline({
+      path: [
+        { lat: a.lat, lng: a.lng },
+        { lat: b.lat, lng: b.lng },
+      ],
+      geodesic: true,
+      strokeColor: "#1d4ed8",
+      strokeOpacity: 0.85,
+      strokeWeight: 3,
+      map: mapInstance,
+    });
+  }
+
+  function drawDayRoute(dayPoints) {
+    if (!mapInstance || !window.google) return;
+    const ok = dayPoints.filter((p) => p.lat != null);
+    if (ok.length < 2) return;
+    if (mapPolyline) mapPolyline.setMap(null);
+    mapPolyline = new window.google.maps.Polyline({
+      path: ok.map((p) => ({ lat: p.lat, lng: p.lng })),
+      geodesic: true,
+      strokeColor: "#e8792c",
+      strokeOpacity: 0.75,
+      strokeWeight: 3,
+      map: mapInstance,
+    });
+  }
+
+  function renderMapList(points) {
+    const list = $("mapList");
+    if (!list) return;
+    if (!points.length) {
+      list.innerHTML =
+        '<p class="sched-map-empty">Nenhum evento com endereço no período/filtros atuais. Adicione endereço nos jobs ou local nos meetings.</p>';
+      return;
+    }
+
+    const byDay = new Map();
+    points
+      .slice()
+      .sort((a, b) => String(a.ev.start).localeCompare(String(b.ev.start)))
+      .forEach((p) => {
+        const day = ymd(new Date(p.ev.start));
+        if (!byDay.has(day)) byDay.set(day, []);
+        byDay.get(day).push(p);
+      });
+
+    let html = "";
+    byDay.forEach((dayPts, day) => {
+      const [y, m, d] = day.split("-").map(Number);
+      const label = new Date(y, m - 1, d).toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      html += `<p class="sched-map-list__day">${escapeHtml(label)}</p>`;
+      let dayTotal = 0;
+      let prev = null;
+      dayPts.forEach((p, idx) => {
+        let leg = null;
+        if (prev && prev.lat != null && p.lat != null) {
+          leg = haversineKm(prev, p);
+          dayTotal += leg;
+        }
+        const missing = p.lat == null;
+        html += `<button type="button" class="sched-map-list__item${missing ? " is-missing" : ""}" data-map-key="${escapeAttr(p.key)}">
+          <span class="sched-map-list__title">${idx + 1}. ${escapeHtml(p.ev.title)}</span>
+          <div class="sched-map-list__meta">${escapeHtml(fmtTime(p.ev.start))} · ${escapeHtml(p.address)}</div>
+          ${leg != null ? `<div class="sched-map-list__dist">→ ${fmtKm(leg)} do anterior</div>` : ""}
+          ${missing ? `<div class="sched-map-list__meta">Endereço não encontrado no mapa</div>` : ""}
+        </button>`;
+        if (!missing) prev = p;
+      });
+      const geocoded = dayPts.filter((p) => p.lat != null).length;
+      if (geocoded >= 2) {
+        html += `<div class="sched-map-list__total">Rota do dia · ~${fmtKm(dayTotal)} (linha reta)</div>`;
+      }
+    });
+    list.innerHTML = html;
+
+    list.querySelectorAll("[data-map-key]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-map-key");
+        const pt = mapPoints.find((p) => p.key === key);
+        if (!pt || pt.lat == null) {
+          notify("Sem coordenadas para este endereço.", "warning");
+          return;
+        }
+        if (mapSelection.includes(key)) {
+          mapSelection = mapSelection.filter((k) => k !== key);
+        } else if (mapSelection.length >= 2) {
+          mapSelection = [key];
+        } else {
+          mapSelection = [...mapSelection, key];
+        }
+        mapInstance?.panTo({ lat: pt.lat, lng: pt.lng });
+        mapInstance?.setZoom(Math.max(mapInstance.getZoom() || 11, 13));
+        updateMapSelectionUi();
+      });
+    });
+
+    // Default polyline: first day with 2+ points
+    for (const dayPts of byDay.values()) {
+      const ok = dayPts.filter((p) => p.lat != null);
+      if (ok.length >= 2) {
+        drawDayRoute(ok);
+        const hint = $("mapHint");
+        if (hint) hint.textContent = "Linha laranja: sequência do dia por horário. Clique em dois eventos para medir um trecho.";
+        break;
+      }
+    }
+  }
+
+  function placeMarkers(points) {
+    clearMapOverlays();
+    const maps = window.google.maps;
+    const bounds = new maps.LatLngBounds();
+    let any = false;
+    points.forEach((p, i) => {
+      if (p.lat == null) return;
+      any = true;
+      const marker = new maps.Marker({
+        map: mapInstance,
+        position: { lat: p.lat, lng: p.lng },
+        title: p.ev.title,
+        label: {
+          text: String(i + 1),
+          color: "#fff",
+          fontWeight: "700",
+          fontSize: "11px",
+        },
+      });
+      marker.addListener("click", () => {
+        const btn = [...($("mapList")?.querySelectorAll("[data-map-key]") || [])].find(
+          (el) => el.getAttribute("data-map-key") === p.key,
+        );
+        btn?.click();
+      });
+      mapMarkers.push(marker);
+      bounds.extend({ lat: p.lat, lng: p.lng });
+    });
+    if (any) {
+      if (mapMarkers.length === 1) {
+        mapInstance.setCenter(bounds.getCenter());
+        mapInstance.setZoom(13);
+      } else {
+        mapInstance.fitBounds(bounds, 48);
+      }
+    }
+  }
+
+  async function openMapPanel() {
+    $("mapPanel").hidden = false;
+    $("mapBackdrop").hidden = false;
+    $("mapPanelSub").textContent = `Período da vista atual · ${filtered.length} evento(s) filtrado(s)`;
+    $("mapHint").textContent = "A carregar mapa…";
+    $("mapList").innerHTML = '<p class="sched-map-empty">A geocodificar endereços…</p>';
+    mapSelection = [];
+
+    try {
+      const maps = await ensureGoogleMaps();
+      if (!mapInstance) {
+        mapInstance = new maps.Map($("schedMapCanvas"), {
+          center: { lat: 39.8283, lng: -98.5795 },
+          zoom: 4,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+        });
+      } else {
+        maps.event.trigger(mapInstance, "resize");
+      }
+
+      mapPoints = await buildMapPoints();
+      renderMapList(mapPoints);
+      placeMarkers(mapPoints.filter((p) => p.lat != null));
+      if (!mapPoints.some((p) => p.lat != null)) {
+        $("mapHint").textContent = "Nenhum endereço geocodificado. Verifique os endereços dos eventos.";
+      }
+    } catch (err) {
+      $("mapList").innerHTML = `<p class="sched-map-empty">${escapeHtml(err.message || "Erro no mapa")}</p>`;
+      $("mapHint").textContent = "";
+      throw err;
+    }
+  }
+
+  function closeMapPanel() {
+    $("mapPanel").hidden = true;
+    $("mapBackdrop").hidden = true;
+    mapSelection = [];
+  }
+
   async function boot() {
     try {
       const s = await api("/api/auth/session");
@@ -627,6 +1026,15 @@
         $("btnCreate").style.display = "none";
       } else if (!canManageMeetings) {
         $("menuNewMeeting").style.display = "none";
+      }
+      if (!canManageJobs) {
+        const mj = $("menuNewJob");
+        if (mj) mj.style.display = "none";
+      }
+
+      if (window.__crmJobModal) {
+        await window.__crmJobModal.ready.catch(() => {});
+        window.__crmJobModal.onSaved(() => loadEvents().catch(() => {}));
       }
 
       const users = await api("/api/users?limit=100").catch(() => ({ data: [] }));
@@ -670,6 +1078,15 @@
         $("btnCreate").setAttribute("aria-expanded", open ? "true" : "false");
       });
       $("menuNewMeeting").addEventListener("click", () => openMeetingModal());
+      $("menuNewJob")?.addEventListener("click", () => {
+        closeCreateMenu();
+        closeSlotMenu();
+        if (!window.__crmJobModal) {
+          notify("Modal de jobs indisponível.", "error");
+          return;
+        }
+        window.__crmJobModal.openCreate().catch((err) => notify(err.message, "error"));
+      });
       document.addEventListener("click", () => {
         closeCreateMenu();
         closeSlotMenu();
@@ -680,6 +1097,19 @@
         if (slotAnchor) openMeetingModal(slotAnchor);
         else openMeetingModal();
       });
+      $("slotNewJob")?.addEventListener("click", () => {
+        const when = slotAnchor;
+        closeSlotMenu();
+        if (!window.__crmJobModal) {
+          notify("Modal de jobs indisponível.", "error");
+          return;
+        }
+        window.__crmJobModal.openCreate(when ? { start: when } : {}).catch((err) => notify(err.message, "error"));
+      });
+
+      $("btnOpenMap")?.addEventListener("click", () => openMapPanel().catch((e) => notify(e.message, "error")));
+      $("btnCloseMap")?.addEventListener("click", closeMapPanel);
+      $("mapBackdrop")?.addEventListener("click", closeMapPanel);
 
       $("btnCloseEvent").addEventListener("click", closeEvent);
       $("btnCloseEvent2").addEventListener("click", closeEvent);

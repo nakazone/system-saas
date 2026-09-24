@@ -933,6 +933,11 @@ cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (req: Aut
       data: {
         brand_name: brand?.name || "Workspace",
         branding: brand,
+        googleMapsJsKey:
+          process.env.GOOGLE_MAPS_JS_KEY ||
+          process.env.GOOGLE_MAPS_API_KEY ||
+          process.env.GOOGLE_PLACES_JS_KEY ||
+          null,
         modules: {
           dashboard: true,
           leads: true,

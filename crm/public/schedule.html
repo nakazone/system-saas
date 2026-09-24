@@ -15,7 +15,8 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
-  <link rel="stylesheet" href="schedule.css?v=20260924-fluid" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20260924-jobmodal" />
+  <link rel="stylesheet" href="schedule.css?v=20260924-map" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body sched-body">
@@ -65,7 +66,7 @@
           </button>
           <div class="gcal-create-menu" id="createMenu" hidden role="menu">
             <button type="button" role="menuitem" id="menuNewMeeting" data-crm-permission="schedule.manage">Meeting</button>
-            <a role="menuitem" href="jobs.html" data-crm-permission="work_orders.manage">Job</a>
+            <button type="button" role="menuitem" id="menuNewJob" data-crm-permission="work_orders.manage">Job</button>
           </div>
           <button type="button" class="gcal-today" id="btnToday">Hoje</button>
           <div class="gcal-nav-arrows">
@@ -89,6 +90,10 @@
             <button type="button" class="gcal-view-btn" data-view="month">Mês</button>
             <button type="button" class="gcal-view-btn" data-view="agenda">Agenda</button>
           </div>
+          <button type="button" class="gcal-map-btn" id="btnOpenMap" title="Mapa e distâncias entre eventos">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6l7-3 8 3 7-3v15l-7 3-8-3-7 3V6z"/><path d="M8 3v15"/><path d="M16 6v15"/></svg>
+            Mapa
+          </button>
           <a class="gcal-link-jobs" href="jobs.html">Jobs</a>
         </div>
       </header>
@@ -198,14 +203,37 @@
   <!-- Quick create chooser when clicking empty slot -->
   <div class="gcal-slot-menu" id="slotMenu" hidden role="menu">
     <button type="button" role="menuitem" id="slotNewMeeting">+ Meeting neste horário</button>
-    <a role="menuitem" id="slotNewJob" href="jobs.html">+ Job neste horário</a>
+    <button type="button" role="menuitem" id="slotNewJob">+ Job neste horário</button>
+  </div>
+
+  <!-- Schedule map / distances -->
+  <div class="sched-map-backdrop" id="mapBackdrop" hidden></div>
+  <div class="sched-map-panel" id="mapPanel" role="dialog" aria-modal="true" aria-labelledby="mapPanelTitle" hidden>
+    <header class="sched-map-panel__head">
+      <div>
+        <h2 id="mapPanelTitle">Mapa dos eventos</h2>
+        <p class="sched-map-panel__sub" id="mapPanelSub">Distâncias entre locais na agenda atual</p>
+      </div>
+      <button type="button" class="gcal-icon-btn" id="btnCloseMap" aria-label="Fechar mapa">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="sched-map-panel__body">
+      <aside class="sched-map-list" id="mapList"></aside>
+      <div class="sched-map-canvas-wrap">
+        <div id="schedMapCanvas" class="sched-map-canvas" aria-label="Mapa"></div>
+        <p class="sched-map-hint" id="mapHint">Eventos com endereço aparecem no mapa. Selecione dois na lista para medir a distância.</p>
+      </div>
+    </div>
   </div>
 
   <script src="crm-toast.js"></script>
   <script src="crm-i18n.js?v=20260923-i18n"></script>
   <script src="saas-branding.js"></script>
-    <script src="crm-shell.js?v=20260924-shell2"></script>
+  <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
+  <script src="crm-shell.js?v=20260924-shell2"></script>
   <script src="crm-shared-nav.js?v=20260924-shell2"></script>
-  <script src="schedule.js?v=20260924-fluid"></script>
+  <script src="crm-job-modal.js?v=20260924-jobmodal"></script>
+  <script src="schedule.js?v=20260924-map"></script>
 </body>
 </html>

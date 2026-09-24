@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20260924-jobmodal" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     .jobs-page { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
@@ -33,17 +34,6 @@
     .job-status.is-in_progress { background: #ffedd5; color: #c2410c; }
     .job-status.is-completed { background: #d1fae5; color: #065f46; }
     .job-status.is-canceled { background: #fee2e2; color: #991b1b; }
-    .jobs-modal-backdrop { position: fixed; inset: 0; background: rgba(33,29,26,0.4); z-index: 1500; display: none; }
-    .jobs-modal-backdrop.is-open { display: block; }
-    .jobs-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(520px, 94vw); max-height: 90vh; overflow: auto; background: #fff; border-radius: 14px; z-index: 1510; padding: 1.15rem 1.2rem 1.25rem; box-shadow: 0 16px 40px rgba(33,29,26,0.2); display: none; }
-    .jobs-modal.is-open { display: block; }
-    .jobs-modal h2 { margin: 0 0 0.85rem; font-size: 1.15rem; }
-    .jobs-form { display: grid; gap: 0.7rem; }
-    .jobs-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; font-weight: 600; color: #6b645c; }
-    .jobs-form input, .jobs-form select, .jobs-form textarea { padding: 0.5rem 0.65rem; border: 1px solid #e2d9cc; border-radius: 8px; font: inherit; }
-    .jobs-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
-    @media (max-width: 640px) { .jobs-form-row { grid-template-columns: 1fr; } }
-    .jobs-modal-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; margin-top: 0.85rem; }
     .jobs-empty { padding: 2rem; text-align: center; color: #8a8074; }
   </style>
 </head>
@@ -140,75 +130,13 @@
     </main>
   </div>
 
-  <div class="jobs-modal-backdrop" id="jobModalBackdrop"></div>
-  <div class="jobs-modal" id="jobModal" role="dialog" aria-modal="true" aria-labelledby="jobModalTitle">
-    <h2 id="jobModalTitle">Novo job</h2>
-    <form class="jobs-form" id="jobForm">
-      <input type="hidden" id="jobId" />
-      <label>Título *
-        <input type="text" id="jobTitle" required maxlength="200" />
-      </label>
-      <div class="jobs-form-row">
-        <label>Status
-          <select id="jobStatus">
-            <option value="draft">Draft</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="in_progress">In progress</option>
-            <option value="completed">Completed</option>
-            <option value="canceled">Canceled</option>
-          </select>
-        </label>
-        <label>Origem
-          <select id="jobSourceType">
-            <option value="builder">Builder</option>
-            <option value="contractor">Contractor</option>
-            <option value="internal">Internal</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-      </div>
-      <label>Nome da origem
-        <input type="text" id="jobSourceName" maxlength="200" placeholder="Empresa / contato" />
-      </label>
-      <div class="jobs-form-row">
-        <label>Cliente
-          <select id="jobCustomer"><option value="">—</option></select>
-        </label>
-        <label>Builder
-          <select id="jobBuilder"><option value="">—</option></select>
-        </label>
-      </div>
-      <label>Endereço
-        <input type="text" id="jobAddress" maxlength="500" />
-      </label>
-      <div class="jobs-form-row">
-        <label>Início
-          <input type="datetime-local" id="jobStart" />
-        </label>
-        <label>Fim
-          <input type="datetime-local" id="jobEnd" />
-        </label>
-      </div>
-      <label>Responsável
-        <select id="jobAssignee"><option value="">—</option></select>
-      </label>
-      <label>Notas
-        <textarea id="jobNotes" rows="3" maxlength="8000"></textarea>
-      </label>
-      <div class="jobs-modal-actions">
-        <a class="btn btn-secondary" id="btnViewSchedule" href="schedule.html" hidden>Ver no Schedule</a>
-        <button type="button" class="btn btn-secondary" id="btnCancelJob">Cancelar</button>
-        <button type="button" class="btn btn-secondary" id="btnCancelWo" hidden>Marcar cancelado</button>
-        <button type="submit" class="btn btn-primary" id="btnSaveJob">Salvar</button>
-      </div>
-    </form>
-  </div>
-
   <script src="crm-toast.js"></script>
   <script src="crm-i18n.js?v=20260923-i18n"></script>
   <script src="saas-branding.js"></script>
-    <script src="crm-shell.js?v=20260924-shell2"></script>
+  <script src="crm-address-autocomplete.js?v=20260528-pac-dismiss"></script>
+  <script src="crm-shell.js?v=20260924-shell2"></script>
   <script src="crm-shared-nav.js?v=20260924-shell2"></script>
-  <script src="jobs.js?v=20260923-jobs"></script>
+  <script src="crm-job-modal.js?v=20260924-jobmodal"></script>
+  <script src="jobs.js?v=20260924-jobmodal"></script>
 </body>
 </html>
