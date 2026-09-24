@@ -73,6 +73,10 @@ export function createApp() {
     res.type("image/x-icon");
     res.sendFile(path.join(CRM_ASSETS_DIR, "favicon.ico"));
   });
+  app.get("/obramateLogoSmallTransp.png", (_req, res) => {
+    res.type("image/png");
+    res.sendFile(path.join(__dirname, "../public/obramateLogoSmallTransp.png"));
+  });
   app.get("/manifest.webmanifest", (_req, res) => {
     res.type("application/manifest+json");
     res.sendFile(path.join(__dirname, "../public/manifest.webmanifest"));

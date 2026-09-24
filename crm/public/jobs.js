@@ -282,6 +282,8 @@
       if (openId) {
         sessionStorage.removeItem("obramate_open_job");
         openEdit(openId).catch(() => {});
+      } else if (sessionStorage.getItem("obramate_job_pref_start") && canManage) {
+        openCreate();
       }
     } catch (err) {
       notify(err.message || "Falha ao carregar", "error");
