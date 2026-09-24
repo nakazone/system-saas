@@ -707,11 +707,13 @@
   /* —— Map / distances —— */
   const geoCache = new Map();
   let mapsApiReady = null;
+  let mapEngine = null; // "google" | "leaflet"
   let mapInstance = null;
   let mapMarkers = [];
   let mapPolyline = null;
   let mapSelection = [];
   let mapPoints = [];
+  let leafletLayer = null;
 
   function eventAddress(ev) {
     const meta = ev.meta || {};
@@ -737,62 +739,140 @@
     return `${km.toFixed(km < 10 ? 1 : 0)} km`;
   }
 
-  async function ensureGoogleMaps() {
-    if (window.google && window.google.maps) return window.google.maps;
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if ([...document.querySelectorAll("script[src]")].some((s) => s.src === src || (s.getAttribute("src") || "") === src)) {
+        resolve();
+        return;
+      }
+      const el = document.createElement("script");
+      el.src = src;
+      el.async = true;
+      el.onload = () => resolve();
+      el.onerror = () => reject(new Error(`Falha ao carregar ${src}`));
+      document.head.appendChild(el);
+    });
+  }
+
+  function loadStylesheet(href) {
+    if ([...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => (l.getAttribute("href") || "").includes(href.split("?")[0]))) {
+      return;
+    }
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    document.head.appendChild(link);
+  }
+
+  async function ensureLeaflet() {
+    loadStylesheet("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
+    if (!window.L) {
+      await loadScript("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js");
+    }
+    return window.L;
+  }
+
+  async function ensureMapEngine() {
+    if (mapEngine === "google" && window.google?.maps) return "google";
+    if (mapEngine === "leaflet" && window.L) return "leaflet";
     if (mapsApiReady) return mapsApiReady;
+
     mapsApiReady = (async () => {
-      const cfg = await api("/api/config/ui");
-      const key = cfg.data?.googleMapsJsKey;
-      if (!key) throw new Error("Google Maps não configurado (GOOGLE_MAPS_JS_KEY).");
-      await new Promise((resolve, reject) => {
-        const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
-        if (existing && window.google && window.google.maps) {
-          resolve();
-          return;
-        }
-        const cb = `__schedMapsInit_${Date.now()}`;
-        window[cb] = () => {
-          delete window[cb];
-          resolve();
-        };
-        const s = document.createElement("script");
-        s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&callback=${cb}`;
-        s.async = true;
-        s.onerror = () => reject(new Error("Falha ao carregar Google Maps"));
-        document.head.appendChild(s);
-      });
-      return window.google.maps;
+      let key = null;
+      try {
+        const cfg = await api("/api/config/ui");
+        key = cfg.data?.googleMapsJsKey ? String(cfg.data.googleMapsJsKey).trim() : null;
+      } catch (_) {}
+
+      if (key) {
+        await new Promise((resolve, reject) => {
+          if (window.google?.maps) {
+            resolve();
+            return;
+          }
+          const cb = `__schedMapsInit_${Date.now()}`;
+          window[cb] = () => {
+            delete window[cb];
+            resolve();
+          };
+          const s = document.createElement("script");
+          s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,geometry&callback=${cb}`;
+          s.async = true;
+          s.onerror = () => reject(new Error("Falha ao carregar Google Maps"));
+          document.head.appendChild(s);
+        });
+        mapEngine = "google";
+        return "google";
+      }
+
+      await ensureLeaflet();
+      mapEngine = "leaflet";
+      return "leaflet";
     })();
+
     return mapsApiReady;
   }
 
-  function geocodeAddress(maps, address) {
-    const key = address.toLowerCase();
-    if (geoCache.has(key)) return Promise.resolve(geoCache.get(key));
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  async function geocodeNominatim(address) {
+    const url =
+      "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(address);
+    const r = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    if (!Array.isArray(rows) || !rows[0]) return null;
+    return {
+      lat: Number(rows[0].lat),
+      lng: Number(rows[0].lon),
+      formatted: rows[0].display_name || address,
+    };
+  }
+
+  function geocodeGoogle(address) {
     return new Promise((resolve) => {
-      const geocoder = new maps.Geocoder();
+      const geocoder = new window.google.maps.Geocoder();
       geocoder.geocode({ address }, (results, status) => {
         if (status === "OK" && results && results[0]) {
           const loc = results[0].geometry.location;
-          const pt = { lat: loc.lat(), lng: loc.lng(), formatted: results[0].formatted_address };
-          geoCache.set(key, pt);
-          resolve(pt);
+          resolve({
+            lat: loc.lat(),
+            lng: loc.lng(),
+            formatted: results[0].formatted_address,
+          });
         } else {
-          geoCache.set(key, null);
           resolve(null);
         }
       });
     });
   }
 
+  async function geocodeAddress(address) {
+    const key = address.toLowerCase();
+    if (geoCache.has(key)) return geoCache.get(key);
+    let pt = null;
+    try {
+      if (mapEngine === "google") pt = await geocodeGoogle(address);
+      else pt = await geocodeNominatim(address);
+    } catch (_) {
+      pt = null;
+    }
+    geoCache.set(key, pt);
+    if (mapEngine === "leaflet") await sleep(1100); // Nominatim courtesy rate limit
+    return pt;
+  }
+
   async function buildMapPoints() {
-    const maps = await ensureGoogleMaps();
     const withAddr = filtered
       .map((ev) => ({ ev, address: eventAddress(ev) }))
       .filter((x) => x.address);
     const points = [];
     for (const row of withAddr) {
-      const geo = await geocodeAddress(maps, row.address);
+      const geo = await geocodeAddress(row.address);
       points.push({
         key: `${row.ev.type}:${row.ev.id}`,
         ev: row.ev,
@@ -806,11 +886,39 @@
   }
 
   function clearMapOverlays() {
-    mapMarkers.forEach((m) => m.setMap(null));
+    if (mapEngine === "google") {
+      mapMarkers.forEach((m) => m.setMap(null));
+    } else if (mapEngine === "leaflet" && leafletLayer) {
+      mapMarkers.forEach((m) => {
+        try {
+          leafletLayer.removeLayer(m);
+        } catch (_) {}
+      });
+    }
     mapMarkers = [];
-    if (mapPolyline) {
-      mapPolyline.setMap(null);
-      mapPolyline = null;
+    clearLineOnly();
+  }
+
+  function clearMarkersOnly() {
+    if (mapEngine === "google") {
+      mapMarkers.forEach((m) => m.setMap(null));
+    } else if (mapEngine === "leaflet" && leafletLayer) {
+      mapMarkers.forEach((m) => {
+        try {
+          leafletLayer.removeLayer(m);
+        } catch (_) {}
+      });
+    }
+    mapMarkers = [];
+  }
+
+  function focusMapPoint(pt) {
+    if (!pt || pt.lat == null) return;
+    if (mapEngine === "google" && mapInstance) {
+      mapInstance.panTo({ lat: pt.lat, lng: pt.lng });
+      mapInstance.setZoom(Math.max(mapInstance.getZoom() || 11, 13));
+    } else if (mapEngine === "leaflet" && mapInstance) {
+      mapInstance.setView([pt.lat, pt.lng], Math.max(mapInstance.getZoom() || 11, 13));
     }
   }
 
@@ -838,41 +946,67 @@
           ? "Selecione outro evento para medir a distância."
           : "Eventos com endereço aparecem no mapa. Selecione dois na lista para medir a distância.";
     }
-    if (mapPolyline) {
+    clearLineOnly();
+  }
+
+  function clearLineOnly() {
+    if (mapEngine === "google" && mapPolyline) {
       mapPolyline.setMap(null);
+      mapPolyline = null;
+    } else if (mapEngine === "leaflet" && mapPolyline && leafletLayer) {
+      leafletLayer.removeLayer(mapPolyline);
       mapPolyline = null;
     }
   }
 
   function drawPairLine(a, b) {
-    if (!mapInstance || !window.google) return;
-    if (mapPolyline) mapPolyline.setMap(null);
-    mapPolyline = new window.google.maps.Polyline({
-      path: [
-        { lat: a.lat, lng: a.lng },
-        { lat: b.lat, lng: b.lng },
-      ],
-      geodesic: true,
-      strokeColor: "#1d4ed8",
-      strokeOpacity: 0.85,
-      strokeWeight: 3,
-      map: mapInstance,
-    });
+    clearLineOnly();
+    if (mapEngine === "google" && mapInstance) {
+      mapPolyline = new window.google.maps.Polyline({
+        path: [
+          { lat: a.lat, lng: a.lng },
+          { lat: b.lat, lng: b.lng },
+        ],
+        geodesic: true,
+        strokeColor: "#1d4ed8",
+        strokeOpacity: 0.85,
+        strokeWeight: 3,
+        map: mapInstance,
+      });
+      return;
+    }
+    if (mapEngine === "leaflet" && leafletLayer) {
+      mapPolyline = window.L.polyline(
+        [
+          [a.lat, a.lng],
+          [b.lat, b.lng],
+        ],
+        { color: "#1d4ed8", weight: 3, opacity: 0.85 },
+      ).addTo(leafletLayer);
+    }
   }
 
   function drawDayRoute(dayPoints) {
-    if (!mapInstance || !window.google) return;
     const ok = dayPoints.filter((p) => p.lat != null);
     if (ok.length < 2) return;
-    if (mapPolyline) mapPolyline.setMap(null);
-    mapPolyline = new window.google.maps.Polyline({
-      path: ok.map((p) => ({ lat: p.lat, lng: p.lng })),
-      geodesic: true,
-      strokeColor: "#e8792c",
-      strokeOpacity: 0.75,
-      strokeWeight: 3,
-      map: mapInstance,
-    });
+    clearLineOnly();
+    if (mapEngine === "google" && mapInstance) {
+      mapPolyline = new window.google.maps.Polyline({
+        path: ok.map((p) => ({ lat: p.lat, lng: p.lng })),
+        geodesic: true,
+        strokeColor: "#e8792c",
+        strokeOpacity: 0.75,
+        strokeWeight: 3,
+        map: mapInstance,
+      });
+      return;
+    }
+    if (mapEngine === "leaflet" && leafletLayer) {
+      mapPolyline = window.L.polyline(
+        ok.map((p) => [p.lat, p.lng]),
+        { color: "#e8792c", weight: 3, opacity: 0.75 },
+      ).addTo(leafletLayer);
+    }
   }
 
   function renderMapList(points) {
@@ -942,58 +1076,86 @@
         } else {
           mapSelection = [...mapSelection, key];
         }
-        mapInstance?.panTo({ lat: pt.lat, lng: pt.lng });
-        mapInstance?.setZoom(Math.max(mapInstance.getZoom() || 11, 13));
+        focusMapPoint(pt);
         updateMapSelectionUi();
       });
     });
 
-    // Default polyline: first day with 2+ points
     for (const dayPts of byDay.values()) {
       const ok = dayPts.filter((p) => p.lat != null);
       if (ok.length >= 2) {
         drawDayRoute(ok);
         const hint = $("mapHint");
-        if (hint) hint.textContent = "Linha laranja: sequência do dia por horário. Clique em dois eventos para medir um trecho.";
+        if (hint) {
+          hint.textContent =
+            "Linha laranja: sequência do dia por horário. Clique em dois eventos para medir um trecho.";
+        }
         break;
       }
     }
   }
 
   function placeMarkers(points) {
-    clearMapOverlays();
-    const maps = window.google.maps;
-    const bounds = new maps.LatLngBounds();
-    let any = false;
-    points.forEach((p, i) => {
-      if (p.lat == null) return;
-      any = true;
-      const marker = new maps.Marker({
-        map: mapInstance,
-        position: { lat: p.lat, lng: p.lng },
-        title: p.ev.title,
-        label: {
-          text: String(i + 1),
-          color: "#fff",
-          fontWeight: "700",
-          fontSize: "11px",
-        },
+    clearMarkersOnly();
+    if (mapEngine === "google" && mapInstance) {
+      const maps = window.google.maps;
+      const bounds = new maps.LatLngBounds();
+      let any = false;
+      points.forEach((p, i) => {
+        if (p.lat == null) return;
+        any = true;
+        const marker = new maps.Marker({
+          map: mapInstance,
+          position: { lat: p.lat, lng: p.lng },
+          title: p.ev.title,
+          label: {
+            text: String(i + 1),
+            color: "#fff",
+            fontWeight: "700",
+            fontSize: "11px",
+          },
+        });
+        marker.addListener("click", () => {
+          const btn = [...($("mapList")?.querySelectorAll("[data-map-key]") || [])].find(
+            (el) => el.getAttribute("data-map-key") === p.key,
+          );
+          btn?.click();
+        });
+        mapMarkers.push(marker);
+        bounds.extend({ lat: p.lat, lng: p.lng });
       });
-      marker.addListener("click", () => {
-        const btn = [...($("mapList")?.querySelectorAll("[data-map-key]") || [])].find(
-          (el) => el.getAttribute("data-map-key") === p.key,
-        );
-        btn?.click();
+      if (any) {
+        if (mapMarkers.length === 1) {
+          mapInstance.setCenter(bounds.getCenter());
+          mapInstance.setZoom(13);
+        } else {
+          mapInstance.fitBounds(bounds, 48);
+        }
+      }
+      return;
+    }
+
+    if (mapEngine === "leaflet" && mapInstance && leafletLayer) {
+      const latLngs = [];
+      points.forEach((p, i) => {
+        if (p.lat == null) return;
+        const marker = window.L.marker([p.lat, p.lng], {
+          title: p.ev.title,
+        }).bindTooltip(`${i + 1}. ${p.ev.title}`, { permanent: false });
+        marker.on("click", () => {
+          const btn = [...($("mapList")?.querySelectorAll("[data-map-key]") || [])].find(
+            (el) => el.getAttribute("data-map-key") === p.key,
+          );
+          btn?.click();
+        });
+        marker.addTo(leafletLayer);
+        mapMarkers.push(marker);
+        latLngs.push([p.lat, p.lng]);
       });
-      mapMarkers.push(marker);
-      bounds.extend({ lat: p.lat, lng: p.lng });
-    });
-    if (any) {
-      if (mapMarkers.length === 1) {
-        mapInstance.setCenter(bounds.getCenter());
-        mapInstance.setZoom(13);
-      } else {
-        mapInstance.fitBounds(bounds, 48);
+      if (latLngs.length === 1) {
+        mapInstance.setView(latLngs[0], 13);
+      } else if (latLngs.length > 1) {
+        mapInstance.fitBounds(latLngs, { padding: [40, 40] });
       }
     }
   }
@@ -1007,22 +1169,40 @@
     mapSelection = [];
 
     try {
-      const maps = await ensureGoogleMaps();
-      if (!mapInstance) {
-        mapInstance = new maps.Map($("schedMapCanvas"), {
-          center: { lat: 39.8283, lng: -98.5795 },
-          zoom: 4,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: true,
-        });
+      const engine = await ensureMapEngine();
+      const canvas = $("schedMapCanvas");
+
+      if (engine === "google") {
+        if (!mapInstance || mapEngine !== "google") {
+          mapInstance = new window.google.maps.Map(canvas, {
+            center: { lat: 39.8283, lng: -98.5795 },
+            zoom: 4,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+          });
+        } else {
+          window.google.maps.event.trigger(mapInstance, "resize");
+        }
       } else {
-        maps.event.trigger(mapInstance, "resize");
+        if (!mapInstance || mapEngine !== "leaflet") {
+          canvas.innerHTML = "";
+          mapInstance = window.L.map(canvas, { scrollWheelZoom: true }).setView([39.8283, -98.5795], 4);
+          window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          }).addTo(mapInstance);
+          leafletLayer = window.L.layerGroup().addTo(mapInstance);
+        }
+        setTimeout(() => mapInstance.invalidateSize(), 50);
       }
 
+      const engineLabel = engine === "google" ? "Google Maps" : "OpenStreetMap";
+      $("mapPanelSub").textContent = `Período da vista atual · ${filtered.length} evento(s) · ${engineLabel}`;
+
       mapPoints = await buildMapPoints();
-      renderMapList(mapPoints);
       placeMarkers(mapPoints.filter((p) => p.lat != null));
+      renderMapList(mapPoints);
       if (!mapPoints.some((p) => p.lat != null)) {
         $("mapHint").textContent = "Nenhum endereço geocodificado. Verifique os endereços dos eventos.";
       }
