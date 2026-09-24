@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-pwa";
+  const SHELL_VER = "20260924-modpanel";
 
   const TOPBAR_HTML = `
 <header class="crm-topbar" id="crmTopbar" aria-label="Barra superior">

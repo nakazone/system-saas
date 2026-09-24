@@ -1644,7 +1644,7 @@
       return;
     }
     if (e.target.closest('[data-lqs-open-quotes-crm]')) {
-      window.location.href = 'dashboard.html?page=quotes';
+      window.location.href = 'quotes.html';
       return;
     }
     const pdfBtn = e.target.closest('[data-lqs-pdf]');

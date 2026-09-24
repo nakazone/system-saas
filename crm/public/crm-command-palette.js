@@ -4,9 +4,9 @@
 (function () {
   const ACTIONS = [
     { id: 'dash', label: 'Dashboard', sub: 'Visão geral', href: 'dashboard.html', perm: null },
-    { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'dashboard.html?page=leads', perm: 'leads.view' },
-    { id: 'quotes', label: 'Quotes', sub: 'Orçamentos', href: 'dashboard.html?page=quotes', perm: 'quotes.view' },
-    { id: 'invoices', label: 'Invoices', sub: 'Faturas', href: 'dashboard.html?page=invoices', perm: 'quotes.view' },
+    { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'leads.html', perm: 'leads.view' },
+    { id: 'quotes', label: 'Quotes', sub: 'Orçamentos', href: 'quotes.html', perm: 'quotes.view' },
+    { id: 'invoices', label: 'Invoices', sub: 'Faturas', href: 'invoices.html', perm: 'quotes.view' },
     { id: 'clients', label: 'Clientes', sub: 'Cadastro', href: 'dashboard.html?page=customers', perm: 'customers.view' },
     { id: 'cat', label: 'Catálogo de serviços', sub: 'Cadastro', href: 'quote-catalog.html', perm: 'quotes.edit' },
     { id: 'products', label: 'Produtos', sub: 'Cadastro', href: 'products-erp.html', perm: 'quotes.view' },

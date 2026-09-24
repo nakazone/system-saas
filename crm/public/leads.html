@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Leads | ObraMate</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="stylesheet" href="styles.css?v=20260924-visit3" />
+  <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260924-maps4" />
+  <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
+  <link rel="stylesheet" href="crm-module-panel.css?v=20260924-modpanel" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body">
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Leads</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/obramate-logo.png" alt="Empresa" class="sidebar-brand-logo" width="220" height="44" onerror="this.style.display='none'" />
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="dashboard-main">
+      <div class="mod-page crm-page">
+        <div class="mod-page-header">
+          <h1>Leads</h1>
+          <div class="mod-page-header__actions">
+            <a class="btn btn-secondary" href="schedule.html">Schedule</a>
+            <button type="button" class="btn btn-primary" id="btnNewLead" data-crm-permission="leads.view">Novo lead</button>
+          </div>
+        </div>
+
+        <div class="mod-overview" id="leadsOverview" aria-label="Resumo">
+          <div class="mod-ov-card">
+            <p class="mod-ov-card__title">Pipeline</p>
+            <ul class="mod-ov-list">
+              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-new"></span> New</span><strong id="ovNew">0</strong></li>
+              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-meeting"></span> Meeting</span><strong id="ovMeeting">0</strong></li>
+              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-quote"></span> Quote</span><strong id="ovQuote">0</strong></li>
+              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-won"></span> Won</span><strong id="ovWon">0</strong></li>
+            </ul>
+          </div>
+          <div class="mod-ov-card">
+            <p class="mod-ov-card__title">Novos · 7 dias</p>
+            <div class="mod-ov-card__stat" id="ovNew7">0</div>
+            <div class="mod-ov-card__sub">Leads criados nesta semana</div>
+          </div>
+          <div class="mod-ov-card">
+            <p class="mod-ov-card__title">Valor estimado aberto</p>
+            <div class="mod-ov-card__stat" id="ovOpenValue">$0</div>
+            <div class="mod-ov-card__sub">Pipeline ativo (exceto Won/Lost)</div>
+          </div>
+          <div class="mod-ov-card mod-ov-card--promo">
+            <p>Agende visitas e avance o pipeline no Schedule.</p>
+            <a href="schedule.html">Abrir Schedule →</a>
+          </div>
+        </div>
+
+        <div class="mod-list-head">
+          <h2>Pipeline <span class="mod-list-head__count" id="leadsResultCount">(0)</span></h2>
+        </div>
+
+        <div class="mod-toolbar">
+          <label class="grow">Search
+            <input type="search" id="leadsListSearchInput" placeholder="Buscar nome, telefone, e-mail ou ID…" />
+          </label>
+          <button type="button" class="btn btn-secondary" id="btnSearchLeads">Buscar</button>
+          <button type="button" class="btn btn-secondary" id="btnClearSearch">Limpar</button>
+          <button type="button" class="btn btn-secondary" id="btnReload">Atualizar</button>
+        </div>
+
+        <div class="mod-kanban-wrap">
+          <div id="kanbanView" class="kanban-view-wrap">
+            <div class="kanban-board-toolbar" id="kanbanBoardToolbar">
+              <button
+                type="button"
+                id="kanbanToggleLostBtn"
+                class="btn btn-secondary btn-sm kanban-lost-toggle"
+                aria-pressed="false"
+                aria-expanded="false"
+                title="Mostrar ou ocultar coluna Lost"
+              >
+                <span class="kanban-lost-toggle__label">Ver Lost</span>
+                <span class="kanban-lost-toggle__count" id="kanbanLostCount" aria-hidden="true">0</span>
+              </button>
+            </div>
+            <div class="kanban-board-wrap">
+              <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="newLeadModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Novo Lead</h3>
+        <button class="modal-close" onclick="closeModal('newLeadModal')">&times;</button>
+      </div>
+      <form id="newLeadForm" onsubmit="createLeadManual(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nome *</label>
+            <input type="text" name="name" required>
+          </div>
+          <div class="form-group">
+            <label>Email *</label>
+            <input type="email" name="email" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Telefone *</label>
+            <input type="tel" name="phone" required>
+          </div>
+          <div class="form-group">
+            <label>CEP *</label>
+            <input type="text" name="zipcode" pattern="[0-9]{5}" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Fonte</label>
+            <select name="source">
+              <option value="Manual">Manual</option>
+              <option value="Referral">Indicação</option>
+              <option value="Website">Website</option>
+              <option value="Social Media">Redes Sociais</option>
+              <option value="Other">Outro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Designar para</label>
+            <select name="owner_id" id="newLeadOwnerSelect">
+              <option value="">Não designar</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Estágio / status</label>
+          <select id="newLeadPipelineStage" name="pipeline_stage_slug" aria-label="Pipeline stage">
+            <option value="new_lead" selected>New Lead</option>
+            <option value="meeting_scheduled">Meeting Scheduled</option>
+            <option value="quote_sent">Quote Sent</option>
+            <option value="follow_up_1">Follow Up</option>
+            <option value="stand_by">Stand By</option>
+            <option value="won">Won</option>
+            <option value="lost">Lost</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Prioridade</label>
+            <select name="priority">
+              <option value="low">Baixa</option>
+              <option value="medium" selected>Média</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Valor Estimado</label>
+            <input type="number" name="estimated_value" step="0.01" placeholder="0.00">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Mensagem</label>
+          <textarea name="message" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Notas</label>
+          <textarea name="notes" rows="2"></textarea>
+        </div>
+        <div class="btn-group">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('newLeadModal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Criar Lead</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="assignLeadModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Designar Lead</h3>
+        <button class="modal-close" onclick="closeModal('assignLeadModal')">&times;</button>
+      </div>
+      <form id="assignLeadForm" onsubmit="assignLead(event)">
+        <input type="hidden" id="assignLeadId" name="lead_id">
+        <div class="form-group">
+          <label>Designar para</label>
+          <select name="owner_id" id="assignLeadOwnerSelect" required>
+            <option value="">Selecione um usuário...</option>
+          </select>
+        </div>
+        <div class="btn-group">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('assignLeadModal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Designar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="followupModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Novo Follow-up</h3>
+        <button class="modal-close" onclick="closeModal('followupModal')">&times;</button>
+      </div>
+      <form id="followupForm" onsubmit="createFollowup(event)">
+        <input type="hidden" id="followupLeadId" name="lead_id">
+        <div class="form-group">
+          <label>Título *</label>
+          <input type="text" name="title" required placeholder="ex: Ligar para cliente">
+        </div>
+        <div class="form-group">
+          <label>Descrição</label>
+          <textarea name="description" rows="3"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Data/Hora *</label>
+            <input type="datetime-local" name="due_date" required>
+          </div>
+          <div class="form-group">
+            <label>Prioridade</label>
+            <select name="priority">
+              <option value="low">Baixa</option>
+              <option value="medium" selected>Média</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Designar para</label>
+          <select name="assigned_to" id="followupAssignedSelect">
+            <option value="">Eu mesmo</option>
+          </select>
+        </div>
+        <div class="btn-group">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('followupModal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Criar Follow-up</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="leadQuickSheet" class="lead-quick-sheet lead-quick-sheet--minimal lead-quick-sheet--overview" aria-hidden="true">
+    <div class="lead-quick-sheet__backdrop" id="leadQuickSheetBackdrop"></div>
+    <div class="lead-quick-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="leadQuickSheetTitle">
+      <div class="lead-quick-sheet__handle" aria-hidden="true"></div>
+      <header class="lead-quick-sheet__header">
+        <div class="lead-quick-sheet__header-row">
+          <button type="button" class="lead-quick-sheet__close" id="leadQuickSheetClose" aria-label="Fechar">✕</button>
+        </div>
+        <h2 id="leadQuickSheetTitle" class="lead-quick-sheet__title">Lead</h2>
+        <div id="leadQuickSheetBadges" class="lead-quick-sheet__badges"></div>
+      </header>
+      <div id="leadQuickSheetBody" class="lead-quick-sheet__body">
+        <div class="lead-quick-sheet__loading">A carregar…</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="lqsScheduleVisitModal" class="modal modal-lightbox lqs-visit-modal" aria-hidden="true">
+    <div class="modal-backdrop lqs-visit-modal__backdrop" data-lqs-visit-close tabindex="-1" aria-hidden="true"></div>
+    <div class="modal-content modal-content-lightbox lqs-visit-modal__sheet">
+      <div class="lead-quick-sheet__handle lqs-visit-modal__grab" aria-hidden="true"></div>
+      <header class="lqs-visit-modal__header">
+        <h2 class="lqs-visit-modal__title">Agendar visita</h2>
+        <button type="button" class="lead-quick-sheet__close lqs-visit-modal__close-btn" data-lqs-visit-close aria-label="Fechar">&times;</button>
+      </header>
+      <form id="lqsNewVisitForm">
+        <div class="modal-body">
+          <div class="form-group form-group-readonly">
+            <label>Cliente</label>
+            <p id="lqsVisitClientName" class="form-readonly-value">—</p>
+          </div>
+          <div class="form-group">
+            <label>Data e hora * <span class="optional">(:00 ou :30)</span></label>
+            <input type="datetime-local" id="lqsVisitScheduledAt" name="scheduled_at" required step="1800">
+          </div>
+          <div class="form-group">
+            <label>Morada (linha 1) *</label>
+            <input type="text" id="lqsVisitAddressLine1" name="address_line1" required placeholder="Rua, número">
+          </div>
+          <div class="form-group">
+            <label>Morada (linha 2) <span class="optional">(opcional)</span></label>
+            <input type="text" id="lqsVisitAddressLine2" name="address_line2" placeholder="Complemento">
+          </div>
+          <div class="form-group form-row-2">
+            <div class="form-group">
+              <label>Cidade *</label>
+              <input type="text" id="lqsVisitCity" name="city" required placeholder="Cidade">
+            </div>
+            <div class="form-group">
+              <label>CEP</label>
+              <input type="text" id="lqsVisitZipCode" name="zipcode" placeholder="CEP">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notas <span class="optional">(opcional)</span></label>
+            <textarea id="lqsVisitNotes" name="notes" rows="3" placeholder="Instruções, portaria, código…"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Destinar visita para</label>
+            <select name="assigned_to" id="lqsVisitAssignedSelect">
+              <option value="">Eu mesmo</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer-lightbox lqs-visit-modal__footer">
+          <button type="button" class="lead-quick-sheet__edit-cancel lqs-visit-modal__btn-cancel" data-lqs-visit-close>Cancelar</button>
+          <button type="submit" class="lead-quick-sheet__edit-save lqs-visit-modal__btn-submit">Agendar visita</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js?v=20260923-i18n"></script>
+  <script src="saas-branding.js"></script>
+  <script src="crm-shell.js?v=20260924-maps4"></script>
+  <script src="crm-shared-nav.js?v=20260924-modpanel"></script>
+  <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
+  <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
+  <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
+  <script src="lead-visit-calendar-format.js?v=20260528-cal-address"></script>
+  <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
+  <script src="lead-quote-engagement-icons.js?v=20260528-badge-check-x"></script>
+  <script src="lead-quick-sheet.js?v=20260924-visit3"></script>
+  <script src="leads-kanban.js?v=20260924-visit3"></script>
+  <script src="leads-page.js?v=20260924-modpanel"></script>
+</body>
+</html>

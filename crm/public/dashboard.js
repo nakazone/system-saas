@@ -686,10 +686,15 @@ if (mobileTabBarEl) {
 
 const mobileMoreSheetEl = document.getElementById('mobileMoreSheet');
 if (mobileMoreSheetEl) {
-    mobileMoreSheetEl.querySelectorAll('[data-page]').forEach((btn) => {
+    mobileMoreSheetEl.querySelectorAll('[data-page], [data-href]').forEach((btn) => {
         btn.addEventListener('click', () => {
-            const p = btn.dataset.page;
             closeMobileMoreSheet();
+            const href = btn.dataset.href;
+            if (href) {
+                window.location.href = href;
+                return;
+            }
+            const p = btn.dataset.page;
             if (p) showPage(p);
         });
     });
@@ -803,6 +808,20 @@ function showPage(pageName) {
     if (!pageName || typeof pageName !== 'string') return;
 
     if (pageName === 'crm') pageName = 'leads';
+
+    // Standalone module panels (Jobs-style)
+    if (pageName === 'leads') {
+        window.location.href = 'leads.html';
+        return;
+    }
+    if (pageName === 'quotes') {
+        window.location.href = 'quotes.html';
+        return;
+    }
+    if (pageName === 'invoices') {
+        window.location.href = 'invoices.html';
+        return;
+    }
 
     // SaaS: modules not offered in this product surface
     const saasDisabledPages = new Set([

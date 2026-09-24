@@ -8,6 +8,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="ObraMate">
     <title>ObraMate - Dashboard</title>
+    <script>
+      (function () {
+        var p = new URLSearchParams(location.search).get('page');
+        if (p === 'crm') p = 'leads';
+        if (p === 'leads') { location.replace('leads.html'); return; }
+        if (p === 'quotes') { location.replace('quotes.html'); return; }
+        if (p === 'invoices') { location.replace('invoices.html'); return; }
+      })();
+    </script>
     <link rel="manifest" href="/manifest.json?v=20260924-pwa">
     <!-- Favicon / PWA (ObraMate square mark) -->
     <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
@@ -98,8 +107,8 @@
         <div class="mobile-more-sheet__handle" aria-hidden="true"></div>
         <h2 class="mobile-more-sheet__title" id="mobileMoreSheetTitle">Mais opções</h2>
         <nav class="mobile-more-sheet__nav" aria-label="Mais módulos">
-            <button type="button" class="mobile-more-sheet__btn" data-page="leads" data-crm-permission="leads.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Leads</button>
-            <button type="button" class="mobile-more-sheet__btn" data-page="invoices" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Invoices</button>
+            <button type="button" class="mobile-more-sheet__btn" data-href="leads.html" data-crm-permission="leads.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Leads</button>
+            <button type="button" class="mobile-more-sheet__btn" data-href="invoices.html" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Invoices</button>
             <a href="schedule.html" class="mobile-more-sheet__btn" data-crm-permission="schedule.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📅</span> Schedule</a>
             <a href="jobs.html" class="mobile-more-sheet__btn" data-crm-permission="work_orders.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Jobs</a>
             <a href="payroll-module.html" class="mobile-more-sheet__btn" data-crm-permission="payroll.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👷</span> Folha de Pagamento</a>
@@ -1738,12 +1747,12 @@
     <script src="crm-account-menu.js?v=20260923-account"></script>
     <script src="crm-help-panel.js?v=20260923-help"></script>
     <script src="crm-shell.js?v=20260924-addr"></script>
-    <script src="crm-shared-nav.js?v=20260924-shell2"></script>
+    <script src="crm-shared-nav.js?v=20260924-modpanel"></script>
     <script src="crm-pwa-install.js?v=20260924-pwa"></script>
     <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260924-leads-click"></script>
+    <script src="dashboard.js?v=20260924-modpanel"></script>
     <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
     <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
     <script src="crm-address-autocomplete.js?v=20260924-addr"></script>

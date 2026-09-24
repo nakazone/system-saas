@@ -1,284 +1,19 @@
-/* Jobs list + detail — ObraMate */
+/* Jobs list + detail — ObraMate
+ * List/overview panel styles live in crm-module-panel.css (shared with Leads/Quotes/Invoices).
+ */
 
 :root {
-  --jobs-ink: #211d1a;
-  --jobs-muted: #6b645c;
-  --jobs-faint: #8a8074;
-  --jobs-border: #e2d9cc;
-  --jobs-border-soft: #ebe4da;
-  --jobs-surface: #ffffff;
-  --jobs-surface-soft: #faf8f5;
-  --jobs-chrome: #f7f4ee;
-  --jobs-accent: #e8792c;
-  --jobs-accent-soft: #fff4eb;
-  --jobs-radius: 12px;
-}
-
-.jobs-page-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.85rem;
-  margin-bottom: 1.15rem;
-}
-
-.jobs-page-header h1 {
-  margin: 0;
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--jobs-ink);
-  letter-spacing: -0.02em;
-}
-
-.jobs-page-header__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-/* —— Overview cards —— */
-.jobs-overview {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.jobs-ov-card {
-  background: var(--jobs-surface);
-  border: 1px solid var(--jobs-border);
-  border-radius: var(--jobs-radius);
-  padding: 0.95rem 1rem;
-  min-height: 118px;
-}
-
-.jobs-ov-card__title {
-  margin: 0 0 0.65rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--jobs-ink);
-}
-
-.jobs-ov-card__stat {
-  font-size: 1.85rem;
-  font-weight: 700;
-  color: var(--jobs-ink);
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-}
-
-.jobs-ov-card__sub {
-  margin-top: 0.35rem;
-  font-size: 0.78rem;
-  color: var(--jobs-faint);
-}
-
-.jobs-ov-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.35rem;
-}
-
-.jobs-ov-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--jobs-muted);
-}
-
-.jobs-ov-list__left {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.jobs-ov-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.jobs-ov-dot.is-late { background: #e8792c; }
-.jobs-ov-dot.is-unscheduled { background: #c4bbb0; }
-.jobs-ov-dot.is-scheduled { background: #3b82f6; }
-.jobs-ov-dot.is-progress { background: #c2410c; }
-.jobs-ov-dot.is-done { background: #059669; }
-
-.jobs-ov-card--promo {
-  background: linear-gradient(160deg, #fff 0%, var(--jobs-accent-soft) 100%);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.jobs-ov-card--promo p {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--jobs-ink);
-  line-height: 1.35;
-}
-
-.jobs-ov-card--promo a {
-  margin-top: 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--jobs-accent);
-  text-decoration: none;
-}
-
-.jobs-ov-card--promo a:hover { text-decoration: underline; }
-
-/* —— List toolbar —— */
-.jobs-list-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  margin-bottom: 0.65rem;
-}
-
-.jobs-list-head h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--jobs-ink);
-}
-
-.jobs-list-head__count {
-  font-weight: 500;
-  color: var(--jobs-faint);
-  font-size: 0.9rem;
-}
-
-.jobs-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.jobs-toolbar label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--jobs-faint);
-}
-
-.jobs-toolbar select,
-.jobs-toolbar input {
-  min-height: 2.3rem;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid var(--jobs-border);
-  border-radius: 8px;
-  background: #fff;
-  font: inherit;
-  color: var(--jobs-ink);
-}
-
-.jobs-toolbar .grow {
-  flex: 1;
-  min-width: 180px;
-}
-
-/* —— Table —— */
-.jobs-table-wrap {
-  background: var(--jobs-surface);
-  border: 1px solid var(--jobs-border);
-  border-radius: var(--jobs-radius);
-  overflow: auto;
-}
-
-.jobs-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.jobs-table th,
-.jobs-table td {
-  padding: 0.85rem 0.95rem;
-  text-align: left;
-  border-bottom: 1px solid var(--jobs-border-soft);
-  vertical-align: middle;
-}
-
-.jobs-table th {
-  background: var(--jobs-surface-soft);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--jobs-faint);
-  white-space: nowrap;
-}
-
-.jobs-table tbody tr {
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-
-.jobs-table tbody tr:hover td {
-  background: var(--jobs-surface-soft);
-}
-
-.jobs-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.jobs-table__client {
-  font-weight: 600;
-  color: var(--jobs-ink);
-}
-
-.jobs-table__muted {
-  color: var(--jobs-muted);
-  font-size: 0.85rem;
-}
-
-.job-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: capitalize;
-  background: #efe8dc;
-  color: var(--jobs-ink);
-}
-
-.job-status::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.85;
-}
-
-.job-status.is-draft { background: #efe8dc; color: #6b645c; }
-.job-status.is-scheduled { background: #dbeafe; color: #1d4ed8; }
-.job-status.is-in_progress { background: #ffedd5; color: #c2410c; }
-.job-status.is-completed { background: #d1fae5; color: #065f46; }
-.job-status.is-canceled { background: #fee2e2; color: #991b1b; }
-
-.jobs-empty {
-  padding: 2.5rem 1.5rem;
-  text-align: center;
-  color: var(--jobs-faint);
+  --jobs-ink: var(--mod-ink, #211d1a);
+  --jobs-muted: var(--mod-muted, #6b645c);
+  --jobs-faint: var(--mod-faint, #8a8074);
+  --jobs-border: var(--mod-border, #e2d9cc);
+  --jobs-border-soft: var(--mod-border-soft, #ebe4da);
+  --jobs-surface: var(--mod-surface, #ffffff);
+  --jobs-surface-soft: var(--mod-surface-soft, #faf8f5);
+  --jobs-chrome: var(--mod-chrome, #f7f4ee);
+  --jobs-accent: var(--mod-accent, #e8792c);
+  --jobs-accent-soft: var(--mod-accent-soft, #fff4eb);
+  --jobs-radius: var(--mod-radius, 12px);
 }
 
 /* —— Detail layout —— */
@@ -584,9 +319,6 @@
 .job-back-link:hover { color: var(--jobs-accent); }
 
 @media (max-width: 960px) {
-  .jobs-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .job-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -594,12 +326,6 @@
     position: static;
   }
   .job-overview {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .jobs-overview {
     grid-template-columns: 1fr;
   }
 }

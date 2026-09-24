@@ -30,11 +30,11 @@
       "<strong>Get Started</strong>" +
       "<span>A hand-picked list of steps to get ObraMate up and running for your company — branding, team invites, and your first leads.</span>" +
       "</a>" +
-      '<a class="crm-help-panel__card" href="dashboard.html?page=leads">' +
+      '<a class="crm-help-panel__card" href="leads.html">' +
       "<strong>Schedule &amp; pipeline</strong>" +
       "<span>View your leads pipeline, schedule visits, and learn more about tasks and follow-ups.</span>" +
       "</a>" +
-      '<a class="crm-help-panel__card" href="dashboard.html?page=quotes">' +
+      '<a class="crm-help-panel__card" href="quotes.html">' +
       "<strong>Work</strong>" +
       "<span>Help covering each step of your workflow — leads, quotes, invoices, payroll, and job costs.</span>" +
       "</a>" +

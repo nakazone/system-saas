@@ -1,7 +1,7 @@
 /**
  * Senior Floors / ObraMate — service worker (cache + Web Push).
  */
-const CACHE = 'sf-static-v39';
+const CACHE = 'sf-static-v40';
 const PRECACHE = [
   '/dashboard.html',
   '/styles.css',

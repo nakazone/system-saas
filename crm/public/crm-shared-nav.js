@@ -55,14 +55,14 @@
     {
       label: 'Comercial',
       items: [
-        { href: 'dashboard.html?page=leads', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
+        { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
       ],
     },
     {
       label: 'Operações',
       items: [
-        { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
-        { href: 'dashboard.html?page=invoices', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'quotes' },
+        { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+        { href: 'invoices.html', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'quotes' },
         { href: 'schedule.html', label: 'Schedule', perm: 'schedule.view', page: '', iconKey: 'schedule' },
         { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
         { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'quotes', children: CADASTRO_CHILDREN },
@@ -103,12 +103,15 @@
     const base = pathAndQuery.split('?')[0].split('/').pop().toLowerCase();
 
     if (file === 'lead-detail.html') {
-      return base === 'dashboard.html' && (item.page || '') === 'leads';
+      return base === 'leads.html' || ((item.page || '') === 'leads' && (base === 'leads.html' || base === 'dashboard.html'));
     }
     if (file === 'quote-builder.html') {
       if ((item.page || '') === 'quotes') return true;
-      if (base === 'quote-builder.html') return true;
+      if (base === 'quote-builder.html' || base === 'quotes.html') return true;
     }
+    if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
+    if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
+    if (base === 'invoices.html') return file === 'invoices.html';
     if (base === 'builder-pricing-admin.html') return file === 'builder-pricing-admin.html';
     if (base === 'payroll-module.html') return file === 'payroll-module.html';
     if (base === 'schedule.html') return file === 'schedule.html';

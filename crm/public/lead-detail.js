@@ -15,7 +15,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (!currentLeadId || currentLeadId === 'null' || currentLeadId === 'undefined') {
         alert('Lead ID não encontrado na URL');
-        window.location.href = 'dashboard.html?page=leads';
+        window.location.href = 'leads.html';
         return;
     }
 
