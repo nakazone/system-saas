@@ -604,7 +604,7 @@ function renderVisitKanbanCard(visit) {
         ? `<span class="kanban-card-title-btn">${name}</span>`
         : `<span class="kanban-card-title-fallback">${name}</span>`;
     const sheetAttrs = Number.isFinite(leadId)
-        ? ` role="button" tabindex="0" onclick="viewLead(${leadId}, event)" title="Ver detalhes do lead" class="kanban-card kanban-card--visit kanban-card--compact kanban-card--open-sheet"`
+        ? ` role="button" tabindex="0" onclick="viewLead('${leadId}', event)" title="Ver detalhes do lead" class="kanban-card kanban-card--visit kanban-card--compact kanban-card--open-sheet"`
         : ` class="kanban-card kanban-card--visit kanban-card--compact"`;
     return `
         <div${sheetAttrs} data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}">
@@ -765,10 +765,10 @@ function renderKanbanCard(lead) {
               )
             : '';
     const originLogo = kanbanOriginLogoHtml(lead);
-    const deleteBtn = `<button type="button" class="btn-lead-delete-kanban" onclick="event.stopPropagation(); if (typeof deleteLead === 'function') deleteLead(${lead.id});" title="Excluir lead" aria-label="Excluir lead">✕</button>`;
+    const deleteBtn = `<button type="button" class="btn-lead-delete-kanban" onclick="event.stopPropagation(); if (typeof deleteLead === 'function') deleteLead('${lead.id}');" title="Excluir lead" aria-label="Excluir lead">✕</button>`;
 
     return `
-        <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead(${lead.id}, event)" title="Ver detalhes do lead">
+        <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead('${lead.id}', event)" title="Ver detalhes do lead">
             <div class="kanban-card-top">
                 ${originLogo}
                 <span class="kanban-card-title-btn">${name}</span>
@@ -1426,8 +1426,8 @@ function bindLeadsMobileListInteractions(container) {
             if (callBtn) {
                 e.preventDefault();
                 e.stopPropagation();
-                const id = parseInt(callBtn.getAttribute('data-lcard-call'), 10);
-                const lead = allLeads.find((l) => kanbanLeadId(l.id) === id);
+                const id = callBtn.getAttribute('data-lcard-call');
+                const lead = allLeads.find((l) => kanbanLeadId(l.id) === kanbanLeadId(id));
                 const href = lead ? leadsMobileTelHref(lead.phone) : '';
                 if (href) window.location.href = href;
                 else notifyLeadsMobile('Este lead não tem telefone.', 'error');
@@ -1437,8 +1437,8 @@ function bindLeadsMobileListInteractions(container) {
             if (advBtn) {
                 e.preventDefault();
                 e.stopPropagation();
-                const id = parseInt(advBtn.getAttribute('data-lcard-advance'), 10);
-                if (Number.isFinite(id)) void advanceLeadMobileStage(id);
+                const id = advBtn.getAttribute('data-lcard-advance');
+                if (id) void advanceLeadMobileStage(id);
                 return;
             }
             if (skipClick) {
@@ -1452,8 +1452,8 @@ function bindLeadsMobileListInteractions(container) {
                 setOffset(card, 0);
                 return;
             }
-            const id = parseInt(openEl.getAttribute('data-lcard-open'), 10);
-            if (!Number.isFinite(id)) return;
+            const id = openEl.getAttribute('data-lcard-open');
+            if (!id) return;
             if (typeof window.openLeadQuickSheet === 'function') {
                 void window.openLeadQuickSheet(id, openEl);
             } else if (typeof viewLead === 'function') {

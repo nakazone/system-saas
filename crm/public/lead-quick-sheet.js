@@ -423,7 +423,7 @@
     let payload = {};
     if (fieldKey === 'owner_id') {
       const v = input.value;
-      payload.owner_id = v === '' ? null : parseInt(v, 10);
+      payload.owner_id = v === '' ? null : v;
       if (payload.owner_id !== null && Number.isNaN(payload.owner_id)) {
         notifySheet('Responsavel invalido.', 'error');
         return;

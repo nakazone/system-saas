@@ -2042,10 +2042,10 @@ async function loadLeads() {
                             <td>${lead.source || '-'}</td>
                             <td>${lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '-'}</td>
                             <td>
-                                <button class="btn btn-sm" onclick="viewLead(${lead.id})" title="Ver"><span class="action-btn-icon">V</span></button>
-                                <button class="btn btn-sm" onclick="showAssignLeadModal(${lead.id})" title="Designar"><span class="action-btn-icon">U</span></button>
-                                <button class="btn btn-sm" onclick="showFollowupModal(${lead.id})" title="Follow-up"><span class="action-btn-icon">D</span></button>
-                                <button class="btn btn-sm btn-lead-delete" onclick="deleteLead(${lead.id})" title="Excluir">✕</button>
+                                <button class="btn btn-sm" onclick="viewLead('${lead.id}')" title="Ver"><span class="action-btn-icon">V</span></button>
+                                <button class="btn btn-sm" onclick="showAssignLeadModal('${lead.id}')" title="Designar"><span class="action-btn-icon">U</span></button>
+                                <button class="btn btn-sm" onclick="showFollowupModal('${lead.id}')" title="Follow-up"><span class="action-btn-icon">D</span></button>
+                                <button class="btn btn-sm btn-lead-delete" onclick="deleteLead('${lead.id}')" title="Excluir">✕</button>
                             </td>
                         </tr>`;
                     }).join('');
@@ -2589,7 +2589,7 @@ async function submitClientForm(ev) {
     if (ctype === 'builder') body.responsible_name = responsibleVal;
     else body.responsible_name = null;
     const leadRaw = document.getElementById('clientFormLeadId').value.trim();
-    if (leadRaw && !id) body.lead_id = parseInt(leadRaw, 10);
+    if (leadRaw && !id) body.lead_id = leadRaw;
 
     if (id) {
         body.status = document.getElementById('clientStatus').value;
