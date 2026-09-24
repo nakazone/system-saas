@@ -1,0 +1,92 @@
+.sched-page { max-width: 1200px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+.sched-lead { margin: 0.25rem 0 0; color: #6b645c; font-size: 0.9rem; }
+.sched-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.sched-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 0.75rem; margin-bottom: 0.85rem;
+}
+.sched-nav { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.sched-nav h2 { margin: 0 0.35rem; font-size: 1.05rem; font-weight: 700; }
+.sched-view-toggle { display: inline-flex; border: 1px solid #e2d9cc; border-radius: 10px; overflow: hidden; background: #fff; }
+.sched-view-btn {
+  border: none; background: transparent; padding: 0.45rem 0.85rem; font: inherit; font-size: 0.85rem;
+  cursor: pointer; color: #6b645c;
+}
+.sched-view-btn.is-active { background: #211d1a; color: #fff; }
+.sched-legend { display: flex; gap: 0.85rem; font-size: 0.8rem; color: #6b645c; }
+.sched-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.3rem; }
+.sched-dot--job { background: #e8792c; }
+.sched-dot--meeting { background: #3b82f6; }
+
+.sched-calendar {
+  background: #fff; border: 1px solid #e2d9cc; border-radius: 12px; overflow: hidden;
+}
+.sched-month-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.sched-dow {
+  padding: 0.55rem 0.4rem; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: #8a8074; background: #faf8f5; border-bottom: 1px solid #ebe4da; text-align: center;
+}
+.sched-day {
+  min-height: 96px; border-right: 1px solid #f0ebe3; border-bottom: 1px solid #f0ebe3;
+  padding: 0.35rem; background: #fff;
+}
+.sched-day:nth-child(7n) { border-right: none; }
+.sched-day.is-outside { background: #faf8f5; opacity: 0.72; }
+.sched-day.is-today .sched-day-num {
+  background: #211d1a; color: #fff; border-radius: 999px; width: 1.5rem; height: 1.5rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sched-day-num { font-size: 0.78rem; font-weight: 600; color: #6b645c; margin-bottom: 0.25rem; }
+.sched-pill {
+  display: block; width: 100%; text-align: left; border: none; border-radius: 6px;
+  padding: 0.2rem 0.35rem; margin-bottom: 0.2rem; font-size: 0.68rem; font-weight: 600;
+  color: #fff; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sched-pill--job { background: #e8792c; }
+.sched-pill--meeting { background: #3b82f6; }
+
+.sched-week {
+  display: grid; grid-template-columns: 56px repeat(7, minmax(0, 1fr));
+  min-height: 520px;
+}
+.sched-week-head, .sched-week-gutter, .sched-week-cell {
+  border-right: 1px solid #f0ebe3; border-bottom: 1px solid #f0ebe3;
+}
+.sched-week-head {
+  padding: 0.55rem 0.35rem; text-align: center; font-size: 0.75rem; font-weight: 700;
+  background: #faf8f5; color: #6b645c;
+}
+.sched-week-gutter {
+  padding: 0.35rem; font-size: 0.65rem; color: #8a8074; text-align: right; background: #faf8f5;
+}
+.sched-week-cell { position: relative; min-height: 48px; background: #fff; }
+.sched-week-event {
+  position: absolute; left: 2px; right: 2px; border-radius: 6px; padding: 0.15rem 0.3rem;
+  font-size: 0.65rem; font-weight: 600; color: #fff; cursor: pointer; overflow: hidden;
+  z-index: 1;
+}
+
+.sched-modal-backdrop { position: fixed; inset: 0; background: rgba(33,29,26,0.4); z-index: 1500; display: none; }
+.sched-modal-backdrop.is-open { display: block; }
+.sched-modal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(440px, 94vw);
+  max-height: 90vh; overflow: auto; background: #fff; border-radius: 14px; z-index: 1510;
+  padding: 1.15rem 1.2rem 1.25rem; box-shadow: 0 16px 40px rgba(33,29,26,0.2); display: none;
+}
+.sched-modal.is-open { display: block; }
+.sched-modal h2 { margin: 0 0 0.75rem; font-size: 1.1rem; }
+.sched-event-body { font-size: 0.9rem; color: #6b645c; line-height: 1.45; }
+.sched-event-body strong { color: #211d1a; }
+.sched-modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+.sched-form { display: grid; gap: 0.65rem; }
+.sched-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; font-weight: 600; color: #6b645c; }
+.sched-form input, .sched-form select, .sched-form textarea {
+  padding: 0.5rem 0.65rem; border: 1px solid #e2d9cc; border-radius: 8px; font: inherit;
+}
+.sched-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+@media (max-width: 640px) {
+  .sched-form-row { grid-template-columns: 1fr; }
+  .sched-day { min-height: 72px; }
+}

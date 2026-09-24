@@ -99,6 +99,8 @@ model Organization {
   payrollPeriods     PayrollPeriod[]
   supportTickets     SupportTicket[]
   pushSubscriptions  PushSubscription[]
+  workOrders         WorkOrder[]
+  meetings           Meeting[]
 }
 
 // ---------------------------------------------------------------------------
@@ -131,6 +133,8 @@ model User {
   laborEntries LaborEntry[]
   supportTickets SupportTicket[] @relation("SupportTicketAuthor")
   pushSubscriptions PushSubscription[]
+  assignedWorkOrders WorkOrder[] @relation("WorkOrderAssignee")
+  assignedMeetings Meeting[] @relation("MeetingAssignee")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -320,6 +324,8 @@ model Customer {
   projects   Project[]
   scheduledMessages ScheduledMessage[]
   communicationLogs CommunicationLog[]
+  workOrders WorkOrder[]
+  meetings   Meeting[]
 
   @@index([organizationId])
 }
@@ -664,6 +670,7 @@ model Builder {
 
   quotes   Quote[]
   projects Project[]
+  workOrders WorkOrder[]
 
   @@index([organizationId])
   @@index([organizationId, status])
@@ -1018,6 +1025,7 @@ model Crew {
 
   members CrewMember[]
   visits  Visit[]
+  workOrders WorkOrder[]
 
   @@index([organizationId])
 }
@@ -1301,6 +1309,71 @@ model SupportTicket {
 
   @@index([organizationId, createdAt])
   @@index([status, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Work orders (jobs outside leads/quotes) + meetings (schedule)
+// ---------------------------------------------------------------------------
+
+model WorkOrder {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  number         Int?
+  title          String
+  /// draft | scheduled | in_progress | completed | canceled
+  status         String    @default("draft")
+  /// builder | contractor | internal | other
+  sourceType     String    @default("other")
+  sourceName     String?
+  customerId     String?   @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  builderId      String?   @db.Uuid
+  builder        Builder?  @relation(fields: [builderId], references: [id], onDelete: SetNull)
+  address        String?
+  notes          String?   @db.Text
+  assignedUserId String?   @db.Uuid
+  assignedUser   User?     @relation("WorkOrderAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  crewId         String?   @db.Uuid
+  crew           Crew?     @relation(fields: [crewId], references: [id], onDelete: SetNull)
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, number])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, scheduledStart])
+  @@index([customerId])
+  @@index([builderId])
+  @@index([assignedUserId])
+  @@index([crewId])
+}
+
+model Meeting {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title          String
+  /// scheduled | completed | canceled
+  status         String   @default("scheduled")
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+  location       String?
+  notes          String?  @db.Text
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignedUserId String?  @db.Uuid
+  assignedUser   User?    @relation("MeetingAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, scheduledStart])
+  @@index([organizationId, status])
+  @@index([customerId])
+  @@index([assignedUserId])
 }
 
 // ---------------------------------------------------------------------------

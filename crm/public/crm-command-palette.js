@@ -11,6 +11,8 @@
     { id: 'cat', label: 'Catálogo de serviços', sub: 'Cadastro', href: 'quote-catalog.html', perm: 'quotes.edit' },
     { id: 'products', label: 'Produtos', sub: 'Cadastro', href: 'products-erp.html', perm: 'quotes.view' },
     { id: 'pricing', label: 'Tabela de Valores', sub: '', href: 'builder-pricing-admin.html', perm: 'builders.view' },
+    { id: 'schedule', label: 'Schedule', sub: 'Calendário de jobs e meetings', href: 'schedule.html', perm: 'schedule.view' },
+    { id: 'jobs', label: 'Jobs', sub: 'Work orders / trabalhos', href: 'jobs.html', perm: 'work_orders.view' },
     { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'payroll-module.html', perm: 'payroll.view' },
     { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores', href: 'ajustes.html', perm: 'settings.manage' },
     { id: 'support', label: 'Ajuda / suporte', sub: 'Help center e contato', href: '#help', perm: null },

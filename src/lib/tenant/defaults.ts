@@ -54,6 +54,10 @@ export const DEFAULT_PERMISSIONS = [
   { key: "visits.manage", group: "operations", description: "Create and update visits / schedule" },
   { key: "costs.view", group: "financial", description: "View project costs, budgets, and profitability" },
   { key: "automations.manage", group: "settings", description: "Manage communication automations" },
+  { key: "work_orders.view", group: "operations", description: "View jobs / work orders" },
+  { key: "work_orders.manage", group: "operations", description: "Create and update jobs / work orders" },
+  { key: "schedule.view", group: "operations", description: "View schedule calendar (jobs and meetings)" },
+  { key: "schedule.manage", group: "operations", description: "Create and update meetings on the schedule" },
 ] as const;
 
 export type PermissionKey = (typeof DEFAULT_PERMISSIONS)[number]["key"];
@@ -94,6 +98,10 @@ const OFFICE_KEYS: PermissionKey[] = [
   "visits.manage",
   "costs.view",
   "automations.manage",
+  "work_orders.view",
+  "work_orders.manage",
+  "schedule.view",
+  "schedule.manage",
 ];
 
 const SALES_KEYS: PermissionKey[] = [
@@ -113,6 +121,9 @@ const SALES_KEYS: PermissionKey[] = [
   "assessments.manage",
   "invoices.view",
   "invoices.manage",
+  "work_orders.view",
+  "schedule.view",
+  "schedule.manage",
 ];
 
 const CREW_LEAD_KEYS: PermissionKey[] = [
@@ -124,12 +135,18 @@ const CREW_LEAD_KEYS: PermissionKey[] = [
   "visits.manage",
   "assessments.view",
   "assessments.manage",
+  "work_orders.view",
+  "work_orders.manage",
+  "schedule.view",
+  "schedule.manage",
 ];
 
 const INSTALLER_KEYS: PermissionKey[] = [
   "visits.view",
   "projects.view",
   "assessments.view",
+  "work_orders.view",
+  "schedule.view",
 ];
 
 export const DEFAULT_ROLE_META: Record<

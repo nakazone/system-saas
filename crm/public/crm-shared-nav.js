@@ -2,7 +2,7 @@
  * Menu CRM padrão (mesma estrutura, grupos e ícones que dashboard.html) em páginas standalone.
  * Respeita permissões via GET /api/auth/session.
  * Apenas módulos padrão: Dashboard, Leads, Quotes, Invoices, Cadastro,
- * Tabela de Valores, Folha de Pagamento.
+ * Schedule, Jobs, Tabela de Valores, Folha de Pagamento.
  */
 (function () {
   const ICONS = {
@@ -14,6 +14,10 @@
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
     quotes:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>',
+    schedule:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>',
+    jobs:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2v0a2 2 0 01-2 2H9a2 2 0 01-2-2v0z"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>',
     payroll:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
     users:
@@ -55,6 +59,8 @@
       items: [
         { href: 'dashboard.html?page=quotes', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
         { href: 'dashboard.html?page=invoices', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'quotes' },
+        { href: 'schedule.html', label: 'Schedule', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+        { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
         { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'quotes', children: CADASTRO_CHILDREN },
         {
           href: 'builder-pricing-admin.html',
@@ -101,6 +107,8 @@
     }
     if (base === 'builder-pricing-admin.html') return file === 'builder-pricing-admin.html';
     if (base === 'payroll-module.html') return file === 'payroll-module.html';
+    if (base === 'schedule.html') return file === 'schedule.html';
+    if (base === 'jobs.html') return file === 'jobs.html';
     if (base === 'ajustes.html') return file === 'ajustes.html';
     if (base === 'products-erp.html') return file === 'products-erp.html';
     if (base === 'quote-catalog.html') return file === 'quote-catalog.html';

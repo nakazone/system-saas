@@ -72,6 +72,8 @@ const TENANT_MODELS = new Set([
   "PayrollTimesheet",
   "SupportTicket",
   "PushSubscription",
+  "WorkOrder",
+  "Meeting",
 ]);
 
 type Operation =
