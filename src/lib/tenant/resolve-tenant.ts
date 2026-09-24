@@ -207,7 +207,18 @@ export async function resolveTenant(
     }
 
     // CRM entry points without a session → login form (not find-workspace)
-    if (req.path === "/dashboard.html" || req.path === "/change-password.html") {
+    if (
+      req.path === "/dashboard.html" ||
+      req.path === "/change-password.html" ||
+      req.path === "/jobs.html" ||
+      req.path === "/schedule.html" ||
+      req.path === "/payroll-module.html" ||
+      req.path === "/builder-pricing-admin.html" ||
+      req.path === "/ajustes.html" ||
+      req.path === "/products-erp.html" ||
+      req.path === "/quote-catalog.html" ||
+      req.path === "/quote-builder.html"
+    ) {
       res.redirect("/login.html");
       return;
     }

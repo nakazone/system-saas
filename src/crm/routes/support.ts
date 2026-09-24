@@ -110,7 +110,9 @@ supportRouter.post("/api/support/tickets", requireCrmAuth, async (req: AuthedReq
           bug: "Problema",
           other: "Outro",
         };
-        const cat = categoryLabel[parsed.data.category] ?? parsed.data.category;
+        const cat =
+          categoryLabel[parsed.data.category as (typeof CATEGORIES)[number]] ??
+          parsed.data.category;
         await email.send({
           to: inbox,
           subject: `[Suporte] ${org?.name ?? "Org"} — ${parsed.data.subject}`,

@@ -146,7 +146,7 @@ dashboardLeadsRouter.post("/api/leads", requireCrmAuth, async (req: AuthedReques
         message: z.preprocess(emptyToUndef, z.string().optional()),
         priority: z.preprocess(emptyToUndef, z.string().optional()),
         estimated_value: z.preprocess(
-          (v) => (v === null || v === undefined || v === "" ? undefined : v),
+          (v: unknown) => (v === null || v === undefined || v === "" ? undefined : v),
           z.union([z.number(), z.string()]).optional(),
         ),
         pipeline_stage_id: z.preprocess(

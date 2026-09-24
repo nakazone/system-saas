@@ -118,6 +118,7 @@ export function createCrmRouter(): Router {
     }
     try {
       const html = injectBranding(fs.readFileSync(full, "utf8"));
+      res.setHeader("Cache-Control", "no-store, max-age=0");
       res.type("html").send(html);
     } catch (error) {
       next(error);

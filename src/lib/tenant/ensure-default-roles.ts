@@ -51,10 +51,27 @@ export async function syncSystemRolePermissions(
       role.key === "admin" ||
       haveKeys.has("settings.manage") ||
       haveKeys.has("roles.manage");
-    const desired = isFullAccess
-      ? (DEFAULT_ROLE_PERMISSIONS.admin ?? [])
-      : (DEFAULT_ROLE_PERMISSIONS[role.key] ?? null);
-    if (!desired) continue;
+    const desired = new Set<string>(
+      isFullAccess
+        ? (DEFAULT_ROLE_PERMISSIONS.admin ?? [])
+        : (DEFAULT_ROLE_PERMISSIONS[role.key] ?? []),
+    );
+    // Custom office-like roles: grant Schedule/Jobs if they already operate quotes/payroll
+    if (
+      haveKeys.has("quotes.view") ||
+      haveKeys.has("payroll.view") ||
+      haveKeys.has("projects.view")
+    ) {
+      for (const key of [
+        "work_orders.view",
+        "work_orders.manage",
+        "schedule.view",
+        "schedule.manage",
+      ] as const) {
+        desired.add(key);
+      }
+    }
+    if (desired.size === 0) continue;
 
     for (const key of desired) {
       const permission = permissionByKey.get(key);
@@ -69,7 +86,9 @@ export async function syncSystemRolePermissions(
   return { added };
 }
 
-const syncedOrgIds = new Set<string>();
+const syncedOrgVersions = new Map<string, number>();
+/** Bump when new DEFAULT_PERMISSIONS keys must be backfilled onto existing roles. */
+const ORG_PERMISSION_SYNC_VERSION = 2;
 
 /**
  * Idempotently create any missing Phase 2 default roles for an organization
@@ -116,18 +135,18 @@ export async function ensureDefaultRoles(
   return { created, permissionsAdded: added };
 }
 
-/** Once per process: ensure Phase 2 permission keys exist on system roles. */
+/** Once per process/version: ensure Phase 2 permission keys exist on system roles. */
 export async function ensureOrgPermissionsSynced(
   organizationId: string,
   tx: TenantPrisma,
 ): Promise<void> {
-  if (syncedOrgIds.has(organizationId)) return;
+  if (syncedOrgVersions.get(organizationId) === ORG_PERMISSION_SYNC_VERSION) return;
   await ensureDefaultRoles(organizationId, tx);
-  syncedOrgIds.add(organizationId);
+  syncedOrgVersions.set(organizationId, ORG_PERMISSION_SYNC_VERSION);
 }
 
 /** Test helper / after manual role edits — allow re-sync in this process. */
 export function clearOrgPermissionSyncCache(organizationId?: string): void {
-  if (organizationId) syncedOrgIds.delete(organizationId);
-  else syncedOrgIds.clear();
+  if (organizationId) syncedOrgVersions.delete(organizationId);
+  else syncedOrgVersions.clear();
 }
