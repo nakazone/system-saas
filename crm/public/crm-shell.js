@@ -6,11 +6,64 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-modpanel";
+  const SHELL_VER = "20260924-omapp";
+
+  const DOCK_HTML = `
+<div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
+  <a class="om-dock__primary" href="leads.html" id="omDockNew">+ Novo lead</a>
+  <a class="om-dock__btn" href="schedule.html" title="Schedule">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    <span>Agendar</span>
+  </a>
+  <a class="om-dock__btn" href="pipeline-lab.html" title="Pipeline">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 12h6M9 16h4"/></svg>
+    <span>Pipeline</span>
+  </a>
+  <a class="om-dock__btn" href="quote-builder.html" title="Novo quote">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+    <span>Quote</span>
+  </a>
+  <button type="button" class="om-dock__btn" id="omDockSearch" title="Pesquisar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <span>Buscar</span>
+  </button>
+</div>`;
+
+  function ensureFont() {
+    if ([...document.querySelectorAll('link[href*="Plus+Jakarta"]')].length) return;
+    const pre1 = document.createElement("link");
+    pre1.rel = "preconnect";
+    pre1.href = "https://fonts.googleapis.com";
+    const pre2 = document.createElement("link");
+    pre2.rel = "preconnect";
+    pre2.href = "https://fonts.gstatic.com";
+    pre2.crossOrigin = "anonymous";
+    const font = document.createElement("link");
+    font.rel = "stylesheet";
+    font.href =
+      "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap";
+    document.head.appendChild(pre1);
+    document.head.appendChild(pre2);
+    document.head.appendChild(font);
+  }
+
+  function ensureDock() {
+    if (document.getElementById("omDock")) return;
+    // Home pipeline page has its own dock
+    if (document.body.classList.contains("plab") && document.querySelector(".plab-dock")) return;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = DOCK_HTML.trim();
+    document.body.appendChild(wrap.firstElementChild);
+    const search = document.getElementById("omDockSearch");
+    if (search && !search.dataset.bound) {
+      search.dataset.bound = "1";
+      search.addEventListener("click", openSearch);
+    }
+  }
 
   const TOPBAR_HTML = `
 <header class="crm-topbar" id="crmTopbar" aria-label="Barra superior">
-  <a href="dashboard.html" class="crm-topbar__brand" aria-label="ObraMate — início">
+  <a href="pipeline-lab.html" class="crm-topbar__brand" aria-label="ObraMate — início">
     <img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-system-logo" width="160" height="36" onerror="this.style.display='none'" />
   </a>
   <div class="crm-topbar__right">
@@ -394,6 +447,8 @@
   }
 
   async function loadCompanionAssets() {
+    ensureFont();
+    ensureStylesheet(`obramate-app.css?v=${SHELL_VER}`);
     ensureStylesheet(`crm-shell.css?v=${SHELL_VER}`);
     ensureStylesheet(`crm-shared-nav.css?v=${SHELL_VER}`);
     ensureStylesheet(`crm-command-palette.css?v=${SHELL_VER}`);
@@ -457,12 +512,13 @@
     if (isAuthPage()) return;
     if (document.body.dataset.crmShellBoot === "1") return;
     document.body.dataset.crmShellBoot = "1";
-    document.body.classList.add("dashboard-app-body");
+    document.body.classList.add("dashboard-app-body", "om-app");
 
     promoteStandaloneToShell();
     ensureTopbar();
     ensureMobileHeader();
     ensureSidebarStructure(getSidebar());
+    ensureDock();
 
     initCollapse();
     initTopbar();

@@ -3,7 +3,7 @@
  */
 (function () {
   const ACTIONS = [
-    { id: 'dash', label: 'Dashboard', sub: 'Visão geral', href: 'dashboard.html', perm: null },
+    { id: 'dash', label: 'Dashboard', sub: 'Pipeline e visão geral', href: 'pipeline-lab.html', perm: null },
     { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'leads.html', perm: 'leads.view' },
     { id: 'quotes', label: 'Quotes', sub: 'Orçamentos', href: 'quotes.html', perm: 'quotes.view' },
     { id: 'invoices', label: 'Invoices', sub: 'Faturas', href: 'invoices.html', perm: 'quotes.view' },

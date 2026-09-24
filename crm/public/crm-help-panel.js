@@ -26,7 +26,7 @@
       "</a>" +
       '<p class="crm-help-panel__section-label">Recommendations</p>' +
       '<div class="crm-help-panel__cards">' +
-      '<a class="crm-help-panel__card" href="dashboard.html">' +
+      '<a class="crm-help-panel__card" href="pipeline-lab.html">' +
       "<strong>Get Started</strong>" +
       "<span>A hand-picked list of steps to get ObraMate up and running for your company — branding, team invites, and your first leads.</span>" +
       "</a>" +

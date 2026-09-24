@@ -425,6 +425,12 @@
     $("plabGreeting").textContent = first ? `${greeting()}, ${first}` : greeting();
     $("plabHeroSub").textContent = "Aqui está o que está a acontecer no teu pipeline hoje.";
     $("plabAvatar").textContent = initials(userName);
+    const sa = $("sidebarUserAvatar");
+    if (sa) sa.textContent = initials(userName);
+    const sn = $("sidebarUserName");
+    if (sn) sn.textContent = userName || "—";
+    const sr = $("sidebarUserRole");
+    if (sr) sr.textContent = session.user?.role || "";
 
     let merged = Array.isArray(stagesRes.data) ? stagesRes.data.slice() : [];
     if (typeof window.mergePipelineStagesForKanban === "function") {
@@ -438,10 +444,12 @@
   }
 
   function boot() {
-    ["plabRailNew", "plabNewLead", "plabDockNew"].forEach((id) => {
+    ["plabNewLead", "plabDockNew"].forEach((id) => {
       const el = $(id);
       if (el) el.addEventListener("click", newLead);
     });
+    const railNew = $("plabRailNew");
+    if (railNew) railNew.addEventListener("click", newLead);
     $("plabRefresh").addEventListener("click", () => {
       load().catch((e) => notify(e.message, "error"));
     });

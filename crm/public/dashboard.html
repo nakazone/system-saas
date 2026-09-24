@@ -12,6 +12,7 @@
       (function () {
         var p = new URLSearchParams(location.search).get('page');
         if (p === 'crm') p = 'leads';
+        if (!p || p === 'dashboard') { location.replace('pipeline-lab.html'); return; }
         if (p === 'leads') { location.replace('leads.html'); return; }
         if (p === 'quotes') { location.replace('quotes.html'); return; }
         if (p === 'invoices') { location.replace('invoices.html'); return; }
@@ -34,11 +35,12 @@
     <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-pwa">
     <link rel="stylesheet" href="crm-push.css?v=20260923-push">
     <link rel="stylesheet" href="dashboard-insights.css">
+    <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
-<body class="dashboard-app-body">
+<body class="dashboard-app-body om-app">
     <script>
       try {
         if (window.matchMedia('(min-width: 1025px)').matches && localStorage.getItem('crm_sidebar_collapsed') === '1') {
@@ -223,15 +225,7 @@
                 <div id="dashboardPage" class="page-content">
                     <div id="urgentLeadsBanner" class="urgent-leads-banner" style="display: none;">
                         <span id="urgentLeadsBannerText"></span>
-                        <a href="#" onclick="showPage('leads'); return false;" id="urgentLeadsBannerLink">Ver leads</a>
-                    </div>
-
-                    <div class="plab-entry-banner" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;border:1px solid #e2d9cc;border-radius:12px;background:linear-gradient(120deg,#fff 0%,#fff4eb 100%);">
-                        <div>
-                            <strong style="display:block;font-size:0.92rem;">Novo layout (protótipo)</strong>
-                            <span style="font-size:0.82rem;color:#6b645c;">Pipeline com KPIs, board e insights — só para testar, não substitui o dashboard.</span>
-                        </div>
-                        <a class="btn btn-primary" href="pipeline-lab.html">Abrir Pipeline Lab</a>
+                        <a href="pipeline-lab.html" id="urgentLeadsBannerLink">Ver pipeline</a>
                     </div>
 
                     <div id="dashErrorBanner" class="dash-error-banner" style="display: none;" role="alert"></div>
@@ -1754,8 +1748,8 @@
     <script src="crm-i18n.js?v=20260923-i18n"></script>
     <script src="crm-account-menu.js?v=20260923-account"></script>
     <script src="crm-help-panel.js?v=20260923-help"></script>
-    <script src="crm-shell.js?v=20260924-addr"></script>
-    <script src="crm-shared-nav.js?v=20260924-modpanel"></script>
+    <script src="crm-shell.js?v=20260924-omapp"></script>
+    <script src="crm-shared-nav.js?v=20260924-omapp"></script>
     <script src="crm-pwa-install.js?v=20260924-pwa"></script>
     <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>

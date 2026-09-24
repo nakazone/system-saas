@@ -49,7 +49,7 @@
     {
       label: null,
       items: [
-        { href: 'dashboard.html', label: 'Dashboard', perm: null, page: '', iconKey: 'dashboard' },
+        { href: 'pipeline-lab.html', label: 'Dashboard', perm: null, page: '', iconKey: 'dashboard' },
       ],
     },
     {
@@ -109,6 +109,9 @@
       if ((item.page || '') === 'quotes') return true;
       if (base === 'quote-builder.html' || base === 'quotes.html') return true;
     }
+    if (base === 'pipeline-lab.html') {
+      return file === 'pipeline-lab.html' || (file === 'dashboard.html' && !(page || ''));
+    }
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
     if (base === 'invoices.html') return file === 'invoices.html';
@@ -120,6 +123,7 @@
     if (base === 'products-erp.html') return file === 'products-erp.html';
     if (base === 'quote-catalog.html') return file === 'quote-catalog.html';
     if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
+      if (file === 'pipeline-lab.html' && !(item.page || '')) return true;
       if (file !== 'dashboard.html') return false;
       const expected = item.page || '';
       if ((page || '') !== expected) return false;
@@ -325,7 +329,7 @@
 
     const brand = document.createElement('a');
     brand.className = 'crm-shared-nav__brand crm-shared-nav__brand--logo-only';
-    brand.href = 'dashboard.html';
+    brand.href = 'pipeline-lab.html';
     brand.setAttribute('aria-label', 'ObraMate — início');
     brand.innerHTML =
       '<img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-shared-nav__brand-logo crm-system-logo" width="64" height="64" onerror="this.style.display=\'none\'" />';
