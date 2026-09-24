@@ -928,18 +928,40 @@ cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (req: Aut
           accentColor: org.accentColor,
         })
       : null;
+
+    const mapsKey =
+      process.env.GOOGLE_MAPS_JS_KEY ||
+      process.env.GOOGLE_MAPS_API_KEY ||
+      process.env.GOOGLE_PLACES_JS_KEY ||
+      process.env.Google_Maps_JS_Key ||
+      process.env.GOOGLE_MAPS_KEY ||
+      null;
+    const key = mapsKey && String(mapsKey).trim() ? String(mapsKey).trim() : null;
+    let googleMapsUsable = false;
+    if (key) {
+      try {
+        const url =
+          "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=Austin&key=" +
+          encodeURIComponent(key);
+        const ac = new AbortController();
+        const t = setTimeout(() => ac.abort(), 4000);
+        const r = await fetch(url, { signal: ac.signal });
+        clearTimeout(t);
+        const j = (await r.json().catch(() => ({}))) as { status?: string };
+        googleMapsUsable = j.status === "OK" || j.status === "ZERO_RESULTS";
+      } catch {
+        googleMapsUsable = false;
+      }
+    }
+
     res.json({
       success: true,
       data: {
         brand_name: brand?.name || "Workspace",
         branding: brand,
-        googleMapsJsKey:
-          process.env.GOOGLE_MAPS_JS_KEY ||
-          process.env.GOOGLE_MAPS_API_KEY ||
-          process.env.GOOGLE_PLACES_JS_KEY ||
-          process.env.Google_Maps_JS_Key ||
-          process.env.GOOGLE_MAPS_KEY ||
-          null,
+        googleMapsJsKey: googleMapsUsable ? key : null,
+        googleMapsConfigured: Boolean(key),
+        googleMapsUsable,
         modules: {
           dashboard: true,
           leads: true,

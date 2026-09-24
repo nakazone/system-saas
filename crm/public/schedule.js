@@ -898,44 +898,34 @@
   }
 
   async function ensureMapEngine() {
-    installGoogleAuthHook();
-    if (window.__crmGoogleMapsAuthFailed) {
-      await ensureLeaflet();
-      mapEngine = "leaflet";
-      return "leaflet";
-    }
-    if (mapEngine === "google" && googleMapsReady()) return "google";
+    // Prefer OpenStreetMap while Google Cloud billing/APIs are unavailable.
+    // Google is only used when the server probe marks the key as usable.
     if (mapEngine === "leaflet" && window.L) return "leaflet";
     if (mapsApiReady) return mapsApiReady;
 
     mapsApiReady = (async () => {
+      let googleOk = false;
       try {
-        if (typeof window.sfEnsureCrmAddressAutocomplete === "function") {
-          const ok = await window.sfEnsureCrmAddressAutocomplete(false);
-          if (window.__crmGoogleMapsAuthFailed) throw new Error("Google Maps auth failed");
-          if (ok && googleMapsReady()) {
-            mapEngine = "google";
-            return "google";
-          }
-        }
+        const cfg = await api("/api/config/ui");
+        googleOk = Boolean(cfg.data?.googleMapsUsable && cfg.data?.googleMapsJsKey);
+      } catch (_) {
+        googleOk = false;
+      }
 
-        let key = null;
+      if (googleOk && !window.__crmGoogleMapsAuthFailed) {
         try {
-          const cfg = await api("/api/config/ui");
-          key = cfg.data?.googleMapsJsKey ? String(cfg.data.googleMapsJsKey).trim() : null;
-        } catch (_) {}
-
-        if (key) {
-          await loadGoogleMapsOnce(key);
-          if (window.__crmGoogleMapsAuthFailed) throw new Error("Google Maps auth failed");
-          if (googleMapsReady()) {
-            mapEngine = "google";
-            return "google";
+          installGoogleAuthHook();
+          const key = (await api("/api/config/ui")).data?.googleMapsJsKey;
+          if (key) {
+            await loadGoogleMapsOnce(String(key).trim());
+            if (!window.__crmGoogleMapsAuthFailed && googleMapsReady()) {
+              mapEngine = "google";
+              return "google";
+            }
           }
+        } catch (err) {
+          console.warn("[schedule] Google Maps indisponível, a usar OpenStreetMap", err);
         }
-      } catch (err) {
-        console.warn("[schedule] Google Maps indisponível, a usar OpenStreetMap", err);
-        mapsApiReady = null;
       }
 
       await ensureLeaflet();
@@ -945,7 +935,7 @@
 
     try {
       return await mapsApiReady;
-    } catch (err) {
+    } catch (_) {
       mapsApiReady = null;
       await ensureLeaflet();
       mapEngine = "leaflet";

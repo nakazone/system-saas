@@ -1,6 +1,6 @@
 /**
  * Google Places Autocomplete reutilizavel para formularios de morada do CRM.
- * Requer GOOGLE_MAPS_JS_KEY no servidor e /api/config/ui.
+ * Usa Google quando billing/APIs estão OK; senão cai para sugestões OSM (Photon).
  */
 (function (global) {
   'use strict';
@@ -186,12 +186,17 @@
     var j = await r.json().catch(function () {
       return {};
     });
-    var key = j && j.data && j.data.googleMapsJsKey ? String(j.data.googleMapsJsKey).trim() : '';
+    var data = (j && j.data) || {};
+    // Only expose key when server probe confirms Places works (billing + APIs).
+    if (data.googleMapsUsable === false) return null;
+    var key = data.googleMapsJsKey ? String(data.googleMapsJsKey).trim() : '';
     return key || null;
   }
 
   async function ensureMapsReady(forceRetry) {
-    if (global.google && global.google.maps && global.google.maps.places) return true;
+    if (global.google && global.google.maps && global.google.maps.places && !global.__crmGoogleMapsAuthFailed) {
+      return true;
+    }
     if (forceRetry) resetMapsLoadState();
     if (loadPromise && !lastLoadFailed) return loadPromise;
 
@@ -200,11 +205,11 @@
         mapsKey = await fetchMapsKey();
         if (!mapsKey) {
           lastLoadFailed = true;
-          console.warn('[crm-address-autocomplete] GOOGLE_MAPS_JS_KEY nao configurada');
+          console.warn('[crm-address-autocomplete] Google Maps indisponível (billing/API); a usar sugestões OSM');
           return false;
         }
         await loadGoogleMapsScript(mapsKey);
-        var ok = !!(global.google && global.google.maps && global.google.maps.places);
+        var ok = !!(global.google && global.google.maps && global.google.maps.places) && !global.__crmGoogleMapsAuthFailed;
         lastLoadFailed = !ok;
         return ok;
       } catch (err) {
@@ -215,6 +220,160 @@
     })();
 
     return loadPromise;
+  }
+
+  function ensurePhotonStyles() {
+    if (document.getElementById('crm-photon-ac-style')) return;
+    var style = document.createElement('style');
+    style.id = 'crm-photon-ac-style';
+    style.textContent =
+      '.crm-photon-ac{position:absolute;z-index:2500;left:0;right:0;top:100%;margin:4px 0 0;padding:4px 0;' +
+      'background:#fff;border:1px solid #e2d9cc;border-radius:10px;box-shadow:0 10px 28px rgba(33,29,26,.14);' +
+      'max-height:240px;overflow:auto;list-style:none}' +
+      '.crm-photon-ac li{margin:0;padding:8px 12px;cursor:pointer;font-size:.88rem;color:#211d1a;line-height:1.35}' +
+      '.crm-photon-ac li:hover,.crm-photon-ac li.is-active{background:#fff4eb}' +
+      '.crm-photon-ac__wrap{position:relative}';
+    document.head.appendChild(style);
+  }
+
+  function parsePhotonFeature(feature) {
+    var p = (feature && feature.properties) || {};
+    var coords = feature && feature.geometry && feature.geometry.coordinates;
+    var street = [p.housenumber, p.street || p.name].filter(Boolean).join(' ').trim();
+    var city = p.city || p.town || p.village || p.municipality || '';
+    var state = p.state || p.county || '';
+    var zip = p.postcode || '';
+    var parts = [street, city, state, zip, p.country].filter(Boolean);
+    var formatted = parts.join(', ');
+    return {
+      line1: street || p.name || formatted,
+      line2: '',
+      city: city,
+      state: state,
+      zip: zip,
+      formatted: formatted || p.name || '',
+      placeId: p.osm_id ? String(p.osm_id) : '',
+      lat: coords && coords.length >= 2 ? Number(coords[1]) : null,
+      lng: coords && coords.length >= 2 ? Number(coords[0]) : null,
+    };
+  }
+
+  function attachPhotonAutocomplete(inputEl, options) {
+    options = options || {};
+    ensurePhotonStyles();
+    attached.add(inputEl);
+    inputEl.setAttribute('data-sf-address-autocomplete', 'photon');
+    inputEl.setAttribute('autocomplete', 'off');
+    if (!inputEl.placeholder || /Google Maps/i.test(inputEl.placeholder)) {
+      inputEl.placeholder = 'Digite a morada…';
+    }
+
+    var parent = inputEl.parentElement;
+    if (parent && getComputedStyle(parent).position === 'static') {
+      parent.classList.add('crm-photon-ac__wrap');
+    }
+
+    var list = document.createElement('ul');
+    list.className = 'crm-photon-ac';
+    list.hidden = true;
+    list.setAttribute('role', 'listbox');
+    (parent || inputEl).appendChild(list);
+
+    var timer = null;
+    var items = [];
+    var active = -1;
+
+    function hide() {
+      list.hidden = true;
+      list.innerHTML = '';
+      items = [];
+      active = -1;
+    }
+
+    function render() {
+      list.innerHTML = '';
+      items.forEach(function (it, idx) {
+        var li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        li.textContent = it.formatted || it.line1;
+        if (idx === active) li.className = 'is-active';
+        li.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          select(idx);
+        });
+        list.appendChild(li);
+      });
+      list.hidden = !items.length;
+    }
+
+    function select(idx) {
+      var parsed = items[idx];
+      if (!parsed) return;
+      if (options.map) applyFieldMap(parsed, options.map);
+      else inputEl.value = parsed.formatted || parsed.line1;
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+      if (typeof options.onSelect === 'function') {
+        options.onSelect(parsed, null, inputEl);
+      }
+      hide();
+    }
+
+    async function search(q) {
+      if (!q || q.trim().length < 3) {
+        hide();
+        return;
+      }
+      try {
+        var url =
+          'https://photon.komoot.io/api/?q=' +
+          encodeURIComponent(q.trim()) +
+          '&limit=6&lang=en';
+        if (options.country === 'us' || (Array.isArray(options.country) && options.country.indexOf('us') >= 0)) {
+          // Soft bias: append USA to query when empty country filter (Photon has limited country filter)
+          if (!/\busa\b|\bunited states\b/i.test(q)) url += '&lat=39.8&lon=-98.5';
+        }
+        var r = await fetch(url);
+        if (!r.ok) throw new Error('photon ' + r.status);
+        var j = await r.json();
+        items = (j.features || []).map(parsePhotonFeature).filter(function (p) {
+          return p.formatted || p.line1;
+        });
+        active = items.length ? 0 : -1;
+        render();
+      } catch (err) {
+        console.warn('[crm-address-autocomplete] photon', err);
+        hide();
+      }
+    }
+
+    inputEl.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        search(inputEl.value);
+      }, 280);
+    });
+    inputEl.addEventListener('keydown', function (e) {
+      if (list.hidden || !items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        active = (active + 1) % items.length;
+        render();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        active = (active - 1 + items.length) % items.length;
+        render();
+      } else if (e.key === 'Enter' && active >= 0) {
+        e.preventDefault();
+        select(active);
+      } else if (e.key === 'Escape') {
+        hide();
+      }
+    });
+    inputEl.addEventListener('blur', function () {
+      setTimeout(hide, 150);
+    });
+    return true;
   }
 
   /**
@@ -230,7 +389,9 @@
     if (!ready) {
       ready = await ensureMapsReady(true);
     }
-    if (!ready) return false;
+    if (!ready) {
+      return attachPhotonAutocomplete(inputEl, options);
+    }
 
     try {
       var acOptions = {
@@ -245,7 +406,7 @@
       inputEl.setAttribute('data-sf-address-autocomplete', '1');
       inputEl.setAttribute('autocomplete', 'off');
       if (!inputEl.placeholder) {
-        inputEl.placeholder = 'Digite a morada (Google Maps)...';
+        inputEl.placeholder = 'Digite a morada…';
       }
 
       bindPacDismissHandlers();
@@ -270,8 +431,8 @@
       });
       return true;
     } catch (err) {
-      console.warn('[crm-address-autocomplete] attach', err);
-      return false;
+      console.warn('[crm-address-autocomplete] attach google failed, photon fallback', err);
+      return attachPhotonAutocomplete(inputEl, options);
     }
   }
 
