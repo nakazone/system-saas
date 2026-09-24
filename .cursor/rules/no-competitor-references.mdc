@@ -1,0 +1,18 @@
+---
+description: Never name competitors or design references in repo files
+alwaysApply: true
+---
+
+# No competitor or reference product names in files
+
+Never mention competitor products, inspirations, or design references in any repository artifact:
+
+- Source code, comments, CSS, HTML, JS, TS
+- Commit messages and PR titles/bodies
+- Cache-bust query strings (`?v=…`)
+- Docs, plans committed to the repo, landing/marketing copy
+- Variable names, class names, branch names you create
+
+Describe ObraMate features in product terms only (e.g. "Jobs overview layout"), not as "X-style" or "inspired by Y".
+
+Exception: third-party libraries/APIs actually used (Google Maps, Leaflet, Prisma, etc.) may be named when technically required.
