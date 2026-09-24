@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-omapp";
+  const SHELL_VER = "20260924-omapp3";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -186,6 +186,8 @@
   }
 
   function ensureTopbar() {
+    // Icon-rail chrome does not use the wide top bar on desktop
+    if (document.body.classList.contains("om-app")) return;
     if (document.getElementById("crmTopbar")) return;
     const wrap = document.createElement("div");
     wrap.innerHTML = TOPBAR_HTML.trim();
@@ -348,6 +350,17 @@
   function initCollapse() {
     const sidebar = getSidebar();
     wrapNavLabels(sidebar);
+
+    // New app chrome is always an icon rail — never animate width/collapse on load
+    if (document.body.classList.contains("om-app")) {
+      document.body.classList.add("sidebar-collapsed");
+      try {
+        localStorage.setItem(STORAGE_KEY, "1");
+      } catch (_) {}
+      const btn = document.getElementById("sidebarCollapseBtn");
+      if (btn) btn.style.display = "none";
+      return;
+    }
 
     let saved = false;
     try {
@@ -512,13 +525,14 @@
     if (isAuthPage()) return;
     if (document.body.dataset.crmShellBoot === "1") return;
     document.body.dataset.crmShellBoot = "1";
-    document.body.classList.add("dashboard-app-body", "om-app");
+    document.body.classList.add("dashboard-app-body", "om-app", "sidebar-collapsed", "om-chrome-ready");
 
     promoteStandaloneToShell();
     ensureTopbar();
     ensureMobileHeader();
     ensureSidebarStructure(getSidebar());
     ensureDock();
+    document.body.classList.add("om-has-dock");
 
     initCollapse();
     initTopbar();
@@ -529,14 +543,19 @@
       placeNotificationBell();
     });
 
-    await loadCompanionAssets();
+    // Mount nav once (shared-nav may already be mounting on DOMContentLoaded)
+    const mountNav = () => {
+      if (!window.__crmSharedNav) return Promise.resolve();
+      if (typeof window.__crmSharedNav.init === "function") return window.__crmSharedNav.init();
+      if (typeof window.__crmSharedNav.remount === "function") return window.__crmSharedNav.remount();
+      return Promise.resolve();
+    };
+
+    await Promise.all([loadCompanionAssets(), mountNav()]);
     const host = document.getElementById("crmSharedNavRoot");
-    const needsNav = host && (!host.dataset.mounted || host.dataset.mounted !== "1" || !host.children.length);
-    if (needsNav && window.__crmSharedNav && typeof window.__crmSharedNav.remount === "function") {
-      await window.__crmSharedNav.remount();
-    }
-    // Re-wrap labels after shared nav mounts
-    setTimeout(() => wrapNavLabels(getSidebar()), 200);
+    const needsNav = host && (host.dataset.mounted !== "1" || !host.children.length);
+    if (needsNav) await mountNav();
+    wrapNavLabels(getSidebar());
   }
 
   if (document.readyState === "loading") {

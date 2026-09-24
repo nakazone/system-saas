@@ -370,13 +370,17 @@
     }
   }
 
-  async function remount() {
+  async function remount(force) {
     if (initInFlight) {
       try {
         await initInFlight;
       } catch (_) {}
     }
     const host = document.getElementById('crmSharedNavRoot');
+    // Avoid empty→fill→empty→fill flash on every page (shell + auto-init race)
+    if (!force && host && host.dataset.mounted === '1' && host.children.length) {
+      return;
+    }
     if (host) {
       host.dataset.mounted = '0';
       host.innerHTML = '';

@@ -337,6 +337,12 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     transition: margin-left 0.2s ease;
   }
 
+  /* Icon-rail chrome: never animate width/margin on load or navigate */
+  body.om-app.dashboard-app-body .dashboard-sidebar,
+  body.om-app.dashboard-app-body .dashboard-main {
+    transition: none !important;
+  }
+
   /* Company logo in sidebar; ObraMate stays in the top bar */
   body.dashboard-app-body .dashboard-sidebar .sidebar-header .sidebar-brand-logo {
     display: block;

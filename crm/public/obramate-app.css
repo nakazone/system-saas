@@ -832,6 +832,8 @@ body.om-app {
     radial-gradient(900px 420px at 100% 0%, #e8f0ff 0%, transparent 50%),
     var(--plab-bg) !important;
   color: var(--plab-ink);
+  /* Reserve dock space from first paint (dock may inject later) */
+  padding-bottom: 0;
 }
 
 body.om-app.dashboard-app-body {
@@ -839,11 +841,35 @@ body.om-app.dashboard-app-body {
   --crm-sidebar-width: var(--plab-rail);
 }
 
+/* Kill chrome transitions that make page switches feel like they “reflow” */
+body.om-app .dashboard-sidebar,
+body.om-app .dashboard-main,
+body.om-app .dashboard-container,
+body.om-app.sidebar-collapsed .dashboard-sidebar,
+body.om-app.sidebar-collapsed .dashboard-main,
+body.om-app.dashboard-app-body .dashboard-sidebar,
+body.om-app.dashboard-app-body .dashboard-main {
+  transition: none !important;
+}
+
+/* Never let collapsed-main margin stack with container offset */
+@media (min-width: 1025px) {
+  body.om-app.sidebar-collapsed .dashboard-main,
+  body.om-app .dashboard-main {
+    margin-left: 0 !important;
+  }
+}
+
 /* Always stack main content vertically (styles.css sets display:flex row by default) */
 body.om-app .dashboard-main {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
+}
+
+body.om-app.om-has-dock .dashboard-main,
+body.om-app .dashboard-main {
+  padding-bottom: 6.5rem !important;
 }
 
 /* Hide legacy wide top brand bar on desktop — search lives in dock/command palette */
