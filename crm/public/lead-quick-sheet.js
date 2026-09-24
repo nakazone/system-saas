@@ -374,8 +374,8 @@
       dd.innerHTML = `<div class="lead-quick-sheet__field-edit" data-lqs-editing="${fieldKey}">
         <select class="lead-quick-sheet__inline-input lead-quick-sheet__inline-select" data-lqs-input="owner_id">${opts}</select>
         <div class="lead-quick-sheet__edit-actions">
-          <button type="button" class="lead-quick-sheet__edit-save" data-lqs-save="owner_id">Guardar</button>
-          <button type="button" class="lead-quick-sheet__edit-cancel" data-lqs-cancel="owner_id">Cancelar</button>
+          <button type="button" class="btn btn-primary btn-sm" data-lqs-save="owner_id">Guardar</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-lqs-cancel="owner_id">Cancelar</button>
         </div>
       </div>`;
       return;
@@ -391,8 +391,8 @@
     dd.innerHTML = `<div class="lead-quick-sheet__field-edit" data-lqs-editing="${fieldKey}">
       ${tag}
       <div class="lead-quick-sheet__edit-actions">
-        <button type="button" class="lead-quick-sheet__edit-save" data-lqs-save="${fieldKey}">Guardar</button>
-        <button type="button" class="lead-quick-sheet__edit-cancel" data-lqs-cancel="${fieldKey}">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" data-lqs-save="${fieldKey}">Guardar</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-lqs-cancel="${fieldKey}">Cancelar</button>
       </div>
     </div>`;
     const focusEl = dd.querySelector('[data-lqs-input]');
@@ -996,15 +996,15 @@
             ? `quote-builder.html?id=${encodeURIComponent(String(row.id))}&lead_id=${encodeURIComponent(String(sid))}`
             : '#';
         const pdfBtn = row.pdfUrl
-          ? `<button type="button" class="lead-quick-sheet__btn-sm" data-lqs-pdf="${row.id}" data-lqs-pdf-label="${escapeHtml(row.label || 'Orçamento')}">PDF</button>`
+          ? `<button type="button" class="btn btn-secondary btn-sm" data-lqs-pdf="${row.id}" data-lqs-pdf-label="${escapeHtml(row.label || 'Orçamento')}">PDF</button>`
           : '';
         const editBtn =
           row.kind === 'quote'
-            ? `<a class="lead-quick-sheet__btn-sm lead-quick-sheet__btn-sm--primary" href="${editHref}">Abrir</a>`
+            ? `<a class="btn btn-primary btn-sm" href="${editHref}">Abrir</a>`
             : '';
         const delBtn =
           row.kind === 'quote'
-            ? `<button type="button" class="lead-quick-sheet__btn-sm lead-quick-sheet__btn-sm--danger" data-lqs-delete-quote="${row.id}">Excluir</button>`
+            ? `<button type="button" class="btn btn-danger btn-sm" data-lqs-delete-quote="${row.id}">Excluir</button>`
             : '';
         const qEng =
           row.kind === 'quote' &&
@@ -1024,7 +1024,7 @@
           <p class="lead-quick-sheet__qmeta"><strong>Criada:</strong> ${escapeHtml(when)}</p>
           ${exp}
           <div class="lead-quick-sheet__qactions">${pdfBtn}${editBtn}${delBtn}
-            <button type="button" class="lead-quick-sheet__btn-sm" data-lqs-open-quotes-crm>Quotes CRM</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-lqs-open-quotes-crm>Quotes CRM</button>
           </div>
         </div>`;
       })
@@ -1221,18 +1221,19 @@
     const emailDisplay = lead.email
       ? `<a class="lqs-meta-link" href="mailto:${escapeHtml(lead.email)}">${escapeHtml(lead.email)}</a>`
       : '—';
+    const actionCls = 'btn btn-secondary btn-sm lqs-btn';
     const sms =
       typeof global.sfRenderLeadSmsActionHtml === 'function'
-        ? global.sfRenderLeadSmsActionHtml(lead, 'lead-quick-sheet__action')
+        ? global.sfRenderLeadSmsActionHtml(lead, actionCls)
         : '';
     const mail =
       typeof global.sfRenderLeadEmailActionHtml === 'function'
-        ? global.sfRenderLeadEmailActionHtml(lead, 'lead-quick-sheet__action')
+        ? global.sfRenderLeadEmailActionHtml(lead, actionCls)
         : lead.email
-          ? `<a class="lead-quick-sheet__action" href="mailto:${escapeHtml(lead.email)}">Email</a>`
+          ? `<a class="${actionCls}" href="mailto:${escapeHtml(lead.email)}">Email</a>`
           : '';
     const tele = telHref
-      ? `<a class="lead-quick-sheet__action" href="${escapeHtml(telHref)}">Call</a>`
+      ? `<a class="${actionCls}" href="${escapeHtml(telHref)}">Call</a>`
       : '';
 
     const quoteRows = mergeQuoteRows(bundle.quotesPayload, bundle.proposalsPayload);
@@ -1249,7 +1250,7 @@
           </div>
           <div class="lqs-ov-top__actions">
             ${tele}${sms}${mail}
-            <button type="button" class="btn btn-primary lqs-create-btn" data-lqs-create-toggle>+ Create</button>
+            <button type="button" class="btn btn-primary btn-sm lqs-btn" data-lqs-create-toggle>+ Create</button>
             <div class="lqs-create-menu" id="lqsCreateMenu" hidden>
               <button type="button" data-lqs-open-schedule>Schedule visit</button>
               <a href="quote-builder.html?lead_id=${encodeURIComponent(String(sid))}" target="_blank" rel="noopener">New quote</a>
@@ -1359,7 +1360,7 @@
           <section class="lqs-card">
             <p class="lqs-ov-empty">Log calls and messages from the actions above. Full interaction history is on the <a href="lead-detail.html?id=${encodeURIComponent(String(sid))}">full lead page</a>.</p>
             <div class="lqs-comm-actions">${tele}${sms}${mail}
-              <button type="button" class="lead-quick-sheet__action" data-lqs-open-schedule>Schedule visit</button>
+              <button type="button" class="btn btn-secondary btn-sm lqs-btn" data-lqs-open-schedule>Schedule visit</button>
             </div>
           </section>
         </div>

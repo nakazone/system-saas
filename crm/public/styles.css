@@ -7852,3 +7852,167 @@ button.lead-quick-sheet__schedule-btn-min {
     max-height: min(94dvh, 920px);
   }
 }
+
+/* —— Lead overview: standardize buttons to design-system —— */
+.lead-quick-sheet--overview .lqs-ov-top__actions {
+  gap: 0.4rem;
+}
+
+.lead-quick-sheet--overview .lqs-btn.btn,
+.lead-quick-sheet--overview .lqs-ov-top__actions .btn,
+.lead-quick-sheet--overview .lqs-comm-actions .btn {
+  border-radius: 8px;
+  font-weight: 600;
+  line-height: 1.2;
+  min-height: 34px;
+  box-sizing: border-box;
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  min-height: 34px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  background: var(--color-surface, #fff);
+  color: var(--color-text-primary, #211d1a) !important;
+  border: 1px solid var(--color-border, #e2d9cc);
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__action:hover {
+  background: var(--color-surface-secondary, #f7f4ee);
+  border-color: var(--color-text-muted, #8a8074);
+  color: var(--color-text-primary, #211d1a) !important;
+}
+
+.lead-quick-sheet--overview .lqs-ov-top__status {
+  min-width: min(220px, 100%);
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__status-trigger {
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #e2d9cc);
+  background: var(--color-surface, #fff);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary, #211d1a);
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__status-trigger:hover {
+  background: var(--color-surface-secondary, #f7f4ee);
+  border-color: var(--color-text-muted, #8a8074);
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__status-trigger:focus-visible {
+  outline: 2px solid var(--color-accent, #e8792c);
+  outline-offset: 2px;
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__pri-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #e2d9cc);
+  font-size: 1.05rem;
+  background: var(--color-surface, #fff);
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__pri-icon:hover {
+  border-color: var(--color-accent, #e8792c);
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__pri-icon.is-active {
+  border-color: var(--color-accent, #e8792c);
+  box-shadow: 0 0 0 3px rgba(232, 121, 44, 0.2);
+  background: #fff4eb;
+}
+
+.lead-quick-sheet--overview .lqs-filter {
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #e2d9cc);
+  background: var(--color-surface, #fff);
+  color: var(--color-text-secondary, #6b645c);
+  min-height: 30px;
+  padding: 0.3rem 0.7rem;
+}
+
+.lead-quick-sheet--overview .lqs-filter.is-active {
+  background: #fff4eb;
+  border-color: var(--color-accent, #e8792c);
+  color: var(--color-accent, #e8792c);
+}
+
+.lead-quick-sheet--overview .lqs-card__plus,
+.lead-quick-sheet--overview .lqs-link {
+  color: var(--color-accent, #e8792c);
+  border-radius: 8px;
+  padding: 0.2rem 0.45rem;
+}
+
+.lead-quick-sheet--overview .lqs-card__plus:hover,
+.lead-quick-sheet--overview .lqs-link:hover {
+  background: #fff4eb;
+  color: var(--color-accent-hover, #c1652f);
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__qactions .btn {
+  border-radius: 8px;
+}
+
+.lead-quick-sheet--overview .lqs-create-btn {
+  /* legacy alias — prefer .lqs-btn */
+  font-size: 12px !important;
+  padding: 6px 12px !important;
+  min-height: 34px;
+  border-radius: 8px !important;
+}
+
+.lead-quick-sheet--overview .lqs-create-menu {
+  border-color: var(--color-border, #e2d9cc);
+  border-radius: 10px;
+}
+
+.lead-quick-sheet--overview .lqs-create-menu button,
+.lead-quick-sheet--overview .lqs-create-menu a {
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.lead-quick-sheet--overview .lqs-create-menu button:hover,
+.lead-quick-sheet--overview .lqs-create-menu a:hover {
+  background: #fff4eb;
+  color: var(--color-accent, #e8792c);
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__close {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--color-surface-secondary, #f7f4ee);
+  border: 1px solid var(--color-border, #e2d9cc);
+  color: var(--color-text-secondary, #6b645c);
+}
+
+.lead-quick-sheet--overview .lead-quick-sheet__close:hover {
+  border-color: var(--color-accent, #e8792c);
+  color: var(--color-accent, #e8792c);
+  background: #fff4eb;
+}
