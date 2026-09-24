@@ -1590,19 +1590,9 @@
 
   const origViewLead = typeof global.viewLead === 'function' ? global.viewLead : null;
   global.viewLead = function (id, ev) {
-    const r = document.getElementById('leadQuickSheet');
-    let anchorEl = null;
-    if (ev && ev.currentTarget && ev.currentTarget.closest) {
-      anchorEl = ev.currentTarget.closest('.kanban-card');
-    } else if (ev && ev.target && ev.target.closest) {
-      anchorEl = ev.target.closest('.kanban-card');
-    }
-    if (r && typeof openLeadQuickSheet === 'function') {
-      void openLeadQuickSheet(id, anchorEl);
-    } else if (origViewLead) {
-      origViewLead(id);
-    } else {
-      window.location.href = 'lead-detail.html?id=' + encodeURIComponent(id);
-    }
+    const sid = String(id || '').trim();
+    if (!sid) return;
+    // Full lead page (overview layout) — not the quick sheet overlay
+    window.location.href = 'lead-detail.html?id=' + encodeURIComponent(sid);
   };
 })(typeof window !== 'undefined' ? window : globalThis);

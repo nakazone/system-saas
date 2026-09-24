@@ -1454,10 +1454,10 @@ function bindLeadsMobileListInteractions(container) {
             }
             const id = openEl.getAttribute('data-lcard-open');
             if (!id) return;
-            if (typeof window.openLeadQuickSheet === 'function') {
-                void window.openLeadQuickSheet(id, openEl);
-            } else if (typeof viewLead === 'function') {
+            if (typeof viewLead === 'function') {
                 viewLead(id);
+            } else {
+                window.location.href = 'lead-detail.html?id=' + encodeURIComponent(id);
             }
         });
     }
