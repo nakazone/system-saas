@@ -148,6 +148,7 @@
 
     <nav class="payroll-hub-tabs" aria-label="Seções desta página">
       <a href="#hub-meu-banco" class="payroll-hub-tab payroll-nav-btn" id="tabMeuBanco">Meu banco de horas</a>
+      <a href="#hub-aprovar-banco" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only id="tabAprovarBanco">Aprovar banco</a>
       <a href="#hub-resumo" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>Resumo</a>
       <a href="#hub-func" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>1 · Equipe</a>
       <a href="#hub-quadro" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>2 · Horas</a>
@@ -155,9 +156,8 @@
     </nav>
 
     <div id="migrateBanner" class="hidden rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
-      Migração pendente no servidor. No projeto <code class="bg-white/80 px-1 rounded">senior-floors-system</code> execute
-      <code class="bg-white/80 px-1 rounded">npm run migrate:construction-payroll</code> e
-      <code class="bg-white/80 px-1 rounded">npm run migrate:payroll-sector-reimbursement</code>.
+      Tabelas de folha incompletas neste ambiente. Peça ao administrador para aplicar as migrações Prisma de payroll
+      (<code class="bg-white/80 px-1 rounded">prisma migrate deploy</code>).
     </div>
     <p id="authMsg" class="text-red-600 text-sm hidden"></p>
 
@@ -165,7 +165,7 @@
     <section id="hub-meu-banco" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
       <div class="bg-slate-50 border-b border-slate-200 px-4 py-3">
         <h2 class="text-base font-bold text-slate-900">Meu banco de horas</h2>
-        <p class="text-xs text-slate-500 mt-0.5">Registe as suas horas. Só você vê estes lançamentos.</p>
+        <p class="text-xs text-slate-500 mt-0.5">Registe as suas horas. O gestor aprova e lança no quadro da folha.</p>
       </div>
       <div class="p-4 space-y-4">
         <div id="hourBankUnlinked" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -208,6 +208,35 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Aprovar banco de horas (admin) -->
+    <section id="hub-aprovar-banco" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden" data-payroll-admin-only>
+      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-base font-bold text-slate-900">Aprovar banco de horas</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Lançamentos feitos pelos funcionários. Ao aprovar, as horas entram no quadro do período aberto.</p>
+        </div>
+        <button type="button" id="btnReloadApproveBank" class="btn btn-sm btn-secondary shrink-0">Atualizar</button>
+      </div>
+      <div class="p-4">
+        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase">
+              <tr>
+                <th class="px-3 py-2">Funcionário</th>
+                <th class="px-3 py-2">Data</th>
+                <th class="px-3 py-2 text-right">Horas</th>
+                <th class="px-3 py-2">Notas</th>
+                <th class="px-3 py-2">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="approveHourBankBody">
+              <tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">A carregar…</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -671,7 +700,7 @@
   </script>
   <script src="crm-toast.js?v=2"></script>
   <script src="crm-shell.js?v=20260924-shell"></script>
-  <script src="crm-shared-nav.js?v=20260925-hourbank"></script>
-  <script src="payroll-module.js?v=20260925-hourbank"></script>
+  <script src="crm-shared-nav.js?v=20260925-payroll-approve"></script>
+  <script src="payroll-module.js?v=20260925-payroll-approve"></script>
 </body>
 </html>

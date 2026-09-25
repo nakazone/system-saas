@@ -70,6 +70,8 @@ const TENANT_MODELS = new Set([
   "PayrollEmployee",
   "PayrollPeriod",
   "PayrollTimesheet",
+  "PayrollHourBankEntry",
+  "PayrollPeriodAdjustment",
   "FinanceCost",
   "FinancePayrollAbatement",
   "SupportTicket",

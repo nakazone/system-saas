@@ -33,11 +33,11 @@ function clearTimesheetDataRows() {
   allTimesheetDataRows().forEach((tr) => tr.remove());
 }
 
-/** IDs vindos da API podem ser string/número — comparar sempre normalizado */
+/** IDs (UUID ou número legado) — comparar sempre como string */
 function periodIdNum(v) {
   if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+  const s = String(v).trim();
+  return s || null;
 }
 let currentPeriod = null;
 let timesheetRows = [];
@@ -242,7 +242,7 @@ function applyPayrollAccessMode() {
   document.querySelectorAll('[data-payroll-admin-only]').forEach((el) => {
     el.classList.toggle('hidden', !canPayrollAdmin);
   });
-  ['hub-resumo', 'hub-func', 'hub-quadro', 'hub-relatorios'].forEach((id) => {
+  ['hub-resumo', 'hub-func', 'hub-quadro', 'hub-relatorios', 'hub-aprovar-banco'].forEach((id) => {
     const sec = document.getElementById(id);
     if (sec) sec.classList.toggle('hidden', !canPayrollAdmin);
   });
@@ -252,10 +252,17 @@ function applyPayrollAccessMode() {
   }
   const selfTab = document.getElementById('tabMeuBanco');
   if (selfTab) selfTab.classList.toggle('hidden', !canHourBankSelf);
+  const approveTab = document.getElementById('tabAprovarBanco');
+  if (approveTab) approveTab.classList.toggle('hidden', !canManage);
+  const approveSec = document.getElementById('hub-aprovar-banco');
+  if (approveSec && !canManage) approveSec.classList.add('hidden');
   const defaultHash = !canPayrollAdmin && canHourBankSelf ? '#hub-meu-banco' : '#hub-resumo';
   const hash = window.location.hash || '';
-  const adminHashes = ['#hub-resumo', '#hub-func', '#hub-quadro', '#hub-relatorios'];
+  const adminHashes = ['#hub-resumo', '#hub-func', '#hub-quadro', '#hub-relatorios', '#hub-aprovar-banco'];
   if (!hash || (!canPayrollAdmin && adminHashes.includes(hash))) {
+    window.history.replaceState(null, '', defaultHash);
+  }
+  if (hash === '#hub-aprovar-banco' && !canManage) {
     window.history.replaceState(null, '', defaultHash);
   }
   document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
@@ -269,6 +276,79 @@ function statusLabelHb(s) {
   if (s === 'approved') return 'Aprovado';
   if (s === 'rejected') return 'Recusado';
   return 'Pendente';
+}
+
+async function loadApproveHourBank() {
+  const body = document.getElementById('approveHourBankBody');
+  if (!body || !canManage) return;
+  try {
+    const r = await fetch(`${CP}/hour-bank?status=pending`, { credentials: 'include' });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Falha ao carregar pendentes');
+    const rows = Array.isArray(j.data) ? j.data : [];
+    if (!rows.length) {
+      body.innerHTML =
+        '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">Nenhum lançamento pendente.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows
+      .map((row) => {
+        const ymd = String(row.work_date || '').slice(0, 10);
+        const name = row.employee_name || '—';
+        return `<tr data-ahb-id="${row.id}">
+          <td class="px-3 py-2 font-medium">${escapeHtmlHb(name)}<br><span class="text-xs text-slate-500 font-normal">${escapeHtmlHb(row.employee_email || '')}</span></td>
+          <td class="px-3 py-2">${ymd}</td>
+          <td class="px-3 py-2 text-right font-medium">${Number(row.hours) || 0}</td>
+          <td class="px-3 py-2 text-slate-600">${escapeHtmlHb(row.notes || '—')}</td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <button type="button" class="btn btn-sm btn-primary ahb-approve" data-id="${row.id}">Aprovar</button>
+            <button type="button" class="btn btn-sm btn-secondary ahb-reject" data-id="${row.id}">Recusar</button>
+          </td>
+        </tr>`;
+      })
+      .join('');
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="5" class="px-3 py-4 text-center text-red-600">${escapeHtmlHb(e.message)}</td></tr>`;
+  }
+}
+
+async function approveHourBankEntry(id) {
+  try {
+    const r = await fetch(`${CP}/hour-bank/${id}/approve`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        period_id: selectedPeriodId || undefined,
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Falha ao aprovar');
+    window.crmToast?.success?.('Horas aprovadas e lançadas no quadro.');
+    await loadApproveHourBank();
+    if (selectedPeriodId) await loadTimesheetsForPeriod();
+    await loadDashboard();
+  } catch (e) {
+    window.crmToast?.error?.(e.message);
+  }
+}
+
+async function rejectHourBankEntry(id) {
+  if (!confirm('Recusar este lançamento do banco de horas?')) return;
+  try {
+    const r = await fetch(`${CP}/hour-bank/${id}/reject`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Falha ao recusar');
+    window.crmToast?.success?.('Lançamento recusado.');
+    await loadApproveHourBank();
+  } catch (e) {
+    window.crmToast?.error?.(e.message);
+  }
 }
 
 async function loadHourBank() {
@@ -402,7 +482,7 @@ async function loadEmployees() {
   employees = j.data || [];
   employeesById = {};
   employees.forEach((e) => {
-    employeesById[e.id] = e;
+    employeesById[String(e.id)] = e;
   });
   renderEmployeeTable();
   updateEmployeeEmptyState();
@@ -422,7 +502,7 @@ function aggregateDaysAndOtByEmployeeFromGrid() {
   allTimesheetDataRows().forEach((tr) => {
     const empEl = tr.querySelector('.ts-emp');
     if (!empEl) return;
-    const eid = parseInt(empEl.value, 10);
+    const eid = String(empEl.value || '');
     if (!eid) return;
     const d = parseNumInput(tr.querySelector('.ts-days')?.value);
     const ot = parseNumInput(tr.querySelector('.ts-ot')?.value);
@@ -437,7 +517,10 @@ function aggregateDaysAndOtByEmployeeFromGrid() {
 async function loadProjects() {
   const r = await fetch('/api/projects?limit=100', { credentials: 'include' });
   const j = await r.json();
-  projects = j.data || [];
+  projects = (j.data || []).map((p) => ({
+    ...p,
+    project_number: p.project_number || (p.number != null ? `#${p.number}` : p.name || p.id),
+  }));
 }
 
 /**
@@ -464,7 +547,7 @@ async function loadPeriods(preferId) {
   } else {
     sel.value = '';
   }
-  selectedPeriodId = sel.value ? parseInt(sel.value, 10) : null;
+  selectedPeriodId = sel.value ? String(sel.value) : null;
   syncPeriodSelectedLabel();
   await onPeriodChange();
 }
@@ -478,7 +561,7 @@ function renderEmployeeTable() {
   tb.innerHTML = '';
   const periodAgg = aggregateDaysAndOtByEmployeeFromGrid();
   employees.forEach((e) => {
-    const agg = periodAgg.get(e.id);
+    const agg = periodAgg.get(String(e.id));
     const dPer = selectedPeriodId ? fmtReportQty(agg?.days ?? 0) : '—';
     const otPer = selectedPeriodId ? fmtReportQty(agg?.ot ?? 0) : '—';
     const tr = document.createElement('tr');
@@ -498,7 +581,7 @@ function renderEmployeeTable() {
     tb.appendChild(tr);
   });
   tb.querySelectorAll('.emp-edit').forEach((btn) => {
-    btn.addEventListener('click', () => openEmployeeModal(parseInt(btn.getAttribute('data-id'), 10)));
+    btn.addEventListener('click', () => openEmployeeModal(btn.getAttribute('data-id')));
   });
 }
 
@@ -514,7 +597,7 @@ function escapeHtml(s) {
  */
 function employeeOptionsHtml(selectedId, sectorFilter) {
   const sel = selectedId != null && selectedId !== '' ? String(selectedId) : '';
-  let active = employees.filter((e) => e.is_active);
+  let active = employees.filter((e) => Number(e.is_active) !== 0 && e.status !== 'inactive');
   if (sectorFilter === 'installation') {
     active = active.filter(
       (e) => e.sector === 'installation' || !e.sector || String(e.sector).trim() === ''
@@ -549,8 +632,9 @@ function getTimesheetTbody(sectorKey) {
 }
 
 function employeeSectorKeyFromEmpId(empId) {
-  if (!Number.isFinite(empId)) return 'installation';
-  const emp = employeesById[empId];
+  const key = empId != null && empId !== '' ? String(empId) : '';
+  if (!key) return 'installation';
+  const emp = employeesById[key];
   if (!emp) return 'installation';
   if (emp.sector === 'sand_finish') return 'sand_finish';
   return 'installation';
@@ -560,7 +644,7 @@ function sectorKeyFromApiTimesheetRow(row) {
   const es = row?.employee_sector;
   if (es === 'sand_finish') return 'sand_finish';
   if (es === 'installation') return 'installation';
-  if (row?.employee_id != null) return employeeSectorKeyFromEmpId(Number(row.employee_id));
+  if (row?.employee_id != null) return employeeSectorKeyFromEmpId(String(row.employee_id));
   return 'installation';
 }
 
@@ -578,13 +662,13 @@ function refreshEmployeeSelectForSector(tr, sectorKey) {
   const sel = tr.querySelector('.ts-emp');
   if (!sel) return;
   const cur = sel.value;
-  sel.innerHTML = employeeOptionsHtml(cur ? parseInt(cur, 10) : null, sectorKey);
+  sel.innerHTML = employeeOptionsHtml(cur || null, sectorKey);
   syncDailyOverrideHint(tr);
   refreshRowAmount(tr);
 }
 
 function relocateTimesheetRowForEmployee(tr) {
-  const empId = parseInt(tr.querySelector('.ts-emp')?.value, 10);
+  const empId = String(tr.querySelector('.ts-emp')?.value || '');
   const key = employeeSectorKeyFromEmpId(empId);
   const target = getTimesheetTbody(key);
   if (target && tr.parentElement !== target) target.appendChild(tr);
@@ -593,7 +677,7 @@ function relocateTimesheetRowForEmployee(tr) {
 }
 
 function syncTimesheetRowPaymentUi(tr) {
-  const empId = parseInt(tr.querySelector('.ts-emp')?.value, 10);
+  const empId = String(tr.querySelector('.ts-emp')?.value || '');
   const emp = employeesById[empId];
   const pt = String(emp?.payment_type || 'daily').toLowerCase();
   const hint = tr.querySelector('.ts-days-hint');
@@ -866,7 +950,7 @@ function parseNumInput(v) {
 }
 
 function refreshRowAmount(tr) {
-  const empId = parseInt(tr.querySelector('.ts-emp').value, 10);
+  const empId = String(tr.querySelector('.ts-emp').value || '');
   const row = {
     days_worked: parseNumInput(tr.querySelector('.ts-days').value),
     regular_hours: parseNumInput(tr.querySelector('.ts-reg').value),
@@ -883,7 +967,7 @@ function refreshRowAmount(tr) {
 }
 
 function syncDailyOverrideHint(tr) {
-  const empId = parseInt(tr.querySelector('.ts-emp')?.value, 10);
+  const empId = String(tr.querySelector('.ts-emp')?.value || '');
   const inp = tr.querySelector('.ts-daily-override');
   if (!inp) return;
   const emp = employeesById[empId];
@@ -1053,7 +1137,7 @@ function appendTimesheetRow(data, sectorKey) {
 function updatePeriodRunningTotalFromDom() {
   let sum = 0;
   allTimesheetDataRows().forEach((tr) => {
-    const empId = parseInt(tr.querySelector('.ts-emp').value, 10);
+    const empId = String(tr.querySelector('.ts-emp').value || '');
     const row = {
       days_worked: parseNumInput(tr.querySelector('.ts-days').value),
       regular_hours: parseNumInput(tr.querySelector('.ts-reg').value),
@@ -1124,7 +1208,7 @@ async function loadTimesheetsForPeriod() {
 
 async function onPeriodChange() {
   const sel = document.getElementById('periodSelect');
-  selectedPeriodId = sel.value ? parseInt(sel.value, 10) : null;
+  selectedPeriodId = sel.value ? String(sel.value) : null;
   syncPeriodSelectedLabel();
   await loadTimesheetsForPeriod();
 }
@@ -1151,8 +1235,8 @@ function collectLinesFromGrid() {
     const drRaw = (tr.querySelector('.ts-daily-override')?.value || '').trim();
 
     const lidRaw = tr.dataset.lineId;
-    const lidNum = lidRaw != null && String(lidRaw).trim() !== '' ? parseInt(String(lidRaw), 10) : NaN;
-    const hasPersistedId = Number.isFinite(lidNum) && lidNum > 0;
+    const lidStr = lidRaw != null && String(lidRaw).trim() !== '' ? String(lidRaw).trim() : '';
+    const hasPersistedId = Boolean(lidStr);
 
     if (!employee_id || !work_date) return;
     const d = parseNumInput(days_worked);
@@ -1161,16 +1245,17 @@ function collectLinesFromGrid() {
     /* Não gravar linha nova totalmente vazia (evita lixo na BD) */
     if (!hasPersistedId && d === 0 && r === 0 && ot === 0 && !notes) return;
     const o = {
-      employee_id: parseInt(employee_id, 10),
-      project_id: projectSel ? parseInt(projectSel, 10) : null,
+      employee_id: String(employee_id),
+      project_id: projectSel ? String(projectSel) : null,
       work_date,
       days_worked: d,
       regular_hours: r,
       overtime_hours: ot,
+      hours: r + ot + d * 8,
       notes: notes || null,
       daily_rate_override: drRaw !== '' ? parseNumInput(drRaw) : null,
     };
-    if (hasPersistedId) o.id = lidNum;
+    if (hasPersistedId) o.id = lidStr;
     lines.push(o);
   });
   return lines;
@@ -1190,8 +1275,8 @@ function timesheetGridValidationIssues() {
     const ot = parseNumInput(tr.querySelector('.ts-ot')?.value);
     const notes = (tr.querySelector('.ts-notes')?.value || '').trim();
     const lidRaw = tr.dataset.lineId;
-    const lidNum = lidRaw != null && String(lidRaw).trim() !== '' ? parseInt(String(lidRaw), 10) : NaN;
-    const hasPersistedId = Number.isFinite(lidNum) && lidNum > 0;
+    const lidStr = lidRaw != null && String(lidRaw).trim() !== '' ? String(lidRaw).trim() : '';
+    const hasPersistedId = Boolean(lidStr);
 
     const touched =
       !!employee_id ||
@@ -1206,8 +1291,8 @@ function timesheetGridValidationIssues() {
     if (!employee_id) issues.push(`Linha ${idx}: escolha o funcionário.`);
     if (!work_date) issues.push(`Linha ${idx}: escolha a data do trabalho.`);
     if (work_date && !workDateInsideSelectedPeriod(work_date)) {
-      const eid = employee_id ? parseInt(employee_id, 10) : NaN;
-      const flex = Number.isFinite(eid) && Number(employeesById[eid]?.allow_work_date_outside_period) === 1;
+      const eid = employee_id || null;
+      const flex = Boolean(eid) && Number(employeesById[eid]?.allow_work_date_outside_period) === 1;
       if (!flex) {
         issues.push(
           `Linha ${idx}: a data ${work_date} está fora do período (${String(selectedPeriodRecord()?.start_date || '').slice(0, 10)} a ${String(selectedPeriodRecord()?.end_date || '').slice(0, 10)}). Marque «Datas fora da semana» no cadastro do funcionário se o pagamento for neste fechamento com trabalho em outra semana.`
@@ -1219,8 +1304,8 @@ function timesheetGridValidationIssues() {
         `Linha ${idx}: para uma linha nova, preencha diárias ou horas (coluna Dias/horas), horas extras ou uma nota.`
       );
     }
-    if (employee_id && work_date && Number.isFinite(parseInt(employee_id, 10))) {
-      const eid = parseInt(employee_id, 10);
+    if (employee_id && work_date) {
+      const eid = String(employee_id);
       const emp = employeesById[eid];
       const pt = String(emp?.payment_type || 'daily').toLowerCase();
       if (pt !== 'hourly') {
@@ -1232,7 +1317,7 @@ function timesheetGridValidationIssues() {
   dailySumByEmpDate.forEach((sum, key) => {
     if (Math.round(sum * 100) > 200) {
       const [eid, ymd] = key.split('|');
-      const emp = employeesById[parseInt(eid, 10)];
+      const emp = employeesById[eid];
       const nm = emp?.name || `ID ${eid}`;
       issues.push(
         `${nm}: soma de diárias em ${ymd} acima de 2 (máximo 2 por dia — double: duas linhas de 1 ou uma linha com 2).`
@@ -1537,7 +1622,7 @@ function fillPreviewModal(data, opts) {
 function collectAdjustmentsFromPreview() {
   const rows = [];
   document.querySelectorAll('#previewTbody tr').forEach((tr) => {
-    const id = parseInt(tr.dataset.employeeId, 10);
+    const id = String(tr.dataset.employeeId || '');
     if (!id) return;
     const reimInp = tr.querySelector('.preview-reim-input');
     const discInp = tr.querySelector('.preview-disc-input');
@@ -1805,7 +1890,7 @@ async function openShareSlipsModal() {
       return;
     }
     shareSlipsRowsCache = by.map((row) => ({
-      id: Number(row.employee_id),
+      id: String(row.employee_id),
       name: row.name == null ? '' : String(row.name),
     }));
     const list = document.getElementById('shareSlipsList');
@@ -2220,6 +2305,7 @@ async function reloadAll() {
   await loadEmployees();
   await loadProjects();
   await loadPeriods();
+  if (canManage) await loadApproveHourBank();
 }
 
 document.getElementById('btnReloadAll')?.addEventListener('click', () => reloadAll());
@@ -2383,9 +2469,9 @@ document.getElementById('shareSlipsModalBackdrop')?.addEventListener('click', ()
 document.getElementById('shareSlipsList')?.addEventListener('click', (ev) => {
   const btn = ev.target.closest('.share-slip-btn');
   if (!btn || !document.getElementById('shareSlipsModal')?.contains(btn)) return;
-  const eid = parseInt(btn.getAttribute('data-eid'), 10);
-  if (!Number.isFinite(eid)) return;
-  const row = shareSlipsRowsCache.find((r) => r.id === eid);
+  const eid = String(btn.getAttribute('data-eid') || '');
+  if (!eid) return;
+  const row = shareSlipsRowsCache.find((r) => String(r.id) === eid);
   shareOneSlipAsImage(eid, row?.name);
 });
 document.getElementById('btnPaySlipsPdfZip')?.addEventListener('click', () => downloadPaySlipsZip('pdf'));
@@ -2438,6 +2524,16 @@ document.getElementById('hourBankForm')?.addEventListener('submit', (e) => submi
 document.getElementById('hourBankBody')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.hb-del');
   if (btn) deleteHourBank(btn.getAttribute('data-id'));
+});
+document.getElementById('btnReloadApproveBank')?.addEventListener('click', () => loadApproveHourBank());
+document.getElementById('approveHourBankBody')?.addEventListener('click', (e) => {
+  const approveBtn = e.target.closest('.ahb-approve');
+  if (approveBtn) {
+    approveHourBankEntry(approveBtn.getAttribute('data-id'));
+    return;
+  }
+  const rejectBtn = e.target.closest('.ahb-reject');
+  if (rejectBtn) rejectHourBankEntry(rejectBtn.getAttribute('data-id'));
 });
 
 (async function boot() {

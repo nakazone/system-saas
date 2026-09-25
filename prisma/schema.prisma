@@ -1245,14 +1245,21 @@ model PayrollEmployee {
   email          String?
   phone          String?
   roleTitle      String?
-  payType        String   @default("hourly") // hourly | salary
+  /// daily | hourly | mixed
+  payType        String   @default("daily")
+  /// installation | sand_finish
+  sector         String?
+  dailyRate      Decimal  @default(0) @db.Decimal(12, 2)
   hourlyRate     Decimal  @default(0) @db.Decimal(12, 2)
+  overtimeRate   Decimal  @default(0) @db.Decimal(12, 2)
+  allowWorkDateOutsidePeriod Boolean @default(false)
   status         String   @default("active")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   timesheets PayrollTimesheet[]
   hourBankEntries PayrollHourBankEntry[]
+  periodAdjustments PayrollPeriodAdjustment[]
 
   @@index([organizationId])
   @@index([userId])
@@ -1270,9 +1277,28 @@ model PayrollPeriod {
   updatedAt      DateTime @updatedAt
 
   timesheets PayrollTimesheet[]
+  adjustments PayrollPeriodAdjustment[]
   financeAbatements FinancePayrollAbatement[]
 
   @@index([organizationId])
+}
+
+model PayrollPeriodAdjustment {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  periodId       String   @db.Uuid
+  period         PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employeeId     String   @db.Uuid
+  employee       PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reimbursement  Decimal  @default(0) @db.Decimal(12, 2)
+  discount       Decimal  @default(0) @db.Decimal(12, 2)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([periodId, employeeId])
+  @@index([organizationId])
+  @@index([periodId])
 }
 
 model PayrollTimesheet {
@@ -1285,7 +1311,13 @@ model PayrollTimesheet {
   projectId      String?  @db.Uuid
   project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   workDate       DateTime @db.Date
+  /// Total hours equivalent (days*8 + regular + overtime) for simple rollups
   hours          Decimal  @default(0) @db.Decimal(8, 2)
+  daysWorked     Decimal  @default(0) @db.Decimal(8, 2)
+  regularHours   Decimal  @default(0) @db.Decimal(8, 2)
+  overtimeHours  Decimal  @default(0) @db.Decimal(8, 2)
+  dailyRateOverride Decimal? @db.Decimal(12, 2)
+  calculatedAmount Decimal @default(0) @db.Decimal(12, 2)
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1295,7 +1327,7 @@ model PayrollTimesheet {
   @@index([employeeId])
 }
 
-/// Self-service hour bank — employee logs own hours; only they (or payroll managers) see them.
+/// Self-service hour bank — employee logs own hours; admin approves into the timesheet.
 model PayrollHourBankEntry {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
@@ -1307,11 +1339,15 @@ model PayrollHourBankEntry {
   notes          String?
   /// pending | approved | rejected
   status         String   @default("pending")
+  reviewedAt     DateTime?
+  reviewedById   String?  @db.Uuid
+  timesheetId    String?  @db.Uuid
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([organizationId])
   @@index([employeeId])
+  @@index([organizationId, status])
   @@index([organizationId, workDate])
 }
 
