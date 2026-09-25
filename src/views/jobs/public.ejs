@@ -6,117 +6,307 @@
   <title><%= title %> · <%= organization.name %></title>
   <style>
     :root {
-      --accent: <%= organization.primaryColor || '#1a2036' %>;
+      --primary: <%= organization.primaryColor || '#1a2036' %>;
+      --primary-muted: #2a3150;
+      --secondary: #d6b598;
+      --secondary-dark: #c4a588;
+      --panel: #f0f2f8;
+      --line: #595e6b;
+      --rule: #dbdee8;
+      --page: #e8eaef;
+      --white: #ffffff;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      min-height: 100vh;
       font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-      background: #f4f1ea;
-      color: #211d1a;
-      line-height: 1.45;
+      background: var(--page);
+      color: var(--primary);
+      line-height: 1.4;
+      padding: 1.25rem 0.85rem 2rem;
     }
-    header {
-      background: var(--accent);
+    .slip {
+      max-width: 560px;
+      margin: 0 auto;
+      background: var(--white);
+      box-shadow: 0 8px 28px rgba(26, 32, 54, 0.12);
+      overflow: hidden;
+    }
+    .slip__accent {
+      height: 5px;
+      background: var(--secondary);
+    }
+    .slip__header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.85rem;
+      padding: 1.15rem 1.25rem 1rem;
+      align-items: start;
+      border-bottom: 1px solid var(--rule);
+    }
+    .slip__brand {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      min-width: 0;
+    }
+    .slip__logo {
+      width: 52px;
+      height: 52px;
+      object-fit: contain;
+      flex-shrink: 0;
+      border-radius: 6px;
+      background: var(--panel);
+    }
+    .slip__logo-fallback {
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+      border-radius: 6px;
+      background: var(--primary);
       color: #fff;
-      padding: 1.35rem 1.25rem 1.5rem;
-    }
-    header .org { font-size: 0.8rem; opacity: 0.85; letter-spacing: 0.02em; }
-    header h1 { margin: 0.35rem 0 0; font-size: 1.35rem; font-weight: 700; }
-    header .hello { margin-top: 0.65rem; font-size: 0.95rem; opacity: 0.95; }
-    main { max-width: 560px; margin: 0 auto; padding: 1.25rem; }
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      padding: 1.1rem 1.15rem;
-      margin-bottom: 0.85rem;
-      box-shadow: 0 1px 3px rgba(33, 29, 26, 0.06);
-    }
-    .card h2 {
-      margin: 0 0 0.65rem;
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #8a8074;
+      display: grid;
+      place-items: center;
       font-weight: 700;
+      font-size: 1.1rem;
     }
-    .meta { display: grid; gap: 0.55rem; }
-    .meta-row { display: grid; grid-template-columns: 7rem 1fr; gap: 0.5rem; font-size: 0.92rem; }
-    .meta-row dt { color: #8a8074; font-weight: 600; }
-    .meta-row dd { margin: 0; }
-    .notes { white-space: pre-wrap; font-size: 0.95rem; }
-    .muted { color: #8a8074; font-size: 0.85rem; }
+    .slip__org {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+    .slip__tag {
+      margin: 0.2rem 0 0;
+      font-size: 0.72rem;
+      color: var(--primary-muted);
+    }
+    .slip__badge {
+      width: 148px;
+      background: var(--panel);
+      border-left: 3px solid var(--secondary-dark);
+      padding: 0.55rem 0.65rem 0.6rem;
+    }
+    .slip__badge-title {
+      margin: 0;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+    .slip__badge-job {
+      margin: 0.25rem 0 0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--secondary-dark);
+    }
+    .slip__badge-meta {
+      margin: 0.2rem 0 0;
+      font-size: 0.68rem;
+      color: var(--line);
+    }
+    .slip__body { padding: 1rem 1.25rem 1.35rem; }
+    .slip__hello {
+      margin: 0 0 1rem;
+      padding-bottom: 0.85rem;
+      border-bottom: 1px solid var(--rule);
+    }
+    .slip__hello-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--secondary-dark);
+      margin-bottom: 0.2rem;
+    }
+    .slip__hello-name {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .slip__hello-sub {
+      margin: 0.2rem 0 0;
+      font-size: 0.78rem;
+      color: var(--line);
+    }
+    .section {
+      margin-bottom: 0.95rem;
+    }
+    .section__title {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 0 0 0.55rem;
+      background: rgba(214, 181, 152, 0.22);
+      min-height: 1.85rem;
+      border-left: 3px solid var(--primary);
+      padding: 0.35rem 0.65rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+    .kv {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.35rem 1rem;
+      padding: 0.28rem 0;
+      font-size: 0.88rem;
+      border-bottom: 1px solid var(--rule);
+    }
+    .kv:last-child { border-bottom: none; }
+    .kv dt {
+      margin: 0;
+      color: var(--line);
+      font-weight: 500;
+    }
+    .kv dd {
+      margin: 0;
+      text-align: right;
+      font-weight: 600;
+      color: var(--primary);
+      max-width: 60%;
+      word-break: break-word;
+    }
+    .kv dd.strong { font-weight: 700; }
     .status {
       display: inline-block;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-      background: #eef2ff;
-      color: #3730a3;
-      font-size: 0.75rem;
+      padding: 0.12rem 0.45rem;
+      background: var(--panel);
+      color: var(--primary);
+      font-size: 0.72rem;
       font-weight: 700;
       text-transform: capitalize;
+      border-left: 2px solid var(--secondary-dark);
     }
-    ul.team { margin: 0; padding-left: 1.1rem; }
-    ul.team li { margin: 0.2rem 0; }
+    .list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .list li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid var(--rule);
+      font-size: 0.88rem;
+    }
+    .list li:last-child { border-bottom: none; }
+    .list .qty {
+      color: var(--line);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .notes {
+      margin: 0;
+      white-space: pre-wrap;
+      font-size: 0.88rem;
+      color: var(--primary);
+      line-height: 1.5;
+    }
+    .slip__foot {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--rule);
+      font-size: 0.72rem;
+      color: var(--line);
+      text-align: center;
+    }
+    @media (max-width: 480px) {
+      .slip__header { grid-template-columns: 1fr; }
+      .slip__badge { width: 100%; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div class="org"><%= organization.name %></div>
-    <h1><%= job.title %></h1>
-    <p class="hello">Olá, <%= tempWorker.name %> — informações do seu trabalho</p>
-  </header>
-  <main>
-    <div class="card">
-      <h2>Detalhes</h2>
-      <dl class="meta">
-        <% if (job.number != null) { %>
-        <div class="meta-row"><dt>Job #</dt><dd><%= job.number %></dd></div>
+  <article class="slip" aria-label="Ticket do job">
+    <div class="slip__accent" aria-hidden="true"></div>
+    <header class="slip__header">
+      <div class="slip__brand">
+        <% if (organization.logoUrl) { %>
+          <img class="slip__logo" src="<%= organization.logoUrl %>" alt="" width="52" height="52" />
+        <% } else { %>
+          <div class="slip__logo-fallback" aria-hidden="true"><%= String(organization.name || 'O').charAt(0).toUpperCase() %></div>
         <% } %>
-        <div class="meta-row"><dt>Estado</dt><dd><span class="status"><%= job.status %></span></dd></div>
-        <div class="meta-row"><dt>Cliente</dt><dd><%= job.client %></dd></div>
-        <div class="meta-row"><dt>Local</dt><dd><%= job.address || '—' %></dd></div>
-        <div class="meta-row">
-          <dt>Início</dt>
-          <dd><%= job.scheduledStart ? new Date(job.scheduledStart).toLocaleString('pt-BR') : '—' %></dd>
+        <div>
+          <p class="slip__org"><%= organization.name %></p>
+          <p class="slip__tag">Job ticket · campo</p>
         </div>
-        <div class="meta-row">
-          <dt>Fim</dt>
-          <dd><%= job.scheduledEnd ? new Date(job.scheduledEnd).toLocaleString('pt-BR') : '—' %></dd>
-        </div>
-      </dl>
-    </div>
+      </div>
+      <aside class="slip__badge">
+        <p class="slip__badge-title">Job ticket</p>
+        <p class="slip__badge-job"><%= job.number != null ? ('#' + job.number) : 'Job' %></p>
+        <% if (job.scheduledStart) { %>
+          <p class="slip__badge-meta"><%= new Date(job.scheduledStart).toLocaleDateString('pt-BR') %></p>
+        <% } %>
+        <p class="slip__badge-meta">Emitido <%= new Date().toLocaleDateString('pt-BR') %></p>
+      </aside>
+    </header>
 
-    <% if (job.services && job.services.length) { %>
-    <div class="card">
-      <h2>Serviços</h2>
-      <ul class="team">
-        <% job.services.forEach(function (svc) { %>
-          <li><%= svc.name %><% if (svc.quantitySqft) { %> — <%= svc.quantitySqft %> sqft<% } %></li>
-        <% }) %>
-      </ul>
-    </div>
-    <% } %>
+    <div class="slip__body">
+      <div class="slip__hello">
+        <span class="slip__hello-label">Funcionário(a) temporário</span>
+        <p class="slip__hello-name"><%= tempWorker.name %></p>
+        <p class="slip__hello-sub">Informações do trabalho atribuído a si</p>
+      </div>
 
-    <% if (job.team && job.team.length) { %>
-    <div class="card">
-      <h2>Equipe</h2>
-      <ul class="team">
-        <% job.team.forEach(function (name) { %>
-          <li><%= name %></li>
-        <% }) %>
-      </ul>
-    </div>
-    <% } %>
+      <section class="section">
+        <h2 class="section__title">Resumo do job</h2>
+        <dl>
+          <div class="kv"><dt>Título</dt><dd class="strong"><%= job.title %></dd></div>
+          <div class="kv"><dt>Estado</dt><dd><span class="status"><%= job.status %></span></dd></div>
+          <div class="kv"><dt>Cliente</dt><dd><%= job.client %></dd></div>
+          <div class="kv"><dt>Local</dt><dd><%= job.address || '—' %></dd></div>
+          <div class="kv">
+            <dt>Início</dt>
+            <dd><%= job.scheduledStart ? new Date(job.scheduledStart).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—' %></dd>
+          </div>
+          <div class="kv">
+            <dt>Fim</dt>
+            <dd><%= job.scheduledEnd ? new Date(job.scheduledEnd).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—' %></dd>
+          </div>
+        </dl>
+      </section>
 
-    <% if (job.notes) { %>
-    <div class="card">
-      <h2>Instruções</h2>
-      <p class="notes"><%= job.notes %></p>
-    </div>
-    <% } %>
+      <% if (job.services && job.services.length) { %>
+      <section class="section">
+        <h2 class="section__title">Serviços</h2>
+        <ul class="list">
+          <% job.services.forEach(function (svc) { %>
+            <li>
+              <span><%= svc.name %></span>
+              <span class="qty"><%= svc.quantitySqft ? (svc.quantitySqft + ' sqft') : '' %></span>
+            </li>
+          <% }) %>
+        </ul>
+      </section>
+      <% } %>
 
-    <p class="muted">Este link é pessoal. Não partilhe com outras pessoas.</p>
-  </main>
+      <% if (job.team && job.team.length) { %>
+      <section class="section">
+        <h2 class="section__title">Equipe</h2>
+        <ul class="list">
+          <% job.team.forEach(function (name) { %>
+            <li><span><%= name %></span><span></span></li>
+          <% }) %>
+        </ul>
+      </section>
+      <% } %>
+
+      <% if (job.notes) { %>
+      <section class="section">
+        <h2 class="section__title">Instruções</h2>
+        <p class="notes"><%= job.notes %></p>
+      </section>
+      <% } %>
+
+      <p class="slip__foot">Este link é pessoal. Não partilhe com outras pessoas.</p>
+    </div>
+  </article>
 </body>
 </html>
