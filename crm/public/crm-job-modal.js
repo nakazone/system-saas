@@ -5,8 +5,9 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260925-services";
+  const CSS_HREF = "crm-job-modal.css?v=20260925-sections";
   let editingId = null;
+  let editSection = "all";
   let canManage = false;
   let lookupsReady = false;
   let userOptions = [];
@@ -77,81 +78,91 @@
   <h2 id="jobModalTitle">Novo job</h2>
   <form class="jobs-form" id="jobForm">
     <input type="hidden" id="jobId" />
-    <label>Título *
-      <input type="text" id="jobTitle" required maxlength="200" />
-    </label>
-    <div class="jobs-form-row">
-      <label>Status
-        <select id="jobStatus">
-          <option value="draft">Draft</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="in_progress">In progress</option>
-          <option value="completed">Completed</option>
-          <option value="canceled">Canceled</option>
-        </select>
+    <div class="jobs-section" data-job-section="details">
+      <label>Título *
+        <input type="text" id="jobTitle" required maxlength="200" />
       </label>
-      <label>Origem
-        <select id="jobSourceType">
-          <option value="builder">Builder</option>
-          <option value="contractor">Contractor</option>
-          <option value="internal">Internal</option>
-          <option value="other">Other</option>
-        </select>
-      </label>
-    </div>
-    <label>Nome da origem
-      <input type="text" id="jobSourceName" maxlength="200" placeholder="Empresa / contato" />
-    </label>
-    <div class="jobs-form-row">
-      <label>Cliente
-        <select id="jobCustomer"><option value="">—</option></select>
-      </label>
-      <label>Builder
-        <select id="jobBuilder"><option value="">—</option></select>
-      </label>
-    </div>
-    <label>Endereço
-      <input type="text" id="jobAddress" maxlength="500" autocomplete="street-address" />
-    </label>
-    <div class="jobs-form-row">
-      <label>Início
-        <input type="datetime-local" id="jobStart" />
-      </label>
-      <label>Fim
-        <input type="datetime-local" id="jobEnd" />
-      </label>
-    </div>
-    <label>Responsável
-      <select id="jobAssignee"><option value="">—</option></select>
-    </label>
-    <fieldset class="jobs-services-fieldset">
-      <legend>Serviços</legend>
-      <p class="jobs-hint">Preço Loja do catálogo; se o job for Builder, usa preço partner quando existir.</p>
-      <div id="jobServicesList" class="jobs-services-list"></div>
-      <button type="button" class="btn btn-secondary btn-sm" id="btnAddService">+ Serviço</button>
-      <p class="jobs-services-total" id="jobServicesTotal">Total: $0.00</p>
-    </fieldset>
-    <fieldset class="jobs-team-fieldset">
-      <legend>Equipe</legend>
-      <p class="jobs-hint">Selecione vários funcionários para este job (além do responsável).</p>
-      <div class="jobs-team-list" id="jobTeamList"></div>
-    </fieldset>
-    <div class="jobs-temp-block" id="jobTempBlock" hidden>
-      <div class="jobs-temp-head">
-        <strong>Funcionários temporários</strong>
-        <span class="jobs-hint">Sem login CRM — emita um link com as infos do job.</span>
+      <div class="jobs-form-row">
+        <label>Status
+          <select id="jobStatus">
+            <option value="draft">Draft</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="in_progress">In progress</option>
+            <option value="completed">Completed</option>
+            <option value="canceled">Canceled</option>
+          </select>
+        </label>
+        <label>Origem
+          <select id="jobSourceType">
+            <option value="builder">Builder</option>
+            <option value="contractor">Contractor</option>
+            <option value="internal">Internal</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
       </div>
-      <div class="jobs-temp-form">
-        <input type="text" id="tempName" maxlength="200" placeholder="Nome *" />
-        <input type="tel" id="tempPhone" maxlength="40" placeholder="Telefone" />
-        <input type="email" id="tempEmail" maxlength="200" placeholder="E-mail" />
-        <button type="button" class="btn btn-secondary btn-sm" id="btnAddTemp">Adicionar</button>
+      <label>Nome da origem
+        <input type="text" id="jobSourceName" maxlength="200" placeholder="Empresa / contato" />
+      </label>
+      <div class="jobs-form-row">
+        <label>Cliente
+          <select id="jobCustomer"><option value="">—</option></select>
+        </label>
+        <label>Builder
+          <select id="jobBuilder"><option value="">—</option></select>
+        </label>
       </div>
-      <ul class="jobs-temp-list" id="jobTempList"></ul>
+      <label>Endereço
+        <input type="text" id="jobAddress" maxlength="500" autocomplete="street-address" />
+      </label>
     </div>
-    <label>Notas
-      <textarea id="jobNotes" rows="3" maxlength="8000"></textarea>
-    </label>
+    <div class="jobs-section" data-job-section="schedule">
+      <div class="jobs-form-row">
+        <label>Início
+          <input type="datetime-local" id="jobStart" />
+        </label>
+        <label>Fim
+          <input type="datetime-local" id="jobEnd" />
+        </label>
+      </div>
+    </div>
+    <div class="jobs-section" data-job-section="team">
+      <label>Responsável
+        <select id="jobAssignee"><option value="">—</option></select>
+      </label>
+      <fieldset class="jobs-team-fieldset">
+        <legend>Equipe</legend>
+        <p class="jobs-hint">Selecione vários funcionários para este job (além do responsável).</p>
+        <div class="jobs-team-list" id="jobTeamList"></div>
+      </fieldset>
+      <div class="jobs-temp-block" id="jobTempBlock" hidden>
+        <div class="jobs-temp-head">
+          <strong>Funcionários temporários (avulsos)</strong>
+          <span class="jobs-hint">Cadastre e envie o ticket por WhatsApp ou SMS. Informe o telefone com DDD.</span>
+        </div>
+        <div class="jobs-temp-form">
+          <input type="text" id="tempName" maxlength="200" placeholder="Nome *" autocomplete="off" />
+          <input type="tel" id="tempPhone" maxlength="40" placeholder="Telefone (WhatsApp)" autocomplete="tel" />
+          <input type="email" id="tempEmail" maxlength="200" placeholder="E-mail" autocomplete="email" />
+          <button type="button" class="btn btn-secondary btn-sm" id="btnAddTemp">Adicionar</button>
+        </div>
+        <ul class="jobs-temp-list" id="jobTempList"></ul>
+      </div>
+    </div>
+    <div class="jobs-section" data-job-section="services">
+      <fieldset class="jobs-services-fieldset">
+        <legend>Serviços</legend>
+        <p class="jobs-hint">Preço Loja do catálogo; se o job for Builder, usa preço partner quando existir.</p>
+        <div id="jobServicesList" class="jobs-services-list"></div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnAddService">+ Serviço</button>
+        <p class="jobs-services-total" id="jobServicesTotal">Total: $0.00</p>
+      </fieldset>
+    </div>
+    <div class="jobs-section" data-job-section="notes">
+      <label>Notas
+        <textarea id="jobNotes" rows="3" maxlength="8000"></textarea>
+      </label>
+    </div>
     <div class="jobs-modal-actions">
       <a class="btn btn-secondary" id="btnViewJob" href="jobs.html" hidden>Abrir job</a>
       <a class="btn btn-secondary" id="btnViewSchedule" href="schedule.html" hidden>Ver no Schedule</a>
@@ -330,22 +341,82 @@
       return;
     }
     list.innerHTML = tempWorkersCache
-      .map(
-        (t) => `<li data-temp-id="${escapeHtml(t.id)}">
+      .map((t) => {
+        const share = t.share || {};
+        const hasShare = Boolean(share.url);
+        return `<li data-temp-id="${escapeHtml(t.id)}">
           <div class="jobs-temp-row">
             <div>
               <strong>${escapeHtml(t.name)}</strong>
-              <span class="jobs-hint">${escapeHtml([t.phone, t.email].filter(Boolean).join(" · ") || "—")}</span>
+              <span class="jobs-hint">${escapeHtml([t.phone, t.email].filter(Boolean).join(" · ") || "Sem telefone — adicione para WhatsApp direto")}</span>
             </div>
             <div class="jobs-temp-actions">
-              <button type="button" class="btn btn-secondary btn-sm job-temp-link" data-id="${escapeHtml(t.id)}">Link</button>
+              <button type="button" class="btn btn-primary btn-sm job-temp-wa" data-id="${escapeHtml(t.id)}">WhatsApp</button>
+              <button type="button" class="btn btn-secondary btn-sm job-temp-sms" data-id="${escapeHtml(t.id)}">SMS</button>
+              <button type="button" class="btn btn-secondary btn-sm job-temp-copy" data-id="${escapeHtml(t.id)}">Copiar link</button>
               <button type="button" class="btn btn-danger btn-sm job-temp-del" data-id="${escapeHtml(t.id)}">Remover</button>
             </div>
           </div>
-          <p class="jobs-temp-link-out" id="tempLinkOut-${escapeHtml(t.id)}" hidden></p>
-        </li>`,
-      )
+          <p class="jobs-temp-link-out" id="tempLinkOut-${escapeHtml(t.id)}" ${hasShare ? "" : "hidden"}>
+            ${
+              hasShare
+                ? `<a href="${escapeHtml(share.url)}" target="_blank" rel="noopener">${escapeHtml(share.url)}</a>`
+                : ""
+            }
+          </p>
+        </li>`;
+      })
       .join("");
+  }
+
+  function showShareOut(id, share) {
+    const out = document.getElementById(`tempLinkOut-${id}`);
+    if (!out || !share?.url) return;
+    out.hidden = false;
+    out.innerHTML = `<a href="${escapeHtml(share.url)}" target="_blank" rel="noopener">${escapeHtml(share.url)}</a>`;
+  }
+
+  async function ensureTempShare(id) {
+    const cached = tempWorkersCache.find((t) => t.id === id);
+    if (cached?.share?.url && cached.share.whatsapp_url) return cached.share;
+    const j = await api(`/api/work-orders/${editingId}/temp-workers/${id}/share-link`, { method: "POST" });
+    const share = {
+      url: j.data?.url || "",
+      whatsapp_url: j.data?.whatsapp_url || "",
+      sms_url: j.data?.sms_url || "",
+      expires_at: j.data?.expires_at || null,
+    };
+    tempWorkersCache = tempWorkersCache.map((t) => (t.id === id ? { ...t, share } : t));
+    showShareOut(id, share);
+    return share;
+  }
+
+  async function sendTempShare(id, channel) {
+    if (!editingId || !canManage) return;
+    try {
+      const share = await ensureTempShare(id);
+      if (!share?.url) throw new Error("Não foi possível gerar o link");
+      if (channel === "whatsapp" && share.whatsapp_url) {
+        window.open(share.whatsapp_url, "_blank", "noopener");
+        notify("Abra o WhatsApp e envie a mensagem.", "success");
+        return;
+      }
+      if (channel === "sms" && share.sms_url) {
+        window.location.href = share.sms_url;
+        notify("Abra o SMS e envie a mensagem.", "success");
+        return;
+      }
+      if (channel === "copy") {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(share.url);
+          notify("Link copiado. Cole no WhatsApp ou SMS.", "success");
+        } else {
+          window.prompt("Copie o link do ticket:", share.url);
+        }
+      }
+    } catch (err) {
+      notify(err.message || "Erro ao gerar/enviar o link", "error");
+    }
   }
 
   async function loadLookups() {
@@ -389,11 +460,45 @@
     }
   }
 
+
+  const SECTION_TITLES = {
+    all: null,
+    details: "Editar detalhes",
+    schedule: "Editar agenda",
+    team: "Equipe & temporários",
+    services: "Serviços do job",
+    notes: "Notas",
+  };
+
+  function applySectionVisibility(section) {
+    editSection = section || "all";
+    const form = $("jobForm");
+    if (!form) return;
+    const showAll = !editSection || editSection === "all";
+    form.querySelectorAll("[data-job-section]").forEach((el) => {
+      const key = el.getAttribute("data-job-section");
+      el.hidden = !(showAll || key === editSection);
+    });
+    const titleEl = $("jobTitle");
+    if (titleEl) {
+      // Hidden required fields block submit in some browsers
+      titleEl.required = showAll || editSection === "details";
+    }
+    // Temps only when editing an existing job in team/all
+    if ($("jobTempBlock")) {
+      const teamVisible = showAll || editSection === "team";
+      if (!teamVisible) $("jobTempBlock").hidden = true;
+      else renderTempList();
+    }
+    $("btnCancelWo").hidden = !(showAll && editingId && canManage);
+  }
+
   function openModal(title) {
-    $("jobModalTitle").textContent = title;
+    const sectionTitle = SECTION_TITLES[editSection];
+    $("jobModalTitle").textContent = sectionTitle || title;
     $("jobModal").classList.add("is-open");
     $("jobModalBackdrop").classList.add("is-open");
-    $("btnCancelWo").hidden = !editingId || !canManage;
+    applySectionVisibility(editSection);
     renderTempList();
     const onDetail = /job-detail\.html/i.test(location.pathname);
     const viewJob = $("btnViewJob");
@@ -417,6 +522,8 @@
     $("jobModal")?.classList.remove("is-open");
     $("jobModalBackdrop")?.classList.remove("is-open");
     editingId = null;
+    editSection = "all";
+    applySectionVisibility("all");
     tempWorkersCache = [];
     serviceRows = [];
     if ($("jobForm")) $("jobForm").reset();
@@ -437,6 +544,7 @@
     }
     await loadLookups();
     editingId = null;
+    editSection = "all";
     tempWorkersCache = [];
     serviceRows = [];
     $("jobForm").reset();
@@ -465,8 +573,9 @@
     openModal("Novo job");
   }
 
-  async function openEdit(id) {
+  async function openEdit(id, opts) {
     await loadLookups();
+    editSection = (opts && opts.section) || "all";
     const j = await api(`/api/work-orders/${id}`);
     const wo = j.data;
     editingId = wo.id;
@@ -523,7 +632,7 @@
       if (j.conflicts && j.conflicts.length) {
         notify("Salvo com aviso de conflito de agenda.", "warning");
       } else {
-        notify(wasCreate ? "Job criado. Pode adicionar temporários e emitir links." : "Job salvo.", "success");
+        notify(wasCreate ? "Job criado. Pode adicionar temporários e enviar o ticket." : "Job salvo.", "success");
       }
       if (wasCreate && j.data?.id) {
         editingId = j.data.id;
@@ -538,6 +647,17 @@
         renderTeamCheckboxes((j.data.members || []).map((m) => m.user_id));
         renderServices();
         openModal(j.data.number != null ? `Job #${j.data.number}` : "Editar job");
+        savedListeners.forEach((fn) => {
+          try {
+            fn(j.data);
+          } catch (_) {}
+        });
+        return;
+      }
+      // Keep modal open on edit so temps can be shared without reopening
+      if (editingId && j.data) {
+        tempWorkersCache = Array.isArray(j.data.temp_workers) ? j.data.temp_workers : tempWorkersCache;
+        renderTempList();
         savedListeners.forEach((fn) => {
           try {
             fn(j.data);
@@ -589,14 +709,16 @@
           email: ($("tempEmail")?.value || "").trim() || null,
         }),
       });
-      tempWorkersCache = [...tempWorkersCache, j.data];
+      const row = { ...j.data, share: j.data?.share || null };
+      tempWorkersCache = [...tempWorkersCache, row];
       if ($("tempName")) $("tempName").value = "";
       if ($("tempPhone")) $("tempPhone").value = "";
       if ($("tempEmail")) $("tempEmail").value = "";
       renderTempList();
-      notify("Temporário adicionado.", "success");
+      notify("Temporário adicionado. Use WhatsApp ou SMS para enviar o ticket.", "success");
+      if (row.share?.url) showShareOut(row.id, row.share);
     } catch (err) {
-      notify(err.message || "Erro", "error");
+      notify(err.message || "Erro ao adicionar temporário", "error");
     }
   }
 
@@ -613,39 +735,6 @@
     }
   }
 
-  async function issueTempLink(id) {
-    if (!editingId || !canManage) return;
-    try {
-      const j = await api(`/api/work-orders/${editingId}/temp-workers/${id}/share-link`, { method: "POST" });
-      const url = j.data?.url || "";
-      const out = document.getElementById(`tempLinkOut-${id}`);
-      const temp = tempWorkersCache.find((x) => x.id === id);
-      const phoneDigits = String(temp?.phone || "").replace(/\D/g, "");
-      const msg = encodeURIComponent(`Olá${temp?.name ? " " + temp.name : ""}! Segue o link do job: ${url}`);
-      const waHref = phoneDigits
-        ? `https://wa.me/${phoneDigits}?text=${msg}`
-        : `https://wa.me/?text=${msg}`;
-      const smsHref = phoneDigits
-        ? `sms:${phoneDigits}${/iPhone|iPad|Mac/i.test(navigator.userAgent) ? "&" : "?"}body=${msg}`
-        : `sms:?&body=${msg}`;
-      if (out) {
-        out.hidden = false;
-        out.innerHTML = `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
-          <button type="button" class="btn btn-secondary btn-sm job-temp-copy" data-url="${escapeHtml(url)}">Copiar</button>
-          <a class="btn btn-secondary btn-sm" href="${escapeHtml(waHref)}" target="_blank" rel="noopener">WhatsApp</a>
-          <a class="btn btn-secondary btn-sm" href="${escapeHtml(smsHref)}">SMS</a>`;
-      }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        notify("Link copiado.", "success");
-      } else {
-        notify("Link gerado.", "success");
-      }
-    } catch (err) {
-      notify(err.message || "Erro", "error");
-    }
-  }
-
   function bindOnce() {
     if (document.body.dataset.crmJobModalBound === "1") return;
     document.body.dataset.crmJobModalBound = "1";
@@ -654,6 +743,14 @@
     $("btnCancelWo").addEventListener("click", cancelJob);
     $("jobForm").addEventListener("submit", saveJob);
     $("btnAddTemp")?.addEventListener("click", () => addTempWorker());
+    ["tempName", "tempPhone", "tempEmail"].forEach((id) => {
+      $(id)?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addTempWorker();
+        }
+      });
+    });
     $("btnAddService")?.addEventListener("click", () => addServiceRow());
     $("jobSourceType")?.addEventListener("change", () => refreshPricesFromCatalog());
     $("jobBuilder")?.addEventListener("change", () => refreshPricesFromCatalog());
@@ -682,25 +779,24 @@
       renderServices();
     });
     $("jobTempList")?.addEventListener("click", (e) => {
-      const linkBtn = e.target.closest(".job-temp-link");
-      if (linkBtn) {
-        issueTempLink(linkBtn.getAttribute("data-id"));
+      const wa = e.target.closest(".job-temp-wa");
+      if (wa) {
+        sendTempShare(wa.getAttribute("data-id"), "whatsapp");
+        return;
+      }
+      const sms = e.target.closest(".job-temp-sms");
+      if (sms) {
+        sendTempShare(sms.getAttribute("data-id"), "sms");
+        return;
+      }
+      const copyBtn = e.target.closest(".job-temp-copy");
+      if (copyBtn) {
+        sendTempShare(copyBtn.getAttribute("data-id"), "copy");
         return;
       }
       const delBtn = e.target.closest(".job-temp-del");
       if (delBtn) {
         deleteTempWorker(delBtn.getAttribute("data-id"));
-        return;
-      }
-      const copyBtn = e.target.closest(".job-temp-copy");
-      if (copyBtn) {
-        const url = copyBtn.getAttribute("data-url") || "";
-        if (url && navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(url).then(
-            () => notify("Link copiado.", "success"),
-            () => notify("Não foi possível copiar.", "error"),
-          );
-        }
       }
     });
   }
@@ -726,7 +822,8 @@
   window.__crmJobModal = {
     ready,
     openCreate: (opts) => ready.then(() => openCreate(opts)),
-    openEdit: (id) => ready.then(() => openEdit(id)),
+    openEdit: (id, opts) => ready.then(() => openEdit(id, opts)),
+    openSection: (id, section) => ready.then(() => openEdit(id, { section: section || "all" })),
     close: () => close(),
     onSaved: (fn) => {
       if (typeof fn === "function") savedListeners.push(fn);

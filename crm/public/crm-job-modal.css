@@ -207,3 +207,15 @@
   font-weight: 700;
   color: #211d1a;
 }
+
+.jobs-temp-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.jobs-section[hidden] {
+  display: none !important;
+}
+.jobs-modal[data-section]:not([data-section="all"]) {
+  width: min(480px, 94vw);
+}

@@ -16,9 +16,9 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp11" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20260925-services" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20260925-sections" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-modpanel" />
-  <link rel="stylesheet" href="jobs.css?v=20260924-modpanel" />
+  <link rel="stylesheet" href="jobs.css?v=20260925-sections" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed">
@@ -78,13 +78,14 @@
             </div>
             <div class="job-detail-title-row">
               <h1 id="jobDetailTitle">Job</h1>
-              <button type="button" class="job-detail-edit-icon" id="btnEditJob" title="Editar job" aria-label="Editar job" data-crm-permission="work_orders.manage">
+              <button type="button" class="job-detail-edit-icon" id="btnEditJob" title="Editar detalhes" aria-label="Editar detalhes" data-crm-permission="work_orders.manage">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
               </button>
             </div>
           </div>
           <div class="job-detail-top__actions">
             <a class="btn btn-secondary" id="btnOpenSchedule" href="schedule.html">Ver no Schedule</a>
+            <button type="button" class="btn btn-secondary" id="btnEditJobAll" data-crm-permission="work_orders.manage">Editar tudo</button>
             <button type="button" class="btn btn-danger" id="btnDeleteJob" data-crm-permission="work_orders.manage">Excluir</button>
           </div>
         </div>
@@ -92,6 +93,10 @@
         <div class="job-detail-grid">
           <div class="job-detail-main">
             <section class="job-card">
+              <div class="job-card__head">
+                <h2>Detalhes</h2>
+                <button type="button" class="job-card__link" id="btnEditDetails" data-crm-permission="work_orders.manage">Editar</button>
+              </div>
               <div class="job-overview">
                 <div class="job-client-box">
                   <p class="job-client-box__name" id="jobClientName">—</p>
@@ -100,10 +105,29 @@
                 </div>
                 <dl class="job-meta-list">
                   <div><dt>Job #</dt><dd id="jobMetaNumber">—</dd></div>
+                  <div><dt>Título</dt><dd id="jobMetaTitle">—</dd></div>
                   <div><dt>Origem</dt><dd id="jobMetaSource">—</dd></div>
-                  <div><dt>Starts on</dt><dd id="jobMetaStart">—</dd></div>
-                  <div><dt>Ends on</dt><dd id="jobMetaEnd">—</dd></div>
-                  <div><dt>Assigned</dt><dd id="jobMetaAssignee">—</dd></div>
+                  <div>
+                    <dt>Início</dt>
+                    <dd class="job-meta-editable">
+                      <span id="jobMetaStart">—</span>
+                      <button type="button" class="job-meta-edit" id="btnEditScheduleMeta" data-crm-permission="work_orders.manage" title="Editar agenda">✎</button>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Fim</dt>
+                    <dd class="job-meta-editable">
+                      <span id="jobMetaEnd">—</span>
+                      <button type="button" class="job-meta-edit" id="btnEditScheduleMeta2" data-crm-permission="work_orders.manage" title="Editar agenda">✎</button>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Responsável</dt>
+                    <dd class="job-meta-editable">
+                      <span id="jobMetaAssignee">—</span>
+                      <button type="button" class="job-meta-edit" id="btnEditTeamMeta" data-crm-permission="work_orders.manage" title="Editar equipe">✎</button>
+                    </dd>
+                  </div>
                   <div><dt>Equipe</dt><dd id="jobMetaTeam">—</dd></div>
                 </dl>
               </div>
@@ -112,7 +136,7 @@
             <section class="job-card" id="jobTeamCard">
               <div class="job-card__head">
                 <h2>Equipe &amp; temporários</h2>
-                <button type="button" class="job-card__link" id="btnManageTeam" data-crm-permission="work_orders.manage">Gerir</button>
+                <button type="button" class="job-card__link" id="btnManageTeam" data-crm-permission="work_orders.manage">Gerir equipe</button>
               </div>
               <div id="jobTeamBody">
                 <p class="jobs-empty" style="padding:0.5rem 0">Sem equipe adicional.</p>
@@ -121,7 +145,7 @@
 
             <section class="job-card">
               <div class="job-card__head">
-                <h2>Product / Service</h2>
+                <h2>Serviços</h2>
                 <button type="button" class="job-card__link" id="btnEditServices" data-crm-permission="work_orders.manage">Editar serviços</button>
               </div>
               <div id="jobServicesBody">
@@ -151,8 +175,8 @@
 
             <section class="job-card">
               <div class="job-card__head">
-                <h2>Scheduled visits</h2>
-                <a class="job-card__link" id="btnEditSchedule" href="schedule.html">Edit in Schedule</a>
+                <h2>Agenda</h2>
+                <button type="button" class="job-card__link" id="btnEditScheduleSection" data-crm-permission="work_orders.manage">Editar agenda</button>
               </div>
               <div id="jobVisitsBody">
                 <p class="jobs-empty" style="padding:1rem 0">Sem agendamento.</p>
@@ -209,7 +233,7 @@
   <script src="crm-shared-nav.js?v=20260924-omapp11"></script>
   <script src="crm-shell.js?v=20260924-omapp11"></script>
   
-  <script src="crm-job-modal.js?v=20260925-services"></script>
-  <script src="job-detail.js?v=20260925-services"></script>
+  <script src="crm-job-modal.js?v=20260925-sections"></script>
+  <script src="job-detail.js?v=20260925-sections"></script>
 </body>
 </html>

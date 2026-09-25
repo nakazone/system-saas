@@ -329,3 +329,23 @@
     grid-template-columns: 1fr;
   }
 }
+
+.job-meta-editable {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.job-meta-edit {
+  border: none;
+  background: transparent;
+  color: #8a8074;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  line-height: 1;
+}
+.job-meta-edit:hover {
+  color: #211d1a;
+  background: #f0ebe3;
+}

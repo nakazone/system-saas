@@ -102,6 +102,7 @@
     contact.innerHTML = bits.length ? bits.join("") : '<span style="color:#8a8074">Sem contacto</span>';
 
     $("jobMetaNumber").textContent = job.number != null ? String(job.number) : "—";
+    if ($("jobMetaTitle")) $("jobMetaTitle").textContent = job.title || "—";
     $("jobMetaSource").textContent = sourceLabel(job);
     $("jobMetaStart").textContent = fmtDay(job.scheduled_start);
     $("jobMetaEnd").textContent = fmtDay(job.scheduled_end);
@@ -168,16 +169,27 @@
       }
       if (temps.length) {
         parts.push(
-          `<div style="margin-top:0.65rem"><strong>Temporários</strong><ul style="margin:0.35rem 0 0;padding-left:1.1rem">${temps
+          `<div style="margin-top:0.65rem"><strong>Temporários</strong>
+          <ul class="job-temp-detail-list" style="margin:0.35rem 0 0;padding:0;list-style:none;display:grid;gap:0.55rem">
+          ${temps
             .map(
               (t) =>
-                `<li>${escapeHtml(t.name)}${
-                  t.phone || t.email
-                    ? ` <span style="color:#8a8074">(${escapeHtml([t.phone, t.email].filter(Boolean).join(" · "))})</span>`
-                    : ""
-                }</li>`,
+                `<li data-temp-id="${escapeHtml(t.id)}" style="border:1px solid #e8e0d4;border-radius:10px;padding:0.65rem 0.75rem">
+                  <div style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:space-between;align-items:center">
+                    <div>
+                      <strong>${escapeHtml(t.name)}</strong>
+                      <div style="color:#8a8074;font-size:0.8rem">${escapeHtml([t.phone, t.email].filter(Boolean).join(" · ") || "Sem telefone")}</div>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.35rem">
+                      <button type="button" class="btn btn-primary btn-sm job-detail-temp-wa" data-id="${escapeHtml(t.id)}">WhatsApp</button>
+                      <button type="button" class="btn btn-secondary btn-sm job-detail-temp-sms" data-id="${escapeHtml(t.id)}">SMS</button>
+                      <button type="button" class="btn btn-secondary btn-sm job-detail-temp-copy" data-id="${escapeHtml(t.id)}">Copiar link</button>
+                    </div>
+                  </div>
+                </li>`,
             )
-            .join("")}</ul></div>`,
+            .join("")}
+          </ul></div>`,
         );
       }
       if (!parts.length) {
@@ -220,16 +232,13 @@
       ? `schedule.html?focus=${encodeURIComponent(job.scheduled_start)}`
       : "schedule.html";
     $("btnOpenSchedule").href = schedHref;
-    $("btnEditSchedule").href = schedHref;
+    if ($("btnEditSchedule")) $("btnEditSchedule").href = schedHref;
 
     if (!canManage) {
-      $("btnEditJob").style.display = "none";
-      $("btnDeleteJob").style.display = "none";
-      $("btnSaveNotes").style.display = "none";
-      const manageTeam = $("btnManageTeam");
-      if (manageTeam) manageTeam.style.display = "none";
-      const editSvc = $("btnEditServices");
-      if (editSvc) editSvc.style.display = "none";
+      ["btnEditJob", "btnEditJobAll", "btnDeleteJob", "btnSaveNotes", "btnManageTeam", "btnEditServices", "btnEditDetails", "btnEditScheduleSection", "btnEditScheduleMeta", "btnEditScheduleMeta2", "btnEditTeamMeta"].forEach((id) => {
+        const el = $(id);
+        if (el) el.style.display = "none";
+      });
       $("jobNotes").readOnly = true;
     }
   }
@@ -258,6 +267,32 @@
     await api(`/api/work-orders/${jobId}`, { method: "DELETE" });
     notify("Job excluído.", "success");
     window.location.href = "jobs.html";
+  }
+
+  async function shareTempFromDetail(id, channel) {
+    if (!canManage || !jobId) return;
+    try {
+      const j = await api(`/api/work-orders/${jobId}/temp-workers/${id}/share-link`, { method: "POST" });
+      const url = j.data?.url || "";
+      if (!url) throw new Error("Link não gerado");
+      if (channel === "whatsapp" && j.data.whatsapp_url) {
+        window.open(j.data.whatsapp_url, "_blank", "noopener");
+        notify("Abra o WhatsApp e envie a mensagem.", "success");
+        return;
+      }
+      if (channel === "sms" && j.data.sms_url) {
+        window.location.href = j.data.sms_url;
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        notify("Link copiado.", "success");
+      } else {
+        window.prompt("Copie o link:", url);
+      }
+    } catch (e) {
+      notify(e.message || "Erro ao enviar ticket", "error");
+    }
   }
 
   async function boot() {
@@ -295,14 +330,32 @@
         }
       });
 
-      $("btnEditJob").addEventListener("click", () => {
-        window.__crmJobModal.openEdit(jobId).catch((e) => notify(e.message, "error"));
-      });
-      $("btnManageTeam")?.addEventListener("click", () => {
-        window.__crmJobModal.openEdit(jobId).catch((e) => notify(e.message, "error"));
-      });
-      $("btnEditServices")?.addEventListener("click", () => {
-        window.__crmJobModal.openEdit(jobId).catch((e) => notify(e.message, "error"));
+      function openSection(section) {
+        window.__crmJobModal.openEdit(jobId, { section }).catch((e) => notify(e.message, "error"));
+      }
+
+      $("btnEditJob").addEventListener("click", () => openSection("details"));
+      $("btnEditDetails")?.addEventListener("click", () => openSection("details"));
+      $("btnEditJobAll")?.addEventListener("click", () => openSection("all"));
+      $("btnManageTeam")?.addEventListener("click", () => openSection("team"));
+      $("btnEditTeamMeta")?.addEventListener("click", () => openSection("team"));
+      $("btnEditServices")?.addEventListener("click", () => openSection("services"));
+      $("btnEditScheduleSection")?.addEventListener("click", () => openSection("schedule"));
+      $("btnEditScheduleMeta")?.addEventListener("click", () => openSection("schedule"));
+      $("btnEditScheduleMeta2")?.addEventListener("click", () => openSection("schedule"));
+      $("jobTeamBody")?.addEventListener("click", (e) => {
+        const wa = e.target.closest(".job-detail-temp-wa");
+        if (wa) {
+          shareTempFromDetail(wa.getAttribute("data-id"), "whatsapp");
+          return;
+        }
+        const sms = e.target.closest(".job-detail-temp-sms");
+        if (sms) {
+          shareTempFromDetail(sms.getAttribute("data-id"), "sms");
+          return;
+        }
+        const copy = e.target.closest(".job-detail-temp-copy");
+        if (copy) shareTempFromDetail(copy.getAttribute("data-id"), "copy");
       });
       $("btnDeleteJob").addEventListener("click", () => {
         deleteJob().catch((e) => notify(e.message, "error"));

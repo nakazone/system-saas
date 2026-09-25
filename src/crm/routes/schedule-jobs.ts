@@ -8,8 +8,29 @@ import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
+import { param } from "../../lib/http/params.js";
+import { env } from "../../config/env.js";
 
 export const scheduleJobsRouter = Router();
+
+function publicJobShareUrl(req: AuthedRequest, rawToken: string): string {
+  const base = (env.APP_BASE_URL || "").replace(/\/$/, "");
+  if (base) return `${base}/public/jobs/${rawToken}`;
+  const proto =
+    (typeof req.get === "function" && (req.get("x-forwarded-proto") || "").split(",")[0]?.trim()) ||
+    req.protocol ||
+    "https";
+  const host = req.get("host") || "localhost";
+  return `${proto}://${host}/public/jobs/${rawToken}`;
+}
+
+function normalizePhoneForWhatsApp(phone: string | null | undefined): string {
+  let digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  // US local 10-digit → E.164 without +
+  if (digits.length === 10) digits = `1${digits}`;
+  return digits;
+}
 
 const WO_STATUSES = ["draft", "scheduled", "in_progress", "completed", "canceled"] as const;
 const WO_SOURCES = ["builder", "contractor", "internal", "other"] as const;
@@ -706,10 +727,10 @@ scheduleJobsRouter.post(
   requireCrmPermission("work_orders.manage"),
   async (req: AuthedRequest, res, next) => {
     try {
-      const woId = String(req.params.id);
+      const woId = param(req, "id");
       const wo = await prisma.workOrder.findFirst({
         where: { id: woId, organizationId: req.organizationId! },
-        select: { id: true },
+        select: { id: true, title: true, number: true },
       });
       if (!wo) {
         res.status(404).json({ success: false, error: "Work order not found" });
@@ -721,25 +742,47 @@ scheduleJobsRouter.post(
         return;
       }
       const d = parsed.data;
-      const row = await prisma.workOrderTempWorker.create({
-        data: {
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const row = await tx.workOrderTempWorker.create({
+          data: {
+            organizationId: req.organizationId!,
+            workOrderId: wo.id,
+            name: d.name.trim(),
+            phone: d.phone?.trim() || null,
+            email: d.email?.trim() || null,
+            notes: d.notes?.trim() || null,
+          },
+        });
+        const issued = await issuePublicAccessToken(tx, {
           organizationId: req.organizationId!,
-          workOrderId: wo.id,
-          name: d.name.trim(),
-          phone: d.phone?.trim() || null,
-          email: d.email?.trim() || null,
-          notes: d.notes?.trim() || null,
-        },
+          entityType: "work_order_temp",
+          entityId: row.id,
+          ttlDays: 60,
+        });
+        return { row, issued };
       });
+      const url = publicJobShareUrl(req, result.issued.rawToken);
+      const phone = normalizePhoneForWhatsApp(result.row.phone);
+      const msg = `Olá${result.row.name ? ` ${result.row.name}` : ""}! Segue o link do job: ${url}`;
       res.status(201).json({
         success: true,
         data: {
-          id: row.id,
-          name: row.name,
-          phone: row.phone,
-          email: row.email,
-          notes: row.notes,
-          created_at: row.createdAt.toISOString(),
+          id: result.row.id,
+          name: result.row.name,
+          phone: result.row.phone,
+          email: result.row.email,
+          notes: result.row.notes,
+          created_at: result.row.createdAt.toISOString(),
+          share: {
+            url,
+            expires_at: result.issued.expiresAt.toISOString(),
+            whatsapp_url: phone
+              ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+              : `https://wa.me/?text=${encodeURIComponent(msg)}`,
+            sms_url: phone
+              ? `sms:${phone}?body=${encodeURIComponent(msg)}`
+              : `sms:?&body=${encodeURIComponent(msg)}`,
+          },
         },
       });
     } catch (error) {
@@ -754,8 +797,8 @@ scheduleJobsRouter.delete(
   requireCrmPermission("work_orders.manage"),
   async (req: AuthedRequest, res, next) => {
     try {
-      const woId = String(req.params.id);
-      const tempId = String(req.params.tempId);
+      const woId = param(req, "id");
+      const tempId = param(req, "tempId");
       const existing = await prisma.workOrderTempWorker.findFirst({
         where: { id: tempId, workOrderId: woId, organizationId: req.organizationId! },
       });
@@ -783,8 +826,8 @@ scheduleJobsRouter.post(
   requireCrmPermission("work_orders.manage"),
   async (req: AuthedRequest, res, next) => {
     try {
-      const woId = String(req.params.id);
-      const tempId = String(req.params.tempId);
+      const woId = param(req, "id");
+      const tempId = param(req, "tempId");
       const existing = await prisma.workOrderTempWorker.findFirst({
         where: { id: tempId, workOrderId: woId, organizationId: req.organizationId! },
       });
@@ -800,9 +843,9 @@ scheduleJobsRouter.post(
           ttlDays: 60,
         }),
       );
-      const host = req.get("host") || "localhost";
-      const proto = req.protocol || "https";
-      const url = `${proto}://${host}/public/jobs/${issued.rawToken}`;
+      const url = publicJobShareUrl(req, issued.rawToken);
+      const phone = normalizePhoneForWhatsApp(existing.phone);
+      const msg = `Olá${existing.name ? ` ${existing.name}` : ""}! Segue o link do job: ${url}`;
       res.json({
         success: true,
         data: {
@@ -810,6 +853,12 @@ scheduleJobsRouter.post(
           expires_at: issued.expiresAt.toISOString(),
           temp_worker_id: existing.id,
           temp_worker_name: existing.name,
+          whatsapp_url: phone
+            ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+            : `https://wa.me/?text=${encodeURIComponent(msg)}`,
+          sms_url: phone
+            ? `sms:${phone}?body=${encodeURIComponent(msg)}`
+            : `sms:?&body=${encodeURIComponent(msg)}`,
         },
       });
     } catch (error) {
