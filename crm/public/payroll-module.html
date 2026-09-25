@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20260925-mais1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-apptop1" />
   <link rel="stylesheet" href="payroll.css?v=20260925-paymob1" />
-  <link rel="stylesheet" href="finance-payroll-mobile.css?v=20260925-paydaily1" />
+  <link rel="stylesheet" href="finance-payroll-mobile.css?v=20260925-payscroll1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20260925-device1"></script>
 </head>
@@ -168,6 +168,7 @@
           </button>
         </div>
 
+        <div class="fpm-sheet__body">
         <div class="fpm-seg fpm-seg--sheet" role="tablist" id="payMobDailyWho">
           <button type="button" class="fpm-seg__btn is-active" data-daily-who="roster">Cadastrado</button>
           <button type="button" class="fpm-seg__btn" data-daily-who="avulso">Avulso</button>
@@ -220,8 +221,10 @@
           <span>Nota (opcional)</span>
           <input type="text" id="payMobDailyNotes" placeholder="Ex.: obra #1041" maxlength="200" />
         </label>
-
-        <button type="button" class="fpm-sheet__cta" id="payMobDailySubmit">Lançar diária</button>
+        </div>
+        <div class="fpm-sheet__footer">
+          <button type="button" class="fpm-sheet__cta" id="payMobDailySubmit">Lançar diária</button>
+        </div>
       </div>
 
       <div class="mod-page crm-page payroll-page">
@@ -774,6 +777,6 @@
   <script src="crm-shared-nav.js?v=20260925-mais1"></script>
   <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
   <script src="payroll-module.js?v=20260925-meufolha1"></script>
-  <script src="payroll-mobile.js?v=20260925-paydaily1"></script>
+  <script src="payroll-mobile.js?v=20260925-payscroll1"></script>
 </body>
 </html>

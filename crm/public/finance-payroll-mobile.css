@@ -1003,7 +1003,7 @@ body.om-device-mobile.pay-app .fpm-fab-bar.is-visible {
 .fpm-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 200;
   border: none;
   padding: 0;
   background: rgba(28, 25, 23, 0.45);
@@ -1020,19 +1020,23 @@ body.om-device-mobile.pay-app .fpm-fab-bar.is-visible {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 81;
+  z-index: 201;
   max-width: 480px;
   margin: 0 auto;
-  max-height: min(88vh, 640px);
-  overflow: auto;
+  max-height: min(92dvh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--fpm-bg);
   border-radius: 22px 22px 0 0;
-  padding: 0.55rem 1.1rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.55rem 1.1rem 0;
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.12);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .fpm-sheet--tall {
-  max-height: min(92vh, 720px);
+  max-height: min(94dvh, 760px);
 }
 
 .fpm-sheet__grab {
@@ -1041,6 +1045,7 @@ body.om-device-mobile.pay-app .fpm-fab-bar.is-visible {
   border-radius: 999px;
   background: #d6d3d1;
   margin: 0.15rem auto 0.75rem;
+  flex-shrink: 0;
 }
 
 .fpm-sheet__head {
@@ -1049,6 +1054,7 @@ body.om-device-mobile.pay-app .fpm-fab-bar.is-visible {
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.85rem;
+  flex-shrink: 0;
 }
 
 .fpm-sheet__title {
@@ -1186,7 +1192,7 @@ body.om-device-mobile.pay-app .fpm-fab-bar.is-visible {
   justify-content: center;
   width: 100%;
   min-height: 50px;
-  margin-top: 1rem;
+  margin: 0;
   border: none;
   border-radius: 14px;
   background: var(--fpm-ink);
@@ -1202,8 +1208,52 @@ body.om-device-mobile.pay-app .fpm-fab-bar.is-visible {
   cursor: default;
 }
 
+.fpm-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: 0.35rem;
+}
+
+.fpm-sheet__footer {
+  flex-shrink: 0;
+  padding: 0.75rem 0 calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  background: var(--fpm-bg);
+  border-top: 1px solid var(--fpm-line);
+  margin: 0 -1.1rem;
+  padding-left: 1.1rem;
+  padding-right: 1.1rem;
+}
+
 body.fpm-sheet-open {
   overflow: hidden;
+}
+
+body.fpm-sheet-open.om-device-mobile.pay-app .dashboard-main {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
+/* Touch devices: main is the scrollport — keep Folha scrollable */
+@media (hover: none) and (pointer: coarse) {
+  body.om-device-mobile.pay-app.dashboard-app-body .dashboard-main,
+  body.om-device-mobile.fin-app.dashboard-app-body .dashboard-main {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    min-height: 0 !important;
+  }
+
+  body.om-device-mobile.pay-app .fpm,
+  body.om-device-mobile.fin-app .fpm {
+    min-height: min-content;
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 body.om-device-mobile.pay-app .fpm {

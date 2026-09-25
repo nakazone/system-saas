@@ -357,6 +357,21 @@
     }
   }
 
+  function mountSheetsToBody() {
+    // Escape dashboard-main overflow scrollport (iOS clips position:fixed inside it)
+    [
+      "payMobActionBackdrop",
+      "payMobActionSheet",
+      "payMobDailyBackdrop",
+      "payMobDailySheet",
+    ].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== document.body) {
+        document.body.appendChild(el);
+      }
+    });
+  }
+
   function closeSheets() {
     ["payMobActionSheet", "payMobDailySheet", "payMobActionBackdrop", "payMobDailyBackdrop"].forEach(
       (id) => {
@@ -372,6 +387,7 @@
       window.crmToast?.info?.("Sem permissão para gerir a folha.");
       return;
     }
+    mountSheetsToBody();
     closeSheets();
     document.getElementById("payMobActionBackdrop").hidden = false;
     document.getElementById("payMobActionSheet").hidden = false;
@@ -480,9 +496,12 @@
     if (sub && p) sub.textContent = `Semana ${formatRange(p.start_date, p.end_date)}`;
     syncDailyWhoUi();
     renderDailyEmpChips();
+    mountSheetsToBody();
     document.getElementById("payMobDailyBackdrop").hidden = false;
     document.getElementById("payMobDailySheet").hidden = false;
     document.body.classList.add("fpm-sheet-open");
+    const bodyScroll = document.querySelector("#payMobDailySheet .fpm-sheet__body");
+    if (bodyScroll) bodyScroll.scrollTop = 0;
   }
 
   async function submitDaily() {
@@ -628,6 +647,7 @@
       const perms = s.user?.permissions || [];
       canManage =
         role === "admin" || perms.includes("payroll.manage") || perms.includes("payroll.view");
+      mountSheetsToBody();
       bind();
       await loadEmployees();
       await loadPeriods();
