@@ -14,7 +14,7 @@
         var p = new URLSearchParams(location.search).get('page');
         if (p === 'crm') p = 'leads';
         if (p === 'users') { location.replace('equipe.html'); return; }
-        if (!p || p === 'dashboard') { location.replace('pipeline-lab.html'); return; }
+        if (!p || p === 'dashboard') { location.replace('home.html'); return; }
         if (p === 'leads') { location.replace('leads.html'); return; }
         if (p === 'quotes') { location.replace('quotes.html'); return; }
         if (p === 'invoices') { location.replace('invoices.html'); return; }

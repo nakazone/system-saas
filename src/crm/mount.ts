@@ -83,7 +83,7 @@ export function createCrmRouter(): Router {
   router.use("/assets", express.static(CRM_ASSETS_DIR));
 
   router.get("/", requireAuth, (_req, res) => {
-    res.redirect("/pipeline-lab.html");
+    res.redirect("/home.html");
   });
 
   // Block excluded SF modules in SaaS (deep links / bookmarks)

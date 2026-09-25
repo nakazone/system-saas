@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ObraMate" />
+  <title>Início | ObraMate</title>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}</style>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=20260924-omapp" />
+  <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260925-home1" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260925-home1" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-home1" />
+  <link rel="stylesheet" href="home.css?v=20260925-home1" />
+</head>
+<body class="dashboard-app-body om-app sidebar-collapsed home-app">
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Início</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <main class="dashboard-main home-main" id="homeMain">
+      <div class="home" id="homeRoot">
+        <header class="home-top">
+          <a class="home-brand" href="home.html" aria-label="ObraMate">
+            <img class="home-brand__mark crm-system-logo" src="/assets/favicon-192.png?v=20260924-pwa" alt="" width="34" height="34" onerror="this.style.display='none'" />
+            ObraMate
+          </a>
+          <div class="home-top__actions">
+            <button type="button" class="home-bell" id="homeBell" aria-label="Atenção">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+              <span class="home-bell__dot" aria-hidden="true"></span>
+            </button>
+            <a class="home-avatar" id="homeAvatar" href="ajustes.html" aria-label="Conta">—</a>
+          </div>
+        </header>
+
+        <p class="home-date" id="homeDate">—</p>
+        <h1 class="home-greeting" id="homeGreeting">Bom dia</h1>
+
+        <label class="home-search" id="homeSearchBtn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input type="search" id="homeSearch" placeholder="Pesquisar leads, clientes, quotes..." autocomplete="off" />
+        </label>
+
+        <div class="home-kpis">
+          <a class="home-kpi home-kpi--dark" href="pipeline-lab.html">
+            <p class="home-kpi__label">Valor do pipeline</p>
+            <p class="home-kpi__value" id="homeKpiPipeline">—</p>
+            <p class="home-kpi__meta" id="homeKpiPipelineMeta">—</p>
+          </a>
+          <a class="home-kpi home-kpi--light" href="pipeline-lab.html">
+            <p class="home-kpi__label">Taxa de conversão</p>
+            <p class="home-kpi__value" id="homeKpiConversion">—</p>
+            <p class="home-kpi__meta" id="homeKpiConversionMeta">—</p>
+          </a>
+        </div>
+
+        <nav class="home-actions" aria-label="Ações rápidas">
+          <a class="home-action" href="leads.html" id="homeNewLead">
+            <span class="home-action__icon home-action__icon--primary" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+            </span>
+            Novo lead
+          </a>
+          <a class="home-action" href="schedule.html">
+            <span class="home-action__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </span>
+            Agendar
+          </a>
+          <a class="home-action" href="quote-builder.html">
+            <span class="home-action__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+            </span>
+            Quote
+          </a>
+          <a class="home-action" href="invoices.html">
+            <span class="home-action__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/><path d="M8 7h6M8 11h6"/></svg>
+            </span>
+            Invoice
+          </a>
+        </nav>
+
+        <section class="home-card" aria-labelledby="homeTodayTitle">
+          <div class="home-card__head">
+            <h2 class="home-card__title" id="homeTodayTitle">Hoje</h2>
+            <a class="home-card__link" href="schedule.html">Ver agenda</a>
+          </div>
+          <p class="home-empty" id="homeTodayEmpty" hidden>Nada agendado para hoje.</p>
+          <ul class="home-today__list" id="homeTodayList"></ul>
+        </section>
+
+        <section class="home-card" aria-labelledby="homeAttnTitle">
+          <div class="home-card__head">
+            <h2 class="home-card__title" id="homeAttnTitle">Precisa da sua atenção</h2>
+            <span class="home-card__badge" id="homeAttnCount" hidden>0</span>
+          </div>
+          <p class="home-empty" id="homeAttnEmpty" hidden>Nada urgente no momento.</p>
+          <ul class="home-attn__list" id="homeAttnList"></ul>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js?v=20260923-i18n"></script>
+  <script src="saas-branding.js"></script>
+  <script src="crm-shared-nav.js?v=20260925-home1"></script>
+  <script src="crm-shell.js?v=20260925-home1"></script>
+  <script src="om-mobile-nav.js?v=20260925-home1"></script>
+  <script src="home.js?v=20260925-home1"></script>
+</body>
+</html>
