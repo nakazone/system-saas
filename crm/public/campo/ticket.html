@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f1ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Ticket | Campo</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="campo.css?v=20260925-campo3" />
+  <script src="/om-device.js?v=20260925-device1"></script>
+</head>
+<body class="cm-app cm-ticket">
+  <main class="cm-page cm-page--ticket" id="cmTicketRoot">
+    <header class="cm-ticket-top">
+      <button type="button" class="cm-icon-btn" id="cmTicketBack" aria-label="Voltar">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h1 class="cm-ticket-top__title" id="cmTicketTitle">Ticket</h1>
+      <button type="button" class="cm-problem-btn" id="cmProblemBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>
+        Problema
+      </button>
+    </header>
+
+    <section class="cm-ticket-hero" id="cmTicketHero">
+      <div class="cm-ticket-hero__top">
+        <p class="cm-ticket-hero__when" id="cmTicketWhen">—</p>
+        <span class="cm-badge cm-badge--hero" id="cmTicketBadge">—</span>
+      </div>
+      <h2 class="cm-ticket-hero__title" id="cmTicketJob">—</h2>
+      <p class="cm-ticket-hero__sub" id="cmTicketSub">—</p>
+      <a class="cm-ticket-nav" id="cmTicketNav" href="#" target="_blank" rel="noopener">
+        <span class="cm-ticket-nav__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3 8 8 3-8 3-3 8-3-8-8-3 8-3 3-8z"/></svg>
+        </span>
+        <span>
+          <strong id="cmTicketAddr">—</strong>
+          <small>Toque para navegar</small>
+        </span>
+      </a>
+      <div class="cm-stepper" id="cmStepper" aria-label="Status da visita"></div>
+    </section>
+
+    <div class="cm-ticket-tabs" role="tablist">
+      <button type="button" class="cm-ticket-tabs__btn is-active" data-tab="details" role="tab" aria-selected="true">Detalhes</button>
+      <button type="button" class="cm-ticket-tabs__btn" data-tab="checklist" role="tab" aria-selected="false" id="cmTabChecklist">Checklist</button>
+      <button type="button" class="cm-ticket-tabs__btn" data-tab="photos" role="tab" aria-selected="false" id="cmTabPhotos">Fotos</button>
+    </div>
+
+    <div class="cm-ticket-panel" id="cmPanelDetails" data-panel="details">
+      <div class="cm-attention" id="cmAttention" hidden>
+        <div class="cm-attention__icon" aria-hidden="true">!</div>
+        <div>
+          <p class="cm-attention__label">Atenção</p>
+          <p class="cm-attention__text" id="cmAttentionText"></p>
+        </div>
+      </div>
+      <section class="cm-scope" id="cmScope">
+        <div class="cm-scope__head">
+          <h3>Escopo</h3>
+          <span id="cmScopeTotal">—</span>
+        </div>
+        <div id="cmScopeList"></div>
+      </section>
+      <p class="cm-subtitle" id="cmNotes" hidden></p>
+    </div>
+
+    <div class="cm-ticket-panel" id="cmPanelChecklist" data-panel="checklist" hidden>
+      <div class="cm-check-head">
+        <h3>Checklist da fase</h3>
+        <span id="cmCheckCount">0 de 0</span>
+      </div>
+      <div class="cm-check-bar"><span id="cmCheckBarFill"></span></div>
+      <div id="cmCheckList"></div>
+    </div>
+
+    <div class="cm-ticket-panel" id="cmPanelPhotos" data-panel="photos" hidden>
+      <div class="cm-photos-head">
+        <h3>Fotos</h3>
+        <label class="cm-btn cm-btn--dark cm-btn--sm" style="width:auto;min-height:40px;padding:0.45rem 0.9rem">
+          Adicionar
+          <input type="file" id="cmPhotoInput" accept="image/*" capture="environment" hidden />
+        </label>
+      </div>
+      <div class="cm-photos-grid" id="cmPhotosGrid"></div>
+    </div>
+
+    <div class="cm-ticket-cta" id="cmTicketCtaWrap">
+      <button type="button" class="cm-btn cm-btn--accent" id="cmTicketCta">Estou a caminho</button>
+    </div>
+  </main>
+
+  <button type="button" class="cm-sheet-backdrop" id="cmProblemBackdrop" hidden aria-label="Fechar"></button>
+  <div class="cm-sheet" id="cmProblemSheet" role="dialog" aria-modal="true" hidden>
+    <div class="cm-sheet__grab" aria-hidden="true"></div>
+    <div class="cm-sheet__head">
+      <div>
+        <h2 class="cm-sheet__title">Reportar problema</h2>
+        <p class="cm-sheet__sub">O escritório recebe este aviso</p>
+      </div>
+      <button type="button" class="cm-sheet__close" id="cmProblemClose" aria-label="Fechar">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <label class="cm-field">
+      <span>Descrição</span>
+      <textarea id="cmProblemNote" rows="4" placeholder="Ex.: cliente não está em casa, material incompleto…"></textarea>
+    </label>
+    <button type="button" class="cm-btn cm-btn--accent" id="cmProblemSubmit" style="margin-top:0.85rem">Enviar</button>
+  </div>
+
+  <script src="campo-nav.js?v=20260925-campo3"></script>
+  <script src="ticket.js?v=20260925-campo3"></script>
+</body>
+</html>

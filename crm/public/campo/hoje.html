@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f1ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ObraMate Campo" />
+  <title>Hoje | Campo</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="campo.css?v=20260925-campo2" />
+  <script src="/om-device.js?v=20260925-device1"></script>
+</head>
+<body class="cm-app cm-hoje">
+  <p class="cm-preview-note">Campo · preview desktop (use o telemóvel ou DevTools)</p>
+  <main class="cm-page" id="cmHojeRoot">
+    <header class="cm-header">
+      <div class="cm-avatar" id="cmAvatar">DS</div>
+      <div class="cm-header__text">
+        <h1 class="cm-header__greet" id="cmGreet">Bom dia, Diego</h1>
+        <p class="cm-header__meta" id="cmMeta">Equipe A · Sexta, 25 set</p>
+      </div>
+      <div class="cm-online" aria-live="polite">
+        <span class="cm-online__dot" aria-hidden="true"></span>
+        Online
+      </div>
+    </header>
+
+    <section class="cm-ponto" aria-label="Ponto de hoje">
+      <div class="cm-ponto__top">
+        <span>Horas de hoje</span>
+        <span id="cmEntrada">Entrada —</span>
+      </div>
+      <p class="cm-ponto__timer" id="cmTimer" aria-live="polite">00:00:00</p>
+      <div class="cm-ponto__status">
+        <span class="cm-ponto__status-dot" id="cmStatusDot" aria-hidden="true"></span>
+        <div class="cm-ponto__status-body">
+          <p class="cm-ponto__status-title" id="cmStatusTitle">Na obra</p>
+          <p class="cm-ponto__status-sub" id="cmStatusSub">—</p>
+        </div>
+        <button type="button" class="cm-ponto__trocar" id="cmTrocarBtn">Trocar</button>
+      </div>
+      <div class="cm-ponto__actions">
+        <button type="button" class="cm-btn cm-btn--ghost-dark cm-btn--full" id="cmClockInBtn" hidden>Iniciar dia</button>
+        <button type="button" class="cm-btn cm-btn--ghost-dark" id="cmPauseBtn">Pausa</button>
+        <button type="button" class="cm-btn cm-btn--outline-dark" id="cmEndBtn">Encerrar dia</button>
+      </div>
+    </section>
+
+    <section class="cm-here" id="cmHereCard" aria-label="Obra atual">
+      <div class="cm-here__top">
+        <p class="cm-here__label">Você está aqui agora</p>
+        <p class="cm-here__time" id="cmHereTime">—</p>
+      </div>
+      <h2 class="cm-here__title" id="cmHereTitle">—</h2>
+      <p class="cm-here__client" id="cmHereClient">—</p>
+      <p class="cm-here__addr" id="cmHereAddr">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-4.5 7-11a7 7 0 10-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        <span id="cmHereAddrText">—</span>
+      </p>
+      <div class="cm-here__actions">
+        <a class="cm-btn cm-btn--icon" id="cmNavBtn" href="#" target="_blank" rel="noopener" aria-label="Navegar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 8 8 3-8 3-3 8-3-8-8-3 8-3 3-8z"/></svg>
+        </a>
+        <a class="cm-btn cm-btn--dark" id="cmOpenTicket" href="ticket.html?id=wo-1039">Abrir ticket</a>
+      </div>
+    </section>
+
+    <div class="cm-section-head">
+      <h2 class="cm-section-title">Hoje</h2>
+      <a class="cm-link" href="agenda.html">Ver semana</a>
+    </div>
+    <div class="cm-list" id="cmDayList"></div>
+  </main>
+
+  <button type="button" class="cm-sheet-backdrop" id="cmSheetBackdrop" hidden aria-label="Fechar"></button>
+  <div class="cm-sheet" id="cmActivitySheet" role="dialog" aria-modal="true" aria-labelledby="cmSheetTitle" hidden>
+    <div class="cm-sheet__grab" aria-hidden="true"></div>
+    <div class="cm-sheet__head">
+      <div>
+        <h2 class="cm-sheet__title" id="cmSheetTitle">O que você está fazendo?</h2>
+        <p class="cm-sheet__sub">O ponto muda na hora</p>
+      </div>
+      <button type="button" class="cm-sheet__close" id="cmSheetClose" aria-label="Fechar">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="cmActivityList"></div>
+  </div>
+
+  <script src="campo-data.js?v=20260925-campo2"></script>
+  <script src="campo-gate.js?v=20260925-campo2"></script>
+  <script src="campo-nav.js?v=20260925-campo2"></script>
+  <script src="hoje.js?v=20260925-campo2"></script>
+</body>
+</html>

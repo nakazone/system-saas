@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f1ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Agenda | Campo</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="campo.css?v=20260925-campo3" />
+  <script src="/om-device.js?v=20260925-device1"></script>
+</head>
+<body class="cm-app cm-agenda">
+  <p class="cm-preview-note">Campo · preview desktop (use o telemóvel ou DevTools)</p>
+  <main class="cm-page" id="cmAgendaRoot">
+    <div class="cm-title-row">
+      <div>
+        <h1 class="cm-title">Agenda</h1>
+        <p class="cm-subtitle" id="cmWeekLabel">Esta semana · —</p>
+      </div>
+      <div class="cm-week-nav">
+        <button type="button" class="cm-icon-btn" id="cmWeekPrev" aria-label="Semana anterior">
+          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button type="button" class="cm-icon-btn" id="cmWeekNext" aria-label="Próxima semana">
+          <svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="cm-week-strip" id="cmWeekStrip" role="tablist" aria-label="Dias da semana"></div>
+    <h2 class="cm-day-heading" id="cmDayHeading">—</h2>
+    <div id="cmAgendaList"></div>
+  </main>
+
+  <script src="campo-data.js?v=20260925-campo3"></script>
+  <script src="campo-gate.js?v=20260925-campo3"></script>
+  <script src="campo-nav.js?v=20260925-campo3"></script>
+  <script src="agenda.js?v=20260925-campo3"></script>
+</body>
+</html>

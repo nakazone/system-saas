@@ -13,6 +13,9 @@ import { supportRouter } from "./routes/support.js";
 import { pushRouter } from "./routes/push.js";
 import { scheduleJobsRouter } from "./routes/schedule-jobs.js";
 import { financeRouter } from "./routes/finance.js";
+import { campoPontoRouter } from "./routes/campo-ponto.js";
+import { campoJobsRouter } from "./routes/campo-jobs.js";
+import { campoHorasRouter } from "./routes/campo-horas.js";
 
 export const crmApiRouter = Router();
 
@@ -26,3 +29,6 @@ crmApiRouter.use(customersQuotesRouter);
 crmApiRouter.use(buildersPricingRouter);
 crmApiRouter.use(constructionPayrollRouter);
 crmApiRouter.use(cadastroPayrollUsersRouter);
+crmApiRouter.use(campoPontoRouter);
+crmApiRouter.use(campoJobsRouter);
+crmApiRouter.use(campoHorasRouter);

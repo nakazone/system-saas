@@ -325,6 +325,17 @@
       return;
     }
 
+    const role = String(session.user?.role || "").toLowerCase();
+    const isField = role === "installer" || role === "crew_lead";
+    const mobile =
+      window.__omDevice && typeof window.__omDevice.isMobile === "function"
+        ? window.__omDevice.isMobile()
+        : document.body.classList.contains("om-device-mobile");
+    if (isField && mobile) {
+      location.replace("/campo/hoje.html");
+      return;
+    }
+
     const userName = session.user?.name || session.user?.email || "";
     const first = String(userName).trim().split(/\s+/)[0] || "";
     $("homeGreeting").textContent = first ? `${greeting()}, ${first}` : greeting();

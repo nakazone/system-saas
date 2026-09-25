@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f1ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Minhas horas | Campo</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="campo.css?v=20260925-campo4" />
+  <script src="/om-device.js?v=20260925-device1"></script>
+</head>
+<body class="cm-app cm-horas">
+  <p class="cm-preview-note">Campo · preview desktop (use o telemóvel ou DevTools)</p>
+  <main class="cm-page" id="cmHorasRoot">
+    <div class="cm-title-row">
+      <div>
+        <h1 class="cm-title">Minhas horas</h1>
+        <p class="cm-subtitle" id="cmHorasWeek">Semana —</p>
+      </div>
+      <button type="button" class="cm-icon-btn cm-icon-btn--accent" id="cmManualBtn" aria-label="Lançamento manual">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+
+    <section class="cm-week-card" aria-label="Total da semana">
+      <div class="cm-week-card__top">
+        <span>Total da semana</span>
+        <span class="cm-badge cm-badge--draft" id="cmWeekStatus">Rascunho</span>
+      </div>
+      <div class="cm-week-card__metrics">
+        <div>
+          <p class="cm-week-card__label">Horas</p>
+          <p class="cm-week-card__value" id="cmHorasTotal">—</p>
+        </div>
+        <div>
+          <p class="cm-week-card__label">Produção</p>
+          <p class="cm-week-card__value" id="cmHorasProd">—</p>
+        </div>
+      </div>
+      <div class="cm-week-card__foot">
+        <span>Estimativa a receber</span>
+        <span class="cm-week-card__pay" id="cmHorasPay">—</span>
+      </div>
+    </section>
+
+    <div class="cm-seg" role="tablist">
+      <button type="button" class="cm-seg__btn is-active" data-seg="ponto" role="tab" aria-selected="true">Ponto</button>
+      <button type="button" class="cm-seg__btn" data-seg="prod" role="tab" aria-selected="false">Produção</button>
+    </div>
+
+    <div class="cm-legend" id="cmLegend">
+      <span><i style="background:var(--cm-green)"></i> Obra</span>
+      <span><i style="background:var(--cm-blue)"></i> Deslocamento</span>
+      <span><i style="background:var(--cm-orange)"></i> Compras</span>
+    </div>
+
+    <div id="cmHorasDays"></div>
+
+    <div class="cm-sticky-cta">
+      <button type="button" class="cm-btn cm-btn--dark" id="cmSubmitWeek">Enviar semana para aprovação</button>
+    </div>
+  </main>
+
+  <button type="button" class="cm-sheet-backdrop" id="cmManualBackdrop" hidden aria-label="Fechar"></button>
+  <div class="cm-sheet cm-sheet--tall" id="cmManualSheet" role="dialog" aria-modal="true" aria-labelledby="cmManualTitle" hidden>
+    <div class="cm-sheet__grab" aria-hidden="true"></div>
+    <div class="cm-sheet__head">
+      <div>
+        <h2 class="cm-sheet__title" id="cmManualTitle">Lançamento manual</h2>
+        <p class="cm-sheet__sub">Esqueceu de bater o ponto? Lance aqui</p>
+      </div>
+      <button type="button" class="cm-sheet__close" id="cmManualClose" aria-label="Fechar">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="cm-seg" role="tablist" id="cmManualType">
+      <button type="button" class="cm-seg__btn is-active" data-mtype="hours" role="tab">Horas</button>
+      <button type="button" class="cm-seg__btn" data-mtype="production" role="tab">Produção</button>
+    </div>
+
+    <div class="cm-form-block">
+      <p class="cm-form-label">Dia</p>
+      <div class="cm-chip-row" id="cmManualDays"></div>
+    </div>
+
+    <div class="cm-form-block" id="cmManualObraBlock">
+      <p class="cm-form-label">Obra</p>
+      <div class="cm-chip-row" id="cmManualJobs"></div>
+    </div>
+
+    <div class="cm-form-block" id="cmManualActBlock">
+      <p class="cm-form-label">Atividade</p>
+      <div class="cm-chip-row" id="cmManualActs"></div>
+    </div>
+
+    <div class="cm-form-block" id="cmManualDurBlock">
+      <p class="cm-form-label">Duração</p>
+      <div class="cm-stepper-input">
+        <button type="button" class="cm-stepper-input__btn" id="cmDurMinus" aria-label="Menos">−</button>
+        <div class="cm-stepper-input__value" id="cmDurValue">1h 00m</div>
+        <button type="button" class="cm-stepper-input__btn" id="cmDurPlus" aria-label="Mais">+</button>
+      </div>
+    </div>
+
+    <div class="cm-form-block" id="cmManualSqftBlock" hidden>
+      <p class="cm-form-label">Produção (ft²)</p>
+      <div class="cm-stepper-input">
+        <button type="button" class="cm-stepper-input__btn" id="cmSqftMinus" aria-label="Menos">−</button>
+        <div class="cm-stepper-input__value" id="cmSqftValue">100</div>
+        <button type="button" class="cm-stepper-input__btn" id="cmSqftPlus" aria-label="Mais">+</button>
+      </div>
+    </div>
+
+    <label class="cm-field">
+      <span>Motivo</span>
+      <input type="text" id="cmManualReason" placeholder="Ex.: esqueci de bater o ponto" />
+    </label>
+
+    <button type="button" class="cm-btn cm-btn--dark" id="cmManualSubmit" style="margin-top:1rem">Enviar para aprovação</button>
+  </div>
+
+  <script src="campo-nav.js?v=20260925-campo4"></script>
+  <script src="horas.js?v=20260925-campo4"></script>
+</body>
+</html>
