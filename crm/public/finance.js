@@ -5,6 +5,32 @@
   const money = (n) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n) || 0);
 
+  const moneyShort = (n) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: Math.abs(Number(n) || 0) >= 100 ? 0 : 2,
+    }).format(Number(n) || 0);
+
+  const MONTHS_PT = [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
+  const MONTHS_SHORT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+  let cache = { summary: null, lines: [], receivables: [], costs: [], weeks: [], selectedWeek: 0 };
+  let mobTab = "geral";
+
   function toast(msg, type) {
     if (typeof window.crmToastSafe === "function") window.crmToastSafe(msg, { type: type || "info" });
     else if (window.CrmToast && typeof window.CrmToast.show === "function") window.CrmToast.show(msg, type || "info");
@@ -63,9 +89,44 @@
     });
   }
 
+  function buildWeeks(fromStr, toStr, lines) {
+    const from = new Date(fromStr + "T12:00:00");
+    const to = new Date(toStr + "T12:00:00");
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return [];
+    const lastDay = to.getDate();
+    const ranges = [
+      { start: 1, end: Math.min(7, lastDay) },
+      { start: 8, end: Math.min(14, lastDay) },
+      { start: 15, end: Math.min(21, lastDay) },
+      { start: 22, end: lastDay },
+    ].filter((r) => r.start <= lastDay);
+    const y = from.getFullYear();
+    const m = from.getMonth();
+    const mon = MONTHS_SHORT[m];
+    return ranges.map((r) => {
+      const startKey = `${y}-${String(m + 1).padStart(2, "0")}-${String(r.start).padStart(2, "0")}`;
+      const endKey = `${y}-${String(m + 1).padStart(2, "0")}-${String(r.end).padStart(2, "0")}`;
+      let inflow = 0;
+      let outflow = 0;
+      lines.forEach((l) => {
+        const d = String(l.date || "").slice(0, 10);
+        if (d < startKey || d > endKey) return;
+        if (l.direction === "in") inflow += Number(l.amount) || 0;
+        else outflow += Number(l.amount) || 0;
+      });
+      return {
+        label: `${r.start}–${r.end} ${mon}`,
+        inflow,
+        outflow,
+        net: inflow - outflow,
+      };
+    });
+  }
+
   async function loadSummary() {
     const j = await api(`/api/finance/summary${qs()}`);
     const d = j.data || {};
+    cache.summary = d;
     const set = (id, v) => {
       const el = document.getElementById(id);
       if (el) el.textContent = money(v);
@@ -82,7 +143,15 @@
     try {
       const j = await api(`/api/finance/cashflow${qs()}`);
       const lines = (j.data && j.data.lines) || [];
+      cache.lines = lines;
+      const from = document.getElementById("finFrom")?.value || monthBounds().from;
+      const to = document.getElementById("finTo")?.value || monthBounds().to;
+      cache.weeks = buildWeeks(from, to, lines);
+      if (cache.selectedWeek >= cache.weeks.length) {
+        cache.selectedWeek = Math.max(0, cache.weeks.length - 1);
+      }
       if (count) count.textContent = `(${lines.length})`;
+      if (!body) return;
       if (!lines.length) {
         body.innerHTML = '<tr><td colspan="4" class="fin-empty">Sem movimentos neste período.</td></tr>';
         return;
@@ -106,7 +175,9 @@
         })
         .join("");
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="4" class="fin-empty">${escapeHtml(e.message || "Erro")}</td></tr>`;
+      cache.lines = [];
+      cache.weeks = [];
+      if (body) body.innerHTML = `<tr><td colspan="4" class="fin-empty">${escapeHtml(e.message || "Erro")}</td></tr>`;
     }
   }
 
@@ -116,7 +187,9 @@
     try {
       const j = await api("/api/finance/receivables");
       const rows = j.data || [];
+      cache.receivables = rows;
       if (count) count.textContent = `(${rows.length})`;
+      if (!body) return;
       if (!rows.length) {
         body.innerHTML = '<tr><td colspan="6" class="fin-empty">Nenhum invoice em aberto.</td></tr>';
         return;
@@ -135,7 +208,8 @@
         })
         .join("");
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="6" class="fin-empty">${escapeHtml(e.message || "Erro")}</td></tr>`;
+      cache.receivables = [];
+      if (body) body.innerHTML = `<tr><td colspan="6" class="fin-empty">${escapeHtml(e.message || "Erro")}</td></tr>`;
     }
   }
 
@@ -177,7 +251,9 @@
     try {
       const j = await api(`/api/finance/costs${qs()}${qs() ? "&" : "?"}status=all`);
       const rows = j.data || [];
+      cache.costs = rows;
       if (count) count.textContent = `(${rows.length})`;
+      if (!body) return;
       if (!rows.length) {
         body.innerHTML = '<tr><td colspan="6" class="fin-empty">Sem custos neste período.</td></tr>';
         return;
@@ -209,7 +285,8 @@
         })
         .join("");
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="6" class="fin-empty">${escapeHtml(e.message || "Erro")}</td></tr>`;
+      cache.costs = [];
+      if (body) body.innerHTML = `<tr><td colspan="6" class="fin-empty">${escapeHtml(e.message || "Erro")}</td></tr>`;
     }
   }
 
@@ -221,8 +298,184 @@
       .replace(/"/g, "&quot;");
   }
 
+  function setMobTab(name) {
+    mobTab = name || "geral";
+    document.querySelectorAll("[data-fin-mob-tab]").forEach((btn) => {
+      btn.classList.toggle("is-active", btn.getAttribute("data-fin-mob-tab") === mobTab);
+    });
+    document.querySelectorAll("[data-fin-mob-pane]").forEach((pane) => {
+      pane.hidden = pane.getAttribute("data-fin-mob-pane") !== mobTab;
+    });
+  }
+
+  function renderMobChart() {
+    const host = document.getElementById("finMobChart");
+    const sum = document.getElementById("finMobWeekSum");
+    if (!host) return;
+    const weeks = cache.weeks || [];
+    if (!weeks.length) {
+      host.innerHTML = "";
+      if (sum) sum.innerHTML = `<p class="fpm-empty" style="margin:0">Sem dados semanais.</p>`;
+      return;
+    }
+    const max = Math.max(1, ...weeks.map((w) => Math.max(w.inflow, w.outflow)));
+    host.innerHTML = weeks
+      .map((w, i) => {
+        const inH = Math.max(4, Math.round((w.inflow / max) * 92));
+        const outH = Math.max(4, Math.round((w.outflow / max) * 92));
+        return `<button type="button" class="fpm-chart__col${i === cache.selectedWeek ? " is-selected" : ""}" data-fin-week="${i}">
+          <span class="fpm-chart__bars">
+            <span class="fpm-chart__bar fpm-chart__bar--in" style="height:${inH}px"></span>
+            <span class="fpm-chart__bar fpm-chart__bar--out" style="height:${outH}px"></span>
+          </span>
+          <span class="fpm-chart__label">${escapeHtml(w.label)}</span>
+        </button>`;
+      })
+      .join("");
+    host.querySelectorAll("[data-fin-week]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        cache.selectedWeek = Number(btn.getAttribute("data-fin-week")) || 0;
+        renderMobChart();
+      });
+    });
+    const w = weeks[cache.selectedWeek] || weeks[0];
+    if (sum && w) {
+      sum.innerHTML = `
+        <p class="fpm-week-sum__title">Semana ${escapeHtml(w.label)}</p>
+        <div class="fpm-week-sum__row">
+          <span>Entradas ${moneyShort(w.inflow)}</span>
+          <span>Saídas ${moneyShort(w.outflow)}</span>
+          <span class="fpm-week-sum__net">${w.net >= 0 ? "" : "−"}${moneyShort(Math.abs(w.net))}</span>
+        </div>`;
+    }
+  }
+
+  function renderMobile() {
+    if (!document.getElementById("finMobile")) return;
+    const from = document.getElementById("finFrom")?.value || monthBounds().from;
+    const d = new Date(from + "T12:00:00");
+    const monthEl = document.getElementById("finMobMonth");
+    if (monthEl && !Number.isNaN(d.getTime())) {
+      monthEl.textContent = `${MONTHS_PT[d.getMonth()]} ${d.getFullYear()}`;
+    }
+
+    const s = cache.summary || {};
+    const net = Number(s.net) || 0;
+    const inflow = Number(s.inflow) || 0;
+    const outflow = Number(s.outflow) || 0;
+    const netEl = document.getElementById("finMobNet");
+    if (netEl) netEl.textContent = `${net >= 0 ? "+" : "−"}${moneyShort(Math.abs(net))}`;
+    const margin = inflow > 0 ? Math.round((net / inflow) * 100) : 0;
+    const today = new Date();
+    const meta = document.getElementById("finMobNetMeta");
+    if (meta) {
+      meta.textContent = `Margem de caixa ${margin}% · até ${today.getDate()} ${MONTHS_SHORT[today.getMonth()]}`;
+    }
+    const inEl = document.getElementById("finMobIn");
+    if (inEl) inEl.textContent = moneyShort(inflow);
+    const outEl = document.getElementById("finMobOut");
+    if (outEl) outEl.textContent = moneyShort(outflow);
+
+    renderMobChart();
+
+    const overdue = (cache.receivables || []).filter((r) => r.overdue);
+    const overdueSum = overdue.reduce((a, r) => a + (Number(r.balance) || 0), 0);
+    const od = document.getElementById("finMobOverdue");
+    if (od) od.textContent = moneyShort(overdueSum);
+    const ods = document.getElementById("finMobOverdueSub");
+    if (ods) {
+      ods.textContent = `${overdue.length} fatura${overdue.length === 1 ? "" : "s"} vencida${overdue.length === 1 ? "" : "s"}`;
+    }
+    const recvDot = document.getElementById("finMobRecvDot");
+    if (recvDot) recvDot.hidden = overdue.length === 0;
+
+    const drafts = (cache.costs || []).filter((c) => c.status === "draft");
+    const draftSum = drafts.reduce((a, c) => a + (Number(c.amount) || 0), 0);
+    const dr = document.getElementById("finMobDraft");
+    if (dr) dr.textContent = String(drafts.length);
+    const drs = document.getElementById("finMobDraftSub");
+    if (drs) drs.textContent = `${moneyShort(draftSum)} em recibos`;
+    const costDot = document.getElementById("finMobCostDot");
+    if (costDot) costDot.hidden = drafts.length === 0;
+
+    const moves = document.getElementById("finMobMoves");
+    if (moves) {
+      const recent = (cache.lines || [])
+        .slice()
+        .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+        .slice(0, 8);
+      if (!recent.length) {
+        moves.innerHTML = `<p class="fpm-empty">Sem movimentações neste mês.</p>`;
+      } else {
+        moves.innerHTML = recent
+          .map((l) => {
+            const isIn = l.direction === "in";
+            const kind =
+              l.kind === "invoice_receipt" ? "Recebimento" : l.kind === "payroll" ? "Folha" : "Custo";
+            return `<div class="fpm-mov__item">
+              <span class="fpm-mov__ico ${isIn ? "fpm-mov__ico--in" : "fpm-mov__ico--out"}" aria-hidden="true">
+                <svg viewBox="0 0 24 24">${isIn ? '<path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>' : '<path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/>'}</svg>
+              </span>
+              <span>
+                <p class="fpm-mov__title">${escapeHtml(l.label || kind)}</p>
+                <p class="fpm-mov__sub">${escapeHtml(kind)} · ${escapeHtml(l.date || "")}</p>
+              </span>
+              <span class="fpm-mov__amt ${isIn ? "is-in" : "is-out"}">${isIn ? "+" : "−"}${moneyShort(l.amount)}</span>
+            </div>`;
+          })
+          .join("");
+      }
+    }
+
+    const recvList = document.getElementById("finMobRecvList");
+    if (recvList) {
+      const rows = cache.receivables || [];
+      recvList.innerHTML = !rows.length
+        ? `<p class="fpm-empty">Nenhum invoice em aberto.</p>`
+        : rows
+            .map(
+              (r) => `<div class="fpm-list__row">
+            <div class="fpm-list__row-top">
+              <p class="fpm-list__name">${escapeHtml(r.customer_name || r.invoice_number || "Invoice")}</p>
+              <p class="fpm-list__amt">${moneyShort(r.balance)}</p>
+            </div>
+            <p class="fpm-list__meta">${escapeHtml(r.invoice_number || "")} · venc. ${escapeHtml(r.due_date || "—")}${r.overdue ? " · vencido" : ""}</p>
+          </div>`,
+            )
+            .join("");
+    }
+
+    const costList = document.getElementById("finMobCostList");
+    if (costList) {
+      const rows = cache.costs || [];
+      costList.innerHTML = !rows.length
+        ? `<p class="fpm-empty">Sem despesas neste período.</p>`
+        : rows
+            .map((c) => {
+              const action =
+                c.status === "draft"
+                  ? ` · <button type="button" class="btn btn-sm btn-primary" data-post-cost="${escapeHtml(c.id)}" data-amount="${Number(c.amount) || 0}">Lançar</button>`
+                  : ` · ${escapeHtml(c.status || "")}`;
+              return `<div class="fpm-list__row">
+              <div class="fpm-list__row-top">
+                <p class="fpm-list__name">${escapeHtml(c.description || "Custo")}</p>
+                <p class="fpm-list__amt">${moneyShort(c.amount)}</p>
+              </div>
+              <p class="fpm-list__meta">${escapeHtml(c.vendor_name || "—")} · ${escapeHtml(c.incurred_on || "")}${action}</p>
+            </div>`;
+            })
+            .join("");
+    }
+
+    const jobsList = document.getElementById("finMobJobsList");
+    if (jobsList) {
+      jobsList.innerHTML = `<p class="fpm-empty">Custos por obra em breve. <a href="jobs.html">Ver Jobs</a></p>`;
+    }
+  }
+
   async function refreshAll() {
     await Promise.all([loadSummary(), loadCashflow(), loadReceivables(), loadPayroll(), loadCosts()]);
+    renderMobile();
   }
 
   function switchTab(name) {
@@ -276,6 +529,35 @@
       const date = form?.querySelector('[name="incurred_on"]');
       if (date) date.value = new Date().toISOString().slice(0, 10);
       openModal("scanModal");
+    });
+
+    function openFinCreate() {
+      const sheet = document.getElementById("finMobCreateSheet");
+      const backdrop = document.getElementById("finMobCreateBackdrop");
+      if (sheet) sheet.hidden = false;
+      if (backdrop) backdrop.hidden = false;
+    }
+    function closeFinCreate() {
+      const sheet = document.getElementById("finMobCreateSheet");
+      const backdrop = document.getElementById("finMobCreateBackdrop");
+      if (sheet) sheet.hidden = true;
+      if (backdrop) backdrop.hidden = true;
+    }
+    document.getElementById("finMobAdd")?.addEventListener("click", openFinCreate);
+    document.getElementById("finMobCreateBackdrop")?.addEventListener("click", closeFinCreate);
+    document.getElementById("finMobScanBtn")?.addEventListener("click", () => {
+      closeFinCreate();
+      document.getElementById("btnFinScan")?.click();
+    });
+    document.getElementById("finMobCostBtn")?.addEventListener("click", () => {
+      closeFinCreate();
+      document.getElementById("btnFinAddCost")?.click();
+    });
+    document.querySelectorAll("[data-fin-mob-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => setMobTab(btn.getAttribute("data-fin-mob-tab")));
+    });
+    document.querySelectorAll("[data-fin-mob-tab-jump]").forEach((btn) => {
+      btn.addEventListener("click", () => setMobTab(btn.getAttribute("data-fin-mob-tab-jump")));
     });
 
     document.getElementById("scanForm")?.querySelector('[name="receipt_file"]')?.addEventListener("change", async (e) => {
@@ -404,7 +686,7 @@
       }
     });
 
-    document.getElementById("costsBody")?.addEventListener("click", async (e) => {
+    document.addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-post-cost]");
       if (!btn) return;
       const id = btn.getAttribute("data-post-cost");

@@ -16,11 +16,14 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp11" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
-  <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp11" />
-  <link rel="stylesheet" href="payroll.css?v=20260925-payroll-layout" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260925-mais1" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-apptop1" />
+  <link rel="stylesheet" href="payroll.css?v=20260925-paymob1" />
+  <link rel="stylesheet" href="finance-payroll-mobile.css?v=20260925-finmob1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="om-device.js?v=20260925-device1"></script>
 </head>
-<body class="dashboard-app-body om-app sidebar-collapsed">
+<body class="dashboard-app-body om-app sidebar-collapsed pay-app">
   <script>
     (function () {
       try {
@@ -28,6 +31,7 @@
           document.body.classList.remove("sidebar-collapsed");
         }
       } catch (e) {}
+      if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
     })();
   </script>
 
@@ -67,6 +71,69 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
+      <!-- Mobile Folha -->
+      <div class="fpm" id="payMobile" aria-label="Folha de Pagamento">
+        <header class="fpm-top">
+          <a class="fpm-icon-btn" href="mais.html" aria-label="Voltar">
+            <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+          </a>
+          <div class="fpm-top__center">
+            <h1 class="fpm-top__title">Folha de Pagamento</h1>
+          </div>
+          <button type="button" class="fpm-icon-btn fpm-icon-btn--accent" id="payMobAdd" aria-label="Novo período">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </button>
+        </header>
+
+        <div class="fpm-period-pair" id="payMobPeriods" role="tablist" aria-label="Períodos"></div>
+
+        <section class="fpm-hero" aria-label="Total do período">
+          <div class="fpm-hero__row">
+            <div>
+              <p class="fpm-hero__label">Total do período</p>
+              <p class="fpm-hero__value" id="payMobTotal">—</p>
+            </div>
+            <span class="fpm-badge fpm-badge--open" id="payMobStatus">—</span>
+          </div>
+          <div class="fpm-progress">
+            <div class="fpm-progress__bar"><div class="fpm-progress__fill" id="payMobProgress"></div></div>
+            <div class="fpm-progress__meta">
+              <span id="payMobProgressLabel">—</span>
+              <span id="payMobPayDate">—</span>
+            </div>
+          </div>
+          <div class="fpm-steps" id="payMobSteps">
+            <div class="fpm-step is-active"><div class="fpm-step__rail"></div><div class="fpm-step__label">Lançamentos</div></div>
+            <div class="fpm-step"><div class="fpm-step__rail"></div><div class="fpm-step__label">Aprovação</div></div>
+            <div class="fpm-step"><div class="fpm-step__rail"></div><div class="fpm-step__label">Pagamento</div></div>
+          </div>
+        </section>
+
+        <button type="button" class="fpm-alert" id="payMobAlert" hidden>
+          <span class="fpm-alert__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </span>
+          <span>
+            <p class="fpm-alert__title" id="payMobAlertTitle">—</p>
+            <p class="fpm-alert__sub">Revise antes de fechar o período.</p>
+          </span>
+          <span class="fpm-alert__chev" aria-hidden="true">›</span>
+        </button>
+
+        <div class="fpm-chips" id="payMobChips" role="tablist">
+          <button type="button" class="fpm-chip is-active" data-pay-filter="all">Todos</button>
+          <button type="button" class="fpm-chip" data-pay-filter="pending">Pendentes</button>
+          <button type="button" class="fpm-chip" data-pay-filter="daily">Por diária</button>
+          <button type="button" class="fpm-chip" data-pay-filter="hourly">Por hora</button>
+        </div>
+
+        <div class="fpm-emp" id="payMobEmpList"></div>
+      </div>
+
+      <div class="fpm-fab-bar" id="payMobFabBar">
+        <button type="button" class="fpm-fab-bar__btn" id="payMobApproveAll">Aprovar todos</button>
+      </div>
+
       <div class="mod-page crm-page payroll-page">
         <div class="mod-page-header">
           <div>
@@ -571,8 +638,11 @@
   </script>
   <script src="saas-branding.js"></script>
   <script src="crm-toast.js?v=2"></script>
-  <script src="crm-shell.js?v=20260924-omapp11"></script>
-  <script src="crm-shared-nav.js?v=20260925-payroll-layout"></script>
-  <script src="payroll-module.js?v=20260925-payroll-layout"></script>
+  <script src="om-device.js?v=20260925-device1"></script>
+  <script src="crm-shell.js?v=20260925-mais1"></script>
+  <script src="crm-shared-nav.js?v=20260925-mais1"></script>
+  <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
+  <script src="payroll-module.js?v=20260925-paymob1"></script>
+  <script src="payroll-mobile.js?v=20260925-paymob1"></script>
 </body>
 </html>

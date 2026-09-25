@@ -1,6 +1,7 @@
 /* Shared mobile bottom nav — Início / Pipeline / + / Agenda / Mais */
 :root {
   --om-tabbar-h: 64px;
+  --om-apptop-h: 56px;
   --om-tab-accent: var(--plab-accent, #e8792c);
   --om-tab-ink: var(--plab-ink, #1c1917);
   --om-tab-muted: var(--plab-muted, #78716c);
@@ -8,7 +9,8 @@
   --om-tab-line: var(--plab-line, #e7e5e4);
 }
 
-.om-tabbar {
+.om-tabbar,
+.om-app-top {
   display: none;
 }
 
@@ -23,6 +25,132 @@
 
   body.om-app.om-has-tabbar .dashboard-main {
     padding-bottom: calc(var(--om-tabbar-h) + env(safe-area-inset-bottom, 0px) + 0.75rem) !important;
+  }
+
+  /* Home-style top bar across the mobile app */
+  body.om-device-mobile.om-has-apptop .om-app-top {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 58;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    min-height: calc(var(--om-apptop-h) + env(safe-area-inset-top, 0px));
+    padding: calc(0.45rem + env(safe-area-inset-top, 0px)) 0.85rem 0.45rem;
+    background: var(--plab-bg, #f3f1ee);
+    box-sizing: border-box;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  }
+
+  body.om-device-mobile.om-has-apptop .mobile-app-header {
+    display: none !important;
+  }
+
+  body.om-device-mobile.om-has-apptop .home-top {
+    display: none !important;
+  }
+
+  body.om-device-mobile.om-has-apptop .dashboard-main,
+  body.om-device-mobile.om-has-apptop.home-app .dashboard-main.home-main,
+  body.om-device-mobile.om-has-apptop.mais-app .dashboard-main.mais-main,
+  body.om-device-mobile.om-has-apptop.fin-app .dashboard-main,
+  body.om-device-mobile.om-has-apptop.pay-app .dashboard-main,
+  body.om-device-mobile.om-has-apptop.sched-body .dashboard-main.sched-main {
+    padding-top: calc(var(--om-apptop-h) + env(safe-area-inset-top, 0px) + 0.35rem) !important;
+    margin-top: 0 !important;
+  }
+
+  .om-app-top__brand {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+    text-decoration: none;
+  }
+
+  .om-app-top__logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .om-app-top__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .om-app-top__bell {
+    position: relative;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--plab-line, #e7e5e4);
+    background: #fff;
+    color: var(--om-tab-ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .om-app-top__bell svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.85;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .om-app-top__bell-dot {
+    position: absolute;
+    top: 9px;
+    right: 10px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--om-tab-accent);
+    border: 2px solid #fff;
+    display: none;
+  }
+
+  .om-app-top__bell.has-dot .om-app-top__bell-dot,
+  .om-app-top__bell.has-dot .home-bell__dot {
+    display: block;
+  }
+
+  /* home.js toggles .has-dot and may look for .home-bell__dot */
+  .om-app-top__bell .home-bell__dot {
+    position: absolute;
+    top: 9px;
+    right: 10px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--om-tab-accent);
+    border: 2px solid #fff;
+    display: none;
+  }
+
+  .om-app-top__avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--om-tab-ink);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 750;
+    letter-spacing: 0.02em;
+    text-decoration: none;
   }
 
   .om-tabbar {

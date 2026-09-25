@@ -16,11 +16,14 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp11" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
-  <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp11" />
-  <link rel="stylesheet" href="finance.css?v=20260924-finance2" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260925-mais1" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-apptop1" />
+  <link rel="stylesheet" href="finance.css?v=20260925-finmob1" />
+  <link rel="stylesheet" href="finance-payroll-mobile.css?v=20260925-finmob1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="om-device.js?v=20260925-device1"></script>
 </head>
-<body class="dashboard-app-body om-app sidebar-collapsed">
+<body class="dashboard-app-body om-app sidebar-collapsed fin-app">
   <script>
     (function () {
       try {
@@ -28,6 +31,7 @@
           document.body.classList.remove("sidebar-collapsed");
         }
       } catch (e) {}
+      if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
     })();
   </script>
 
@@ -67,6 +71,103 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
+      <!-- Mobile Financeiro -->
+      <div class="fpm" id="finMobile" aria-label="Financeiro">
+        <header class="fpm-top">
+          <a class="fpm-icon-btn" href="mais.html" aria-label="Voltar">
+            <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+          </a>
+          <div class="fpm-top__center">
+            <h1 class="fpm-top__title">Financeiro</h1>
+            <p class="fpm-top__sub" id="finMobMonth">—</p>
+          </div>
+          <button type="button" class="fpm-icon-btn fpm-icon-btn--accent" id="finMobAdd" data-crm-permission="finance.manage" aria-label="Criar">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </button>
+        </header>
+
+        <div class="fpm-seg" role="tablist" aria-label="Secções">
+          <button type="button" class="fpm-seg__btn is-active" data-fin-mob-tab="geral">Geral</button>
+          <button type="button" class="fpm-seg__btn" data-fin-mob-tab="receber">A receber<span class="fpm-seg__dot" id="finMobRecvDot" hidden></span></button>
+          <button type="button" class="fpm-seg__btn" data-fin-mob-tab="despesas">Despesas<span class="fpm-seg__dot fpm-seg__dot--warn" id="finMobCostDot" hidden></span></button>
+          <button type="button" class="fpm-seg__btn" data-fin-mob-tab="obras">Obras</button>
+        </div>
+
+        <div class="fpm-pane" data-fin-mob-pane="geral">
+          <section class="fpm-hero" aria-label="Resultado do mês">
+            <p class="fpm-hero__label">Resultado do mês</p>
+            <p class="fpm-hero__value" id="finMobNet">—</p>
+            <p class="fpm-hero__meta" id="finMobNetMeta">—</p>
+            <div class="fpm-hero__split">
+              <div>
+                <p class="fpm-hero__split-label"><span class="fpm-hero__split-ico fpm-hero__split-ico--in" aria-hidden="true"></span>Entradas</p>
+                <p class="fpm-hero__split-val" id="finMobIn">—</p>
+              </div>
+              <div>
+                <p class="fpm-hero__split-label"><span class="fpm-hero__split-ico fpm-hero__split-ico--out" aria-hidden="true"></span>Saídas</p>
+                <p class="fpm-hero__split-val" id="finMobOut">—</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="fpm-card" aria-label="Fluxo semanal">
+            <div class="fpm-card__head">
+              <h2 class="fpm-card__title">Fluxo de caixa por semana</h2>
+              <div class="fpm-legend"><span><i class="in"></i>Entradas</span><span><i class="out"></i>Saídas</span></div>
+            </div>
+            <div class="fpm-chart" id="finMobChart"></div>
+            <div class="fpm-week-sum" id="finMobWeekSum"></div>
+          </section>
+
+          <div class="fpm-stat-grid">
+            <button type="button" class="fpm-stat" id="finMobOverdueBtn" data-fin-mob-tab-jump="receber">
+              <div class="fpm-stat__top fpm-stat__top--danger">Vencido</div>
+              <p class="fpm-stat__val" id="finMobOverdue">—</p>
+              <p class="fpm-stat__sub" id="finMobOverdueSub">—</p>
+            </button>
+            <button type="button" class="fpm-stat" id="finMobDraftBtn" data-fin-mob-tab-jump="despesas">
+              <div class="fpm-stat__top fpm-stat__top--muted">A classificar</div>
+              <p class="fpm-stat__val" id="finMobDraft">—</p>
+              <p class="fpm-stat__sub" id="finMobDraftSub">—</p>
+            </button>
+          </div>
+
+          <h2 class="fpm-section-title">Últimas movimentações</h2>
+          <div class="fpm-mov" id="finMobMoves"></div>
+        </div>
+
+        <div class="fpm-pane" data-fin-mob-pane="receber" hidden>
+          <h2 class="fpm-section-title">A receber</h2>
+          <div class="fpm-list" id="finMobRecvList"></div>
+        </div>
+
+        <div class="fpm-pane" data-fin-mob-pane="despesas" hidden>
+          <h2 class="fpm-section-title">Despesas &amp; recibos</h2>
+          <div class="fpm-list" id="finMobCostList"></div>
+        </div>
+
+        <div class="fpm-pane" data-fin-mob-pane="obras" hidden>
+          <h2 class="fpm-section-title">Obras</h2>
+          <div class="fpm-list" id="finMobJobsList"></div>
+        </div>
+      </div>
+
+      <button type="button" class="fpm-backdrop" id="finMobCreateBackdrop" hidden aria-label="Fechar"></button>
+      <div class="fpm-create-sheet" id="finMobCreateSheet" hidden role="dialog" aria-labelledby="finMobCreateTitle">
+        <div class="fpm-create-sheet__grab" aria-hidden="true"></div>
+        <h2 class="fpm-create-sheet__title" id="finMobCreateTitle">Criar</h2>
+        <div class="fpm-create-sheet__grid">
+          <button type="button" class="fpm-create-sheet__btn" id="finMobScanBtn" data-crm-permission="finance.manage">
+            <strong>Scan recibo</strong>
+            <span>Foto e OCR</span>
+          </button>
+          <button type="button" class="fpm-create-sheet__btn" id="finMobCostBtn" data-crm-permission="finance.manage">
+            <strong>Novo custo</strong>
+            <span>Lançamento manual</span>
+          </button>
+        </div>
+      </div>
+
       <div class="mod-page crm-page finance-page">
         <div class="mod-page-header">
           <h1>Financeiro</h1>
@@ -304,8 +405,10 @@
   <script src="crm-toast.js"></script>
   <script src="crm-i18n.js?v=20260923-i18n"></script>
   <script src="saas-branding.js"></script>
-  <script src="crm-shared-nav.js?v=20260924-omapp11"></script>
-  <script src="crm-shell.js?v=20260924-omapp11"></script>
-  <script src="finance.js?v=20260924-finance2"></script>
+  <script src="om-device.js?v=20260925-device1"></script>
+  <script src="crm-shared-nav.js?v=20260925-mais1"></script>
+  <script src="crm-shell.js?v=20260925-mais1"></script>
+  <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
+  <script src="finance.js?v=20260925-finmob1"></script>
 </body>
 </html>

@@ -12,47 +12,70 @@
 }
 
 @media (max-width: 900px) {
-  body.sched-body.om-device-mobile .acal-chrome {
-    display: none !important;
-  }
-
+  /* Default = month; week only when .acal-mode-week */
   body.sched-body.om-device-mobile .acal-week {
-    display: flex;
-  }
-
-  body.sched-body.om-device-mobile.acal-mode-month .acal-week,
-  body.sched-body.om-device-mobile.acal-mode-list .acal-week {
     display: none !important;
   }
 
-  body.sched-body.om-device-mobile.acal-mode-month .acal-chrome,
-  body.sched-body.om-device-mobile.acal-mode-list .acal-chrome {
+  body.sched-body.om-device-mobile .acal-chrome {
     display: flex !important;
   }
 
-  body.sched-body.om-device-mobile.acal-mode-month .acal-scroll {
+  body.sched-body.om-device-mobile .acal-scroll {
     display: block !important;
   }
 
-  body.sched-body.om-device-mobile:not(.acal-mode-month):not(.acal-mode-list) .acal-scroll,
-  body.sched-body.om-device-mobile:not(.acal-mode-month):not(.acal-mode-list) .acal-list,
-  body.sched-body.om-device-mobile:not(.acal-mode-month):not(.acal-mode-list) .acal-day-sheet {
+  body.sched-body.om-device-mobile.acal-mode-week .acal-week {
+    display: flex !important;
+  }
+
+  body.sched-body.om-device-mobile.acal-mode-week .acal-chrome,
+  body.sched-body.om-device-mobile.acal-mode-week .acal-scroll,
+  body.sched-body.om-device-mobile.acal-mode-week .acal-list,
+  body.sched-body.om-device-mobile.acal-mode-week .acal-day-sheet {
     display: none !important;
   }
 
-  body.sched-body.om-device-mobile:not(.acal-mode-month):not(.acal-mode-list) .acal {
+  body.sched-body.om-device-mobile.acal-mode-week .acal {
     min-height: 100%;
     background: var(--plab-bg, #f3f1ee);
   }
+}
 
-  body.sched-body.om-device-mobile:not(.acal-mode-month):not(.acal-mode-list) #mobileAppHeader.mobile-app-header {
-    display: none !important;
-  }
+.acal-mode-btn,
+.aw-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 40px;
+  padding: 0 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--plab-line, #e7e5e4);
+  background: #fff;
+  color: var(--plab-ink, #1c1917);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 750;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
 
-  body.sched-body.om-device-mobile:not(.acal-mode-month):not(.acal-mode-list) .dashboard-main.sched-main {
-    padding-top: env(safe-area-inset-top, 0px) !important;
-    margin-top: 0 !important;
-  }
+.acal-mode-btn svg,
+.aw-mode-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.acal-mode-btn:active,
+.aw-mode-btn:active {
+  background: var(--plab-soft, #f5f4f2);
 }
 
 .aw-head {

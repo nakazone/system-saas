@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260925-mais1";
+  const SHELL_VER = "20260925-apptop1";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">

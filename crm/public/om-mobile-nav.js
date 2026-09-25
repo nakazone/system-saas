@@ -3,7 +3,7 @@
  * Injected by crm-shell on om-app pages (≤900px via CSS).
  */
 (function () {
-  const VER = "20260925-mais1";
+  const VER = "20260925-apptop1";
   const MQ = window.matchMedia("(max-width: 900px)");
 
   const ICONS = {
@@ -135,6 +135,55 @@
     });
   }
 
+  function initials(name) {
+    const parts = String(name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return "—";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function ensureAppTop() {
+    if (document.getElementById("omAppTop")) return;
+    const top = document.createElement("header");
+    top.id = "omAppTop";
+    top.className = "om-app-top";
+    top.setAttribute("aria-label", "Barra superior");
+    top.innerHTML = `
+      <a class="om-app-top__brand" href="home.html" aria-label="ObraMate">
+        <img class="om-app-top__logo" src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" width="36" height="36" onerror="this.style.display='none'" />
+      </a>
+      <div class="om-app-top__actions">
+        <button type="button" class="om-app-top__bell home-bell" id="homeBell" aria-label="Atenção">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <span class="om-app-top__bell-dot home-bell__dot" aria-hidden="true"></span>
+        </button>
+        <a class="om-app-top__avatar home-avatar" id="homeAvatar" href="ajustes.html" aria-label="Conta">—</a>
+      </div>`;
+    document.body.insertBefore(top, document.body.firstChild);
+    document.body.classList.add("om-has-apptop");
+
+    // On Home, home.js owns the bell. Elsewhere: go to Início attention.
+    if (fileName() !== "home.html") {
+      top.querySelector("#homeBell")?.addEventListener("click", () => {
+        location.href = "home.html";
+      });
+      fetch("/api/auth/session", { credentials: "include" })
+        .then((r) => r.json())
+        .then((s) => {
+          if (!s?.authenticated || !s.user) return;
+          const av = document.getElementById("homeAvatar");
+          if (av) {
+            av.textContent = initials(s.user.name || s.user.email || "");
+            av.title = s.user.name || s.user.email || "Conta";
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
   function ensureTabbar() {
     if (document.getElementById("omTabbar")) return;
     const nav = document.createElement("nav");
@@ -196,6 +245,7 @@
     if (!mobile) return;
     document.body.dataset.omTabbarBoot = "1";
     ensureCss();
+    ensureAppTop();
     ensureSheets();
     ensureTabbar();
 

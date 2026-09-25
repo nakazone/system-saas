@@ -2,6 +2,21 @@
   const HOUR_START = 6;
   const HOUR_END = 21;
   const HOUR_PX = 48;
+  const ACAL_MODE_KEY = "om_sched_acal_mode";
+
+  function readStoredAcalMode() {
+    try {
+      const v = localStorage.getItem(ACAL_MODE_KEY);
+      if (v === "week" || v === "month") return v;
+    } catch (_) {}
+    return "month";
+  }
+
+  function persistAcalMode(mode) {
+    try {
+      localStorage.setItem(ACAL_MODE_KEY, mode === "week" ? "week" : "month");
+    } catch (_) {}
+  }
 
   let view = "week";
   let cursor = new Date();
@@ -14,8 +29,8 @@
   let slotAnchor = null;
   let editingMeetingId = null;
   let viewingEvent = null;
-  /** Mobile Agenda: week (default) | month | list */
-  let acalMode = "week";
+  /** Mobile Agenda: month (default) | week — last choice persisted */
+  let acalMode = readStoredAcalMode();
   let acalSelectedYmd = null;
   let acalMonths = []; // Date at start of each rendered month
   let acalScrollBound = false;
@@ -808,27 +823,15 @@
   function syncAcalChrome() {
     const yearEl = $("acalYearLabel");
     if (yearEl) yearEl.textContent = String(cursor.getFullYear());
-    const listBtn = $("acalListToggle");
-    if (listBtn) listBtn.setAttribute("aria-pressed", acalMode === "list" ? "true" : "false");
-    const dockMonth = $("acalDockMonth");
-    const dockList = $("acalDockList");
-    if (dockMonth) {
-      dockMonth.classList.toggle("is-active", acalMode === "month");
-      dockMonth.setAttribute("aria-pressed", acalMode === "month" ? "true" : "false");
-    }
-    if (dockList) {
-      dockList.classList.toggle("is-active", acalMode === "list");
-      dockList.setAttribute("aria-pressed", acalMode === "list" ? "true" : "false");
-    }
     const scroll = $("acalScroll");
     const list = $("acalList");
     const week = $("acalWeek");
     if (scroll) scroll.hidden = acalMode !== "month";
-    if (list) list.hidden = acalMode !== "list";
+    if (list) list.hidden = true;
     if (week) week.hidden = acalMode !== "week";
     document.body.classList.toggle("acal-mode-month", acalMode === "month");
-    document.body.classList.toggle("acal-mode-list", acalMode === "list");
     document.body.classList.toggle("acal-mode-week", acalMode === "week");
+    document.body.classList.remove("acal-mode-list");
   }
 
   function parseYmd(key) {
@@ -1019,12 +1022,6 @@
       return;
     }
 
-    if (acalMode === "list") {
-      closeAcalDaySheet();
-      renderAcalList();
-      return;
-    }
-
     const host = $("acalScroll");
     if (!host) return;
     const prevTop = host.scrollTop;
@@ -1099,9 +1096,8 @@
   }
 
   function setAcalMode(mode) {
-    if (mode === "list") acalMode = "list";
-    else if (mode === "week") acalMode = "week";
-    else acalMode = "month";
+    acalMode = mode === "week" ? "week" : "month";
+    persistAcalMode(acalMode);
     closeAcalDaySheet();
     const menu = $("acalAddMenu");
     if (menu) menu.hidden = true;
@@ -1135,11 +1131,6 @@
 
   function bindAppleCalControls() {
     $("acalTodayBtn")?.addEventListener("click", goAcalToday);
-    $("acalDockMonth")?.addEventListener("click", () => setAcalMode("month"));
-    $("acalDockList")?.addEventListener("click", () => setAcalMode("list"));
-    $("acalListToggle")?.addEventListener("click", () =>
-      setAcalMode(acalMode === "list" ? "month" : "list"),
-    );
     $("acalWeekToggle")?.addEventListener("click", () => setAcalMode("week"));
     $("awMonthToggle")?.addEventListener("click", () => setAcalMode("month"));
     $("awAddBtn")?.addEventListener("click", (e) => {
@@ -2022,7 +2013,6 @@
 
       if (isMobileSched() && !acalSelectedYmd) {
         acalSelectedYmd = ymd(cursor);
-        acalMode = "week";
       }
 
       const users = await api("/api/users?limit=100").catch(() => ({ data: [] }));
