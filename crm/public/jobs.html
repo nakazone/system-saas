@@ -18,11 +18,14 @@
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20260925-sections" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
-  <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp11" />
-  <link rel="stylesheet" href="jobs.css?v=20260924-modpanel2" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260925-apptop1" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-apptop1" />
+  <link rel="stylesheet" href="jobs.css?v=20260925-jcm1" />
+  <link rel="stylesheet" href="jobs-customers-mobile.css?v=20260925-jcm1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="om-device.js?v=20260925-device1"></script>
 </head>
-<body class="dashboard-app-body om-app sidebar-collapsed">
+<body class="dashboard-app-body om-app sidebar-collapsed jobs-app">
   <script>
     (function () {
       try {
@@ -30,6 +33,7 @@
           document.body.classList.remove("sidebar-collapsed");
         }
       } catch (e) {}
+      if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
     })();
   </script>
 
@@ -69,6 +73,31 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
+      <div class="jcm" id="jobsMobile">
+        <div class="jcm-nav">
+          <a class="jcm-icon-btn" href="mais.html" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></a>
+          <div class="jcm-role" role="group" aria-label="Modo">
+            <button type="button" class="jcm-role__btn is-active" data-jobs-role="office">Escritório</button>
+            <button type="button" class="jcm-role__btn" data-jobs-role="installer">Instalador</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.75rem">
+          <div>
+            <h1 class="jcm-title">Jobs</h1>
+            <p class="jcm-sub" id="jobsMobSub">—</p>
+          </div>
+          <button type="button" class="jcm-icon-btn jcm-icon-btn--accent" id="jobsMobAdd" data-crm-permission="work_orders.manage" aria-label="Novo job">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </button>
+        </div>
+        <div class="jcm-seg" role="tablist">
+          <button type="button" class="jcm-seg__btn is-active" data-jobs-tab="today">Hoje · 0</button>
+          <button type="button" class="jcm-seg__btn" data-jobs-tab="active">Ativos · 0</button>
+          <button type="button" class="jcm-seg__btn" data-jobs-tab="done">Concluídos · 0</button>
+        </div>
+        <div class="jcm-list" id="jobsMobList"></div>
+      </div>
+
       <div class="jobs-page crm-page">
         <div class="jobs-page-header">
           <h1>Jobs</h1>
@@ -160,10 +189,12 @@
   <script src="crm-i18n.js?v=20260923-i18n"></script>
   <script src="saas-branding.js"></script>
   <script src="crm-address-autocomplete.js?v=20260924-maps4"></script>
-  <script src="crm-shared-nav.js?v=20260924-omapp11"></script>
-  <script src="crm-shell.js?v=20260924-omapp11"></script>
-  
+  <script src="om-device.js?v=20260925-device1"></script>
+  <script src="crm-shared-nav.js?v=20260925-apptop1"></script>
+  <script src="crm-shell.js?v=20260925-apptop1"></script>
+  <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
   <script src="crm-job-modal.js?v=20260925-sections"></script>
-  <script src="jobs.js?v=20260924-jobs2"></script>
+  <script src="jobs.js?v=20260925-jcm1"></script>
+  <script src="jobs-mobile.js?v=20260925-jcm1"></script>
 </body>
 </html>

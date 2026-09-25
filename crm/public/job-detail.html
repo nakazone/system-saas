@@ -18,10 +18,14 @@
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20260925-sections" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-modpanel" />
-  <link rel="stylesheet" href="jobs.css?v=20260925-sections" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260925-apptop1" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-apptop1" />
+  <link rel="stylesheet" href="jobs.css?v=20260925-jcm1" />
+  <link rel="stylesheet" href="jobs-customers-mobile.css?v=20260925-jcm1" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="om-device.js?v=20260925-device1"></script>
 </head>
-<body class="dashboard-app-body om-app sidebar-collapsed">
+<body class="dashboard-app-body om-app sidebar-collapsed job-detail-app">
   <script>
     (function () {
       try {
@@ -29,6 +33,7 @@
           document.body.classList.remove("sidebar-collapsed");
         }
       } catch (e) {}
+      if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
     })();
   </script>
 
@@ -68,6 +73,62 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
+      <div class="jcm" id="jobMobRoot">
+        <div class="jcm-nav">
+          <a class="jcm-icon-btn" href="jobs.html" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></a>
+          <div class="jcm-role" role="group" aria-label="Modo">
+            <button type="button" class="jcm-role__btn is-active" data-jobs-role="office">Escritório</button>
+            <button type="button" class="jcm-role__btn" data-jobs-role="installer">Instalador</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+          <p class="jcm-jd__id" id="jobMobId">Job #—</p>
+          <span class="jcm-badge" id="jobMobStatus">—</span>
+        </div>
+        <h1 class="jcm-jd__name" id="jobMobName">—</h1>
+        <p class="jcm-jd__type" id="jobMobType">—</p>
+
+        <div class="jcm-card">
+          <div class="jcm-jd__info">
+            <div class="jcm-jd__info-row">
+              <span class="jcm-jd__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+              <span id="jobMobAddr">—</span>
+            </div>
+            <div class="jcm-jd__info-row">
+              <span class="jcm-job__team-dot" style="background:#3b82f6"></span>
+              <span id="jobMobTeam">—</span>
+            </div>
+          </div>
+          <div class="jcm-quick">
+            <a class="jcm-quick__btn" id="jobMobMapQuick" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Mapa</a>
+            <a class="jcm-quick__btn" id="jobMobCallQuick" href="#"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.8 19.8 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.97.35 1.92.67 2.83a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.32 1.86.54 2.83.67A2 2 0 0122 16.92z"/></svg>Cliente</a>
+            <a class="jcm-quick__btn" href="finance.html"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/></svg>Recibo</a>
+            <a class="jcm-quick__btn" id="jobMobNotesQuick" href="#"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>Nota</a>
+          </div>
+        </div>
+
+        <div class="jcm-seg">
+          <button type="button" class="jcm-seg__btn is-active" data-jd-tab="visitas">Visitas</button>
+          <button type="button" class="jcm-seg__btn" data-jd-tab="checklist">Checklist</button>
+          <button type="button" class="jcm-seg__btn" data-jd-tab="fotos">Fotos</button>
+          <button type="button" class="jcm-seg__btn" data-jd-tab="financeiro">Financeiro</button>
+        </div>
+
+        <div class="jcm-card" id="jobMobVisitas">
+          <div class="jcm-timeline" id="jobMobTimeline"></div>
+        </div>
+        <div id="jobMobExtra" hidden></div>
+
+        <div class="jcm-notes" id="jobMobInstr" hidden>
+          <p class="jcm-notes__label">Instruções para a equipe</p>
+          <p class="jcm-notes__body" id="jobMobInstrBody"></p>
+        </div>
+      </div>
+
+      <div class="jcm-foot jcm-foot--single" id="jobMobFoot">
+        <button type="button" class="jcm-foot__btn jcm-foot__btn--primary" id="jobMobCta">Iniciar visita</button>
+      </div>
+
       <div class="job-detail-page crm-page" id="jobDetailRoot">
         <a class="job-back-link" href="jobs.html">← All jobs</a>
 
@@ -230,10 +291,12 @@
   <script src="crm-i18n.js?v=20260923-i18n"></script>
   <script src="saas-branding.js"></script>
   <script src="crm-address-autocomplete.js?v=20260924-maps4"></script>
-  <script src="crm-shared-nav.js?v=20260924-omapp11"></script>
-  <script src="crm-shell.js?v=20260924-omapp11"></script>
-  
+  <script src="om-device.js?v=20260925-device1"></script>
+  <script src="crm-shared-nav.js?v=20260925-apptop1"></script>
+  <script src="crm-shell.js?v=20260925-apptop1"></script>
+  <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
   <script src="crm-job-modal.js?v=20260925-sections"></script>
-  <script src="job-detail.js?v=20260925-sections"></script>
+  <script src="job-detail.js?v=20260925-jcm1"></script>
+  <script src="job-detail-mobile.js?v=20260925-jcm1"></script>
 </body>
 </html>
