@@ -867,6 +867,14 @@ async function populateNewLeadPipelineSelect() {
 
 // Show New Lead Modal
 function showNewLeadModal() {
+    if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead({
+      onCreated: function () {
+        if (typeof loadKanbanBoard === 'function') loadKanbanBoard();
+        else if (typeof loadLeads === 'function') loadLeads();
+      },
+    })) {
+      return;
+    }
     loadLeadFormUsers();
     void populateNewLeadPipelineSelect();
     document.getElementById('newLeadModal').classList.add('active');

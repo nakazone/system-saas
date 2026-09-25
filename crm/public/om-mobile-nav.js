@@ -90,10 +90,10 @@
       <div class="om-sheet__grab" aria-hidden="true"></div>
       <h2 class="om-sheet__title" id="omCreateSheetTitle">Criar</h2>
       <div class="om-sheet__grid">
-        <a class="om-sheet__link" href="leads.html" data-om-new-lead>
+        <button type="button" class="om-sheet__link" id="omCreateNewLead" style="border:none;width:100%;text-align:left;cursor:pointer;font:inherit">
           <span class="om-sheet__icon om-sheet__icon--primary">${ICONS.lead}</span>
           <span>Novo lead</span>
-        </a>
+        </button>
         <a class="om-sheet__link" href="schedule.html">
           <span class="om-sheet__icon">${ICONS.agenda}</span>
           <span>Agendar</span>
@@ -127,15 +127,18 @@
         <a class="om-sheet__row" href="ajustes.html"><span class="om-sheet__icon">${ICONS.settings}</span><span>Ajustes</span></a>
       </div>`;
 
-    create.querySelector("[data-om-new-lead]")?.addEventListener("click", () => {
-      try {
-        sessionStorage.setItem("obramate_open_new_lead", "1");
-      } catch (_) {}
-    });
-
     document.body.appendChild(backdrop);
     document.body.appendChild(create);
     document.body.appendChild(more);
+
+    create.querySelector("#omCreateNewLead")?.addEventListener("click", () => {
+      closeSheets();
+      if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead()) return;
+      try {
+        sessionStorage.setItem("obramate_open_new_lead", "1");
+      } catch (_) {}
+      location.href = "leads.html";
+    });
   }
 
   function ensureTabbar() {

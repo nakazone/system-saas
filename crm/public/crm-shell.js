@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260925-device1";
+  const SHELL_VER = "20260925-leadui1";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -580,6 +580,9 @@
         jobs.push(ensureScript(`om-mobile-nav.js?v=${SHELL_VER}`).catch(() => {}));
       } else {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
+      }
+      if (!window.__omNovoLeadSheet && !document.querySelector('script[src*="novo-lead-sheet.js"]')) {
+        jobs.push(ensureScript(`novo-lead-sheet.js?v=${SHELL_VER}`).catch(() => {}));
       }
     }
     if (!window.sfBootCrmAddressAutocomplete && !document.querySelector('script[src*="crm-address-autocomplete.js"]')) {

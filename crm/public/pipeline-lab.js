@@ -155,6 +155,13 @@
   }
 
   function newLead() {
+    if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead({
+      onCreated: () => {
+        load().catch(() => {});
+      },
+    })) {
+      return;
+    }
     window.location.href = "leads.html";
     try {
       sessionStorage.setItem("obramate_open_new_lead", "1");

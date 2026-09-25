@@ -6,6 +6,8 @@ let currentLeadId = null;
 let currentLead = null;
 let leadWorkItems = [];
 let leadWorkFilter = 'all';
+let mldStages = [];
+let mldQual = null;
 
 // Check authentication and get lead ID from URL
 window.addEventListener('DOMContentLoaded', () => {
@@ -30,6 +32,9 @@ window.addEventListener('DOMContentLoaded', () => {
             const un = document.getElementById('userName') || document.getElementById('sidebarUserName');
             if (un) un.textContent = data.user.name || data.user.email;
             loadLead();
+            if (typeof window.__omDevice?.applyBodyClass === 'function') window.__omDevice.applyBodyClass();
+            if (window.__omDevice?.isMobile?.()) document.body.classList.add('lead-detail-mobile');
+            wireMobileLeadDetail_();
         })
         .catch(err => {
             console.error('Session check error:', err);
@@ -402,6 +407,8 @@ function renderLead() {
 
     renderLeadProperty_();
 
+    renderMobileLeadDetail_();
+
     // Form fields
     var fn = document.getElementById('leadFullName');
     if (fn) fn.value = currentLead.name || '';
@@ -464,24 +471,31 @@ async function loadPipelineStages() {
         const res = await fetch('/api/pipeline-stages', { credentials: 'include' });
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
-            stages = data.data.map(s => ({ id: s.id, name: s.name, slug: s.slug || s.name }));
+            stages = data.data.map(s => ({ id: s.id, name: s.name, slug: s.slug || s.name, color: s.color || '#a8a29e', order: s.order_num || s.order || 0 }));
         }
     } catch (e) { /* ignore */ }
     if (stages.length === 0) {
         stages = [
-            { id: 1, name: 'New Lead', slug: 'new_lead' },
-            { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled' },
-            { id: 3, name: 'Quote Sent', slug: 'quote_sent' },
-            { id: 4, name: 'Follow Up', slug: 'follow_up_1' },
-            { id: 5, name: 'Stand By', slug: 'stand_by' },
-            { id: 6, name: 'Won', slug: 'won' },
-            { id: 7, name: 'Lost', slug: 'lost' },
+            { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db' },
+            { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#22c55e' },
+            { id: 3, name: 'Quote Sent', slug: 'quote_sent', color: '#7c3aed' },
+            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#e8792c' },
+            { id: 5, name: 'Stand By', slug: 'stand_by', color: '#a8a29e' },
+            { id: 6, name: 'Won', slug: 'won', color: '#059669' },
+            { id: 7, name: 'Lost', slug: 'lost', color: '#dc2626' },
         ];
     }
+    if (typeof window.mergePipelineStagesForKanban === 'function') {
+        stages = window.mergePipelineStagesForKanban(stages);
+    }
+    mldStages = stages.slice().sort((a, b) => (a.order || a.order_num || 0) - (b.order || b.order_num || 0));
 
     try {
         const select = document.getElementById('leadStatusSelect');
-        if (!select) return;
+        if (!select) {
+            renderMobileLeadDetail_();
+            return;
+        }
         select.innerHTML = '<option value="">Selecione...</option>';
         stages.forEach(stage => {
             const option = document.createElement('option');
@@ -507,10 +521,14 @@ async function loadPipelineStages() {
                     credentials: 'include',
                     body: JSON.stringify({ status: newStatus })
                 }).then(r => r.json()).then(data => {
-                    if (data.success) currentLead.status = newStatus;
+                    if (data.success) {
+                        currentLead.status = newStatus;
+                        renderMobileLeadDetail_();
+                    }
                 }).catch(() => {});
             });
         }
+        renderMobileLeadDetail_();
     } catch (error) {
         console.error('Error loading pipeline stages:', error);
     }
@@ -713,6 +731,7 @@ async function loadQualification() {
         
         if (data.success && data.data) {
             const qual = data.data;
+            mldQual = qual;
             document.getElementById('qualPropertyType').value = qual.property_type || '';
             document.getElementById('qualServiceType').value = qual.service_type || '';
             document.getElementById('qualEstimatedArea').value = qual.estimated_area || '';
@@ -729,7 +748,9 @@ async function loadQualification() {
             document.getElementById('qualNotes').value = qual.qualification_notes || '';
             updateQualificationScoreDisplay();
             renderQualificationSummary(qual);
+            renderMobileLeadDetail_();
         } else {
+            mldQual = null;
             updateQualificationScoreDisplay();
             var block = document.getElementById('qualificationSummaryBlock');
             var form = document.getElementById('qualificationForm');
@@ -737,6 +758,7 @@ async function loadQualification() {
             if (block) block.style.display = 'none';
             if (form) form.style.display = 'none';
             if (emptyHint) emptyHint.style.display = 'block';
+            renderMobileLeadDetail_();
         }
     } catch (error) {
         console.log('Qualification not found or error:', error);
@@ -1453,4 +1475,238 @@ async function createInteraction(interaction) {
         console.error('Error creating interaction:', error);
         alert('Erro ao criar interação');
     }
+}
+
+/* —— Mobile lead detail (reference layout) —— */
+function mldIsMobile_() {
+  return !!(window.__omDevice && window.__omDevice.isMobile && window.__omDevice.isMobile());
+}
+
+function mldInitials_(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '—';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function mldStageLabel_(stage) {
+  if (!stage) return '—';
+  if (typeof pipelineStageDisplayName === 'function') {
+    return pipelineStageDisplayName(stage.slug, stage.name);
+  }
+  return stage.name || stage.slug || '—';
+}
+
+function mldVisibleStages_() {
+  return (mldStages || []).filter((s) => {
+    const slug = String(s.slug || '').toLowerCase();
+    return slug && slug !== 'lost';
+  });
+}
+
+function mldParseFloorArea_(lead) {
+  const msg = String(lead.message || '').trim();
+  let floor = '';
+  let area = '';
+  if (msg) {
+    const parts = msg.split('·').map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      floor = parts[0];
+      area = parts.slice(1).join(' · ');
+    } else if (/\bsq\s*ft\b/i.test(msg)) {
+      const m = msg.match(/(.+?)\s*[·,-]?\s*([\d,.]+\s*sq\s*ft)/i);
+      if (m) {
+        floor = m[1].trim();
+        area = m[2].trim();
+      } else {
+        floor = msg;
+      }
+    } else {
+      floor = msg;
+    }
+  }
+  if (mldQual && mldQual.estimated_area) {
+    area = Number(mldQual.estimated_area).toLocaleString('en-US') + ' sq ft';
+  }
+  return { floor, area };
+}
+
+function mldNextStage_() {
+  const stages = mldVisibleStages_();
+  const cur = String(currentLead && currentLead.status || '').toLowerCase();
+  const idx = stages.findIndex((s) => String(s.slug || '').toLowerCase() === cur);
+  if (idx < 0) return stages[0] || null;
+  return stages[idx + 1] || null;
+}
+
+async function mldSetStage_(slug) {
+  if (!slug || !currentLeadId) return;
+  try {
+    const res = await fetch(`/api/leads/${currentLeadId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ status: slug }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      currentLead.status = slug;
+      const select = document.getElementById('leadStatusSelect');
+      if (select) select.value = slug;
+      renderMobileLeadDetail_();
+    } else {
+      alert(data.error || 'Não foi possível atualizar a etapa');
+    }
+  } catch (e) {
+    alert('Erro ao atualizar etapa');
+  }
+}
+
+function renderMobileLeadDetail_() {
+  if (!document.getElementById('mldRoot') || !currentLead) return;
+
+  const { floor, area } = mldParseFloorArea_(currentLead);
+  const subParts = [floor, area].filter(Boolean);
+  const stages = mldVisibleStages_();
+  const curSlug = String(currentLead.status || '').toLowerCase();
+  const curIdx = Math.max(0, stages.findIndex((s) => String(s.slug || '').toLowerCase() === curSlug));
+  const curStage = stages[curIdx] || stages.find((s) => String(s.slug || '').toLowerCase() === curSlug);
+  const color = (curStage && curStage.color) || getStatusColor(currentLead.status) || '#7c3aed';
+
+  const avatar = document.getElementById('mldAvatar');
+  if (avatar) avatar.textContent = mldInitials_(currentLead.name);
+  const nameEl = document.getElementById('mldName');
+  if (nameEl) nameEl.textContent = currentLead.name || 'Sem nome';
+  const subEl = document.getElementById('mldSub');
+  if (subEl) subEl.textContent = subParts.length ? subParts.join(' · ') : (currentLead.source || 'Lead');
+  const statusLabel = document.getElementById('mldStatusLabel');
+  if (statusLabel) statusLabel.textContent = mldStageLabel_(curStage) || currentLead.status || '—';
+  const statusDot = document.getElementById('mldStatusDot');
+  if (statusDot) statusDot.style.background = color;
+
+  const phone = currentLead.phone || '';
+  const tel = typeof window.sfBuildTelHref === 'function' ? window.sfBuildTelHref(phone) : (phone ? 'tel:' + phone.replace(/\D/g, '') : '');
+  const sms = typeof window.sfBuildSmsHref === 'function' ? window.sfBuildSmsHref(phone) : (phone ? 'sms:' + phone.replace(/\D/g, '') : '');
+  const call = document.getElementById('mldCall');
+  const smsEl = document.getElementById('mldSms');
+  if (call) {
+    call.href = tel || '#';
+    call.classList.toggle('is-disabled', !tel);
+  }
+  if (smsEl) {
+    smsEl.href = sms || '#';
+    smsEl.classList.toggle('is-disabled', !sms);
+  }
+  const route = document.getElementById('mldRoute');
+  if (route) {
+    const addr = [currentLead.address, currentLead.zipcode].filter(Boolean).join(', ');
+    if (addr) {
+      route.href = 'https://maps.google.com/?q=' + encodeURIComponent(addr);
+      route.classList.remove('is-disabled');
+    } else {
+      route.href = '#';
+      route.classList.add('is-disabled');
+    }
+  }
+  const schedule = document.getElementById('mldSchedule');
+  if (schedule) {
+    schedule.href = 'schedule.html';
+  }
+  const quote = document.getElementById('mldQuoteBtn');
+  if (quote) {
+    quote.href = 'quote-builder.html?lead_id=' + encodeURIComponent(String(currentLeadId || ''));
+  }
+
+  const meta = document.getElementById('mldEtapaMeta');
+  if (meta) meta.textContent = stages.length ? (curIdx + 1) + ' de ' + stages.length : '—';
+  const progress = document.getElementById('mldProgress');
+  if (progress) {
+    progress.style.setProperty('--mld-steps', String(Math.max(stages.length, 1)));
+    progress.innerHTML = stages
+      .map((_, i) => `<span class="mld-progress__seg${i <= curIdx ? ' is-on' : ''}"></span>`)
+      .join('');
+  }
+  const chips = document.getElementById('mldStageChips');
+  if (chips) {
+    chips.innerHTML = stages
+      .map((st) => {
+        const slug = String(st.slug || '');
+        const active = slug.toLowerCase() === curSlug;
+        const c = st.color || '#a8a29e';
+        return `<button type="button" class="mld-chip${active ? ' is-active' : ''}" data-mld-stage="${slug.replace(/"/g, '&quot;')}">
+          <span class="mld-chip__dot" style="background:${c}"></span>${mldStageLabel_(st)}
+        </button>`;
+      })
+      .join('');
+    chips.querySelectorAll('[data-mld-stage]').forEach((btn) => {
+      btn.addEventListener('click', () => mldSetStage_(btn.getAttribute('data-mld-stage')));
+    });
+  }
+
+  const rows = document.getElementById('mldRows');
+  if (rows) {
+    const items = [
+      { label: 'Valor estimado', value: formatMoney_(currentLead.estimated_value) },
+      { label: 'Tipo de piso', value: floor || '—' },
+      { label: 'Área', value: area || '—' },
+      { label: 'Origem', value: currentLead.source || '—' },
+      { label: 'Telefone', value: phone || '—' },
+    ];
+    rows.innerHTML = items
+      .map(
+        (it) => `<li class="mld-row"><span class="mld-row__label">${escapeHtml(it.label)}</span><span class="mld-row__value">${escapeHtml(String(it.value))}</span></li>`,
+      )
+      .join('');
+  }
+
+  const next = mldNextStage_();
+  const nextBtn = document.getElementById('mldNextBtn');
+  const nextLabel = document.getElementById('mldNextLabel');
+  if (nextLabel) {
+    nextLabel.textContent = next ? 'Mover p/ ' + mldStageLabel_(next) : 'Etapa final';
+  }
+  if (nextBtn) {
+    nextBtn.disabled = !next;
+    nextBtn.style.opacity = next ? '1' : '0.55';
+  }
+}
+
+function wireMobileLeadDetail_() {
+  if (!document.getElementById('mldRoot') || document.getElementById('mldRoot').dataset.bound === '1') return;
+  document.getElementById('mldRoot').dataset.bound = '1';
+
+  const back = document.getElementById('mldBack');
+  if (back && window.__omDevice?.isMobile?.()) back.href = 'pipeline-lab.html';
+
+  const moreBtn = document.getElementById('mldMoreBtn');
+  const menu = document.getElementById('mldMoreMenu');
+  moreBtn?.addEventListener('click', () => {
+    if (!menu) return;
+    menu.hidden = !menu.hidden;
+    moreBtn.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+  });
+  document.getElementById('mldEditDesktop')?.addEventListener('click', () => {
+    document.body.classList.remove('lead-detail-mobile');
+    if (menu) menu.hidden = true;
+  });
+  document.getElementById('mldOpenLeads')?.addEventListener('click', () => {
+    location.href = 'pipeline-lab.html';
+  });
+  document.getElementById('mldNextBtn')?.addEventListener('click', () => {
+    const next = mldNextStage_();
+    if (next) void mldSetStage_(next.slug);
+  });
+
+  // Load qualification for area when available
+  if (currentLeadId) {
+    fetch(`/api/leads/${currentLeadId}/qualification`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.success && data.data) {
+          mldQual = data.data;
+          renderMobileLeadDetail_();
+        }
+      })
+      .catch(() => {});
+  }
 }

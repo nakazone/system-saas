@@ -150,6 +150,7 @@
     try {
       sessionStorage.setItem("obramate_open_new_lead", "1");
     } catch (_) {}
+    if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead()) return;
     location.href = "leads.html";
   }
 
