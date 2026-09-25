@@ -5,12 +5,14 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260925-team";
+  const CSS_HREF = "crm-job-modal.css?v=20260925-services";
   let editingId = null;
   let canManage = false;
   let lookupsReady = false;
   let userOptions = [];
   let tempWorkersCache = [];
+  let pricingCatalog = [];
+  let serviceRows = [];
   const savedListeners = [];
 
   function $(id) {
@@ -122,6 +124,13 @@
     <label>Responsável
       <select id="jobAssignee"><option value="">—</option></select>
     </label>
+    <fieldset class="jobs-services-fieldset">
+      <legend>Serviços</legend>
+      <p class="jobs-hint">Preço Loja do catálogo; se o job for Builder, usa preço partner quando existir.</p>
+      <div id="jobServicesList" class="jobs-services-list"></div>
+      <button type="button" class="btn btn-secondary btn-sm" id="btnAddService">+ Serviço</button>
+      <p class="jobs-services-total" id="jobServicesTotal">Total: $0.00</p>
+    </fieldset>
     <fieldset class="jobs-team-fieldset">
       <legend>Equipe</legend>
       <p class="jobs-hint">Selecione vários funcionários para este job (além do responsável).</p>
@@ -167,6 +176,123 @@
     });
     if (cur) el.value = cur;
   }
+
+
+  function money(n) {
+    return (Number(n) || 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+
+  function usePartnerPrice() {
+    const src = $("jobSourceType")?.value;
+    const builderId = $("jobBuilder")?.value;
+    return src === "builder" || Boolean(builderId);
+  }
+
+  function unitPriceForItem(item) {
+    if (!item) return 0;
+    if (usePartnerPrice() && item.partner_price != null && item.partner_price !== "") {
+      return Number(item.partner_price) || 0;
+    }
+    return Number(item.price_loja != null ? item.price_loja : item.price_min) || 0;
+  }
+
+  function renderServices() {
+    const box = $("jobServicesList");
+    if (!box) return;
+    if (!serviceRows.length) {
+      box.innerHTML = '<p class="jobs-hint">Nenhum serviço. Clique em + Serviço.</p>';
+      updateServicesTotal();
+      return;
+    }
+    const opts = ['<option value="">— Personalizado —</option>']
+      .concat(
+        pricingCatalog.map(
+          (p) =>
+            `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (${escapeHtml(p.category || "")})</option>`,
+        ),
+      )
+      .join("");
+    box.innerHTML = serviceRows
+      .map((row, idx) => {
+        return `<div class="jobs-service-row" data-idx="${idx}">
+          <select class="js-svc-pricing" data-idx="${idx}">${opts}</select>
+          <input type="text" class="js-svc-name" data-idx="${idx}" maxlength="200" placeholder="Tipo de serviço" value="${escapeHtml(row.service_name || "")}" />
+          <input type="number" class="js-svc-qty" data-idx="${idx}" min="0" step="0.01" placeholder="Sqft" value="${row.quantity_sqft != null ? escapeHtml(String(row.quantity_sqft)) : ""}" />
+          <input type="number" class="js-svc-price" data-idx="${idx}" min="0" step="0.01" placeholder="Preço $" value="${row.unit_price != null ? escapeHtml(String(row.unit_price)) : ""}" />
+          <button type="button" class="btn btn-danger btn-sm js-svc-del" data-idx="${idx}" title="Remover">×</button>
+        </div>`;
+      })
+      .join("");
+    serviceRows.forEach((row, idx) => {
+      const sel = box.querySelector(`.js-svc-pricing[data-idx="${idx}"]`);
+      if (sel && row.pricing_item_id) sel.value = row.pricing_item_id;
+    });
+    updateServicesTotal();
+  }
+
+  function updateServicesTotal() {
+    const total = serviceRows.reduce((s, r) => s + (Number(r.quantity_sqft) || 0) * (Number(r.unit_price) || 0), 0);
+    const el = $("jobServicesTotal");
+    if (el) el.textContent = `Total: ${money(total)}`;
+  }
+
+  function collectServiceRowsFromDom() {
+    const box = $("jobServicesList");
+    if (!box) return serviceRows;
+    const next = [];
+    box.querySelectorAll(".jobs-service-row").forEach((rowEl) => {
+      const idx = Number(rowEl.getAttribute("data-idx"));
+      const pricing = rowEl.querySelector(".js-svc-pricing")?.value || null;
+      const name = (rowEl.querySelector(".js-svc-name")?.value || "").trim();
+      const qty = Number(rowEl.querySelector(".js-svc-qty")?.value) || 0;
+      const price = Number(rowEl.querySelector(".js-svc-price")?.value) || 0;
+      if (!name && !pricing && !qty && !price) return;
+      next.push({
+        pricing_item_id: pricing || null,
+        service_name: name || pricingCatalog.find((p) => p.id === pricing)?.name || "Serviço",
+        quantity_sqft: qty,
+        unit_price: price,
+      });
+    });
+    serviceRows = next;
+    return serviceRows;
+  }
+
+  function addServiceRow(preset) {
+    collectServiceRowsFromDom();
+    serviceRows.push(
+      preset || {
+        pricing_item_id: null,
+        service_name: "",
+        quantity_sqft: 0,
+        unit_price: 0,
+      },
+    );
+    renderServices();
+  }
+
+  function applyPricingToRow(idx) {
+    collectServiceRowsFromDom();
+    const row = serviceRows[idx];
+    if (!row) return;
+    const item = pricingCatalog.find((p) => p.id === row.pricing_item_id);
+    if (item) {
+      row.service_name = item.name;
+      row.unit_price = unitPriceForItem(item);
+    }
+    renderServices();
+  }
+
+  function refreshPricesFromCatalog() {
+    collectServiceRowsFromDom();
+    serviceRows.forEach((row) => {
+      if (!row.pricing_item_id) return;
+      const item = pricingCatalog.find((p) => p.id === row.pricing_item_id);
+      if (item) row.unit_price = unitPriceForItem(item);
+    });
+    renderServices();
+  }
+
 
   function renderTeamCheckboxes(selectedIds) {
     const box = $("jobTeamList");
@@ -224,11 +350,13 @@
 
   async function loadLookups() {
     if (lookupsReady) return;
-    const [users, customers, builders] = await Promise.all([
+    const [users, customers, builders, pricing] = await Promise.all([
       api("/api/users?limit=100").catch(() => ({ data: [] })),
       api("/api/customers?limit=100").catch(() => ({ data: [] })),
       api("/api/builders?limit=100").catch(() => api("/api/builders/select").catch(() => ({ data: [] }))),
+      api("/api/work-orders/pricing-catalog").catch(() => ({ data: [] })),
     ]);
+    pricingCatalog = Array.isArray(pricing.data) ? pricing.data : [];
 
     const userList = Array.isArray(users.data) ? users.data : [];
     userOptions = userList.filter((u) => u.is_active !== 0 && u.status !== "disabled");
@@ -290,9 +418,11 @@
     $("jobModalBackdrop")?.classList.remove("is-open");
     editingId = null;
     tempWorkersCache = [];
+    serviceRows = [];
     if ($("jobForm")) $("jobForm").reset();
     if ($("jobId")) $("jobId").value = "";
     renderTeamCheckboxes([]);
+    renderServices();
     renderTempList();
     const viewBtn = $("btnViewSchedule");
     if (viewBtn) viewBtn.hidden = true;
@@ -308,11 +438,13 @@
     await loadLookups();
     editingId = null;
     tempWorkersCache = [];
+    serviceRows = [];
     $("jobForm").reset();
     $("jobId").value = "";
     $("jobStatus").value = "scheduled";
     $("jobSourceType").value = "builder";
     renderTeamCheckboxes([]);
+    renderServices();
 
     let start = null;
     if (opts && opts.start) start = new Date(opts.start);
@@ -339,6 +471,12 @@
     const wo = j.data;
     editingId = wo.id;
     tempWorkersCache = Array.isArray(wo.temp_workers) ? wo.temp_workers : [];
+    serviceRows = (Array.isArray(wo.line_items) ? wo.line_items : []).map((li) => ({
+      pricing_item_id: li.pricing_item_id || null,
+      service_name: li.service_name || "",
+      quantity_sqft: li.quantity_sqft || 0,
+      unit_price: li.unit_price || 0,
+    }));
     $("jobId").value = wo.id;
     $("jobTitle").value = wo.title || "";
     $("jobStatus").value = wo.status || "draft";
@@ -352,6 +490,7 @@
     $("jobAssignee").value = wo.assigned_user_id || "";
     $("jobNotes").value = wo.notes || "";
     renderTeamCheckboxes((wo.members || []).map((m) => m.user_id));
+    renderServices();
     openModal(wo.number != null ? `Job #${wo.number}` : "Editar job");
   }
 
@@ -369,6 +508,7 @@
       notes: $("jobNotes").value.trim() || null,
       assigned_user_id: $("jobAssignee").value || null,
       member_user_ids: selectedMemberIds(),
+      line_items: collectServiceRowsFromDom().filter((r) => r.service_name),
       scheduled_start: fromLocalInput($("jobStart").value),
       scheduled_end: fromLocalInput($("jobEnd").value),
     };
@@ -389,7 +529,14 @@
         editingId = j.data.id;
         $("jobId").value = editingId;
         tempWorkersCache = Array.isArray(j.data.temp_workers) ? j.data.temp_workers : [];
+        serviceRows = (Array.isArray(j.data.line_items) ? j.data.line_items : []).map((li) => ({
+          pricing_item_id: li.pricing_item_id || null,
+          service_name: li.service_name || "",
+          quantity_sqft: li.quantity_sqft || 0,
+          unit_price: li.unit_price || 0,
+        }));
         renderTeamCheckboxes((j.data.members || []).map((m) => m.user_id));
+        renderServices();
         openModal(j.data.number != null ? `Job #${j.data.number}` : "Editar job");
         savedListeners.forEach((fn) => {
           try {
@@ -472,10 +619,21 @@
       const j = await api(`/api/work-orders/${editingId}/temp-workers/${id}/share-link`, { method: "POST" });
       const url = j.data?.url || "";
       const out = document.getElementById(`tempLinkOut-${id}`);
+      const temp = tempWorkersCache.find((x) => x.id === id);
+      const phoneDigits = String(temp?.phone || "").replace(/\D/g, "");
+      const msg = encodeURIComponent(`Olá${temp?.name ? " " + temp.name : ""}! Segue o link do job: ${url}`);
+      const waHref = phoneDigits
+        ? `https://wa.me/${phoneDigits}?text=${msg}`
+        : `https://wa.me/?text=${msg}`;
+      const smsHref = phoneDigits
+        ? `sms:${phoneDigits}${/iPhone|iPad|Mac/i.test(navigator.userAgent) ? "&" : "?"}body=${msg}`
+        : `sms:?&body=${msg}`;
       if (out) {
         out.hidden = false;
         out.innerHTML = `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
-          <button type="button" class="btn btn-secondary btn-sm job-temp-copy" data-url="${escapeHtml(url)}">Copiar</button>`;
+          <button type="button" class="btn btn-secondary btn-sm job-temp-copy" data-url="${escapeHtml(url)}">Copiar</button>
+          <a class="btn btn-secondary btn-sm" href="${escapeHtml(waHref)}" target="_blank" rel="noopener">WhatsApp</a>
+          <a class="btn btn-secondary btn-sm" href="${escapeHtml(smsHref)}">SMS</a>`;
       }
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
@@ -496,6 +654,33 @@
     $("btnCancelWo").addEventListener("click", cancelJob);
     $("jobForm").addEventListener("submit", saveJob);
     $("btnAddTemp")?.addEventListener("click", () => addTempWorker());
+    $("btnAddService")?.addEventListener("click", () => addServiceRow());
+    $("jobSourceType")?.addEventListener("change", () => refreshPricesFromCatalog());
+    $("jobBuilder")?.addEventListener("change", () => refreshPricesFromCatalog());
+    $("jobServicesList")?.addEventListener("change", (e) => {
+      const t = e.target;
+      if (t.classList.contains("js-svc-pricing")) {
+        const idx = Number(t.getAttribute("data-idx"));
+        collectServiceRowsFromDom();
+        if (serviceRows[idx]) serviceRows[idx].pricing_item_id = t.value || null;
+        applyPricingToRow(idx);
+      }
+    });
+    $("jobServicesList")?.addEventListener("input", (e) => {
+      const t = e.target;
+      if (t.classList.contains("js-svc-qty") || t.classList.contains("js-svc-price") || t.classList.contains("js-svc-name")) {
+        collectServiceRowsFromDom();
+        updateServicesTotal();
+      }
+    });
+    $("jobServicesList")?.addEventListener("click", (e) => {
+      const del = e.target.closest(".js-svc-del");
+      if (!del) return;
+      const idx = Number(del.getAttribute("data-idx"));
+      collectServiceRowsFromDom();
+      serviceRows.splice(idx, 1);
+      renderServices();
+    });
     $("jobTempList")?.addEventListener("click", (e) => {
       const linkBtn = e.target.closest(".job-temp-link");
       if (linkBtn) {

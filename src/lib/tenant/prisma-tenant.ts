@@ -75,6 +75,9 @@ const TENANT_MODELS = new Set([
   "SupportTicket",
   "PushSubscription",
   "WorkOrder",
+  "WorkOrderMember",
+  "WorkOrderTempWorker",
+  "WorkOrderLineItem",
   "Meeting",
 ]);
 

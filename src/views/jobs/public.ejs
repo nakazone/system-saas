@@ -87,6 +87,17 @@
       </dl>
     </div>
 
+    <% if (job.services && job.services.length) { %>
+    <div class="card">
+      <h2>Serviços</h2>
+      <ul class="team">
+        <% job.services.forEach(function (svc) { %>
+          <li><%= svc.name %><% if (svc.quantitySqft) { %> — <%= svc.quantitySqft %> sqft<% } %></li>
+        <% }) %>
+      </ul>
+    </div>
+    <% } %>
+
     <% if (job.team && job.team.length) { %>
     <div class="card">
       <h2>Equipe</h2>

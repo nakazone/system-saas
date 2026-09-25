@@ -172,3 +172,38 @@
   padding: 0.3rem 0.55rem;
   font-size: 0.75rem;
 }
+
+.jobs-services-fieldset {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2d9cc;
+  border-radius: 10px;
+}
+.jobs-services-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b645c;
+}
+.jobs-services-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.45rem 0 0.55rem;
+}
+.jobs-service-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1.2fr 0.7fr 0.7fr auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .jobs-service-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.jobs-services-total {
+  margin: 0.45rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #211d1a;
+}

@@ -116,6 +116,45 @@
         ? `${temps.length} temporário(s)`
         : "—";
 
+    const servicesBody = $("jobServicesBody");
+    if (servicesBody) {
+      const lines = Array.isArray(job.line_items) ? job.line_items : [];
+      if (!lines.length) {
+        servicesBody.innerHTML =
+          '<p class="jobs-empty" style="padding:1rem 0">Sem serviços neste job. Use Editar serviços para adicionar.</p>';
+      } else {
+        const rows = lines
+          .map(
+            (li) => `<tr>
+              <td>${escapeHtml(li.service_name || "—")}</td>
+              <td style="text-align:right">${escapeHtml(String(li.quantity_sqft ?? 0))}</td>
+              <td style="text-align:right">${escapeHtml(
+                (Number(li.unit_price) || 0).toLocaleString(undefined, {
+                  style: "currency",
+                  currency: "USD",
+                }),
+              )}</td>
+              <td style="text-align:right">${escapeHtml(
+                (Number(li.line_total) || 0).toLocaleString(undefined, {
+                  style: "currency",
+                  currency: "USD",
+                }),
+              )}</td>
+            </tr>`,
+          )
+          .join("");
+        const total = (Number(job.services_total) || 0).toLocaleString(undefined, {
+          style: "currency",
+          currency: "USD",
+        });
+        servicesBody.innerHTML = `<table class="job-visits-table">
+          <thead><tr><th>Serviço</th><th style="text-align:right">Sqft</th><th style="text-align:right">Preço</th><th style="text-align:right">Total</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Total</td><td style="text-align:right;font-weight:700">${escapeHtml(total)}</td></tr></tfoot>
+        </table>`;
+      }
+    }
+
     const teamBody = $("jobTeamBody");
     if (teamBody) {
       const parts = [];
@@ -189,6 +228,8 @@
       $("btnSaveNotes").style.display = "none";
       const manageTeam = $("btnManageTeam");
       if (manageTeam) manageTeam.style.display = "none";
+      const editSvc = $("btnEditServices");
+      if (editSvc) editSvc.style.display = "none";
       $("jobNotes").readOnly = true;
     }
   }
@@ -258,6 +299,9 @@
         window.__crmJobModal.openEdit(jobId).catch((e) => notify(e.message, "error"));
       });
       $("btnManageTeam")?.addEventListener("click", () => {
+        window.__crmJobModal.openEdit(jobId).catch((e) => notify(e.message, "error"));
+      });
+      $("btnEditServices")?.addEventListener("click", () => {
         window.__crmJobModal.openEdit(jobId).catch((e) => notify(e.message, "error"));
       });
       $("btnDeleteJob").addEventListener("click", () => {

@@ -27,6 +27,7 @@ publicJobsRouter.get("/:token", async (req, res, next) => {
           customer: { select: { name: true } },
           builder: { select: { firstName: true, lastName: true, company: true } },
           members: { include: { user: { select: { name: true } } } },
+          lineItems: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
         },
       });
       if (!workOrder || workOrder.status === "canceled") return null;
@@ -61,6 +62,11 @@ publicJobsRouter.get("/:token", async (req, res, next) => {
       ...wo.members.map((m) => m.user.name),
     ].filter((n, i, arr): n is string => Boolean(n) && arr.indexOf(n!) === i);
 
+    const services = (wo.lineItems || []).map((li) => ({
+      name: li.serviceName,
+      quantitySqft: Number(li.quantitySqft) || 0,
+    }));
+
     res.render("jobs/public", {
       title: wo.title,
       organization: data.organization,
@@ -75,6 +81,7 @@ publicJobsRouter.get("/:token", async (req, res, next) => {
         scheduledStart: wo.scheduledStart,
         scheduledEnd: wo.scheduledEnd,
         team,
+        services,
       },
     });
   } catch (error) {

@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
-import { requireCrmAuth, requireCrmPermission } from "../http.js";
+import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
+import { notifyJobTeamPush } from "../../lib/push/notify.js";
 
 export const scheduleJobsRouter = Router();
 
@@ -65,7 +67,26 @@ function mapWorkOrder(wo: {
     notes: string | null;
     createdAt: Date;
   }[];
+  lineItems?: {
+    id: string;
+    pricingItemId: string | null;
+    serviceName: string;
+    quantitySqft: unknown;
+    unitPrice: unknown;
+    lineTotal: unknown;
+    sortOrder: number;
+  }[];
 }) {
+  const lineItems = (wo.lineItems || []).map((li) => ({
+    id: li.id,
+    pricing_item_id: li.pricingItemId,
+    service_name: li.serviceName,
+    quantity_sqft: dec(li.quantitySqft),
+    unit_price: dec(li.unitPrice),
+    line_total: dec(li.lineTotal),
+    sort_order: li.sortOrder,
+  }));
+  const services_total = lineItems.reduce((sum, li) => sum + li.line_total, 0);
   return {
     id: wo.id,
     number: wo.number,
@@ -117,6 +138,8 @@ function mapWorkOrder(wo: {
       notes: t.notes,
       created_at: t.createdAt.toISOString(),
     })),
+    line_items: lineItems,
+    services_total,
   };
 }
 
@@ -164,7 +187,15 @@ const woInclude = {
     orderBy: { createdAt: "asc" as const },
   },
   tempWorkers: { orderBy: { createdAt: "asc" as const } },
-} as const;
+  lineItems: { orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }] },
+};
+
+const lineItemBody = z.object({
+  pricing_item_id: z.string().uuid().optional().nullable(),
+  service_name: z.string().min(1).max(200),
+  quantity_sqft: z.number().min(0).max(1_000_000),
+  unit_price: z.number().min(0).max(1_000_000),
+});
 
 async function syncWorkOrderMembers(
   organizationId: string,
@@ -190,6 +221,53 @@ async function syncWorkOrderMembers(
     return;
   }
   await prisma.workOrderMember.deleteMany({ where: { workOrderId } });
+}
+
+async function syncWorkOrderLineItems(
+  organizationId: string,
+  workOrderId: string,
+  items: z.infer<typeof lineItemBody>[] | undefined,
+): Promise<void> {
+  if (items === undefined) return;
+  await prisma.workOrderLineItem.deleteMany({ where: { workOrderId } });
+  if (!items.length) return;
+  const pricingIds = [
+    ...new Set(items.map((i) => i.pricing_item_id).filter((id): id is string => Boolean(id))),
+  ];
+  const validPricing = pricingIds.length
+    ? await prisma.pricingItem.findMany({
+        where: { organizationId, id: { in: pricingIds } },
+        select: { id: true },
+      })
+    : [];
+  const validSet = new Set(validPricing.map((p) => p.id));
+  await prisma.workOrderLineItem.createMany({
+    data: items.map((item, idx) => {
+      const qty = Number(item.quantity_sqft) || 0;
+      const price = Number(item.unit_price) || 0;
+      const pid = item.pricing_item_id && validSet.has(item.pricing_item_id) ? item.pricing_item_id : null;
+      return {
+        organizationId,
+        workOrderId,
+        pricingItemId: pid,
+        serviceName: item.service_name.trim(),
+        quantitySqft: new Prisma.Decimal(qty),
+        unitPrice: new Prisma.Decimal(price),
+        lineTotal: new Prisma.Decimal(Math.round(qty * price * 100) / 100),
+        sortOrder: idx,
+      };
+    }),
+  });
+}
+
+function teamUserIdsFromWorkOrder(wo: {
+  assignedUserId: string | null;
+  members?: { userId: string }[];
+}): string[] {
+  const ids = new Set<string>();
+  if (wo.assignedUserId) ids.add(wo.assignedUserId);
+  for (const m of wo.members || []) ids.add(m.userId);
+  return [...ids];
 }
 
 const mtgInclude = {
@@ -322,6 +400,42 @@ scheduleJobsRouter.get(
   },
 );
 
+/** Loja / partner pricing catalog for job service lines. */
+scheduleJobsRouter.get(
+  "/api/work-orders/pricing-catalog",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const rows = await prisma.pricingItem.findMany({
+        where: {
+          organizationId: req.organizationId!,
+          active: true,
+          isVisible: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      });
+      res.json({
+        success: true,
+        data: rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          category: row.category,
+          unit: row.unit,
+          /** Loja / cliente final */
+          price_loja: dec(row.priceMin) || dec(row.price),
+          price_min: dec(row.priceMin),
+          price_max: dec(row.priceMax),
+          /** Builder / partner */
+          partner_price: row.partnerPrice != null ? dec(row.partnerPrice) : null,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 scheduleJobsRouter.get(
   "/api/work-orders/:id",
   requireCrmAuth,
@@ -355,6 +469,7 @@ const workOrderBody = z.object({
   assigned_user_id: z.string().uuid().optional().nullable(),
   crew_id: z.string().uuid().optional().nullable(),
   member_user_ids: z.array(z.string().uuid()).optional(),
+  line_items: z.array(lineItemBody).max(50).optional(),
   scheduled_start: z.string().datetime().optional().nullable(),
   scheduled_end: z.string().datetime().optional().nullable(),
 });
@@ -405,6 +520,7 @@ scheduleJobsRouter.post(
         },
       });
       await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
+      await syncWorkOrderLineItems(req.organizationId!, row.id, d.line_items);
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },
         include: woInclude,
@@ -419,6 +535,15 @@ scheduleJobsRouter.post(
         crewId: row.crewId,
         kind: "work_order",
       });
+
+      if (full) {
+        notifyJobTeamPush(
+          req.organizationId!,
+          { id: full.id, title: full.title, number: full.number },
+          teamUserIdsFromWorkOrder(full),
+          { excludeUserId: req.user?.id, event: "created" },
+        );
+      }
 
       res.status(201).json({
         success: true,
@@ -492,6 +617,7 @@ scheduleJobsRouter.put(
         },
       });
       await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
+      await syncWorkOrderLineItems(req.organizationId!, row.id, d.line_items);
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },
         include: woInclude,
@@ -506,6 +632,25 @@ scheduleJobsRouter.put(
         crewId: row.crewId,
         kind: "work_order",
       });
+
+      if (full) {
+        const shouldNotify =
+          d.assigned_user_id !== undefined ||
+          d.member_user_ids !== undefined ||
+          d.scheduled_start !== undefined ||
+          d.scheduled_end !== undefined ||
+          d.status !== undefined ||
+          d.address !== undefined ||
+          d.line_items !== undefined;
+        if (shouldNotify) {
+          notifyJobTeamPush(
+            req.organizationId!,
+            { id: full.id, title: full.title, number: full.number },
+            teamUserIdsFromWorkOrder(full),
+            { excludeUserId: req.user?.id, event: "updated" },
+          );
+        }
+      }
 
       res.json({ success: true, data: mapWorkOrder(full!), conflicts });
     } catch (error) {
