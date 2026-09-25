@@ -16,6 +16,7 @@ import { financeRouter } from "./routes/finance.js";
 import { campoPontoRouter } from "./routes/campo-ponto.js";
 import { campoJobsRouter } from "./routes/campo-jobs.js";
 import { campoHorasRouter } from "./routes/campo-horas.js";
+import { campoFolhaRouter } from "./routes/campo-folha.js";
 
 export const crmApiRouter = Router();
 
@@ -32,3 +33,4 @@ crmApiRouter.use(cadastroPayrollUsersRouter);
 crmApiRouter.use(campoPontoRouter);
 crmApiRouter.use(campoJobsRouter);
 crmApiRouter.use(campoHorasRouter);
+crmApiRouter.use(campoFolhaRouter);

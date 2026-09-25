@@ -1,17 +1,13 @@
 /**
- * Campo · Hoje — ponto ao vivo (Fase 2 API) + fallback mock
+ * Campo · Hoje — diária + extras + próximos pagamentos
  */
 (function () {
-  const VER = "20260925-campo2";
+  const VER = "20260925-campo5";
   const M = window.__campoMock;
   const $ = (id) => document.getElementById(id);
 
-  let state = null; // /api/campo/hoje payload
-  let useMock = false;
-  let timerId = null;
-  let basePaidMs = 0;
-  let baseAt = 0;
-  let paused = false;
+  let state = null;
+  let busy = false;
 
   function escapeHtml(s) {
     return String(s || "")
@@ -23,18 +19,6 @@
 
   function mapsUrl(address) {
     return `https://maps.apple.com/?q=${encodeURIComponent(address || "")}`;
-  }
-
-  function pad(n) {
-    return String(n).padStart(2, "0");
-  }
-
-  function formatHms(ms) {
-    const total = Math.max(0, Math.floor(ms / 1000));
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    const s = total % 60;
-    return `${pad(h)}:${pad(m)}:${pad(s)}`;
   }
 
   function statusLabel(status) {
@@ -85,25 +69,10 @@
     return json;
   }
 
-  function syncTimerFromPonto(ponto) {
-    paused = Boolean(ponto?.paused);
-    basePaidMs = Number(ponto?.paid_ms) || 0;
-    baseAt = Date.now();
-  }
-
-  function currentPaidMs() {
-    if (paused || !state?.ponto?.open) return basePaidMs;
-    return basePaidMs + Math.max(0, Date.now() - baseAt);
-  }
-
-  function tickTimer() {
-    const el = $("cmTimer");
-    if (!el) return;
-    if (!state?.ponto?.open && !useMock) {
-      el.textContent = formatHms(basePaidMs);
-      return;
-    }
-    el.textContent = formatHms(currentPaidMs());
+  function toast(msg, type) {
+    if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "error" });
+    else if (type === "success") alert(msg);
+    else alert(msg);
   }
 
   function renderHeader() {
@@ -115,74 +84,118 @@
     $("cmMeta").textContent = `${u.team || "Equipe"} · ${formatDayMeta(now)}`;
   }
 
-  function renderPonto() {
-    const ponto = state?.ponto;
-    const open = Boolean(ponto?.open);
-    const cur = ponto?.current;
-    const endBtn = $("cmEndBtn");
-    const pauseBtn = $("cmPauseBtn");
-    const trocarBtn = $("cmTrocarBtn");
-    const clockInBtn = $("cmClockInBtn");
+  function renderFolha() {
+    const f = state?.folha;
+    const btn = $("cmAddDiariaBtn");
+    const hint = $("cmDiariaHint");
+    const minus = $("cmExtraMinus");
+    const plus = $("cmExtraPlus");
 
-    if (clockInBtn) clockInBtn.hidden = open;
-    if (pauseBtn) pauseBtn.hidden = !open;
-    if (endBtn) endBtn.hidden = !open;
-    if (trocarBtn) trocarBtn.disabled = !open;
-
-    if (!open) {
-      $("cmEntrada").textContent = ponto?.clock_in_label
-        ? `Encerrado · entrada ${ponto.clock_in_label}`
-        : "Sem turno hoje";
-      $("cmStatusTitle").textContent = ponto?.shift ? "Dia encerrado" : "Fora de ponto";
-      $("cmStatusSub").textContent = "Toque em Iniciar dia para bater o ponto";
-      $("cmStatusDot").className = "cm-ponto__status-dot cm-ponto__status-dot--pause";
-      tickTimer();
+    if (!f || !f.linked) {
+      $("cmDiariaPeriod").textContent = "Folha";
+      $("cmDiariaAmount").textContent = "—";
+      $("cmDiariaStatus").textContent = f?.message || "Conta não vinculada à folha";
+      $("cmDiariaChipVal").textContent = "—";
+      $("cmExtraVal").textContent = "—";
+      $("cmExtraMid").textContent = "—";
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Diária indisponível";
+      }
+      if (minus) minus.disabled = true;
+      if (plus) plus.disabled = true;
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = f?.message || "Peça ao escritório para vincular seu usuário ao funcionário da folha.";
+      }
       return;
     }
 
-    $("cmEntrada").textContent = `Entrada ${ponto.clock_in_label || "—"}`;
-    const kind = cur?.activity_kind || "on_site";
-    $("cmStatusDot").className =
-      kind === "break"
-        ? "cm-ponto__status-dot cm-ponto__status-dot--pause"
-        : kind === "travel"
-          ? "cm-ponto__status-dot cm-ponto__status-dot--travel"
-          : kind === "shopping"
-            ? "cm-ponto__status-dot cm-ponto__status-dot--shop"
-            : "cm-ponto__status-dot";
-    $("cmStatusTitle").textContent = cur?.label || "—";
-    if (kind === "on_site" && cur?.work_order) {
-      const wo = cur.work_order;
-      $("cmStatusSub").textContent = `#${wo.number ?? "—"} ${wo.client_short || ""} · desde ${cur.since_label || ""}`;
-    } else {
-      $("cmStatusSub").textContent = cur
-        ? kind === "break"
-          ? "Não conta no total"
-          : `desde ${cur.since_label || ""}`
-        : "—";
+    const today = f.today || {};
+    const period = f.period;
+    $("cmDiariaPeriod").textContent = period ? period.label : "Sem período";
+    $("cmDiariaAmount").textContent = today.amount_label || "$0.00";
+    $("cmDiariaStatus").textContent = today.has_diaria
+      ? today.overtime_hours > 0
+        ? `Diária + ${today.overtime_label} extras`
+        : "Diária lançada"
+      : today.overtime_hours > 0
+        ? `Só extras · ${today.overtime_label}`
+        : "Sem lançamento ainda";
+
+    const chip = $("cmDiariaChip");
+    $("cmDiariaChipVal").textContent = today.has_diaria ? "Lançada" : "Pendente";
+    if (chip) chip.classList.toggle("is-done", Boolean(today.has_diaria));
+
+    $("cmExtraVal").textContent = today.overtime_label || "0 min";
+    $("cmExtraMid").textContent = today.overtime_label || "0 min";
+
+    const can = Boolean(f.can_edit);
+    if (btn) {
+      btn.disabled = !can || today.has_diaria || busy;
+      btn.textContent = today.has_diaria ? "Diária já lançada" : "Adicionar diária inteira";
     }
-    if (pauseBtn) pauseBtn.textContent = ponto.paused ? "Retomar" : "Pausa";
-    tickTimer();
+    if (minus) minus.disabled = !can || busy || !(today.overtime_hours > 0);
+    if (plus) plus.disabled = !can || busy;
+
+    if (hint) {
+      if (f.message) {
+        hint.hidden = false;
+        hint.textContent = f.message;
+      } else if (f.employee) {
+        hint.hidden = false;
+        hint.textContent = `Diária ${f.employee.daily_rate_label} · Extra ${f.employee.overtime_rate_label}/h`;
+      } else {
+        hint.hidden = true;
+      }
+    }
+  }
+
+  function renderPayments() {
+    const list = $("cmPayList");
+    if (!list) return;
+    const rows = state?.payments || state?.folha?.payments || [];
+    if (!rows.length) {
+      list.innerHTML =
+        '<p class="cm-pay__empty">Nenhum pagamento previsto. Quando o escritório abrir um período, ele aparece aqui.</p>';
+      return;
+    }
+    list.innerHTML = rows
+      .map((p) => {
+        const tone =
+          p.pay_status === "paid"
+            ? "cm-pay__card--paid"
+            : p.pay_status === "due"
+              ? "cm-pay__card--due"
+              : "cm-pay__card--open";
+        return `
+        <article class="cm-pay__card ${tone}">
+          <div class="cm-pay__card-top">
+            <p class="cm-pay__card-label">${escapeHtml(p.label)}</p>
+            <span class="cm-pay__badge">${escapeHtml(p.status_label)}</span>
+          </div>
+          <p class="cm-pay__card-amount">${escapeHtml(p.amount_label)}</p>
+          <p class="cm-pay__card-meta">${escapeHtml(p.range_label)} · ${escapeHtml(p.hint || "")}</p>
+        </article>`;
+      })
+      .join("");
   }
 
   function renderHere() {
     const card = $("cmHereCard");
-    const ponto = state?.ponto;
-    const cur = ponto?.current;
+    const jobs = state?.jobs || [];
     const wo =
-      cur?.work_order ||
-      (state?.jobs || []).find((j) => j.status === "on_site") ||
-      (state?.jobs || [])[0];
+      jobs.find((j) => j.status === "on_site") ||
+      jobs.find((j) => j.status === "en_route" || j.status === "in_progress") ||
+      jobs[0];
 
-    if (!ponto?.open || !wo || cur?.activity_kind === "break") {
+    if (!wo) {
       card.style.display = "none";
       return;
     }
     card.style.display = "";
-    const start = wo.start || (cur?.work_order ? null : wo.start);
-    const end = wo.end;
     $("cmHereTime").textContent =
-      start && end ? `${start} – ${end}` : start || "Sem horário";
+      wo.start && wo.end ? `${wo.start} – ${wo.end}` : wo.start || "Sem horário";
     $("cmHereTitle").textContent = wo.title || "Obra";
     $("cmHereClient").textContent = `#${wo.number ?? "—"} · ${wo.client || wo.client_short || "—"}`;
     $("cmHereAddrText").textContent = wo.address || "Sem endereço";
@@ -220,132 +233,73 @@
       .join("");
   }
 
-  function selectedActivityId() {
-    const cur = state?.ponto?.current;
-    if (!cur) return null;
-    if (cur.activity_kind === "on_site" && cur.work_order_id) {
-      return `on_site:${cur.work_order_id}`;
-    }
-    return cur.activity_kind;
-  }
-
-  function renderActivityList() {
-    const activities = state?.activities || [];
-    const selected = selectedActivityId();
-    const colors = {
-      on_site: "var(--cm-green)",
-      travel: "var(--cm-blue)",
-      shopping: "var(--cm-orange)",
-      break: "#a8a29e",
-    };
-    $("cmActivityList").innerHTML = activities
-      .map((a) => {
-        const sel = a.id === selected ? " is-selected" : "";
-        return `
-        <button type="button" class="cm-activity${sel}"
-          data-kind="${escapeHtml(a.activity_kind)}"
-          data-wo="${a.work_order_id ? escapeHtml(a.work_order_id) : ""}">
-          <span class="cm-activity__dot" style="background:${colors[a.activity_kind] || "#a8a29e"}"></span>
-          <span>
-            <p class="cm-activity__title">${escapeHtml(a.title)}</p>
-            <p class="cm-activity__sub">${escapeHtml(a.sub)}</p>
-          </span>
-        </button>`;
-      })
-      .join("");
-  }
-
-  function openSheet() {
-    if (!state?.ponto?.open) return;
-    renderActivityList();
-    $("cmSheetBackdrop").hidden = false;
-    $("cmActivitySheet").hidden = false;
-    document.body.classList.add("cm-sheet-open");
-  }
-
-  function closeSheet() {
-    $("cmSheetBackdrop").hidden = true;
-    $("cmActivitySheet").hidden = true;
-    document.body.classList.remove("cm-sheet-open");
-  }
-
   function applyPayload(data) {
     state = data;
-    useMock = false;
-    syncTimerFromPonto(data.ponto);
     renderHeader();
-    renderPonto();
+    renderFolha();
+    renderPayments();
     renderHere();
     renderDayList();
   }
 
-  function toast(msg) {
-    if (window.crmToast?.show) window.crmToast.show(msg, { type: "error" });
-    else alert(msg);
+  function applyFolhaOnly(folha) {
+    if (!state) state = {};
+    state.folha = folha;
+    state.payments = folha.payments || state.payments || [];
+    renderFolha();
+    renderPayments();
   }
 
-  async function postPonto(path, body) {
-    const json = await api(path, {
-      method: "POST",
-      body: body ? JSON.stringify(body) : "{}",
-    });
-    if (json.data) applyPayload(json.data);
-    closeSheet();
+  async function postFolha(path, body) {
+    if (busy) return;
+    busy = true;
+    renderFolha();
+    try {
+      const json = await api(path, {
+        method: "POST",
+        body: JSON.stringify(body || {}),
+      });
+      if (json.data) applyFolhaOnly(json.data);
+      toast("Lançamento atualizado", "success");
+    } finally {
+      busy = false;
+      renderFolha();
+    }
   }
 
   function bind() {
-    $("cmTrocarBtn")?.addEventListener("click", openSheet);
-    $("cmSheetClose")?.addEventListener("click", closeSheet);
-    $("cmSheetBackdrop")?.addEventListener("click", closeSheet);
-    $("cmActivityList")?.addEventListener("click", async (e) => {
-      const btn = e.target.closest("[data-kind]");
-      if (!btn) return;
-      const kind = btn.getAttribute("data-kind");
-      const wo = btn.getAttribute("data-wo") || null;
+    $("cmAddDiariaBtn")?.addEventListener("click", async () => {
       try {
-        await postPonto("/api/campo/ponto/switch", {
-          activity_kind: kind,
-          work_order_id: wo || null,
-        });
+        await postFolha("/api/campo/folha/diaria", {});
       } catch (err) {
-        toast(err.message || "Falha ao trocar atividade");
+        toast(err.message || "Falha ao lançar diária");
+        busy = false;
+        renderFolha();
       }
     });
-    $("cmPauseBtn")?.addEventListener("click", async () => {
+    $("cmExtraPlus")?.addEventListener("click", async () => {
       try {
-        if (state?.ponto?.paused) await postPonto("/api/campo/ponto/resume");
-        else await postPonto("/api/campo/ponto/pause");
+        await postFolha("/api/campo/folha/extra", { delta_hours: 0.5 });
       } catch (err) {
-        toast(err.message || "Falha na pausa");
+        toast(err.message || "Falha ao adicionar extra");
+        busy = false;
+        renderFolha();
       }
     });
-    $("cmEndBtn")?.addEventListener("click", async () => {
-      if (!confirm("Encerrar o dia? O ponto será fechado.")) return;
+    $("cmExtraMinus")?.addEventListener("click", async () => {
       try {
-        await postPonto("/api/campo/ponto/clock-out");
+        await postFolha("/api/campo/folha/extra", { delta_hours: -0.5 });
       } catch (err) {
-        toast(err.message || "Falha ao encerrar");
-      }
-    });
-    $("cmClockInBtn")?.addEventListener("click", async () => {
-      try {
-        const firstJob = (state?.jobs || [])[0];
-        await postPonto("/api/campo/ponto/clock-in", {
-          activity_kind: firstJob ? "on_site" : "travel",
-          work_order_id: firstJob?.id || null,
-        });
-      } catch (err) {
-        toast(err.message || "Falha ao iniciar dia");
+        toast(err.message || "Falha ao remover extra");
+        busy = false;
+        renderFolha();
       }
     });
   }
 
   function fallbackMock() {
-    useMock = true;
     if (!M) return;
     const user = M.user;
-    const shift = M.openShift();
-    const act = M.activities[shift.activityId];
     const jobs = M.buildTodayJobs();
     state = {
       user: {
@@ -355,28 +309,54 @@
         initials: user.initials,
         team: user.team,
       },
-      ponto: {
-        open: true,
-        clock_in_label: shift.clockInLabel,
-        paid_ms: M.elapsedPaidMs(shift),
-        paused: false,
-        current: {
-          activity_kind: act.kind,
-          label: act.label,
-          since_label: shift.activitySinceLabel,
-          work_order_id: act.workOrderId,
-          work_order: jobs[0]
-            ? {
-                id: jobs[0].id,
-                number: jobs[0].number,
-                title: jobs[0].title,
-                address: jobs[0].address,
-                client: jobs[0].client,
-                client_short: jobs[0].clientShort,
-              }
-            : null,
+      folha: {
+        linked: true,
+        can_edit: true,
+        message: null,
+        employee: {
+          id: "mock",
+          name: user.name,
+          daily_rate: 180,
+          daily_rate_label: "$180.00",
+          overtime_rate: 30,
+          overtime_rate_label: "$30.00",
         },
+        period: {
+          id: "p1",
+          label: "Semana 22–28 set",
+          range_label: "22/09/2025 – 28/09/2025",
+        },
+        today: {
+          has_diaria: false,
+          days_worked: 0,
+          overtime_hours: 0,
+          overtime_label: "0 min",
+          amount: 0,
+          amount_label: "$0.00",
+        },
+        payments: [
+          {
+            id: "p1",
+            label: "Semana 22–28 set",
+            amount_label: "$540.00",
+            status_label: "Em andamento",
+            pay_status: "open",
+            range_label: "22/09 – 28/09",
+            hint: "Fecha 28/09/2025",
+          },
+        ],
       },
+      payments: [
+        {
+          id: "p1",
+          label: "Semana 22–28 set",
+          amount_label: "$540.00",
+          status_label: "Em andamento",
+          pay_status: "open",
+          range_label: "22/09 – 28/09",
+          hint: "Fecha 28/09/2025",
+        },
+      ],
       jobs: jobs.map((j) => ({
         id: j.id,
         number: j.number,
@@ -389,25 +369,12 @@
         status: j.status,
         team: j.team,
       })),
-      activities: Object.values(M.activities).map((a) => ({
-        id: a.id,
-        activity_kind: a.kind,
-        label: a.label,
-        title: a.title,
-        sub: a.sub,
-        work_order_id: a.workOrderId,
-      })),
     };
-    syncTimerFromPonto(state.ponto);
-    renderHeader();
-    renderPonto();
-    renderHere();
-    renderDayList();
+    applyPayload(state);
   }
 
   async function init() {
     bind();
-    // Clock-in button is in HTML
     try {
       const json = await api("/api/campo/hoje");
       applyPayload(json.data);
@@ -415,8 +382,6 @@
       console.warn("[campo/hoje]", err);
       fallbackMock();
     }
-
-    timerId = setInterval(tickTimer, 1000);
   }
 
   if (document.readyState === "loading") {

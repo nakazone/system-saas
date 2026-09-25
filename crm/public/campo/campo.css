@@ -189,16 +189,16 @@ button {
   gap: 0.4rem;
 }
 
-/* —— Ponto card —— */
-.cm-ponto {
+/* —— Diária card (substitui relógio de ponto) —— */
+.cm-diaria {
   background: var(--cm-dark);
   color: #fafaf9;
   border-radius: var(--cm-radius);
-  padding: 1.05rem 1.1rem 1rem;
+  padding: 1.05rem 1.1rem 1.05rem;
   margin-bottom: 0.85rem;
 }
 
-.cm-ponto__top {
+.cm-diaria__top {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -208,76 +208,195 @@ button {
   margin-bottom: 0.35rem;
 }
 
-.cm-ponto__timer {
+.cm-diaria__amount {
   margin: 0;
-  font-size: 2.65rem;
+  font-size: 2.35rem;
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
 
-.cm-ponto__status {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  margin: 0.85rem 0 0.9rem;
-  padding: 0.65rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.28);
-}
-
-.cm-ponto__status-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--cm-green);
-  flex-shrink: 0;
-}
-
-.cm-ponto__status-dot--pause {
-  background: #a8a29e;
-}
-.cm-ponto__status-dot--travel {
-  background: #60a5fa;
-}
-.cm-ponto__status-dot--shop {
-  background: #fb923c;
-}
-
-.cm-ponto__status-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.cm-ponto__status-title {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.cm-ponto__status-sub {
-  margin: 0.1rem 0 0;
-  font-size: 0.75rem;
-  color: rgba(250, 250, 249, 0.55);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cm-ponto__trocar {
-  flex-shrink: 0;
-  color: #d4a574;
+.cm-diaria__status {
+  margin: 0.35rem 0 0.85rem;
   font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.25rem 0.15rem;
+  color: rgba(250, 250, 249, 0.65);
 }
 
-.cm-ponto__actions {
+.cm-diaria__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.cm-diaria__chip {
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+}
+
+.cm-diaria__chip.is-done {
+  background: rgba(22, 163, 74, 0.22);
+}
+
+.cm-diaria__chip-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(250, 250, 249, 0.5);
+}
+
+.cm-diaria__chip-val {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.cm-diaria__hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  color: rgba(250, 250, 249, 0.5);
+  line-height: 1.35;
+}
+
+.cm-extra {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cm-extra__label {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(250, 250, 249, 0.55);
+}
+
+.cm-extra__controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cm-extra__btn {
+  min-height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fafaf9;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.cm-extra__btn:disabled {
+  opacity: 0.4;
+}
+
+.cm-extra__btn--plus {
+  background: rgba(193, 101, 47, 0.35);
+  border-color: rgba(193, 101, 47, 0.55);
+}
+
+.cm-extra__mid {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5rem;
+}
+
+/* —— Próximos pagamentos —— */
+.cm-pay {
+  background: var(--cm-surface);
+  border-radius: var(--cm-radius);
+  padding: 0.95rem 1rem 1rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.cm-pay__head {
+  margin-bottom: 0.65rem;
+}
+
+.cm-pay__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.cm-pay__list {
+  display: flex;
+  flex-direction: column;
   gap: 0.55rem;
+}
+
+.cm-pay__empty {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--cm-muted);
+  line-height: 1.4;
+}
+
+.cm-pay__card {
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  background: #f7f5f2;
+  border-left: 3px solid var(--cm-accent);
+}
+
+.cm-pay__card--open {
+  border-left-color: var(--cm-accent);
+}
+
+.cm-pay__card--due {
+  border-left-color: #ca8a04;
+  background: #faf6eb;
+}
+
+.cm-pay__card--paid {
+  border-left-color: var(--cm-green);
+  background: #f0faf3;
+}
+
+.cm-pay__card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cm-pay__card-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--cm-ink);
+}
+
+.cm-pay__badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--cm-muted);
+  white-space: nowrap;
+}
+
+.cm-pay__card-amount {
+  margin: 0.25rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-pay__card-meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  color: var(--cm-muted);
 }
 
 .cm-btn {

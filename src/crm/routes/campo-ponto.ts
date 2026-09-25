@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth } from "../http.js";
+import { buildFolhaPayload } from "./campo-folha.js";
 
 export const campoPontoRouter = Router();
 
@@ -427,6 +428,8 @@ async function buildHojePayload(tx: Tx, req: AuthedRequest, now = new Date()) {
     },
   );
 
+  const folha = await buildFolhaPayload(tx, userId, now);
+
   return {
     user: {
       id: userId,
@@ -439,6 +442,8 @@ async function buildHojePayload(tx: Tx, req: AuthedRequest, now = new Date()) {
     organization_id: orgId,
     server_now: now.toISOString(),
     ponto,
+    folha,
+    payments: folha.payments || [],
     jobs,
     activities,
   };
