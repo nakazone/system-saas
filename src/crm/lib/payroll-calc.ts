@@ -1,5 +1,5 @@
 /**
- * Construction payroll line calculation — daily / hourly / mixed.
+ * Construction payroll line calculation — daily (+ OT) / production / legacy hourly|mixed.
  */
 
 export type PayrollEmpRates = {
@@ -11,6 +11,8 @@ export type PayrollEmpRates = {
   hourlyRate?: unknown;
   overtime_rate?: unknown;
   overtimeRate?: unknown;
+  production_rate?: unknown;
+  productionRate?: unknown;
 };
 
 export type PayrollLineQty = {
@@ -22,11 +24,25 @@ export type PayrollLineQty = {
   overtimeHours?: unknown;
   daily_rate_override?: unknown;
   dailyRateOverride?: unknown;
+  sqft?: unknown;
 };
 
 function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Extra hour = 10% of daily rate when overtime rate is unset. */
+export function effectiveOvertimeRate(emp: PayrollEmpRates): number {
+  const ort = num(emp.overtime_rate ?? emp.overtimeRate);
+  if (ort > 0) return ort;
+  const daily = num(emp.daily_rate ?? emp.dailyRate);
+  return Math.round(daily * 0.1 * 100) / 100;
+}
+
+/** Default OT rate from daily (10%). */
+export function overtimeFromDaily(dailyRate: unknown): number {
+  return Math.round(num(dailyRate) * 0.1 * 100) / 100;
 }
 
 export function calcTimesheetLineAmount(emp: PayrollEmpRates, line: PayrollLineQty): number {
@@ -37,10 +53,16 @@ export function calcTimesheetLineAmount(emp: PayrollEmpRates, line: PayrollLineQ
   const drNum = hasOvr ? num(ovr) : empDaily;
   const dr = drNum >= 0 ? drNum : empDaily;
   const hr = num(emp.hourly_rate ?? emp.hourlyRate);
-  const ort = num(emp.overtime_rate ?? emp.overtimeRate);
+  const ort = effectiveOvertimeRate(emp);
   const days = num(line.days_worked ?? line.daysWorked);
   const regH = num(line.regular_hours ?? line.regularHours);
   const otH = num(line.overtime_hours ?? line.overtimeHours);
+  const sqft = num(line.sqft);
+  const prodRate = num(emp.production_rate ?? emp.productionRate);
+
+  if (pt === "production") {
+    return Math.round(sqft * prodRate * 100) / 100;
+  }
 
   let base = 0;
   if (pt === "hourly") {
@@ -49,6 +71,7 @@ export function calcTimesheetLineAmount(emp: PayrollEmpRates, line: PayrollLineQ
   } else if (pt === "mixed") {
     base = days * dr + regH * hr;
   } else {
+    // daily (default): full days + overtime at 10% of daily (or explicit OT rate)
     base = days * dr;
   }
 

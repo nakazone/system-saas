@@ -10,6 +10,7 @@ import {
   calcTimesheetHoursTotal,
   calcTimesheetLineAmount,
   mondayYmdFromCalendarYmd,
+  overtimeFromDaily,
   parseYmd,
   sundayYmdAfterMonday,
   ymdFromDate,
@@ -32,12 +33,16 @@ function mapEmployee(e: {
   dailyRate: unknown;
   hourlyRate: unknown;
   overtimeRate: unknown;
+  productionRate?: unknown;
   allowWorkDateOutsidePeriod: boolean;
   status: string;
   createdAt: Date;
   updatedAt: Date;
   userId?: string | null;
 }) {
+  const daily = dec(e.dailyRate);
+  const otStored = dec(e.overtimeRate);
+  const otEffective = otStored > 0 ? otStored : overtimeFromDaily(daily);
   return {
     id: e.id,
     name: e.name,
@@ -47,9 +52,10 @@ function mapEmployee(e: {
     payment_type: e.payType,
     pay_type: e.payType,
     sector: e.sector,
-    daily_rate: dec(e.dailyRate),
+    daily_rate: daily,
     hourly_rate: dec(e.hourlyRate),
-    overtime_rate: dec(e.overtimeRate),
+    overtime_rate: otEffective,
+    production_rate: dec(e.productionRate),
     allow_work_date_outside_period: e.allowWorkDateOutsidePeriod ? 1 : 0,
     status: e.status,
     is_active: e.status === "active" ? 1 : 0,
@@ -83,14 +89,28 @@ function mapHourBank(row: {
   employeeId: string;
   workDate: Date;
   hours: unknown;
+  daysWorked?: unknown;
+  overtimeHours?: unknown;
+  sqft?: unknown;
   notes: string | null;
   status: string;
   createdAt: Date;
   updatedAt: Date;
   reviewedAt?: Date | null;
   timesheetId?: string | null;
-  employee?: { name: string; email: string | null } | null;
+  employee?: { name: string; email: string | null; payType?: string; dailyRate?: unknown; productionRate?: unknown } | null;
 }) {
+  const days = dec(row.daysWorked);
+  const ot = dec(row.overtimeHours);
+  const sqft = row.sqft != null ? dec(row.sqft) : null;
+  let summary = "";
+  if (sqft != null && sqft > 0) summary = `${sqft} sqft`;
+  else {
+    const parts: string[] = [];
+    if (days > 0) parts.push(days === 1 ? "1 diária" : `${days} diárias`);
+    if (ot > 0) parts.push(`${ot}h extras`);
+    summary = parts.join(" + ") || `${dec(row.hours)}h`;
+  }
   return {
     id: row.id,
     employee_id: row.employeeId,
@@ -98,6 +118,10 @@ function mapHourBank(row: {
     employee_email: row.employee?.email ?? null,
     work_date: ymdFromDate(row.workDate),
     hours: dec(row.hours),
+    days_worked: days,
+    overtime_hours: ot,
+    sqft,
+    summary,
     notes: row.notes,
     status: row.status,
     timesheet_id: row.timesheetId ?? null,
@@ -179,6 +203,7 @@ function normalizeSector(v: unknown): string | null {
 
 function normalizePayType(v: unknown): string {
   const s = String(v || "daily").toLowerCase();
+  if (s === "production" || s === "sqft" || s === "producao" || s === "produção") return "production";
   if (s === "hourly" || s === "mixed" || s === "salary") return s === "salary" ? "hourly" : s;
   return "daily";
 }
@@ -241,6 +266,12 @@ constructionPayrollRouter.post(
         if (!userId) {
           userId = await findLinkableUserId(tx, req.organizationId!, email);
         }
+        const payType = normalizePayType(b.payment_type || b.pay_type);
+        const dailyRate = Number(b.daily_rate) || 0;
+        let overtimeRate = Number(b.overtime_rate);
+        if (!Number.isFinite(overtimeRate) || overtimeRate <= 0) {
+          overtimeRate = payType === "daily" ? overtimeFromDaily(dailyRate) : 0;
+        }
         return tx.payrollEmployee.create({
           data: {
             organizationId: req.organizationId!,
@@ -248,11 +279,12 @@ constructionPayrollRouter.post(
             email,
             phone: b.phone || null,
             roleTitle: b.role_title || b.roleTitle || null,
-            payType: normalizePayType(b.payment_type || b.pay_type),
+            payType,
             sector: normalizeSector(b.sector),
-            dailyRate: new Prisma.Decimal(Number(b.daily_rate) || 0),
+            dailyRate: new Prisma.Decimal(dailyRate),
             hourlyRate: new Prisma.Decimal(Number(b.hourly_rate) || 0),
-            overtimeRate: new Prisma.Decimal(Number(b.overtime_rate) || 0),
+            overtimeRate: new Prisma.Decimal(overtimeRate),
+            productionRate: new Prisma.Decimal(Number(b.production_rate) || 0),
             allowWorkDateOutsidePeriod: boolish(b.allow_work_date_outside_period),
             status: String(b.status || (b.is_active === 0 || b.is_active === false ? "inactive" : "active")),
             userId,
@@ -288,6 +320,24 @@ constructionPayrollRouter.put(
         let status: string | undefined;
         if (b.status !== undefined) status = String(b.status);
         else if (b.is_active !== undefined) status = boolish(b.is_active) ? "active" : "inactive";
+
+        const nextPayType =
+          b.payment_type !== undefined || b.pay_type !== undefined
+            ? normalizePayType(b.payment_type || b.pay_type)
+            : existing.payType;
+        const nextDaily =
+          b.daily_rate !== undefined ? Number(b.daily_rate) || 0 : Number(existing.dailyRate) || 0;
+        let nextOt: number | undefined;
+        if (b.overtime_rate !== undefined) {
+          nextOt = Number(b.overtime_rate) || 0;
+        } else if (
+          (b.daily_rate !== undefined || b.payment_type !== undefined || b.pay_type !== undefined) &&
+          nextPayType === "daily"
+        ) {
+          // Keep OT at 10% of daily when daily/type changes and OT not explicitly sent
+          nextOt = overtimeFromDaily(nextDaily);
+        }
+
         return tx.payrollEmployee.update({
           where: { id },
           data: {
@@ -296,14 +346,15 @@ constructionPayrollRouter.put(
             phone: b.phone !== undefined ? b.phone : undefined,
             roleTitle: b.role_title !== undefined ? b.role_title : undefined,
             payType:
-              b.payment_type !== undefined || b.pay_type !== undefined
-                ? normalizePayType(b.payment_type || b.pay_type)
-                : undefined,
+              b.payment_type !== undefined || b.pay_type !== undefined ? nextPayType : undefined,
             sector: b.sector !== undefined ? normalizeSector(b.sector) : undefined,
-            dailyRate: b.daily_rate !== undefined ? new Prisma.Decimal(Number(b.daily_rate) || 0) : undefined,
+            dailyRate: b.daily_rate !== undefined ? new Prisma.Decimal(nextDaily) : undefined,
             hourlyRate: b.hourly_rate !== undefined ? new Prisma.Decimal(Number(b.hourly_rate) || 0) : undefined,
-            overtimeRate:
-              b.overtime_rate !== undefined ? new Prisma.Decimal(Number(b.overtime_rate) || 0) : undefined,
+            overtimeRate: nextOt !== undefined ? new Prisma.Decimal(nextOt) : undefined,
+            productionRate:
+              b.production_rate !== undefined
+                ? new Prisma.Decimal(Number(b.production_rate) || 0)
+                : undefined,
             allowWorkDateOutsidePeriod:
               b.allow_work_date_outside_period !== undefined
                 ? boolish(b.allow_work_date_outside_period)
@@ -467,11 +518,6 @@ constructionPayrollRouter.post(
         return;
       }
       const b = req.body || {};
-      const hours = Number(b.hours);
-      if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
-        res.status(400).json({ success: false, error: "Informe horas válidas (entre 0 e 24)" });
-        return;
-      }
       if (!b.work_date && !b.workDate) {
         res.status(400).json({ success: false, error: "work_date is required" });
         return;
@@ -481,16 +527,53 @@ constructionPayrollRouter.post(
         res.status(400).json({ success: false, error: "work_date inválida" });
         return;
       }
+
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const emp = await resolveOwnEmployee(tx, req.user!.id, req.user!.email);
         if (!emp) return null;
         if (emp.status !== "active") throw new Error("EMP_INACTIVE");
+
+        const payType = String(emp.payType || "daily").toLowerCase();
+        let daysWorked = 0;
+        let overtimeHours = 0;
+        let sqft: number | null = null;
+        let hoursRollup = 0;
+
+        if (payType === "production") {
+          sqft = Number(b.sqft);
+          if (!Number.isFinite(sqft) || sqft <= 0) {
+            throw new Error("BAD_SQFT");
+          }
+          hoursRollup = 0;
+        } else {
+          const hasDiaria =
+            b.days_worked === true ||
+            b.days_worked === 1 ||
+            b.days_worked === "1" ||
+            b.has_diaria === true;
+          daysWorked = hasDiaria ? 1 : Number(b.days_worked) || 0;
+          if (daysWorked !== 0 && daysWorked !== 1) {
+            throw new Error("BAD_DAYS");
+          }
+          overtimeHours = Number(b.overtime_hours ?? b.overtimeHours ?? 0) || 0;
+          overtimeHours = Math.round(overtimeHours * 2) / 2;
+          if (overtimeHours < 0 || overtimeHours > 12) throw new Error("BAD_OT");
+          if (daysWorked <= 0 && overtimeHours <= 0) throw new Error("EMPTY_ENTRY");
+          hoursRollup = calcTimesheetHoursTotal({
+            days_worked: daysWorked,
+            overtime_hours: overtimeHours,
+          });
+        }
+
         return tx.payrollHourBankEntry.create({
           data: {
             organizationId: req.organizationId!,
             employeeId: emp.id,
             workDate,
-            hours: new Prisma.Decimal(hours),
+            hours: new Prisma.Decimal(hoursRollup),
+            daysWorked: new Prisma.Decimal(daysWorked),
+            overtimeHours: new Prisma.Decimal(overtimeHours),
+            sqft: sqft != null ? new Prisma.Decimal(sqft) : null,
             notes: b.notes ? String(b.notes).slice(0, 500) : null,
             status: "pending",
           },
@@ -508,6 +591,28 @@ constructionPayrollRouter.post(
     } catch (error) {
       if (error instanceof Error && error.message === "EMP_INACTIVE") {
         res.status(400).json({ success: false, error: "Funcionário inativo" });
+        return;
+      }
+      if (error instanceof Error && error.message === "BAD_SQFT") {
+        res.status(400).json({ success: false, error: "Informe a produção em sqft" });
+        return;
+      }
+      if (error instanceof Error && error.message === "BAD_DAYS") {
+        res.status(400).json({ success: false, error: "Diária deve ser 0 ou 1" });
+        return;
+      }
+      if (error instanceof Error && error.message === "BAD_OT") {
+        res.status(400).json({
+          success: false,
+          error: "Horas extras inválidas (máx. 12h, passos de 30 min)",
+        });
+        return;
+      }
+      if (error instanceof Error && error.message === "EMPTY_ENTRY") {
+        res.status(400).json({
+          success: false,
+          error: "Marque 1 diária e/ou adicione horas extras",
+        });
         return;
       }
       next(error);
@@ -674,10 +779,18 @@ async function approveHourBankEntry(
   if (!period) return { error: "NO_OPEN_PERIOD" as const };
 
   const emp = entry.employee;
+  const days = dec(entry.daysWorked);
+  const ot = dec(entry.overtimeHours);
+  const sqft = entry.sqft != null ? dec(entry.sqft) : 0;
+
+  // Legacy entries: only `hours` filled → treat as regular hours
+  const legacyHours = days <= 0 && ot <= 0 && sqft <= 0 ? dec(entry.hours) : 0;
+
   const lineQty = {
-    days_worked: 0,
-    regular_hours: dec(entry.hours),
-    overtime_hours: 0,
+    days_worked: days,
+    regular_hours: legacyHours,
+    overtime_hours: ot,
+    sqft,
   };
   const amount = calcTimesheetLineAmount(
     {
@@ -685,12 +798,14 @@ async function approveHourBankEntry(
       dailyRate: emp.dailyRate,
       hourlyRate: emp.hourlyRate,
       overtimeRate: emp.overtimeRate,
+      productionRate: emp.productionRate,
     },
     lineQty,
   );
   const hoursTotal = calcTimesheetHoursTotal(lineQty);
   const noteParts = [
     entry.notes ? String(entry.notes) : null,
+    sqft > 0 ? `Produção ${sqft} sqft` : null,
     `Banco de horas #${entry.id.slice(0, 8)}`,
   ].filter(Boolean);
 
@@ -701,9 +816,9 @@ async function approveHourBankEntry(
       employeeId: entry.employeeId,
       workDate: entry.workDate,
       hours: new Prisma.Decimal(hoursTotal),
-      daysWorked: new Prisma.Decimal(0),
-      regularHours: new Prisma.Decimal(dec(entry.hours)),
-      overtimeHours: new Prisma.Decimal(0),
+      daysWorked: new Prisma.Decimal(days),
+      regularHours: new Prisma.Decimal(legacyHours),
+      overtimeHours: new Prisma.Decimal(ot),
       calculatedAmount: new Prisma.Decimal(amount),
       notes: noteParts.join(" · ").slice(0, 500),
     },

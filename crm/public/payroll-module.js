@@ -15,6 +15,9 @@ let permissionKeys = [];
 let sessionUserEmail = '';
 let sessionUserId = '';
 let hourBankLinked = false;
+/** @type {'daily'|'production'|string} */
+let hourBankPayType = 'daily';
+let hourBankOtHours = 0;
 let employees = [];
 let employeesById = {};
 let periods = [];
@@ -79,9 +82,10 @@ function sectorLabel(s) {
 
 function paymentTypeLabel(pt) {
   const s = String(pt || 'daily').toLowerCase();
+  if (s === 'production' || s === 'sqft') return 'Produção (sqft)';
   if (s === 'hourly') return 'Por hora';
   if (s === 'mixed') return 'Misto (dia + hora)';
-  return 'Por dia';
+  return 'Diária + extras';
 }
 
 function money(n) {
@@ -322,7 +326,7 @@ async function loadApproveHourBank() {
         return `<tr data-ahb-id="${row.id}">
           <td class="px-3 py-2 font-medium">${escapeHtmlHb(name)}<br><span class="text-xs text-slate-500 font-normal">${escapeHtmlHb(row.employee_email || '')}</span></td>
           <td class="px-3 py-2">${ymd}</td>
-          <td class="px-3 py-2 text-right font-medium">${Number(row.hours) || 0}</td>
+          <td class="px-3 py-2 font-medium">${escapeHtmlHb(row.summary || `${Number(row.hours) || 0}h`)}</td>
           <td class="px-3 py-2 text-slate-600">${escapeHtmlHb(row.notes || '—')}</td>
           <td class="px-3 py-2 whitespace-nowrap">
             <button type="button" class="btn btn-sm btn-primary ahb-approve" data-id="${row.id}">Aprovar</button>
@@ -375,6 +379,42 @@ async function rejectHourBankEntry(id) {
   }
 }
 
+function formatOtLabelHb(hours) {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h <= 0 && m <= 0) return '0 min';
+  if (h <= 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+function syncHbOtLabel() {
+  const el = document.getElementById('hbOtLabel');
+  if (el) el.textContent = formatOtLabelHb(hourBankOtHours);
+  const minus = document.getElementById('hbOtMinus');
+  if (minus) minus.disabled = hourBankOtHours <= 0;
+}
+
+function syncHourBankFormMode() {
+  const daily = document.getElementById('hbDailyBlock');
+  const prod = document.getElementById('hbProdBlock');
+  const isProd = hourBankPayType === 'production';
+  if (daily) daily.classList.toggle('hidden', isProd);
+  if (prod) prod.classList.toggle('hidden', !isProd);
+  const sqft = document.getElementById('hbSqft');
+  if (sqft) sqft.required = isProd;
+  const hint = document.getElementById('hbDailyHint');
+  if (hint && !isProd) {
+    hint.textContent = 'Hora extra = 10% do valor da diária.';
+  }
+}
+
+function setHourBankOt(deltaOrAbs, absolute) {
+  if (absolute) hourBankOtHours = Math.max(0, Math.min(12, Math.round(Number(deltaOrAbs) * 2) / 2));
+  else hourBankOtHours = Math.max(0, Math.min(12, Math.round((hourBankOtHours + Number(deltaOrAbs)) * 2) / 2));
+  syncHbOtLabel();
+}
+
 async function loadHourBank() {
   const unlinked = document.getElementById('hourBankUnlinked');
   const panel = document.getElementById('hourBankPanel');
@@ -412,7 +452,15 @@ async function loadHourBank() {
     unlinked?.classList.add('hidden');
     panel?.classList.remove('hidden');
     const emp = j.employee || {};
-    if (who) who.textContent = `A registar como: ${emp.name || '—'} (${emp.email || sessionUserEmail || '—'})`;
+    hourBankPayType = String(emp.payment_type || emp.pay_type || 'daily').toLowerCase();
+    syncHourBankFormMode();
+    if (who) {
+      const tip =
+        hourBankPayType === 'production'
+          ? `Produção · ${money(emp.production_rate)}/sqft`
+          : `Diária ${money(emp.daily_rate)} · HE ${money(emp.overtime_rate)}/h`;
+      who.textContent = `A registar como: ${emp.name || '—'} (${emp.email || sessionUserEmail || '—'}) · ${tip}`;
+    }
     const rows = Array.isArray(j.data) ? j.data : [];
     if (!body) return;
     if (!rows.length) {
@@ -423,9 +471,10 @@ async function loadHourBank() {
       .map((row) => {
         const ymd = String(row.work_date || '').slice(0, 10);
         const pending = row.status === 'pending';
+        const summary = row.summary || `${Number(row.hours) || 0}h`;
         return `<tr data-hb-id="${row.id}">
           <td class="px-3 py-2">${ymd}</td>
-          <td class="px-3 py-2 text-right font-medium">${Number(row.hours) || 0}</td>
+          <td class="px-3 py-2 font-medium">${escapeHtmlHb(summary)}</td>
           <td class="px-3 py-2 text-slate-600">${escapeHtmlHb(row.notes || '—')}</td>
           <td class="px-3 py-2"><span class="text-xs font-semibold">${statusLabelHb(row.status)}</span></td>
           <td class="px-3 py-2">${
@@ -458,23 +507,35 @@ async function submitHourBank(e) {
     err.textContent = '';
   }
   const work_date = document.getElementById('hbDate')?.value;
-  const hours = Number(document.getElementById('hbHours')?.value);
   const notes = document.getElementById('hbNotes')?.value?.trim() || null;
+  const body = { work_date, notes };
+  if (hourBankPayType === 'production') {
+    body.sqft = Number(document.getElementById('hbSqft')?.value);
+  } else {
+    body.has_diaria = !!document.getElementById('hbDiaria')?.checked;
+    body.days_worked = body.has_diaria ? 1 : 0;
+    body.overtime_hours = hourBankOtHours;
+  }
   try {
     const r = await fetch(`${CP}/me/hour-bank`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ work_date, hours, notes }),
+      body: JSON.stringify(body),
     });
     const j = await parseJsonResponse(r);
     if (!r.ok) throw new Error(j.error || 'Falha ao registar');
     document.getElementById('hourBankForm')?.reset();
+    hourBankOtHours = 0;
+    syncHbOtLabel();
+    const diaria = document.getElementById('hbDiaria');
+    if (diaria) diaria.checked = true;
     const today = new Date();
     const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const dateEl = document.getElementById('hbDate');
     if (dateEl) dateEl.value = ymd;
-    window.crmToast?.success?.('Horas registadas');
+    syncHourBankFormMode();
+    window.crmToast?.success?.('Lançamento registado');
     await loadHourBank();
   } catch (ex) {
     if (err) {
@@ -1385,6 +1446,28 @@ function timesheetGridValidationIssues() {
   return issues;
 }
 
+function syncEmpPayTypeUi() {
+  const pt = document.getElementById('empPayType')?.value || 'daily';
+  const daily = document.getElementById('empRatesDaily');
+  const prod = document.getElementById('empRatesProd');
+  const hint = document.getElementById('empPayTypeHint');
+  const isProd = pt === 'production';
+  if (daily) daily.classList.toggle('hidden', isProd);
+  if (prod) prod.classList.toggle('hidden', !isProd);
+  if (hint) {
+    hint.textContent = isProd
+      ? 'Produção: o funcionário lança sqft no banco de horas.'
+      : 'Diária: hora extra = 10% do valor da diária (calculado automaticamente).';
+  }
+  if (!isProd) syncEmpOtFromDaily();
+}
+
+function syncEmpOtFromDaily() {
+  const daily = Number(document.getElementById('empDaily')?.value) || 0;
+  const ot = document.getElementById('empOt');
+  if (ot) ot.value = String(Math.round(daily * 0.1 * 100) / 100);
+}
+
 function openEmployeeModal(editId) {
   const m = document.getElementById('empModal');
   document.getElementById('empFormErr').classList.add('hidden');
@@ -1396,13 +1479,17 @@ function openEmployeeModal(editId) {
     const e = employeesById[editId];
     if (!e) return;
     document.getElementById('empName').value = e.name || '';
-    document.getElementById('empRole').value = e.role || '';
+    document.getElementById('empRole').value = e.role || e.role_title || '';
     document.getElementById('empPhone').value = e.phone || '';
     document.getElementById('empEmail').value = e.email || '';
-    document.getElementById('empPayType').value = e.payment_type || 'daily';
+    let pt = e.payment_type || 'daily';
+    if (pt === 'hourly' || pt === 'mixed') pt = 'daily';
+    document.getElementById('empPayType').value = pt === 'production' ? 'production' : 'daily';
     document.getElementById('empDaily').value = e.daily_rate ?? '';
-    document.getElementById('empHourly').value = e.hourly_rate ?? '';
+    document.getElementById('empHourly').value = e.hourly_rate ?? 0;
     document.getElementById('empOt').value = e.overtime_rate ?? '';
+    const prod = document.getElementById('empProduction');
+    if (prod) prod.value = e.production_rate ?? '';
     document.getElementById('empPayMethod').value = e.payment_method || '';
     const secEl = document.getElementById('empSector');
     if (secEl) secEl.value = e.sector || '';
@@ -1417,11 +1504,14 @@ function openEmployeeModal(editId) {
     document.getElementById('empDaily').value = '0';
     document.getElementById('empHourly').value = '0';
     document.getElementById('empOt').value = '0';
+    const prod = document.getElementById('empProduction');
+    if (prod) prod.value = '0';
     const outWN = document.getElementById('empAllowOutsideWeek');
     if (outWN) outWN.checked = false;
     const secElNew = document.getElementById('empSector');
     if (secElNew) secElNew.value = '';
   }
+  syncEmpPayTypeUi();
   m.classList.remove('hidden');
   m.classList.add('flex');
 }
@@ -1445,10 +1535,14 @@ async function saveEmployee() {
     daily_rate: Number(document.getElementById('empDaily').value) || 0,
     hourly_rate: Number(document.getElementById('empHourly').value) || 0,
     overtime_rate: Number(document.getElementById('empOt').value) || 0,
+    production_rate: Number(document.getElementById('empProduction')?.value) || 0,
     payment_method: document.getElementById('empPayMethod').value.trim() || null,
     sector: document.getElementById('empSector')?.value || null,
     allow_work_date_outside_period: !!document.getElementById('empAllowOutsideWeek')?.checked,
   };
+  if (body.payment_type === 'daily') {
+    body.overtime_rate = Math.round(body.daily_rate * 0.1 * 100) / 100;
+  }
   if (editId) {
     body.is_active = document.getElementById('empActive').checked;
   }
@@ -2543,6 +2637,14 @@ document.getElementById('btnReportProjects')?.addEventListener('click', () => ru
 document.getElementById('btnReportTotal')?.addEventListener('click', () => runReportTotal().catch((e) => window.crmToast?.error?.(e.message)));
 document.getElementById('empQuickSave')?.addEventListener('click', () => quickSaveEmployee());
 document.getElementById('hourBankForm')?.addEventListener('submit', (e) => submitHourBank(e));
+document.getElementById('hbOtMinus')?.addEventListener('click', () => setHourBankOt(-0.5));
+document.getElementById('hbOtPlus')?.addEventListener('click', () => setHourBankOt(0.5));
+document.querySelectorAll('[data-hb-ot]').forEach((btn) => {
+  btn.addEventListener('click', () => setHourBankOt(Number(btn.getAttribute('data-hb-ot')) || 0));
+});
+document.getElementById('empPayType')?.addEventListener('change', () => syncEmpPayTypeUi());
+document.getElementById('empDaily')?.addEventListener('input', () => syncEmpOtFromDaily());
+syncHbOtLabel();
 document.getElementById('hourBankBody')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.hb-del');
   if (btn) deleteHourBank(btn.getAttribute('data-id'));

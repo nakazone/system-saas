@@ -254,7 +254,7 @@
     <section id="hub-meu-banco" class="payroll-hub-section">
       <div class="payroll-hub-section__head">
         <h2 class="text-base font-bold text-slate-900">Meu banco de horas</h2>
-        <p class="text-xs text-slate-500 mt-0.5">Registe as suas horas. O gestor aprova e lança no quadro da folha.</p>
+        <p class="text-xs text-slate-500 mt-0.5">Registe 1 diária e/ou horas extras (ou produção em sqft). O gestor aprova e lança no quadro.</p>
       </div>
       <div class="payroll-hub-section__body space-y-4">
         <div id="hourBankUnlinked" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -267,21 +267,46 @@
         </div>
         <div id="hourBankPanel" class="hidden space-y-4">
           <p id="hourBankWho" class="text-sm text-slate-600"></p>
-          <form id="hourBankForm" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbDate">Data *</label>
-              <input type="date" id="hbDate" required class="w-full border rounded-lg px-3 py-2.5 text-sm bg-white" />
+          <form id="hourBankForm" class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+            <div class="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbDate">Data *</label>
+                <input type="date" id="hbDate" required class="w-full border rounded-lg px-3 py-2.5 text-sm bg-white" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbNotes">Notas</label>
+                <input type="text" id="hbNotes" maxlength="500" placeholder="Opcional" class="w-full border rounded-lg px-3 py-2.5 text-sm bg-white" />
+              </div>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbHours">Horas *</label>
-              <input type="number" id="hbHours" required min="0.25" max="24" step="0.25" placeholder="8" class="w-full border rounded-lg px-3 py-2.5 text-sm bg-white" />
+
+            <!-- Diária + extras (pay type daily) -->
+            <div id="hbDailyBlock" class="space-y-3">
+              <div class="flex flex-wrap items-center gap-3">
+                <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 cursor-pointer shadow-sm">
+                  <input type="checkbox" id="hbDiaria" class="rounded border-slate-300" checked />
+                  <span class="text-sm font-bold text-slate-900">1 diária</span>
+                </label>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Horas extras</span>
+                  <button type="button" class="btn btn-sm btn-secondary" id="hbOtMinus" aria-label="Remover 30 min">−30</button>
+                  <span class="min-w-[4.5rem] text-center text-sm font-bold tabular-nums" id="hbOtLabel">0 min</span>
+                  <button type="button" class="btn btn-sm btn-secondary" id="hbOtPlus" aria-label="Adicionar 30 min">+30</button>
+                  <button type="button" class="btn btn-sm btn-secondary" data-hb-ot="1">+1h</button>
+                  <button type="button" class="btn btn-sm btn-secondary" data-hb-ot="2">+2h</button>
+                </div>
+              </div>
+              <p class="text-xs text-slate-500" id="hbDailyHint">Hora extra = 10% do valor da diária.</p>
             </div>
-            <div class="sm:col-span-2 lg:col-span-1">
-              <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbNotes">Notas</label>
-              <input type="text" id="hbNotes" maxlength="500" placeholder="Opcional" class="w-full border rounded-lg px-3 py-2.5 text-sm bg-white" />
+
+            <!-- Produção sqft -->
+            <div id="hbProdBlock" class="hidden space-y-2">
+              <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbSqft">Produção (sqft) *</label>
+              <input type="number" id="hbSqft" min="1" step="1" placeholder="Ex.: 450" class="w-full max-w-xs border rounded-lg px-3 py-2.5 text-sm bg-white" />
+              <p class="text-xs text-slate-500" id="hbProdHint">Valor = sqft × taxa de produção do cadastro.</p>
             </div>
+
             <div>
-              <button type="submit" class="btn btn-primary w-full">Registar horas</button>
+              <button type="submit" class="btn btn-primary" id="hbSubmitBtn">Registar</button>
             </div>
           </form>
           <p id="hourBankFormErr" class="text-red-600 text-sm hidden"></p>
@@ -290,7 +315,7 @@
               <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase">
                 <tr>
                   <th class="px-3 py-2">Data</th>
-                  <th class="px-3 py-2 text-right">Horas</th>
+                  <th class="px-3 py-2">Lançamento</th>
                   <th class="px-3 py-2">Notas</th>
                   <th class="px-3 py-2">Estado</th>
                   <th class="px-3 py-2">Ações</th>
@@ -321,7 +346,7 @@
               <tr>
                 <th class="px-3 py-2">Funcionário</th>
                 <th class="px-3 py-2">Data</th>
-                <th class="px-3 py-2 text-right">Horas</th>
+                <th class="px-3 py-2">Lançamento</th>
                 <th class="px-3 py-2">Notas</th>
                 <th class="px-3 py-2">Ações</th>
               </tr>
@@ -584,16 +609,24 @@
       <div>
         <label class="text-xs font-semibold text-slate-500">Tipo de pagamento</label>
         <select id="empPayType" class="w-full border rounded-lg px-3 py-2 text-sm">
-          <option value="daily">Por dia</option>
-          <option value="hourly">Por hora</option>
-          <option value="mixed">Misto (dia + hora)</option>
+          <option value="daily">Diária + horas extras</option>
+          <option value="production">Produção (por sqft)</option>
         </select>
+        <p class="text-[11px] text-slate-500 mt-1" id="empPayTypeHint">Diária: hora extra = 10% do valor da diária.</p>
       </div>
-      <div class="grid grid-cols-3 gap-3">
-        <div><label class="text-xs font-semibold text-slate-500">Valor diária</label><input id="empDaily" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-        <div><label class="text-xs font-semibold text-slate-500">Valor hora</label><input id="empHourly" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-        <div><label class="text-xs font-semibold text-slate-500">Valor hora extra</label><input id="empOt" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      <div class="grid grid-cols-2 gap-3" id="empRatesDaily">
+        <div><label class="text-xs font-semibold text-slate-500">Valor diária ($)</label><input id="empDaily" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div>
+          <label class="text-xs font-semibold text-slate-500">Hora extra ($)</label>
+          <input id="empOt" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" readonly />
+          <p class="text-[11px] text-slate-500 mt-1">Calculado automaticamente (10% da diária).</p>
+        </div>
       </div>
+      <div class="hidden" id="empRatesProd">
+        <label class="text-xs font-semibold text-slate-500">Valor por sqft ($)</label>
+        <input id="empProduction" type="number" step="0.0001" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ex.: 1.25" />
+      </div>
+      <input type="hidden" id="empHourly" value="0" />
       <div><label class="text-xs font-semibold text-slate-500">Forma de pagamento</label><input id="empPayMethod" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="PIX, cheque, Zelle…" /></div>
       <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
         <label class="inline-flex gap-2 text-sm items-start cursor-pointer">
@@ -740,7 +773,7 @@
   <script src="crm-shell.js?v=20260925-mais1"></script>
   <script src="crm-shared-nav.js?v=20260925-mais1"></script>
   <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
-  <script src="payroll-module.js?v=20260925-paylink1"></script>
+  <script src="payroll-module.js?v=20260925-paydaily2"></script>
   <script src="payroll-mobile.js?v=20260925-paydaily1"></script>
 </body>
 </html>
