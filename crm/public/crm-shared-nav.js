@@ -91,6 +91,7 @@
           href: 'payroll-module.html',
           label: 'Folha de Pagamento',
           perm: 'payroll.view',
+          permAny: ['payroll.view', 'payroll.self'],
           page: '',
           iconKey: 'payroll',
         },
@@ -160,9 +161,12 @@
     return file === toolFile;
   }
 
-  function canSee(perm, role, keys) {
-    if (!perm) return true;
+  function canSee(perm, role, keys, permAny) {
     if (role === 'admin') return true;
+    if (Array.isArray(permAny) && permAny.length) {
+      return permAny.some((p) => keys.has(p));
+    }
+    if (!perm) return true;
     return keys.has(perm);
   }
 
@@ -196,7 +200,7 @@
   }
 
   function createSidebarCadastroDropdown(item, children, file, page, role, keys) {
-    const kids = children.filter((ch) => canSee(ch.perm, role, keys));
+    const kids = children.filter((ch) => canSee(ch.perm, role, keys, ch.permAny));
     if (kids.length === 0) return null;
     const anyActive = kids.some((ch) => linkActive(ch, file, page));
     const det = document.createElement('details');
@@ -248,9 +252,9 @@
     SIDEBAR_GROUPS.forEach((group) => {
       const visible = group.items.filter((item) => {
         if (item.type === 'dropdown' && Array.isArray(item.children)) {
-          return item.children.some((ch) => canSee(ch.perm, role, keys));
+          return item.children.some((ch) => canSee(ch.perm, role, keys, ch.permAny));
         }
-        return canSee(item.perm, role, keys);
+        return canSee(item.perm, role, keys, item.permAny);
       });
       if (visible.length === 0) return;
       const wrap = document.createElement('div');
@@ -274,7 +278,7 @@
   }
 
   function appendTopBarCadastroDropdown(inner, keys, role, file, page) {
-    const kids = CADASTRO_CHILDREN.filter((ch) => canSee(ch.perm, role, keys));
+    const kids = CADASTRO_CHILDREN.filter((ch) => canSee(ch.perm, role, keys, ch.permAny));
     if (kids.length === 0) return;
     const sepCad = document.createElement('span');
     sepCad.className = 'crm-shared-nav__sep';
@@ -385,7 +389,7 @@
     inner.appendChild(brand);
 
     MAIN_NAV.forEach((item) => {
-      if (!canSee(item.perm, role, keys)) return;
+      if (!canSee(item.perm, role, keys, item.permAny)) return;
       const a = document.createElement('a');
       a.href = item.href;
       a.className = 'crm-shared-nav__link' + (linkActive(item, file, page) ? ' crm-shared-nav__link--active' : '');

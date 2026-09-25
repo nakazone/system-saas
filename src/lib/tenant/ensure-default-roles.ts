@@ -88,7 +88,7 @@ export async function syncSystemRolePermissions(
 
 const syncedOrgVersions = new Map<string, number>();
 /** Bump when new DEFAULT_PERMISSIONS keys must be backfilled onto existing roles. */
-const ORG_PERMISSION_SYNC_VERSION = 3;
+const ORG_PERMISSION_SYNC_VERSION = 4;
 
 /**
  * Idempotently create any missing Phase 2 default roles for an organization

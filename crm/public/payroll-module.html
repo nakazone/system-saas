@@ -141,16 +141,17 @@
     <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
       <div>
         <h1 class="text-xl font-bold text-slate-900 leading-tight">Folha de pagamento</h1>
-        <p class="text-xs text-slate-500 mt-0.5 hidden sm:block">Uma única tela: equipe → período e horas → fechamento → relatórios</p>
+        <p id="payrollPageSub" class="text-xs text-slate-500 mt-0.5 hidden sm:block">Uma única tela: equipe → período e horas → fechamento → relatórios</p>
       </div>
       <button type="button" id="btnReloadAll" class="btn btn-sm btn-secondary shrink-0">Atualizar</button>
     </div>
 
     <nav class="payroll-hub-tabs" aria-label="Seções desta página">
-      <a href="#hub-resumo" class="payroll-hub-tab payroll-nav-btn">Resumo</a>
-      <a href="#hub-func" class="payroll-hub-tab payroll-nav-btn">1 · Equipe</a>
-      <a href="#hub-quadro" class="payroll-hub-tab payroll-nav-btn">2 · Horas</a>
-      <a href="#hub-relatorios" class="payroll-hub-tab payroll-nav-btn">3 · Pagamentos</a>
+      <a href="#hub-meu-banco" class="payroll-hub-tab payroll-nav-btn" id="tabMeuBanco">Meu banco de horas</a>
+      <a href="#hub-resumo" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>Resumo</a>
+      <a href="#hub-func" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>1 · Equipe</a>
+      <a href="#hub-quadro" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>2 · Horas</a>
+      <a href="#hub-relatorios" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>3 · Pagamentos</a>
     </nav>
 
     <div id="migrateBanner" class="hidden rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
@@ -160,15 +161,56 @@
     </div>
     <p id="authMsg" class="text-red-600 text-sm hidden"></p>
 
-    <div class="rounded-xl border border-[#d6b598]/40 bg-[#1a2036] text-white px-4 py-3 text-sm shadow-sm">
-      <p class="font-semibold text-[#d6b598] text-xs uppercase tracking-wide">Como usar</p>
-      <ol class="list-decimal list-inside mt-1 space-y-0.5 text-slate-100 text-sm">
-        <li>Cadastre a equipe (rápido ou formulário completo).</li>
-        <li>Escolha o período, lance dias e horas e salve a planilha.</li>
-        <li>Visualize a prévia da folha e os reembolsos, se precisar; encerre o período.</li>
-        <li>Gere o relatório de pagamentos no final da página.</li>
-      </ol>
-    </div>
+    <!-- Meu banco de horas (self-service) -->
+    <section id="hub-meu-banco" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3">
+        <h2 class="text-base font-bold text-slate-900">Meu banco de horas</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Registe as suas horas. Só você vê estes lançamentos.</p>
+      </div>
+      <div class="p-4 space-y-4">
+        <div id="hourBankUnlinked" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          A sua conta ainda não está associada a um funcionário da folha. Peça ao gestor para criar/editar o seu registo
+          em <strong>Equipe</strong> com o mesmo email de login, ou vincular a conta.
+        </div>
+        <div id="hourBankPanel" class="hidden space-y-4">
+          <p id="hourBankWho" class="text-sm text-slate-600"></p>
+          <form id="hourBankForm" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbDate">Data *</label>
+              <input type="date" id="hbDate" required class="w-full border rounded-lg px-3 py-2.5 text-sm bg-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbHours">Horas *</label>
+              <input type="number" id="hbHours" required min="0.25" max="24" step="0.25" placeholder="8" class="w-full border rounded-lg px-3 py-2.5 text-sm bg-white" />
+            </div>
+            <div class="sm:col-span-2 lg:col-span-1">
+              <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbNotes">Notas</label>
+              <input type="text" id="hbNotes" maxlength="500" placeholder="Opcional" class="w-full border rounded-lg px-3 py-2.5 text-sm bg-white" />
+            </div>
+            <div>
+              <button type="submit" class="btn btn-primary w-full">Registar horas</button>
+            </div>
+          </form>
+          <p id="hourBankFormErr" class="text-red-600 text-sm hidden"></p>
+          <div class="overflow-x-auto border border-slate-200 rounded-lg">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase">
+                <tr>
+                  <th class="px-3 py-2">Data</th>
+                  <th class="px-3 py-2 text-right">Horas</th>
+                  <th class="px-3 py-2">Notas</th>
+                  <th class="px-3 py-2">Estado</th>
+                  <th class="px-3 py-2">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="hourBankBody">
+                <tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">A carregar…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Resumo -->
     <section id="hub-resumo" class="payroll-hub-section grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -398,7 +440,7 @@
       <div><label class="text-xs font-semibold text-slate-500">Função / cargo</label><input id="empRole" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ex.: instalador" /></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="text-xs font-semibold text-slate-500">Telefone</label><input id="empPhone" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-        <div><label class="text-xs font-semibold text-slate-500">E-mail</label><input id="empEmail" type="email" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-semibold text-slate-500">E-mail</label><input id="empEmail" type="email" class="w-full border rounded-lg px-3 py-2 text-sm" /><p class="text-[11px] text-slate-500 mt-1">Mesmo email do login CRM → o funcionário acede ao «Meu banco de horas».</p></div>
       </div>
       <div>
         <label class="text-xs font-semibold text-slate-500">Setor</label>
@@ -629,7 +671,7 @@
   </script>
   <script src="crm-toast.js?v=2"></script>
   <script src="crm-shell.js?v=20260924-shell"></script>
-  <script src="crm-shared-nav.js?v=20260924-shell"></script>
-  <script src="payroll-module.js?v=20260819-ipad-layout"></script>
+  <script src="crm-shared-nav.js?v=20260925-hourbank"></script>
+  <script src="payroll-module.js?v=20260925-hourbank"></script>
 </body>
 </html>

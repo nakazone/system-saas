@@ -97,6 +97,7 @@ model Organization {
   communicationLogs  CommunicationLog[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
+  payrollHourBankEntries PayrollHourBankEntry[]
   financeCosts       FinanceCost[]
   financePayrollAbatements FinancePayrollAbatement[]
   supportTickets     SupportTicket[]
@@ -137,6 +138,7 @@ model User {
   pushSubscriptions PushSubscription[]
   assignedWorkOrders WorkOrder[] @relation("WorkOrderAssignee")
   assignedMeetings Meeting[] @relation("MeetingAssignee")
+  payrollEmployee PayrollEmployee?
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -1230,6 +1232,9 @@ model PayrollEmployee {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Optional link to CRM login — used for self-service hour bank
+  userId         String?  @unique @db.Uuid
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   name           String
   email          String?
   phone          String?
@@ -1241,8 +1246,10 @@ model PayrollEmployee {
   updatedAt      DateTime @updatedAt
 
   timesheets PayrollTimesheet[]
+  hourBankEntries PayrollHourBankEntry[]
 
   @@index([organizationId])
+  @@index([userId])
 }
 
 model PayrollPeriod {
@@ -1280,6 +1287,26 @@ model PayrollTimesheet {
   @@index([organizationId])
   @@index([periodId])
   @@index([employeeId])
+}
+
+/// Self-service hour bank — employee logs own hours; only they (or payroll managers) see them.
+model PayrollHourBankEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employeeId     String   @db.Uuid
+  employee       PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workDate       DateTime @db.Date
+  hours          Decimal  @db.Decimal(8, 2)
+  notes          String?
+  /// pending | approved | rejected
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([employeeId])
+  @@index([organizationId, workDate])
 }
 
 // ---------------------------------------------------------------------------

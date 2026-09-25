@@ -6,8 +6,15 @@ const CP = '/api/construction-payroll';
 let canManage = false;
 /** Lançar/guardar linhas do quadro: quem entra nesta página já tem payroll.view */
 let canEditTimesheet = false;
+/** Self-service hour bank (own entries only) */
+let canHourBankSelf = false;
+/** Full payroll admin UI (equipe / quadro / pagamentos) */
+let canPayrollAdmin = false;
 let role = '';
 let permissionKeys = [];
+let sessionUserEmail = '';
+let sessionUserId = '';
+let hourBankLinked = false;
 let employees = [];
 let employeesById = {};
 let periods = [];
@@ -209,20 +216,169 @@ async function loadSession() {
     return false;
   }
   role = j.user?.role || '';
+  sessionUserEmail = j.user?.email || '';
+  sessionUserId = j.user?.id || '';
   permissionKeys = Array.isArray(j.user?.permissions)
     ? [...new Set(j.user.permissions.map((k) => String(k).trim()).filter(Boolean))]
     : [];
   const isAdmin = String(role || '').toLowerCase() === 'admin';
   const hasView = isAdmin || permissionKeys.includes('payroll.view');
+  const hasSelf = isAdmin || permissionKeys.includes('payroll.self') || hasView;
   canManage = isAdmin || permissionKeys.includes('payroll.manage');
   canEditTimesheet = hasView;
-  if (!hasView) {
-    showAuth('Sem permissão payroll.view para acessar esta página.');
+  canHourBankSelf = hasSelf;
+  canPayrollAdmin = hasView || canManage;
+  if (!hasView && !hasSelf) {
+    showAuth('Sem permissão para aceder à Folha de pagamento.');
     return false;
   }
   showAuth('');
   setManageUi();
+  applyPayrollAccessMode();
   return true;
+}
+
+function applyPayrollAccessMode() {
+  document.querySelectorAll('[data-payroll-admin-only]').forEach((el) => {
+    el.classList.toggle('hidden', !canPayrollAdmin);
+  });
+  ['hub-resumo', 'hub-func', 'hub-quadro', 'hub-relatorios'].forEach((id) => {
+    const sec = document.getElementById(id);
+    if (sec) sec.classList.toggle('hidden', !canPayrollAdmin);
+  });
+  const sub = document.getElementById('payrollPageSub');
+  if (sub && !canPayrollAdmin) {
+    sub.textContent = 'Registe e consulte as suas horas';
+  }
+  const selfTab = document.getElementById('tabMeuBanco');
+  if (selfTab) selfTab.classList.toggle('hidden', !canHourBankSelf);
+  const defaultHash = !canPayrollAdmin && canHourBankSelf ? '#hub-meu-banco' : '#hub-resumo';
+  const hash = window.location.hash || '';
+  const adminHashes = ['#hub-resumo', '#hub-func', '#hub-quadro', '#hub-relatorios'];
+  if (!hash || (!canPayrollAdmin && adminHashes.includes(hash))) {
+    window.history.replaceState(null, '', defaultHash);
+  }
+  document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
+    const h = (b.getAttribute('href') || '').replace('#', '');
+    const on = h === (window.location.hash || defaultHash).replace('#', '');
+    b.classList.toggle('active', on);
+  });
+}
+
+function statusLabelHb(s) {
+  if (s === 'approved') return 'Aprovado';
+  if (s === 'rejected') return 'Recusado';
+  return 'Pendente';
+}
+
+async function loadHourBank() {
+  const unlinked = document.getElementById('hourBankUnlinked');
+  const panel = document.getElementById('hourBankPanel');
+  const body = document.getElementById('hourBankBody');
+  const who = document.getElementById('hourBankWho');
+  if (!canHourBankSelf) {
+    unlinked?.classList.add('hidden');
+    panel?.classList.add('hidden');
+    return;
+  }
+  try {
+    const r = await fetch(`${CP}/me/hour-bank`, { credentials: 'include' });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Falha ao carregar banco de horas');
+    hourBankLinked = !!j.linked;
+    if (!j.linked) {
+      unlinked?.classList.remove('hidden');
+      panel?.classList.add('hidden');
+      return;
+    }
+    unlinked?.classList.add('hidden');
+    panel?.classList.remove('hidden');
+    const emp = j.employee || {};
+    if (who) who.textContent = `A registar como: ${emp.name || '—'} (${emp.email || sessionUserEmail || '—'})`;
+    const rows = Array.isArray(j.data) ? j.data : [];
+    if (!body) return;
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">Ainda sem lançamentos. Use o formulário acima.</td></tr>';
+      return;
+    }
+    body.innerHTML = rows
+      .map((row) => {
+        const ymd = String(row.work_date || '').slice(0, 10);
+        const pending = row.status === 'pending';
+        return `<tr data-hb-id="${row.id}">
+          <td class="px-3 py-2">${ymd}</td>
+          <td class="px-3 py-2 text-right font-medium">${Number(row.hours) || 0}</td>
+          <td class="px-3 py-2 text-slate-600">${escapeHtmlHb(row.notes || '—')}</td>
+          <td class="px-3 py-2"><span class="text-xs font-semibold">${statusLabelHb(row.status)}</span></td>
+          <td class="px-3 py-2">${
+            pending
+              ? `<button type="button" class="btn btn-sm btn-secondary hb-del" data-id="${row.id}">Apagar</button>`
+              : '—'
+          }</td>
+        </tr>`;
+      })
+      .join('');
+  } catch (e) {
+    if (body) {
+      body.innerHTML = `<tr><td colspan="5" class="px-3 py-4 text-center text-red-600">${escapeHtmlHb(e.message)}</td></tr>`;
+    }
+  }
+}
+
+function escapeHtmlHb(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function submitHourBank(e) {
+  e.preventDefault();
+  const err = document.getElementById('hourBankFormErr');
+  if (err) {
+    err.classList.add('hidden');
+    err.textContent = '';
+  }
+  const work_date = document.getElementById('hbDate')?.value;
+  const hours = Number(document.getElementById('hbHours')?.value);
+  const notes = document.getElementById('hbNotes')?.value?.trim() || null;
+  try {
+    const r = await fetch(`${CP}/me/hour-bank`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ work_date, hours, notes }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Falha ao registar');
+    document.getElementById('hourBankForm')?.reset();
+    const today = new Date();
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const dateEl = document.getElementById('hbDate');
+    if (dateEl) dateEl.value = ymd;
+    window.crmToast?.success?.('Horas registadas');
+    await loadHourBank();
+  } catch (ex) {
+    if (err) {
+      err.textContent = ex.message || 'Erro';
+      err.classList.remove('hidden');
+    } else window.crmToast?.error?.(ex.message);
+  }
+}
+
+async function deleteHourBank(id) {
+  if (!confirm('Apagar este lançamento?')) return;
+  try {
+    const r = await fetch(`${CP}/me/hour-bank/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Falha ao apagar');
+    await loadHourBank();
+  } catch (e) {
+    window.crmToast?.error?.(e.message);
+  }
 }
 
 async function loadDashboard() {
@@ -2014,9 +2170,7 @@ function initPayrollHubNav() {
   document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
     b.addEventListener('click', () => setTimeout(update, 50));
   });
-  if (!window.location.hash) {
-    window.history.replaceState(null, '', '#hub-resumo');
-  }
+  // Default hash is set in applyPayrollAccessMode after session permissions load
   update();
 }
 
@@ -2060,6 +2214,8 @@ function initPayrollMobileNav() {
 }
 
 async function reloadAll() {
+  await loadHourBank();
+  if (!canPayrollAdmin) return;
   await loadDashboard();
   await loadEmployees();
   await loadProjects();
@@ -2278,11 +2434,20 @@ document.getElementById('btnReportEmployees')?.addEventListener('click', () => r
 document.getElementById('btnReportProjects')?.addEventListener('click', () => runReportProjects().catch((e) => window.crmToast?.error?.(e.message)));
 document.getElementById('btnReportTotal')?.addEventListener('click', () => runReportTotal().catch((e) => window.crmToast?.error?.(e.message)));
 document.getElementById('empQuickSave')?.addEventListener('click', () => quickSaveEmployee());
+document.getElementById('hourBankForm')?.addEventListener('submit', (e) => submitHourBank(e));
+document.getElementById('hourBankBody')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.hb-del');
+  if (btn) deleteHourBank(btn.getAttribute('data-id'));
+});
 
 (async function boot() {
   initReportDates();
   initPayrollMobileNav();
   initPayrollHubNav();
+  const today = new Date();
+  const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const dateEl = document.getElementById('hbDate');
+  if (dateEl) dateEl.value = ymd;
   const ok = await loadSession();
   if (!ok) return;
   try {

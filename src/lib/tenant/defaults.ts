@@ -38,6 +38,7 @@ export const DEFAULT_PERMISSIONS = [
   { key: "builders.edit", group: "builders", description: "Edit builders" },
   { key: "payroll.view", group: "payroll", description: "View payroll" },
   { key: "payroll.manage", group: "payroll", description: "Manage payroll" },
+  { key: "payroll.self", group: "payroll", description: "Register and view own hour bank" },
   { key: "projects.view", group: "projects", description: "View projects" },
   { key: "reports.view", group: "reports", description: "View reports / marketing" },
   { key: "contracts.view", group: "financial", description: "View financial / contracts" },
@@ -143,6 +144,7 @@ const CREW_LEAD_KEYS: PermissionKey[] = [
   "work_orders.manage",
   "schedule.view",
   "schedule.manage",
+  "payroll.self",
 ];
 
 const INSTALLER_KEYS: PermissionKey[] = [
@@ -151,6 +153,7 @@ const INSTALLER_KEYS: PermissionKey[] = [
   "assessments.view",
   "work_orders.view",
   "schedule.view",
+  "payroll.self",
 ];
 
 export const DEFAULT_ROLE_META: Record<

@@ -45,6 +45,7 @@ function mapEmployee(e: {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+  userId?: string | null;
 }) {
   return {
     id: e.id,
@@ -56,8 +57,31 @@ function mapEmployee(e: {
     pay_type: e.payType,
     hourly_rate: dec(e.hourlyRate),
     status: e.status,
+    user_id: e.userId ?? null,
     created_at: e.createdAt,
     updated_at: e.updatedAt,
+  };
+}
+
+function mapHourBank(row: {
+  id: string;
+  employeeId: string;
+  workDate: Date;
+  hours: unknown;
+  notes: string | null;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: row.id,
+    employee_id: row.employeeId,
+    work_date: row.workDate,
+    hours: dec(row.hours),
+    notes: row.notes,
+    status: row.status,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
   };
 }
 
@@ -407,20 +431,26 @@ cadastroPayrollUsersRouter.post(
   async (req: AuthedRequest, res, next) => {
     try {
       const b = req.body || {};
-      const row = await withTenantTransaction(req.organizationId!, async (tx) =>
-        tx.payrollEmployee.create({
+      const email = b.email || null;
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        let userId = b.user_id || b.userId || null;
+        if (!userId) {
+          userId = await findLinkableUserId(tx, req.organizationId!, email);
+        }
+        return tx.payrollEmployee.create({
           data: {
             organizationId: req.organizationId!,
             name: String(b.name || "Employee"),
-            email: b.email || null,
+            email,
             phone: b.phone || null,
             roleTitle: b.role_title || b.roleTitle || null,
             payType: String(b.payment_type || b.pay_type || "hourly"),
             hourlyRate: new Prisma.Decimal(Number(b.hourly_rate) || 0),
             status: String(b.status || "active"),
+            userId,
           },
-        }),
-      );
+        });
+      });
       res.status(201).json({ success: true, data: mapEmployee(row) });
     } catch (error) {
       next(error);
@@ -439,6 +469,14 @@ cadastroPayrollUsersRouter.put(
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const existing = await tx.payrollEmployee.findFirst({ where: { id } });
         if (!existing) return null;
+        const nextEmail = b.email !== undefined ? b.email : existing.email;
+        let userId: string | null | undefined =
+          b.user_id !== undefined || b.userId !== undefined
+            ? b.user_id || b.userId || null
+            : undefined;
+        if (userId === undefined && !existing.userId) {
+          userId = await findLinkableUserId(tx, req.organizationId!, nextEmail, id);
+        }
         return tx.payrollEmployee.update({
           where: { id },
           data: {
@@ -449,6 +487,7 @@ cadastroPayrollUsersRouter.put(
             payType: b.payment_type !== undefined ? String(b.payment_type) : undefined,
             hourlyRate: b.hourly_rate !== undefined ? new Prisma.Decimal(Number(b.hourly_rate) || 0) : undefined,
             status: b.status !== undefined ? String(b.status) : undefined,
+            userId,
           },
         });
       });
@@ -458,6 +497,267 @@ cadastroPayrollUsersRouter.put(
       }
       res.json({ success: true, data: mapEmployee(row) });
     } catch (error) {
+      next(error);
+    }
+  },
+);
+
+type PayrollTx = Parameters<Parameters<typeof withTenantTransaction>[1]>[0];
+
+/** If email matches a CRM user and that user is not already linked, return userId. */
+async function findLinkableUserId(
+  tx: PayrollTx,
+  organizationId: string,
+  email: string | null | undefined,
+  exceptEmployeeId?: string,
+): Promise<string | null> {
+  const em = email ? String(email).trim().toLowerCase() : "";
+  if (!em) return null;
+  const user = await tx.user.findFirst({
+    where: { organizationId, email: { equals: em, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (!user) return null;
+  const taken = await tx.payrollEmployee.findFirst({
+    where: {
+      userId: user.id,
+      ...(exceptEmployeeId ? { id: { not: exceptEmployeeId } } : {}),
+    },
+    select: { id: true },
+  });
+  return taken ? null : user.id;
+}
+
+/** Resolve PayrollEmployee for the logged-in user (by userId, or claim by matching email). */
+async function resolveOwnEmployee(
+  tx: PayrollTx,
+  userId: string,
+  email: string | undefined | null,
+) {
+  let emp = await tx.payrollEmployee.findFirst({ where: { userId } });
+  if (emp) return emp;
+  const em = email ? String(email).trim().toLowerCase() : "";
+  if (!em) return null;
+  emp = await tx.payrollEmployee.findFirst({
+    where: { email: { equals: em, mode: "insensitive" }, userId: null },
+  });
+  if (!emp) return null;
+  return tx.payrollEmployee.update({
+    where: { id: emp.id },
+    data: { userId },
+  });
+}
+
+function canAccessPayrollSelf(req: AuthedRequest): boolean {
+  if (req.user?.roleKey === "admin") return true;
+  const perms = req.user?.permissions || [];
+  return (
+    perms.includes("payroll.self") ||
+    perms.includes("payroll.view") ||
+    perms.includes("payroll.manage")
+  );
+}
+
+cadastroPayrollUsersRouter.get(
+  "/api/construction-payroll/me",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      if (!canAccessPayrollSelf(req)) {
+        res.status(403).json({ success: false, error: "Permission denied", missing: ["payroll.self"] });
+        return;
+      }
+      const emp = await withTenantTransaction(req.organizationId!, async (tx) =>
+        resolveOwnEmployee(tx, req.user!.id, req.user!.email),
+      );
+      res.json({
+        success: true,
+        data: emp ? mapEmployee(emp) : null,
+        linked: Boolean(emp),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.get(
+  "/api/construction-payroll/me/hour-bank",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      if (!canAccessPayrollSelf(req)) {
+        res.status(403).json({ success: false, error: "Permission denied", missing: ["payroll.self"] });
+        return;
+      }
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const emp = await resolveOwnEmployee(tx, req.user!.id, req.user!.email);
+        if (!emp) return null;
+        const entries = await tx.payrollHourBankEntry.findMany({
+          where: { employeeId: emp.id },
+          orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
+          take: Math.min(200, Math.max(1, Number(req.query.limit) || 100)),
+        });
+        return { emp, entries };
+      });
+      if (!rows) {
+        res.json({ success: true, linked: false, data: [], employee: null });
+        return;
+      }
+      res.json({
+        success: true,
+        linked: true,
+        employee: mapEmployee(rows.emp),
+        data: rows.entries.map(mapHourBank),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.post(
+  "/api/construction-payroll/me/hour-bank",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      if (!canAccessPayrollSelf(req)) {
+        res.status(403).json({ success: false, error: "Permission denied", missing: ["payroll.self"] });
+        return;
+      }
+      const b = req.body || {};
+      const hours = Number(b.hours);
+      if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
+        res.status(400).json({ success: false, error: "Informe horas válidas (entre 0 e 24)" });
+        return;
+      }
+      if (!b.work_date && !b.workDate) {
+        res.status(400).json({ success: false, error: "work_date is required" });
+        return;
+      }
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const emp = await resolveOwnEmployee(tx, req.user!.id, req.user!.email);
+        if (!emp) return null;
+        if (emp.status !== "active") throw new Error("EMP_INACTIVE");
+        return tx.payrollHourBankEntry.create({
+          data: {
+            organizationId: req.organizationId!,
+            employeeId: emp.id,
+            workDate: new Date(b.work_date || b.workDate),
+            hours: new Prisma.Decimal(hours),
+            notes: b.notes ? String(b.notes).slice(0, 500) : null,
+            status: "pending",
+          },
+        });
+      });
+      if (!row) {
+        res.status(404).json({
+          success: false,
+          error: "A sua conta ainda não está associada a um funcionário. Peça ao gestor da folha para vincular o email.",
+        });
+        return;
+      }
+      res.status(201).json({ success: true, data: mapHourBank(row) });
+    } catch (error) {
+      if (error instanceof Error && error.message === "EMP_INACTIVE") {
+        res.status(400).json({ success: false, error: "Funcionário inativo" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.put(
+  "/api/construction-payroll/me/hour-bank/:id",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      if (!canAccessPayrollSelf(req)) {
+        res.status(403).json({ success: false, error: "Permission denied", missing: ["payroll.self"] });
+        return;
+      }
+      const id = String(req.params.id);
+      const b = req.body || {};
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const emp = await resolveOwnEmployee(tx, req.user!.id, req.user!.email);
+        if (!emp) return null;
+        const existing = await tx.payrollHourBankEntry.findFirst({
+          where: { id, employeeId: emp.id },
+        });
+        if (!existing) return false;
+        if (existing.status !== "pending") throw new Error("NOT_PENDING");
+        const hours = b.hours !== undefined ? Number(b.hours) : undefined;
+        if (hours !== undefined && (!Number.isFinite(hours) || hours <= 0 || hours > 24)) {
+          throw new Error("BAD_HOURS");
+        }
+        return tx.payrollHourBankEntry.update({
+          where: { id },
+          data: {
+            hours: hours !== undefined ? new Prisma.Decimal(hours) : undefined,
+            notes: b.notes !== undefined ? (b.notes ? String(b.notes).slice(0, 500) : null) : undefined,
+            workDate: b.work_date || b.workDate ? new Date(b.work_date || b.workDate) : undefined,
+          },
+        });
+      });
+      if (row === null) {
+        res.status(404).json({ success: false, error: "Funcionário não associado" });
+        return;
+      }
+      if (row === false) {
+        res.status(404).json({ success: false, error: "Lançamento não encontrado" });
+        return;
+      }
+      res.json({ success: true, data: mapHourBank(row) });
+    } catch (error) {
+      if (error instanceof Error && error.message === "NOT_PENDING") {
+        res.status(400).json({ success: false, error: "Só pode editar lançamentos pendentes" });
+        return;
+      }
+      if (error instanceof Error && error.message === "BAD_HOURS") {
+        res.status(400).json({ success: false, error: "Informe horas válidas (entre 0 e 24)" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.delete(
+  "/api/construction-payroll/me/hour-bank/:id",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      if (!canAccessPayrollSelf(req)) {
+        res.status(403).json({ success: false, error: "Permission denied", missing: ["payroll.self"] });
+        return;
+      }
+      const id = String(req.params.id);
+      const ok = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const emp = await resolveOwnEmployee(tx, req.user!.id, req.user!.email);
+        if (!emp) return null;
+        const existing = await tx.payrollHourBankEntry.findFirst({
+          where: { id, employeeId: emp.id },
+        });
+        if (!existing) return false;
+        if (existing.status !== "pending") throw new Error("NOT_PENDING");
+        await tx.payrollHourBankEntry.delete({ where: { id } });
+        return true;
+      });
+      if (ok === null) {
+        res.status(404).json({ success: false, error: "Funcionário não associado" });
+        return;
+      }
+      if (!ok) {
+        res.status(404).json({ success: false, error: "Lançamento não encontrado" });
+        return;
+      }
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof Error && error.message === "NOT_PENDING") {
+        res.status(400).json({ success: false, error: "Só pode apagar lançamentos pendentes" });
+        return;
+      }
       next(error);
     }
   },
