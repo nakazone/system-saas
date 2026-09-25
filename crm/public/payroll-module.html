@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20260925-mais1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-apptop1" />
   <link rel="stylesheet" href="payroll.css?v=20260925-paymob1" />
-  <link rel="stylesheet" href="finance-payroll-mobile.css?v=20260925-finmob1" />
+  <link rel="stylesheet" href="finance-payroll-mobile.css?v=20260925-paydaily1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20260925-device1"></script>
 </head>
@@ -127,11 +127,101 @@
           <button type="button" class="fpm-chip" data-pay-filter="hourly">Por hora</button>
         </div>
 
+        <button type="button" class="fpm-add-daily" id="payMobAddDaily" hidden>
+          <span class="fpm-add-daily__ico" aria-hidden="true">+</span>
+          Adicionar diária
+        </button>
+
         <div class="fpm-emp" id="payMobEmpList"></div>
       </div>
 
       <div class="fpm-fab-bar" id="payMobFabBar">
         <button type="button" class="fpm-fab-bar__btn" id="payMobApproveAll">Aprovar todos</button>
+      </div>
+
+      <!-- Folha mobile: ação rápida do + -->
+      <button type="button" class="fpm-sheet-backdrop" id="payMobActionBackdrop" hidden aria-label="Fechar"></button>
+      <div class="fpm-sheet" id="payMobActionSheet" role="dialog" aria-modal="true" hidden>
+        <div class="fpm-sheet__grab" aria-hidden="true"></div>
+        <h2 class="fpm-sheet__title">O que deseja fazer?</h2>
+        <button type="button" class="fpm-action-card" id="payMobActionDaily">
+          <strong>Adicionar diária</strong>
+          <span>Funcionário cadastrado ou avulso neste período</span>
+        </button>
+        <button type="button" class="fpm-action-card" id="payMobActionPeriod">
+          <strong>Criar período</strong>
+          <span>Nova semana Seg–Dom na folha</span>
+        </button>
+      </div>
+
+      <!-- Folha mobile: lançar diária -->
+      <button type="button" class="fpm-sheet-backdrop" id="payMobDailyBackdrop" hidden aria-label="Fechar"></button>
+      <div class="fpm-sheet fpm-sheet--tall" id="payMobDailySheet" role="dialog" aria-modal="true" aria-labelledby="payMobDailyTitle" hidden>
+        <div class="fpm-sheet__grab" aria-hidden="true"></div>
+        <div class="fpm-sheet__head">
+          <div>
+            <h2 class="fpm-sheet__title" id="payMobDailyTitle">Adicionar diária</h2>
+            <p class="fpm-sheet__sub" id="payMobDailySub">Período selecionado</p>
+          </div>
+          <button type="button" class="fpm-sheet__close" id="payMobDailyClose" aria-label="Fechar">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="fpm-seg fpm-seg--sheet" role="tablist" id="payMobDailyWho">
+          <button type="button" class="fpm-seg__btn is-active" data-daily-who="roster">Cadastrado</button>
+          <button type="button" class="fpm-seg__btn" data-daily-who="avulso">Avulso</button>
+        </div>
+
+        <div id="payMobDailyRosterBlock">
+          <p class="fpm-form-label">Funcionário</p>
+          <div class="fpm-chip-row" id="payMobDailyEmpChips"></div>
+          <p class="fpm-empty" id="payMobDailyEmpEmpty" hidden>Nenhum funcionário ativo. Use Avulso ou cadastre na Equipe.</p>
+        </div>
+
+        <div id="payMobDailyAvulsoBlock" hidden>
+          <label class="fpm-field">
+            <span>Nome do avulso</span>
+            <input type="text" id="payMobAvulsoName" placeholder="Ex.: João Temp" autocomplete="name" />
+          </label>
+          <label class="fpm-field" style="margin-top:0.75rem">
+            <span>Valor da diária ($)</span>
+            <input type="number" id="payMobAvulsoRate" inputmode="decimal" min="0" step="1" placeholder="Ex.: 180" />
+          </label>
+          <div class="fpm-form-block" style="margin-top:0.75rem">
+            <p class="fpm-form-label">Setor</p>
+            <div class="fpm-chip-row" id="payMobAvulsoSector">
+              <button type="button" class="fpm-chip is-active" data-av-sector="installation">Instalação</button>
+              <button type="button" class="fpm-chip" data-av-sector="sand_finish">Sand &amp; Finish</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="fpm-form-block">
+          <p class="fpm-form-label">Data do trabalho</p>
+          <input type="date" class="fpm-date" id="payMobDailyDate" />
+        </div>
+
+        <div class="fpm-form-block">
+          <p class="fpm-form-label">Quantidade</p>
+          <div class="fpm-chip-row" id="payMobDailyQty">
+            <button type="button" class="fpm-chip" data-daily-qty="0.5">½ diária</button>
+            <button type="button" class="fpm-chip is-active" data-daily-qty="1">1 diária</button>
+            <button type="button" class="fpm-chip" data-daily-qty="2">2 diárias</button>
+          </div>
+        </div>
+
+        <label class="fpm-field">
+          <span>Valor override (opcional)</span>
+          <input type="number" id="payMobDailyOverride" inputmode="decimal" min="0" step="1" placeholder="Deixe vazio = diária do cadastro" />
+        </label>
+
+        <label class="fpm-field" style="margin-top:0.75rem">
+          <span>Nota (opcional)</span>
+          <input type="text" id="payMobDailyNotes" placeholder="Ex.: obra #1041" maxlength="200" />
+        </label>
+
+        <button type="button" class="fpm-sheet__cta" id="payMobDailySubmit">Lançar diária</button>
       </div>
 
       <div class="mod-page crm-page payroll-page">
@@ -642,7 +732,7 @@
   <script src="crm-shell.js?v=20260925-mais1"></script>
   <script src="crm-shared-nav.js?v=20260925-mais1"></script>
   <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
-  <script src="payroll-module.js?v=20260925-paymob1"></script>
-  <script src="payroll-mobile.js?v=20260925-paymob1"></script>
+  <script src="payroll-module.js?v=20260925-paydaily1"></script>
+  <script src="payroll-mobile.js?v=20260925-paydaily1"></script>
 </body>
 </html>

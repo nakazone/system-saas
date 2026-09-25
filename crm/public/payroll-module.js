@@ -2539,6 +2539,7 @@ document.getElementById('approveHourBankBody')?.addEventListener('click', (e) =>
   const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const dateEl = document.getElementById('hbDate');
   if (dateEl) dateEl.value = ymd;
+  window.loadTimesheetsForPeriod = loadTimesheetsForPeriod;
   const ok = await loadSession();
   if (!ok) return;
   try {

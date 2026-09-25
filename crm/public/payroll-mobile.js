@@ -13,6 +13,11 @@
   let pendingBank = 0;
   let filter = "all";
   let canManage = false;
+  let employees = [];
+  let dailyWho = "roster"; // roster | avulso
+  let dailyEmpId = null;
+  let dailyQty = 1;
+  let avulsoSector = "installation";
 
   function isMobile() {
     return window.__omDevice && typeof window.__omDevice.isMobile === "function"
@@ -220,6 +225,11 @@
       if (pendingBank > 0) fabBtn.textContent = `Aprovar banco (${pendingBank})`;
       else fabBtn.textContent = `Fechar período (${pendingCount})`;
     }
+
+    const addDaily = document.getElementById("payMobAddDaily");
+    if (addDaily) {
+      addDaily.hidden = !(canManage && open && selectedId);
+    }
   }
 
   function renderEmployees() {
@@ -338,6 +348,225 @@
     }
   }
 
+  async function loadEmployees() {
+    try {
+      const j = await api("GET", "/employees");
+      employees = (j.data || []).filter((e) => String(e.status || "active") === "active");
+    } catch (_) {
+      employees = [];
+    }
+  }
+
+  function closeSheets() {
+    ["payMobActionSheet", "payMobDailySheet", "payMobActionBackdrop", "payMobDailyBackdrop"].forEach(
+      (id) => {
+        const el = document.getElementById(id);
+        if (el) el.hidden = true;
+      },
+    );
+    document.body.classList.remove("fpm-sheet-open");
+  }
+
+  function openActionSheet() {
+    if (!canManage) {
+      window.crmToast?.info?.("Sem permissão para gerir a folha.");
+      return;
+    }
+    closeSheets();
+    document.getElementById("payMobActionBackdrop").hidden = false;
+    document.getElementById("payMobActionSheet").hidden = false;
+    document.body.classList.add("fpm-sheet-open");
+  }
+
+  function openPeriodPicker() {
+    closeSheets();
+    const btn = document.getElementById("btnOpenPeriodPicker") || document.getElementById("btnNewPeriod");
+    if (btn) btn.click();
+    else window.crmToast?.info?.("Crie o período na secção Horas (desktop).");
+  }
+
+  function periodDateBounds() {
+    const p = selectedPeriod();
+    if (!p) return { min: "", max: "", def: "" };
+    const today = new Date();
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    let def = ymd;
+    if (p.start_date && def < p.start_date) def = p.start_date;
+    if (p.end_date && def > p.end_date) def = p.end_date;
+    return { min: p.start_date || "", max: p.end_date || "", def };
+  }
+
+  function renderDailyEmpChips() {
+    const host = document.getElementById("payMobDailyEmpChips");
+    const empty = document.getElementById("payMobDailyEmpEmpty");
+    if (!host) return;
+    const list = employees.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    if (!list.length) {
+      host.innerHTML = "";
+      if (empty) empty.hidden = false;
+      dailyEmpId = null;
+      return;
+    }
+    if (empty) empty.hidden = true;
+    if (!dailyEmpId || !list.some((e) => String(e.id) === String(dailyEmpId))) {
+      dailyEmpId = String(list[0].id);
+    }
+    host.innerHTML = list
+      .map((e) => {
+        const on = String(e.id) === String(dailyEmpId);
+        const rate = Number(e.daily_rate) || 0;
+        return `<button type="button" class="fpm-chip${on ? " is-active" : ""}" data-daily-emp="${escapeHtml(e.id)}">
+          ${escapeHtml(e.name)}${rate ? ` · ${money(rate)}` : ""}
+        </button>`;
+      })
+      .join("");
+    host.querySelectorAll("[data-daily-emp]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dailyEmpId = btn.getAttribute("data-daily-emp");
+        renderDailyEmpChips();
+      });
+    });
+  }
+
+  function syncDailyWhoUi() {
+    document.querySelectorAll("[data-daily-who]").forEach((b) => {
+      b.classList.toggle("is-active", b.getAttribute("data-daily-who") === dailyWho);
+    });
+    const roster = document.getElementById("payMobDailyRosterBlock");
+    const avulso = document.getElementById("payMobDailyAvulsoBlock");
+    if (roster) roster.hidden = dailyWho !== "roster";
+    if (avulso) avulso.hidden = dailyWho !== "avulso";
+  }
+
+  async function openDailySheet() {
+    if (!canManage) return;
+    if (!selectedId) {
+      window.crmToast?.info?.("Crie ou selecione um período primeiro.");
+      openPeriodPicker();
+      return;
+    }
+    const p = selectedPeriod();
+    if (p?.status === "closed") {
+      window.crmToast?.error?.("Período fechado — reabra para lançar.");
+      return;
+    }
+    closeSheets();
+    await loadEmployees();
+    dailyWho = "roster";
+    dailyQty = 1;
+    avulsoSector = "installation";
+    document.querySelectorAll("[data-daily-qty]").forEach((b) => {
+      b.classList.toggle("is-active", Number(b.getAttribute("data-daily-qty")) === 1);
+    });
+    document.querySelectorAll("[data-av-sector]").forEach((b) => {
+      b.classList.toggle("is-active", b.getAttribute("data-av-sector") === "installation");
+    });
+    const bounds = periodDateBounds();
+    const dateInp = document.getElementById("payMobDailyDate");
+    if (dateInp) {
+      dateInp.min = bounds.min || "";
+      dateInp.max = bounds.max || "";
+      dateInp.value = bounds.def || "";
+    }
+    const ov = document.getElementById("payMobDailyOverride");
+    if (ov) ov.value = "";
+    const notes = document.getElementById("payMobDailyNotes");
+    if (notes) notes.value = "";
+    const an = document.getElementById("payMobAvulsoName");
+    if (an) an.value = "";
+    const ar = document.getElementById("payMobAvulsoRate");
+    if (ar) ar.value = "";
+    const sub = document.getElementById("payMobDailySub");
+    if (sub && p) sub.textContent = `Semana ${formatRange(p.start_date, p.end_date)}`;
+    syncDailyWhoUi();
+    renderDailyEmpChips();
+    document.getElementById("payMobDailyBackdrop").hidden = false;
+    document.getElementById("payMobDailySheet").hidden = false;
+    document.body.classList.add("fpm-sheet-open");
+  }
+
+  async function submitDaily() {
+    if (!selectedId) return;
+    const dateInp = document.getElementById("payMobDailyDate");
+    const workDate = dateInp?.value;
+    if (!workDate) {
+      window.crmToast?.error?.("Escolha a data do trabalho");
+      return;
+    }
+    const overrideRaw = document.getElementById("payMobDailyOverride")?.value;
+    const override =
+      overrideRaw != null && String(overrideRaw).trim() !== "" ? Number(overrideRaw) : null;
+    const notes = (document.getElementById("payMobDailyNotes")?.value || "").trim() || null;
+
+    let employeeId = dailyEmpId;
+    try {
+      const btn = document.getElementById("payMobDailySubmit");
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "A lançar…";
+      }
+
+      if (dailyWho === "avulso") {
+        const name = (document.getElementById("payMobAvulsoName")?.value || "").trim();
+        const rate = Number(document.getElementById("payMobAvulsoRate")?.value);
+        if (!name) {
+          window.crmToast?.error?.("Informe o nome do avulso");
+          return;
+        }
+        if (!Number.isFinite(rate) || rate < 0) {
+          window.crmToast?.error?.("Informe o valor da diária");
+          return;
+        }
+        const created = await api("POST", "/employees", {
+          name,
+          payment_type: "daily",
+          daily_rate: rate,
+          hourly_rate: 0,
+          overtime_rate: 0,
+          sector: avulsoSector,
+          role_title: "Avulso",
+          status: "active",
+        });
+        employeeId = created.data?.id;
+        if (!employeeId) throw new Error("Falha ao criar avulso");
+      } else if (!employeeId) {
+        window.crmToast?.error?.("Escolha um funcionário");
+        return;
+      }
+
+      const body = {
+        employee_id: employeeId,
+        work_date: workDate,
+        days_worked: dailyQty,
+        regular_hours: 0,
+        overtime_hours: 0,
+        notes: notes || (dailyWho === "avulso" ? "Diária avulso (mobile)" : "Diária (mobile)"),
+      };
+      if (override != null && Number.isFinite(override)) {
+        body.daily_rate_override = override;
+      }
+
+      await api("POST", `/periods/${selectedId}/timesheets`, body);
+      closeSheets();
+      window.crmToast?.success?.("Diária lançada");
+      await loadEmployees();
+      await loadPreview();
+      if (typeof window.loadTimesheetsForPeriod === "function") {
+        try {
+          await window.loadTimesheetsForPeriod();
+        } catch (_) {}
+      }
+    } catch (e) {
+      window.crmToast?.error?.(e.message || "Falha ao lançar diária");
+    } finally {
+      const btn = document.getElementById("payMobDailySubmit");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Lançar diária";
+      }
+    }
+  }
+
   function bind() {
     document.querySelectorAll("[data-pay-filter]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -353,11 +582,36 @@
       if (pendingBank > 0) location.hash = "hub-aprovar-banco";
       else document.getElementById("payMobApproveAll")?.click();
     });
-    document.getElementById("payMobAdd")?.addEventListener("click", () => {
-      // Reuse desktop period picker when available
-      const btn = document.getElementById("btnOpenPeriodPicker") || document.getElementById("btnNewPeriod");
-      if (btn) btn.click();
-      else window.crmToast?.info?.("Crie o período na secção Horas (desktop) ou peça ao admin.");
+    document.getElementById("payMobAdd")?.addEventListener("click", () => openActionSheet());
+    document.getElementById("payMobAddDaily")?.addEventListener("click", () => openDailySheet());
+    document.getElementById("payMobActionDaily")?.addEventListener("click", () => openDailySheet());
+    document.getElementById("payMobActionPeriod")?.addEventListener("click", () => openPeriodPicker());
+    document.getElementById("payMobActionBackdrop")?.addEventListener("click", () => closeSheets());
+    document.getElementById("payMobDailyBackdrop")?.addEventListener("click", () => closeSheets());
+    document.getElementById("payMobDailyClose")?.addEventListener("click", () => closeSheets());
+    document.getElementById("payMobDailySubmit")?.addEventListener("click", () => submitDaily());
+
+    document.querySelectorAll("[data-daily-who]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dailyWho = btn.getAttribute("data-daily-who") || "roster";
+        syncDailyWhoUi();
+      });
+    });
+    document.querySelectorAll("[data-daily-qty]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dailyQty = Number(btn.getAttribute("data-daily-qty")) || 1;
+        document.querySelectorAll("[data-daily-qty]").forEach((b) => {
+          b.classList.toggle("is-active", Number(b.getAttribute("data-daily-qty")) === dailyQty);
+        });
+      });
+    });
+    document.querySelectorAll("[data-av-sector]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        avulsoSector = btn.getAttribute("data-av-sector") || "installation";
+        document.querySelectorAll("[data-av-sector]").forEach((b) => {
+          b.classList.toggle("is-active", b.getAttribute("data-av-sector") === avulsoSector);
+        });
+      });
     });
   }
 
@@ -375,6 +629,7 @@
       canManage =
         role === "admin" || perms.includes("payroll.manage") || perms.includes("payroll.view");
       bind();
+      await loadEmployees();
       await loadPeriods();
     } catch (e) {
       window.crmToast?.error?.(e.message || "Erro ao carregar folha");

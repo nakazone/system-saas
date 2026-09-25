@@ -966,3 +966,246 @@ body.om-device-mobile.pay-app .fpm-fab-bar.is-visible {
 .fpm-backdrop[hidden] {
   display: none !important;
 }
+
+/* —— Folha: adicionar diária —— */
+.fpm-add-daily {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 48px;
+  margin: 0 0 0.85rem;
+  border: 1.5px dashed var(--fpm-accent);
+  border-radius: 14px;
+  background: var(--fpm-accent-soft);
+  color: var(--fpm-accent-deep);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.fpm-add-daily__ico {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--fpm-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.fpm-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  border: none;
+  padding: 0;
+  background: rgba(28, 25, 23, 0.45);
+  cursor: pointer;
+}
+
+.fpm-sheet-backdrop[hidden],
+.fpm-sheet[hidden] {
+  display: none !important;
+}
+
+.fpm-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 81;
+  max-width: 480px;
+  margin: 0 auto;
+  max-height: min(88vh, 640px);
+  overflow: auto;
+  background: var(--fpm-bg);
+  border-radius: 22px 22px 0 0;
+  padding: 0.55rem 1.1rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.12);
+}
+
+.fpm-sheet--tall {
+  max-height: min(92vh, 720px);
+}
+
+.fpm-sheet__grab {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #d6d3d1;
+  margin: 0.15rem auto 0.75rem;
+}
+
+.fpm-sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.fpm-sheet__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.fpm-sheet__sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: var(--fpm-muted);
+}
+
+.fpm-sheet__close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--fpm-line);
+  background: var(--fpm-surface);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--fpm-ink);
+  cursor: pointer;
+}
+
+.fpm-sheet__close svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.25;
+}
+
+.fpm-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.95rem 1rem;
+  margin-bottom: 0.55rem;
+  border-radius: 16px;
+  border: 1px solid var(--fpm-line);
+  background: var(--fpm-surface);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fpm-action-card strong {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.fpm-action-card span {
+  font-size: 0.78rem;
+  font-weight: 550;
+  color: var(--fpm-muted);
+}
+
+.fpm-seg--sheet {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: #e8e4de;
+  border-radius: 999px;
+  margin-bottom: 0.9rem;
+  overflow: visible;
+}
+
+.fpm-seg--sheet .fpm-seg__btn {
+  flex: none;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.fpm-form-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.fpm-form-block {
+  margin-bottom: 0.9rem;
+}
+
+.fpm-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.fpm-chip-row .fpm-chip {
+  border: 1px solid var(--fpm-line);
+  background: var(--fpm-surface);
+  color: var(--fpm-ink);
+}
+
+.fpm-chip-row .fpm-chip.is-active {
+  background: var(--fpm-ink);
+  border-color: var(--fpm-ink);
+  color: #fff;
+}
+
+.fpm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.fpm-field input,
+.fpm-date {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 550;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--fpm-line);
+  background: var(--fpm-surface);
+  color: var(--fpm-ink);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fpm-sheet__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 50px;
+  margin-top: 1rem;
+  border: none;
+  border-radius: 14px;
+  background: var(--fpm-ink);
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.fpm-sheet__cta:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+body.fpm-sheet-open {
+  overflow: hidden;
+}
+
+body.om-device-mobile.pay-app .fpm {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
