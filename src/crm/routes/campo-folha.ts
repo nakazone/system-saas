@@ -63,11 +63,19 @@ async function resolveOpenPeriod(tx: Tx, workYmd: string) {
 async function findTodayLine(
   tx: Tx,
   employeeId: string,
-  periodId: string,
   workDate: Date,
+  periodId?: string | null,
 ) {
+  if (periodId) {
+    const inPeriod = await tx.payrollTimesheet.findFirst({
+      where: { employeeId, periodId, workDate },
+      orderBy: { createdAt: "asc" },
+    });
+    if (inPeriod) return inPeriod;
+  }
+  // Admin may have lançado a diária noutro período aberto que cobre o mesmo dia
   return tx.payrollTimesheet.findFirst({
-    where: { employeeId, periodId, workDate },
+    where: { employeeId, workDate },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -124,12 +132,18 @@ export async function buildFolhaPayload(
   const workYmd = ymdFromDate(workDateUtc(now));
   const workDate = parseYmd(workYmd)!;
   const period = await resolveOpenPeriod(tx, workYmd);
-  const line = period ? await findTodayLine(tx, emp.id, period.id, workDate) : null;
+  const line = await findTodayLine(tx, emp.id, workDate, period?.id);
 
   const days = line ? Number(line.daysWorked) || 0 : 0;
   const ot = line ? Number(line.overtimeHours) || 0 : 0;
   const reg = line ? Number(line.regularHours) || 0 : 0;
   const amount = line ? Number(line.calculatedAmount) || 0 : 0;
+
+  const linePeriod =
+    line && (!period || line.periodId !== period.id)
+      ? await tx.payrollPeriod.findFirst({ where: { id: line.periodId } })
+      : period;
+  const periodForUi = linePeriod || period;
 
   const canEdit = Boolean(period && period.status === "open");
 
@@ -146,14 +160,14 @@ export async function buildFolhaPayload(
       overtime_rate_label: moneyUsd(Number(emp.overtimeRate) || 0),
       pay_type: emp.payType,
     },
-    period: period
+    period: periodForUi
       ? {
-          id: period.id,
-          label: period.label,
-          start_date: ymdFromDate(period.startDate),
-          end_date: ymdFromDate(period.endDate),
-          status: period.status,
-          range_label: `${ymdToBrShort(ymdFromDate(period.startDate))} – ${ymdToBrShort(ymdFromDate(period.endDate))}`,
+          id: periodForUi.id,
+          label: periodForUi.label,
+          start_date: ymdFromDate(periodForUi.startDate),
+          end_date: ymdFromDate(periodForUi.endDate),
+          status: periodForUi.status,
+          range_label: `${ymdToBrShort(ymdFromDate(periodForUi.startDate))} – ${ymdToBrShort(ymdFromDate(periodForUi.endDate))}`,
         }
       : null,
     today: {
@@ -166,11 +180,14 @@ export async function buildFolhaPayload(
       regular_hours: reg,
       amount,
       amount_label: moneyUsd(amount),
+      source: line ? "timesheet" : null,
     },
     can_edit: canEdit,
     message: period
       ? null
-      : "Não há período de folha aberto. Peça ao escritório para criar a semana.",
+      : line
+        ? null
+        : "Não há período de folha aberto. Peça ao escritório para criar a semana.",
     payments,
   };
 }
@@ -273,7 +290,7 @@ async function writeLine(
     throw Object.assign(new Error("Data fora do período aberto"), { status: 400 });
   }
 
-  const existing = await findTodayLine(tx, emp.id, period.id, workDate);
+  const existing = await findTodayLine(tx, emp.id, workDate, period.id);
   const days =
     patch.days !== undefined
       ? patch.days
@@ -368,7 +385,7 @@ campoFolhaRouter.post(
         if (!period) {
           throw Object.assign(new Error("Não há período de folha aberto"), { status: 400 });
         }
-        const existing = await findTodayLine(tx, emp.id, period.id, workDate);
+        const existing = await findTodayLine(tx, emp.id, workDate, period.id);
         if (existing && Number(existing.daysWorked) >= 1) {
           throw Object.assign(new Error("Diária de hoje já lançada"), { status: 409 });
         }
@@ -427,7 +444,7 @@ campoFolhaRouter.post(
         if (!period) {
           throw Object.assign(new Error("Não há período de folha aberto"), { status: 400 });
         }
-        const existing = await findTodayLine(tx, emp.id, period.id, workDate);
+        const existing = await findTodayLine(tx, emp.id, workDate, period.id);
         const currentOt = existing ? Number(existing.overtimeHours) || 0 : 0;
         const nextOt = Math.max(0, roundHalf(currentOt + body.delta_hours));
         if (nextOt > 12) {

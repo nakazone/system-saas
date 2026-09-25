@@ -303,6 +303,7 @@ function applyPayrollAccessMode() {
 function statusLabelHb(s) {
   if (s === 'approved') return 'Aprovado';
   if (s === 'rejected') return 'Recusado';
+  if (s === 'on_sheet') return 'Na folha';
   return 'Pendente';
 }
 
@@ -464,7 +465,7 @@ async function loadHourBank() {
     const rows = Array.isArray(j.data) ? j.data : [];
     if (!body) return;
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">Ainda sem lançamentos. Use o formulário acima.</td></tr>';
+      body.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">Ainda sem lançamentos. Use o formulário acima ou peça ao escritório para lançar a diária.</td></tr>';
       return;
     }
     body.innerHTML = rows
@@ -472,9 +473,11 @@ async function loadHourBank() {
         const ymd = String(row.work_date || '').slice(0, 10);
         const pending = row.status === 'pending';
         const summary = row.summary || `${Number(row.hours) || 0}h`;
+        const amount =
+          row.amount != null && Number(row.amount) > 0 ? ` · ${money(row.amount)}` : '';
         return `<tr data-hb-id="${row.id}">
           <td class="px-3 py-2">${ymd}</td>
-          <td class="px-3 py-2 font-medium">${escapeHtmlHb(summary)}</td>
+          <td class="px-3 py-2 font-medium">${escapeHtmlHb(summary)}${amount ? `<span class="text-slate-500 font-normal">${escapeHtmlHb(amount)}</span>` : ''}</td>
           <td class="px-3 py-2 text-slate-600">${escapeHtmlHb(row.notes || '—')}</td>
           <td class="px-3 py-2"><span class="text-xs font-semibold">${statusLabelHb(row.status)}</span></td>
           <td class="px-3 py-2">${

@@ -124,10 +124,55 @@ function mapHourBank(row: {
     summary,
     notes: row.notes,
     status: row.status,
+    source: "hour_bank",
     timesheet_id: row.timesheetId ?? null,
     reviewed_at: row.reviewedAt ?? null,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
+  };
+}
+
+/** Timesheet lines created by the office (Dashboard) — show on Minha Folha. */
+function mapTimesheetAsHourBank(t: {
+  id: string;
+  employeeId: string;
+  workDate: Date;
+  hours: unknown;
+  daysWorked: unknown;
+  overtimeHours: unknown;
+  notes: string | null;
+  calculatedAmount: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+  period?: { label: string } | null;
+  employee?: { name: string; email: string | null } | null;
+}) {
+  const days = dec(t.daysWorked);
+  const ot = dec(t.overtimeHours);
+  const parts: string[] = [];
+  if (days > 0) parts.push(days === 1 ? "1 diária" : `${days} diárias`);
+  if (ot > 0) parts.push(`${ot}h extras`);
+  const summary = parts.join(" + ") || `${dec(t.hours)}h`;
+  const periodLabel = t.period?.label ? `Folha · ${t.period.label}` : "Lançado na folha";
+  return {
+    id: `ts:${t.id}`,
+    employee_id: t.employeeId,
+    employee_name: t.employee?.name ?? null,
+    employee_email: t.employee?.email ?? null,
+    work_date: ymdFromDate(t.workDate),
+    hours: dec(t.hours),
+    days_worked: days,
+    overtime_hours: ot,
+    sqft: null as number | null,
+    summary,
+    notes: t.notes || periodLabel,
+    status: "on_sheet",
+    source: "timesheet",
+    timesheet_id: t.id,
+    amount: dec(t.calculatedAmount),
+    reviewed_at: null as Date | null,
+    created_at: t.createdAt,
+    updated_at: t.updatedAt,
   };
 }
 
@@ -483,7 +528,29 @@ constructionPayrollRouter.get(
           orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
           take: Math.min(200, Math.max(1, Number(req.query.limit) || 100)),
         });
-        return { emp, entries };
+        const linkedTsIds = new Set(
+          entries.map((e) => e.timesheetId).filter((id): id is string => Boolean(id)),
+        );
+        const timesheets = await tx.payrollTimesheet.findMany({
+          where: { employeeId: emp.id },
+          include: {
+            period: { select: { label: true } },
+            employee: { select: { name: true, email: true } },
+          },
+          orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
+          take: 100,
+        });
+        const fromSheet = timesheets
+          .filter((t) => !linkedTsIds.has(t.id))
+          .filter((t) => dec(t.daysWorked) > 0 || dec(t.overtimeHours) > 0 || dec(t.hours) > 0)
+          .map(mapTimesheetAsHourBank);
+        const fromBank = entries.map(mapHourBank);
+        const merged = [...fromBank, ...fromSheet].sort((a, b) => {
+          const d = String(b.work_date).localeCompare(String(a.work_date));
+          if (d !== 0) return d;
+          return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+        });
+        return { emp, entries: merged };
       });
       if (!rows) {
         res.json({
@@ -500,7 +567,7 @@ constructionPayrollRouter.get(
         success: true,
         linked: true,
         employee: mapEmployee(rows.emp),
-        data: rows.entries.map(mapHourBank),
+        data: rows.entries,
       });
     } catch (error) {
       next(error);
