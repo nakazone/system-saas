@@ -1,16 +1,27 @@
 /**
  * Field workers (installer / crew_lead):
- * - Mobile → Campo
+ * - Mobile → Campo (with allowlist for Jobs / Schedule / Folha)
  * - Desktop → funcionario.html (PC shell), never pipeline/office CRM
  */
 (function (global) {
   const FIELD_ROLES = new Set(["installer", "crew_lead"]);
   const CAMPO_HOME = "/campo/hoje.html";
   const DESKTOP_HOME = "/funcionario.html";
-  const VER = "20260925-field2";
+  const VER = "20260925-field3";
 
   const DESKTOP_ALLOW = new Set([
     "funcionario.html",
+    "schedule.html",
+    "jobs.html",
+    "job-detail.html",
+    "payroll-module.html",
+    "ajustes.html",
+    "change-password.html",
+    "login.html",
+  ]);
+
+  /** Mobile field may leave Campo for these modules only. */
+  const MOBILE_ALLOW = new Set([
     "schedule.html",
     "jobs.html",
     "job-detail.html",
@@ -100,16 +111,17 @@
 
     const mobile = isMobile();
     const path = global.location?.pathname || "";
+    const file = currentFile();
 
     if (mobile) {
       if (isCampoPath(path)) return false;
+      if (MOBILE_ALLOW.has(file)) return false;
       return go(CAMPO_HOME);
     }
 
     // Desktop: Campo shell → PC funcionario home
     if (isCampoPath(path)) return go(DESKTOP_HOME);
 
-    const file = currentFile();
     if (DESKTOP_ALLOW.has(file)) return false;
     return go(DESKTOP_HOME);
   }
@@ -127,6 +139,7 @@
   global.__crmFieldGate = {
     VER,
     FIELD_ROLES: Array.from(FIELD_ROLES),
+    MOBILE_ALLOW: Array.from(MOBILE_ALLOW),
     isFieldRole,
     isCampoPath,
     isMobile,

@@ -1,13 +1,14 @@
 /**
- * Campo tabbar — Hoje / Agenda / Horas
+ * Campo tabbar — Hoje / Agenda / Jobs / Horas
  */
 (function () {
-  const VER = "20260925-campo1";
+  const VER = "20260925-campo2";
 
   const ICONS = {
     hoje: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
     agenda:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    jobs: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>',
     horas:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   };
@@ -18,8 +19,10 @@
 
   function activeTab() {
     const f = fileName();
+    const path = (location.pathname || "").toLowerCase();
     if (f === "hoje.html" || f === "" || f === "index.html") return "hoje";
     if (f === "agenda.html") return "agenda";
+    if (f === "jobs.html" || f === "job-detail.html" || path.includes("/jobs")) return "jobs";
     if (f === "horas.html") return "horas";
     return "";
   }
@@ -37,6 +40,9 @@
       </a>
       <a class="cm-tabbar__item${tab === "agenda" ? " is-active" : ""}" href="agenda.html" data-cm-tab="agenda">
         ${ICONS.agenda}<span>Agenda</span>
+      </a>
+      <a class="cm-tabbar__item${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-cm-tab="jobs">
+        ${ICONS.jobs}<span>Jobs</span>
       </a>
       <a class="cm-tabbar__item${tab === "horas" ? " is-active" : ""}" href="horas.html" data-cm-tab="horas">
         ${ICONS.horas}<span>Horas</span>

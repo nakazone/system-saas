@@ -26,6 +26,7 @@
   let canManageMeetings = false;
   let canManageJobs = false;
   let currentUserId = null;
+  let scopeToSelf = false;
   let slotAnchor = null;
   let editingMeetingId = null;
   let viewingEvent = null;
@@ -173,6 +174,16 @@
     return { start, end: endOfDay(addDays(startOfWeek(endMonth), 6)) };
   }
 
+  function eventBelongsToMe(ev) {
+    if (!currentUserId) return false;
+    const uid = String(currentUserId);
+    const meta = ev.meta || {};
+    const aid = String(meta.assigned_user_id || meta.assigned_user?.id || "");
+    if (aid && aid === uid) return true;
+    if (ev.type === "meeting") return false;
+    return (meta.members || []).some((m) => String(m.user_id || m.id || "") === uid);
+  }
+
   function applyFilters() {
     const q = filters.q.trim().toLowerCase();
     filtered = events.filter((ev) => {
@@ -183,9 +194,8 @@
         const aid = meta.assigned_user_id || meta.assigned_user?.id;
         if (aid !== filters.assignee) return false;
       }
-      if (filters.mine && currentUserId) {
-        const aid = meta.assigned_user_id || meta.assigned_user?.id;
-        if (aid !== currentUserId) return false;
+      if (filters.mine && currentUserId && !scopeToSelf) {
+        if (!eventBelongsToMe(ev)) return false;
       }
       if (filters.source && ev.type === "job") {
         if (meta.source_type !== filters.source) return false;
@@ -1988,14 +1998,39 @@
         return;
       }
       const perms = s.user?.permissions || [];
-      const role = s.user?.role || "";
+      const role = String(s.user?.role || "").toLowerCase();
       currentUserId = s.user?.id || null;
-      canManageMeetings = role === "admin" || perms.includes("schedule.manage");
-      canManageJobs = role === "admin" || perms.includes("work_orders.manage");
+      scopeToSelf =
+        role === "installer" ||
+        role === "crew_lead" ||
+        (window.__crmFieldGate && window.__crmFieldGate.isFieldRole(role));
+      // Crew lead keeps manage for edits, but never sees the full org board.
+      canManageMeetings =
+        !scopeToSelf && (role === "admin" || perms.includes("schedule.manage"));
+      canManageJobs =
+        !scopeToSelf && (role === "admin" || perms.includes("work_orders.manage"));
+      // Field with manage perms (legacy crew_lead grants): allow job status edits on own jobs only
+      if (scopeToSelf && (role === "crew_lead" || perms.includes("work_orders.manage"))) {
+        canManageJobs = true;
+      }
+      if (scopeToSelf && (role === "crew_lead" || perms.includes("schedule.manage"))) {
+        canManageMeetings = true;
+      }
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
       $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
       $("sidebarUserRole").textContent = role || "";
+      if (scopeToSelf) {
+        // Server already returns only assigned jobs; lock UI to "mine".
+        filters.mine = true;
+        const mineEl = $("filterMine");
+        if (mineEl) {
+          mineEl.checked = true;
+          mineEl.disabled = true;
+        }
+        const assigneeEl = $("filterAssignee");
+        if (assigneeEl) assigneeEl.disabled = true;
+      }
       if (!canManageMeetings && !canManageJobs) {
         $("btnCreate").style.display = "none";
       } else if (!canManageMeetings) {

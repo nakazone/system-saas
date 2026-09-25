@@ -211,6 +211,10 @@
     color: var(--om-tab-accent);
   }
 
+  .om-tabbar--field .om-tabbar__item {
+    flex: 1;
+  }
+
   .om-tabbar__item.is-active svg {
     stroke-width: 2.15;
   }

@@ -1,10 +1,11 @@
 /**
  * Mobile bottom nav — Início / Leads / + / Agenda / Mais
- * Injected by crm-shell on om-app pages (≤900px via CSS).
+ * Field staff: Hoje / Agenda / Jobs / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20260925-apptop1";
+  const VER = "20260925-fieldnav1";
   const MQ = window.matchMedia("(max-width: 900px)");
+  const FIELD_ROLES = new Set(["installer", "crew_lead"]);
 
   const ICONS = {
     home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
@@ -20,6 +21,8 @@
     invoice:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/><path d="M8 7h6M8 11h6"/></svg>',
     jobs: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2"/><path d="M9 12h6M9 16h4"/></svg>',
+    horas:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     agendaAdd:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v4M10 16h4"/></svg>',
   };
@@ -28,11 +31,23 @@
     return (location.pathname || "").split("/").pop() || "";
   }
 
-  function activeTab() {
+  function isFieldRole(role) {
+    return FIELD_ROLES.has(String(role || "").toLowerCase());
+  }
+
+  function activeTab(field) {
     const f = fileName();
+    if (field) {
+      if (f === "hoje.html") return "hoje";
+      if (f === "agenda.html" || f === "schedule.html") return "agenda";
+      if (f === "jobs.html" || f === "job-detail.html") return "jobs";
+      if (f === "horas.html" || f === "payroll-module.html") return "horas";
+      return "";
+    }
     if (f === "home.html" || f === "" || f === "dashboard.html") return "home";
     if (f === "pipeline-lab.html" || f === "leads.html" || f === "lead-detail.html") return "pipeline";
     if (f === "schedule.html") return "agenda";
+    if (f === "jobs.html" || f === "job-detail.html") return "jobs";
     if (f === "mais.html") return "more";
     return "";
   }
@@ -191,7 +206,7 @@
     nav.className = "om-tabbar";
     nav.setAttribute("aria-label", "Navegação principal");
 
-    const tab = activeTab();
+    const tab = activeTab(false);
     nav.innerHTML = `
       <a class="om-tabbar__item${tab === "home" ? " is-active" : ""}" href="home.html" data-om-tab="home"${
         tab === "home" ? ' aria-current="page"' : ""
@@ -229,7 +244,71 @@
     document.getElementById("omTabbarFab")?.addEventListener("click", () => openSheet("omCreateSheet"));
   }
 
-  function boot() {
+  /** Field worker nav — mirrors Campo tabs on Jobs / Schedule pages. */
+  function ensureFieldTabbar() {
+    if (document.getElementById("omTabbar")) return;
+    const nav = document.createElement("nav");
+    nav.id = "omTabbar";
+    nav.className = "om-tabbar om-tabbar--field";
+    nav.setAttribute("aria-label", "Campo");
+    const tab = activeTab(true);
+    nav.innerHTML = `
+      <a class="om-tabbar__item${tab === "hoje" ? " is-active" : ""}" href="/campo/hoje.html" data-om-tab="hoje"${
+        tab === "hoje" ? ' aria-current="page"' : ""
+      }>
+        ${ICONS.home}
+        <span>Hoje</span>
+      </a>
+      <a class="om-tabbar__item${tab === "agenda" ? " is-active" : ""}" href="/campo/agenda.html" data-om-tab="agenda"${
+        tab === "agenda" ? ' aria-current="page"' : ""
+      }>
+        ${ICONS.agenda}
+        <span>Agenda</span>
+      </a>
+      <a class="om-tabbar__item${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-om-tab="jobs"${
+        tab === "jobs" ? ' aria-current="page"' : ""
+      }>
+        ${ICONS.jobs}
+        <span>Jobs</span>
+      </a>
+      <a class="om-tabbar__item${tab === "horas" ? " is-active" : ""}" href="/campo/horas.html" data-om-tab="horas"${
+        tab === "horas" ? ' aria-current="page"' : ""
+      }>
+        ${ICONS.horas}
+        <span>Horas</span>
+      </a>`;
+    document.body.appendChild(nav);
+    document.body.classList.add("om-has-tabbar", "om-field-nav");
+  }
+
+  async function resolveFieldRole() {
+    if (window.__crmFieldGate && typeof window.__crmFieldGate.isFieldRole === "function") {
+      try {
+        const res = await fetch("/api/auth/session", {
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
+        if (!res.ok) return false;
+        const s = await res.json();
+        return !!(s?.authenticated && window.__crmFieldGate.isFieldRole(s.user?.role));
+      } catch (_) {
+        return false;
+      }
+    }
+    try {
+      const res = await fetch("/api/auth/session", {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) return false;
+      const s = await res.json();
+      return !!(s?.authenticated && isFieldRole(s.user?.role));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function boot() {
     if (document.body.dataset.omTabbarBoot === "1") return;
     if (/^(login|builder-login|change-password)\.html$/i.test(fileName())) return;
     if (!document.body.classList.contains("om-app") && !document.body.classList.contains("dashboard-app-body")) {
@@ -245,6 +324,13 @@
     if (!mobile) return;
     document.body.dataset.omTabbarBoot = "1";
     ensureCss();
+
+    const field = await resolveFieldRole();
+    if (field) {
+      ensureFieldTabbar();
+      return;
+    }
+
     ensureAppTop();
     ensureSheets();
     ensureTabbar();

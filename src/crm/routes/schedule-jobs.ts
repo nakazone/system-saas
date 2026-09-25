@@ -10,8 +10,50 @@ import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
 import { env } from "../../config/env.js";
+import { myJobAccessWhere } from "../lib/campo-shared.js";
 
 export const scheduleJobsRouter = Router();
+
+const OFFICE_SEE_ALL_ROLES = new Set([
+  "admin",
+  "general_manager",
+  "office",
+  "sales",
+]);
+
+/**
+ * Field / employee roles only see jobs they are on.
+ * Installer & crew_lead always scoped (even if role still has *.manage).
+ * Others: scoped unless they have work_orders.manage or schedule.manage.
+ */
+function shouldScopeJobsToSelf(user: AuthedRequest["user"]): boolean {
+  if (!user?.id) return false;
+  const role = String(user.roleKey || "").toLowerCase();
+  if (role === "installer" || role === "crew_lead") return true;
+  if (OFFICE_SEE_ALL_ROLES.has(role)) return false;
+  const perms = user.permissions || [];
+  // Custom roles: only org-wide managers see the full schedule/jobs board
+  if (perms.includes("work_orders.manage") || perms.includes("schedule.manage")) {
+    return false;
+  }
+  return (
+    perms.includes("work_orders.view") ||
+    perms.includes("schedule.view") ||
+    perms.includes("payroll.self")
+  );
+}
+
+/** Own jobs: assignee, job members, or job's crew. */
+function fieldWorkOrderScope(user: AuthedRequest["user"]): Record<string, unknown> {
+  if (!shouldScopeJobsToSelf(user)) return {};
+  return myJobAccessWhere(user!.id);
+}
+
+/** Own meetings: assigned to the logged-in user. */
+function fieldMeetingScope(user: AuthedRequest["user"]): Record<string, unknown> {
+  if (!shouldScopeJobsToSelf(user) || !user?.id) return {};
+  return { assignedUserId: user.id };
+}
 
 function publicJobShareUrl(req: AuthedRequest, rawToken: string): string {
   const base = (env.APP_BASE_URL || "").replace(/\/$/, "");
@@ -385,6 +427,15 @@ scheduleJobsRouter.get(
       const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
       const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
 
+      const fieldScope = fieldWorkOrderScope(req.user);
+      const searchOr = q
+        ? [
+            { title: { contains: q, mode: "insensitive" as const } },
+            { sourceName: { contains: q, mode: "insensitive" as const } },
+            { address: { contains: q, mode: "insensitive" as const } },
+          ]
+        : null;
+
       const rows = await prisma.workOrder.findMany({
         where: {
           organizationId: req.organizationId!,
@@ -394,19 +445,18 @@ scheduleJobsRouter.get(
           ...(source && WO_SOURCES.includes(source as (typeof WO_SOURCES)[number])
             ? { sourceType: source }
             : {}),
-          ...(q
-            ? {
-                OR: [
-                  { title: { contains: q, mode: "insensitive" } },
-                  { sourceName: { contains: q, mode: "insensitive" } },
-                  { address: { contains: q, mode: "insensitive" } },
-                ],
-              }
-            : {}),
           ...(from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())
             ? {
                 scheduledStart: { lte: to },
                 scheduledEnd: { gte: from },
+              }
+            : {}),
+          ...(Object.keys(fieldScope).length || searchOr
+            ? {
+                AND: [
+                  ...(Object.keys(fieldScope).length ? [fieldScope] : []),
+                  ...(searchOr ? [{ OR: searchOr }] : []),
+                ],
               }
             : {}),
         },
@@ -464,7 +514,11 @@ scheduleJobsRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const row = await prisma.workOrder.findFirst({
-        where: { id: String(req.params.id), organizationId: req.organizationId! },
+        where: {
+          id: String(req.params.id),
+          organizationId: req.organizationId!,
+          ...fieldWorkOrderScope(req.user),
+        },
         include: woInclude,
       });
       if (!row) {
@@ -880,6 +934,7 @@ scheduleJobsRouter.get(
       const rows = await prisma.meeting.findMany({
         where: {
           organizationId: req.organizationId!,
+          ...fieldMeetingScope(req.user),
           ...(from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())
             ? { scheduledStart: { lte: to }, scheduledEnd: { gte: from } }
             : {}),
@@ -902,7 +957,11 @@ scheduleJobsRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const row = await prisma.meeting.findFirst({
-        where: { id: String(req.params.id), organizationId: req.organizationId! },
+        where: {
+          id: String(req.params.id),
+          organizationId: req.organizationId!,
+          ...fieldMeetingScope(req.user),
+        },
         include: mtgInclude,
       });
       if (!row) {
@@ -1079,6 +1138,7 @@ scheduleJobsRouter.get(
             status: { not: "canceled" },
             scheduledStart: { not: null, lte: to },
             scheduledEnd: { not: null, gte: from },
+            ...fieldWorkOrderScope(req.user),
           },
           include: woInclude,
           orderBy: { scheduledStart: "asc" },
@@ -1089,6 +1149,7 @@ scheduleJobsRouter.get(
             status: { not: "canceled" },
             scheduledStart: { lte: to },
             scheduledEnd: { gte: from },
+            ...fieldMeetingScope(req.user),
           },
           include: mtgInclude,
           orderBy: { scheduledStart: "asc" },
