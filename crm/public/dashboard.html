@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="ObraMate">
     <title>ObraMate - Dashboard</title>
-  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:0px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:0!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}</style>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:auto auto 0 0!important;top:var(--crm-topbar-height)!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:calc(100vh - var(--crm-topbar-height))!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}</style>
     <script>
       (function () {
         var p = new URLSearchParams(location.search).get('page');
@@ -30,13 +30,13 @@
     <link rel="stylesheet" href="crm-toast.css">
     <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531">
     <link rel="stylesheet" href="crm-command-palette.css">
-    <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp7">
+    <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp8">
     <link rel="stylesheet" href="crm-shared-nav.css?v=12">
     <link rel="stylesheet" href="crm-help-panel.css?v=20260923-help-right">
     <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-pwa">
     <link rel="stylesheet" href="crm-push.css?v=20260923-push">
     <link rel="stylesheet" href="dashboard-insights.css">
-    <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp7">
+    <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1558,26 +1558,28 @@
                 <!-- Users Page -->
                 <div id="usersPage" class="page-content" style="display: none;">
                     <div class="page-header">
-                        <h2>Utilizadores</h2>
-                        <button type="button" class="btn btn-primary" id="crmNewUserBtn" onclick="showNewUserModal()">+ Novo utilizador</button>
+                        <h2>Equipe</h2>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary" id="crmNewRoleBtn" onclick="showNewRoleModal()" style="display:none">+ Novo cargo</button>
+                            <button type="button" class="btn btn-primary" id="crmNewUserBtn" onclick="showNewUserModal()">+ Novo utilizador</button>
+                        </div>
                     </div>
                     
                     <div class="table-container">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
+                                    <th>Nome</th>
                                     <th>Email</th>
-                                    <th>Phone</th>
-                                    <th>Role</th>
+                                    <th>Telefone</th>
+                                    <th>Cargo</th>
                                     <th>Status</th>
-                                    <th>Created</th>
+                                    <th>Criado</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="8" class="text-center">A carregar…</td></tr>
+                                <tr><td colspan="7" class="text-center">A carregar…</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1628,13 +1630,8 @@
                     <input type="text" id="crmUserPhone" maxlength="50" autocomplete="tel">
                 </div>
                 <div class="form-group">
-                    <label for="crmUserRole">Função</label>
-                    <select id="crmUserRole">
-                        <option value="sales_rep">Comercial</option>
-                        <option value="project_manager">Gestor de projeto</option>
-                        <option value="support">Suporte</option>
-                        <option value="admin">Administrador</option>
-                    </select>
+                    <label for="crmUserRole">Cargo</label>
+                    <select id="crmUserRole"></select>
                 </div>
                 <div class="form-group">
                     <label for="crmUserPassword">Senha <span id="crmUserPasswordHint" style="font-weight:400;color:#64748b">(opcional ao editar)</span></label>
@@ -1661,6 +1658,40 @@
                 <div class="modal-footer-lightbox" style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end;">
                     <button type="button" class="btn btn-secondary" onclick="closeCrmUserModal()">Cancelar</button>
                     <button type="submit" class="btn btn-primary" id="crmUserFormSubmit">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="crmRoleModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="crmRoleModalTitle">
+        <div class="modal-content" style="max-width: 560px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 id="crmRoleModalTitle">Novo cargo</h3>
+                <button type="button" class="modal-close" onclick="closeCrmRoleModal()" aria-label="Fechar">&times;</button>
+            </div>
+            <form id="crmRoleForm" class="modal-body" style="overflow-y: auto; flex: 1;">
+                <div class="form-group">
+                    <label for="crmRoleName">Nome do cargo</label>
+                    <input type="text" id="crmRoleName" required maxlength="80" placeholder="Ex.: Supervisor de obra">
+                </div>
+                <div class="form-group">
+                    <label for="crmRoleKey">Chave <span style="font-weight:400;color:#64748b">(opcional)</span></label>
+                    <input type="text" id="crmRoleKey" maxlength="40" pattern="[a-z][a-z0-9_]*" placeholder="supervisor_obra">
+                    <p style="font-size:0.8rem;color:#64748b;margin:0.35rem 0 0;">Só letras minúsculas, números e _. Se vazio, geramos a partir do nome.</p>
+                </div>
+                <div class="form-group">
+                    <label for="crmRoleDescription">Descrição</label>
+                    <input type="text" id="crmRoleDescription" maxlength="255" placeholder="Opcional">
+                </div>
+                <div style="margin-top:1rem;border-top:1px solid var(--border-color, #e2e8f0);padding-top:1rem;">
+                    <h4 style="margin:0 0 0.5rem;font-size:1rem;">Permissões do cargo</h4>
+                    <p style="font-size:0.85rem;color:#64748b;margin:0 0 0.75rem;">Marque os módulos que este cargo pode aceder por defeito.</p>
+                    <div id="crmRolePermsGroups" style="max-height:220px;overflow-y:auto;font-size:0.9rem;"></div>
+                </div>
+                <p id="crmRoleFormError" class="error-message" style="display:none;margin-top:0.75rem;"></p>
+                <div class="modal-footer-lightbox" style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeCrmRoleModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="crmRoleFormSubmit">Criar cargo</button>
                 </div>
             </form>
         </div>
@@ -1757,16 +1788,16 @@
     <script src="crm-pdf-viewer.js?v=20260531"></script>
     <script src="crm-command-palette.js?v=20260923-jobs"></script>
     <script src="crm-i18n.js?v=20260923-i18n"></script>
-    <script src="crm-account-menu.js?v=20260924-omapp7"></script>
-    <script src="crm-help-panel.js?v=20260924-omapp7"></script>
-    <script src="crm-shared-nav.js?v=20260924-omapp7"></script>
-  <script src="crm-shell.js?v=20260924-omapp7"></script>
+    <script src="crm-account-menu.js?v=20260924-omapp8"></script>
+    <script src="crm-help-panel.js?v=20260924-omapp8"></script>
+    <script src="crm-shared-nav.js?v=20260924-equipe1"></script>
+  <script src="crm-shell.js?v=20260924-omapp8"></script>
     
     <script src="crm-pwa-install.js?v=20260924-pwa"></script>
     <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260924-modpanel"></script>
+    <script src="dashboard.js?v=20260924-equipe1"></script>
     <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
     <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
     <script src="crm-address-autocomplete.js?v=20260924-addr"></script>

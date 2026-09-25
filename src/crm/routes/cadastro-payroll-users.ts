@@ -828,6 +828,19 @@ cadastroPayrollUsersRouter.post(
           include: { role: true },
         });
       });
+      const permissionIds = Array.isArray((req.body || {}).permission_ids)
+        ? (req.body.permission_ids as unknown[]).map((x) => String(x)).filter(Boolean)
+        : [];
+      if (permissionIds.length && row) {
+        await withTenantTransaction(req.organizationId!, async (tx) => {
+          const perms = await tx.permission.findMany({ where: { id: { in: permissionIds } } });
+          for (const p of perms) {
+            await tx.userPermission.create({
+              data: { userId: row.id, permissionId: p.id, granted: true },
+            });
+          }
+        });
+      }
       res.status(201).json({ success: true, data: mapUser(row) });
     } catch (error) {
       if (error instanceof Error && error.message === "EMAIL_EXISTS") {
@@ -908,6 +921,189 @@ cadastroPayrollUsersRouter.delete(
       }
       res.json({ success: true, message: "Utilizador desativado." });
     } catch (error) {
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.put(
+  "/api/users/:id/permissions",
+  requireCrmAuth,
+  requireCrmPermission("users.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const rawIds = (req.body || {}).permission_ids;
+      if (!Array.isArray(rawIds)) {
+        res.status(400).json({ success: false, error: "permission_ids deve ser um array." });
+        return;
+      }
+      const permissionIds = rawIds.map((x: unknown) => String(x)).filter(Boolean);
+      const ok = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const user = await tx.user.findFirst({ where: { id } });
+        if (!user) return false;
+        await tx.userPermission.deleteMany({ where: { userId: id } });
+        if (permissionIds.length) {
+          const perms = await tx.permission.findMany({ where: { id: { in: permissionIds } } });
+          for (const p of perms) {
+            await tx.userPermission.create({
+              data: { userId: id, permissionId: p.id, granted: true },
+            });
+          }
+        }
+        return true;
+      });
+      if (!ok) {
+        res.status(404).json({ success: false, error: "User not found" });
+        return;
+      }
+      res.json({ success: true, data: { permission_ids: permissionIds } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.get(
+  "/api/permissions",
+  requireCrmAuth,
+  requireCrmPermission("users.view"),
+  async (_req: AuthedRequest, res, next) => {
+    try {
+      const rows = await prisma.permission.findMany({ orderBy: [{ group: "asc" }, { key: "asc" }] });
+      const data = rows.map((p) => ({
+        id: p.id,
+        permission_key: p.key,
+        permission_name: p.description || p.key,
+        permission_group: p.group,
+        description: p.description,
+      }));
+      const by_group: Record<string, typeof data> = {};
+      for (const row of data) {
+        const g = row.permission_group || "other";
+        if (!by_group[g]) by_group[g] = [];
+        by_group[g].push(row);
+      }
+      res.json({ success: true, data, by_group });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.get(
+  "/api/roles",
+  requireCrmAuth,
+  requireCrmPermission("users.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+        tx.role.findMany({
+          orderBy: [{ isSystem: "desc" }, { name: "asc" }],
+          include: {
+            permissions: { include: { permission: true } },
+            _count: { select: { users: true } },
+          },
+        }),
+      );
+      res.json({
+        success: true,
+        data: rows.map((r) => ({
+          id: r.id,
+          key: r.key,
+          name: r.name,
+          description: r.description,
+          is_system: r.isSystem,
+          user_count: r._count.users,
+          permission_keys: r.permissions.map((rp) => rp.permission.key),
+          permission_ids: r.permissions.map((rp) => rp.permissionId),
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.post(
+  "/api/roles",
+  requireCrmAuth,
+  requireCrmPermission("roles.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const schema = z.object({
+        key: z
+          .string()
+          .min(2)
+          .max(40)
+          .regex(/^[a-z][a-z0-9_]*$/, "key must be lowercase snake_case")
+          .optional(),
+        name: z.string().min(2).max(80),
+        description: z.string().max(255).optional().nullable(),
+        permission_ids: z.array(z.string()).optional(),
+        permission_keys: z.array(z.string()).optional(),
+      });
+      const parsed = schema.safeParse(req.body || {});
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "Dados do cargo inválidos", details: parsed.error.flatten() });
+        return;
+      }
+      const slugify = (name: string) =>
+        name
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "")
+          .slice(0, 40) || "cargo";
+      let key = parsed.data.key || slugify(parsed.data.name);
+      if (!/^[a-z][a-z0-9_]*$/.test(key)) {
+        res.status(400).json({ success: false, error: "Chave do cargo inválida (use a-z, 0-9, _)" });
+        return;
+      }
+
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const existing = await tx.role.findFirst({ where: { key } });
+        if (existing) throw new Error("KEY_EXISTS");
+        const role = await tx.role.create({
+          data: {
+            organizationId: req.organizationId!,
+            key,
+            name: parsed.data.name,
+            description: parsed.data.description || null,
+            isSystem: false,
+          },
+        });
+        let permIds = parsed.data.permission_ids || [];
+        if ((!permIds.length) && parsed.data.permission_keys?.length) {
+          const found = await tx.permission.findMany({
+            where: { key: { in: parsed.data.permission_keys } },
+          });
+          permIds = found.map((p) => p.id);
+        }
+        if (permIds.length) {
+          const perms = await tx.permission.findMany({ where: { id: { in: permIds } } });
+          for (const p of perms) {
+            await tx.rolePermission.create({ data: { roleId: role.id, permissionId: p.id } });
+          }
+        }
+        return role;
+      });
+      res.status(201).json({
+        success: true,
+        data: {
+          id: row.id,
+          key: row.key,
+          name: row.name,
+          description: row.description,
+          is_system: row.isSystem,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "KEY_EXISTS") {
+        res.status(409).json({ success: false, error: "Já existe um cargo com esta chave" });
+        return;
+      }
       next(error);
     }
   },

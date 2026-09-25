@@ -117,11 +117,59 @@ function syncSidebarCadastroDropdowns() {
     });
 }
 
+function canManageRoles() {
+    return crmUserRole === 'admin' || crmUserPermissions.includes('roles.manage');
+}
+
+function canManageUserPerms() {
+    return (
+        crmUserRole === 'admin' ||
+        crmUserPermissions.includes('users.manage') ||
+        crmUserPermissions.includes('roles.manage') ||
+        crmUserPermissions.includes('users.manage_permissions')
+    );
+}
+
 function updateUsersPageActions() {
     const n = document.getElementById('crmNewUserBtn');
-    if (!n) return;
-    const show = crmUserRole === 'admin' || crmUserPermissions.includes('users.create');
-    n.style.display = show ? '' : 'none';
+    if (n) {
+        const show = crmUserRole === 'admin' || crmUserPermissions.includes('users.create');
+        n.style.display = show ? '' : 'none';
+    }
+    const r = document.getElementById('crmNewRoleBtn');
+    if (r) r.style.display = canManageRoles() ? '' : 'none';
+}
+
+let crmRolesCache = null;
+
+async function fetchCrmRoles(force) {
+    if (crmRolesCache && !force) return crmRolesCache;
+    const res = await fetch('/api/roles', { credentials: 'include' });
+    const data = await res.json();
+    crmRolesCache = data.success && Array.isArray(data.data) ? data.data : [];
+    return crmRolesCache;
+}
+
+async function populateCrmUserRoleSelect(selectedKey) {
+    const roleSelect = document.getElementById('crmUserRole');
+    if (!roleSelect) return;
+    const roles = await fetchCrmRoles();
+    const preferred = selectedKey || roleSelect.value || 'sales' || 'sales_rep';
+    roleSelect.innerHTML = roles
+        .map((r) => {
+            const label = escapeHtmlCrm(r.name || r.key);
+            return `<option value="${escapeHtmlCrm(r.key)}">${label}</option>`;
+        })
+        .join('');
+    if (!roles.length) {
+        roleSelect.innerHTML =
+            '<option value="admin">Administrador</option><option value="sales">Sales</option>';
+    }
+    const keys = new Set([...roleSelect.options].map((o) => o.value));
+    if (preferred && keys.has(preferred)) roleSelect.value = preferred;
+    else if (keys.has('sales')) roleSelect.value = 'sales';
+    else if (keys.has('sales_rep')) roleSelect.value = 'sales_rep';
+    else if (roleSelect.options.length) roleSelect.selectedIndex = 0;
 }
 
 fetch('/api/auth/session', { credentials: 'include' })
@@ -4058,7 +4106,7 @@ async function fetchPermissionRegistry() {
 async function loadUsers() {
     const tbody = document.getElementById('usersTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center">A carregar…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center">A carregar…</td></tr>';
     updateUsersPageActions();
 
     try {
@@ -4067,7 +4115,7 @@ async function loadUsers() {
 
         if (response.status === 403) {
             tbody.innerHTML =
-                '<tr><td colspan="8" class="text-center">Sem permissão para ver utilizadores (' +
+                '<tr><td colspan="7" class="text-center">Sem permissão para ver a equipe (' +
                 escapeHtmlCrm(data.error || '') +
                 ').</td></tr>';
             return;
@@ -4078,27 +4126,28 @@ async function loadUsers() {
             const canDel = crmUserRole === 'admin' || crmUserPermissions.includes('users.delete');
 
             if (data.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhum utilizador encontrado</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhum utilizador encontrado</td></tr>';
             } else {
                 tbody.innerHTML = data.data
                     .map((u) => {
                         const active = u.is_active !== undefined ? u.is_active : u.active;
                         const mustPw = u.must_change_password ? ' <span class="badge badge-warning" title="Trocar senha">senha</span>' : '';
+                        const roleLabel = u.role_name || u.role || '—';
+                        const uid = String(u.id);
                         const actions = [];
                         if (canEdit)
                             actions.push(
-                                `<button type="button" class="btn btn-sm" onclick="openCrmUserModal(${u.id})">Editar</button>`
+                                `<button type="button" class="btn btn-sm" onclick="openCrmUserModal('${uid.replace(/'/g, "\\'")}')">Editar</button>`
                             );
                         if (canDel)
                             actions.push(
-                                `<button type="button" class="btn btn-sm btn-danger" onclick="deactivateCrmUser(${u.id})">Desativar</button>`
+                                `<button type="button" class="btn btn-sm btn-danger" onclick="deactivateCrmUser('${uid.replace(/'/g, "\\'")}')">Desativar</button>`
                             );
                         return `<tr>
-                        <td>${u.id}</td>
                         <td><div class="crm-user-cell">${renderCrmUserTableAvatar(u)}<span>${escapeHtmlCrm(u.name || '-')}${mustPw}</span></div></td>
                         <td>${escapeHtmlCrm(u.email || '-')}</td>
                         <td>${escapeHtmlCrm(u.phone || '-')}</td>
-                        <td>${escapeHtmlCrm(u.role || '-')}</td>
+                        <td>${escapeHtmlCrm(roleLabel)}</td>
                         <td><span class="badge badge-${active ? 'active' : 'inactive'}">${active ? 'Ativo' : 'Inativo'}</span></td>
                         <td>${u.created_at ? new Date(u.created_at).toLocaleDateString('pt-PT') : '—'}</td>
                         <td>${actions.join(' ') || '—'}</td>
@@ -4113,10 +4162,10 @@ async function loadUsers() {
             document.getElementById('nextPageUsers').disabled = usersPage >= totalPages;
         } else {
             tbody.innerHTML =
-                '<tr><td colspan="8" class="text-center">Erro: ' + escapeHtmlCrm(data.error || 'desconhecido') + '</td></tr>';
+                '<tr><td colspan="7" class="text-center">Erro: ' + escapeHtmlCrm(data.error || 'desconhecido') + '</td></tr>';
         }
     } catch (error) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
     }
 }
 
@@ -4146,7 +4195,7 @@ function renderPermCheckboxes(byGroup, selectedSet, enabled) {
             '</strong>';
         for (const p of items) {
             const id = p.id;
-            const checked = selectedSet.has(id) ? ' checked' : '';
+            const checked = selectedSet.has(id) || selectedSet.has(String(id)) ? ' checked' : '';
             const dis = enabled ? '' : ' disabled';
             html +=
                 '<label style="display:flex;align-items:flex-start;gap:0.5rem;margin:0.25rem 0 0 1rem;cursor:' +
@@ -4169,10 +4218,11 @@ function renderPermCheckboxes(byGroup, selectedSet, enabled) {
     return html || '<p>Nenhuma permissão na base de dados.</p>';
 }
 
-function collectSelectedPermissionIds() {
-    return Array.from(document.querySelectorAll('.crm-perm-cb:checked'))
-        .map((cb) => parseInt(cb.getAttribute('data-perm-id'), 10))
-        .filter((n) => Number.isFinite(n));
+function collectSelectedPermissionIds(root) {
+    const scope = root || document;
+    return Array.from(scope.querySelectorAll('.crm-perm-cb:checked'))
+        .map((cb) => String(cb.getAttribute('data-perm-id') || '').trim())
+        .filter(Boolean);
 }
 
 async function openCrmUserModal(userId) {
@@ -4191,8 +4241,7 @@ async function openCrmUserModal(userId) {
     document.getElementById('crmUserActive').checked = true;
     document.getElementById('crmUserForcePwChange').checked = true;
 
-    const canManage =
-        crmUserRole === 'admin' || crmUserPermissions.includes('users.manage_permissions');
+    const canManage = canManageUserPerms();
     const reg = await fetchPermissionRegistry();
     const byG = reg.by_group || {};
 
@@ -4222,32 +4271,32 @@ async function openCrmUserModal(userId) {
         document.getElementById('crmUserName').value = d.name || '';
         document.getElementById('crmUserEmail').value = d.email || '';
         document.getElementById('crmUserPhone').value = d.phone || '';
-        document.getElementById('crmUserRole').value = d.role || 'sales_rep';
+        await populateCrmUserRoleSelect(d.role || '');
         document.getElementById('crmUserPassword').value = '';
         const active = d.is_active !== undefined ? d.is_active : d.active;
         document.getElementById('crmUserActive').checked = !!active;
         document.getElementById('crmUserForcePwChange').checked = !!d.must_change_password;
         updateCrmUserAvatarPreview(d.name || '', d.avatar || null);
         const selected = new Set(
-            pr.success && pr.data && Array.isArray(pr.data.permission_ids) ? pr.data.permission_ids : []
+            (pr.success && pr.data && Array.isArray(pr.data.permission_ids) ? pr.data.permission_ids : []).map(String)
         );
         if (String(d.role).toLowerCase() === 'admin') {
             permsSection.style.display = 'none';
         } else {
             permsSection.style.display = '';
             document.getElementById('crmUserPermsHelp').textContent = canManage
-                ? 'Marque os módulos permitidos para este utilizador.'
-                : 'Apenas utilizadores com permissão “Manage User Permissions” podem alterar isto.';
+                ? 'Marque os módulos permitidos para este utilizador (além do cargo).'
+                : 'Só administradores ou quem gere cargos/utilizadores podem alterar isto.';
             groupsEl.innerHTML = renderPermCheckboxes(byG, selected, canManage);
         }
     } else {
         title.textContent = 'Novo utilizador';
         document.getElementById('crmUserPasswordHint').textContent = '(obrigatório, mín. 8 caracteres)';
-        document.getElementById('crmUserRole').value = 'sales_rep';
+        await populateCrmUserRoleSelect('');
         updateCrmUserAvatarPreview('', null);
         permsSection.style.display = '';
         document.getElementById('crmUserPermsHelp').textContent =
-            'Opcional: deixe vazio para aplicar o pacote pré-definido por função. Ou marque módulos específicos.';
+            'Opcional: deixe vazio para aplicar as permissões do cargo. Ou marque módulos específicos.';
         groupsEl.innerHTML = renderPermCheckboxes(byG, new Set(), true);
         onRoleChange();
     }
@@ -4310,7 +4359,7 @@ async function onCrmUserFormSubmit(e) {
                 password: pw,
             };
             if (role !== 'admin') {
-                const pids = collectSelectedPermissionIds();
+                const pids = collectSelectedPermissionIds(document.getElementById('crmUserPermsGroups'));
                 if (pids.length > 0) body.permission_ids = pids;
             }
             const res = await fetch('/api/users', {
@@ -4376,9 +4425,9 @@ async function onCrmUserFormSubmit(e) {
             }
             if (
                 role !== 'admin' &&
-                (crmUserRole === 'admin' || crmUserPermissions.includes('users.manage_permissions'))
+                canManageUserPerms()
             ) {
-                const pids = collectSelectedPermissionIds();
+                const pids = collectSelectedPermissionIds(document.getElementById('crmUserPermsGroups'));
                 const pr = await fetch(`/api/users/${id}/permissions`, {
                     method: 'PUT',
                     credentials: 'include',
@@ -4405,9 +4454,78 @@ async function onCrmUserFormSubmit(e) {
     submitBtn.disabled = false;
 }
 
+
+function closeCrmRoleModal() {
+    const modal = document.getElementById('crmRoleModal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function showNewRoleModal() {
+    if (!canManageRoles()) {
+        if (typeof crmNotify === 'function') crmNotify('Sem permissão para criar cargos', 'error');
+        return;
+    }
+    const modal = document.getElementById('crmRoleModal');
+    const form = document.getElementById('crmRoleForm');
+    const errEl = document.getElementById('crmRoleFormError');
+    const groupsEl = document.getElementById('crmRolePermsGroups');
+    if (!modal || !form) return;
+    errEl.style.display = 'none';
+    form.reset();
+    const reg = await fetchPermissionRegistry();
+    groupsEl.innerHTML = renderPermCheckboxes(reg.by_group || {}, new Set(), true);
+    modal.classList.add('active');
+}
+
+async function onCrmRoleFormSubmit(e) {
+    e.preventDefault();
+    const errEl = document.getElementById('crmRoleFormError');
+    const submitBtn = document.getElementById('crmRoleFormSubmit');
+    errEl.style.display = 'none';
+    const name = document.getElementById('crmRoleName').value.trim();
+    const key = document.getElementById('crmRoleKey').value.trim();
+    const description = document.getElementById('crmRoleDescription').value.trim();
+    const groupsEl = document.getElementById('crmRolePermsGroups');
+    const permission_ids = collectSelectedPermissionIds(groupsEl);
+    if (!name) {
+        errEl.textContent = 'Indique o nome do cargo.';
+        errEl.style.display = 'block';
+        return;
+    }
+    submitBtn.disabled = true;
+    try {
+        const body = { name, permission_ids };
+        if (key) body.key = key;
+        if (description) body.description = description;
+        const res = await fetch('/api/roles', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const j = await res.json();
+        if (!res.ok) {
+            errEl.textContent = j.error || 'Erro ao criar cargo.';
+            errEl.style.display = 'block';
+            submitBtn.disabled = false;
+            return;
+        }
+        crmRolesCache = null;
+        closeCrmRoleModal();
+        if (typeof crmNotify === 'function') crmNotify('Cargo criado: ' + (j.data?.name || name), 'success');
+        await populateCrmUserRoleSelect(j.data?.key || '');
+    } catch (ex) {
+        errEl.textContent = ex.message || 'Erro de rede.';
+        errEl.style.display = 'block';
+    }
+    submitBtn.disabled = false;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const f = document.getElementById('crmUserForm');
     if (f) f.addEventListener('submit', onCrmUserFormSubmit);
+    const rf = document.getElementById('crmRoleForm');
+    if (rf) rf.addEventListener('submit', onCrmRoleFormSubmit);
 
     const avatarInput = document.getElementById('crmUserAvatarInput');
     const avatarChooseBtn = document.getElementById('crmUserAvatarChooseBtn');
