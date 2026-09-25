@@ -15,6 +15,7 @@ import {
   ymdToBrShort,
 } from "../lib/payroll-calc.js";
 import { canUseCampo, type Tx } from "../lib/campo-shared.js";
+import { resolveOwnEmployee } from "../lib/payroll-employee-link.js";
 
 export const campoFolhaRouter = Router();
 
@@ -41,10 +42,8 @@ function roundHalf(n: number) {
   return Math.round(n * 2) / 2;
 }
 
-async function resolveEmployee(tx: Tx, userId: string) {
-  return tx.payrollEmployee.findFirst({
-    where: { userId, status: "active" },
-  });
+async function resolveEmployee(tx: Tx, userId: string, email?: string | null) {
+  return resolveOwnEmployee(tx, userId, email);
 }
 
 async function resolveOpenPeriod(tx: Tx, workYmd: string) {
@@ -101,16 +100,23 @@ function lineAmount(
   );
 }
 
-export async function buildFolhaPayload(tx: Tx, userId: string, now = new Date()) {
-  const emp = await resolveEmployee(tx, userId);
-  if (!emp) {
+export async function buildFolhaPayload(
+  tx: Tx,
+  userId: string,
+  now = new Date(),
+  email?: string | null,
+) {
+  const emp = await resolveEmployee(tx, userId, email);
+  if (!emp || emp.status !== "active") {
     return {
       linked: false,
       employee: null,
       period: null,
       today: null,
       can_edit: false,
-      message: "Sua conta ainda não está vinculada à folha. Peça ao escritório.",
+      message: emp
+        ? "O seu registo na folha está inativo. Peça ao escritório para reativar."
+        : "Sua conta ainda não está vinculada à folha. Em Folha → Equipe, o email do funcionário tem de ser o mesmo do login.",
       payments: [] as Awaited<ReturnType<typeof buildPayments>>,
     };
   }
@@ -347,9 +353,16 @@ campoFolhaRouter.post(
       }
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const emp = await resolveEmployee(tx, req.user!.id);
-        if (!emp) {
-          throw Object.assign(new Error("Conta não vinculada à folha"), { status: 400 });
+        const emp = await resolveEmployee(tx, req.user!.id, req.user!.email);
+        if (!emp || emp.status !== "active") {
+          throw Object.assign(
+            new Error(
+              emp
+                ? "Registo na folha inativo"
+                : "Conta não vinculada à folha — o email do funcionário tem de coincidir com o login",
+            ),
+            { status: 400 },
+          );
         }
         const period = await resolveOpenPeriod(tx, workYmd);
         if (!period) {
@@ -360,7 +373,7 @@ campoFolhaRouter.post(
           throw Object.assign(new Error("Diária de hoje já lançada"), { status: 409 });
         }
         await writeLine(tx, req.organizationId!, emp, period, workDate, workYmd, { days: 1 });
-        return buildFolhaPayload(tx, req.user!.id, now);
+        return buildFolhaPayload(tx, req.user!.id, now, req.user!.email);
       });
 
       res.json({ success: true, data });
@@ -399,9 +412,16 @@ campoFolhaRouter.post(
       }
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const emp = await resolveEmployee(tx, req.user!.id);
-        if (!emp) {
-          throw Object.assign(new Error("Conta não vinculada à folha"), { status: 400 });
+        const emp = await resolveEmployee(tx, req.user!.id, req.user!.email);
+        if (!emp || emp.status !== "active") {
+          throw Object.assign(
+            new Error(
+              emp
+                ? "Registo na folha inativo"
+                : "Conta não vinculada à folha — o email do funcionário tem de coincidir com o login",
+            ),
+            { status: 400 },
+          );
         }
         const period = await resolveOpenPeriod(tx, workYmd);
         if (!period) {
@@ -414,7 +434,7 @@ campoFolhaRouter.post(
           throw Object.assign(new Error("Máximo de 12h extras por dia"), { status: 400 });
         }
         await writeLine(tx, req.organizationId!, emp, period, workDate, workYmd, { ot: nextOt });
-        return buildFolhaPayload(tx, req.user!.id, now);
+        return buildFolhaPayload(tx, req.user!.id, now, req.user!.email);
       });
 
       res.json({ success: true, data });

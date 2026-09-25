@@ -393,6 +393,20 @@ async function loadHourBank() {
     if (!j.linked) {
       unlinked?.classList.remove('hidden');
       panel?.classList.add('hidden');
+      const loginEl = document.getElementById('hourBankLoginEmail');
+      const detail = document.getElementById('hourBankUnlinkedDetail');
+      const loginEmail = j.login_email || sessionUserEmail || '';
+      if (loginEl) {
+        if (loginEmail) {
+          loginEl.hidden = false;
+          loginEl.textContent = `Email do seu login: ${loginEmail}`;
+        } else {
+          loginEl.hidden = true;
+        }
+      }
+      if (detail && j.hint) {
+        detail.textContent = j.hint;
+      }
       return;
     }
     unlinked?.classList.add('hidden');
@@ -601,7 +615,17 @@ function renderEmployeeTable() {
     const tr = document.createElement('tr');
     tr.className = 'border-t border-slate-100';
     tr.innerHTML = `
-      <td class="px-3 py-2 font-medium">${escapeHtml(e.name)}</td>
+      <td class="px-3 py-2 font-medium">${escapeHtml(e.name)}${
+        e.email
+          ? `<br><span class="text-xs font-normal text-slate-500">${escapeHtml(e.email)}</span>`
+          : `<br><span class="text-xs font-normal text-amber-700">Sem email — não liga ao login</span>`
+      }${
+        e.user_id
+          ? `<br><span class="text-[11px] font-semibold text-emerald-700">Login vinculado</span>`
+          : e.email
+            ? `<br><span class="text-[11px] font-semibold text-amber-700">Email sem vínculo ainda</span>`
+            : ''
+      }</td>
       <td class="px-3 py-2">${escapeHtml(sectorLabel(e.sector))}</td>
       <td class="px-3 py-2 text-right tabular-nums">${dPer}</td>
       <td class="px-3 py-2 text-right tabular-nums">${otPer}</td>
@@ -2254,15 +2278,17 @@ async function quickSaveEmployee() {
     overtime_rate: 0,
     role: null,
     phone: null,
-    email: null,
+    email: document.getElementById('empQuickEmail')?.value.trim() || null,
     payment_method: null,
   };
   try {
     await api('POST', '/employees', body);
     const qn = document.getElementById('empQuickName');
     const qd = document.getElementById('empQuickDaily');
+    const qe = document.getElementById('empQuickEmail');
     if (qn) qn.value = '';
     if (qd) qd.value = '';
+    if (qe) qe.value = '';
     window.crmToast?.success?.('Funcionário adicionado — você já pode lançar horas.');
     await loadEmployees();
     await loadTimesheetsForPeriod();

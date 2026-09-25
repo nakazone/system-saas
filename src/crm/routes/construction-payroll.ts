@@ -15,6 +15,7 @@ import {
   ymdFromDate,
   ymdToBrShort,
 } from "../lib/payroll-calc.js";
+import { findLinkableUserId, resolveOwnEmployee } from "../lib/payroll-employee-link.js";
 
 export const constructionPayrollRouter = Router();
 
@@ -154,48 +155,6 @@ function mapTimesheet(t: {
     overtime_rate: t.employee ? dec(t.employee.overtimeRate) : 0,
     payment_type: t.employee?.payType ?? null,
   };
-}
-
-async function findLinkableUserId(
-  tx: PayrollTx,
-  organizationId: string,
-  email: string | null | undefined,
-  exceptEmployeeId?: string,
-): Promise<string | null> {
-  const em = email ? String(email).trim().toLowerCase() : "";
-  if (!em) return null;
-  const user = await tx.user.findFirst({
-    where: { organizationId, email: { equals: em, mode: "insensitive" } },
-    select: { id: true },
-  });
-  if (!user) return null;
-  const taken = await tx.payrollEmployee.findFirst({
-    where: {
-      userId: user.id,
-      ...(exceptEmployeeId ? { id: { not: exceptEmployeeId } } : {}),
-    },
-    select: { id: true },
-  });
-  return taken ? null : user.id;
-}
-
-async function resolveOwnEmployee(
-  tx: PayrollTx,
-  userId: string,
-  email: string | undefined | null,
-) {
-  let emp = await tx.payrollEmployee.findFirst({ where: { userId } });
-  if (emp) return emp;
-  const em = email ? String(email).trim().toLowerCase() : "";
-  if (!em) return null;
-  emp = await tx.payrollEmployee.findFirst({
-    where: { email: { equals: em, mode: "insensitive" }, userId: null },
-  });
-  if (!emp) return null;
-  return tx.payrollEmployee.update({
-    where: { id: emp.id },
-    data: { userId },
-  });
 }
 
 function canAccessPayrollSelf(req: AuthedRequest): boolean {
@@ -445,6 +404,10 @@ constructionPayrollRouter.get(
         success: true,
         data: emp ? mapEmployee(emp) : null,
         linked: Boolean(emp),
+        login_email: req.user!.email || null,
+        hint: emp
+          ? null
+          : "Na Folha → 1 · Equipe, edite o funcionário e coloque o mesmo email do login CRM. Isso associa a conta automaticamente.",
       });
     } catch (error) {
       next(error);
@@ -472,7 +435,14 @@ constructionPayrollRouter.get(
         return { emp, entries };
       });
       if (!rows) {
-        res.json({ success: true, linked: false, data: [], employee: null });
+        res.json({
+          success: true,
+          linked: false,
+          data: [],
+          employee: null,
+          login_email: req.user!.email || null,
+          hint: "Na Folha → 1 · Equipe, edite o funcionário e coloque o mesmo email do login CRM.",
+        });
         return;
       }
       res.json({

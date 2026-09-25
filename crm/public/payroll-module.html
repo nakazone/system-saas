@@ -258,8 +258,12 @@
       </div>
       <div class="payroll-hub-section__body space-y-4">
         <div id="hourBankUnlinked" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          A sua conta ainda não está associada a um funcionário da folha. Peça ao gestor para criar/editar o seu registo
-          em <strong>Equipe</strong> com o mesmo email de login, ou vincular a conta.
+          <p class="font-semibold">Conta ainda não associada à folha</p>
+          <p class="mt-1" id="hourBankUnlinkedDetail">
+            O seu login precisa de um registo em <strong>Folha → 1 · Equipe</strong> com o
+            <strong>mesmo email</strong> da conta. Peça ao gestor para editar o funcionário e gravar o email de login.
+          </p>
+          <p class="mt-2 text-xs" id="hourBankLoginEmail" hidden></p>
         </div>
         <div id="hourBankPanel" class="hidden space-y-4">
           <p id="hourBankWho" class="text-sm text-slate-600"></p>
@@ -374,6 +378,10 @@
               <label class="block text-xs font-semibold text-slate-500 mb-1">Nome *</label>
               <input id="empQuickName" class="w-full border rounded-lg px-3 py-2.5 text-sm" placeholder="Nome do funcionário" />
             </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-500 mb-1">Email de login (CRM)</label>
+              <input id="empQuickEmail" type="email" class="w-full border rounded-lg px-3 py-2.5 text-sm" placeholder="mesmo email da conta do funcionário" />
+            </div>
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1">Setor</label>
               <select id="empQuickSector" class="w-full border rounded-lg px-3 py-2.5 text-sm">
@@ -389,7 +397,7 @@
           </div>
           <div class="flex flex-wrap gap-2">
             <button type="button" id="empQuickSave" class="btn btn-primary">Adicionar à equipe</button>
-            <span class="text-xs text-slate-500 self-center">Horas extras e tipo “por hora” no formulário completo.</span>
+            <span class="text-xs text-slate-500 self-center">Com o email do login, o funcionário acede à folha e ao dashboard. Horas extras no formulário completo.</span>
           </div>
           <p id="empQuickErr" class="text-red-600 text-sm hidden"></p>
         </div>
@@ -732,7 +740,7 @@
   <script src="crm-shell.js?v=20260925-mais1"></script>
   <script src="crm-shared-nav.js?v=20260925-mais1"></script>
   <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
-  <script src="payroll-module.js?v=20260925-paydaily1"></script>
+  <script src="payroll-module.js?v=20260925-paylink1"></script>
   <script src="payroll-mobile.js?v=20260925-paydaily1"></script>
 </body>
 </html>

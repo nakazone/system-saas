@@ -428,7 +428,7 @@ async function buildHojePayload(tx: Tx, req: AuthedRequest, now = new Date()) {
     },
   );
 
-  const folha = await buildFolhaPayload(tx, userId, now);
+  const folha = await buildFolhaPayload(tx, userId, now, req.user!.email);
 
   return {
     user: {
