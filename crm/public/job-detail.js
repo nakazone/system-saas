@@ -107,6 +107,48 @@
     $("jobMetaEnd").textContent = fmtDay(job.scheduled_end);
     $("jobMetaAssignee").textContent = job.assigned_user?.name || "—";
 
+    const members = Array.isArray(job.members) ? job.members : [];
+    const temps = Array.isArray(job.temp_workers) ? job.temp_workers : [];
+    const memberNames = members.map((m) => m.name).filter(Boolean);
+    $("jobMetaTeam").textContent = memberNames.length
+      ? memberNames.join(", ")
+      : temps.length
+        ? `${temps.length} temporário(s)`
+        : "—";
+
+    const teamBody = $("jobTeamBody");
+    if (teamBody) {
+      const parts = [];
+      if (job.assigned_user?.name) {
+        parts.push(`<p><strong>Responsável:</strong> ${escapeHtml(job.assigned_user.name)}</p>`);
+      }
+      if (memberNames.length) {
+        parts.push(
+          `<p><strong>Equipe:</strong> ${memberNames.map(escapeHtml).join(", ")}</p>`,
+        );
+      }
+      if (temps.length) {
+        parts.push(
+          `<div style="margin-top:0.65rem"><strong>Temporários</strong><ul style="margin:0.35rem 0 0;padding-left:1.1rem">${temps
+            .map(
+              (t) =>
+                `<li>${escapeHtml(t.name)}${
+                  t.phone || t.email
+                    ? ` <span style="color:#8a8074">(${escapeHtml([t.phone, t.email].filter(Boolean).join(" · "))})</span>`
+                    : ""
+                }</li>`,
+            )
+            .join("")}</ul></div>`,
+        );
+      }
+      if (!parts.length) {
+        teamBody.innerHTML =
+          '<p class="jobs-empty" style="padding:0.5rem 0">Sem equipe adicional. Use Gerir para adicionar.</p>';
+      } else {
+        teamBody.innerHTML = parts.join("");
+      }
+    }
+
     $("jobNotes").value = job.notes || "";
     const preview = (job.notes || "").trim();
     $("jobRailNotesPreview").textContent = preview || "Leave an internal note for yourself or a team member.";
@@ -145,6 +187,8 @@
       $("btnEditJob").style.display = "none";
       $("btnDeleteJob").style.display = "none";
       $("btnSaveNotes").style.display = "none";
+      const manageTeam = $("btnManageTeam");
+      if (manageTeam) manageTeam.style.display = "none";
       $("jobNotes").readOnly = true;
     }
   }
@@ -211,6 +255,9 @@
       });
 
       $("btnEditJob").addEventListener("click", () => {
+        window.__crmJobModal.openEdit(jobId).catch((e) => notify(e.message, "error"));
+      });
+      $("btnManageTeam")?.addEventListener("click", () => {
         window.__crmJobModal.openEdit(jobId).catch((e) => notify(e.message, "error"));
       });
       $("btnDeleteJob").addEventListener("click", () => {

@@ -4,6 +4,8 @@ import { prisma } from "../../lib/prisma.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
+import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 
 export const scheduleJobsRouter = Router();
 
@@ -54,6 +56,15 @@ function mapWorkOrder(wo: {
   builder?: { id: string; firstName: string; lastName: string; company: string | null } | null;
   assignedUser?: { id: string; name: string } | null;
   crew?: { id: string; name: string; color: string | null } | null;
+  members?: { userId: string; user: { id: string; name: string; email: string } }[];
+  tempWorkers?: {
+    id: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    notes: string | null;
+    createdAt: Date;
+  }[];
 }) {
   return {
     id: wo.id,
@@ -93,6 +104,19 @@ function mapWorkOrder(wo: {
     crew: wo.crew
       ? { id: wo.crew.id, name: wo.crew.name, color: wo.crew.color }
       : null,
+    members: (wo.members || []).map((m) => ({
+      user_id: m.user.id,
+      name: m.user.name,
+      email: m.user.email,
+    })),
+    temp_workers: (wo.tempWorkers || []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      phone: t.phone,
+      email: t.email,
+      notes: t.notes,
+      created_at: t.createdAt.toISOString(),
+    })),
   };
 }
 
@@ -135,7 +159,38 @@ const woInclude = {
   builder: { select: { id: true, firstName: true, lastName: true, company: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
+  members: {
+    include: { user: { select: { id: true, name: true, email: true } } },
+    orderBy: { createdAt: "asc" as const },
+  },
+  tempWorkers: { orderBy: { createdAt: "asc" as const } },
 } as const;
+
+async function syncWorkOrderMembers(
+  organizationId: string,
+  workOrderId: string,
+  userIds: string[] | undefined,
+): Promise<void> {
+  if (userIds === undefined) return;
+  const unique = [...new Set(userIds.map(String).filter(Boolean))];
+  if (unique.length) {
+    const valid = await prisma.user.findMany({
+      where: { organizationId, id: { in: unique }, status: { not: "disabled" } },
+      select: { id: true },
+    });
+    const validIds = new Set(valid.map((u) => u.id));
+    const filtered = unique.filter((id) => validIds.has(id));
+    await prisma.workOrderMember.deleteMany({ where: { workOrderId } });
+    if (filtered.length) {
+      await prisma.workOrderMember.createMany({
+        data: filtered.map((userId) => ({ organizationId, workOrderId, userId })),
+        skipDuplicates: true,
+      });
+    }
+    return;
+  }
+  await prisma.workOrderMember.deleteMany({ where: { workOrderId } });
+}
 
 const mtgInclude = {
   customer: { select: { id: true, name: true } },
@@ -299,6 +354,7 @@ const workOrderBody = z.object({
   notes: z.string().max(8000).optional().nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
   crew_id: z.string().uuid().optional().nullable(),
+  member_user_ids: z.array(z.string().uuid()).optional(),
   scheduled_start: z.string().datetime().optional().nullable(),
   scheduled_end: z.string().datetime().optional().nullable(),
 });
@@ -347,6 +403,10 @@ scheduleJobsRouter.post(
           scheduledStart: start,
           scheduledEnd: end,
         },
+      });
+      await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
+      const full = await prisma.workOrder.findFirst({
+        where: { id: row.id },
         include: woInclude,
       });
 
@@ -362,7 +422,7 @@ scheduleJobsRouter.post(
 
       res.status(201).json({
         success: true,
-        data: mapWorkOrder(row),
+        data: mapWorkOrder(full!),
         conflicts,
       });
     } catch (error) {
@@ -430,6 +490,10 @@ scheduleJobsRouter.put(
             ? { scheduledStart: start, scheduledEnd: end }
             : {}),
         },
+      });
+      await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
+      const full = await prisma.workOrder.findFirst({
+        where: { id: row.id },
         include: woInclude,
       });
 
@@ -443,7 +507,7 @@ scheduleJobsRouter.put(
         kind: "work_order",
       });
 
-      res.json({ success: true, data: mapWorkOrder(row), conflicts });
+      res.json({ success: true, data: mapWorkOrder(full!), conflicts });
     } catch (error) {
       next(error);
     }
@@ -469,6 +533,140 @@ scheduleJobsRouter.delete(
         include: woInclude,
       });
       res.json({ success: true, data: mapWorkOrder(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+const tempWorkerBody = z.object({
+  name: z.string().min(2).max(200),
+  phone: z.string().max(40).optional().nullable(),
+  email: z
+    .string()
+    .max(200)
+    .optional()
+    .nullable()
+    .transform((v: string | null | undefined) => (v && String(v).trim() ? String(v).trim() : null))
+    .refine(
+      (v: string | null) => v == null || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+      "Email inválido",
+    ),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+scheduleJobsRouter.post(
+  "/api/work-orders/:id/temp-workers",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const woId = String(req.params.id);
+      const wo = await prisma.workOrder.findFirst({
+        where: { id: woId, organizationId: req.organizationId! },
+        select: { id: true },
+      });
+      if (!wo) {
+        res.status(404).json({ success: false, error: "Work order not found" });
+        return;
+      }
+      const parsed = tempWorkerBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "Informe o nome do funcionário temporário" });
+        return;
+      }
+      const d = parsed.data;
+      const row = await prisma.workOrderTempWorker.create({
+        data: {
+          organizationId: req.organizationId!,
+          workOrderId: wo.id,
+          name: d.name.trim(),
+          phone: d.phone?.trim() || null,
+          email: d.email?.trim() || null,
+          notes: d.notes?.trim() || null,
+        },
+      });
+      res.status(201).json({
+        success: true,
+        data: {
+          id: row.id,
+          name: row.name,
+          phone: row.phone,
+          email: row.email,
+          notes: row.notes,
+          created_at: row.createdAt.toISOString(),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+scheduleJobsRouter.delete(
+  "/api/work-orders/:id/temp-workers/:tempId",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const woId = String(req.params.id);
+      const tempId = String(req.params.tempId);
+      const existing = await prisma.workOrderTempWorker.findFirst({
+        where: { id: tempId, workOrderId: woId, organizationId: req.organizationId! },
+      });
+      if (!existing) {
+        res.status(404).json({ success: false, error: "Funcionário temporário não encontrado" });
+        return;
+      }
+      await withTenantTransaction(req.organizationId!, async (tx) => {
+        await tx.publicAccessToken.updateMany({
+          where: { entityType: "work_order_temp", entityId: tempId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        await tx.workOrderTempWorker.delete({ where: { id: tempId } });
+      });
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+scheduleJobsRouter.post(
+  "/api/work-orders/:id/temp-workers/:tempId/share-link",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const woId = String(req.params.id);
+      const tempId = String(req.params.tempId);
+      const existing = await prisma.workOrderTempWorker.findFirst({
+        where: { id: tempId, workOrderId: woId, organizationId: req.organizationId! },
+      });
+      if (!existing) {
+        res.status(404).json({ success: false, error: "Funcionário temporário não encontrado" });
+        return;
+      }
+      const issued = await withTenantTransaction(req.organizationId!, async (tx) =>
+        issuePublicAccessToken(tx, {
+          organizationId: req.organizationId!,
+          entityType: "work_order_temp",
+          entityId: existing.id,
+          ttlDays: 60,
+        }),
+      );
+      const host = req.get("host") || "localhost";
+      const proto = req.protocol || "https";
+      const url = `${proto}://${host}/public/jobs/${issued.rawToken}`;
+      res.json({
+        success: true,
+        data: {
+          url,
+          expires_at: issued.expiresAt.toISOString(),
+          temp_worker_id: existing.id,
+          temp_worker_name: existing.name,
+        },
+      });
     } catch (error) {
       next(error);
     }

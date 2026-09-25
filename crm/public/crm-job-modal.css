@@ -15,7 +15,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(520px, 94vw);
+  width: min(560px, 94vw);
   max-height: 90vh;
   overflow: auto;
   background: #fff;
@@ -71,4 +71,104 @@
 }
 .jobs-modal-actions #btnCancelWo {
   margin-right: auto;
+}
+
+.jobs-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #8a8074;
+}
+.jobs-team-fieldset {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2d9cc;
+  border-radius: 10px;
+}
+.jobs-team-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b645c;
+}
+.jobs-team-list {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 9.5rem;
+  overflow: auto;
+  margin-top: 0.45rem;
+}
+.jobs-team-item {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500 !important;
+  color: #211d1a !important;
+  font-size: 0.85rem !important;
+}
+.jobs-team-item input {
+  width: auto;
+  margin: 0;
+}
+.jobs-temp-block {
+  border: 1px dashed #d6b598;
+  border-radius: 10px;
+  padding: 0.7rem 0.75rem;
+  background: #fbf8f4;
+}
+.jobs-temp-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.55rem;
+}
+.jobs-temp-head strong {
+  font-size: 0.82rem;
+  color: #211d1a;
+}
+.jobs-temp-form {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .jobs-temp-form {
+    grid-template-columns: 1fr;
+  }
+}
+.jobs-temp-list {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+.jobs-temp-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.jobs-temp-row .jobs-hint {
+  display: block;
+}
+.jobs-temp-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.jobs-temp-link-out {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  word-break: break-all;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+.btn-sm {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.75rem;
 }

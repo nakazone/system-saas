@@ -103,6 +103,8 @@ model Organization {
   supportTickets     SupportTicket[]
   pushSubscriptions  PushSubscription[]
   workOrders         WorkOrder[]
+  workOrderMembers   WorkOrderMember[]
+  workOrderTempWorkers WorkOrderTempWorker[]
   meetings           Meeting[]
 }
 
@@ -138,6 +140,7 @@ model User {
   pushSubscriptions PushSubscription[]
   assignedWorkOrders WorkOrder[] @relation("WorkOrderAssignee")
   assignedMeetings Meeting[] @relation("MeetingAssignee")
+  workOrderMemberships WorkOrderMember[]
   payrollEmployee PayrollEmployee?
 
   @@unique([organizationId, email])
@@ -1428,6 +1431,9 @@ model WorkOrder {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  members     WorkOrderMember[]
+  tempWorkers WorkOrderTempWorker[]
+
   @@unique([organizationId, number])
   @@index([organizationId])
   @@index([organizationId, status])
@@ -1436,6 +1442,40 @@ model WorkOrder {
   @@index([builderId])
   @@index([assignedUserId])
   @@index([crewId])
+}
+
+/// CRM users on a job team (multi-select beyond the single responsável).
+model WorkOrderMember {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId    String   @db.Uuid
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@unique([workOrderId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+/// Temporary / guest worker on a job — no CRM login; share link for job info.
+model WorkOrderTempWorker {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId    String   @db.Uuid
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  name           String
+  phone          String?
+  email          String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([workOrderId])
 }
 
 model Meeting {

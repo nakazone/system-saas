@@ -5,10 +5,12 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260924-jobmodal";
+  const CSS_HREF = "crm-job-modal.css?v=20260925-team";
   let editingId = null;
   let canManage = false;
   let lookupsReady = false;
+  let userOptions = [];
+  let tempWorkersCache = [];
   const savedListeners = [];
 
   function $(id) {
@@ -18,6 +20,14 @@
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
     else alert(msg);
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function toLocalInput(iso) {
@@ -112,6 +122,24 @@
     <label>Responsável
       <select id="jobAssignee"><option value="">—</option></select>
     </label>
+    <fieldset class="jobs-team-fieldset">
+      <legend>Equipe</legend>
+      <p class="jobs-hint">Selecione vários funcionários para este job (além do responsável).</p>
+      <div class="jobs-team-list" id="jobTeamList"></div>
+    </fieldset>
+    <div class="jobs-temp-block" id="jobTempBlock" hidden>
+      <div class="jobs-temp-head">
+        <strong>Funcionários temporários</strong>
+        <span class="jobs-hint">Sem login CRM — emita um link com as infos do job.</span>
+      </div>
+      <div class="jobs-temp-form">
+        <input type="text" id="tempName" maxlength="200" placeholder="Nome *" />
+        <input type="tel" id="tempPhone" maxlength="40" placeholder="Telefone" />
+        <input type="email" id="tempEmail" maxlength="200" placeholder="E-mail" />
+        <button type="button" class="btn btn-secondary btn-sm" id="btnAddTemp">Adicionar</button>
+      </div>
+      <ul class="jobs-temp-list" id="jobTempList"></ul>
+    </div>
     <label>Notas
       <textarea id="jobNotes" rows="3" maxlength="8000"></textarea>
     </label>
@@ -140,6 +168,60 @@
     if (cur) el.value = cur;
   }
 
+  function renderTeamCheckboxes(selectedIds) {
+    const box = $("jobTeamList");
+    if (!box) return;
+    const selected = new Set((selectedIds || []).map(String));
+    if (!userOptions.length) {
+      box.innerHTML = '<p class="jobs-hint">Nenhum utilizador disponível.</p>';
+      return;
+    }
+    box.innerHTML = userOptions
+      .map(
+        (u) => `<label class="jobs-team-item">
+          <input type="checkbox" class="job-team-cb" value="${escapeHtml(u.id)}" ${selected.has(String(u.id)) ? "checked" : ""} />
+          <span>${escapeHtml(u.name || u.email)}</span>
+        </label>`,
+      )
+      .join("");
+  }
+
+  function selectedMemberIds() {
+    return [...document.querySelectorAll(".job-team-cb:checked")].map((el) => el.value);
+  }
+
+  function renderTempList() {
+    const list = $("jobTempList");
+    const block = $("jobTempBlock");
+    if (!list || !block) return;
+    block.hidden = !editingId || !canManage;
+    if (!editingId) {
+      list.innerHTML = "";
+      return;
+    }
+    if (!tempWorkersCache.length) {
+      list.innerHTML = '<li class="jobs-hint">Ainda sem temporários neste job.</li>';
+      return;
+    }
+    list.innerHTML = tempWorkersCache
+      .map(
+        (t) => `<li data-temp-id="${escapeHtml(t.id)}">
+          <div class="jobs-temp-row">
+            <div>
+              <strong>${escapeHtml(t.name)}</strong>
+              <span class="jobs-hint">${escapeHtml([t.phone, t.email].filter(Boolean).join(" · ") || "—")}</span>
+            </div>
+            <div class="jobs-temp-actions">
+              <button type="button" class="btn btn-secondary btn-sm job-temp-link" data-id="${escapeHtml(t.id)}">Link</button>
+              <button type="button" class="btn btn-danger btn-sm job-temp-del" data-id="${escapeHtml(t.id)}">Remover</button>
+            </div>
+          </div>
+          <p class="jobs-temp-link-out" id="tempLinkOut-${escapeHtml(t.id)}" hidden></p>
+        </li>`,
+      )
+      .join("");
+  }
+
   async function loadLookups() {
     if (lookupsReady) return;
     const [users, customers, builders] = await Promise.all([
@@ -149,10 +231,12 @@
     ]);
 
     const userList = Array.isArray(users.data) ? users.data : [];
-    fillSelect($("jobAssignee"), userList.filter((u) => u.is_active !== 0 && u.status !== "disabled"), (u) => ({
+    userOptions = userList.filter((u) => u.is_active !== 0 && u.status !== "disabled");
+    fillSelect($("jobAssignee"), userOptions, (u) => ({
       value: u.id,
       label: u.name || u.email,
     }));
+    renderTeamCheckboxes([]);
 
     const custList = Array.isArray(customers.data) ? customers.data : [];
     fillSelect($("jobCustomer"), custList, (c) => ({
@@ -182,6 +266,7 @@
     $("jobModal").classList.add("is-open");
     $("jobModalBackdrop").classList.add("is-open");
     $("btnCancelWo").hidden = !editingId || !canManage;
+    renderTempList();
     const onDetail = /job-detail\.html/i.test(location.pathname);
     const viewJob = $("btnViewJob");
     if (viewJob) {
@@ -204,8 +289,11 @@
     $("jobModal")?.classList.remove("is-open");
     $("jobModalBackdrop")?.classList.remove("is-open");
     editingId = null;
+    tempWorkersCache = [];
     if ($("jobForm")) $("jobForm").reset();
     if ($("jobId")) $("jobId").value = "";
+    renderTeamCheckboxes([]);
+    renderTempList();
     const viewBtn = $("btnViewSchedule");
     if (viewBtn) viewBtn.hidden = true;
     const viewJob = $("btnViewJob");
@@ -219,10 +307,12 @@
     }
     await loadLookups();
     editingId = null;
+    tempWorkersCache = [];
     $("jobForm").reset();
     $("jobId").value = "";
     $("jobStatus").value = "scheduled";
     $("jobSourceType").value = "builder";
+    renderTeamCheckboxes([]);
 
     let start = null;
     if (opts && opts.start) start = new Date(opts.start);
@@ -248,6 +338,7 @@
     const j = await api(`/api/work-orders/${id}`);
     const wo = j.data;
     editingId = wo.id;
+    tempWorkersCache = Array.isArray(wo.temp_workers) ? wo.temp_workers : [];
     $("jobId").value = wo.id;
     $("jobTitle").value = wo.title || "";
     $("jobStatus").value = wo.status || "draft";
@@ -260,6 +351,7 @@
     $("jobEnd").value = toLocalInput(wo.scheduled_end);
     $("jobAssignee").value = wo.assigned_user_id || "";
     $("jobNotes").value = wo.notes || "";
+    renderTeamCheckboxes((wo.members || []).map((m) => m.user_id));
     openModal(wo.number != null ? `Job #${wo.number}` : "Editar job");
   }
 
@@ -276,11 +368,13 @@
       address: $("jobAddress").value.trim() || null,
       notes: $("jobNotes").value.trim() || null,
       assigned_user_id: $("jobAssignee").value || null,
+      member_user_ids: selectedMemberIds(),
       scheduled_start: fromLocalInput($("jobStart").value),
       scheduled_end: fromLocalInput($("jobEnd").value),
     };
     try {
       let j;
+      const wasCreate = !editingId;
       if (editingId) {
         j = await api(`/api/work-orders/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
       } else {
@@ -289,7 +383,20 @@
       if (j.conflicts && j.conflicts.length) {
         notify("Salvo com aviso de conflito de agenda.", "warning");
       } else {
-        notify("Job salvo.", "success");
+        notify(wasCreate ? "Job criado. Pode adicionar temporários e emitir links." : "Job salvo.", "success");
+      }
+      if (wasCreate && j.data?.id) {
+        editingId = j.data.id;
+        $("jobId").value = editingId;
+        tempWorkersCache = Array.isArray(j.data.temp_workers) ? j.data.temp_workers : [];
+        renderTeamCheckboxes((j.data.members || []).map((m) => m.user_id));
+        openModal(j.data.number != null ? `Job #${j.data.number}` : "Editar job");
+        savedListeners.forEach((fn) => {
+          try {
+            fn(j.data);
+          } catch (_) {}
+        });
+        return;
       }
       close();
       savedListeners.forEach((fn) => {
@@ -319,6 +426,68 @@
     }
   }
 
+  async function addTempWorker() {
+    if (!editingId || !canManage) return;
+    const name = ($("tempName")?.value || "").trim();
+    if (name.length < 2) {
+      notify("Informe o nome do temporário.", "error");
+      return;
+    }
+    try {
+      const j = await api(`/api/work-orders/${editingId}/temp-workers`, {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          phone: ($("tempPhone")?.value || "").trim() || null,
+          email: ($("tempEmail")?.value || "").trim() || null,
+        }),
+      });
+      tempWorkersCache = [...tempWorkersCache, j.data];
+      if ($("tempName")) $("tempName").value = "";
+      if ($("tempPhone")) $("tempPhone").value = "";
+      if ($("tempEmail")) $("tempEmail").value = "";
+      renderTempList();
+      notify("Temporário adicionado.", "success");
+    } catch (err) {
+      notify(err.message || "Erro", "error");
+    }
+  }
+
+  async function deleteTempWorker(id) {
+    if (!editingId || !canManage) return;
+    if (!confirm("Remover este funcionário temporário? O link dele deixa de funcionar.")) return;
+    try {
+      await api(`/api/work-orders/${editingId}/temp-workers/${id}`, { method: "DELETE" });
+      tempWorkersCache = tempWorkersCache.filter((t) => t.id !== id);
+      renderTempList();
+      notify("Removido.", "success");
+    } catch (err) {
+      notify(err.message || "Erro", "error");
+    }
+  }
+
+  async function issueTempLink(id) {
+    if (!editingId || !canManage) return;
+    try {
+      const j = await api(`/api/work-orders/${editingId}/temp-workers/${id}/share-link`, { method: "POST" });
+      const url = j.data?.url || "";
+      const out = document.getElementById(`tempLinkOut-${id}`);
+      if (out) {
+        out.hidden = false;
+        out.innerHTML = `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>
+          <button type="button" class="btn btn-secondary btn-sm job-temp-copy" data-url="${escapeHtml(url)}">Copiar</button>`;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        notify("Link copiado.", "success");
+      } else {
+        notify("Link gerado.", "success");
+      }
+    } catch (err) {
+      notify(err.message || "Erro", "error");
+    }
+  }
+
   function bindOnce() {
     if (document.body.dataset.crmJobModalBound === "1") return;
     document.body.dataset.crmJobModalBound = "1";
@@ -326,6 +495,29 @@
     $("jobModalBackdrop").addEventListener("click", close);
     $("btnCancelWo").addEventListener("click", cancelJob);
     $("jobForm").addEventListener("submit", saveJob);
+    $("btnAddTemp")?.addEventListener("click", () => addTempWorker());
+    $("jobTempList")?.addEventListener("click", (e) => {
+      const linkBtn = e.target.closest(".job-temp-link");
+      if (linkBtn) {
+        issueTempLink(linkBtn.getAttribute("data-id"));
+        return;
+      }
+      const delBtn = e.target.closest(".job-temp-del");
+      if (delBtn) {
+        deleteTempWorker(delBtn.getAttribute("data-id"));
+        return;
+      }
+      const copyBtn = e.target.closest(".job-temp-copy");
+      if (copyBtn) {
+        const url = copyBtn.getAttribute("data-url") || "";
+        if (url && navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(url).then(
+            () => notify("Link copiado.", "success"),
+            () => notify("Não foi possível copiar.", "error"),
+          );
+        }
+      }
+    });
   }
 
   async function initPermissions() {

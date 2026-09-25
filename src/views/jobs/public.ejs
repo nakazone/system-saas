@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %> · <%= organization.name %></title>
+  <style>
+    :root {
+      --accent: <%= organization.primaryColor || '#1a2036' %>;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #f4f1ea;
+      color: #211d1a;
+      line-height: 1.45;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.35rem 1.25rem 1.5rem;
+    }
+    header .org { font-size: 0.8rem; opacity: 0.85; letter-spacing: 0.02em; }
+    header h1 { margin: 0.35rem 0 0; font-size: 1.35rem; font-weight: 700; }
+    header .hello { margin-top: 0.65rem; font-size: 0.95rem; opacity: 0.95; }
+    main { max-width: 560px; margin: 0 auto; padding: 1.25rem; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.1rem 1.15rem;
+      margin-bottom: 0.85rem;
+      box-shadow: 0 1px 3px rgba(33, 29, 26, 0.06);
+    }
+    .card h2 {
+      margin: 0 0 0.65rem;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #8a8074;
+      font-weight: 700;
+    }
+    .meta { display: grid; gap: 0.55rem; }
+    .meta-row { display: grid; grid-template-columns: 7rem 1fr; gap: 0.5rem; font-size: 0.92rem; }
+    .meta-row dt { color: #8a8074; font-weight: 600; }
+    .meta-row dd { margin: 0; }
+    .notes { white-space: pre-wrap; font-size: 0.95rem; }
+    .muted { color: #8a8074; font-size: 0.85rem; }
+    .status {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    ul.team { margin: 0; padding-left: 1.1rem; }
+    ul.team li { margin: 0.2rem 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="org"><%= organization.name %></div>
+    <h1><%= job.title %></h1>
+    <p class="hello">Olá, <%= tempWorker.name %> — informações do seu trabalho</p>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Detalhes</h2>
+      <dl class="meta">
+        <% if (job.number != null) { %>
+        <div class="meta-row"><dt>Job #</dt><dd><%= job.number %></dd></div>
+        <% } %>
+        <div class="meta-row"><dt>Estado</dt><dd><span class="status"><%= job.status %></span></dd></div>
+        <div class="meta-row"><dt>Cliente</dt><dd><%= job.client %></dd></div>
+        <div class="meta-row"><dt>Local</dt><dd><%= job.address || '—' %></dd></div>
+        <div class="meta-row">
+          <dt>Início</dt>
+          <dd><%= job.scheduledStart ? new Date(job.scheduledStart).toLocaleString('pt-BR') : '—' %></dd>
+        </div>
+        <div class="meta-row">
+          <dt>Fim</dt>
+          <dd><%= job.scheduledEnd ? new Date(job.scheduledEnd).toLocaleString('pt-BR') : '—' %></dd>
+        </div>
+      </dl>
+    </div>
+
+    <% if (job.team && job.team.length) { %>
+    <div class="card">
+      <h2>Equipe</h2>
+      <ul class="team">
+        <% job.team.forEach(function (name) { %>
+          <li><%= name %></li>
+        <% }) %>
+      </ul>
+    </div>
+    <% } %>
+
+    <% if (job.notes) { %>
+    <div class="card">
+      <h2>Instruções</h2>
+      <p class="notes"><%= job.notes %></p>
+    </div>
+    <% } %>
+
+    <p class="muted">Este link é pessoal. Não partilhe com outras pessoas.</p>
+  </main>
+</body>
+</html>

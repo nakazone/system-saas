@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp11" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20260924-delete" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20260925-team" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-modpanel" />
   <link rel="stylesheet" href="jobs.css?v=20260924-modpanel" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -104,7 +104,18 @@
                   <div><dt>Starts on</dt><dd id="jobMetaStart">—</dd></div>
                   <div><dt>Ends on</dt><dd id="jobMetaEnd">—</dd></div>
                   <div><dt>Assigned</dt><dd id="jobMetaAssignee">—</dd></div>
+                  <div><dt>Equipe</dt><dd id="jobMetaTeam">—</dd></div>
                 </dl>
+              </div>
+            </section>
+
+            <section class="job-card" id="jobTeamCard">
+              <div class="job-card__head">
+                <h2>Equipe &amp; temporários</h2>
+                <button type="button" class="job-card__link" id="btnManageTeam" data-crm-permission="work_orders.manage">Gerir</button>
+              </div>
+              <div id="jobTeamBody">
+                <p class="jobs-empty" style="padding:0.5rem 0">Sem equipe adicional.</p>
               </div>
             </section>
 
@@ -198,7 +209,7 @@
   <script src="crm-shared-nav.js?v=20260924-omapp11"></script>
   <script src="crm-shell.js?v=20260924-omapp11"></script>
   
-  <script src="crm-job-modal.js?v=20260924-jobs2"></script>
-  <script src="job-detail.js?v=20260924-jobs2"></script>
+  <script src="crm-job-modal.js?v=20260925-team"></script>
+  <script src="job-detail.js?v=20260925-team"></script>
 </body>
 </html>
