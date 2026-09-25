@@ -99,12 +99,29 @@ export async function loadSessionUser(
       }
     }
 
+    const roleKey = user.role?.key ?? null;
+    if (roleKey === "installer" || roleKey === "crew_lead") {
+      for (const key of Array.from(rolePerms)) {
+        if (
+          key.startsWith("leads.") ||
+          key.startsWith("pipeline.") ||
+          key.startsWith("quotes.") ||
+          key.startsWith("customers.") ||
+          key.startsWith("finance.") ||
+          key === "reports.view" ||
+          key === "pricing.view"
+        ) {
+          rolePerms.delete(key);
+        }
+      }
+    }
+
     req.user = {
       id: user.id,
       organizationId: user.organizationId,
       email: user.email,
       name: user.name,
-      roleKey: user.role?.key ?? null,
+      roleKey,
       roleId: user.roleId,
       permissions: Array.from(rolePerms),
     };

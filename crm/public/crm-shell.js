@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260925-apptop1";
+  const SHELL_VER = "20260925-field1";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -617,6 +617,15 @@
     if (isAuthPage()) return;
     if (document.body.dataset.crmShellBoot === "1") return;
     document.body.dataset.crmShellBoot = "1";
+
+    if (!window.__crmFieldGate && !document.querySelector('script[src*="crm-field-gate.js"]')) {
+      await ensureScript(`crm-field-gate.js?v=${SHELL_VER}`).catch(() => {});
+    }
+    if (window.__crmFieldGate && typeof window.__crmFieldGate.bounceFieldToCampo === "function") {
+      const bounced = await window.__crmFieldGate.bounceFieldToCampo().catch(() => false);
+      if (bounced) return;
+    }
+
     document.body.classList.add("dashboard-app-body", "om-app", "om-chrome-ready");
     // sidebar-collapsed is set by HTML (FOUC) + initCollapse from localStorage
 

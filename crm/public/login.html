@@ -110,7 +110,16 @@
                 }
                 if (data.authenticated) {
                     var u = data.user || {};
-                    window.location.href = u.must_change_password ? '/change-password.html' : '/dashboard.html';
+                    if (u.must_change_password) {
+                        window.location.href = '/change-password.html';
+                        return;
+                    }
+                    var role = String(u.role || '').toLowerCase();
+                    if (role === 'installer' || role === 'crew_lead') {
+                        window.location.href = '/campo/hoje.html';
+                        return;
+                    }
+                    window.location.href = '/dashboard.html';
                 }
             })
             .catch(() => {});
@@ -169,7 +178,12 @@
 
                 if (data.success) {
                     var u = data.user || {};
-                    var dest = u.must_change_password ? '/change-password.html' : '/dashboard.html';
+                    var role = String(u.role || '').toLowerCase();
+                    var dest = u.must_change_password
+                        ? '/change-password.html'
+                        : (role === 'installer' || role === 'crew_lead')
+                            ? '/campo/hoje.html'
+                            : '/dashboard.html';
                     setTimeout(function () {
                         window.location.href = dest;
                     }, 100);

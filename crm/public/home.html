@@ -9,8 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="ObraMate" />
   <title>Início | ObraMate</title>
   <script src="om-device.js?v=20260925-device1"></script>
+  <script src="crm-field-gate.js?v=20260925-field1"></script>
   <script>
-    (function () {
+    (async function () {
+      if (window.__crmFieldGate && (await window.__crmFieldGate.bounceFieldToCampo())) return;
       if (window.__omDevice && window.__omDevice.guardMobileOnlyPage("pipeline-lab.html")) return;
     })();
   </script>
@@ -175,6 +177,6 @@
   <script src="crm-shell.js?v=20260925-device1"></script>
   <script src="om-mobile-nav.js?v=20260925-apptop1"></script>
   <script src="novo-lead-sheet.js?v=20260925-leadui1"></script>
-  <script src="home.js?v=20260925-campo1"></script>
+  <script src="home.js?v=20260925-field1"></script>
 </body>
 </html>

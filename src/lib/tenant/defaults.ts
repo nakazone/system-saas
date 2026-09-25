@@ -132,10 +132,7 @@ const SALES_KEYS: PermissionKey[] = [
 ];
 
 const CREW_LEAD_KEYS: PermissionKey[] = [
-  "leads.view",
-  "customers.view",
   "projects.view",
-  "projects.manage",
   "visits.view",
   "visits.manage",
   "assessments.view",
@@ -175,11 +172,11 @@ export const DEFAULT_ROLE_META: Record<
   },
   crew_lead: {
     name: "Crew Lead",
-    description: "Crew schedule, visits, checklists; no pricing",
+    description: "Campo: jobs, schedule, visits; no pipeline or pricing",
   },
   installer: {
     name: "Installer",
-    description: "Own visits only; no pricing",
+    description: "Campo only: own jobs, schedule, daily rate; no pricing",
   },
 };
 

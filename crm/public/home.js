@@ -327,11 +327,7 @@
 
     const role = String(session.user?.role || "").toLowerCase();
     const isField = role === "installer" || role === "crew_lead";
-    const mobile =
-      window.__omDevice && typeof window.__omDevice.isMobile === "function"
-        ? window.__omDevice.isMobile()
-        : document.body.classList.contains("om-device-mobile");
-    if (isField && mobile) {
+    if (isField) {
       location.replace("/campo/hoje.html");
       return;
     }

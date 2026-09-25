@@ -23,18 +23,13 @@
   }
 
   /**
-   * On Admin mobile home: send installers/crew leads to Campo.
+   * Send installers/crew leads to Campo (mobile and PC).
    * Returns true if a redirect was triggered.
    */
   async function redirectFieldToCampo() {
     const data = await fetchSession();
     if (!data || !data.authenticated || !data.user) return false;
     if (!isFieldRole(data.user.role)) return false;
-    const mobile =
-      global.__omDevice && typeof global.__omDevice.isMobile === "function"
-        ? global.__omDevice.isMobile()
-        : true;
-    if (!mobile) return false;
     try {
       location.replace("/campo/hoje.html");
     } catch (_) {

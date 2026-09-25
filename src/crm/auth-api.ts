@@ -23,6 +23,29 @@ function buildPermissionKeys(user: {
     if (up.granted) perms.add(up.permission.key);
     else perms.delete(up.permission.key);
   }
+  const roleKey = String(user.role?.key || "").toLowerCase();
+  // Field workers only use Campo — strip office CRM / pipeline even if legacy role grants exist.
+  if (roleKey === "installer" || roleKey === "crew_lead") {
+    for (const key of Array.from(perms)) {
+      if (
+        key.startsWith("leads.") ||
+        key.startsWith("pipeline.") ||
+        key === "quotes.view" ||
+        key === "quotes.create" ||
+        key === "quotes.edit" ||
+        key === "quotes.delete" ||
+        key === "customers.view" ||
+        key === "customers.create" ||
+        key === "customers.edit" ||
+        key === "finance.view" ||
+        key === "finance.manage" ||
+        key === "reports.view" ||
+        key === "pricing.view"
+      ) {
+        perms.delete(key);
+      }
+    }
+  }
   return Array.from(perms);
 }
 
