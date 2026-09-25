@@ -18,7 +18,6 @@
     { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores', href: 'ajustes.html', perm: 'settings.manage' },
     { id: 'support', label: 'Ajuda / suporte', sub: 'Help center e contato', href: '#help', perm: null },
     { id: 'install', label: 'Instalar app', sub: 'Baixar no dispositivo', href: '#pwa-install', perm: null },
-    { id: 'users', label: 'Equipe', sub: 'Utilizadores e permissões', href: 'dashboard.html?page=users', perm: 'users.view' },
   ];
 
   function can(perm) {

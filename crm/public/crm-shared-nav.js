@@ -101,13 +101,6 @@
           page: '',
           iconKey: 'finance',
         },
-        {
-          href: 'dashboard.html?page=users',
-          label: 'Equipe',
-          perm: 'users.view',
-          page: 'users',
-          iconKey: 'users',
-        },
       ],
     },
   ];

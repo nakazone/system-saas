@@ -26,24 +26,24 @@
   }
 
   function teamHref() {
-    var file = (window.location.pathname || "").split("/").pop() || "";
-    if (file.toLowerCase() === "dashboard.html" || file === "" || file === "/") {
-      return "#";
-    }
     return "dashboard.html?page=users";
   }
 
   function goTeam(e) {
     if (e) e.preventDefault();
     var file = (window.location.pathname || "").split("/").pop() || "";
-    if (
-      (file.toLowerCase() === "dashboard.html" || file === "" || file === "/") &&
-      typeof window.showPage === "function"
-    ) {
+    var onDashboard =
+      file.toLowerCase() === "dashboard.html" || file === "" || file === "/";
+    if (onDashboard && typeof window.showPage === "function") {
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.set("page", "users");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      } catch (_) {}
       window.showPage("users");
       return;
     }
-    window.location.href = "dashboard.html?page=users";
+    window.location.assign("dashboard.html?page=users");
   }
 
   function buildMenuHtml() {

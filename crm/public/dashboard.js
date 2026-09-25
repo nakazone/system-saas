@@ -979,6 +979,8 @@ function showPage(pageName) {
     }
 }
 
+window.showPage = showPage;
+
 // Dashboard operacional (GET /api/dashboard/stats?period=)
 function formatDashboardCurrency(v) {
     const n = parseFloat(v);
