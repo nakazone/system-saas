@@ -1,19 +1,55 @@
 /**
- * Field workers (installer / crew_lead) stay in Campo — never office CRM / pipeline.
- * Load early on office pages (before redirects to pipeline).
+ * Field workers (installer / crew_lead):
+ * - Mobile → Campo
+ * - Desktop → funcionario.html (PC shell), never pipeline/office CRM
  */
 (function (global) {
   const FIELD_ROLES = new Set(["installer", "crew_lead"]);
   const CAMPO_HOME = "/campo/hoje.html";
-  const VER = "20260925-field1";
+  const DESKTOP_HOME = "/funcionario.html";
+  const VER = "20260925-field2";
+
+  const DESKTOP_ALLOW = new Set([
+    "funcionario.html",
+    "schedule.html",
+    "jobs.html",
+    "job-detail.html",
+    "payroll-module.html",
+    "ajustes.html",
+    "change-password.html",
+    "login.html",
+  ]);
 
   function isFieldRole(role) {
     return FIELD_ROLES.has(String(role || "").toLowerCase());
   }
 
+  function isMobile() {
+    if (global.__omDevice && typeof global.__omDevice.isMobile === "function") {
+      return global.__omDevice.isMobile();
+    }
+    const ua = global.navigator?.userAgent || "";
+    if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(ua)) return true;
+    try {
+      if (
+        global.navigator?.platform === "MacIntel" &&
+        Number(global.navigator?.maxTouchPoints || 0) > 1
+      ) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function currentFile() {
+    const p = String(global.location?.pathname || "");
+    const parts = p.split("/").filter(Boolean);
+    return (parts[parts.length - 1] || "").toLowerCase() || "index.html";
+  }
+
   function isCampoPath(pathname) {
     const p = String(pathname || global.location?.pathname || "").toLowerCase();
-    return p.includes("/campo/") || /(^|\/)campo\//.test(p);
+    return p.includes("/campo/");
   }
 
   function isAuthPath(pathname) {
@@ -26,12 +62,15 @@
     );
   }
 
-  function goCampo() {
-    if (isCampoPath()) return false;
+  function fieldHomeHref() {
+    return isMobile() ? CAMPO_HOME : DESKTOP_HOME;
+  }
+
+  function go(href) {
     try {
-      global.location.replace(CAMPO_HOME);
+      global.location.replace(href);
     } catch (_) {
-      global.location.href = CAMPO_HOME;
+      global.location.href = href;
     }
     return true;
   }
@@ -50,21 +89,39 @@
   }
 
   /**
-   * If current user is field staff and not already in Campo, redirect.
-   * Returns true when a redirect was triggered.
+   * Route field staff to the right home / block office pages.
+   * Returns true if a redirect was triggered.
    */
-  async function bounceFieldToCampo() {
-    if (isCampoPath() || isAuthPath(global.location?.pathname || "")) return false;
+  async function bounceFieldWorker() {
+    if (isAuthPath(global.location?.pathname || "")) return false;
     const data = await fetchSession();
     if (!data || !data.authenticated || !data.user) return false;
     if (!isFieldRole(data.user.role)) return false;
-    return goCampo();
+
+    const mobile = isMobile();
+    const path = global.location?.pathname || "";
+
+    if (mobile) {
+      if (isCampoPath(path)) return false;
+      return go(CAMPO_HOME);
+    }
+
+    // Desktop: Campo shell → PC funcionario home
+    if (isCampoPath(path)) return go(DESKTOP_HOME);
+
+    const file = currentFile();
+    if (DESKTOP_ALLOW.has(file)) return false;
+    return go(DESKTOP_HOME);
   }
 
-  /** Sync helper when role is already known (login response). */
+  /** @deprecated use bounceFieldWorker */
+  async function bounceFieldToCampo() {
+    return bounceFieldWorker();
+  }
+
   function bounceIfFieldRole(role) {
     if (!isFieldRole(role)) return false;
-    return goCampo();
+    return go(fieldHomeHref());
   }
 
   global.__crmFieldGate = {
@@ -72,14 +129,18 @@
     FIELD_ROLES: Array.from(FIELD_ROLES),
     isFieldRole,
     isCampoPath,
-    goCampo,
+    isMobile,
+    fieldHomeHref,
+    goCampo: () => go(CAMPO_HOME),
+    goDesktopHome: () => go(DESKTOP_HOME),
+    bounceFieldWorker,
     bounceFieldToCampo,
     bounceIfFieldRole,
     CAMPO_HOME,
+    DESKTOP_HOME,
   };
 
-  // Auto-run on office pages (skip Campo itself)
-  if (typeof document !== "undefined" && !isCampoPath() && !isAuthPath(global.location?.pathname || "")) {
-    bounceFieldToCampo().catch(() => {});
+  if (typeof document !== "undefined" && !isAuthPath(global.location?.pathname || "")) {
+    bounceFieldWorker().catch(() => {});
   }
 })(typeof window !== "undefined" ? window : globalThis);

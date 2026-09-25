@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260925-field1";
+  const SHELL_VER = "20260925-field2";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -534,8 +534,12 @@
       window.__omDevice.applyBodyClass();
     }
     const brand = document.getElementById("crmTopbarBrand");
-    if (brand && window.__omDevice && typeof window.__omDevice.entryHref === "function") {
-      brand.setAttribute("href", window.__omDevice.entryHref());
+    if (brand) {
+      if (document.body.classList.contains("om-field-desktop") || document.body.classList.contains("func-app")) {
+        brand.setAttribute("href", "funcionario.html");
+      } else if (window.__omDevice && typeof window.__omDevice.entryHref === "function") {
+        brand.setAttribute("href", window.__omDevice.entryHref());
+      }
     }
 
     ensureStylesheet(`obramate-app.css?v=${SHELL_VER}`);
@@ -621,9 +625,21 @@
     if (!window.__crmFieldGate && !document.querySelector('script[src*="crm-field-gate.js"]')) {
       await ensureScript(`crm-field-gate.js?v=${SHELL_VER}`).catch(() => {});
     }
-    if (window.__crmFieldGate && typeof window.__crmFieldGate.bounceFieldToCampo === "function") {
-      const bounced = await window.__crmFieldGate.bounceFieldToCampo().catch(() => false);
+    if (window.__crmFieldGate && typeof window.__crmFieldGate.bounceFieldWorker === "function") {
+      const bounced = await window.__crmFieldGate.bounceFieldWorker().catch(() => false);
       if (bounced) return;
+    }
+
+    let isField = document.body.classList.contains("func-app");
+    if (!isField && window.__crmFieldGate?.isFieldRole) {
+      try {
+        const r = await fetch("/api/auth/session", { credentials: "same-origin" });
+        const j = await r.json();
+        if (j?.authenticated && j.user) {
+          window.__crmUserRole = j.user.role || "";
+          isField = window.__crmFieldGate.isFieldRole(j.user.role);
+        }
+      } catch (_) {}
     }
 
     document.body.classList.add("dashboard-app-body", "om-app", "om-chrome-ready");
@@ -634,8 +650,14 @@
     ensureMobileHeader();
     ensureSidebarStructure(getSidebar());
     ensureTopbarUtilities();
-    ensureDock();
-    document.body.classList.add("om-has-dock");
+    if (!isField) {
+      ensureDock();
+      document.body.classList.add("om-has-dock");
+    } else {
+      document.body.classList.add("om-field-desktop");
+      const brand = document.getElementById("crmTopbarBrand");
+      if (brand) brand.setAttribute("href", "funcionario.html");
+    }
 
     initCollapse();
     initTopbar();

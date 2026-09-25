@@ -1,6 +1,6 @@
 /**
  * Campo gate — session + field-role helper.
- * Phase 1: mock UI works even without session; field roles stay in Campo.
+ * Mobile field → Campo; desktop field → funcionario.html (PC shell).
  */
 (function (global) {
   const FIELD_ROLES = new Set(["installer", "crew_lead"]);
@@ -22,26 +22,29 @@
     }
   }
 
-  /**
-   * Send installers/crew leads to Campo (mobile and PC).
-   * Returns true if a redirect was triggered.
-   */
-  async function redirectFieldToCampo() {
-    const data = await fetchSession();
-    if (!data || !data.authenticated || !data.user) return false;
-    if (!isFieldRole(data.user.role)) return false;
-    try {
-      location.replace("/campo/hoje.html");
-    } catch (_) {
-      location.href = "/campo/hoje.html";
+  function isMobile() {
+    if (global.__omDevice && typeof global.__omDevice.isMobile === "function") {
+      return global.__omDevice.isMobile();
     }
     return true;
   }
 
   /**
-   * Optional: if office user lands on Campo with ?force=0, bounce to Admin home.
-   * Phase 1 keeps Campo open for preview (office can view mocks).
+   * On Admin home: send field workers to Campo (mobile) or funcionario (desktop).
    */
+  async function redirectFieldToCampo() {
+    const data = await fetchSession();
+    if (!data || !data.authenticated || !data.user) return false;
+    if (!isFieldRole(data.user.role)) return false;
+    const href = isMobile() ? "/campo/hoje.html" : "/funcionario.html";
+    try {
+      location.replace(href);
+    } catch (_) {
+      location.href = href;
+    }
+    return true;
+  }
+
   async function enrichUserFromSession(mockUser) {
     const data = await fetchSession();
     if (!data || !data.authenticated || !data.user) return mockUser;

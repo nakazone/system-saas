@@ -1,0 +1,368 @@
+/* Desktop employee dashboard — PC CRM shell layout */
+body.func-app {
+  --func-bg: #f3f1ee;
+  --func-ink: #1c1917;
+  --func-muted: #78716c;
+  --func-line: #e7e5e4;
+  --func-surface: #ffffff;
+  --func-dark: #2a2522;
+  --func-accent: #c1652f;
+  --func-ok: #16a34a;
+  --func-radius: 16px;
+  --func-font: "Plus Jakarta Sans", system-ui, sans-serif;
+  background: var(--func-bg);
+  font-family: var(--func-font);
+  color: var(--func-ink);
+}
+
+body.func-app.om-app .dashboard-main.func-main {
+  background: var(--func-bg) !important;
+  padding: 1.25rem 1.5rem 2.5rem !important;
+  padding-bottom: 2.5rem !important;
+}
+
+body.func-app .mobile-app-header {
+  display: none !important;
+}
+
+body.func-app.om-has-dock .om-dock,
+body.func-app #omDock {
+  display: none !important;
+}
+
+.func {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.func-hero {
+  margin-bottom: 1.25rem;
+}
+
+.func-hero__date {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--func-muted);
+  text-transform: capitalize;
+}
+
+.func-hero__greet {
+  margin: 0.2rem 0 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.func-hero__meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  color: var(--func-muted);
+}
+
+.func-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 900px) {
+  .func-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.func-panel {
+  background: var(--func-surface);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: var(--func-radius);
+  padding: 1.15rem 1.2rem 1.2rem;
+}
+
+.func-panel--diaria {
+  background: var(--func-dark);
+  color: #fafaf9;
+  border-color: transparent;
+}
+
+.func-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.func-panel__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.func-panel--diaria .func-panel__title {
+  color: rgba(250, 250, 249, 0.92);
+}
+
+.func-panel__tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(250, 250, 249, 0.55);
+}
+
+.func-panel__link {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--func-accent);
+  text-decoration: none;
+}
+
+.func-panel__link:hover {
+  text-decoration: underline;
+}
+
+.func-diaria__amount {
+  margin: 0;
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.func-diaria__status {
+  margin: 0.4rem 0 1rem;
+  font-size: 0.875rem;
+  color: rgba(250, 250, 249, 0.65);
+}
+
+.func-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.func-chip {
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+}
+
+.func-chip.is-done {
+  background: rgba(22, 163, 74, 0.22);
+}
+
+.func-chip__lab {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(250, 250, 249, 0.5);
+}
+
+.func-chip__val {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.func-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.func-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.func-btn--primary {
+  width: 100%;
+  background: var(--func-accent);
+  color: #fff;
+}
+
+.func-btn--ghost {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fafaf9;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  flex: 1;
+}
+
+.func-extra {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.func-extra__lab {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(250, 250, 249, 0.55);
+}
+
+.func-extra__row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.func-extra__mid {
+  min-width: 4.5rem;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.func-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  color: rgba(250, 250, 249, 0.5);
+  line-height: 1.35;
+}
+
+.func-pay {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.func-pay__empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--func-muted);
+  line-height: 1.4;
+}
+
+.func-pay__card {
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  background: #f7f5f2;
+  border-left: 3px solid var(--func-accent);
+}
+
+.func-pay__card--due {
+  border-left-color: #ca8a04;
+  background: #faf6eb;
+}
+
+.func-pay__card--paid {
+  border-left-color: var(--func-ok);
+  background: #f0faf3;
+}
+
+.func-pay__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.func-pay__label {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.func-pay__badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--func-muted);
+}
+
+.func-pay__amount {
+  margin: 0.25rem 0 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.func-pay__meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  color: var(--func-muted);
+}
+
+.func-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.func-job {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: #f7f5f2;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.func-job:hover {
+  border-color: var(--func-line);
+  background: #fff;
+}
+
+.func-job__times {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--func-muted);
+  line-height: 1.35;
+}
+
+.func-job__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.func-job__sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.775rem;
+  color: var(--func-muted);
+}
+
+.func-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: #eceae7;
+  color: #57534e;
+  white-space: nowrap;
+}
+
+.func-badge--site {
+  background: #f5e6c8;
+  color: #8a5a1e;
+}
+
+.func-badge--progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.func-jobs__empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--func-muted);
+}

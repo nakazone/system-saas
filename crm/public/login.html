@@ -71,6 +71,7 @@
         </div>
     </div>
 
+    <script src="om-device.js?v=20260925-device1"></script>
     <script src="crm-toast.js"></script>
     <script>
         function handleLogoError(img) {
@@ -116,7 +117,8 @@
                     }
                     var role = String(u.role || '').toLowerCase();
                     if (role === 'installer' || role === 'crew_lead') {
-                        window.location.href = '/campo/hoje.html';
+                        var mobile = window.__omDevice && window.__omDevice.isMobile && window.__omDevice.isMobile();
+                        window.location.href = mobile ? '/campo/hoje.html' : '/funcionario.html';
                         return;
                     }
                     window.location.href = '/dashboard.html';
@@ -179,10 +181,11 @@
                 if (data.success) {
                     var u = data.user || {};
                     var role = String(u.role || '').toLowerCase();
+                    var mobile = window.__omDevice && window.__omDevice.isMobile && window.__omDevice.isMobile();
                     var dest = u.must_change_password
                         ? '/change-password.html'
                         : (role === 'installer' || role === 'crew_lead')
-                            ? '/campo/hoje.html'
+                            ? (mobile ? '/campo/hoje.html' : '/funcionario.html')
                             : '/dashboard.html';
                     setTimeout(function () {
                         window.location.href = dest;

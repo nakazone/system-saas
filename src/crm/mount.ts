@@ -85,13 +85,13 @@ export function createCrmRouter(): Router {
   router.get("/", requireAuth, (req, res) => {
     const role = String(req.session?.userRole || "").toLowerCase();
     const isField = role === "installer" || role === "crew_lead";
-    if (isField) {
-      res.redirect("/campo/hoje.html");
-      return;
-    }
     const ua = String(req.headers["user-agent"] || "");
     const mobile =
       /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(ua);
+    if (isField) {
+      res.redirect(mobile ? "/campo/hoje.html" : "/funcionario.html");
+      return;
+    }
     res.redirect(mobile ? "/home.html" : "/pipeline-lab.html");
   });
 

@@ -71,7 +71,15 @@
     return false;
   }
 
-  function sidebarTopItems() {
+  function isFieldRole(role) {
+    const r = String(role || '').toLowerCase();
+    return r === 'installer' || r === 'crew_lead';
+  }
+
+  function sidebarTopItems(role) {
+    if (isFieldRole(role)) {
+      return [{ href: 'funcionario.html', label: 'Início', perm: null, page: '', iconKey: 'dashboard' }];
+    }
     if (isMobileDevice()) {
       return [
         { href: 'home.html', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
@@ -83,11 +91,36 @@
     ];
   }
 
-  function getSidebarGroups() {
+  function getFieldSidebarGroups() {
     return [
       {
         label: null,
-        items: sidebarTopItems(),
+        items: [{ href: 'funcionario.html', label: 'Início', perm: null, page: '', iconKey: 'dashboard' }],
+      },
+      {
+        label: 'Campo',
+        items: [
+          { href: 'schedule.html', label: 'Agenda', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+          { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
+          {
+            href: 'payroll-module.html',
+            label: 'Minha folha',
+            perm: 'payroll.self',
+            permAny: ['payroll.self', 'payroll.view'],
+            page: '',
+            iconKey: 'payroll',
+          },
+        ],
+      },
+    ];
+  }
+
+  function getSidebarGroups(role) {
+    if (isFieldRole(role)) return getFieldSidebarGroups();
+    return [
+      {
+        label: null,
+        items: sidebarTopItems(role),
       },
       {
         label: 'Comercial',
@@ -130,8 +163,8 @@
     ];
   }
 
-  function getMainNav() {
-    return getSidebarGroups()
+  function getMainNav(role) {
+    return getSidebarGroups(role)
       .flatMap((g) => g.items)
       .filter((item) => item.showInTopBar !== false && item.type !== 'dropdown');
   }
@@ -283,7 +316,7 @@
     const keys = new Set(perms);
     const file = currentFile();
     const page = pageParam();
-    getSidebarGroups().forEach((group) => {
+    getSidebarGroups(role).forEach((group) => {
       const visible = group.items.filter((item) => {
         if (item.type === 'dropdown' && Array.isArray(item.children)) {
           return item.children.some((ch) => canSee(ch.perm, role, keys, ch.permAny));
@@ -416,13 +449,15 @@
 
     const brand = document.createElement('a');
     brand.className = 'crm-shared-nav__brand crm-shared-nav__brand--logo-only';
-    brand.href = (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || 'pipeline-lab.html';
+    brand.href = isFieldRole(role)
+      ? 'funcionario.html'
+      : (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || 'pipeline-lab.html';
     brand.setAttribute('aria-label', 'ObraMate — início');
     brand.innerHTML =
       '<img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-shared-nav__brand-logo crm-system-logo" width="64" height="64" onerror="this.style.display=\'none\'" />';
     inner.appendChild(brand);
 
-    getMainNav().forEach((item) => {
+    getMainNav(role).forEach((item) => {
       if (!canSee(item.perm, role, keys, item.permAny)) return;
       const a = document.createElement('a');
       a.href = item.href;
