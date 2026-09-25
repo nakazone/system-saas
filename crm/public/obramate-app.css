@@ -877,11 +877,44 @@ body.om-app .dashboard-main {
   padding-bottom: 6.5rem !important;
 }
 
-/* Fixed system top bar (Ajuda + Configurações); hide mobile header on desktop */
+/* Fixed system top bar — frosted / transparent like .plab-top */
 @media (min-width: 1025px) {
+  body.om-app #crmTopbar.crm-topbar,
   body.om-app #crmTopbar {
     display: flex !important;
+    left: var(--crm-sidebar-width) !important;
+    right: 0 !important;
+    width: auto !important;
+    background: linear-gradient(
+      180deg,
+      rgba(243, 241, 238, 0.92) 50%,
+      rgba(243, 241, 238, 0.55) 78%,
+      rgba(243, 241, 238, 0)
+    ) !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 0 1.25rem 0 1rem !important;
   }
+
+  /* Brand lives in the sidebar rail — keep top bar light */
+  body.om-app #crmTopbar .crm-topbar__brand {
+    display: none !important;
+  }
+
+  body.om-app #crmTopbar .crm-topbar__search {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    border-color: rgba(231, 229, 228, 0.9);
+    box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 6px 18px rgba(28, 25, 23, 0.04);
+  }
+
+  body.om-app #crmTopbar .crm-topbar__icon-btn:hover,
+  body.om-app #crmTopbar .crm-topbar__icon-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.55);
+  }
+
   body.om-app .mobile-app-header {
     display: none !important;
   }
