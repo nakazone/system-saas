@@ -82,8 +82,11 @@ export function createCrmRouter(): Router {
   // SF logo / brand assets (SaaS CSS remains available via a second /assets mount)
   router.use("/assets", express.static(CRM_ASSETS_DIR));
 
-  router.get("/", requireAuth, (_req, res) => {
-    res.redirect("/home.html");
+  router.get("/", requireAuth, (req, res) => {
+    const ua = String(req.headers["user-agent"] || "");
+    const mobile =
+      /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(ua);
+    res.redirect(mobile ? "/home.html" : "/pipeline-lab.html");
   });
 
   // Block excluded SF modules in SaaS (deep links / bookmarks)

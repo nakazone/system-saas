@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260925-home1";
+  const SHELL_VER = "20260925-device1";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -128,7 +128,7 @@
 
   const TOPBAR_HTML = `
 <header class="crm-topbar" id="crmTopbar" aria-label="Barra superior">
-  <a href="home.html" class="crm-topbar__brand" aria-label="ObraMate — início">
+  <a href="pipeline-lab.html" class="crm-topbar__brand" id="crmTopbarBrand" aria-label="ObraMate — início">
     <img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-system-logo" width="160" height="36" onerror="this.style.display='none'" />
   </a>
   <div class="crm-topbar__right">
@@ -527,6 +527,17 @@
 
   async function loadCompanionAssets() {
     ensureFont();
+    if (!window.__omDevice && !document.querySelector('script[src*="om-device.js"]')) {
+      await ensureScript(`om-device.js?v=${SHELL_VER}`).catch(() => {});
+    }
+    if (window.__omDevice && typeof window.__omDevice.applyBodyClass === "function") {
+      window.__omDevice.applyBodyClass();
+    }
+    const brand = document.getElementById("crmTopbarBrand");
+    if (brand && window.__omDevice && typeof window.__omDevice.entryHref === "function") {
+      brand.setAttribute("href", window.__omDevice.entryHref());
+    }
+
     ensureStylesheet(`obramate-app.css?v=${SHELL_VER}`);
     ensureStylesheet(`crm-shell.css?v=${SHELL_VER}`);
     ensureStylesheet(`crm-shared-nav.css?v=${SHELL_VER}`);
@@ -557,11 +568,19 @@
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
       jobs.push(ensureScript("saas-branding.js?v=20260924-pwa").catch(() => {}));
     }
-    if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js"]')) {
-      ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
-      jobs.push(ensureScript(`om-mobile-nav.js?v=${SHELL_VER}`).catch(() => {}));
-    } else {
-      ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
+    const wantMobileNav =
+      typeof window.__omDevice?.isMobile === "function"
+        ? window.__omDevice.isMobile()
+        : /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(
+            navigator.userAgent || "",
+          );
+    if (wantMobileNav) {
+      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js"]')) {
+        ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
+        jobs.push(ensureScript(`om-mobile-nav.js?v=${SHELL_VER}`).catch(() => {}));
+      } else {
+        ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
+      }
     }
     if (!window.sfBootCrmAddressAutocomplete && !document.querySelector('script[src*="crm-address-autocomplete.js"]')) {
       jobs.push(

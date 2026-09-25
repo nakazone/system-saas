@@ -59,57 +59,82 @@
   ];
 
   /** Grupos alinhados a dashboard.html — só módulos padrão do sistema */
-  const SIDEBAR_GROUPS = [
-    {
-      label: null,
-      items: [
+  function isMobileDevice() {
+    if (window.__omDevice && typeof window.__omDevice.isMobile === 'function') {
+      return window.__omDevice.isMobile();
+    }
+    const ua = navigator.userAgent || '';
+    if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(ua)) return true;
+    try {
+      if (navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  function sidebarTopItems() {
+    if (isMobileDevice()) {
+      return [
         { href: 'home.html', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
         { href: 'pipeline-lab.html', label: 'Pipeline', perm: null, page: 'pipeline', iconKey: 'leads' },
-      ],
-    },
-    {
-      label: 'Comercial',
-      items: [
-        { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
-      ],
-    },
-    {
-      label: 'Operações',
-      items: [
-        { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
-        { href: 'invoices.html', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'invoices' },
-        { href: 'schedule.html', label: 'Schedule', perm: 'schedule.view', page: '', iconKey: 'schedule' },
-        { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
-        { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'cadastro', children: CADASTRO_CHILDREN },
-        {
-          href: 'builder-pricing-admin.html',
-          label: 'Tabela de Valores',
-          perm: 'builders.view',
-          page: '',
-          iconKey: 'pricing',
-        },
-        {
-          href: 'payroll-module.html',
-          label: 'Folha de Pagamento',
-          perm: 'payroll.view',
-          permAny: ['payroll.view', 'payroll.self'],
-          page: '',
-          iconKey: 'payroll',
-        },
-        {
-          href: 'finance.html',
-          label: 'Financeiro',
-          perm: 'finance.view',
-          page: '',
-          iconKey: 'finance',
-        },
-      ],
-    },
-  ];
+      ];
+    }
+    return [
+      { href: 'pipeline-lab.html', label: 'Dashboard', perm: null, page: '', iconKey: 'dashboard' },
+    ];
+  }
 
-  const MAIN_NAV = SIDEBAR_GROUPS.flatMap((g) => g.items).filter(
-    (item) => item.showInTopBar !== false && item.type !== 'dropdown'
-  );
+  function getSidebarGroups() {
+    return [
+      {
+        label: null,
+        items: sidebarTopItems(),
+      },
+      {
+        label: 'Comercial',
+        items: [
+          { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
+        ],
+      },
+      {
+        label: 'Operações',
+        items: [
+          { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+          { href: 'invoices.html', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'invoices' },
+          { href: 'schedule.html', label: 'Schedule', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+          { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
+          { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'cadastro', children: CADASTRO_CHILDREN },
+          {
+            href: 'builder-pricing-admin.html',
+            label: 'Tabela de Valores',
+            perm: 'builders.view',
+            page: '',
+            iconKey: 'pricing',
+          },
+          {
+            href: 'payroll-module.html',
+            label: 'Folha de Pagamento',
+            perm: 'payroll.view',
+            permAny: ['payroll.view', 'payroll.self'],
+            page: '',
+            iconKey: 'payroll',
+          },
+          {
+            href: 'finance.html',
+            label: 'Financeiro',
+            perm: 'finance.view',
+            page: '',
+            iconKey: 'finance',
+          },
+        ],
+      },
+    ];
+  }
+
+  function getMainNav() {
+    return getSidebarGroups()
+      .flatMap((g) => g.items)
+      .filter((item) => item.showInTopBar !== false && item.type !== 'dropdown');
+  }
 
   function currentFile() {
     const p = (window.location.pathname || '').split('/').pop() || '';
@@ -133,10 +158,14 @@
       if (base === 'quote-builder.html' || base === 'quotes.html') return true;
     }
     if (base === 'home.html') {
-      return file === 'home.html' || (file === 'dashboard.html' && !(page || ''));
+      return file === 'home.html';
     }
     if (base === 'pipeline-lab.html') {
-      return file === 'pipeline-lab.html' || item.page === 'pipeline';
+      return (
+        file === 'pipeline-lab.html' ||
+        item.page === 'pipeline' ||
+        (file === 'dashboard.html' && !(page || '') && !isMobileDevice())
+      );
     }
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
@@ -254,7 +283,7 @@
     const keys = new Set(perms);
     const file = currentFile();
     const page = pageParam();
-    SIDEBAR_GROUPS.forEach((group) => {
+    getSidebarGroups().forEach((group) => {
       const visible = group.items.filter((item) => {
         if (item.type === 'dropdown' && Array.isArray(item.children)) {
           return item.children.some((ch) => canSee(ch.perm, role, keys, ch.permAny));
@@ -387,13 +416,13 @@
 
     const brand = document.createElement('a');
     brand.className = 'crm-shared-nav__brand crm-shared-nav__brand--logo-only';
-    brand.href = 'home.html';
+    brand.href = (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || 'pipeline-lab.html';
     brand.setAttribute('aria-label', 'ObraMate — início');
     brand.innerHTML =
       '<img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-shared-nav__brand-logo crm-system-logo" width="64" height="64" onerror="this.style.display=\'none\'" />';
     inner.appendChild(brand);
 
-    MAIN_NAV.forEach((item) => {
+    getMainNav().forEach((item) => {
       if (!canSee(item.perm, role, keys, item.permAny)) return;
       const a = document.createElement('a');
       a.href = item.href;

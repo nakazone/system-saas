@@ -188,6 +188,15 @@
     if (!document.body.classList.contains("om-app") && !document.body.classList.contains("dashboard-app-body")) {
       return;
     }
+    // Desktop CRM keeps the classic shell — no mobile tab bar
+    const mobile =
+      window.__omDevice && typeof window.__omDevice.isMobile === "function"
+        ? window.__omDevice.isMobile()
+        : /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(
+            navigator.userAgent || "",
+          ) ||
+          (navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1);
+    if (!mobile) return;
     document.body.dataset.omTabbarBoot = "1";
     ensureCss();
     ensureSheets();

@@ -3,7 +3,8 @@
  */
 (function () {
   const ACTIONS = [
-    { id: 'dash', label: 'Início', sub: 'Visão geral do dia', href: 'home.html', perm: null },
+    { id: 'dash', label: 'Dashboard', sub: 'Pipeline e visão geral', href: 'pipeline-lab.html', perm: null },
+    { id: 'home', label: 'Início', sub: 'Visão geral mobile', href: 'home.html', perm: null, mobileOnly: true },
     { id: 'pipeline', label: 'Pipeline', sub: 'Leads e funil', href: 'pipeline-lab.html', perm: null },
     { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'leads.html', perm: 'leads.view' },
     { id: 'quotes', label: 'Quotes', sub: 'Orçamentos', href: 'quotes.html', perm: 'quotes.view' },
@@ -29,18 +30,34 @@
     return keys.includes(perm);
   }
 
+  function isMobileClient() {
+    if (window.__omDevice && typeof window.__omDevice.isMobile === 'function') {
+      return window.__omDevice.isMobile();
+    }
+    return /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(
+      navigator.userAgent || '',
+    );
+  }
+
   function filterActions(q) {
     const t = String(q || '')
       .trim()
       .toLowerCase();
-    return ACTIONS.filter((a) => can(a.perm)).filter((a) => {
-      if (!t) return true;
-      return (
-        a.label.toLowerCase().includes(t) ||
-        (a.sub && a.sub.toLowerCase().includes(t)) ||
-        a.id.includes(t)
-      );
-    });
+    const mobile = isMobileClient();
+    return ACTIONS.filter((a) => can(a.perm))
+      .filter((a) => {
+        if (a.mobileOnly && !mobile) return false;
+        if (a.id === 'pipeline' && !mobile) return false;
+        return true;
+      })
+      .filter((a) => {
+        if (!t) return true;
+        return (
+          a.label.toLowerCase().includes(t) ||
+          (a.sub && a.sub.toLowerCase().includes(t)) ||
+          a.id.includes(t)
+        );
+      });
   }
 
   function close() {
