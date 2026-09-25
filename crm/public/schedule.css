@@ -1014,29 +1014,76 @@
 }
 
 @media (max-width: 900px) {
-  body.sched-body.om-app .dashboard-main.sched-main {
-    padding-bottom: 0 !important;
-    background: #fff;
-    gap: 0;
-    min-height: calc(100dvh - var(--crm-topbar-height, 56px));
+  /* Kill global chrome that breaks full-bleed calendar */
+  body.sched-body.om-app .om-dock {
+    display: none !important;
   }
-
+  body.sched-body .mobile-tab-bar {
+    display: none !important;
+  }
+  body.sched-body .sched-mobile-filters-btn {
+    display: none !important;
+  }
   body.sched-body .gcal-topbar,
   body.sched-body .gcal-layout {
     display: none !important;
   }
 
-  body.sched-body .sched-mobile-filters-btn {
-    display: none !important;
+  /* Light mobile header so calendar feels continuous */
+  body.sched-body.om-app #mobileAppHeader.mobile-app-header {
+    background: #fff !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid #efe8df !important;
+  }
+  body.sched-body.om-app #mobileAppHeader .mobile-app-header__title {
+    color: var(--sched-ink, #211d1a) !important;
+  }
+  body.sched-body.om-app #mobileAppHeader .mobile-app-header__menu {
+    background: rgba(33, 29, 26, 0.06) !important;
+  }
+  body.sched-body.om-app #mobileAppHeader .mobile-app-header__menu-icon {
+    background: var(--sched-ink, #211d1a) !important;
+    box-shadow: 0 7px 0 var(--sched-ink, #211d1a), 0 -7px 0 var(--sched-ink, #211d1a) !important;
+  }
+
+  /*
+   * Flush main: override om-app 6.5rem dock padding + styles.css mobile pad-top+12
+   * so the calendar fills exactly under the fixed mobile header.
+   */
+  body.sched-body.om-app.dashboard-app-body .dashboard-main.sched-main.crm-main--fluid,
+  body.sched-body.om-app.dashboard-app-body .dashboard-main.sched-main {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 !important;
+    padding-top: calc(52px + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    background: #fff !important;
+    min-height: 100dvh !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  body.sched-body.om-app .dashboard-container {
+    background: #fff !important;
+  }
+
+  body.sched-body.om-app {
+    background: #fff !important;
+    overflow: hidden;
   }
 
   .acal {
     display: flex;
     flex-direction: column;
-    flex: 1;
+    flex: 1 1 auto;
+    width: 100%;
     min-height: 0;
-    height: calc(100dvh - var(--crm-topbar-height, 56px) - env(safe-area-inset-bottom, 0px));
-    max-height: calc(100dvh - var(--crm-topbar-height, 56px) - env(safe-area-inset-bottom, 0px));
+    height: 100%;
+    max-height: 100%;
     background: #fff;
     color: var(--sched-ink);
     position: relative;
@@ -1048,7 +1095,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.35rem 0.85rem 0.15rem;
+  padding: 0.15rem 0.65rem 0.05rem;
   flex-shrink: 0;
 }
 
@@ -1059,14 +1106,14 @@
   font: inherit;
   font-size: 1.05rem;
   font-weight: 600;
-  padding: 0.35rem 0.15rem;
+  padding: 0.25rem 0.15rem;
   cursor: pointer;
 }
 
 .acal-chrome-actions {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0;
 }
 
 .acal-icon-btn {
@@ -1091,7 +1138,7 @@
 }
 
 .acal-search-bar {
-  padding: 0 0.85rem 0.55rem;
+  padding: 0 0.75rem 0.45rem;
   flex-shrink: 0;
 }
 
@@ -1103,16 +1150,17 @@
   width: 100%;
   border: 1px solid var(--sched-border);
   border-radius: 12px;
-  padding: 0.65rem 0.85rem;
+  padding: 0.6rem 0.85rem;
   font: inherit;
   font-size: 0.95rem;
   background: var(--sched-surface-soft);
+  box-sizing: border-box;
 }
 
 .acal-add-menu {
   position: absolute;
-  top: 3.1rem;
-  right: 0.75rem;
+  top: 2.85rem;
+  right: 0.65rem;
   z-index: 30;
   min-width: 160px;
   background: #fff;
@@ -1145,24 +1193,26 @@
 }
 
 .acal-scroll {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  padding: 0 0.35rem 5.5rem;
+  padding: 0 0.2rem 0;
+  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
   scroll-snap-type: y proximity;
 }
 
 .acal-month-block {
   scroll-snap-align: start;
-  padding: 0.15rem 0.5rem 1.35rem;
+  padding: 0.1rem 0.35rem 1.1rem;
 }
 
 .acal-month-title {
-  margin: 0 0 0.45rem;
+  margin: 0 0 0.3rem;
   padding: 0 0.35rem;
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--sched-ink);
@@ -1171,33 +1221,42 @@
 
 .acal-dows {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 0.2rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-bottom: 0.1rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+  padding: 0.15rem 0;
 }
 
 .acal-dow {
   text-align: center;
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 650;
   color: #a39a90;
-  padding: 0.2rem 0;
+  padding: 0.15rem 0;
 }
 
 .acal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0;
+  width: 100%;
 }
 
 .acal-cell {
-  min-height: 72px;
-  padding: 0.15rem 0.1rem 0.35rem;
+  min-height: 58px;
+  max-width: 100%;
+  padding: 0.1rem 0.08rem 0.28rem;
   border-bottom: 1px solid #f0ebe4;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.12rem;
+  gap: 0.08rem;
   cursor: pointer;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .acal-cell.is-outside .acal-num {
@@ -1281,10 +1340,11 @@
 }
 
 .acal-list {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 0.35rem 0.85rem 5.5rem;
+  padding: 0.35rem 0.85rem;
+  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1374,10 +1434,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.55rem 0.85rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(to top, #fff 70%, rgba(255, 255, 255, 0.92));
+  padding: 0.45rem 0.85rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(255, 255, 255, 0.96);
   border-top: 1px solid #f0ebe4;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   z-index: 20;
+  box-sizing: border-box;
 }
 
 .acal-today-btn {
