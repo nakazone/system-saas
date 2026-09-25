@@ -97,6 +97,8 @@ model Organization {
   communicationLogs  CommunicationLog[]
   payrollEmployees   PayrollEmployee[]
   payrollPeriods     PayrollPeriod[]
+  financeCosts       FinanceCost[]
+  financePayrollAbatements FinancePayrollAbatement[]
   supportTickets     SupportTicket[]
   pushSubscriptions  PushSubscription[]
   workOrders         WorkOrder[]
@@ -1169,6 +1171,61 @@ model Expense {
   @@index([quoteLineItemId])
 }
 
+/// Company finance module — costs / receipts (manual + OCR scan).
+model FinanceCost {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  description    String
+  /// materials | services | utilities | travel | equipment | taxes | other
+  category       String   @default("other")
+  amount         Decimal  @db.Decimal(12, 2)
+  incurredOn     DateTime @db.Date
+  vendorName     String?
+  projectId      String?  @db.Uuid
+  /// manual | scan | import
+  source         String   @default("manual")
+  receiptUrl     String?
+  receiptKey     String?
+  /// none | pending | extracted | failed | skipped
+  ocrStatus      String   @default("none")
+  ocrVendor      String?
+  ocrAmount      Decimal? @db.Decimal(12, 2)
+  ocrDate        DateTime? @db.Date
+  ocrRaw         Json?
+  notes          String?  @db.Text
+  /// draft | posted | void
+  status         String   @default("posted")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, incurredOn])
+  @@index([organizationId, status])
+}
+
+/// Cash outflow when a payroll period is paid / abated.
+model FinancePayrollAbatement {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  periodId       String?  @db.Uuid
+  period         PayrollPeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  label          String
+  amount         Decimal  @db.Decimal(12, 2)
+  paidOn         DateTime @db.Date
+  method         String?  // cash | transfer | ach | check | other
+  notes          String?
+  /// pending | paid | void
+  status         String   @default("paid")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([periodId])
+  @@index([organizationId, paidOn])
+}
+
 model PayrollEmployee {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
@@ -1200,6 +1257,7 @@ model PayrollPeriod {
   updatedAt      DateTime @updatedAt
 
   timesheets PayrollTimesheet[]
+  financeAbatements FinancePayrollAbatement[]
 
   @@index([organizationId])
 }

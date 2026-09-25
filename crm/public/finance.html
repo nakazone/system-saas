@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Financeiro | ObraMate</title>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:0px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:0!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}</style>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="stylesheet" href="styles.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp7" />
+  <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp7" />
+  <link rel="stylesheet" href="finance.css?v=20260924-finance2" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body om-app sidebar-collapsed">
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Financeiro</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="dashboard-main">
+      <div class="mod-page crm-page finance-page">
+        <div class="mod-page-header">
+          <h1>Financeiro</h1>
+          <div class="mod-page-header__actions">
+            <label class="fin-period">
+              De
+              <input type="date" id="finFrom" />
+            </label>
+            <label class="fin-period">
+              Até
+              <input type="date" id="finTo" />
+            </label>
+            <button type="button" class="btn btn-secondary" id="btnFinApply">Aplicar</button>
+            <button type="button" class="btn btn-primary" id="btnFinScan" data-crm-permission="finance.manage">Scan recibo</button>
+            <button type="button" class="btn btn-secondary" id="btnFinAddCost" data-crm-permission="finance.manage">+ Custo</button>
+          </div>
+        </div>
+
+        <div class="mod-overview" id="finOverview" aria-label="Resumo">
+          <div class="mod-ov-card">
+            <p class="mod-ov-card__title">Entradas</p>
+            <div class="mod-ov-card__stat fin-in" id="ovInflow">$0</div>
+            <div class="mod-ov-card__sub">Recebimentos no período</div>
+          </div>
+          <div class="mod-ov-card">
+            <p class="mod-ov-card__title">Saídas</p>
+            <div class="mod-ov-card__stat fin-out" id="ovOutflow">$0</div>
+            <div class="mod-ov-card__sub">Custos + folha paga</div>
+          </div>
+          <div class="mod-ov-card">
+            <p class="mod-ov-card__title">Saldo líquido</p>
+            <div class="mod-ov-card__stat" id="ovNet">$0</div>
+            <div class="mod-ov-card__sub">Entradas − saídas</div>
+          </div>
+          <div class="mod-ov-card">
+            <p class="mod-ov-card__title">A receber</p>
+            <div class="mod-ov-card__stat" id="ovReceivables">$0</div>
+            <div class="mod-ov-card__sub">Invoices em aberto</div>
+          </div>
+        </div>
+
+        <div class="fin-tabs" role="tablist" aria-label="Secções do financeiro">
+          <button type="button" class="fin-tab is-active" data-tab="cashflow" role="tab" aria-selected="true">Fluxo de caixa</button>
+          <button type="button" class="fin-tab" data-tab="receivables" role="tab">Recebimentos</button>
+          <button type="button" class="fin-tab" data-tab="payroll" role="tab">Folha</button>
+          <button type="button" class="fin-tab" data-tab="costs" role="tab">Custos &amp; recibos</button>
+        </div>
+
+        <section class="fin-pane is-active" data-pane="cashflow" role="tabpanel">
+          <div class="mod-list-head">
+            <h2>Movimentos <span class="mod-list-head__count" id="cashflowCount">(0)</span></h2>
+          </div>
+          <div class="mod-table-wrap">
+            <table class="mod-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th>Descrição</th>
+                  <th class="num">Valor</th>
+                </tr>
+              </thead>
+              <tbody id="cashflowBody">
+                <tr><td colspan="4" class="fin-empty">A carregar…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="fin-pane" data-pane="receivables" role="tabpanel" hidden>
+          <div class="mod-list-head">
+            <h2>Invoices a receber <span class="mod-list-head__count" id="recvCount">(0)</span></h2>
+            <a class="btn btn-secondary" href="invoices.html">Abrir Invoices</a>
+          </div>
+          <div class="mod-table-wrap">
+            <table class="mod-table">
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Cliente</th>
+                  <th>Vencimento</th>
+                  <th class="num">Total</th>
+                  <th class="num">Pago</th>
+                  <th class="num">Saldo</th>
+                </tr>
+              </thead>
+              <tbody id="recvBody">
+                <tr><td colspan="6" class="fin-empty">A carregar…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="fin-pane" data-pane="payroll" role="tabpanel" hidden>
+          <div class="mod-list-head">
+            <h2>Abatimento de folha</h2>
+            <a class="btn btn-secondary" href="payroll-module.html">Abrir Folha</a>
+          </div>
+          <p class="fin-hint">Registe o pagamento de um período de folha para refletir a saída no fluxo de caixa.</p>
+          <div class="mod-table-wrap">
+            <table class="mod-table">
+              <thead>
+                <tr>
+                  <th>Período</th>
+                  <th>Estado</th>
+                  <th class="num">Custo estimado</th>
+                  <th>Abatimento</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="payrollBody">
+                <tr><td colspan="5" class="fin-empty">A carregar…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="fin-pane" data-pane="costs" role="tabpanel" hidden>
+          <div class="mod-list-head">
+            <h2>Custos &amp; recibos <span class="mod-list-head__count" id="costsCount">(0)</span></h2>
+          </div>
+          <div class="mod-table-wrap">
+            <table class="mod-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Descrição</th>
+                  <th>Fornecedor</th>
+                  <th>Origem</th>
+                  <th class="num">Valor</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="costsBody">
+                <tr><td colspan="6" class="fin-empty">A carregar…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Manual cost modal -->
+  <div class="fin-modal" id="costModal" hidden>
+    <div class="fin-modal__backdrop" data-close="costModal"></div>
+    <div class="fin-modal__panel" role="dialog" aria-labelledby="costModalTitle">
+      <h2 id="costModalTitle">Novo custo</h2>
+      <form id="costForm" class="fin-form">
+        <label>Descrição<input name="description" required maxlength="200" /></label>
+        <label>Fornecedor<input name="vendor_name" maxlength="120" /></label>
+        <div class="fin-form__row">
+          <label>Valor ($)<input name="amount" type="number" step="0.01" min="0.01" required /></label>
+          <label>Data<input name="incurred_on" type="date" required /></label>
+        </div>
+        <label>Categoria
+          <select name="category">
+            <option value="materials">Materiais</option>
+            <option value="services">Serviços</option>
+            <option value="utilities">Utilidades</option>
+            <option value="travel">Deslocação</option>
+            <option value="equipment">Equipamento</option>
+            <option value="taxes">Impostos</option>
+            <option value="other" selected>Outro</option>
+          </select>
+        </label>
+        <label>Recibo (opcional)<input name="receipt_file" type="file" accept="image/*,application/pdf" /></label>
+        <label>Notas<textarea name="notes" rows="2"></textarea></label>
+        <div class="fin-form__actions">
+          <button type="button" class="btn btn-secondary" data-close="costModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scan modal -->
+  <div class="fin-modal" id="scanModal" hidden>
+    <div class="fin-modal__backdrop" data-close="scanModal"></div>
+    <div class="fin-modal__panel" role="dialog" aria-labelledby="scanModalTitle">
+      <h2 id="scanModalTitle">Scan de recibo / nota fiscal</h2>
+      <p class="fin-hint" id="scanOcrHint">A foto será lida automaticamente (valor, fornecedor, data). Se a confiança for boa, o custo entra no fluxo de caixa.</p>
+      <form id="scanForm" class="fin-form">
+        <label>Foto do recibo
+          <input name="receipt_file" type="file" accept="image/*" capture="environment" required />
+        </label>
+        <div id="scanPreview" class="fin-scan-preview" hidden></div>
+        <p class="fin-hint">Opcional — só preencha se quiser corrigir antes do OCR:</p>
+        <label>Fornecedor<input name="vendor_name" maxlength="120" placeholder="Deixar em branco = OCR" /></label>
+        <div class="fin-form__row">
+          <label>Valor ($)<input name="amount" type="number" step="0.01" min="0.01" placeholder="OCR automático" /></label>
+          <label>Data<input name="incurred_on" type="date" /></label>
+        </div>
+        <label class="fin-check">
+          <input type="checkbox" name="force_draft" />
+          Guardar só como rascunho (não lançar automaticamente)
+        </label>
+        <div class="fin-form__actions">
+          <button type="button" class="btn btn-secondary" data-close="scanModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="scanSubmitBtn">Ler e lançar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Payroll abatement modal -->
+  <div class="fin-modal" id="abatementModal" hidden>
+    <div class="fin-modal__backdrop" data-close="abatementModal"></div>
+    <div class="fin-modal__panel" role="dialog" aria-labelledby="abatementModalTitle">
+      <h2 id="abatementModalTitle">Abater folha</h2>
+      <form id="abatementForm" class="fin-form">
+        <input type="hidden" name="period_id" />
+        <label>Período<input name="label" required /></label>
+        <div class="fin-form__row">
+          <label>Valor ($)<input name="amount" type="number" step="0.01" min="0.01" required /></label>
+          <label>Pago em<input name="paid_on" type="date" required /></label>
+        </div>
+        <label>Método
+          <select name="method">
+            <option value="ach">Transferência / ACH</option>
+            <option value="check">Cheque</option>
+            <option value="cash">Dinheiro</option>
+            <option value="other">Outro</option>
+          </select>
+        </label>
+        <label>Notas<textarea name="notes" rows="2"></textarea></label>
+        <div class="fin-form__actions">
+          <button type="button" class="btn btn-secondary" data-close="abatementModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registar pagamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js?v=20260923-i18n"></script>
+  <script src="saas-branding.js"></script>
+  <script src="crm-shared-nav.js?v=20260924-omapp7"></script>
+  <script src="crm-shell.js?v=20260924-omapp7"></script>
+  <script src="finance.js?v=20260924-finance2"></script>
+</body>
+</html>

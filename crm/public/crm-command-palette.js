@@ -14,6 +14,7 @@
     { id: 'schedule', label: 'Schedule', sub: 'Calendário de jobs e meetings', href: 'schedule.html', perm: 'schedule.view' },
     { id: 'jobs', label: 'Jobs', sub: 'Work orders / trabalhos', href: 'jobs.html', perm: 'work_orders.view' },
     { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'payroll-module.html', perm: 'payroll.view' },
+    { id: 'finance', label: 'Financeiro', sub: 'Fluxo de caixa, recebimentos e custos', href: 'finance.html', perm: 'finance.view' },
     { id: 'ajustes', label: 'Ajustes', sub: 'Logo e cores', href: 'ajustes.html', perm: 'settings.manage' },
     { id: 'support', label: 'Ajuda / suporte', sub: 'Help center e contato', href: '#help', perm: null },
     { id: 'install', label: 'Instalar app', sub: 'Baixar no dispositivo', href: '#pwa-install', perm: null },
