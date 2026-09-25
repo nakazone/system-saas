@@ -2,110 +2,37 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Folha de pagamento | Senior Floors CRM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Folha de pagamento | ObraMate</title>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}</style>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
-  <link rel="stylesheet" href="design-system.css" />
-  <link rel="stylesheet" href="crm-shell.css?v=20260924-shell" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
   <link rel="stylesheet" href="crm-toast.css" />
-  <style>
-    body { font-family: Inter, system-ui, sans-serif; }
-    .payroll-grid {
-      -webkit-overflow-scrolling: touch;
-    }
-    .payroll-grid input, .payroll-grid select { min-width: 0; }
-    .payroll-grid thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc; }
-    .payroll-grid td .flex { align-items: center; }
-    .payroll-num-input { font-size: 1.05rem; min-height: 2.5rem; text-align: center; }
-    .ts-numbtn, .ts-short, .payroll-grid .ts-del {
-      flex-shrink: 0;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-      cursor: pointer;
-    }
-    .ts-numbtn {
-      min-width: 2.25rem; height: 2.25rem; padding: 0 0.35rem;
-      border: 1px solid #cbd5e1; border-radius: 0.375rem; background: #f8fafc;
-      font-size: 1.1rem; font-weight: 600; line-height: 1; color: #1e293b;
-    }
-    .ts-numbtn:active { background: #e2e8f0; }
-    .ts-numbtn:disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
-    .ts-short:disabled { opacity: 0.55; cursor: not-allowed; }
-    .payroll-grid-scroll-hint {
-      display: none;
-      margin: 0;
-      font-size: 0.7rem;
-      color: #64748b;
-      text-align: center;
-      background: #f1f5f9;
-    }
-    @media (max-width: 1100px) {
-      .payroll-grid-scroll-hint { display: block; }
-    }
-    .payroll-hub-section { scroll-margin-top: 1rem; }
-    @media (max-width: 1366px) {
-      .payroll-hub-section {
-        scroll-margin-top: calc(52px + env(safe-area-inset-top, 0px) + 16px);
-      }
-    }
-    @media (max-width: 768px) {
-      body.payroll-sidebar-page .dashboard-main {
-        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
-      }
-    }
-    .payroll-hub-tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      margin-bottom: 1rem;
-      padding-bottom: 0.65rem;
-      border-bottom: 1px solid #e5e3dd;
-    }
-    .payroll-hub-tab {
-      display: inline-flex;
-      align-items: center;
-      padding: 8px 14px;
-      font-size: var(--text-sm, 13px);
-      font-family: var(--font-sans, Inter, system-ui, sans-serif);
-      font-weight: var(--font-medium, 500);
-      color: var(--color-text-secondary, #6b6b6b);
-      text-decoration: none;
-      border-radius: var(--radius-md, 8px);
-      border: 1px solid transparent;
-      background: transparent;
-      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-    }
-    .payroll-hub-tab:hover {
-      background: var(--color-surface-secondary, #f8f7f5);
-      color: var(--color-text-primary, #1a1a1a);
-    }
-    .payroll-hub-tab.active {
-      background: var(--sf-gold-bg, #f8f2ea);
-      color: var(--color-primary, #1a1a2e);
-      border-color: var(--color-accent, #c8a96e);
-    }
-    /* Crítico cedo: barra com hamburger visível em gaveta antes do JS / Tailwind */
-    @media (max-width: 1366px) {
-      body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
-        display: flex !important;
-        z-index: 1040 !important;
-      }
-    }
-    @media (min-width: 1367px) {
-      body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
-        display: none !important;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp11" />
+  <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp11" />
+  <link rel="stylesheet" href="payroll.css?v=20260925-payroll-layout" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="dashboard-app-body payroll-sidebar-page bg-slate-100 text-slate-900 min-h-screen">
-  <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
-    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="payrollSidebar">
+<body class="dashboard-app-body om-app sidebar-collapsed">
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
       <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
     </button>
     <div class="mobile-app-header__brand">
@@ -115,11 +42,14 @@
   </header>
 
   <div class="dashboard-container">
-    <aside class="dashboard-sidebar" id="payrollSidebar" aria-label="Menu lateral">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
       <div class="sidebar-header">
-        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo" width="104" height="104" onerror="this.style.display='none'" />
+        <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
       </div>
-      <nav class="sidebar-nav" aria-label="Navegação CRM">
+      <nav class="sidebar-nav" aria-label="Principal">
         <div id="crmSharedNavRoot" data-layout="sidebar"></div>
       </nav>
       <div class="sidebar-footer">
@@ -129,45 +59,47 @@
             <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
             <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
           </div>
-          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
           </button>
         </div>
       </div>
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
-    <div class="dashboard-main">
-      <main class="max-w-[1400px] mx-auto w-full px-4 py-6 space-y-6 pb-16">
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
-      <div>
-        <h1 class="text-xl font-bold text-slate-900 leading-tight">Folha de pagamento</h1>
-        <p id="payrollPageSub" class="text-xs text-slate-500 mt-0.5 hidden sm:block">Uma única tela: equipe → período e horas → fechamento → relatórios</p>
-      </div>
-      <button type="button" id="btnReloadAll" class="btn btn-sm btn-secondary shrink-0">Atualizar</button>
-    </div>
+    <main class="dashboard-main">
+      <div class="mod-page crm-page payroll-page">
+        <div class="mod-page-header">
+          <div>
+            <h1>Folha de pagamento</h1>
+            <p id="payrollPageSub" class="mod-page-header__sub">Equipe → período e horas → fechamento → relatórios</p>
+          </div>
+          <div class="mod-page-header__actions">
+            <button type="button" id="btnReloadAll" class="btn btn-secondary">Atualizar</button>
+          </div>
+        </div>
 
-    <nav class="payroll-hub-tabs" aria-label="Seções desta página">
-      <a href="#hub-meu-banco" class="payroll-hub-tab payroll-nav-btn" id="tabMeuBanco">Meu banco de horas</a>
-      <a href="#hub-aprovar-banco" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only id="tabAprovarBanco">Aprovar banco</a>
-      <a href="#hub-resumo" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>Resumo</a>
-      <a href="#hub-func" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>1 · Equipe</a>
-      <a href="#hub-quadro" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>2 · Horas</a>
-      <a href="#hub-relatorios" class="payroll-hub-tab payroll-nav-btn" data-payroll-admin-only>3 · Pagamentos</a>
-    </nav>
+        <nav class="payroll-tabs" aria-label="Seções desta página">
+          <a href="#hub-meu-banco" class="payroll-tab payroll-nav-btn" id="tabMeuBanco">Meu banco de horas</a>
+          <a href="#hub-aprovar-banco" class="payroll-tab payroll-nav-btn" data-payroll-admin-only id="tabAprovarBanco">Aprovar banco</a>
+          <a href="#hub-resumo" class="payroll-tab payroll-nav-btn" data-payroll-admin-only>Resumo</a>
+          <a href="#hub-func" class="payroll-tab payroll-nav-btn" data-payroll-admin-only>1 · Equipe</a>
+          <a href="#hub-quadro" class="payroll-tab payroll-nav-btn" data-payroll-admin-only>2 · Horas</a>
+          <a href="#hub-relatorios" class="payroll-tab payroll-nav-btn" data-payroll-admin-only>3 · Pagamentos</a>
+        </nav>
 
-    <div id="migrateBanner" class="hidden rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
-      Tabelas de folha incompletas neste ambiente. Peça ao administrador para aplicar as migrações Prisma de payroll
-      (<code class="bg-white/80 px-1 rounded">prisma migrate deploy</code>).
-    </div>
-    <p id="authMsg" class="text-red-600 text-sm hidden"></p>
+        <div id="migrateBanner" class="payroll-banner hidden">
+          Tabelas de folha incompletas neste ambiente. Peça ao administrador para aplicar as migrações Prisma de payroll
+          (<code>prisma migrate deploy</code>).
+        </div>
+        <p id="authMsg" class="payroll-auth-msg hidden"></p>
 
     <!-- Meu banco de horas (self-service) -->
-    <section id="hub-meu-banco" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
-      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3">
+    <section id="hub-meu-banco" class="payroll-hub-section">
+      <div class="payroll-hub-section__head">
         <h2 class="text-base font-bold text-slate-900">Meu banco de horas</h2>
         <p class="text-xs text-slate-500 mt-0.5">Registe as suas horas. O gestor aprova e lança no quadro da folha.</p>
       </div>
-      <div class="p-4 space-y-4">
+      <div class="payroll-hub-section__body space-y-4">
         <div id="hourBankUnlinked" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           A sua conta ainda não está associada a um funcionário da folha. Peça ao gestor para criar/editar o seu registo
           em <strong>Equipe</strong> com o mesmo email de login, ou vincular a conta.
@@ -213,15 +145,15 @@
     </section>
 
     <!-- Aprovar banco de horas (admin) -->
-    <section id="hub-aprovar-banco" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden" data-payroll-admin-only>
-      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+    <section id="hub-aprovar-banco" class="payroll-hub-section" data-payroll-admin-only>
+      <div class="payroll-hub-section__head flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 class="text-base font-bold text-slate-900">Aprovar banco de horas</h2>
           <p class="text-xs text-slate-500 mt-0.5">Lançamentos feitos pelos funcionários. Ao aprovar, as horas entram no quadro do período aberto.</p>
         </div>
         <button type="button" id="btnReloadApproveBank" class="btn btn-sm btn-secondary shrink-0">Atualizar</button>
       </div>
-      <div class="p-4">
+      <div class="payroll-hub-section__body">
         <div class="overflow-x-auto border border-slate-200 rounded-lg">
           <table class="w-full text-sm">
             <thead class="bg-slate-50 text-left text-xs text-slate-500 uppercase">
@@ -242,28 +174,32 @@
     </section>
 
     <!-- Resumo -->
-    <section id="hub-resumo" class="payroll-hub-section grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <div class="bg-white rounded-xl border shadow-sm p-4">
-        <p class="text-xs font-semibold text-slate-500 uppercase">Funcionários ativos</p>
-        <p id="dashActiveEmp" class="text-2xl font-bold text-slate-900 mt-1">—</p>
+    <section id="hub-resumo" class="payroll-hub-section payroll-overview mod-overview" data-payroll-admin-only style="background:transparent;border:none;box-shadow:none;overflow:visible">
+      <div class="mod-ov-card">
+        <p class="mod-ov-card__title">Funcionários ativos</p>
+        <div class="mod-ov-card__stat" id="dashActiveEmp">—</div>
+        <div class="mod-ov-card__sub">Na equipe da folha</div>
       </div>
-      <div class="bg-white rounded-xl border shadow-sm p-4">
-        <p class="text-xs font-semibold text-slate-500 uppercase">Períodos abertos</p>
-        <p id="dashOpenPeriods" class="text-2xl font-bold text-slate-900 mt-1">—</p>
+      <div class="mod-ov-card">
+        <p class="mod-ov-card__title">Períodos abertos</p>
+        <div class="mod-ov-card__stat" id="dashOpenPeriods">—</div>
+        <div class="mod-ov-card__sub">Em edição</div>
       </div>
-      <div class="bg-white rounded-xl border shadow-sm p-4">
-        <p class="text-xs font-semibold text-slate-500 uppercase">Folha no mês</p>
-        <p id="dashMtd" class="text-2xl font-bold text-[#1a2036] mt-1">—</p>
+      <div class="mod-ov-card">
+        <p class="mod-ov-card__title">Folha no mês</p>
+        <div class="mod-ov-card__stat" id="dashMtd">—</div>
+        <div class="mod-ov-card__sub">Total calculado MTD</div>
       </div>
-      <div class="bg-white rounded-xl border shadow-sm p-4">
-        <p class="text-xs font-semibold text-slate-500 uppercase">Último fechamento</p>
-        <p id="dashLastClosed" class="text-sm font-medium text-slate-800 mt-1 leading-snug">—</p>
+      <div class="mod-ov-card">
+        <p class="mod-ov-card__title">Último fechamento</p>
+        <div class="mod-ov-card__stat" style="font-size:1rem;line-height:1.35" id="dashLastClosed">—</div>
+        <div class="mod-ov-card__sub">Período fechado mais recente</div>
       </div>
     </section>
 
     <!-- 1 · Equipa -->
-    <section id="hub-func" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
-      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+    <section id="hub-func" class="payroll-hub-section">
+      <div class="payroll-hub-section__head flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-1 sm:gap-3 min-w-0">
           <h2 class="text-base font-bold text-slate-900">1 · Equipe</h2>
           <p id="equipaReadOnlyNote" class="hidden text-xs text-slate-500 font-normal leading-snug">
@@ -272,7 +208,7 @@
         </div>
         <button type="button" id="btnNewEmployee" class="btn btn-sm btn-primary hidden shrink-0">Formulário completo</button>
       </div>
-      <div class="p-4 space-y-4">
+      <div class="payroll-hub-section__body space-y-4">
 
         <div id="quickEmpPanel" class="hidden rounded-xl border-2 border-[#d6b598]/50 bg-[#faf8f5] p-4 space-y-3">
           <p class="text-sm font-bold text-slate-800">Cadastro rápido <span class="font-normal text-slate-500">(por dia — você pode editar depois)</span></p>
@@ -328,11 +264,11 @@
     </section>
 
     <!-- 2 · Horas -->
-    <section id="hub-quadro" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
-      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3">
+    <section id="hub-quadro" class="payroll-hub-section">
+      <div class="payroll-hub-section__head">
         <h2 class="text-base font-bold text-slate-900">2 · Período e planilha de horas</h2>
       </div>
-      <div class="p-4 space-y-4">
+      <div class="payroll-hub-section__body space-y-4">
         <div class="flex flex-wrap gap-3 items-end">
           <div class="min-w-[220px]">
             <label class="block text-xs font-semibold text-slate-500 mb-1">Período (semana Seg–Dom)</label>
@@ -430,12 +366,12 @@
     </section>
 
     <!-- 3 · Relatórios -->
-    <section id="hub-relatorios" class="payroll-hub-section bg-white rounded-xl border shadow-sm overflow-hidden">
-      <div class="bg-slate-50 border-b border-slate-200 px-4 py-3">
+    <section id="hub-relatorios" class="payroll-hub-section">
+      <div class="payroll-hub-section__head">
         <h2 class="text-base font-bold text-slate-900">3 · Relatórios de pagamento</h2>
         <p class="text-xs text-slate-500 mt-1">Mesmo intervalo para tudo — um clique gera o pacote completo. Os totais usam a <strong>data do trabalho</strong> de cada linha (não o nome do período de folha).</p>
       </div>
-      <div class="p-4 space-y-4">
+      <div class="payroll-hub-section__body space-y-4">
         <div class="flex flex-wrap gap-3 items-end">
           <div>
             <label class="block text-xs font-semibold text-slate-500 mb-1">De</label>
@@ -456,8 +392,9 @@
         <div id="reportOut" class="overflow-x-auto text-sm space-y-6"></div>
       </div>
     </section>
-      </main>
-    </div>
+
+      </div>
+    </main>
   </div>
 
   <!-- Employee modal -->
@@ -624,72 +561,6 @@
   <script>
     tailwind.config = { corePlugins: { preflight: false } };
   </script>
-  <style id="payrollShellLayoutLock">
-    /* Largura alinhada a design-system.css (--crm-sidebar-width, hoje 264px) */
-    @media (min-width: 1367px) {
-      body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar {
-        position: fixed !important;
-        left: 0 !important;
-        top: 0 !important;
-        transform: none !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        z-index: 1000 !important;
-        width: var(--crm-sidebar-width, 264px) !important;
-        box-sizing: border-box !important;
-      }
-      body.payroll-sidebar-page .dashboard-main {
-        margin-left: var(--crm-sidebar-width, 264px) !important;
-      }
-      body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
-        display: none !important;
-      }
-      body.payroll-sidebar-page .mobile-overlay {
-        display: none !important;
-        pointer-events: none !important;
-      }
-    }
-    @media (max-width: 1366px) {
-      body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar {
-        transform: translateX(-100%) !important;
-        transition: transform 0.3s ease !important;
-        width: min(288px, 92vw) !important;
-        box-sizing: border-box !important;
-        z-index: 1100 !important;
-      }
-      body.payroll-sidebar-page #payrollSidebar.dashboard-sidebar.mobile-open {
-        transform: translateX(0) !important;
-        box-shadow: 12px 0 40px rgba(0, 0, 0, 0.22) !important;
-      }
-      body.payroll-sidebar-page .dashboard-main {
-        margin-left: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        padding-top: calc(52px + env(safe-area-inset-top, 0px) + 12px) !important;
-        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
-      }
-      body.payroll-sidebar-page #mobileAppHeader.mobile-app-header {
-        display: flex !important;
-        z-index: 1040 !important;
-      }
-      body.payroll-sidebar-page .mobile-overlay {
-        display: block !important;
-        position: fixed !important;
-        inset: 0 !important;
-        z-index: 1080 !important;
-        background: rgba(0, 0, 0, 0.5) !important;
-        opacity: 0 !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-        transition: opacity 0.3s ease, visibility 0.3s ease !important;
-      }
-      body.payroll-sidebar-page .mobile-overlay.active {
-        opacity: 1 !important;
-        visibility: visible !important;
-        pointer-events: auto !important;
-      }
-    }
-  </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
   <script>
@@ -698,9 +569,10 @@
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
   </script>
+  <script src="saas-branding.js"></script>
   <script src="crm-toast.js?v=2"></script>
-  <script src="crm-shell.js?v=20260924-shell"></script>
-  <script src="crm-shared-nav.js?v=20260925-payroll-json"></script>
-  <script src="payroll-module.js?v=20260925-payroll-json"></script>
+  <script src="crm-shell.js?v=20260924-omapp11"></script>
+  <script src="crm-shared-nav.js?v=20260925-payroll-layout"></script>
+  <script src="payroll-module.js?v=20260925-payroll-layout"></script>
 </body>
 </html>

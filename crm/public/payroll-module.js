@@ -292,6 +292,7 @@ function applyPayrollAccessMode() {
     const h = (b.getAttribute('href') || '').replace('#', '');
     const on = h === (window.location.hash || defaultHash).replace('#', '');
     b.classList.toggle('active', on);
+    b.classList.toggle('is-active', on);
   });
 }
 
@@ -2282,6 +2283,7 @@ function initPayrollHubNav() {
       const h = (b.getAttribute('href') || '').replace('#', '');
       const on = h === hash;
       b.classList.toggle('active', on);
+      b.classList.toggle('is-active', on);
     });
   };
   window.addEventListener('hashchange', update);
@@ -2290,45 +2292,6 @@ function initPayrollHubNav() {
   });
   // Default hash is set in applyPayrollAccessMode after session permissions load
   update();
-}
-
-function initPayrollMobileNav() {
-  const sidebar = document.getElementById('payrollSidebar');
-  const overlay = document.getElementById('mobileOverlay');
-  const toggle = document.getElementById('mobileMenuToggle');
-  if (!sidebar || !overlay || !toggle) return;
-
-  /** Mesmo breakpoint que o CSS (#payrollShellLayoutLock): gaveta até 1366px (iPad) */
-  function isDrawerMode() {
-    return window.innerWidth <= 1366;
-  }
-
-  function setOpen(open) {
-    sidebar.classList.toggle('mobile-open', open);
-    overlay.classList.toggle('active', open);
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-
-  toggle.addEventListener('click', () => {
-    setOpen(!sidebar.classList.contains('mobile-open'));
-  });
-  overlay.addEventListener('click', () => setOpen(false));
-  window.addEventListener('resize', () => {
-    if (!isDrawerMode()) setOpen(false);
-  });
-
-  sidebar.addEventListener('click', (e) => {
-    const t = e.target.closest('a.nav-item');
-    if (t && isDrawerMode()) setOpen(false);
-  });
-
-  function syncMobileHeaderAria() {
-    const header = document.getElementById('mobileAppHeader');
-    if (!header) return;
-    header.setAttribute('aria-hidden', isDrawerMode() ? 'false' : 'true');
-  }
-  syncMobileHeaderAria();
-  window.addEventListener('resize', syncMobileHeaderAria);
 }
 
 async function reloadAll() {
@@ -2571,7 +2534,6 @@ document.getElementById('approveHourBankBody')?.addEventListener('click', (e) =>
 
 (async function boot() {
   initReportDates();
-  initPayrollMobileNav();
   initPayrollHubNav();
   const today = new Date();
   const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;

@@ -1,0 +1,206 @@
+/* Folha de pagamento — alinhado a Financeiro / module panel */
+
+.payroll-page {
+  max-width: 1400px;
+}
+
+.payroll-page .mod-page-header__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+  color: var(--mod-muted, #6b645c);
+}
+
+.payroll-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 1.15rem;
+  padding: 0.25rem;
+  background: var(--mod-surface-soft, #faf8f5);
+  border: 1px solid var(--mod-border-soft, #ebe4da);
+  border-radius: 12px;
+}
+
+.payroll-tab {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--mod-muted, #6b645c);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 650;
+  padding: 0.55rem 0.9rem;
+  border-radius: 9px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.payroll-tab:hover {
+  color: var(--mod-ink, #211d1a);
+}
+
+.payroll-tab.active,
+.payroll-tab.is-active {
+  background: #fff;
+  color: var(--mod-ink, #211d1a);
+  box-shadow: 0 1px 2px rgba(33, 29, 26, 0.08);
+}
+
+.payroll-hub-section {
+  scroll-margin-top: calc(var(--crm-topbar-height, 56px) + 1rem);
+  margin-bottom: 1.15rem;
+  background: var(--mod-surface, #fff);
+  border: 1px solid var(--mod-border, #e2d9cc);
+  border-radius: var(--mod-radius, 12px);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(33, 29, 26, 0.05);
+}
+
+.payroll-hub-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.95rem 1.1rem;
+  background: var(--mod-surface-soft, #faf8f5);
+  border-bottom: 1px solid var(--mod-border-soft, #ebe4da);
+}
+
+.payroll-hub-section__head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--mod-ink, #211d1a);
+  letter-spacing: -0.01em;
+}
+
+.payroll-hub-section__head p {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--mod-muted, #6b645c);
+}
+
+.payroll-hub-section__body {
+  padding: 1.05rem 1.1rem 1.2rem;
+}
+
+.payroll-banner {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #f0d9a8;
+  background: #fff8eb;
+  color: #7a5a12;
+  font-size: 0.9rem;
+}
+
+.payroll-banner code {
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.payroll-auth-msg {
+  color: #b42318;
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+}
+
+.payroll-overview {
+  margin-bottom: 1.15rem;
+}
+
+.payroll-overview .mod-ov-card__stat {
+  font-size: 1.55rem;
+}
+
+.payroll-overview .mod-ov-card__sub {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+/* Timesheet grid (keep dense controls workable) */
+.payroll-grid {
+  -webkit-overflow-scrolling: touch;
+}
+
+.payroll-grid input,
+.payroll-grid select {
+  min-width: 0;
+}
+
+.payroll-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mod-surface-soft, #faf8f5);
+}
+
+.payroll-num-input {
+  font-size: 1.05rem;
+  min-height: 2.5rem;
+  text-align: center;
+}
+
+.ts-numbtn,
+.ts-short,
+.payroll-grid .ts-del {
+  flex-shrink: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.ts-numbtn {
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--mod-border, #e2d9cc);
+  border-radius: 0.375rem;
+  background: var(--mod-surface-soft, #faf8f5);
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--mod-ink, #211d1a);
+}
+
+.ts-numbtn:active {
+  background: #ebe4da;
+}
+
+.ts-numbtn:disabled,
+.ts-short:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.payroll-grid-scroll-hint {
+  display: none;
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--mod-faint, #8a8074);
+  text-align: center;
+  background: var(--mod-surface-soft, #faf8f5);
+  padding: 0.35rem;
+}
+
+@media (max-width: 1100px) {
+  .payroll-grid-scroll-hint {
+    display: block;
+  }
+}
+
+@media (max-width: 900px) {
+  .payroll-overview.mod-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .payroll-overview.mod-overview {
+    grid-template-columns: 1fr;
+  }
+}
