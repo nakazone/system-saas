@@ -26,24 +26,12 @@
   }
 
   function teamHref() {
-    return "dashboard.html?page=users";
+    return "/equipe.html";
   }
 
   function goTeam(e) {
     if (e) e.preventDefault();
-    var file = (window.location.pathname || "").split("/").pop() || "";
-    var onDashboard =
-      file.toLowerCase() === "dashboard.html" || file === "" || file === "/";
-    if (onDashboard && typeof window.showPage === "function") {
-      try {
-        var url = new URL(window.location.href);
-        url.searchParams.set("page", "users");
-        window.history.replaceState({}, "", url.pathname + url.search);
-      } catch (_) {}
-      window.showPage("users");
-      return;
-    }
-    window.location.assign("dashboard.html?page=users");
+    window.location.assign("/equipe.html");
   }
 
   function buildMenuHtml() {

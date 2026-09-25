@@ -1303,9 +1303,16 @@ body.om-app .dashboard-main {
     border: none !important;
     box-shadow: none !important;
     max-width: none !important;
-    display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
+  }
+
+  /* showPage toggles visibility — must beat inline styles from other chrome */
+  body.om-app .page-content {
+    display: none !important;
+  }
+  body.om-app .page-content.is-active {
+    display: flex !important;
   }
 }
 

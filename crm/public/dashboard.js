@@ -870,6 +870,10 @@ function showPage(pageName) {
         window.location.href = 'invoices.html';
         return;
     }
+    if (pageName === 'users') {
+        window.location.href = 'equipe.html';
+        return;
+    }
 
     // SaaS: modules not offered in this product surface
     const saasDisabledPages = new Set([
@@ -889,15 +893,13 @@ function showPage(pageName) {
     }
 
     const contentRoot = document.querySelector('.dashboard-main .dashboard-content');
-    if (contentRoot) {
-        contentRoot.querySelectorAll(':scope > .page-content').forEach((p) => {
-            p.style.display = 'none';
-        });
-    } else {
-        document.querySelectorAll('.dashboard-main .page-content').forEach((p) => {
-            p.style.display = 'none';
-        });
-    }
+    const pages = contentRoot
+        ? contentRoot.querySelectorAll(':scope > .page-content')
+        : document.querySelectorAll('.dashboard-main .page-content');
+    pages.forEach((p) => {
+        p.classList.remove('is-active');
+        p.style.setProperty('display', 'none', 'important');
+    });
 
     const side = document.getElementById('dashboardSidebar');
     if (side) {
@@ -906,7 +908,8 @@ function showPage(pageName) {
 
     const pageEl = document.getElementById(pageName + 'Page');
     if (pageEl) {
-        pageEl.style.display = 'block';
+        pageEl.classList.add('is-active');
+        pageEl.style.setProperty('display', 'flex', 'important');
         let navLink = null;
         if (side && pageName) {
             if (pageName === 'customers') {
