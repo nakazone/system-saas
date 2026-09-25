@@ -17,9 +17,10 @@
   <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp11" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20260925-sections" />
-  <link rel="stylesheet" href="schedule.css?v=20260925-home1" />
-  <link rel="stylesheet" href="obramate-app.css?v=20260925-home1" />
-  <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-home1" />
+  <link rel="stylesheet" href="schedule.css?v=20260925-week1" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260925-week1" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-mais1" />
+  <link rel="stylesheet" href="agenda-mais.css?v=20260925-mais1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body sched-body om-app sidebar-collapsed">
@@ -169,12 +170,36 @@
         </section>
       </div>
 
-      <!-- Mobile Apple Calendar–style Schedule -->
-      <div id="acalRoot" class="acal" aria-label="Calendário">
+      <!-- Mobile Agenda -->
+      <div id="acalRoot" class="acal" aria-label="Agenda">
+        <!-- Week view (default on mobile) -->
+        <div class="acal-week" id="acalWeek">
+          <header class="aw-head">
+            <div>
+              <h1 class="aw-title">Agenda</h1>
+              <p class="aw-month" id="awMonthLabel">—</p>
+            </div>
+            <div class="aw-tools">
+              <button type="button" class="aw-tool" id="awMonthToggle" aria-label="Vista mensal" title="Mês">
+                <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </button>
+              <button type="button" class="aw-add" id="awAddBtn" data-crm-permission="schedule.manage" aria-label="Criar">
+                <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              </button>
+            </div>
+          </header>
+          <div class="aw-strip" id="awStrip" role="tablist" aria-label="Dias da semana"></div>
+          <h2 class="aw-day-title" id="awDayTitle">—</h2>
+          <div class="aw-list" id="awList"></div>
+        </div>
+
         <header class="acal-chrome">
           <button type="button" class="acal-year" id="acalYearBtn" aria-label="Ir para o ano">‹ <span id="acalYearLabel">2026</span></button>
           <div class="acal-chrome-actions">
             <button type="button" class="acal-today-btn" id="acalTodayBtn">Hoje</button>
+            <button type="button" class="acal-icon-btn" id="acalWeekToggle" aria-label="Vista semanal">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
+            </button>
             <button type="button" class="acal-icon-btn" id="acalListToggle" aria-label="Vista em lista" aria-pressed="false">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
             </button>
@@ -299,9 +324,9 @@
   <script src="om-device.js?v=20260925-device1"></script>
   <script src="crm-shared-nav.js?v=20260925-device1"></script>
   <script src="crm-shell.js?v=20260925-device1"></script>
-  <script src="om-mobile-nav.js?v=20260925-leads1"></script>
-  
+  <script src="om-mobile-nav.js?v=20260925-mais1"></script>
+  <script src="novo-lead-sheet.js?v=20260925-mais1"></script>
   <script src="crm-job-modal.js?v=20260925-sections"></script>
-  <script src="schedule.js?v=20260925-home1"></script>
+  <script src="schedule.js?v=20260925-week1"></script>
 </body>
 </html>
