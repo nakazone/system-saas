@@ -5,7 +5,7 @@
   const ACTIONS = [
     { id: 'dash', label: 'Dashboard', sub: 'Pipeline e visão geral', href: 'pipeline-lab.html', perm: null },
     { id: 'home', label: 'Início', sub: 'Visão geral mobile', href: 'home.html', perm: null, mobileOnly: true },
-    { id: 'pipeline', label: 'Pipeline', sub: 'Leads e funil', href: 'pipeline-lab.html', perm: null },
+    { id: 'pipeline', label: 'Leads', sub: 'Lista e funil', href: 'pipeline-lab.html', perm: null },
     { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'leads.html', perm: 'leads.view' },
     { id: 'quotes', label: 'Quotes', sub: 'Orçamentos', href: 'quotes.html', perm: 'quotes.view' },
     { id: 'invoices', label: 'Invoices', sub: 'Faturas', href: 'invoices.html', perm: 'quotes.view' },

@@ -75,7 +75,7 @@
     if (isMobileDevice()) {
       return [
         { href: 'home.html', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
-        { href: 'pipeline-lab.html', label: 'Pipeline', perm: null, page: 'pipeline', iconKey: 'leads' },
+        { href: 'pipeline-lab.html', label: 'Leads', perm: null, page: 'pipeline', iconKey: 'leads' },
       ];
     }
     return [

@@ -157,7 +157,7 @@
         tab === "pipeline" ? ' aria-current="page"' : ""
       }>
         ${ICONS.pipeline}
-        <span>Pipeline</span>
+        <span>Leads</span>
       </a>
       <div class="om-tabbar__fab-slot">
         <button type="button" class="om-tabbar__fab" id="omTabbarFab" aria-label="Criar" aria-haspopup="dialog">

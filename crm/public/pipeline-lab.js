@@ -6,6 +6,9 @@
   let leads = [];
   let stats = null;
   let userName = "";
+  let mobileStageSlug = "";
+
+  const SOFT_AVATARS = ["#e9d5ff", "#fce7f3", "#dbeafe", "#d1fae5", "#ffedd5", "#e0e7ff", "#fef3c7"];
 
   function $(id) {
     return document.getElementById(id);
@@ -39,6 +42,40 @@
       "$" +
       v.toLocaleString(undefined, { maximumFractionDigits: 0 })
     );
+  }
+
+  function moneyFull(n) {
+    const v = Number(n) || 0;
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+      }).format(v);
+    } catch (_) {
+      return "$" + Math.round(v).toLocaleString("en-US");
+    }
+  }
+
+  function softColorFor(id) {
+    const s = String(id || "0");
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return SOFT_AVATARS[h % SOFT_AVATARS.length];
+  }
+
+  function isMobileShell() {
+    if (window.__omDevice && typeof window.__omDevice.isMobile === "function") {
+      return window.__omDevice.isMobile();
+    }
+    return document.body.classList.contains("om-device-mobile");
+  }
+
+  function leadDetailLine(lead) {
+    const msg = String(lead.message || "").trim();
+    if (msg) return msg.length > 42 ? msg.slice(0, 42) + "…" : msg;
+    if (lead.source) return String(lead.source);
+    return "Lead";
   }
 
   function initials(name) {
@@ -125,7 +162,9 @@
   }
 
   function filteredLeads() {
-    const q = ($("plabSearch").value || "").trim().toLowerCase();
+    const qDesktop = ($("plabSearch") && $("plabSearch").value) || "";
+    const qMobile = ($("mleadsSearch") && $("mleadsSearch").value) || "";
+    const q = (isMobileShell() ? qMobile : qDesktop).trim().toLowerCase();
     if (!q) return leads;
     return leads.filter((l) => {
       const hay = [l.name, l.email, l.phone, l.message, l.source, l.id]
@@ -137,6 +176,139 @@
 
   function boardStages() {
     return stages.filter((s) => !HIDDEN.has(normalizeSlug(s.slug)));
+  }
+
+  function renderMobileKpis(rows) {
+    if (!$("mleadsKpiPipeline")) return;
+    const open = rows.filter((l) => {
+      const s = leadSlug(l);
+      return s && s !== "won" && s !== "lost";
+    });
+    const openValue = open.reduce((sum, l) => sum + (Number(l.estimated_value) || 0), 0);
+    const pl = stats && stats.pipeline ? stats.pipeline : {};
+    const conv = stats && stats.conversion ? stats.conversion : {};
+
+    $("mleadsKpiPipeline").textContent = moneyFull(openValue || pl.open_pipeline_value || 0);
+    $("mleadsKpiPipelineMeta").innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17l5-5 5 5"/><path d="M7 10l5-5 5 5"/></svg>' +
+      open.length +
+      " lead" +
+      (open.length === 1 ? "" : "s") +
+      " ativo" +
+      (open.length === 1 ? "" : "s");
+
+    const rate =
+      conv.proposal_win_rate != null
+        ? conv.proposal_win_rate
+        : conv.win_rate != null
+          ? conv.win_rate
+          : conv.close_rate != null
+            ? conv.close_rate
+            : null;
+    $("mleadsKpiConversion").textContent = rate != null ? Math.round(rate) + "%" : "—";
+    $("mleadsKpiConversionMeta").textContent =
+      (pl.closed_won_count || 0) + " won · " + (pl.closed_lost_count || 0) + " lost";
+  }
+
+  function renderMobileChips(rows) {
+    const host = $("mleadsChips");
+    if (!host) return;
+    const cols = boardStages();
+    if (!mobileStageSlug && cols[0]) mobileStageSlug = normalizeSlug(cols[0].slug);
+
+    host.innerHTML = cols
+      .map((st) => {
+        const slug = normalizeSlug(st.slug);
+        const count = rows.filter((l) => leadSlug(l) === slug).length;
+        const active = slug === mobileStageSlug;
+        const color = st.color || "#a8a29e";
+        return `<button type="button" class="mleads-chip${active ? " is-active" : ""}" data-stage="${escapeHtml(
+          slug,
+        )}" role="tab" aria-selected="${active ? "true" : "false"}">
+          <span class="mleads-chip__dot" style="background:${escapeHtml(color)}"></span>
+          <span>${escapeHtml(stageLabel(st))}</span>
+          <span class="mleads-chip__count">${count}</span>
+        </button>`;
+      })
+      .join("");
+
+    host.querySelectorAll("[data-stage]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        mobileStageSlug = btn.getAttribute("data-stage") || "";
+        renderMobileList(filteredLeads());
+        renderMobileChips(filteredLeads());
+      });
+    });
+  }
+
+  function renderMobileList(rows) {
+    const list = $("mleadsList");
+    const empty = $("mleadsEmpty");
+    const title = $("mleadsSectionTitle");
+    const meta = $("mleadsSectionMeta");
+    if (!list) return;
+
+    const cols = boardStages();
+    const stage = cols.find((s) => normalizeSlug(s.slug) === mobileStageSlug) || cols[0];
+    const slug = stage ? normalizeSlug(stage.slug) : mobileStageSlug;
+    const stageRows = rows.filter((l) => leadSlug(l) === slug);
+    const stageValue = stageRows.reduce((s, l) => s + (Number(l.estimated_value) || 0), 0);
+    const stageColor = (stage && stage.color) || "#a8a29e";
+    const label = stage ? stageLabel(stage) : "Leads";
+
+    if (title) title.textContent = label;
+    if (meta) {
+      meta.textContent =
+        stageRows.length +
+        " lead" +
+        (stageRows.length === 1 ? "" : "s") +
+        " · " +
+        moneyFull(stageValue);
+    }
+
+    if (!stageRows.length) {
+      list.innerHTML = "";
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+
+    list.innerHTML = stageRows
+      .map((lead) => {
+        const val = Number(lead.estimated_value) || 0;
+        const src = lead.source ? String(lead.source) : "";
+        return `<li class="mleads-card" data-id="${escapeHtml(String(lead.id))}">
+          <span class="mleads-card__avatar" style="background:${softColorFor(lead.id)}">${escapeHtml(
+            initials(lead.name),
+          )}</span>
+          <div>
+            <p class="mleads-card__name">${escapeHtml(lead.name || "Lead")}</p>
+            <p class="mleads-card__sub">${escapeHtml(leadDetailLine(lead))}</p>
+            <div class="mleads-card__tags">
+              <span class="mleads-tag"><span class="mleads-tag__dot" style="background:${escapeHtml(
+                stageColor,
+              )}"></span>${escapeHtml(label)}</span>
+              ${src ? `<span class="mleads-tag">${escapeHtml(src)}</span>` : ""}
+            </div>
+          </div>
+          <div class="mleads-card__right">
+            <p class="mleads-card__value">${escapeHtml(moneyFull(val))}</p>
+            <p class="mleads-card__ago">${escapeHtml(relativeAgo(lead.created_at))}</p>
+          </div>
+        </li>`;
+      })
+      .join("");
+
+    list.querySelectorAll(".mleads-card[data-id]").forEach((el) => {
+      el.addEventListener("click", () => openLead(el.getAttribute("data-id")));
+    });
+  }
+
+  function renderMobile(rows) {
+    if (!isMobileShell() || !$("mleadsRoot")) return;
+    renderMobileKpis(rows);
+    renderMobileChips(rows);
+    renderMobileList(rows);
   }
 
   function renderKpis(rows) {
@@ -405,6 +577,7 @@
     renderAttention(rows);
     renderAnalytics(rows);
     renderInsights(rows);
+    renderMobile(rows);
   }
 
   async function load() {
@@ -444,19 +617,27 @@
   }
 
   function boot() {
-    ["plabNewLead", "plabDockNew"].forEach((id) => {
+    ["plabNewLead", "plabDockNew", "mleadsAdd"].forEach((id) => {
       const el = $(id);
       if (el) el.addEventListener("click", newLead);
     });
     const railNew = $("plabRailNew");
     if (railNew) railNew.addEventListener("click", newLead);
-    $("plabRefresh").addEventListener("click", () => {
+    $("plabRefresh")?.addEventListener("click", () => {
       load().catch((e) => notify(e.message, "error"));
     });
-    $("plabSearch").addEventListener("input", () => {
+    $("plabSearch")?.addEventListener("input", () => {
       clearTimeout($("plabSearch")._t);
       $("plabSearch")._t = setTimeout(renderAll, 180);
     });
+    $("mleadsSearch")?.addEventListener("input", () => {
+      clearTimeout($("mleadsSearch")._t);
+      $("mleadsSearch")._t = setTimeout(renderAll, 180);
+    });
+
+    if (window.__omDevice && window.__omDevice.applyBodyClass) {
+      window.__omDevice.applyBodyClass();
+    }
 
     load().catch((e) => {
       notify(e.message || "Falha ao carregar", "error");

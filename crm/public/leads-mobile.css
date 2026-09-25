@@ -1,0 +1,397 @@
+/* Mobile Leads list (Pipeline tab) — ObraMate palette */
+.mleads {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  body.plab.om-device-mobile .mobile-app-header,
+  body.plab.om-device-mobile .plab-top,
+  body.plab.om-device-mobile .plab-hero,
+  body.plab.om-device-mobile .plab-pipeline,
+  body.plab.om-device-mobile .plab-bottom,
+  body.plab.om-device-mobile .plab-dock,
+  body.plab.om-device-mobile .plab-skip {
+    display: none !important;
+  }
+
+  body.plab.om-device-mobile.om-app .dashboard-main.plab-shell {
+    display: block !important;
+    padding: 0 !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 0.5rem) !important;
+    margin: 0 !important;
+    margin-top: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    background: var(--plab-bg, #f3f1ee) !important;
+    min-height: 100dvh;
+    box-sizing: border-box !important;
+  }
+
+  body.plab.om-device-mobile.om-app .dashboard-container {
+    background: var(--plab-bg, #f3f1ee) !important;
+  }
+
+  body.plab.om-device-mobile .mleads {
+    display: block;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0.7rem 0.85rem 1rem;
+    box-sizing: border-box;
+    font-family: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
+    color: var(--plab-ink, #1c1917);
+  }
+}
+
+.mleads-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.mleads-title {
+  margin: 0;
+  font-size: clamp(1.55rem, 6vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  color: var(--plab-ink, #1c1917);
+}
+
+.mleads-add {
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: var(--plab-accent, #e8792c);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 6px 18px rgba(232, 121, 44, 0.28);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mleads-add:active {
+  transform: scale(0.96);
+}
+
+.mleads-add svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.mleads-kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin-bottom: 0.9rem;
+}
+
+.mleads-kpi {
+  border-radius: 14px;
+  padding: 0.85rem 0.9rem 0.8rem;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.mleads-kpi--dark {
+  background: var(--plab-ink, #1c1917);
+  color: #fff;
+}
+
+.mleads-kpi--light {
+  background: #fff;
+  border: 1px solid var(--plab-line, #e7e5e4);
+  color: var(--plab-ink, #1c1917);
+}
+
+.mleads-kpi__label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.mleads-kpi--dark .mleads-kpi__label {
+  color: var(--plab-faint, #a8a29e);
+}
+
+.mleads-kpi--light .mleads-kpi__label {
+  color: var(--plab-muted, #78716c);
+}
+
+.mleads-kpi__value {
+  margin: 0.35rem 0 0.45rem;
+  font-size: clamp(1.3rem, 5vw, 1.55rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.mleads-kpi__meta {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.mleads-kpi--dark .mleads-kpi__meta {
+  color: var(--plab-accent, #e8792c);
+}
+
+.mleads-kpi--light .mleads-kpi__meta {
+  color: var(--plab-ok, #059669);
+}
+
+.mleads-kpi__meta svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.mleads-search {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 0.95rem;
+  background: #fff;
+  border: 1px solid var(--plab-line, #e7e5e4);
+  border-radius: 999px;
+  margin-bottom: 0.75rem;
+  color: var(--plab-faint, #a8a29e);
+}
+
+.mleads-search svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.85;
+}
+
+.mleads-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 550;
+  color: var(--plab-ink, #1c1917);
+}
+
+.mleads-search input::placeholder {
+  color: var(--plab-faint, #a8a29e);
+}
+
+.mleads-chips {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0.1rem 0 0.75rem;
+  margin: 0 -0.85rem;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+}
+
+.mleads-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.mleads-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  border: 1px solid var(--plab-line, #e7e5e4);
+  background: #fff;
+  color: var(--plab-ink, #1c1917);
+  border-radius: 999px;
+  padding: 0.45rem 0.55rem 0.45rem 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mleads-chip.is-active {
+  background: var(--plab-ink, #1c1917);
+  border-color: var(--plab-ink, #1c1917);
+  color: #fff;
+}
+
+.mleads-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mleads-chip__count {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--plab-soft, #f5f4f2);
+  color: var(--plab-ink, #1c1917);
+  font-size: 0.72rem;
+  font-weight: 750;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mleads-chip.is-active .mleads-chip__count {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.mleads-section {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.15rem 0 0.65rem;
+}
+
+.mleads-section__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.mleads-section__meta {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--plab-muted, #78716c);
+  white-space: nowrap;
+}
+
+.mleads-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.mleads-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.85rem 0.9rem;
+  background: #fff;
+  border: 1px solid var(--plab-line, #e7e5e4);
+  border-radius: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mleads-card:active {
+  background: var(--plab-soft, #f5f4f2);
+}
+
+.mleads-card__avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 750;
+  color: var(--plab-ink, #1c1917);
+}
+
+.mleads-card__name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--plab-ink, #1c1917);
+}
+
+.mleads-card__sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 550;
+  color: var(--plab-muted, #78716c);
+}
+
+.mleads-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.mleads-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: var(--plab-soft, #f5f4f2);
+  color: var(--plab-ink, #1c1917);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.mleads-tag__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.mleads-card__right {
+  text-align: right;
+}
+
+.mleads-card__value {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--plab-ink, #1c1917);
+}
+
+.mleads-card__ago {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 550;
+  color: var(--plab-faint, #a8a29e);
+}
+
+.mleads-empty {
+  margin: 1.5rem 0;
+  text-align: center;
+  color: var(--plab-muted, #78716c);
+  font-size: 0.9rem;
+  font-weight: 550;
+}
