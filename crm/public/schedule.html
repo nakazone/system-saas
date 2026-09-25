@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp11" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20260925-sections" />
-  <link rel="stylesheet" href="schedule.css?v=20260924-maps4" />
+  <link rel="stylesheet" href="schedule.css?v=20260925-acal" />
   <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp11" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
@@ -167,6 +167,52 @@
           <div id="schedCalendar" class="gcal-board__inner"></div>
         </section>
       </div>
+
+      <!-- Mobile Apple Calendar–style Schedule -->
+      <div id="acalRoot" class="acal" aria-label="Calendário">
+        <header class="acal-chrome">
+          <button type="button" class="acal-year" id="acalYearBtn" aria-label="Ir para o ano">‹ <span id="acalYearLabel">2026</span></button>
+          <div class="acal-chrome-actions">
+            <button type="button" class="acal-icon-btn" id="acalListToggle" aria-label="Vista em lista" aria-pressed="false">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            </button>
+            <button type="button" class="acal-icon-btn" id="acalSearchToggle" aria-label="Pesquisar" aria-pressed="false">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            </button>
+            <button type="button" class="acal-icon-btn acal-icon-btn--accent" id="acalAddBtn" data-crm-permission="schedule.manage" aria-label="Criar" aria-haspopup="menu">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+        </header>
+        <div class="acal-search-bar" id="acalSearchBar" hidden>
+          <input type="search" id="acalSearchInput" placeholder="Pesquisar jobs e meetings" autocomplete="off" />
+        </div>
+        <div class="acal-add-menu" id="acalAddMenu" hidden role="menu">
+          <button type="button" role="menuitem" id="acalNewMeeting" data-crm-permission="schedule.manage">Meeting</button>
+          <button type="button" role="menuitem" id="acalNewJob" data-crm-permission="work_orders.manage">Job</button>
+        </div>
+        <div class="acal-scroll" id="acalScroll"></div>
+        <div class="acal-list" id="acalList" hidden></div>
+        <div class="acal-day-sheet" id="acalDaySheet" hidden>
+          <div class="acal-day-sheet__grab" aria-hidden="true"></div>
+          <div class="acal-day-sheet__head">
+            <strong id="acalDaySheetTitle">—</strong>
+            <button type="button" class="acal-icon-btn" id="acalDaySheetClose" aria-label="Fechar">×</button>
+          </div>
+          <div class="acal-day-sheet__body" id="acalDaySheetBody"></div>
+        </div>
+        <footer class="acal-dock">
+          <button type="button" class="acal-today-btn" id="acalTodayBtn">Hoje</button>
+          <div class="acal-dock-pill" role="group" aria-label="Vista">
+            <button type="button" class="acal-dock-btn is-active" id="acalDockMonth" aria-label="Mês" aria-pressed="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </button>
+            <button type="button" class="acal-dock-btn" id="acalDockList" aria-label="Agenda" aria-pressed="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/><path d="M18 16v6M15 19h6"/></svg>
+            </button>
+          </div>
+        </footer>
+      </div>
     </main>
   </div>
 
@@ -253,6 +299,6 @@
   <script src="crm-shell.js?v=20260924-omapp11"></script>
   
   <script src="crm-job-modal.js?v=20260925-sections"></script>
-  <script src="schedule.js?v=20260924-maps4"></script>
+  <script src="schedule.js?v=20260925-acal"></script>
 </body>
 </html>

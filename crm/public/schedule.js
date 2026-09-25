@@ -14,6 +14,13 @@
   let slotAnchor = null;
   let editingMeetingId = null;
   let viewingEvent = null;
+  /** Mobile Apple-style calendar: month | list */
+  let acalMode = "month";
+  let acalSelectedYmd = null;
+  let acalMonths = []; // Date at start of each rendered month
+  let acalScrollBound = false;
+  let acalExtending = false;
+  let acalDidInitialScroll = false;
 
   const filters = {
     jobs: true,
@@ -41,6 +48,18 @@
     const diff = day === 0 ? -6 : 1 - day;
     x.setDate(x.getDate() + diff);
     return x;
+  }
+
+  /** Sunday-first week (Apple Calendar style) */
+  function startOfWeekSunday(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    x.setDate(x.getDate() - x.getDay());
+    return x;
+  }
+
+  function isMobileSched() {
+    return window.matchMedia("(max-width: 900px)").matches;
   }
 
   function startOfMonth(d) {
@@ -108,6 +127,13 @@
   }
 
   function rangeForView() {
+    if (isMobileSched()) {
+      ensureAcalMonths();
+      const first = acalMonths[0] || startOfMonth(cursor);
+      const last = acalMonths[acalMonths.length - 1] || startOfMonth(cursor);
+      const endMonth = new Date(last.getFullYear(), last.getMonth() + 1, 0);
+      return { start: startOfWeekSunday(first), end: endOfDay(endMonth) };
+    }
     if (view === "day") {
       const start = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
       return { start, end: endOfDay(start) };
@@ -587,10 +613,403 @@
   }
 
   function render() {
+    if (isMobileSched()) {
+      renderAppleCal();
+      return;
+    }
     if (view === "day") renderDay();
     else if (view === "week") renderWeek();
     else if (view === "agenda") renderAgenda();
     else renderMonth();
+  }
+
+  function ensureAcalMonths() {
+    if (acalMonths.length) return;
+    const base = startOfMonth(cursor);
+    acalMonths = [addMonths(base, -1), base, addMonths(base, 1), addMonths(base, 2)];
+  }
+
+  function eventSpansMultipleDays(ev) {
+    const s = new Date(ev.start);
+    const e = new Date(ev.end);
+    return ymd(s) !== ymd(e) || (e - s) >= 20 * 60 * 60 * 1000;
+  }
+
+  function fmtChipTime(iso) {
+    const d = new Date(iso);
+    const h = d.getHours();
+    const m = d.getMinutes();
+    if (m === 0) {
+      if (h === 0) return "12 AM";
+      if (h < 12) return `${h} AM`;
+      if (h === 12) return "12 PM";
+      return `${h - 12} PM`;
+    }
+    return fmtTime(iso);
+  }
+
+  function buildAcalMonthHtml(monthStart) {
+    const today = ymd(new Date());
+    const selected = acalSelectedYmd || today;
+    const title = monthStart.toLocaleDateString(undefined, { month: "long" });
+    const titleCap = title.charAt(0).toUpperCase() + title.slice(1);
+    const start = startOfWeekSunday(monthStart);
+    const dows = ["D", "S", "T", "Q", "Q", "S", "S"];
+    let html = `<section class="acal-month-block" data-acal-month="${ymd(monthStart)}">
+      <h2 class="acal-month-title">${escapeHtml(titleCap)}</h2>
+      <div class="acal-dows">${dows.map((d) => `<div class="acal-dow">${d}</div>`).join("")}</div>
+      <div class="acal-grid">`;
+    for (let i = 0; i < 42; i++) {
+      const day = addDays(start, i);
+      const key = ymd(day);
+      const outside = day.getMonth() !== monthStart.getMonth();
+      const list = eventsOnDay(day).sort((a, b) => a.start.localeCompare(b.start));
+      const show = list.slice(0, 3);
+      const more = list.length - show.length;
+      const cls = [
+        "acal-cell",
+        outside ? "is-outside" : "",
+        key === today ? "is-today" : "",
+        key === selected ? "is-selected" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      html += `<div class="${cls}" data-acal-day="${key}">
+        <span class="acal-num">${day.getDate()}</span>`;
+      show.forEach((ev) => {
+        const span = eventSpansMultipleDays(ev);
+        const chipCls = [
+          "acal-chip",
+          ev.type === "job" ? "is-job" : "is-meeting",
+          span ? "is-span" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const timeBit = span
+          ? ""
+          : `<span class="acal-chip__time"> ${escapeHtml(fmtChipTime(ev.start))}</span>`;
+        html += `<button type="button" class="${chipCls}" data-ev="${ev.type}:${ev.id}">${escapeHtml(ev.title)}${timeBit}</button>`;
+      });
+      if (more > 0) {
+        html += `<button type="button" class="acal-more" data-acal-more="${key}">+${more}</button>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div></section>`;
+    return html;
+  }
+
+  function renderAcalList() {
+    const host = $("acalList");
+    if (!host) return;
+    ensureAcalMonths();
+    const start = acalMonths[0];
+    const end = new Date(
+      acalMonths[acalMonths.length - 1].getFullYear(),
+      acalMonths[acalMonths.length - 1].getMonth() + 1,
+      0,
+    );
+    const today = ymd(new Date());
+    let html = "";
+    let any = false;
+    let day = new Date(start);
+    while (day <= end) {
+      const list = eventsOnDay(day).sort((a, b) => a.start.localeCompare(b.start));
+      if (list.length) {
+        any = true;
+        const key = ymd(day);
+        html += `<div class="acal-list-day" data-acal-day="${key}">
+          <div class="acal-list-day__head">
+            <span class="acal-list-day__num${key === today ? " is-today" : ""}">${day.getDate()}</span>
+            <span class="acal-list-day__label">${day.toLocaleDateString(undefined, { weekday: "long", month: "short" })}</span>
+          </div>`;
+        list.forEach((ev) => {
+          const meta = ev.meta || {};
+          const sub =
+            ev.type === "job"
+              ? meta.address || meta.source_name || "Job"
+              : meta.location || "Meeting";
+          html += `<button type="button" class="acal-list-row" data-ev="${ev.type}:${ev.id}">
+            <span class="acal-list-row__time">${escapeHtml(fmtTime(ev.start))}</span>
+            <span class="acal-list-row__dot" style="background:${escapeAttr(ev.color || (ev.type === "job" ? "#e8792c" : "#3b6ea5"))}"></span>
+            <span>
+              <div class="acal-list-row__title">${escapeHtml(ev.title)}</div>
+              <div class="acal-list-row__meta">${escapeHtml(sub)}</div>
+            </span>
+          </button>`;
+        });
+        html += `</div>`;
+      }
+      day = addDays(day, 1);
+    }
+    if (!any) html = `<p class="acal-list-empty">Nenhum job ou meeting neste período.</p>`;
+    host.innerHTML = html;
+    bindEventClicks(host);
+  }
+
+  function openAcalDaySheet(dayYmd) {
+    const sheet = $("acalDaySheet");
+    const body = $("acalDaySheetBody");
+    const title = $("acalDaySheetTitle");
+    if (!sheet || !body || !title) return;
+    const [y, m, d] = dayYmd.split("-").map(Number);
+    const day = new Date(y, m - 1, d);
+    acalSelectedYmd = dayYmd;
+    title.textContent = day.toLocaleDateString(undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+    const list = eventsOnDay(day).sort((a, b) => a.start.localeCompare(b.start));
+    if (!list.length) {
+      body.innerHTML = `<p class="acal-list-empty">Sem eventos neste dia.${
+        canManageMeetings || canManageJobs
+          ? ' Toque em + para criar.'
+          : ""
+      }</p>`;
+    } else {
+      body.innerHTML = list
+        .map((ev) => {
+          const meta = ev.meta || {};
+          const sub =
+            ev.type === "job"
+              ? meta.address || meta.source_name || "Job"
+              : meta.location || "Meeting";
+          return `<button type="button" class="acal-list-row" data-ev="${ev.type}:${ev.id}">
+            <span class="acal-list-row__time">${escapeHtml(fmtTime(ev.start))}</span>
+            <span class="acal-list-row__dot" style="background:${escapeAttr(ev.color || (ev.type === "job" ? "#e8792c" : "#3b6ea5"))}"></span>
+            <span>
+              <div class="acal-list-row__title">${escapeHtml(ev.title)}</div>
+              <div class="acal-list-row__meta">${escapeHtml(sub)}</div>
+            </span>
+          </button>`;
+        })
+        .join("");
+      bindEventClicks(body);
+    }
+    sheet.hidden = false;
+    // refresh selection rings without full reload
+    document.querySelectorAll(".acal-cell.is-selected").forEach((el) => el.classList.remove("is-selected"));
+    document.querySelectorAll(`.acal-cell[data-acal-day="${dayYmd}"]`).forEach((el) => el.classList.add("is-selected"));
+  }
+
+  function closeAcalDaySheet() {
+    const sheet = $("acalDaySheet");
+    if (sheet) sheet.hidden = true;
+  }
+
+  function syncAcalChrome() {
+    const yearEl = $("acalYearLabel");
+    if (yearEl) yearEl.textContent = String(cursor.getFullYear());
+    const listBtn = $("acalListToggle");
+    if (listBtn) listBtn.setAttribute("aria-pressed", acalMode === "list" ? "true" : "false");
+    const dockMonth = $("acalDockMonth");
+    const dockList = $("acalDockList");
+    if (dockMonth) {
+      dockMonth.classList.toggle("is-active", acalMode === "month");
+      dockMonth.setAttribute("aria-pressed", acalMode === "month" ? "true" : "false");
+    }
+    if (dockList) {
+      dockList.classList.toggle("is-active", acalMode === "list");
+      dockList.setAttribute("aria-pressed", acalMode === "list" ? "true" : "false");
+    }
+    const scroll = $("acalScroll");
+    const list = $("acalList");
+    if (scroll) scroll.hidden = acalMode !== "month";
+    if (list) list.hidden = acalMode !== "list";
+  }
+
+  function bindAcalMonthInteractions(host) {
+    if (!host) return;
+    bindEventClicks(host);
+    host.querySelectorAll("[data-acal-day]").forEach((cell) => {
+      cell.addEventListener("click", (e) => {
+        if (e.target.closest("[data-ev]")) return;
+        const key = cell.getAttribute("data-acal-day");
+        if (!key) return;
+        if (e.target.closest("[data-acal-more]")) {
+          openAcalDaySheet(key);
+          return;
+        }
+        openAcalDaySheet(key);
+      });
+    });
+    host.querySelectorAll("[data-acal-more]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openAcalDaySheet(btn.getAttribute("data-acal-more"));
+      });
+    });
+  }
+
+  function renderAppleCal() {
+    ensureAcalMonths();
+    syncAcalChrome();
+    const yearEl = $("acalYearLabel");
+    if (yearEl) yearEl.textContent = String(cursor.getFullYear());
+
+    if (acalMode === "list") {
+      closeAcalDaySheet();
+      renderAcalList();
+      return;
+    }
+
+    const host = $("acalScroll");
+    if (!host) return;
+    const prevTop = host.scrollTop;
+    host.innerHTML = acalMonths.map((m) => buildAcalMonthHtml(m)).join("");
+    bindAcalMonthInteractions(host);
+    if (!acalDidInitialScroll) {
+      acalDidInitialScroll = true;
+      const base = startOfMonth(cursor);
+      const block = host.querySelector(`[data-acal-month="${ymd(base)}"]`);
+      if (block) host.scrollTop = Math.max(0, block.offsetTop - 4);
+    } else {
+      host.scrollTop = prevTop;
+    }
+    if (!acalScrollBound) {
+      acalScrollBound = true;
+      let ticking = false;
+      host.addEventListener("scroll", () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          ticking = false;
+          const blocks = [...host.querySelectorAll(".acal-month-block")];
+          const mid = host.scrollTop + host.clientHeight * 0.25;
+          let current = blocks[0];
+          for (const b of blocks) {
+            if (b.offsetTop <= mid) current = b;
+          }
+          if (current) {
+            const [y, m] = current.getAttribute("data-acal-month").split("-").map(Number);
+            const nextCursor = new Date(y, m - 1, 1);
+            if (nextCursor.getFullYear() !== cursor.getFullYear() || nextCursor.getMonth() !== cursor.getMonth()) {
+              cursor = nextCursor;
+              const yl = $("acalYearLabel");
+              if (yl) yl.textContent = String(cursor.getFullYear());
+            }
+          }
+          // Prefetch more months near edges
+          if (acalExtending) return;
+          if (host.scrollTop + host.clientHeight > host.scrollHeight - 240) {
+            const last = acalMonths[acalMonths.length - 1];
+            const next = addMonths(last, 1);
+            if (!acalMonths.some((d) => ymd(d) === ymd(next))) {
+              acalExtending = true;
+              acalMonths.push(next);
+              loadEvents()
+                .catch(() => {})
+                .finally(() => {
+                  acalExtending = false;
+                });
+            }
+          }
+          if (host.scrollTop < 120) {
+            const first = acalMonths[0];
+            const prev = addMonths(first, -1);
+            if (!acalMonths.some((d) => ymd(d) === ymd(prev))) {
+              acalExtending = true;
+              const oldHeight = host.scrollHeight;
+              acalMonths.unshift(prev);
+              loadEvents()
+                .then(() => {
+                  host.scrollTop = host.scrollHeight - oldHeight + host.scrollTop;
+                })
+                .catch(() => {})
+                .finally(() => {
+                  acalExtending = false;
+                });
+            }
+          }
+        });
+      });
+    }
+  }
+
+  function setAcalMode(mode) {
+    acalMode = mode === "list" ? "list" : "month";
+    closeAcalDaySheet();
+    const menu = $("acalAddMenu");
+    if (menu) menu.hidden = true;
+    render();
+  }
+
+  function goAcalToday() {
+    cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+    acalSelectedYmd = ymd(cursor);
+    const base = startOfMonth(cursor);
+    acalMonths = [addMonths(base, -1), base, addMonths(base, 1), addMonths(base, 2)];
+    loadEvents()
+      .then(() => {
+        const host = $("acalScroll");
+        const block = host?.querySelector(`[data-acal-month="${ymd(base)}"]`);
+        if (block && host) {
+          host.scrollTop = Math.max(0, block.offsetTop - 8);
+        }
+        if (acalMode === "month") openAcalDaySheet(acalSelectedYmd);
+      })
+      .catch((err) => notify(err.message, "error"));
+  }
+
+  function bindAppleCalControls() {
+    $("acalTodayBtn")?.addEventListener("click", goAcalToday);
+    $("acalDockMonth")?.addEventListener("click", () => setAcalMode("month"));
+    $("acalDockList")?.addEventListener("click", () => setAcalMode("list"));
+    $("acalListToggle")?.addEventListener("click", () =>
+      setAcalMode(acalMode === "list" ? "month" : "list"),
+    );
+    $("acalYearBtn")?.addEventListener("click", () => {
+      const host = $("acalScroll");
+      const jan = new Date(cursor.getFullYear(), 0, 1);
+      acalMonths = [jan, addMonths(jan, 1), addMonths(jan, 2), addMonths(jan, 3)];
+      cursor = jan;
+      loadEvents()
+        .then(() => {
+          if (host) host.scrollTop = 0;
+        })
+        .catch((err) => notify(err.message, "error"));
+    });
+    $("acalSearchToggle")?.addEventListener("click", () => {
+      const bar = $("acalSearchBar");
+      if (!bar) return;
+      const open = bar.hidden;
+      bar.hidden = !open;
+      $("acalSearchToggle").setAttribute("aria-pressed", open ? "true" : "false");
+      if (open) $("acalSearchInput")?.focus();
+    });
+    $("acalSearchInput")?.addEventListener("input", () => {
+      filters.q = $("acalSearchInput").value || "";
+      const desk = $("filterQ");
+      if (desk) desk.value = filters.q;
+      applyFilters();
+      render();
+    });
+    $("acalAddBtn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const menu = $("acalAddMenu");
+      if (!menu) return;
+      menu.hidden = !menu.hidden;
+    });
+    $("acalNewMeeting")?.addEventListener("click", () => {
+      $("acalAddMenu").hidden = true;
+      $("menuNewMeeting")?.click();
+    });
+    $("acalNewJob")?.addEventListener("click", () => {
+      $("acalAddMenu").hidden = true;
+      $("menuNewJob")?.click();
+    });
+    $("acalDaySheetClose")?.addEventListener("click", closeAcalDaySheet);
+    document.addEventListener("click", (e) => {
+      const menu = $("acalAddMenu");
+      if (!menu || menu.hidden) return;
+      if (e.target.closest("#acalAddMenu, #acalAddBtn")) return;
+      menu.hidden = true;
+    });
+    window.addEventListener("resize", () => {
+      render();
+    });
   }
 
   function setView(next) {
@@ -1442,6 +1861,7 @@
         cursor.setHours(0, 0, 0, 0);
         loadEvents().catch((e) => notify(e.message, "error"));
       });
+      bindAppleCalControls();
       document.querySelectorAll(".gcal-view-btn").forEach((btn) => {
         btn.addEventListener("click", () => setView(btn.getAttribute("data-view") || "week"));
       });
