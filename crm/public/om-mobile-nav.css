@@ -1,11 +1,11 @@
 /* Shared mobile bottom nav — Início / Pipeline / + / Agenda / Mais */
 :root {
   --om-tabbar-h: 64px;
-  --om-tab-accent: #c45c26;
-  --om-tab-ink: #1c1917;
-  --om-tab-muted: #9a9188;
+  --om-tab-accent: var(--plab-accent, #e8792c);
+  --om-tab-ink: var(--plab-ink, #1c1917);
+  --om-tab-muted: var(--plab-muted, #78716c);
   --om-tab-bg: rgba(255, 255, 255, 0.96);
-  --om-tab-line: #efe8df;
+  --om-tab-line: var(--plab-line, #e7e5e4);
 }
 
 .om-tabbar {
@@ -103,7 +103,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 8px 24px rgba(196, 92, 38, 0.38);
+    box-shadow: 0 8px 24px rgba(232, 121, 44, 0.38);
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
@@ -183,7 +183,7 @@
     gap: 0.7rem;
     padding: 0.85rem 0.9rem;
     border-radius: 16px;
-    background: #f7f4ee;
+    background: var(--plab-soft, #f5f4f2);
     color: var(--om-tab-ink);
     text-decoration: none;
     font-size: 0.9rem;
@@ -192,7 +192,7 @@
   }
 
   .om-sheet__link:active {
-    background: #efe8df;
+    background: var(--plab-line, #e7e5e4);
   }
 
   .om-sheet__link--full {
@@ -207,8 +207,8 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    background: #f3e8e0;
-    color: var(--om-tab-accent);
+    background: var(--plab-accent-soft, #fff4eb);
+    color: var(--plab-accent-deep, #c2410c);
   }
 
   .om-sheet__icon--primary {
@@ -245,7 +245,7 @@
   }
 
   .om-sheet__row:active {
-    background: #f7f4ee;
+    background: var(--plab-soft, #f5f4f2);
   }
 
   .om-sheet__row .om-sheet__icon {

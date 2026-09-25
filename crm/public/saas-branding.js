@@ -30,12 +30,10 @@
         el.style.display = "";
       });
 
-    /* Sidebar: square app icon only (same as favicon), never wordmark / tenant logo */
-    document.querySelectorAll("img.sidebar-brand-logo").forEach(function (el) {
+    /* Sidebar + Home mark: square favicon only, never wordmark / tenant logo */
+    document.querySelectorAll("img.sidebar-brand-logo, img.home-brand-logo").forEach(function (el) {
       el.setAttribute("src", SYSTEM_APP_ICON);
       el.setAttribute("alt", DEFAULT_NAME);
-      el.setAttribute("width", "32");
-      el.setAttribute("height", "32");
       el.style.display = "";
     });
 

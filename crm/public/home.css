@@ -1,33 +1,39 @@
-/* Home / Início — mobile-first overview */
+/* Home / Início — ObraMate palette (--plab-*) only */
 body.home-app {
-  --home-bg: #f7f4ee;
-  --home-ink: #1c1917;
-  --home-muted: #8a8074;
-  --home-faint: #a89f94;
-  --home-accent: #c45c26;
-  --home-accent-soft: #f3e8e0;
-  --home-card: #ffffff;
-  --home-line: #efe8df;
-  --home-green: #4a7c59;
-  --home-green-soft: #e8f0ea;
-  --home-radius: 20px;
-  --home-font: "Plus Jakarta Sans", system-ui, sans-serif;
+  --home-bg: var(--plab-bg, #f3f1ee);
+  --home-ink: var(--plab-ink, #1c1917);
+  --home-muted: var(--plab-muted, #78716c);
+  --home-faint: var(--plab-faint, #a8a29e);
+  --home-accent: var(--plab-accent, #e8792c);
+  --home-accent-soft: var(--plab-accent-soft, #fff4eb);
+  --home-accent-deep: var(--plab-accent-deep, #c2410c);
+  --home-card: var(--plab-surface, #ffffff);
+  --home-line: var(--plab-line, #e7e5e4);
+  --home-ok: var(--plab-ok, #059669);
+  --home-ok-soft: rgba(5, 150, 105, 0.12);
+  --home-radius: 18px;
+  --home-font: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
   background: var(--home-bg);
   font-family: var(--home-font);
+  color: var(--home-ink);
 }
 
+/* Flush under safe area — no ghost space for the hidden mobile chrome header */
 body.home-app.om-app .dashboard-main.home-main {
-  background: var(--home-bg);
-  padding-top: calc(52px + env(safe-area-inset-top, 0px)) !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
+  background: var(--home-bg) !important;
+  padding: 0 !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 1rem) !important;
+  margin: 0 !important;
   gap: 0 !important;
+  min-height: 100dvh;
 }
 
 @media (min-width: 1025px) {
   body.home-app.om-app .dashboard-main.home-main {
     padding-top: 0 !important;
     margin-top: var(--crm-topbar-height, 56px) !important;
+    padding-bottom: 2rem !important;
   }
 }
 
@@ -36,15 +42,15 @@ body.home-app .mobile-app-header {
 }
 
 .home {
-  max-width: 560px;
+  max-width: 480px;
   margin: 0 auto;
-  padding: 0.85rem 1.1rem 1.5rem;
+  padding: 1rem 1.15rem 1.25rem;
   box-sizing: border-box;
 }
 
 @media (min-width: 1025px) {
   .home {
-    max-width: 720px;
+    max-width: 640px;
     padding: 1.5rem 1.75rem 2rem;
   }
 }
@@ -54,23 +60,19 @@ body.home-app .mobile-app-header {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 1.15rem;
+  margin-bottom: 1.25rem;
 }
 
 .home-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
   text-decoration: none;
-  color: var(--home-ink);
-  font-weight: 800;
-  font-size: 1.15rem;
-  letter-spacing: -0.03em;
+  line-height: 0;
 }
 
-.home-brand__mark {
-  width: 34px;
-  height: 34px;
+.home-brand-logo {
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   object-fit: cover;
   display: block;
@@ -88,13 +90,12 @@ body.home-app .mobile-app-header {
   height: 42px;
   border-radius: 50%;
   border: 1px solid var(--home-line);
-  background: #fff;
+  background: var(--home-card);
   color: var(--home-ink);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  text-decoration: none;
 }
 
 .home-bell svg {
@@ -115,7 +116,7 @@ body.home-app .mobile-app-header {
   height: 8px;
   border-radius: 50%;
   background: var(--home-accent);
-  border: 2px solid #fff;
+  border: 2px solid var(--home-card);
   display: none;
 }
 
@@ -139,16 +140,15 @@ body.home-app .mobile-app-header {
 }
 
 .home-date {
-  margin: 0 0 0.2rem;
+  margin: 0 0 0.25rem;
   font-size: 0.82rem;
   font-weight: 550;
   color: var(--home-muted);
-  text-transform: none;
 }
 
 .home-greeting {
-  margin: 0 0 1.05rem;
-  font-size: 1.7rem;
+  margin: 0 0 1.1rem;
+  font-size: clamp(1.55rem, 5.5vw, 1.85rem);
   font-weight: 800;
   letter-spacing: -0.035em;
   color: var(--home-ink);
@@ -159,11 +159,11 @@ body.home-app .mobile-app-header {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.85rem 1.05rem;
-  background: #fff;
+  padding: 0.9rem 1.1rem;
+  background: var(--home-card);
   border: 1px solid var(--home-line);
   border-radius: 999px;
-  margin-bottom: 1.1rem;
+  margin-bottom: 1.15rem;
   color: var(--home-faint);
 }
 
@@ -195,14 +195,14 @@ body.home-app .mobile-app-header {
 .home-kpis {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
-  margin-bottom: 1.15rem;
+  gap: 0.75rem;
+  margin-bottom: 1.2rem;
 }
 
 .home-kpi {
   border-radius: var(--home-radius);
-  padding: 1rem 1.05rem 0.95rem;
-  min-height: 108px;
+  padding: 1.05rem 1.05rem 1rem;
+  min-height: 112px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -216,7 +216,7 @@ body.home-app .mobile-app-header {
 }
 
 .home-kpi--light {
-  background: #fff;
+  background: var(--home-card);
   border: 1px solid var(--home-line);
   color: var(--home-ink);
 }
@@ -225,18 +225,19 @@ body.home-app .mobile-app-header {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 600;
-  color: inherit;
-  opacity: 0.72;
 }
 
 .home-kpi--dark .home-kpi__label {
-  color: #c4bbb2;
-  opacity: 1;
+  color: var(--home-faint);
+}
+
+.home-kpi--light .home-kpi__label {
+  color: var(--home-muted);
 }
 
 .home-kpi__value {
-  margin: 0.35rem 0 0.55rem;
-  font-size: 1.55rem;
+  margin: 0.4rem 0 0.55rem;
+  font-size: clamp(1.35rem, 5vw, 1.6rem);
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.1;
@@ -256,7 +257,7 @@ body.home-app .mobile-app-header {
 }
 
 .home-kpi--light .home-kpi__meta {
-  color: var(--home-green);
+  color: var(--home-ok);
 }
 
 .home-kpi__meta svg {
@@ -270,8 +271,8 @@ body.home-app .mobile-app-header {
 .home-actions {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.55rem;
-  margin-bottom: 1.25rem;
+  gap: 0.5rem;
+  margin-bottom: 1.3rem;
 }
 
 .home-action {
@@ -295,7 +296,7 @@ body.home-app .mobile-app-header {
   align-items: center;
   justify-content: center;
   background: var(--home-accent-soft);
-  color: #8b4a28;
+  color: var(--home-accent-deep);
 }
 
 .home-action__icon--primary {
@@ -317,7 +318,7 @@ body.home-app .mobile-app-header {
   background: var(--home-card);
   border: 1px solid var(--home-line);
   border-radius: var(--home-radius);
-  padding: 1rem 1.05rem;
+  padding: 1.05rem 1.1rem;
   margin-bottom: 0.85rem;
 }
 
@@ -326,7 +327,7 @@ body.home-app .mobile-app-header {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.25rem;
 }
 
 .home-card__title {
@@ -366,7 +367,7 @@ body.home-app .mobile-app-header {
 
 .home-today__item {
   display: grid;
-  grid-template-columns: 52px 1fr auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 0.65rem;
   align-items: start;
   padding: 0.85rem 0;
@@ -421,12 +422,12 @@ body.home-app .mobile-app-header {
 
 .home-tag--visit {
   background: var(--home-accent-soft);
-  color: var(--home-accent);
+  color: var(--home-accent-deep);
 }
 
 .home-tag--job {
-  background: var(--home-green-soft);
-  color: var(--home-green);
+  background: var(--home-ok-soft);
+  color: var(--home-ok);
 }
 
 .home-empty {
@@ -460,7 +461,7 @@ body.home-app .mobile-app-header {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: #e7e0d6;
+  background: var(--plab-soft, #f5f4f2);
   color: var(--home-ink);
   display: inline-flex;
   align-items: center;
@@ -494,13 +495,13 @@ body.home-app .mobile-app-header {
   font-weight: 750;
   padding: 0.22rem 0.5rem;
   border-radius: 999px;
-  background: #fde8e4;
-  color: #b42318;
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--plab-danger, #dc2626);
 }
 
 .home-attn__prio.is-medium {
-  background: #fef3c7;
-  color: #92400e;
+  background: rgba(217, 119, 6, 0.12);
+  color: var(--plab-warn, #d97706);
 }
 
 .home-loading {
