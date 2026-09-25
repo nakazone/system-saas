@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260924-omapp6";
+  const SHELL_VER = "20260924-omapp7";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -45,6 +45,93 @@
     document.head.appendChild(pre1);
     document.head.appendChild(pre2);
     document.head.appendChild(font);
+  }
+
+  function ensureOmSidebarUtilities() {
+    if (!document.body.classList.contains("om-app")) return;
+    const sidebar = getSidebar();
+    if (!sidebar) return;
+    const footer = sidebar.querySelector(".sidebar-footer");
+    if (!footer) return;
+
+    let row = document.getElementById("omSidebarUtilities");
+    if (!row) {
+      row = document.createElement("div");
+      row.id = "omSidebarUtilities";
+      row.className = "om-sidebar-utilities";
+      row.setAttribute("role", "group");
+      row.setAttribute("aria-label", "Ajuda e configurações");
+      footer.insertBefore(row, footer.firstChild);
+    }
+
+    const helpIcon =
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>';
+    const settingsIcon =
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
+
+    function ensureUtilBtn(el, label, iconHtml) {
+      if (!el) return null;
+      el.classList.add("nav-item", "om-sidebar-util-btn");
+      el.classList.remove("crm-topbar__icon-btn");
+      el.setAttribute("aria-label", label);
+      el.removeAttribute("title");
+      const svg = el.querySelector("svg");
+      if (svg) svg.classList.add("nav-icon-svg");
+      else if (iconHtml && !el.querySelector(".nav-icon-svg")) {
+        const tpl = document.createElement("template");
+        tpl.innerHTML = iconHtml.trim();
+        el.insertBefore(tpl.content, el.firstChild);
+      }
+      if (!el.querySelector(".nav-item__label")) {
+        const span = document.createElement("span");
+        span.className = "nav-item__label";
+        span.textContent = label;
+        el.appendChild(span);
+      } else {
+        el.querySelector(".nav-item__label").textContent = label;
+      }
+      return el;
+    }
+
+    let help = document.getElementById("crmTopbarHelpBtn");
+    if (!help) {
+      help = document.createElement("button");
+      help.type = "button";
+      help.id = "crmTopbarHelpBtn";
+      help.innerHTML = helpIcon + '<span class="nav-item__label">Ajuda</span>';
+    }
+    ensureUtilBtn(help, "Ajuda", helpIcon);
+    if (help.parentElement !== row) row.appendChild(help);
+
+    const wrap = document.getElementById("crmAccountMenuWrap");
+    if (wrap) {
+      const trigger =
+        wrap.querySelector("[data-account-menu-trigger]") ||
+        wrap.querySelector("#crmTopbarSettingsBtn");
+      ensureUtilBtn(trigger, "Configurações", settingsIcon);
+      if (wrap.parentElement !== row) row.appendChild(wrap);
+    } else {
+      let settings = document.getElementById("crmTopbarSettingsBtn");
+      if (!settings) {
+        settings = document.createElement("a");
+        settings.href = "ajustes.html";
+        settings.id = "crmTopbarSettingsBtn";
+        settings.innerHTML = settingsIcon + '<span class="nav-item__label">Configurações</span>';
+      }
+      ensureUtilBtn(settings, "Configurações", settingsIcon);
+      if (settings.parentElement !== row) row.appendChild(settings);
+    }
+  }
+
+  function refreshOmUtilityBindings() {
+    ensureOmSidebarUtilities();
+    if (window.__crmAccountMenu && typeof window.__crmAccountMenu.init === "function") {
+      window.__crmAccountMenu.init();
+    }
+    if (window.__crmHelpPanel && typeof window.__crmHelpPanel.refresh === "function") {
+      window.__crmHelpPanel.refresh();
+    }
+    ensureOmSidebarUtilities();
   }
 
   function ensureDock() {
@@ -514,9 +601,7 @@
       } catch (_) {}
     }
     await Promise.all(jobs);
-    if (window.__crmAccountMenu && typeof window.__crmAccountMenu.init === "function") {
-      window.__crmAccountMenu.init();
-    }
+    refreshOmUtilityBindings();
     if (typeof window.sfScanCrmAddressAutocomplete === "function") {
       try {
         window.sfScanCrmAddressAutocomplete();
@@ -535,6 +620,7 @@
     ensureTopbar();
     ensureMobileHeader();
     ensureSidebarStructure(getSidebar());
+    ensureOmSidebarUtilities();
     ensureDock();
     document.body.classList.add("om-has-dock");
 
@@ -560,6 +646,7 @@
     const needsNav = host && (host.dataset.mounted !== "1" || !host.children.length);
     if (needsNav) await mountNav();
     wrapNavLabels(getSidebar());
+    refreshOmUtilityBindings();
   }
 
   if (document.readyState === "loading") {

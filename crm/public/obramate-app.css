@@ -927,6 +927,11 @@ body.om-app .dashboard-main {
     transform: none !important;
   }
 
+  /* Let flyouts / account menu escape the rail */
+  body.om-app #dashboardSidebar.dashboard-sidebar {
+    overflow: visible !important;
+  }
+
   body.om-app #dashboardSidebar .sidebar-header {
     display: flex !important;
     flex-direction: column !important;
@@ -1147,6 +1152,46 @@ body.om-app .dashboard-main {
 
   body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-user-bar {
     justify-content: flex-start;
+  }
+
+  /* Help + Settings (moved from hidden topbar into sidebar footer) */
+  body.om-app #omSidebarUtilities,
+  body.om-app .om-sidebar-utilities {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.2rem;
+    width: 100%;
+    margin: 0 0 0.35rem;
+    padding: 0.45rem 0 0.35rem;
+    border-top: 1px solid var(--plab-line);
+  }
+
+  body.om-app #omSidebarUtilities .crm-account-menu-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  body.om-app #omSidebarUtilities .crm-account-menu-wrap > .nav-item,
+  body.om-app #omSidebarUtilities .crm-account-menu-wrap > [data-account-menu-trigger] {
+    width: 100% !important;
+  }
+
+  body.om-app #omSidebarUtilities .crm-account-menu {
+    top: auto;
+    bottom: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    min-width: 0;
+    width: max(100%, 220px);
+  }
+
+  body.om-app.sidebar-collapsed #omSidebarUtilities .crm-account-menu {
+    left: calc(100% + 12px);
+    right: auto;
+    bottom: 0;
+    top: auto;
+    width: 240px;
   }
 
   /* Hover labels when collapsed (instant tooltip to the right of the rail) */

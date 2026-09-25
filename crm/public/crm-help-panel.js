@@ -135,9 +135,13 @@
     }
   }
 
-  function init() {
+  function refresh() {
     ensure();
     bindHelpButton(document.getElementById("crmTopbarHelpBtn"));
+  }
+
+  function init() {
+    refresh();
 
     document.addEventListener("click", function (e) {
       if (e.target.closest("[data-crm-help-close]")) {
@@ -160,5 +164,5 @@
     init();
   }
 
-  window.__crmHelpPanel = { open: open, close: close, isOpen: isOpen };
+  window.__crmHelpPanel = { open: open, close: close, isOpen: isOpen, refresh: refresh };
 })();
