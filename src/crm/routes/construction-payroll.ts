@@ -389,6 +389,44 @@ constructionPayrollRouter.delete(
   },
 );
 
+/** Projects list used by payroll (and legacy SF UIs) for timesheet project column */
+constructionPayrollRouter.get(
+  "/api/projects",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+        tx.project.findMany({
+          where: { deletedAt: null },
+          orderBy: [{ number: "desc" }, { updatedAt: "desc" }],
+          take: limit,
+          select: {
+            id: true,
+            number: true,
+            name: true,
+            status: true,
+            address: true,
+          },
+        }),
+      );
+      res.json({
+        success: true,
+        data: rows.map((p) => ({
+          id: p.id,
+          number: p.number,
+          name: p.name,
+          status: p.status,
+          address: p.address,
+          project_number: p.number != null ? `#${p.number}` : p.name,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // ---- Self hour bank ----------------------------------------------------------
 
 constructionPayrollRouter.get(

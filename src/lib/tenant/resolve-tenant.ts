@@ -242,6 +242,17 @@ export function requireTenant(
   next: NextFunction,
 ): void {
   if (!req.organizationId || !req.organization) {
+    const wantsJson =
+      String(req.path || "").startsWith("/api/") ||
+      String(req.headers.accept || "").includes("application/json");
+    if (wantsJson) {
+      res.status(404).json({
+        success: false,
+        error: "Organization required",
+        code: "ORG_REQUIRED",
+      });
+      return;
+    }
     res.status(404).render("errors/not-found", {
       title: "Organization required",
       message: subdomainTenantsSupported()

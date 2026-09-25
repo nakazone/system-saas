@@ -134,7 +134,18 @@ async function api(method, path, body) {
     opts.body = JSON.stringify(body);
   }
   const r = await fetch(`${CP}${path}`, opts);
-  const j = await r.json().catch(() => ({}));
+  const text = await r.text();
+  let j = {};
+  try {
+    j = text ? JSON.parse(text) : {};
+  } catch {
+    j = {
+      success: false,
+      error: r.ok
+        ? 'Resposta inválida do servidor'
+        : `Erro ${r.status}: o servidor devolveu HTML em vez de JSON (rota em falta ou sessão).`,
+    };
+  }
   if (j.code === 'PAYROLL_SCHEMA_MISSING') {
     document.getElementById('migrateBanner')?.classList.remove('hidden');
   }
@@ -145,6 +156,18 @@ async function api(method, path, body) {
     throw err;
   }
   return j;
+}
+
+async function parseJsonResponse(r) {
+  const text = await r.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return {
+      success: false,
+      error: `Erro ${r.status}: resposta não é JSON`,
+    };
+  }
 }
 
 function showAuth(msg) {
@@ -206,7 +229,7 @@ function refreshPeriodActions() {
 
 async function loadSession() {
   const r = await fetch('/api/auth/session', { credentials: 'include' });
-  const j = await r.json();
+  const j = await parseJsonResponse(r);
   if (!j.authenticated) {
     window.location.href = '/login.html';
     return false;
@@ -283,7 +306,7 @@ async function loadApproveHourBank() {
   if (!body || !canManage) return;
   try {
     const r = await fetch(`${CP}/hour-bank?status=pending`, { credentials: 'include' });
-    const j = await r.json();
+    const j = await parseJsonResponse(r);
     if (!r.ok) throw new Error(j.error || 'Falha ao carregar pendentes');
     const rows = Array.isArray(j.data) ? j.data : [];
     if (!rows.length) {
@@ -322,7 +345,7 @@ async function approveHourBankEntry(id) {
         period_id: selectedPeriodId || undefined,
       }),
     });
-    const j = await r.json();
+    const j = await parseJsonResponse(r);
     if (!r.ok) throw new Error(j.error || 'Falha ao aprovar');
     window.crmToast?.success?.('Horas aprovadas e lançadas no quadro.');
     await loadApproveHourBank();
@@ -342,7 +365,7 @@ async function rejectHourBankEntry(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     });
-    const j = await r.json();
+    const j = await parseJsonResponse(r);
     if (!r.ok) throw new Error(j.error || 'Falha ao recusar');
     window.crmToast?.success?.('Lançamento recusado.');
     await loadApproveHourBank();
@@ -363,7 +386,7 @@ async function loadHourBank() {
   }
   try {
     const r = await fetch(`${CP}/me/hour-bank`, { credentials: 'include' });
-    const j = await r.json();
+    const j = await parseJsonResponse(r);
     if (!r.ok) throw new Error(j.error || 'Falha ao carregar banco de horas');
     hourBankLinked = !!j.linked;
     if (!j.linked) {
@@ -429,7 +452,7 @@ async function submitHourBank(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ work_date, hours, notes }),
     });
-    const j = await r.json();
+    const j = await parseJsonResponse(r);
     if (!r.ok) throw new Error(j.error || 'Falha ao registar');
     document.getElementById('hourBankForm')?.reset();
     const today = new Date();
@@ -453,7 +476,7 @@ async function deleteHourBank(id) {
       method: 'DELETE',
       credentials: 'include',
     });
-    const j = await r.json();
+    const j = await parseJsonResponse(r);
     if (!r.ok) throw new Error(j.error || 'Falha ao apagar');
     await loadHourBank();
   } catch (e) {
@@ -515,12 +538,22 @@ function aggregateDaysAndOtByEmployeeFromGrid() {
 }
 
 async function loadProjects() {
-  const r = await fetch('/api/projects?limit=100', { credentials: 'include' });
-  const j = await r.json();
-  projects = (j.data || []).map((p) => ({
-    ...p,
-    project_number: p.project_number || (p.number != null ? `#${p.number}` : p.name || p.id),
-  }));
+  try {
+    const r = await fetch('/api/projects?limit=100', { credentials: 'include' });
+    const j = await parseJsonResponse(r);
+    if (!r.ok) {
+      console.warn('projects list', j.error || r.status);
+      projects = [];
+      return;
+    }
+    projects = (j.data || []).map((p) => ({
+      ...p,
+      project_number: p.project_number || (p.number != null ? `#${p.number}` : p.name || p.id),
+    }));
+  } catch (e) {
+    console.warn('projects list failed', e);
+    projects = [];
+  }
 }
 
 /**
