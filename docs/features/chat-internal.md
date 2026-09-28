@@ -62,6 +62,14 @@ Per member: `lastReadAt` (+ optional `lastReadMessageId`). Unread = messages aft
 - Mute conversation → no push for that conversation (including mentions)
 - Mentions list: **Minhas menções** in chat UI (`/api/chat/mentions`)
 
+## Job list (Chat → Jobs tab)
+
+- `GET /api/chat/jobs?status=active|all|draft|…&from=&to=&q=`
+- Auto-lists work orders (scoped like the jobs board for field roles)
+- Default status filter: **active** (`draft` / `scheduled` / `in_progress`)
+- Date filters use job schedule overlap; presets: today / week / month
+- Click → `ensure-channel` then opens the job conversation
+
 ## Job Comunicações
 
 - Desktop card + mobile tab on job detail
@@ -83,6 +91,7 @@ Per member: `lastReadAt` (+ optional `lastReadMessageId`). Unread = messages aft
 | POST | `/api/chat/conversations/:id/mute` |
 | PUT | `/api/chat/conversations/:id/context` |
 | POST | `/api/chat/messages/link-jobs` |
+| GET | `/api/chat/jobs` |
 | GET | `/api/chat/jobs/:id/timeline` |
 | GET | `/api/chat/jobs/:id/gallery` |
 | POST | `/api/chat/jobs/:id/ensure-channel` |

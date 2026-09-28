@@ -30,8 +30,50 @@ import {
   formatSseFrame,
   publishChatEvent,
 } from "../../lib/chat/realtime.js";
+import { myJobAccessWhere } from "../lib/campo-shared.js";
 
 export const chatRouter = Router();
+
+const CHAT_JOB_STATUSES = ["draft", "scheduled", "in_progress", "completed", "canceled"] as const;
+const CHAT_JOB_ACTIVE_STATUSES = ["draft", "scheduled", "in_progress"] as const;
+const CHAT_OFFICE_SEE_ALL_ROLES = new Set([
+  "admin",
+  "general_manager",
+  "office",
+  "sales",
+]);
+
+/** Field roles only see jobs they are on (same rule as schedule/jobs board). */
+function chatShouldScopeJobsToSelf(user: AuthedRequest["user"]): boolean {
+  if (!user?.id) return false;
+  const role = String(user.roleKey || "").toLowerCase();
+  if (role === "installer" || role === "crew_lead" || role === "subcontractor") return true;
+  if (CHAT_OFFICE_SEE_ALL_ROLES.has(role)) return false;
+  const perms = user.permissions || [];
+  if (perms.includes("work_orders.manage") || perms.includes("schedule.manage")) return false;
+  return (
+    perms.includes("work_orders.view") ||
+    perms.includes("schedule.view") ||
+    perms.includes("payroll.self") ||
+    perms.includes("chat.use")
+  );
+}
+
+function chatJobListScope(user: AuthedRequest["user"]): Record<string, unknown> {
+  if (!chatShouldScopeJobsToSelf(user)) return {};
+  return myJobAccessWhere(user!.id);
+}
+
+/** Parse `<input type="date">` value as local calendar day bounds. */
+function parseDateInput(raw: string, endOfDay: boolean): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(raw || "").trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(d.getTime())) return null;
+  if (endOfDay) d.setHours(23, 59, 59, 999);
+  else d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 function chatUser(req: AuthedRequest): ChatAccessUser {
   return {
@@ -1853,6 +1895,188 @@ chatRouter.get(
         success: true,
         data: data.map((u) => ({ id: u.id, name: u.name, email: u.email })),
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Jobs board for the Chat "Jobs" tab — auto-lists work orders (not only existing channels)
+ * with status / date / search filters. Click → ensure-channel.
+ */
+chatRouter.get(
+  "/api/chat/jobs",
+  requireCrmAuth,
+  requireCrmPermission("chat.use"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const q = String(req.query.q || "").trim();
+      const statusRaw = String(req.query.status || "active").trim().toLowerCase();
+      const fromRaw = typeof req.query.from === "string" ? req.query.from : "";
+      const toRaw = typeof req.query.to === "string" ? req.query.to : "";
+      const from = fromRaw ? parseDateInput(fromRaw, false) : null;
+      const to = toRaw ? parseDateInput(toRaw, true) : null;
+      const hasFrom = !!from;
+      const hasTo = !!to;
+
+      let statusFilter: string[] | null = null;
+      if (statusRaw === "active" || statusRaw === "") {
+        statusFilter = [...CHAT_JOB_ACTIVE_STATUSES];
+      } else if (statusRaw === "all") {
+        statusFilter = null;
+      } else if ((CHAT_JOB_STATUSES as readonly string[]).includes(statusRaw)) {
+        statusFilter = [statusRaw];
+      } else {
+        res.status(400).json({ success: false, error: "Invalid status filter" });
+        return;
+      }
+
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const fieldScope = chatJobListScope(req.user);
+        const searchOr = q
+          ? [
+              { title: { contains: q, mode: "insensitive" as const } },
+              { address: { contains: q, mode: "insensitive" as const } },
+              { sourceName: { contains: q, mode: "insensitive" as const } },
+              { customer: { name: { contains: q, mode: "insensitive" as const } } },
+              ...(Number.isFinite(Number(q)) && String(Number(q)) === q
+                ? [{ number: Number(q) }]
+                : []),
+            ]
+          : null;
+
+        const scheduleWhere =
+          hasFrom && hasTo
+            ? { scheduledStart: { lte: to! }, scheduledEnd: { gte: from! } }
+            : hasFrom
+              ? {
+                  OR: [
+                    { scheduledStart: { gte: from! } },
+                    { scheduledEnd: { gte: from! } },
+                  ],
+                }
+              : hasTo
+                ? { scheduledStart: { lte: to! } }
+                : null;
+
+        const rows = await tx.workOrder.findMany({
+          where: {
+            organizationId: req.organizationId!,
+            ...(statusFilter ? { status: { in: statusFilter } } : {}),
+            ...(scheduleWhere || {}),
+            ...(Object.keys(fieldScope).length || searchOr
+              ? {
+                  AND: [
+                    ...(Object.keys(fieldScope).length ? [fieldScope] : []),
+                    ...(searchOr ? [{ OR: searchOr }] : []),
+                  ],
+                }
+              : {}),
+          },
+          select: {
+            id: true,
+            number: true,
+            title: true,
+            address: true,
+            status: true,
+            scheduledStart: true,
+            scheduledEnd: true,
+            customer: { select: { name: true } },
+            assignedUser: { select: { id: true, name: true } },
+          },
+          orderBy: [{ scheduledStart: "asc" }, { updatedAt: "desc" }],
+          take: 100,
+        });
+
+        const woIds = rows.map((r) => r.id);
+        const channels = woIds.length
+          ? await tx.chatConversation.findMany({
+              where: {
+                organizationId: req.organizationId!,
+                type: "job",
+                workOrderId: { in: woIds },
+              },
+              select: {
+                id: true,
+                workOrderId: true,
+                updatedAt: true,
+                members: {
+                  where: { userId: req.user!.id, leftAt: null },
+                  select: { lastReadAt: true, muted: true },
+                },
+              },
+            })
+          : [];
+        const byWo = new Map(channels.map((c) => [c.workOrderId!, c]));
+
+        const out = [];
+        for (const r of rows) {
+          const ch = byWo.get(r.id);
+          const membership = ch?.members[0] ?? null;
+          let unread = 0;
+          let lastMessage: {
+            id: string;
+            body: string;
+            created_at: string;
+            type: string;
+          } | null = null;
+          if (ch) {
+            const last = await tx.chatMessage.findFirst({
+              where: { conversationId: ch.id },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                body: true,
+                createdAt: true,
+                type: true,
+                hiddenAt: true,
+              },
+            });
+            if (last) {
+              lastMessage = {
+                id: last.id,
+                body: last.hiddenAt ? "Mensagem removida" : last.body,
+                created_at: last.createdAt.toISOString(),
+                type: last.type,
+              };
+            }
+            if (membership) {
+              unread = await tx.chatMessage.count({
+                where: {
+                  conversationId: ch.id,
+                  authorId: { not: req.user!.id },
+                  hiddenAt: null,
+                  ...(membership.lastReadAt
+                    ? { createdAt: { gt: membership.lastReadAt } }
+                    : {}),
+                },
+              });
+            }
+          }
+          out.push({
+            id: r.id,
+            number: r.number,
+            title: r.title,
+            address: r.address,
+            status: r.status,
+            customer_name: r.customer?.name ?? null,
+            assigned_user: r.assignedUser
+              ? { id: r.assignedUser.id, name: r.assignedUser.name }
+              : null,
+            scheduled_start: r.scheduledStart?.toISOString() ?? null,
+            scheduled_end: r.scheduledEnd?.toISOString() ?? null,
+            label: r.number != null ? `#${r.number} ${r.title}` : r.title,
+            conversation_id: ch?.id ?? null,
+            unread_count: unread,
+            last_message: lastMessage,
+            muted: membership?.muted ?? false,
+          });
+        }
+        return out;
+      });
+
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }
