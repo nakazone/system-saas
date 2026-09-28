@@ -233,6 +233,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.chat-conv__addr {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--mod-muted, #6b645c);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+.chat-conv--job .chat-conv__title {
+  font-size: 0.92rem;
+}
 .chat-conv__time {
   grid-column: 2;
   font-size: 0.72rem;

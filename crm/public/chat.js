@@ -96,6 +96,53 @@
     return c.type === "job" ? "Jobs" : c.type === "group" ? "Grupos" : "Diretas";
   }
 
+
+  function jobCompanyFrom(j) {
+    if (!j) return "Job";
+    return (
+      j.company ||
+      j.customer_name ||
+      j.customer?.name ||
+      j.builder?.company ||
+      j.builder?.name ||
+      j.source_name ||
+      j.title ||
+      (j.number != null ? `Job #${j.number}` : "Job")
+    );
+  }
+
+  function jobAddressFrom(j) {
+    if (!j) return "";
+    return String(j.address || "").trim();
+  }
+
+  function formatJobChipLabel(j) {
+    const company = jobCompanyFrom(j);
+    const addr = jobAddressFrom(j);
+    if (!addr) return company;
+    const short = addr.length > 36 ? addr.slice(0, 34) + "…" : addr;
+    return `${company} · ${short}`;
+  }
+
+  function formatJobFullLabel(j) {
+    const company = jobCompanyFrom(j);
+    const addr = jobAddressFrom(j);
+    return addr ? `${company} · ${addr}` : company;
+  }
+
+  function humanizePreview(body, conv) {
+    let text = String(body || "");
+    text = text
+      .replace(/<@user:[0-9a-f-]+>/gi, "@alguém")
+      .replace(/<@team>/gi, "@equipe")
+      .replace(/<@all>/gi, "@todos")
+      .replace(/<#job:([0-9a-f-]+)>/gi, (_, id) => {
+        const j = state.jobLabelCache[id] || (conv?.work_order_id === id ? conv.work_order : null);
+        return j ? jobCompanyFrom(j) : "Job";
+      });
+    return text;
+  }
+
   // —— Body render ——
   function renderBodyHtml(body, jobs) {
     if (body == null) return "<em>Mensagem removida</em>";
@@ -121,12 +168,10 @@
         html += `<span class="chat-chip chat-chip--special">@todos</span>`;
       } else if (lower.startsWith("<#job:") && m[3]) {
         const j = jobMap[m[3]] || state.jobLabelCache[m[3]];
-        const label = j
-          ? j.number != null
-            ? `#${j.number} ${j.title || ""}`
-            : j.title || j.label || "Job"
-          : "Job";
-        html += `<a class="chat-chip chat-chip--job" href="job-detail.html?id=${encodeURIComponent(m[3])}">${escapeHtml(label.trim())}</a>`;
+        const label = formatJobChipLabel(j);
+        html += `<a class="chat-chip chat-chip--job" href="job-detail.html?id=${encodeURIComponent(m[3])}" title="${escapeHtml(
+          formatJobFullLabel(j),
+        )}">${escapeHtml(label)}</a>`;
       } else {
         html += escapeHtml(full);
       }
@@ -218,17 +263,22 @@
         job.unread_count > 0
           ? `<span class="chat-conv__badge">${job.unread_count > 99 ? "99+" : job.unread_count}</span>`
           : "";
+      const company = job.company || job.customer_name || job.title || "Job";
+      const addr = job.address || "";
       const preview = job.last_message
-        ? job.last_message.body
-        : [job.customer_name, job.address].filter(Boolean).join(" · ") || "Abrir canal do job";
-      const title = job.label || job.title || "Job";
-      html += `<button type="button" class="chat-conv${active}" data-work-order-id="${job.id}"${
+        ? humanizePreview(job.last_message.body, { work_order: job, work_order_id: job.id })
+        : addr || "Abrir canal do job";
+      const addrHtml = addr
+        ? `<span class="chat-conv__addr">${escapeHtml(addr)}</span>`
+        : "";
+      html += `<button type="button" class="chat-conv chat-conv--job${active}" data-work-order-id="${job.id}"${
         job.conversation_id ? ` data-id="${job.conversation_id}"` : ""
       }>
         <span class="chat-conv__title"><span class="chat-conv__status is-${escapeHtml(
           job.status || "",
-        )}">${escapeHtml(jobStatusLabel(job.status))}</span>${escapeHtml(title)}</span>
+        )}">${escapeHtml(jobStatusLabel(job.status))}</span>${escapeHtml(company)}</span>
         <span class="chat-conv__time">${escapeHtml(fmtJobSchedule(job.scheduled_start))}</span>
+        ${addrHtml}
         <span class="chat-conv__preview">${escapeHtml(String(preview || "").slice(0, 90))}</span>
         ${badge}
       </button>`;
@@ -268,15 +318,25 @@
           c.unread_count > 0
             ? `<span class="chat-conv__badge">${c.unread_count > 99 ? "99+" : c.unread_count}</span>`
             : "";
-        const preview = c.last_message
-          ? c.last_message.type === "system"
-            ? c.last_message.body
-            : c.last_message.body
+        const rawPreview = c.last_message
+          ? c.last_message.body
           : "Sem mensagens";
-        html += `<button type="button" class="chat-conv${active}" data-id="${c.id}">
-          <span class="chat-conv__title"><span class="chat-conv__type">${typeLabel(c.type)}</span>${escapeHtml(c.title || c.name || "Conversa")}</span>
+        const preview = humanizePreview(rawPreview, c);
+        const company =
+          c.type === "job"
+            ? c.work_order?.company || c.title || c.name || "Job"
+            : c.title || c.name || "Conversa";
+        const addr = c.type === "job" ? c.subtitle || c.work_order?.address || "" : "";
+        const addrHtml = addr
+          ? `<span class="chat-conv__addr">${escapeHtml(addr)}</span>`
+          : "";
+        html += `<button type="button" class="chat-conv${active}${
+          c.type === "job" ? " chat-conv--job" : ""
+        }" data-id="${c.id}">
+          <span class="chat-conv__title"><span class="chat-conv__type">${typeLabel(c.type)}</span>${escapeHtml(company)}</span>
           <span class="chat-conv__time">${fmtTime(c.last_message?.created_at || c.updated_at)}</span>
-          <span class="chat-conv__preview">${escapeHtml(String(preview || "").slice(0, 80))}</span>
+          ${addrHtml}
+          <span class="chat-conv__preview">${escapeHtml(String(preview || "").slice(0, 90))}</span>
           ${badge}
         </button>`;
       });
@@ -337,6 +397,9 @@
   async function loadConversations() {
     const j = await api("/api/chat/conversations");
     state.conversations = j.data || [];
+    state.conversations.forEach((c) => {
+      if (c.work_order?.id) state.jobLabelCache[c.work_order.id] = c.work_order;
+    });
     renderList();
     updateDocTitle();
     if (typeof window.__crmUpdateChatBadge === "function") {
@@ -482,15 +545,21 @@
 
     const detail = await api(`/api/chat/conversations/${id}`);
     const d = detail.data;
-    $("chatThreadTitle").textContent = d.name || state.conversations.find((c) => c.id === id)?.title || "Conversa";
-    $("chatThreadSub").textContent =
-      d.type === "job"
-        ? "Canal da obra"
-        : d.members
-            ?.map((m) => m.name)
-            .filter(Boolean)
-            .slice(0, 6)
-            .join(", ") || typeLabel(d.type);
+    const conv = state.conversations.find((c) => c.id === id);
+    if (d.type === "job") {
+      const job = d.context_job || conv?.work_order;
+      if (job?.id) state.jobLabelCache[job.id] = job;
+      $("chatThreadTitle").textContent = jobCompanyFrom(job) || d.name || "Job";
+      $("chatThreadSub").textContent = jobAddressFrom(job) || "Canal da obra";
+    } else {
+      $("chatThreadTitle").textContent = d.name || conv?.title || "Conversa";
+      $("chatThreadSub").textContent =
+        d.members
+          ?.map((m) => m.name)
+          .filter(Boolean)
+          .slice(0, 6)
+          .join(", ") || typeLabel(d.type);
+    }
     state.muted = !!d.muted;
     $("chatMuteBtn").setAttribute("aria-pressed", state.muted ? "true" : "false");
     $("chatMuteBtn").title = state.muted ? "Reativar notificações" : "Silenciar";
@@ -577,9 +646,7 @@
       return;
     }
     const j = state.contextJob;
-    const label =
-      j.number != null ? `Job ${j.number}${j.title ? " — " + j.title : ""}` : j.title || "Job";
-    $("chatContextLabel").textContent = label;
+    $("chatContextLabel").textContent = formatJobFullLabel(j);
     chip.hidden = false;
   }
 
@@ -806,8 +873,8 @@
           return {
             kind: "job",
             token: job.token,
-            label: job.label,
-            sub: [job.customer_name, job.address, job.status].filter(Boolean).join(" · "),
+            label: job.company || job.label || job.customer_name || job.title || "Job",
+            sub: [job.address, jobStatusLabel(job.status)].filter(Boolean).join(" · "),
             job,
           };
         });

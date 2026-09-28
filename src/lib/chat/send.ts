@@ -304,10 +304,10 @@ export async function createChatMessage(
 
 export function previewFromBody(body: string): string {
   return body
-    .replace(/<@user:[0-9a-f-]+>/gi, "@user")
+    .replace(/<@user:[0-9a-f-]+>/gi, "@alguém")
     .replace(/<@team>/gi, "@equipe")
     .replace(/<@all>/gi, "@todos")
-    .replace(/<#job:[0-9a-f-]+>/gi, "#job")
+    .replace(/<#job:[0-9a-f-]+>/gi, "Job")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&")

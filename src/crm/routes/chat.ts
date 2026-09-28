@@ -15,7 +15,7 @@ import {
   mapMessageForViewer,
   type ChatAccessUser,
 } from "../../lib/chat/access.js";
-import { dmKeyForUsers, ensureJobChatChannel } from "../../lib/chat/job-channel.js";
+import { dmKeyForUsers, ensureJobChatChannel, jobChannelDisplayName, jobChatParts, mapJobChatLabel, JOB_CHAT_LABEL_SELECT } from "../../lib/chat/job-channel.js";
 import { CHAT_MESSAGE_RATE, checkRateLimit } from "../../lib/chat/rate-limit.js";
 import {
   createChatMessage,
@@ -332,7 +332,7 @@ chatRouter.get(
           include: {
             conversation: {
               include: {
-                workOrder: { select: { id: true, number: true, title: true, status: true } },
+                workOrder: { select: JOB_CHAT_LABEL_SELECT },
                 members: {
                   where: { leftAt: null },
                   include: { user: { select: { id: true, name: true, status: true } } },
@@ -367,16 +367,20 @@ chatRouter.get(
               hiddenAt: null,
             },
           });
+          const jobParts = c.workOrder ? jobChatParts(c.workOrder) : null;
           const title =
             c.type === "dm"
               ? c.members
                   .filter((x) => x.userId !== req.user!.id)
                   .map((x) => x.user.name)
                   .join(", ") || "DM"
-              : c.name || (c.workOrder ? `Job #${c.workOrder.number ?? "—"}` : "Conversa");
+              : c.type === "job" && jobParts
+                ? jobParts.company
+                : c.name || "Conversa";
 
           if (q) {
-            const hay = `${title} ${c.name ?? ""} ${c.workOrder?.title ?? ""}`.toLowerCase();
+            const hay =
+              `${title} ${c.name ?? ""} ${jobParts?.company ?? ""} ${jobParts?.address ?? ""} ${c.workOrder?.title ?? ""}`.toLowerCase();
             if (!hay.includes(q)) continue;
           }
 
@@ -385,6 +389,7 @@ chatRouter.get(
             type: c.type,
             name: c.name,
             title,
+            subtitle: c.type === "job" ? jobParts?.address ?? null : null,
             work_order_id: c.workOrderId,
             work_order: c.workOrder
               ? {
@@ -392,6 +397,10 @@ chatRouter.get(
                   number: c.workOrder.number,
                   title: c.workOrder.title,
                   status: c.workOrder.status,
+                  address: c.workOrder.address,
+                  customer_name: c.workOrder.customer?.name ?? null,
+                  company: jobParts?.company ?? null,
+                  label: jobChannelDisplayName(c.workOrder),
                 }
               : null,
             archived_at: c.archivedAt?.toISOString() ?? null,
@@ -631,13 +640,24 @@ chatRouter.get(
         const context = await tx.chatConversationContext.findFirst({
           where: { conversationId: access.conversation.id, userId: req.user!.id },
           include: {
-            workOrder: { select: { id: true, number: true, title: true, status: true } },
+            workOrder: { select: JOB_CHAT_LABEL_SELECT },
           },
         });
+        const jobChannelWo =
+          access.conversation.type === "job" && access.conversation.workOrderId
+            ? await tx.workOrder.findFirst({
+                where: { id: access.conversation.workOrderId },
+                select: JOB_CHAT_LABEL_SELECT,
+              })
+            : null;
+        const contextWo = context?.workOrder || jobChannelWo;
         return {
           id: access.conversation.id,
           type: access.conversation.type,
-          name: access.conversation.name,
+          name:
+            access.conversation.type === "job" && jobChannelWo
+              ? jobChannelDisplayName(jobChannelWo)
+              : access.conversation.name,
           work_order_id: access.conversation.workOrderId,
           archived_at: access.conversation.archivedAt?.toISOString() ?? null,
           elevated: access.elevated,
@@ -649,16 +669,7 @@ chatRouter.get(
             role: m.role,
             status: m.user.status,
           })),
-          context_job: context?.workOrder
-            ? {
-                id: context.workOrder.id,
-                number: context.workOrder.number,
-                title: context.workOrder.title,
-                status: context.workOrder.status,
-              }
-            : access.conversation.type === "job" && access.conversation.workOrderId
-              ? { id: access.conversation.workOrderId }
-              : null,
+          context_job: contextWo ? mapJobChatLabel(contextWo) : null,
         };
       });
       res.json({ success: true, data });
@@ -883,7 +894,7 @@ chatRouter.put(
         }
         const wo = await tx.workOrder.findFirst({
           where: { id: parsed.data.work_order_id, organizationId: req.organizationId! },
-          select: { id: true, number: true, title: true, status: true },
+          select: JOB_CHAT_LABEL_SELECT,
         });
         if (!wo) throw Object.assign(new Error("Job not found"), { status: 404 });
         await tx.chatConversationContext.upsert({
@@ -901,14 +912,7 @@ chatRouter.put(
           },
           update: { workOrderId: wo.id },
         });
-        return {
-          context_job: {
-            id: wo.id,
-            number: wo.number,
-            title: wo.title,
-            status: wo.status,
-          },
-        };
+        return { context_job: mapJobChatLabel(wo) };
       });
       res.json({ success: true, data });
     } catch (error) {
@@ -970,7 +974,7 @@ chatRouter.get(
             attachments: true,
             jobLinks: {
               include: {
-                workOrder: { select: { id: true, number: true, title: true } },
+                workOrder: { select: JOB_CHAT_LABEL_SELECT },
               },
             },
             mentions: { select: { userId: true, mentionType: true, readAt: true } },
@@ -987,9 +991,7 @@ chatRouter.get(
             author: m.author ? { id: m.author.id, name: m.author.name } : null,
             attachments: m.attachments.map(mapAttachment),
             jobs: m.jobLinks.map((j) => ({
-              id: j.workOrder.id,
-              number: j.workOrder.number,
-              title: j.workOrder.title,
+              ...mapJobChatLabel(j.workOrder),
               source: j.source,
               linked_at: j.linkedAt.toISOString(),
             })),
@@ -1975,14 +1977,9 @@ chatRouter.get(
               : {}),
           },
           select: {
-            id: true,
-            number: true,
-            title: true,
-            address: true,
-            status: true,
+            ...JOB_CHAT_LABEL_SELECT,
             scheduledStart: true,
             scheduledEnd: true,
-            customer: { select: { name: true } },
             assignedUser: { select: { id: true, name: true } },
           },
           orderBy: [{ scheduledStart: "asc" }, { updatedAt: "desc" }],
@@ -2055,18 +2052,12 @@ chatRouter.get(
             }
           }
           out.push({
-            id: r.id,
-            number: r.number,
-            title: r.title,
-            address: r.address,
-            status: r.status,
-            customer_name: r.customer?.name ?? null,
+            ...mapJobChatLabel(r),
             assigned_user: r.assignedUser
               ? { id: r.assignedUser.id, name: r.assignedUser.name }
               : null,
             scheduled_start: r.scheduledStart?.toISOString() ?? null,
             scheduled_end: r.scheduledEnd?.toISOString() ?? null,
-            label: r.number != null ? `#${r.number} ${r.title}` : r.title,
             conversation_id: ch?.id ?? null,
             unread_count: unread,
             last_message: lastMessage,
@@ -2107,14 +2098,7 @@ chatRouter.get(
                 }
               : {}),
           },
-          select: {
-            id: true,
-            number: true,
-            title: true,
-            address: true,
-            status: true,
-            customer: { select: { name: true } },
-          },
+          select: JOB_CHAT_LABEL_SELECT,
           take: 40,
           orderBy: [{ updatedAt: "desc" }],
         });
@@ -2123,16 +2107,14 @@ chatRouter.get(
           const bActive = activeFirst.includes(b.status) ? 0 : 1;
           return aActive - bActive;
         });
-        return rows.slice(0, 25).map((r) => ({
-          id: r.id,
-          number: r.number,
-          title: r.title,
-          address: r.address,
-          status: r.status,
-          customer_name: r.customer?.name ?? null,
-          token: `<#job:${r.id}>`,
-          label: r.number != null ? `#${r.number} ${r.title}` : r.title,
-        }));
+        return rows.slice(0, 25).map((r) => {
+          const mapped = mapJobChatLabel(r);
+          return {
+            ...mapped,
+            token: `<#job:${r.id}>`,
+            sub: [mapped.address, mapped.status].filter(Boolean).join(" · "),
+          };
+        });
       });
       res.json({ success: true, data });
     } catch (error) {

@@ -12,14 +12,79 @@ export function isJobChannelReadOnly(status: string): boolean {
   return (CHAT_READONLY_JOB_STATUSES as readonly string[]).includes(status);
 }
 
-export function jobChannelDisplayName(workOrder: {
-  number: number | null;
-  title: string;
-}): string {
-  if (workOrder.number != null) {
-    return `Job #${workOrder.number} — ${workOrder.title}`;
-  }
-  return workOrder.title;
+/** Fields needed to build company + site labels for chat UI. */
+export type JobChatLabelInput = {
+  number?: number | null;
+  title?: string | null;
+  address?: string | null;
+  sourceName?: string | null;
+  customer?: { name: string } | null;
+  builder?: {
+    company?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+};
+
+export const JOB_CHAT_LABEL_SELECT = {
+  id: true,
+  number: true,
+  title: true,
+  address: true,
+  status: true,
+  sourceName: true,
+  customer: { select: { name: true } },
+  builder: { select: { company: true, firstName: true, lastName: true } },
+} as const;
+
+/** Company / client name for a job (customer → builder → source → title). */
+export function jobCompanyName(wo: JobChatLabelInput): string {
+  const builderName = wo.builder
+    ? String(wo.builder.company || "").trim() ||
+      `${wo.builder.firstName || ""} ${wo.builder.lastName || ""}`.trim()
+    : "";
+  return (
+    String(wo.customer?.name || "").trim() ||
+    builderName ||
+    String(wo.sourceName || "").trim() ||
+    String(wo.title || "").trim() ||
+    (wo.number != null ? `Job #${wo.number}` : "Job")
+  );
+}
+
+export function jobSiteAddress(wo: JobChatLabelInput): string | null {
+  const a = String(wo.address || "").trim();
+  return a || null;
+}
+
+export function jobChatParts(wo: JobChatLabelInput): {
+  company: string;
+  address: string | null;
+} {
+  return { company: jobCompanyName(wo), address: jobSiteAddress(wo) };
+}
+
+/**
+ * Channel / chip label: "Company · Address" (address omitted when missing).
+ */
+export function jobChannelDisplayName(wo: JobChatLabelInput): string {
+  const { company, address } = jobChatParts(wo);
+  return address ? `${company} · ${address}` : company;
+}
+
+/** API payload fields shared by chat job endpoints. */
+export function mapJobChatLabel(wo: JobChatLabelInput & { id: string; status?: string }) {
+  const { company, address } = jobChatParts(wo);
+  return {
+    id: wo.id,
+    number: wo.number ?? null,
+    title: wo.title ?? null,
+    address,
+    status: wo.status ?? null,
+    customer_name: wo.customer?.name ?? null,
+    company,
+    label: jobChannelDisplayName(wo),
+  };
 }
 
 /** Sorted pair key for DM uniqueness within an organization. */
@@ -61,8 +126,12 @@ export async function ensureJobChatChannel(
       id: true,
       number: true,
       title: true,
+      address: true,
       status: true,
+      sourceName: true,
       assignedUserId: true,
+      customer: { select: { name: true } },
+      builder: { select: { company: true, firstName: true, lastName: true } },
       members: { select: { userId: true } },
     },
   });

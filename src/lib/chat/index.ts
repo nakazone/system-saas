@@ -2,12 +2,18 @@ export {
   CHAT_ACTIVE_JOB_STATUSES,
   CHAT_READONLY_JOB_STATUSES,
   isJobChannelReadOnly,
+  jobCompanyName,
+  jobSiteAddress,
+  jobChatParts,
   jobChannelDisplayName,
+  mapJobChatLabel,
+  JOB_CHAT_LABEL_SELECT,
   dmKeyForUsers,
   collectJobTeamUserIds,
   ensureJobChatChannel,
   backfillJobChatChannelsForOrg,
 } from "./job-channel.js";
+export type { JobChatLabelInput } from "./job-channel.js";
 export {
   sanitizeChatBody,
   parseChatTokens,

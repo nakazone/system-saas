@@ -66,8 +66,15 @@ describe("chat job channel helpers", () => {
     expect(dmKeyForUsers(a, b)).toBe(`${a}:${b}`);
   });
 
-  it("names job channels and detects read-only statuses", () => {
-    expect(jobChannelDisplayName({ number: 12, title: "Kitchen" })).toBe("Job #12 — Kitchen");
+  it("names job channels as company · address", () => {
+    expect(
+      jobChannelDisplayName({
+        number: 12,
+        title: "Kitchen",
+        address: "123 Oak St",
+        customer: { name: "Acme Builders" },
+      }),
+    ).toBe("Acme Builders · 123 Oak St");
     expect(jobChannelDisplayName({ number: null, title: "Patio" })).toBe("Patio");
     expect(isJobChannelReadOnly("completed")).toBe(true);
     expect(isJobChannelReadOnly("canceled")).toBe(true);
@@ -152,7 +159,8 @@ describe("chat attachments", () => {
 describe("chat preview", () => {
   it("strips tokens for notification preview", () => {
     const uid = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
-    expect(previewFromBody(`Oi <@user:${uid}>`)).toContain("@user");
+    expect(previewFromBody(`Oi <@user:${uid}>`)).toContain("@alguém");
+    expect(previewFromBody(`veja <#job:${"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}>`) ).toBe("veja Job");
     expect(previewFromBody("x".repeat(200)).length).toBeLessThanOrEqual(140);
   });
 });
