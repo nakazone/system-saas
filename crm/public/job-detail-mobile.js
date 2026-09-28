@@ -167,7 +167,7 @@
       throw new Error("Selecione uma imagem");
     }
     try {
-      return await compressImage(file, 1920, 0.82);
+      return await compressImage(file, 1600, 0.72);
     } catch (_) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
