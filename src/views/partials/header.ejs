@@ -2,6 +2,7 @@
 <% const accent = (typeof organization !== 'undefined' && organization && organization.primaryColor)
   ? (organization.accentColor || organization.primaryColor)
   : '#e8792c'; %>
+<% const isLandingPage = typeof landingPage !== 'undefined' && landingPage; %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,11 +16,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <% if (isLandingPage) { %>
+  <link rel="stylesheet" href="/assets/css/landing.css" />
+  <style>:root { --brand: #E8792C; --brand-600: #D0651B; }</style>
+  <% } else { %>
   <link rel="stylesheet" href="/assets/css/app.css" />
   <style>:root { --brand: <%= accent %>; --brand-dark: #c1652f; --brand-ink: #211d1a; --brand-surface: #f7f4ee; }</style>
+  <% } %>
 </head>
-<body class="<%= typeof organization !== 'undefined' && organization ? 'app-shell' : 'marketing-shell' %>">
-  <% if (typeof organization !== 'undefined' && organization) { %>
+<body class="<%= isLandingPage ? 'landing-shell' : (typeof organization !== 'undefined' && organization ? 'app-shell' : 'marketing-shell') %>">
+  <% if (isLandingPage) { %>
+  <% } else if (typeof organization !== 'undefined' && organization) { %>
   <header class="app-header">
     <div class="brand">
       <% if (organization.logoUrl) { %>

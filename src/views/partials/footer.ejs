@@ -1,4 +1,6 @@
-<% if (typeof organization !== 'undefined' && organization) { %>
+<% const isLandingPage = typeof landingPage !== 'undefined' && landingPage; %>
+<% if (isLandingPage) { %>
+<% } else if (typeof organization !== 'undefined' && organization) { %>
 </main>
 <% } else { %>
 </main>

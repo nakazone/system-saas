@@ -174,6 +174,7 @@ export function createApp() {
         appBaseUrl: env.APP_BASE_URL,
         subdomainTenants: subdomainTenantsSupported(),
         estimateRules: DEFAULT_ESTIMATE_RULES,
+        landingPage: true,
       });
       return;
     }
