@@ -24,6 +24,7 @@ import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { invoicesRouter } from "./modules/invoices/routes.js";
 import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
 import { publicJobsRouter } from "./modules/work-orders/public-routes.js";
+import { publicPortfolioRouter } from "./modules/portfolio/public-routes.js";
 import { paymentSchedulesRouter } from "./modules/invoices/schedule-routes.js";
 import { paymentTemplatesRouter } from "./modules/invoices/templates-routes.js";
 import { projectsRouter } from "./modules/projects/routes.js";
@@ -147,6 +148,7 @@ export function createApp() {
   app.use("/public", publicQuotesRouter);
   app.use("/public/invoices", publicInvoicesRouter);
   app.use("/public/jobs", publicJobsRouter);
+  app.use("/public/portfolio", publicPortfolioRouter);
 
   app.use(resolveTenant);
 

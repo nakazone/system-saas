@@ -153,6 +153,13 @@ const INSTALLER_KEYS: PermissionKey[] = [
   "payroll.self",
 ];
 
+const SUBCONTRACTOR_KEYS: PermissionKey[] = [
+  "work_orders.view",
+  "schedule.view",
+  "visits.view",
+  "projects.view",
+];
+
 export const DEFAULT_ROLE_META: Record<
   string,
   { name: string; description: string }
@@ -178,6 +185,10 @@ export const DEFAULT_ROLE_META: Record<
     name: "Installer",
     description: "Campo only: own jobs, schedule, daily rate; no pricing",
   },
+  subcontractor: {
+    name: "Subcontractor",
+    description: "Campo guest: assigned jobs and schedule only; photograph & checklist",
+  },
 };
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
@@ -187,6 +198,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   sales: SALES_KEYS,
   crew_lead: CREW_LEAD_KEYS,
   installer: INSTALLER_KEYS,
+  subcontractor: SUBCONTRACTOR_KEYS,
 };
 
 /** Phase 2 system milestones + optional custom stages between them. */

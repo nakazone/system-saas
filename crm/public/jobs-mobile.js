@@ -339,7 +339,7 @@
       canManage = roleName === "admin" || perms.includes("work_orders.manage");
       isField =
         (window.__crmFieldGate && window.__crmFieldGate.isFieldRole(roleName)) ||
-        roleName === "installer" ||
+        roleName === "installer" || roleName === "subcontractor" ||
         roleName === "crew_lead";
       if (isField) {
         role = "installer";

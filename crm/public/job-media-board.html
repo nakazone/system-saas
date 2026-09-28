@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Photo board | ObraMate</title>
+  <link rel="stylesheet" href="dashboard.css?v=20260925" />
+  <link rel="stylesheet" href="jobs.css?v=20260928-media5" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .jmb { max-width: 1100px; margin: 0 auto; padding: 1rem 1.25rem 2rem; }
+    .jmb h1 { margin: 0 0 0.35rem; font-size: 1.35rem; }
+    .jmb-sub { color: #6b6a66; margin: 0 0 1rem; font-size: 0.9rem; }
+    .jmb-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 1rem; }
+    @media (max-width: 900px) { .jmb-grid { grid-template-columns: 1fr; } }
+    #jmbMap { height: 360px; border-radius: 14px; border: 1px solid #dbdee8; background: #e8eaef; }
+    .jmb-feed { max-height: 360px; overflow: auto; display: grid; gap: 0.55rem; }
+    .jmb-feed a {
+      display: grid; grid-template-columns: 64px 1fr; gap: 0.55rem; text-decoration: none; color: inherit;
+      padding: 0.4rem; border-radius: 10px; border: 1px solid #dbdee8; background: #fff;
+    }
+    .jmb-feed img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
+    .jmb-stale { color: #b45309; font-weight: 700; font-size: 0.75rem; }
+    .jmb-list { margin-top: 1rem; display: grid; gap: 0.45rem; }
+    .jmb-job {
+      display: flex; justify-content: space-between; gap: 0.75rem; align-items: center;
+      padding: 0.65rem 0.75rem; border: 1px solid #dbdee8; border-radius: 12px; background: #fff;
+      text-decoration: none; color: inherit;
+    }
+  </style>
+</head>
+<body class="dashboard-app-body">
+  <div class="jmb">
+    <p><a href="jobs.html">← Jobs</a></p>
+    <h1>Field photo board</h1>
+    <p class="jmb-sub">Map of recent job photos + live feed. Stale = no photo in the last 3 days.</p>
+    <div class="jmb-grid">
+      <div id="jmbMap"></div>
+      <div class="jmb-feed" id="jmbFeed"></div>
+    </div>
+    <div class="jmb-list" id="jmbJobs"></div>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="job-media-board.js?v=20260928-media5"></script>
+</body>
+</html>

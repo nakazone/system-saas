@@ -84,7 +84,7 @@ export function createCrmRouter(): Router {
 
   router.get("/", requireAuth, (req, res) => {
     const role = String(req.session?.userRole || "").toLowerCase();
-    const isField = role === "installer" || role === "crew_lead";
+    const isField = role === "installer" || role === "crew_lead" || role === "subcontractor";
     const ua = String(req.headers["user-agent"] || "");
     const mobile =
       /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(ua);

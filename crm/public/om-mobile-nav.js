@@ -5,7 +5,7 @@
 (function () {
   const VER = "20260925-fieldnav1";
   const MQ = window.matchMedia("(max-width: 900px)");
-  const FIELD_ROLES = new Set(["installer", "crew_lead"]);
+  const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
 
   const ICONS = {
     home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',

@@ -4,7 +4,7 @@
  * - Desktop → funcionario.html (PC shell), never pipeline/office CRM
  */
 (function (global) {
-  const FIELD_ROLES = new Set(["installer", "crew_lead"]);
+  const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const CAMPO_HOME = "/campo/hoje.html";
   const DESKTOP_HOME = "/funcionario.html";
   const VER = "20260925-field3";

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="campo.css?v=20260925-campo3" />
+  <link rel="stylesheet" href="campo.css?v=20260928-media5" />
   <script src="/om-device.js?v=20260925-device1"></script>
 </head>
 <body class="cm-app cm-ticket">
@@ -75,16 +75,51 @@
         <span id="cmCheckCount">0 de 0</span>
       </div>
       <div class="cm-check-bar"><span id="cmCheckBarFill"></span></div>
+      <div class="cm-check-actions">
+        <button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmCheckTemplateBtn" style="width:auto">Template</button>
+        <button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmCheckVoiceBtn" style="width:auto">Falar itens</button>
+        <button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmCheckRecapBtn" style="width:auto">Recap</button>
+      </div>
+      <p class="cm-check-recap" id="cmCheckRecap" hidden></p>
       <div id="cmCheckList"></div>
     </div>
 
     <div class="cm-ticket-panel" id="cmPanelPhotos" data-panel="photos" hidden>
       <div class="cm-photos-head">
-        <h3>Fotos</h3>
+        <h3>Fotos da obra</h3>
         <label class="cm-btn cm-btn--dark cm-btn--sm" style="width:auto;min-height:40px;padding:0.45rem 0.9rem">
-          Adicionar
+          Capturar
           <input type="file" id="cmPhotoInput" accept="image/*" capture="environment" hidden />
         </label>
+      </div>
+      <p class="cm-photos-pending" id="cmPhotosPending" hidden></p>
+      <div class="cm-photo-stage cm-chip-row" role="group" aria-label="Etapa da foto">
+        <button type="button" class="cm-chip is-selected" data-photo-stage="">Geral</button>
+        <button type="button" class="cm-chip" data-photo-stage="before">Antes</button>
+        <button type="button" class="cm-chip" data-photo-stage="during">Durante</button>
+        <button type="button" class="cm-chip" data-photo-stage="after">Depois</button>
+      </div>
+      <label class="cm-photo-caption-label" for="cmPhotoCaption">Legenda (opcional)</label>
+      <input type="text" id="cmPhotoCaption" class="cm-input" maxlength="500" placeholder="Ex.: piso instalado, parede oeste" autocomplete="off" />
+      <label class="cm-photo-public">
+        <input type="checkbox" id="cmPhotoPublic" />
+        Incluir no link público do job
+      </label>
+      <div class="cm-photos-actions">
+        <button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmPhotoReportBtn" style="width:auto">
+          Gerar relatório
+        </button>
+        <button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmInspectBtn" style="width:auto">
+          Vistoria falada
+        </button>
+        <button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmMeasureBtn" style="width:auto">
+          Medir
+        </button>
+      </div>
+      <p class="cm-photos-pending" id="cmInspectStatus" hidden></p>
+      <div class="cm-report-card" id="cmReportCard" hidden>
+        <h4 id="cmReportTitle">Relatório</h4>
+        <p id="cmReportSummary"></p>
       </div>
       <div class="cm-photos-grid" id="cmPhotosGrid"></div>
     </div>
@@ -113,7 +148,34 @@
     <button type="button" class="cm-btn cm-btn--accent" id="cmProblemSubmit" style="margin-top:0.85rem">Enviar</button>
   </div>
 
+  <button type="button" class="cm-sheet-backdrop" id="cmAnnotBackdrop" hidden aria-label="Fechar"></button>
+  <div class="cm-sheet cm-sheet--tall" id="cmAnnotSheet" role="dialog" aria-modal="true" hidden>
+    <div class="cm-sheet__grab" aria-hidden="true"></div>
+    <div class="cm-sheet__head">
+      <div>
+        <h2 class="cm-sheet__title">Anotar foto</h2>
+        <p class="cm-sheet__sub">Seta, círculo, texto ou desenho — não altera o original</p>
+      </div>
+      <button type="button" class="cm-sheet__close" id="cmAnnotClose" aria-label="Fechar">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="cm-annot-tools" role="toolbar">
+      <button type="button" class="cm-chip is-selected" data-annot-tool="freehand">Desenho</button>
+      <button type="button" class="cm-chip" data-annot-tool="arrow">Seta</button>
+      <button type="button" class="cm-chip" data-annot-tool="circle">Círculo</button>
+      <button type="button" class="cm-chip" data-annot-tool="text">Texto</button>
+      <button type="button" class="cm-chip" id="cmAnnotUndo">Desfazer</button>
+    </div>
+    <div class="cm-annot-stage">
+      <img id="cmAnnotImg" alt="" />
+      <canvas id="cmAnnotCanvas"></canvas>
+    </div>
+    <button type="button" class="cm-btn cm-btn--accent" id="cmAnnotSave" style="margin-top:0.85rem">Guardar anotações</button>
+  </div>
+
   <script src="campo-nav.js?v=20260925-campo2"></script>
-  <script src="ticket.js?v=20260925-campo3"></script>
+  <script src="campo-media-queue.js?v=20260928-media1"></script>
+  <script src="ticket.js?v=20260928-media5"></script>
 </body>
 </html>

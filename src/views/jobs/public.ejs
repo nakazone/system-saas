@@ -209,6 +209,48 @@
       color: var(--primary);
       line-height: 1.5;
     }
+    .photos {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.55rem;
+    }
+    .photos a {
+      display: block;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #e4e7ef;
+      position: relative;
+      text-decoration: none;
+    }
+    .photos img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .photos .cap {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      padding: 0.35rem 0.45rem;
+      background: linear-gradient(transparent, rgba(26, 32, 54, 0.75));
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+    .photos .stg {
+      position: absolute;
+      top: 0.35rem;
+      left: 0.35rem;
+      padding: 0.12rem 0.4rem;
+      border-radius: 999px;
+      background: rgba(26, 32, 54, 0.72);
+      color: #fff;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
     .slip__foot {
       margin-top: 1rem;
       padding-top: 0.75rem;
@@ -302,6 +344,35 @@
       <section class="section">
         <h2 class="section__title">Instruções</h2>
         <p class="notes"><%= job.notes %></p>
+      </section>
+      <% } %>
+
+      <% if (job.photos && job.photos.length) { %>
+      <section class="section">
+        <h2 class="section__title">Job photos</h2>
+        <div class="photos">
+          <% job.photos.forEach(function (p) { %>
+            <a href="<%= p.url %>" target="_blank" rel="noopener">
+              <% if (p.stageLabel) { %><span class="stg"><%= p.stageLabel %></span><% } %>
+              <img src="<%= p.thumbUrl || p.url %>" alt="<%= p.caption || 'Job photo' %>" loading="lazy" />
+              <% if (p.caption || p.stageLabel) { %>
+                <span class="cap"><%= p.caption || p.stageLabel %></span>
+              <% } %>
+            </a>
+          <% }) %>
+        </div>
+      </section>
+      <% } %>
+
+      <% if (job.reports && job.reports.length) { %>
+      <section class="section">
+        <h2 class="section__title">Field report</h2>
+        <% job.reports.forEach(function (r) { %>
+          <div class="kv" style="display:block;padding:0.55rem 0;border-bottom:1px solid var(--rule)">
+            <p style="margin:0 0 0.25rem;font-weight:700"><%= r.title %></p>
+            <p class="notes"><%= r.summary %></p>
+          </div>
+        <% }) %>
       </section>
       <% } %>
 

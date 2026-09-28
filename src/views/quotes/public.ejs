@@ -153,6 +153,9 @@
         <label>Signature</label><br />
         <canvas id="sig" width="420" height="140"></canvas>
         <input type="hidden" name="signatureDataUrl" id="signatureDataUrl" />
+        <input type="hidden" name="approvedLat" id="approvedLat" />
+        <input type="hidden" name="approvedLng" id="approvedLng" />
+        <input type="hidden" name="approvedGpsAccuracyM" id="approvedGpsAccuracyM" />
         <p>
           <button type="button" class="secondary" id="clearSig">Clear</button>
         </p>
@@ -214,6 +217,20 @@
             alert('Please sign before approving.');
           }
         });
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lat = document.getElementById('approvedLat');
+              const lng = document.getElementById('approvedLng');
+              const acc = document.getElementById('approvedGpsAccuracyM');
+              if (lat) lat.value = String(pos.coords.latitude);
+              if (lng) lng.value = String(pos.coords.longitude);
+              if (acc) acc.value = String(pos.coords.accuracy || '');
+            },
+            () => {},
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+          );
+        }
       }
 
       async function recalc() {

@@ -25,7 +25,7 @@ function buildPermissionKeys(user: {
   }
   const roleKey = String(user.role?.key || "").toLowerCase();
   // Field workers only use Campo — strip office CRM / pipeline even if legacy role grants exist.
-  if (roleKey === "installer" || roleKey === "crew_lead") {
+  if (roleKey === "installer" || roleKey === "crew_lead" || roleKey === "subcontractor") {
     for (const key of Array.from(perms)) {
       if (
         key.startsWith("leads.") ||
@@ -68,6 +68,7 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
           include: { permissions: { include: { permission: true } } },
         },
         permissions: { include: { permission: true } },
+        organization: { select: { id: true, slug: true, name: true } },
       },
     });
 
@@ -82,10 +83,18 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
     req.session.userRole = user.role?.key ?? "staff";
     req.session.permissionKeys = permissions;
     req.session.mustChangePassword = user.mustChangePassword;
+    if (user.organization?.slug) {
+      req.session.workspaceSlug = user.organization.slug;
+    }
 
     res.json({
       success: true,
       authenticated: true,
+      organization: {
+        id: user.organization?.id || organizationId,
+        slug: user.organization?.slug || req.session.workspaceSlug || null,
+        name: user.organization?.name || null,
+      },
       user: {
         id: user.id,
         email: user.email,

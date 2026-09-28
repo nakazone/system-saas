@@ -326,7 +326,7 @@
     }
 
     const role = String(session.user?.role || "").toLowerCase();
-    const isField = role === "installer" || role === "crew_lead";
+    const isField = role === "installer" || role === "crew_lead" || role === "subcontractor";
     if (isField) {
       const mobile =
         window.__omDevice && typeof window.__omDevice.isMobile === "function"

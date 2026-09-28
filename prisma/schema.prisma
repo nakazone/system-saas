@@ -50,6 +50,8 @@ model Organization {
   automationSettings Json?
   stripeCustomerId String?
   trialEndsAt      DateTime?
+  /// Feature flags per org, e.g. { "job_media": true }
+  featureFlags     Json?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -111,6 +113,10 @@ model Organization {
   campoSegments      CampoSegment[]
   campoWeekSubmissions CampoWeekSubmission[]
   campoManualEntries CampoManualEntry[]
+  jobMedia           JobMedia[]
+  jobReports         JobReport[]
+  jobInspections     JobInspection[]
+  jobMeasurements    JobMeasurement[]
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +156,10 @@ model User {
   campoShifts CampoShift[]
   campoWeekSubmissions CampoWeekSubmission[]
   campoManualEntries CampoManualEntry[]
+  jobMedia JobMedia[] @relation("JobMediaAuthor")
+  jobReports JobReport[] @relation("JobReportAuthor")
+  jobInspections JobInspection[] @relation("JobInspectionAuthor")
+  jobMeasurements JobMeasurement[] @relation("JobMeasurementAuthor")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -514,6 +524,8 @@ model Quote {
   /// draft | sent | changes_requested | approved | converted | archived | expired
   /// Legacy: accepted→approved, rejected→archived (migrated in M2)
   status         String   @default("draft")
+  workOrderId    String?  @db.Uuid
+  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   flooringType   String   @default("hardwood")
   areaSqft       Decimal  @default(0) @db.Decimal(12, 2)
   wastePercent   Decimal  @default(0) @db.Decimal(5, 2)
@@ -540,6 +552,11 @@ model Quote {
   signedAt       DateTime?
   approvedIp     String?
   approvedUserAgent String?
+  /// SHA-256 of signature image bytes at approve time (integrity)
+  signedDocumentSha256 String?
+  approvedLat    Decimal?  @db.Decimal(10, 7)
+  approvedLng    Decimal?  @db.Decimal(10, 7)
+  approvedGpsAccuracyM Decimal? @db.Decimal(10, 2)
   changeRequestNote String? @db.Text
   viewedAt       DateTime?
   serviceType    String?
@@ -562,6 +579,7 @@ model Quote {
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, salespersonId])
+  @@index([workOrderId])
 }
 
 model QuoteRoom {
@@ -1498,6 +1516,11 @@ model WorkOrder {
   lineItems   WorkOrderLineItem[]
   campoSegments CampoSegment[]
   campoManualEntries CampoManualEntry[]
+  media       JobMedia[]
+  reports     JobReport[]
+  quotes      Quote[]
+  inspections JobInspection[]
+  measurements JobMeasurement[]
 
   @@unique([organizationId, number])
   @@index([organizationId])
@@ -1508,6 +1531,160 @@ model WorkOrder {
   @@index([builderId])
   @@index([assignedUserId])
   @@index([crewId])
+}
+
+/// Field job photo/video proof — SHA-256 verified, GPS optional, stages before/during/after.
+model JobMedia {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId      String    @db.Uuid
+  workOrder        WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  authorId         String?   @db.Uuid
+  author           User?     @relation("JobMediaAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  /// photo | video
+  type             String    @default("photo")
+  storageKey       String
+  thumbKey         String?
+  url              String
+  thumbUrl         String?
+  sha256           String
+  takenAtDevice    DateTime?
+  receivedAtServer DateTime  @default(now())
+  lat              Decimal?  @db.Decimal(10, 7)
+  lng              Decimal?  @db.Decimal(10, 7)
+  gpsAccuracyM     Decimal?  @db.Decimal(10, 2)
+  address          String?
+  caption          String?
+  /// before | during | after | null
+  stage            String?
+  annotationsJson  Json?
+  isPublic         Boolean   @default(false)
+  /// Featured on org public portfolio page
+  inPortfolio      Boolean   @default(false)
+  /// OCR extract from labels / serial plates
+  ocrJson          Json?
+  /// Client-generated id for offline dedupe
+  clientUploadId   String?
+  deviceLabel      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  @@index([organizationId])
+  @@index([workOrderId])
+  @@index([organizationId, workOrderId, deletedAt])
+  @@index([organizationId, clientUploadId])
+  @@index([sha256])
+  @@index([authorId])
+}
+
+/// Spoken field inspection: audio narrated while photographing (Phase 5).
+model JobInspection {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId      String    @db.Uuid
+  workOrder        WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  authorId         String?   @db.Uuid
+  author           User?     @relation("JobInspectionAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  /// open | processing | done | failed
+  status           String    @default("open")
+  audioStorageKey  String?
+  audioUrl         String?
+  audioSha256      String?
+  durationMs       Int?
+  startedAtDevice  DateTime?
+  endedAtDevice    DateTime?
+  transcript       String?   @db.Text
+  summary          String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  marks JobInspectionMark[]
+
+  @@index([organizationId])
+  @@index([workOrderId])
+  @@index([organizationId, workOrderId, status])
+  @@index([authorId])
+}
+
+model JobInspectionMark {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  inspectionId   String   @db.Uuid
+  inspection     JobInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  mediaId        String?  @db.Uuid
+  /// Milliseconds from inspection audio start
+  offsetMs       Int      @default(0)
+  note           String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([inspectionId])
+  @@index([mediaId])
+}
+
+/// Experimental field measurements (manual / future AR) behind feature flag.
+model JobMeasurement {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId    String   @db.Uuid
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  authorId       String?  @db.Uuid
+  author         User?    @relation("JobMeasurementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  label          String
+  /// length_ft | width_ft | area_sqft | custom
+  kind           String   @default("area_sqft")
+  value          Decimal  @db.Decimal(12, 3)
+  unit           String   @default("sqft")
+  /// manual | ar_experimental
+  source         String   @default("manual")
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([workOrderId])
+  @@index([authorId])
+}
+
+/// AI / manual field report built from job photos (Phase 2).
+model JobReport {
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       String    @db.Uuid
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId          String    @db.Uuid
+  workOrder            WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  authorId             String?   @db.Uuid
+  author               User?     @relation("JobReportAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  /// site_visit | delivery | progress | maintenance
+  templateKey          String    @default("site_visit")
+  title                String
+  /// draft | published
+  status               String    @default("draft")
+  summary              String?   @db.Text
+  observationsJson     Json?
+  issuesJson           Json?
+  recommendationsJson  Json?
+  nextStepsJson        Json?
+  photoIds             Json
+  isPublic             Boolean   @default(false)
+  /// ai | manual
+  source               String    @default("ai")
+  modelUsed            String?
+  tokensIn             Int?
+  tokensOut            Int?
+  costUsd              Decimal?  @db.Decimal(10, 6)
+  publishedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([workOrderId])
+  @@index([organizationId, workOrderId, status])
+  @@index([authorId])
 }
 
 /// Service lines on a job (sqft × unit price from Loja / partner catalog).

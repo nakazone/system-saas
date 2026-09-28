@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { param } from "../../lib/http/params.js";
 import { z } from "zod";
+import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { storage } from "../../lib/storage/index.js";
@@ -254,6 +256,9 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
       acceptTerms: z.string().optional(),
       selectedOptionGroupId: z.string().uuid().optional().or(z.literal("")),
       selectedOptionalIds: z.union([z.string(), z.array(z.string())]).optional(),
+      approvedLat: z.union([z.string(), z.number()]).optional(),
+      approvedLng: z.union([z.string(), z.number()]).optional(),
+      approvedGpsAccuracyM: z.union([z.string(), z.number()]).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success || parsed.data.acceptTerms !== "on") {
@@ -274,6 +279,19 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
     }
     const contentType = match[1]!;
     const body = Buffer.from(match[2]!, "base64");
+    const signedDocumentSha256 = createHash("sha256").update(body).digest("hex");
+    const lat =
+      parsed.data.approvedLat != null && parsed.data.approvedLat !== ""
+        ? Number(parsed.data.approvedLat)
+        : null;
+    const lng =
+      parsed.data.approvedLng != null && parsed.data.approvedLng !== ""
+        ? Number(parsed.data.approvedLng)
+        : null;
+    const gps =
+      parsed.data.approvedGpsAccuracyM != null && parsed.data.approvedGpsAccuracyM !== ""
+        ? Number(parsed.data.approvedGpsAccuracyM)
+        : null;
     const key = `orgs/${ref.organizationId}/quotes/${ref.entityId}/signature-${Date.now()}`;
     const stored = await storage.upload({ key, body, contentType });
 
@@ -324,6 +342,13 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
           signedAt: new Date(),
           approvedIp: req.ip || null,
           approvedUserAgent: req.get("user-agent") || null,
+          signedDocumentSha256,
+          approvedLat:
+            lat != null && Number.isFinite(lat) ? new Prisma.Decimal(lat) : null,
+          approvedLng:
+            lng != null && Number.isFinite(lng) ? new Prisma.Decimal(lng) : null,
+          approvedGpsAccuracyM:
+            gps != null && Number.isFinite(gps) ? new Prisma.Decimal(gps) : null,
           changeRequestNote: null,
         },
       });

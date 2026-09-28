@@ -2,6 +2,13 @@
   let canManage = false;
   let job = null;
   let jobId = null;
+  let mediaList = [];
+  let reports = [];
+  let aiEnabled = false;
+  let proposals = [];
+  let marketing = null;
+  let reviewReq = null;
+  let orgSlug = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -234,8 +241,13 @@
     $("btnOpenSchedule").href = schedHref;
     if ($("btnEditSchedule")) $("btnEditSchedule").href = schedHref;
 
+    renderMedia();
+    renderReports();
+    renderProposals();
+    renderMarketing();
+
     if (!canManage) {
-      ["btnEditJob", "btnEditJobAll", "btnDeleteJob", "btnSaveNotes", "btnManageTeam", "btnEditServices", "btnEditDetails", "btnEditScheduleSection", "btnEditScheduleMeta", "btnEditScheduleMeta2", "btnEditTeamMeta"].forEach((id) => {
+      ["btnEditJob", "btnEditJobAll", "btnDeleteJob", "btnSaveNotes", "btnManageTeam", "btnEditServices", "btnEditDetails", "btnEditScheduleSection", "btnEditScheduleMeta", "btnEditScheduleMeta2", "btnEditTeamMeta", "btnCreateProposal", "btnCreateProposalAi"].forEach((id) => {
         const el = $(id);
         if (el) el.style.display = "none";
       });
@@ -243,10 +255,289 @@
     }
   }
 
+  function stageLabel(stage) {
+    const map = { before: "Before", during: "During", after: "After" };
+    return map[stage] || "";
+  }
+
+  function renderMedia() {
+    const body = $("jobMediaBody");
+    const portfolioLink = $("jobPortfolioLink");
+    if (portfolioLink) {
+      if (orgSlug) {
+        portfolioLink.hidden = false;
+        portfolioLink.href = `/public/portfolio/${encodeURIComponent(orgSlug)}?embed=1`;
+      } else {
+        portfolioLink.hidden = true;
+      }
+    }
+    if (!body) return;
+    if (!mediaList.length) {
+      body.innerHTML =
+        '<p class="jobs-empty" style="padding:1rem 0">No field photos yet. Crew can capture them in Campo.</p><p class="jobs-empty" style="padding:0;color:#b45309;font-weight:600">⚠ No recent photo proof on this job.</p>';
+      return;
+    }
+    const last = mediaList[0];
+    const ageDays = last?.created_at
+      ? Math.floor((Date.now() - new Date(last.created_at).getTime()) / 86_400_000)
+      : null;
+    const stale =
+      ageDays != null && ageDays >= 3
+        ? `<p class="jobs-empty" style="padding:0 0 0.75rem;color:#b45309;font-weight:600">⚠ Last photo ${ageDays} day(s) ago</p>`
+        : "";
+    body.innerHTML =
+      stale +
+      `<div class="job-media-grid">${mediaList
+      .map((p) => {
+        const st = stageLabel(p.stage);
+        const cap = escapeHtml(p.caption || st || "Photo");
+        const ann = p.annotations?.shapes?.length
+          ? ` · ${p.annotations.shapes.length} mark(s)`
+          : "";
+        const port = p.in_portfolio ? " · portfolio" : "";
+        const ocr =
+          p.ocr?.serial_number || p.ocr?.label_text
+            ? ` · OCR: ${escapeHtml(p.ocr.serial_number || p.ocr.label_text)}`
+            : "";
+        const toggle =
+          canManage && !p.legacy
+            ? `<button type="button" class="job-card__link job-media-portfolio" data-id="${escapeHtml(p.id)}" data-on="${p.in_portfolio ? "1" : "0"}">${
+                p.in_portfolio ? "Remove from portfolio" : "Add to portfolio"
+              }</button>`
+            : "";
+        return `<div class="job-media-thumb-wrap">
+          <a class="job-media-thumb" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">
+          ${st ? `<span class="job-media-thumb__stg">${escapeHtml(st)}</span>` : ""}
+          <img src="${escapeHtml(p.thumb_url || p.url)}" alt="${cap}" loading="lazy" />
+          <span class="job-media-thumb__cap">${cap}${p.is_public ? " · public" : ""}${port}${ann}${ocr}</span>
+        </a>${toggle}</div>`;
+      })
+      .join("")}</div>`;
+  }
+
+  async function togglePortfolio(mediaId, next) {
+    const j = await api(`/api/work-orders/${jobId}/media/${mediaId}/portfolio`, {
+      method: "PATCH",
+      body: JSON.stringify({ in_portfolio: next }),
+    });
+    mediaList = mediaList.map((p) => (p.id === mediaId ? j.data : p));
+    renderMedia();
+    notify(next ? "Added to public portfolio." : "Removed from portfolio.", "success");
+  }
+
+  function renderReports() {
+    const body = $("jobReportBody");
+    const genBtn = $("btnGenerateReport");
+    if (genBtn) {
+      genBtn.style.opacity = aiEnabled ? "1" : "0.45";
+      genBtn.title = aiEnabled
+        ? "Generate AI draft from photos"
+        : "Configure OPENAI_API_KEY to enable AI reports";
+    }
+    if (!body) return;
+    if (!reports.length) {
+      body.innerHTML =
+        '<p class="jobs-empty" style="padding:1rem 0">Generate a draft report from job photos.</p>';
+      return;
+    }
+    body.innerHTML = reports
+      .map((r) => {
+        const pdf = `/api/work-orders/${encodeURIComponent(jobId)}/reports/${encodeURIComponent(r.id)}/pdf`;
+        return `<article class="job-report-item">
+          <div class="job-report-item__head">
+            <strong>${escapeHtml(r.title || "Report")}</strong>
+            <span class="job-report-item__meta">${escapeHtml(r.status)} · ${escapeHtml(r.source)}</span>
+          </div>
+          <p>${escapeHtml((r.summary || "").slice(0, 420))}</p>
+          <div class="job-report-item__actions">
+            <a class="job-card__link" href="${pdf}" target="_blank" rel="noopener">PDF</a>
+            <button type="button" class="job-card__link job-report-publish" data-id="${escapeHtml(r.id)}" data-status="${r.status === "published" ? "draft" : "published"}">
+              ${r.status === "published" ? "Unpublish" : "Publish"}
+            </button>
+            <button type="button" class="job-card__link job-report-public" data-id="${escapeHtml(r.id)}" data-public="${r.is_public ? "0" : "1"}">
+              ${r.is_public ? "Hide from link" : "Share on link"}
+            </button>
+          </div>
+        </article>`;
+      })
+      .join("");
+  }
+
+  function renderProposals() {
+    const body = $("jobProposalBody");
+    if (!body) return;
+    if (!proposals.length) {
+      body.innerHTML =
+        '<p class="jobs-empty" style="padding:1rem 0">Turn this job into a quote the customer can sign online.</p>';
+      return;
+    }
+    body.innerHTML = proposals
+      .map((q) => {
+        const total = (Number(q.total) || 0).toLocaleString(undefined, {
+          style: "currency",
+          currency: "USD",
+        });
+        return `<article class="job-report-item">
+          <div class="job-report-item__head">
+            <strong>#${escapeHtml(String(q.number))} · ${escapeHtml(q.title || "Proposal")}</strong>
+            <span class="job-report-item__meta">${escapeHtml(q.status)} · ${escapeHtml(total)}</span>
+          </div>
+          <div class="job-report-item__actions">
+            <a class="job-card__link" href="${escapeHtml(q.edit_url || `/quotes/${q.id}`)}" target="_blank" rel="noopener">Open quote</a>
+            ${
+              q.status === "draft" || q.status === "changes_requested"
+                ? `<button type="button" class="job-card__link job-proposal-send" data-id="${escapeHtml(q.id)}">Send for signature</button>`
+                : q.public_url
+                  ? `<a class="job-card__link" href="${escapeHtml(q.public_url)}" target="_blank" rel="noopener">Public link</a>`
+                  : `<button type="button" class="job-card__link job-proposal-send" data-id="${escapeHtml(q.id)}">Copy / resend link</button>`
+            }
+          </div>
+        </article>`;
+      })
+      .join("");
+  }
+
+  function renderMarketing() {
+    const body = $("jobMarketingBody");
+    if (!body) return;
+    if (!marketing) {
+      body.innerHTML =
+        '<p class="jobs-empty" style="padding:1rem 0">Export a caption + photos, or copy a Google review request.</p>';
+      return;
+    }
+    const beforeN = marketing.before?.length || 0;
+    const afterN = marketing.after?.length || 0;
+    const reviewBit = reviewReq
+      ? `<div class="job-report-item" style="border-top:1px solid var(--jobs-border);margin-top:0.75rem;padding-top:0.75rem">
+          <strong>Review request</strong>
+          <p style="white-space:pre-wrap;margin:0.4rem 0 0.6rem;font-size:0.85rem">${escapeHtml(reviewReq.message || "")}</p>
+          <div class="job-report-item__actions">
+            ${reviewReq.whatsapp_url ? `<a class="job-card__link" href="${escapeHtml(reviewReq.whatsapp_url)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+            ${reviewReq.sms_url ? `<a class="job-card__link" href="${escapeHtml(reviewReq.sms_url)}">SMS</a>` : ""}
+            ${reviewReq.mailto_url ? `<a class="job-card__link" href="${escapeHtml(reviewReq.mailto_url)}">Email</a>` : ""}
+            <button type="button" class="job-card__link" id="btnCopyReviewMsg">Copy message</button>
+          </div>
+          ${
+            reviewReq.google_review_url
+              ? ""
+              : '<p class="jobs-empty" style="padding:0.5rem 0 0;font-size:0.78rem">Tip: set org featureFlags.google_review_url to include your Google link.</p>'
+          }
+        </div>`
+      : "";
+    body.innerHTML = `
+      <p style="margin:0 0 0.5rem;font-size:0.875rem"><strong>${beforeN}</strong> before · <strong>${afterN}</strong> after</p>
+      <textarea class="job-notes-area" id="jobSocialCaption" rows="4" readonly>${escapeHtml(marketing.social_caption || "")}</textarea>
+      <div class="job-report-item__actions" style="margin-top:0.55rem">
+        <button type="button" class="job-card__link" id="btnCopyCaption">Copy caption</button>
+      </div>
+      ${reviewBit}`;
+  }
+
+  async function loadProposalsMarketing() {
+    const [q, port, rev] = await Promise.all([
+      api(`/api/work-orders/${jobId}/quotes`),
+      api(`/api/work-orders/${jobId}/portfolio-preview`),
+      api(`/api/work-orders/${jobId}/review-request`),
+    ]);
+    proposals = q.data || [];
+    marketing = port.data || null;
+    reviewReq = rev.data || null;
+    renderProposals();
+    renderMarketing();
+  }
+
+  async function createProposal(withAi) {
+    if (!canManage) return;
+    notify(withAi ? "Creating AI proposal…" : "Creating proposal…", "info");
+    const j = await api(`/api/work-orders/${jobId}/quotes`, {
+      method: "POST",
+      body: JSON.stringify({
+        include_public_photos: true,
+        suggest_with_ai: Boolean(withAi),
+      }),
+    });
+    proposals = [j.data, ...proposals.filter((p) => p.id !== j.data.id)];
+    renderProposals();
+    notify("Draft proposal ready — review lines then send for signature.", "success");
+  }
+
+  async function sendProposal(quoteId) {
+    const j = await api(`/api/work-orders/${jobId}/quotes/${quoteId}/send`, { method: "POST" });
+    const url = j.data?.public_url || "";
+    proposals = proposals.map((p) => (p.id === quoteId ? { ...p, ...j.data } : p));
+    renderProposals();
+    if (url && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      notify("Signature link copied.", "success");
+    } else if (url) {
+      window.prompt("Customer signature link:", url);
+    } else {
+      notify("Proposal marked as sent.", "success");
+    }
+    if (j.data?.whatsapp_url && confirm("Open WhatsApp to send the link?")) {
+      window.open(j.data.whatsapp_url, "_blank", "noopener");
+    }
+  }
+
+  async function loadMediaReports() {
+    const [mediaRes, reportRes] = await Promise.all([
+      api(`/api/work-orders/${jobId}/media`),
+      api(`/api/work-orders/${jobId}/reports`),
+    ]);
+    mediaList = mediaRes.data || [];
+    reports = reportRes.data || [];
+    aiEnabled = Boolean(reportRes.meta?.ai_enabled);
+    renderMedia();
+    renderReports();
+  }
+
   async function loadJob() {
     const j = await api(`/api/work-orders/${jobId}`);
     job = j.data;
     render();
+    await Promise.all([
+      loadMediaReports().catch(() => {}),
+      loadProposalsMarketing().catch(() => {}),
+    ]);
+  }
+
+  async function generateReport() {
+    if (!aiEnabled) {
+      notify("AI reports need OPENAI_API_KEY on the server.", "error");
+      return;
+    }
+    if (!mediaList.length) {
+      notify("Add field photos before generating a report.", "error");
+      return;
+    }
+    notify("Generating report…", "info");
+    const j = await api(`/api/work-orders/${jobId}/reports/generate`, {
+      method: "POST",
+      body: JSON.stringify({ template_key: "site_visit" }),
+    });
+    reports = [j.data, ...reports.filter((r) => r.id !== j.data.id)];
+    renderReports();
+    notify("Draft report ready.", "success");
+  }
+
+  async function toggleReportStatus(reportId, status) {
+    const j = await api(`/api/work-orders/${jobId}/reports/${reportId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+    reports = reports.map((r) => (r.id === reportId ? j.data : r));
+    renderReports();
+    notify(status === "published" ? "Report published." : "Report set to draft.", "success");
+  }
+
+  async function toggleReportPublic(reportId, isPublic) {
+    const j = await api(`/api/work-orders/${jobId}/reports/${reportId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_public: isPublic }),
+    });
+    reports = reports.map((r) => (r.id === reportId ? j.data : r));
+    renderReports();
+    notify(isPublic ? "Visible on temp-worker link." : "Hidden from public link.", "success");
   }
 
   async function saveNotes() {
@@ -312,6 +603,7 @@
       const perms = s.user?.permissions || [];
       const role = s.user?.role || "";
       canManage = role === "admin" || perms.includes("work_orders.manage");
+      orgSlug = s.organization?.slug || s.user?.organization?.slug || null;
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
       $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
@@ -362,6 +654,65 @@
       });
       $("btnSaveNotes").addEventListener("click", () => {
         saveNotes().catch((e) => notify(e.message, "error"));
+      });
+      $("btnRefreshMedia")?.addEventListener("click", () => {
+        loadMediaReports().catch((e) => notify(e.message, "error"));
+      });
+      $("jobMediaBody")?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".job-media-portfolio");
+        if (!btn) return;
+        e.preventDefault();
+        const id = btn.getAttribute("data-id");
+        const next = btn.getAttribute("data-on") !== "1";
+        togglePortfolio(id, next).catch((err) => notify(err.message, "error"));
+      });
+      $("btnGenerateReport")?.addEventListener("click", () => {
+        generateReport().catch((e) => notify(e.message, "error"));
+      });
+      $("btnCreateProposal")?.addEventListener("click", () => {
+        createProposal(false).catch((e) => notify(e.message, "error"));
+      });
+      $("btnCreateProposalAi")?.addEventListener("click", () => {
+        createProposal(true).catch((e) => notify(e.message, "error"));
+      });
+      $("btnRefreshMarketing")?.addEventListener("click", () => {
+        loadProposalsMarketing().catch((e) => notify(e.message, "error"));
+      });
+      $("jobProposalBody")?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".job-proposal-send");
+        if (!btn) return;
+        sendProposal(btn.getAttribute("data-id")).catch((err) => notify(err.message, "error"));
+      });
+      $("jobMarketingBody")?.addEventListener("click", async (e) => {
+        if (e.target.closest("#btnCopyCaption")) {
+          const text = $("jobSocialCaption")?.value || marketing?.social_caption || "";
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            notify("Caption copied.", "success");
+          } else window.prompt("Caption:", text);
+          return;
+        }
+        if (e.target.closest("#btnCopyReviewMsg")) {
+          const text = reviewReq?.message || "";
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            notify("Review message copied.", "success");
+          } else window.prompt("Message:", text);
+        }
+      });
+      $("jobReportBody")?.addEventListener("click", (e) => {
+        const pub = e.target.closest(".job-report-public");
+        if (pub) {
+          toggleReportPublic(pub.getAttribute("data-id"), pub.getAttribute("data-public") === "1").catch(
+            (err) => notify(err.message, "error"),
+          );
+          return;
+        }
+        const btn = e.target.closest(".job-report-publish");
+        if (!btn) return;
+        toggleReportStatus(btn.getAttribute("data-id"), btn.getAttribute("data-status")).catch(
+          (err) => notify(err.message, "error"),
+        );
       });
       $("jobNotes").addEventListener("input", () => {
         const preview = $("jobNotes").value.trim();

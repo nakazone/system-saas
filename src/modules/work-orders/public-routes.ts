@@ -28,6 +28,31 @@ publicJobsRouter.get("/:token", async (req, res, next) => {
           builder: { select: { firstName: true, lastName: true, company: true } },
           members: { include: { user: { select: { name: true } } } },
           lineItems: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+          media: {
+            where: { deletedAt: null, isPublic: true, type: "photo" },
+            orderBy: [{ createdAt: "desc" }],
+            take: 60,
+            select: {
+              id: true,
+              url: true,
+              thumbUrl: true,
+              caption: true,
+              stage: true,
+              takenAtDevice: true,
+              createdAt: true,
+            },
+          },
+          reports: {
+            where: { status: "published", isPublic: true },
+            orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+            take: 3,
+            select: {
+              id: true,
+              title: true,
+              summary: true,
+              publishedAt: true,
+            },
+          },
         },
       });
       if (!workOrder || workOrder.status === "canceled") return null;
@@ -67,6 +92,28 @@ publicJobsRouter.get("/:token", async (req, res, next) => {
       quantitySqft: Number(li.quantitySqft) || 0,
     }));
 
+    const STAGE_LABEL: Record<string, string> = {
+      before: "Before",
+      during: "During",
+      after: "After",
+    };
+    const photos = (wo.media || []).map((m) => ({
+      id: m.id,
+      url: m.url,
+      thumbUrl: m.thumbUrl || m.url,
+      caption: m.caption || null,
+      stage: m.stage || null,
+      stageLabel: m.stage && STAGE_LABEL[m.stage] ? STAGE_LABEL[m.stage] : null,
+      takenAt: m.takenAtDevice || m.createdAt,
+    }));
+
+    const reports = (wo.reports || []).map((r) => ({
+      id: r.id,
+      title: r.title,
+      summary: r.summary || "",
+      publishedAt: r.publishedAt,
+    }));
+
     res.render("jobs/public", {
       title: wo.title,
       organization: data.organization,
@@ -82,6 +129,8 @@ publicJobsRouter.get("/:token", async (req, res, next) => {
         scheduledEnd: wo.scheduledEnd,
         team,
         services,
+        photos,
+        reports,
       },
     });
   } catch (error) {

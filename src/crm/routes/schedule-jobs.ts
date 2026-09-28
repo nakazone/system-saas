@@ -29,7 +29,7 @@ const OFFICE_SEE_ALL_ROLES = new Set([
 function shouldScopeJobsToSelf(user: AuthedRequest["user"]): boolean {
   if (!user?.id) return false;
   const role = String(user.roleKey || "").toLowerCase();
-  if (role === "installer" || role === "crew_lead") return true;
+  if (role === "installer" || role === "crew_lead" || role === "subcontractor") return true;
   if (OFFICE_SEE_ALL_ROLES.has(role)) return false;
   const perms = user.permissions || [];
   // Custom roles: only org-wide managers see the full schedule/jobs board

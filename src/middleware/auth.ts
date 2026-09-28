@@ -100,7 +100,7 @@ export async function loadSessionUser(
     }
 
     const roleKey = user.role?.key ?? null;
-    if (roleKey === "installer" || roleKey === "crew_lead") {
+    if (roleKey === "installer" || roleKey === "crew_lead" || roleKey === "subcontractor") {
       for (const key of Array.from(rolePerms)) {
         if (
           key.startsWith("leads.") ||

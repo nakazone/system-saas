@@ -3,13 +3,26 @@
  */
 import type { AuthedRequest } from "../../middleware/auth.js";
 import type { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import {
+  DEFAULT_CAMPO_CHECKLIST,
+  parseCampoChecklist,
+} from "../../lib/job-media/checklist.js";
 
 export type Tx = Parameters<Parameters<typeof withTenantTransaction>[1]>[0];
 
 export const FIELD_STATUSES = ["scheduled", "en_route", "on_site", "completed"] as const;
 export type FieldStatus = (typeof FIELD_STATUSES)[number];
 
-export type ChecklistItem = { id: string; text: string; done: boolean };
+export type ChecklistItem = {
+  id: string;
+  text: string;
+  done: boolean;
+  photo_required?: boolean;
+  photo_media_ids?: string[];
+  note?: string | null;
+  done_by?: string | null;
+  done_at?: string | null;
+};
 export type PhotoItem = { id: string; url: string; createdAt: string };
 
 export function canUseCampo(req: AuthedRequest): boolean {
@@ -60,26 +73,10 @@ export function shortClient(name: string) {
   return p || name || "—";
 }
 
-export const DEFAULT_CHECKLIST: ChecklistItem[] = [
-  { id: "c1", text: "Móveis fora da sala e do corredor", done: false },
-  { id: "c2", text: "Rodapés protegidos com fita", done: false },
-  { id: "c3", text: "Lixa grão 36 → 60 → 100", done: false },
-  { id: "c4", text: "Aspiração completa entre passadas", done: false },
-  { id: "c5", text: "Foto de depois de cada cômodo", done: false },
-];
+export const DEFAULT_CHECKLIST: ChecklistItem[] = DEFAULT_CAMPO_CHECKLIST;
 
 export function parseChecklist(raw: unknown): ChecklistItem[] {
-  if (!Array.isArray(raw) || !raw.length) {
-    return DEFAULT_CHECKLIST.map((x) => ({ ...x }));
-  }
-  return raw.map((item, i) => {
-    const row = item as Record<string, unknown>;
-    return {
-      id: String(row.id || `c${i + 1}`),
-      text: String(row.text || "Item"),
-      done: Boolean(row.done),
-    };
-  });
+  return parseCampoChecklist(raw);
 }
 
 export function parsePhotos(raw: unknown): PhotoItem[] {
@@ -150,6 +147,16 @@ export const woListInclude = {
   },
 } as const;
 
+export const woTicketInclude = {
+  ...woListInclude,
+  media: {
+    where: { deletedAt: null },
+    orderBy: [{ createdAt: "desc" as const }],
+    take: 120,
+    include: { author: { select: { id: true, name: true } } },
+  },
+};
+
 export function myJobAccessWhere(userId: string) {
   return {
     OR: [
@@ -168,6 +175,21 @@ export async function assertMyJob(tx: Tx, userId: string, jobId: string) {
       ...myJobAccessWhere(userId),
     },
     include: woListInclude,
+  });
+  if (!wo) {
+    throw Object.assign(new Error("Obra não encontrada ou sem acesso"), { status: 404 });
+  }
+  return wo;
+}
+
+export async function assertMyJobTicket(tx: Tx, userId: string, jobId: string) {
+  const wo = await tx.workOrder.findFirst({
+    where: {
+      id: jobId,
+      status: { not: "canceled" },
+      ...myJobAccessWhere(userId),
+    },
+    include: woTicketInclude,
   });
   if (!wo) {
     throw Object.assign(new Error("Obra não encontrada ou sem acesso"), { status: 404 });

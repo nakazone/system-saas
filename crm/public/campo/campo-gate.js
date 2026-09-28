@@ -3,7 +3,7 @@
  * Mobile field → Campo; desktop field → funcionario.html (PC shell).
  */
 (function (global) {
-  const FIELD_ROLES = new Set(["installer", "crew_lead"]);
+  const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
 
   function isFieldRole(role) {
     return FIELD_ROLES.has(String(role || "").toLowerCase());

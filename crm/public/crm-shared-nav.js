@@ -73,7 +73,7 @@
 
   function isFieldRole(role) {
     const r = String(role || '').toLowerCase();
-    return r === 'installer' || r === 'crew_lead';
+    return r === 'installer' || r === 'crew_lead' || r === 'subcontractor';
   }
 
   function sidebarTopItems(role) {
@@ -135,6 +135,13 @@
           { href: 'invoices.html', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'invoices' },
           { href: 'schedule.html', label: 'Schedule', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
+          {
+            href: 'job-media-board.html',
+            label: 'Photo board',
+            perm: 'work_orders.view',
+            page: '',
+            iconKey: 'jobs',
+          },
           { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'cadastro', children: CADASTRO_CHILDREN },
           {
             href: 'builder-pricing-admin.html',
@@ -208,6 +215,7 @@
     if (base === 'finance.html') return file === 'finance.html';
     if (base === 'schedule.html') return file === 'schedule.html';
     if (base === 'jobs.html') return file === 'jobs.html' || file === 'job-detail.html';
+    if (base === 'job-media-board.html') return file === 'job-media-board.html';
     if (base === 'ajustes.html') return file === 'ajustes.html';
     if (base === 'products-erp.html') return file === 'products-erp.html';
     if (base === 'quote-catalog.html') return file === 'quote-catalog.html';

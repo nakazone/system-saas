@@ -9,7 +9,8 @@ export type ActivityEntityType =
   | "lead"
   | "customer"
   | "property"
-  | "site_assessment";
+  | "site_assessment"
+  | "work_order";
 
 export type ActivityActorType = "user" | "customer" | "system";
 

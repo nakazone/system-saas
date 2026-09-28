@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-modpanel" />
   <link rel="stylesheet" href="obramate-app.css?v=20260925-apptop1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-fieldnav1" />
-  <link rel="stylesheet" href="jobs.css?v=20260925-jcm2" />
+  <link rel="stylesheet" href="jobs.css?v=20260928-media4" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20260925-jcm2" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20260925-device1"></script>
@@ -215,6 +215,55 @@
               </div>
             </section>
 
+            <section class="job-card" id="jobMediaCard">
+              <div class="job-card__head">
+                <h2>Job photos</h2>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+                  <a class="job-card__link" href="job-media-board.html">Photo board</a>
+                  <a class="job-card__link" id="jobPortfolioLink" href="#" target="_blank" rel="noopener" hidden>Public portfolio</a>
+                  <button type="button" class="job-card__link" id="btnRefreshMedia">Refresh</button>
+                </div>
+              </div>
+              <div id="jobMediaBody">
+                <p class="jobs-empty" style="padding:1rem 0">No field photos yet.</p>
+              </div>
+            </section>
+
+            <section class="job-card" id="jobReportCard">
+              <div class="job-card__head">
+                <h2>Photo report</h2>
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                  <button type="button" class="job-card__link" id="btnGenerateReport">Generate with AI</button>
+                </div>
+              </div>
+              <div id="jobReportBody">
+                <p class="jobs-empty" style="padding:1rem 0">Generate a draft report from job photos.</p>
+              </div>
+            </section>
+
+            <section class="job-card" id="jobProposalCard">
+              <div class="job-card__head">
+                <h2>Customer proposal</h2>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+                  <button type="button" class="job-card__link" id="btnCreateProposal" data-crm-permission="work_orders.manage">Create proposal</button>
+                  <button type="button" class="job-card__link" id="btnCreateProposalAi" data-crm-permission="work_orders.manage">Create with AI</button>
+                </div>
+              </div>
+              <div id="jobProposalBody">
+                <p class="jobs-empty" style="padding:1rem 0">Turn this job into a quote the customer can sign online.</p>
+              </div>
+            </section>
+
+            <section class="job-card" id="jobMarketingCard">
+              <div class="job-card__head">
+                <h2>Before / after &amp; review</h2>
+                <button type="button" class="job-card__link" id="btnRefreshMarketing">Refresh</button>
+              </div>
+              <div id="jobMarketingBody">
+                <p class="jobs-empty" style="padding:1rem 0">Export a caption + photos, or copy a Google review request.</p>
+              </div>
+            </section>
+
             <section class="job-card">
               <div class="job-card__head">
                 <h2>Labor</h2>
@@ -297,7 +346,7 @@
   <script src="crm-shell.js?v=20260925-apptop1"></script>
   <script src="om-mobile-nav.js?v=20260925-fieldnav1"></script>
   <script src="crm-job-modal.js?v=20260925-sections"></script>
-  <script src="job-detail.js?v=20260925-jcm1"></script>
+  <script src="job-detail.js?v=20260928-media4"></script>
   <script src="job-detail-mobile.js?v=20260925-jcm1"></script>
 </body>
 </html>
