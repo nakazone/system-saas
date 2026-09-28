@@ -128,9 +128,22 @@
 
   function compressImage(file, maxEdge, quality) {
     return new Promise((resolve, reject) => {
+      const type = String(file.type || "").toLowerCase();
+      if (type && !/^image\/(jpeg|jpg|png|webp|gif)$/.test(type)) {
+        reject(new Error("unsupported-type"));
+        return;
+      }
       const url = URL.createObjectURL(file);
       const img = new Image();
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(url);
+        reject(new Error("compress-timeout"));
+      }, 10000);
       img.onload = () => {
+        if (settled) return;
         try {
           let { width, height } = img;
           const edge = Math.max(width, height);
@@ -142,19 +155,25 @@
           canvas.height = height;
           const ctx = canvas.getContext("2d");
           if (!ctx) {
-            reject(new Error("Canvas unavailable"));
-            return;
+            throw new Error("Canvas unavailable");
           }
           ctx.drawImage(img, 0, 0, width, height);
           const dataUrl = canvas.toDataURL("image/jpeg", quality);
+          settled = true;
+          clearTimeout(timer);
           URL.revokeObjectURL(url);
           resolve(dataUrl);
         } catch (e) {
+          settled = true;
+          clearTimeout(timer);
           URL.revokeObjectURL(url);
           reject(e);
         }
       };
       img.onerror = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         URL.revokeObjectURL(url);
         reject(new Error("Falha ao processar imagem"));
       };
@@ -162,19 +181,30 @@
     });
   }
 
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Falha ao ler imagem"));
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function fileToUploadDataUrl(file) {
-    if (!file.type || !file.type.startsWith("image/")) {
+    const type = String(file.type || "").toLowerCase();
+    if (type && !type.startsWith("image/")) {
       throw new Error("Selecione uma imagem");
     }
     try {
-      return await compressImage(file, 1600, 0.72);
+      const dataUrl = await compressImage(file, 1280, 0.7);
+      if (dataUrl.length > 9_000_000) throw new Error("Foto demasiado grande após compressão");
+      return dataUrl;
     } catch (_) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("Falha ao ler imagem"));
-        reader.readAsDataURL(file);
-      });
+      const dataUrl = await readFileAsDataUrl(file);
+      if (dataUrl.length > 9_000_000) {
+        throw new Error("Foto demasiado grande. Tente outra com menor resolução.");
+      }
+      return dataUrl;
     }
   }
 
@@ -184,61 +214,91 @@
         resolve(null);
         return;
       }
+      let done = false;
+      const finish = (v) => {
+        if (done) return;
+        done = true;
+        resolve(v);
+      };
+      const timer = setTimeout(() => finish(null), 1500);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          resolve({
+          clearTimeout(timer);
+          finish({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
             gpsAccuracyM: pos.coords.accuracy,
           });
         },
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 },
+        () => {
+          clearTimeout(timer);
+          finish(null);
+        },
+        { enableHighAccuracy: false, timeout: 1400, maximumAge: 120000 },
       );
     });
   }
 
+  async function fetchJson(url, opts, timeoutMs) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || 90000);
+    try {
+      const r = await fetch(url, { ...opts, signal: ctrl.signal });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.success === false) {
+        throw new Error(j.error || `HTTP ${r.status}`);
+      }
+      return j;
+    } catch (err) {
+      if (err?.name === "AbortError") throw new Error("Tempo esgotado no envio. Tente novamente.");
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function loadMedia() {
     if (!jobId) return;
-    const r = await fetch(`/api/work-orders/${jobId}/media`, {
+    const j = await fetchJson(`/api/work-orders/${jobId}/media`, {
       credentials: "include",
       headers: { Accept: "application/json" },
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || j.success === false) throw new Error(j.error || "Falha ao carregar fotos");
+    }, 30000);
     mediaList = j.data || [];
     mediaLoaded = true;
   }
 
   async function uploadViaOffice(payload) {
-    const r = await fetch(`/api/work-orders/${jobId}/media`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+    const j = await fetchJson(
+      `/api/work-orders/${jobId}/media`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      },
+      90000,
+    );
     return j.data;
   }
 
   async function uploadViaCampo(payload) {
-    const r = await fetch(`/api/campo/jobs/${jobId}/photos`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+    const j = await fetchJson(
+      `/api/campo/jobs/${jobId}/photos`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      },
+      90000,
+    );
     const photos = j.data?.photos || [];
     return photos[0] || null;
   }
 
   async function uploadPhoto(file) {
     if (!canUpload()) throw new Error("Sem permissão para adicionar fotos");
-    const dataUrl = await fileToUploadDataUrl(file);
-    const gps = await getGps();
+    const [dataUrl, gps] = await Promise.all([fileToUploadDataUrl(file), getGps()]);
     const stage = ($("jobMobPhotoStage")?.value || "").trim() || null;
     const caption = ($("jobMobPhotoCaption")?.value || "").trim() || null;
     const clientId =
@@ -261,13 +321,7 @@
     if (canManage) {
       uploaded = await uploadViaOffice(payload);
     } else {
-      try {
-        uploaded = await uploadViaCampo(payload);
-      } catch (err) {
-        // Campo requires assignment; fall back if office manage somehow available
-        if (canManage) uploaded = await uploadViaOffice(payload);
-        else throw err;
-      }
+      uploaded = await uploadViaCampo(payload);
     }
 
     await loadMedia();
@@ -330,10 +384,11 @@
       e.target.value = "";
       if (!file) return;
       try {
-        window.crmToast?.show?.("A enviar foto…", { type: "info" }) || window.crmToast?.info?.("A enviar foto…");
+        window.crmToast?.show?.("A enviar foto…", { type: "info" });
         await uploadPhoto(file);
         window.crmToast?.success?.("Foto adicionada");
       } catch (err) {
+        console.error("[job-photo-upload]", err);
         window.crmToast?.error?.(err.message || "Falha no upload");
       }
     };

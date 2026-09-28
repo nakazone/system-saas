@@ -43,6 +43,7 @@ import { platformAdminRouter } from "./platform-admin/routes.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
 import { CRM_ASSETS_DIR } from "./crm/mount.js";
+import { getLocalFileStorage } from "./lib/storage/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PgSession = connectPgSimple(session);
@@ -72,6 +73,40 @@ export function createApp() {
   app.use(cookieParser());
   app.use("/assets", express.static(CRM_ASSETS_DIR));
   app.use("/assets", express.static(path.join(__dirname, "public")));
+
+  // Local upload fallback (when S3 is not configured) — keys are unguessable org paths.
+  app.get(/^\/api\/local-files\/(.+)/, async (req, res, next) => {
+    try {
+      const local = getLocalFileStorage();
+      if (!local) {
+        res.status(404).json({ success: false, error: "Local storage unavailable" });
+        return;
+      }
+      const raw = String(
+        (req.params as Record<string, string>)["0"] ||
+          req.path.replace(/^\/api\/local-files\//, ""),
+      );
+      const key = raw
+        .split("/")
+        .map((p) => decodeURIComponent(p))
+        .join("/");
+      if (!key || key.includes("..")) {
+        res.status(400).end();
+        return;
+      }
+      const obj = await local.get(key);
+      if (!obj) {
+        res.status(404).end();
+        return;
+      }
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.type(obj.contentType);
+      res.send(obj.body);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/favicon.ico", (_req, res) => {
     res.type("image/x-icon");
     res.setHeader("Cache-Control", "public, max-age=86400");

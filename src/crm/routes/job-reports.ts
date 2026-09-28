@@ -263,6 +263,13 @@ jobReportsRouter.post(
         return mapJobMedia(row);
       });
 
+      console.info("[job-media] uploaded", {
+        jobId,
+        mediaId: data.id,
+        bytes: parsed.body.length,
+        urlKind: String(data.url || "").startsWith("data:") ? "data-url" : "http",
+      });
+
       res.status(201).json({ success: true, data });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
