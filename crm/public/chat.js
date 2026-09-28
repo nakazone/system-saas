@@ -579,7 +579,6 @@
 
     await loadMessages({ initial: true });
     await api(`/api/chat/conversations/${id}/read`, { method: "POST", body: "{}" });
-    const conv = state.conversations.find((c) => c.id === id);
     if (conv) conv.unread_count = 0;
     renderList();
 
