@@ -32,7 +32,7 @@
         </a>`,
           )
           .join("")
-      : "<p>No recent photos.</p>";
+      : "<p>Ainda sem fotos recentes.</p>";
 
     const list = document.getElementById("jmbJobs");
     list.innerHTML = jobs
@@ -40,9 +40,9 @@
         (j) => `<a class="jmb-job" href="${escapeHtml(j.detail_url)}">
         <span>
           <strong>#${escapeHtml(String(j.number ?? "—"))}</strong> ${escapeHtml(j.title || "")}<br/>
-          <small>${escapeHtml(j.address || "No address")} · ${escapeHtml(j.status)}</small>
+          <small>${escapeHtml(j.address || "Sem endereço")} · ${escapeHtml(j.status)}</small>
         </span>
-        <span>${j.stale ? '<span class="jmb-stale">Stale</span>' : j.last_photo ? "OK" : "No photo"}</span>
+        <span>${j.stale ? '<span class="jmb-stale">Atrasado</span>' : j.last_photo ? "OK" : "Sem foto"}</span>
       </a>`,
       )
       .join("");
@@ -68,6 +68,6 @@
   }
 
   boot().catch((e) => {
-    document.getElementById("jmbFeed").textContent = e.message || "Failed to load board";
+    document.getElementById("jmbFeed").textContent = e.message || "Falha ao carregar o board";
   });
 })();

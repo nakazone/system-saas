@@ -137,7 +137,7 @@
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
           {
             href: 'job-media-board.html',
-            label: 'Photo board',
+            label: 'Fotos de campo',
             perm: 'work_orders.view',
             page: '',
             iconKey: 'jobs',
