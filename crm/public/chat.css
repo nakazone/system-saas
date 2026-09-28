@@ -7,23 +7,6 @@
   overflow: hidden;
 }
 
-@media (max-width: 900px) {
-  body.om-device-mobile.chat-app .dashboard-main.chat-main {
-    height: calc(100dvh - var(--om-apptop-h, 56px) - env(safe-area-inset-top, 0px));
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-  }
-  body.chat-app .dashboard-main {
-    padding-bottom: 0 !important;
-  }
-  body.om-device-mobile.chat-app.om-has-tabbar .dashboard-main.chat-main {
-    height: calc(
-      100dvh - var(--om-apptop-h, 56px) - var(--om-tabbar-h, 64px) - env(safe-area-inset-top, 0px) -
-        env(safe-area-inset-bottom, 0px)
-    );
-  }
-}
-
 .chat-shell {
   display: grid;
   grid-template-columns: minmax(280px, 340px) 1fr;
@@ -833,26 +816,92 @@
   border: 0;
 }
 
-/* Mobile: list OR thread */
+/* Mobile: list OR thread — full-bleed shell above bottom tabbar */
 @media (max-width: 900px) {
+  /* Own title lives in .chat-list-head / .chat-thread-head */
+  body.chat-app .mobile-app-header,
+  body.om-device-mobile.chat-app .mobile-app-header {
+    display: none !important;
+  }
+
+  body.chat-app .dashboard-container,
+  body.om-device-mobile.chat-app .dashboard-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  body.chat-app .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app .dashboard-main.chat-main,
+  body.chat-app.om-has-tabbar .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.om-has-tabbar .dashboard-main.chat-main {
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: env(safe-area-inset-top, 0px) 0 0 !important;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--mod-chrome, #f7f4ee) !important;
+  }
+
+  /* Leave room for Campo / Mais tabbar */
+  body.chat-app.om-has-tabbar .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.om-has-tabbar .dashboard-main.chat-main {
+    height: calc(100dvh - var(--om-tabbar-h, 64px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - var(--om-tabbar-h, 64px) - env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0 !important;
+  }
+
+  /* Office mobile: shared app top bar */
+  body.chat-app.om-has-apptop .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.om-has-apptop .dashboard-main.chat-main,
+  body.chat-app.om-has-apptop.om-has-tabbar .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.om-has-apptop.om-has-tabbar .dashboard-main.chat-main {
+    padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px)) !important;
+  }
+
   .chat-shell {
     grid-template-columns: 1fr;
+    height: 100%;
+    min-height: 0;
   }
+
+  .chat-list-pane,
+  .chat-thread-pane {
+    min-height: 0;
+    height: 100%;
+  }
+
   .chat-thread-pane {
     display: none;
   }
+
   body.chat-show-thread .chat-list-pane {
     display: none;
   }
+
   body.chat-show-thread .chat-thread-pane {
     display: flex;
   }
+
   .chat-back-btn {
     display: inline-grid;
   }
+
   .chat-list-title {
     font-size: 1.2rem;
   }
+
+  .chat-list-head {
+    padding-top: 0.7rem;
+  }
+
+  .chat-composer {
+    padding-bottom: 0.65rem;
+  }
+
   .chat-composer__row .chat-camera-btn {
     display: inline-grid;
   }
