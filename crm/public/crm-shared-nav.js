@@ -26,6 +26,8 @@
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>',
     jobs:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M12 12v.01"/><path d="M2 12h20"/></svg>',
+    chat:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
     cadastro:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>',
     products:
@@ -102,6 +104,7 @@
         items: [
           { href: 'schedule.html', label: 'Agenda', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
+          { href: 'chat.html', label: 'Chat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
           {
             href: 'payroll-module.html',
             label: 'Minha folha',
@@ -135,6 +138,7 @@
           { href: 'invoices.html', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'invoices' },
           { href: 'schedule.html', label: 'Schedule', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
+          { href: 'chat.html', label: 'Chat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
           {
             href: 'job-media-board.html',
             label: 'Fotos de campo',
@@ -215,6 +219,7 @@
     if (base === 'finance.html') return file === 'finance.html';
     if (base === 'schedule.html') return file === 'schedule.html';
     if (base === 'jobs.html') return file === 'jobs.html' || file === 'job-detail.html';
+    if (base === 'chat.html') return file === 'chat.html';
     if (base === 'job-media-board.html') return file === 'job-media-board.html';
     if (base === 'ajustes.html') return file === 'ajustes.html';
     if (base === 'products-erp.html') return file === 'products-erp.html';
@@ -271,6 +276,15 @@
     span.className = 'nav-item__label';
     span.textContent = item.label;
     a.appendChild(span);
+    if (item.badge === 'chat') {
+      const badge = document.createElement('span');
+      badge.className = 'nav-item__badge';
+      badge.setAttribute('data-chat-badge', '1');
+      badge.setAttribute('aria-hidden', 'true');
+      badge.textContent = '';
+      a.appendChild(badge);
+      a.style.position = 'relative';
+    }
     return a;
   }
 
@@ -445,6 +459,7 @@
       mountSidebarNav(host, perms, role);
       initSidebarUserFooter(user, role);
       host.dataset.mounted = '1';
+      startChatBadgePolling(perms, role);
       return;
     }
 
@@ -519,6 +534,41 @@
   }
 
   window.__crmSharedNav = { init, remount };
+
+  let chatBadgeTimer = null;
+  async function updateChatBadge() {
+    const badges = document.querySelectorAll('[data-chat-badge]');
+    if (!badges.length) return;
+    try {
+      const r = await fetch('/api/chat/unread', { credentials: 'include' });
+      const j = await r.json();
+      if (!j.success) return;
+      const total = Number(j.data?.total || 0) + Number(j.data?.unread_mentions || 0);
+      badges.forEach((badge) => {
+        if (total > 0) {
+          badge.textContent = total > 99 ? '99+' : String(total);
+          badge.classList.add('is-on');
+        } else {
+          badge.textContent = '';
+          badge.classList.remove('is-on');
+        }
+      });
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function startChatBadgePolling(perms, role) {
+    const keys = new Set(perms || []);
+    const can =
+      String(role || '').toLowerCase() === 'admin' ||
+      keys.has('chat.use');
+    if (!can) return;
+    window.__crmUpdateChatBadge = updateChatBadge;
+    updateChatBadge();
+    if (chatBadgeTimer) clearInterval(chatBadgeTimer);
+    chatBadgeTimer = setInterval(updateChatBadge, 45000);
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

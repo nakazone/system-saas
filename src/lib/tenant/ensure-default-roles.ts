@@ -71,6 +71,11 @@ export async function syncSystemRolePermissions(
         desired.add(key);
       }
     }
+    // Anyone who already sees jobs/schedule gets base chat access
+    if (haveKeys.has("work_orders.view") || haveKeys.has("schedule.view") || haveKeys.has("visits.view")) {
+      desired.add("chat.use");
+      desired.add("chat.create_group");
+    }
     if (desired.size === 0) continue;
 
     for (const key of desired) {
@@ -88,7 +93,7 @@ export async function syncSystemRolePermissions(
 
 const syncedOrgVersions = new Map<string, number>();
 /** Bump when new DEFAULT_PERMISSIONS keys must be backfilled onto existing roles. */
-const ORG_PERMISSION_SYNC_VERSION = 5;
+const ORG_PERMISSION_SYNC_VERSION = 6;
 
 /**
  * Idempotently create any missing Phase 2 default roles for an organization

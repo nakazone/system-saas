@@ -61,6 +61,11 @@ export const DEFAULT_PERMISSIONS = [
   { key: "work_orders.manage", group: "operations", description: "Create and update jobs / work orders" },
   { key: "schedule.view", group: "operations", description: "View schedule calendar (jobs and meetings)" },
   { key: "schedule.manage", group: "operations", description: "Create and update meetings on the schedule" },
+  { key: "chat.use", group: "chat", description: "Use internal company chat" },
+  { key: "chat.create_group", group: "chat", description: "Create chat groups" },
+  { key: "chat.mention_all", group: "chat", description: "Use @todos in conversations" },
+  { key: "chat.link_retroactive", group: "chat", description: "Link existing messages to jobs" },
+  { key: "chat.view_hidden", group: "chat", description: "View removed messages and edit history" },
 ] as const;
 
 export type PermissionKey = (typeof DEFAULT_PERMISSIONS)[number]["key"];
@@ -107,6 +112,11 @@ const OFFICE_KEYS: PermissionKey[] = [
   "work_orders.manage",
   "schedule.view",
   "schedule.manage",
+  "chat.use",
+  "chat.create_group",
+  "chat.mention_all",
+  "chat.link_retroactive",
+  "chat.view_hidden",
 ];
 
 const SALES_KEYS: PermissionKey[] = [
@@ -129,6 +139,8 @@ const SALES_KEYS: PermissionKey[] = [
   "work_orders.view",
   "schedule.view",
   "schedule.manage",
+  "chat.use",
+  "chat.create_group",
 ];
 
 const CREW_LEAD_KEYS: PermissionKey[] = [
@@ -142,6 +154,9 @@ const CREW_LEAD_KEYS: PermissionKey[] = [
   "schedule.view",
   "schedule.manage",
   "payroll.self",
+  "chat.use",
+  "chat.create_group",
+  "chat.link_retroactive",
 ];
 
 const INSTALLER_KEYS: PermissionKey[] = [
@@ -151,6 +166,8 @@ const INSTALLER_KEYS: PermissionKey[] = [
   "work_orders.view",
   "schedule.view",
   "payroll.self",
+  "chat.use",
+  "chat.create_group",
 ];
 
 const SUBCONTRACTOR_KEYS: PermissionKey[] = [
@@ -158,6 +175,8 @@ const SUBCONTRACTOR_KEYS: PermissionKey[] = [
   "schedule.view",
   "visits.view",
   "projects.view",
+  "chat.use",
+  "chat.create_group",
 ];
 
 export const DEFAULT_ROLE_META: Record<

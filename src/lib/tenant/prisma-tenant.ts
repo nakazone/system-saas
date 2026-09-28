@@ -81,6 +81,16 @@ const TENANT_MODELS = new Set([
   "WorkOrderTempWorker",
   "WorkOrderLineItem",
   "Meeting",
+  "ChatConversation",
+  "ChatConversationMember",
+  "ChatConversationContext",
+  "ChatMessage",
+  "ChatMessageEdit",
+  "ChatMessageJob",
+  "ChatMessageMention",
+  "ChatAttachment",
+  "ChatAuditLog",
+  "ChatMessageFlag",
 ]);
 
 type Operation =

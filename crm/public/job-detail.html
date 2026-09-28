@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-fieldnav1" />
   <link rel="stylesheet" href="jobs.css?v=20260928-media9" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20260928-media10" />
+  <link rel="stylesheet" href="job-comms.css?v=20260928-chat1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20260925-device1"></script>
   <script src="crm-field-gate.js?v=20260925-field3"></script>
@@ -112,6 +113,7 @@
           <button type="button" class="jcm-seg__btn is-active" data-jd-tab="visitas">Visitas</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="checklist">Checklist</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="fotos">Fotos</button>
+          <button type="button" class="jcm-seg__btn" data-jd-tab="comunicacoes">Comunicações</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="financeiro">Financeiro</button>
         </div>
 
@@ -246,6 +248,19 @@
               </div>
             </section>
 
+            <section class="job-card" id="jobCommsCard">
+              <div class="job-card__head">
+                <h2>Comunicações</h2>
+                <a class="job-card__link" href="chat.html">Abrir chat</a>
+              </div>
+              <p class="job-card__hint" style="margin:0 0 0.75rem;color:#6b645c;font-size:0.9rem">
+                Mensagens vinculadas a este job (canal, grupos e DMs com vínculo explícito).
+              </p>
+              <div id="jobCommsBody">
+                <p class="jobs-empty" style="padding:1rem 0">A carregar comunicações…</p>
+              </div>
+            </section>
+
             <section class="job-card" id="jobReportCard">
               <div class="job-card__head">
                 <h2>Relatório de fotos</h2>
@@ -363,7 +378,8 @@
   <script src="crm-shell.js?v=20260925-apptop1"></script>
   <script src="om-mobile-nav.js?v=20260925-fieldnav1"></script>
   <script src="crm-job-modal.js?v=20260925-sections"></script>
-  <script src="job-detail.js?v=20260928-media13"></script>
-  <script src="job-detail-mobile.js?v=20260928-media13"></script>
+  <script src="job-chat-comms.js?v=20260928-chat1"></script>
+  <script src="job-detail.js?v=20260928-comms1"></script>
+  <script src="job-detail-mobile.js?v=20260928-comms1"></script>
 </body>
 </html>

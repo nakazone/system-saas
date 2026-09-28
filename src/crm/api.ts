@@ -20,6 +20,7 @@ import { campoFolhaRouter } from "./routes/campo-folha.js";
 import { jobReportsRouter } from "./routes/job-reports.js";
 import { jobQuotesRouter } from "./routes/job-quotes.js";
 import { jobFieldExtrasRouter } from "./routes/job-field-extras.js";
+import { chatRouter } from "./routes/chat.js";
 
 export const crmApiRouter = Router();
 
@@ -40,3 +41,4 @@ crmApiRouter.use(campoFolhaRouter);
 crmApiRouter.use(jobReportsRouter);
 crmApiRouter.use(jobQuotesRouter);
 crmApiRouter.use(jobFieldExtrasRouter);
+crmApiRouter.use(chatRouter);

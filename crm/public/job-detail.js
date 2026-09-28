@@ -9,6 +9,7 @@
   let marketing = null;
   let reviewReq = null;
   let orgSlug = null;
+  let commsCtl = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -642,7 +643,25 @@
     await Promise.all([
       loadMediaReports().catch(() => {}),
       loadProposalsMarketing().catch(() => {}),
+      mountComms().catch(() => {}),
     ]);
+  }
+
+  async function mountComms() {
+    const body = $("jobCommsBody");
+    if (!body || !jobId || !window.JobChatComms) return;
+    if (commsCtl) {
+      try {
+        commsCtl.destroy();
+      } catch (_) {}
+      commsCtl = null;
+    }
+    body.innerHTML = "";
+    commsCtl = window.JobChatComms.mount(body, {
+      jobId,
+      workOrder: job,
+      onError: (err) => notify(err.message || "Erro", "error"),
+    });
   }
 
   async function generateReport() {

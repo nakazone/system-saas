@@ -10,6 +10,7 @@
   let detTab = "visitas";
   let mediaList = [];
   let mediaLoaded = false;
+  let commsCtl = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -451,6 +452,13 @@
     $("jobMobVisitas").hidden = detTab !== "visitas";
     $("jobMobExtra").hidden = detTab === "visitas";
 
+    if (detTab !== "comunicacoes" && commsCtl) {
+      try {
+        commsCtl.destroy();
+      } catch (_) {}
+      commsCtl = null;
+    }
+
     if (detTab === "fotos") {
       if (canUpload()) {
         cta.textContent = "Tirar foto";
@@ -474,6 +482,27 @@
     } else if (detTab === "checklist") {
       $("jobMobExtra").innerHTML = `<p class="jcm-empty">Checklist em breve.</p>`;
       restoreVisitCta();
+    } else if (detTab === "comunicacoes") {
+      cta.textContent = "Abrir canal";
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+      cta.dataset.action = "comms-channel";
+      if (commsCtl) {
+        try {
+          commsCtl.destroy();
+        } catch (_) {}
+        commsCtl = null;
+      }
+      $("jobMobExtra").innerHTML = "";
+      if (window.JobChatComms && jobId) {
+        commsCtl = window.JobChatComms.mount($("jobMobExtra"), {
+          jobId,
+          workOrder: job,
+          compact: true,
+          onError: (err) => alert(err.message || "Erro"),
+        });
+      } else {
+        $("jobMobExtra").innerHTML = `<p class="jcm-empty">Chat indisponível.</p>`;
+      }
     } else if (detTab === "financeiro") {
       const total = Number(wo.services_total) || 0;
       $("jobMobExtra").innerHTML = `<div class="jcm-card"><div class="jcm-dl">
@@ -552,6 +581,12 @@
         }
         if (action === "campo") {
           location.href = `campo/ticket.html?id=${encodeURIComponent(jobId)}`;
+          return;
+        }
+        if (action === "comms-channel") {
+          if (window.JobChatComms) {
+            await window.JobChatComms.openJobChannel(jobId);
+          }
           return;
         }
         if (action === "start") {

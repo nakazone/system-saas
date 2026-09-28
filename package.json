@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "node scripts/migrate-deploy.mjs",
     "db:seed": "tsx prisma/seed.ts",
+    "db:backfill-chat-channels": "tsx scripts/backfill-chat-job-channels.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

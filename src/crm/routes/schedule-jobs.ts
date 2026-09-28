@@ -11,6 +11,7 @@ import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
 import { env } from "../../config/env.js";
 import { myJobAccessWhere } from "../lib/campo-shared.js";
+import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
 
 export const scheduleJobsRouter = Router();
 
@@ -596,6 +597,9 @@ scheduleJobsRouter.post(
       });
       await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
       await syncWorkOrderLineItems(req.organizationId!, row.id, d.line_items);
+      await withTenantTransaction(req.organizationId!, async (tx) => {
+        await ensureJobChatChannel(tx, req.organizationId!, row.id);
+      });
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },
         include: woInclude,
@@ -693,6 +697,9 @@ scheduleJobsRouter.put(
       });
       await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
       await syncWorkOrderLineItems(req.organizationId!, row.id, d.line_items);
+      await withTenantTransaction(req.organizationId!, async (tx) => {
+        await ensureJobChatChannel(tx, req.organizationId!, row.id);
+      });
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },
         include: woInclude,

@@ -117,6 +117,16 @@ model Organization {
   jobReports         JobReport[]
   jobInspections     JobInspection[]
   jobMeasurements    JobMeasurement[]
+  chatConversations  ChatConversation[]
+  chatConversationMembers ChatConversationMember[]
+  chatConversationContexts ChatConversationContext[]
+  chatMessages       ChatMessage[]
+  chatMessageEdits   ChatMessageEdit[]
+  chatMessageJobs    ChatMessageJob[]
+  chatMessageMentions ChatMessageMention[]
+  chatAttachments    ChatAttachment[]
+  chatAuditLogs      ChatAuditLog[]
+  chatMessageFlags   ChatMessageFlag[]
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +170,16 @@ model User {
   jobReports JobReport[] @relation("JobReportAuthor")
   jobInspections JobInspection[] @relation("JobInspectionAuthor")
   jobMeasurements JobMeasurement[] @relation("JobMeasurementAuthor")
+  chatConversationsCreated ChatConversation[] @relation("ChatConversationCreator")
+  chatMemberships ChatConversationMember[]
+  chatContexts ChatConversationContext[]
+  chatMessagesAuthored ChatMessage[] @relation("ChatMessageAuthor")
+  chatMessagesHidden ChatMessage[] @relation("ChatMessageHiddenBy")
+  chatMessageEdits ChatMessageEdit[] @relation("ChatMessageEditAuthor")
+  chatMessageJobsLinked ChatMessageJob[] @relation("ChatMessageJobLinker")
+  chatMentionsReceived ChatMessageMention[]
+  chatAuditLogs ChatAuditLog[] @relation("ChatAuditActor")
+  chatMessageFlagsAssigned ChatMessageFlag[] @relation("ChatMessageFlagAssignee")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -1521,6 +1541,9 @@ model WorkOrder {
   quotes      Quote[]
   inspections JobInspection[]
   measurements JobMeasurement[]
+  chatConversation ChatConversation?
+  chatContexts ChatConversationContext[]
+  chatMessageJobs ChatMessageJob[]
 
   @@unique([organizationId, number])
   @@index([organizationId])
@@ -1901,4 +1924,238 @@ model PushSubscription {
   @@index([organizationId])
   @@index([userId])
   @@index([organizationId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Internal chat (DM / group / job channel) — permanent job communication log
+// ---------------------------------------------------------------------------
+
+/// dm | group | job
+model ChatConversation {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// dm | group | job
+  type           String
+  /// Set when type = job; one channel per work order
+  workOrderId    String?   @unique @db.Uuid
+  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  name           String?
+  /// Sorted "userIdA:userIdB" for DM uniqueness within org
+  dmKey          String?
+  createdById    String?   @db.Uuid
+  createdBy      User?     @relation("ChatConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  /// When set, conversation is read-only (e.g. job completed/canceled)
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  members  ChatConversationMember[]
+  contexts ChatConversationContext[]
+  messages ChatMessage[]
+
+  @@unique([organizationId, dmKey])
+  @@index([organizationId])
+  @@index([organizationId, type])
+  @@index([organizationId, archivedAt])
+  @@index([workOrderId])
+  @@index([createdById])
+}
+
+model ChatConversationMember {
+  id                 String    @id @default(uuid()) @db.Uuid
+  organizationId     String    @db.Uuid
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId     String    @db.Uuid
+  conversation       ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId             String    @db.Uuid
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// member | admin
+  role               String    @default("member")
+  muted              Boolean   @default(false)
+  lastReadAt         DateTime?
+  lastReadMessageId  String?   @db.Uuid
+  joinedAt           DateTime  @default(now())
+  leftAt             DateTime?
+
+  @@unique([conversationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([conversationId, lastReadAt])
+  @@index([organizationId, userId, leftAt])
+}
+
+/// Per-user "talking about" job context in a DM/group
+model ChatConversationContext {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId String   @db.Uuid
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workOrderId    String   @db.Uuid
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([workOrderId])
+}
+
+model ChatMessage {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @db.Uuid
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId  String    @db.Uuid
+  conversation    ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorId        String?   @db.Uuid
+  author          User?     @relation("ChatMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  body            String    @db.Text
+  /// Phase 2 threads — reserved
+  parentMessageId String?   @db.Uuid
+  parentMessage   ChatMessage?  @relation("ChatMessageThread", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  replies         ChatMessage[] @relation("ChatMessageThread")
+  /// text | system
+  type            String    @default("text")
+  createdAt       DateTime  @default(now())
+  editedAt        DateTime?
+  hiddenAt        DateTime?
+  hiddenById      String?   @db.Uuid
+  hiddenBy        User?     @relation("ChatMessageHiddenBy", fields: [hiddenById], references: [id], onDelete: SetNull)
+
+  edits      ChatMessageEdit[]
+  jobLinks   ChatMessageJob[]
+  mentions   ChatMessageMention[]
+  attachments ChatAttachment[]
+  flags      ChatMessageFlag[]
+
+  @@index([organizationId])
+  @@index([conversationId, createdAt])
+  @@index([authorId])
+  @@index([parentMessageId])
+  @@index([organizationId, hiddenAt])
+}
+
+model ChatMessageEdit {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messageId      String   @db.Uuid
+  message        ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  previousBody   String   @db.Text
+  editedById     String?  @db.Uuid
+  editedBy       User?    @relation("ChatMessageEditAuthor", fields: [editedById], references: [id], onDelete: SetNull)
+  editedAt       DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([messageId, editedAt])
+  @@index([editedById])
+}
+
+model ChatMessageJob {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messageId      String   @db.Uuid
+  message        ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  workOrderId    String   @db.Uuid
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  linkedById     String?  @db.Uuid
+  linkedBy       User?    @relation("ChatMessageJobLinker", fields: [linkedById], references: [id], onDelete: SetNull)
+  linkedAt       DateTime @default(now())
+  /// inline | context | retroactive
+  source         String   @default("inline")
+
+  @@unique([messageId, workOrderId])
+  @@index([organizationId])
+  @@index([workOrderId])
+  @@index([linkedById])
+  @@index([workOrderId, linkedAt])
+}
+
+model ChatMessageMention {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messageId      String    @db.Uuid
+  message        ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId         String    @db.Uuid
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// user | team | all
+  mentionType    String    @default("user")
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([messageId, userId])
+  @@index([organizationId])
+  @@index([userId, readAt])
+  @@index([messageId])
+}
+
+model ChatAttachment {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messageId      String    @db.Uuid
+  message        ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  storageKey     String
+  mimeType       String
+  size           Int
+  width          Int?
+  height         Int?
+  thumbnailKey   String?
+  capturedAt     DateTime?
+  lat            Decimal?  @db.Decimal(10, 7)
+  lng            Decimal?  @db.Decimal(10, 7)
+  /// Phase 2 — audio transcription
+  transcription  String?   @db.Text
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId])
+  @@index([messageId])
+  @@index([organizationId, mimeType])
+}
+
+model ChatAuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String?  @db.Uuid
+  actor          User?    @relation("ChatAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action         String
+  targetType     String
+  targetId       String   @db.Uuid
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([actorId])
+  @@index([targetType, targetId])
+}
+
+/// Phase 2 stub — decision / pending / task flags on messages (no UI yet)
+model ChatMessageFlag {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messageId      String    @db.Uuid
+  message        ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  /// decision | pending | task
+  type           String
+  assigneeId     String?   @db.Uuid
+  assignee       User?     @relation("ChatMessageFlagAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  dueDate        DateTime?
+  /// open | done | canceled
+  status         String    @default("open")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([messageId])
+  @@index([assigneeId])
+  @@index([organizationId, type, status])
 }
