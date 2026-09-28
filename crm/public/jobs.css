@@ -445,3 +445,86 @@
   color: #211d1a;
   background: #f0ebe3;
 }
+
+/* —— Field photos board (Fotos de campo) —— */
+.jmb-panels {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (max-width: 960px) {
+  .jmb-panels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.jmb-panel {
+  margin: 0;
+  min-width: 0;
+}
+
+.jmb-map {
+  height: 340px;
+  border-radius: 10px;
+  border: 1px solid var(--jobs-border-soft);
+  background: var(--jobs-surface-soft);
+  overflow: hidden;
+}
+
+.jmb-feed {
+  max-height: 340px;
+  overflow: auto;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.15rem 0 0.35rem;
+}
+
+.jmb-feed__item {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 0.55rem;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  padding: 0.4rem;
+  border-radius: 10px;
+  border: 1px solid var(--jobs-border-soft);
+  background: var(--jobs-surface);
+}
+
+.jmb-feed__item:hover {
+  border-color: var(--jobs-border);
+  background: var(--jobs-surface-soft);
+}
+
+.jmb-feed__item img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #ebe7e0;
+}
+
+.jmb-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #efe8dc;
+  color: var(--jobs-muted);
+}
+
+.jmb-badge--ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.jmb-badge--warn {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
