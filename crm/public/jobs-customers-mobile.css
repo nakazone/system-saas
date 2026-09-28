@@ -906,3 +906,107 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
 .jcm-pane[hidden] {
   display: none !important;
 }
+
+/* Job detail — Fotos tab */
+.jcm-photo-upload {
+  margin-bottom: 0.85rem;
+}
+
+.jcm-photo-upload__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.jcm-photo-upload__field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--plab-muted, #78716c);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex: 0 0 auto;
+}
+
+.jcm-photo-upload__field--grow {
+  flex: 1 1 140px;
+}
+
+.jcm-photo-upload__field select,
+.jcm-photo-upload__field input {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--plab-ink, #1c1917);
+  border: 1px solid var(--plab-line, #e7e5e4);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  background: #fff;
+  min-height: 44px;
+}
+
+.jcm-photo-actions {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 0.5rem;
+}
+
+.jcm-photo-actions .jcm-foot__btn {
+  position: static;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+}
+
+.jcm-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.25rem 0 1rem;
+}
+
+.jcm-photo-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ebe7e0;
+  text-decoration: none;
+  color: #fff;
+}
+
+.jcm-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.jcm-photo-thumb__stg {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(28, 25, 23, 0.72);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.jcm-photo-thumb__cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.4rem 0.5rem;
+  background: linear-gradient(transparent, rgba(28, 25, 23, 0.75));
+  font-size: 0.72rem;
+  font-weight: 600;
+}

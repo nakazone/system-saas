@@ -1,12 +1,15 @@
 /**
- * Job detail mobile overlay.
+ * Job detail mobile overlay — visits, photos capture/upload, finance snippet.
  */
 (function () {
   const ROLE_KEY = "om_jobs_role";
   let job = null;
   let canManage = false;
+  let isField = false;
   let jobId = null;
   let detTab = "visitas";
+  let mediaList = [];
+  let mediaLoaded = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -40,6 +43,11 @@
     if (status === "scheduled") return "jcm-badge--sched";
     if (status === "completed") return "jcm-badge--done";
     return "jcm-badge--open";
+  }
+
+  function stageLabel(stage) {
+    const map = { before: "Antes", during: "Durante", after: "Depois" };
+    return map[stage] || "";
   }
 
   function clientLabel(wo) {
@@ -79,6 +87,10 @@
     return sum > 0 ? `${Math.round(sum)} sq ft` : "";
   }
 
+  function canUpload() {
+    return canManage || isField;
+  }
+
   function buildTimeline(wo) {
     const title = wo.title || "Visita";
     const start = wo.scheduled_start;
@@ -114,6 +126,221 @@
     return steps.slice(0, 5);
   }
 
+  function compressImage(file, maxEdge, quality) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          const edge = Math.max(width, height);
+          const scale = edge > maxEdge ? maxEdge / edge : 1;
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Canvas unavailable"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", quality);
+          URL.revokeObjectURL(url);
+          resolve(dataUrl);
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Falha ao processar imagem"));
+      };
+      img.src = url;
+    });
+  }
+
+  async function fileToUploadDataUrl(file) {
+    if (!file.type || !file.type.startsWith("image/")) {
+      throw new Error("Selecione uma imagem");
+    }
+    try {
+      return await compressImage(file, 1920, 0.82);
+    } catch (_) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Falha ao ler imagem"));
+        reader.readAsDataURL(file);
+      });
+    }
+  }
+
+  function getGps() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            gpsAccuracyM: pos.coords.accuracy,
+          });
+        },
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 },
+      );
+    });
+  }
+
+  async function loadMedia() {
+    if (!jobId) return;
+    const r = await fetch(`/api/work-orders/${jobId}/media`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.success === false) throw new Error(j.error || "Falha ao carregar fotos");
+    mediaList = j.data || [];
+    mediaLoaded = true;
+  }
+
+  async function uploadViaOffice(payload) {
+    const r = await fetch(`/api/work-orders/${jobId}/media`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+    return j.data;
+  }
+
+  async function uploadViaCampo(payload) {
+    const r = await fetch(`/api/campo/jobs/${jobId}/photos`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+    const photos = j.data?.photos || [];
+    return photos[0] || null;
+  }
+
+  async function uploadPhoto(file) {
+    if (!canUpload()) throw new Error("Sem permissão para adicionar fotos");
+    const dataUrl = await fileToUploadDataUrl(file);
+    const gps = await getGps();
+    const stage = ($("jobMobPhotoStage")?.value || "").trim() || null;
+    const caption = ($("jobMobPhotoCaption")?.value || "").trim() || null;
+    const clientId =
+      window.crypto && crypto.randomUUID ? crypto.randomUUID() : `mob-${Date.now()}`;
+    const payload = {
+      data_url: dataUrl,
+      stage,
+      caption,
+      taken_at_device: new Date().toISOString(),
+      lat: gps?.lat ?? null,
+      lng: gps?.lng ?? null,
+      gps_accuracy_m: gps?.gpsAccuracyM ?? null,
+      address: job?.address || null,
+      client_upload_id: clientId,
+      device_label: "Mobile web",
+      is_public: false,
+    };
+
+    let uploaded = null;
+    if (canManage) {
+      uploaded = await uploadViaOffice(payload);
+    } else {
+      try {
+        uploaded = await uploadViaCampo(payload);
+      } catch (err) {
+        // Campo requires assignment; fall back if office manage somehow available
+        if (canManage) uploaded = await uploadViaOffice(payload);
+        else throw err;
+      }
+    }
+
+    await loadMedia();
+    if ($("jobMobPhotoCaption")) $("jobMobPhotoCaption").value = "";
+    renderFotos();
+    return uploaded;
+  }
+
+  function renderFotos() {
+    const root = $("jobMobExtra");
+    if (!root) return;
+    const uploadBlock = canUpload()
+      ? `<div class="jcm-card jcm-photo-upload">
+          <div class="jcm-photo-upload__row">
+            <label class="jcm-photo-upload__field">
+              Etapa
+              <select id="jobMobPhotoStage">
+                <option value="">Geral</option>
+                <option value="before">Antes</option>
+                <option value="during">Durante</option>
+                <option value="after">Depois</option>
+              </select>
+            </label>
+            <label class="jcm-photo-upload__field jcm-photo-upload__field--grow">
+              Legenda
+              <input type="text" id="jobMobPhotoCaption" maxlength="500" placeholder="Opcional" />
+            </label>
+          </div>
+          <div class="jcm-photo-actions">
+            <button type="button" class="jcm-foot__btn jcm-foot__btn--primary" id="jobMobTakePhoto">Tirar foto</button>
+            <button type="button" class="jcm-foot__btn jcm-foot__btn--ghost" id="jobMobPickPhoto">Galeria</button>
+          </div>
+          <input type="file" id="jobMobCameraInput" accept="image/*" capture="environment" hidden />
+          <input type="file" id="jobMobGalleryInput" accept="image/*" hidden />
+        </div>`
+      : `<div class="jcm-card"><p class="jcm-empty" style="padding:0.75rem 0">Sem permissão para adicionar fotos neste job.</p></div>`;
+
+    const grid = !mediaLoaded
+      ? `<p class="jcm-empty">A carregar fotos…</p>`
+      : mediaList.length
+        ? `<div class="jcm-photo-grid">${mediaList
+            .map((p) => {
+              const st = stageLabel(p.stage);
+              const cap = escapeHtml(p.caption || st || "Foto");
+              return `<a class="jcm-photo-thumb" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">
+                ${st ? `<span class="jcm-photo-thumb__stg">${escapeHtml(st)}</span>` : ""}
+                <img src="${escapeHtml(p.thumb_url || p.url)}" alt="${cap}" loading="lazy" />
+                <span class="jcm-photo-thumb__cap">${cap}</span>
+              </a>`;
+            })
+            .join("")}</div>`
+        : `<p class="jcm-empty">Ainda sem fotos. Tire uma agora.</p>`;
+
+    root.innerHTML = `${uploadBlock}${grid}`;
+
+    $("jobMobTakePhoto")?.addEventListener("click", () => $("jobMobCameraInput")?.click());
+    $("jobMobPickPhoto")?.addEventListener("click", () => $("jobMobGalleryInput")?.click());
+    const onFile = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        window.crmToast?.show?.("A enviar foto…", { type: "info" }) || window.crmToast?.info?.("A enviar foto…");
+        await uploadPhoto(file);
+        window.crmToast?.success?.("Foto adicionada");
+      } catch (err) {
+        window.crmToast?.error?.(err.message || "Falha no upload");
+      }
+    };
+    $("jobMobCameraInput")?.addEventListener("change", onFile);
+    $("jobMobGalleryInput")?.addEventListener("change", onFile);
+  }
+
   function render() {
     if (!job || !$("jobMobRoot")) return;
     const wo = job;
@@ -136,7 +363,7 @@
 
     const steps = buildTimeline(wo);
     $("jobMobTimeline").innerHTML = steps
-      .map((st, i) => {
+      .map((st) => {
         const cls = st.state === "done" ? "is-done" : st.state === "current" ? "is-current" : "";
         return `<div class="jcm-tl ${cls}">
           <div class="jcm-tl__rail"><span class="jcm-tl__dot"></span><span class="jcm-tl__line"></span></div>
@@ -155,6 +382,53 @@
     const cta = $("jobMobCta");
     const foot = $("jobMobFoot");
     foot.classList.add("is-visible", "jcm-foot--single");
+
+    document.querySelectorAll("[data-jd-tab]").forEach((btn) => {
+      btn.classList.toggle("is-active", btn.getAttribute("data-jd-tab") === detTab);
+    });
+    $("jobMobVisitas").hidden = detTab !== "visitas";
+    $("jobMobExtra").hidden = detTab === "visitas";
+
+    if (detTab === "fotos") {
+      if (canUpload()) {
+        cta.textContent = "Tirar foto";
+        cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+        cta.dataset.action = "photo";
+      } else {
+        cta.textContent = "Abrir Campo";
+        cta.className = "jcm-foot__btn jcm-foot__btn--ghost";
+        cta.dataset.action = "campo";
+      }
+      if (!mediaLoaded) {
+        $("jobMobExtra").innerHTML = `<p class="jcm-empty">A carregar fotos…</p>`;
+        loadMedia()
+          .then(() => renderFotos())
+          .catch((e) => {
+            $("jobMobExtra").innerHTML = `<p class="jcm-empty">${escapeHtml(e.message || "Erro")}</p>`;
+          });
+      } else {
+        renderFotos();
+      }
+    } else if (detTab === "checklist") {
+      $("jobMobExtra").innerHTML = `<p class="jcm-empty">Checklist em breve.</p>`;
+      restoreVisitCta();
+    } else if (detTab === "financeiro") {
+      const total = Number(wo.services_total) || 0;
+      $("jobMobExtra").innerHTML = `<div class="jcm-card"><div class="jcm-dl">
+        <div class="jcm-dl__row"><span class="jcm-dl__k">Serviços</span><span class="jcm-dl__v">${escapeHtml(
+          String(total ? `$${total.toFixed(2)}` : "—"),
+        )}</span></div>
+      </div></div>`;
+      restoreVisitCta();
+    } else {
+      restoreVisitCta();
+    }
+  }
+
+  function restoreVisitCta() {
+    const wo = job;
+    const cta = $("jobMobCta");
+    if (!cta || !wo) return;
     if (wo.status === "in_progress") {
       cta.textContent = "Concluir visita";
       cta.className = "jcm-foot__btn jcm-foot__btn--ink";
@@ -167,24 +441,6 @@
       cta.textContent = "Iniciar visita";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "start";
-    }
-
-    document.querySelectorAll("[data-jd-tab]").forEach((btn) => {
-      btn.classList.toggle("is-active", btn.getAttribute("data-jd-tab") === detTab);
-    });
-    $("jobMobVisitas").hidden = detTab !== "visitas";
-    $("jobMobExtra").hidden = detTab === "visitas";
-    if (detTab === "checklist") {
-      $("jobMobExtra").innerHTML = `<p class="jcm-empty">Checklist em breve.</p>`;
-    } else if (detTab === "fotos") {
-      $("jobMobExtra").innerHTML = `<p class="jcm-empty">Fotos em breve.</p>`;
-    } else if (detTab === "financeiro") {
-      const total = Number(wo.services_total) || 0;
-      $("jobMobExtra").innerHTML = `<div class="jcm-card"><div class="jcm-dl">
-        <div class="jcm-dl__row"><span class="jcm-dl__k">Serviços</span><span class="jcm-dl__v">${escapeHtml(
-          String(total ? `$${total.toFixed(2)}` : "—"),
-        )}</span></div>
-      </div></div>`;
     }
   }
 
@@ -223,6 +479,19 @@
     $("jobMobCta")?.addEventListener("click", async () => {
       const action = $("jobMobCta").dataset.action;
       try {
+        if (action === "photo") {
+          $("jobMobCameraInput")?.click() ||
+            (() => {
+              detTab = "fotos";
+              render();
+              setTimeout(() => $("jobMobCameraInput")?.click(), 50);
+            })();
+          return;
+        }
+        if (action === "campo") {
+          location.href = `campo/ticket.html?id=${encodeURIComponent(jobId)}`;
+          return;
+        }
         if (action === "start") {
           await setStatus("in_progress");
           window.crmToast?.success?.("Visita iniciada");
@@ -259,6 +528,11 @@
       const roleName = String(s.user?.role || "").toLowerCase();
       const perms = s.user?.permissions || [];
       canManage = roleName === "admin" || perms.includes("work_orders.manage");
+      isField =
+        roleName === "installer" ||
+        roleName === "crew_lead" ||
+        roleName === "subcontractor" ||
+        (window.__crmFieldGate && window.__crmFieldGate.isFieldRole?.(roleName));
       const j = await fetch(`/api/work-orders/${jobId}`, { credentials: "include" }).then((r) => r.json());
       if (!j.success && j.success !== undefined) throw new Error(j.error || "Erro");
       job = j.data;
