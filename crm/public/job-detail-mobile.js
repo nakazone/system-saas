@@ -199,8 +199,15 @@
       const dataUrl = await compressImage(file, 1280, 0.7);
       if (dataUrl.length > 9_000_000) throw new Error("Foto demasiado grande após compressão");
       return dataUrl;
-    } catch (_) {
+    } catch (err) {
+      const msg = String(err?.message || "");
+      if (msg.includes("HEIC") || msg.includes("unsupported-type")) {
+        throw new Error("Formato não suportado. Use JPG ou PNG.");
+      }
       const dataUrl = await readFileAsDataUrl(file);
+      if (/^data:image\/(heic|heif)/i.test(dataUrl)) {
+        throw new Error("Formato HEIC não suportado. Use JPG ou PNG.");
+      }
       if (dataUrl.length > 9_000_000) {
         throw new Error("Foto demasiado grande. Tente outra com menor resolução.");
       }
@@ -354,8 +361,8 @@
             <button type="button" class="jcm-foot__btn jcm-foot__btn--primary" id="jobMobTakePhoto">Tirar foto</button>
             <button type="button" class="jcm-foot__btn jcm-foot__btn--ghost" id="jobMobPickPhoto">Galeria</button>
           </div>
-          <input type="file" id="jobMobCameraInput" accept="image/*" capture="environment" hidden />
-          <input type="file" id="jobMobGalleryInput" accept="image/*" hidden />
+          <input type="file" id="jobMobCameraInput" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png" capture="environment" hidden />
+          <input type="file" id="jobMobGalleryInput" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png" hidden />
         </div>`
       : `<div class="jcm-card"><p class="jcm-empty" style="padding:0.75rem 0">Sem permissão para adicionar fotos neste job.</p></div>`;
 

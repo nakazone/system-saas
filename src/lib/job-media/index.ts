@@ -64,15 +64,33 @@ function numOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Prefer relative /api/local-files URLs so photos work on any host (apex vs Railway). */
+export function normalizeMediaUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  if (url.startsWith("data:")) return url;
+  if (url.startsWith("/api/local-files/")) return url;
+  try {
+    const u = new URL(url);
+    if (u.pathname.startsWith("/api/local-files/")) {
+      return `${u.pathname}${u.search || ""}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return url;
+}
+
 export function mapJobMedia(row: JobMediaRow) {
   const lat = numOrNull(row.lat);
   const lng = numOrNull(row.lng);
   const gps = numOrNull(row.gpsAccuracyM);
+  const url = normalizeMediaUrl(row.url);
+  const thumb = normalizeMediaUrl(row.thumbUrl || row.url);
   return {
     id: row.id,
     type: row.type || "photo",
-    url: row.url,
-    thumb_url: row.thumbUrl || row.url,
+    url,
+    thumb_url: thumb || url,
     sha256: row.sha256,
     taken_at_device: row.takenAtDevice?.toISOString() ?? null,
     received_at_server: row.receivedAtServer.toISOString(),

@@ -177,6 +177,14 @@ jobReportsRouter.post(
         res.status(400).json({ success: false, error: "Invalid data_url" });
         return;
       }
+      const ct = String(parsed.contentType || "").toLowerCase();
+      if (ct.includes("heic") || ct.includes("heif")) {
+        res.status(400).json({
+          success: false,
+          error: "HEIC is not supported. Please upload a JPG or PNG.",
+        });
+        return;
+      }
       if (parsed.body.length > 12 * 1024 * 1024) {
         res.status(400).json({ success: false, error: "Image too large (max 12MB)" });
         return;
@@ -215,7 +223,7 @@ jobReportsRouter.post(
       const stored = await storage.upload({
         key,
         body: parsed.body,
-        contentType: parsed.contentType || "image/jpeg",
+        contentType: ct.startsWith("image/") ? parsed.contentType : "image/jpeg",
       });
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {

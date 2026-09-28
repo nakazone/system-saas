@@ -86,8 +86,8 @@ export class LocalFileStorage implements ObjectStorage {
   }
 
   private publicUrlFor(key: string): string {
-    const base = env.APP_BASE_URL.replace(/\/$/, "");
-    return `${base}/api/local-files/${key
+    // Relative URL so photos work on obramate.com and Railway host alike.
+    return `/api/local-files/${key
       .split("/")
       .map((p) => encodeURIComponent(p))
       .join("/")}`;
