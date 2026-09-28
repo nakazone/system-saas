@@ -528,3 +528,17 @@
   color: #c2410c;
 }
 
+.jmb-marker {
+  background: transparent;
+  border: none;
+}
+
+.jmb-marker__pin {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(33, 29, 26, 0.35);
+}
+

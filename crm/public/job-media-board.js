@@ -1,5 +1,8 @@
 (function () {
   let map = null;
+  let mapMarkers = [];
+  const GEO_CACHE_KEY = "om_jmb_geocode_v1";
+  const geoCache = loadGeoCache();
 
   async function api(url) {
     const r = await fetch(url, { credentials: "include", headers: { Accept: "application/json" } });
@@ -18,6 +21,26 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function loadGeoCache() {
+    try {
+      const raw = localStorage.getItem(GEO_CACHE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveGeoCache() {
+    try {
+      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(geoCache));
+    } catch (_) {}
+  }
+
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
   }
 
   function statusLabel(status) {
@@ -48,7 +71,18 @@
     });
   }
 
-  function renderOverview(jobs, feed) {
+  function proofLabel(j) {
+    if (j.stale) return "Atrasado";
+    if (j.last_photo) return "OK";
+    return "Sem foto";
+  }
+
+  function setMapStatus(text) {
+    const el = document.getElementById("jmbMapStatus");
+    if (el) el.textContent = text || "";
+  }
+
+  function renderOverview(jobs) {
     const total = jobs.length;
     const ok = jobs.filter((j) => j.last_photo && !j.stale).length;
     const stale = jobs.filter((j) => j.stale || !j.last_photo).length;
@@ -60,7 +94,6 @@
     if (elStale) elStale.textContent = String(stale);
     const count = document.getElementById("jmbJobsCount");
     if (count) count.textContent = `(${total})`;
-    void feed;
   }
 
   function renderFeed(feed) {
@@ -112,9 +145,77 @@
       .join("");
   }
 
-  function renderMap(jobs) {
+  async function geocodeNominatim(address) {
+    const url =
+      "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(address);
+    const r = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    if (!Array.isArray(rows) || !rows[0]) return null;
+    const lat = Number(rows[0].lat);
+    const lng = Number(rows[0].lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  }
+
+  async function geocodeAddress(address) {
+    const key = String(address || "")
+      .trim()
+      .toLowerCase();
+    if (!key) return null;
+    if (Object.prototype.hasOwnProperty.call(geoCache, key)) {
+      return geoCache[key];
+    }
+    let pt = null;
+    try {
+      pt = await geocodeNominatim(address);
+    } catch (_) {
+      pt = null;
+    }
+    geoCache[key] = pt;
+    saveGeoCache();
+    await sleep(1100);
+    return pt;
+  }
+
+  function markerColor(j) {
+    if (j.stale || !j.last_photo) return "#c2410c";
+    return "#065f46";
+  }
+
+  function addJobMarker(j, lat, lng, source) {
+    if (!map || lat == null || lng == null) return null;
+    const color = markerColor(j);
+    const icon = L.divIcon({
+      className: "jmb-marker",
+      html: `<span class="jmb-marker__pin" style="background:${color}"></span>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    });
+    const m = L.marker([lat, lng], { icon }).addTo(map);
+    m.bindPopup(
+      `<strong>#${escapeHtml(String(j.number ?? ""))}</strong> · ${escapeHtml(proofLabel(j))}<br/>` +
+        `${escapeHtml(j.title || "")}<br/>` +
+        `<span style="color:#6b645c;font-size:12px">${escapeHtml(j.address || "")}</span><br/>` +
+        `<span style="color:#8a8074;font-size:11px">${source === "photo" ? "GPS da foto" : "Endereço do job"}</span><br/>` +
+        `<a href="${escapeHtml(j.detail_url)}">Abrir job</a>`,
+    );
+    mapMarkers.push(m);
+    return m;
+  }
+
+  function fitMap() {
+    if (!map || !mapMarkers.length) return;
+    const bounds = mapMarkers.map((m) => m.getLatLng());
+    if (bounds.length === 1) map.setView(bounds[0], 12);
+    else map.fitBounds(bounds, { padding: [28, 28] });
+  }
+
+  async function renderMap(jobs) {
     const el = document.getElementById("jmbMap");
     if (!el || typeof L === "undefined") return;
+
+    mapMarkers = [];
     if (map) {
       map.remove();
       map = null;
@@ -124,30 +225,74 @@
       attribution: "&copy; OpenStreetMap",
       maxZoom: 19,
     }).addTo(map);
-
-    const bounds = [];
-    for (const j of jobs) {
-      const lat = j.last_photo?.lat;
-      const lng = j.last_photo?.lng;
-      if (lat == null || lng == null) continue;
-      const m = L.marker([lat, lng]).addTo(map);
-      m.bindPopup(
-        `<strong>#${escapeHtml(String(j.number ?? ""))}</strong><br/>${escapeHtml(j.title || "")}<br/><a href="${escapeHtml(j.detail_url)}">Abrir job</a>`,
-      );
-      bounds.push([lat, lng]);
-    }
-    if (bounds.length) map.fitBounds(bounds, { padding: [24, 24] });
     setTimeout(() => map && map.invalidateSize(), 80);
+
+    const withPhotoGps = [];
+    const needGeocode = [];
+    for (const j of jobs) {
+      const plat = j.last_photo?.lat;
+      const plng = j.last_photo?.lng;
+      if (plat != null && plng != null && Number.isFinite(Number(plat)) && Number.isFinite(Number(plng))) {
+        withPhotoGps.push(j);
+      } else if (j.address && String(j.address).trim()) {
+        needGeocode.push(j);
+      }
+    }
+
+    for (const j of withPhotoGps) {
+      addJobMarker(j, Number(j.last_photo.lat), Number(j.last_photo.lng), "photo");
+    }
+    fitMap();
+
+    if (!needGeocode.length && !withPhotoGps.length) {
+      setMapStatus("Sem coordenadas — adicione endereço nos jobs ou fotos com GPS.");
+      return;
+    }
+
+    if (!needGeocode.length) {
+      setMapStatus(`${withPhotoGps.length} job(s) no mapa (GPS das fotos)`);
+      return;
+    }
+
+    setMapStatus(
+      `A localizar ${needGeocode.length} job(s) pelo endereço…` +
+        (withPhotoGps.length ? ` (${withPhotoGps.length} já no mapa)` : ""),
+    );
+
+    let placed = withPhotoGps.length;
+    let failed = 0;
+    for (let i = 0; i < needGeocode.length; i++) {
+      const j = needGeocode[i];
+      const geo = await geocodeAddress(j.address);
+      if (geo) {
+        addJobMarker(j, geo.lat, geo.lng, "address");
+        placed += 1;
+        fitMap();
+      } else {
+        failed += 1;
+      }
+      setMapStatus(
+        `Mapa: ${placed} job(s)` +
+          (failed ? ` · ${failed} sem localização` : "") +
+          (i + 1 < needGeocode.length ? ` · a processar ${i + 2}/${needGeocode.length}` : ""),
+      );
+    }
+    setMapStatus(
+      placed
+        ? `${placed} job(s) no mapa` + (failed ? ` · ${failed} sem localização` : "")
+        : "Não foi possível localizar os jobs. Verifique os endereços.",
+    );
   }
 
   async function load() {
+    setMapStatus("A carregar…");
     const json = await api("/api/job-media/board?days=3");
     const jobs = json.data?.jobs || [];
     const feed = json.data?.feed || [];
-    renderOverview(jobs, feed);
+    renderOverview(jobs);
     renderFeed(feed);
     renderJobs(jobs);
-    renderMap(jobs);
+    await renderMap(jobs);
   }
 
   document.getElementById("jmbReload")?.addEventListener("click", () => {
@@ -165,5 +310,6 @@
     if (body) {
       body.innerHTML = `<tr><td colspan="5" class="jobs-empty">${escapeHtml(e.message || "Falha ao carregar")}</td></tr>`;
     }
+    setMapStatus(e.message || "Falha ao carregar");
   });
 })();
