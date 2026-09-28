@@ -542,3 +542,42 @@
   box-shadow: 0 1px 4px rgba(33, 29, 26, 0.35);
 }
 
+.job-media-upload {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: flex-end;
+  padding: 0 0 0.85rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--jobs-border-soft);
+}
+
+.job-media-upload label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--jobs-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.job-media-upload .grow {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+
+.job-media-upload select,
+.job-media-upload input[type="text"] {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--jobs-ink);
+  border: 1px solid var(--jobs-border);
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  background: #fff;
+}
+

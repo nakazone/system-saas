@@ -274,7 +274,7 @@
     if (!body) return;
     if (!mediaList.length) {
       body.innerHTML =
-        '<p class="jobs-empty" style="padding:1rem 0">No field photos yet. Crew can capture them in Campo.</p><p class="jobs-empty" style="padding:0;color:#b45309;font-weight:600">⚠ No recent photo proof on this job.</p>';
+        '<p class="jobs-empty" style="padding:1rem 0">Ainda sem fotos. Use “Adicionar foto” ou capture no Campo.</p>';
       return;
     }
     const last = mediaList[0];
@@ -323,6 +323,119 @@
     mediaList = mediaList.map((p) => (p.id === mediaId ? j.data : p));
     renderMedia();
     notify(next ? "Added to public portfolio." : "Removed from portfolio.", "success");
+  }
+
+  function compressImage(file, maxEdge, quality) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          const edge = Math.max(width, height);
+          const scale = edge > maxEdge ? maxEdge / edge : 1;
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Canvas unavailable"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", quality);
+          URL.revokeObjectURL(url);
+          resolve(dataUrl);
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Falha ao processar imagem"));
+      };
+      img.src = url;
+    });
+  }
+
+  async function fileToUploadDataUrl(file) {
+    if (!file.type || !file.type.startsWith("image/")) {
+      throw new Error("Selecione uma imagem");
+    }
+    try {
+      return await compressImage(file, 1920, 0.82);
+    } catch (_) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Falha ao ler imagem"));
+        reader.readAsDataURL(file);
+      });
+    }
+  }
+
+  function getGps() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            gpsAccuracyM: pos.coords.accuracy,
+          });
+        },
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 },
+      );
+    });
+  }
+
+  async function uploadJobPhoto(file) {
+    if (!jobId) return;
+    if (!canManage) {
+      notify("Sem permissão para adicionar fotos.", "error");
+      return;
+    }
+    const btn = $("btnAddJobPhoto");
+    if (btn) btn.disabled = true;
+    try {
+      notify("A enviar foto…", "info");
+      const dataUrl = await fileToUploadDataUrl(file);
+      const gps = await getGps();
+      const stage = ($("jobPhotoStage")?.value || "").trim() || null;
+      const caption = ($("jobPhotoCaption")?.value || "").trim() || null;
+      const clientId =
+        window.crypto && crypto.randomUUID ? crypto.randomUUID() : `office-${Date.now()}`;
+      const j = await api(`/api/work-orders/${jobId}/media`, {
+        method: "POST",
+        body: JSON.stringify({
+          data_url: dataUrl,
+          stage,
+          caption,
+          taken_at_device: new Date().toISOString(),
+          lat: gps?.lat ?? null,
+          lng: gps?.lng ?? null,
+          gps_accuracy_m: gps?.gpsAccuracyM ?? null,
+          address: job?.address || null,
+          client_upload_id: clientId,
+          device_label: "Office web",
+          is_public: false,
+        }),
+      });
+      mediaList = [j.data, ...mediaList.filter((p) => p.id !== j.data.id)];
+      renderMedia();
+      if ($("jobPhotoCaption")) $("jobPhotoCaption").value = "";
+      notify("Foto adicionada.", "success");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   }
 
   function renderReports() {
@@ -604,6 +717,12 @@
       const role = s.user?.role || "";
       canManage = role === "admin" || perms.includes("work_orders.manage");
       orgSlug = s.organization?.slug || s.user?.organization?.slug || null;
+      if (!canManage) {
+        const addBtn = $("btnAddJobPhoto");
+        const bar = $("jobMediaUploadBar");
+        if (addBtn) addBtn.style.display = "none";
+        if (bar) bar.style.display = "none";
+      }
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
       $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
@@ -657,6 +776,19 @@
       });
       $("btnRefreshMedia")?.addEventListener("click", () => {
         loadMediaReports().catch((e) => notify(e.message, "error"));
+      });
+      $("btnAddJobPhoto")?.addEventListener("click", () => {
+        if (!canManage) {
+          notify("Sem permissão para adicionar fotos.", "error");
+          return;
+        }
+        $("jobPhotoInput")?.click();
+      });
+      $("jobPhotoInput")?.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if (!file) return;
+        uploadJobPhoto(file).catch((err) => notify(err.message || "Falha no upload", "error"));
       });
       $("jobMediaBody")?.addEventListener("click", (e) => {
         const btn = e.target.closest(".job-media-portfolio");

@@ -2,12 +2,18 @@
  * Office + shared job media gallery and field reports (Phase 2).
  */
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
-import { mapJobMedia } from "../../lib/job-media/index.js";
+import {
+  isJobMediaEnabled,
+  mapJobMedia,
+  parsePhotoUploadMeta,
+  sha256Buffer,
+} from "../../lib/job-media/index.js";
 import {
   JOB_REPORT_TEMPLATES,
   generateJobReportDraft,
@@ -19,6 +25,7 @@ import {
 import { buildJobReportPdf } from "../../lib/job-media/report-pdf.js";
 import { isAiConfigured } from "../../lib/ai/client.js";
 import { recordActivity } from "../../lib/activity/record.js";
+import { storage } from "../../lib/storage/index.js";
 import { prisma } from "../../lib/prisma.js";
 
 export const jobReportsRouter = Router();
@@ -134,6 +141,129 @@ jobReportsRouter.get(
         return rows.map(mapJobMedia);
       });
       res.json({ success: true, data, meta: { ai_configured: isAiConfigured() } });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+function parseDataUrl(dataUrl: string): { contentType: string; body: Buffer } | null {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) return null;
+  return { contentType: match[1]!, body: Buffer.from(match[2]!, "base64") };
+}
+
+/** Office upload — any staff with work_orders.manage (not limited to assigned crew). */
+jobReportsRouter.post(
+  "/api/work-orders/:id/media",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = String(req.params.id);
+      const raw = (req.body || {}) as Record<string, unknown>;
+      const dataUrl = String(raw.data_url || raw.dataUrl || "");
+      if (!dataUrl.startsWith("data:")) {
+        res.status(400).json({ success: false, error: "data_url required" });
+        return;
+      }
+      const parsed = parseDataUrl(dataUrl);
+      if (!parsed) {
+        res.status(400).json({ success: false, error: "Invalid data_url" });
+        return;
+      }
+      if (parsed.body.length > 12 * 1024 * 1024) {
+        res.status(400).json({ success: false, error: "Image too large (max 12MB)" });
+        return;
+      }
+
+      const org = await prisma.organization.findFirst({
+        where: { id: req.organizationId! },
+        select: { featureFlags: true },
+      });
+      if (!isJobMediaEnabled(org?.featureFlags)) {
+        res.status(403).json({ success: false, error: "Job media is not enabled for this organization" });
+        return;
+      }
+
+      const meta = parsePhotoUploadMeta(raw);
+      const hash = sha256Buffer(parsed.body);
+
+      if (meta.clientUploadId) {
+        const existing = await withTenantTransaction(req.organizationId!, async (tx) => {
+          return tx.jobMedia.findFirst({
+            where: {
+              organizationId: req.organizationId!,
+              clientUploadId: meta.clientUploadId!,
+              deletedAt: null,
+            },
+            include: { author: { select: { id: true, name: true } } },
+          });
+        });
+        if (existing) {
+          res.json({ success: true, data: mapJobMedia(existing), deduped: true });
+          return;
+        }
+      }
+
+      const key = `orgs/${req.organizationId}/jobs/${jobId}/${Date.now()}-${randomUUID().slice(0, 8)}`;
+      const stored = await storage.upload({
+        key,
+        body: parsed.body,
+        contentType: parsed.contentType || "image/jpeg",
+      });
+
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const wo = await tx.workOrder.findFirst({
+          where: { id: jobId, status: { not: "canceled" } },
+          select: { id: true, address: true },
+        });
+        if (!wo) throw Object.assign(new Error("Job not found"), { status: 404 });
+
+        const row = await tx.jobMedia.create({
+          data: {
+            organizationId: req.organizationId!,
+            workOrderId: wo.id,
+            authorId: req.user!.id,
+            type: "photo",
+            storageKey: stored.key,
+            url: stored.url,
+            thumbUrl: stored.url,
+            sha256: hash,
+            takenAtDevice: meta.takenAtDevice,
+            receivedAtServer: new Date(),
+            lat: meta.lat != null ? new Prisma.Decimal(meta.lat) : null,
+            lng: meta.lng != null ? new Prisma.Decimal(meta.lng) : null,
+            gpsAccuracyM: meta.gpsAccuracyM != null ? new Prisma.Decimal(meta.gpsAccuracyM) : null,
+            address: meta.address || wo.address || null,
+            caption: meta.caption,
+            stage: meta.stage,
+            isPublic: meta.isPublic,
+            clientUploadId: meta.clientUploadId,
+            deviceLabel: meta.deviceLabel || "Office web",
+          },
+          include: { author: { select: { id: true, name: true } } },
+        });
+
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "work_order",
+          entityId: wo.id,
+          action: "job_media.created",
+          actorType: "user",
+          actorId: req.user!.id,
+          changes: { sha256: { from: null, to: hash }, stage: { from: null, to: meta.stage } },
+        });
+
+        return mapJobMedia(row);
+      });
+
+      res.status(201).json({ success: true, data });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
       if (err?.status) {

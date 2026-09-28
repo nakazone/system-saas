@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-modpanel" />
   <link rel="stylesheet" href="obramate-app.css?v=20260925-apptop1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-fieldnav1" />
-  <link rel="stylesheet" href="jobs.css?v=20260928-media7" />
+  <link rel="stylesheet" href="jobs.css?v=20260928-media9" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20260925-jcm2" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20260925-device1"></script>
@@ -219,10 +219,27 @@
               <div class="job-card__head">
                 <h2>Fotos do job</h2>
                 <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+                  <input type="file" id="jobPhotoInput" accept="image/*" capture="environment" hidden />
+                  <button type="button" class="job-card__link" id="btnAddJobPhoto" data-crm-permission="work_orders.manage">Adicionar foto</button>
                   <a class="job-card__link" href="job-media-board.html">Fotos de campo</a>
                   <a class="job-card__link" id="jobPortfolioLink" href="#" target="_blank" rel="noopener" hidden>Portfólio público</a>
                   <button type="button" class="job-card__link" id="btnRefreshMedia">Atualizar</button>
                 </div>
+              </div>
+              <div class="job-media-upload" id="jobMediaUploadBar">
+                <label class="job-media-upload__stage">
+                  Etapa
+                  <select id="jobPhotoStage">
+                    <option value="">Geral</option>
+                    <option value="before">Antes</option>
+                    <option value="during">Durante</option>
+                    <option value="after">Depois</option>
+                  </select>
+                </label>
+                <label class="job-media-upload__cap grow">
+                  Legenda
+                  <input type="text" id="jobPhotoCaption" maxlength="500" placeholder="Opcional" />
+                </label>
               </div>
               <div id="jobMediaBody">
                 <p class="jobs-empty" style="padding:1rem 0">Ainda sem fotos de campo.</p>
@@ -346,7 +363,7 @@
   <script src="crm-shell.js?v=20260925-apptop1"></script>
   <script src="om-mobile-nav.js?v=20260925-fieldnav1"></script>
   <script src="crm-job-modal.js?v=20260925-sections"></script>
-  <script src="job-detail.js?v=20260928-media4"></script>
+  <script src="job-detail.js?v=20260928-media9"></script>
   <script src="job-detail-mobile.js?v=20260925-jcm1"></script>
 </body>
 </html>
