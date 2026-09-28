@@ -213,6 +213,8 @@
 
   .om-tabbar--field .om-tabbar__item {
     flex: 1;
+    font-size: 0.62rem;
+    padding: 0.2rem 0.05rem;
   }
 
   .om-tabbar__item.is-active svg {

@@ -1,9 +1,9 @@
 /**
  * Mobile bottom nav — Início / Leads / + / Agenda / Mais
- * Field staff: Hoje / Agenda / Jobs / Horas (Campo shell links)
+ * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20260925-fieldnav1";
+  const VER = "20260928-chat1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
 
@@ -21,6 +21,7 @@
     invoice:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/><path d="M8 7h6M8 11h6"/></svg>',
     jobs: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 5a2 2 0 012-2h2a2 2 0 012 2"/><path d="M9 12h6M9 16h4"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
     horas:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     agendaAdd:
@@ -41,6 +42,7 @@
       if (f === "hoje.html") return "hoje";
       if (f === "agenda.html" || f === "schedule.html") return "agenda";
       if (f === "jobs.html" || f === "job-detail.html") return "jobs";
+      if (f === "chat.html") return "chat";
       if (f === "horas.html" || f === "payroll-module.html") return "horas";
       return "";
     }
@@ -48,6 +50,7 @@
     if (f === "pipeline-lab.html" || f === "leads.html" || f === "lead-detail.html") return "pipeline";
     if (f === "schedule.html") return "agenda";
     if (f === "jobs.html" || f === "job-detail.html") return "jobs";
+    if (f === "chat.html") return "more";
     if (f === "mais.html") return "more";
     return "";
   }
@@ -244,7 +247,7 @@
     document.getElementById("omTabbarFab")?.addEventListener("click", () => openSheet("omCreateSheet"));
   }
 
-  /** Field worker nav — mirrors Campo tabs on Jobs / Schedule pages. */
+  /** Field worker nav — mirrors Campo tabs on Jobs / Schedule / Chat pages. */
   function ensureFieldTabbar() {
     if (document.getElementById("omTabbar")) return;
     const nav = document.createElement("nav");
@@ -270,6 +273,12 @@
       }>
         ${ICONS.jobs}
         <span>Jobs</span>
+      </a>
+      <a class="om-tabbar__item${tab === "chat" ? " is-active" : ""}" href="/chat.html" data-om-tab="chat"${
+        tab === "chat" ? ' aria-current="page"' : ""
+      }>
+        ${ICONS.chat}
+        <span>Chat</span>
       </a>
       <a class="om-tabbar__item${tab === "horas" ? " is-active" : ""}" href="/campo/horas.html" data-om-tab="horas"${
         tab === "horas" ? ' aria-current="page"' : ""

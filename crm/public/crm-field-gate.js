@@ -1,13 +1,13 @@
 /**
  * Field workers (installer / crew_lead):
- * - Mobile → Campo (with allowlist for Jobs / Schedule / Folha)
+ * - Mobile → Campo (with allowlist for Jobs / Schedule / Folha / Chat)
  * - Desktop → funcionario.html (PC shell), never pipeline/office CRM
  */
 (function (global) {
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const CAMPO_HOME = "/campo/hoje.html";
   const DESKTOP_HOME = "/funcionario.html";
-  const VER = "20260925-field3";
+  const VER = "20260928-chat1";
 
   const DESKTOP_ALLOW = new Set([
     "funcionario.html",
@@ -15,6 +15,7 @@
     "jobs.html",
     "job-detail.html",
     "payroll-module.html",
+    "chat.html",
     "ajustes.html",
     "change-password.html",
     "login.html",
@@ -26,6 +27,7 @@
     "jobs.html",
     "job-detail.html",
     "payroll-module.html",
+    "chat.html",
     "ajustes.html",
     "change-password.html",
     "login.html",

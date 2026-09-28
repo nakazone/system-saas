@@ -16,6 +16,12 @@
   body.chat-app .dashboard-main {
     padding-bottom: 0 !important;
   }
+  body.om-device-mobile.chat-app.om-has-tabbar .dashboard-main.chat-main {
+    height: calc(
+      100dvh - var(--om-apptop-h, 56px) - var(--om-tabbar-h, 64px) - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    );
+  }
 }
 
 .chat-shell {
