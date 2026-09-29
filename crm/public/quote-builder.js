@@ -3091,22 +3091,25 @@
   }
 
   async function loadQuote(id) {
-    const r = await api(`/api/quotes/${id}`);
+    const qid = String(id || '').trim();
+    if (!qid || qid === 'NaN') return;
+    const r = await api(`/api/quotes/${encodeURIComponent(qid)}`);
     const q = r.data;
     if (!q) return;
     quoteId = q.id;
-    loadedQuoteLeadId = q.lead_id != null && q.lead_id !== '' ? Number(q.lead_id) : null;
-    if (!Number.isFinite(loadedQuoteLeadId)) loadedQuoteLeadId = null;
+    loadedQuoteLeadId = q.lead_id != null && q.lead_id !== '' ? String(q.lead_id) : null;
     $('customerId').value = q.customer_id || '';
-    if ($('quoteJobName')) $('quoteJobName').value = q.job_name || '';
-    if ($('quoteJobAddress')) $('quoteJobAddress').value = q.job_address || '';
+    const payload = q.payload && typeof q.payload === 'object' ? q.payload : {};
+    if ($('quoteJobName')) $('quoteJobName').value = q.job_name || payload.job_name || q.title || '';
+    if ($('quoteJobAddress')) $('quoteJobAddress').value = q.job_address || payload.job_address || '';
     await loadQuoteBuilders();
     const isBuilderQuote =
-      String(q.quote_party || '') === 'builder' || (q.builder_id != null && Number(q.builder_id) > 0);
+      String(q.quote_party || payload.quote_party || '') === 'builder' ||
+      (q.builder_id != null && String(q.builder_id).trim() !== '');
     if (isBuilderQuote) {
       setQuoteParty('builder', { applyPrices: false });
-      const bid = Number(q.builder_id);
-      const b = quoteBuilders.find((x) => Number(x.id) === bid) || (bid ? { id: bid, customer_id: q.customer_id } : null);
+      const bid = String(q.builder_id || '');
+      const b = quoteBuilders.find((x) => String(x.id) === bid) || (bid ? { id: bid, customer_id: q.customer_id } : null);
       if (b) applySelectedBuilder(b, { applyPrices: false });
       setCatalogPricingMode('builder');
     } else {
@@ -3120,29 +3123,40 @@
     loadedQuoteStatus = qStatus;
     $('expirationDate').value = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
     $('notes').value = q.notes || '';
-    $('terms').value = q.terms_conditions || '';
+    $('terms').value = q.terms_conditions || q.terms || '';
     $('discountType').value = q.discount_type || 'percentage';
     $('discountValue').value = q.discount_value ?? 0;
     $('taxTotal').value = q.tax_total ?? 0;
-    items = (q.items || []).map((it) => ({
-      item_type: it.item_type || 'service',
-      name: it.name != null ? String(it.name) : '',
-      description: it.description != null ? String(it.description) : '',
-      unit_type: it.unit_type || 'sq_ft',
-      quantity: it.quantity,
-      rate: it.rate,
-      notes: it.notes,
-      service_type: it.item_type === 'product' ? null : normalizeServiceType(it.service_type),
-      catalog_customer_notes: it.catalog_customer_notes || null,
-      service_catalog_id: normalizeCatalogId(it.service_catalog_id),
-      product_id: it.product_id != null ? Number(it.product_id) : null,
-      cost_price: it.cost_price != null ? Number(it.cost_price) : null,
-      markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
-      sell_price: it.sell_price != null ? Number(it.sell_price) : null,
-      estimateAuto: false,
-    }));
+    items = (q.items || []).map((it) => {
+      const rate = Number(it.rate != null ? it.rate : it.unit_price) || 0;
+      const unitType =
+        it.unit_type ||
+        (String(it.unit || '').toLowerCase() === 'sqft' || String(it.unit || '').toLowerCase() === 'sq_ft'
+          ? 'sq_ft'
+          : String(it.unit || '').toLowerCase() === 'each' || String(it.unit || '').toLowerCase() === 'fixed'
+            ? 'fixed'
+            : it.unit || 'sq_ft');
+      return {
+        item_type: it.item_type || 'service',
+        name: it.name != null ? String(it.name) : '',
+        description: it.description != null ? String(it.description) : '',
+        unit_type: unitType,
+        quantity: it.quantity,
+        rate,
+        notes: it.notes,
+        service_type: it.item_type === 'product' ? null : normalizeServiceType(it.service_type),
+        catalog_customer_notes: it.catalog_customer_notes || null,
+        service_catalog_id: normalizeCatalogId(it.service_catalog_id),
+        product_id: it.product_id != null ? it.product_id : null,
+        cost_price: it.cost_price != null ? Number(it.cost_price) : null,
+        markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
+        sell_price: it.sell_price != null ? Number(it.sell_price) : rate,
+        estimateAuto: false,
+      };
+    });
     loadedQuoteNumber = q.quote_number != null ? String(q.quote_number).trim() : null;
-    $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
+    const totalAmt = q.total_amount != null ? q.total_amount : q.total;
+    $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(totalAmt)}`;
     updateEmailSentBadge(q.email_sent_at || null);
     quoteViewNotifyShown = !!q.viewed_at;
     quotePdfNotifyShown = !!q.pdf_viewed_at;
@@ -3334,7 +3348,7 @@
       if (Number.isFinite(n) && n > 0) pendingLeadId = n;
     }
     if (qid) {
-      await loadQuote(parseInt(qid, 10));
+      await loadQuote(qid);
     } else {
       items = [];
       loadedQuoteLeadId = null;

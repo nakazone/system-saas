@@ -114,6 +114,8 @@ function mapQuote(q: {
   subtotal: unknown;
   total: unknown;
   taxTotal: unknown;
+  discountType: string | null;
+  discountValue: unknown;
   notes: string | null;
   terms: string | null;
   serviceType: string | null;
@@ -122,21 +124,38 @@ function mapQuote(q: {
   builderId: string | null;
   publicToken: string | null;
   invoicePdfPath: string | null;
+  validUntil: Date | null;
+  viewedAt: Date | null;
   payload: unknown;
   createdAt: Date;
   updatedAt: Date;
   customer?: { name: string } | null;
   lineItems?: Array<{
     id: string;
+    name: string | null;
     description: string;
     quantity: unknown;
     unit: string;
+    unitCost: unknown;
     unitPrice: unknown;
     amount: unknown;
     itemType: string;
     sortOrder: number;
+    meta: unknown;
   }>;
 }) {
+  const payload =
+    q.payload && typeof q.payload === "object" && !Array.isArray(q.payload)
+      ? (q.payload as Record<string, unknown>)
+      : {};
+  const unitToSf = (u: string) => {
+    const x = String(u || "sqft").toLowerCase();
+    if (x === "sqft" || x === "sq_ft" || x === "sq ft") return "sq_ft";
+    if (x === "lf" || x === "linear" || x === "lin_ft") return "lin_ft";
+    if (x === "hour" || x === "hr" || x === "hours") return "hour";
+    if (x === "fixed" || x === "each" || x === "ea") return "fixed";
+    return x || "sq_ft";
+  };
   return {
     id: q.id,
     number: q.number,
@@ -153,9 +172,13 @@ function mapQuote(q: {
     labor_markup: dec(q.laborMarkup),
     subtotal: dec(q.subtotal),
     total: dec(q.total),
+    total_amount: dec(q.total),
     tax_total: dec(q.taxTotal),
+    discount_type: q.discountType === "percent" ? "percentage" : q.discountType || "percentage",
+    discount_value: dec(q.discountValue),
     notes: q.notes,
     terms: q.terms,
+    terms_conditions: q.terms,
     service_type: q.serviceType,
     customer_id: q.customerId,
     customer_name: q.customer?.name ?? null,
@@ -164,19 +187,49 @@ function mapQuote(q: {
     public_token: q.publicToken,
     has_invoice_pdf: Boolean(q.invoicePdfPath),
     invoice_pdf_url: q.invoicePdfPath ? `/api/quotes/${q.id}/invoice-pdf` : null,
+    job_name: payload.job_name != null ? String(payload.job_name) : q.title,
+    job_address: payload.job_address != null ? String(payload.job_address) : null,
+    quote_party: payload.quote_party != null ? String(payload.quote_party) : null,
+    expiration_date: q.validUntil,
+    viewed_at: q.viewedAt,
+    email_sent_at: payload.email_sent_at || payload.sent_at || null,
+    pdf_viewed_at: payload.pdf_viewed_at || null,
     payload: q.payload,
     created_at: q.createdAt,
     updated_at: q.updatedAt,
-    items: (q.lineItems || []).map((li) => ({
-      id: li.id,
-      description: li.description,
-      quantity: dec(li.quantity),
-      unit: li.unit,
-      unit_price: dec(li.unitPrice),
-      amount: dec(li.amount),
-      item_type: li.itemType,
-      sort_order: li.sortOrder,
-    })),
+    items: (q.lineItems || []).map((li) => {
+      const meta =
+        li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
+          ? (li.meta as Record<string, unknown>)
+          : {};
+      const unitPrice = dec(li.unitPrice);
+      const name =
+        (li.name && String(li.name).trim()) ||
+        (meta.floor_type != null ? String(meta.floor_type) : "") ||
+        String(li.description || "").split("/")[0].trim() ||
+        "Item";
+      return {
+        id: li.id,
+        name,
+        description: li.description,
+        quantity: dec(li.quantity),
+        unit: li.unit,
+        unit_type: unitToSf(li.unit),
+        unit_price: unitPrice,
+        rate: unitPrice,
+        amount: dec(li.amount),
+        item_type: li.itemType,
+        sort_order: li.sortOrder,
+        cost_price: dec(li.unitCost),
+        sell_price: unitPrice,
+        markup_percentage: meta.markup_percentage != null ? Number(meta.markup_percentage) : null,
+        catalog_customer_notes: meta.catalog_customer_notes != null ? String(meta.catalog_customer_notes) : null,
+        service_type: meta.service_type != null ? String(meta.service_type) : null,
+        service_catalog_id: meta.service_catalog_id != null ? String(meta.service_catalog_id) : null,
+        product_id: meta.product_id != null ? String(meta.product_id) : null,
+        notes: meta.notes != null ? String(meta.notes) : null,
+      };
+    }),
   };
 }
 

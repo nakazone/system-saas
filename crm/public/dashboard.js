@@ -3129,13 +3129,14 @@ function quoteMobileCardHtml(q, opts) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     });
-    const id = Number(q.id);
+    const id = String(q.id || '').trim();
+    const idAttr = escapeHtmlCrm(id);
     const delBtn = canDelete
-        ? `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--del touchable" onclick="event.stopPropagation(); deleteQuote(${id})">Apagar</button>`
+        ? `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--del touchable" onclick="event.stopPropagation(); deleteQuote('${idAttr}')">Apagar</button>`
         : '';
-    const editBtn = `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--edit touchable" onclick="event.stopPropagation(); viewQuote(${id})">Abrir</button>`;
+    const editBtn = `<button type="button" class="sf-quote-card__action-btn sf-quote-card__action-btn--edit touchable" onclick="event.stopPropagation(); viewQuote('${idAttr}')">Abrir</button>`;
     return `
-    <article class="sf-quote-card touchable" data-quote-id="${id}" role="button" tabindex="0">
+    <article class="sf-quote-card touchable" data-quote-id="${idAttr}" role="button" tabindex="0">
       <div class="sf-quote-card__inner">
         <div class="sf-quote-card__client" title="${clientLabel}">${clientLabel}</div>
         <div class="sf-quote-card__row">
@@ -3161,16 +3162,16 @@ function bindQuotesTableRowOpen() {
         if (e.target.closest('button, a, .customers-row__actions')) return;
         const row = e.target.closest('.customers-row--quote[data-quote-id]');
         if (!row) return;
-        const id = parseInt(row.getAttribute('data-quote-id'), 10);
-        if (Number.isFinite(id) && id > 0) viewQuote(id);
+        const id = String(row.getAttribute('data-quote-id') || '').trim();
+        if (id) viewQuote(id);
     });
     list.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         const row = e.target.closest('.customers-row--quote[data-quote-id]');
         if (!row) return;
         e.preventDefault();
-        const id = parseInt(row.getAttribute('data-quote-id'), 10);
-        if (Number.isFinite(id) && id > 0) viewQuote(id);
+        const id = String(row.getAttribute('data-quote-id') || '').trim();
+        if (id) viewQuote(id);
     });
 }
 
@@ -3293,8 +3294,8 @@ function bindSfQuoteCardInteractions(container) {
             setOpen(card, false);
             return;
         }
-        const id = parseInt(String(card.dataset.quoteId || ''), 10);
-        if (Number.isFinite(id) && id > 0) viewQuote(id);
+        const id = String(card.dataset.quoteId || '').trim();
+        if (id) viewQuote(id);
     });
 }
 
@@ -3459,10 +3460,10 @@ function crmToastSafe(msg, opts) {
 }
 
 async function duplicateQuoteFromList(id) {
-    const qid = parseInt(String(id), 10);
-    if (!Number.isFinite(qid) || qid <= 0) return;
+    const qid = String(id || '').trim();
+    if (!qid) return;
     try {
-        const r = await fetch(`/api/quotes/${qid}/duplicate`, {
+        const r = await fetch(`/api/quotes/${encodeURIComponent(qid)}/duplicate`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -3486,18 +3487,18 @@ async function duplicateQuoteFromList(id) {
 window.duplicateQuoteFromList = duplicateQuoteFromList;
 
 async function openQuoteInvoicePdf(id, title, filename) {
-    const qid = parseInt(String(id), 10);
-    if (!Number.isFinite(qid) || qid <= 0) return;
+    const qid = String(id || '').trim();
+    if (!qid) return;
     const pdfTitle = title || `Orçamento #${qid}`;
     const pdfName = filename || `orcamento-${qid}.pdf`;
     if (window.crmPdfViewer?.openFromUrl) {
-        await window.crmPdfViewer.openFromUrl(`/api/quotes/${qid}/invoice-pdf`, {
+        await window.crmPdfViewer.openFromUrl(`/api/quotes/${encodeURIComponent(qid)}/invoice-pdf`, {
             title: pdfTitle,
             filename: pdfName,
         });
         return;
     }
-    window.open(`/api/quotes/${qid}/invoice-pdf`, '_blank', 'noopener');
+    window.open(`/api/quotes/${encodeURIComponent(qid)}/invoice-pdf`, '_blank', 'noopener');
 }
 window.openQuoteInvoicePdf = openQuoteInvoicePdf;
 
@@ -3810,10 +3811,10 @@ async function submitDashReceiptForm(e) {
 window.submitDashReceiptForm = submitDashReceiptForm;
 
 async function generateQuotePdfFromList(id) {
-    const qid = parseInt(String(id), 10);
-    if (!Number.isFinite(qid) || qid <= 0) return;
+    const qid = String(id || '').trim();
+    if (!qid) return;
     try {
-        const r = await fetch(`/api/quotes/${qid}/generate-pdf`, {
+        const r = await fetch(`/api/quotes/${encodeURIComponent(qid)}/generate-pdf`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -3891,18 +3892,20 @@ async function loadQuotes() {
                 sfQuotesListCache = data.data.slice();
                 list.innerHTML = data.data
                     .map((q, i) => {
+                        const qid = String(q.id || '').trim();
+                        const qidAttr = escapeHtmlCrm(qid);
                         const hasPdf = !!(q.pdf_path || q.has_invoice_pdf);
                         const pdfCell = hasPdf
-                            ? `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); openQuoteInvoicePdf(${q.id}, 'Orçamento ${escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : String(q.id))}')">Ver PDF</button>`
+                            ? `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); openQuoteInvoicePdf('${qidAttr}', 'Orçamento ${escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : qidAttr)}')">Ver PDF</button>`
                             : canGenPdf
-                              ? `<button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); generateQuotePdfFromList(${q.id})">Gerar PDF</button>`
+                              ? `<button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); generateQuotePdfFromList('${qidAttr}')">Gerar PDF</button>`
                               : '<span class="customers-row__muted">—</span>';
                         const deleteBtn = canDeleteQuote
-                            ? `<button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); deleteQuote(${q.id})" title="Excluir orçamento">Excluir</button>`
+                            ? `<button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); deleteQuote('${qidAttr}')" title="Excluir orçamento">Excluir</button>`
                             : '';
                         const clientLabel = escapeHtmlCrm(q.customer_name || q.lead_name || '—');
                         const qnum = escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : 'N/A');
-                        const amt = parseFloat(q.total_amount || 0).toLocaleString(undefined, {
+                        const amt = parseFloat(q.total_amount || q.total || 0).toLocaleString(undefined, {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                         });
@@ -3924,7 +3927,7 @@ async function loadQuotes() {
                             .join('')
                             .toUpperCase() || 'OR';
                         return `
-                    <article class="customers-row customers-row--quote" role="listitem" tabindex="0" data-quote-id="${q.id}" aria-label="Abrir orçamento ${qnum}" style="--av-hue:${(i * 47) % 360}">
+                    <article class="customers-row customers-row--quote" role="listitem" tabindex="0" data-quote-id="${qidAttr}" aria-label="Abrir orçamento ${qnum}" style="--av-hue:${(i * 47) % 360}">
                         <div class="customers-row__identity">
                             <span class="customers-row__av" aria-hidden="true">${escapeHtmlCrm(initials)}</span>
                             <div class="customers-row__who">
@@ -3939,7 +3942,7 @@ async function loadQuotes() {
                         <div class="customers-row__pdf">${pdfCell}</div>
                         <div class="customers-row__local">${created}</div>
                         <div class="customers-row__actions">
-                            <button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); viewQuote(${q.id})" title="Editar orçamento">Abrir</button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); viewQuote('${qidAttr}')" title="Editar orçamento">Abrir</button>
                             ${deleteBtn}
                         </div>
                     </article>`;
@@ -3990,19 +3993,19 @@ function changePageQuotes(delta) {
 }
 
 function viewQuote(id) {
-    const qid = parseInt(String(id), 10);
-    if (!Number.isFinite(qid) || qid <= 0) return;
-    window.location.href = `quote-builder.html?id=${qid}`;
+    const qid = String(id || '').trim();
+    if (!qid || qid === 'NaN' || qid === 'undefined') return;
+    window.location.href = `quote-builder.html?id=${encodeURIComponent(qid)}`;
 }
 
 async function deleteQuote(id) {
-    const qid = parseInt(String(id), 10);
-    if (!Number.isFinite(qid) || qid <= 0) return;
+    const qid = String(id || '').trim();
+    if (!qid || qid === 'NaN' || qid === 'undefined') return;
     if (!confirm('Excluir este orçamento permanentemente? As linhas e o registo serão removidos. Esta ação não pode ser desfeita.')) {
         return;
     }
     try {
-        const r = await fetch(`/api/quotes/${qid}`, { method: 'DELETE', credentials: 'include' });
+        const r = await fetch(`/api/quotes/${encodeURIComponent(qid)}`, { method: 'DELETE', credentials: 'include' });
         const d = await r.json().catch(() => ({}));
         if (!r.ok || d.success === false) {
             crmToastSafe(d.error || 'Não foi possível excluir o orçamento.', { type: 'error' });
