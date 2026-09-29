@@ -336,7 +336,7 @@
 }
 .jobs-service-row {
   display: grid;
-  grid-template-columns: 1.1fr 1.2fr 0.85fr 0.7fr auto;
+  grid-template-columns: 1.3fr 1.1fr 0.85fr 1fr auto auto;
   gap: 0.35rem;
   align-items: center;
 }
@@ -375,6 +375,57 @@
   max-width: 5.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.jobs-svc-price-wrap {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid #e2d9cc;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+  box-sizing: border-box;
+  width: 100%;
+}
+.jobs-svc-price-prefix,
+.jobs-svc-price-unit {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #6b645c;
+  background: #f4efe8;
+  white-space: nowrap;
+}
+.jobs-svc-price-prefix {
+  border-right: 1px solid #ddd5cb;
+}
+.jobs-svc-price-unit {
+  border-left: 1px solid #ddd5cb;
+  max-width: 4.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jobs-svc-price-wrap .js-svc-price {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none;
+  background: transparent;
+  font-weight: 700;
+  color: #211d1a;
+}
+.jobs-svc-line-total {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #211d1a;
+  white-space: nowrap;
+  text-align: right;
+  min-width: 3.6rem;
 }
 .jobs-services-total {
   margin: 0.45rem 0 0;
@@ -461,6 +512,15 @@
   }
   .jobs-service-row {
     grid-template-columns: 1fr 1fr;
+  }
+  .jobs-service-row .js-svc-pricing {
+    grid-column: 1 / -1;
+  }
+  .jobs-service-row .js-svc-name {
+    grid-column: 1 / -1;
+  }
+  .jobs-svc-line-total {
+    justify-self: end;
   }
   .jobs-temp-row {
     flex-direction: column;

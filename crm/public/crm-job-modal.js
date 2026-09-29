@@ -5,7 +5,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260929-svcunit1";
+  const CSS_HREF = "crm-job-modal.css?v=20260929-svcprice2";
   let editingId = null;
   let editSection = "all";
   /** Active accordion panel when editSection === "all" */
@@ -179,7 +179,7 @@
           Serviços
           <span class="jobs-tip">
             <button type="button" class="jobs-tip__btn" aria-label="Ajuda: serviços">?</button>
-            <span class="jobs-tip__pop" role="tooltip">Preço Loja do catálogo; se o job for Builder, usa preço partner quando existir.</span>
+            <span class="jobs-tip__pop" role="tooltip">Ao escolher o serviço, quantidade e preço vêm da Tabela de Valores (preço Loja; se houver Builder no job, usa preço parceiro).</span>
           </span>
         </legend>
         <div id="jobServicesList" class="jobs-services-list"></div>
@@ -224,9 +224,8 @@
   }
 
   function usePartnerPrice() {
-    const src = $("jobSourceType")?.value;
-    const builderId = $("jobBuilder")?.value;
-    return src === "builder" || Boolean(builderId);
+    // Partner rate only when a builder is actually linked (not just source type).
+    return Boolean($("jobBuilder")?.value);
   }
 
   function formatPricingUnit(unit) {
@@ -261,13 +260,6 @@
       .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  function isDiscreteUnit(unit) {
-    const u = String(unit || "")
-      .toLowerCase()
-      .replace(/\s+/g, "_");
-    return ["step", "steps", "unit", "units", "piece", "pieces", "each", "fixed"].includes(u);
-  }
-
   function resolveRowUnit(row) {
     if (row?.unit) return row.unit;
     if (!row?.pricing_item_id) return "";
@@ -279,13 +271,21 @@
     if (!item) return 0;
     if (usePartnerPrice() && item.partner_price != null && item.partner_price !== "") {
       const partner = Number(item.partner_price);
-      if (partner > 0) return partner;
+      if (Number.isFinite(partner) && partner > 0) return partner;
     }
     const candidates = [item.price_loja, item.price_min, item.price_max, item.price];
     for (const c of candidates) {
-      if (c != null && c !== "" && Number(c) > 0) return Number(c);
+      const n = Number(c);
+      if (c != null && c !== "" && Number.isFinite(n) && n > 0) return n;
     }
-    return Number(item.price_loja) || 0;
+    return 0;
+  }
+
+  function catalogOptionLabel(p) {
+    const u = formatPricingUnit(p.unit);
+    const rate = unitPriceForItem(p);
+    const rateTxt = rate > 0 ? ` · ${money(rate)}/${u}` : "";
+    return `${p.name || "Serviço"} (${u}${rateTxt})`;
   }
 
   function renderServices() {
@@ -300,25 +300,31 @@
       .map((row, idx) => {
         const unitRaw = resolveRowUnit(row);
         const unitLbl = formatPricingUnit(unitRaw);
+        const qtyNum = Number(row.quantity_sqft) || 0;
+        const priceNum = Number(row.unit_price) || 0;
+        const lineTotal = qtyNum * priceNum;
         const opts = ['<option value="">— Personalizado —</option>']
           .concat(
-            pricingCatalog.map((p) => {
-              const u = formatPricingUnit(p.unit);
-              const cat = p.category ? ` · ${p.category}` : "";
-              return `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (${escapeHtml(u)}${escapeHtml(cat)})</option>`;
-            }),
+            pricingCatalog.map(
+              (p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(catalogOptionLabel(p))}</option>`,
+            ),
           )
           .join("");
-        const qtyVal = row.quantity_sqft != null && row.quantity_sqft !== "" ? escapeHtml(String(row.quantity_sqft)) : "";
-        const priceVal = row.unit_price != null && row.unit_price !== "" ? escapeHtml(String(row.unit_price)) : "";
+        const qtyVal = qtyNum > 0 ? escapeHtml(String(row.quantity_sqft)) : "";
+        const priceVal = priceNum > 0 ? escapeHtml(String(row.unit_price)) : "";
         return `<div class="jobs-service-row" data-idx="${idx}">
-          <select class="js-svc-pricing" data-idx="${idx}">${opts}</select>
+          <select class="js-svc-pricing" data-idx="${idx}" aria-label="Serviço do catálogo">${opts}</select>
           <input type="text" class="js-svc-name" data-idx="${idx}" maxlength="200" placeholder="Tipo de serviço" value="${escapeHtml(row.service_name || "")}" />
           <div class="jobs-svc-qty-wrap">
             <input type="number" class="js-svc-qty" data-idx="${idx}" min="0" step="0.01" placeholder="${escapeHtml(unitLbl)}" aria-label="Quantidade (${escapeHtml(unitLbl)})" value="${qtyVal}" />
             <span class="jobs-svc-unit">${escapeHtml(unitLbl)}</span>
           </div>
-          <input type="number" class="js-svc-price" data-idx="${idx}" min="0" step="0.01" placeholder="$ / ${escapeHtml(unitLbl)}" aria-label="Preço por ${escapeHtml(unitLbl)}" value="${priceVal}" />
+          <div class="jobs-svc-price-wrap">
+            <span class="jobs-svc-price-prefix">$</span>
+            <input type="number" class="js-svc-price" data-idx="${idx}" min="0" step="0.01" placeholder="0.00" aria-label="Preço por ${escapeHtml(unitLbl)}" value="${priceVal}" />
+            <span class="jobs-svc-price-unit">/ ${escapeHtml(unitLbl)}</span>
+          </div>
+          <span class="jobs-svc-line-total" title="Total da linha">${money(lineTotal)}</span>
           <button type="button" class="btn btn-danger btn-sm js-svc-del" data-idx="${idx}" title="Remover">×</button>
         </div>`;
       })
@@ -346,9 +352,13 @@
       const pricing = rowEl.querySelector(".js-svc-pricing")?.value || null;
       const name = (rowEl.querySelector(".js-svc-name")?.value || "").trim();
       const qty = Number(rowEl.querySelector(".js-svc-qty")?.value) || 0;
-      const price = Number(rowEl.querySelector(".js-svc-price")?.value) || 0;
+      let price = Number(rowEl.querySelector(".js-svc-price")?.value) || 0;
       if (!name && !pricing && !qty && !price) return;
       const catalogItem = pricing ? pricingCatalog.find((p) => p.id === pricing) : null;
+      // If catalog selected but price input still empty, keep auto price.
+      if (catalogItem && !(price > 0)) {
+        price = unitPriceForItem(catalogItem);
+      }
       next.push({
         pricing_item_id: pricing || null,
         service_name: name || catalogItem?.name || "Serviço",
@@ -378,23 +388,52 @@
   function applyPricingToRow(idx) {
     const box = $("jobServicesList");
     const rowEl = box?.querySelector(`.jobs-service-row[data-idx="${idx}"]`);
-    const pricingId = rowEl?.querySelector(".js-svc-pricing")?.value || null;
+    const pricingId = (rowEl?.querySelector(".js-svc-pricing")?.value || "").trim() || null;
+    const item = pricingId ? pricingCatalog.find((p) => p.id === pricingId) : null;
+    const autoPrice = item ? unitPriceForItem(item) : 0;
+
+    // Write into the live inputs first so the user sees the price immediately,
+    // even before we rebuild the row markup.
+    if (rowEl && item) {
+      const nameInput = rowEl.querySelector(".js-svc-name");
+      const priceInput = rowEl.querySelector(".js-svc-price");
+      const qtyInput = rowEl.querySelector(".js-svc-qty");
+      const unitBadge = rowEl.querySelector(".jobs-svc-unit");
+      const priceUnit = rowEl.querySelector(".jobs-svc-price-unit");
+      if (nameInput) nameInput.value = item.name || "";
+      if (priceInput) priceInput.value = autoPrice > 0 ? String(autoPrice) : "";
+      if (qtyInput && !(Number(qtyInput.value) > 0)) qtyInput.value = "1";
+      const unitLbl = formatPricingUnit(item.unit);
+      if (unitBadge) unitBadge.textContent = unitLbl;
+      if (priceUnit) priceUnit.textContent = `/ ${unitLbl}`;
+      if (qtyInput) qtyInput.placeholder = unitLbl;
+      if (priceInput) priceInput.setAttribute("aria-label", `Preço por ${unitLbl}`);
+    }
+
     collectServiceRowsFromDom();
-    // After collect, empty rows may shift — prefer the row that still matches this select index.
-    let row = serviceRows[idx];
-    if (rowEl && (!row || row.pricing_item_id !== pricingId)) {
-      row = serviceRows.find((r) => r.pricing_item_id === pricingId) || row;
+    let row = Number.isFinite(idx) ? serviceRows[idx] : null;
+    if (!row && pricingId) {
+      row = serviceRows.find((r) => r.pricing_item_id === pricingId) || null;
+    }
+    if (!row && rowEl) {
+      // Fallback: rebuild from the row we just patched.
+      row = {
+        pricing_item_id: pricingId,
+        service_name: item?.name || "",
+        quantity_sqft: 1,
+        unit_price: autoPrice,
+        unit: item?.unit || null,
+      };
+      serviceRows.push(row);
     }
     if (!row) return;
-    row.pricing_item_id = pricingId || null;
-    const item = pricingCatalog.find((p) => p.id === row.pricing_item_id);
+
+    row.pricing_item_id = pricingId;
     if (item) {
       row.service_name = item.name;
       row.unit = item.unit || null;
-      row.unit_price = unitPriceForItem(item);
-      if ((!row.quantity_sqft || Number(row.quantity_sqft) === 0) && isDiscreteUnit(item.unit)) {
-        row.quantity_sqft = 1;
-      }
+      row.unit_price = autoPrice;
+      if (!(Number(row.quantity_sqft) > 0)) row.quantity_sqft = 1;
     } else {
       row.unit = null;
     }
@@ -909,19 +948,26 @@
     $("btnAddService")?.addEventListener("click", () => addServiceRow());
     $("jobSourceType")?.addEventListener("change", () => refreshPricesFromCatalog());
     $("jobBuilder")?.addEventListener("change", () => refreshPricesFromCatalog());
-    $("jobServicesList")?.addEventListener("change", (e) => {
+    const onServicePricingChange = (e) => {
       const t = e.target;
-      if (t.classList.contains("js-svc-pricing")) {
-        const idx = Number(t.getAttribute("data-idx"));
-        collectServiceRowsFromDom();
-        if (serviceRows[idx]) serviceRows[idx].pricing_item_id = t.value || null;
-        applyPricingToRow(idx);
-      }
-    });
+      if (!t || !t.classList || !t.classList.contains("js-svc-pricing")) return;
+      const idx = Number(t.getAttribute("data-idx"));
+      applyPricingToRow(idx);
+    };
+    // Delegate from the modal so change always reaches us (iOS / re-renders).
+    $("jobModal")?.addEventListener("change", onServicePricingChange);
     $("jobServicesList")?.addEventListener("input", (e) => {
       const t = e.target;
       if (t.classList.contains("js-svc-qty") || t.classList.contains("js-svc-price") || t.classList.contains("js-svc-name")) {
         collectServiceRowsFromDom();
+        // Live-update line totals without full re-render while typing.
+        const rowEl = t.closest(".jobs-service-row");
+        if (rowEl) {
+          const qty = Number(rowEl.querySelector(".js-svc-qty")?.value) || 0;
+          const price = Number(rowEl.querySelector(".js-svc-price")?.value) || 0;
+          const lineEl = rowEl.querySelector(".jobs-svc-line-total");
+          if (lineEl) lineEl.textContent = money(qty * price);
+        }
         updateServicesTotal();
       }
     });
