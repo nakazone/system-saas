@@ -1045,6 +1045,10 @@
     background: #15803d;
   }
 
+  .lcard__action-btn--delete {
+    background: #b91c1c;
+  }
+
   .lcard__action-btn--advance {
     background: var(--sf-accent-hover);
   }

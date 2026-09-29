@@ -778,7 +778,7 @@ function renderKanbanCard(lead) {
               )
             : '';
     const originLogo = kanbanOriginLogoHtml(lead);
-    const deleteBtn = `<button type="button" class="btn-lead-delete-kanban" onclick="event.stopPropagation(); if (typeof deleteLead === 'function') deleteLead('${lead.id}');" title="Excluir lead" aria-label="Excluir lead">✕</button>`;
+    const deleteBtn = `<button type="button" class="btn-lead-delete-kanban" onclick="event.stopPropagation(); if (typeof window.deleteLead === 'function') window.deleteLead('${lead.id}');" title="Excluir lead" aria-label="Excluir lead">✕</button>`;
 
     return `
         <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead('${lead.id}', event)" title="Ver detalhes do lead">
@@ -1075,7 +1075,7 @@ let leadsMobileActiveSlug = '';
 let leadsMobileSwipeBound = false;
 let leadsMobileSearchBound = false;
 const LCARD_SWIPE_LEFT = -96;
-const LCARD_SWIPE_RIGHT = 96;
+const LCARD_SWIPE_RIGHT = 176;
 
 function isLeadsMobileLayout() {
     return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1024px)').matches;
@@ -1165,10 +1165,13 @@ function renderLeadsMobileCard(lead, stage, stages) {
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.74-1.74a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>';
     const advanceIcon =
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>';
+    const deleteIcon =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
 
     return `<article class="lcard" data-lead-id="${id}">
   <div class="lcard__actions" aria-hidden="true">
     <div class="lcard__action-slot lcard__action-slot--left">
+      <button type="button" class="lcard__action-btn lcard__action-btn--delete" data-lcard-delete="${id}" data-crm-permission="leads.delete">${deleteIcon}<span>Excluir</span></button>
       <button type="button" class="lcard__action-btn lcard__action-btn--call" data-lcard-call="${id}" ${callDisabled ? 'disabled' : ''} data-crm-permission="leads.view">${callIcon}<span>Ligar</span></button>
     </div>
     <div class="lcard__action-slot lcard__action-slot--right">
@@ -1443,6 +1446,14 @@ function bindLeadsMobileListInteractions(container) {
         container.addEventListener('pointercancel', endDrag, { passive: true });
 
         container.addEventListener('click', (e) => {
+            const delBtn = e.target.closest('[data-lcard-delete]');
+            if (delBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const id = delBtn.getAttribute('data-lcard-delete');
+                if (id && typeof window.deleteLead === 'function') void window.deleteLead(id);
+                return;
+            }
             const callBtn = e.target.closest('[data-lcard-call]');
             if (callBtn) {
                 e.preventDefault();
@@ -1488,6 +1499,45 @@ function bindLeadsMobileListInteractions(container) {
 
 // Initialize on page load
 if (typeof window !== 'undefined') {
+    /**
+     * Shared delete handler for kanban ✕ and mobile swipe.
+     * Defined here so leads.html works without dashboard.js.
+     */
+    async function deleteLead(id) {
+        const leadId = String(id || '').trim();
+        if (!leadId) return;
+        if (!confirm('Excluir este lead permanentemente? Esta ação não pode ser desfeita.')) return;
+        try {
+            const r = await fetch(`/api/leads/${encodeURIComponent(leadId)}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok || !d.success) {
+                const msg = d.error || 'Não foi possível excluir o lead.';
+                if (typeof crmNotify === 'function') crmNotify(msg, 'error');
+                else if (typeof notifyLeadsMobile === 'function') notifyLeadsMobile(msg, 'error');
+                else alert(msg);
+                return;
+            }
+            if (typeof crmNotify === 'function') crmNotify('Lead excluído.', 'success');
+            else if (typeof notifyLeadsMobile === 'function') notifyLeadsMobile('Lead excluído.', 'success');
+            if (Array.isArray(allLeads)) {
+                allLeads = allLeads.filter((l) => kanbanLeadId(l.id) !== kanbanLeadId(leadId));
+            }
+            if (typeof loadKanbanBoard === 'function') await loadKanbanBoard();
+            else if (typeof loadCRMKanban === 'function') await loadCRMKanban();
+            else if (typeof window.loadLeads === 'function') await window.loadLeads();
+            if (typeof renderLeadsMobilePipeline === 'function') renderLeadsMobilePipeline();
+        } catch (e) {
+            const msg = 'Erro de rede ao excluir.';
+            if (typeof crmNotify === 'function') crmNotify(msg, 'error');
+            else if (typeof notifyLeadsMobile === 'function') notifyLeadsMobile(msg, 'error');
+            else alert(msg);
+        }
+    }
+
+    window.deleteLead = deleteLead;
     window.showKanbanView = showKanbanView;
     window.showListView = showListView;
     window.loadCRMKanban = loadCRMKanban;

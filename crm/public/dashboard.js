@@ -2179,14 +2179,17 @@ function viewLead(id) {
 async function deleteLead(id) {
     if (!id || !confirm('Excluir este lead permanentemente? Esta ação não pode ser desfeita.')) return;
     try {
-        const r = await fetch(`/api/leads/${id}`, { method: 'DELETE', credentials: 'include' });
+        const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' });
         const d = await r.json().catch(() => ({}));
         if (!r.ok || !d.success) {
             if (typeof crmNotify === 'function') crmNotify(d.error || 'Não foi possível excluir o lead.', 'error');
             else alert(d.error || 'Não foi possível excluir o lead.');
             return;
         }
-        if (currentPageName === 'leads' && typeof loadKanbanBoard === 'function') loadKanbanBoard();
+        if (typeof crmNotify === 'function') crmNotify('Lead excluído.', 'success');
+        if (typeof loadKanbanBoard === 'function') loadKanbanBoard();
+        else if (typeof loadCRMKanban === 'function') loadCRMKanban();
+        else if (currentPageName === 'leads') loadLeads();
     } catch (e) {
         if (typeof crmNotify === 'function') crmNotify('Erro de rede ao excluir.', 'error');
         else alert('Erro de rede ao excluir.');
