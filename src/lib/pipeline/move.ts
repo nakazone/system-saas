@@ -4,6 +4,7 @@ import {
   type SystemPipelineSlug,
 } from "../tenant/defaults.js";
 import { recordActivity } from "../activity/record.js";
+import { findStageForSlug, stageRank } from "../leads/stage.js";
 
 export { SYSTEM_PIPELINE_SLUGS, type SystemPipelineSlug };
 
@@ -12,9 +13,11 @@ export async function findSystemStage(
   organizationId: string,
   slug: SystemPipelineSlug,
 ) {
-  return tx.pipelineStage.findFirst({
+  const exact = await tx.pipelineStage.findFirst({
     where: { organizationId, slug, isActive: true },
   });
+  // Tenants migrated from Senior Floors use other slugs (new_lead, meeting_scheduled…).
+  return exact ?? findStageForSlug(tx, slug);
 }
 
 export async function moveLeadToSystemStage(
@@ -27,6 +30,8 @@ export async function moveLeadToSystemStage(
     actorId?: string | null;
     /** Required when moving to lost */
     lossReasonId?: string | null;
+    /** Automations: never move a lead backwards (e.g. Follow Up → Quote Sent). */
+    onlyForward?: boolean;
   },
 ): Promise<{ moved: boolean; reason?: string }> {
   const stage = await findSystemStage(tx, params.organizationId, params.slug);
@@ -59,6 +64,11 @@ export async function moveLeadToSystemStage(
     return { moved: false, reason: "already_there" };
   }
 
+  if (params.onlyForward) {
+    const from = Math.max(stageRank(current?.slug), stageRank(lead.status));
+    if (from >= stageRank(stage.slug)) return { moved: false, reason: "not_forward" };
+  }
+
   const data: {
     pipelineStageId: string;
     status: string;
@@ -66,7 +76,8 @@ export async function moveLeadToSystemStage(
     lostAt?: Date | null;
   } = {
     pipelineStageId: stage.id,
-    status: params.slug === "won" ? "won" : params.slug === "lost" ? "lost" : lead.status,
+    // Keep `status` in lockstep with the stage — the CRM Kanban reads `status` first.
+    status: stage.slug || params.slug,
   };
 
   if (params.slug === "lost") {
@@ -128,6 +139,36 @@ export async function moveLeadForQuoteEvent(
     slug: params.slug,
     actorType: params.actorType,
     actorId: params.actorId,
+    // "Quote sent" must not pull a lead back from Follow Up / Stand By.
+    onlyForward: params.slug === "quote_sent",
+  });
+}
+
+const WON_QUOTE = new Set(["approved", "accepted", "converted", "invoiced"]);
+
+/** Move the quote's lead when a CRM save changes the quote status (sent → Quote Sent, approved → Won). */
+export async function syncLeadForQuoteStatus(
+  tx: TenantPrisma,
+  params: {
+    organizationId: string;
+    quoteId: string;
+    previousStatus: string | null | undefined;
+    nextStatus: string | null | undefined;
+    actorId?: string | null;
+  },
+): Promise<void> {
+  const prev = String(params.previousStatus || "").toLowerCase();
+  const next = String(params.nextStatus || "").toLowerCase();
+  if (!next || next === prev) return;
+  const slug = WON_QUOTE.has(next) ? "won" : next === "sent" ? "quote_sent" : null;
+  if (!slug) return;
+  if (slug === "won" && WON_QUOTE.has(prev)) return;
+  await moveLeadForQuoteEvent(tx, {
+    organizationId: params.organizationId,
+    quoteId: params.quoteId,
+    slug,
+    actorType: "user",
+    actorId: params.actorId ?? null,
   });
 }
 

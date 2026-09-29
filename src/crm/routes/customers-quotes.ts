@@ -8,6 +8,7 @@ import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../ht
 import { canViewPricing, withPricingGate } from "../../lib/pricing/visibility.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
+import { syncLeadForQuoteStatus } from "../../lib/pipeline/move.js";
 
 export const customersQuotesRouter = Router();
 
@@ -758,6 +759,13 @@ customersQuotesRouter.post(
           },
           include: { customer: { select: { name: true } }, lineItems: true },
         });
+        await syncLeadForQuoteStatus(tx, {
+          organizationId: req.organizationId!,
+          quoteId: quote.id,
+          previousStatus: null,
+          nextStatus: quote.status,
+          actorId: req.user?.id,
+        });
         return quote;
       });
       res.status(201).json({ success: true, data: mapQuoteForUser(row, req.user) });
@@ -822,7 +830,7 @@ customersQuotesRouter.put(
             ),
           });
         }
-        return tx.quote.update({
+        const updated = await tx.quote.update({
           where: { id },
           data: {
             title: body.title !== undefined ? String(body.title) : undefined,
@@ -841,6 +849,15 @@ customersQuotesRouter.put(
           },
           include: { customer: { select: { name: true } }, lineItems: { orderBy: { sortOrder: "asc" } } },
         });
+        // Sent → lead to "Quote Sent"; approved/converted → "Won" (was never synced from the CRM).
+        await syncLeadForQuoteStatus(tx, {
+          organizationId: req.organizationId!,
+          quoteId: id,
+          previousStatus: existing.status,
+          nextStatus: updated.status,
+          actorId: req.user?.id,
+        });
+        return updated;
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Quote not found" });

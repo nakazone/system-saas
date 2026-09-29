@@ -15,6 +15,7 @@ import { mapJobMedia } from "../../lib/job-media/index.js";
 import { aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
 import { env } from "../../config/env.js";
 import { recordActivity } from "../../lib/activity/record.js";
+import { syncLeadForQuoteStatus } from "../../lib/pipeline/move.js";
 import { prisma } from "../../lib/prisma.js";
 
 export const jobQuotesRouter = Router();
@@ -369,6 +370,13 @@ jobQuotesRouter.post(
           quoteId: quote.id,
           event: quote.status === "changes_requested" ? "resend" : "send",
           actorType: "user",
+          actorId: req.user!.id,
+        });
+        await syncLeadForQuoteStatus(tx, {
+          organizationId: req.organizationId!,
+          quoteId: quote.id,
+          previousStatus: quote.status,
+          nextStatus: "sent",
           actorId: req.user!.id,
         });
 

@@ -7,6 +7,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { notifyNewLeadPush } from "../../lib/push/notify.js";
 import { WON_QUOTE_STATUSES } from "../../lib/dashboard/overview.js";
+import { findDuplicateLead, findStageForSlug } from "../../lib/leads/stage.js";
 import { safeTimeZone, startOfZonedDay, startOfZonedMonth } from "../../lib/time/zoned.js";
 
 export const dashboardLeadsRouter = Router();
@@ -800,6 +801,9 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
           z.string().uuid().optional(),
         ),
         owner_id: z.preprocess(emptyToUndef, z.string().uuid().optional()),
+        address: z.preprocess(emptyToUndef, z.string().optional()),
+        /** Forms send true to get a 409 when the phone/e-mail already belongs to a lead. */
+        check_duplicates: z.boolean().optional(),
       })
       .safeParse(req.body);
     if (!parsed.success) {
@@ -811,21 +815,36 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
       return;
     }
 
-    const noteParts = [parsed.data.notes, parsed.data.message, parsed.data.zipcode ? `CEP: ${parsed.data.zipcode}` : null]
-      .filter(Boolean)
-      .map(String);
+    const noteParts = [parsed.data.message, parsed.data.notes].filter(Boolean).map(String);
     const notesMerged = noteParts.length ? noteParts.join("\n") : null;
 
-    const lead = await withTenantTransaction(req.organizationId!, async (tx) => {
-      let stageId = parsed.data.pipeline_stage_id ?? null;
-      if (!stageId) {
-        const firstStage = await tx.pipelineStage.findFirst({
-          where: { isActive: true },
-          orderBy: { order: "asc" },
+    // Estimated value / priority / address used to be accepted and silently dropped.
+    const rawValue = parsed.data.estimated_value;
+    const value = rawValue == null ? null : Number(String(rawValue).replace(/[$,\s]/g, ""));
+    const meta: LeadMeta = {};
+    if (value != null && Number.isFinite(value) && value > 0) meta.estimated_value = value;
+    const priority = String(parsed.data.priority || "").toLowerCase();
+    if (["low", "medium", "high"].includes(priority)) meta.priority = priority;
+    if (parsed.data.zipcode) meta.zipcode = parsed.data.zipcode.trim();
+    if (parsed.data.address) meta.address = parsed.data.address.trim();
+
+    const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+      if (parsed.data.check_duplicates) {
+        const dup = await findDuplicateLead(tx, req.organizationId!, {
+          email: parsed.data.email,
+          phone: parsed.data.phone,
         });
-        stageId = firstStage?.id ?? null;
+        if (dup) return { duplicate: dup } as const;
       }
-      return tx.lead.create({
+      // Stage id and status slug always point at the same tenant stage.
+      let stage = parsed.data.pipeline_stage_id
+        ? await tx.pipelineStage.findFirst({ where: { id: parsed.data.pipeline_stage_id, isActive: true } })
+        : null;
+      if (!stage && parsed.data.status) stage = await findStageForSlug(tx, parsed.data.status);
+      if (!stage) {
+        stage = await tx.pipelineStage.findFirst({ where: { isActive: true }, orderBy: { order: "asc" } });
+      }
+      const lead = await tx.lead.create({
         data: {
           organizationId: req.organizationId!,
           name: parsed.data.name.trim(),
@@ -833,13 +852,27 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
           phone: parsed.data.phone || null,
           source: parsed.data.source || null,
           notes: notesMerged,
-          status: parsed.data.status || "new",
-          pipelineStageId: stageId,
+          status: stage?.slug || "new",
+          pipelineStageId: stage?.id ?? null,
           ownerId: parsed.data.owner_id ?? req.user?.id ?? null,
+          ...(Object.keys(meta).length ? { metadata: meta as Prisma.InputJsonValue } : {}),
         },
         include: { pipelineStage: true, owner: { select: { id: true, name: true, email: true } } },
       });
+      return { lead } as const;
     });
+
+    if ("duplicate" in result && result.duplicate) {
+      const dup = result.duplicate;
+      res.status(409).json({
+        success: false,
+        error: "duplicate_lead",
+        message: `Já existe um lead com este ${dup.match === "email" ? "e-mail" : "telefone"}: ${dup.name}.`,
+        duplicate: dup,
+      });
+      return;
+    }
+    const lead = result.lead!;
 
     notifyNewLeadPush(
       req.organizationId!,
@@ -870,18 +903,20 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), a
       let status: string | undefined = body.status !== undefined ? String(body.status) : undefined;
 
       if (pipelineStageId === undefined && status) {
+        // Accept any slug dialect ("new_lead" / "new", "meeting_scheduled" / "assessment_scheduled")
+        // and always store the tenant's own stage slug next to its id.
         const stage =
-          (await resolveStageBySlug(tx, status)) ||
+          (await findStageForSlug(tx, status)) ||
           (["meeting_scheduled", "visit_scheduled"].includes(status)
             ? await resolveVisitScheduledStage(tx)
             : null);
-        if (stage) {
-          pipelineStageId = stage.id;
-          status = stage.slug || status;
-        }
+        if (!stage) return { invalidStage: status } as const;
+        pipelineStageId = stage.id;
+        status = stage.slug || status;
       } else if (pipelineStageId) {
         const stage = await tx.pipelineStage.findFirst({ where: { id: pipelineStageId } });
-        if (stage?.slug) status = stage.slug;
+        if (!stage) return { invalidStage: pipelineStageId } as const;
+        status = stage.slug || status;
       }
 
       const meta = asMeta(existing.metadata);
@@ -912,6 +947,10 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), a
     });
     if (!lead) {
       res.status(404).json({ success: false, error: "Lead not found" });
+      return;
+    }
+    if ("invalidStage" in lead) {
+      res.status(400).json({ success: false, error: `Estágio desconhecido: ${lead.invalidStage}` });
       return;
     }
     res.json({ success: true, data: mapLead(lead) });
