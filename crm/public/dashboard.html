@@ -32,7 +32,7 @@
     <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
     <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
     <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-    <link rel="stylesheet" href="styles.css?v=20260929-delete2">
+    <link rel="stylesheet" href="styles.css?v=20260929-clientprice1">
     <link rel="stylesheet" href="design-system.css?v=20260923-chrome">
     <link rel="stylesheet" href="mobile-design-system.css?v=20260929-delete1">
     <link rel="stylesheet" href="crm-toast.css">
@@ -834,7 +834,7 @@
                             <input type="hidden" id="clientFormId" value="">
                             <input type="hidden" id="clientFormLeadId" value="">
                             <div class="form-row">
-                                <div class="form-group">
+                                <div class="form-group" style="flex:1;">
                                     <label for="clientType">Tipo de cliente *</label>
                                     <select id="clientType" required>
                                         <option value="particular">Particular</option>
@@ -844,18 +844,20 @@
                                     </select>
                                 </div>
                             </div>
-                            <fieldset class="form-group client-pricing-mode" id="clientPricingModeFieldset" style="border:1px solid #e2d9cc;border-radius:10px;padding:0.65rem 0.75rem;margin:0 0 0.85rem">
-                                <legend style="font-size:0.85rem;font-weight:600;padding:0 0.25rem">Preços</legend>
-                                <label class="client-pricing-option" style="display:flex;align-items:flex-start;gap:0.45rem;margin:0.25rem 0;cursor:pointer;font-size:0.9rem">
-                                    <input type="radio" name="clientPricingMode" id="clientPricingModeTable" value="table" checked style="margin-top:0.2rem" />
-                                    <span>Usar o mesmo preço da Tabela de Valores</span>
-                                </label>
-                                <label class="client-pricing-option" style="display:flex;align-items:flex-start;gap:0.45rem;margin:0.25rem 0;cursor:pointer;font-size:0.9rem">
-                                    <input type="radio" name="clientPricingMode" id="clientPricingModeCustom" value="custom" style="margin-top:0.2rem" />
-                                    <span>Customizar (definir preços manualmente em quotes/jobs)</span>
-                                </label>
-                                <p class="form-hint" id="clientPricingModeHint" style="margin:0.35rem 0 0;font-size:0.8rem;color:#6b645c">Jobs e quotes usam a coluna da tabela correspondente ao tipo (Particular, Builder, Contractor ou Loja).</p>
-                            </fieldset>
+                            <div class="form-group client-pricing-mode" id="clientPricingModeFieldset">
+                                <span class="client-pricing-mode__title">Preços</span>
+                                <div class="client-pricing-mode__options" role="radiogroup" aria-label="Modo de preços">
+                                    <label class="client-pricing-option" for="clientPricingModeTable">
+                                        <input type="radio" name="clientPricingMode" id="clientPricingModeTable" value="table" checked />
+                                        <span>Usar o mesmo preço da Tabela de Valores</span>
+                                    </label>
+                                    <label class="client-pricing-option" for="clientPricingModeCustom">
+                                        <input type="radio" name="clientPricingMode" id="clientPricingModeCustom" value="custom" />
+                                        <span>Customizar (definir preços manualmente em quotes/jobs)</span>
+                                    </label>
+                                </div>
+                                <p class="form-hint client-pricing-mode__hint" id="clientPricingModeHint">Jobs e quotes usam a coluna da tabela correspondente ao tipo (Particular, Builder, Contractor ou Loja).</p>
+                            </div>
                             <div id="clientNonBuilderNameRow" class="form-row">
                                 <div class="form-group" style="flex: 1;">
                                     <label for="clientName">Nome *</label>
