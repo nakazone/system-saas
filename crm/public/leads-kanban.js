@@ -747,6 +747,15 @@ function kanbanOriginLogoHtml(lead) {
 }
 
 // Render Kanban Card
+/** Delete needs leads.delete (the API enforces it); hide the control for other roles. */
+function kanbanCanDeleteLeads() {
+    const role = String(window.__crmUserRole || '').toLowerCase();
+    if (role === 'admin') return true;
+    const keys = window.__crmPermissionKeys;
+    if (!Array.isArray(keys) || !keys.length) return true;
+    return keys.includes('leads.delete');
+}
+
 function renderKanbanCard(lead) {
     const enteredAt = escapeKanbanHtml(formatKanbanLeadEnteredAt(lead.created_at));
     const daysInColumn = kanbanDaysInCurrentColumn(lead);
@@ -778,7 +787,10 @@ function renderKanbanCard(lead) {
               )
             : '';
     const originLogo = kanbanOriginLogoHtml(lead);
-    const deleteBtn = `<button type="button" class="btn-lead-delete-kanban" data-lead-delete="${lead.id}" title="Excluir lead" aria-label="Excluir lead">✕</button>`;
+    // Keep the capture-phase `data-lead-delete` handler from main; hide ✕ without leads.delete.
+    const deleteBtn = kanbanCanDeleteLeads()
+        ? `<button type="button" class="btn-lead-delete-kanban" data-lead-delete="${lead.id}" title="Excluir lead" aria-label="Excluir lead">✕</button>`
+        : '';
 
     return `
         <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead('${lead.id}', event)" title="Ver detalhes do lead">
@@ -1088,6 +1100,10 @@ let leadsMobileSwipeBound = false;
 let leadsMobileSearchBound = false;
 const LCARD_SWIPE_LEFT = -96;
 const LCARD_SWIPE_RIGHT = 176;
+/** Swipe-right reveals Excluir + Ligar, or only Ligar without leads.delete. */
+function lcardSwipeRight() {
+    return kanbanCanDeleteLeads() ? LCARD_SWIPE_RIGHT : 96;
+}
 
 function isLeadsMobileLayout() {
     return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1024px)').matches;
@@ -1183,7 +1199,7 @@ function renderLeadsMobileCard(lead, stage, stages) {
     return `<article class="lcard" data-lead-id="${id}">
   <div class="lcard__actions" aria-hidden="true">
     <div class="lcard__action-slot lcard__action-slot--left">
-      <button type="button" class="lcard__action-btn lcard__action-btn--delete" data-lcard-delete="${id}" data-crm-permission="leads.delete">${deleteIcon}<span>Excluir</span></button>
+      ${kanbanCanDeleteLeads() ? `<button type="button" class="lcard__action-btn lcard__action-btn--delete" data-lcard-delete="${id}" data-crm-permission="leads.delete">${deleteIcon}<span>Excluir</span></button>` : ''}
       <button type="button" class="lcard__action-btn lcard__action-btn--call" data-lcard-call="${id}" ${callDisabled ? 'disabled' : ''} data-crm-permission="leads.view">${callIcon}<span>Ligar</span></button>
     </div>
     <div class="lcard__action-slot lcard__action-slot--right">
@@ -1422,7 +1438,7 @@ function bindLeadsMobileListInteractions(container) {
                 dragging = true;
                 skipClick = true;
                 let next = dx;
-                if (next > LCARD_SWIPE_RIGHT + 20) next = LCARD_SWIPE_RIGHT + 20;
+                if (next > lcardSwipeRight() + 20) next = lcardSwipeRight() + 20;
                 if (next < LCARD_SWIPE_LEFT - 20) next = LCARD_SWIPE_LEFT - 20;
                 setOffset(activeCard, next);
             },
@@ -1446,7 +1462,7 @@ function bindLeadsMobileListInteractions(container) {
             const m = /translateX\((-?\d+(?:\.\d+)?)px\)/.exec(style);
             const x = m ? parseFloat(m[1]) : 0;
             closeAll(card);
-            if (x >= 56) setOffset(card, LCARD_SWIPE_RIGHT);
+            if (x >= 56) setOffset(card, lcardSwipeRight());
             else if (x <= -56) setOffset(card, LCARD_SWIPE_LEFT);
             else setOffset(card, 0);
             try {

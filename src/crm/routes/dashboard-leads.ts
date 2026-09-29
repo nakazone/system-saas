@@ -158,7 +158,7 @@ dashboardLeadsRouter.get("/api/pipeline-stages", requireCrmAuth, async (req: Aut
   }
 });
 
-dashboardLeadsRouter.get("/api/leads", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/leads", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(5000, Math.max(1, Number(req.query.limit) || 50));
@@ -199,7 +199,7 @@ dashboardLeadsRouter.get("/api/leads", requireCrmAuth, async (req: AuthedRequest
   }
 });
 
-dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmAuth, async (_req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmPermission("leads.view"), async (_req: AuthedRequest, res, next) => {
   try {
     res.json({ success: true, data: {} });
   } catch (error) {
@@ -207,7 +207,7 @@ dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmAuth, 
   }
 });
 
-dashboardLeadsRouter.get("/api/leads/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/leads/:id", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
       loadLeadOrNull(tx, String(req.params.id)),
@@ -222,7 +222,7 @@ dashboardLeadsRouter.get("/api/leads/:id", requireCrmAuth, async (req: AuthedReq
   }
 });
 
-dashboardLeadsRouter.get("/api/leads/:id/qualification", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/leads/:id/qualification", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
       loadLeadOrNull(tx, String(req.params.id)),
@@ -238,7 +238,7 @@ dashboardLeadsRouter.get("/api/leads/:id/qualification", requireCrmAuth, async (
   }
 });
 
-dashboardLeadsRouter.post("/api/leads/:id/qualification", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.post("/api/leads/:id/qualification", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
   try {
     const id = String(req.params.id);
     const body = (req.body || {}) as Record<string, unknown>;
@@ -280,7 +280,7 @@ dashboardLeadsRouter.post("/api/leads/:id/qualification", requireCrmAuth, async 
   }
 });
 
-dashboardLeadsRouter.put("/api/leads/:id/qualification", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.put("/api/leads/:id/qualification", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
   try {
     const id = String(req.params.id);
     const body = (req.body || {}) as Record<string, unknown>;
@@ -323,7 +323,7 @@ dashboardLeadsRouter.put("/api/leads/:id/qualification", requireCrmAuth, async (
   }
 });
 
-dashboardLeadsRouter.get("/api/leads/:id/interactions", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/leads/:id/interactions", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
       loadLeadOrNull(tx, String(req.params.id)),
@@ -338,7 +338,7 @@ dashboardLeadsRouter.get("/api/leads/:id/interactions", requireCrmAuth, async (r
   }
 });
 
-dashboardLeadsRouter.post("/api/leads/:id/interactions", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.post("/api/leads/:id/interactions", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
   try {
     const id = String(req.params.id);
     const body = (req.body || {}) as Record<string, unknown>;
@@ -374,7 +374,7 @@ dashboardLeadsRouter.post("/api/leads/:id/interactions", requireCrmAuth, async (
   }
 });
 
-dashboardLeadsRouter.get("/api/leads/:id/followups", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/leads/:id/followups", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
       loadLeadOrNull(tx, String(req.params.id)),
@@ -389,7 +389,7 @@ dashboardLeadsRouter.get("/api/leads/:id/followups", requireCrmAuth, async (req:
   }
 });
 
-dashboardLeadsRouter.post("/api/leads/:id/followups", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.post("/api/leads/:id/followups", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
   try {
     const id = String(req.params.id);
     const body = (req.body || {}) as Record<string, unknown>;
@@ -427,7 +427,7 @@ dashboardLeadsRouter.post("/api/leads/:id/followups", requireCrmAuth, async (req
   }
 });
 
-dashboardLeadsRouter.get("/api/leads/:id/proposals", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/leads/:id/proposals", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const id = String(req.params.id);
     const rows = await withTenantTransaction(req.organizationId!, async (tx) => {
@@ -465,7 +465,7 @@ dashboardLeadsRouter.get("/api/leads/:id/proposals", requireCrmAuth, async (req:
   }
 });
 
-dashboardLeadsRouter.get("/api/visits", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/visits", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const leadId = req.query.lead_id ? String(req.query.lead_id) : null;
     const dateFrom = req.query.date_from ? String(req.query.date_from) : null;
@@ -532,7 +532,7 @@ dashboardLeadsRouter.get("/api/visits", requireCrmAuth, async (req: AuthedReques
   }
 });
 
-dashboardLeadsRouter.post("/api/visits", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
   try {
     const body = (req.body || {}) as Record<string, unknown>;
     const leadId = body.lead_id != null ? String(body.lead_id) : "";
@@ -637,7 +637,7 @@ dashboardLeadsRouter.post("/api/visits", requireCrmAuth, async (req: AuthedReque
   }
 });
 
-dashboardLeadsRouter.put("/api/visits/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
   try {
     const visitId = String(req.params.id);
     const body = (req.body || {}) as Record<string, unknown>;
@@ -772,7 +772,7 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmAuth, async (req: AuthedRe
   }
 });
 
-dashboardLeadsRouter.post("/api/leads", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), async (req: AuthedRequest, res, next) => {
   try {
     const emptyToUndef = (v: unknown) =>
       v === null || v === undefined || v === "" || v === "null" ? undefined : v;
@@ -853,7 +853,7 @@ dashboardLeadsRouter.post("/api/leads", requireCrmAuth, async (req: AuthedReques
   }
 });
 
-dashboardLeadsRouter.put("/api/leads/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
   try {
     const id = String(req.params.id);
     const body = req.body || {};
@@ -920,7 +920,7 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmAuth, async (req: AuthedReq
   }
 });
 
-dashboardLeadsRouter.delete("/api/leads/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.delete("/api/leads/:id", requireCrmPermission("leads.delete"), async (req: AuthedRequest, res, next) => {
   try {
     const id = String(req.params.id);
     const ok = await withTenantTransaction(req.organizationId!, async (tx) => {
@@ -939,7 +939,7 @@ dashboardLeadsRouter.delete("/api/leads/:id", requireCrmAuth, async (req: Authed
   }
 });
 
-dashboardLeadsRouter.get("/api/dashboard/stats", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+dashboardLeadsRouter.get("/api/dashboard/stats", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const period = String(req.query.period || "month").toLowerCase();
     // Period boundaries follow the organization's timezone (the server runs in UTC).
