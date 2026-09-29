@@ -32,7 +32,7 @@
     <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
     <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
     <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-    <link rel="stylesheet" href="styles.css?v=20260929-customprice1">
+    <link rel="stylesheet" href="styles.css?v=20260929-custlist1">
     <link rel="stylesheet" href="design-system.css?v=20260923-chrome">
     <link rel="stylesheet" href="mobile-design-system.css?v=20260929-delete1">
     <link rel="stylesheet" href="crm-toast.css">
@@ -1000,34 +1000,25 @@
                         <button type="button" class="btn btn-secondary btn-sm" onclick="customersSearchSubmit()">Buscar</button>
                         <button type="button" class="btn btn-secondary btn-sm" onclick="customersSearchClear()">Limpar</button>
                     </div>
-                    
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr id="customersTableHeadRow">
-                                    <th>ID</th>
-                                    <th id="customersColName">Nome</th>
-                                    <th id="customersColResponsible" class="customers-col-responsible" style="display: none;">Contato (responsável)</th>
-                                    <th>Email</th>
-                                    <th>Phone</th>
-                                    <th>City</th>
-                                    <th>Type</th>
-                                    <th>Lead</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="customersTableBody">
-                                <tr><td colspan="10" class="text-center">Loading...</td></tr>
-                            </tbody>
-                        </table>
+
+                    <div class="customers-list-wrap">
+                        <div class="customers-list-head" id="customersListHead" aria-hidden="true">
+                            <span id="customersColName">Cliente</span>
+                            <span>Contacto</span>
+                            <span>Local</span>
+                            <span>Tipo</span>
+                            <span>Status</span>
+                            <span></span>
+                        </div>
+                        <div id="customersTableBody" class="customers-list" role="list">
+                            <p class="customers-list-empty">A carregar…</p>
+                        </div>
                     </div>
-                    
-                    <div class="pagination">
-                        <button id="prevPageCustomers" class="btn btn-secondary" onclick="changePageCustomers(-1)">Previous</button>
-                        <span id="pageInfoCustomers">Page 1</span>
-                        <button id="nextPageCustomers" class="btn btn-secondary" onclick="changePageCustomers(1)">Next</button>
+
+                    <div class="pagination customers-pagination">
+                        <button id="prevPageCustomers" class="btn btn-secondary" onclick="changePageCustomers(-1)">Anterior</button>
+                        <span id="pageInfoCustomers">Página 1</span>
+                        <button id="nextPageCustomers" class="btn btn-secondary" onclick="changePageCustomers(1)">Seguinte</button>
                     </div>
                 </div>
                 
@@ -1843,7 +1834,7 @@
     <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260929-customprice1"></script>
+    <script src="dashboard.js?v=20260929-custlist1"></script>
     <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
     <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
     <script src="crm-address-autocomplete.js?v=20260924-addr"></script>

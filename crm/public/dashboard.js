@@ -2243,16 +2243,11 @@ function isOrgClientType(type) {
     return CUSTOMERS_ORG_TYPES.has(normalizeClientTypeUi(type));
 }
 
-function customersTableColspan() {
-    return customersTypeFilter === 'builder' ? 11 : 10;
-}
-
 function syncCustomersPageChrome() {
     const isBuilder = customersTypeFilter === 'builder';
     const titleEl = document.getElementById('customersPageTitle');
     const subEl = document.getElementById('customersPageSubtitle');
     const nameCol = document.getElementById('customersColName');
-    const respCol = document.getElementById('customersColResponsible');
     const typeSel = document.getElementById('customersTypeSelect');
     const searchEl = document.getElementById('customersSearchInput');
 
@@ -2262,8 +2257,7 @@ function syncCustomersPageChrome() {
             ? 'Empresas parceiras e contacto responsável'
             : 'Builders e clientes finais';
     }
-    if (nameCol) nameCol.textContent = isBuilder ? 'Empresa' : 'Nome';
-    if (respCol) respCol.style.display = isBuilder ? '' : 'none';
+    if (nameCol) nameCol.textContent = isBuilder ? 'Empresa' : 'Cliente';
     if (typeSel && typeSel.value !== customersTypeFilter) {
         typeSel.value = customersTypeFilter;
     }
@@ -2271,6 +2265,52 @@ function syncCustomersPageChrome() {
         searchEl.value = customersSearchFilter;
     }
 }
+
+/** Compact ref for UUID / long ids — full value stays in title / data-copy */
+function shortRefId(id) {
+    const s = String(id || '').trim();
+    if (!s) return '';
+    if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(s)) return s.slice(0, 8);
+    if (s.length > 12) return s.slice(0, 8);
+    return s;
+}
+
+function customerInitials(name) {
+    const parts = String(name || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    if (!parts.length) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function customerLocalLabel(c) {
+    const city = c.city != null ? String(c.city).trim() : '';
+    const state = c.state != null ? String(c.state).trim() : '';
+    if (city || state) return [city, state].filter(Boolean).join(', ');
+    const addr = c.address != null ? String(c.address).trim() : '';
+    if (!addr) return '';
+    // Prefer a short tail when address is a full line
+    const parts = addr.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 2) return parts.slice(-2).join(', ');
+    return addr.length > 36 ? `${addr.slice(0, 34)}…` : addr;
+}
+
+function copyCustomerRef(btn) {
+    const full = btn && btn.getAttribute('data-copy');
+    if (!full || !navigator.clipboard) return;
+    navigator.clipboard.writeText(full).then(() => {
+        const prev = btn.textContent;
+        btn.textContent = 'Copiado';
+        btn.classList.add('is-copied');
+        setTimeout(() => {
+            btn.textContent = prev;
+            btn.classList.remove('is-copied');
+        }, 1200);
+    }).catch(() => {});
+}
+window.copyCustomerRef = copyCustomerRef;
 
 function customersSearchSubmit() {
     const searchEl = document.getElementById('customersSearchInput');
@@ -2342,62 +2382,97 @@ function displayPhoneInClientForm(phone) {
 
 async function loadCustomers() {
     syncCustomersPageChrome();
-    const tbody = document.getElementById('customersTableBody');
-    const colspan = customersTableColspan();
-    tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">Loading...</td></tr>`;
-    
+    const list = document.getElementById('customersTableBody');
+    if (!list) return;
+    list.innerHTML = '<p class="customers-list-empty">A carregar…</p>';
+
     try {
         const qs = new URLSearchParams({ page: String(customersPage), limit: '20' });
         if (customersTypeFilter) qs.set('customer_type', customersTypeFilter);
         if (customersSearchFilter) qs.set('search', customersSearchFilter);
         const response = await fetch(`/api/customers?${qs}`, { credentials: 'include' });
         const data = await response.json();
-        
+
         if (data.success && data.data) {
-            const showBuilderCols = customersTypeFilter === 'builder';
             if (data.data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">No clients found</td></tr>`;
+                list.innerHTML = '<p class="customers-list-empty">Nenhum cliente encontrado</p>';
             } else {
-                tbody.innerHTML = data.data.map(c => {
-                    const leadCell =
-                        c.lead_id != null && c.lead_id !== ''
-                            ? `<a href="lead-detail.html?id=${encodeURIComponent(c.lead_id)}">#${c.lead_id}</a>`
-                            : '—';
-                    const isBuilderRow = isOrgClientType(c.customer_type);
-                    const nameCell = escapeClientCell(c.name) || '-';
-                    const respCell = isBuilderRow && c.responsible_name
-                        ? escapeClientCell(c.responsible_name)
-                        : '—';
-                    const respTd = showBuilderCols
-                        ? `<td>${respCell}</td>`
+                list.innerHTML = data.data.map((c, i) => {
+                    const id = String(c.id || '');
+                    const idAttr = escapeClientCell(id);
+                    const shortId = shortRefId(id);
+                    const leadId = c.lead_id != null && c.lead_id !== '' ? String(c.lead_id) : '';
+                    const shortLead = leadId ? shortRefId(leadId) : '';
+                    const isOrg = isOrgClientType(c.customer_type);
+                    const typeLabel =
+                        CUSTOMERS_TYPE_LABELS[normalizeClientTypeUi(c.customer_type)] ||
+                        c.customer_type ||
+                        '—';
+                    const name = escapeClientCell(c.name) || '—';
+                    const email = c.email ? escapeClientCell(c.email) : '';
+                    const phoneRaw = c.phone ? displayPhoneInClientForm(c.phone) || String(c.phone) : '';
+                    const phone = phoneRaw ? escapeClientCell(phoneRaw) : '';
+                    const local = escapeClientCell(customerLocalLabel(c));
+                    const status = escapeClientCell(c.status || 'active');
+                    const resp =
+                        isOrg && c.responsible_name
+                            ? escapeClientCell(c.responsible_name)
+                            : '';
+                    const created = c.created_at
+                        ? new Date(c.created_at).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                          })
                         : '';
+
+                    const leadChip = leadId
+                        ? `<a class="customers-ref customers-ref--lead" href="lead-detail.html?id=${encodeURIComponent(leadId)}" title="Lead ${escapeClientCell(leadId)}" onclick="event.stopPropagation()">Lead · ${escapeClientCell(shortLead)}</a>`
+                        : '';
+
+                    const contactBits = [];
+                    if (email) {
+                        contactBits.push(
+                            `<a class="customers-row__mail" href="mailto:${email}" onclick="event.stopPropagation()">${email}</a>`,
+                        );
+                    }
+                    if (phone) contactBits.push(`<span class="customers-row__phone">${phone}</span>`);
+                    if (!contactBits.length) contactBits.push('<span class="customers-row__muted">—</span>');
+
                     return `
-                    <tr>
-                        <td>${c.id}</td>
-                        <td>${nameCell}</td>
-                        ${respTd}
-                        <td>${escapeClientCell(c.email) || '-'}</td>
-                        <td>${escapeClientCell(c.phone) || '-'}</td>
-                        <td>${escapeClientCell(c.city) || '-'}</td>
-                        <td>${escapeClientCell(CUSTOMERS_TYPE_LABELS[normalizeClientTypeUi(c.customer_type)] || c.customer_type) || '-'}</td>
-                        <td>${leadCell}</td>
-                        <td><span class="badge badge-${c.status || 'active'}">${c.status || 'active'}</span></td>
-                        <td>${c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
-                        <td style="white-space:nowrap">
-                            <button type="button" class="btn btn-sm btn-secondary" onclick="inspectCustomer(${c.id})">Ver</button>
-                            <button type="button" class="btn btn-sm" onclick="viewCustomer(${c.id})">Editar</button>
-                        </td>
-                    </tr>`;
+                    <article class="customers-row" role="listitem" style="--av-hue:${(i * 47) % 360}">
+                        <div class="customers-row__identity">
+                            <span class="customers-row__av" aria-hidden="true">${escapeClientCell(customerInitials(c.name))}</span>
+                            <div class="customers-row__who">
+                                <div class="customers-row__name">${name}</div>
+                                <div class="customers-row__refs">
+                                    <button type="button" class="customers-ref" title="ID ${idAttr} — clicar para copiar" data-copy="${idAttr}" onclick="event.stopPropagation(); copyCustomerRef(this)">#${escapeClientCell(shortId)}</button>
+                                    ${leadChip}
+                                </div>
+                                ${resp ? `<div class="customers-row__sub">Contacto: ${resp}</div>` : ''}
+                                ${created ? `<div class="customers-row__sub customers-row__sub--soft">Desde ${escapeClientCell(created)}</div>` : ''}
+                            </div>
+                        </div>
+                        <div class="customers-row__contact">${contactBits.join('')}</div>
+                        <div class="customers-row__local">${local || '<span class="customers-row__muted">—</span>'}</div>
+                        <div class="customers-row__type"><span class="customers-type-pill">${escapeClientCell(typeLabel)}</span></div>
+                        <div class="customers-row__status"><span class="badge badge-${status}">${status}</span></div>
+                        <div class="customers-row__actions">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="inspectCustomer('${idAttr}')">Ver</button>
+                            <button type="button" class="btn btn-sm" onclick="viewCustomer('${idAttr}')">Editar</button>
+                        </div>
+                    </article>`;
                 }).join('');
             }
-            
-            const totalPages = Math.ceil(data.total / 20);
-            document.getElementById('pageInfoCustomers').textContent = `Page ${customersPage} of ${totalPages || 1}`;
+
+            const totalPages = Math.ceil((data.total || 0) / 20) || 1;
+            document.getElementById('pageInfoCustomers').textContent =
+                `Página ${customersPage} de ${totalPages}`;
             document.getElementById('prevPageCustomers').disabled = customersPage <= 1;
             document.getElementById('nextPageCustomers').disabled = customersPage >= totalPages;
         }
     } catch (error) {
-        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center">Error: ${escapeClientCell(error.message)}</td></tr>`;
+        list.innerHTML = `<p class="customers-list-empty">Erro: ${escapeClientCell(error.message)}</p>`;
     }
 }
 function changePageCustomers(delta) {
@@ -2673,6 +2748,7 @@ async function inspectCustomer(id) {
         html += `<div class="customer-view-card" style="background:var(--bg-light,#f6f7f9);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
             <p style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Cadastro</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 16px;font-size:14px;">
+                <div><span style="color:var(--sf-muted,#666)">ID</span><br><strong title="${escapeClientCell(String(customer.id || ''))}">#${escapeClientCell(shortRefId(customer.id))}</strong></div>
                 <div><span style="color:var(--sf-muted,#666)">Tipo</span><br><strong>${escapeClientCell(typeLabel)}</strong></div>
                 <div><span style="color:var(--sf-muted,#666)">Preços</span><br><strong>${escapeClientCell(pricingLabel)}</strong></div>
                 ${isOrg ? `<div><span style="color:var(--sf-muted,#666)">Empresa</span><br><strong>${z(customer.name)}</strong></div><div><span style="color:var(--sf-muted,#666)">Contato responsável</span><br><strong>${z(customer.responsible_name)}</strong></div>` : ''}
@@ -2690,7 +2766,7 @@ async function inspectCustomer(id) {
             const L = lead_insight.lead;
             const pipe = L.pipeline_stage_name || L.pipeline_stage_slug || '—';
             html += `<div class="customer-view-card" style="border:1px solid rgba(26,32,54,.12);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
-                <p style="margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Origem — Lead #${L.id}</p>
+                <p style="margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Origem — Lead · ${escapeClientCell(shortRefId(L.id))}</p>
                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 16px;font-size:14px;">
                     <div><span style="color:var(--sf-muted,#666)">Nome</span><br><strong>${z(L.name)}</strong></div>
                     <div><span style="color:var(--sf-muted,#666)">Email</span><br><strong>${z(L.email)}</strong></div>
