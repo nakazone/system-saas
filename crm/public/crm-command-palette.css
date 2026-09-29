@@ -1,3 +1,5 @@
+/* Command palette — ⌘K / top-bar search (records + "Ir para") */
+
 #crmCmdPalette {
   position: fixed;
   inset: 0;
@@ -5,24 +7,30 @@
   display: none;
   align-items: flex-start;
   justify-content: center;
-  padding: 8vh 1rem 2rem;
-  background: rgba(26, 32, 54, 0.45);
+  padding: 10vh 1rem 2rem;
+  background: rgba(28, 25, 23, 0.42);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  font-family: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
 }
 
 #crmCmdPalette.crm-cmd-palette--open {
   display: flex;
 }
 
-.crm-cmd-palette__panel {
-  width: min(520px, 100%);
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.2);
-  border: 1px solid #e2e8f0;
+html.crm-cmd-palette-lock,
+html.crm-cmd-palette-lock body {
   overflow: hidden;
-  animation: crmCmdIn 0.18s ease-out;
+}
+
+.crm-cmd-palette__panel {
+  width: min(600px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(28, 25, 23, 0.24);
+  border: 1px solid var(--plab-line, #e7e5e4);
+  overflow: hidden;
+  animation: crmCmdIn 0.16s ease-out;
 }
 
 @keyframes crmCmdIn {
@@ -36,66 +44,196 @@
   }
 }
 
-.crm-cmd-palette__head {
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+@media (prefers-reduced-motion: reduce) {
+  .crm-cmd-palette__panel {
+    animation: none;
+  }
 }
 
-.crm-cmd-palette__head kbd {
-  font-size: 0.65rem;
-  padding: 0.15rem 0.35rem;
-  border-radius: 4px;
-  background: #f1f5f9;
-  color: #64748b;
+.crm-cmd-palette__head {
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--plab-line, #e7e5e4);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.crm-cmd-palette__glass {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--plab-muted, #78716c);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.crm-cmd-palette__head kbd,
+.crm-cmd-palette__close {
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.22rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--plab-line, #e7e5e4);
+  background: var(--plab-soft, #f5f4f2);
+  color: var(--plab-muted, #78716c);
+  cursor: pointer;
 }
 
 .crm-cmd-palette__input {
   flex: 1;
   border: none;
-  font-size: 0.95rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--plab-ink, #1c1917);
+  background: transparent;
   outline: none;
   min-width: 0;
 }
 
+.crm-cmd-palette__input::-webkit-search-cancel-button {
+  display: none;
+}
+
 .crm-cmd-palette__list {
-  max-height: min(50vh, 360px);
+  max-height: min(60vh, 440px);
   overflow-y: auto;
-  padding: 0.35rem;
+  padding: 0.35rem 0.4rem 0.5rem;
+  overscroll-behavior: contain;
+}
+
+.crm-cmd-palette__group {
+  margin: 0.55rem 0.6rem 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--plab-faint, #a8a29e);
 }
 
 .crm-cmd-palette__item {
-  display: block;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.6rem;
+  align-items: center;
   width: 100%;
   text-align: left;
-  padding: 0.65rem 0.85rem;
+  padding: 0.6rem 0.7rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
-  font-size: 0.875rem;
-  color: #1e293b;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--plab-ink, #1c1917);
   cursor: pointer;
-  transition: background 0.12s ease;
 }
 
-.crm-cmd-palette__item:hover,
-.crm-cmd-palette__item:focus {
-  background: #f1f5f9;
-  outline: none;
+.crm-cmd-palette__item strong {
+  grid-column: 2;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .crm-cmd-palette__item span {
+  grid-column: 2;
   display: block;
-  font-size: 0.7rem;
-  color: #64748b;
-  margin-top: 0.15rem;
+  font-size: 0.74rem;
+  color: var(--plab-muted, #78716c);
+  margin-top: 0.1rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.crm-cmd-palette__empty {
-  padding: 1.5rem;
+.crm-cmd-palette__item:not(:has(.crm-cmd-palette__type)) strong,
+.crm-cmd-palette__item:not(:has(.crm-cmd-palette__type)) span {
+  grid-column: 1 / -1;
+}
+
+.crm-cmd-palette__item.is-active,
+.crm-cmd-palette__item:focus-visible {
+  background: var(--plab-accent-soft, #fff4eb);
+  outline: none;
+}
+
+.crm-cmd-palette__type {
+  grid-row: 1 / span 2;
+  font-style: normal;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.45rem;
+  border-radius: 6px;
+  min-width: 3.9rem;
   text-align: center;
-  color: #94a3b8;
-  font-size: 0.85rem;
+  background: var(--plab-soft, #f5f4f2);
+  color: var(--plab-muted, #78716c);
+}
+
+.crm-cmd-palette__type.is-lead {
+  background: #fff1e6;
+  color: #b4531b;
+}
+
+.crm-cmd-palette__type.is-customer {
+  background: #eef4ec;
+  color: #3f6b3a;
+}
+
+.crm-cmd-palette__type.is-quote {
+  background: #f3edf8;
+  color: #6b3f8a;
+}
+
+.crm-cmd-palette__type.is-job {
+  background: #eaf1f7;
+  color: #2f5d85;
+}
+
+.crm-cmd-palette__hint,
+.crm-cmd-palette__empty {
+  padding: 0.7rem 0.75rem 0.8rem;
+  color: var(--plab-muted, #78716c);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 640px) {
+  #crmCmdPalette {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .crm-cmd-palette__panel {
+    width: 100%;
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .crm-cmd-palette__head {
+    padding: 0.8rem 0.9rem;
+  }
+
+  .crm-cmd-palette__input {
+    font-size: 16px; /* no iOS zoom on focus */
+  }
+
+  .crm-cmd-palette__list {
+    max-height: none;
+    flex: 1;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .crm-cmd-palette__item {
+    padding: 0.75rem 0.7rem;
+  }
 }

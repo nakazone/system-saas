@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260925-field2";
+  const SHELL_VER = "20260929-dash1";
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -457,6 +457,10 @@
   }
 
   function openSearch() {
+    if (window.__crmCommandPalette && typeof window.__crmCommandPalette.open === "function") {
+      window.__crmCommandPalette.open();
+      return;
+    }
     if (typeof window.openCrmCommandPalette === "function") {
       window.openCrmCommandPalette();
       return;

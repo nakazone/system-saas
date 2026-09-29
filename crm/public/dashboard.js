@@ -233,9 +233,11 @@ fetch('/api/auth/session', { credentials: 'include' })
         }
         const goRoutedPage = () => {
             if (pageParam === 'customers') {
-                const tp = new URLSearchParams(window.location.search).get('type');
+                const qp = new URLSearchParams(window.location.search);
+                const tp = qp.get('type');
                 customersTypeFilter = tp === 'builder' ? 'builder' : '';
-                customersSearchFilter = '';
+                // ?q= comes from the global search (⌘K) result for a customer
+                customersSearchFilter = (qp.get('q') || '').trim();
                 showPage('customers');
             } else if (routePage && document.querySelector(`#dashboardSidebar [data-page="${routePage}"]`)) {
                 showPage(routePage);

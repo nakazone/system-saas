@@ -410,7 +410,7 @@
     }
     const sn = document.getElementById('sidebarUserName');
     if (!sn || !user) return;
-    const disp = (user.name && String(user.name).trim()) || user.email || 'Utilizador';
+    const disp = (user.name && String(user.name).trim()) || user.email || 'Usuário';
     sn.textContent = disp;
     const sr = document.getElementById('sidebarUserRole');
     if (sr) sr.textContent = role ? String(role) : '';

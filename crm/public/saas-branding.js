@@ -5,6 +5,11 @@
  * Colors also come from /api/branding.css.
  */
 (function () {
+  // mount.ts injects this script into every CRM page and many pages also include it
+  // statically — run once so /api/branding is fetched a single time per page.
+  if (window.__saasBrandingBooted) return;
+  window.__saasBrandingBooted = true;
+
   var DEFAULT_LOGO = "/assets/obramate-logo.png";
   var DEFAULT_NAME = "ObraMate";
   /** Square mark for tab / PWA / home-screen / sidebar — never use the wordmark here */

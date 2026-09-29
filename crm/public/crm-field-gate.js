@@ -4,6 +4,53 @@
  * - Desktop → funcionario.html (PC shell), never pipeline/office CRM
  */
 (function (global) {
+  /**
+   * Session request coalescing.
+   * Shell, nav, account menu, mobile nav and the page script each call
+   * GET /api/auth/session on load (8–10 identical requests per page). They now
+   * share one in-flight response for a few seconds; any POST to /api/auth/*
+   * (login, logout, workspace switch) drops the cached copy.
+   */
+  if (typeof global.fetch === "function" && !global.__omSessionCoalesce) {
+    const SESSION_RE = /^(?:https?:\/\/[^/]+)?\/api\/auth\/session(?:[?#].*)?$/;
+    const AUTH_RE = /^(?:https?:\/\/[^/]+)?\/api\/auth\//;
+    const TTL_MS = 10000;
+    const nativeFetch = global.fetch.bind(global);
+    let shared = null;
+    let sharedAt = 0;
+    global.__omSessionCoalesce = true;
+    global.__omSessionReset = function () {
+      shared = null;
+    };
+    global.fetch = function (input, init) {
+      let url = "";
+      let method = "GET";
+      try {
+        url = typeof input === "string" ? input : (input && input.url) || String(input || "");
+        method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
+      } catch (_) {}
+      if (method === "GET" && SESSION_RE.test(url)) {
+        const now = Date.now();
+        if (!shared || now - sharedAt > TTL_MS) {
+          sharedAt = now;
+          shared = nativeFetch(input, init).then(
+            (res) => {
+              if (!res.ok) shared = null;
+              return res;
+            },
+            (err) => {
+              shared = null;
+              throw err;
+            },
+          );
+        }
+        return shared.then((res) => res.clone());
+      }
+      if (method !== "GET" && AUTH_RE.test(url)) shared = null;
+      return nativeFetch(input, init);
+    };
+  }
+
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const CAMPO_HOME = "/campo/hoje.html";
   const DESKTOP_HOME = "/funcionario.html";
