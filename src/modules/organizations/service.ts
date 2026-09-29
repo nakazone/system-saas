@@ -76,6 +76,7 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
     await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${organization.id}, true)`;
 
     const roleRecords: Record<string, string> = {};
+    const rolePermissionRows: { roleId: string; permissionId: string }[] = [];
     for (const [roleKey, permKeys] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
       const meta = DEFAULT_ROLE_META[roleKey];
       const role = await tx.role.create({
@@ -92,10 +93,12 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
       for (const key of permKeys) {
         const permission = permissionByKey.get(key);
         if (!permission) continue;
-        await tx.rolePermission.create({
-          data: { roleId: role.id, permissionId: permission.id },
-        });
+        rolePermissionRows.push({ roleId: role.id, permissionId: permission.id });
       }
+    }
+
+    if (rolePermissionRows.length) {
+      await tx.rolePermission.createMany({ data: rolePermissionRows });
     }
 
     const admin = await tx.user.create({
@@ -166,5 +169,9 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
     await seedDefaultPaymentTemplates(tx as never, organization.id);
 
     return { organization, admin };
+  }, {
+    // Role/permission bootstrap is many round-trips; tunnels/remote DBs need more headroom.
+    maxWait: 60_000,
+    timeout: 180_000,
   });
 }

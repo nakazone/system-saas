@@ -119,7 +119,12 @@ export async function resolveTenant(
     const host = req.get("host") ?? "";
     const subdomain = extractSubdomain(host, env.APP_ROOT_DOMAIN);
 
-    if (req.path === "/health" || req.path.startsWith("/public/")) {
+    if (
+      req.path === "/health" ||
+      req.path.startsWith("/public/") ||
+      req.path === "/api/receive-lead" ||
+      req.path === "/api/receive-lead-batch"
+    ) {
       req.isPublicHost = true;
       next();
       return;

@@ -19,6 +19,7 @@ import { authRouter } from "./modules/auth/routes.js";
 import { publicEmailLogin } from "./modules/auth/public-login.js";
 import { usersRouter, invitationsRouter } from "./modules/users/routes.js";
 import { leadsRouter, pipelineRouter } from "./modules/leads/routes.js";
+import { publicReceiveLeadRouter } from "./modules/leads/public-receive.js";
 import { customersRouter } from "./modules/customers/routes.js";
 import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { invoicesRouter } from "./modules/invoices/routes.js";
@@ -184,6 +185,9 @@ export function createApp() {
   app.use("/public/invoices", publicInvoicesRouter);
   app.use("/public/jobs", publicJobsRouter);
   app.use("/public/portfolio", publicPortfolioRouter);
+
+  // Public LP / Meta lead intake (tenant via slug header/query/subdomain — no session)
+  app.use(publicReceiveLeadRouter);
 
   app.use(resolveTenant);
 
