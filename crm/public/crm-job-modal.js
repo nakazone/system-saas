@@ -5,7 +5,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260929-jobtabs1";
+  const CSS_HREF = "crm-job-modal.css?v=20260929-jobresp1";
   let editingId = null;
   let editSection = "all";
   /** Active accordion panel when editSection === "all" */
@@ -77,7 +77,11 @@
     wrap.innerHTML = `
 <div class="jobs-modal-backdrop" id="jobModalBackdrop"></div>
 <div class="jobs-modal" id="jobModal" role="dialog" aria-modal="true" aria-labelledby="jobModalTitle">
-  <h2 id="jobModalTitle">Novo job</h2>
+  <div class="jobs-modal__grab" aria-hidden="true"></div>
+  <header class="jobs-modal__head">
+    <h2 id="jobModalTitle">Novo job</h2>
+    <button type="button" class="jobs-modal__close" id="btnCloseJobModal" aria-label="Fechar">×</button>
+  </header>
   <nav class="jobs-modal-tabs" id="jobModalTabs" role="tablist" aria-label="Secções do job" hidden>
     <button type="button" class="jobs-modal-tab" role="tab" data-job-panel="details" aria-selected="true">Detalhes</button>
     <button type="button" class="jobs-modal-tab" role="tab" data-job-panel="schedule" aria-selected="false">Agenda</button>
@@ -86,6 +90,7 @@
     <button type="button" class="jobs-modal-tab" role="tab" data-job-panel="notes" aria-selected="false">Notas</button>
   </nav>
   <form class="jobs-form" id="jobForm">
+    <div class="jobs-modal__scroll">
     <input type="hidden" id="jobId" />
     <div class="jobs-section" data-job-section="details">
       <label>Título *
@@ -186,6 +191,7 @@
       <label>Notas
         <textarea id="jobNotes" rows="3" maxlength="8000"></textarea>
       </label>
+    </div>
     </div>
     <div class="jobs-modal-actions">
       <a class="btn btn-secondary" id="btnViewJob" href="jobs.html" hidden>Abrir job</a>
@@ -800,6 +806,7 @@
     if (document.body.dataset.crmJobModalBound === "1") return;
     document.body.dataset.crmJobModalBound = "1";
     $("btnCancelJob").addEventListener("click", close);
+    $("btnCloseJobModal")?.addEventListener("click", close);
     $("jobModalBackdrop").addEventListener("click", close);
     $("btnCancelWo").addEventListener("click", cancelJob);
     $("jobForm").addEventListener("submit", saveJob);
