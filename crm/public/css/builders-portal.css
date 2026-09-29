@@ -907,10 +907,10 @@
 .bp-pricing-row__main {
   display: grid;
   grid-template-columns:
-    1.6rem minmax(8rem, 1.6fr) minmax(6.5rem, 0.9fr) minmax(4rem, 0.55fr)
-    minmax(4.2rem, 0.55fr) minmax(4.2rem, 0.55fr) minmax(4.6rem, 0.6fr)
-    2.4rem minmax(5.5rem, auto);
-  gap: 0.3rem 0.4rem;
+    1.6rem minmax(7.5rem, 1.45fr) minmax(5.8rem, 0.8fr) minmax(3.6rem, 0.45fr)
+    minmax(4rem, 0.5fr) minmax(4rem, 0.5fr) minmax(4rem, 0.5fr) minmax(4rem, 0.5fr)
+    2.2rem minmax(5.2rem, auto);
+  gap: 0.28rem 0.35rem;
   align-items: end;
 }
 .bp-pricing-row__toggle {
@@ -1051,9 +1051,9 @@
 @media (max-width: 1100px) {
   .bp-pricing-row__main {
     grid-template-columns:
-      1.5rem minmax(7rem, 1.4fr) minmax(5.5rem, 0.85fr) minmax(3.6rem, 0.5fr)
-      minmax(3.8rem, 0.5fr) minmax(3.8rem, 0.5fr) minmax(4.2rem, 0.55fr)
-      2.2rem minmax(5rem, auto);
+      1.5rem minmax(6.5rem, 1.3fr) minmax(5rem, 0.75fr) minmax(3.2rem, 0.4fr)
+      minmax(3.6rem, 0.45fr) minmax(3.6rem, 0.45fr) minmax(3.6rem, 0.45fr) minmax(3.6rem, 0.45fr)
+      2rem minmax(4.8rem, auto);
   }
 }
 @media (max-width: 820px) {

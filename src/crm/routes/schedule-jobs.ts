@@ -494,18 +494,31 @@ scheduleJobsRouter.get(
       });
       res.json({
         success: true,
-        data: rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          category: row.category,
-          unit: row.unit,
-          /** Loja / cliente final */
-          price_loja: dec(row.priceMin) || dec(row.price),
-          price_min: dec(row.priceMin),
-          price_max: dec(row.priceMax),
-          /** Builder / partner */
-          partner_price: row.partnerPrice != null ? dec(row.partnerPrice) : null,
-        })),
+        data: rows.map((row) => {
+          const priceParticular =
+            dec(row.priceParticular) || dec(row.priceMax) || dec(row.priceMin) || dec(row.price) || 0;
+          const priceBuilder =
+            dec(row.priceBuilder) ||
+            (row.partnerPrice != null ? dec(row.partnerPrice) : 0) ||
+            dec(row.priceMin) ||
+            0;
+          const priceContractor = dec(row.priceContractor) || priceBuilder;
+          const priceLoja = dec(row.priceLoja) || dec(row.priceMin) || dec(row.price) || 0;
+          return {
+            id: row.id,
+            name: row.name,
+            category: row.category,
+            unit: row.unit,
+            price_particular: priceParticular,
+            price_builder: priceBuilder,
+            price_contractor: priceContractor,
+            price_loja: priceLoja,
+            /** Legacy aliases kept for older clients */
+            price_min: priceLoja,
+            price_max: priceParticular,
+            partner_price: priceBuilder,
+          };
+        }),
       });
     } catch (error) {
       next(error);

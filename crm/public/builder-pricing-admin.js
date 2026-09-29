@@ -66,7 +66,7 @@
     const dis = adminCanEdit ? '' : ' disabled';
     const vis = Number(s.is_visible) === 1 || s.is_visible === true;
     const locked = Number(s.is_locked) === 1 || s.is_locked === true;
-    const partnerVal = s.partner_price != null && s.partner_price !== '' ? s.partner_price : '';
+    const moneyVal = (v) => (v != null && v !== '' ? v : '');
     const open = expandedId === s.id;
     const catLabel = CATEGORY_LABELS[s.category] || s.category || '—';
     return `<article class="bp-pricing-row${open ? ' is-open' : ''}${vis ? '' : ' is-hidden-svc'}" data-id="${escapeHtml(s.id)}">
@@ -92,16 +92,20 @@
           <input class="bp-pricing-input" data-f="unit" type="text" value="${escapeHtml(s.unit || '')}" placeholder="sq ft"${dis} />
         </label>
         <label class="bp-pricing-cell bp-pricing-cell--num">
-          <span class="bp-pricing-cell__lbl">Mín $</span>
-          <input class="bp-pricing-input" data-f="price_min" type="number" step="0.01" value="${s.price_min}"${dis} />
+          <span class="bp-pricing-cell__lbl">Particular</span>
+          <input class="bp-pricing-input" data-f="price_particular" type="number" step="0.01" value="${moneyVal(s.price_particular)}"${dis} />
         </label>
         <label class="bp-pricing-cell bp-pricing-cell--num">
-          <span class="bp-pricing-cell__lbl">Máx $</span>
-          <input class="bp-pricing-input" data-f="price_max" type="number" step="0.01" value="${s.price_max}"${dis} />
+          <span class="bp-pricing-cell__lbl">Builder</span>
+          <input class="bp-pricing-input" data-f="price_builder" type="number" step="0.01" value="${moneyVal(s.price_builder)}"${dis} />
+        </label>
+        <label class="bp-pricing-cell bp-pricing-cell--num">
+          <span class="bp-pricing-cell__lbl">Contractor</span>
+          <input class="bp-pricing-input" data-f="price_contractor" type="number" step="0.01" value="${moneyVal(s.price_contractor)}"${dis} />
         </label>
         <label class="bp-pricing-cell bp-pricing-cell--num bp-pricing-cell--partner">
-          <span class="bp-pricing-cell__lbl">Parceiro $</span>
-          <input class="bp-pricing-input" data-f="partner_price" type="number" step="0.01" value="${partnerVal}"${dis} />
+          <span class="bp-pricing-cell__lbl">Loja</span>
+          <input class="bp-pricing-input" data-f="price_loja" type="number" step="0.01" value="${moneyVal(s.price_loja)}"${dis} />
         </label>
         <label class="bp-pricing-cell bp-pricing-cell--check" title="Visível no portal">
           <span class="bp-pricing-cell__lbl">Vis.</span>

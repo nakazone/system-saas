@@ -5,7 +5,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260929-svcui1";
+  const CSS_HREF = "crm-job-modal.css?v=20260929-pricerates1";
   let editingId = null;
   let editSection = "all";
   /** Active accordion panel when editSection === "all" */
@@ -108,8 +108,10 @@
         </label>
         <label>Origem
           <select id="jobSourceType">
+            <option value="particular">Particular</option>
             <option value="builder">Builder</option>
             <option value="contractor">Contractor</option>
+            <option value="loja">Loja</option>
             <option value="internal">Internal</option>
             <option value="other">Other</option>
           </select>
@@ -179,7 +181,7 @@
           Serviços
           <span class="jobs-tip">
             <button type="button" class="jobs-tip__btn" aria-label="Ajuda: serviços">?</button>
-            <span class="jobs-tip__pop" role="tooltip">Ao escolher o serviço, quantidade e preço vêm da Tabela de Valores (preço Loja; se houver Builder no job, usa preço parceiro).</span>
+            <span class="jobs-tip__pop" role="tooltip">Ao escolher o serviço, quantidade e preço vêm da Tabela de Valores conforme a origem do job (Particular, Builder, Contractor ou Loja).</span>
           </span>
         </legend>
         <div id="jobServicesList" class="jobs-services-list"></div>
@@ -225,9 +227,12 @@
     return (Number(n) || 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
   }
 
-  function usePartnerPrice() {
-    // Partner rate only when a builder is actually linked (not just source type).
-    return Boolean($("jobBuilder")?.value);
+  function pricingRateKey() {
+    const src = String($("jobSourceType")?.value || "").toLowerCase();
+    if ($("jobBuilder")?.value || src === "builder") return "price_builder";
+    if (src === "contractor") return "price_contractor";
+    if (src === "loja" || src === "internal") return "price_loja";
+    return "price_particular";
   }
 
   function formatPricingUnit(unit) {
@@ -271,12 +276,19 @@
 
   function unitPriceForItem(item) {
     if (!item) return 0;
-    if (usePartnerPrice() && item.partner_price != null && item.partner_price !== "") {
-      const partner = Number(item.partner_price);
-      if (Number.isFinite(partner) && partner > 0) return partner;
-    }
-    const candidates = [item.price_loja, item.price_min, item.price_max, item.price];
-    for (const c of candidates) {
+    const key = pricingRateKey();
+    const preferred = Number(item[key]);
+    if (Number.isFinite(preferred) && preferred > 0) return preferred;
+    // Fallbacks for older catalog payloads / empty rates.
+    const fallbacks =
+      key === "price_builder"
+        ? [item.partner_price, item.price_contractor, item.price_loja, item.price_particular]
+        : key === "price_contractor"
+          ? [item.price_builder, item.partner_price, item.price_loja, item.price_particular]
+          : key === "price_loja"
+            ? [item.price_min, item.price_particular, item.price_builder]
+            : [item.price_max, item.price_loja, item.price_min, item.price_builder];
+    for (const c of fallbacks) {
       const n = Number(c);
       if (c != null && c !== "" && Number.isFinite(n) && n > 0) return n;
     }
@@ -751,7 +763,7 @@
     $("jobForm").reset();
     $("jobId").value = "";
     $("jobStatus").value = "scheduled";
-    $("jobSourceType").value = "builder";
+    $("jobSourceType").value = "particular";
     renderTeamCheckboxes([]);
     renderServices();
 

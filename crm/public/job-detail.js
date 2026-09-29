@@ -81,9 +81,18 @@
 
   function sourceLabel(wo) {
     const type = wo.source_type || "other";
+    const labels = {
+      particular: "Particular",
+      builder: "Builder",
+      contractor: "Contractor",
+      loja: "Loja",
+      internal: "Internal",
+      other: "Other",
+    };
+    const nice = labels[type] || type;
     const name = wo.source_name;
-    if (name) return `${type} · ${name}`;
-    return type;
+    if (name) return `${nice} · ${name}`;
+    return nice;
   }
 
   function render() {

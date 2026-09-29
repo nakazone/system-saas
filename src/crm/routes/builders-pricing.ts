@@ -29,6 +29,10 @@ function mapPricing(row: {
   priceMin: unknown;
   priceMax: unknown;
   partnerPrice: unknown;
+  priceParticular?: unknown;
+  priceBuilder?: unknown;
+  priceContractor?: unknown;
+  priceLoja?: unknown;
   notes: string | null;
   description: string | null;
   isVisible: boolean;
@@ -36,6 +40,14 @@ function mapPricing(row: {
   sortOrder: number;
   active: boolean;
 }) {
+  const priceParticular = dec(row.priceParticular) || dec(row.priceMax) || dec(row.priceMin) || dec(row.price);
+  const priceBuilder =
+    dec(row.priceBuilder) ||
+    (row.partnerPrice != null ? dec(row.partnerPrice) : 0) ||
+    dec(row.priceMin) ||
+    0;
+  const priceContractor = dec(row.priceContractor) || priceBuilder;
+  const priceLoja = dec(row.priceLoja) || dec(row.priceMin) || dec(row.price) || 0;
   return {
     id: row.id,
     name: row.name,
@@ -46,11 +58,35 @@ function mapPricing(row: {
     price_min: dec(row.priceMin),
     price_max: dec(row.priceMax),
     partner_price: row.partnerPrice != null ? dec(row.partnerPrice) : null,
+    price_particular: priceParticular,
+    price_builder: priceBuilder,
+    price_contractor: priceContractor,
+    price_loja: priceLoja,
     notes: row.notes || row.description,
     is_visible: row.isVisible ? 1 : 0,
     is_locked: row.isLocked ? 1 : 0,
     sort_order: row.sortOrder,
     active: row.active ? 1 : 0,
+  };
+}
+
+function parseOptionalMoney(v: unknown): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function syncLegacyFromTyped(rates: {
+  particular: number;
+  builder: number;
+  contractor: number;
+  loja: number;
+}) {
+  return {
+    priceMin: new Prisma.Decimal(rates.loja),
+    priceMax: new Prisma.Decimal(rates.particular),
+    partnerPrice: new Prisma.Decimal(rates.builder),
+    price: new Prisma.Decimal(rates.loja || rates.particular || rates.builder || 0),
   };
 }
 
@@ -272,9 +308,16 @@ buildersPricingRouter.post(
   async (req: AuthedRequest, res, next) => {
     try {
       const b = req.body || {};
-      const priceMin = Number(b.price_min != null ? b.price_min : b.price) || 0;
-      const priceMax = Number(b.price_max != null ? b.price_max : priceMin) || 0;
-      const partner = b.partner_price != null ? Number(b.partner_price) : null;
+      const legacyMin = Number(b.price_min != null ? b.price_min : b.price) || 0;
+      const legacyMax = Number(b.price_max != null ? b.price_max : legacyMin) || 0;
+      const legacyPartner = b.partner_price != null ? Number(b.partner_price) : null;
+      const rates = {
+        particular: parseOptionalMoney(b.price_particular) ?? (legacyMax || legacyMin),
+        builder: parseOptionalMoney(b.price_builder) ?? (legacyPartner ?? legacyMin),
+        contractor: parseOptionalMoney(b.price_contractor) ?? (legacyPartner ?? legacyMin),
+        loja: parseOptionalMoney(b.price_loja) ?? legacyMin,
+      };
+      const legacy = syncLegacyFromTyped(rates);
       const row = await withTenantTransaction(req.organizationId!, async (tx) =>
         tx.pricingItem.create({
           data: {
@@ -282,10 +325,11 @@ buildersPricingRouter.post(
             name: String(b.name || "New service"),
             category: String(b.category || "installation"),
             unit: String(b.unit || "sq_ft"),
-            price: new Prisma.Decimal(partner ?? priceMin),
-            priceMin: new Prisma.Decimal(priceMin),
-            priceMax: new Prisma.Decimal(priceMax),
-            partnerPrice: partner != null ? new Prisma.Decimal(partner) : null,
+            ...legacy,
+            priceParticular: new Prisma.Decimal(rates.particular),
+            priceBuilder: new Prisma.Decimal(rates.builder),
+            priceContractor: new Prisma.Decimal(rates.contractor),
+            priceLoja: new Prisma.Decimal(rates.loja),
             notes: b.notes || null,
             description: b.description || null,
             isVisible: b.is_visible === undefined ? true : Boolean(b.is_visible),
@@ -312,28 +356,58 @@ buildersPricingRouter.put(
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const existing = await tx.pricingItem.findFirst({ where: { id } });
         if (!existing) return null;
-        return tx.pricingItem.update({
-          where: { id },
-          data: {
-            name: b.name !== undefined ? String(b.name) : undefined,
-            category: b.category !== undefined ? String(b.category) : undefined,
-            unit: b.unit !== undefined ? String(b.unit) : undefined,
-            priceMin: b.price_min !== undefined ? new Prisma.Decimal(Number(b.price_min) || 0) : undefined,
-            priceMax: b.price_max !== undefined ? new Prisma.Decimal(Number(b.price_max) || 0) : undefined,
-            partnerPrice:
-              b.partner_price !== undefined
-                ? b.partner_price == null
-                  ? null
-                  : new Prisma.Decimal(Number(b.partner_price) || 0)
-                : undefined,
-            price: b.price !== undefined ? new Prisma.Decimal(Number(b.price) || 0) : undefined,
-            notes: b.notes !== undefined ? b.notes : undefined,
-            isVisible: b.is_visible !== undefined ? Boolean(b.is_visible) : undefined,
-            isLocked: b.is_locked !== undefined ? Boolean(b.is_locked) : undefined,
-            sortOrder: b.sort_order !== undefined ? Number(b.sort_order) || 0 : undefined,
-            active: b.active !== undefined ? Boolean(b.active) : undefined,
-          },
-        });
+
+        const hasTyped =
+          b.price_particular !== undefined ||
+          b.price_builder !== undefined ||
+          b.price_contractor !== undefined ||
+          b.price_loja !== undefined;
+
+        const data: Prisma.PricingItemUpdateInput = {
+          name: b.name !== undefined ? String(b.name) : undefined,
+          category: b.category !== undefined ? String(b.category) : undefined,
+          unit: b.unit !== undefined ? String(b.unit) : undefined,
+          notes: b.notes !== undefined ? b.notes : undefined,
+          isVisible: b.is_visible !== undefined ? Boolean(b.is_visible) : undefined,
+          isLocked: b.is_locked !== undefined ? Boolean(b.is_locked) : undefined,
+          sortOrder: b.sort_order !== undefined ? Number(b.sort_order) || 0 : undefined,
+          active: b.active !== undefined ? Boolean(b.active) : undefined,
+        };
+
+        if (hasTyped) {
+          const rates = {
+            particular:
+              parseOptionalMoney(b.price_particular) ??
+              (dec(existing.priceParticular) || dec(existing.priceMax) || 0),
+            builder:
+              parseOptionalMoney(b.price_builder) ??
+              (dec(existing.priceBuilder) ||
+                (existing.partnerPrice != null ? dec(existing.partnerPrice) : 0) ||
+                0),
+            contractor:
+              parseOptionalMoney(b.price_contractor) ??
+              (dec(existing.priceContractor) || dec(existing.priceBuilder) || 0),
+            loja:
+              parseOptionalMoney(b.price_loja) ??
+              (dec(existing.priceLoja) || dec(existing.priceMin) || 0),
+          };
+          Object.assign(data, syncLegacyFromTyped(rates), {
+            priceParticular: new Prisma.Decimal(rates.particular),
+            priceBuilder: new Prisma.Decimal(rates.builder),
+            priceContractor: new Prisma.Decimal(rates.contractor),
+            priceLoja: new Prisma.Decimal(rates.loja),
+          });
+        } else {
+          if (b.price_min !== undefined) data.priceMin = new Prisma.Decimal(Number(b.price_min) || 0);
+          if (b.price_max !== undefined) data.priceMax = new Prisma.Decimal(Number(b.price_max) || 0);
+          if (b.partner_price !== undefined) {
+            data.partnerPrice =
+              b.partner_price == null ? null : new Prisma.Decimal(Number(b.partner_price) || 0);
+          }
+          if (b.price !== undefined) data.price = new Prisma.Decimal(Number(b.price) || 0);
+        }
+
+        return tx.pricingItem.update({ where: { id }, data });
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Pricing item not found" });
