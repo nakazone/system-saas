@@ -6,6 +6,8 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { notifyNewLeadPush } from "../../lib/push/notify.js";
+import { WON_QUOTE_STATUSES } from "../../lib/dashboard/overview.js";
+import { safeTimeZone, startOfZonedDay, startOfZonedMonth } from "../../lib/time/zoned.js";
 
 export const dashboardLeadsRouter = Router();
 
@@ -940,21 +942,32 @@ dashboardLeadsRouter.delete("/api/leads/:id", requireCrmAuth, async (req: Authed
 dashboardLeadsRouter.get("/api/dashboard/stats", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const period = String(req.query.period || "month").toLowerCase();
+    // Period boundaries follow the organization's timezone (the server runs in UTC).
+    const tz = safeTimeZone(req.organization?.timezone);
     const stats = await withTenantTransaction(req.organizationId!, async (tx) => {
       const now = new Date();
+      const todayStart = startOfZonedDay(now, tz);
       let since: Date | null = null;
       if (period === "today") {
-        since = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        since = todayStart;
       } else if (period === "week") {
         since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       } else if (period === "overall") {
         since = null;
       } else {
-        since = new Date(now.getFullYear(), now.getMonth(), 1);
+        since = startOfZonedMonth(now, tz);
       }
 
       const leadWhere = since ? { createdAt: { gte: since } } : {};
       const quoteWhere = since ? { createdAt: { gte: since } } : {};
+      // A quote is "won" when approved/converted (legacy: accepted/invoiced); it counts in
+      // the period it was signed (fallback: last update), not when it was created.
+      const wonWhere = {
+        status: { in: [...WON_QUOTE_STATUSES] },
+        ...(since
+          ? { OR: [{ signedAt: { gte: since } }, { signedAt: null, updatedAt: { gte: since } }] }
+          : {}),
+      };
 
       const [
         leadsTotal,
@@ -970,20 +983,11 @@ dashboardLeadsRouter.get("/api/dashboard/stats", requireCrmAuth, async (req: Aut
         lostStage,
       ] = await Promise.all([
         tx.lead.count({ where: leadWhere }),
-        tx.lead.count({
-          where: {
-            createdAt: {
-              gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-            },
-          },
-        }),
+        tx.lead.count({ where: { createdAt: { gte: todayStart } } }),
         tx.customer.count(),
         tx.quote.count({ where: quoteWhere }),
-        tx.quote.count({ where: { ...quoteWhere, status: { in: ["accepted", "invoiced"] } } }),
-        tx.quote.aggregate({
-          where: { status: { in: ["accepted", "invoiced", "sent"] } },
-          _sum: { total: true },
-        }),
+        tx.quote.count({ where: wonWhere }),
+        tx.quote.aggregate({ where: wonWhere, _sum: { total: true } }),
         tx.pipelineStage.findMany({
           where: { isActive: true },
           orderBy: { order: "asc" },
@@ -1056,6 +1060,7 @@ dashboardLeadsRouter.get("/api/dashboard/stats", requireCrmAuth, async (req: Aut
         leads_in_proposal: 0,
         proposals_sent: stats.quotesTotal,
         proposals_open_count: Math.max(0, stats.quotesTotal - stats.quotesAccepted),
+        /** Won quote value in the period (was: sum of sent+accepted quotes, all time). */
         proposals_open_value: 0,
         closed_won_count: stats.closedWon,
         closed_won_value: stats.quoteSum,
@@ -1073,6 +1078,11 @@ dashboardLeadsRouter.get("/api/dashboard/stats", requireCrmAuth, async (req: Aut
           stats.closedWon + stats.closedLost > 0
             ? Math.round((stats.closedWon / (stats.closedWon + stats.closedLost)) * 1000) / 10
             : 0,
+        // Alias read by older dashboard scripts (pipeline-lab.js used `win_rate`).
+        win_rate:
+          stats.closedWon + stats.closedLost > 0
+            ? Math.round((stats.closedWon / (stats.closedWon + stats.closedLost)) * 1000) / 10
+            : null,
         proposal_wins: stats.closedWon,
         proposal_losses: stats.closedLost,
         avg_deal_value:

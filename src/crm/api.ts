@@ -4,6 +4,7 @@
  */
 import { Router } from "express";
 import { dashboardLeadsRouter } from "./routes/dashboard-leads.js";
+import { dashboardOverviewRouter } from "./routes/dashboard-overview.js";
 import { customersQuotesRouter } from "./routes/customers-quotes.js";
 import { buildersPricingRouter } from "./routes/builders-pricing.js";
 import { cadastroPayrollUsersRouter } from "./routes/cadastro-payroll-users.js";
@@ -29,6 +30,7 @@ crmApiRouter.use(supportRouter);
 crmApiRouter.use(pushRouter);
 crmApiRouter.use(scheduleJobsRouter);
 crmApiRouter.use(financeRouter);
+crmApiRouter.use(dashboardOverviewRouter);
 crmApiRouter.use(dashboardLeadsRouter);
 crmApiRouter.use(customersQuotesRouter);
 crmApiRouter.use(buildersPricingRouter);

@@ -16,6 +16,8 @@ export type TenantRequest = Request & {
     accentColor: string | null;
     contactEmail: string | null;
     contactPhone: string | null;
+    /** IANA timezone (dashboard "today" / "this month" boundaries). */
+    timezone?: string | null;
   };
   isPlatformAdminHost?: boolean;
   isPublicHost?: boolean;
@@ -73,6 +75,7 @@ async function loadOrganizationBySlug(slug: string) {
       accentColor: true,
       contactEmail: true,
       contactPhone: true,
+      timezone: true,
     },
   });
 }
@@ -90,6 +93,7 @@ async function loadOrganizationById(id: string) {
       accentColor: true,
       contactEmail: true,
       contactPhone: true,
+      timezone: true,
     },
   });
 }
