@@ -35,7 +35,9 @@
   }
 
   body.om-device-mobile.lead-detail-mobile .om-tabbar,
-  body.om-device-mobile.lead-detail-mobile .om-dock {
+  body.om-device-mobile.lead-detail-mobile .om-dock,
+  body.om-device-mobile.lead-detail-mobile .om-app-top {
+    /* The lead screen has its own header (Voltar · Lead · ⋯); the shared top bar covered it. */
     display: none !important;
   }
 
@@ -577,4 +579,49 @@
   .nls-grab {
     display: none;
   }
+}
+
+/* "Lead já existe" notice — quick sheet and desktop "Novo Lead" modal */
+.lead-dup-notice {
+  margin: 0.25rem 0 0.9rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: #fdf3dc;
+  border: 1px solid #f3dca4;
+  color: #7a4d06;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.lead-dup-notice p {
+  margin: 0 0 0.55rem;
+}
+
+.lead-dup-notice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.nls-dup-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #e0d6c8;
+  background: #fff;
+  color: #1c1917;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nls-dup-btn--primary {
+  border-color: transparent;
+  background: var(--mld-accent, #e8792c);
+  color: #fff;
 }

@@ -19,6 +19,20 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
   <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp11" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="om-device.js?v=20260925-device1"></script>
+  <script>
+    // Phones/tablets: the Kanban board is desktop-only (it rendered shifted and cut off).
+    // Send them to the mobile Leads tab, keeping a search term if one was passed.
+    (function () {
+      if (!window.__omDevice || !window.__omDevice.isMobile()) return;
+      try {
+        var q = new URLSearchParams(location.search).get("q");
+        if (q) sessionStorage.setItem("obramate_home_search", q);
+      } catch (e) {}
+      location.replace("pipeline-lab.html");
+    })();
+  </script>
+  <link rel="stylesheet" href="lead-mobile.css?v=20260929-leads1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed">
   <script>
@@ -72,7 +86,7 @@
           <h1>Leads</h1>
           <div class="mod-page-header__actions">
             <a class="btn btn-secondary" href="schedule.html">Schedule</a>
-            <button type="button" class="btn btn-primary" id="btnNewLead" data-crm-permission="leads.view">Novo lead</button>
+            <button type="button" class="btn btn-primary" id="btnNewLead" data-crm-permission="leads.create">Novo lead</button>
           </div>
         </div>
 
@@ -152,18 +166,18 @@
             <input type="text" name="name" required>
           </div>
           <div class="form-group">
-            <label>Email *</label>
-            <input type="email" name="email" required>
+            <label>Email</label>
+            <input type="email" name="email" autocomplete="off">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Telefone *</label>
-            <input type="tel" name="phone" required>
+            <label>Telefone</label>
+            <input type="tel" name="phone" inputmode="tel" autocomplete="off">
           </div>
           <div class="form-group">
-            <label>CEP *</label>
-            <input type="text" name="zipcode" pattern="[0-9]{5}" required>
+            <label>CEP</label>
+            <input type="text" name="zipcode" pattern="[0-9]{5}" inputmode="numeric" maxlength="5">
           </div>
         </div>
         <div class="form-row">
@@ -372,7 +386,7 @@
   <script src="crm-shared-nav.js?v=20260929-cadmenu1"></script>
   <script src="crm-shell.js?v=20260925-device1"></script>
   <script src="om-mobile-nav.js?v=20260929-obranames1"></script>
-  <script src="novo-lead-sheet.js?v=20260925-leadui1"></script>
+  <script src="novo-lead-sheet.js?v=20260929-leads1"></script>
   <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
   <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
   <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
@@ -380,7 +394,7 @@
   <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
   <script src="lead-quote-engagement-icons.js?v=20260528-badge-check-x"></script>
   <script src="lead-quick-sheet.js?v=20260924-visit3"></script>
-  <script src="leads-kanban.js?v=20260929-perm2"></script>
+  <script src="leads-kanban.js?v=20260929-leads1"></script>
   <script src="leads-page.js?v=20260924-modpanel"></script>
 </body>
 </html>

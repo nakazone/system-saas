@@ -1497,6 +1497,13 @@ function mldStageLabel_(stage) {
   return stage.name || stage.slug || '—';
 }
 
+/** Lead stage in the Kanban's canonical slugs ("assessment_scheduled" → "meeting_scheduled", "new" → "new_lead"). */
+function mldCurrentSlug_() {
+  const raw = String((currentLead && (currentLead.status || currentLead.pipeline_stage_slug)) || '').trim();
+  const canon = typeof normalizePipelineSlug === 'function' ? normalizePipelineSlug(raw) : raw;
+  return String(canon || '').toLowerCase();
+}
+
 function mldVisibleStages_() {
   return (mldStages || []).filter((s) => {
     const slug = String(s.slug || '').toLowerCase();
@@ -1533,14 +1540,17 @@ function mldParseFloorArea_(lead) {
 
 function mldNextStage_() {
   const stages = mldVisibleStages_();
-  const cur = String(currentLead && currentLead.status || '').toLowerCase();
+  const cur = mldCurrentSlug_();
   const idx = stages.findIndex((s) => String(s.slug || '').toLowerCase() === cur);
-  if (idx < 0) return stages[0] || null;
+  // Unknown or closed (Lost) stage: never offer a move — it used to jump back to "New Lead".
+  if (idx < 0) return null;
   return stages[idx + 1] || null;
 }
 
 async function mldSetStage_(slug) {
   if (!slug || !currentLeadId) return;
+  if (String(slug).toLowerCase() === mldCurrentSlug_()) return;
+  if (String(slug).toLowerCase() === 'won' && !confirm('Marcar este lead como ganho (Won)?')) return;
   try {
     const res = await fetch(`/api/leads/${currentLeadId}`, {
       method: 'PUT',
@@ -1550,7 +1560,8 @@ async function mldSetStage_(slug) {
     });
     const data = await res.json();
     if (data.success) {
-      currentLead.status = slug;
+      currentLead.status = (data.data && data.data.status) || slug;
+      currentLead.pipeline_stage_slug = data.data && data.data.pipeline_stage_slug;
       const select = document.getElementById('leadStatusSelect');
       if (select) select.value = slug;
       renderMobileLeadDetail_();
@@ -1568,9 +1579,11 @@ function renderMobileLeadDetail_() {
   const { floor, area } = mldParseFloorArea_(currentLead);
   const subParts = [floor, area].filter(Boolean);
   const stages = mldVisibleStages_();
-  const curSlug = String(currentLead.status || '').toLowerCase();
-  const curIdx = Math.max(0, stages.findIndex((s) => String(s.slug || '').toLowerCase() === curSlug));
-  const curStage = stages[curIdx] || stages.find((s) => String(s.slug || '').toLowerCase() === curSlug);
+  const curSlug = mldCurrentSlug_();
+  const foundIdx = stages.findIndex((s) => String(s.slug || '').toLowerCase() === curSlug);
+  const curIdx = Math.max(0, foundIdx);
+  const curStage =
+    foundIdx >= 0 ? stages[foundIdx] : (mldStages || []).find((s) => String(s.slug || '').toLowerCase() === curSlug);
   const color = (curStage && curStage.color) || getStatusColor(currentLead.status) || '#7c3aed';
 
   const avatar = document.getElementById('mldAvatar');
@@ -1609,8 +1622,15 @@ function renderMobileLeadDetail_() {
     }
   }
   const schedule = document.getElementById('mldSchedule');
-  if (schedule) {
-    schedule.href = 'schedule.html';
+  if (schedule && !schedule.dataset.mldBound) {
+    schedule.dataset.mldBound = '1';
+    // Open the visit form for this lead (it used to open the generic Schedule and lose the lead).
+    schedule.href = '#';
+    schedule.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (typeof showNewVisitModal === 'function') void showNewVisitModal();
+      else location.href = 'schedule.html';
+    });
   }
   const quote = document.getElementById('mldQuoteBtn');
   if (quote) {
@@ -1618,12 +1638,12 @@ function renderMobileLeadDetail_() {
   }
 
   const meta = document.getElementById('mldEtapaMeta');
-  if (meta) meta.textContent = stages.length ? (curIdx + 1) + ' de ' + stages.length : '—';
+  if (meta) meta.textContent = stages.length && foundIdx >= 0 ? (curIdx + 1) + ' de ' + stages.length : curSlug === 'lost' ? 'Perdido' : '—';
   const progress = document.getElementById('mldProgress');
   if (progress) {
     progress.style.setProperty('--mld-steps', String(Math.max(stages.length, 1)));
     progress.innerHTML = stages
-      .map((_, i) => `<span class="mld-progress__seg${i <= curIdx ? ' is-on' : ''}"></span>`)
+      .map((_, i) => `<span class="mld-progress__seg${foundIdx >= 0 && i <= curIdx ? ' is-on' : ''}"></span>`)
       .join('');
   }
   const chips = document.getElementById('mldStageChips');

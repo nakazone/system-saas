@@ -4,7 +4,7 @@
 (function () {
   const FLOOR_TYPES = ["Hardwood", "Vinyl (LVP)", "Laminate", "Tile", "Carpet"];
   const SOURCES = ["Website", "Indicação", "Google", "Instagram", "Manual"];
-  const VER = "20260925-leadui1";
+  const VER = "20260929-leads1";
 
   let floorType = "Hardwood";
   let source = "Website";
@@ -104,7 +104,10 @@
     floorType = "Hardwood";
     source = "Website";
     const form = document.getElementById("nlsForm");
-    if (form) form.reset();
+    if (form) {
+      form.reset();
+      form.querySelector(".lead-dup-notice")?.remove();
+    }
     const floorHost = document.getElementById("nlsFloorChips");
     const sourceHost = document.getElementById("nlsSourceChips");
     if (floorHost) floorHost.innerHTML = chipsHtml(FLOOR_TYPES, floorType, "floor");
@@ -123,8 +126,8 @@
     document.body.classList.remove("nls-open");
   }
 
-  async function onSubmit(e) {
-    e.preventDefault();
+  async function onSubmit(e, force) {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
     const name = (document.getElementById("nlsName")?.value || "").trim();
     const phone = (document.getElementById("nlsPhone")?.value || "").trim();
     const areaRaw = (document.getElementById("nlsArea")?.value || "").trim();
@@ -151,7 +154,9 @@
         message: messageParts.join(" · "),
         status: "new_lead",
         priority: "medium",
-        notes: area && Number.isFinite(area) ? `Área aproximada: ${Math.round(area)} sq ft` : null,
+        // Area already goes in `message` ("Hardwood · 850 sq ft"); notes duplicated it.
+        notes: null,
+        check_duplicates: !force,
       };
       const res = await fetch("/api/leads", {
         method: "POST",
@@ -160,6 +165,10 @@
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.error === "duplicate_lead") {
+        showDuplicate(data);
+        return;
+      }
       if (!res.ok || data.success === false) {
         throw new Error(data.error || `Erro ${res.status}`);
       }
@@ -174,6 +183,38 @@
     } finally {
       if (submit) submit.disabled = false;
     }
+  }
+
+  function showDuplicate(data) {
+    const form = document.getElementById("nlsForm");
+    if (!form) return;
+    let box = form.querySelector(".lead-dup-notice");
+    if (!box) {
+      box = document.createElement("div");
+      box.className = "lead-dup-notice";
+      box.setAttribute("role", "alert");
+      form.insertBefore(box, document.getElementById("nlsSubmit"));
+    }
+    const dup = data.duplicate || {};
+    const p = document.createElement("p");
+    p.textContent = data.message || "Já existe um lead com estes dados.";
+    box.replaceChildren(p);
+    const actions = document.createElement("div");
+    actions.className = "lead-dup-notice__actions";
+    const open = document.createElement("a");
+    open.className = "nls-dup-btn";
+    open.href = "lead-detail.html?id=" + encodeURIComponent(String(dup.id || ""));
+    open.textContent = "Abrir lead existente";
+    const force = document.createElement("button");
+    force.type = "button";
+    force.className = "nls-dup-btn nls-dup-btn--primary";
+    force.textContent = "Criar mesmo assim";
+    force.addEventListener("click", () => {
+      box.remove();
+      onSubmit(null, true);
+    });
+    actions.append(open, force);
+    box.appendChild(actions);
   }
 
   function openNewLead(opts) {

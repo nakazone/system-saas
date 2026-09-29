@@ -894,10 +894,46 @@ function showNewLeadModal() {
 }
 
 // Create Lead Manually
-async function createLeadManual(e) {
-    e.preventDefault();
-    const form = e.target;
+/**
+ * Inline "lead já existe" notice inside a new-lead form (409 duplicate_lead from POST /api/leads).
+ * Offers "Abrir lead existente" or "Criar mesmo assim" (calls onForce).
+ */
+function showLeadDuplicateNotice(form, payload, onForce) {
+    if (!form) return;
+    let box = form.querySelector('.lead-dup-notice');
+    if (!box) {
+        box = document.createElement('div');
+        box.className = 'lead-dup-notice';
+        box.setAttribute('role', 'alert');
+        const anchor = form.querySelector('.btn-group, .nls-submit') || null;
+        form.insertBefore(box, anchor);
+    }
+    const dup = (payload && payload.duplicate) || {};
+    const msg = (payload && payload.message) || 'Já existe um lead com estes dados.';
+    box.innerHTML = `<p>${escapeKanbanHtml(msg)}</p>
+        <div class="lead-dup-notice__actions">
+            <a class="btn btn-secondary btn-sm" href="lead-detail.html?id=${encodeURIComponent(String(dup.id || ''))}">Abrir lead existente</a>
+            <button type="button" class="btn btn-primary btn-sm" data-lead-dup-force>Criar mesmo assim</button>
+        </div>`;
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    box.querySelector('[data-lead-dup-force]').addEventListener('click', () => {
+        box.remove();
+        onForce();
+    });
+}
+window.showLeadDuplicateNotice = showLeadDuplicateNotice;
+
+async function createLeadManual(e, force) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    const form = (e && e.target && e.target.tagName === 'FORM') ? e.target : document.getElementById('newLeadForm');
     const formData = new FormData(form);
+    const hasPhone = String(formData.get('phone') || '').trim().length >= 7;
+    const hasEmail = String(formData.get('email') || '').trim().length > 3;
+    if (!hasPhone && !hasEmail) {
+        if (typeof crmNotify === 'function') crmNotify('Informe telefone ou e-mail.', 'error');
+        else alert('Informe telefone ou e-mail.');
+        return;
+    }
     
     const stageSelect = document.getElementById('newLeadPipelineStage');
     const stageSlug = (stageSelect && stageSelect.value) || 'new_lead';
@@ -929,6 +965,7 @@ async function createLeadManual(e) {
         estimated_value: parseFloat(String(formData.get('estimated_value') || '')) || null,
         notes: String(formData.get('notes') || '').trim() || null,
         status: stageSlug,
+        check_duplicates: !force,
     };
     if (pipelineStageId) {
         leadData.pipeline_stage_id = pipelineStageId;
@@ -943,7 +980,13 @@ async function createLeadManual(e) {
         });
         
         const data = await response.json();
+        if (response.status === 409 && data.error === 'duplicate_lead') {
+            showLeadDuplicateNotice(form, data, () => createLeadManual({ target: form }, true));
+            return;
+        }
         if (data.success) {
+            const dupBox = form.querySelector('.lead-dup-notice');
+            if (dupBox) dupBox.remove();
             if (typeof crmNotify === 'function') crmNotify('Lead criado com sucesso!', 'success');
             else alert('Lead criado com sucesso!');
             closeModal('newLeadModal');
