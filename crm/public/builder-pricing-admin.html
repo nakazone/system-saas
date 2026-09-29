@@ -4,54 +4,111 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tabela de Valor | ObraMate</title>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}</style>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-  <link rel="stylesheet" href="styles.css?v=20260819-menu-fix-v2" />
-  <link rel="stylesheet" href="design-system.css" />
-  <link rel="stylesheet" href="crm-shell.css?v=20260924-shell" />
+  <link rel="stylesheet" href="styles.css?v=20260929-cadlayout1" />
+  <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260929-cadlayout1" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <link rel="stylesheet" href="crm-toast.css" />
-  <link rel="stylesheet" href="css/builders-portal.css?v=20260929-pricingui3" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp11" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260929-cadlayout1" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body class="dashboard-app-body bp-page-body payroll-sidebar-page">
+<body class="dashboard-app-body om-app sidebar-collapsed bp-page-body">
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      } catch (e) {}
+    })();
+  </script>
   <div class="dashboard-container">
-    <aside class="dashboard-sidebar"><nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav></aside>
-    <main class="dashboard-main">
-      <div class="bp-main bp-pricing-admin-page">
-        <header class="bp-pricing-admin-head">
-          <div>
-            <p class="bp-eyebrow">Cadastro</p>
-            <h1 class="bp-title">Tabela de Valor</h1>
-            <p class="bp-muted">Preços por tipo: Particular, Builder, Contractor e Loja — usados nos jobs conforme a origem.</p>
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
           </div>
-          <button type="button" class="bp-btn-tan" id="btnAddService">+ Serviço</button>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <main class="dashboard-main">
+      <div class="mod-page crm-page bp-pricing-admin-page">
+        <header class="crm-page-header">
+          <div class="crm-page-header__titles">
+            <h2 class="crm-page-header__title">Tabela de Valor</h2>
+            <p class="crm-page-header__subtitle">Preços por tipo: Particular, Builder, Contractor e Loja</p>
+          </div>
+          <div class="crm-page-header__actions">
+            <button type="button" class="btn btn-primary" id="btnAddService">+ Serviço</button>
+          </div>
         </header>
+
         <p id="adminReadOnlyBanner" class="bp-card bp-pricing-admin-readonly hidden">
           Modo somente leitura. Solicite permissão <strong>builders.edit</strong> para alterar a tabela.
         </p>
-        <div class="bp-pricing-toolbar">
-          <label class="bp-pricing-search">
-            <span class="bp-pricing-search__icon" aria-hidden="true">⌕</span>
-            <input type="search" id="pricingSearch" placeholder="Buscar serviço, unidade ou nota…" autocomplete="off" />
-          </label>
-          <select id="pricingCategoryFilter" class="bp-pricing-filter" aria-label="Filtrar categoria">
+
+        <div class="customers-list-toolbar quotes-list-toolbar bp-pricing-toolbar" role="search" aria-label="Filtrar serviços">
+          <input
+            type="search"
+            id="pricingSearch"
+            class="quotes-list-toolbar__search"
+            placeholder="Buscar serviço, unidade ou nota…"
+            autocomplete="off"
+            aria-label="Buscar serviços"
+          />
+          <select id="pricingCategoryFilter" class="customers-list-toolbar__select" aria-label="Filtrar categoria">
             <option value="">Todas as categorias</option>
             <option value="installation">Instalação</option>
             <option value="sand_finish">Lixamento</option>
             <option value="supply">Material</option>
             <option value="custom">Personalizado</option>
           </select>
-          <p class="bp-pricing-count" id="pricingCount" aria-live="polite"></p>
+          <p class="bp-pricing-count quotes-list-toolbar__total-meta" id="pricingCount" aria-live="polite"></p>
         </div>
-        <div id="pricingEmpty" class="bp-pricing-admin-empty hidden">
+
+        <div id="pricingEmpty" class="customers-list-empty bp-pricing-admin-empty hidden">
           <p>Nenhum serviço na tabela. Clique em <strong>+ Serviço</strong> para começar.</p>
         </div>
-        <div id="pricingNoMatch" class="bp-pricing-admin-empty hidden">
+        <div id="pricingNoMatch" class="customers-list-empty bp-pricing-admin-empty hidden">
           <p>Nenhum serviço corresponde à busca.</p>
         </div>
-        <div id="pricingList" class="bp-pricing-admin-list" aria-live="polite"></div>
+
+        <div class="customers-list-wrap bp-pricing-list-wrap">
+          <div class="customers-list-head customers-list-head--pricing" aria-hidden="true">
+            <span></span>
+            <span>Serviço</span>
+            <span>Categoria</span>
+            <span>Un.</span>
+            <span>Particular</span>
+            <span>Builder</span>
+            <span>Contractor</span>
+            <span>Loja</span>
+            <span>Vis.</span>
+            <span></span>
+          </div>
+          <div id="pricingList" class="customers-list bp-pricing-admin-list" aria-live="polite"></div>
+        </div>
+
         <section class="bp-pricing-admin-volume">
           <h2 class="bp-pricing-admin-volume__title">Desconto por volume</h2>
           <p class="bp-muted bp-pricing-admin-volume__hint">Aplicado ao preço parceiro no portal do builder.</p>
@@ -61,8 +118,8 @@
     </main>
   </div>
   <script src="crm-toast.js"></script>
-  <script src="crm-shell.js?v=20260924-shell"></script>
+  <script src="crm-shell.js?v=20260929-cadlayout1"></script>
   <script src="crm-shared-nav.js?v=20260929-cadmenu1"></script>
-  <script src="builder-pricing-admin.js?v=20260929-pricingui3"></script>
+  <script src="builder-pricing-admin.js?v=20260929-cadlayout1"></script>
 </body>
 </html>

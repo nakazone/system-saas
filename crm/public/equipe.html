@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-  <link rel="stylesheet" href="styles.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="styles.css?v=20260929-cadlayout1" />
   <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
   <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
@@ -19,14 +19,6 @@
   <link rel="stylesheet" href="obramate-app.css?v=20260924-omapp11" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    .crm-user-cell { display: inline-flex; align-items: center; gap: 0.55rem; }
-    .crm-user-cell__avatar {
-      width: 32px; height: 32px; border-radius: 999px; overflow: hidden;
-      display: inline-flex; align-items: center; justify-content: center;
-      background: #efeae3; color: #5c564e; font-size: 0.72rem; font-weight: 700;
-      flex-shrink: 0;
-    }
-    .crm-user-cell__avatar img { width: 100%; height: 100%; object-fit: cover; }
     .crm-user-avatar-field { margin-bottom: 1rem; }
     .crm-user-avatar-row { display: flex; gap: 0.85rem; align-items: center; }
     .crm-user-avatar-preview {
@@ -90,37 +82,53 @@
     <main class="dashboard-main">
       <div class="mod-page crm-page">
                 <div id="usersPage" class="page-content is-active">
-                    <div class="page-header">
-                        <h1 style="margin:0;font-size:1.35rem;">Equipe</h1>
-                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                            <button type="button" class="btn btn-secondary" id="crmNewRoleBtn"  style="display:none">+ Novo cargo</button>
-                            <button type="button" class="btn btn-primary" id="crmNewUserBtn" >+ Novo utilizador</button>
+                    <header class="crm-page-header">
+                        <div class="crm-page-header__titles">
+                            <h2 class="crm-page-header__title">Equipe</h2>
+                            <p class="crm-page-header__subtitle">Utilizadores e cargos do workspace</p>
+                        </div>
+                        <div class="crm-page-header__actions">
+                            <button type="button" class="btn btn-secondary" id="crmNewRoleBtn" style="display:none">+ Novo cargo</button>
+                            <button type="button" class="btn btn-primary" id="crmNewUserBtn">+ Novo utilizador</button>
+                        </div>
+                    </header>
+
+                    <div class="customers-list-toolbar quotes-list-toolbar" role="search" aria-label="Filtrar equipe">
+                        <input
+                            type="search"
+                            id="usersSearchInput"
+                            class="quotes-list-toolbar__search"
+                            placeholder="Buscar nome, email ou telefone…"
+                            autocomplete="off"
+                            aria-label="Buscar utilizadores"
+                        />
+                        <select id="usersStatusSelect" class="customers-list-toolbar__select" aria-label="Status">
+                            <option value="">Todos</option>
+                            <option value="active">Ativos</option>
+                            <option value="inactive">Inativos</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary btn-sm" id="usersSearchBtn">Buscar</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="usersSearchClearBtn">Limpar</button>
+                    </div>
+
+                    <div class="customers-list-wrap">
+                        <div class="customers-list-head customers-list-head--equipe" aria-hidden="true">
+                            <span>Utilizador</span>
+                            <span>Contacto</span>
+                            <span>Cargo</span>
+                            <span>Status</span>
+                            <span>Desde</span>
+                            <span></span>
+                        </div>
+                        <div id="usersTableBody" class="customers-list" role="list">
+                            <p class="customers-list-empty">A carregar…</p>
                         </div>
                     </div>
-                    
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Nome</th>
-                                    <th>Email</th>
-                                    <th>Telefone</th>
-                                    <th>Cargo</th>
-                                    <th>Status</th>
-                                    <th>Criado</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="usersTableBody">
-                                <tr><td colspan="7" class="text-center">A carregar…</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <div class="pagination">
-                        <button type="button" id="prevPageUsers" class="btn btn-secondary" >Anterior</button>
+
+                    <div class="pagination customers-pagination">
+                        <button type="button" id="prevPageUsers" class="btn btn-secondary">Anterior</button>
                         <span id="pageInfoUsers">Página 1</span>
-                        <button type="button" id="nextPageUsers" class="btn btn-secondary" >Seguinte</button>
+                        <button type="button" id="nextPageUsers" class="btn btn-secondary">Seguinte</button>
                     </div>
                 </div>
       </div>
@@ -237,6 +245,6 @@
   <script src="crm-account-menu.js?v=20260924-omapp11"></script>
   <script src="crm-toast.js"></script>
   <script src="saas-branding.js?v=20260924-pwa"></script>
-  <script src="equipe.js?v=20260924-equipe3"></script>
+  <script src="equipe.js?v=20260929-cadlayout1"></script>
 </body>
 </html>

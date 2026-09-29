@@ -3,6 +3,8 @@
  */
 (function () {
   let usersPage = 1;
+  let usersSearchFilter = "";
+  let usersStatusFilter = "";
   let permissionRegistryCache = null;
   let crmRolesCache = null;
   let crmUserPermissions = [];
@@ -85,7 +87,7 @@
 
   function tableAvatar(u) {
     const name = u.name || "-";
-    return `<span class="crm-user-cell__avatar">${escapeHtml(initials(name))}</span>`;
+    return `<span class="customers-row__av" aria-hidden="true">${escapeHtml(initials(name))}</span>`;
   }
 
   async function fetchPermissionRegistry() {
@@ -164,69 +166,138 @@
   }
 
   async function loadUsers() {
-    const tbody = document.getElementById("usersTableBody");
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center">A carregar…</td></tr>';
+    const list = document.getElementById("usersTableBody");
+    if (!list) return;
+    list.innerHTML = '<p class="customers-list-empty">A carregar…</p>';
     updateActions();
     try {
-      const response = await fetch(`/api/users?page=${usersPage}&limit=20`, { credentials: "include" });
+      const searching = !!usersSearchFilter;
+      const qs = new URLSearchParams({
+        page: searching ? "1" : String(usersPage),
+        limit: searching ? "100" : "20",
+      });
+      if (usersStatusFilter === "active") qs.set("active", "true");
+      if (usersStatusFilter === "inactive") qs.set("active", "false");
+      const response = await fetch(`/api/users?${qs}`, { credentials: "include" });
       const data = await response.json();
       if (response.status === 403) {
-        tbody.innerHTML =
-          '<tr><td colspan="7" class="text-center">Sem permissão para ver a equipe (' +
+        list.innerHTML =
+          '<p class="customers-list-empty">Sem permissão para ver a equipe (' +
           escapeHtml(data.error || "") +
-          ").</td></tr>";
+          ").</p>";
         return;
       }
       if (!data.success || !data.data) {
-        tbody.innerHTML =
-          '<tr><td colspan="7" class="text-center">Erro: ' +
+        list.innerHTML =
+          '<p class="customers-list-empty">Erro: ' +
           escapeHtml(data.error || "desconhecido") +
-          "</td></tr>";
+          "</p>";
         return;
       }
       const canEdit = crmUserRole === "admin" || crmUserPermissions.includes("users.edit");
       const canDel = crmUserRole === "admin" || crmUserPermissions.includes("users.delete");
-      if (!data.data.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhum utilizador encontrado</td></tr>';
+      let rows = Array.isArray(data.data) ? data.data.slice() : [];
+      if (usersSearchFilter) {
+        const q = usersSearchFilter.toLowerCase();
+        rows = rows.filter((u) => {
+          const blob = [u.name, u.email, u.phone, u.role_name, u.role]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return blob.includes(q);
+        });
+      }
+      if (!rows.length) {
+        list.innerHTML = '<p class="customers-list-empty">Nenhum utilizador encontrado</p>';
       } else {
-        tbody.innerHTML = data.data
-          .map((u) => {
+        list.innerHTML = rows
+          .map((u, i) => {
             const active = u.is_active !== undefined ? u.is_active : u.active;
             const roleLabel = u.role_name || u.role || "—";
-            const uid = String(u.id).replace(/'/g, "\\'");
+            const email = u.email ? escapeHtml(u.email) : "";
+            const phone = u.phone ? escapeHtml(u.phone) : "";
+            const created = u.created_at
+              ? new Date(u.created_at).toLocaleDateString("pt-BR", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "—";
+            const contactBits = [];
+            if (email) {
+              contactBits.push(
+                `<a class="customers-row__mail" href="mailto:${email}">${email}</a>`
+              );
+            }
+            if (phone) contactBits.push(`<span class="customers-row__phone">${phone}</span>`);
+            if (!contactBits.length) {
+              contactBits.push('<span class="customers-row__muted">—</span>');
+            }
             const actions = [];
-            if (canEdit)
+            if (canEdit) {
               actions.push(
                 `<button type="button" class="btn btn-sm" data-edit-user="${escapeHtml(String(u.id))}">Editar</button>`
               );
-            if (canDel)
+            }
+            if (canDel) {
               actions.push(
-                `<button type="button" class="btn btn-sm btn-danger" data-deactivate-user="${escapeHtml(String(u.id))}">Desativar</button>`
+                `<button type="button" class="btn btn-sm btn-secondary" data-deactivate-user="${escapeHtml(String(u.id))}">Desativar</button>`
               );
-            return `<tr>
-              <td><div class="crm-user-cell">${tableAvatar(u)}<span>${escapeHtml(u.name || "-")}</span></div></td>
-              <td>${escapeHtml(u.email || "-")}</td>
-              <td>${escapeHtml(u.phone || "-")}</td>
-              <td>${escapeHtml(roleLabel)}</td>
-              <td><span class="badge badge-${active ? "active" : "inactive"}">${active ? "Ativo" : "Inativo"}</span></td>
-              <td>${u.created_at ? new Date(u.created_at).toLocaleDateString("pt-PT") : "—"}</td>
-              <td>${actions.join(" ") || "—"}</td>
-            </tr>`;
+            }
+            return `
+            <article class="customers-row customers-row--equipe" role="listitem" style="--av-hue:${(i * 47) % 360}">
+              <div class="customers-row__identity">
+                ${tableAvatar(u)}
+                <div class="customers-row__who">
+                  <div class="customers-row__name">${escapeHtml(u.name || "—")}</div>
+                </div>
+              </div>
+              <div class="customers-row__contact">${contactBits.join("")}</div>
+              <div class="customers-row__type"><span class="customers-type-pill">${escapeHtml(roleLabel)}</span></div>
+              <div class="customers-row__status"><span class="badge badge-${active ? "active" : "inactive"}">${active ? "Ativo" : "Inativo"}</span></div>
+              <div class="customers-row__local">${escapeHtml(created)}</div>
+              <div class="customers-row__actions">${actions.join("") || '<span class="customers-row__muted">—</span>'}</div>
+            </article>`;
           })
           .join("");
       }
-      const totalPages = Math.ceil((data.total || 0) / 20);
+      const totalPages = searching
+        ? 1
+        : Math.ceil((data.total || 0) / 20) || 1;
       const info = document.getElementById("pageInfoUsers");
       const prev = document.getElementById("prevPageUsers");
       const next = document.getElementById("nextPageUsers");
-      if (info) info.textContent = `Página ${usersPage} de ${totalPages || 1}`;
-      if (prev) prev.disabled = usersPage <= 1;
-      if (next) next.disabled = usersPage >= totalPages;
+      if (info) {
+        info.textContent = searching
+          ? `${rows.length} resultado${rows.length === 1 ? "" : "s"}`
+          : `Página ${usersPage} de ${totalPages}`;
+      }
+      if (prev) prev.disabled = searching || usersPage <= 1;
+      if (next) next.disabled = searching || usersPage >= totalPages;
     } catch (error) {
-      tbody.innerHTML =
-        '<tr><td colspan="7" class="text-center">Erro: ' + escapeHtml(error.message) + "</td></tr>";
+      list.innerHTML =
+        '<p class="customers-list-empty">Erro: ' + escapeHtml(error.message) + "</p>";
     }
+  }
+
+  function usersSearchSubmit() {
+    const searchEl = document.getElementById("usersSearchInput");
+    const statusEl = document.getElementById("usersStatusSelect");
+    usersSearchFilter = searchEl ? searchEl.value.trim() : "";
+    usersStatusFilter = statusEl ? statusEl.value.trim() : "";
+    usersPage = 1;
+    loadUsers();
+  }
+
+  function usersSearchClear() {
+    usersSearchFilter = "";
+    usersStatusFilter = "";
+    usersPage = 1;
+    const searchEl = document.getElementById("usersSearchInput");
+    const statusEl = document.getElementById("usersStatusSelect");
+    if (searchEl) searchEl.value = "";
+    if (statusEl) statusEl.value = "";
+    loadUsers();
   }
 
   function closeUserModal() {
@@ -496,6 +567,14 @@
     document.getElementById("crmRoleForm")?.addEventListener("submit", onRoleFormSubmit);
     document.getElementById("crmNewUserBtn")?.addEventListener("click", () => openUserModal(null));
     document.getElementById("crmNewRoleBtn")?.addEventListener("click", () => showNewRoleModal());
+    document.getElementById("usersSearchBtn")?.addEventListener("click", usersSearchSubmit);
+    document.getElementById("usersSearchClearBtn")?.addEventListener("click", usersSearchClear);
+    document.getElementById("usersSearchInput")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        usersSearchSubmit();
+      }
+    });
     document.getElementById("prevPageUsers")?.addEventListener("click", () => {
       usersPage = Math.max(1, usersPage - 1);
       loadUsers();

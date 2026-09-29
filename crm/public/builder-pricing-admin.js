@@ -114,8 +114,8 @@
         <div class="bp-pricing-row__actions">
           ${
             adminCanEdit
-              ? `<button type="button" class="bp-btn-tan bp-btn-sm" data-save="${escapeHtml(s.id)}">Salvar</button>
-                 <button type="button" class="bp-btn-ghost bp-btn-sm" data-del="${escapeHtml(s.id)}" title="Excluir">×</button>`
+              ? `<button type="button" class="btn btn-sm btn-primary" data-save="${escapeHtml(s.id)}">Salvar</button>
+                 <button type="button" class="btn btn-sm btn-secondary" data-del="${escapeHtml(s.id)}" title="Excluir">×</button>`
               : ''
           }
         </div>

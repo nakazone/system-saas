@@ -3575,6 +3575,52 @@ a.customers-ref--lead:hover {
     }
 }
 
+/* —— Cadastro: Equipe (same chrome as Clientes) —— */
+.customers-list-head--equipe {
+    grid-template-columns: minmax(12rem, 1.4fr) minmax(10rem, 1.1fr) 8rem 5.5rem 7rem 8.5rem;
+}
+
+@media (min-width: 960px) {
+    .customers-row--equipe {
+        grid-template-columns: minmax(12rem, 1.4fr) minmax(10rem, 1.1fr) 8rem 5.5rem 7rem 8.5rem;
+    }
+}
+
+/* —— Cadastro: Tabela de Valor list wrap —— */
+.bp-pricing-list-wrap {
+    margin-bottom: 1.25rem;
+}
+
+.customers-list-head--pricing {
+    grid-template-columns:
+        1.6rem minmax(7.5rem, 1.45fr) minmax(5.8rem, 0.8fr) minmax(3.6rem, 0.45fr)
+        minmax(4rem, 0.5fr) minmax(4rem, 0.5fr) minmax(4rem, 0.5fr) minmax(4rem, 0.5fr)
+        2.2rem minmax(5.2rem, auto);
+    gap: 0.28rem 0.35rem;
+    align-items: end;
+}
+
+.bp-pricing-admin-page .bp-pricing-admin-list {
+    gap: 0;
+    margin-bottom: 0;
+}
+
+.bp-pricing-admin-page .bp-pricing-admin-empty {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0 0 0.75rem;
+}
+
+.bp-pricing-admin-page .bp-pricing-admin-empty.hidden {
+    display: none;
+}
+
+.bp-pricing-admin-page .bp-pricing-count {
+    margin-left: auto;
+    padding: 0.35rem 0.15rem;
+}
+
 .quotes-list-toolbar__total {
     display: flex;
     flex-wrap: wrap;
