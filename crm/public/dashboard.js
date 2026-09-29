@@ -3154,19 +3154,19 @@ function getQuotesMobileFilteredRows() {
 
 
 function bindQuotesTableRowOpen() {
-    const tbody = document.getElementById('quotesTableBody');
-    if (!tbody || tbody.dataset.quoteRowOpenBound === '1') return;
-    tbody.dataset.quoteRowOpenBound = '1';
-    tbody.addEventListener('click', (e) => {
-        if (e.target.closest('button, a, .quotes-actions-cell__btns')) return;
-        const row = e.target.closest('tr.quotes-table-row--open');
+    const list = document.getElementById('quotesTableBody');
+    if (!list || list.dataset.quoteRowOpenBound === '1') return;
+    list.dataset.quoteRowOpenBound = '1';
+    list.addEventListener('click', (e) => {
+        if (e.target.closest('button, a, .customers-row__actions')) return;
+        const row = e.target.closest('.customers-row--quote[data-quote-id]');
         if (!row) return;
         const id = parseInt(row.getAttribute('data-quote-id'), 10);
         if (Number.isFinite(id) && id > 0) viewQuote(id);
     });
-    tbody.addEventListener('keydown', (e) => {
+    list.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
-        const row = e.target.closest('tr.quotes-table-row--open');
+        const row = e.target.closest('.customers-row--quote[data-quote-id]');
         if (!row) return;
         e.preventDefault();
         const id = parseInt(row.getAttribute('data-quote-id'), 10);
@@ -3436,14 +3436,13 @@ function quoteStatusBadgeHtml(status) {
 }
 
 function quotesListEmptyStateRowHtml() {
-    return `<tr class="ds-empty-row"><td colspan="7">
-<div class="ds-empty-state" role="status">
+    return `<div class="ds-empty-state customers-list-empty" role="status" style="padding:2rem 1.25rem">
 <svg class="ds-empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
 <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>
 <h3 class="ds-empty-state__title">Nenhum orçamento encontrado</h3>
 <p class="ds-empty-state__text">Crie um orçamento ou altere os filtros acima para ver mais resultados.</p>
 <button type="button" class="btn btn-primary" data-crm-permission="quotes.edit" onclick="location.href='quote-builder.html'">+ Novo orçamento</button>
-</div></td></tr>`;
+</div>`;
 }
 
 function crmToastSafe(msg, opts) {
@@ -3583,11 +3582,11 @@ function changePageInvoices(delta) {
 window.changePageInvoices = changePageInvoices;
 
 async function loadInvoices() {
-    const tbody = document.getElementById('invoicesTableBody');
-    if (!tbody) return;
+    const list = document.getElementById('invoicesTableBody');
+    if (!list) return;
     const subEl = document.getElementById('invoicesListSubtitle');
     if (subEl) subEl.textContent = 'A carregar…';
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center">A carregar…</td></tr>';
+    list.innerHTML = '<p class="customers-list-empty">A carregar…</p>';
 
     const searchEl = document.getElementById('invoicesSearchInput');
     const q = searchEl ? String(searchEl.value || '').trim() : '';
@@ -3598,7 +3597,7 @@ async function loadInvoices() {
         const response = await fetch(url, { credentials: 'include' });
         const data = await response.json();
         if (!data.success) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center">${escapeHtmlCrm(data.error || 'Erro ao carregar')}</td></tr>`;
+            list.innerHTML = `<p class="customers-list-empty">${escapeHtmlCrm(data.error || 'Erro ao carregar')}</p>`;
             if (subEl) subEl.textContent = 'Erro';
             return;
         }
@@ -3624,20 +3623,20 @@ async function loadInvoices() {
         const pageInfo = document.getElementById('pageInfoInvoices');
         const limit = data.limit || 25;
         const pages = Math.max(1, Math.ceil(total / limit));
-        if (pageInfo) pageInfo.textContent = `Page ${invoicesListPage} / ${pages}`;
+        if (pageInfo) pageInfo.textContent = `Página ${invoicesListPage} de ${pages}`;
         const prevBtn = document.getElementById('prevPageInvoices');
         const nextBtn = document.getElementById('nextPageInvoices');
         if (prevBtn) prevBtn.disabled = invoicesListPage <= 1;
         if (nextBtn) nextBtn.disabled = invoicesListPage >= pages;
 
         if (rows.length === 0) {
-            tbody.innerHTML =
-                '<tr><td colspan="8" class="text-center">Nenhum invoice enviado encontrado.</td></tr>';
+            list.innerHTML =
+                '<p class="customers-list-empty">Nenhum invoice enviado encontrado.</p>';
             return;
         }
 
-        tbody.innerHTML = rows
-            .map((inv) => {
+        list.innerHTML = rows
+            .map((inv, i) => {
                 const invNum = escapeHtmlCrm(inv.invoice_number || String(inv.id));
                 const qNum = escapeHtmlCrm(inv.quote_number || '—');
                 const client = escapeHtmlCrm(inv.customer_name || '—');
@@ -3654,7 +3653,7 @@ async function loadInvoices() {
                 });
                 const payHint =
                     paid > 0.009
-                        ? `<div class="quotes-cell-muted" style="font-size:11px;">Pago $${paid.toFixed(2)}${
+                        ? `<div class="customers-row__sub">Pago $${paid.toFixed(2)}${
                               remaining > 0.009 ? ` · falta $${remaining.toFixed(2)}` : ''
                           }</div>`
                         : '';
@@ -3662,7 +3661,7 @@ async function loadInvoices() {
                 const status = String(inv.status || '').toLowerCase();
                 const pdfBtn = inv.has_pdf
                     ? `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); openClientInvoicePdf(${inv.id})">PDF</button>`
-                    : '<span class="quotes-cell-muted">—</span>';
+                    : '';
                 const receiveBtn =
                     status !== 'paid' && remaining > 0.009
                         ? `<button type="button" class="btn btn-sm btn-primary" data-crm-permission="quotes.edit" onclick="event.stopPropagation(); openDashReceiptModal(${inv.id})">Receber</button>`
@@ -3671,24 +3670,34 @@ async function loadInvoices() {
                     inv.quote_id != null
                         ? `<a class="btn btn-sm btn-secondary" href="quote-builder.html?id=${encodeURIComponent(String(inv.quote_id))}">Quote</a>`
                         : '';
-                return `<tr>
-                    <td>${invNum}</td>
-                    <td>${qNum}</td>
-                    <td title="${client}">${client}</td>
-                    <td>${type}</td>
-                    <td class="tabular-nums">$${amtLabel}${payHint}</td>
-                    <td>${invoiceStatusBadgeHtml(inv.status)}</td>
-                    <td>${sentAt}</td>
-                    <td class="quotes-cell-actions">${pdfBtn} ${receiveBtn} ${openQuote}</td>
-                </tr>`;
+                const actions = [pdfBtn, receiveBtn, openQuote].filter(Boolean).join('') ||
+                    '<span class="customers-row__muted">—</span>';
+                return `
+                <article class="customers-row customers-row--invoice" role="listitem" style="--av-hue:${(i * 47) % 360}">
+                    <div class="customers-row__identity">
+                        <span class="customers-row__av" aria-hidden="true">${escapeHtmlCrm((inv.customer_name || 'IN').trim().slice(0, 2).toUpperCase())}</span>
+                        <div class="customers-row__who">
+                            <div class="customers-row__name" title="${client}">${client}</div>
+                            <div class="customers-row__refs">
+                                <span class="customers-ref" title="Invoice">${invNum}</span>
+                                <span class="customers-ref customers-ref--lead" title="Quote">Q · ${qNum}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="customers-row__amt tabular-nums">$${amtLabel}${payHint}</div>
+                    <div class="customers-row__type"><span class="customers-type-pill">${type}</span></div>
+                    <div class="customers-row__status">${invoiceStatusBadgeHtml(inv.status)}</div>
+                    <div class="customers-row__local">${sentAt}</div>
+                    <div class="customers-row__actions">${actions}</div>
+                </article>`;
             })
             .join('');
         if (typeof applyCrmNavPermissions === 'function') {
             applyCrmNavPermissions(crmUserPermissions, crmUserRole);
         }
     } catch (e) {
-        tbody.innerHTML =
-            '<tr><td colspan="8" class="text-center">Erro de rede ao carregar invoices.</td></tr>';
+        list.innerHTML =
+            '<p class="customers-list-empty">Erro de rede ao carregar invoices.</p>';
         if (subEl) subEl.textContent = 'Erro';
     }
 }
@@ -3825,18 +3834,18 @@ async function generateQuotePdfFromList(id) {
 window.generateQuotePdfFromList = generateQuotePdfFromList;
 
 async function loadQuotes() {
-    const tbody = document.getElementById('quotesTableBody');
-    if (!tbody) return;
+    const list = document.getElementById('quotesTableBody');
+    if (!list) return;
     const mobileList = document.getElementById('quotesMobileList');
     const subEl = document.getElementById('quotesListSubtitle');
     if (subEl) subEl.textContent = 'A carregar…';
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center">A carregar…</td></tr>';
+    list.innerHTML = '<p class="customers-list-empty">A carregar…</p>';
     if (mobileList && isQuotesCompactLayout()) {
         mobileList.innerHTML = sfQuotesMobileSkeleton(5);
     }
     const canDeleteQuote =
         crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
-const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
+    const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) && crmUserPermissions.includes('quotes.edit'));
 
     let url = `/api/quotes?page=${quotesListPage}&limit=20`;
     if (quotesListFilter === 'expiring7') {
@@ -3871,7 +3880,7 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
             if (data.data.length === 0) {
                 sfQuotesListCache = [];
                 updateQuotesTotalsUi(0, 0);
-                tbody.innerHTML = quotesListEmptyStateRowHtml();
+                list.innerHTML = quotesListEmptyStateRowHtml();
                 if (mobileList && isQuotesCompactLayout()) {
                     mobileList.innerHTML = sfQuotesMobileEmptyHtml();
                 }
@@ -3880,16 +3889,16 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
                 }
             } else {
                 sfQuotesListCache = data.data.slice();
-                tbody.innerHTML = data.data
-                    .map((q) => {
+                list.innerHTML = data.data
+                    .map((q, i) => {
                         const hasPdf = !!(q.pdf_path || q.has_invoice_pdf);
                         const pdfCell = hasPdf
                             ? `<button type="button" class="btn btn-sm" onclick="event.stopPropagation(); openQuoteInvoicePdf(${q.id}, 'Orçamento ${escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : String(q.id))}')">Ver PDF</button>`
                             : canGenPdf
-                              ? `<button type="button" class="btn btn-sm btn-secondary" onclick="generateQuotePdfFromList(${q.id})">Gerar PDF</button>`
-                              : '<span class="quotes-cell-muted">—</span>';
+                              ? `<button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); generateQuotePdfFromList(${q.id})">Gerar PDF</button>`
+                              : '<span class="customers-row__muted">—</span>';
                         const deleteBtn = canDeleteQuote
-                            ? `<button type="button" class="btn btn-sm btn-danger" onclick="deleteQuote(${q.id})" title="Excluir orçamento">Excluir</button>`
+                            ? `<button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); deleteQuote(${q.id})" title="Excluir orçamento">Excluir</button>`
                             : '';
                         const clientLabel = escapeHtmlCrm(q.customer_name || q.lead_name || '—');
                         const qnum = escapeHtmlCrm(q.quote_number != null ? String(q.quote_number) : 'N/A');
@@ -3897,21 +3906,43 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                         });
+                        const created = q.created_at
+                            ? escapeHtmlCrm(
+                                  new Date(q.created_at).toLocaleDateString('pt-BR', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric',
+                                  }),
+                              )
+                            : '—';
+                        const initials = String(q.customer_name || q.lead_name || 'OR')
+                            .trim()
+                            .split(/\s+/)
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((w) => w[0])
+                            .join('')
+                            .toUpperCase() || 'OR';
                         return `
-                    <tr class="quotes-table-row quotes-table-row--open" data-quote-id="${q.id}" tabindex="0" role="link" aria-label="Abrir orçamento">
-                        <td>${qnum}</td>
-                        <td class="quotes-cell-client" title="${clientLabel}">${clientLabel}</td>
-                        <td class="tabular-nums">$${amt}</td>
-                        <td>${quoteStatusBadgeHtml(q.status)}</td>
-                        <td>${pdfCell}</td>
-                        <td>${q.created_at ? escapeHtmlCrm(new Date(q.created_at).toLocaleDateString()) : '—'}</td>
-                        <td class="quotes-actions-cell">
-                            <div class="quotes-actions-cell__btns">
-                            <button type="button" class="btn btn-sm btn-secondary" onclick="viewQuote(${q.id})" title="Editar orçamento">Abrir</button>
-                            ${deleteBtn}
+                    <article class="customers-row customers-row--quote" role="listitem" tabindex="0" data-quote-id="${q.id}" aria-label="Abrir orçamento ${qnum}" style="--av-hue:${(i * 47) % 360}">
+                        <div class="customers-row__identity">
+                            <span class="customers-row__av" aria-hidden="true">${escapeHtmlCrm(initials)}</span>
+                            <div class="customers-row__who">
+                                <div class="customers-row__name" title="${clientLabel}">${clientLabel}</div>
+                                <div class="customers-row__refs">
+                                    <span class="customers-ref" title="Quote #${qnum}">#${qnum}</span>
+                                </div>
                             </div>
-                        </td>
-                    </tr>`;
+                        </div>
+                        <div class="customers-row__amt tabular-nums">$${amt}</div>
+                        <div class="customers-row__status">${quoteStatusBadgeHtml(q.status)}</div>
+                        <div class="customers-row__pdf">${pdfCell}</div>
+                        <div class="customers-row__local">${created}</div>
+                        <div class="customers-row__actions">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); viewQuote(${q.id})" title="Editar orçamento">Abrir</button>
+                            ${deleteBtn}
+                        </div>
+                    </article>`;
                     })
                     .join('');
                 bindQuotesTableRowOpen();
@@ -3933,8 +3964,8 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
         } else {
             if (subEl) subEl.textContent = 'Erro ao carregar';
             updateQuotesTotalsUi(0, 0);
-            tbody.innerHTML =
-                '<tr><td colspan="7" class="text-center">Resposta inválida do servidor</td></tr>';
+            list.innerHTML =
+                '<p class="customers-list-empty">Resposta inválida do servidor</p>';
             sfQuotesListCache = [];
             if (mobileList && isQuotesCompactLayout()) {
                 mobileList.innerHTML =
@@ -3943,8 +3974,8 @@ const canGenPdf = crmUserRole === 'admin' || (Array.isArray(crmUserPermissions) 
         }
     } catch (error) {
         if (subEl) subEl.textContent = 'Erro ao carregar';
-        tbody.innerHTML =
-            '<tr><td colspan="7" class="text-center">Erro: ' + escapeHtmlCrm(error.message) + '</td></tr>';
+        list.innerHTML =
+            '<p class="customers-list-empty">Erro: ' + escapeHtmlCrm(error.message) + '</p>';
         if (mobileList && isQuotesCompactLayout()) {
             mobileList.innerHTML =
                 '<p class="sf-caption">Erro ao carregar. Tente puxar para atualizar.</p>';

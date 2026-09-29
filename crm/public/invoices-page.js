@@ -111,15 +111,38 @@
     $("ovPaid30").textContent = fmtMoney(paid30);
   }
 
+  function initials(name) {
+    const parts = String(name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
   function renderTable(rows) {
-    const tbody = $("invoicesTableBody");
-    $("invoicesResultCount").textContent = `(${rows.length} result${rows.length === 1 ? "" : "s"})`;
+    const list = $("invoicesTableBody");
+    const countEl = $("invoicesResultCount");
+    const subEl = $("invoicesListSubtitle");
+    if (countEl) {
+      countEl.textContent =
+        rows.length === 1 ? "1 resultado" : `${rows.length} resultados`;
+    }
+    if (subEl) {
+      subEl.textContent =
+        rows.length === 0
+          ? "Nenhum invoice"
+          : rows.length === 1
+            ? "1 invoice nesta página"
+            : `${rows.length} invoices nesta página`;
+    }
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="mod-empty">Nenhum invoice encontrado.</td></tr>';
+      list.innerHTML = '<p class="customers-list-empty">Nenhum invoice encontrado.</p>';
       return;
     }
-    tbody.innerHTML = rows
-      .map((inv) => {
+    list.innerHTML = rows
+      .map((inv, i) => {
         const invNum = escapeHtml(inv.invoice_number || String(inv.id));
         const qNum = escapeHtml(inv.quote_number || "—");
         const client = escapeHtml(inv.customer_name || inv.quote_title || "—");
@@ -132,26 +155,61 @@
         const raw = inv.email_sent_at || inv.issued_at || inv.created_at;
         if (raw) {
           try {
-            sentAt = new Date(raw).toLocaleDateString();
+            sentAt = new Date(raw).toLocaleDateString("pt-BR", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            });
           } catch (_) {}
         }
         const quoteHref =
           inv.quote_id != null
             ? `quote-builder.html?id=${encodeURIComponent(String(inv.quote_id))}`
             : "";
-        return `<tr data-quote-id="${inv.quote_id != null ? escapeHtml(String(inv.quote_id)) : ""}" ${quoteHref ? `data-href="${quoteHref}"` : ""}>
-          <td>${invNum}</td>
-          <td>${qNum}</td>
-          <td class="mod-table__client">${client}</td>
-          <td>$${amt}</td>
-          <td><span class="mod-status is-${escapeHtml(slug)}">${escapeHtml(statusLabel(inv.status))}</span></td>
-          <td class="mod-table__muted">${escapeHtml(sentAt)}</td>
-        </tr>`;
+        const av = escapeHtml(initials(inv.customer_name || inv.quote_title || "IN"));
+        const openBtn = quoteHref
+          ? `<button type="button" class="btn btn-sm btn-secondary" data-href="${escapeHtml(quoteHref)}">Quote</button>`
+          : '<span class="customers-row__muted">—</span>';
+        return `
+        <article class="customers-row customers-row--invoice" role="listitem" ${quoteHref ? `data-href="${escapeHtml(quoteHref)}" tabindex="0"` : ""} style="--av-hue:${(i * 47) % 360}">
+          <div class="customers-row__identity">
+            <span class="customers-row__av" aria-hidden="true">${av}</span>
+            <div class="customers-row__who">
+              <div class="customers-row__name" title="${client}">${client}</div>
+              <div class="customers-row__refs">
+                <span class="customers-ref">${invNum}</span>
+                <span class="customers-ref customers-ref--lead">Q · ${qNum}</span>
+              </div>
+            </div>
+          </div>
+          <div class="customers-row__amt tabular-nums">$${amt}</div>
+          <div class="customers-row__status"><span class="mod-status is-${escapeHtml(slug)}">${escapeHtml(statusLabel(inv.status))}</span></div>
+          <div class="customers-row__pdf"></div>
+          <div class="customers-row__local">${escapeHtml(sentAt)}</div>
+          <div class="customers-row__actions">${openBtn}</div>
+        </article>`;
       })
       .join("");
-    tbody.querySelectorAll("tr[data-href]").forEach((tr) => {
-      tr.addEventListener("click", () => {
-        window.location.href = tr.getAttribute("data-href");
+    list.querySelectorAll("[data-href]").forEach((el) => {
+      const go = () => {
+        window.location.href = el.getAttribute("data-href");
+      };
+      if (el.tagName === "BUTTON") {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          go();
+        });
+        return;
+      }
+      el.addEventListener("click", (e) => {
+        if (e.target.closest("button, a")) return;
+        go();
+      });
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          go();
+        }
       });
     });
   }
@@ -197,7 +255,7 @@
     renderTable(rows);
 
     const pages = Math.max(1, Math.ceil(total / LIMIT));
-    $("pageInfo").textContent = `Page ${page} / ${pages}`;
+    $("pageInfo").textContent = `Página ${page} de ${pages}`;
     $("btnPrevPage").disabled = page <= 1;
     $("btnNextPage").disabled = page >= pages;
 
@@ -248,9 +306,9 @@
       if (/HTTP 401|não autenticado|unauth|session/i.test(String(err.message || ""))) {
         location.href = "/login.html";
       } else {
-        const tbody = $("invoicesTableBody");
-        if (tbody) {
-          tbody.innerHTML = `<tr><td colspan="6" class="mod-empty">${escapeHtml(err.message || "Erro ao carregar invoices")}</td></tr>`;
+        const list = $("invoicesTableBody");
+        if (list) {
+          list.innerHTML = `<p class="customers-list-empty">${escapeHtml(err.message || "Erro ao carregar invoices")}</p>`;
         }
       }
     }

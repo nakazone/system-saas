@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-  <link rel="stylesheet" href="styles.css?v=20260923-chrome" />
+  <link rel="stylesheet" href="styles.css?v=20260929-qilist1" />
   <link rel="stylesheet" href="design-system.css?v=20260923-chrome" />
   <link rel="stylesheet" href="mobile-design-system.css?v=20260923-chrome" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
@@ -68,12 +68,15 @@
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
       <div class="mod-page crm-page">
-        <div class="mod-page-header">
-          <h1>Invoices</h1>
-          <div class="mod-page-header__actions">
+        <header class="crm-page-header">
+          <div class="crm-page-header__titles">
+            <h2 class="crm-page-header__title">Invoices</h2>
+            <p class="crm-page-header__subtitle" id="invoicesListSubtitle">A carregar…</p>
+          </div>
+          <div class="crm-page-header__actions">
             <a class="btn btn-secondary" href="quotes.html">Quotes</a>
           </div>
-        </div>
+        </header>
 
         <div class="mod-overview" id="invoicesOverview" aria-label="Resumo">
           <div class="mod-ov-card">
@@ -101,49 +104,38 @@
           </div>
         </div>
 
-        <div class="mod-list-head">
-          <h2>All invoices <span class="mod-list-head__count" id="invoicesResultCount">(0)</span></h2>
+        <div class="customers-list-toolbar quotes-list-toolbar" role="search" aria-label="Filtrar invoices">
+          <input type="search" id="filterQ" class="quotes-list-toolbar__search" placeholder="Buscar invoice, quote, cliente…" autocomplete="off" aria-label="Buscar invoices" />
+          <select id="filterStatus" class="customers-list-toolbar__select" aria-label="Status">
+            <option value="all" selected>Todos</option>
+            <option value="sent">Sent</option>
+            <option value="paid">Paid</option>
+            <option value="issued">Issued</option>
+            <option value="draft">Draft</option>
+            <option value="overdue">Overdue</option>
+          </select>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnReload">Atualizar</button>
+          <span class="quotes-list-toolbar__total-meta" id="invoicesResultCount"></span>
         </div>
 
-        <div class="mod-toolbar">
-          <label>Status
-            <select id="filterStatus">
-              <option value="all" selected>All</option>
-              <option value="sent">Sent</option>
-              <option value="paid">Paid</option>
-              <option value="issued">Issued</option>
-              <option value="draft">Draft</option>
-              <option value="overdue">Overdue</option>
-            </select>
-          </label>
-          <label class="grow">Search
-            <input type="search" id="filterQ" placeholder="Search invoices…" />
-          </label>
-          <button type="button" class="btn btn-secondary" id="btnReload">Atualizar</button>
+        <div class="customers-list-wrap">
+          <div class="customers-list-head customers-list-head--invoices" aria-hidden="true">
+            <span>Cliente</span>
+            <span>Valor</span>
+            <span>Status</span>
+            <span></span>
+            <span>Enviado</span>
+            <span></span>
+          </div>
+          <div id="invoicesTableBody" class="customers-list" role="list">
+            <p class="customers-list-empty">A carregar…</p>
+          </div>
         </div>
 
-        <div class="mod-table-wrap">
-          <table class="mod-table">
-            <thead>
-              <tr>
-                <th>Invoice #</th>
-                <th>Quote #</th>
-                <th>Client</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Sent</th>
-              </tr>
-            </thead>
-            <tbody id="invoicesTableBody">
-              <tr><td colspan="6" class="mod-empty">Carregando…</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="mod-pagination">
-          <button type="button" class="btn btn-secondary" id="btnPrevPage">Previous</button>
-          <span id="pageInfo">Page 1</span>
-          <button type="button" class="btn btn-secondary" id="btnNextPage">Next</button>
+        <div class="pagination customers-pagination">
+          <button type="button" class="btn btn-secondary" id="btnPrevPage">Anterior</button>
+          <span id="pageInfo">Página 1</span>
+          <button type="button" class="btn btn-secondary" id="btnNextPage">Seguinte</button>
         </div>
       </div>
     </main>
@@ -155,6 +147,6 @@
   <script src="crm-shared-nav.js?v=20260929-cadmenu1"></script>
   <script src="crm-shell.js?v=20260924-omapp11"></script>
   
-  <script src="invoices-page.js?v=20260924-modpanel2"></script>
+  <script src="invoices-page.js?v=20260929-qilist1"></script>
 </body>
 </html>

@@ -98,15 +98,38 @@
       totalCount === 1 ? "1 quote" : `${totalCount} quotes`;
   }
 
+  function initials(name) {
+    const parts = String(name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
   function renderTable(rows) {
-    const tbody = $("quotesTableBody");
-    $("quotesResultCount").textContent = `(${rows.length} result${rows.length === 1 ? "" : "s"})`;
+    const list = $("quotesTableBody");
+    const countEl = $("quotesResultCount");
+    const subEl = $("quotesListSubtitle");
+    if (countEl) {
+      countEl.textContent =
+        rows.length === 1 ? "1 resultado" : `${rows.length} resultados`;
+    }
+    if (subEl) {
+      subEl.textContent =
+        rows.length === 0
+          ? "Nenhum orçamento"
+          : rows.length === 1
+            ? "1 orçamento nesta página"
+            : `${rows.length} orçamentos nesta página`;
+    }
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="mod-empty">Nenhum quote encontrado.</td></tr>';
+      list.innerHTML = '<p class="customers-list-empty">Nenhum quote encontrado.</p>';
       return;
     }
-    tbody.innerHTML = rows
-      .map((q) => {
+    list.innerHTML = rows
+      .map((q, i) => {
         const client = escapeHtml(q.customer_name || q.lead_name || "—");
         const qnum = escapeHtml(q.quote_number != null ? String(q.quote_number) : "—");
         const amt = Number(q.total_amount || 0).toLocaleString(undefined, {
@@ -114,19 +137,52 @@
           maximumFractionDigits: 2,
         });
         const slug = statusSlug(q.status);
-        const created = q.created_at ? new Date(q.created_at).toLocaleDateString() : "—";
-        return `<tr data-id="${q.id}">
-          <td>${qnum}</td>
-          <td class="mod-table__client">${client}</td>
-          <td>$${amt}</td>
-          <td><span class="mod-status is-${escapeHtml(slug)}">${escapeHtml(statusLabel(q.status))}</span></td>
-          <td class="mod-table__muted">${escapeHtml(created)}</td>
-        </tr>`;
+        const created = q.created_at
+          ? new Date(q.created_at).toLocaleDateString("pt-BR", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "—";
+        const av = escapeHtml(initials(q.customer_name || q.lead_name || "OR"));
+        return `
+        <article class="customers-row customers-row--quote" role="listitem" tabindex="0" data-id="${escapeHtml(String(q.id))}" style="--av-hue:${(i * 47) % 360}">
+          <div class="customers-row__identity">
+            <span class="customers-row__av" aria-hidden="true">${av}</span>
+            <div class="customers-row__who">
+              <div class="customers-row__name" title="${client}">${client}</div>
+              <div class="customers-row__refs"><span class="customers-ref">#${qnum}</span></div>
+            </div>
+          </div>
+          <div class="customers-row__amt tabular-nums">$${amt}</div>
+          <div class="customers-row__status"><span class="mod-status is-${escapeHtml(slug)}">${escapeHtml(statusLabel(q.status))}</span></div>
+          <div class="customers-row__pdf"></div>
+          <div class="customers-row__local">${escapeHtml(created)}</div>
+          <div class="customers-row__actions">
+            <button type="button" class="btn btn-sm btn-secondary" data-open-quote="${escapeHtml(String(q.id))}">Abrir</button>
+          </div>
+        </article>`;
       })
       .join("");
-    tbody.querySelectorAll("tr[data-id]").forEach((tr) => {
-      tr.addEventListener("click", () => {
-        window.location.href = `quote-builder.html?id=${encodeURIComponent(tr.getAttribute("data-id"))}`;
+    list.querySelectorAll("[data-id]").forEach((row) => {
+      const open = () => {
+        window.location.href = `quote-builder.html?id=${encodeURIComponent(row.getAttribute("data-id"))}`;
+      };
+      row.addEventListener("click", (e) => {
+        if (e.target.closest("button, a")) return;
+        open();
+      });
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          open();
+        }
+      });
+    });
+    list.querySelectorAll("[data-open-quote]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.location.href = `quote-builder.html?id=${encodeURIComponent(btn.getAttribute("data-open-quote"))}`;
       });
     });
   }
@@ -157,7 +213,7 @@
     renderTable(rows);
 
     const pages = Math.max(1, Math.ceil(total / LIMIT));
-    $("pageInfo").textContent = `Page ${page} / ${pages}`;
+    $("pageInfo").textContent = `Página ${page} de ${pages}`;
     $("btnPrevPage").disabled = page <= 1;
     $("btnNextPage").disabled = page >= pages;
 

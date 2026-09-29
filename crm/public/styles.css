@@ -3586,6 +3586,54 @@ a.customers-ref--lead:hover {
     }
 }
 
+/* —— Quotes / Invoices desktop lists (same chrome as Clientes) —— */
+.customers-list-head--quotes,
+.customers-list-head--invoices {
+    grid-template-columns: minmax(14rem, 1.6fr) 7.5rem 7rem 6.5rem 7rem 9rem;
+}
+
+.customers-row__amt {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-dark, #211d1a);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.customers-row__pdf {
+    min-width: 0;
+}
+
+.customers-row--quote {
+    cursor: pointer;
+}
+
+@media (min-width: 960px) {
+    .customers-row--quotes,
+    .customers-row--quote,
+    .customers-row--invoice {
+        grid-template-columns: minmax(14rem, 1.6fr) 7.5rem 7rem 6.5rem 7rem 9rem;
+    }
+
+    .customers-row--quote .customers-row__amt,
+    .customers-row--invoice .customers-row__amt,
+    .customers-row--quote .customers-row__status,
+    .customers-row--invoice .customers-row__status,
+    .customers-row--quote .customers-row__pdf,
+    .customers-row--quote .customers-row__local,
+    .customers-row--invoice .customers-row__local,
+    .customers-row--invoice .customers-row__type {
+        align-self: center;
+    }
+}
+
+@media (max-width: 959px) {
+    .customers-row--quote .customers-row__amt,
+    .customers-row--invoice .customers-row__amt {
+        font-size: 1.05rem;
+    }
+}
+
 /* —— Cadastro: Tabela de Valor list wrap —— */
 .bp-pricing-list-wrap {
     margin-bottom: 1.25rem;
@@ -3759,7 +3807,7 @@ body.lead-quick-sheet-open .pac-container {
     cursor: default;
 }
 
-#quotesPage .table-container.sf-desktop-quotes-toolbar {
+#quotesPage .customers-list-wrap.sf-desktop-quotes-toolbar {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
