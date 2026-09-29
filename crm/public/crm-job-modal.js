@@ -5,9 +5,11 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260925-sections";
+  const CSS_HREF = "crm-job-modal.css?v=20260929-jobtabs1";
   let editingId = null;
   let editSection = "all";
+  /** Active accordion panel when editSection === "all" */
+  let createPanel = "details";
   let canManage = false;
   let lookupsReady = false;
   let userOptions = [];
@@ -76,6 +78,13 @@
 <div class="jobs-modal-backdrop" id="jobModalBackdrop"></div>
 <div class="jobs-modal" id="jobModal" role="dialog" aria-modal="true" aria-labelledby="jobModalTitle">
   <h2 id="jobModalTitle">Novo job</h2>
+  <nav class="jobs-modal-tabs" id="jobModalTabs" role="tablist" aria-label="Secções do job" hidden>
+    <button type="button" class="jobs-modal-tab" role="tab" data-job-panel="details" aria-selected="true">Detalhes</button>
+    <button type="button" class="jobs-modal-tab" role="tab" data-job-panel="schedule" aria-selected="false">Agenda</button>
+    <button type="button" class="jobs-modal-tab" role="tab" data-job-panel="team" aria-selected="false">Equipe</button>
+    <button type="button" class="jobs-modal-tab" role="tab" data-job-panel="services" aria-selected="false">Serviços</button>
+    <button type="button" class="jobs-modal-tab" role="tab" data-job-panel="notes" aria-selected="false">Notas</button>
+  </nav>
   <form class="jobs-form" id="jobForm">
     <input type="hidden" id="jobId" />
     <div class="jobs-section" data-job-section="details">
@@ -131,14 +140,24 @@
         <select id="jobAssignee"><option value="">—</option></select>
       </label>
       <fieldset class="jobs-team-fieldset">
-        <legend>Equipe</legend>
-        <p class="jobs-hint">Selecione vários funcionários para este job (além do responsável).</p>
+        <legend class="jobs-legend-row">
+          Equipe
+          <span class="jobs-tip">
+            <button type="button" class="jobs-tip__btn" aria-label="Ajuda: equipe">?</button>
+            <span class="jobs-tip__pop" role="tooltip">Selecione vários funcionários além do responsável.</span>
+          </span>
+        </legend>
         <div class="jobs-team-list" id="jobTeamList"></div>
       </fieldset>
       <div class="jobs-temp-block" id="jobTempBlock" hidden>
         <div class="jobs-temp-head">
-          <strong>Funcionários temporários (avulsos)</strong>
-          <span class="jobs-hint">Cadastre e envie o ticket por WhatsApp ou SMS. Informe o telefone com DDD.</span>
+          <strong class="jobs-legend-row">
+            Funcionários temporários
+            <span class="jobs-tip">
+              <button type="button" class="jobs-tip__btn" aria-label="Ajuda: temporários">?</button>
+              <span class="jobs-tip__pop" role="tooltip">Cadastre e envie o ticket por WhatsApp ou SMS. Informe o telefone com DDD.</span>
+            </span>
+          </strong>
         </div>
         <div class="jobs-temp-form">
           <input type="text" id="tempName" maxlength="200" placeholder="Nome *" autocomplete="off" />
@@ -151,8 +170,13 @@
     </div>
     <div class="jobs-section" data-job-section="services">
       <fieldset class="jobs-services-fieldset">
-        <legend>Serviços</legend>
-        <p class="jobs-hint">Preço Loja do catálogo; se o job for Builder, usa preço partner quando existir.</p>
+        <legend class="jobs-legend-row">
+          Serviços
+          <span class="jobs-tip">
+            <button type="button" class="jobs-tip__btn" aria-label="Ajuda: serviços">?</button>
+            <span class="jobs-tip__pop" role="tooltip">Preço Loja do catálogo; se o job for Builder, usa preço partner quando existir.</span>
+          </span>
+        </legend>
         <div id="jobServicesList" class="jobs-services-list"></div>
         <button type="button" class="btn btn-secondary btn-sm" id="btnAddService">+ Serviço</button>
         <p class="jobs-services-total" id="jobServicesTotal">Total: $0.00</p>
@@ -470,23 +494,49 @@
     notes: "Notas",
   };
 
+  const PANEL_KEYS = ["details", "schedule", "team", "services", "notes"];
+
+  function setCreatePanel(panel) {
+    createPanel = PANEL_KEYS.includes(panel) ? panel : "details";
+    applySectionVisibility(editSection);
+  }
+
   function applySectionVisibility(section) {
     editSection = section || "all";
     const form = $("jobForm");
     if (!form) return;
     const showAll = !editSection || editSection === "all";
-    form.querySelectorAll("[data-job-section]").forEach((el) => {
-      const key = el.getAttribute("data-job-section");
-      el.hidden = !(showAll || key === editSection);
-    });
+    const tabs = $("jobModalTabs");
+    if (tabs) tabs.hidden = !showAll;
+    const modal = $("jobModal");
+    if (modal) modal.setAttribute("data-section", showAll ? "all" : editSection);
+
+    if (showAll) {
+      if (!PANEL_KEYS.includes(createPanel)) createPanel = "details";
+      form.querySelectorAll("[data-job-section]").forEach((el) => {
+        const key = el.getAttribute("data-job-section");
+        el.hidden = key !== createPanel;
+        el.classList.toggle("is-active-panel", key === createPanel);
+      });
+      tabs?.querySelectorAll("[data-job-panel]").forEach((btn) => {
+        const on = btn.getAttribute("data-job-panel") === createPanel;
+        btn.classList.toggle("is-active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    } else {
+      form.querySelectorAll("[data-job-section]").forEach((el) => {
+        const key = el.getAttribute("data-job-section");
+        el.hidden = key !== editSection;
+        el.classList.remove("is-active-panel");
+      });
+    }
+
     const titleEl = $("jobTitle");
     if (titleEl) {
-      // Hidden required fields block submit in some browsers
-      titleEl.required = showAll || editSection === "details";
+      titleEl.required = showAll ? createPanel === "details" : editSection === "details";
     }
-    // Temps only when editing an existing job in team/all
     if ($("jobTempBlock")) {
-      const teamVisible = showAll || editSection === "team";
+      const teamVisible = showAll ? createPanel === "team" : editSection === "team";
       if (!teamVisible) $("jobTempBlock").hidden = true;
       else renderTempList();
     }
@@ -523,6 +573,7 @@
     $("jobModalBackdrop")?.classList.remove("is-open");
     editingId = null;
     editSection = "all";
+    createPanel = "details";
     applySectionVisibility("all");
     tempWorkersCache = [];
     serviceRows = [];
@@ -545,6 +596,7 @@
     await loadLookups();
     editingId = null;
     editSection = "all";
+    createPanel = "details";
     tempWorkersCache = [];
     serviceRows = [];
     $("jobForm").reset();
@@ -576,6 +628,7 @@
   async function openEdit(id, opts) {
     await loadLookups();
     editSection = (opts && opts.section) || "all";
+    createPanel = PANEL_KEYS.includes(editSection) ? editSection : "details";
     const j = await api(`/api/work-orders/${id}`);
     const wo = j.data;
     editingId = wo.id;
@@ -606,8 +659,15 @@
   async function saveJob(e) {
     e.preventDefault();
     if (!canManage) return;
+    const title = $("jobTitle").value.trim();
+    if (!title) {
+      notify("Informe o título do job.", "error");
+      if (editSection === "all") setCreatePanel("details");
+      $("jobTitle")?.focus();
+      return;
+    }
     const payload = {
-      title: $("jobTitle").value.trim(),
+      title,
       status: $("jobStatus").value,
       source_type: $("jobSourceType").value,
       source_name: $("jobSourceName").value.trim() || null,
@@ -646,6 +706,7 @@
         }));
         renderTeamCheckboxes((j.data.members || []).map((m) => m.user_id));
         renderServices();
+        createPanel = "team";
         openModal(j.data.number != null ? `Job #${j.data.number}` : "Editar job");
         savedListeners.forEach((fn) => {
           try {
@@ -742,6 +803,12 @@
     $("jobModalBackdrop").addEventListener("click", close);
     $("btnCancelWo").addEventListener("click", cancelJob);
     $("jobForm").addEventListener("submit", saveJob);
+    $("jobModalTabs")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-job-panel]");
+      if (!btn || !$("jobModalTabs") || $("jobModalTabs").hidden) return;
+      e.preventDefault();
+      setCreatePanel(btn.getAttribute("data-job-panel"));
+    });
     $("btnAddTemp")?.addEventListener("click", () => addTempWorker());
     ["tempName", "tempPhone", "tempEmail"].forEach((id) => {
       $(id)?.addEventListener("keydown", (e) => {
