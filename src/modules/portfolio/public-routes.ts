@@ -39,6 +39,7 @@ publicPortfolioRouter.get("/:slug", async (req, res, next) => {
     const photos = await withTenantTransaction(org.id, async (tx) => {
       return tx.jobMedia.findMany({
         where: {
+          organizationId: org.id,
           deletedAt: null,
           inPortfolio: true,
           type: "photo",

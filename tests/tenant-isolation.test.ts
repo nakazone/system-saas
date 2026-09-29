@@ -162,6 +162,43 @@ describe("tenant isolation", () => {
     expect(rows[0]?.name).toBe("Lead A Secret");
   });
 
+  it("does not list another organization's JobMedia via tenant client", async () => {
+    const woB = await withTenantTransaction(orgBId, async (tx) => {
+      return tx.workOrder.create({
+        data: {
+          organizationId: orgBId,
+          title: "Job B Secret Photos",
+          status: "in_progress",
+        },
+      });
+    });
+    const mediaB = await withTenantTransaction(orgBId, async (tx) => {
+      return tx.jobMedia.create({
+        data: {
+          organizationId: orgBId,
+          workOrderId: woB.id,
+          type: "photo",
+          storageKey: `test/${woB.id}/secret.jpg`,
+          url: `https://example.com/${woB.id}/secret.jpg`,
+          sha256: `sha-b-${woB.id.replace(/-/g, "").slice(0, 32)}`,
+        },
+      });
+    });
+
+    const feed = await withTenantTransaction(orgAId, async (tx) => {
+      return tx.jobMedia.findMany({
+        where: { deletedAt: null, type: "photo" },
+      });
+    });
+    expect(feed.every((m: { organizationId: string }) => m.organizationId === orgAId)).toBe(true);
+    expect(feed.find((m: { id: string }) => m.id === mediaB.id)).toBeUndefined();
+
+    const byId = await withTenantTransaction(orgAId, async (tx) => {
+      return tx.jobMedia.findFirst({ where: { id: mediaB.id } });
+    });
+    expect(byId).toBeNull();
+  });
+
   it("cannot update another tenant's lead via tenant-scoped update", async () => {
     await expect(
       withTenantTransaction(orgAId, async (tx) => {

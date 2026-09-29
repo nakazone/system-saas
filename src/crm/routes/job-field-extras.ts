@@ -132,7 +132,11 @@ jobFieldExtrasRouter.get(
 
       const feed = await withTenantTransaction(req.organizationId!, async (tx) => {
         const photos = await tx.jobMedia.findMany({
-          where: { deletedAt: null, type: "photo" },
+          where: {
+            organizationId: req.organizationId!,
+            deletedAt: null,
+            type: "photo",
+          },
           orderBy: [{ createdAt: "desc" }],
           take: 40,
           include: {
