@@ -2,7 +2,7 @@
  * Menu CRM padrão (mesma estrutura, grupos e ícones que dashboard.html) em páginas standalone.
  * Respeita permissões via GET /api/auth/session.
  * Apenas módulos padrão: Dashboard, Leads, Quotes, Invoices, Cadastro,
- * Schedule, Jobs, Tabela de Valores, Folha de Pagamento.
+ * Schedule, Jobs, Folha de Pagamento.
  */
 (function () {
   // Shell may inject this script while the page also has a static <script> tag —
@@ -47,17 +47,16 @@
   };
 
   const CADASTRO_CHILDREN = [
-    { href: 'products-erp.html', label: 'Produtos', perm: 'quotes.view', page: '', iconKey: 'products' },
-    { href: 'quote-catalog.html', label: 'Serviços', perm: 'quotes.edit', page: '', iconKey: 'services' },
     { href: 'dashboard.html?page=customers', label: 'Clientes', perm: 'customers.view', page: 'customers', iconKey: 'customers' },
     {
-      href: 'dashboard.html?page=customers&type=builder',
-      label: 'Builders',
-      perm: 'customers.view',
-      page: 'customers',
-      iconKey: 'builders',
-      customerType: 'builder',
+      href: 'builder-pricing-admin.html',
+      label: 'Tabela de Valor',
+      perm: 'builders.view',
+      permAny: ['builders.view', 'quotes.edit'],
+      page: '',
+      iconKey: 'pricing',
     },
+    { href: 'equipe.html', label: 'Equipe', perm: 'users.view', page: '', iconKey: 'users' },
   ];
 
   /** Grupos alinhados a dashboard.html — só módulos padrão do sistema */
@@ -148,13 +147,6 @@
           },
           { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'cadastro', children: CADASTRO_CHILDREN },
           {
-            href: 'builder-pricing-admin.html',
-            label: 'Tabela de Valores',
-            perm: 'builders.view',
-            page: '',
-            iconKey: 'pricing',
-          },
-          {
             href: 'payroll-module.html',
             label: 'Folha de Pagamento',
             perm: 'payroll.view',
@@ -214,7 +206,10 @@
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
     if (base === 'invoices.html') return file === 'invoices.html';
-    if (base === 'builder-pricing-admin.html') return file === 'builder-pricing-admin.html';
+    if (base === 'builder-pricing-admin.html') {
+      return file === 'builder-pricing-admin.html' || file === 'quote-catalog.html';
+    }
+    if (base === 'equipe.html') return file === 'equipe.html';
     if (base === 'payroll-module.html') return file === 'payroll-module.html';
     if (base === 'finance.html') return file === 'finance.html';
     if (base === 'schedule.html') return file === 'schedule.html';
@@ -222,19 +217,13 @@
     if (base === 'chat.html') return file === 'chat.html';
     if (base === 'job-media-board.html') return file === 'job-media-board.html';
     if (base === 'ajustes.html') return file === 'ajustes.html';
-    if (base === 'products-erp.html') return file === 'products-erp.html';
-    if (base === 'quote-catalog.html') return file === 'quote-catalog.html';
     if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
       if (file === 'home.html' && !(item.page || '')) return true;
       if (file === 'pipeline-lab.html' && item.page === 'pipeline') return true;
+      if (file === 'customers.html' && (item.page || '') === 'customers') return true;
       if (file !== 'dashboard.html') return false;
       const expected = item.page || '';
       if ((page || '') !== expected) return false;
-      const q = pathAndQuery.includes('?') ? pathAndQuery.split('?')[1] : '';
-      const wantType = new URLSearchParams(q).get('type') || item.customerType || '';
-      const curType = new URLSearchParams(window.location.search).get('type') || '';
-      if (wantType) return curType === wantType;
-      if (curType === 'builder' && expected === 'customers') return false;
       return true;
     }
     const toolFile = pathAndQuery.split('?')[0].split('/').pop().toLowerCase();
@@ -266,6 +255,9 @@
     if (item.customerType) a.setAttribute('data-customers-type', item.customerType);
     a.className = 'nav-item' + (linkActive(item, file, page) ? ' active' : '');
     if (item.perm) a.setAttribute('data-crm-permission', item.perm);
+    if (Array.isArray(item.permAny) && item.permAny.length) {
+      a.setAttribute('data-crm-permission-any', item.permAny.join(','));
+    }
     a.setAttribute('aria-label', item.label);
     a.removeAttribute('title');
     const iconHtml = ICONS[item.iconKey] || ICONS.dashboard;

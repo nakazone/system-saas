@@ -133,18 +133,14 @@
             <a href="schedule.html" class="mobile-more-sheet__btn" data-crm-permission="schedule.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📅</span> Schedule</a>
             <a href="jobs.html" class="mobile-more-sheet__btn" data-crm-permission="work_orders.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🧾</span> Jobs</a>
             <a href="payroll-module.html" class="mobile-more-sheet__btn" data-crm-permission="payroll.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👷</span> Folha de Pagamento</a>
-            <a href="builder-pricing-admin.html" class="mobile-more-sheet__btn" data-crm-permission="builders.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Tabela de Valores</a>
             <details class="mobile-more-sheet__cadastro">
                 <summary class="mobile-more-sheet__btn mobile-more-sheet__cadastro-summary"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Cadastro</summary>
                 <div class="mobile-more-sheet__cadastro-panel">
-                    <a href="products-erp.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="quotes.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">📦</span> Produtos</a>
-                    <a href="quote-catalog.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="quotes.edit"><span class="mobile-more-sheet__emoji" aria-hidden="true">📑</span> Serviços</a>
                     <a href="dashboard.html?page=customers" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</a>
-                    <a href="dashboard.html?page=customers&amp;type=builder" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">🏗</span> Builders</a>
+                    <a href="builder-pricing-admin.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission-any="builders.view,quotes.edit"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Tabela de Valor</a>
+                    <a href="equipe.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Equipe</a>
                 </div>
             </details>
-            <!-- Equipe: only via Account menu (Configurações) -->
-            <button type="button" class="mobile-more-sheet__btn" data-page="users" data-crm-permission="users.view" hidden aria-hidden="true" tabindex="-1"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Equipe</button>
             <a href="ajustes.html" class="mobile-more-sheet__btn" data-crm-permission="settings.manage"><span class="mobile-more-sheet__emoji" aria-hidden="true">🎨</span> Configurações</a>
             <a href="change-password.html" class="mobile-more-sheet__btn">Sua Conta</a>
             <button type="button" class="mobile-more-sheet__btn" data-crm-pwa-install><span class="mobile-more-sheet__emoji" aria-hidden="true">⬇️</span> Instalar app</button>
@@ -1827,14 +1823,14 @@
     <script src="crm-i18n.js?v=20260923-i18n"></script>
     <script src="crm-account-menu.js?v=20260924-omapp11"></script>
     <script src="crm-help-panel.js?v=20260924-omapp11"></script>
-    <script src="crm-shared-nav.js?v=20260929-obranames1"></script>
+    <script src="crm-shared-nav.js?v=20260929-cadmenu1"></script>
   <script src="crm-shell.js?v=20260924-omapp11"></script>
     
     <script src="crm-pwa-install.js?v=20260924-pwa"></script>
     <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20260929-custlist1"></script>
+    <script src="dashboard.js?v=20260929-cadmenu1"></script>
     <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
     <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
     <script src="crm-address-autocomplete.js?v=20260924-addr"></script>

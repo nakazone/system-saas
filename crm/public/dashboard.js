@@ -73,19 +73,22 @@ function applyCrmNavPermissions(permissions, role) {
     window.__crmPalettePerms = Array.isArray(permissions) ? permissions.slice() : [];
     window.__crmPermissionKeys = Array.isArray(permissions) ? permissions.slice() : [];
     window.__crmUserRole = role || '';
-    document.querySelectorAll('[data-crm-permission]').forEach((el) => {
+    document.querySelectorAll('[data-crm-permission], [data-crm-permission-any]').forEach((el) => {
         const need = el.getAttribute('data-crm-permission');
-        if (!need) return;
+        const anyRaw = el.getAttribute('data-crm-permission-any');
+        const anyList = anyRaw
+            ? anyRaw.split(',').map((s) => s.trim()).filter(Boolean)
+            : [];
+        let ok = isAdmin;
+        if (!ok && anyList.length) ok = anyList.some((p) => keys.has(p));
+        if (!ok && need) ok = keys.has(need);
+        if (!ok && !need && !anyList.length) ok = true;
         // Keep account-menu items in the flow — they use [hidden], not display
         if (el.closest && el.closest('#crmAccountMenu')) {
-            el.hidden = !(isAdmin || keys.has(need));
+            el.hidden = !ok;
             return;
         }
-        if (isAdmin || keys.has(need)) {
-            el.style.display = '';
-        } else {
-            el.style.display = 'none';
-        }
+        el.style.display = ok ? '' : 'none';
     });
     refreshCrmNavGroupVisibility();
     updateUsersPageActions();
