@@ -49,6 +49,7 @@ function mapCustomer(c: {
   address: string | null;
   customerType: string;
   pricingMode?: string;
+  customPricingRates?: unknown;
   company: string | null;
   notes: string | null;
   leadId: string | null;
@@ -63,6 +64,7 @@ function mapCustomer(c: {
     address: c.address,
     customer_type: normalizeCustomerType(c.customerType),
     pricing_mode: c.pricingMode === "custom" ? "custom" : "table",
+    custom_pricing_rates: normalizeCustomPricingRates(c.customPricingRates),
     company: c.company,
     notes: c.notes,
     lead_id: c.leadId,
@@ -81,6 +83,18 @@ function normalizeCustomerType(raw: unknown): string {
 
 function normalizePricingMode(raw: unknown): "table" | "custom" {
   return String(raw || "table").toLowerCase() === "custom" ? "custom" : "table";
+}
+
+function normalizeCustomPricingRates(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const id = String(k || "").trim();
+    const n = Number(v);
+    if (!id || !Number.isFinite(n) || n < 0) continue;
+    out[id] = Math.round(n * 100) / 100;
+  }
+  return out;
 }
 
 function mapQuote(q: {
@@ -434,6 +448,10 @@ customersQuotesRouter.post(
           address: z.string().optional().nullable(),
           customer_type: z.string().optional(),
           pricing_mode: z.string().optional(),
+          custom_pricing_rates: z
+            .record(z.string(), z.union([z.number(), z.string()]))
+            .optional()
+            .nullable(),
           company: z.string().optional().nullable(),
           notes: z.string().optional().nullable(),
           lead_id: z.string().uuid().optional().nullable(),
@@ -443,6 +461,11 @@ customersQuotesRouter.post(
         res.status(400).json({ success: false, error: "Invalid customer payload" });
         return;
       }
+      const pricingMode = normalizePricingMode(parsed.data.pricing_mode);
+      const customRates =
+        pricingMode === "custom"
+          ? normalizeCustomPricingRates(parsed.data.custom_pricing_rates)
+          : {};
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const created = await tx.customer.create({
           data: {
@@ -452,7 +475,8 @@ customersQuotesRouter.post(
             phone: parsed.data.phone || null,
             address: parsed.data.address || null,
             customerType: normalizeCustomerType(parsed.data.customer_type),
-            pricingMode: normalizePricingMode(parsed.data.pricing_mode),
+            pricingMode,
+            customPricingRates: customRates,
             company: parsed.data.company || null,
             notes: parsed.data.notes || null,
             leadId: parsed.data.lead_id || null,
@@ -549,6 +573,16 @@ customersQuotesRouter.put(
             address: body.address !== undefined ? String(body.address || "") || null : undefined,
             customerType: body.customer_type !== undefined ? normalizeCustomerType(body.customer_type) : undefined,
             pricingMode: body.pricing_mode !== undefined ? normalizePricingMode(body.pricing_mode) : undefined,
+            customPricingRates:
+              body.custom_pricing_rates !== undefined || body.pricing_mode !== undefined
+                ? normalizePricingMode(body.pricing_mode ?? existing.pricingMode) === "custom"
+                  ? normalizeCustomPricingRates(
+                      body.custom_pricing_rates !== undefined
+                        ? body.custom_pricing_rates
+                        : existing.customPricingRates,
+                    )
+                  : {}
+                : undefined,
             company: body.company !== undefined ? String(body.company || "") || null : undefined,
             notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
           },

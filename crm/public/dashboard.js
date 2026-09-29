@@ -2212,6 +2212,11 @@ let customersPage = 1;
 let customersTypeFilter = '';
 let customersSearchFilter = '';
 let customerInsightEditId = null;
+/** In-memory custom rates while editing the client form: { [pricingItemId]: number } */
+let clientCustomPricingRates = {};
+let clientPricingCatalogCache = null;
+let clientCustomPricingDraft = {};
+let clientCustomPricingSearch = '';
 
 const CUSTOMERS_TYPE_LABELS = {
     particular: 'Particular',
@@ -2419,13 +2424,16 @@ function syncClientFormBuilderFields() {
     if (compInp) compInp.required = isOrg;
     if (respInp) respInp.required = isOrg;
     const hint = document.getElementById('clientPricingModeHint');
+    const actions = document.getElementById('clientPricingCustomActions');
+    const isCustom = getClientPricingMode() === 'custom';
+    if (actions) actions.hidden = !isCustom;
+    updateClientCustomPricingCount();
     if (hint) {
         const t = normalizeClientTypeUi(typeEl.value);
         const labels = { particular: 'Particular', builder: 'Builder', contractor: 'Contractor', loja: 'Loja' };
-        hint.textContent =
-            getClientPricingMode() === 'custom'
-                ? 'Preços definidos manualmente em cada quote/job (não aplica automaticamente a coluna da tabela).'
-                : `Jobs e quotes usam a coluna «${labels[t] || t}» da Tabela de Valores.`;
+        hint.textContent = isCustom
+            ? 'Preços só deste cliente. Clique em «Editar preços customizados» para ajustar a lista de serviços.'
+            : `Jobs e quotes usam a coluna «${labels[t] || t}» da Tabela de Valores.`;
     }
 }
 
@@ -2441,6 +2449,146 @@ function setClientPricingMode(mode) {
     const isCustom = mode === 'custom';
     if (table) table.checked = !isCustom;
     if (custom) custom.checked = isCustom;
+}
+
+function updateClientCustomPricingCount() {
+    const el = document.getElementById('clientCustomPricingCount');
+    if (!el) return;
+    const n = Object.keys(clientCustomPricingRates || {}).filter((k) => Number(clientCustomPricingRates[k]) > 0).length;
+    el.textContent = n ? `${n} preço${n === 1 ? '' : 's'} definido${n === 1 ? '' : 's'}` : 'Nenhum preço customizado ainda';
+}
+
+function tableRateForCustomerType(item, customerType) {
+    const t = normalizeClientTypeUi(customerType);
+    const key =
+        t === 'builder'
+            ? 'price_builder'
+            : t === 'contractor'
+              ? 'price_contractor'
+              : t === 'loja'
+                ? 'price_loja'
+                : 'price_particular';
+    const preferred = Number(item[key]);
+    if (Number.isFinite(preferred) && preferred > 0) return preferred;
+    const fallbacks = [item.price_loja, item.price_min, item.price_builder, item.partner_price, item.price_particular, item.price_max];
+    for (const c of fallbacks) {
+        const n = Number(c);
+        if (c != null && c !== '' && Number.isFinite(n) && n > 0) return n;
+    }
+    return 0;
+}
+
+async function loadClientPricingCatalog() {
+    if (Array.isArray(clientPricingCatalogCache)) return clientPricingCatalogCache;
+    const res = await fetch('/api/pricing', { credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Não foi possível carregar a Tabela de Valores');
+    clientPricingCatalogCache = Array.isArray(data.data) ? data.data : [];
+    return clientPricingCatalogCache;
+}
+
+function renderClientCustomPricingList() {
+    const box = document.getElementById('clientCustomPricingList');
+    if (!box) return;
+    const catalog = Array.isArray(clientPricingCatalogCache) ? clientPricingCatalogCache : [];
+    const q = String(clientCustomPricingSearch || '').trim().toLowerCase();
+    const type = normalizeClientTypeUi(document.getElementById('clientType')?.value);
+    const rows = catalog.filter((s) => {
+        if (!q) return true;
+        const hay = [s.name, s.unit, s.category].map((x) => String(x || '').toLowerCase()).join(' ');
+        return hay.includes(q);
+    });
+    if (!catalog.length) {
+        box.innerHTML = '<p class="client-custom-pricing-empty">Nenhum serviço na Tabela de Valores.</p>';
+        return;
+    }
+    if (!rows.length) {
+        box.innerHTML = '<p class="client-custom-pricing-empty">Nenhum serviço corresponde à busca.</p>';
+        return;
+    }
+    box.innerHTML = rows
+        .map((s) => {
+            const id = String(s.id);
+            const tableRate = tableRateForCustomerType(s, type);
+            const customVal = clientCustomPricingDraft[id];
+            const shown =
+                customVal != null && customVal !== '' && Number.isFinite(Number(customVal))
+                    ? String(customVal)
+                    : '';
+            return `<div class="client-custom-pricing-row" data-id="${escapeClientCell(id)}">
+                <div class="client-custom-pricing-row__name">${escapeClientCell(s.name || 'Serviço')}
+                    <span class="client-custom-pricing-row__meta">${escapeClientCell(s.category || '')}</span>
+                </div>
+                <div class="client-custom-pricing-row__unit">${escapeClientCell(s.unit || '—')}</div>
+                <div class="client-custom-pricing-row__table">Tabela<br><strong>${tableRate > 0 ? tableRate.toFixed(2) : '—'}</strong></div>
+                    <input type="number" min="0" step="0.01" inputmode="decimal" data-custom-rate="${escapeClientCell(id)}" placeholder="${tableRate > 0 ? tableRate.toFixed(2) : '0.00'}" value="${escapeClientCell(shown)}" aria-label="Preço customizado" />
+                </label>
+            </div>`;
+        })
+        .join('');
+    box.querySelectorAll('[data-custom-rate]').forEach((inp) => {
+        inp.addEventListener('input', () => {
+            const id = inp.getAttribute('data-custom-rate');
+            const raw = String(inp.value || '').trim();
+            if (!id) return;
+            if (raw === '') {
+                delete clientCustomPricingDraft[id];
+                return;
+            }
+            const n = Number(raw);
+            if (Number.isFinite(n) && n >= 0) clientCustomPricingDraft[id] = n;
+        });
+    });
+}
+
+async function openClientCustomPricingModal() {
+    const modal = document.getElementById('clientCustomPricingModal');
+    const list = document.getElementById('clientCustomPricingList');
+    const intro = document.getElementById('clientCustomPricingIntro');
+    const type = normalizeClientTypeUi(document.getElementById('clientType')?.value);
+    const labels = { particular: 'Particular', builder: 'Builder', contractor: 'Contractor', loja: 'Loja' };
+    if (intro) {
+        intro.textContent = `Preços só deste cadastro. Coluna de referência da tabela: ${labels[type] || type}. Deixe em branco para manter o valor da tabela.`;
+    }
+    if (list) list.innerHTML = '<p class="client-custom-pricing-empty">A carregar serviços…</p>';
+    if (modal) modal.style.display = 'flex';
+    clientCustomPricingDraft = { ...(clientCustomPricingRates || {}) };
+    clientCustomPricingSearch = '';
+    const search = document.getElementById('clientCustomPricingSearch');
+    if (search) search.value = '';
+    try {
+        await loadClientPricingCatalog();
+        renderClientCustomPricingList();
+    } catch (e) {
+        if (list) list.innerHTML = `<p class="client-custom-pricing-empty">${escapeClientCell(e.message || 'Erro ao carregar')}</p>`;
+    }
+}
+
+function closeClientCustomPricingModal() {
+    const modal = document.getElementById('clientCustomPricingModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function applyClientCustomPricingModal() {
+    const next = {};
+    Object.keys(clientCustomPricingDraft || {}).forEach((id) => {
+        const n = Number(clientCustomPricingDraft[id]);
+        if (Number.isFinite(n) && n >= 0) next[id] = Math.round(n * 100) / 100;
+    });
+    clientCustomPricingRates = next;
+    setClientPricingMode('custom');
+    syncClientFormBuilderFields();
+    closeClientCustomPricingModal();
+}
+
+function onClientPricingModeChange() {
+    const mode = getClientPricingMode();
+    if (mode === 'custom') {
+        openClientCustomPricingModal();
+    } else {
+        // Keep saved overrides in memory in case they switch back, but UI shows table mode.
+        syncClientFormBuilderFields();
+    }
 }
 
 function resetClientForm() {
@@ -2470,6 +2618,7 @@ function resetClientForm() {
     const typeEl = document.getElementById('clientType');
     if (typeEl) typeEl.value = 'particular';
     setClientPricingMode('table');
+    clientCustomPricingRates = {};
     const st = document.getElementById('clientStatus');
     if (st) st.value = 'active';
     syncClientFormBuilderFields();
@@ -2510,7 +2659,16 @@ async function inspectCustomer(id) {
         }
         const z = (v) => (v != null && String(v).trim() !== '' ? escapeClientCell(String(v)) : '—');
         let html = '';
-        const pricingLabel = (customer.pricing_mode || 'table') === 'custom' ? 'Customizar' : 'Tabela de Valores';
+        const pricingMode = (customer.pricing_mode || 'table') === 'custom' ? 'custom' : 'table';
+        const customCount = customer.custom_pricing_rates
+            ? Object.keys(customer.custom_pricing_rates).filter((k) => Number(customer.custom_pricing_rates[k]) > 0).length
+            : 0;
+        const pricingLabel =
+            pricingMode === 'custom'
+                ? customCount
+                    ? `Customizar (${customCount})`
+                    : 'Customizar'
+                : 'Tabela de Valores';
 
         html += `<div class="customer-view-card" style="background:var(--bg-light,#f6f7f9);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
             <p style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Cadastro</p>
@@ -2653,6 +2811,8 @@ async function viewCustomer(id) {
         set('clientZip', c.zipcode);
         set('clientType', normalizeClientTypeUi(c.customer_type));
         setClientPricingMode(c.pricing_mode === 'custom' ? 'custom' : 'table');
+        clientCustomPricingRates =
+            c.custom_pricing_rates && typeof c.custom_pricing_rates === 'object' ? { ...c.custom_pricing_rates } : {};
         set('clientStatus', c.status || 'active');
         set('clientNotes', c.notes);
         syncClientFormBuilderFields();
@@ -2707,6 +2867,7 @@ async function submitClientForm(ev) {
         zipcode: document.getElementById('clientZip').value.replace(/\D/g, '').slice(0, 10) || null,
         customer_type: ctype,
         pricing_mode: getClientPricingMode(),
+        custom_pricing_rates: getClientPricingMode() === 'custom' ? clientCustomPricingRates : {},
         notes: document.getElementById('clientNotes').value.trim() || null,
     };
     if (isOrgClientType(ctype)) body.responsible_name = responsibleVal;
@@ -4666,8 +4827,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ct = document.getElementById('clientType');
     if (ct) ct.addEventListener('change', syncClientFormBuilderFields);
-    ['clientPricingModeTable', 'clientPricingModeCustom'].forEach((id) => {
-        document.getElementById(id)?.addEventListener('change', syncClientFormBuilderFields);
+    document.getElementById('clientPricingModeTable')?.addEventListener('change', onClientPricingModeChange);
+    document.getElementById('clientPricingModeCustom')?.addEventListener('change', onClientPricingModeChange);
+    document.getElementById('btnEditClientCustomPricing')?.addEventListener('click', () => openClientCustomPricingModal());
+    document.getElementById('btnCloseClientCustomPricing')?.addEventListener('click', closeClientCustomPricingModal);
+    document.getElementById('btnCancelClientCustomPricing')?.addEventListener('click', closeClientCustomPricingModal);
+    document.getElementById('btnApplyClientCustomPricing')?.addEventListener('click', applyClientCustomPricingModal);
+    document.getElementById('clientCustomPricingSearch')?.addEventListener('input', (e) => {
+        clientCustomPricingSearch = e.target.value || '';
+        renderClientCustomPricingList();
     });
     const clientPhone = document.getElementById('clientPhone');
     if (clientPhone) {

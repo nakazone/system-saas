@@ -355,8 +355,10 @@ model Customer {
   /// @deprecated Prefer Property records. Kept for back-compat; do not remove in M1.
   address        String?
   customerType   String   @default("particular") // particular | builder | contractor | loja
-  /// table = use PricingItem rates for this type; custom = set prices manually on quotes/jobs
+  /// table = use PricingItem rates for this type; custom = use customPricingRates overrides
   pricingMode    String   @default("table") // table | custom
+  /// Map of pricingItemId -> unit rate when pricingMode is custom.
+  customPricingRates Json?
   company        String?
   notes          String?  @db.Text
   /// Opt-in for marketing blasts (future). Transactional emails ignore this.

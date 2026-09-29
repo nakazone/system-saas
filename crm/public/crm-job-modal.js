@@ -5,7 +5,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260929-clienttype1";
+  const CSS_HREF = "crm-job-modal.css?v=20260929-customprice1";
   let editingId = null;
   let editSection = "all";
   /** Active accordion panel when editSection === "all" */
@@ -17,6 +17,7 @@
   let pricingCatalog = [];
   let customerOptions = [];
   let selectedCustomerPricingMode = "table";
+  let selectedCustomerCustomRates = {};
   let serviceRows = [];
   const savedListeners = [];
 
@@ -278,7 +279,13 @@
 
   function unitPriceForItem(item) {
     if (!item) return 0;
-    if (selectedCustomerPricingMode === "custom") return 0;
+    if (selectedCustomerPricingMode === "custom") {
+      const override = selectedCustomerCustomRates[item.id];
+      const n = Number(override);
+      if (Number.isFinite(n) && n > 0) return n;
+      // Custom mode without override: leave blank for manual entry.
+      return 0;
+    }
     const key = pricingRateKey();
     const preferred = Number(item[key]);
     if (Number.isFinite(preferred) && preferred > 0) return preferred;
@@ -649,6 +656,10 @@
     const cid = $("jobCustomer")?.value;
     const cust = cid ? customerOptions.find((c) => String(c.id) === String(cid)) : null;
     selectedCustomerPricingMode = cust?.pricing_mode === "custom" ? "custom" : "table";
+    selectedCustomerCustomRates =
+      cust?.custom_pricing_rates && typeof cust.custom_pricing_rates === "object"
+        ? { ...cust.custom_pricing_rates }
+        : {};
     if (cust) {
       const t = String(cust.customer_type || "").toLowerCase();
       if (["particular", "builder", "contractor", "loja"].includes(t) && $("jobSourceType")) {
@@ -781,6 +792,7 @@
     $("jobStatus").value = "scheduled";
     $("jobSourceType").value = "particular";
     selectedCustomerPricingMode = "table";
+    selectedCustomerCustomRates = {};
     renderTeamCheckboxes([]);
     renderServices();
 
@@ -830,6 +842,10 @@
         ? customerOptions.find((c) => String(c.id) === String(wo.customer_id))
         : null;
       selectedCustomerPricingMode = cust?.pricing_mode === "custom" ? "custom" : "table";
+      selectedCustomerCustomRates =
+        cust?.custom_pricing_rates && typeof cust.custom_pricing_rates === "object"
+          ? { ...cust.custom_pricing_rates }
+          : {};
     }
     $("jobAddress").value = wo.address || "";
     $("jobStart").value = toLocalInput(wo.scheduled_start);

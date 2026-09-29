@@ -686,6 +686,107 @@ input.score-auto {
     line-height: 1.4;
     color: #6b645c;
 }
+.client-pricing-mode__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-top: 0.55rem;
+}
+.client-pricing-mode__count {
+    font-size: 0.78rem;
+    color: #6b645c;
+    font-weight: 600;
+}
+
+.client-custom-pricing-modal {
+    max-width: 640px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+.client-custom-pricing-intro {
+    margin: 0 0 0.65rem;
+    font-size: 0.85rem;
+    color: #6b645c;
+    line-height: 1.4;
+}
+.client-custom-pricing-toolbar {
+    margin-bottom: 0.55rem;
+}
+.client-custom-pricing-toolbar input[type="search"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #e2d9cc;
+    border-radius: 8px;
+    font: inherit;
+}
+.client-custom-pricing-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #e2d9cc;
+    border-radius: 10px;
+    background: #fff;
+    max-height: min(52vh, 420px);
+}
+.client-custom-pricing-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(4rem, 0.45fr) minmax(4.5rem, 0.55fr) minmax(5rem, 0.65fr);
+    gap: 0.4rem 0.55rem;
+    align-items: center;
+    padding: 0.55rem 0.7rem;
+    border-bottom: 1px solid #f0ebe3;
+}
+.client-custom-pricing-row:last-child {
+    border-bottom: 0;
+}
+.client-custom-pricing-row__name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #211d1a;
+    min-width: 0;
+}
+.client-custom-pricing-row__meta {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #6b645c;
+    margin-top: 0.1rem;
+}
+.client-custom-pricing-row__unit,
+.client-custom-pricing-row__table {
+    font-size: 0.78rem;
+    color: #6b645c;
+    white-space: nowrap;
+}
+.client-custom-pricing-row__table strong {
+    color: #211d1a;
+    font-weight: 700;
+}
+.client-custom-pricing-row input[type="number"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.35rem 0.45rem;
+    border: 1px solid #e2d9cc;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+.client-custom-pricing-empty {
+    padding: 1.25rem;
+    text-align: center;
+    color: #6b645c;
+    font-size: 0.9rem;
+}
+@media (max-width: 560px) {
+    .client-custom-pricing-row {
+        grid-template-columns: 1fr 1fr;
+    }
+    .client-custom-pricing-row__name {
+        grid-column: 1 / -1;
+    }
+}
 
 .crm-user-avatar-field {
     margin-bottom: var(--spacing-md);
