@@ -278,7 +278,7 @@
         tab === "chat" ? ' aria-current="page"' : ""
       }>
         ${ICONS.chat}
-        <span>Chat</span>
+        <span>ObraChat</span>
       </a>
       <a class="om-tabbar__item${tab === "horas" ? " is-active" : ""}" href="/campo/horas.html" data-om-tab="horas"${
         tab === "horas" ? ' aria-current="page"' : ""

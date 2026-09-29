@@ -47,7 +47,7 @@
         ${ICONS.jobs}<span>Jobs</span>
       </a>
       <a class="cm-tabbar__item${tab === "chat" ? " is-active" : ""}" href="/chat.html" data-cm-tab="chat">
-        ${ICONS.chat}<span>Chat</span>
+        ${ICONS.chat}<span>ObraChat</span>
       </a>
       <a class="cm-tabbar__item${tab === "horas" ? " is-active" : ""}" href="horas.html" data-cm-tab="horas">
         ${ICONS.horas}<span>Horas</span>

@@ -73,7 +73,7 @@
 
   function updateDocTitle() {
     const total = state.conversations.reduce((n, c) => n + (c.unread_count || 0), 0);
-    document.title = total > 0 ? `(${total}) Chat | ObraMate` : "Chat | ObraMate";
+    document.title = total > 0 ? `(${total}) ObraChat | ObraMate` : "ObraChat | ObraMate";
   }
 
   function fmtTime(iso) {

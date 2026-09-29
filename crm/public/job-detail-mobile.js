@@ -501,7 +501,7 @@
           onError: (err) => alert(err.message || "Erro"),
         });
       } else {
-        $("jobMobExtra").innerHTML = `<p class="jcm-empty">Chat indisponível.</p>`;
+        $("jobMobExtra").innerHTML = `<p class="jcm-empty">ObraChat indisponível.</p>`;
       }
     } else if (detTab === "financeiro") {
       const total = Number(wo.services_total) || 0;

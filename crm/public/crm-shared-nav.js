@@ -104,7 +104,7 @@
         items: [
           { href: 'schedule.html', label: 'Agenda', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
-          { href: 'chat.html', label: 'Chat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
+          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
           {
             href: 'payroll-module.html',
             label: 'Minha folha',
@@ -138,10 +138,10 @@
           { href: 'invoices.html', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'invoices' },
           { href: 'schedule.html', label: 'Schedule', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
-          { href: 'chat.html', label: 'Chat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
+          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
           {
             href: 'job-media-board.html',
-            label: 'Fotos de campo',
+            label: 'ObraCam',
             perm: 'work_orders.view',
             page: '',
             iconKey: 'jobs',

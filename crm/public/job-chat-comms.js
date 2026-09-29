@@ -24,7 +24,7 @@
 
   function typeBadge(type) {
     const map = { dm: "Direta", group: "Grupo", job: "Canal" };
-    return map[type] || type || "Chat";
+    return map[type] || type || "ObraChat";
   }
 
   function stripTokens(body) {
