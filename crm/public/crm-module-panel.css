@@ -366,6 +366,178 @@
   color: var(--mod-faint);
 }
 
+/* —— Progressive help (system-wide) ——
+   Prefer action-first UI. Long copy → mod-guide (closed) or mod-tip (?).
+   Do not leave teaching essays permanently open in the work path. */
+.mod-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0.3rem;
+}
+
+.mod-tip__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--mod-border);
+  background: var(--mod-surface);
+  color: var(--mod-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.mod-tip__btn:hover,
+.mod-tip__btn:focus-visible {
+  border-color: var(--mod-accent);
+  color: var(--mod-accent);
+  outline: none;
+}
+
+.mod-tip__pop {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  z-index: 40;
+  width: max-content;
+  max-width: min(280px, 70vw);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--mod-ink);
+  background: var(--mod-surface);
+  border: 1px solid var(--mod-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(33, 29, 26, 0.12);
+  pointer-events: none;
+  text-align: left;
+  white-space: normal;
+}
+
+.mod-tip:hover .mod-tip__pop,
+.mod-tip:focus-within .mod-tip__pop {
+  display: block;
+}
+
+.mod-tip--end .mod-tip__pop {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.mod-guide {
+  border: 1px solid var(--mod-border);
+  border-radius: var(--mod-radius);
+  background: var(--mod-surface-soft);
+  padding: 0;
+  font-size: 0.8125rem;
+  color: var(--mod-muted);
+}
+
+.mod-guide > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  padding: 0.65rem 0.85rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--mod-ink);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mod-guide > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mod-guide > summary::before {
+  content: "?";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1px solid var(--mod-border);
+  background: var(--mod-surface);
+  color: var(--mod-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mod-guide[open] > summary {
+  border-bottom: 1px solid var(--mod-border-soft);
+}
+
+.mod-guide__body {
+  padding: 0.75rem 0.85rem 0.9rem;
+  line-height: 1.5;
+}
+
+.mod-guide__body ol,
+.mod-guide__body ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.mod-guide__body li + li {
+  margin-top: 0.35rem;
+}
+
+.mod-guide__body p {
+  margin: 0.5rem 0 0;
+}
+
+.mod-guide__body p:first-child {
+  margin-top: 0;
+}
+
+.mod-field-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--mod-faint);
+}
+
+.mod-section-lead {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--mod-muted);
+  max-width: 42rem;
+}
+
+.mod-page-header__sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--mod-muted);
+}
+
+.mod-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+}
+
+.mod-reveal[hidden],
+.mod-reveal.is-collapsed {
+  display: none !important;
+}
+
 .mod-pagination {
   display: flex;
   flex-wrap: wrap;

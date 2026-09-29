@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="crm-shared-nav.css?v=11" />
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260924-omapp11" />
-  <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
+  <link rel="stylesheet" href="crm-module-panel.css?v=20260929-modhelp1" />
   <link rel="stylesheet" href="obramate-app.css?v=20260925-mais1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260925-apptop1" />
   <link rel="stylesheet" href="payroll.css?v=20260925-paymob1" />
@@ -231,7 +231,6 @@
         <div class="mod-page-header">
           <div>
             <h1>Folha de pagamento</h1>
-            <p id="payrollPageSub" class="mod-page-header__sub">Equipe → período e horas → fechamento → relatórios</p>
           </div>
           <div class="mod-page-header__actions">
             <button type="button" id="btnReloadAll" class="btn btn-secondary">Atualizar</button>
@@ -256,15 +255,19 @@
     <!-- Meu banco de horas (self-service) -->
     <section id="hub-meu-banco" class="payroll-hub-section">
       <div class="payroll-hub-section__head">
-        <h2 class="text-base font-bold text-slate-900">Minha folha</h2>
-        <p class="text-xs text-slate-500 mt-0.5">Diárias lançadas pelo escritório e os seus registos (diária / extras / produção). Pendentes aguardam aprovação.</p>
+        <h2 class="text-base font-bold text-slate-900">
+          Minha folha
+          <span class="mod-tip">
+            <button type="button" class="mod-tip__btn" aria-label="Ajuda: Minha folha">?</button>
+            <span class="mod-tip__pop" role="tooltip">Diárias do escritório e os seus registos. Pendentes aguardam aprovação.</span>
+          </span>
+        </h2>
       </div>
       <div class="payroll-hub-section__body space-y-4">
         <div id="hourBankUnlinked" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p class="font-semibold">Conta ainda não associada à folha</p>
           <p class="mt-1" id="hourBankUnlinkedDetail">
-            O seu login precisa de um registo em <strong>Folha → 1 · Equipe</strong> com o
-            <strong>mesmo email</strong> da conta. Peça ao gestor para editar o funcionário e gravar o email de login.
+            Peça ao gestor para gravar o <strong>mesmo email</strong> do login em Folha → 1 · Equipe.
           </p>
           <p class="mt-2 text-xs" id="hourBankLoginEmail" hidden></p>
         </div>
@@ -282,7 +285,6 @@
               </div>
             </div>
 
-            <!-- Diária + extras (pay type daily) -->
             <div id="hbDailyBlock" class="space-y-3">
               <div class="flex flex-wrap items-center gap-3">
                 <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 cursor-pointer shadow-sm">
@@ -290,7 +292,13 @@
                   <span class="text-sm font-bold text-slate-900">1 diária</span>
                 </label>
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Horas extras</span>
+                  <span class="mod-label-row text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Horas extras
+                    <span class="mod-tip">
+                      <button type="button" class="mod-tip__btn" aria-label="Ajuda: horas extras">?</button>
+                      <span class="mod-tip__pop" role="tooltip">Hora extra = 10% do valor da diária.</span>
+                    </span>
+                  </span>
                   <button type="button" class="btn btn-sm btn-secondary" id="hbOtMinus" aria-label="Remover 30 min">−30</button>
                   <span class="min-w-[4.5rem] text-center text-sm font-bold tabular-nums" id="hbOtLabel">0 min</span>
                   <button type="button" class="btn btn-sm btn-secondary" id="hbOtPlus" aria-label="Adicionar 30 min">+30</button>
@@ -298,14 +306,17 @@
                   <button type="button" class="btn btn-sm btn-secondary" data-hb-ot="2">+2h</button>
                 </div>
               </div>
-              <p class="text-xs text-slate-500" id="hbDailyHint">Hora extra = 10% do valor da diária.</p>
             </div>
 
-            <!-- Produção sqft -->
             <div id="hbProdBlock" class="hidden space-y-2">
-              <label class="block text-xs font-semibold text-slate-500 mb-1" for="hbSqft">Produção (sqft) *</label>
+              <label class="mod-label-row block text-xs font-semibold text-slate-500 mb-1" for="hbSqft">
+                Produção (sqft) *
+                <span class="mod-tip">
+                  <button type="button" class="mod-tip__btn" aria-label="Ajuda: produção">?</button>
+                  <span class="mod-tip__pop" role="tooltip">Valor = sqft × taxa de produção do cadastro.</span>
+                </span>
+              </label>
               <input type="number" id="hbSqft" min="1" step="1" placeholder="Ex.: 450" class="w-full max-w-xs border rounded-lg px-3 py-2.5 text-sm bg-white" />
-              <p class="text-xs text-slate-500" id="hbProdHint">Valor = sqft × taxa de produção do cadastro.</p>
             </div>
 
             <div>
@@ -337,8 +348,13 @@
     <section id="hub-aprovar-banco" class="payroll-hub-section" data-payroll-admin-only>
       <div class="payroll-hub-section__head flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 class="text-base font-bold text-slate-900">Aprovar banco de horas</h2>
-          <p class="text-xs text-slate-500 mt-0.5">Lançamentos feitos pelos funcionários. Ao aprovar, as horas entram no quadro do período aberto.</p>
+          <h2 class="text-base font-bold text-slate-900">
+            Aprovar banco de horas
+            <span class="mod-tip">
+              <button type="button" class="mod-tip__btn" aria-label="Ajuda: aprovar banco">?</button>
+              <span class="mod-tip__pop" role="tooltip">Ao aprovar, as horas entram no quadro do período aberto.</span>
+            </span>
+          </h2>
         </div>
         <button type="button" id="btnReloadApproveBank" class="btn btn-sm btn-secondary shrink-0">Atualizar</button>
       </div>
@@ -392,23 +408,35 @@
         <div class="flex flex-col sm:flex-row sm:items-baseline sm:flex-wrap gap-1 sm:gap-3 min-w-0">
           <h2 class="text-base font-bold text-slate-900">1 · Equipe</h2>
           <p id="equipaReadOnlyNote" class="hidden text-xs text-slate-500 font-normal leading-snug">
-            Somente leitura. Para editar, peça ao administrador para alterar seu perfil para <strong class="font-medium text-slate-600">Gestor de projeto</strong> ou ativar a gestão da folha nas suas permissões.
+            Somente leitura. Peça ao administrador gestão da folha nas permissões.
           </p>
         </div>
-        <button type="button" id="btnNewEmployee" class="btn btn-sm btn-primary hidden shrink-0">Formulário completo</button>
+        <div class="flex flex-wrap gap-2 shrink-0">
+          <button type="button" id="btnToggleQuickEmp" class="btn btn-sm btn-secondary hidden">Cadastro rápido</button>
+          <button type="button" id="btnNewEmployee" class="btn btn-sm btn-primary hidden">Formulário completo</button>
+        </div>
       </div>
       <div class="payroll-hub-section__body space-y-4">
 
-        <div id="quickEmpPanel" class="hidden rounded-xl border-2 border-[#d6b598]/50 bg-[#faf8f5] p-4 space-y-3">
-          <p class="text-sm font-bold text-slate-800">Cadastro rápido <span class="font-normal text-slate-500">(por dia — você pode editar depois)</span></p>
+        <div id="quickEmpPanel" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3 mod-reveal is-collapsed" hidden>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm font-bold text-slate-800">Cadastro rápido</p>
+            <button type="button" id="btnCloseQuickEmp" class="btn btn-sm btn-secondary">Fechar</button>
+          </div>
           <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
             <div class="sm:col-span-2">
               <label class="block text-xs font-semibold text-slate-500 mb-1">Nome *</label>
               <input id="empQuickName" class="w-full border rounded-lg px-3 py-2.5 text-sm" placeholder="Nome do funcionário" />
             </div>
             <div class="sm:col-span-2">
-              <label class="block text-xs font-semibold text-slate-500 mb-1">Email de login (CRM)</label>
-              <input id="empQuickEmail" type="email" class="w-full border rounded-lg px-3 py-2.5 text-sm" placeholder="mesmo email da conta do funcionário" />
+              <label class="mod-label-row block text-xs font-semibold text-slate-500 mb-1">
+                Email de login (CRM)
+                <span class="mod-tip">
+                  <button type="button" class="mod-tip__btn" aria-label="Ajuda: email de login">?</button>
+                  <span class="mod-tip__pop" role="tooltip">Mesmo email da conta CRM. Com isso o funcionário acede à folha. Horas extras no formulário completo.</span>
+                </span>
+              </label>
+              <input id="empQuickEmail" type="email" class="w-full border rounded-lg px-3 py-2.5 text-sm" placeholder="mesmo email da conta" />
             </div>
             <div>
               <label class="block text-xs font-semibold text-slate-500 mb-1">Setor</label>
@@ -425,13 +453,12 @@
           </div>
           <div class="flex flex-wrap gap-2">
             <button type="button" id="empQuickSave" class="btn btn-primary">Adicionar à equipe</button>
-            <span class="text-xs text-slate-500 self-center">Com o email do login, o funcionário acede à folha e ao dashboard. Horas extras no formulário completo.</span>
           </div>
           <p id="empQuickErr" class="text-red-600 text-sm hidden"></p>
         </div>
 
         <div id="empEmptyCta" class="hidden rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
-          <p class="mb-3">Ainda não há funcionários. Use o cadastro rápido acima ou o formulário completo.</p>
+          <p class="mb-3">Ainda não há funcionários.</p>
           <button type="button" id="btnNewEmployeeEmpty" class="btn btn-primary hidden">Formulário completo</button>
         </div>
 
@@ -483,24 +510,22 @@
           <p id="periodMeta" class="text-xs text-slate-500 flex-1 min-w-[200px]"></p>
         </div>
 
-        <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 space-y-1.5">
-          <p class="font-semibold text-slate-800">Como lançar dias e horas extras</p>
-          <ol class="list-decimal list-inside space-y-1 text-slate-600">
-            <li>Escolha o <strong>período</strong> em <strong>Selecionar período</strong> (calendário por semana Seg–Dom; gestores podem <strong>Criar período</strong> para a semana escolhida).</li>
-            <li>A planilha está <strong>dividida por setor</strong> (Installation e Sand &amp; Finish). Funcionários <strong>sem setor</strong> no cadastro aparecem na lista de Installation. Ao mudar a <strong>data</strong>, a <strong>linha seguinte no mesmo bloco</strong> recebe a mesma data.</li>
-            <li>Em cada linha: <strong>data</strong>, <strong>funcionário</strong>, opcionalmente <strong>projeto</strong>.</li>
-            <li>Opcional: em <strong>Diária linha</strong> indique um valor só para aquele dia (ex.: outra função com diária maior). <strong>Vazio</strong> usa a diária do cadastro. Não altera o cálculo para tipo <strong>por hora</strong>.</li>
-            <li>Preencha <strong>dias</strong> (ex.: 1, <strong>2</strong> ou ½) — para tipo <strong>por hora</strong>, use esta coluna como <strong>horas</strong> no mesmo campo. Tipo <strong>misto</strong> mostra <strong>horas normais</strong> extra na linha. Inclua <strong>horas extras</strong> na coluna HE (botões <strong>±</strong>, <strong>1d</strong>, <strong>2d</strong>, <strong>½</strong>, <strong>+1h/+2h/+4h</strong> em HE). No mesmo dia, no máximo <strong>2 diárias</strong> por funcionário (duas linhas de 1 ou uma de 2). No celular, <strong>deslize a tabela</strong> para a direita.</li>
-            <li>Funcionários com <strong>“datas fora da semana”</strong> no cadastro podem ter <strong>data de trabalho</strong> fora do intervalo Seg–Dom do período; o valor entra na folha <strong>deste</strong> fechamento.</li>
-            <li>Clique em <strong>Salvar planilha</strong> para gravar no servidor.</li>
-          </ol>
-          <p class="text-slate-500 pt-1 border-t border-slate-200">
-            <strong>Cálculo:</strong> tipo <em>diária</em> usa dias + HE; <em>por hora</em> usa a coluna de quantidade como <em>horas</em> (+ HE); <em>misto</em> combina dias, horas normais (bloco na linha) e HE. Defina valores no cadastro.
-          </p>
-          <p class="text-slate-500 pt-1 border-t border-slate-200 text-[11px]">
-            <strong>Permissões:</strong> com <code class="text-slate-600">payroll.view</code> você pode lançar e salvar a planilha enquanto o período está <strong>aberto</strong>. Com período <strong>fechado</strong>, só quem tem <code class="text-slate-600">payroll.manage</code> pode alterar ou excluir linhas já salvas e usar de novo <strong>Salvar planilha</strong>; não é possível adicionar linhas novas. Criar funcionários, períodos ou fechar período continua exigindo <code class="text-slate-600">payroll.manage</code>.
-          </p>
-        </div>
+        <details class="mod-guide">
+          <summary>Como lançar dias e horas extras</summary>
+          <div class="mod-guide__body">
+            <ol>
+              <li>Escolha o <strong>período</strong> (semana Seg–Dom).</li>
+              <li>A planilha está <strong>dividida por setor</strong>. Sem setor no cadastro → Installation. Ao mudar a data, a linha seguinte no bloco herda a data.</li>
+              <li>Em cada linha: data, funcionário e, opcionalmente, projeto.</li>
+              <li><strong>Diária linha</strong> (opcional): valor só daquele dia; vazio usa o cadastro. Não aplica a tipo por hora.</li>
+              <li><strong>Dias / horas</strong>: diárias (ex. 1, 2, ½) ou horas no tipo por hora. Tipo misto mostra horas normais na linha. HE com botões ±. Máx. 2 diárias/dia por pessoa. No celular, deslize a tabela.</li>
+              <li>Com «datas fora da semana» no cadastro, a data de trabalho pode ficar fora de Seg–Dom; o valor entra neste fechamento.</li>
+              <li>Clique em <strong>Salvar planilha</strong>.</li>
+            </ol>
+            <p><strong>Cálculo:</strong> diária = dias + HE; por hora = quantidade como horas (+ HE); misto = dias + horas normais + HE.</p>
+            <p>Período aberto: quem vê a folha pode lançar. Fechado: só gestores alteram linhas existentes (sem linhas novas). Criar equipe/períodos ou fechar período exige gestão da folha.</p>
+          </div>
+        </details>
         <div class="flex flex-wrap gap-2 items-center">
           <span class="text-xs font-semibold text-slate-500">Total deste período:</span>
           <span id="periodRunningTotal" class="text-base font-bold text-slate-900">$0.00</span>
@@ -561,8 +586,13 @@
     <!-- 3 · Relatórios -->
     <section id="hub-relatorios" class="payroll-hub-section">
       <div class="payroll-hub-section__head">
-        <h2 class="text-base font-bold text-slate-900">3 · Relatórios de pagamento</h2>
-        <p class="text-xs text-slate-500 mt-1">Mesmo intervalo para tudo — um clique gera o pacote completo. Os totais usam a <strong>data do trabalho</strong> de cada linha (não o nome do período de folha).</p>
+        <h2 class="text-base font-bold text-slate-900">
+          3 · Relatórios de pagamento
+          <span class="mod-tip">
+            <button type="button" class="mod-tip__btn" aria-label="Ajuda: relatórios">?</button>
+            <span class="mod-tip__pop" role="tooltip">Totais usam a data do trabalho de cada linha, não o nome do período.</span>
+          </span>
+        </h2>
       </div>
       <div class="payroll-hub-section__body space-y-4">
         <div class="flex flex-wrap gap-3 items-end">
@@ -576,7 +606,6 @@
           </div>
           <button type="button" id="btnReportAll" class="btn btn-primary">Gerar relatório completo</button>
         </div>
-        <p class="text-xs text-slate-400">Ou escolha só uma parte:</p>
         <div class="flex flex-wrap gap-2">
           <button type="button" id="btnReportEmployees" class="btn btn-sm btn-secondary">Por funcionário</button>
           <button type="button" id="btnReportProjects" class="btn btn-sm btn-secondary">Por projeto</button>
@@ -599,7 +628,16 @@
       <div><label class="text-xs font-semibold text-slate-500">Função / cargo</label><input id="empRole" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ex.: instalador" /></div>
       <div class="grid grid-cols-2 gap-3">
         <div><label class="text-xs font-semibold text-slate-500">Telefone</label><input id="empPhone" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-        <div><label class="text-xs font-semibold text-slate-500">E-mail</label><input id="empEmail" type="email" class="w-full border rounded-lg px-3 py-2 text-sm" /><p class="text-[11px] text-slate-500 mt-1">Mesmo email do login CRM → o funcionário acede ao «Meu banco de horas».</p></div>
+        <div>
+          <label class="mod-label-row text-xs font-semibold text-slate-500">
+            E-mail
+            <span class="mod-tip">
+              <button type="button" class="mod-tip__btn" aria-label="Ajuda: e-mail">?</button>
+              <span class="mod-tip__pop" role="tooltip">Mesmo email do login CRM → acesso a «Meu banco de horas».</span>
+            </span>
+          </label>
+          <input id="empEmail" type="email" class="w-full border rounded-lg px-3 py-2 text-sm" />
+        </div>
       </div>
       <div>
         <label class="text-xs font-semibold text-slate-500">Setor</label>
@@ -610,19 +648,29 @@
         </select>
       </div>
       <div>
-        <label class="text-xs font-semibold text-slate-500">Tipo de pagamento</label>
+        <label class="mod-label-row text-xs font-semibold text-slate-500">
+          Tipo de pagamento
+          <span class="mod-tip">
+            <button type="button" class="mod-tip__btn" aria-label="Ajuda: tipo de pagamento">?</button>
+            <span class="mod-tip__pop" role="tooltip">Diária: hora extra = 10% do valor da diária.</span>
+          </span>
+        </label>
         <select id="empPayType" class="w-full border rounded-lg px-3 py-2 text-sm">
           <option value="daily">Diária + horas extras</option>
           <option value="production">Produção (por sqft)</option>
         </select>
-        <p class="text-[11px] text-slate-500 mt-1" id="empPayTypeHint">Diária: hora extra = 10% do valor da diária.</p>
       </div>
       <div class="grid grid-cols-2 gap-3" id="empRatesDaily">
         <div><label class="text-xs font-semibold text-slate-500">Valor diária ($)</label><input id="empDaily" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
         <div>
-          <label class="text-xs font-semibold text-slate-500">Hora extra ($)</label>
+          <label class="mod-label-row text-xs font-semibold text-slate-500">
+            Hora extra ($)
+            <span class="mod-tip">
+              <button type="button" class="mod-tip__btn" aria-label="Ajuda: hora extra">?</button>
+              <span class="mod-tip__pop" role="tooltip">Calculado automaticamente (10% da diária).</span>
+            </span>
+          </label>
           <input id="empOt" type="number" step="0.01" min="0" class="w-full border rounded-lg px-3 py-2 text-sm" readonly />
-          <p class="text-[11px] text-slate-500 mt-1">Calculado automaticamente (10% da diária).</p>
         </div>
       </div>
       <div class="hidden" id="empRatesProd">
@@ -634,7 +682,13 @@
       <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
         <label class="inline-flex gap-2 text-sm items-start cursor-pointer">
           <input type="checkbox" id="empAllowOutsideWeek" class="mt-0.5 shrink-0" />
-          <span><span class="font-medium text-slate-800">Datas fora da semana do período</span><span class="block text-xs text-slate-500 font-normal mt-0.5">Permite lançar a <strong>data do trabalho</strong> fora de Seg–Dom do período selecionado; o pagamento continua neste fechamento (útil para quem recebe numa semana diferente do calendário do trabalho).</span></span>
+          <span class="mod-label-row font-medium text-slate-800">
+            Datas fora da semana do período
+            <span class="mod-tip">
+              <button type="button" class="mod-tip__btn" aria-label="Ajuda: datas fora da semana">?</button>
+              <span class="mod-tip__pop" role="tooltip">Permite data de trabalho fora de Seg–Dom; o pagamento continua neste fechamento.</span>
+            </span>
+          </span>
         </label>
       </div>
       <div id="empActiveWrap" class="hidden"><label class="inline-flex gap-2 text-sm"><input type="checkbox" id="empActive" checked /> Ativo</label></div>
@@ -653,8 +707,13 @@
   <div id="periodPickerModal" class="fixed inset-0 z-[1100] hidden items-center justify-center p-4 bg-black/50">
     <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
       <div>
-        <h2 class="text-lg font-bold text-slate-900">Período semanal</h2>
-        <p class="text-xs text-slate-500 mt-1">Folha fechada de <strong>segunda a domingo</strong>. Clique em um dia para selecionar a semana.</p>
+        <h2 class="text-lg font-bold text-slate-900">
+          Período semanal
+          <span class="mod-tip">
+            <button type="button" class="mod-tip__btn" aria-label="Ajuda: período semanal">?</button>
+            <span class="mod-tip__pop" role="tooltip">Folha de segunda a domingo. Clique num dia para selecionar a semana.</span>
+          </span>
+        </h2>
       </div>
       <div class="flex items-center justify-between gap-2">
         <button type="button" id="periodPickerPrevM" class="btn btn-sm btn-secondary" aria-label="Mês anterior">←</button>
@@ -776,7 +835,7 @@
   <script src="crm-shell.js?v=20260925-mais1"></script>
   <script src="crm-shared-nav.js?v=20260929-obranames1"></script>
   <script src="om-mobile-nav.js?v=20260929-obranames1"></script>
-  <script src="payroll-module.js?v=20260925-meufolha1"></script>
+  <script src="payroll-module.js?v=20260929-modhelp1"></script>
   <script src="payroll-mobile.js?v=20260925-payscroll1"></script>
 </body>
 </html>

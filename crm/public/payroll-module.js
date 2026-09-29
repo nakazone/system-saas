@@ -183,17 +183,31 @@ function showAuth(msg) {
 
 function setManageUi() {
   const show = canManage;
-  ['btnNewEmployee', 'btnNewPeriod', 'btnNewEmployeeEmpty'].forEach((id) => {
+  ['btnNewEmployee', 'btnNewPeriod', 'btnNewEmployeeEmpty', 'btnToggleQuickEmp'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', !show);
   });
-  document.getElementById('quickEmpPanel')?.classList.toggle('hidden', !show);
+  const quick = document.getElementById('quickEmpPanel');
+  if (quick && !show) {
+    quick.classList.add('hidden', 'is-collapsed');
+    quick.hidden = true;
+  }
   const readOnlyNote = document.getElementById('equipaReadOnlyNote');
   if (readOnlyNote) {
     const hasView = String(role || '').toLowerCase() === 'admin' || permissionKeys.includes('payroll.view');
     readOnlyNote.classList.toggle('hidden', canManage || !hasView);
   }
   refreshPeriodActions();
+}
+
+function setQuickEmpOpen(open) {
+  const panel = document.getElementById('quickEmpPanel');
+  const toggle = document.getElementById('btnToggleQuickEmp');
+  if (!panel) return;
+  panel.hidden = !open;
+  panel.classList.toggle('hidden', !open);
+  panel.classList.toggle('is-collapsed', !open);
+  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function refreshPeriodActions() {
@@ -273,10 +287,6 @@ function applyPayrollAccessMode() {
     const sec = document.getElementById(id);
     if (sec) sec.classList.toggle('hidden', !canPayrollAdmin);
   });
-  const sub = document.getElementById('payrollPageSub');
-  if (sub && !canPayrollAdmin) {
-    sub.textContent = 'Registe e consulte as suas horas';
-  }
   const selfTab = document.getElementById('tabMeuBanco');
   if (selfTab) selfTab.classList.toggle('hidden', !canHourBankSelf);
   const approveTab = document.getElementById('tabAprovarBanco');
@@ -404,10 +414,6 @@ function syncHourBankFormMode() {
   if (prod) prod.classList.toggle('hidden', !isProd);
   const sqft = document.getElementById('hbSqft');
   if (sqft) sqft.required = isProd;
-  const hint = document.getElementById('hbDailyHint');
-  if (hint && !isProd) {
-    hint.textContent = 'Hora extra = 10% do valor da diária.';
-  }
 }
 
 function setHourBankOt(deltaOrAbs, absolute) {
@@ -1453,15 +1459,9 @@ function syncEmpPayTypeUi() {
   const pt = document.getElementById('empPayType')?.value || 'daily';
   const daily = document.getElementById('empRatesDaily');
   const prod = document.getElementById('empRatesProd');
-  const hint = document.getElementById('empPayTypeHint');
   const isProd = pt === 'production';
   if (daily) daily.classList.toggle('hidden', isProd);
   if (prod) prod.classList.toggle('hidden', !isProd);
-  if (hint) {
-    hint.textContent = isProd
-      ? 'Produção: o funcionário lança sqft no banco de horas.'
-      : 'Diária: hora extra = 10% do valor da diária (calculado automaticamente).';
-  }
   if (!isProd) syncEmpOtFromDaily();
 }
 
@@ -2450,6 +2450,12 @@ document.getElementById('periodPickerNextM')?.addEventListener('click', () => {
   renderPeriodPickerUi();
 });
 document.getElementById('btnNewEmployee')?.addEventListener('click', () => openEmployeeModal(null));
+document.getElementById('btnToggleQuickEmp')?.addEventListener('click', () => {
+  const panel = document.getElementById('quickEmpPanel');
+  const open = !panel || panel.hidden || panel.classList.contains('hidden');
+  setQuickEmpOpen(!!open);
+});
+document.getElementById('btnCloseQuickEmp')?.addEventListener('click', () => setQuickEmpOpen(false));
 document.getElementById('empCancel')?.addEventListener('click', () => closeEmployeeModal());
 document.getElementById('empDelete')?.addEventListener('click', async () => {
   const editId = document.getElementById('empEditId').value;
