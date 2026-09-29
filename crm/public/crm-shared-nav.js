@@ -1,8 +1,6 @@
 /**
- * Menu CRM padrão (mesma estrutura, grupos e ícones que dashboard.html) em páginas standalone.
+ * Menu CRM padrão (Visão geral / Vendas / Operação / Financeiro) em páginas standalone.
  * Respeita permissões via GET /api/auth/session.
- * Apenas módulos padrão: Dashboard, Leads, Quotes, Invoices, Cadastro,
- * Schedule, Jobs, Folha de Pagamento.
  */
 (function () {
   // Shell may inject this script while the page also has a static <script> tag —
@@ -11,7 +9,7 @@
 
   const ICONS = {
     dashboard:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>',
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>',
     leads:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16l-6 7.5V20l-4-2v-6.5L4 4z"/></svg>',
     customers:
@@ -26,6 +24,8 @@
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>',
     jobs:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M12 12v.01"/><path d="M2 12h20"/></svg>',
+    camera:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
     chat:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
     cadastro:
@@ -46,20 +46,7 @@
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
   };
 
-  const CADASTRO_CHILDREN = [
-    { href: 'dashboard.html?page=customers', label: 'Clientes', perm: 'customers.view', page: 'customers', iconKey: 'customers' },
-    {
-      href: 'builder-pricing-admin.html',
-      label: 'Tabela de Valor',
-      perm: 'builders.view',
-      permAny: ['builders.view', 'quotes.edit'],
-      page: '',
-      iconKey: 'pricing',
-    },
-    { href: 'equipe.html', label: 'Equipe', perm: 'users.view', page: '', iconKey: 'users' },
-  ];
-
-  /** Grupos alinhados a dashboard.html — só módulos padrão do sistema */
+  /** Grupos alinhados ao menu do produto (Visão geral / Vendas / Operação / Financeiro) */
   function isMobileDevice() {
     if (window.__omDevice && typeof window.__omDevice.isMobile === 'function') {
       return window.__omDevice.isMobile();
@@ -75,21 +62,6 @@
   function isFieldRole(role) {
     const r = String(role || '').toLowerCase();
     return r === 'installer' || r === 'crew_lead' || r === 'subcontractor';
-  }
-
-  function sidebarTopItems(role) {
-    if (isFieldRole(role)) {
-      return [{ href: 'funcionario.html', label: 'Início', perm: null, page: '', iconKey: 'dashboard' }];
-    }
-    if (isMobileDevice()) {
-      return [
-        { href: 'home.html', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
-        { href: 'pipeline-lab.html', label: 'Leads', perm: null, page: 'pipeline', iconKey: 'leads' },
-      ];
-    }
-    return [
-      { href: 'pipeline-lab.html', label: 'Dashboard', perm: null, page: '', iconKey: 'dashboard' },
-    ];
   }
 
   function getFieldSidebarGroups() {
@@ -119,47 +91,63 @@
 
   function getSidebarGroups(role) {
     if (isFieldRole(role)) return getFieldSidebarGroups();
+    const homeHref = isMobileDevice() ? 'home.html' : 'pipeline-lab.html';
     return [
       {
-        label: null,
-        items: sidebarTopItems(role),
-      },
-      {
-        label: 'Comercial',
+        label: 'Visão geral',
         items: [
-          { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
+          { href: homeHref, label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
+          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
         ],
       },
       {
-        label: 'Operações',
+        label: 'Vendas',
         items: [
-          { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
-          { href: 'invoices.html', label: 'Invoices', perm: 'quotes.view', page: 'invoices', iconKey: 'invoices' },
-          { href: 'schedule.html', label: 'Schedule', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+          { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
+          { href: 'quotes.html', label: 'Orçamentos', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+          {
+            href: 'dashboard.html?page=customers',
+            label: 'Clientes',
+            perm: 'customers.view',
+            page: 'customers',
+            iconKey: 'customers',
+          },
+        ],
+      },
+      {
+        label: 'Operação',
+        items: [
+          { href: 'schedule.html', label: 'Agenda', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
-          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
           {
             href: 'job-media-board.html',
             label: 'ObraCam',
             perm: 'work_orders.view',
             page: '',
-            iconKey: 'jobs',
+            iconKey: 'camera',
           },
-          { type: 'dropdown', label: 'Cadastro', perm: null, iconKey: 'cadastro', children: CADASTRO_CHILDREN },
+        ],
+      },
+      {
+        label: 'Financeiro',
+        items: [
+          { href: 'invoices.html', label: 'Faturas', perm: 'quotes.view', page: 'invoices', iconKey: 'invoices' },
+          { href: 'finance.html', label: 'Fluxo de caixa', perm: 'finance.view', page: '', iconKey: 'finance' },
           {
             href: 'payroll-module.html',
-            label: 'Folha de Pagamento',
+            label: 'Folha',
             perm: 'payroll.view',
             permAny: ['payroll.view', 'payroll.self'],
             page: '',
             iconKey: 'payroll',
           },
           {
-            href: 'finance.html',
-            label: 'Financeiro',
-            perm: 'finance.view',
+            href: 'builder-pricing-admin.html',
+            label: 'Tabela de Valor',
+            perm: 'builders.view',
+            permAny: ['builders.view', 'quotes.edit'],
             page: '',
-            iconKey: 'finance',
+            iconKey: 'pricing',
           },
         ],
       },
@@ -197,11 +185,7 @@
       return file === 'home.html';
     }
     if (base === 'pipeline-lab.html') {
-      return (
-        file === 'pipeline-lab.html' ||
-        item.page === 'pipeline' ||
-        (file === 'dashboard.html' && !(page || '') && !isMobileDevice())
-      );
+      return file === 'pipeline-lab.html' || (file === 'dashboard.html' && !(page || '') && !isMobileDevice());
     }
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
@@ -280,52 +264,6 @@
     return a;
   }
 
-  function createSidebarCadastroDropdown(item, children, file, page, role, keys) {
-    const kids = children.filter((ch) => canSee(ch.perm, role, keys, ch.permAny));
-    if (kids.length === 0) return null;
-    const anyActive = kids.some((ch) => linkActive(ch, file, page));
-    const det = document.createElement('details');
-    det.className = 'sidebar-nav-dropdown';
-    if (anyActive) det.setAttribute('open', '');
-    const sum = document.createElement('summary');
-    sum.className = 'nav-item nav-item--dropdown' + (anyActive ? ' active' : '');
-    sum.setAttribute('aria-label', item.label);
-    sum.removeAttribute('title');
-    const stpl = document.createElement('template');
-    stpl.innerHTML = (ICONS[item.iconKey] || ICONS.cadastro).trim();
-    sum.appendChild(stpl.content);
-    const span = document.createElement('span');
-    span.className = 'nav-item__label';
-    span.textContent = item.label;
-    sum.appendChild(span);
-    const panel = document.createElement('div');
-    panel.className = 'sidebar-nav-dropdown__panel';
-    kids.forEach((ch) => {
-      const sub = createSidebarLink(ch, file, page);
-      sub.classList.add('nav-item--sub');
-      panel.appendChild(sub);
-    });
-    det.appendChild(sum);
-    det.appendChild(panel);
-    det.addEventListener('toggle', () => {
-      if (!det.open) return;
-      document.querySelectorAll('#dashboardSidebar details.sidebar-nav-dropdown[open]').forEach((d) => {
-        if (d !== det) d.removeAttribute('open');
-      });
-    });
-    if (!document.documentElement.dataset.omDdOutside) {
-      document.documentElement.dataset.omDdOutside = '1';
-      document.addEventListener('click', (e) => {
-        const t = e.target;
-        if (t && t.closest && t.closest('#dashboardSidebar details.sidebar-nav-dropdown')) return;
-        document.querySelectorAll('#dashboardSidebar details.sidebar-nav-dropdown[open]').forEach((d) => {
-          d.removeAttribute('open');
-        });
-      });
-    }
-    return det;
-  }
-
   function mountSidebarNav(host, perms, role) {
     const keys = new Set(perms);
     const file = currentFile();
@@ -347,46 +285,10 @@
         wrap.appendChild(lab);
       }
       visible.forEach((item) => {
-        if (item.type === 'dropdown' && Array.isArray(item.children)) {
-          const dd = createSidebarCadastroDropdown(item, item.children, file, page, role, keys);
-          if (dd) wrap.appendChild(dd);
-          return;
-        }
         wrap.appendChild(createSidebarLink(item, file, page));
       });
       host.appendChild(wrap);
     });
-  }
-
-  function appendTopBarCadastroDropdown(inner, keys, role, file, page) {
-    const kids = CADASTRO_CHILDREN.filter((ch) => canSee(ch.perm, role, keys, ch.permAny));
-    if (kids.length === 0) return;
-    const sepCad = document.createElement('span');
-    sepCad.className = 'crm-shared-nav__sep';
-    sepCad.setAttribute('aria-hidden', 'true');
-    inner.appendChild(sepCad);
-    const anyActive = kids.some((ch) => linkActive(ch, file, page));
-    const det = document.createElement('details');
-    det.className = 'crm-shared-nav__dropdown';
-    if (anyActive) det.setAttribute('open', '');
-    const sum = document.createElement('summary');
-    sum.className = 'crm-shared-nav__dropdown-toggle';
-    if (anyActive) sum.classList.add('crm-shared-nav__dropdown-toggle--active');
-    sum.textContent = 'Cadastro';
-    const menu = document.createElement('div');
-    menu.className = 'crm-shared-nav__dropdown-menu';
-    menu.setAttribute('role', 'menu');
-    kids.forEach((ch) => {
-      const a = document.createElement('a');
-      a.href = ch.href;
-      a.className = 'crm-shared-nav__dropdown-link' + (linkActive(ch, file, page) ? ' crm-shared-nav__dropdown-link--active' : '');
-      a.setAttribute('role', 'menuitem');
-      a.textContent = ch.label;
-      menu.appendChild(a);
-    });
-    det.appendChild(sum);
-    det.appendChild(menu);
-    inner.appendChild(det);
   }
 
   function initSidebarUserFooter(user, role) {
@@ -400,17 +302,50 @@
         window.location.href = 'login.html';
       });
     }
-    const sn = document.getElementById('sidebarUserName');
-    if (!sn || !user) return;
-    const disp = (user.name && String(user.name).trim()) || user.email || 'Usuário';
-    sn.textContent = disp;
-    const sr = document.getElementById('sidebarUserRole');
-    if (sr) sr.textContent = role ? String(role) : '';
-    const sa = document.getElementById('sidebarUserAvatar');
-    if (sa) {
+
+    const brandName =
+      (window.__saasBrand && window.__saasBrand.name) ||
+      document.querySelector('.sidebar-brand-name')?.textContent ||
+      'ObraMate';
+    const wsName = document.getElementById('sidebarWorkspaceName');
+    if (wsName) wsName.textContent = brandName;
+    document.querySelectorAll('.sidebar-brand-name').forEach((el) => {
+      el.textContent = brandName;
+    });
+
+    const roleLabel = role ? String(role) : '';
+    const rolePretty = roleLabel
+      ? roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1).replace(/_/g, ' ')
+      : '';
+    const wsMeta = document.getElementById('sidebarWorkspaceMeta');
+    if (wsMeta) wsMeta.textContent = rolePretty ? `Workspace · ${rolePretty}` : 'Workspace';
+
+    const disp = user
+      ? (user.name && String(user.name).trim()) || user.email || 'Usuário'
+      : '—';
+    const initials = (() => {
+      const parts = String(disp).trim().split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
       const ch = disp.trim().charAt(0).toUpperCase();
-      sa.textContent = ch && /[A-Z0-9]/.test(ch) ? ch : '?';
-    }
+      return ch && /[A-Z0-9À-ÖØ-Ý]/.test(ch) ? ch : '?';
+    })();
+
+    const sn = document.getElementById('sidebarUserName');
+    if (sn) sn.textContent = disp;
+    const sr = document.getElementById('sidebarUserRole');
+    if (sr) sr.textContent = rolePretty;
+    const sa = document.getElementById('sidebarUserAvatar');
+    if (sa) sa.textContent = initials;
+
+    // Topbar user chip (account menu)
+    const chipAvatar = document.getElementById('crmTopbarUserAvatar');
+    const chipName = document.getElementById('crmTopbarUserName');
+    const chipRole = document.getElementById('crmTopbarUserRole');
+    if (chipAvatar) chipAvatar.textContent = initials;
+    if (chipName) chipName.textContent = disp;
+    if (chipRole) chipRole.textContent = rolePretty || '—';
   }
 
   let initInFlight = null;
@@ -480,8 +415,6 @@
       a.textContent = item.label;
       inner.appendChild(a);
     });
-
-    appendTopBarCadastroDropdown(inner, keys, role, file, page);
 
     const logout = document.createElement('button');
     logout.type = 'button';

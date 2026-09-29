@@ -77,7 +77,7 @@
 
   function applyName(name) {
     var n = name || DEFAULT_NAME;
-    document.querySelectorAll(".sidebar-brand-name").forEach(function (el) {
+    document.querySelectorAll(".sidebar-brand-name, #sidebarWorkspaceName").forEach(function (el) {
       el.textContent = n;
     });
     // Keep product title as ObraMate; only rewrite legacy Senior Floors labels.

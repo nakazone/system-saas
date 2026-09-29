@@ -38,13 +38,16 @@
     var locale = window.CrmI18n ? window.CrmI18n.getLocale() : "pt";
     return (
       '<div class="crm-account-menu" id="crmAccountMenu" hidden>' +
-      '<a class="crm-account-menu__item" href="ajustes.html" data-account-action="settings" data-crm-permission="settings.manage">' +
-      '<span data-i18n="menu.settings">' +
-      t("menu.settings") +
-      "</span></a>" +
+      '<div class="crm-account-menu__header">' +
+      '<span class="crm-account-menu__email" id="crmAccountMenuEmail"></span>' +
+      "</div>" +
       '<a class="crm-account-menu__item" href="change-password.html" data-account-action="account">' +
       '<span data-i18n="menu.account">' +
       t("menu.account") +
+      "</span></a>" +
+      '<a class="crm-account-menu__item" href="ajustes.html" data-account-action="settings" data-crm-permission="settings.manage">' +
+      '<span data-i18n="menu.company">' +
+      t("menu.company") +
       "</span></a>" +
       '<a class="crm-account-menu__item" href="' +
       teamHref() +
@@ -52,6 +55,8 @@
       '<span data-i18n="menu.team">' +
       t("menu.team") +
       "</span></a>" +
+      '<a class="crm-account-menu__item" href="builder-pricing-admin.html" data-account-action="pricing" data-crm-permission="builders.view">' +
+      "<span>Tabela de Valor</span></a>" +
       '<div class="crm-account-menu__sep" role="separator"></div>' +
       '<div class="crm-account-menu__section">' +
       '<p class="crm-account-menu__label" data-i18n="menu.language">' +
@@ -111,7 +116,10 @@
 
   function ensureWrap() {
     var existing = document.getElementById("crmAccountMenuWrap");
-    if (existing) return existing;
+    if (existing) {
+      upgradeTrigger(existing);
+      return existing;
+    }
 
     var old = document.getElementById("crmTopbarSettingsBtn");
     var host = old && old.parentElement;
@@ -123,7 +131,7 @@
 
     var btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "crm-topbar__icon-btn";
+    btn.className = "crm-topbar__user-chip";
     btn.id = "crmTopbarSettingsBtn";
     btn.setAttribute("data-account-menu-trigger", "1");
     btn.setAttribute("aria-haspopup", "menu");
@@ -134,12 +142,36 @@
     btn.setAttribute("aria-label", t("menu.open"));
     btn.title = t("menu.open");
     btn.innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
+      '<span class="crm-topbar__user-avatar" id="crmTopbarUserAvatar" aria-hidden="true">—</span>' +
+      '<span class="crm-topbar__user-text">' +
+      '<span class="crm-topbar__user-name" id="crmTopbarUserName">—</span>' +
+      '<span class="crm-topbar__user-role" id="crmTopbarUserRole"></span>' +
+      "</span>";
 
     wrap.appendChild(btn);
     wrap.insertAdjacentHTML("beforeend", buildMenuHtml());
     host.replaceChild(wrap, old);
     return wrap;
+  }
+
+  function upgradeTrigger(wrap) {
+    var btn = wrap.querySelector("[data-account-menu-trigger]");
+    if (!btn) return;
+    if (btn.classList.contains("crm-topbar__user-chip")) return;
+    btn.className = "crm-topbar__user-chip";
+    btn.innerHTML =
+      '<span class="crm-topbar__user-avatar" id="crmTopbarUserAvatar" aria-hidden="true">—</span>' +
+      '<span class="crm-topbar__user-text">' +
+      '<span class="crm-topbar__user-name" id="crmTopbarUserName">—</span>' +
+      '<span class="crm-topbar__user-role" id="crmTopbarUserRole"></span>' +
+      "</span>";
+    if (!wrap.querySelector("#crmAccountMenu")) {
+      wrap.insertAdjacentHTML("beforeend", buildMenuHtml());
+    } else if (!wrap.querySelector("#crmAccountMenuEmail")) {
+      // Refresh menu markup once for header email
+      var oldMenu = wrap.querySelector("#crmAccountMenu");
+      if (oldMenu) oldMenu.outerHTML = buildMenuHtml();
+    }
   }
 
   function bind(wrap) {
@@ -202,6 +234,25 @@
         if (!j || !j.authenticated || !j.user) return;
         window.__crmPermissionKeys = j.user.permissions || [];
         window.__crmUserRole = j.user.role || "";
+        var user = j.user;
+        var disp = (user.name && String(user.name).trim()) || user.email || "Usuário";
+        var parts = String(disp).trim().split(/\s+/).filter(Boolean);
+        var initials =
+          parts.length >= 2
+            ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+            : (disp.trim().charAt(0) || "?").toUpperCase();
+        var role = user.role ? String(user.role) : "";
+        var rolePretty = role
+          ? role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, " ")
+          : "";
+        var av = document.getElementById("crmTopbarUserAvatar");
+        var nm = document.getElementById("crmTopbarUserName");
+        var rl = document.getElementById("crmTopbarUserRole");
+        if (av) av.textContent = initials;
+        if (nm) nm.textContent = disp;
+        if (rl) rl.textContent = rolePretty || "—";
+        var em = document.getElementById("crmAccountMenuEmail");
+        if (em) em.textContent = user.email || "";
         var menu = document.getElementById("crmAccountMenu");
         if (menu && !menu.hidden) applyPermissions(menu);
       })

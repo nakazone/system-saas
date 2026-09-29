@@ -160,6 +160,190 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     color: var(--color-text-muted, #8a8074);
   }
 
+  .crm-topbar__search {
+    min-width: 220px;
+    max-width: 420px;
+    width: min(420px, 36vw);
+  }
+
+  .crm-topbar__create-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 38px;
+    padding: 0 0.95rem;
+    border: none;
+    border-radius: 10px;
+    background: var(--color-accent, #e8792c);
+    color: #fff;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(232, 121, 44, 0.25);
+    transition: filter 0.15s ease, transform 0.1s ease;
+  }
+
+  .crm-topbar__create-btn:hover,
+  .crm-topbar__create-btn:focus-visible {
+    filter: brightness(1.05);
+    outline: none;
+  }
+
+  .crm-create-wrap {
+    position: relative;
+  }
+
+  .crm-create-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 240px;
+    padding: 0.45rem;
+    background: #fff;
+    border: 1px solid var(--color-border, #e2d9cc);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(33, 29, 26, 0.14);
+    z-index: 1300;
+  }
+
+  .crm-create-menu[hidden] {
+    display: none !important;
+  }
+
+  .crm-create-menu__title {
+    margin: 0;
+    padding: 0.4rem 0.7rem 0.55rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted, #8a8074);
+  }
+
+  .crm-create-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    padding: 0.6rem 0.7rem;
+    border-radius: 8px;
+    color: var(--color-text-primary, #211d1a);
+    text-decoration: none;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+
+  .crm-create-menu__item:hover,
+  .crm-create-menu__item:focus-visible {
+    background: var(--color-surface-secondary, #f7f4ee);
+    outline: none;
+  }
+
+  .crm-create-menu__icon {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    color: var(--color-text-muted, #8a8074);
+    flex-shrink: 0;
+  }
+
+  .crm-create-menu__icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .crm-create-menu__label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .crm-create-menu__kbd {
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-muted, #8a8074);
+    background: var(--color-surface-secondary, #f7f4ee);
+    border: 1px solid var(--color-border, #e2d9cc);
+    border-radius: 5px;
+    padding: 1px 6px;
+  }
+
+  .crm-topbar__user-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    max-width: 200px;
+    height: 40px;
+    padding: 0 0.55rem 0 0.3rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text-primary, #211d1a);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .crm-topbar__user-chip:hover,
+  .crm-topbar__user-chip:focus-visible,
+  .crm-account-menu-wrap.is-open .crm-topbar__user-chip {
+    background: rgba(255, 255, 255, 0.7);
+    border-color: var(--color-border, #e2d9cc);
+    outline: none;
+  }
+
+  .crm-topbar__user-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: var(--color-accent, #e8792c);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .crm-topbar__user-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.15;
+  }
+
+  .crm-topbar__user-name {
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .crm-topbar__user-role {
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--color-text-muted, #8a8074);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .crm-account-menu__header {
+    padding: 0.45rem 0.75rem 0.55rem;
+  }
+
+  .crm-account-menu__email {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--color-text-muted, #8a8074);
+    word-break: break-all;
+  }
+
   .crm-topbar__icon-btn {
     position: relative;
     display: inline-flex;

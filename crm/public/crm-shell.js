@@ -6,7 +6,46 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260929-cadmenu1";
+  const SHELL_VER = "20260929-navia1";
+
+  const CREATE_MENU_ITEMS = [
+    {
+      href: "leads.html?new=1",
+      label: "Lead",
+      shortcut: "N",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>',
+    },
+    {
+      href: "quote-builder.html",
+      label: "Orçamento",
+      shortcut: "O",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>',
+    },
+    {
+      href: "schedule.html?new=visit",
+      label: "Visita",
+      shortcut: "",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    },
+    {
+      href: "jobs.html?new=1",
+      label: "Job",
+      shortcut: "",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>',
+    },
+    {
+      href: "invoices.html?new=1",
+      label: "Fatura",
+      shortcut: "",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z"/><path d="M8 10h8M8 14h5"/></svg>',
+    },
+    {
+      href: "dashboard.html?page=customers&new=1",
+      label: "Cliente",
+      shortcut: "",
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    },
+  ];
 
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
@@ -47,7 +86,7 @@
     document.head.appendChild(font);
   }
 
-  /** Keep Ajuda / Configurações in the fixed top bar (never move into sidebar). */
+  /** Keep Ajuda / account chip in the fixed top bar (never move into sidebar). */
   function ensureTopbarUtilities() {
     const topRight = document.querySelector("#crmTopbar .crm-topbar__right");
     if (!topRight) return;
@@ -57,6 +96,7 @@
 
     function restoreTopbarBtn(el) {
       if (!el) return;
+      if (el.classList.contains("crm-topbar__user-chip")) return;
       el.classList.add("crm-topbar__icon-btn");
       el.classList.remove("nav-item", "om-sidebar-util-btn");
       const label = el.querySelector(".nav-item__label");
@@ -82,7 +122,10 @@
       const trigger =
         wrap.querySelector("[data-account-menu-trigger]") ||
         wrap.querySelector("#crmTopbarSettingsBtn");
-      restoreTopbarBtn(trigger);
+      // Preserve user-chip trigger; only normalize legacy gear buttons
+      if (trigger && !trigger.classList.contains("crm-topbar__user-chip")) {
+        restoreTopbarBtn(trigger);
+      }
       if (wrap.parentElement !== topRight) topRight.appendChild(wrap);
     } else {
       let settings = document.getElementById("crmTopbarSettingsBtn");
@@ -134,9 +177,17 @@
   <div class="crm-topbar__right">
     <button type="button" class="crm-topbar__search" id="crmTopbarSearchBtn" aria-label="Pesquisar no sistema" title="Pesquisar (⌘K)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <span class="crm-topbar__search-text">Pesquisar…</span>
+      <span class="crm-topbar__search-text">Buscar leads, clientes, orçamentos, jobs…</span>
       <kbd>⌘K</kbd>
     </button>
+    <div class="crm-create-wrap" id="crmCreateWrap">
+      <button type="button" class="crm-topbar__create-btn" id="crmTopbarCreateBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="crmCreateMenu">
+        <span aria-hidden="true">+</span> Criar
+      </button>
+      <div class="crm-create-menu" id="crmCreateMenu" hidden role="menu" aria-label="Criar novo">
+        <p class="crm-create-menu__title">Criar novo</p>
+      </div>
+    </div>
     <button type="button" class="crm-topbar__install-btn" data-crm-pwa-install title="Instalar ObraMate neste dispositivo" aria-label="Instalar aplicativo">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>
       <span>Instalar app</span>
@@ -154,24 +205,23 @@
 <aside class="dashboard-sidebar" id="dashboardSidebar">
   <div class="sidebar-header">
     <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
-    <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="false" aria-label="Recolher menu lateral" title="Recolher menu">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-    </button>
+    <div class="sidebar-workspace">
+      <span class="sidebar-brand-name" id="sidebarWorkspaceName">ObraMate</span>
+      <span class="sidebar-workspace__meta" id="sidebarWorkspaceMeta">Workspace</span>
+    </div>
   </div>
   <nav class="sidebar-nav" aria-label="Principal">
     <div id="crmSharedNavRoot" data-layout="sidebar"></div>
   </nav>
   <div class="sidebar-footer">
-    <div class="sidebar-user-bar">
-      <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
-      <div class="sidebar-user-bar__text">
-        <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
-        <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
-      </div>
-      <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-      </button>
-    </div>
+    <a href="ajustes.html" class="nav-item sidebar-footer-link" id="sidebarSettingsLink" aria-label="Configurações">
+      <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span class="nav-item__label">Configurações</span>
+    </a>
+    <button type="button" class="nav-item sidebar-footer-link sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="false" aria-label="Recolher menu lateral" title="Recolher menu">
+      <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>
+      <span class="nav-item__label">Recolher menu</span>
+    </button>
   </div>
 </aside>
 <div class="mobile-overlay" id="mobileOverlay"></div>`;
@@ -243,6 +293,8 @@
       btn.setAttribute("aria-pressed", collapsed ? "true" : "false");
       btn.setAttribute("aria-label", collapsed ? "Expandir menu lateral" : "Recolher menu lateral");
       btn.title = collapsed ? "Expandir menu" : "Recolher menu";
+      const lab = btn.querySelector(".nav-item__label");
+      if (lab) lab.textContent = collapsed ? "Expandir menu" : "Recolher menu";
     }
   }
 
@@ -297,17 +349,34 @@
       existing.width = 32;
       existing.height = 32;
     }
-    if (!header.querySelector("#sidebarCollapseBtn")) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "sidebar-collapse-btn";
-      btn.id = "sidebarCollapseBtn";
-      btn.setAttribute("aria-pressed", "false");
-      btn.setAttribute("aria-label", "Recolher menu lateral");
-      btn.title = "Recolher menu";
-      btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
-      header.appendChild(btn);
+    // Workspace name next to logo (expanded menu)
+    let ws = header.querySelector(".sidebar-workspace");
+    if (!ws) {
+      ws = document.createElement("div");
+      ws.className = "sidebar-workspace";
+      ws.innerHTML =
+        '<span class="sidebar-brand-name" id="sidebarWorkspaceName">ObraMate</span>' +
+        '<span class="sidebar-workspace__meta" id="sidebarWorkspaceMeta">Workspace</span>';
+      header.appendChild(ws);
+    } else {
+      if (!ws.querySelector("#sidebarWorkspaceName")) {
+        const n = document.createElement("span");
+        n.className = "sidebar-brand-name";
+        n.id = "sidebarWorkspaceName";
+        n.textContent = "ObraMate";
+        ws.appendChild(n);
+      }
+      if (!ws.querySelector("#sidebarWorkspaceMeta")) {
+        const m = document.createElement("span");
+        m.className = "sidebar-workspace__meta";
+        m.id = "sidebarWorkspaceMeta";
+        m.textContent = "Workspace";
+        ws.appendChild(m);
+      }
     }
+    // Collapse control lives in the footer now
+    const headerCollapse = header.querySelector("#sidebarCollapseBtn");
+    if (headerCollapse) headerCollapse.remove();
 
     let nav = sidebar.querySelector("nav.sidebar-nav");
     if (!nav) {
@@ -334,21 +403,23 @@
       if (oldTop) oldTop.remove();
     }
 
-    if (!sidebar.querySelector(".sidebar-footer")) {
-      const footer = document.createElement("div");
+    let footer = sidebar.querySelector(".sidebar-footer");
+    if (!footer) {
+      footer = document.createElement("div");
       footer.className = "sidebar-footer";
-      footer.innerHTML = `
-        <div class="sidebar-user-bar">
-          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
-          <div class="sidebar-user-bar__text">
-            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
-            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
-          </div>
-          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-          </button>
-        </div>`;
       sidebar.appendChild(footer);
+    }
+    // Replace legacy user bar with Configurações + Recolher
+    if (!footer.querySelector("#sidebarSettingsLink") || !footer.querySelector("#sidebarCollapseBtn")) {
+      footer.innerHTML = `
+        <a href="ajustes.html" class="nav-item sidebar-footer-link" id="sidebarSettingsLink" aria-label="Configurações">
+          <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          <span class="nav-item__label">Configurações</span>
+        </a>
+        <button type="button" class="nav-item sidebar-footer-link sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="false" aria-label="Recolher menu lateral" title="Recolher menu">
+          <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>
+          <span class="nav-item__label">Recolher menu</span>
+        </button>`;
     }
 
     if (!document.getElementById("mobileOverlay")) {
@@ -470,7 +541,87 @@
     );
   }
 
+  function initCreateMenu() {
+    const wrap = document.getElementById("crmCreateWrap");
+    const btn = document.getElementById("crmTopbarCreateBtn");
+    const menu = document.getElementById("crmCreateMenu");
+    if (!wrap || !btn || !menu) return;
+
+    if (!menu.dataset.filled) {
+      menu.dataset.filled = "1";
+      CREATE_MENU_ITEMS.forEach((item) => {
+        const a = document.createElement("a");
+        a.href = item.href;
+        a.className = "crm-create-menu__item";
+        a.setAttribute("role", "menuitem");
+        a.innerHTML =
+          `<span class="crm-create-menu__icon">${item.icon}</span>` +
+          `<span class="crm-create-menu__label">${item.label}</span>` +
+          (item.shortcut ? `<kbd class="crm-create-menu__kbd">${item.shortcut}</kbd>` : "");
+        menu.appendChild(a);
+      });
+    }
+
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+
+    const close = () => {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      wrap.classList.remove("is-open");
+    };
+    const open = () => {
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      wrap.classList.add("is-open");
+    };
+
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (menu.hidden) open();
+      else close();
+    });
+    menu.addEventListener("click", () => close());
+    document.addEventListener("click", (e) => {
+      if (!wrap.contains(e.target)) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
+    });
+  }
+
+  function ensureTopbarCreate() {
+    const topRight = document.querySelector("#crmTopbar .crm-topbar__right");
+    if (!topRight) return;
+    if (document.getElementById("crmCreateWrap")) return;
+
+    const search = document.getElementById("crmTopbarSearchBtn");
+    const wrap = document.createElement("div");
+    wrap.className = "crm-create-wrap";
+    wrap.id = "crmCreateWrap";
+    wrap.innerHTML = `
+      <button type="button" class="crm-topbar__create-btn" id="crmTopbarCreateBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="crmCreateMenu">
+        <span aria-hidden="true">+</span> Criar
+      </button>
+      <div class="crm-create-menu" id="crmCreateMenu" hidden role="menu" aria-label="Criar novo">
+        <p class="crm-create-menu__title">Criar novo</p>
+      </div>`;
+    if (search && search.nextSibling) topRight.insertBefore(wrap, search.nextSibling);
+    else if (search) search.after(wrap);
+    else topRight.insertBefore(wrap, topRight.firstChild);
+  }
+
+  function enhanceExistingTopbar() {
+    const searchText = document.querySelector("#crmTopbarSearchBtn .crm-topbar__search-text");
+    if (searchText && /Pesquisar/i.test(searchText.textContent || "")) {
+      searchText.textContent = "Buscar leads, clientes, orçamentos, jobs…";
+    }
+    ensureTopbarCreate();
+  }
+
   function initTopbar() {
+    enhanceExistingTopbar();
     const searchBtn = document.getElementById("crmTopbarSearchBtn");
     const kbd = searchBtn && searchBtn.querySelector("kbd");
     if (kbd) {
@@ -481,6 +632,7 @@
       searchBtn.dataset.bound = "1";
       searchBtn.addEventListener("click", openSearch);
     }
+    initCreateMenu();
   }
 
   function placeNotificationBell() {

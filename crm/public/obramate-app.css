@@ -279,15 +279,15 @@ body.om-app .dashboard-main {
 
   body.om-app #dashboardSidebar .sidebar-header {
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;
     justify-content: flex-start !important;
     align-items: center !important;
-    padding: 0 0 0.65rem !important;
+    padding: 0 0 0.85rem !important;
     margin: 0 !important;
     border: none !important;
-    width: var(--om-nav-hit);
+    width: 100%;
     max-width: 100%;
-    gap: 0.45rem;
+    gap: 0.65rem;
     background: transparent !important;
     flex-shrink: 0;
   }
@@ -301,33 +301,49 @@ body.om-app .dashboard-main {
     flex-shrink: 0;
   }
 
-  body.om-app #dashboardSidebar .sidebar-collapse-btn {
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    width: 28px !important;
-    height: 28px !important;
-    min-width: 28px;
-    flex-shrink: 0;
-    border: 1px solid var(--plab-line) !important;
-    border-radius: 8px !important;
-    background: #fff !important;
-    color: var(--plab-muted) !important;
+  body.om-app #dashboardSidebar .sidebar-workspace {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.2;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-brand-name,
+  body.om-app #dashboardSidebar #sidebarWorkspaceName {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: var(--plab-ink, #1a1d26);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-workspace__meta {
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--plab-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-collapse-btn.sidebar-footer-link {
+    display: flex !important;
+    width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    color: inherit !important;
     cursor: pointer;
-    padding: 0 !important;
+    padding: 0 0.5rem 0 var(--om-icon-inset) !important;
+    font: inherit;
   }
 
-  body.om-app #dashboardSidebar .sidebar-collapse-btn:hover {
-    background: var(--plab-soft) !important;
-    color: var(--plab-ink) !important;
-  }
-
-  body.om-app #dashboardSidebar .sidebar-collapse-btn svg {
-    width: 14px;
-    height: 14px;
+  body.om-app #dashboardSidebar .sidebar-collapse-btn.sidebar-footer-link svg {
+    width: 20px;
+    height: 20px;
     stroke: currentColor;
     fill: none;
-    stroke-width: 2;
+    stroke-width: 1.75;
   }
 
   body.om-app #dashboardSidebar .sidebar-nav {
@@ -404,6 +420,32 @@ body.om-app .dashboard-main {
     color: var(--plab-accent-deep) !important;
   }
 
+  body.om-app #dashboardSidebar .nav-item__badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #e11d48;
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    display: none;
+  }
+
+  body.om-app #dashboardSidebar .nav-item__badge.is-on {
+    display: inline-block;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .nav-item__badge {
+    top: 4px;
+    right: 4px;
+  }
+
   body.om-app #dashboardSidebar .nav-icon-svg {
     width: 20px !important;
     height: 20px !important;
@@ -417,37 +459,21 @@ body.om-app .dashboard-main {
     padding: 0.5rem 0 0 !important;
     margin: 0 !important;
     display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
     justify-content: stretch;
   }
 
+  body.om-app #dashboardSidebar .sidebar-footer-link {
+    text-decoration: none;
+  }
+
   body.om-app #dashboardSidebar .sidebar-user-bar {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0 !important;
-    padding-left: var(--om-icon-inset) !important;
-    width: 100%;
-    min-height: var(--om-nav-hit);
-  }
-
-  body.om-app #dashboardSidebar .sidebar-user-bar__text {
-    display: flex !important;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  body.om-app #dashboardSidebar .sidebar-user-bar__avatar {
-    width: 28px !important;
-    height: 28px !important;
-    font-size: 0.75rem !important;
-    flex-shrink: 0;
+    display: none !important;
   }
 
   body.om-app #dashboardSidebar .sidebar-logout-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    margin-left: auto;
+    display: none !important;
   }
 
   /* Inline Cadastro panel when expanded */
@@ -490,12 +516,17 @@ body.om-app .dashboard-main {
 
   body.om-app.sidebar-collapsed #dashboardSidebar .nav-item__label,
   body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-nav-dropdown summary .nav-item__label,
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-user-bar__text,
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-logout-btn {
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-workspace,
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-footer-link .nav-item__label {
     display: none !important;
   }
 
-  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-user-bar {
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-header {
+    width: var(--om-nav-hit);
+    justify-content: center !important;
+  }
+
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-footer-link {
     justify-content: flex-start;
   }
 
