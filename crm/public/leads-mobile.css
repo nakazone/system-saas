@@ -28,6 +28,12 @@
     box-sizing: border-box !important;
   }
 
+  /* Leave room for the fixed app top bar (logo / sino / avatar) — it was covering the
+     "Leads" title and the + button. */
+  body.plab.om-device-mobile.om-app.om-has-apptop .dashboard-main.plab-shell {
+    padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.35rem) !important;
+  }
+
   body.plab.om-device-mobile.om-app .dashboard-container {
     background: var(--plab-bg, #f3f1ee) !important;
   }
@@ -394,4 +400,10 @@
   color: var(--plab-muted, #78716c);
   font-size: 0.9rem;
   font-weight: 550;
+}
+
+.mleads-card__novalue {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--plab-faint, #a8a29e);
 }

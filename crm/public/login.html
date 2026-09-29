@@ -182,11 +182,13 @@
                     var u = data.user || {};
                     var role = String(u.role || '').toLowerCase();
                     var mobile = window.__omDevice && window.__omDevice.isMobile && window.__omDevice.isMobile();
+                    // Go straight to the start screen (was /dashboard.html → redirect → start screen).
+                    var home = (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || 'pipeline-lab.html';
                     var dest = u.must_change_password
                         ? '/change-password.html'
-                        : (role === 'installer' || role === 'crew_lead')
+                        : (role === 'installer' || role === 'crew_lead' || role === 'subcontractor')
                             ? (mobile ? '/campo/hoje.html' : '/funcionario.html')
-                            : '/dashboard.html';
+                            : '/' + home;
                     setTimeout(function () {
                         window.location.href = dest;
                     }, 100);

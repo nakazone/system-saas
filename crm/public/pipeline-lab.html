@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#f4f2ef" />
-  <title>Leads | ObraMate</title>
+  <title>Dashboard | ObraMate</title>
   <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}</style>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
@@ -16,11 +16,13 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260925-device1" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
-  <link rel="stylesheet" href="obramate-app.css?v=20260925-device1" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260929-dash1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260928-chat2" />
-  <link rel="stylesheet" href="leads-mobile.css?v=20260925-leads1" />
+  <link rel="stylesheet" href="leads-mobile.css?v=20260929-dash1" />
+  <link rel="stylesheet" href="crm-command-palette.css?v=20260929-dash1" />
+  <link rel="stylesheet" href="om-dashboard.css?v=20260929-dash1" />
   <script src="om-device.js?v=20260925-device1"></script>
-  <script src="crm-field-gate.js?v=20260928-chat1"></script>
+  <script src="crm-field-gate.js?v=20260929-dash1"></script>
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed plab">
   <script>
@@ -34,7 +36,7 @@
     })();
   </script>
 
-  <a class="plab-skip" href="#plabMain">Saltar para conteúdo</a>
+  <a class="plab-skip" href="#plabMain">Pular para o conteúdo</a>
 
   <header class="mobile-app-header" id="mobileAppHeader">
     <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
@@ -42,7 +44,7 @@
     </button>
     <div class="mobile-app-header__brand">
       <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="mobile-app-header__logo home-brand-logo" width="28" height="28" onerror="this.style.display='none'" />
-      <h1 class="mobile-app-header__title">Leads</h1>
+      <h1 class="mobile-app-header__title" id="plabHeaderTitle">Dashboard</h1>
     </div>
   </header>
 
@@ -114,118 +116,140 @@
         <ul class="mleads-list" id="mleadsList"></ul>
       </div>
 
-      <header class="plab-top">
-        <div class="plab-search">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-          <input type="search" id="plabSearch" placeholder="Pesquisar leads, clientes, quotes…" autocomplete="off" />
-        </div>
-        <div class="plab-top__right">
-          <div class="plab-avatar" id="plabAvatar" aria-hidden="true">—</div>
-        </div>
-      </header>
 
-      <section class="plab-hero">
-        <div class="plab-hero__text">
-          <h1 id="plabGreeting">Bom dia</h1>
-          <p id="plabHeroSub">Aqui está o que está a acontecer no teu pipeline hoje.</p>
-        </div>
-        <div class="plab-kpis" id="plabKpis" aria-label="Indicadores">
-          <article class="plab-kpi">
-            <p class="plab-kpi__label">Valor do pipeline</p>
-            <p class="plab-kpi__value" id="kpiPipeline">—</p>
-            <p class="plab-kpi__delta" id="kpiPipelineDelta">Leads ativos</p>
-          </article>
-          <article class="plab-kpi">
-            <p class="plab-kpi__label">Taxa de conversão</p>
-            <p class="plab-kpi__value" id="kpiConversion">—</p>
-            <p class="plab-kpi__delta" id="kpiConversionDelta">Won vs Lost</p>
-          </article>
-          <article class="plab-kpi">
-            <p class="plab-kpi__label">Negócios ganhos</p>
-            <p class="plab-kpi__value" id="kpiWon">—</p>
-            <p class="plab-kpi__delta" id="kpiWonDelta">Valor fechado</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="plab-pipeline" aria-labelledby="plabPipeTitle">
-        <div class="plab-section-head">
-          <div>
-            <h2 id="plabPipeTitle">Sales Pipeline</h2>
-            <p class="plab-muted" id="plabPipeMeta">A carregar…</p>
+      <!-- Desktop Dashboard (data: GET /api/dashboard/overview via om-dashboard.js) -->
+      <div class="omd" id="omdRoot" aria-busy="true">
+        <header class="omd-head">
+          <div class="omd-head__text">
+            <p class="omd-date" id="omdDate">&nbsp;</p>
+            <h1 class="omd-title" id="omdGreeting">Olá</h1>
+            <p class="omd-summary">
+              <span id="omdSummary">Carregando o seu dia…</span>
+              <button type="button" class="omd-refresh" id="omdRefresh" title="Atualizar agora">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+                <span id="omdUpdated">Atualizar</span>
+              </button>
+            </p>
           </div>
-          <div class="plab-section-actions">
-            <button type="button" class="plab-btn plab-btn--ghost" id="plabRefresh">Atualizar</button>
-            <a class="plab-btn plab-btn--ghost" href="leads.html">Kanban completo</a>
-            <button type="button" class="plab-btn plab-btn--primary" id="plabNewLead">+ Novo lead</button>
+          <div class="omd-head__actions" id="omdActions">
+            <a class="omd-btn omd-btn--ghost" href="schedule.html" data-omd-perm="schedule.view">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              Agendar visita
+            </a>
+            <a class="omd-btn omd-btn--ghost" href="quote-builder.html" data-omd-perm="quotes.create">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+              Novo quote
+            </a>
+            <button type="button" class="omd-btn omd-btn--primary" id="omdNewLead" data-omd-perm="leads.create">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              Novo lead
+            </button>
+          </div>
+        </header>
+
+        <div class="omd-alert" id="omdError" role="alert" hidden>
+          <span>Não foi possível carregar o dashboard. <span id="omdErrorDetail"></span></span>
+          <button type="button" class="omd-btn omd-btn--ghost" id="omdRetry">Tentar de novo</button>
+        </div>
+
+        <section class="omd-kpis" id="omdKpis" aria-label="Indicadores">
+          <div class="omd-kpi is-skeleton"></div>
+          <div class="omd-kpi is-skeleton"></div>
+          <div class="omd-kpi is-skeleton"></div>
+          <div class="omd-kpi is-skeleton"></div>
+        </section>
+
+        <div class="omd-grid">
+          <section class="omd-card omd-attn" id="omdAttnCard" aria-labelledby="omdAttnTitle">
+            <header class="omd-card__head">
+              <h2 id="omdAttnTitle">Precisa da sua atenção</h2>
+              <span class="omd-count" id="omdAttnCount" hidden></span>
+            </header>
+            <ul class="omd-attn__list" id="omdAttnList">
+              <li class="omd-row is-skeleton"></li>
+              <li class="omd-row is-skeleton"></li>
+              <li class="omd-row is-skeleton"></li>
+              <li class="omd-row is-skeleton"></li>
+            </ul>
+            <button type="button" class="omd-more" id="omdAttnMore" hidden aria-expanded="false"></button>
+          </section>
+
+          <div class="omd-side">
+            <section class="omd-card omd-today" id="omdTodayCard" aria-labelledby="omdTodayTitle">
+              <header class="omd-card__head">
+                <h2 id="omdTodayTitle">Hoje</h2>
+                <a class="omd-link" href="schedule.html">Ver agenda</a>
+              </header>
+              <ol class="omd-today__list" id="omdTodayList">
+                <li class="omd-row is-skeleton"></li>
+                <li class="omd-row is-skeleton"></li>
+              </ol>
+            </section>
+
+            <section class="omd-card omd-sources" id="omdSourcesCard" aria-labelledby="omdSourcesTitle">
+              <header class="omd-card__head">
+                <h2 id="omdSourcesTitle">Origem dos leads</h2>
+                <span class="omd-muted">últimos 30 dias</span>
+              </header>
+              <ul class="omd-sources__list" id="omdSourcesList"></ul>
+            </section>
           </div>
         </div>
-        <div class="plab-board-wrap">
-          <div class="plab-board" id="plabBoard" aria-label="Pipeline de leads"></div>
-        </div>
-      </section>
 
-      <section class="plab-bottom" aria-label="Atenção e insights">
-        <article class="plab-panel">
-          <header class="plab-panel__head">
-            <h3>Needs your attention</h3>
-            <span class="plab-badge" id="plabAttentionCount">0</span>
-          </header>
-          <ul class="plab-attention" id="plabAttention"></ul>
-        </article>
-
-        <article class="plab-panel">
-          <header class="plab-panel__head">
-            <h3>Pipeline analytics</h3>
-          </header>
-          <div class="plab-charts">
-            <div class="plab-chart">
-              <p class="plab-chart__label">Valor por estágio</p>
-              <div class="plab-donut" id="plabDonut" aria-hidden="true"></div>
-              <ul class="plab-legend" id="plabLegend"></ul>
+        <section class="omd-card omd-pipe" id="omdPipeCard" aria-labelledby="omdPipeTitle">
+          <header class="omd-card__head omd-pipe__head">
+            <div>
+              <h2 id="omdPipeTitle">Pipeline de vendas</h2>
+              <p class="omd-muted" id="omdPipeMeta">&nbsp;</p>
             </div>
-            <div class="plab-chart">
-              <p class="plab-chart__label">Distribuição de leads</p>
-              <div class="plab-bars" id="plabBars"></div>
+            <div class="omd-pipe__tools">
+              <div class="omd-scrollnav" id="omdBoardNav" hidden>
+                <button type="button" class="omd-btn omd-btn--ghost omd-btn--icon" data-omd-scroll="-1" aria-label="Estágios anteriores">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <button type="button" class="omd-btn omd-btn--ghost omd-btn--icon" data-omd-scroll="1" aria-label="Próximos estágios">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+              <a class="omd-btn omd-btn--ghost" href="leads.html">
+                Abrir Kanban
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </a>
             </div>
-          </div>
-        </article>
-
-        <article class="plab-panel plab-panel--insights">
-          <header class="plab-panel__head">
-            <h3>Insights</h3>
-            <span class="plab-chip plab-chip--soft">Beta</span>
           </header>
-          <ul class="plab-insights" id="plabInsights"></ul>
-        </article>
-      </section>
+          <div class="omd-funnel" id="omdFunnel"></div>
+          <div class="omd-board-wrap" id="omdBoardWrap">
+            <div class="omd-board" id="omdBoard"></div>
+          </div>
+        </section>
+      </div>
     </main>
   </div>
 
-  <div class="plab-dock" role="toolbar" aria-label="Ações rápidas">
-    <button type="button" class="plab-dock__primary" id="plabDockNew">+ Novo lead</button>
-    <a class="plab-dock__btn" href="schedule.html" title="Schedule">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <div class="plab-dock" id="plabDock" role="toolbar" aria-label="Ações rápidas">
+    <button type="button" class="plab-dock__primary" id="plabDockNew" data-omd-perm="leads.create">+ Novo lead</button>
+    <a class="plab-dock__btn" href="schedule.html" title="Agenda" data-omd-perm="schedule.view">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
       <span>Agendar</span>
     </a>
-    <a class="plab-dock__btn" href="leads.html" title="Leads">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 12h6M9 16h4"/></svg>
-      <span>Leads</span>
-    </a>
-    <a class="plab-dock__btn" href="quote-builder.html" title="Novo quote">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+    <a class="plab-dock__btn" href="quote-builder.html" title="Novo quote" data-omd-perm="quotes.create">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
       <span>Quote</span>
     </a>
+    <button type="button" class="plab-dock__btn" id="plabDockSearch" title="Pesquisar (Ctrl+K)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <span>Buscar</span>
+    </button>
   </div>
 
   <script src="crm-toast.js"></script>
   <script src="saas-branding.js"></script>
-  <script src="om-device.js?v=20260925-device1"></script>
-  <script src="crm-shared-nav.js?v=20260925-device1"></script>
-  <script src="crm-shell.js?v=20260925-field2"></script>
+  <script src="crm-shared-nav.js?v=20260929-dash1"></script>
+  <script src="crm-shell.js?v=20260929-dash1"></script>
   <script src="om-mobile-nav.js?v=20260928-chat1"></script>
-  <script src="novo-lead-sheet.js?v=20260925-leadui1"></script>
+  <script src="novo-lead-sheet.js?v=20260929-dash1"></script>
   <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
-  <script src="pipeline-lab.js?v=20260925-leadui1"></script>
+  <script src="om-dashboard.js?v=20260929-dash1"></script>
+  <script src="pipeline-lab.js?v=20260929-dash1"></script>
 </body>
 </html>

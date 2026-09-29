@@ -4,9 +4,10 @@ body.home-app {
   --home-ink: var(--plab-ink, #1c1917);
   --home-muted: var(--plab-muted, #78716c);
   --home-faint: var(--plab-faint, #a8a29e);
-  --home-accent: var(--plab-accent, #e8792c);
-  --home-accent-soft: var(--plab-accent-soft, #fff4eb);
-  --home-accent-deep: var(--plab-accent-deep, #c2410c);
+  /* Follow the tenant brand color (branding.css sets --brand). */
+  --home-accent: var(--brand, var(--plab-accent, #e8792c));
+  --home-accent-soft: color-mix(in srgb, var(--home-accent) 12%, #fff);
+  --home-accent-deep: color-mix(in srgb, var(--home-accent) 78%, #000);
   --home-card: var(--plab-surface, #ffffff);
   --home-line: var(--plab-line, #e7e5e4);
   --home-ok: var(--plab-ok, #059669);
@@ -184,12 +185,24 @@ body.home-app .mobile-app-header {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  width: 100%;
+  min-height: 48px;
   padding: 0.75rem 0.95rem;
   background: var(--home-card);
   border: 1px solid var(--home-line);
   border-radius: 999px;
   margin-bottom: 0.9rem;
   color: var(--home-faint);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.home-search:active {
+  background: var(--plab-soft, #f5f4f2);
 }
 
 .home-search svg {
@@ -397,10 +410,12 @@ body.home-app .mobile-app-header {
   align-items: start;
   padding: 0.85rem 0;
   border-top: 1px solid var(--home-line);
-  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.home-today__item:first-child {
+.home-today__list li:first-child .home-today__item {
   border-top: none;
   padding-top: 0.55rem;
 }
@@ -471,10 +486,9 @@ body.home-app .mobile-app-header {
 .home-attn__item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.7rem;
   padding: 0.7rem 0;
   border-top: 1px solid var(--home-line);
-  cursor: pointer;
 }
 
 .home-attn__item:first-child {
@@ -482,23 +496,53 @@ body.home-app .mobile-app-header {
   padding-top: 0.25rem;
 }
 
-.home-attn__avatar {
+.home-attn__item.is-skeleton {
+  min-height: 54px;
+  border-radius: 12px;
+  background: var(--plab-soft, #f5f4f2);
+  border-top: none;
+  margin-top: 0.4rem;
+}
+
+.home-attn__icon {
   width: 38px;
   height: 38px;
-  border-radius: 50%;
-  background: var(--plab-soft, #f5f4f2);
-  color: var(--home-ink);
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 750;
   flex-shrink: 0;
+  background: var(--plab-soft, #f5f4f2);
+  color: var(--home-muted);
+}
+
+.home-attn__icon svg,
+.home-attn__call svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.home-attn__item.is-danger .home-attn__icon {
+  background: #fdeceb;
+  color: #b91c1c;
+}
+
+.home-attn__item.is-warn .home-attn__icon {
+  background: #fdf3dc;
+  color: #a16207;
 }
 
 .home-attn__body {
   flex: 1;
   min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .home-attn__title {
@@ -506,6 +550,9 @@ body.home-app .mobile-app-header {
   font-size: 0.9rem;
   font-weight: 750;
   color: var(--home-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .home-attn__sub {
@@ -513,23 +560,88 @@ body.home-app .mobile-app-header {
   font-size: 0.76rem;
   color: var(--home-muted);
   font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.home-attn__prio {
-  font-size: 0.68rem;
-  font-weight: 750;
-  padding: 0.22rem 0.5rem;
+.home-attn__call {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--home-ok-soft);
+  color: var(--home-ok);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.home-more {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.65rem;
+  border: none;
+  border-radius: 10px;
+  background: var(--plab-soft, #f5f4f2);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--home-accent-deep);
+}
+
+.home-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: #fdeceb;
+  color: #b91c1c;
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.home-alert button {
+  border: none;
+  background: #fff;
   border-radius: 999px;
-  background: rgba(220, 38, 38, 0.1);
-  color: var(--plab-danger, #dc2626);
+  padding: 0.4rem 0.75rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 750;
+  color: #b91c1c;
 }
 
-.home-attn__prio.is-medium {
-  background: rgba(217, 119, 6, 0.12);
-  color: var(--plab-warn, #d97706);
+.home-card__badge.is-calm {
+  background: var(--plab-soft, #f5f4f2);
+  color: var(--home-muted);
+}
+
+.home-kpi.is-skeleton {
+  min-height: 96px;
+  opacity: 0.55;
+}
+
+.home-kpi__meta.is-danger {
+  color: #b91c1c !important;
+}
+
+.home [hidden],
+[data-home-perm][hidden] {
+  display: none !important;
 }
 
 .home-loading {
   opacity: 0.55;
   pointer-events: none;
+}
+
+/* Bell → "Precisa da sua atenção": land below the fixed app top bar. */
+#homeAttnCard {
+  scroll-margin-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 12px);
 }
