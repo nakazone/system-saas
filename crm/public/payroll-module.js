@@ -302,12 +302,61 @@ function applyPayrollAccessMode() {
   if (hash === '#hub-aprovar-banco' && !canManage) {
     window.history.replaceState(null, '', defaultHash);
   }
+  syncPayrollHubPanels();
+}
+
+function payrollDefaultHash() {
+  return !canPayrollAdmin && canHourBankSelf ? '#hub-meu-banco' : '#hub-resumo';
+}
+
+function syncPayrollHubPanels() {
+  const active = (window.location.hash || payrollDefaultHash()).replace('#', '');
   document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
     const h = (b.getAttribute('href') || '').replace('#', '');
-    const on = h === (window.location.hash || defaultHash).replace('#', '');
+    const on = h === active;
     b.classList.toggle('active', on);
     b.classList.toggle('is-active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
+  document.querySelectorAll('.payroll-hub-section').forEach((sec) => {
+    const permHidden =
+      (sec.hasAttribute('data-payroll-admin-only') && !canPayrollAdmin) ||
+      (sec.id === 'hub-aprovar-banco' && !canManage) ||
+      (sec.id === 'hub-meu-banco' && !canHourBankSelf);
+    if (permHidden) {
+      sec.classList.add('hidden');
+      sec.classList.remove('is-active-panel');
+      return;
+    }
+    sec.classList.remove('hidden');
+    sec.classList.toggle('is-active-panel', sec.id === active);
+  });
+}
+
+function initPayrollHubNav() {
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  const go = (hash) => {
+    const next = hash.startsWith('#') ? hash : `#${hash}`;
+    if (window.location.hash !== next) {
+      window.history.pushState(null, '', next);
+    } else {
+      window.history.replaceState(null, '', next);
+    }
+    syncPayrollHubPanels();
+    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  };
+  window.addEventListener('hashchange', () => syncPayrollHubPanels());
+  window.addEventListener('popstate', () => syncPayrollHubPanels());
+  document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
+    b.setAttribute('role', 'tab');
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      const href = b.getAttribute('href') || payrollDefaultHash();
+      go(href);
+    });
+  });
+  document.querySelector('.payroll-tabs')?.setAttribute('role', 'tablist');
+  syncPayrollHubPanels();
 }
 
 function statusLabelHb(s) {
@@ -2397,24 +2446,6 @@ async function quickSaveEmployee() {
     }
     window.crmToast?.error?.(e.message);
   }
-}
-
-function initPayrollHubNav() {
-  const update = () => {
-    const hash = (window.location.hash || '#hub-resumo').replace('#', '');
-    document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
-      const h = (b.getAttribute('href') || '').replace('#', '');
-      const on = h === hash;
-      b.classList.toggle('active', on);
-      b.classList.toggle('is-active', on);
-    });
-  };
-  window.addEventListener('hashchange', update);
-  document.querySelectorAll('.payroll-nav-btn').forEach((b) => {
-    b.addEventListener('click', () => setTimeout(update, 50));
-  });
-  // Default hash is set in applyPayrollAccessMode after session permissions load
-  update();
 }
 
 async function reloadAll() {

@@ -48,13 +48,16 @@
 }
 
 .payroll-hub-section {
-  scroll-margin-top: calc(var(--crm-topbar-height, 56px) + 1rem);
   margin-bottom: 1.15rem;
   background: var(--mod-surface, #fff);
   border: 1px solid var(--mod-border, #e2d9cc);
   border-radius: var(--mod-radius, 12px);
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(33, 29, 26, 0.05);
+}
+
+.payroll-hub-section:not(.is-active-panel) {
+  display: none;
 }
 
 .payroll-hub-section__head {
