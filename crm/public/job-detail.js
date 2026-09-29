@@ -133,10 +133,18 @@
           '<p class="jobs-empty" style="padding:1rem 0">Sem serviços neste job. Use Editar serviços para adicionar.</p>';
       } else {
         const rows = lines
-          .map(
-            (li) => `<tr>
+          .map((li) => {
+            const unit = li.unit
+              ? String(li.unit)
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (c) => c.toUpperCase())
+              : "";
+            const qtyLabel = unit
+              ? `${li.quantity_sqft ?? 0} ${unit}`
+              : String(li.quantity_sqft ?? 0);
+            return `<tr>
               <td>${escapeHtml(li.service_name || "—")}</td>
-              <td style="text-align:right">${escapeHtml(String(li.quantity_sqft ?? 0))}</td>
+              <td style="text-align:right">${escapeHtml(qtyLabel)}</td>
               <td style="text-align:right">${escapeHtml(
                 (Number(li.unit_price) || 0).toLocaleString(undefined, {
                   style: "currency",
@@ -149,15 +157,15 @@
                   currency: "USD",
                 }),
               )}</td>
-            </tr>`,
-          )
+            </tr>`;
+          })
           .join("");
         const total = (Number(job.services_total) || 0).toLocaleString(undefined, {
           style: "currency",
           currency: "USD",
         });
         servicesBody.innerHTML = `<table class="job-visits-table">
-          <thead><tr><th>Serviço</th><th style="text-align:right">Sqft</th><th style="text-align:right">Preço</th><th style="text-align:right">Total</th></tr></thead>
+          <thead><tr><th>Serviço</th><th style="text-align:right">Qtd</th><th style="text-align:right">Preço</th><th style="text-align:right">Total</th></tr></thead>
           <tbody>${rows}</tbody>
           <tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Total</td><td style="text-align:right;font-weight:700">${escapeHtml(total)}</td></tr></tfoot>
         </table>`;

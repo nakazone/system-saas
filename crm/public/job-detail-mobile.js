@@ -118,9 +118,12 @@
     }
     (wo.line_items || []).slice(0, 3).forEach((it, i) => {
       if (!it.service_name) return;
+      const unit = it.unit
+        ? String(it.unit).replace(/_/g, " ")
+        : "sq ft";
       steps.push({
         title: it.service_name,
-        meta: it.quantity_sqft ? `${it.quantity_sqft} sq ft` : "",
+        meta: it.quantity_sqft ? `${it.quantity_sqft} ${unit}` : "",
         state: wo.status === "completed" ? "done" : i === 0 && !start ? "current" : "upcoming",
       });
     });

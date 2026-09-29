@@ -139,6 +139,7 @@ function mapWorkOrder(wo: {
     unitPrice: unknown;
     lineTotal: unknown;
     sortOrder: number;
+    pricingItem?: { unit: string } | null;
   }[];
 }) {
   const lineItems = (wo.lineItems || []).map((li) => ({
@@ -149,6 +150,7 @@ function mapWorkOrder(wo: {
     unit_price: dec(li.unitPrice),
     line_total: dec(li.lineTotal),
     sort_order: li.sortOrder,
+    unit: li.pricingItem?.unit || null,
   }));
   const services_total = lineItems.reduce((sum, li) => sum + li.line_total, 0);
   return {
@@ -251,7 +253,10 @@ const woInclude = {
     orderBy: { createdAt: "asc" as const },
   },
   tempWorkers: { orderBy: { createdAt: "asc" as const } },
-  lineItems: { orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }] },
+  lineItems: {
+    orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
+    include: { pricingItem: { select: { unit: true } } },
+  },
 };
 
 const lineItemBody = z.object({

@@ -5,7 +5,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260929-jobresp1";
+  const CSS_HREF = "crm-job-modal.css?v=20260929-svcunit1";
   let editingId = null;
   let editSection = "all";
   /** Active accordion panel when editSection === "all" */
@@ -229,12 +229,63 @@
     return src === "builder" || Boolean(builderId);
   }
 
+  function formatPricingUnit(unit) {
+    if (!unit) return "Qtd";
+    const raw = String(unit).trim().toLowerCase().replace(/\s+/g, "_");
+    const map = {
+      sq_ft: "Sq ft",
+      sqft: "Sq ft",
+      square_ft: "Sq ft",
+      square_feet: "Sq ft",
+      linear_ft: "Linear ft",
+      linear_feet: "Linear ft",
+      lf: "Linear ft",
+      inches: "Inches",
+      inch: "Inches",
+      step: "Steps",
+      steps: "Steps",
+      unit: "Unit",
+      units: "Unit",
+      piece: "Piece",
+      pieces: "Piece",
+      each: "Each",
+      fixed: "Fixed",
+      hour: "Hours",
+      hours: "Hours",
+      day: "Days",
+      days: "Days",
+    };
+    if (map[raw]) return map[raw];
+    return String(unit)
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function isDiscreteUnit(unit) {
+    const u = String(unit || "")
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    return ["step", "steps", "unit", "units", "piece", "pieces", "each", "fixed"].includes(u);
+  }
+
+  function resolveRowUnit(row) {
+    if (row?.unit) return row.unit;
+    if (!row?.pricing_item_id) return "";
+    const item = pricingCatalog.find((p) => p.id === row.pricing_item_id);
+    return item?.unit || "";
+  }
+
   function unitPriceForItem(item) {
     if (!item) return 0;
     if (usePartnerPrice() && item.partner_price != null && item.partner_price !== "") {
-      return Number(item.partner_price) || 0;
+      const partner = Number(item.partner_price);
+      if (partner > 0) return partner;
     }
-    return Number(item.price_loja != null ? item.price_loja : item.price_min) || 0;
+    const candidates = [item.price_loja, item.price_min, item.price_max, item.price];
+    for (const c of candidates) {
+      if (c != null && c !== "" && Number(c) > 0) return Number(c);
+    }
+    return Number(item.price_loja) || 0;
   }
 
   function renderServices() {
@@ -245,21 +296,29 @@
       updateServicesTotal();
       return;
     }
-    const opts = ['<option value="">— Personalizado —</option>']
-      .concat(
-        pricingCatalog.map(
-          (p) =>
-            `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (${escapeHtml(p.category || "")})</option>`,
-        ),
-      )
-      .join("");
     box.innerHTML = serviceRows
       .map((row, idx) => {
+        const unitRaw = resolveRowUnit(row);
+        const unitLbl = formatPricingUnit(unitRaw);
+        const opts = ['<option value="">— Personalizado —</option>']
+          .concat(
+            pricingCatalog.map((p) => {
+              const u = formatPricingUnit(p.unit);
+              const cat = p.category ? ` · ${p.category}` : "";
+              return `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (${escapeHtml(u)}${escapeHtml(cat)})</option>`;
+            }),
+          )
+          .join("");
+        const qtyVal = row.quantity_sqft != null && row.quantity_sqft !== "" ? escapeHtml(String(row.quantity_sqft)) : "";
+        const priceVal = row.unit_price != null && row.unit_price !== "" ? escapeHtml(String(row.unit_price)) : "";
         return `<div class="jobs-service-row" data-idx="${idx}">
           <select class="js-svc-pricing" data-idx="${idx}">${opts}</select>
           <input type="text" class="js-svc-name" data-idx="${idx}" maxlength="200" placeholder="Tipo de serviço" value="${escapeHtml(row.service_name || "")}" />
-          <input type="number" class="js-svc-qty" data-idx="${idx}" min="0" step="0.01" placeholder="Sqft" value="${row.quantity_sqft != null ? escapeHtml(String(row.quantity_sqft)) : ""}" />
-          <input type="number" class="js-svc-price" data-idx="${idx}" min="0" step="0.01" placeholder="Preço $" value="${row.unit_price != null ? escapeHtml(String(row.unit_price)) : ""}" />
+          <div class="jobs-svc-qty-wrap">
+            <input type="number" class="js-svc-qty" data-idx="${idx}" min="0" step="0.01" placeholder="${escapeHtml(unitLbl)}" aria-label="Quantidade (${escapeHtml(unitLbl)})" value="${qtyVal}" />
+            <span class="jobs-svc-unit">${escapeHtml(unitLbl)}</span>
+          </div>
+          <input type="number" class="js-svc-price" data-idx="${idx}" min="0" step="0.01" placeholder="$ / ${escapeHtml(unitLbl)}" aria-label="Preço por ${escapeHtml(unitLbl)}" value="${priceVal}" />
           <button type="button" class="btn btn-danger btn-sm js-svc-del" data-idx="${idx}" title="Remover">×</button>
         </div>`;
       })
@@ -283,16 +342,19 @@
     const next = [];
     box.querySelectorAll(".jobs-service-row").forEach((rowEl) => {
       const idx = Number(rowEl.getAttribute("data-idx"));
+      const prev = serviceRows[idx] || {};
       const pricing = rowEl.querySelector(".js-svc-pricing")?.value || null;
       const name = (rowEl.querySelector(".js-svc-name")?.value || "").trim();
       const qty = Number(rowEl.querySelector(".js-svc-qty")?.value) || 0;
       const price = Number(rowEl.querySelector(".js-svc-price")?.value) || 0;
       if (!name && !pricing && !qty && !price) return;
+      const catalogItem = pricing ? pricingCatalog.find((p) => p.id === pricing) : null;
       next.push({
         pricing_item_id: pricing || null,
-        service_name: name || pricingCatalog.find((p) => p.id === pricing)?.name || "Serviço",
+        service_name: name || catalogItem?.name || "Serviço",
         quantity_sqft: qty,
         unit_price: price,
+        unit: catalogItem?.unit || prev.unit || null,
       });
     });
     serviceRows = next;
@@ -307,19 +369,34 @@
         service_name: "",
         quantity_sqft: 0,
         unit_price: 0,
+        unit: null,
       },
     );
     renderServices();
   }
 
   function applyPricingToRow(idx) {
+    const box = $("jobServicesList");
+    const rowEl = box?.querySelector(`.jobs-service-row[data-idx="${idx}"]`);
+    const pricingId = rowEl?.querySelector(".js-svc-pricing")?.value || null;
     collectServiceRowsFromDom();
-    const row = serviceRows[idx];
+    // After collect, empty rows may shift — prefer the row that still matches this select index.
+    let row = serviceRows[idx];
+    if (rowEl && (!row || row.pricing_item_id !== pricingId)) {
+      row = serviceRows.find((r) => r.pricing_item_id === pricingId) || row;
+    }
     if (!row) return;
+    row.pricing_item_id = pricingId || null;
     const item = pricingCatalog.find((p) => p.id === row.pricing_item_id);
     if (item) {
       row.service_name = item.name;
+      row.unit = item.unit || null;
       row.unit_price = unitPriceForItem(item);
+      if ((!row.quantity_sqft || Number(row.quantity_sqft) === 0) && isDiscreteUnit(item.unit)) {
+        row.quantity_sqft = 1;
+      }
+    } else {
+      row.unit = null;
     }
     renderServices();
   }
@@ -329,7 +406,9 @@
     serviceRows.forEach((row) => {
       if (!row.pricing_item_id) return;
       const item = pricingCatalog.find((p) => p.id === row.pricing_item_id);
-      if (item) row.unit_price = unitPriceForItem(item);
+      if (!item) return;
+      row.unit = item.unit || row.unit || null;
+      row.unit_price = unitPriceForItem(item);
     });
     renderServices();
   }
@@ -644,6 +723,7 @@
       service_name: li.service_name || "",
       quantity_sqft: li.quantity_sqft || 0,
       unit_price: li.unit_price || 0,
+      unit: li.unit || pricingCatalog.find((p) => p.id === li.pricing_item_id)?.unit || null,
     }));
     $("jobId").value = wo.id;
     $("jobTitle").value = wo.title || "";
@@ -709,6 +789,7 @@
           service_name: li.service_name || "",
           quantity_sqft: li.quantity_sqft || 0,
           unit_price: li.unit_price || 0,
+          unit: li.unit || pricingCatalog.find((p) => p.id === li.pricing_item_id)?.unit || null,
         }));
         renderTeamCheckboxes((j.data.members || []).map((m) => m.user_id));
         renderServices();
