@@ -5,7 +5,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260929-svcprice2";
+  const CSS_HREF = "crm-job-modal.css?v=20260929-svcui1";
   let editingId = null;
   let editSection = "all";
   /** Active accordion panel when editSection === "all" */
@@ -183,8 +183,10 @@
           </span>
         </legend>
         <div id="jobServicesList" class="jobs-services-list"></div>
-        <button type="button" class="btn btn-secondary btn-sm" id="btnAddService">+ Serviço</button>
-        <p class="jobs-services-total" id="jobServicesTotal">Total: $0.00</p>
+        <div class="jobs-services-footer">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnAddService">+ Serviço</button>
+          <p class="jobs-services-total" id="jobServicesTotal">Total: $0.00</p>
+        </div>
       </fieldset>
     </div>
     <div class="jobs-section" data-job-section="notes">
@@ -284,8 +286,8 @@
   function catalogOptionLabel(p) {
     const u = formatPricingUnit(p.unit);
     const rate = unitPriceForItem(p);
-    const rateTxt = rate > 0 ? ` · ${money(rate)}/${u}` : "";
-    return `${p.name || "Serviço"} (${u}${rateTxt})`;
+    if (rate > 0) return `${p.name || "Serviço"} — ${money(rate)}/${u}`;
+    return `${p.name || "Serviço"} (${u})`;
   }
 
   function renderServices() {
@@ -303,6 +305,7 @@
         const qtyNum = Number(row.quantity_sqft) || 0;
         const priceNum = Number(row.unit_price) || 0;
         const lineTotal = qtyNum * priceNum;
+        const customOnly = !row.pricing_item_id;
         const opts = ['<option value="">— Personalizado —</option>']
           .concat(
             pricingCatalog.map(
@@ -312,21 +315,40 @@
           .join("");
         const qtyVal = qtyNum > 0 ? escapeHtml(String(row.quantity_sqft)) : "";
         const priceVal = priceNum > 0 ? escapeHtml(String(row.unit_price)) : "";
-        return `<div class="jobs-service-row" data-idx="${idx}">
-          <select class="js-svc-pricing" data-idx="${idx}" aria-label="Serviço do catálogo">${opts}</select>
-          <input type="text" class="js-svc-name" data-idx="${idx}" maxlength="200" placeholder="Tipo de serviço" value="${escapeHtml(row.service_name || "")}" />
-          <div class="jobs-svc-qty-wrap">
-            <input type="number" class="js-svc-qty" data-idx="${idx}" min="0" step="0.01" placeholder="${escapeHtml(unitLbl)}" aria-label="Quantidade (${escapeHtml(unitLbl)})" value="${qtyVal}" />
-            <span class="jobs-svc-unit">${escapeHtml(unitLbl)}</span>
+        return `<article class="jobs-service-card" data-idx="${idx}">
+          <header class="jobs-service-card__head">
+            <label class="jobs-svc-field jobs-svc-field--grow">
+              <span class="jobs-svc-field__label">Serviço</span>
+              <select class="js-svc-pricing" data-idx="${idx}">${opts}</select>
+            </label>
+            <button type="button" class="jobs-service-card__del js-svc-del" data-idx="${idx}" aria-label="Remover serviço">×</button>
+          </header>
+          <label class="jobs-svc-field jobs-service-card__custom${customOnly ? "" : " is-hidden"}">
+            <span class="jobs-svc-field__label">Descrição</span>
+            <input type="text" class="js-svc-name" data-idx="${idx}" maxlength="200" placeholder="Nome do serviço" value="${escapeHtml(row.service_name || "")}" />
+          </label>
+          <div class="jobs-service-card__metrics">
+            <label class="jobs-svc-field">
+              <span class="jobs-svc-field__label">Quantidade</span>
+              <div class="jobs-svc-qty-wrap">
+                <input type="number" class="js-svc-qty" data-idx="${idx}" min="0" step="0.01" placeholder="0" aria-label="Quantidade (${escapeHtml(unitLbl)})" value="${qtyVal}" />
+                <span class="jobs-svc-unit">${escapeHtml(unitLbl)}</span>
+              </div>
+            </label>
+            <label class="jobs-svc-field">
+              <span class="jobs-svc-field__label">Preço unit.</span>
+              <div class="jobs-svc-price-wrap">
+                <span class="jobs-svc-price-prefix">$</span>
+                <input type="number" class="js-svc-price" data-idx="${idx}" min="0" step="0.01" placeholder="0.00" aria-label="Preço por ${escapeHtml(unitLbl)}" value="${priceVal}" />
+                <span class="jobs-svc-price-unit">/ ${escapeHtml(unitLbl)}</span>
+              </div>
+            </label>
+            <div class="jobs-svc-field jobs-svc-field--total">
+              <span class="jobs-svc-field__label">Total</span>
+              <span class="jobs-svc-line-total">${money(lineTotal)}</span>
+            </div>
           </div>
-          <div class="jobs-svc-price-wrap">
-            <span class="jobs-svc-price-prefix">$</span>
-            <input type="number" class="js-svc-price" data-idx="${idx}" min="0" step="0.01" placeholder="0.00" aria-label="Preço por ${escapeHtml(unitLbl)}" value="${priceVal}" />
-            <span class="jobs-svc-price-unit">/ ${escapeHtml(unitLbl)}</span>
-          </div>
-          <span class="jobs-svc-line-total" title="Total da linha">${money(lineTotal)}</span>
-          <button type="button" class="btn btn-danger btn-sm js-svc-del" data-idx="${idx}" title="Remover">×</button>
-        </div>`;
+        </article>`;
       })
       .join("");
     serviceRows.forEach((row, idx) => {
@@ -346,7 +368,7 @@
     const box = $("jobServicesList");
     if (!box) return serviceRows;
     const next = [];
-    box.querySelectorAll(".jobs-service-row").forEach((rowEl) => {
+    box.querySelectorAll(".jobs-service-card").forEach((rowEl) => {
       const idx = Number(rowEl.getAttribute("data-idx"));
       const prev = serviceRows[idx] || {};
       const pricing = rowEl.querySelector(".js-svc-pricing")?.value || null;
@@ -387,7 +409,7 @@
 
   function applyPricingToRow(idx) {
     const box = $("jobServicesList");
-    const rowEl = box?.querySelector(`.jobs-service-row[data-idx="${idx}"]`);
+    const rowEl = box?.querySelector(`.jobs-service-card[data-idx="${idx}"]`);
     const pricingId = (rowEl?.querySelector(".js-svc-pricing")?.value || "").trim() || null;
     const item = pricingId ? pricingCatalog.find((p) => p.id === pricingId) : null;
     const autoPrice = item ? unitPriceForItem(item) : 0;
@@ -633,7 +655,10 @@
     const tabs = $("jobModalTabs");
     if (tabs) tabs.hidden = !showAll;
     const modal = $("jobModal");
-    if (modal) modal.setAttribute("data-section", showAll ? "all" : editSection);
+    if (modal) {
+      modal.setAttribute("data-section", showAll ? "all" : editSection);
+      modal.setAttribute("data-panel", showAll ? createPanel : editSection);
+    }
 
     if (showAll) {
       if (!PANEL_KEYS.includes(createPanel)) createPanel = "details";
@@ -961,7 +986,7 @@
       if (t.classList.contains("js-svc-qty") || t.classList.contains("js-svc-price") || t.classList.contains("js-svc-name")) {
         collectServiceRowsFromDom();
         // Live-update line totals without full re-render while typing.
-        const rowEl = t.closest(".jobs-service-row");
+        const rowEl = t.closest(".jobs-service-card");
         if (rowEl) {
           const qty = Number(rowEl.querySelector(".js-svc-qty")?.value) || 0;
           const price = Number(rowEl.querySelector(".js-svc-price")?.value) || 0;
