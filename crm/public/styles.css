@@ -1231,11 +1231,15 @@ input.score-auto {
     border: 1px solid #e6b8b8;
     color: #c0392b;
     border-radius: 4px;
-    padding: 1px 6px;
+    padding: 4px 8px;
+    min-width: 28px;
+    min-height: 28px;
     cursor: pointer;
-    font-size: 0.75rem;
-    line-height: 1.2;
+    font-size: 0.8rem;
+    line-height: 1;
     opacity: 0.85;
+    position: relative;
+    z-index: 2;
 }
 
 .kanban-card-actions .btn-lead-delete-kanban:hover {
