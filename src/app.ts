@@ -43,7 +43,7 @@ import { assessmentsRouter } from "./modules/assessments/routes.js";
 import { platformAdminRouter } from "./platform-admin/routes.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
-import { CRM_ASSETS_DIR } from "./crm/mount.js";
+import { CRM_ASSETS_DIR, CRM_PUBLIC_DIR } from "./crm/mount.js";
 import { getLocalFileStorage } from "./lib/storage/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -74,6 +74,22 @@ export function createApp() {
   app.use(cookieParser());
   app.use("/assets", express.static(CRM_ASSETS_DIR));
   app.use("/assets", express.static(path.join(__dirname, "public")));
+
+  // CRM static files (css/js/images/fonts) are identical for every tenant. Serve them before
+  // the session store, tenant lookup and user load: each asset request used to run ~20 DB
+  // statements (session read + touch, org, permission sync, user/role/permissions) and a
+  // CRM page loads ~30 of them. HTML shells still go through the tenant stack (branding).
+  // Caching is unchanged: browsers revalidate with ETag (304), so edits show up immediately.
+  const crmStatic = express.static(CRM_PUBLIC_DIR, { index: false, cacheControl: false, fallthrough: true });
+  const CRM_STATIC_FILE = /\.(?:css|js|mjs|map|png|jpe?g|gif|svg|webp|ico|woff2?|ttf)$/i;
+  app.use((req, res, next) => {
+    if ((req.method !== "GET" && req.method !== "HEAD") || req.path.startsWith("/api/") || !CRM_STATIC_FILE.test(req.path)) {
+      next();
+      return;
+    }
+    res.setHeader("Cache-Control", "no-cache");
+    crmStatic(req, res, next);
+  });
 
   // Local upload fallback (when S3 is not configured) — keys are unguessable org paths.
   app.get(/^\/api\/local-files\/(.+)/, async (req, res, next) => {
