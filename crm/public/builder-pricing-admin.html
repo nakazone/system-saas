@@ -12,53 +12,40 @@
   <link rel="stylesheet" href="crm-shell.css?v=20260924-shell" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <link rel="stylesheet" href="crm-toast.css" />
-  <link rel="stylesheet" href="css/builders-portal.css?v=20260530-pricing-split" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260929-pricingui1" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body bp-page-body payroll-sidebar-page">
   <div class="dashboard-container">
     <aside class="dashboard-sidebar"><nav class="sidebar-nav"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav></aside>
     <main class="dashboard-main">
-      <div class="bp-main">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:1rem">
+      <div class="bp-main bp-pricing-admin-page">
+        <header class="bp-pricing-admin-head">
           <div>
             <p class="bp-eyebrow">Builders</p>
             <h1 class="bp-title">Tabela de Valores</h1>
-            <p class="bp-muted">Edite aqui os precos exibidos no portal do builder (somente leitura para parceiros).</p>
+            <p class="bp-muted">Preços usados no portal do builder e nas linhas de serviço dos jobs (Loja e parceiro).</p>
           </div>
-          <button type="button" class="bp-btn-tan" id="btnAddService">+ Servico</button>
-        </div>
-        <p id="adminReadOnlyBanner" class="bp-card hidden" style="margin-bottom:12px;background:#fff8e6;border:1px solid #e8c96a">
-          Modo somente leitura. Solicite permissao <strong>builders.edit</strong> para alterar a tabela.
+          <button type="button" class="bp-btn-tan" id="btnAddService">+ Serviço</button>
+        </header>
+        <p id="adminReadOnlyBanner" class="bp-card bp-pricing-admin-readonly hidden">
+          Modo somente leitura. Solicite permissão <strong>builders.edit</strong> para alterar a tabela.
         </p>
-        <div class="bp-table-wrap bp-pricing-admin-wrap">
-          <table class="bp-table bp-pricing-admin-table" id="pricingTable">
-            <thead>
-              <tr>
-                <th title="Ordem de exibicao">#</th>
-                <th>Servico</th>
-                <th>Categoria</th>
-                <th>Unidade</th>
-                <th>Min publico</th>
-                <th>Max publico</th>
-                <th>Preco parceiro</th>
-                <th>Notas (portal)</th>
-                <th>Visivel</th>
-                <th>Bloqueado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="pricingTbody"></tbody>
-          </table>
+        <div id="pricingEmpty" class="bp-pricing-admin-empty hidden">
+          <p>Nenhum serviço na tabela. Clique em <strong>+ Serviço</strong> para começar.</p>
         </div>
-        <h2 class="bp-title" style="font-size:1rem;margin-top:1.5rem">Desconto por volume</h2>
-        <div class="bp-card" id="volumeDiscounts"></div>
+        <div id="pricingList" class="bp-pricing-admin-list" aria-live="polite"></div>
+        <section class="bp-pricing-admin-volume">
+          <h2 class="bp-pricing-admin-volume__title">Desconto por volume</h2>
+          <p class="bp-muted bp-pricing-admin-volume__hint">Aplicado ao preço parceiro no portal do builder.</p>
+          <div class="bp-card bp-pricing-volume-grid" id="volumeDiscounts"></div>
+        </section>
       </div>
     </main>
   </div>
   <script src="crm-toast.js"></script>
   <script src="crm-shell.js?v=20260924-shell"></script>
   <script src="crm-shared-nav.js?v=20260929-obranames1"></script>
-  <script src="builder-pricing-admin.js?v=20260531-perm-fix"></script>
+  <script src="builder-pricing-admin.js?v=20260929-pricingui1"></script>
 </body>
 </html>

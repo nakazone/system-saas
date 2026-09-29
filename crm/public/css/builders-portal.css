@@ -802,6 +802,190 @@
   line-height: 1.35;
 }
 .bp-pricing-admin-table td { vertical-align: top; }
+
+/* —— CRM: Tabela de Valores (admin) — card layout —— */
+.bp-pricing-admin-page .bp-muted {
+  margin: 0.35rem 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 42rem;
+}
+.bp-pricing-admin-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+.bp-pricing-admin-readonly {
+  margin-bottom: 12px;
+  background: #fff8e6;
+  border: 1px solid #e8c96a;
+}
+.bp-pricing-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.bp-pricing-admin-empty {
+  padding: 1.25rem 1rem;
+  text-align: center;
+  color: var(--bp-muted);
+  background: #fff;
+  border: 1px dashed var(--bp-border);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-size: 14px;
+}
+.bp-pricing-card {
+  background: #fff;
+  border: 1px solid var(--bp-border);
+  border-radius: 12px;
+  padding: 0.85rem 0.95rem 0.95rem;
+  box-shadow: 0 2px 10px rgba(26, 32, 54, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.bp-pricing-card__head {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-end;
+}
+.bp-pricing-card__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem 0.65rem;
+}
+.bp-pricing-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  min-width: 0;
+}
+.bp-pricing-field--grow {
+  flex: 1;
+}
+.bp-pricing-field--order {
+  flex: 0 0 4.5rem;
+}
+.bp-pricing-field--full {
+  width: 100%;
+}
+.bp-pricing-field__label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bp-muted);
+}
+.bp-pricing-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.48rem 0.55rem;
+  border: 1px solid var(--bp-border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--bp-navy);
+}
+.bp-pricing-input:disabled,
+.bp-pricing-input[disabled] {
+  background: #f7f4ee;
+  color: #6b645c;
+}
+.bp-pricing-input--notes {
+  min-height: 3.2rem;
+  resize: vertical;
+  line-height: 1.35;
+}
+.bp-pricing-card__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.25rem;
+  padding-top: 0.15rem;
+}
+.bp-pricing-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 13px;
+  color: var(--bp-navy);
+  cursor: pointer;
+  user-select: none;
+}
+.bp-pricing-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--bp-border);
+}
+.bp-pricing-admin-volume {
+  margin-top: 0.5rem;
+}
+.bp-pricing-admin-volume__title {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+  color: var(--bp-navy);
+}
+.bp-pricing-admin-volume__hint {
+  margin: 0 0 0.65rem;
+}
+.bp-pricing-volume-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0;
+  padding: 0.75rem 0.85rem;
+}
+.bp-pricing-volume-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--bp-off-white);
+  border-radius: 8px;
+  border: 1px solid var(--bp-border);
+}
+.bp-pricing-volume-item__range {
+  font-size: 12px;
+  color: var(--bp-muted);
+}
+.bp-pricing-volume-item__pct {
+  font-size: 1.05rem;
+  color: var(--bp-navy);
+}
+@media (max-width: 900px) {
+  .bp-pricing-card__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bp-pricing-card__grid .bp-pricing-field:nth-child(5) {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 520px) {
+  .bp-pricing-card__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bp-pricing-field--order {
+    flex: 1;
+  }
+  .bp-pricing-card__grid {
+    grid-template-columns: 1fr;
+  }
+  .bp-pricing-card__grid .bp-pricing-field:nth-child(5) {
+    grid-column: auto;
+  }
+}
+
 .bp-tooltip-wrap { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px; }
 .bp-tooltip-wrap .bp-info-btn { margin: 0; }
 .bp-tooltip-wrap .bp-tooltip {
