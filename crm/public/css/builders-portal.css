@@ -803,7 +803,7 @@
 }
 .bp-pricing-admin-table td { vertical-align: top; }
 
-/* —— CRM: Tabela de Valores (admin) — card layout —— */
+/* —— CRM: Tabela de Valores (admin) — compact rows + search —— */
 .bp-pricing-admin-page .bp-muted {
   margin: 0.35rem 0 0;
   font-size: 13px;
@@ -816,76 +816,39 @@
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
 }
 .bp-pricing-admin-readonly {
   margin-bottom: 12px;
   background: #fff8e6;
   border: 1px solid #e8c96a;
 }
-.bp-pricing-admin-list {
+.bp-pricing-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+  margin-bottom: 0.75rem;
 }
-.bp-pricing-admin-empty {
-  padding: 1.25rem 1rem;
-  text-align: center;
-  color: var(--bp-muted);
-  background: #fff;
-  border: 1px dashed var(--bp-border);
-  border-radius: 10px;
-  margin-bottom: 1rem;
-  font-size: 14px;
-}
-.bp-pricing-card {
-  background: #fff;
-  border: 1px solid var(--bp-border);
-  border-radius: 12px;
-  padding: 0.85rem 0.95rem 0.95rem;
-  box-shadow: 0 2px 10px rgba(26, 32, 54, 0.04);
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
+.bp-pricing-search {
+  position: relative;
+  flex: 1 1 220px;
   min-width: 0;
 }
-.bp-pricing-card__head {
-  display: flex;
-  gap: 0.55rem;
-  align-items: flex-end;
-}
-.bp-pricing-card__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.55rem 0.65rem;
-}
-.bp-pricing-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.22rem;
-  min-width: 0;
-}
-.bp-pricing-field--grow {
-  flex: 1;
-}
-.bp-pricing-field--order {
-  flex: 0 0 4.5rem;
-}
-.bp-pricing-field--full {
-  width: 100%;
-}
-.bp-pricing-field__label {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+.bp-pricing-search__icon {
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--bp-muted);
+  font-size: 0.95rem;
+  pointer-events: none;
+  line-height: 1;
 }
-.bp-pricing-input {
+.bp-pricing-search input {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.48rem 0.55rem;
+  padding: 0.5rem 0.7rem 0.5rem 1.85rem;
   border: 1px solid var(--bp-border);
   border-radius: 8px;
   font-size: 13px;
@@ -893,41 +856,164 @@
   background: #fff;
   color: var(--bp-navy);
 }
+.bp-pricing-filter {
+  flex: 0 1 11rem;
+  min-width: 9rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--bp-border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--bp-navy);
+}
+.bp-pricing-count {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bp-muted);
+  white-space: nowrap;
+}
+.bp-pricing-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+}
+.bp-pricing-admin-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--bp-muted);
+  background: #fff;
+  border: 1px dashed var(--bp-border);
+  border-radius: 10px;
+  margin-bottom: 0.75rem;
+  font-size: 14px;
+}
+.bp-pricing-row {
+  background: #fff;
+  border: 1px solid var(--bp-border);
+  border-radius: 10px;
+  padding: 0.4rem 0.5rem;
+  min-width: 0;
+}
+.bp-pricing-row.is-hidden-svc {
+  opacity: 0.62;
+}
+.bp-pricing-row.is-open {
+  border-color: #d4c7b6;
+  box-shadow: 0 1px 6px rgba(26, 32, 54, 0.05);
+}
+.bp-pricing-row__main {
+  display: grid;
+  grid-template-columns:
+    1.6rem minmax(8rem, 1.6fr) minmax(6.5rem, 0.9fr) minmax(4rem, 0.55fr)
+    minmax(4.2rem, 0.55fr) minmax(4.2rem, 0.55fr) minmax(4.6rem, 0.6fr)
+    2.4rem minmax(5.5rem, auto);
+  gap: 0.3rem 0.4rem;
+  align-items: end;
+}
+.bp-pricing-row__toggle {
+  align-self: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bp-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.bp-pricing-row__toggle:hover {
+  background: var(--bp-off-white);
+  color: var(--bp-navy);
+}
+.bp-pricing-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+.bp-pricing-cell__lbl {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bp-muted);
+  line-height: 1.1;
+}
+.bp-pricing-cell--check {
+  align-items: center;
+}
+.bp-pricing-cell--check input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0.2rem 0 0;
+}
+.bp-pricing-cell--check-wide {
+  align-items: flex-start;
+}
+.bp-pricing-cell--check-wide input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.35rem;
+}
+.bp-pricing-cell--order {
+  max-width: 4.5rem;
+}
+.bp-pricing-cell--notes {
+  grid-column: 1 / -1;
+}
+.bp-pricing-row__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding-bottom: 0.05rem;
+}
+.bp-pricing-row__actions .bp-btn-sm {
+  padding: 0.32rem 0.55rem;
+  font-size: 12px;
+  min-height: 0;
+}
+.bp-pricing-row__extra {
+  display: grid;
+  grid-template-columns: 4.5rem auto 1fr;
+  gap: 0.45rem 0.65rem;
+  margin-top: 0.45rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--bp-border);
+  align-items: start;
+}
+.bp-pricing-row__extra[hidden] {
+  display: none !important;
+}
+.bp-pricing-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.32rem 0.4rem;
+  border: 1px solid var(--bp-border);
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--bp-navy);
+  min-height: 1.9rem;
+}
 .bp-pricing-input:disabled,
 .bp-pricing-input[disabled] {
   background: #f7f4ee;
   color: #6b645c;
 }
 .bp-pricing-input--notes {
-  min-height: 3.2rem;
+  min-height: 2.6rem;
   resize: vertical;
   line-height: 1.35;
 }
-.bp-pricing-card__flags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem 1.25rem;
-  padding-top: 0.15rem;
-}
-.bp-pricing-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 13px;
-  color: var(--bp-navy);
-  cursor: pointer;
-  user-select: none;
-}
-.bp-pricing-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  justify-content: flex-end;
-  padding-top: 0.35rem;
-  border-top: 1px solid var(--bp-border);
-}
 .bp-pricing-admin-volume {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
 }
 .bp-pricing-admin-volume__title {
   font-family: Poppins, Inter, sans-serif;
@@ -962,27 +1048,68 @@
   font-size: 1.05rem;
   color: var(--bp-navy);
 }
-@media (max-width: 900px) {
-  .bp-pricing-card__grid {
+@media (max-width: 1100px) {
+  .bp-pricing-row__main {
+    grid-template-columns:
+      1.5rem minmax(7rem, 1.4fr) minmax(5.5rem, 0.85fr) minmax(3.6rem, 0.5fr)
+      minmax(3.8rem, 0.5fr) minmax(3.8rem, 0.5fr) minmax(4.2rem, 0.55fr)
+      2.2rem minmax(5rem, auto);
+  }
+}
+@media (max-width: 820px) {
+  .bp-pricing-row__main {
+    grid-template-columns: 1.5rem 1fr 1fr;
+  }
+  .bp-pricing-cell--name {
+    grid-column: 2 / -1;
+  }
+  .bp-pricing-row__toggle {
+    grid-row: 1;
+  }
+  .bp-pricing-cell--cat,
+  .bp-pricing-cell--unit,
+  .bp-pricing-cell--num,
+  .bp-pricing-cell--partner,
+  .bp-pricing-cell--check {
+    grid-column: auto;
+  }
+  .bp-pricing-row__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-top: 0.15rem;
+  }
+  .bp-pricing-row__extra {
     grid-template-columns: 1fr 1fr;
   }
-  .bp-pricing-card__grid .bp-pricing-field:nth-child(5) {
+  .bp-pricing-cell--notes {
     grid-column: 1 / -1;
   }
 }
 @media (max-width: 520px) {
-  .bp-pricing-card__head {
+  .bp-pricing-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
-  .bp-pricing-field--order {
-    flex: 1;
+  .bp-pricing-filter {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
   }
-  .bp-pricing-card__grid {
+  .bp-pricing-row__main {
+    grid-template-columns: 1.5rem 1fr;
+  }
+  .bp-pricing-cell--name {
+    grid-column: 2;
+  }
+  .bp-pricing-cell--cat,
+  .bp-pricing-cell--unit,
+  .bp-pricing-cell--num,
+  .bp-pricing-cell--partner,
+  .bp-pricing-cell--check {
+    grid-column: 1 / -1;
+  }
+  .bp-pricing-row__extra {
     grid-template-columns: 1fr;
-  }
-  .bp-pricing-card__grid .bp-pricing-field:nth-child(5) {
-    grid-column: auto;
   }
 }
 

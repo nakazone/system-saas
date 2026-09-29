@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="crm-shell.css?v=20260924-shell" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <link rel="stylesheet" href="crm-toast.css" />
-  <link rel="stylesheet" href="css/builders-portal.css?v=20260929-pricingui1" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20260929-pricingui2" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body bp-page-body payroll-sidebar-page">
@@ -24,15 +24,32 @@
           <div>
             <p class="bp-eyebrow">Builders</p>
             <h1 class="bp-title">Tabela de Valores</h1>
-            <p class="bp-muted">Preços usados no portal do builder e nas linhas de serviço dos jobs (Loja e parceiro).</p>
+            <p class="bp-muted">Preços do portal do builder e das linhas de serviço dos jobs.</p>
           </div>
           <button type="button" class="bp-btn-tan" id="btnAddService">+ Serviço</button>
         </header>
         <p id="adminReadOnlyBanner" class="bp-card bp-pricing-admin-readonly hidden">
           Modo somente leitura. Solicite permissão <strong>builders.edit</strong> para alterar a tabela.
         </p>
+        <div class="bp-pricing-toolbar">
+          <label class="bp-pricing-search">
+            <span class="bp-pricing-search__icon" aria-hidden="true">⌕</span>
+            <input type="search" id="pricingSearch" placeholder="Buscar serviço, unidade ou nota…" autocomplete="off" />
+          </label>
+          <select id="pricingCategoryFilter" class="bp-pricing-filter" aria-label="Filtrar categoria">
+            <option value="">Todas as categorias</option>
+            <option value="installation">Instalação</option>
+            <option value="sand_finish">Lixamento</option>
+            <option value="supply">Material</option>
+            <option value="custom">Personalizado</option>
+          </select>
+          <p class="bp-pricing-count" id="pricingCount" aria-live="polite"></p>
+        </div>
         <div id="pricingEmpty" class="bp-pricing-admin-empty hidden">
           <p>Nenhum serviço na tabela. Clique em <strong>+ Serviço</strong> para começar.</p>
+        </div>
+        <div id="pricingNoMatch" class="bp-pricing-admin-empty hidden">
+          <p>Nenhum serviço corresponde à busca.</p>
         </div>
         <div id="pricingList" class="bp-pricing-admin-list" aria-live="polite"></div>
         <section class="bp-pricing-admin-volume">
@@ -46,6 +63,6 @@
   <script src="crm-toast.js"></script>
   <script src="crm-shell.js?v=20260924-shell"></script>
   <script src="crm-shared-nav.js?v=20260929-obranames1"></script>
-  <script src="builder-pricing-admin.js?v=20260929-pricingui1"></script>
+  <script src="builder-pricing-admin.js?v=20260929-pricingui2"></script>
 </body>
 </html>
