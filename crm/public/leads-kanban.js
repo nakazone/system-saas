@@ -778,7 +778,7 @@ function renderKanbanCard(lead) {
               )
             : '';
     const originLogo = kanbanOriginLogoHtml(lead);
-    const deleteBtn = `<button type="button" class="btn-lead-delete-kanban" onclick="event.stopPropagation(); if (typeof window.deleteLead === 'function') window.deleteLead('${lead.id}');" title="Excluir lead" aria-label="Excluir lead">✕</button>`;
+    const deleteBtn = `<button type="button" class="btn-lead-delete-kanban" data-lead-delete="${lead.id}" title="Excluir lead" aria-label="Excluir lead">✕</button>`;
 
     return `
         <div class="kanban-card kanban-card--compact kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead('${lead.id}', event)" title="Ver detalhes do lead">
@@ -1062,13 +1062,25 @@ function closeModal(modalId) {
     }
 }
 
-// Close modals when clicking outside
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal')) {
-        e.target.classList.remove('active');
-        e.target.style.display = 'none';
-    }
-});
+// Close modals when clicking outside; handle kanban ✕ delete (capture so card onclick does not open sheet)
+document.addEventListener(
+    'click',
+    (e) => {
+        const delBtn = e.target && e.target.closest ? e.target.closest('[data-lead-delete]') : null;
+        if (delBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = delBtn.getAttribute('data-lead-delete');
+            if (id && typeof window.deleteLead === 'function') void window.deleteLead(id);
+            return;
+        }
+        if (e.target.classList && e.target.classList.contains('modal')) {
+            e.target.classList.remove('active');
+            e.target.style.display = 'none';
+        }
+    },
+    true
+);
 
 /* ========== Mobile Leads pipeline (shell #leadsMobileShell) ========== */
 let leadsMobileActiveSlug = '';
