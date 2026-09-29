@@ -5,7 +5,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20260929-pricerates1";
+  const CSS_HREF = "crm-job-modal.css?v=20260929-clienttype1";
   let editingId = null;
   let editSection = "all";
   /** Active accordion panel when editSection === "all" */
@@ -15,6 +15,8 @@
   let userOptions = [];
   let tempWorkersCache = [];
   let pricingCatalog = [];
+  let customerOptions = [];
+  let selectedCustomerPricingMode = "table";
   let serviceRows = [];
   const savedListeners = [];
 
@@ -276,10 +278,10 @@
 
   function unitPriceForItem(item) {
     if (!item) return 0;
+    if (selectedCustomerPricingMode === "custom") return 0;
     const key = pricingRateKey();
     const preferred = Number(item[key]);
     if (Number.isFinite(preferred) && preferred > 0) return preferred;
-    // Fallbacks for older catalog payloads / empty rates.
     const fallbacks =
       key === "price_builder"
         ? [item.partner_price, item.price_contractor, item.price_loja, item.price_particular]
@@ -620,6 +622,7 @@
     renderTeamCheckboxes([]);
 
     const custList = Array.isArray(customers.data) ? customers.data : [];
+    customerOptions = custList;
     fillSelect($("jobCustomer"), custList, (c) => ({
       value: c.id,
       label: c.name || c.company || c.id,
@@ -640,6 +643,19 @@
         });
       } catch (_) {}
     }
+  }
+
+  function applyCustomerPricingContext() {
+    const cid = $("jobCustomer")?.value;
+    const cust = cid ? customerOptions.find((c) => String(c.id) === String(cid)) : null;
+    selectedCustomerPricingMode = cust?.pricing_mode === "custom" ? "custom" : "table";
+    if (cust) {
+      const t = String(cust.customer_type || "").toLowerCase();
+      if (["particular", "builder", "contractor", "loja"].includes(t) && $("jobSourceType")) {
+        $("jobSourceType").value = t;
+      }
+    }
+    refreshPricesFromCatalog();
   }
 
 
@@ -764,6 +780,7 @@
     $("jobId").value = "";
     $("jobStatus").value = "scheduled";
     $("jobSourceType").value = "particular";
+    selectedCustomerPricingMode = "table";
     renderTeamCheckboxes([]);
     renderServices();
 
@@ -808,6 +825,12 @@
     $("jobSourceName").value = wo.source_name || "";
     $("jobCustomer").value = wo.customer_id || "";
     $("jobBuilder").value = wo.builder_id || "";
+    {
+      const cust = wo.customer_id
+        ? customerOptions.find((c) => String(c.id) === String(wo.customer_id))
+        : null;
+      selectedCustomerPricingMode = cust?.pricing_mode === "custom" ? "custom" : "table";
+    }
     $("jobAddress").value = wo.address || "";
     $("jobStart").value = toLocalInput(wo.scheduled_start);
     $("jobEnd").value = toLocalInput(wo.scheduled_end);
@@ -985,6 +1008,7 @@
     $("btnAddService")?.addEventListener("click", () => addServiceRow());
     $("jobSourceType")?.addEventListener("change", () => refreshPricesFromCatalog());
     $("jobBuilder")?.addEventListener("change", () => refreshPricesFromCatalog());
+    $("jobCustomer")?.addEventListener("change", () => applyCustomerPricingContext());
     const onServicePricingChange = (e) => {
       const t = e.target;
       if (!t || !t.classList || !t.classList.contains("js-svc-pricing")) return;

@@ -45,8 +45,12 @@
   function typeLabel(c) {
     const t = String(c.customer_type || "").toLowerCase();
     if (t === "builder") return "Builder";
+    if (t === "contractor") return "Contractor";
+    if (t === "loja") return "Loja";
+    if (t === "particular" || t === "residential") return "Particular";
     if (t === "lead") return "Lead";
-    return "Residencial";
+    if (t === "commercial") return "Loja";
+    return "Particular";
   }
 
   function financeFor(id) {
@@ -72,6 +76,7 @@
       const t = String(c.customer_type || "").toLowerCase();
       if (filter === "balance" && !(fin.balance > 0)) return false;
       if (filter === "builder" && t !== "builder") return false;
+      if (filter === "particular" && t !== "particular" && t !== "residential" && t) return false;
       if (filter === "lead" && t !== "lead" && !c.lead_id) return false;
       if (q) {
         const hay = [c.name, c.phone, c.email, c.address, c.city, c.responsible_name]
@@ -90,10 +95,15 @@
     const all = customers.length;
     const withBal = customers.filter((c) => financeFor(c.id).balance > 0).length;
     const builders = customers.filter((c) => String(c.customer_type || "").toLowerCase() === "builder").length;
+    const particular = customers.filter((c) => {
+      const t = String(c.customer_type || "").toLowerCase();
+      return t === "particular" || t === "residential" || !t;
+    }).length;
     const leads = customers.filter((c) => String(c.customer_type || "").toLowerCase() === "lead" || c.lead_id).length;
     const items = [
       { id: "all", label: "Todos", n: all },
       { id: "balance", label: "Com saldo", n: withBal },
+      { id: "particular", label: "Particular", n: particular },
       { id: "builder", label: "Builders", n: builders },
       { id: "lead", label: "Leads", n: leads },
     ];

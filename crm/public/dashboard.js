@@ -2214,12 +2214,29 @@ let customersSearchFilter = '';
 let customerInsightEditId = null;
 
 const CUSTOMERS_TYPE_LABELS = {
+    particular: 'Particular',
     builder: 'Builder',
-    residential: 'Cliente final',
-    commercial: 'Comercial',
-    property_manager: 'Property manager',
-    investor: 'Investidor',
+    contractor: 'Contractor',
+    loja: 'Loja',
+    // legacy labels (pre-migration rows)
+    residential: 'Particular',
+    commercial: 'Loja',
+    property_manager: 'Particular',
+    investor: 'Particular',
 };
+
+const CUSTOMERS_ORG_TYPES = new Set(['builder', 'contractor', 'loja']);
+
+function normalizeClientTypeUi(raw) {
+    const v = String(raw || 'particular').toLowerCase();
+    if (CUSTOMERS_ORG_TYPES.has(v) || v === 'particular') return v;
+    if (v === 'commercial') return 'loja';
+    return 'particular';
+}
+
+function isOrgClientType(type) {
+    return CUSTOMERS_ORG_TYPES.has(normalizeClientTypeUi(type));
+}
 
 function customersTableColspan() {
     return customersTypeFilter === 'builder' ? 11 : 10;
@@ -2341,7 +2358,7 @@ async function loadCustomers() {
                         c.lead_id != null && c.lead_id !== ''
                             ? `<a href="lead-detail.html?id=${encodeURIComponent(c.lead_id)}">#${c.lead_id}</a>`
                             : '—';
-                    const isBuilderRow = (c.customer_type || '') === 'builder';
+                    const isBuilderRow = isOrgClientType(c.customer_type);
                     const nameCell = escapeClientCell(c.name) || '-';
                     const respCell = isBuilderRow && c.responsible_name
                         ? escapeClientCell(c.responsible_name)
@@ -2357,7 +2374,7 @@ async function loadCustomers() {
                         <td>${escapeClientCell(c.email) || '-'}</td>
                         <td>${escapeClientCell(c.phone) || '-'}</td>
                         <td>${escapeClientCell(c.city) || '-'}</td>
-                        <td>${escapeClientCell(CUSTOMERS_TYPE_LABELS[c.customer_type] || c.customer_type) || '-'}</td>
+                        <td>${escapeClientCell(CUSTOMERS_TYPE_LABELS[normalizeClientTypeUi(c.customer_type)] || c.customer_type) || '-'}</td>
                         <td>${leadCell}</td>
                         <td><span class="badge badge-${c.status || 'active'}">${c.status || 'active'}</span></td>
                         <td>${c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
@@ -2392,15 +2409,38 @@ function syncClientFormBuilderFields() {
     const compInp = document.getElementById('clientCompanyName');
     const respInp = document.getElementById('clientResponsibleName');
     if (!typeEl || !nonRow || !bRow) return;
-    const isBuilder = typeEl.value === 'builder';
-    nonRow.style.display = isBuilder ? 'none' : '';
-    bRow.style.display = isBuilder ? '' : 'none';
+    const isOrg = isOrgClientType(typeEl.value);
+    nonRow.style.display = isOrg ? 'none' : '';
+    bRow.style.display = isOrg ? '' : 'none';
     if (nameInp) {
-        nameInp.required = !isBuilder;
-        if (isBuilder) nameInp.removeAttribute('required');
+        nameInp.required = !isOrg;
+        if (isOrg) nameInp.removeAttribute('required');
     }
-    if (compInp) compInp.required = isBuilder;
-    if (respInp) respInp.required = isBuilder;
+    if (compInp) compInp.required = isOrg;
+    if (respInp) respInp.required = isOrg;
+    const hint = document.getElementById('clientPricingModeHint');
+    if (hint) {
+        const t = normalizeClientTypeUi(typeEl.value);
+        const labels = { particular: 'Particular', builder: 'Builder', contractor: 'Contractor', loja: 'Loja' };
+        hint.textContent =
+            getClientPricingMode() === 'custom'
+                ? 'Preços definidos manualmente em cada quote/job (não aplica automaticamente a coluna da tabela).'
+                : `Jobs e quotes usam a coluna «${labels[t] || t}» da Tabela de Valores.`;
+    }
+}
+
+function getClientPricingMode() {
+    const custom = document.getElementById('clientPricingModeCustom');
+    if (custom && custom.checked) return 'custom';
+    return 'table';
+}
+
+function setClientPricingMode(mode) {
+    const table = document.getElementById('clientPricingModeTable');
+    const custom = document.getElementById('clientPricingModeCustom');
+    const isCustom = mode === 'custom';
+    if (table) table.checked = !isCustom;
+    if (custom) custom.checked = isCustom;
 }
 
 function resetClientForm() {
@@ -2428,7 +2468,8 @@ function resetClientForm() {
         } else el.value = '';
     });
     const typeEl = document.getElementById('clientType');
-    if (typeEl) typeEl.value = 'residential';
+    if (typeEl) typeEl.value = 'particular';
+    setClientPricingMode('table');
     const st = document.getElementById('clientStatus');
     if (st) st.value = 'active';
     syncClientFormBuilderFields();
@@ -2459,21 +2500,24 @@ async function inspectCustomer(id) {
             return;
         }
         const { customer, lead_insight, builder_insight } = data.data;
-        const isB = (customer.customer_type || '') === 'builder';
+        const isOrg = isOrgClientType(customer.customer_type);
+        const typeLabel = CUSTOMERS_TYPE_LABELS[normalizeClientTypeUi(customer.customer_type)] || customer.customer_type;
         if (title) {
             title.textContent =
-                isB && customer.responsible_name
+                isOrg && customer.responsible_name
                     ? `${customer.name || ''} · ${customer.responsible_name}`
                     : customer.name || 'Cliente';
         }
         const z = (v) => (v != null && String(v).trim() !== '' ? escapeClientCell(String(v)) : '—');
         let html = '';
+        const pricingLabel = (customer.pricing_mode || 'table') === 'custom' ? 'Customizar' : 'Tabela de Valores';
 
         html += `<div class="customer-view-card" style="background:var(--bg-light,#f6f7f9);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
             <p style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--sf-muted,#666)">Cadastro</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 16px;font-size:14px;">
-                <div><span style="color:var(--sf-muted,#666)">Tipo</span><br><strong>${z(customer.customer_type)}</strong></div>
-                ${isB ? `<div><span style="color:var(--sf-muted,#666)">Empresa</span><br><strong>${z(customer.name)}</strong></div><div><span style="color:var(--sf-muted,#666)">Contato responsável</span><br><strong>${z(customer.responsible_name)}</strong></div>` : ''}
+                <div><span style="color:var(--sf-muted,#666)">Tipo</span><br><strong>${escapeClientCell(typeLabel)}</strong></div>
+                <div><span style="color:var(--sf-muted,#666)">Preços</span><br><strong>${escapeClientCell(pricingLabel)}</strong></div>
+                ${isOrg ? `<div><span style="color:var(--sf-muted,#666)">Empresa</span><br><strong>${z(customer.name)}</strong></div><div><span style="color:var(--sf-muted,#666)">Contato responsável</span><br><strong>${z(customer.responsible_name)}</strong></div>` : ''}
                 <div><span style="color:var(--sf-muted,#666)">Email</span><br><strong>${z(customer.email)}</strong></div>
                 <div><span style="color:var(--sf-muted,#666)">Telefone</span><br><strong>${z(customer.phone)}</strong></div>
                 <div><span style="color:var(--sf-muted,#666)">Cidade</span><br><strong>${z(customer.city)}</strong></div>
@@ -2597,17 +2641,18 @@ async function viewCustomer(id) {
         };
         document.getElementById('clientFormId').value = String(c.id);
         set('clientFormLeadId', c.lead_id != null ? c.lead_id : '');
-        const isB = (c.customer_type || 'residential') === 'builder';
-        set('clientName', isB ? '' : c.name);
-        set('clientCompanyName', isB ? c.name : '');
-        set('clientResponsibleName', isB && c.responsible_name != null ? c.responsible_name : '');
+        const isOrg = isOrgClientType(c.customer_type);
+        set('clientName', isOrg ? '' : c.name);
+        set('clientCompanyName', isOrg ? c.name : '');
+        set('clientResponsibleName', isOrg && c.responsible_name != null ? c.responsible_name : '');
         set('clientEmail', c.email);
         set('clientPhone', displayPhoneInClientForm(c.phone));
         set('clientAddress', c.address);
         set('clientCity', c.city);
         set('clientState', c.state);
         set('clientZip', c.zipcode);
-        set('clientType', c.customer_type || 'residential');
+        set('clientType', normalizeClientTypeUi(c.customer_type));
+        setClientPricingMode(c.pricing_mode === 'custom' ? 'custom' : 'table');
         set('clientStatus', c.status || 'active');
         set('clientNotes', c.notes);
         syncClientFormBuilderFields();
@@ -2629,15 +2674,15 @@ async function submitClientForm(ev) {
         errEl.style.display = 'none';
     }
     const id = document.getElementById('clientFormId').value.trim();
-    const ctype = document.getElementById('clientType').value;
+    const ctype = normalizeClientTypeUi(document.getElementById('clientType').value);
     let nameVal;
     let responsibleVal = null;
-    if (ctype === 'builder') {
+    if (isOrgClientType(ctype)) {
         nameVal = document.getElementById('clientCompanyName').value.trim();
         responsibleVal = document.getElementById('clientResponsibleName').value.trim();
         if (nameVal.length < 2) {
             if (errEl) {
-                errEl.textContent = 'Indique o nome da empresa (Builder).';
+                errEl.textContent = 'Indique o nome da empresa.';
                 errEl.style.display = 'block';
             }
             return;
@@ -2661,9 +2706,10 @@ async function submitClientForm(ev) {
         state: document.getElementById('clientState').value.trim() || null,
         zipcode: document.getElementById('clientZip').value.replace(/\D/g, '').slice(0, 10) || null,
         customer_type: ctype,
+        pricing_mode: getClientPricingMode(),
         notes: document.getElementById('clientNotes').value.trim() || null,
     };
-    if (ctype === 'builder') body.responsible_name = responsibleVal;
+    if (isOrgClientType(ctype)) body.responsible_name = responsibleVal;
     else body.responsible_name = null;
     const leadRaw = document.getElementById('clientFormLeadId').value.trim();
     if (leadRaw && !id) body.lead_id = leadRaw;
@@ -4620,6 +4666,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ct = document.getElementById('clientType');
     if (ct) ct.addEventListener('change', syncClientFormBuilderFields);
+    ['clientPricingModeTable', 'clientPricingModeCustom'].forEach((id) => {
+        document.getElementById(id)?.addEventListener('change', syncClientFormBuilderFields);
+    });
     const clientPhone = document.getElementById('clientPhone');
     if (clientPhone) {
         clientPhone.addEventListener('input', function () {

@@ -354,7 +354,9 @@ model Customer {
   phone          String?
   /// @deprecated Prefer Property records. Kept for back-compat; do not remove in M1.
   address        String?
-  customerType   String   @default("residential") // residential | builder | commercial
+  customerType   String   @default("particular") // particular | builder | contractor | loja
+  /// table = use PricingItem rates for this type; custom = set prices manually on quotes/jobs
+  pricingMode    String   @default("table") // table | custom
   company        String?
   notes          String?  @db.Text
   /// Opt-in for marketing blasts (future). Transactional emails ignore this.

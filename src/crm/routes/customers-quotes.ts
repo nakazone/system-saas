@@ -48,6 +48,7 @@ function mapCustomer(c: {
   phone: string | null;
   address: string | null;
   customerType: string;
+  pricingMode?: string;
   company: string | null;
   notes: string | null;
   leadId: string | null;
@@ -60,13 +61,26 @@ function mapCustomer(c: {
     email: c.email,
     phone: c.phone,
     address: c.address,
-    customer_type: c.customerType,
+    customer_type: normalizeCustomerType(c.customerType),
+    pricing_mode: c.pricingMode === "custom" ? "custom" : "table",
     company: c.company,
     notes: c.notes,
     lead_id: c.leadId,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   };
+}
+
+function normalizeCustomerType(raw: unknown): string {
+  const v = String(raw || "particular").toLowerCase();
+  if (v === "builder" || v === "contractor" || v === "loja" || v === "particular") return v;
+  if (v === "commercial") return "loja";
+  if (v === "residential" || v === "customer" || v === "property_manager" || v === "investor") return "particular";
+  return "particular";
+}
+
+function normalizePricingMode(raw: unknown): "table" | "custom" {
+  return String(raw || "table").toLowerCase() === "custom" ? "custom" : "table";
 }
 
 function mapQuote(q: {
@@ -419,6 +433,7 @@ customersQuotesRouter.post(
           phone: z.string().optional().nullable(),
           address: z.string().optional().nullable(),
           customer_type: z.string().optional(),
+          pricing_mode: z.string().optional(),
           company: z.string().optional().nullable(),
           notes: z.string().optional().nullable(),
           lead_id: z.string().uuid().optional().nullable(),
@@ -436,7 +451,8 @@ customersQuotesRouter.post(
             email: parsed.data.email || null,
             phone: parsed.data.phone || null,
             address: parsed.data.address || null,
-            customerType: parsed.data.customer_type || "residential",
+            customerType: normalizeCustomerType(parsed.data.customer_type),
+            pricingMode: normalizePricingMode(parsed.data.pricing_mode),
             company: parsed.data.company || null,
             notes: parsed.data.notes || null,
             leadId: parsed.data.lead_id || null,
@@ -497,7 +513,8 @@ customersQuotesRouter.post(
             email: lead.email,
             phone: lead.phone,
             notes: lead.notes,
-            customerType: String(req.body?.customer_type || "residential"),
+            customerType: normalizeCustomerType(req.body?.customer_type || "particular"),
+            pricingMode: normalizePricingMode(req.body?.pricing_mode),
           },
         });
       });
@@ -530,7 +547,8 @@ customersQuotesRouter.put(
             email: body.email !== undefined ? String(body.email || "") || null : undefined,
             phone: body.phone !== undefined ? String(body.phone || "") || null : undefined,
             address: body.address !== undefined ? String(body.address || "") || null : undefined,
-            customerType: body.customer_type !== undefined ? String(body.customer_type) : undefined,
+            customerType: body.customer_type !== undefined ? normalizeCustomerType(body.customer_type) : undefined,
+            pricingMode: body.pricing_mode !== undefined ? normalizePricingMode(body.pricing_mode) : undefined,
             company: body.company !== undefined ? String(body.company || "") || null : undefined,
             notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
           },
