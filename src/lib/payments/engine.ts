@@ -409,9 +409,49 @@ export async function upsertQuotePaymentSchedule(
   return schedule.id;
 }
 
+async function createFullDraftInvoice(
+  tx: TenantPrisma,
+  params: {
+    organizationId: string;
+    quoteId: string;
+    customerId: string | null;
+    quoteTotal: number;
+    notes?: string;
+  },
+): Promise<string> {
+  const invoiceNumber = await nextInvoiceNumber(tx, params.organizationId);
+  const amount = new Prisma.Decimal(params.quoteTotal.toFixed(2));
+  const inv = await tx.quoteInvoice.create({
+    data: {
+      organizationId: params.organizationId,
+      quoteId: params.quoteId,
+      customerId: params.customerId,
+      invoiceNumber,
+      invoiceType: "full",
+      status: "draft",
+      amount,
+      dueDate: new Date(Date.now() + 14 * 86400000),
+      notes: params.notes || "Full payment",
+    },
+  });
+  await tx.invoiceLineItem.create({
+    data: {
+      organizationId: params.organizationId,
+      invoiceId: inv.id,
+      description: params.notes || "Full payment",
+      quantity: new Prisma.Decimal(1),
+      unitPrice: amount,
+      amount,
+      sortOrder: 1,
+    },
+  });
+  return inv.id;
+}
+
 /**
- * Ensure the quote has a payment schedule with at least one on_approve item,
- * then create invoices for the on_approve trigger. Default = 100% on approval.
+ * Ensure the quote has at least one non-void invoice after approval.
+ * Prefers payment-schedule on_approve items; always falls back to a full draft invoice.
+ * Idempotent: if invoices already exist, returns their ids.
  */
 export async function ensureInvoicesOnApprove(
   tx: TenantPrisma,
@@ -426,86 +466,105 @@ export async function ensureInvoicesOnApprove(
   const quoteTotal = Number(quote.total) || 0;
   if (quoteTotal <= 0) return [];
 
-  let schedule = await tx.paymentSchedule.findFirst({
-    where: { quoteId: params.quoteId },
-    include: { items: { orderBy: { sortOrder: "asc" } } },
+  const existing = await tx.quoteInvoice.findMany({
+    where: { quoteId: params.quoteId, status: { not: "void" } },
+    select: { id: true },
   });
+  if (existing.length > 0) return existing.map((i) => i.id);
 
-  const hasOnApprove = schedule?.items.some((i) => i.trigger === "on_approve");
-  if (!schedule || !hasOnApprove) {
-    // Prefer org template that includes on_approve; else 100% full payment.
-    await seedDefaultPaymentTemplates(tx, params.organizationId);
-    const templates = await tx.orgPaymentTemplate.findMany({
-      where: { organizationId: params.organizationId, active: true },
-      orderBy: { sortOrder: "asc" },
+  try {
+    let schedule = await tx.paymentSchedule.findFirst({
+      where: { quoteId: params.quoteId },
+      include: { items: { orderBy: { sortOrder: "asc" } } },
     });
-    let items: ScheduleItemInput[] = [
-      { label: "Full payment", percent: 100, trigger: "on_approve", sortOrder: 1 },
-    ];
-    let sourceTemplateId: string | null = null;
-    const fullTpl = templates.find((tpl) => {
-      const raw = (Array.isArray(tpl.items) ? tpl.items : []) as PaymentTemplateItemInput[];
-      return (
-        raw.length === 1 &&
-        raw[0]?.trigger === "on_approve" &&
-        Number(raw[0]?.percent) === 100
-      );
-    });
-    const anyOnApprove = templates.find((tpl) => {
-      const raw = (Array.isArray(tpl.items) ? tpl.items : []) as PaymentTemplateItemInput[];
-      return raw.some((i) => i.trigger === "on_approve");
-    });
-    const chosen = fullTpl || anyOnApprove;
-    if (chosen) {
-      const raw = (Array.isArray(chosen.items) ? chosen.items : []) as PaymentTemplateItemInput[];
-      items = raw.map((i, idx) => ({
-        label: i.label,
-        percent: i.percent ?? null,
-        fixedAmount: i.fixedAmount ?? null,
-        trigger: i.trigger,
-        phaseKey: i.phaseKey ?? null,
-        sortOrder: i.sortOrder ?? idx + 1,
-      }));
-      sourceTemplateId = chosen.id;
-    }
-    // If schedule exists without on_approve, don't overwrite locked/custom schedules —
-    // fall back to creating a single full invoice outside the schedule.
-    if (schedule && !hasOnApprove) {
-      const existingInv = await tx.quoteInvoice.findFirst({
-        where: { quoteId: params.quoteId, status: { not: "void" } },
+
+    const hasOnApprove = schedule?.items.some((i) => i.trigger === "on_approve");
+    if (!schedule || !hasOnApprove) {
+      // Prefer org template that includes on_approve; else 100% full payment.
+      await seedDefaultPaymentTemplates(tx, params.organizationId);
+      const templates = await tx.orgPaymentTemplate.findMany({
+        where: { organizationId: params.organizationId, active: true },
+        orderBy: { sortOrder: "asc" },
       });
-      if (existingInv) return [existingInv.id];
-      const invoiceNumber = await nextInvoiceNumber(tx, params.organizationId);
-      const inv = await tx.quoteInvoice.create({
-        data: {
+      let items: ScheduleItemInput[] = [
+        { label: "Full payment", percent: 100, trigger: "on_approve", sortOrder: 1 },
+      ];
+      let sourceTemplateId: string | null = null;
+      const fullTpl = templates.find((tpl) => {
+        const raw = (Array.isArray(tpl.items) ? tpl.items : []) as PaymentTemplateItemInput[];
+        return (
+          raw.length === 1 &&
+          raw[0]?.trigger === "on_approve" &&
+          Number(raw[0]?.percent) === 100
+        );
+      });
+      const anyOnApprove = templates.find((tpl) => {
+        const raw = (Array.isArray(tpl.items) ? tpl.items : []) as PaymentTemplateItemInput[];
+        return raw.some((i) => i.trigger === "on_approve");
+      });
+      const chosen = fullTpl || anyOnApprove;
+      if (chosen) {
+        const raw = (Array.isArray(chosen.items) ? chosen.items : []) as PaymentTemplateItemInput[];
+        const mapped = raw.map((i, idx) => ({
+          label: i.label,
+          percent: i.percent ?? null,
+          fixedAmount: i.fixedAmount ?? null,
+          trigger: i.trigger,
+          phaseKey: i.phaseKey ?? null,
+          sortOrder: i.sortOrder ?? idx + 1,
+        }));
+        // Only adopt template if it validates against this quote total.
+        if (validatePaymentSchedule(mapped, quoteTotal).ok) {
+          items = mapped;
+          sourceTemplateId = chosen.id;
+        }
+      }
+      // Don't overwrite an existing schedule that has no on_approve — fall through to full invoice.
+      if (!schedule) {
+        await upsertQuotePaymentSchedule(tx, {
           organizationId: params.organizationId,
           quoteId: params.quoteId,
-          customerId: quote.customerId,
-          invoiceNumber,
-          invoiceType: "full",
-          status: "draft",
-          amount: new Prisma.Decimal(quoteTotal.toFixed(2)),
-          dueDate: new Date(Date.now() + 14 * 86400000),
-          notes: "Full payment",
-        },
-      });
-      return [inv.id];
+          quoteTotal,
+          sourceTemplateId,
+          items,
+        });
+        schedule = await tx.paymentSchedule.findFirst({
+          where: { quoteId: params.quoteId },
+          include: { items: { orderBy: { sortOrder: "asc" } } },
+        });
+      }
     }
-    await upsertQuotePaymentSchedule(tx, {
-      organizationId: params.organizationId,
+
+    if (schedule?.items.some((i) => i.trigger === "on_approve")) {
+      const created = await runScheduleTriggers(tx, {
+        organizationId: params.organizationId,
+        quoteId: params.quoteId,
+        trigger: "on_approve",
+        actorId: params.actorId,
+      });
+      if (created.length > 0) return created;
+    }
+  } catch (err) {
+    console.error("[payments] ensureInvoicesOnApprove schedule path failed", {
       quoteId: params.quoteId,
-      quoteTotal,
-      sourceTemplateId,
-      items,
+      err: err instanceof Error ? err.message : err,
     });
   }
 
-  return runScheduleTriggers(tx, {
+  // Hard guarantee: approved quotes with value always get a draft invoice.
+  const stillNone = await tx.quoteInvoice.findFirst({
+    where: { quoteId: params.quoteId, status: { not: "void" } },
+    select: { id: true },
+  });
+  if (stillNone) return [stillNone.id];
+
+  const id = await createFullDraftInvoice(tx, {
     organizationId: params.organizationId,
     quoteId: params.quoteId,
-    trigger: "on_approve",
-    actorId: params.actorId,
+    customerId: quote.customerId,
+    quoteTotal,
   });
+  return [id];
 }
 
 /** Quote-level invoice/payment summary used by CRM UI. */

@@ -3973,7 +3973,7 @@
   }
 
   function payload() {
-    const { sub, tax } = recalc();
+    const { sub, tax, total } = recalc();
     const dt = $('discountType').value;
     const dv = parseFloat($('discountValue').value) || 0;
     const party = getQuoteParty();
@@ -4007,6 +4007,7 @@
       discount_value: dv,
       tax_total: tax,
       subtotal: sub,
+      total,
       items: items.map((it) => ({
         item_type: it.item_type || 'service',
         name: it.name != null && String(it.name).trim() ? String(it.name).trim() : null,
@@ -4056,11 +4057,24 @@
           setPublicLink(q.public_token, q.quote_number);
         }
         await loadQuoteInvoices();
-        if (!wasApproved && isQuoteApprovedStatus(loadedQuoteStatus)) {
+        if (isQuoteApprovedStatus(loadedQuoteStatus)) {
           syncInvoiceUiVisibility();
-          qbToast('Orçamento aprovado.', 'success');
-          enableActions();
-          return;
+          const createdIds = Array.isArray(r.created_invoice_ids) ? r.created_invoice_ids : [];
+          const hasInvoice = createdIds.length > 0 || quoteInvoices.length > 0;
+          if (!wasApproved) {
+            qbToast(
+              hasInvoice
+                ? 'Orçamento aprovado — fatura criada.'
+                : 'Orçamento aprovado, mas a fatura não foi criada. Grave de novo ou emita manualmente.',
+              hasInvoice ? 'success' : 'error'
+            );
+            enableActions();
+            return;
+          }
+          // Backfill path: already approved, save again to create missing invoice.
+          if (!hasInvoice) {
+            qbToast('Orçamento aprovado sem fatura — tente gravar de novo.', 'error');
+          }
         }
       } else {
         const r = await api('/api/quotes/full', { method: 'POST', body: JSON.stringify(body) });
@@ -4079,6 +4093,17 @@
           lid ? `?id=${quoteId}&lead_id=${encodeURIComponent(lid)}` : `?id=${quoteId}`
         );
         await loadQuote(quoteId);
+        if (isQuoteApprovedStatus(loadedQuoteStatus) && !quoteInvoices.length) {
+          const createdIds = Array.isArray(r.created_invoice_ids) ? r.created_invoice_ids : [];
+          qbToast(
+            createdIds.length
+              ? 'Orçamento aprovado — fatura criada.'
+              : 'Orçamento aprovado, mas a fatura não foi criada. Grave de novo ou emita manualmente.',
+            createdIds.length ? 'success' : 'error'
+          );
+          enableActions();
+          return;
+        }
       }
       qbToast('Guardado.', 'success');
       enableActions();

@@ -1153,10 +1153,8 @@ customersQuotesRouter.put(
         });
 
         let createdInvoiceIds: string[] = [];
-        const becameApproved =
-          normalizeQuoteStatus(prevStatus) !== "approved" &&
-          normalizeQuoteStatus(updated.status) === "approved";
-        if (becameApproved) {
+        // Idempotent: create on transition to approved, and backfill if already approved with no invoices.
+        if (normalizeQuoteStatus(updated.status) === "approved") {
           const { ensureInvoicesOnApprove } = await import("../../lib/payments/engine.js");
           createdInvoiceIds = await ensureInvoicesOnApprove(tx, {
             organizationId: req.organizationId!,
