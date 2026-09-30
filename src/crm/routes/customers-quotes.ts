@@ -8,7 +8,7 @@ import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../ht
 import { canViewPricing, withPricingGate } from "../../lib/pricing/visibility.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
-import { syncLeadForQuoteStatus } from "../../lib/pipeline/move.js";
+import { moveLeadForQuoteEvent, syncLeadForQuoteStatus } from "../../lib/pipeline/move.js";
 import { prisma } from "../../lib/prisma.js";
 import {
   computeNextQuoteNumber,
@@ -1455,6 +1455,117 @@ customersQuotesRouter.post(
 );
 
 customersQuotesRouter.post(
+  "/api/quotes/:id/publish-client",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!asOptionalUuid(id)) {
+        res.status(400).json({ success: false, error: "ID inválido" });
+        return;
+      }
+      const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<
+        string,
+        unknown
+      >;
+      const markSent =
+        body.mark_sent === true ||
+        body.mark_sent === 1 ||
+        body.mark_sent === "1" ||
+        String(req.query.mark_sent || "") === "1";
+      const leadIdHint = asOptionalUuid(body.lead_id ?? body.leadId);
+
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const quote = await tx.quote.findFirst({ where: { id } });
+        if (!quote) return null;
+
+        const issued = await issuePublicAccessToken(tx, {
+          organizationId: req.organizationId!,
+          entityType: "quote",
+          entityId: quote.id,
+        });
+
+        let leadMoved = false;
+        let leadMoveReason: string | null = null;
+        let leadId: string | null = null;
+
+        if (markSent) {
+          const sentAt = new Date().toISOString();
+          const prevPayload =
+            quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
+              ? { ...(quote.payload as Record<string, unknown>) }
+              : {};
+          await tx.quote.update({
+            where: { id: quote.id },
+            data: {
+              status: "sent",
+              publicToken: null,
+              ...(leadIdHint && !quote.leadId ? { leadId: leadIdHint } : {}),
+              payload: {
+                ...prevPayload,
+                sent_at: prevPayload.sent_at || sentAt,
+              } as Prisma.InputJsonValue,
+            },
+          });
+
+          try {
+            const move = await moveLeadForQuoteEvent(tx, {
+              organizationId: req.organizationId!,
+              quoteId: quote.id,
+              slug: "quote_sent",
+              actorType: "user",
+              actorId: req.user?.id,
+              leadIdHint,
+            });
+            leadMoved = move.moved;
+            leadId = move.leadId;
+            leadMoveReason = move.moved ? null : move.reason || null;
+          } catch {
+            leadMoveReason = "move_failed";
+          }
+
+          await recordActivity(tx, {
+            organizationId: req.organizationId!,
+            actorType: "user",
+            actorId: req.user?.id ?? null,
+            entityType: "quote",
+            entityId: quote.id,
+            action: "quote.marked_sent",
+          });
+        } else {
+          await tx.quote.update({
+            where: { id: quote.id },
+            data: { publicToken: null },
+          });
+        }
+
+        return { issued, leadMoved, leadMoveReason, leadId };
+      });
+
+      if (!result) {
+        res.status(404).json({ success: false, error: "Orçamento não encontrado" });
+        return;
+      }
+
+      const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
+      const proto = req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
+      const publicUrl = `${proto}://${host}/public/quotes/${result.issued.rawToken}`;
+
+      res.json({
+        success: true,
+        public_url: publicUrl,
+        lead_moved: result.leadMoved,
+        lead_id: result.leadId,
+        lead_move_reason: result.leadMoveReason,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersQuotesRouter.post(
   "/api/quotes/:id/send-email",
   requireCrmAuth,
   requireCrmPermission("quotes.edit"),
@@ -1506,18 +1617,19 @@ customersQuotesRouter.post(
           entityId: quote.id,
         });
 
-        const prevStatus = quote.status;
         const prevPayload =
           quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
             ? { ...(quote.payload as Record<string, unknown>) }
             : {};
         const emailSentAt = new Date().toISOString();
+        const leadIdHint = asOptionalUuid(body.lead_id);
 
         await tx.quote.update({
           where: { id: quote.id },
           data: {
             status: "sent",
             publicToken: null,
+            ...(leadIdHint && !quote.leadId ? { leadId: leadIdHint } : {}),
             payload: {
               ...prevPayload,
               email_sent_at: emailSentAt,
@@ -1529,19 +1641,17 @@ customersQuotesRouter.post(
         let leadMoved = false;
         let leadMoveReason: string | null = null;
         try {
-          await syncLeadForQuoteStatus(tx, {
+          // Always attempt Quote Sent on send (onlyForward skips Follow Up / Won / etc.).
+          const move = await moveLeadForQuoteEvent(tx, {
             organizationId: req.organizationId!,
             quoteId: quote.id,
-            previousStatus: prevStatus,
-            nextStatus: "sent",
+            slug: "quote_sent",
+            actorType: "user",
             actorId: req.user?.id,
+            leadIdHint,
           });
-          // If quote has no lead, moveLead is a no-op
-          if (!quote.leadId && !asOptionalUuid(body.lead_id)) {
-            leadMoveReason = "no_lead";
-          } else {
-            leadMoved = normalizeQuoteStatus(prevStatus) !== "sent";
-          }
+          leadMoved = move.moved;
+          leadMoveReason = move.moved ? null : move.reason || null;
         } catch {
           leadMoveReason = "move_failed";
         }

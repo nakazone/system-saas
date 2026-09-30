@@ -111,6 +111,7 @@ export async function moveLeadToSystemStage(
 export async function resolveLeadIdForQuote(
   tx: TenantPrisma,
   quoteId: string,
+  leadIdHint?: string | null,
 ): Promise<string | null> {
   const quote = await tx.quote.findFirst({
     where: { id: quoteId },
@@ -118,9 +119,18 @@ export async function resolveLeadIdForQuote(
   });
   if (!quote) return null;
   if (quote.leadId) return quote.leadId;
+  const hint = leadIdHint ? String(leadIdHint).trim() : "";
+  if (hint) {
+    const lead = await tx.lead.findFirst({ where: { id: hint } });
+    if (lead) return lead.id;
+  }
   return quote.customer?.leadId ?? null;
 }
 
+/**
+ * After a quote is sent/approved: move the linked lead (and backfill quote.leadId when needed).
+ * Returns whether the stage actually changed.
+ */
 export async function moveLeadForQuoteEvent(
   tx: TenantPrisma,
   params: {
@@ -129,11 +139,23 @@ export async function moveLeadForQuoteEvent(
     slug: "quote_sent" | "won";
     actorType?: "user" | "system";
     actorId?: string | null;
+    /** Prefer this lead when the quote has no leadId yet (e.g. from send UI). */
+    leadIdHint?: string | null;
   },
-): Promise<void> {
-  const leadId = await resolveLeadIdForQuote(tx, params.quoteId);
-  if (!leadId) return;
-  await moveLeadToSystemStage(tx, {
+): Promise<{ moved: boolean; leadId: string | null; reason?: string }> {
+  const leadId = await resolveLeadIdForQuote(tx, params.quoteId, params.leadIdHint);
+  if (!leadId) return { moved: false, leadId: null, reason: "no_lead" };
+
+  // Keep quote ↔ lead linked for Kanban / next sends.
+  const quote = await tx.quote.findFirst({
+    where: { id: params.quoteId },
+    select: { leadId: true },
+  });
+  if (quote && !quote.leadId) {
+    await tx.quote.update({ where: { id: params.quoteId }, data: { leadId } });
+  }
+
+  const result = await moveLeadToSystemStage(tx, {
     organizationId: params.organizationId,
     leadId,
     slug: params.slug,
@@ -142,6 +164,11 @@ export async function moveLeadForQuoteEvent(
     // "Quote sent" must not pull a lead back from Follow Up / Stand By.
     onlyForward: params.slug === "quote_sent",
   });
+  return {
+    moved: result.moved,
+    leadId,
+    reason: result.moved ? undefined : result.reason,
+  };
 }
 
 const WON_QUOTE = new Set(["approved", "accepted", "converted", "invoiced"]);

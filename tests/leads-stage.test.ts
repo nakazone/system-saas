@@ -117,4 +117,52 @@ describe("lead stage + duplicates", () => {
     expect(lead.status).toBe("won");
     expect(lead.pipelineStage?.slug).toBe("won");
   });
+
+  it("links a lead from send hint and moves it to Quote Sent even if quote.leadId was null", async () => {
+    const { moveLeadForQuoteEvent } = await import("../src/lib/pipeline/move.js");
+    const seeded = await withTenantTransaction(orgId, async (tx) => {
+      const stageNew = await tx.pipelineStage.findFirstOrThrow({ where: { slug: "new" } });
+      const lead = await tx.lead.create({
+        data: {
+          organizationId: orgId,
+          name: "Hint Lead",
+          status: "new",
+          pipelineStageId: stageNew.id,
+        },
+      });
+      const quote = await tx.quote.create({
+        data: {
+          organizationId: orgId,
+          number: 99,
+          title: "Unlinked",
+          status: "draft",
+          leadId: null,
+          total: 500,
+        },
+      });
+      return { lead, quote };
+    });
+
+    const move = await withTenantTransaction(orgId, (tx) =>
+      moveLeadForQuoteEvent(tx, {
+        organizationId: orgId,
+        quoteId: seeded.quote.id,
+        slug: "quote_sent",
+        leadIdHint: seeded.lead.id,
+      }),
+    );
+    expect(move.moved).toBe(true);
+    expect(move.leadId).toBe(seeded.lead.id);
+
+    await withTenantTransaction(orgId, async (tx) => {
+      const q = await tx.quote.findFirstOrThrow({ where: { id: seeded.quote.id } });
+      expect(q.leadId).toBe(seeded.lead.id);
+      const lead = await tx.lead.findFirstOrThrow({
+        where: { id: seeded.lead.id },
+        include: { pipelineStage: true },
+      });
+      expect(lead.status).toBe("quote_sent");
+      expect(lead.pipelineStage?.slug).toBe("quote_sent");
+    });
+  });
 });
