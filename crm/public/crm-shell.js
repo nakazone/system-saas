@@ -326,15 +326,6 @@
 
   function ensureTopbar() {
     if (document.getElementById("crmTopbar")) return;
-    // Quote builder uses qb-topbar — skip system top bar to avoid double chrome
-    const file = (location.pathname || "").split("/").pop() || "";
-    if (
-      document.body.classList.contains("qb-sidebar-page") ||
-      document.getElementById("qbActionBar") ||
-      /^quote-builder\.html$/i.test(file)
-    ) {
-      return;
-    }
     const wrap = document.createElement("div");
     wrap.innerHTML = TOPBAR_HTML.trim();
     const topbar = wrap.firstElementChild;

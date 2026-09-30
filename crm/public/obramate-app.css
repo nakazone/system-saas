@@ -193,16 +193,11 @@ body.om-app:has(#qbActionBar) .dashboard-main {
   padding-bottom: 0 !important;
 }
 
-/* Quote builder has its own qb-topbar — never stack the system top bar. */
-body.om-app.qb-sidebar-page #crmTopbar,
-body.om-app.qb-sidebar-page #crmTopbar.crm-topbar {
-  display: none !important;
-}
-
+/* Quote builder keeps the system top bar; qb-topbar is the page toolbar below it. */
 @media (min-width: 1025px) {
   body.om-app.qb-sidebar-page .dashboard-container {
-    margin-top: 0 !important;
-    min-height: 100vh;
+    margin-top: var(--crm-topbar-height) !important;
+    min-height: calc(100vh - var(--crm-topbar-height));
   }
 }
 
