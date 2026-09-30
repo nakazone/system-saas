@@ -17,6 +17,9 @@ import {
   parseDateInput,
   parseQuoteSettings,
 } from "../../lib/settings/quotes.js";
+import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
+import { buildQuotePdf } from "../../lib/quotes/pdf.js";
+import { storage } from "../../lib/storage/index.js";
 
 export const customersQuotesRouter = Router();
 
@@ -56,6 +59,76 @@ function lineItemAmount(
   const explicit = Number(it.amount);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
   return Math.round(qty * unitPrice * 100) / 100;
+}
+
+async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
+  const quote = await withTenantTransaction(organizationId, async (tx) =>
+    tx.quote.findFirst({
+      where: { id: quoteId },
+      include: {
+        customer: { select: { name: true } },
+        builder: { select: { company: true, firstName: true, lastName: true } },
+        lineItems: { orderBy: { sortOrder: "asc" } },
+        rooms: { orderBy: { sortOrder: "asc" } },
+        optionGroups: { orderBy: { sortOrder: "asc" } },
+      },
+    }),
+  );
+  if (!quote) return null;
+
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+  const orgAny = org as Record<string, unknown>;
+  const builderName = quote.builder
+    ? quote.builder.company ||
+      [quote.builder.firstName, quote.builder.lastName].filter(Boolean).join(" ").trim()
+    : null;
+  const customerName = quote.customer?.name || builderName || null;
+  const buffer = await buildQuotePdf({
+    organizationName: org.name,
+    organizationContact: [org.contactEmail, org.contactPhone].filter(Boolean).join(" · "),
+    organizationAddress: documentAddressLine({
+      addressPrivate: orgAny.addressPrivate !== false,
+      addressLine1: (orgAny.addressLine1 as string | null) ?? null,
+      addressLine2: (orgAny.addressLine2 as string | null) ?? null,
+      city: (orgAny.city as string | null) ?? null,
+      state: (orgAny.state as string | null) ?? null,
+      postalCode: (orgAny.postalCode as string | null) ?? null,
+    }),
+    organizationLicense: documentLicenseLine({
+      showLicenseOnDocuments: Boolean(orgAny.showLicenseOnDocuments),
+      licenseNumber: (orgAny.licenseNumber as string | null) ?? null,
+      licenseState: (orgAny.licenseState as string | null) ?? null,
+    }),
+    title: quote.title,
+    number: quote.quoteNumber || quote.number,
+    status: quote.status,
+    customerName,
+    validUntil: quote.validUntil,
+    terms: quote.terms,
+    clientMessage: quote.clientMessage,
+    rooms: (quote.rooms || []).map((r) => ({ name: r.name, areaSqft: Number(r.areaSqft) })),
+    optionGroups: (quote.optionGroups || []).map((g) => ({ id: g.id, name: g.name })),
+    selectedOptionGroupId: quote.selectedOptionGroupId,
+    lines: (quote.lineItems || []).map((li) => ({
+      description: li.description,
+      quantity: Number(li.quantity),
+      unit: li.unit,
+      unitPrice: Number(li.unitPrice),
+      amount: Number(li.amount),
+      isOptional: li.isOptional,
+      isSelected: li.isSelected,
+      optionGroupId: li.optionGroupId,
+    })),
+    clientView: quote.clientView as never,
+    subtotal: Number(quote.subtotal),
+    taxTotal: Number(quote.taxTotal),
+    total: Number(quote.total),
+    signatureUrl: quote.signatureUrl,
+    signedByName: quote.signedByName,
+    signedAt: quote.signedAt,
+  });
+
+  return { buffer, quote, number: quote.quoteNumber || String(quote.number) };
 }
 
 function mapProperty(p: {
@@ -1084,6 +1157,73 @@ customersQuotesRouter.post(
         return;
       }
       res.status(201).json({ success: true, data: mapQuoteForUser(row, req.user) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersQuotesRouter.post(
+  "/api/quotes/:id/generate-pdf",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!asOptionalUuid(id)) {
+        res.status(400).json({ success: false, error: "ID inválido" });
+        return;
+      }
+      const built = await buildQuotePdfForCrm(req.organizationId!, id);
+      if (!built) {
+        res.status(404).json({ success: false, error: "Orçamento não encontrado" });
+        return;
+      }
+      try {
+        const stored = await storage.upload({
+          key: `orgs/${req.organizationId}/quotes/${id}/orcamento-${Date.now()}.pdf`,
+          body: built.buffer,
+          contentType: "application/pdf",
+        });
+        await withTenantTransaction(req.organizationId!, async (tx) =>
+          tx.quote.update({
+            where: { id },
+            data: { invoicePdfPath: stored.url || stored.key },
+          }),
+        );
+      } catch (storeErr) {
+        console.warn("[quotes] generate-pdf store failed (PDF still available via stream):", storeErr);
+      }
+      res.json({
+        success: true,
+        invoice_pdf_url: `/api/quotes/${id}/invoice-pdf`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersQuotesRouter.get(
+  "/api/quotes/:id/invoice-pdf",
+  requireCrmAuth,
+  requireCrmPermission("quotes.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!asOptionalUuid(id)) {
+        res.status(400).json({ success: false, error: "ID inválido" });
+        return;
+      }
+      const built = await buildQuotePdfForCrm(req.organizationId!, id);
+      if (!built) {
+        res.status(404).json({ success: false, error: "Orçamento não encontrado" });
+        return;
+      }
+      const safeName = String(built.number).replace(/[^\w.-]+/g, "-");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="orcamento-${safeName}.pdf"`);
+      res.send(built.buffer);
     } catch (error) {
       next(error);
     }
