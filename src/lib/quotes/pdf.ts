@@ -828,7 +828,7 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
 
     if (ownerBuf) {
       try {
-        doc.image(ownerBuf, margin, y, { fit: [sigColW - 20, sigBoxH], align: "left" });
+        doc.image(ownerBuf, margin, y, { fit: [sigColW - 20, sigBoxH] });
       } catch {
         /* ignore */
       }
@@ -839,7 +839,7 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     rule(margin, margin + sigColW - 10, y + sigBoxH + 4, PAL.rule, 0.7);
     if (clientBuf) {
       try {
-        doc.image(clientBuf, totalsX, y, { fit: [sigColW - 20, sigBoxH], align: "left" });
+        doc.image(clientBuf, totalsX, y, { fit: [sigColW - 20, sigBoxH] });
       } catch {
         /* ignore */
       }
