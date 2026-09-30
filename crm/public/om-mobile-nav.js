@@ -3,7 +3,7 @@
  * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20260930-native2";
+  const VER = "20260930-ipad1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;

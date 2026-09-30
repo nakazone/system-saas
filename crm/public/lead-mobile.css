@@ -18,48 +18,47 @@
   display: none;
 }
 
-@media (max-width: 900px) {
-  body.om-device-mobile.om-app .dashboard-main:has(.mld) {
-    padding: 0 !important;
-    padding-top: env(safe-area-inset-top, 0px) !important;
-    padding-bottom: 0 !important;
-    margin: 0 !important;
-    margin-top: 0 !important;
-    background: var(--mld-bg) !important;
-    min-height: 100dvh;
-  }
+/* Gate on .om-device-mobile (not max-width:900) so iPad keeps lead detail + novo lead sheet. */
+body.om-device-mobile.om-app .dashboard-main:has(.mld) {
+  padding: 0 !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: 0 !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  background: var(--mld-bg) !important;
+  min-height: 100dvh;
+}
 
-  body.om-device-mobile .mobile-app-header:has(+ .dashboard-container .mld),
-  body.om-device-mobile.lead-detail-mobile .mobile-app-header {
-    display: none !important;
-  }
+body.om-device-mobile .mobile-app-header:has(+ .dashboard-container .mld),
+body.om-device-mobile.lead-detail-mobile .mobile-app-header {
+  display: none !important;
+}
 
-  body.om-device-mobile.lead-detail-mobile .om-tabbar,
-  body.om-device-mobile.lead-detail-mobile .om-dock,
-  body.om-device-mobile.lead-detail-mobile .om-app-top {
-    /* The lead screen has its own header (Voltar · Lead · ⋯); the shared top bar covered it. */
-    display: none !important;
-  }
+body.om-device-mobile.lead-detail-mobile .om-tabbar,
+body.om-device-mobile.lead-detail-mobile .om-dock,
+body.om-device-mobile.lead-detail-mobile .om-app-top {
+  /* The lead screen has its own header (Voltar · Lead · ⋯); the shared top bar covered it. */
+  display: none !important;
+}
 
-  body.om-device-mobile.lead-detail-mobile .lead-detail-page {
-    display: none !important;
-  }
+body.om-device-mobile.lead-detail-mobile .lead-detail-page {
+  display: none !important;
+}
 
-  body.om-device-mobile.lead-detail-mobile .mld {
-    display: flex;
-    flex-direction: column;
-    min-height: 100dvh;
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.65rem 0.85rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
-    font-family: var(--mld-font);
-    color: var(--mld-ink);
-    background: var(--mld-bg);
-  }
+body.om-device-mobile.lead-detail-mobile .mld {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.85rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  font-family: var(--mld-font);
+  color: var(--mld-ink);
+  background: var(--mld-bg);
+}
 
-  body.om-device-mobile .nls-root {
-    display: block;
-  }
+body.om-device-mobile .nls-root {
+  display: block;
 }
 
 /* —— Lead detail —— */

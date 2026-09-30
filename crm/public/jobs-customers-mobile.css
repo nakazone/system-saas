@@ -12,50 +12,49 @@
   box-sizing: border-box;
 }
 
-@media (max-width: 900px) {
-  body.om-device-mobile.jobs-app .jobs-page,
-  body.om-device-mobile.job-detail-app .job-detail-page,
-  body.om-device-mobile.cli-app .cli-desktop {
-    display: none !important;
-  }
+/* Gate on .om-device-mobile (not max-width:900) so iPad / tablets keep the mobile UI. */
+body.om-device-mobile.jobs-app .jobs-page,
+body.om-device-mobile.job-detail-app .job-detail-page,
+body.om-device-mobile.cli-app .cli-desktop {
+  display: none !important;
+}
 
-  body.om-device-mobile.jobs-app .mobile-app-header,
-  body.om-device-mobile.job-detail-app .mobile-app-header,
-  body.om-device-mobile.cli-app .mobile-app-header {
-    display: none !important;
-  }
+body.om-device-mobile.jobs-app .mobile-app-header,
+body.om-device-mobile.job-detail-app .mobile-app-header,
+body.om-device-mobile.cli-app .mobile-app-header {
+  display: none !important;
+}
 
-  body.om-device-mobile.jobs-app .dashboard-main,
-  body.om-device-mobile.job-detail-app .dashboard-main,
-  body.om-device-mobile.cli-app .dashboard-main {
-    padding: 0 !important;
-    padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.35rem) !important;
-    padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 5.5rem) !important;
-    margin: 0 !important;
-    background: var(--plab-bg, #f3f1ee) !important;
-    min-height: 100dvh;
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
+body.om-device-mobile.jobs-app .dashboard-main,
+body.om-device-mobile.job-detail-app .dashboard-main,
+body.om-device-mobile.cli-app .dashboard-main {
+  padding: 0 !important;
+  padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.35rem) !important;
+  padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 5.5rem) !important;
+  margin: 0 !important;
+  background: var(--plab-bg, #f3f1ee) !important;
+  min-height: 100dvh;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
 
-  body.om-device-mobile.om-has-tabbar.jobs-app,
-  body.om-device-mobile.om-has-tabbar.job-detail-app,
-  body.om-device-mobile.om-has-tabbar.cli-app {
-    height: auto !important;
-    min-height: 100dvh;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
+body.om-device-mobile.om-has-tabbar.jobs-app,
+body.om-device-mobile.om-has-tabbar.job-detail-app,
+body.om-device-mobile.om-has-tabbar.cli-app {
+  height: auto !important;
+  min-height: 100dvh;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
 
-  body.om-device-mobile.jobs-app .jcm,
-  body.om-device-mobile.job-detail-app .jcm,
-  body.om-device-mobile.cli-app .jcm {
-    display: block;
-    padding: 0.55rem 0.85rem 1.25rem;
-    width: 100%;
-  }
+body.om-device-mobile.jobs-app .jcm,
+body.om-device-mobile.job-detail-app .jcm,
+body.om-device-mobile.cli-app .jcm {
+  display: block;
+  padding: 0.55rem 0.85rem 1.25rem;
+  width: 100%;
 }
 
 .jcm-nav {

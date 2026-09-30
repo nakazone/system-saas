@@ -11,35 +11,33 @@
   background: var(--plab-bg, #f3f1ee);
 }
 
-@media (max-width: 900px) {
-  /* Default = month; week only when .acal-mode-week */
-  body.sched-body.om-device-mobile .acal-week {
-    display: none !important;
-  }
+/* Agenda mobile chrome — gate on device class (iPad often >900px). */
+body.sched-body.om-device-mobile .acal-week {
+  display: none !important;
+}
 
-  body.sched-body.om-device-mobile .acal-chrome {
-    display: flex !important;
-  }
+body.sched-body.om-device-mobile .acal-chrome {
+  display: flex !important;
+}
 
-  body.sched-body.om-device-mobile .acal-scroll {
-    display: block !important;
-  }
+body.sched-body.om-device-mobile .acal-scroll {
+  display: block !important;
+}
 
-  body.sched-body.om-device-mobile.acal-mode-week .acal-week {
-    display: flex !important;
-  }
+body.sched-body.om-device-mobile.acal-mode-week .acal-week {
+  display: flex !important;
+}
 
-  body.sched-body.om-device-mobile.acal-mode-week .acal-chrome,
-  body.sched-body.om-device-mobile.acal-mode-week .acal-scroll,
-  body.sched-body.om-device-mobile.acal-mode-week .acal-list,
-  body.sched-body.om-device-mobile.acal-mode-week .acal-day-sheet {
-    display: none !important;
-  }
+body.sched-body.om-device-mobile.acal-mode-week .acal-chrome,
+body.sched-body.om-device-mobile.acal-mode-week .acal-scroll,
+body.sched-body.om-device-mobile.acal-mode-week .acal-list,
+body.sched-body.om-device-mobile.acal-mode-week .acal-day-sheet {
+  display: none !important;
+}
 
-  body.sched-body.om-device-mobile.acal-mode-week .acal {
-    min-height: 100%;
-    background: var(--plab-bg, #f3f1ee);
-  }
+body.sched-body.om-device-mobile.acal-mode-week .acal {
+  min-height: 100%;
+  background: var(--plab-bg, #f3f1ee);
 }
 
 .acal-mode-btn,
@@ -499,9 +497,10 @@ body.mais-app.om-app .dashboard-main.mais-main {
   width: 100%;
 }
 
+/* Desktop-only hide — keep Mais / week agenda on iPad (om-device-mobile, often >900px). */
 @media (min-width: 901px) {
-  .mais,
-  .acal-week {
+  body:not(.om-device-mobile) .mais,
+  body:not(.om-device-mobile) .acal-week {
     display: none !important;
   }
 }

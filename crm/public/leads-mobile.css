@@ -1,53 +1,52 @@
-/* Mobile Leads list (Pipeline tab) — ObraMate palette */
+/* Mobile Leads list (Pipeline tab) — ObraMate palette.
+   Gate on .om-device-mobile (not max-width:900): iPad UA is mobile but often >900px. */
 .mleads {
   display: none;
 }
 
-@media (max-width: 900px) {
-  body.plab.om-device-mobile .mobile-app-header,
-  body.plab.om-device-mobile .plab-top,
-  body.plab.om-device-mobile .plab-hero,
-  body.plab.om-device-mobile .plab-pipeline,
-  body.plab.om-device-mobile .plab-bottom,
-  body.plab.om-device-mobile .plab-dock,
-  body.plab.om-device-mobile .plab-skip {
-    display: none !important;
-  }
+body.plab.om-device-mobile .mobile-app-header,
+body.plab.om-device-mobile .plab-top,
+body.plab.om-device-mobile .plab-hero,
+body.plab.om-device-mobile .plab-pipeline,
+body.plab.om-device-mobile .plab-bottom,
+body.plab.om-device-mobile .plab-dock,
+body.plab.om-device-mobile .plab-skip {
+  display: none !important;
+}
 
-  body.plab.om-device-mobile.om-app .dashboard-main.plab-shell {
-    display: block !important;
-    padding: 0 !important;
-    padding-top: env(safe-area-inset-top, 0px) !important;
-    padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 0.5rem) !important;
-    margin: 0 !important;
-    margin-top: 0 !important;
-    width: 100% !important;
-    max-width: none !important;
-    background: var(--plab-bg, #f3f1ee) !important;
-    min-height: 100dvh;
-    box-sizing: border-box !important;
-  }
+body.plab.om-device-mobile.om-app .dashboard-main.plab-shell {
+  display: block !important;
+  padding: 0 !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
+  padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 0.5rem) !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  background: var(--plab-bg, #f3f1ee) !important;
+  min-height: 100dvh;
+  box-sizing: border-box !important;
+}
 
-  /* Leave room for the fixed app top bar (logo / sino / avatar) — it was covering the
-     "Leads" title and the + button. */
-  body.plab.om-device-mobile.om-app.om-has-apptop .dashboard-main.plab-shell {
-    padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.35rem) !important;
-  }
+/* Leave room for the fixed app top bar (logo / sino / avatar) — it was covering the
+   "Leads" title and the + button. */
+body.plab.om-device-mobile.om-app.om-has-apptop .dashboard-main.plab-shell {
+  padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.35rem) !important;
+}
 
-  body.plab.om-device-mobile.om-app .dashboard-container {
-    background: var(--plab-bg, #f3f1ee) !important;
-  }
+body.plab.om-device-mobile.om-app .dashboard-container {
+  background: var(--plab-bg, #f3f1ee) !important;
+}
 
-  body.plab.om-device-mobile .mleads {
-    display: block;
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    padding: 0.7rem 0.85rem 1rem;
-    box-sizing: border-box;
-    font-family: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
-    color: var(--plab-ink, #1c1917);
-  }
+body.plab.om-device-mobile .mleads {
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0.7rem 0.85rem 1rem;
+  box-sizing: border-box;
+  font-family: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
+  color: var(--plab-ink, #1c1917);
 }
 
 .mleads-head {

@@ -4,7 +4,7 @@
 (function () {
   const FLOOR_TYPES = ["Hardwood", "Vinyl (LVP)", "Laminate", "Tile", "Carpet"];
   const SOURCES = ["Website", "Indicação", "Google", "Instagram", "Manual"];
-  const VER = "20260929-leads1";
+  const VER = "20260930-ipad1";
 
   let floorType = "Hardwood";
   let source = "Website";
