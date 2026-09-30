@@ -902,6 +902,11 @@ function showNewLeadModal() {
     void populateNewLeadPipelineSelect();
     document.getElementById('newLeadModal').classList.add('active');
     document.getElementById('newLeadModal').style.display = 'flex';
+    setTimeout(() => {
+      if (typeof window.sfInitCrmAddressAutocomplete === 'function') {
+        window.sfInitCrmAddressAutocomplete();
+      }
+    }, 50);
 }
 
 // Create Lead Manually
@@ -969,6 +974,7 @@ async function createLeadManual(e, force) {
         email: String(formData.get('email') || '').trim(),
         phone: String(formData.get('phone') || '').trim(),
         zipcode: String(formData.get('zipcode') || '').trim() || null,
+        address: String(formData.get('address') || '').trim() || null,
         message: String(formData.get('message') || '').trim() || null,
         source: String(formData.get('source') || 'Manual').trim() || 'Manual',
         priority: String(formData.get('priority') || 'medium'),

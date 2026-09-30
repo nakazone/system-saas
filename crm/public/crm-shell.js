@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260930-ipad1";
+  const SHELL_VER = "20261001-addr1";
 
   const CREATE_MENU_ITEMS = [
     {

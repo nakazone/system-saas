@@ -4,7 +4,7 @@
 (function () {
   const FLOOR_TYPES = ["Hardwood", "Vinyl (LVP)", "Laminate", "Tile", "Carpet"];
   const SOURCES = ["Website", "Indicação", "Google", "Instagram", "Manual"];
-  const VER = "20260930-ipad1";
+  const VER = "20261001-addr1";
 
   let floorType = "Hardwood";
   let source = "Website";
@@ -63,6 +63,18 @@
             <input class="nls-input" id="nlsPhone" name="phone" required maxlength="40" placeholder="(555) 000-0000" autocomplete="tel" inputmode="tel" />
           </div>
           <div class="nls-field">
+            <label class="nls-label" for="nlsAddress">Endereço</label>
+            <input
+              class="nls-input"
+              id="nlsAddress"
+              name="address"
+              maxlength="500"
+              placeholder="Rua, número, cidade…"
+              autocomplete="street-address"
+              data-crm-address-autocomplete="1"
+            />
+          </div>
+          <div class="nls-field">
             <span class="nls-label">Tipo de piso</span>
             <div class="nls-chips" id="nlsFloorChips">${chipsHtml(FLOOR_TYPES, floorType, "floor")}</div>
           </div>
@@ -115,7 +127,12 @@
     document.getElementById("nlsBackdrop").hidden = false;
     document.getElementById("nlsSheet").hidden = false;
     document.body.classList.add("nls-open");
-    setTimeout(() => document.getElementById("nlsName")?.focus(), 50);
+    setTimeout(() => {
+      document.getElementById("nlsName")?.focus();
+      if (typeof window.sfInitCrmAddressAutocomplete === "function") {
+        window.sfInitCrmAddressAutocomplete();
+      }
+    }, 50);
   }
 
   function close() {
@@ -130,6 +147,7 @@
     if (e && typeof e.preventDefault === "function") e.preventDefault();
     const name = (document.getElementById("nlsName")?.value || "").trim();
     const phone = (document.getElementById("nlsPhone")?.value || "").trim();
+    const address = (document.getElementById("nlsAddress")?.value || "").trim();
     const areaRaw = (document.getElementById("nlsArea")?.value || "").trim();
     if (name.length < 2) {
       alert("Indique o nome do cliente.");
@@ -156,6 +174,7 @@
         priority: "medium",
         // Area already goes in `message` ("Hardwood · 850 sq ft"); notes duplicated it.
         notes: null,
+        address: address || null,
         check_duplicates: !force,
       };
       const res = await fetch("/api/leads", {
