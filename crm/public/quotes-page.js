@@ -232,8 +232,10 @@
       canEdit = role === "admin" || perms.includes("quotes.edit");
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
-      $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
-      $("sidebarUserRole").textContent = role || "";
+      const sn = $("sidebarUserName");
+      if (sn) sn.textContent = s.user?.name || s.user?.email || "—";
+      const sr = $("sidebarUserRole");
+      if (sr) sr.textContent = role || "";
 
       $("btnReload").addEventListener("click", () => loadQuotes().catch((e) => notify(e.message, "error")));
       $("btnPrevPage").addEventListener("click", () => {

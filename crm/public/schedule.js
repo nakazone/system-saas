@@ -2018,8 +2018,10 @@
       }
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
-      $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
-      $("sidebarUserRole").textContent = role || "";
+      const sn = $("sidebarUserName");
+      if (sn) sn.textContent = s.user?.name || s.user?.email || "—";
+      const sr = $("sidebarUserRole");
+      if (sr) sr.textContent = role || "";
       if (scopeToSelf) {
         // Server already returns only assigned jobs; lock UI to "mine".
         filters.mine = true;

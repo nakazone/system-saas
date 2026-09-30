@@ -3,7 +3,7 @@
  * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20260930-maismob3";
+  const VER = "20260930-maismob4";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
 
@@ -49,7 +49,6 @@
     if (f === "home.html" || f === "" || f === "dashboard.html") return "home";
     if (f === "pipeline-lab.html" || f === "leads.html" || f === "lead-detail.html") return "pipeline";
     if (f === "schedule.html") return "agenda";
-    if (f === "jobs.html" || f === "job-detail.html") return "jobs";
     if (
       f === "mais.html" ||
       f === "chat.html" ||
@@ -58,6 +57,9 @@
       f === "quote-catalog.html" ||
       f === "invoices.html" ||
       f === "customers.html" ||
+      f === "jobs.html" ||
+      f === "job-detail.html" ||
+      f === "job-media-board.html" ||
       f === "equipe.html" ||
       f === "ajustes.html" ||
       f === "finance.html" ||

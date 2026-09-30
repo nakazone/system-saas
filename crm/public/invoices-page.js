@@ -273,8 +273,8 @@
       const role = s.user?.role || "";
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
-      $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
-      $("sidebarUserRole").textContent = role || "";
+      $("sidebarUserName") && ($("sidebarUserName").textContent = s.user?.name || s.user?.email || "—");
+      $("sidebarUserRole") && ($("sidebarUserRole").textContent = role || "");
 
       $("btnReload").addEventListener("click", () => loadInvoices().catch((e) => notify(e.message, "error")));
       $("btnPrevPage").addEventListener("click", () => {

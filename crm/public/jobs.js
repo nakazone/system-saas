@@ -95,18 +95,24 @@
       }
     });
 
-    $("ovUnscheduled").textContent = String(unscheduled);
-    $("ovLate").textContent = String(late);
-    $("ovScheduled").textContent = String(scheduled);
-    $("ovProgress").textContent = String(progress);
-    $("ovDone").textContent = String(done);
-    $("ovNext30").textContent = String(next30);
-    $("ovPast30").textContent = String(past30);
+    const set = (id, v) => {
+      const el = $(id);
+      if (el) el.textContent = String(v);
+    };
+    set("ovUnscheduled", unscheduled);
+    set("ovLate", late);
+    set("ovScheduled", scheduled);
+    set("ovProgress", progress);
+    set("ovDone", done);
+    set("ovNext30", next30);
+    set("ovPast30", past30);
   }
 
   function renderTable(rows) {
     const tbody = $("jobsTableBody");
-    $("jobsResultCount").textContent = `(${rows.length} result${rows.length === 1 ? "" : "s"})`;
+    const countEl = $("jobsResultCount");
+    if (countEl) countEl.textContent = `(${rows.length} result${rows.length === 1 ? "" : "s"})`;
+    if (!tbody) return;
     if (!rows.length) {
       tbody.innerHTML = '<tr><td colspan="6" class="jobs-empty">Nenhum job encontrado.</td></tr>';
       return;
@@ -157,22 +163,29 @@
       canManage = role === "admin" || perms.includes("work_orders.manage");
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
-      $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
-      $("sidebarUserRole").textContent = role || "";
-      if (!canManage) $("btnNewJob").style.display = "none";
+      const sn = $("sidebarUserName");
+      if (sn) sn.textContent = s.user?.name || s.user?.email || "—";
+      const sr = $("sidebarUserRole");
+      if (sr) sr.textContent = role || "";
+      if (!canManage) {
+        const btnNew = $("btnNewJob");
+        if (btnNew) btnNew.style.display = "none";
+      }
 
       window.__crmJobModal.onSaved(() => loadJobs().catch(() => {}));
 
-      $("btnNewJob").addEventListener("click", () => {
+      $("btnNewJob")?.addEventListener("click", () => {
         window.__crmJobModal.openCreate().catch((e) => notify(e.message, "error"));
       });
-      $("btnReload").addEventListener("click", () => loadJobs().catch((e) => notify(e.message, "error")));
+      $("btnReload")?.addEventListener("click", () => loadJobs().catch((e) => notify(e.message, "error")));
       ["filterQ", "filterStatus", "filterSource"].forEach((id) => {
-        $(id).addEventListener("change", () => loadJobs().catch(() => {}));
-        $(id).addEventListener("input", () => {
+        const el = $(id);
+        if (!el) return;
+        el.addEventListener("change", () => loadJobs().catch(() => {}));
+        el.addEventListener("input", () => {
           if (id === "filterQ") {
-            clearTimeout($(id)._t);
-            $(id)._t = setTimeout(() => loadJobs().catch(() => {}), 280);
+            clearTimeout(el._t);
+            el._t = setTimeout(() => loadJobs().catch(() => {}), 280);
           }
         });
       });
@@ -190,7 +203,6 @@
       }
     } catch (err) {
       notify(err.message || "Falha ao carregar", "error");
-      location.href = "/login.html";
     }
   }
 

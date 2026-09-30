@@ -117,8 +117,8 @@
       const role = s.user?.role || "";
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
-      $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
-      $("sidebarUserRole").textContent = role || "";
+      $("sidebarUserName") && ($("sidebarUserName").textContent = s.user?.name || s.user?.email || "—");
+      $("sidebarUserRole") && ($("sidebarUserRole").textContent = role || "");
 
       $("btnNewLead").addEventListener("click", () => {
         if (typeof window.showNewLeadModal === "function") window.showNewLeadModal();

@@ -230,13 +230,16 @@
     const doneN = base.filter((wo) => wo.status === "completed").length;
     const activeRows = base.filter((wo) => isActive(wo) && wo.status !== "canceled");
 
-    if (isField) {
-      $("jobsMobSub").textContent =
-        todayN > 0
-          ? `${todayN} hoje · ${activeN} ativo${activeN === 1 ? "" : "s"}`
-          : `${activeN} job${activeN === 1 ? "" : "s"} ativo${activeN === 1 ? "" : "s"}`;
-    } else {
-      $("jobsMobSub").textContent = `${activeN} ativo${activeN === 1 ? "" : "s"} · ${money(contractTotal(activeRows))} em contratos`;
+    const sub = $("jobsMobSub");
+    if (sub) {
+      if (isField) {
+        sub.textContent =
+          todayN > 0
+            ? `${todayN} hoje · ${activeN} ativo${activeN === 1 ? "" : "s"}`
+            : `${activeN} job${activeN === 1 ? "" : "s"} ativo${activeN === 1 ? "" : "s"}`;
+      } else {
+        sub.textContent = `${activeN} ativo${activeN === 1 ? "" : "s"} · ${money(contractTotal(activeRows))} em contratos`;
+      }
     }
 
     document.querySelectorAll("[data-jobs-tab]").forEach((btn) => {
@@ -253,6 +256,7 @@
 
     const rows = tabFiltered(base);
     const host = $("jobsMobList");
+    if (!host) return;
     if (!rows.length) {
       host.innerHTML = `<p class="jcm-empty">${isField ? "Nenhum job atribuído a você neste filtro." : "Nenhum job neste filtro."}</p>`;
       return;

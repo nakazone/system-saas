@@ -34,6 +34,19 @@
     margin: 0 !important;
     background: var(--plab-bg, #f3f1ee) !important;
     min-height: 100dvh;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body.om-device-mobile.om-has-tabbar.jobs-app,
+  body.om-device-mobile.om-has-tabbar.job-detail-app,
+  body.om-device-mobile.om-has-tabbar.cli-app {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   body.om-device-mobile.jobs-app .jcm,

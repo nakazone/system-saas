@@ -299,9 +299,14 @@
       const role = String(s.user?.role || "").toLowerCase();
       const perms = s.user?.permissions || [];
       canCreate = role === "admin" || perms.includes("customers.create") || perms.includes("customers.manage");
-      $("sidebarUserName").textContent = s.user?.name || s.user?.email || "—";
-      $("sidebarUserRole").textContent = role || "";
-      if (!canCreate) $("cliAddBtn").style.display = "none";
+      const sn = $("sidebarUserName");
+      if (sn) sn.textContent = s.user?.name || s.user?.email || "—";
+      const sr = $("sidebarUserRole");
+      if (sr) sr.textContent = role || "";
+      if (!canCreate) {
+        const add = $("cliAddBtn");
+        if (add) add.style.display = "none";
+      }
 
       $("cliAddBtn")?.addEventListener("click", () => {
         location.href = "dashboard.html?page=customers&new=1";
