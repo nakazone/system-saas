@@ -15,7 +15,7 @@
     { id: 'pipeline', label: 'Leads', sub: 'Lista por estágio', href: 'pipeline-lab.html', perm: null, mobileOnly: true },
     { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'leads.html', perm: 'leads.view' },
     { id: 'quotes', label: 'Quotes', sub: 'Orçamentos', href: 'quotes.html', perm: 'quotes.view' },
-    { id: 'invoices', label: 'Invoices', sub: 'Faturas', href: 'invoices.html', perm: 'quotes.view' },
+    { id: 'invoices', label: 'Faturas', sub: 'Invoices', href: 'invoices.html', perm: 'invoices.view' },
     { id: 'clients', label: 'Clientes', sub: 'Cadastro', href: 'dashboard.html?page=customers', perm: 'customers.view' },
     { id: 'pricing', label: 'Tabela de Valor', sub: 'Cadastro', href: 'builder-pricing-admin.html', perm: 'builders.view' },
     { id: 'team', label: 'Equipe', sub: 'Cadastro', href: 'equipe.html', perm: 'users.view' },

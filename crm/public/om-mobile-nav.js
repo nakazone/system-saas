@@ -59,6 +59,7 @@
       f === "quote-builder.html" ||
       f === "quote-catalog.html" ||
       f === "invoices.html" ||
+      f === "invoice.html" ||
       f === "customers.html" ||
       f === "jobs.html" ||
       f === "job-detail.html" ||

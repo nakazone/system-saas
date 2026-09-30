@@ -1627,7 +1627,9 @@
       background: #fff;
       font-size: 12px;
     }
-    .qb-invoice-card__head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; color: var(--plab-ink, #1c1917); }
+    .qb-invoice-card__head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; color: var(--plab-ink, #1c1917); text-decoration: none; }
+    a.qb-invoice-card__head:hover span:first-child { color: #c1652f; text-decoration: underline; }
+    .qb-invoice-card.is-void { opacity: .55; }
     .qb-invoice-card__meta { color: #64748b; margin: 4px 0 8px; font-size: 11px; }
     .qb-invoice-card__actions { display: flex; flex-wrap: wrap; gap: 6px; }
     .qb-invoice-card__actions .btn { font-size: 11px; padding: 4px 8px; }
@@ -2286,7 +2288,7 @@
                 <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Faturas</h3>
                 <button type="button" id="btnOpenInvoiceModal" class="btn btn-sm btn-secondary">Emitir</button>
               </div>
-              <p class="text-xs text-slate-500 mb-2">Cobrança ao cliente após aprovação do orçamento.</p>
+              <p class="text-xs text-slate-500 mb-2">Emitir leva você à fatura, onde ficam pagamentos, recibos e envio. <a href="invoices.html" class="underline">Ver todas</a></p>
               <p id="quoteInvoiceBalance" class="text-xs text-slate-600 mb-2 hidden"></p>
               <div id="quoteInvoicesList" class="qb-invoices-list"></div>
             </div>
@@ -2436,12 +2438,12 @@
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
   <script src="crm-shell.js?v=20260930-qb3"></script>
-  <script src="crm-shared-nav.js?v=20260930-quotes1"></script>
+  <script src="crm-shared-nav.js?v=20261001-inv1"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20260930b"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260930-qb7"></script>
+  <script src="quote-builder.js?v=20261001-inv1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

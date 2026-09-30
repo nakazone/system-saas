@@ -3095,10 +3095,13 @@
 
   function invoiceStatusLabel(status) {
     const map = {
+      draft: 'Rascunho',
       issued: 'Emitida',
       sent: 'Enviada',
       viewed: 'Vista',
       partial: 'Parcial',
+      partially_paid: 'Parcial',
+      overdue: 'Vencida',
       paid: 'Paga',
       void: 'Anulada',
       cancelled: 'Cancelada',
@@ -3113,46 +3116,33 @@
       host.innerHTML = '<p class="text-xs text-slate-500">Nenhuma fatura emitida ainda.</p>';
       return;
     }
+    /* Faturas vivem no módulo próprio (invoice.html): aqui só o resumo e atalhos. */
     host.innerHTML = quoteInvoices
       .map((inv) => {
-        const due = inv.due_date ? String(inv.due_date).slice(0, 10) : '—';
-        const status = inv.status || 'issued';
+        const st = inv.display_status || inv.status || 'draft';
         const paid = Number(inv.paid_amount) || 0;
         const remaining = Number(inv.remaining_amount != null ? inv.remaining_amount : Math.max(0, Number(inv.amount) - paid));
+        const href = `invoice.html?id=${encodeURIComponent(inv.id)}`;
         const payMeta =
-          paid > 0.009
-            ? ` · pago ${money(paid)}${remaining > 0.009 ? ` · falta ${money(remaining)}` : ''}`
-            : '';
-        return `<article class="qb-invoice-card" data-invoice-id="${inv.id}">
-          <div class="qb-invoice-card__head">
-            <span>${escapeHtmlText(inv.invoice_number || `INV-${inv.id}`)}</span>
+          st === 'paid'
+            ? ' · paga'
+            : paid > 0.009
+              ? ` · pago ${money(paid)} · falta ${money(remaining)}`
+              : '';
+        const canReceive = st !== 'paid' && st !== 'void' && remaining > 0.009;
+        return `<article class="qb-invoice-card${st === 'void' ? ' is-void' : ''}" data-invoice-id="${inv.id}">
+          <a class="qb-invoice-card__head" href="${href}">
+            <span>${escapeHtmlText(inv.invoice_number || 'Fatura')}</span>
             <span>${money(inv.amount)}</span>
-          </div>
-          <div class="qb-invoice-card__meta">${escapeHtmlText(invoiceTypeLabel(inv.invoice_type))} · vence ${escapeHtmlText(due)} · ${escapeHtmlText(invoiceStatusLabel(status))}${payMeta}</div>
+          </a>
+          <div class="qb-invoice-card__meta">${escapeHtmlText(invoiceTypeLabel(inv.invoice_type))} · ${escapeHtmlText(invoiceStatusLabel(st))}${inv.due_date && st !== 'paid' && st !== 'void' ? ` · vence ${escapeHtmlText(String(inv.due_date).slice(0, 10))}` : ''}${payMeta}</div>
           <div class="qb-invoice-card__actions">
-            <button type="button" class="btn btn-sm btn-secondary" data-inv-pdf="${inv.id}">Ver PDF</button>
-            <button type="button" class="btn btn-sm btn-ghost" data-inv-email="${inv.id}">Enviar</button>
-            ${status !== 'paid' && remaining > 0.009 ? `<button type="button" class="btn btn-sm btn-primary" data-inv-receive="${inv.id}">Receber / recibo</button>` : ''}
-            ${status !== 'paid' ? `<button type="button" class="btn btn-sm btn-ghost text-red-600" data-inv-delete="${inv.id}">Apagar</button>` : ''}
+            <a class="btn btn-sm btn-secondary" href="${href}">Abrir fatura</a>
+            ${canReceive ? `<a class="btn btn-sm btn-primary" href="${href}&action=pay">Receber</a>` : ''}
           </div>
         </article>`;
       })
       .join('');
-    host.querySelectorAll('[data-inv-pdf]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const inv = quoteInvoices.find((i) => String(i.id) === btn.dataset.invPdf);
-        void openInvoicePdf(btn.dataset.invPdf, inv?.invoice_number ? `Fatura ${inv.invoice_number}` : 'Fatura');
-      });
-    });
-    host.querySelectorAll('[data-inv-email]').forEach((btn) => {
-      btn.addEventListener('click', () => void sendQuoteInvoiceEmail(btn.dataset.invEmail));
-    });
-    host.querySelectorAll('[data-inv-receive]').forEach((btn) => {
-      btn.addEventListener('click', () => openReceiptModal(btn.dataset.invReceive));
-    });
-    host.querySelectorAll('[data-inv-delete]').forEach((btn) => {
-      btn.addEventListener('click', () => void deleteQuoteInvoice(btn.dataset.invDelete));
-    });
   }
 
   async function loadQuoteInvoices() {
@@ -3263,12 +3253,13 @@
       });
       closeInvoiceModal();
       if (r.balance) quoteInvoiceBalance = r.balance;
-      await loadQuoteInvoices();
       const inv = r.data;
-      window.crmToast?.success?.(`Fatura ${inv?.invoice_number || ''} emitida.`);
+      /* A fatura tem módulo próprio: seguir para ela em vez de ficar no orçamento. */
       if (inv?.id) {
-        await openInvoicePdf(inv.id, inv.invoice_number ? `Fatura ${inv.invoice_number}` : 'Fatura');
+        window.location.href = `invoice.html?id=${encodeURIComponent(inv.id)}&new=1`;
+        return;
       }
+      await loadQuoteInvoices();
     } catch (err) {
       window.crmToast?.error?.(err.message || 'Erro ao emitir fatura');
     } finally {

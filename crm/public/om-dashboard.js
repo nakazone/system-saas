@@ -201,7 +201,7 @@
             : "Nenhuma invoice em aberto",
         short: r.overdue_count ? `${moneyCompact(r.overdue_value)} vencido` : "nada vencido",
         metaTone: r.overdue_count ? "danger" : "ok",
-        href: "invoices.html",
+        href: r.overdue_count ? "invoices.html?status=overdue" : "invoices.html?status=unpaid",
       });
     }
     if (k.conversion) {

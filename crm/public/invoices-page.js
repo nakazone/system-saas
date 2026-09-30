@@ -1,319 +1,309 @@
+/* Faturas — list page (invoices.html). Opens each invoice in invoice.html. */
 (function () {
-  let page = 1;
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
   const LIMIT = 25;
+  const url = new URLSearchParams(location.search);
+  let page = 1;
+  let tab = url.get('status') || 'all';
+  let perms = [];
+  let isAdmin = false;
 
-  function $(id) {
-    return document.getElementById(id);
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-
-  function notify(msg, type) {
-    if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else alert(msg);
+  function money(n, dec) {
+    const d = dec == null ? 2 : dec;
+    return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   }
-
-  function escapeHtml(s) {
-    return String(s || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+  function fdate(d) {
+    if (!d) return '—';
+    const x = new Date(d);
+    if (Number.isNaN(x.getTime())) return '—';
+    return x.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
   }
-
-  async function api(url, opts) {
-    const r = await fetch(url, {
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...(opts && opts.headers) },
-      ...opts,
-    });
+  function toast(msg, type) {
+    if (window.crmToast) window.crmToast[type === 'error' ? 'error' : 'success'](msg);
+  }
+  async function api(u, opts) {
+    const r = await fetch(u, Object.assign({ credentials: 'include', headers: { 'Content-Type': 'application/json' } }, opts || {}));
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+    if (r.status === 401) {
+      location.href = '/login.html';
+      throw new Error('Sessão expirada');
+    }
+    if (!r.ok || j.success === false) throw new Error(j.error || `Erro ${r.status}`);
     return j;
   }
+  const can = (p) => isAdmin || perms.includes(p);
 
-  function statusLabel(status) {
-    const map = {
-      draft: "Draft",
-      sent: "Sent",
-      paid: "Paid",
-      overdue: "Overdue",
-      issued: "Issued",
-      partially_paid: "Partial",
-      void: "Void",
-    };
-    const s = String(status || "").toLowerCase();
-    return map[s] || status || "—";
-  }
+  const STATUS = {
+    draft: ['Rascunho', 'is-draft'],
+    sent: ['Enviada', 'is-sent'],
+    viewed: ['Vista', 'is-viewed'],
+    partially_paid: ['Parcial', 'is-partial'],
+    overdue: ['Vencida', 'is-overdue'],
+    paid: ['Paga', 'is-paid'],
+    void: ['Anulada', 'is-void'],
+  };
 
-  function statusSlug(status) {
-    const s = String(status || "").toLowerCase().replace(/[^a-z0-9_-]/g, "") || "sent";
-    if (s === "partially_paid") return "sent";
-    return s;
-  }
-
-  function fmtMoney(n) {
-    return (
-      "$" +
-      Number(n || 0).toLocaleString(undefined, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })
-    );
-  }
-
-  function remainingOf(inv) {
-    const amt = Number(inv.amount || 0);
-    const paid = Number(inv.paid_amount != null ? inv.paid_amount : inv.paid_total || 0);
-    if (inv.remaining_amount != null) return Math.max(0, Number(inv.remaining_amount));
-    return Math.max(0, amt - paid);
-  }
-
-  function renderOverview(rows) {
-    let draft = 0;
-    let sent = 0;
-    let paid = 0;
-    let overdue = 0;
-    let outstanding = 0;
-    let paid30 = 0;
-    const now = Date.now();
-    const dayMs = 86400000;
-
-    rows.forEach((inv) => {
-      const st = statusSlug(inv.status);
-      if (st === "draft") draft += 1;
-      else if (st === "paid") paid += 1;
-      else if (st === "overdue") overdue += 1;
-      else if (st === "sent" || st === "issued") sent += 1;
-
-      if (st !== "paid" && st !== "void") {
-        outstanding += remainingOf(inv);
-        if (st !== "overdue" && inv.due_date) {
-          const due = new Date(inv.due_date).getTime();
-          if (due < now) overdue += 1;
-        }
-      }
-
-      if (st === "paid") {
-        const paidAt = inv.paid_at || inv.updated_at || inv.email_sent_at || inv.created_at;
-        if (paidAt) {
-          const t = new Date(paidAt).getTime();
-          if (t >= now - 30 * dayMs && t <= now) {
-            paid30 += Number(inv.amount || 0);
-          }
-        }
-      }
+  // ---------------------------------------------------------------- list
+  function setTab(t) {
+    tab = t;
+    page = 1;
+    document.querySelectorAll('.inv-tab').forEach((b) => {
+      const on = b.dataset.tab === t;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', String(on));
     });
-
-    $("ovDraft").textContent = String(draft);
-    $("ovSent").textContent = String(sent);
-    $("ovPaid").textContent = String(paid);
-    $("ovOverdue").textContent = String(overdue);
-    $("ovOutstanding").textContent = fmtMoney(outstanding);
-    $("ovPaid30").textContent = fmtMoney(paid30);
+    document.querySelectorAll('.inv-kpi').forEach((k) => k.classList.toggle('is-active', k.dataset.tab === t));
+    const u = new URL(location.href);
+    if (t === 'all') u.searchParams.delete('status');
+    else u.searchParams.set('status', t);
+    history.replaceState(null, '', u);
+    load();
   }
 
-  function initials(name) {
-    const parts = String(name || "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
-    if (!parts.length) return "?";
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  function renderSummary(s) {
+    if (!s) return;
+    $('kpiOutstanding').textContent = money(s.outstanding, 0);
+    $('kpiOutstandingN').textContent = `${s.count.unpaid} ${s.count.unpaid === 1 ? 'fatura' : 'faturas'}`;
+    $('kpiOverdue').textContent = money(s.overdue_amount, 0);
+    $('kpiOverdueN').textContent = s.count.overdue ? `${s.count.overdue} ${s.count.overdue === 1 ? 'vencida' : 'vencidas'}` : 'nenhuma vencida';
+    $('kpiReceived').textContent = money(s.received_30d, 0);
+    $('kpiDraft').textContent = String(s.count.draft);
+    $('kpiDraftN').textContent = s.count.draft ? `${money(s.draft_amount, 0)} a enviar` : 'nada pendente';
+    document.querySelectorAll('[data-count]').forEach((el) => {
+      const n = s.count[el.dataset.count];
+      el.textContent = n ? String(n) : '';
+      el.hidden = !n;
+    });
+    $('invListSub').textContent = s.count.all
+      ? `${s.count.all} ${s.count.all === 1 ? 'fatura' : 'faturas'} · ${money(s.outstanding)} a receber`
+      : 'Cobranças emitidas a partir dos orçamentos aprovados.';
   }
 
-  function renderTable(rows) {
-    const list = $("invoicesTableBody");
-    const countEl = $("invoicesResultCount");
-    const subEl = $("invoicesListSubtitle");
-    if (countEl) {
-      countEl.textContent =
-        rows.length === 1 ? "1 resultado" : `${rows.length} resultados`;
-    }
-    if (subEl) {
-      subEl.textContent =
-        rows.length === 0
-          ? "Nenhum invoice"
-          : rows.length === 1
-            ? "1 invoice nesta página"
-            : `${rows.length} invoices nesta página`;
-    }
+  function dueCell(inv) {
+    if (inv.display_status === 'paid') return `<span class="inv-trow__due">Paga ${esc(fdate(inv.paid_at))}</span>`;
+    if (inv.display_status === 'void') return '<span class="inv-trow__due">—</span>';
+    if (inv.display_status === 'overdue')
+      return `<span class="inv-trow__due is-overdue">${esc(fdate(inv.due_date))}<br><small>há ${inv.days_overdue} ${inv.days_overdue === 1 ? 'dia' : 'dias'}</small></span>`;
+    return `<span class="inv-trow__due">${esc(fdate(inv.due_date))}</span>`;
+  }
+
+  function renderRows(rows) {
+    const host = $('invRows');
     if (!rows.length) {
-      list.innerHTML = '<p class="customers-list-empty">Nenhum invoice encontrado.</p>';
+      const q = $('filterQ').value.trim();
+      host.innerHTML = `<div class="inv-table-empty"><b>${q ? 'Nada encontrado' : tab === 'all' ? 'Nenhuma fatura ainda' : 'Nenhuma fatura neste filtro'}</b>${
+        q ? 'Tente outro termo.' : tab === 'all' ? 'Emita a primeira a partir de um orçamento aprovado.' : ''
+      }</div>`;
       return;
     }
-    list.innerHTML = rows
-      .map((inv, i) => {
-        const invNum = escapeHtml(inv.invoice_number || String(inv.id));
-        const qNum = escapeHtml(inv.quote_number || "—");
-        const client = escapeHtml(inv.customer_name || inv.quote_title || "—");
-        const amt = Number(inv.amount || 0).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
-        const slug = statusSlug(inv.status);
-        let sentAt = "—";
-        const raw = inv.email_sent_at || inv.issued_at || inv.created_at;
-        if (raw) {
-          try {
-            sentAt = new Date(raw).toLocaleDateString("pt-BR", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            });
-          } catch (_) {}
-        }
-        const quoteHref =
-          inv.quote_id != null
-            ? `quote-builder.html?id=${encodeURIComponent(String(inv.quote_id))}`
-            : "";
-        const av = escapeHtml(initials(inv.customer_name || inv.quote_title || "IN"));
-        const openBtn = quoteHref
-          ? `<button type="button" class="btn btn-sm btn-secondary" data-href="${escapeHtml(quoteHref)}">Quote</button>`
-          : '<span class="customers-row__muted">—</span>';
-        return `
-        <article class="customers-row customers-row--invoice" role="listitem" ${quoteHref ? `data-href="${escapeHtml(quoteHref)}" tabindex="0"` : ""} style="--av-hue:${(i * 47) % 360}">
-          <div class="customers-row__identity">
-            <span class="customers-row__av" aria-hidden="true">${av}</span>
-            <div class="customers-row__who">
-              <div class="customers-row__name" title="${client}">${client}</div>
-              <div class="customers-row__refs">
-                <span class="customers-ref">${invNum}</span>
-                <span class="customers-ref customers-ref--lead">Q · ${qNum}</span>
-              </div>
-            </div>
-          </div>
-          <div class="customers-row__amt tabular-nums">$${amt}</div>
-          <div class="customers-row__status"><span class="mod-status is-${escapeHtml(slug)}">${escapeHtml(statusLabel(inv.status))}</span></div>
-          <div class="customers-row__pdf"></div>
-          <div class="customers-row__local">${escapeHtml(sentAt)}</div>
-          <div class="customers-row__actions">${openBtn}</div>
-        </article>`;
+    host.innerHTML = rows
+      .map((inv) => {
+        const [label, cls] = STATUS[inv.display_status] || STATUS.sent;
+        const open = inv.display_status !== 'paid' && inv.display_status !== 'void';
+        return `<a class="inv-trow" role="row" href="invoice.html?id=${encodeURIComponent(inv.id)}">
+          <span class="inv-trow__who" role="cell"><b>${esc(inv.customer_name || inv.quote_title || '—')}</b><small>${esc(inv.quote_title || '')}</small></span>
+          <span class="inv-trow__num" role="cell">${esc(inv.invoice_number || '—')}<small>${esc(inv.invoice_type_label)}${inv.quote_number ? ` · ${esc(inv.quote_number)}` : ''}</small></span>
+          <span class="inv-trow__pay" role="cell">${money(inv.paid_amount)} de ${money(inv.amount)}<div class="inv-progress"><span style="width:${inv.percent_paid}%"></span></div></span>
+          ${dueCell(inv)}
+          <span class="inv-trow__st" role="cell"><span class="inv-chip ${cls}">${esc(label)}</span></span>
+          <span class="inv-trow__amt" role="cell"><b>${money(open ? inv.remaining_amount : inv.amount)}</b><small>${open && inv.paid_amount > 0 ? `de ${money(inv.amount)}` : open ? 'a receber' : inv.display_status === 'paid' ? 'recebido' : ''}</small></span>
+        </a>`;
       })
-      .join("");
-    list.querySelectorAll("[data-href]").forEach((el) => {
-      const go = () => {
-        window.location.href = el.getAttribute("data-href");
-      };
-      if (el.tagName === "BUTTON") {
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          go();
-        });
-        return;
-      }
-      el.addEventListener("click", (e) => {
-        if (e.target.closest("button, a")) return;
-        go();
-      });
-      el.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
-        }
-      });
-    });
+      .join('');
   }
 
-  function buildListParams(status, q, pageNum, limit) {
-    const params = new URLSearchParams({
-      page: String(pageNum),
-      limit: String(limit),
-    });
-    if (status && status !== "all") params.set("status", status);
-    else params.set("status", "all");
-    if (q) params.set("q", q);
-    return params;
-  }
-
-  async function fetchInvoiceList(params) {
-    // Prefer SF-compatible path; fall back to SaaS /api/invoices
+  let reqSeq = 0;
+  async function load() {
+    const seq = ++reqSeq;
+    const p = new URLSearchParams({ page: String(page), limit: String(LIMIT), status: tab });
+    const q = $('filterQ').value.trim();
+    if (q) p.set('q', q);
     try {
-      return await api(`/api/quote-invoices?${params}`);
-    } catch (e1) {
-      try {
-        return await api(`/api/invoices?${params}`);
-      } catch (e2) {
-        throw e1;
-      }
+      const j = await api(`/api/invoices?${p}`);
+      if (seq !== reqSeq) return;
+      renderRows(j.data || []);
+      renderSummary(j.summary);
+      const pages = Math.max(1, Math.ceil((j.total || 0) / LIMIT));
+      $('pageInfo').textContent = j.total ? `Página ${page} de ${pages} · ${j.total} ${j.total === 1 ? 'fatura' : 'faturas'}` : '';
+      $('btnPrevPage').disabled = page <= 1;
+      $('btnNextPage').disabled = page >= pages;
+      $('btnPrevPage').parentElement.hidden = pages <= 1;
+    } catch (err) {
+      $('invRows').innerHTML = `<div class="inv-table-empty"><b>Não foi possível carregar</b>${esc(err.message)}</div>`;
     }
   }
 
-  async function loadOverviewStats(q) {
-    const params = buildListParams("all", q, 1, 100);
-    const j = await fetchInvoiceList(params);
-    renderOverview(j.data || []);
+  // ---------------------------------------------------------------- new invoice
+  let picked = null;
+  let billable = [];
+  function openNew() {
+    picked = null;
+    $('newQ').value = '';
+    $('newKindBox').hidden = true;
+    $('newSubmit').disabled = true;
+    $('newError').hidden = true;
+    const d = new Date(Date.now() + 14 * 86400000);
+    $('newDue').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const m = $('newModal');
+    m.hidden = false;
+    document.body.classList.add('inv-modal-open');
+    requestAnimationFrame(() => m.classList.add('is-open'));
+    setTimeout(() => $('newQ').focus(), 60);
+    loadBillable();
   }
-
-  async function loadInvoices() {
-    const q = $("filterQ").value.trim();
-    const status = $("filterStatus").value || "all";
-    const params = buildListParams(status, q, page, LIMIT);
-
-    const j = await fetchInvoiceList(params);
-    const rows = j.data || [];
-    const total = typeof j.total === "number" ? j.total : rows.length;
-    renderTable(rows);
-
-    const pages = Math.max(1, Math.ceil(total / LIMIT));
-    $("pageInfo").textContent = `Página ${page} de ${pages}`;
-    $("btnPrevPage").disabled = page <= 1;
-    $("btnNextPage").disabled = page >= pages;
-
-    await loadOverviewStats(q).catch(() => {});
+  function closeNew() {
+    const m = $('newModal');
+    m.classList.remove('is-open');
+    m.hidden = true;
+    document.body.classList.remove('inv-modal-open');
   }
+  $('newModal').querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeNew));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('newModal').hidden) closeNew();
+  });
 
+  async function loadBillable() {
+    const q = $('newQ').value.trim();
+    try {
+      const j = await api(`/api/invoices/billable-quotes${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+      billable = j.data || [];
+      renderPick();
+    } catch (err) {
+      $('newPick').innerHTML = `<p class="inv-empty">${esc(err.message)}</p>`;
+    }
+  }
+  function renderPick() {
+    if (!billable.length) {
+      $('newPick').innerHTML =
+        '<p class="inv-empty">Nenhum orçamento aprovado com valor a faturar. Aprove um orçamento em <a href="quotes.html">Orçamentos</a> primeiro.</p>';
+      return;
+    }
+    $('newPick').innerHTML = billable
+      .map(
+        (q) => `<button type="button" data-id="${esc(q.id)}" class="${picked && picked.id === q.id ? 'is-selected' : ''}">
+          <b>${esc(q.customer_name || q.title)}</b><span class="r"><b>${money(q.remaining_to_invoice)}</b></span>
+          <small>${esc(q.number || '')} · ${esc(q.title)}</small><small class="r">${q.invoiced_total > 0 ? `de ${money(q.total)}` : 'a faturar'}</small>
+        </button>`,
+      )
+      .join('');
+    $('newPick').querySelectorAll('[data-id]').forEach((b) =>
+      b.addEventListener('click', () => {
+        picked = billable.find((x) => x.id === b.dataset.id);
+        renderPick();
+        const partial = picked.invoiced_total > 0.004;
+        $('newFullOpt').hidden = partial;
+        $('newRemainingHint').textContent = money(picked.remaining_to_invoice);
+        document.querySelector(`input[name="newKind"][value="${partial ? 'final' : 'deposit'}"]`).checked = true;
+        $('newKindBox').hidden = false;
+        syncNew();
+      }),
+    );
+  }
+  let qTimer = null;
+  $('newQ').addEventListener('input', () => {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(loadBillable, 250);
+  });
+  function newKind() {
+    return (document.querySelector('input[name="newKind"]:checked') || {}).value || 'deposit';
+  }
+  function newAmount() {
+    if (!picked) return 0;
+    const k = newKind();
+    if (k === 'deposit') return Math.round(picked.total * (parseFloat($('newPct').value) || 0)) / 100;
+    if (k === 'final') return picked.remaining_to_invoice;
+    if (k === 'full') return picked.total;
+    return Math.round((parseFloat($('newAmt').value) || 0) * 100) / 100;
+  }
+  function syncNew() {
+    const k = newKind();
+    $('newPctWrap').hidden = k !== 'deposit';
+    $('newAmtWrap').hidden = k !== 'progress';
+    const a = newAmount();
+    const over = picked && a > picked.remaining_to_invoice + 0.004;
+    $('newPreview').className = 'inv-after' + (over ? ' is-error' : '');
+    $('newPreview').textContent = !picked
+      ? ''
+      : over
+        ? `Acima do que falta faturar (${money(picked.remaining_to_invoice)}).`
+        : a > 0
+          ? `Fatura de ${money(a)} · depois disso faltará ${money(Math.max(0, picked.remaining_to_invoice - a))} a faturar.`
+          : '';
+    $('newSubmit').disabled = !picked || !(a > 0) || over;
+  }
+  document.querySelectorAll('input[name="newKind"]').forEach((r) => r.addEventListener('change', syncNew));
+  $('newPct').addEventListener('input', syncNew);
+  $('newAmt').addEventListener('input', syncNew);
+
+  $('newForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!picked) return;
+    const btn = $('newSubmit');
+    btn.disabled = true;
+    btn.textContent = 'Criando…';
+    try {
+      const k = newKind();
+      const r = await api(`/api/quotes/${picked.id}/invoices`, {
+        method: 'POST',
+        body: JSON.stringify({
+          invoice_type: k,
+          deposit_pct: k === 'deposit' ? parseFloat($('newPct').value) : undefined,
+          custom_amount: k === 'progress' ? parseFloat($('newAmt').value) : undefined,
+          due_date: $('newDue').value || null,
+        }),
+      });
+      location.href = `invoice.html?id=${encodeURIComponent(r.data.id)}&new=1`;
+    } catch (err) {
+      $('newError').textContent = err.message;
+      $('newError').hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Criar fatura';
+    }
+  });
+
+  // ---------------------------------------------------------------- boot
   async function boot() {
     try {
-      const s = await api("/api/auth/session");
+      const s = await api('/api/auth/session');
       if (!s.authenticated) {
-        location.href = "/login.html";
+        location.href = '/login.html';
         return;
       }
-      const perms = s.user?.permissions || [];
-      const role = s.user?.role || "";
-      window.__crmPermissionKeys = perms;
-      window.__crmUserRole = role;
-      $("sidebarUserName") && ($("sidebarUserName").textContent = s.user?.name || s.user?.email || "—");
-      $("sidebarUserRole") && ($("sidebarUserRole").textContent = role || "");
-
-      $("btnReload").addEventListener("click", () => loadInvoices().catch((e) => notify(e.message, "error")));
-      $("btnPrevPage").addEventListener("click", () => {
-        if (page > 1) {
-          page -= 1;
-          loadInvoices().catch((e) => notify(e.message, "error"));
-        }
-      });
-      $("btnNextPage").addEventListener("click", () => {
-        page += 1;
-        loadInvoices().catch((e) => notify(e.message, "error"));
-      });
-      $("filterStatus").addEventListener("change", () => {
-        page = 1;
-        loadInvoices().catch((e) => notify(e.message, "error"));
-      });
-      $("filterQ").addEventListener("input", () => {
-        clearTimeout($("filterQ")._t);
-        $("filterQ")._t = setTimeout(() => {
-          page = 1;
-          loadInvoices().catch((e) => notify(e.message, "error"));
-        }, 280);
-      });
-
-      await loadInvoices();
-    } catch (err) {
-      notify(err.message || "Falha ao carregar", "error");
-      // Only bounce to login when session check failed
-      if (/HTTP 401|não autenticado|unauth|session/i.test(String(err.message || ""))) {
-        location.href = "/login.html";
-      } else {
-        const list = $("invoicesTableBody");
-        if (list) {
-          list.innerHTML = `<p class="customers-list-empty">${escapeHtml(err.message || "Erro ao carregar invoices")}</p>`;
-        }
-      }
+      perms = (s.user && s.user.permissions) || [];
+      isAdmin = (s.user && (s.user.role === 'admin' || s.user.roleKey === 'admin')) || false;
+    } catch (_) {
+      /* api() already redirects on 401 */
     }
+    $('btnNewInvoice').hidden = !can('invoices.manage');
+    $('btnNewInvoice').addEventListener('click', openNew);
+    document.querySelectorAll('.inv-tab, .inv-kpi').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+    $('btnPrevPage').addEventListener('click', () => {
+      if (page > 1) {
+        page -= 1;
+        load();
+      }
+    });
+    $('btnNextPage').addEventListener('click', () => {
+      page += 1;
+      load();
+    });
+    let t = null;
+    $('filterQ').addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        page = 1;
+        load();
+      }, 280);
+    });
+    setTab(tab);
+    if (url.get('new') === '1' && can('invoices.manage')) openNew();
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();

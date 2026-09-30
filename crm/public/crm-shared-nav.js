@@ -131,7 +131,7 @@
       {
         label: 'Financeiro',
         items: [
-          { href: 'invoices.html', label: 'Faturas', perm: 'quotes.view', page: 'invoices', iconKey: 'invoices' },
+          { href: 'invoices.html', label: 'Faturas', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
           { href: 'finance.html', label: 'Fluxo de caixa', perm: 'finance.view', page: '', iconKey: 'finance' },
           {
             href: 'payroll-module.html',
@@ -189,7 +189,7 @@
     }
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
-    if (base === 'invoices.html') return file === 'invoices.html';
+    if (base === 'invoices.html') return file === 'invoices.html' || file === 'invoice.html';
     if (base === 'builder-pricing-admin.html') {
       return file === 'builder-pricing-admin.html' || file === 'quote-catalog.html';
     }
