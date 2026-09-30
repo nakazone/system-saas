@@ -11,7 +11,7 @@ import { canViewPricing } from "../../lib/pricing/visibility.js";
 import { email } from "../../lib/email/index.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
-import { buildQuotePdf } from "../../lib/quotes/pdf.js";
+import { buildQuotePdf, pdfLinesFromDbItems } from "../../lib/quotes/pdf.js";
 import { computeNextQuoteNumber, formatQuoteNumber, parseQuoteSettings } from "../../lib/settings/quotes.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
@@ -851,54 +851,46 @@ quotesRouter.get(
         res.status(404).send("Not found");
         return;
       }
-      const docOrg = await prisma.organization.findUniqueOrThrow({
+      const docOrg = (await prisma.organization.findUniqueOrThrow({
         where: { id: req.organizationId! },
-        select: {
-          addressPrivate: true,
-          addressLine1: true,
-          addressLine2: true,
-          city: true,
-          state: true,
-          postalCode: true,
-          showLicenseOnDocuments: true,
-          licenseNumber: true,
-          licenseState: true,
-        },
-      });
+      })) as Record<string, unknown>;
+      const qs = parseQuoteSettings(docOrg.quoteSettings);
       const pdf = await buildQuotePdf({
         organizationName: req.organization!.name,
         organizationContact: [req.organization!.contactEmail, req.organization!.contactPhone]
           .filter(Boolean)
           .join(" · "),
-        organizationAddress: documentAddressLine(docOrg),
-        organizationLicense: documentLicenseLine(docOrg),
+        organizationAddress: documentAddressLine(docOrg as never),
+        organizationLicense: documentLicenseLine(docOrg as never),
         title: quote.title,
-        number: quote.number,
+        number: quote.quoteNumber || quote.number,
         status: quote.status,
+        issueDate: quote.createdAt,
         customerName: quote.customer?.name,
+        customerEmail: quote.customer?.email ?? null,
+        customerPhone: quote.customer?.phone ?? null,
         validUntil: quote.validUntil,
         terms: quote.terms,
         clientMessage: quote.clientMessage,
+        notes: quote.notes,
         rooms: quote.rooms.map((r) => ({ name: r.name, areaSqft: Number(r.areaSqft) })),
         optionGroups: quote.optionGroups.map((g) => ({ id: g.id, name: g.name })),
         selectedOptionGroupId: quote.selectedOptionGroupId,
-        lines: quote.lineItems.map((li) => ({
-          description: li.description,
-          quantity: Number(li.quantity),
-          unit: li.unit,
-          unitPrice: Number(li.unitPrice),
-          amount: Number(li.amount),
-          isOptional: li.isOptional,
-          isSelected: li.isSelected,
-          optionGroupId: li.optionGroupId,
-        })),
+        lines: pdfLinesFromDbItems(quote.lineItems),
         clientView: quote.clientView as never,
         subtotal: Number(quote.subtotal),
         taxTotal: Number(quote.taxTotal),
+        discountType: quote.discountType,
+        discountValue: Number(quote.discountValue),
         total: Number(quote.total),
         signatureUrl: quote.signatureUrl,
         signedByName: quote.signedByName,
         signedAt: quote.signedAt,
+        ownerSignature: {
+          name: qs.owner_signature.name,
+          title: qs.owner_signature.title,
+          imageUrl: qs.owner_signature.image_url,
+        },
       });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(

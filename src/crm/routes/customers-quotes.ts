@@ -18,7 +18,7 @@ import {
   parseQuoteSettings,
 } from "../../lib/settings/quotes.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
-import { buildQuotePdf } from "../../lib/quotes/pdf.js";
+import { buildQuotePdf, pdfLinesFromDbItems } from "../../lib/quotes/pdf.js";
 import { storage } from "../../lib/storage/index.js";
 
 export const customersQuotesRouter = Router();
@@ -66,8 +66,19 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
     tx.quote.findFirst({
       where: { id: quoteId },
       include: {
-        customer: { select: { name: true } },
-        builder: { select: { company: true, firstName: true, lastName: true } },
+        customer: { select: { name: true, email: true, phone: true } },
+        builder: {
+          select: {
+            company: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+        property: {
+          select: { line1: true, line2: true, city: true, state: true, postalCode: true, label: true },
+        },
         lineItems: { orderBy: { sortOrder: "asc" } },
         rooms: { orderBy: { sortOrder: "asc" } },
         optionGroups: { orderBy: { sortOrder: "asc" } },
@@ -78,11 +89,24 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
 
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
   const orgAny = org as Record<string, unknown>;
+  const qs = parseQuoteSettings(orgAny.quoteSettings);
   const builderName = quote.builder
     ? quote.builder.company ||
       [quote.builder.firstName, quote.builder.lastName].filter(Boolean).join(" ").trim()
     : null;
-  const customerName = quote.customer?.name || builderName || null;
+  const isBuilder = Boolean(quote.builderId);
+  const customerName = isBuilder
+    ? builderName || quote.customer?.name || null
+    : quote.customer?.name || builderName || null;
+  const customerEmail =
+    (isBuilder ? quote.builder?.email : null) || quote.customer?.email || null;
+  const customerPhone =
+    (isBuilder ? quote.builder?.phone : null) || quote.customer?.phone || null;
+  const propertyAddress = quote.property
+    ? [quote.property.line1, quote.property.line2, quote.property.city, quote.property.state, quote.property.postalCode]
+        .filter(Boolean)
+        .join(", ")
+    : null;
   const buffer = await buildQuotePdf({
     organizationName: org.name,
     organizationContact: [org.contactEmail, org.contactPhone].filter(Boolean).join(" · "),
@@ -102,30 +126,35 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
     title: quote.title,
     number: quote.quoteNumber || quote.number,
     status: quote.status,
+    issueDate: quote.createdAt,
     customerName,
+    customerEmail,
+    customerPhone,
+    quoteParty: isBuilder ? "builder" : "customer",
+    projectName: quote.property?.label || quote.title,
+    projectAddress: propertyAddress,
     validUntil: quote.validUntil,
     terms: quote.terms,
     clientMessage: quote.clientMessage,
+    notes: quote.notes,
     rooms: (quote.rooms || []).map((r) => ({ name: r.name, areaSqft: Number(r.areaSqft) })),
     optionGroups: (quote.optionGroups || []).map((g) => ({ id: g.id, name: g.name })),
     selectedOptionGroupId: quote.selectedOptionGroupId,
-    lines: (quote.lineItems || []).map((li) => ({
-      description: li.description,
-      quantity: Number(li.quantity),
-      unit: li.unit,
-      unitPrice: Number(li.unitPrice),
-      amount: Number(li.amount),
-      isOptional: li.isOptional,
-      isSelected: li.isSelected,
-      optionGroupId: li.optionGroupId,
-    })),
+    lines: pdfLinesFromDbItems(quote.lineItems || []),
     clientView: quote.clientView as never,
     subtotal: Number(quote.subtotal),
     taxTotal: Number(quote.taxTotal),
+    discountType: quote.discountType,
+    discountValue: Number(quote.discountValue),
     total: Number(quote.total),
     signatureUrl: quote.signatureUrl,
     signedByName: quote.signedByName,
     signedAt: quote.signedAt,
+    ownerSignature: {
+      name: qs.owner_signature.name,
+      title: qs.owner_signature.title,
+      imageUrl: qs.owner_signature.image_url,
+    },
   });
 
   return { buffer, quote, number: quote.quoteNumber || String(quote.number) };
