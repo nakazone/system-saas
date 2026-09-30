@@ -205,6 +205,17 @@
     border-radius: 10px;
   }
 
+  body.quotes-app .customers-row__actions .quotes-row__delete {
+    color: #b91c1c;
+    border-color: #fecaca;
+    flex: 0 0 auto;
+  }
+
+  body.quotes-app .customers-row__actions .quotes-row__delete:hover:not(:disabled) {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
   body.quotes-app .customers-pagination {
     display: flex;
     align-items: center;

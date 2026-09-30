@@ -2,6 +2,7 @@
   let page = 1;
   const LIMIT = 20;
   let canEdit = false;
+  let canDelete = false;
 
   function $(id) {
     return document.getElementById(id);
@@ -160,6 +161,11 @@
           <div class="customers-row__local">${escapeHtml(created)}</div>
           <div class="customers-row__actions">
             <button type="button" class="btn btn-sm btn-secondary" data-open-quote="${escapeHtml(String(q.id))}">Abrir</button>
+            ${
+              canDelete
+                ? `<button type="button" class="btn btn-sm btn-secondary quotes-row__delete" data-delete-quote="${escapeHtml(String(q.id))}" data-delete-label="${escapeHtml(q.quote_number != null ? String(q.quote_number) : String(q.id))}" title="Apagar orçamento">Apagar</button>`
+                : ""
+            }
           </div>
         </article>`;
       })
@@ -185,6 +191,40 @@
         window.location.href = `quote-builder.html?id=${encodeURIComponent(btn.getAttribute("data-open-quote"))}`;
       });
     });
+    list.querySelectorAll("[data-delete-quote]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        void deleteQuote(btn.getAttribute("data-delete-quote"), btn.getAttribute("data-delete-label"), btn);
+      });
+    });
+  }
+
+  async function deleteQuote(id, label, btn) {
+    if (!id || !canDelete) return;
+    const name = label || id;
+    if (
+      !confirm(
+        `Apagar o orçamento ${name}?\n\nEsta ação não pode ser desfeita.`,
+      )
+    ) {
+      return;
+    }
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "…";
+    }
+    try {
+      await api(`/api/quotes/${encodeURIComponent(id)}`, { method: "DELETE" });
+      notify(`Orçamento ${name} apagado.`, "success");
+      await loadQuotes();
+    } catch (err) {
+      notify(err.message || "Não foi possível apagar o orçamento.", "error");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || "Apagar";
+      }
+    }
   }
 
   async function loadOverviewStats(q) {
@@ -230,6 +270,7 @@
       const perms = s.user?.permissions || [];
       const role = s.user?.role || "";
       canEdit = role === "admin" || perms.includes("quotes.edit");
+      canDelete = role === "admin" || perms.includes("quotes.delete");
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
       const sn = $("sidebarUserName");
