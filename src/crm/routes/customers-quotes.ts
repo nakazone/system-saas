@@ -20,6 +20,44 @@ import {
 
 export const customersQuotesRouter = Router();
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function asOptionalUuid(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const s = String(value).trim();
+  return UUID_RE.test(s) ? s : null;
+}
+
+function lineItemUnitPrice(it: {
+  unit_price?: unknown;
+  rate?: unknown;
+  sell_price?: unknown;
+}): number {
+  const n = Number(it.unit_price ?? it.rate ?? it.sell_price);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function lineItemDescription(it: {
+  name?: unknown;
+  description?: unknown;
+}): string {
+  const name = it.name != null ? String(it.name).trim() : "";
+  const desc = it.description != null ? String(it.description).trim() : "";
+  if (name && desc) return `${name}\n${desc}`;
+  return name || desc || "Item";
+}
+
+function lineItemAmount(
+  it: { amount?: unknown; quantity?: unknown; unit_price?: unknown; rate?: unknown; sell_price?: unknown },
+  qty: number,
+  unitPrice: number,
+): number {
+  const explicit = Number(it.amount);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  return Math.round(qty * unitPrice * 100) / 100;
+}
+
 function mapProperty(p: {
   id: string;
   customerId: string;
@@ -785,18 +823,24 @@ customersQuotesRouter.post(
         const bodyTerms = termsFromBody(body);
         const bodyValidUntil = parseDateInput(body.expiration_date);
         const subtotal = items.reduce(
-          (s: number, it: { amount?: number; quantity?: number; unit_price?: number }) =>
-            s + (Number(it.amount) || Number(it.quantity || 0) * Number(it.unit_price || 0)),
+          (s: number, it: { amount?: number; quantity?: number; unit_price?: number; rate?: number; sell_price?: number }) => {
+            const qty = Number(it.quantity) || 0;
+            const unitPrice = lineItemUnitPrice(it);
+            return s + lineItemAmount(it, qty, unitPrice);
+          },
           0,
         );
         const tax = Number(body.tax_total || body.tax || 0);
         const total = Number(body.total != null ? body.total : subtotal + tax);
+        const customerId = asOptionalUuid(body.customer_id);
+        const leadId = asOptionalUuid(body.lead_id);
+        const builderId = asOptionalUuid(body.builder_id);
         const quote = await tx.quote.create({
           data: {
             organizationId: req.organizationId!,
             number,
             quoteNumber: body.quote_number || formatQuoteNumber(defaults.quoteNumberPrefix, number),
-            title: String(body.title || body.service_type || `Quote ${number}`),
+            title: String(body.title || body.job_name || body.service_type || `Quote ${number}`),
             validUntil: bodyValidUntil ?? defaultValidUntil(defaults.quoteValidityDays),
             clientView: defaults.clientView as Prisma.InputJsonValue,
             taxRate: defaults.quoteTaxRate,
@@ -814,32 +858,36 @@ customersQuotesRouter.post(
             notes: body.notes || null,
             terms: bodyTerms !== undefined ? bodyTerms : defaults.defaultQuoteTerms || null,
             serviceType: body.service_type || null,
-            customerId: body.customer_id || null,
-            leadId: body.lead_id || null,
-            builderId: body.builder_id || null,
+            customerId,
+            leadId,
+            builderId,
             publicToken: randomBytes(16).toString("hex"),
             payload: body,
             lineItems: {
               create: items.map(
                 (
                   it: {
+                    name?: string;
                     description?: string;
                     quantity?: number;
                     unit?: string;
+                    unit_type?: string;
                     unit_price?: number;
+                    rate?: number;
+                    sell_price?: number;
                     amount?: number;
                     item_type?: string;
                   },
                   idx: number,
                 ) => {
                   const qty = Number(it.quantity) || 0;
-                  const unitPrice = Number(it.unit_price) || 0;
-                  const amount = Number(it.amount) || qty * unitPrice;
+                  const unitPrice = lineItemUnitPrice(it);
+                  const amount = lineItemAmount(it, qty, unitPrice);
                   return {
                     organizationId: req.organizationId!,
-                    description: String(it.description || "Item"),
+                    description: lineItemDescription(it),
                     quantity: new Prisma.Decimal(qty),
-                    unit: String(it.unit || "sqft"),
+                    unit: String(it.unit || it.unit_type || "sq_ft"),
                     unitPrice: new Prisma.Decimal(unitPrice),
                     amount: new Prisma.Decimal(amount),
                     itemType: String(it.item_type || "service"),
@@ -884,8 +932,11 @@ customersQuotesRouter.put(
         let tax = dec(existing.taxTotal);
         if (items) {
           subtotal = items.reduce(
-            (s: number, it: { amount?: number; quantity?: number; unit_price?: number }) =>
-              s + (Number(it.amount) || Number(it.quantity || 0) * Number(it.unit_price || 0)),
+            (s: number, it: { amount?: number; quantity?: number; unit_price?: number; rate?: number; sell_price?: number }) => {
+              const qty = Number(it.quantity) || 0;
+              const unitPrice = lineItemUnitPrice(it);
+              return s + lineItemAmount(it, qty, unitPrice);
+            },
             0,
           );
           tax = Number(body.tax_total != null ? body.tax_total : tax);
@@ -895,24 +946,28 @@ customersQuotesRouter.put(
             data: items.map(
               (
                 it: {
+                  name?: string;
                   description?: string;
                   quantity?: number;
                   unit?: string;
+                  unit_type?: string;
                   unit_price?: number;
+                  rate?: number;
+                  sell_price?: number;
                   amount?: number;
                   item_type?: string;
                 },
                 idx: number,
               ) => {
                 const qty = Number(it.quantity) || 0;
-                const unitPrice = Number(it.unit_price) || 0;
-                const amount = Number(it.amount) || qty * unitPrice;
+                const unitPrice = lineItemUnitPrice(it);
+                const amount = lineItemAmount(it, qty, unitPrice);
                 return {
                   organizationId: req.organizationId!,
                   quoteId: id,
-                  description: String(it.description || "Item"),
+                  description: lineItemDescription(it),
                   quantity: new Prisma.Decimal(qty),
-                  unit: String(it.unit || "sqft"),
+                  unit: String(it.unit || it.unit_type || "sq_ft"),
                   unitPrice: new Prisma.Decimal(unitPrice),
                   amount: new Prisma.Decimal(amount),
                   itemType: String(it.item_type || "service"),
@@ -925,16 +980,16 @@ customersQuotesRouter.put(
         const updated = await tx.quote.update({
           where: { id },
           data: {
-            title: body.title !== undefined ? String(body.title) : undefined,
+            title: body.title !== undefined ? String(body.title) : body.job_name !== undefined ? String(body.job_name || existing.title) : undefined,
             status: body.status !== undefined ? String(body.status) : undefined,
             flooringType: body.flooring_type !== undefined ? String(body.flooring_type) : undefined,
             notes: body.notes !== undefined ? body.notes : undefined,
             terms: termsFromBody(body),
             validUntil: parseDateInput(body.expiration_date),
             serviceType: body.service_type !== undefined ? body.service_type : undefined,
-            customerId: body.customer_id !== undefined ? body.customer_id || null : undefined,
-            leadId: body.lead_id !== undefined ? body.lead_id || null : undefined,
-            builderId: body.builder_id !== undefined ? body.builder_id || null : undefined,
+            customerId: body.customer_id !== undefined ? asOptionalUuid(body.customer_id) : undefined,
+            leadId: body.lead_id !== undefined ? asOptionalUuid(body.lead_id) : undefined,
+            builderId: body.builder_id !== undefined ? asOptionalUuid(body.builder_id) : undefined,
             subtotal: new Prisma.Decimal(subtotal),
             taxTotal: new Prisma.Decimal(tax),
             total: new Prisma.Decimal(total),

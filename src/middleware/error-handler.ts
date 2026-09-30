@@ -12,11 +12,13 @@ export function errorHandler(
   }
 
   const anyErr = err as { status?: number; statusCode?: number; type?: string; message?: string };
+  // Only treat real body-parser / HTTP 413 oversize as upload errors.
+  // Do NOT match the word "payload" — Prisma errors often include a `payload` field name.
   const isPayload =
     anyErr?.type === "entity.too.large" ||
     anyErr?.status === 413 ||
     anyErr?.statusCode === 413 ||
-    /too large|payload/i.test(String(anyErr?.message || ""));
+    /request entity too large|entity\.too\.large/i.test(String(anyErr?.message || ""));
 
   const status = isPayload
     ? 413
@@ -27,7 +29,7 @@ export function errorHandler(
         : 500;
 
   const message = isPayload
-    ? "Image too large. Try a smaller photo."
+    ? "Ficheiro ou pedido demasiado grande. Tente uma imagem mais pequena."
     : err instanceof Error
       ? err.message
       : "Unexpected error";

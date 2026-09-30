@@ -3699,18 +3699,24 @@
     const party = getQuoteParty();
     let lead_id = null;
     if (party === 'lead') {
-      if (selectedQuoteLead && selectedQuoteLead.id != null) lead_id = Number(selectedQuoteLead.id);
-      else if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId)) lead_id = loadedQuoteLeadId;
-      else if (pendingLeadId != null && Number.isFinite(pendingLeadId)) lead_id = pendingLeadId;
+      if (selectedQuoteLead && selectedQuoteLead.id != null) lead_id = String(selectedQuoteLead.id);
+      else if (loadedQuoteLeadId != null && loadedQuoteLeadId !== '') lead_id = String(loadedQuoteLeadId);
+      else if (pendingLeadId != null && pendingLeadId !== '') lead_id = String(pendingLeadId);
     }
-    const builder_id =
-      party === 'builder' ? parseInt($('quoteBuilderSelect')?.value, 10) || null : null;
-    const jobName = party === 'builder' ? String($('quoteJobName')?.value || '').trim() : '';
-    const jobAddr = party === 'builder' ? String($('quoteJobAddress')?.value || '').trim() : '';
+    const builderRaw = party === 'builder' ? String($('quoteBuilderSelect')?.value || '').trim() : '';
+    const jobName =
+      party === 'builder' || party === 'contractor' || party === 'loja'
+        ? String($('quoteJobName')?.value || '').trim()
+        : '';
+    const jobAddr =
+      party === 'builder' || party === 'contractor' || party === 'loja'
+        ? String($('quoteJobAddress')?.value || '').trim()
+        : '';
+    const customerRaw = String($('customerId')?.value || '').trim();
     const base = {
-      customer_id: parseInt($('customerId').value, 10) || null,
+      customer_id: customerRaw || null,
       quote_party: party,
-      builder_id: Number.isFinite(builder_id) && builder_id > 0 ? builder_id : null,
+      builder_id: builderRaw || null,
       job_name: jobName || null,
       job_address: jobAddr || null,
       status: $('status').value,
@@ -3728,11 +3734,12 @@
         unit_type: it.unit_type || 'sq_ft',
         quantity: Number(it.quantity) || 0,
         rate: Number(it.rate) || 0,
+        unit_price: Number(it.rate) || 0,
         notes: it.notes || null,
         service_type: it.item_type === 'product' ? null : normalizeServiceType(it.service_type),
         catalog_customer_notes: it.catalog_customer_notes || null,
         service_catalog_id: normalizeCatalogId(it.service_catalog_id),
-        product_id: it.product_id != null ? Number(it.product_id) : null,
+        product_id: it.product_id != null ? String(it.product_id) : null,
         cost_price: it.cost_price != null ? Number(it.cost_price) : null,
         markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
         sell_price: it.sell_price != null ? Number(it.sell_price) : Number(it.rate) || null,
