@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#211d1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ObraMate" />
+  <title>Configurações — ObraMate</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="stylesheet" href="styles.css?v=20260922-branding" />
+  <link rel="stylesheet" href="design-system.css?v=20260922-branding" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260930-maismob1" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20260922-branding" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=20260924-shell" />
+  <link rel="stylesheet" href="crm-toast.css" />
+  <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa" />
+  <link rel="stylesheet" href="crm-push.css?v=20260923-push" />
+  <link rel="stylesheet" href="configuracoes.css?v=20260930-cfg1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="dashboard-app-body cfg-body">
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <a href="dashboard.html">
+          <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
+        </a>
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="dashboard-main">
+      <div class="dashboard-content">
+        <div class="cfg" id="cfg" data-view="index">
+          <!-- ============ Sub-navigation ============ -->
+          <nav class="cfg-nav" id="cfgNav" aria-label="Configurações">
+            <h1 class="cfg-nav__title">Configurações</h1>
+            <div class="cfg-search" role="search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+              <input type="search" id="cfgSearch" placeholder="Buscar configuração…" aria-label="Buscar configuração" autocomplete="off" />
+            </div>
+            <div id="cfgSearchResults" class="cfg-search-results" hidden></div>
+            <div id="cfgNavGroups" class="cfg-nav__groups"></div>
+          </nav>
+
+          <!-- ============ Content ============ -->
+          <div class="cfg-main" id="cfgMain">
+            <a href="#" class="cfg-back" id="cfgBack">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+              Configurações
+            </a>
+
+            <!-- ---------- Visão geral ---------- -->
+            <section class="cfg-section" data-section="visao-geral" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Visão geral</h2>
+                <p class="cfg-lead">Tudo o que a sua empresa pode ajustar no ObraMate, num lugar só.</p>
+              </header>
+              <div id="cfgAlerts"></div>
+              <article class="cfg-card cfg-setup" id="cfgSetup">
+                <div class="cfg-setup__score">
+                  <h3 class="cfg-card__title">Configuração da empresa</h3>
+                  <p class="cfg-setup__num"><span id="cfgSetupDone">–</span> <small>de <span id="cfgSetupTotal">–</span></small></p>
+                  <div class="cfg-progress" role="progressbar" aria-label="Progresso da configuração" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="cfgSetupBar"></span></div>
+                  <p class="cfg-hint" id="cfgSetupHint">Complete estes passos para mandar orçamentos com a cara da sua empresa.</p>
+                </div>
+                <ul class="cfg-setup__steps" id="cfgSetupSteps"><li class="cfg-skeleton"></li><li class="cfg-skeleton"></li><li class="cfg-skeleton"></li><li class="cfg-skeleton"></li></ul>
+              </article>
+              <div class="cfg-groups" id="cfgGroupCards"></div>
+            </section>
+
+            <!-- ---------- Dados da empresa ---------- -->
+            <section class="cfg-section" data-section="empresa" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Dados da empresa</h2>
+                <p class="cfg-lead">Aparecem nos orçamentos, no link que o cliente abre e nos PDFs.</p>
+              </header>
+              <form id="companyForm" class="cfg-form" novalidate autocomplete="off" data-form="empresa">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Identificação</h3>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field"><label for="f_name">Nome da empresa</label><input id="f_name" data-key="name" maxlength="120" required /></div>
+                    <div class="cfg-field"><label for="f_legal_name">Razão social <span class="cfg-opt">(opcional)</span></label><input id="f_legal_name" data-key="legal_name" maxlength="160" placeholder="Ex.: Naka Flooring LLC" /></div>
+                  </div>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field"><label for="f_contact_phone">Telefone</label><input id="f_contact_phone" data-key="contact_phone" type="tel" inputmode="tel" maxlength="40" placeholder="(303) 555-0142" /></div>
+                    <div class="cfg-field"><label for="f_contact_email">E-mail</label><input id="f_contact_email" data-key="contact_email" type="email" inputmode="email" maxlength="200" placeholder="contato@suaempresa.com" /></div>
+                  </div>
+                  <div class="cfg-field"><label for="f_website">Site</label><input id="f_website" data-key="website" inputmode="url" maxlength="500" placeholder="suaempresa.com" /></div>
+                </article>
+
+                <article class="cfg-card">
+                  <div class="cfg-card__head">
+                    <div>
+                      <h3 class="cfg-card__title">Endereço</h3>
+                      <p class="cfg-card__desc">Sai no cabeçalho do orçamento e do PDF.</p>
+                    </div>
+                  </div>
+                  <div class="cfg-field"><label for="f_address_line1">Rua e número</label><input id="f_address_line1" data-key="address_line1" maxlength="200" placeholder="Comece a digitar e escolha na lista" /></div>
+                  <div class="cfg-field"><label for="f_address_line2">Complemento</label><input id="f_address_line2" data-key="address_line2" maxlength="200" placeholder="Sala, unidade…" /></div>
+                  <div class="cfg-grid3">
+                    <div class="cfg-field"><label for="f_city">Cidade</label><input id="f_city" data-key="city" maxlength="120" /></div>
+                    <div class="cfg-field"><label for="f_state">Estado</label><select id="f_state" data-key="state"></select></div>
+                    <div class="cfg-field"><label for="f_postal_code">ZIP</label><input id="f_postal_code" data-key="postal_code" maxlength="10" inputmode="numeric" /></div>
+                  </div>
+                  <div class="cfg-row">
+                    <a class="btn btn-secondary cfg-btn-sm" id="btnMap" href="#" target="_blank" rel="noopener" aria-disabled="true">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 1114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                      Ver no mapa
+                    </a>
+                    <span class="cfg-hint">País: Estados Unidos</span>
+                  </div>
+                  <label class="cfg-check">
+                    <input type="checkbox" id="f_address_private" data-key="address_private" />
+                    <span><strong>Manter endereço privado</strong><br /><span class="cfg-hint">Não aparece no link do orçamento nem no PDF.</span></span>
+                  </label>
+                </article>
+
+                <article class="cfg-card">
+                  <div class="cfg-card__head">
+                    <div>
+                      <h3 class="cfg-card__title">Licença e seguro</h3>
+                      <p class="cfg-card__desc">Muitos clientes e builders pedem antes de fechar. Avisamos na Visão geral 30 dias antes de vencer.</p>
+                    </div>
+                  </div>
+                  <div class="cfg-grid3">
+                    <div class="cfg-field"><label for="f_license_number">Nº da licença</label><input id="f_license_number" data-key="license_number" maxlength="60" placeholder="Ex.: 123456" /></div>
+                    <div class="cfg-field"><label for="f_license_state">Estado da licença</label><select id="f_license_state" data-key="license_state"></select></div>
+                    <div class="cfg-field"><label for="f_license_expires_on">Validade</label><input id="f_license_expires_on" data-key="license_expires_on" type="date" /></div>
+                  </div>
+                  <label class="cfg-check">
+                    <input type="checkbox" id="f_show_license_on_documents" data-key="show_license_on_documents" />
+                    <span>Mostrar o nº da licença no orçamento e no PDF</span>
+                  </label>
+                  <div class="cfg-grid3">
+                    <div class="cfg-field"><label for="f_insurance_carrier">Seguradora</label><input id="f_insurance_carrier" data-key="insurance_carrier" maxlength="120" placeholder="Ex.: State Farm" /></div>
+                    <div class="cfg-field"><label for="f_insurance_policy">Nº da apólice</label><input id="f_insurance_policy" data-key="insurance_policy" maxlength="80" /></div>
+                    <div class="cfg-field"><label for="f_insurance_expires_on">Validade do seguro</label><input id="f_insurance_expires_on" data-key="insurance_expires_on" type="date" /></div>
+                  </div>
+                  <div class="cfg-file" id="certBox">
+                    <div class="cfg-file__info">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg>
+                      <span id="certLabel">Nenhum certificado anexado</span>
+                    </div>
+                    <div class="cfg-row">
+                      <a class="btn btn-secondary cfg-btn-sm" id="certView" href="#" target="_blank" rel="noopener" hidden>Abrir</a>
+                      <label class="btn btn-secondary cfg-btn-sm" for="certFile" id="certPick">Anexar certificado</label>
+                      <input type="file" id="certFile" accept="application/pdf,image/png,image/jpeg,image/webp" hidden />
+                      <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" id="certRemove" hidden>Remover</button>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="cfg-card">
+                  <div class="cfg-card__head">
+                    <div>
+                      <h3 class="cfg-card__title">Horário de funcionamento</h3>
+                      <p class="cfg-card__desc">Referência para a equipe e para sugerir horários de visita.</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnCopyMonday">Copiar segunda para todos</button>
+                  </div>
+                  <div class="cfg-hours" id="hoursRows"></div>
+                </article>
+
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Regional</h3>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field"><label for="f_timezone">Fuso horário</label><select id="f_timezone" data-key="timezone"></select></div>
+                    <div class="cfg-field"><label for="f_default_locale">Idioma padrão da equipe</label>
+                      <select id="f_default_locale" data-key="default_locale">
+                        <option value="pt-BR">Português (Brasil)</option>
+                        <option value="en">English</option>
+                        <option value="es">Español</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field"><label for="f_area_unit">Unidade de área</label>
+                      <select id="f_area_unit" data-key="area_unit">
+                        <option value="sq_ft">Pé quadrado (sq ft)</option>
+                        <option value="m2">Metro quadrado (m²)</option>
+                      </select>
+                    </div>
+                    <div class="cfg-field"><label for="f_week_start">Semana começa</label>
+                      <select id="f_week_start" data-key="week_start">
+                        <option value="monday">Segunda-feira</option>
+                        <option value="sunday">Domingo</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p class="cfg-hint">O fuso define a hora das visitas e dos lembretes. Cada pessoa ainda pode escolher o próprio idioma no menu da conta.</p>
+                </article>
+
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Avaliações</h3>
+                  <p class="cfg-card__desc">Vai junto do pedido de avaliação quando um job é concluído.</p>
+                  <div class="cfg-inline">
+                    <div class="cfg-field cfg-grow"><label for="f_google_review_url">Link de avaliação no Google</label><input id="f_google_review_url" data-key="google_review_url" inputmode="url" maxlength="500" placeholder="https://g.page/r/…" /></div>
+                    <a class="btn btn-secondary cfg-btn-sm" id="btnTestReview" href="#" target="_blank" rel="noopener" aria-disabled="true">Testar link</a>
+                  </div>
+                </article>
+              </form>
+            </section>
+
+            <!-- ---------- Marca e aparência ---------- -->
+            <section class="cfg-section" data-section="marca" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Marca e aparência</h2>
+                <p class="cfg-lead">O logo e as cores da sua empresa no sistema e no link que o cliente abre.</p>
+              </header>
+              <div class="cfg-brand" data-form="marca">
+                <div class="cfg-brand__controls">
+                  <article class="cfg-card">
+                    <h3 class="cfg-card__title">Logo</h3>
+                    <p class="cfg-card__desc">PNG, JPG ou WebP até 2,5 MB. Fundo transparente fica melhor.</p>
+                    <label class="cfg-drop" id="logoDrop" for="logoFile">
+                      <img id="logoImg" alt="Logo da empresa" hidden />
+                      <span class="cfg-drop__empty" id="logoEmpty">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/></svg>
+                        <span>Arraste o logo aqui ou <u>escolha um arquivo</u></span>
+                      </span>
+                    </label>
+                    <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+                    <div class="cfg-row">
+                      <label class="btn btn-secondary cfg-btn-sm" for="logoFile">Trocar logo</label>
+                      <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" id="btnClearLogo">Remover</button>
+                    </div>
+                  </article>
+
+                  <article class="cfg-card">
+                    <h3 class="cfg-card__title">Cores</h3>
+                    <p class="cfg-card__desc">Escolha um conjunto pronto ou use as cores da sua marca.</p>
+                    <div class="cfg-presets" id="brandPresets" role="radiogroup" aria-label="Conjuntos de cores"></div>
+                    <div class="cfg-grid2">
+                      <div class="cfg-field cfg-color">
+                        <label for="primaryColor">Cor principal · menu e cabeçalhos</label>
+                        <div class="cfg-color__row">
+                          <input type="color" id="primaryColorPicker" aria-label="Escolher cor principal" />
+                          <input id="primaryColor" maxlength="7" spellcheck="false" />
+                        </div>
+                      </div>
+                      <div class="cfg-field cfg-color">
+                        <label for="accentColor">Cor de destaque · botões e links</label>
+                        <div class="cfg-color__row">
+                          <input type="color" id="accentColorPicker" aria-label="Escolher cor de destaque" />
+                          <input id="accentColor" maxlength="7" spellcheck="false" />
+                        </div>
+                      </div>
+                    </div>
+                    <p class="cfg-warn" id="contrastWarn" hidden>Texto branco sobre esta cor de destaque fica difícil de ler nos botões. Escolha um tom mais escuro.</p>
+                    <div class="cfg-row cfg-row--between">
+                      <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" id="btnResetBrand">Voltar às cores do ObraMate</button>
+                    </div>
+                  </article>
+                </div>
+
+                <aside class="cfg-card cfg-preview" aria-label="Prévia">
+                  <h3 class="cfg-card__title">Prévia</h3>
+                  <div class="cfg-pv-app">
+                    <div class="cfg-pv-app__side">
+                      <span class="cfg-pv-dot"></span>
+                      <span class="cfg-pv-line" style="width:80%"></span>
+                      <span class="cfg-pv-line" style="width:60%"></span>
+                      <span class="cfg-pv-line" style="width:70%"></span>
+                    </div>
+                    <div class="cfg-pv-app__body">
+                      <strong>Orçamento Q-1043</strong>
+                      <span class="cfg-pv-bar"></span>
+                      <span class="cfg-pv-bar" style="width:60%"></span>
+                      <span class="cfg-pv-btn">Enviar ao cliente</span>
+                    </div>
+                  </div>
+                  <div class="cfg-pv-doc">
+                    <div class="cfg-pv-doc__head">
+                      <img id="pvLogo" alt="" hidden />
+                      <span id="pvName">Sua empresa</span>
+                      <span class="cfg-pv-doc__tag">ORÇAMENTO</span>
+                    </div>
+                    <div class="cfg-pv-doc__body">
+                      <span class="cfg-pv-bar"></span>
+                      <span class="cfg-pv-bar" style="width:75%"></span>
+                      <span class="cfg-pv-link">Ver e aprovar online →</span>
+                    </div>
+                  </div>
+                  <p class="cfg-hint">Menu lateral, botões e o link do orçamento que o cliente abre.</p>
+                </aside>
+              </div>
+            </section>
+
+            <!-- ---------- App e notificações ---------- -->
+            <section class="cfg-section" data-section="app" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">App e alertas</h2>
+                <p class="cfg-lead">Use o ObraMate como aplicativo e receba avisos neste dispositivo.</p>
+              </header>
+              <article class="cfg-card">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Instalar no dispositivo</h3>
+                    <p class="cfg-card__desc">Na tela inicial do celular, tablet ou computador, sem App Store ou Google Play.</p>
+                  </div>
+                  <button type="button" class="btn btn-primary cfg-btn-sm" data-crm-pwa-install>Instalar app</button>
+                </div>
+                <p class="cfg-hint" id="pwaInstalledNote" hidden>O app já está instalado neste dispositivo.</p>
+              </article>
+              <article class="cfg-card">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Alertas neste dispositivo</h3>
+                    <p class="cfg-card__desc" data-crm-push-status>Receba avisos de novos leads mesmo com o app fechado (no iPhone, use o app instalado na Tela de Início).</p>
+                  </div>
+                  <button type="button" class="btn btn-primary cfg-btn-sm" data-crm-push-enable data-label-off="Ativar alertas" data-label-on="Desativar alertas">Ativar alertas</button>
+                </div>
+              </article>
+            </section>
+
+            <!-- ---------- Suporte ---------- -->
+            <section class="cfg-section" data-section="suporte" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Ajuda e suporte</h2>
+                <p class="cfg-lead">Dúvidas, sugestões ou problemas direto para a equipe ObraMate. Respondemos pelo e-mail da sua conta.</p>
+              </header>
+              <form id="supportForm" class="cfg-card" autocomplete="off">
+                <div class="cfg-grid2">
+                  <div class="cfg-field"><label for="supportCategory">Tipo</label>
+                    <select id="supportCategory" name="category">
+                      <option value="question">Dúvida</option>
+                      <option value="suggestion">Sugestão</option>
+                      <option value="bug">Problema / bug</option>
+                      <option value="other">Outro</option>
+                    </select>
+                  </div>
+                  <div class="cfg-field"><label for="supportSubject">Assunto</label><input id="supportSubject" name="subject" required maxlength="160" placeholder="Ex.: Como exportar orçamentos?" /></div>
+                </div>
+                <div class="cfg-field"><label for="supportBody">Mensagem</label><textarea id="supportBody" name="body" rows="5" required maxlength="8000" placeholder="Descreva com o máximo de detalhe possível…"></textarea></div>
+                <div class="cfg-row cfg-row--end"><button type="submit" class="btn btn-primary" id="btnSendSupport">Enviar mensagem</button></div>
+              </form>
+              <article class="cfg-card" id="supportHistory" hidden>
+                <h3 class="cfg-card__title">Suas mensagens recentes</h3>
+                <div id="supportHistoryList"></div>
+              </article>
+            </section>
+
+            <!-- ---------- Sem acesso ---------- -->
+            <section class="cfg-section" data-section="sem-acesso" hidden>
+              <div class="cfg-empty">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
+                <h2>Só administradores alteram esta área</h2>
+                <p>Peça a um administrador da sua empresa para fazer a mudança ou liberar o acesso no seu cargo.</p>
+                <a class="btn btn-secondary" href="#visao-geral">Voltar à visão geral</a>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Unsaved-changes bar -->
+  <div class="cfg-savebar" id="cfgSavebar" role="region" aria-label="Alterações não salvas" hidden>
+    <span id="cfgSavebarText">Você tem alterações não salvas</span>
+    <button type="button" class="btn cfg-savebar__discard" id="cfgDiscard">Descartar</button>
+    <button type="button" class="btn btn-primary" id="cfgSave">Salvar alterações</button>
+  </div>
+
+  <!-- Leave-with-changes dialog -->
+  <div class="cfg-modal" id="cfgLeaveModal" role="dialog" aria-modal="true" aria-labelledby="cfgLeaveTitle" hidden>
+    <div class="cfg-modal__scrim" data-close></div>
+    <div class="cfg-modal__box">
+      <h3 id="cfgLeaveTitle">Sair sem salvar?</h3>
+      <p>As alterações desta página serão perdidas.</p>
+      <div class="cfg-row cfg-row--end">
+        <button type="button" class="btn btn-secondary" data-close>Continuar editando</button>
+        <button type="button" class="btn btn-primary" id="cfgLeaveConfirm">Descartar e sair</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="crm-shell.js?v=20260930-maismob2"></script>
+  <script src="crm-shared-nav.js?v=20260930-cfg1"></script>
+  <script src="crm-toast.js"></script>
+  <script src="crm-pwa-install.js?v=20260923-pwa"></script>
+  <script src="crm-push.js?v=20260923-push"></script>
+  <script src="crm-address-autocomplete.js"></script>
+  <script src="configuracoes.js?v=20260930-cfg1"></script>
+</body>
+</html>

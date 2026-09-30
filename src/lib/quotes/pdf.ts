@@ -3,6 +3,9 @@ import PDFDocument from "pdfkit";
 export type QuotePdfInput = {
   organizationName: string;
   organizationContact?: string | null;
+  /** Street address line (omitted when the company keeps it private). */
+  organizationAddress?: string | null;
+  organizationLicense?: string | null;
   title: string;
   number: number | string;
   status: string;
@@ -60,6 +63,12 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     doc.fontSize(18).text(input.organizationName, { continued: false });
     if (input.organizationContact) {
       doc.fontSize(10).fillColor("#555").text(input.organizationContact);
+    }
+    if (input.organizationAddress) {
+      doc.fontSize(10).fillColor("#555").text(input.organizationAddress);
+    }
+    if (input.organizationLicense) {
+      doc.fontSize(9).fillColor("#555").text(input.organizationLicense);
     }
     doc.moveDown();
     doc.fillColor("#000").fontSize(14).text(`Quote #${input.number} — ${input.title}`);

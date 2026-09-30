@@ -11,6 +11,7 @@ import { email } from "../../lib/email/index.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { buildQuotePdf } from "../../lib/quotes/pdf.js";
+import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { runScheduleTriggers, seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
 import {
@@ -845,11 +846,27 @@ quotesRouter.get(
         res.status(404).send("Not found");
         return;
       }
+      const docOrg = await prisma.organization.findUniqueOrThrow({
+        where: { id: req.organizationId! },
+        select: {
+          addressPrivate: true,
+          addressLine1: true,
+          addressLine2: true,
+          city: true,
+          state: true,
+          postalCode: true,
+          showLicenseOnDocuments: true,
+          licenseNumber: true,
+          licenseState: true,
+        },
+      });
       const pdf = await buildQuotePdf({
         organizationName: req.organization!.name,
         organizationContact: [req.organization!.contactEmail, req.organization!.contactPhone]
           .filter(Boolean)
           .join(" · "),
+        organizationAddress: documentAddressLine(docOrg),
+        organizationLicense: documentLicenseLine(docOrg),
         title: quote.title,
         number: quote.number,
         status: quote.status,

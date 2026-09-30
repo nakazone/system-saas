@@ -56,6 +56,12 @@
       <% if (organization.contactEmail || organization.contactPhone) { %>
         <p class="muted"><%= [organization.contactEmail, organization.contactPhone].filter(Boolean).join(' · ') %></p>
       <% } %>
+      <% if (typeof organizationAddress !== 'undefined' && organizationAddress) { %>
+        <p class="muted"><%= organizationAddress %></p>
+      <% } %>
+      <% if (typeof organizationLicense !== 'undefined' && organizationLicense) { %>
+        <p class="muted"><%= organizationLicense %></p>
+      <% } %>
       <% if (quote.validUntil) { %>
         <p><strong>Valid until:</strong> <%= quote.validUntil.toISOString().slice(0,10) %></p>
       <% } %>

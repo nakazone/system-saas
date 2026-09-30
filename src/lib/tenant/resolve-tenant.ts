@@ -224,6 +224,7 @@ export async function resolveTenant(
       req.path === "/payroll-module.html" ||
       req.path === "/builder-pricing-admin.html" ||
       req.path === "/ajustes.html" ||
+      req.path === "/configuracoes.html" ||
       req.path === "/products-erp.html" ||
       req.path === "/quote-catalog.html" ||
       req.path === "/quote-builder.html"

@@ -20,7 +20,7 @@
       "</button>" +
       "</div>" +
       '<div class="crm-help-panel__body">' +
-      '<a class="crm-help-panel__cta" href="ajustes.html#suporte">' +
+      '<a class="crm-help-panel__cta" href="configuracoes.html#suporte">' +
       "<strong>Visit Help Center</strong>" +
       "<span>Browse guides or send a message to our team</span>" +
       "</a>" +
@@ -50,7 +50,7 @@
       '<div class="crm-help-panel__contact">' +
       "<h3>Get Support</h3>" +
       '<p>Email us at <a href="mailto:support@obramate.com">support@obramate.com</a> or open a ticket inside the app.</p>' +
-      '<a class="crm-help-panel__btn" href="ajustes.html#suporte">Contact support</a>' +
+      '<a class="crm-help-panel__btn" href="configuracoes.html#suporte">Contact support</a>' +
       "</div>" +
       '<div class="crm-help-panel__footer">' +
       '<a href="/pricing">Terms of Service</a>' +

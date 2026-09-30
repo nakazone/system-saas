@@ -13,6 +13,7 @@ import {
   tokenNeedsLightVerify,
 } from "../../lib/quotes/public-token.js";
 import { buildQuotePdf } from "../../lib/quotes/pdf.js";
+import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
 import { persistQuoteTotals, quoteDetailInclude, recomputeTotalsFromQuote } from "./service.js";
 import { applyQuoteTransition } from "./service.js";
@@ -44,6 +45,15 @@ async function loadPublicQuote(organizationId: string, quoteId: string, tokenId:
             contactEmail: true,
             contactPhone: true,
             paymentInstructions: true,
+            addressPrivate: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            showLicenseOnDocuments: true,
+            licenseNumber: true,
+            licenseState: true,
           },
         },
       },
@@ -135,6 +145,8 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
     res.render("quotes/public", {
       title: quote.title,
       organization: quote.organization,
+      organizationAddress: documentAddressLine(quote.organization),
+      organizationLicense: documentLicenseLine(quote.organization),
       quote,
       token,
       clientView: clientViewFlags(quote.clientView),
@@ -468,6 +480,8 @@ publicQuotesRouter.get("/quotes/:token/pdf", async (req, res, next) => {
     const pdf = await buildQuotePdf({
       organizationName: org.name,
       organizationContact: [org.contactEmail, org.contactPhone].filter(Boolean).join(" · "),
+      organizationAddress: documentAddressLine(org),
+      organizationLicense: documentLicenseLine(org),
       title: quote.title,
       number: quote.number,
       status: quote.status,

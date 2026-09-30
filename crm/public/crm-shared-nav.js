@@ -200,7 +200,7 @@
     if (base === 'jobs.html') return file === 'jobs.html' || file === 'job-detail.html';
     if (base === 'chat.html') return file === 'chat.html';
     if (base === 'job-media-board.html') return file === 'job-media-board.html';
-    if (base === 'ajustes.html') return file === 'ajustes.html';
+    if (base === 'configuracoes.html') return file === 'configuracoes.html';
     if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
       if (file === 'home.html' && !(item.page || '')) return true;
       if (file === 'pipeline-lab.html' && item.page === 'pipeline') return true;

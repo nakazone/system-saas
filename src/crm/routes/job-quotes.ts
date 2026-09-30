@@ -501,13 +501,14 @@ jobQuotesRouter.get(
       const jobId = String(req.params.id);
       const org = await prisma.organization.findFirst({
         where: { id: req.organizationId! },
-        select: { name: true, featureFlags: true },
+        select: { name: true, featureFlags: true, googleReviewUrl: true },
       });
       const flags =
         org?.featureFlags && typeof org.featureFlags === "object" && !Array.isArray(org.featureFlags)
           ? (org.featureFlags as Record<string, unknown>)
           : {};
-      const reviewUrl = String(flags.google_review_url || flags.googleReviewUrl || "").trim() || null;
+      const reviewUrl =
+        String(org?.googleReviewUrl || flags.google_review_url || flags.googleReviewUrl || "").trim() || null;
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const wo = await tx.workOrder.findFirst({

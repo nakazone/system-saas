@@ -45,7 +45,7 @@
       '<span data-i18n="menu.account">' +
       t("menu.account") +
       "</span></a>" +
-      '<a class="crm-account-menu__item" href="ajustes.html" data-account-action="settings" data-crm-permission="settings.manage">' +
+      '<a class="crm-account-menu__item" href="configuracoes.html" data-account-action="settings" data-crm-permission="settings.manage">' +
       '<span data-i18n="menu.company">' +
       t("menu.company") +
       "</span></a>" +

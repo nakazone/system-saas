@@ -64,6 +64,7 @@
     "payroll-module.html",
     "chat.html",
     "ajustes.html",
+    "configuracoes.html",
     "change-password.html",
     "login.html",
   ]);
@@ -76,6 +77,7 @@
     "payroll-module.html",
     "chat.html",
     "ajustes.html",
+    "configuracoes.html",
     "change-password.html",
     "login.html",
   ]);

@@ -52,6 +52,34 @@ model Organization {
   trialEndsAt      DateTime?
   /// Feature flags per org, e.g. { "job_media": true }
   featureFlags     Json?
+  // --- Company details (Configurações › Dados da empresa) ---
+  legalName        String?
+  website          String?
+  addressLine1     String?
+  addressLine2     String?
+  city             String?
+  state            String?
+  postalCode       String?
+  country          String    @default("US")
+  /// Hide the address from client portal, e-mails and PDFs
+  addressPrivate   Boolean   @default(false)
+  licenseNumber    String?
+  licenseState     String?
+  licenseExpiresOn DateTime? @db.Date
+  showLicenseOnDocuments Boolean @default(true)
+  insuranceCarrier String?
+  insurancePolicy  String?
+  insuranceExpiresOn DateTime? @db.Date
+  insuranceCertificateUrl String?
+  /// { mon: { open: true, start: "07:00", end: "17:00" }, … }
+  businessHours    Json?
+  /// Default UI language for new users (pt-BR | en | es)
+  defaultLocale    String    @default("pt-BR")
+  /// sq_ft | m2
+  areaUnit         String    @default("sq_ft")
+  /// monday | sunday
+  weekStart        String    @default("monday")
+  googleReviewUrl  String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

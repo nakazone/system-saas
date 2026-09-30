@@ -24,7 +24,7 @@
     pt: {
       "menu.settings": "Configurações",
       "menu.account": "Meu perfil e senha",
-      "menu.company": "Ajustes da empresa",
+      "menu.company": "Configurações da empresa",
       "menu.team": "Equipe",
       "menu.language": "Idioma",
       "menu.logout": "Sair",
@@ -38,7 +38,7 @@
     es: {
       "menu.settings": "Configuración",
       "menu.account": "Mi perfil y contraseña",
-      "menu.company": "Ajustes de la empresa",
+      "menu.company": "Configuración de la empresa",
       "menu.team": "Equipo",
       "menu.language": "Idioma",
       "menu.logout": "Cerrar sesión",

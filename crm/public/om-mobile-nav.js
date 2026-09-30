@@ -64,7 +64,7 @@
       f === "job-detail.html" ||
       f === "job-media-board.html" ||
       f === "equipe.html" ||
-      f === "ajustes.html" ||
+      f === "configuracoes.html" ||
       f === "finance.html" ||
       f === "financial.html" ||
       f === "payroll-module.html"
@@ -450,7 +450,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           <span class="om-app-top__bell-dot home-bell__dot" aria-hidden="true"></span>
         </button>
-        <a class="om-app-top__avatar home-avatar" id="homeAvatar" href="ajustes.html" aria-label="Conta">—</a>
+        <a class="om-app-top__avatar home-avatar" id="homeAvatar" href="configuracoes.html" aria-label="Conta">—</a>
       </div>`;
     document.body.insertBefore(top, document.body.firstChild);
     document.body.classList.add("om-has-apptop");
