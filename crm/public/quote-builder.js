@@ -503,12 +503,18 @@
 
   function mapPricingRowsToCatalog(rows) {
     return (Array.isArray(rows) ? rows : [])
-      .filter((r) => r && r.active !== 0 && r.is_visible !== 0)
+      .filter((r) => {
+        if (!r) return false;
+        const active = r.active === undefined || r.active === null ? 1 : Number(r.active);
+        const visible = r.is_visible === undefined || r.is_visible === null ? 1 : Number(r.is_visible);
+        return active !== 0 && visible !== 0 && Number.isFinite(active) && Number.isFinite(visible);
+      })
       .map((r) => {
-        const particular = Number(r.price_particular) || 0;
-        const builder = Number(r.price_builder) || 0;
+        const particular = Number(r.price_particular) || Number(r.price_max) || Number(r.price) || 0;
+        const builder =
+          Number(r.price_builder) || Number(r.partner_price) || Number(r.price_min) || particular || 0;
         const contractor = Number(r.price_contractor) || builder || 0;
-        const loja = Number(r.price_loja) || 0;
+        const loja = Number(r.price_loja) || Number(r.price_min) || Number(r.price) || particular || 0;
         return {
           id: r.id,
           name: r.name,
@@ -527,40 +533,99 @@
   }
 
   function mapQuoteCatalogRows(rows) {
-    return (Array.isArray(rows) ? rows : []).map((r) => {
-      const unit = Number(r.unit_price) || Number(r.default_rate) || 0;
-      const particular = Number(r.rate_customer != null ? r.rate_customer : unit) || unit;
-      const builder = Number(r.rate_builder != null ? r.rate_builder : unit) || unit;
-      const contractor = Number(r.rate_contractor != null ? r.rate_contractor : builder) || builder;
-      const loja = Number(r.rate_loja != null ? r.rate_loja : unit) || unit;
-      return {
-        id: r.id,
-        name: r.name,
-        category: r.service_type || r.category || '',
-        unit_type: r.unit_type || 'sq_ft',
-        default_rate: particular,
-        rate_particular: particular,
-        rate_customer: particular,
-        rate_builder: builder,
-        rate_contractor: contractor,
-        rate_loja: loja,
-        notes_customer: r.description || null,
-        source: 'quote-catalog',
-      };
-    });
+    return (Array.isArray(rows) ? rows : [])
+      .filter((r) => r && r.name)
+      .map((r) => {
+        const unit = Number(r.unit_price) || Number(r.default_rate) || Number(r.rate) || 0;
+        const particular = Number(r.rate_customer != null ? r.rate_customer : unit) || unit;
+        const builder = Number(r.rate_builder != null ? r.rate_builder : unit) || unit;
+        const contractor = Number(r.rate_contractor != null ? r.rate_contractor : builder) || builder;
+        const loja = Number(r.rate_loja != null ? r.rate_loja : unit) || unit;
+        return {
+          id: r.id,
+          name: r.name,
+          category: r.service_type || r.category || '',
+          unit_type: r.unit_type || 'sq_ft',
+          default_rate: particular,
+          rate_particular: particular,
+          rate_customer: particular,
+          rate_builder: builder,
+          rate_contractor: contractor,
+          rate_loja: loja,
+          notes_customer: r.description || null,
+          source: 'quote-catalog',
+        };
+      });
   }
 
+  function catalogNameKey(name) {
+    return String(name || '')
+      .trim()
+      .toLowerCase();
+  }
+
+  /**
+   * Catálogo de serviços do quote = quote-catalog (primário).
+   * Taxas por tipo vêm da Tabela de Valores quando o nome bate;
+   * serviços só na tabela de preços também entram na lista.
+   */
   async function loadServiceCatalog() {
     const [pricingRes, quoteCatRes] = await Promise.all([
       api('/api/pricing').catch(() => ({ data: [] })),
       api('/api/quote-catalog').catch(() => ({ data: [] })),
     ]);
-    const fromPricing = mapPricingRowsToCatalog(pricingRes.data || []);
-    if (fromPricing.length) {
+    const pricingData = Array.isArray(pricingRes?.data)
+      ? pricingRes.data
+      : Array.isArray(pricingRes)
+        ? pricingRes
+        : [];
+    const quoteData = Array.isArray(quoteCatRes?.data)
+      ? quoteCatRes.data
+      : Array.isArray(quoteCatRes)
+        ? quoteCatRes
+        : [];
+    const fromPricing = mapPricingRowsToCatalog(pricingData);
+    const fromQuote = mapQuoteCatalogRows(quoteData);
+
+    if (!fromPricing.length && !fromQuote.length) {
+      catalog = [];
+      return;
+    }
+
+    if (!fromQuote.length) {
       catalog = fromPricing;
       return;
     }
-    catalog = mapQuoteCatalogRows(quoteCatRes.data || []);
+
+    const pricingByName = new Map();
+    for (const row of fromPricing) {
+      const key = catalogNameKey(row.name);
+      if (key && !pricingByName.has(key)) pricingByName.set(key, row);
+    }
+
+    const merged = fromQuote.map((q) => {
+      const hit = pricingByName.get(catalogNameKey(q.name));
+      if (!hit) return q;
+      return {
+        ...q,
+        default_rate: hit.rate_particular || q.default_rate,
+        rate_particular: hit.rate_particular || q.rate_particular,
+        rate_customer: hit.rate_particular || q.rate_customer,
+        rate_builder: hit.rate_builder || q.rate_builder,
+        rate_contractor: hit.rate_contractor || q.rate_contractor,
+        rate_loja: hit.rate_loja || q.rate_loja,
+        pricing_item_id: hit.id,
+      };
+    });
+
+    const seen = new Set(merged.map((r) => catalogNameKey(r.name)).filter(Boolean));
+    for (const p of fromPricing) {
+      const key = catalogNameKey(p.name);
+      if (!key || seen.has(key)) continue;
+      merged.push(p);
+      seen.add(key);
+    }
+    catalog = merged;
   }
 
   /** Template DB guarda nome+descrição no campo `description` (primeira linha = nome). */
