@@ -276,7 +276,7 @@
     const address = String($('manualClientAddress')?.value || '').trim();
     if (name.length < 2 || !email || phone.length < 10 || zipcode.replace(/\D/g, '').length < 5) {
       if (errEl) {
-        errEl.textContent = 'Preencha nome, email, telefone e ZIP (5 dígitos).';
+        errEl.textContent = 'Preencha nome, e-mail, telefone e CEP (5 dígitos).';
         errEl.classList.remove('hidden');
       }
       return;
@@ -1627,7 +1627,7 @@
       const ccNote = extra.length ? ` (CC: ${extra.join(', ')})` : '';
       const movedNote =
         r.lead_moved === true
-          ? ' Lead movido para Quote Sent.'
+          ? ' Lead movido para Orçamento enviado.'
           : r.lead_move_reason === 'no_lead'
             ? ' (Lead do Kanban não associado a este orçamento.)'
             : '';
@@ -2419,7 +2419,7 @@
       section.setAttribute('data-category-value', 'products');
       const head = document.createElement('div');
       head.className = 'qb-cat-section__head';
-      head.textContent = 'Materials & products';
+      head.textContent = 'Materiais e produtos';
       section.appendChild(head);
       const catList = document.createElement('div');
       catList.className = 'qb-cat-items';
@@ -2561,17 +2561,42 @@
     const url = `/api/quote-invoices/${invoiceId}/pdf`;
     const filename = `invoice-${invoiceId}.pdf`;
     if (window.crmPdfViewer?.openFromUrl) {
-      await window.crmPdfViewer.openFromUrl(url, { title: title || 'Invoice', filename });
+      await window.crmPdfViewer.openFromUrl(url, { title: title || 'Fatura', filename });
     } else {
       window.open(url, '_blank', 'noopener');
     }
+  }
+
+  function invoiceTypeLabel(type) {
+    const map = {
+      deposit: 'Depósito',
+      final: 'Saldo restante',
+      full: 'Valor total',
+      progress: 'Parcela',
+      custom: 'Personalizado',
+      payment: 'Pagamento',
+    };
+    return map[type] || type || 'Pagamento';
+  }
+
+  function invoiceStatusLabel(status) {
+    const map = {
+      issued: 'Emitida',
+      sent: 'Enviada',
+      viewed: 'Vista',
+      partial: 'Parcial',
+      paid: 'Paga',
+      void: 'Anulada',
+      cancelled: 'Cancelada',
+    };
+    return map[status] || status || 'Emitida';
   }
 
   function renderQuoteInvoicesList() {
     const host = $('quoteInvoicesList');
     if (!host) return;
     if (!quoteInvoices.length) {
-      host.innerHTML = '<p class="text-xs text-slate-500">Nenhum invoice emitido ainda.</p>';
+      host.innerHTML = '<p class="text-xs text-slate-500">Nenhuma fatura emitida ainda.</p>';
       return;
     }
     host.innerHTML = quoteInvoices
@@ -2589,7 +2614,7 @@
             <span>${escapeHtmlText(inv.invoice_number || `INV-${inv.id}`)}</span>
             <span>${money(inv.amount)}</span>
           </div>
-          <div class="qb-invoice-card__meta">${escapeHtmlText(inv.invoice_type || 'payment')} · vence ${escapeHtmlText(due)} · ${escapeHtmlText(status)}${payMeta}</div>
+          <div class="qb-invoice-card__meta">${escapeHtmlText(invoiceTypeLabel(inv.invoice_type))} · vence ${escapeHtmlText(due)} · ${escapeHtmlText(invoiceStatusLabel(status))}${payMeta}</div>
           <div class="qb-invoice-card__actions">
             <button type="button" class="btn btn-sm btn-secondary" data-inv-pdf="${inv.id}">Ver PDF</button>
             <button type="button" class="btn btn-sm btn-ghost" data-inv-email="${inv.id}">Enviar</button>
@@ -2602,7 +2627,7 @@
     host.querySelectorAll('[data-inv-pdf]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const inv = quoteInvoices.find((i) => String(i.id) === btn.dataset.invPdf);
-        void openInvoicePdf(btn.dataset.invPdf, inv?.invoice_number ? `Invoice ${inv.invoice_number}` : 'Invoice');
+        void openInvoicePdf(btn.dataset.invPdf, inv?.invoice_number ? `Fatura ${inv.invoice_number}` : 'Fatura');
       });
     });
     host.querySelectorAll('[data-inv-email]').forEach((btn) => {
@@ -2677,7 +2702,7 @@
   async function ensureApprovedQuoteSaved() {
     const desired = $('status')?.value;
     if (!isQuoteApprovedStatus(desired)) {
-      throw new Error('Só é possível emitir invoice quando o orçamento está aprovado.');
+      throw new Error('Só é possível emitir fatura quando o orçamento está aprovado.');
     }
     if (isQuoteApprovedStatus(loadedQuoteStatus)) return;
     await ensureCustomerForQuote();
@@ -2725,16 +2750,16 @@
       if (r.balance) quoteInvoiceBalance = r.balance;
       await loadQuoteInvoices();
       const inv = r.data;
-      window.crmToast?.success?.(`Invoice ${inv?.invoice_number || ''} emitido.`);
+      window.crmToast?.success?.(`Fatura ${inv?.invoice_number || ''} emitida.`);
       if (inv?.id) {
-        await openInvoicePdf(inv.id, inv.invoice_number ? `Invoice ${inv.invoice_number}` : 'Invoice');
+        await openInvoicePdf(inv.id, inv.invoice_number ? `Fatura ${inv.invoice_number}` : 'Fatura');
       }
     } catch (err) {
-      window.crmToast?.error?.(err.message || 'Erro ao emitir invoice');
+      window.crmToast?.error?.(err.message || 'Erro ao emitir fatura');
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prev || 'Emitir invoice';
+        btn.textContent = prev || 'Emitir fatura';
       }
     }
   }
@@ -2743,10 +2768,10 @@
     if (!invoiceId) return;
     try {
       await api(`/api/quote-invoices/${invoiceId}/send-email`, { method: 'POST', body: '{}' });
-      window.crmToast?.success?.('Invoice enviado por e-mail ao cliente.');
+      window.crmToast?.success?.('Fatura enviada por e-mail ao cliente.');
       await loadQuoteInvoices();
     } catch (err) {
-      window.crmToast?.error?.(err.message || 'Erro ao enviar invoice');
+      window.crmToast?.error?.(err.message || 'Erro ao enviar fatura');
     }
   }
 
@@ -2779,7 +2804,7 @@
       hint.textContent =
         remaining > 0.009
           ? `Pode registar pagamento parcial ou o saldo completo ($${remaining.toFixed(2)}).`
-          : 'Invoice sem saldo em aberto.';
+          : 'Fatura sem saldo em aberto.';
     }
     modal.classList.remove('hidden');
     $('rcpAmount')?.focus();
@@ -2827,7 +2852,7 @@
         body: JSON.stringify(body),
       });
       closeReceiptModal();
-      const paidNote = r.invoice_paid ? ' Invoice liquidado.' : '';
+      const paidNote = r.invoice_paid ? ' Fatura liquidada.' : '';
       const emailNote =
         r.email && r.email.ok === false
           ? ` Recibo criado, mas e-mail falhou: ${r.email.error || 'erro'}.`
@@ -2858,7 +2883,7 @@
     if (!confirm(`Apagar o invoice ${label}? Esta ação não pode ser desfeita.`)) return;
     try {
       await api(`/api/quote-invoices/${invoiceId}`, { method: 'DELETE' });
-      window.crmToast?.success?.(`Invoice ${label} apagado.`);
+      window.crmToast?.success?.(`Fatura ${label} apagada.`);
       await loadQuoteInvoices();
     } catch (err) {
       window.crmToast?.error?.(err.message || 'Erro ao apagar invoice');
@@ -2894,7 +2919,7 @@
     const ctx = canvas.getContext('2d');
     let drawing = false;
     let hasStroke = false;
-    ctx.strokeStyle = '#1a2036';
+    ctx.strokeStyle = '#1c1917';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
 

@@ -8,11 +8,11 @@
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-  <link rel="stylesheet" href="styles.css?v=20260930-quotes1" />
-  <link rel="stylesheet" href="design-system.css?v=20260930-quotes1" />
-  <link rel="stylesheet" href="crm-shell.css?v=20260930-native2" />
+  <link rel="stylesheet" href="styles.css?v=20260930-qb2" />
+  <link rel="stylesheet" href="design-system.css?v=20260930-qb2" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260930-qb2" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
-  <link rel="stylesheet" href="obramate-app.css?v=20260930-quotes1" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260930-qb2" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { corePlugins: { preflight: false } };
@@ -411,7 +411,7 @@
       margin-top: var(--spacing-md);
       margin-bottom: var(--spacing-md);
       padding: var(--spacing-md);
-      background: linear-gradient(145deg, var(--primary-color) 0%, var(--primary-dark) 50%, #161b2e 100%);
+      background: linear-gradient(145deg, var(--primary-color) 0%, var(--primary-dark) 55%, #0f0d0b 100%);
       color: rgba(247, 248, 252, 0.95);
       border-radius: 8px;
       font-size: 0.85rem;
@@ -456,7 +456,7 @@
       justify-content: center;
       padding: 1.25rem;
       padding-top: max(1.25rem, env(safe-area-inset-top));
-      background: rgba(26, 32, 54, 0.45);
+      background: rgba(28, 25, 23, 0.45);
       backdrop-filter: blur(3px);
       -webkit-backdrop-filter: blur(3px);
     }
@@ -472,7 +472,7 @@
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
       padding: 1.35rem 1.5rem 1.25rem;
       position: relative;
-      border-top: 4px solid #1a2036;
+      border-top: 4px solid var(--plab-ink, #1c1917);
       animation: qbNotifyIn 0.22s ease-out;
     }
     @keyframes qbNotifyIn {
@@ -509,8 +509,8 @@
       cursor: pointer;
     }
     .qb-party-tab.is-active {
-      background: #1a2036;
-      border-color: #1a2036;
+      background: var(--plab-accent, #e8792c);
+      border-color: var(--plab-accent, #e8792c);
       color: #fff;
     }
     .qb-builder-select {
@@ -723,7 +723,7 @@
     }
     .qb-notify__close:hover {
       background: #f1f5f9;
-      color: #1a2036;
+      color: var(--plab-ink, #1c1917);
     }
     .qb-notify__icon {
       font-size: 2rem;
@@ -733,16 +733,16 @@
     .qb-notify__title {
       font-size: 1.1rem;
       font-weight: 700;
-      color: #1a2036;
+      color: var(--plab-ink, #1c1917);
       margin: 0 2rem 0.5rem 0;
-      font-family: Inter, system-ui, sans-serif;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
     }
     .qb-notify__msg {
       font-size: 0.9rem;
       color: #4b5563;
       margin: 0;
       line-height: 1.45;
-      font-family: Inter, system-ui, sans-serif;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
     }
     /* Quote sheet — card layout */
     .qb-sheet {
@@ -964,7 +964,7 @@
       transform: translateY(-50%);
       font-size: 1rem;
       font-weight: 700;
-      color: #1a2036;
+      color: var(--plab-ink, #1c1917);
       line-height: 1;
       pointer-events: none;
       user-select: none;
@@ -1494,6 +1494,7 @@
       .qb-action-bar {
         display: none !important;
       }
+      body.qb-dashboard-inner,
       body.qb-dashboard-inner .qb-page,
       body.qb-dashboard-inner .dashboard-main {
         padding-bottom: 0 !important;
@@ -1512,7 +1513,7 @@
     body.qb-dashboard-inner .qb-page {
       padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
     }
-    @media (max-width: 1366px) {
+    @media (max-width: 1099px) {
       .qb-action-bar {
         left: 0;
       }
@@ -1590,7 +1591,7 @@
       background: #fff;
       font-size: 0.875rem;
       font-weight: 600;
-      color: #1a2036;
+      color: var(--plab-ink, #1c1917);
       cursor: pointer;
       font-family: inherit;
       border-bottom: 1px solid #f1f5f9;
@@ -1617,7 +1618,7 @@
       background: #fff;
       font-size: 12px;
     }
-    .qb-invoice-card__head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; color: #1a2036; }
+    .qb-invoice-card__head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; color: var(--plab-ink, #1c1917); }
     .qb-invoice-card__meta { color: #64748b; margin: 4px 0 8px; font-size: 11px; }
     .qb-invoice-card__actions { display: flex; flex-wrap: wrap; gap: 6px; }
     .qb-invoice-card__actions .btn { font-size: 11px; padding: 4px 8px; }
@@ -1625,7 +1626,7 @@
       position: fixed;
       inset: 0;
       z-index: 11000;
-      background: rgba(26, 32, 54, 0.45);
+      background: rgba(28, 25, 23, 0.45);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1640,7 +1641,7 @@
       padding: 1.25rem;
       box-shadow: 0 12px 40px rgba(26, 32, 54, 0.18);
     }
-    .qb-modal__title { margin: 0 0 6px; font-size: 1.1rem; color: #1a2036; }
+    .qb-modal__title { margin: 0 0 6px; font-size: 1.1rem; color: var(--plab-ink, #1c1917); }
     .qb-modal__sub { margin: 0 0 14px; }
     .qb-modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
     .qb-invoice-form { display: flex; flex-direction: column; gap: 10px; }
@@ -1837,49 +1838,49 @@
                 <div id="qbClientManualForm" class="qb-client-form hidden" aria-label="Novo cliente manual">
                   <p class="qb-client-form__title">Novo cliente (cria lead no CRM)</p>
                   <div class="qb-client-form__grid">
-                    <div><label for="manualClientName">Name *</label><input type="text" id="manualClientName" autocomplete="name" /></div>
-                    <div><label for="manualClientPhone">Phone *</label><input type="tel" id="manualClientPhone" autocomplete="tel" /></div>
-                    <div><label for="manualClientEmail">Email *</label><input type="email" id="manualClientEmail" autocomplete="email" /></div>
-                    <div><label for="manualClientZip">ZIP *</label><input type="text" id="manualClientZip" inputmode="numeric" maxlength="10" placeholder="80202" /></div>
-                    <div><label for="manualClientAddress">Address</label><input type="text" id="manualClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
+                    <div><label for="manualClientName">Nome *</label><input type="text" id="manualClientName" autocomplete="name" /></div>
+                    <div><label for="manualClientPhone">Telefone *</label><input type="tel" id="manualClientPhone" autocomplete="tel" /></div>
+                    <div><label for="manualClientEmail">E-mail *</label><input type="email" id="manualClientEmail" autocomplete="email" /></div>
+                    <div><label for="manualClientZip">CEP *</label><input type="text" id="manualClientZip" inputmode="numeric" maxlength="10" placeholder="80202" /></div>
+                    <div><label for="manualClientAddress">Morada</label><input type="text" id="manualClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
                   </div>
                   <p id="manualClientError" class="text-red-600 text-sm hidden mt-2"></p>
                   <div class="qb-client-form__actions">
                     <button type="button" id="btnManualClientCancel" class="px-3 py-1.5 text-sm text-slate-600">Cancelar</button>
-                    <button type="button" id="btnManualClientSave" class="px-3 py-1.5 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">Criar e selecionar</button>
+                    <button type="button" id="btnManualClientSave" class="px-3 py-1.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-semibold">Criar e selecionar</button>
                   </div>
                 </div>
                 <div id="qbClientEditForm" class="qb-client-form hidden" aria-label="Editar cliente">
                   <p class="qb-client-form__title">Editar cliente (atualiza o lead no CRM)</p>
                   <div class="qb-client-form__grid">
-                    <div><label for="editClientName">Name</label><input type="text" id="editClientName" autocomplete="name" /></div>
-                    <div><label for="editClientPhone">Phone</label><input type="tel" id="editClientPhone" autocomplete="tel" /></div>
-                    <div><label for="editClientEmail">Email</label><input type="email" id="editClientEmail" autocomplete="email" /></div>
-                    <div><label for="editClientZip">ZIP</label><input type="text" id="editClientZip" inputmode="numeric" maxlength="10" /></div>
-                    <div><label for="editClientAddress">Address</label><input type="text" id="editClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
+                    <div><label for="editClientName">Nome</label><input type="text" id="editClientName" autocomplete="name" /></div>
+                    <div><label for="editClientPhone">Telefone</label><input type="tel" id="editClientPhone" autocomplete="tel" /></div>
+                    <div><label for="editClientEmail">E-mail</label><input type="email" id="editClientEmail" autocomplete="email" /></div>
+                    <div><label for="editClientZip">CEP</label><input type="text" id="editClientZip" inputmode="numeric" maxlength="10" /></div>
+                    <div><label for="editClientAddress">Morada</label><input type="text" id="editClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
                   </div>
                   <p id="editClientError" class="text-red-600 text-sm hidden mt-2"></p>
                   <div class="qb-client-form__actions">
                     <button type="button" id="btnEditClientCancel" class="px-3 py-1.5 text-sm text-slate-600">Cancelar</button>
-                    <button type="button" id="btnEditClientSave" class="px-3 py-1.5 rounded-lg bg-[#1a2036] text-white text-sm font-semibold">Guardar no CRM</button>
+                    <button type="button" id="btnEditClientSave" class="px-3 py-1.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-semibold">Guardar no CRM</button>
                   </div>
                 </div>
                 <div id="qbClientDetails" class="qb-client-details hidden" aria-live="polite">
                   <dl class="qb-client-details__list">
                     <div class="qb-client-details__row">
-                      <dt>Name</dt>
+                      <dt>Nome</dt>
                       <dd id="qbClientName">—</dd>
                     </div>
                     <div class="qb-client-details__row">
-                      <dt>Phone</dt>
+                      <dt>Telefone</dt>
                       <dd id="qbClientPhone">—</dd>
                     </div>
                     <div class="qb-client-details__row">
-                      <dt>Email</dt>
+                      <dt>E-mail</dt>
                       <dd id="qbClientEmail">—</dd>
                     </div>
                     <div class="qb-client-details__row">
-                      <dt>Address</dt>
+                      <dt>Morada</dt>
                       <dd id="qbClientAddress">—</dd>
                     </div>
                   </dl>
@@ -1902,17 +1903,17 @@
                         <dd id="qbBuilderContact">—</dd>
                       </div>
                       <div class="qb-client-details__row">
-                        <dt>Email</dt>
+                        <dt>E-mail</dt>
                         <dd id="qbBuilderEmail">—</dd>
                       </div>
                       <div class="qb-client-details__row">
-                        <dt>Phone</dt>
+                        <dt>Telefone</dt>
                         <dd id="qbBuilderPhone">—</dd>
                       </div>
                     </dl>
                   </div>
                   <div id="qbBuilderExtraEmailsWrap" class="qb-extra-emails">
-                    <label class="qb-extra-emails__label" for="qbBuilderExtraEmailInput">Emails extras (CC)</label>
+                    <label class="qb-extra-emails__label" for="qbBuilderExtraEmailInput">E-mails extras (CC)</label>
                     <p class="qb-extra-emails__hint">Além do e-mail principal do builder. Enter ou vírgula para adicionar.</p>
                     <div class="qb-extra-emails__chips" id="qbBuilderEmailChips" aria-live="polite"></div>
                     <input
@@ -1925,7 +1926,7 @@
                     />
                   </div>
                   <div class="qb-job-fields">
-                    <p class="qb-job-fields__title">Projeto deste quote</p>
+                    <p class="qb-job-fields__title">Projeto deste orçamento</p>
                     <div>
                       <label for="quoteJobName">Nome do projeto</label>
                       <input type="text" id="quoteJobName" autocomplete="off" placeholder="Ex.: Residência Smith — living room" />
@@ -1941,12 +1942,12 @@
                     <div>
                       <label class="block text-xs font-semibold text-slate-500 mb-1" for="status">Status</label>
                       <select id="status" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                        <option value="draft">Draft</option>
-                        <option value="sent">Sent</option>
-                        <option value="viewed">Viewed</option>
-                        <option value="approved">Approved</option>
-                        <option value="accepted">Accepted</option>
-                        <option value="rejected">Rejected</option>
+                        <option value="draft">Rascunho</option>
+                        <option value="sent">Enviado</option>
+                        <option value="viewed">Visualizado</option>
+                        <option value="approved">Aprovado</option>
+                        <option value="accepted">Aceite</option>
+                        <option value="rejected">Rejeitado</option>
                       </select>
                     </div>
                     <div>
@@ -2045,7 +2046,7 @@
                 <p id="modalError" class="text-red-600 text-sm hidden mt-2"></p>
                 <div class="qb-item-editor__actions">
                   <button type="button" id="modalCancel" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900">Cancelar</button>
-                  <button type="button" id="modalConfirmService" class="px-4 py-2 rounded-lg bg-[#1a2036] text-white text-sm font-bold hover:opacity-95">Guardar</button>
+                  <button type="button" id="modalConfirmService" class="px-4 py-2 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-bold hover:opacity-95">Guardar</button>
                 </div>
               </div>
               <div class="qb-items-foot">
@@ -2054,20 +2055,20 @@
               <div class="qb-sqft-toolbar">
                 <div class="qb-sqft-toolbar__inner">
                   <div class="flex-1 min-w-[140px]">
-                    <label for="quoteProjectSqft" class="block text-xs font-semibold text-slate-500 mb-1">Sq ft do projeto</label>
+                    <label for="quoteProjectSqft" class="block text-xs font-semibold text-slate-500 mb-1">Área do projeto (sq ft)</label>
                     <input type="number" id="quoteProjectSqft" step="0.01" min="0" placeholder="ex. 1200" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
                   </div>
-                  <button type="button" id="btnApplySqftToLines" class="btn btn-primary btn-sm whitespace-nowrap">Aplicar nas linhas Sq Ft</button>
+                  <button type="button" id="btnApplySqftToLines" class="btn btn-primary btn-sm whitespace-nowrap">Aplicar nas linhas (sq ft)</button>
                 </div>
               </div>
             </section>
           </div>
 
           <details class="qb-accordion bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6" id="qbProjectDetails">
-            <summary>Contexto do projeto (regras do estimate)</summary>
+            <summary>Contexto do projeto (regras automáticas)</summary>
             <div class="space-y-4 mt-4">
             <p class="text-xs text-slate-500 max-w-3xl">
-              Mesmas regras do Estimate Builder: madeira em concreto → barreira de humidade; nível «major» → massa niveladora; escadas → mão-de-obra por degrau.
+              Regras do orçamento: madeira em concreto → barreira de humidade; nivelamento «major» → massa niveladora; escadas → mão-de-obra por degrau.
               As linhas marcadas <strong>auto</strong> são recalculadas ao alterar estes campos.
             </p>
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2084,22 +2085,22 @@
                   <option value="installation">Instalação</option>
                   <option value="replacement">Substituição</option>
                   <option value="repair">Reparo</option>
-                  <option value="refinish">Refinish</option>
+                  <option value="refinish">Acabamento</option>
                 </select>
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Piso</label>
                 <select id="qbFlooringType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
                   <option value="">—</option>
-                  <option value="hardwood">Hardwood</option>
-                  <option value="engineered">Engineered</option>
+                  <option value="hardwood">Madeira maciça</option>
+                  <option value="engineered">Madeira engenheirada</option>
                   <option value="lvp">LVP</option>
-                  <option value="laminate">Laminate</option>
-                  <option value="tile">Tile</option>
+                  <option value="laminate">Laminado</option>
+                  <option value="tile">Cerâmica</option>
                 </select>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Total sq ft</label>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Área total (sq ft)</label>
                 <input type="number" id="qbTotalSqft" step="0.01" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" value="" />
               </div>
               <div>
@@ -2110,16 +2111,16 @@
                 </div>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Sq ft ajustado</label>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Área ajustada (sq ft)</label>
                 <input type="text" id="qbAdjustedSqft" readonly class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50" value="0" />
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">Subpiso</label>
                 <select id="qbSubfloorType" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
                   <option value="">—</option>
-                  <option value="concrete">Concrete</option>
-                  <option value="plywood">Plywood</option>
-                  <option value="existing">Existing</option>
+                  <option value="concrete">Concreto</option>
+                  <option value="plywood">Compensado</option>
+                  <option value="existing">Existente</option>
                 </select>
               </div>
               <div>
@@ -2296,7 +2297,7 @@
 
   <div id="qbInvoiceModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbInvoiceModalTitle">
     <div class="qb-modal__panel">
-      <h2 id="qbInvoiceModalTitle" class="qb-modal__title">Emitir invoice</h2>
+      <h2 id="qbInvoiceModalTitle" class="qb-modal__title">Emitir fatura</h2>
       <p class="qb-modal__sub text-sm text-slate-500">Fatura de pagamento ao cliente com base no orçamento aprovado.</p>
       <p id="invBalanceHint" class="text-sm text-slate-600 mb-3 hidden"></p>
       <form id="qbInvoiceForm" class="qb-invoice-form">
@@ -2322,12 +2323,12 @@
         <label class="qb-invoice-form__label">Instruções de pagamento
           <textarea id="invPaymentInstructions" class="qb-invoice-form__input" rows="2" placeholder="Zelle, cheque, transferência…"></textarea>
         </label>
-        <label class="qb-invoice-form__label">Nota no invoice (opcional)
+        <label class="qb-invoice-form__label">Nota na fatura (opcional)
           <textarea id="invNotes" class="qb-invoice-form__input" rows="2"></textarea>
         </label>
         <div class="qb-modal__actions">
           <button type="button" class="btn btn-ghost" id="btnInvoiceModalCancel">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="btnInvoiceModalSubmit">Emitir invoice</button>
+          <button type="submit" class="btn btn-primary" id="btnInvoiceModalSubmit">Emitir fatura</button>
         </div>
       </form>
     </div>
@@ -2336,7 +2337,7 @@
   <div id="qbReceiptModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbReceiptModalTitle">
     <div class="qb-modal__panel">
       <h2 id="qbReceiptModalTitle" class="qb-modal__title">Receber pagamento</h2>
-      <p class="qb-modal__sub text-sm text-slate-500">Gera recibo (parcial ou total), dá baixa no invoice e opcionalmente envia ao cliente.</p>
+      <p class="qb-modal__sub text-sm text-slate-500">Gera recibo (parcial ou total), dá baixa na fatura e opcionalmente envia ao cliente.</p>
       <p id="rcpInvoiceMeta" class="text-sm text-slate-600 mb-3"></p>
       <form id="qbReceiptForm" class="qb-invoice-form">
         <input type="hidden" id="rcpInvoiceId" value="" />
@@ -2349,16 +2350,16 @@
         </label>
         <label class="qb-invoice-form__label">Método
           <select id="rcpMethod" class="qb-invoice-form__input">
-            <option value="check">Check</option>
+            <option value="check">Cheque</option>
             <option value="zelle">Zelle</option>
             <option value="venmo">Venmo</option>
-            <option value="bank_transfer">Bank transfer</option>
-            <option value="credit_card">Credit card</option>
-            <option value="cash">Cash</option>
-            <option value="other">Other</option>
+            <option value="bank_transfer">Transferência</option>
+            <option value="credit_card">Cartão</option>
+            <option value="cash">Dinheiro</option>
+            <option value="other">Outro</option>
           </select>
         </label>
-        <label class="qb-invoice-form__label">Referência (nº check / confirmação)
+        <label class="qb-invoice-form__label">Referência (nº cheque / confirmação)
           <input type="text" id="rcpReference" class="qb-invoice-form__input" maxlength="120" placeholder="Opcional" />
         </label>
         <label class="qb-invoice-form__label">Nota (opcional)
@@ -2387,13 +2388,13 @@
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
-  <script src="crm-shell.js?v=20260930-quotes1"></script>
+  <script src="crm-shell.js?v=20260930-qb2"></script>
   <script src="crm-shared-nav.js?v=20260930-quotes1"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260930-quotes1-qdefaults"></script>
+  <script src="quote-builder.js?v=20260930-qb2"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

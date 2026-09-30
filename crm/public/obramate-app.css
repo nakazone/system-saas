@@ -193,6 +193,19 @@ body.om-app:has(#qbActionBar) .dashboard-main {
   padding-bottom: 0 !important;
 }
 
+/* Quote builder has its own qb-topbar — never stack the system top bar. */
+body.om-app.qb-sidebar-page #crmTopbar,
+body.om-app.qb-sidebar-page #crmTopbar.crm-topbar {
+  display: none !important;
+}
+
+@media (min-width: 1025px) {
+  body.om-app.qb-sidebar-page .dashboard-container {
+    margin-top: 0 !important;
+    min-height: 100vh;
+  }
+}
+
 /* Focus mode: hide mobile tab bar while editing a quote */
 @media (max-width: 900px) {
   body.om-app.qb-sidebar-page.om-has-tabbar .om-tabbar {
