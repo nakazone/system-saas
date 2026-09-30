@@ -3912,32 +3912,11 @@
           updatePreviewHeader();
           setPublicLink(q.public_token, q.quote_number);
         }
-        const createdIds = Array.isArray(r.created_invoice_ids) ? r.created_invoice_ids : [];
         await loadQuoteInvoices();
         if (!wasApproved && isQuoteApprovedStatus(loadedQuoteStatus)) {
           syncInvoiceUiVisibility();
-          const panel = $('quoteInvoicesPanel');
-          if (panel) {
-            panel.classList.remove('hidden');
-            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }
-          if (createdIds.length) {
-            qbToast(
-              createdIds.length === 1
-                ? 'Orçamento aprovado — fatura criada no painel Invoice.'
-                : `Orçamento aprovado — ${createdIds.length} faturas criadas.`,
-              'success',
-            );
-            const first = quoteInvoices.find((i) => String(i.id) === String(createdIds[0]));
-            if (first?.id) {
-              void openInvoicePdf(
-                first.id,
-                first.invoice_number ? `Fatura ${first.invoice_number}` : 'Fatura',
-              );
-            }
-          } else {
-            qbToast('Orçamento aprovado.', 'success');
-          }
+          qbToast('Orçamento aprovado.', 'success');
+          enableActions();
           return;
         }
       } else {
