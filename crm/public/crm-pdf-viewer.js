@@ -20,6 +20,10 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
           Fechar
         </button>
+        <div class="crm-pdf-viewer__brand" aria-hidden="true">
+          <img class="crm-pdf-viewer__brand-mark" src="/assets/favicon-192.png" alt="" width="28" height="28" onerror="this.src='/assets/favicon.png'" />
+          <span class="crm-pdf-viewer__brand-name">ObraMate</span>
+        </div>
         <h2 class="crm-pdf-viewer__title" id="crmPdfViewerTitle">PDF</h2>
         <a href="#" class="crm-pdf-viewer__download hidden" id="crmPdfViewerDownload" download>Descarregar</a>
       </header>
