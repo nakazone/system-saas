@@ -79,7 +79,7 @@ export async function moveLeadToSystemStage(
       changes: {
         status: { from: lead.status, to: wantStatus },
         systemSlug: { from: current?.slug ?? null, to: params.slug },
-        healed: true,
+        healed: { from: lead.status, to: wantStatus },
       },
     });
     return { moved: true, reason: "status_healed" };
