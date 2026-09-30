@@ -639,10 +639,10 @@
       white-space: nowrap;
     }
     .qb-email-preview-extras {
-      margin-top: 0.35rem;
-      margin-bottom: 0.75rem;
-      padding-top: 0.65rem;
-      border-top: 1px solid #e2e8f0;
+      margin-top: 0;
+      margin-bottom: 10px;
+      padding-top: 0;
+      border-top: 0;
     }
     .qb-pricing-active {
       font-size: 0.8125rem;
@@ -2409,12 +2409,8 @@
       <label class="qb-invoice-form__label" id="qbEmailPreviewToWrap">Para
         <input type="email" id="qbEmailPreviewTo" class="qb-invoice-form__input" autocomplete="email" placeholder="cliente@email.com" />
       </label>
-      <label class="qb-invoice-form__label">Assunto
-        <input type="text" id="qbEmailPreviewSubject" class="qb-invoice-form__input" maxlength="200" placeholder="Assunto do e-mail" />
-      </label>
       <div id="qbEmailPreviewExtrasWrap" class="qb-extra-emails qb-email-preview-extras">
         <label class="qb-extra-emails__label" for="qbEmailPreviewExtraInput">E-mails adicionais</label>
-        <p class="qb-extra-emails__hint">Enter, OK no telemóvel ou Adicionar — cada e-mail fica em chip.</p>
         <div class="qb-extra-emails__chips" id="qbEmailPreviewExtraChips" aria-live="polite"></div>
         <div class="qb-extra-emails__row">
           <input
@@ -2430,6 +2426,9 @@
           <button type="button" class="btn btn-secondary btn-sm" id="btnEmailPreviewExtraAdd">Adicionar</button>
         </div>
       </div>
+      <label class="qb-invoice-form__label">Assunto
+        <input type="text" id="qbEmailPreviewSubject" class="qb-invoice-form__input" maxlength="200" placeholder="Assunto do e-mail" />
+      </label>
       <iframe id="qbEmailPreviewFrame" class="qb-email-preview-frame" title="Pré-visualização do e-mail" sandbox=""></iframe>
       <div class="qb-modal__actions">
         <button type="button" class="btn btn-ghost" id="btnEmailPreviewCancel">Cancelar</button>
@@ -2538,7 +2537,7 @@
   <script src="crm-pdf-viewer.js?v=20260930b"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261001-email1"></script>
+  <script src="quote-builder.js?v=20261001-email2"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
