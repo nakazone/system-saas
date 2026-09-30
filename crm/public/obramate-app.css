@@ -176,16 +176,39 @@ body.om-app.dashboard-app-body .dashboard-main {
   }
 }
 
+body.om-app.om-has-dock .dashboard-main {
+  padding-bottom: 6.5rem !important;
+}
+
+/* Quote builder: one bottom chrome only (action bar). Never show floating dock. */
+body.om-app.qb-sidebar-page .om-dock,
+body.om-app.om-no-dock .om-dock,
+body.om-app:has(#qbActionBar) .om-dock {
+  display: none !important;
+}
+
+body.om-app.qb-sidebar-page .dashboard-main,
+body.om-app.om-no-dock .dashboard-main,
+body.om-app:has(#qbActionBar) .dashboard-main {
+  padding-bottom: 0 !important;
+}
+
+/* Focus mode: hide mobile tab bar while editing a quote */
+@media (max-width: 900px) {
+  body.om-app.qb-sidebar-page.om-has-tabbar .om-tabbar {
+    display: none !important;
+  }
+
+  body.om-app.qb-sidebar-page.om-has-tabbar .dashboard-main {
+    padding-bottom: 0 !important;
+  }
+}
+
 /* Always stack main content vertically (styles.css sets display:flex row by default) */
 body.om-app .dashboard-main {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
-}
-
-body.om-app.om-has-dock .dashboard-main,
-body.om-app .dashboard-main {
-  padding-bottom: 6.5rem !important;
 }
 
 /* Fixed system top bar — frosted / transparent like .plab-top */

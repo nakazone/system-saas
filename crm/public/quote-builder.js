@@ -2,7 +2,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   let quoteId = null;
-  /** Número legível do orçamento (ex. SF-2026-001). */
+  /** Número legível do orçamento (ex. OM-2026-001; aceita legado SF-/Q-). */
   let loadedQuoteNumber = null;
   /** Base URL pública do CRM (ex. https://app.senior-floors.com). */
   let clientPublicCrmUrl = null;
@@ -1305,11 +1305,11 @@
     const first = leadFirstNameForSms(lead);
     const num = loadedQuoteNumber ? formatQuoteNumberLabel(loadedQuoteNumber) : '';
     const ref = num ? ` (${num})` : '';
-    let body = `Hi ${first}, your quote from Senior Floors${ref} is ready.`;
+    let body = `Olá ${first}, o seu orçamento ObraMate${ref} está pronto.`;
     if (publicUrl) {
-      body += `\n\nView your quote here:\n${publicUrl}`;
+      body += `\n\nVeja o orçamento aqui:\n${publicUrl}`;
     }
-    body += '\n\nThank you!';
+    body += '\n\nObrigado!';
     return body;
   }
 
@@ -2438,15 +2438,17 @@
   }
 
   function isQuoteNumberForPublicUrl(quoteNumber) {
-    return /^(?:SF|Q)-\d{4}-\d+$/i.test(String(quoteNumber || '').trim());
+    return /^(?:SF|Q|OM)-\d{4}-\d+$/i.test(String(quoteNumber || '').trim());
   }
 
   function canonicalPublicQuoteNumber(quoteNumber) {
     const m = String(quoteNumber || '')
       .trim()
-      .match(/^(?:SF|Q)-(\d{4})-(\d+)$/i);
+      .match(/^(SF|Q|OM)-(\d{4})-(\d+)$/i);
     if (!m) return '';
-    return `SF-${m[1]}-${String(parseInt(m[2], 10)).padStart(4, '0')}`;
+    // Preserve existing public links (SF/Q); normalize Q → OM for new-style numbers.
+    const prefix = m[1].toUpperCase() === 'Q' ? 'OM' : m[1].toUpperCase();
+    return `${prefix}-${m[2]}-${String(parseInt(m[3], 10)).padStart(4, '0')}`;
   }
 
   function publicLinkBaseUrl() {
@@ -3613,6 +3615,32 @@
         qbToast(e.message || 'Erro ao guardar template', 'error');
       }
     });
+
+    function syncQbProxyActions() {
+      document.querySelectorAll('[data-qb-proxy]').forEach((proxy) => {
+        const src = document.getElementById(proxy.getAttribute('data-qb-proxy'));
+        if (!src) return;
+        proxy.disabled = !!src.disabled;
+        proxy.hidden = src.classList.contains('hidden') || !!src.hidden;
+      });
+    }
+    document.querySelectorAll('[data-qb-proxy]').forEach((proxy) => {
+      if (proxy.dataset.bound === '1') return;
+      proxy.dataset.bound = '1';
+      proxy.addEventListener('click', () => {
+        const src = document.getElementById(proxy.getAttribute('data-qb-proxy'));
+        if (src && !src.disabled && !src.hidden) src.click();
+      });
+    });
+    syncQbProxyActions();
+    const actionBar = document.getElementById('qbActionBar');
+    if (actionBar && typeof MutationObserver !== 'undefined') {
+      new MutationObserver(syncQbProxyActions).observe(actionBar, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['disabled', 'hidden', 'class'],
+      });
+    }
   }
 
   init().catch((e) => {

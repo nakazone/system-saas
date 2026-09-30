@@ -2,23 +2,25 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quote — Senior Floors CRM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Orçamento | ObraMate</title>
+  <meta name="theme-color" content="#f3f1ee" />
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-  <link rel="stylesheet" href="styles.css?v=20260915-qb-action-bar" />
-  <link rel="stylesheet" href="design-system.css?v=20260819-menu-fix-v2" />
-  <link rel="stylesheet" href="crm-shell.css?v=20260930-maismob1" />
+  <link rel="stylesheet" href="styles.css?v=20260930-quotes1" />
+  <link rel="stylesheet" href="design-system.css?v=20260930-quotes1" />
+  <link rel="stylesheet" href="crm-shell.css?v=20260930-native2" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
+  <link rel="stylesheet" href="obramate-app.css?v=20260930-quotes1" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { corePlugins: { preflight: false } };
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    .qb-dashboard-inner { font-family: Inter, system-ui, sans-serif; }
+    .qb-dashboard-inner { font-family: "Plus Jakarta Sans", system-ui, sans-serif; }
     body.qb-sidebar-page .dashboard-container {
       min-height: 100vh;
     }
@@ -1469,6 +1471,34 @@
       opacity: 0.45;
       cursor: not-allowed;
     }
+
+    /* Desktop: primary actions live in the top bar — one chrome, no stacked docks */
+    .qb-topbar__desk-actions {
+      display: none;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .qb-topbar__desk-actions .btn {
+      min-height: 40px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 0.45rem 0.85rem;
+    }
+    @media (min-width: 1100px) {
+      .qb-topbar__desk-actions {
+        display: inline-flex;
+      }
+      .qb-action-bar {
+        display: none !important;
+      }
+      body.qb-dashboard-inner .qb-page,
+      body.qb-dashboard-inner .dashboard-main {
+        padding-bottom: 0 !important;
+      }
+    }
     /* Overlay do menu não pode roubar taps da barra quando fechado */
     body.qb-sidebar-page .mobile-overlay {
       pointer-events: none !important;
@@ -1645,7 +1675,18 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20260531" />
 </head>
-<body class="qb-dashboard-inner dashboard-app-body qb-sidebar-page">
+<body class="qb-dashboard-inner dashboard-app-body om-app qb-sidebar-page om-no-dock sidebar-collapsed">
+  <script src="om-device.js?v=20260925-device1"></script>
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      } catch (e) {}
+      if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
+    })();
+  </script>
   <header class="mobile-app-header" id="mobileAppHeader" aria-label="Barra superior">
     <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="quoteBuilderSidebar">
       <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
@@ -1659,7 +1700,11 @@
   <div class="dashboard-container">
     <aside class="dashboard-sidebar" id="quoteBuilderSidebar" aria-label="Menu lateral">
       <div class="sidebar-header">
-        <img src="/assets/SeniorFloors.png" alt="Senior Floors" class="sidebar-brand-logo" width="104" height="104" onerror="this.style.display='none'" />
+        <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
+        <div class="sidebar-workspace">
+          <span class="sidebar-brand-name" id="sidebarWorkspaceName">ObraMate</span>
+          <span class="sidebar-workspace__meta" id="sidebarWorkspaceMeta">Workspace</span>
+        </div>
       </div>
       <nav class="sidebar-nav" aria-label="Navegação CRM">
         <div id="crmSharedNavRoot" data-layout="sidebar"></div>
@@ -1747,6 +1792,14 @@
             </span>
             <span class="qb-pdf-viewed-badge__label" id="qbPdfViewedBadgeLabel">PDF descarregado</span>
           </span>
+          <div class="qb-topbar__desk-actions" aria-label="Ações do orçamento">
+            <button type="button" class="btn btn-primary" data-qb-proxy="btnSave">Guardar</button>
+            <button type="button" class="btn btn-secondary" data-qb-proxy="btnPdf" disabled>PDF</button>
+            <button type="button" class="btn btn-secondary" data-qb-proxy="btnSend" disabled>Enviar</button>
+            <button type="button" class="btn btn-secondary" data-qb-proxy="btnInvoice" hidden disabled>Fatura</button>
+            <button type="button" class="btn btn-secondary" data-qb-proxy="btnDup" disabled>Duplicar</button>
+            <button type="button" class="btn btn-secondary" data-qb-proxy="btnSaveTpl">Template</button>
+          </div>
         </div>
       </header>
 
@@ -2182,7 +2235,7 @@
 
             <div id="quoteInvoicesPanel" class="qb-invoices-panel hidden pt-2 border-t border-slate-100">
               <div class="flex items-center justify-between gap-2 mb-2">
-                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Invoices</h3>
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Faturas</h3>
                 <button type="button" id="btnOpenInvoiceModal" class="btn btn-sm btn-secondary">Emitir</button>
               </div>
               <p class="text-xs text-slate-500 mb-2">Cobrança ao cliente após aprovação do orçamento.</p>
@@ -2211,9 +2264,9 @@
         <span class="qb-action-bar__full">Gerar PDF</span>
         <span class="qb-action-bar__short">PDF</span>
       </button>
-      <button type="button" id="btnInvoice" class="btn btn-secondary hidden" disabled title="Emitir invoice">
-        <span class="qb-action-bar__full">Emitir invoice</span>
-        <span class="qb-action-bar__short">Invoice</span>
+      <button type="button" id="btnInvoice" class="btn btn-secondary hidden" disabled title="Emitir fatura">
+        <span class="qb-action-bar__full">Emitir fatura</span>
+        <span class="qb-action-bar__short">Fatura</span>
       </button>
       <button type="button" id="btnSend" class="btn btn-secondary" disabled title="Enviar" aria-haspopup="menu" aria-expanded="false" aria-controls="quoteSendMenu">
         <span class="qb-action-bar__full">Enviar</span>
@@ -2334,13 +2387,13 @@
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script src="crm-address-autocomplete.js?v=20260924-addr"></script>
-  <script src="crm-shell.js?v=20260930-maismob2"></script>
-  <script src="crm-shared-nav.js?v=20260930-maismob2"></script>
+  <script src="crm-shell.js?v=20260930-quotes1"></script>
+  <script src="crm-shared-nav.js?v=20260930-quotes1"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260929-quoteuuid1"></script>
+  <script src="quote-builder.js?v=20260930-quotes1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

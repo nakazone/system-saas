@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260930-native2";
+  const SHELL_VER = "20260930-quotes1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -50,7 +50,7 @@
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
   <a class="om-dock__primary" href="leads.html" id="omDockNew">+ Novo lead</a>
-  <a class="om-dock__btn" href="schedule.html" title="Schedule">
+  <a class="om-dock__btn" href="schedule.html" title="Agenda">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
     <span>Agendar</span>
   </a>
@@ -58,9 +58,9 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 12h6M9 16h4"/></svg>
     <span>Pipeline</span>
   </a>
-  <a class="om-dock__btn" href="quote-builder.html" title="Novo quote">
+  <a class="om-dock__btn" href="quote-builder.html" title="Novo orçamento">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
-    <span>Quote</span>
+    <span>Orçamento</span>
   </a>
   <button type="button" class="om-dock__btn" id="omDockSearch" title="Pesquisar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
@@ -159,6 +159,16 @@
     if (document.getElementById("omDock")) return;
     // Home pipeline page has its own dock
     if (document.body.classList.contains("plab") && document.querySelector(".plab-dock")) return;
+    // Quote builder has its own action bar — never stack a second bottom chrome
+    const file = (location.pathname || "").split("/").pop() || "";
+    if (
+      document.body.classList.contains("qb-sidebar-page") ||
+      document.getElementById("qbActionBar") ||
+      /^quote-builder\.html$/i.test(file)
+    ) {
+      document.body.classList.add("om-no-dock");
+      return;
+    }
     // Mobile uses om-tabbar — skip legacy floating dock
     const mobile =
       window.__omDevice && typeof window.__omDevice.isMobile === "function"
@@ -173,6 +183,7 @@
     const wrap = document.createElement("div");
     wrap.innerHTML = DOCK_HTML.trim();
     document.body.appendChild(wrap.firstElementChild);
+    document.body.classList.add("om-has-dock");
     const search = document.getElementById("omDockSearch");
     if (search && !search.dataset.bound) {
       search.dataset.bound = "1";
@@ -821,7 +832,9 @@
     ensureTopbarUtilities();
     if (!isField) {
       ensureDock();
-      document.body.classList.add("om-has-dock");
+      if (document.getElementById("omDock")) {
+        document.body.classList.add("om-has-dock");
+      }
     } else {
       document.body.classList.add("om-field-desktop");
       const brand = document.getElementById("crmTopbarBrand");

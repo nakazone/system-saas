@@ -33,17 +33,17 @@
 
   function statusLabel(status) {
     const map = {
-      draft: "Draft",
-      sent: "Sent",
-      viewed: "Viewed",
-      approved: "Approved",
-      accepted: "Accepted",
-      rejected: "Rejected",
-      declined: "Declined",
-      expired: "Expired",
+      draft: "Rascunho",
+      sent: "Enviado",
+      viewed: "Visualizado",
+      approved: "Aprovado",
+      accepted: "Aceite",
+      rejected: "Rejeitado",
+      declined: "Recusado",
+      expired: "Expirado",
     };
     const s = String(status || "draft").toLowerCase();
-    return map[s] || status || "Draft";
+    return map[s] || status || "Rascunho";
   }
 
   function statusSlug(status) {
@@ -95,7 +95,7 @@
     $("ovSent30").textContent = String(sent30);
     $("ovTotalAmount").textContent = fmtMoney(totalAmount);
     $("ovTotalCount").textContent =
-      totalCount === 1 ? "1 quote" : `${totalCount} quotes`;
+      totalCount === 1 ? "1 orçamento" : `${totalCount} orçamentos`;
   }
 
   function initials(name) {
@@ -125,7 +125,7 @@
             : `${rows.length} orçamentos nesta página`;
     }
     if (!rows.length) {
-      list.innerHTML = '<p class="customers-list-empty">Nenhum quote encontrado.</p>';
+      list.innerHTML = '<p class="customers-list-empty">Nenhum orçamento encontrado.</p>';
       return;
     }
     list.innerHTML = rows
