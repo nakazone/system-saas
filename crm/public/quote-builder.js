@@ -1738,6 +1738,7 @@
   }
 
   let quoteSendMenuOpen = false;
+  let quoteSendMenuAnchor = null;
   let loadedQuoteEmailSentAt = null;
   let loadedQuoteViewedAt = null;
   let loadedQuotePdfViewedAt = null;
@@ -1912,33 +1913,73 @@
     }
   }
 
+  let quoteSendMenuAnchor = null;
+
+  function getQuoteSendAnchor() {
+    const proxies = Array.from(document.querySelectorAll('[data-qb-proxy="btnSend"]'));
+    const visibleProxy = proxies.find((el) => {
+      if (el.hidden || el.disabled) return false;
+      const st = window.getComputedStyle(el);
+      if (st.display === 'none' || st.visibility === 'hidden') return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    });
+    if (visibleProxy) return visibleProxy;
+    const btn = $('btnSend');
+    if (btn) {
+      const st = window.getComputedStyle(btn);
+      if (st.display !== 'none' && st.visibility !== 'hidden') {
+        const r = btn.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) return btn;
+      }
+    }
+    return visibleProxy || btn || null;
+  }
+
   function closeQuoteSendMenu() {
     const menu = $('quoteSendMenu');
     const btn = $('btnSend');
-    if (menu) menu.classList.add('hidden');
+    if (menu) {
+      menu.classList.add('hidden');
+      menu.style.top = '';
+      menu.style.left = '';
+      menu.style.width = '';
+      menu.style.visibility = '';
+    }
     if (btn) btn.setAttribute('aria-expanded', 'false');
+    document.querySelectorAll('[data-qb-proxy="btnSend"]').forEach((el) => {
+      el.setAttribute('aria-expanded', 'false');
+    });
     quoteSendMenuOpen = false;
+    quoteSendMenuAnchor = null;
     document.removeEventListener('click', onQuoteSendMenuOutside, true);
     window.removeEventListener('resize', positionQuoteSendMenu);
+    window.removeEventListener('scroll', positionQuoteSendMenu, true);
   }
 
   function positionQuoteSendMenu() {
     const menu = $('quoteSendMenu');
-    const anchor = $('btnSend');
+    const anchor = quoteSendMenuAnchor || getQuoteSendAnchor();
     if (!menu || !anchor || menu.classList.contains('hidden')) return;
     const r = anchor.getBoundingClientRect();
     const margin = 8;
     menu.style.visibility = 'hidden';
     menu.classList.remove('hidden');
     const menuH = menu.offsetHeight || 120;
-    const menuW = Math.max(220, menu.offsetWidth || 220);
-    let top = r.top - menuH - 6;
-    if (top < margin) top = r.bottom + 6;
-    let left = r.left + r.width / 2 - menuW / 2;
+    const menuW = Math.max(220, Math.min(320, menu.offsetWidth || 240));
+    // Prefer below the Enviar button; flip above only if it would clip the viewport.
+    let top = r.bottom + 6;
+    if (top + menuH > window.innerHeight - margin) {
+      const above = r.top - menuH - 6;
+      if (above >= margin) top = above;
+      else top = Math.max(margin, window.innerHeight - menuH - margin);
+    }
+    // Align to the button's right edge (Enviar sits on the right in the desk toolbar).
+    let left = r.right - menuW;
     left = Math.max(margin, Math.min(left, window.innerWidth - menuW - margin));
     menu.style.position = 'fixed';
-    menu.style.top = `${top}px`;
-    menu.style.left = `${left}px`;
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.left = `${Math.round(left)}px`;
     menu.style.width = `${menuW}px`;
     menu.style.visibility = '';
   }
@@ -1946,31 +1987,37 @@
   function onQuoteSendMenuOutside(e) {
     if (
       e.target.closest('#quoteSendMenu') ||
-      e.target.closest('#btnSend')
+      e.target.closest('#btnSend') ||
+      e.target.closest('[data-qb-proxy="btnSend"]')
     ) {
       return;
     }
     closeQuoteSendMenu();
   }
 
-  function openQuoteSendMenu() {
+  function openQuoteSendMenu(anchorEl) {
     if (!quoteId) return;
     const menu = $('quoteSendMenu');
     const btn = $('btnSend');
     if (!menu || !btn) return;
+    quoteSendMenuAnchor = anchorEl || getQuoteSendAnchor() || btn;
     quoteSendMenuOpen = true;
     menu.classList.remove('hidden');
     btn.setAttribute('aria-expanded', 'true');
+    if (quoteSendMenuAnchor && quoteSendMenuAnchor !== btn) {
+      quoteSendMenuAnchor.setAttribute('aria-expanded', 'true');
+    }
     positionQuoteSendMenu();
     window.addEventListener('resize', positionQuoteSendMenu);
+    window.addEventListener('scroll', positionQuoteSendMenu, true);
     requestAnimationFrame(() => {
       document.addEventListener('click', onQuoteSendMenuOutside, true);
     });
   }
 
-  function toggleQuoteSendMenu() {
+  function toggleQuoteSendMenu(anchorEl) {
     if (quoteSendMenuOpen) closeQuoteSendMenu();
-    else openQuoteSendMenu();
+    else openQuoteSendMenu(anchorEl);
   }
 
   function getCurrentQuoteLeadId() {
@@ -4118,9 +4165,9 @@
       if (document.visibilityState === 'visible') void pollQuoteViewed();
     });
 
-    $('btnSend')?.addEventListener('click', () => {
+    $('btnSend')?.addEventListener('click', (e) => {
       if (!quoteId) return;
-      toggleQuoteSendMenu();
+      toggleQuoteSendMenu(e.currentTarget);
     });
     $('quoteSendByEmail')?.addEventListener('click', () => void sendQuoteByEmail());
     $('quoteSendBySms')?.addEventListener('click', () => void sendQuoteByMessage());
@@ -4176,9 +4223,17 @@
     document.querySelectorAll('[data-qb-proxy]').forEach((proxy) => {
       if (proxy.dataset.bound === '1') return;
       proxy.dataset.bound = '1';
-      proxy.addEventListener('click', () => {
-        const src = document.getElementById(proxy.getAttribute('data-qb-proxy'));
-        if (src && !src.disabled && !src.hidden) src.click();
+      proxy.addEventListener('click', (e) => {
+        const id = proxy.getAttribute('data-qb-proxy');
+        const src = document.getElementById(id);
+        if (!src || src.disabled || src.hidden) return;
+        if (id === 'btnSend') {
+          e.preventDefault();
+          if (!quoteId) return;
+          toggleQuoteSendMenu(proxy);
+          return;
+        }
+        src.click();
       });
     });
     syncQbProxyActions();
