@@ -1913,8 +1913,6 @@
     }
   }
 
-  let quoteSendMenuAnchor = null;
-
   function getQuoteSendAnchor() {
     const proxies = Array.from(document.querySelectorAll('[data-qb-proxy="btnSend"]'));
     const visibleProxy = proxies.find((el) => {
