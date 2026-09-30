@@ -1,7 +1,13 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
+import { getLocalFileStorage } from "../storage/index.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** ObraMate design tokens — charcoal / orange / cream */
-const PAL = {
+const DEFAULT_PAL = {
   primary: "#211d1a",
   primaryMuted: "#3a332e",
   accent: "#e8792c",
@@ -17,6 +23,129 @@ const PAL = {
 };
 
 const DEFAULT_TAGLINE = "Hardwood · LVP · Refinishing";
+
+const SYSTEM_LOGO_CANDIDATES = [
+  "src/public/favicon-192.png",
+  "crm/public/assets/favicon-192.png",
+  "public/favicon-192.png",
+  "crm/assets/favicon-192.png",
+  "dist/src/public/favicon-192.png",
+  "dist/crm/public/assets/favicon-192.png",
+];
+
+function findAssetPath(relPaths: string[]): string | null {
+  const bases = [
+    process.cwd(),
+    path.join(__dirname, "../../.."),
+    path.join(__dirname, "../.."),
+    path.join(__dirname, "../../../.."),
+  ];
+  for (const base of bases) {
+    for (const rel of relPaths) {
+      const p = path.join(base, rel);
+      try {
+        if (fs.existsSync(p)) return p;
+      } catch {
+        /* continue */
+      }
+    }
+  }
+  return null;
+}
+
+function loadFileBuffer(filePath: string | null): Buffer | null {
+  if (!filePath) return null;
+  try {
+    return fs.readFileSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function loadSystemLogoBuffer(): Buffer | null {
+  return loadFileBuffer(findAssetPath(SYSTEM_LOGO_CANDIDATES));
+}
+
+function dataUrlToBuffer(url: string | null | undefined): Buffer | null {
+  if (!url || !url.startsWith("data:image")) return null;
+  try {
+    const b64 = url.split(",")[1];
+    return b64 ? Buffer.from(b64, "base64") : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve tenant logo from absolute URL, /api/local-files, /assets, or data URL. */
+export async function loadLogoBuffer(url: string | null | undefined): Promise<Buffer | null> {
+  if (!url || !String(url).trim()) return null;
+  const src = String(url).trim();
+
+  const fromData = dataUrlToBuffer(src);
+  if (fromData) return fromData;
+
+  if (src.startsWith("/api/local-files/")) {
+    const key = src
+      .replace(/^\/api\/local-files\//, "")
+      .split("/")
+      .map((p) => decodeURIComponent(p))
+      .join("/");
+    const local = getLocalFileStorage();
+    if (local) {
+      const entry = await local.get(key);
+      if (entry?.body?.length) return entry.body;
+    }
+    const disk = path.resolve(process.cwd(), "data", "uploads", key);
+    return loadFileBuffer(fs.existsSync(disk) ? disk : null);
+  }
+
+  if (src.startsWith("/assets/")) {
+    const name = src.slice("/assets/".length);
+    return loadFileBuffer(
+      findAssetPath([
+        `crm/assets/${name}`,
+        `src/public/${name}`,
+        `public/${name}`,
+        `crm/public/assets/${name}`,
+        `dist/crm/assets/${name}`,
+        `dist/src/public/${name}`,
+      ]),
+    );
+  }
+
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    try {
+      const res = await fetch(src);
+      if (!res.ok) return null;
+      return Buffer.from(await res.arrayBuffer());
+    } catch {
+      return null;
+    }
+  }
+
+  // Absolute or cwd-relative path
+  if (src.startsWith("/") || src.includes(path.sep)) {
+    return loadFileBuffer(src.startsWith("/") ? src : path.resolve(process.cwd(), src));
+  }
+
+  return null;
+}
+
+function resolvePalette(input: { brandPrimary?: string | null; brandAccent?: string | null }) {
+  const primary = input.brandPrimary && /^#[0-9a-fA-F]{6}$/.test(input.brandPrimary)
+    ? input.brandPrimary
+    : DEFAULT_PAL.primary;
+  const accent = input.brandAccent && /^#[0-9a-fA-F]{6}$/.test(input.brandAccent)
+    ? input.brandAccent
+    : DEFAULT_PAL.accent;
+  return {
+    ...DEFAULT_PAL,
+    primary,
+    accent,
+    label: accent,
+    accentDark: accent,
+  };
+}
 
 const SECTION_DEFS = [
   { key: "installation", label: "INSTALLATION" },
@@ -74,6 +203,11 @@ export type QuotePdfInput = {
   organizationAddress?: string | null;
   organizationLicense?: string | null;
   organizationTagline?: string | null;
+  /** Tenant logo URL (/api/local-files/…, /assets/…, https, or data URL). */
+  organizationLogoUrl?: string | null;
+  /** Tenant brand colors (fall back to ObraMate defaults). */
+  brandPrimary?: string | null;
+  brandAccent?: string | null;
   title: string;
   number: number | string;
   status: string;
@@ -259,16 +393,6 @@ export function pdfLinesFromDbItems(
   });
 }
 
-function dataUrlToBuffer(url: string | null | undefined): Buffer | null {
-  if (!url || !url.startsWith("data:image")) return null;
-  try {
-    const b64 = url.split(",")[1];
-    return b64 ? Buffer.from(b64, "base64") : null;
-  } catch {
-    return null;
-  }
-}
-
 function termsToItems(terms: string | null | undefined): string[] {
   if (!terms || !terms.trim()) return DEFAULT_TERMS;
   const numbered = terms
@@ -283,7 +407,11 @@ function termsToItems(terms: string | null | undefined): string[] {
   return sentences.length ? sentences.slice(0, 8) : DEFAULT_TERMS;
 }
 
-export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
+export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
+  const PAL = resolvePalette(input);
+  const systemLogoBuf = loadSystemLogoBuffer();
+  const tenantLogoBuf = await loadLogoBuffer(input.organizationLogoUrl);
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: "LETTER",
@@ -292,6 +420,7 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       info: {
         Title: `Quote ${input.number}`,
         Author: input.organizationName,
+        Producer: "ObraMate",
       },
     });
     const chunks: Buffer[] = [];
@@ -304,6 +433,42 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     const margin = 48;
     const contentW = pageW - 2 * margin;
     const colGap = 20;
+    const accentBarH = 5;
+
+    const tryDrawImage = (buf: Buffer | null, x: number, yy: number, w: number, h: number) => {
+      if (!buf?.length) return false;
+      try {
+        doc.image(buf, x, yy, { fit: [w, h], align: "center", valign: "center" });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const drawAccentBar = () => {
+      doc.rect(0, 0, pageW, accentBarH).fill(PAL.accent);
+    };
+
+    /** Tenant mark: logo image, else initials square. Returns width used. */
+    const drawTenantMark = (x: number, yy: number, size = 32) => {
+      if (tryDrawImage(tenantLogoBuf, x, yy, size, size)) return size + 12;
+      const r = 4;
+      doc.roundedRect(x, yy, size, size, r).fill(PAL.primary);
+      doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(size >= 30 ? 12 : 10);
+      const ini = orgInitials(input.organizationName);
+      const tw = doc.widthOfString(ini);
+      doc.text(ini, x + (size - tw) / 2, yy + size * 0.28, { lineBreak: false });
+      return size + 12;
+    };
+
+    /** Small ObraMate system favicon. Returns width used. */
+    const drawSystemMark = (x: number, yy: number, size = 16) => {
+      if (tryDrawImage(systemLogoBuf, x, yy, size, size)) return size + 6;
+      doc.roundedRect(x, yy, size, size, 3).fill(PAL.accent);
+      doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(7);
+      doc.text("OM", x + 2, yy + 4, { lineBreak: false });
+      return size + 6;
+    };
 
     const view = {
       showQuantities: true,
@@ -372,18 +537,10 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       doc.moveTo(x1, yy).lineTo(x2, yy).strokeColor(color).lineWidth(w).stroke();
     };
 
-    const drawMark = (x: number, yy: number, size = 28) => {
-      const r = 4;
-      doc.roundedRect(x, yy, size, size, r).fill(PAL.primary);
-      doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(size >= 30 ? 12 : 10);
-      const ini = orgInitials(input.organizationName);
-      const tw = doc.widthOfString(ini);
-      doc.text(ini, x + (size - tw) / 2, yy + size * 0.28, { lineBreak: false });
-      return size + 12;
-    };
-
     const drawCompactHeader = () => {
-      const markW = drawMark(margin, y, 22);
+      drawAccentBar();
+      y = accentBarH + 12;
+      const markW = drawTenantMark(margin, y, 22);
       doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(12);
       doc.text(input.organizationName, margin + markW, y + 4, { lineBreak: false });
       const meta = `Quote ${quoteNumber}${
@@ -394,7 +551,9 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(8);
       const mw = doc.widthOfString(meta);
       doc.text(meta, pageW - margin - mw, y + 6, { lineBreak: false });
-      y += 36;
+      // system mark top-right of compact header
+      drawSystemMark(pageW - margin - mw - 22, y + 2, 14);
+      y += 34;
       rule(margin, pageW - margin, y, PAL.rule, 0.5);
       y += 16;
     };
@@ -406,15 +565,16 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     // ═══════════════════════════════════════
     // PAGE 1 — Scope
     // ═══════════════════════════════════════
-    y = margin;
+    drawAccentBar();
+    y = accentBarH + 14;
 
-    // Header
-    const markW = drawMark(margin, y, 32);
+    // Header: tenant logo + company | ObraMate system mark + QUOTE
+    const markW = drawTenantMark(margin, y, 36);
     const textX = margin + markW;
     doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(18);
-    doc.text(input.organizationName, textX, y + 1, { lineBreak: false });
+    doc.text(input.organizationName, textX, y + 2, { lineBreak: false });
     doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
-    doc.text(input.organizationTagline || DEFAULT_TAGLINE, textX, y + 22, { lineBreak: false });
+    doc.text(input.organizationTagline || DEFAULT_TAGLINE, textX, y + 24, { lineBreak: false });
     const contactBits = [
       input.organizationContact,
       input.organizationLicense,
@@ -423,24 +583,31 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       .join("  ·  ");
     if (contactBits) {
       doc.fillColor(PAL.mutedLight).fontSize(7.5);
-      doc.text(contactBits, textX, y + 34, { width: 280, lineBreak: false });
+      doc.text(contactBits, textX, y + 36, { width: 280, lineBreak: false });
     }
 
-    // Right: QUOTE block
+    // Right: system mark + QUOTE block
+    const sysSize = 18;
+    drawSystemMark(pageW - margin - sysSize, y, sysSize);
+    doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(7);
+    const powered = "ObraMate";
+    const pw = doc.widthOfString(powered);
+    doc.text(powered, pageW - margin - sysSize - pw - 6, y + 4, { lineBreak: false });
+
     doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(8);
     const quoteLabel = "QUOTE";
     const qlW = doc.widthOfString(quoteLabel);
-    doc.text(quoteLabel, pageW - margin - qlW, y, { lineBreak: false });
+    doc.text(quoteLabel, pageW - margin - qlW, y + 22, { lineBreak: false });
     doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(16);
     const qnW = doc.widthOfString(quoteNumber);
-    doc.text(quoteNumber, pageW - margin - qnW, y + 14, { lineBreak: false });
+    doc.text(quoteNumber, pageW - margin - qnW, y + 36, { lineBreak: false });
     doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
     const issued = `Issued ${formatDate(input.issueDate)}`;
     const valid = `Valid until ${formatDate(input.validUntil)}`;
-    doc.text(issued, pageW - margin - doc.widthOfString(issued), y + 36, { lineBreak: false });
-    doc.text(valid, pageW - margin - doc.widthOfString(valid), y + 48, { lineBreak: false });
+    doc.text(issued, pageW - margin - doc.widthOfString(issued), y + 56, { lineBreak: false });
+    doc.text(valid, pageW - margin - doc.widthOfString(valid), y + 68, { lineBreak: false });
 
-    y += 72;
+    y += 88;
 
     // Summary bar
     const barH = 56;
@@ -747,9 +914,10 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
 
     const totalBoxH = 44;
     doc.roundedRect(totalsX, ty, halfW, totalBoxH, 6).fill(PAL.primary);
+    doc.roundedRect(totalsX, ty, 5, totalBoxH, 2).fill(PAL.accent);
     doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(9);
     doc.text("TOTAL", totalsX + 14, ty + 16, { lineBreak: false });
-    doc.fontSize(18);
+    doc.fillColor(PAL.accent).fontSize(18);
     const totalStr = money(input.total);
     doc.text(totalStr, totalsX + halfW - 14 - doc.widthOfString(totalStr), ty + 12, {
       lineBreak: false,
@@ -872,6 +1040,7 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     ensureSpace(56);
     const ctaH = 48;
     doc.roundedRect(margin, y, contentW, ctaH, 6).fill(PAL.panelBg);
+    doc.roundedRect(margin, y, 4, ctaH, 2).fill(PAL.accent);
     doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(11);
     doc.text("Approve and sign online", margin + 16, y + 12, { lineBreak: false });
     doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
@@ -892,14 +1061,22 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(range.start + i);
+      // Ensure accent bar on continuation pages that already have compact header
+      // (page 1 + page 2 already drew it in their header paths)
       const footerY = pageH - 32;
       rule(margin, pageW - margin, footerY - 8, PAL.rule, 0.5);
       doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(7.5);
       const left = `${quoteNumber} · ${customerName}`;
       doc.text(left, margin, footerY, { lineBreak: false });
+
       const brand = "Made with ObraMate";
       const bw = doc.widthOfString(brand);
-      doc.text(brand, (pageW - bw) / 2, footerY, { lineBreak: false });
+      const brandX = (pageW - bw) / 2;
+      const iconSize = 11;
+      drawSystemMark(brandX - iconSize - 5, footerY - 1, iconSize);
+      doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(7.5);
+      doc.text(brand, brandX, footerY, { lineBreak: false });
+
       const pageLabel = `Page ${i + 1} of ${range.count}`;
       doc.text(pageLabel, pageW - margin - doc.widthOfString(pageLabel), footerY, {
         lineBreak: false,
