@@ -167,9 +167,15 @@ body {
 
 /* Mobile sidebar behavior - includes tablets/iPads */
 @media (max-width: 1024px) {
+    .dashboard-container {
+        display: block !important;
+        width: 100% !important;
+    }
+
     .dashboard-sidebar {
         transform: translateX(-100%);
         width: 240px;
+        position: fixed;
     }
     
     .dashboard-sidebar.mobile-open {
@@ -179,6 +185,7 @@ body {
     .dashboard-main {
         margin-left: 0 !important;
         width: 100% !important;
+        max-width: 100% !important;
     }
     
     .mobile-menu-toggle {

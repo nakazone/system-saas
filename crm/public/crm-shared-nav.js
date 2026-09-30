@@ -104,7 +104,13 @@
         label: 'Vendas',
         items: [
           { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
-          { href: 'quotes.html', label: 'Orçamentos', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+          {
+            href: isMobileDevice() ? 'dashboard.html?page=quotes' : 'quotes.html',
+            label: 'Orçamentos',
+            perm: 'quotes.view',
+            page: 'quotes',
+            iconKey: 'quotes',
+          },
           {
             href: isMobileDevice() ? 'customers.html' : 'dashboard.html?page=customers',
             label: 'Clientes',

@@ -862,14 +862,20 @@ function showPage(pageName) {
 
     if (pageName === 'crm') pageName = 'leads';
 
-    // Standalone module panels (Jobs-style)
+    // Standalone module panels (Jobs-style). On phone/UA-mobile keep Quotes
+    // inside dashboard so #quotesMobileShell (cards + chips) is used.
     if (pageName === 'leads') {
         window.location.href = 'leads.html';
         return;
     }
     if (pageName === 'quotes') {
-        window.location.href = 'quotes.html';
-        return;
+        const mobile =
+            (window.__omDevice && typeof window.__omDevice.isMobile === 'function' && window.__omDevice.isMobile()) ||
+            window.innerWidth <= 768;
+        if (!mobile) {
+            window.location.href = 'quotes.html';
+            return;
+        }
     }
     if (pageName === 'invoices') {
         window.location.href = 'invoices.html';
