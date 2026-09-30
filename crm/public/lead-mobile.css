@@ -226,6 +226,32 @@ body.om-device-mobile .nls-root {
   color: var(--mld-muted);
 }
 
+.mld-card__link {
+  border: 0;
+  background: transparent;
+  color: var(--mld-accent, #e8792c);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mld-notes {
+  width: 100%;
+  min-height: 88px;
+  border: 1px solid var(--mld-line, #e7e5e4);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--mld-ink, #1c1917);
+  background: #fafaf9;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
 .mld-progress {
   display: grid;
   grid-template-columns: repeat(var(--mld-steps, 6), 1fr);

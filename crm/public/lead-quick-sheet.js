@@ -1100,8 +1100,8 @@
 
   function renderQuotesRows(rows, sid) {
     if (!rows.length) {
-      return `<p class="lead-quick-sheet__empty">Nenhum orcamento ligado a este lead.</p>
-        <p class="lead-quick-sheet__hint">Use <strong>Novo orcamento</strong> na barra superior.</p>`;
+      return `<p class="lead-quick-sheet__empty">Nenhum orçamento ligado a este lead.</p>
+        <p class="lead-quick-sheet__hint">Use <strong>Novo Orçamento</strong> na barra superior.</p>`;
     }
     return rows
       .map((row) => {
@@ -1246,6 +1246,53 @@
     );
   }
 
+  function normalizeStageSlugLqs_(raw) {
+    if (typeof global.normalizePipelineSlug === 'function') return global.normalizePipelineSlug(raw || '');
+    return String(raw || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+  }
+
+  /** From Quote Sent onward, prefer opening the existing quote. */
+  function stageUsesViewQuoteLqs_(slug) {
+    const s = normalizeStageSlugLqs_(slug);
+    const viewFrom = new Set([
+      'quote_sent',
+      'proposal_sent',
+      'proposal_created',
+      'follow_up_1',
+      'follow_up_2',
+      'followup_1',
+      'followup_2',
+      'stand_by',
+      'won',
+      'closed_won',
+      'negotiation',
+      'closing_attempt',
+    ]);
+    return viewFrom.has(s);
+  }
+
+  function buildQuoteCtaLqs_(lead, quoteRows, sid) {
+    const slug = normalizeStageSlugLqs_(lead && (lead.status || lead.pipeline_stage_slug));
+    const rows = Array.isArray(quoteRows) ? quoteRows : [];
+    const preferred =
+      rows.find((r) => r && r.kind !== 'proposal' && r.id) || rows.find((r) => r && r.id) || null;
+    if (stageUsesViewQuoteLqs_(slug) && preferred && preferred.id) {
+      return {
+        label: 'Visualizar Orçamento',
+        href: `quote-builder.html?id=${encodeURIComponent(String(preferred.id))}&lead_id=${encodeURIComponent(String(sid))}`,
+        external: true,
+      };
+    }
+    return {
+      label: 'Novo Orçamento',
+      href: `quote-builder.html?lead_id=${encodeURIComponent(String(sid))}`,
+      external: true,
+    };
+  }
+
   function priorityLabelLqs_(p) {
     const v = String(p || 'medium').toLowerCase();
     if (v === 'high') return 'High';
@@ -1377,6 +1424,7 @@
     const priLow = pri === 'low';
     const priHigh = pri === 'high';
     const estVal = formatMoneyLqs_(lead.estimated_value);
+    const quoteCta = buildQuoteCtaLqs_(lead, quoteRows, sid);
 
     return `
       <div class="lqs-ov">
@@ -1386,10 +1434,11 @@
           </div>
           <div class="lqs-ov-top__actions">
             ${tele}${sms}${mail}
-            <button type="button" class="btn btn-primary btn-sm lqs-btn" data-lqs-create-toggle>+ Create</button>
+            <a class="btn btn-primary btn-sm lqs-btn" href="${escapeHtml(quoteCta.href)}" ${quoteCta.external ? 'target="_blank" rel="noopener"' : ''}>${escapeHtml(quoteCta.label)}</a>
+            <button type="button" class="btn btn-secondary btn-sm lqs-btn" data-lqs-create-toggle>+ Create</button>
             <div class="lqs-create-menu" id="lqsCreateMenu" hidden>
               <button type="button" data-lqs-open-schedule>Schedule visit</button>
-              <a href="quote-builder.html?lead_id=${encodeURIComponent(String(sid))}" target="_blank" rel="noopener">New quote</a>
+              <a href="${escapeHtml(quoteCta.href)}" ${quoteCta.external ? 'target="_blank" rel="noopener"' : ''}>${escapeHtml(quoteCta.label)}</a>
               <a class="lqs-full-page" href="lead-detail.html?id=${encodeURIComponent(String(sid))}">Open full page</a>
             </div>
           </div>
@@ -1419,6 +1468,14 @@
             <div class="lqs-meta-item__value">${escapeHtml(lead.source || '—')}</div>
           </div>
         </div>
+
+        <section class="lqs-card lqs-card--notes-top">
+          <div class="lqs-card__head">
+            <h3>Notas</h3>
+            <button type="button" class="lqs-link" data-lqs-save-notes>Guardar</button>
+          </div>
+          <textarea class="lqs-notes" data-lqs-notes maxlength="8000" placeholder="Nota interna para a equipa…">${escapeHtml(lead.notes || '')}</textarea>
+        </section>
 
         <div class="lqs-tabs" role="tablist">
           <button type="button" class="lqs-tab is-active" data-lqs-tab="info" role="tab" aria-selected="true">Lead information</button>
@@ -1480,13 +1537,6 @@
                   <button type="button" class="lqs-card__plus" disabled title="Coming soon">+</button>
                 </div>
                 <p class="lqs-ov-empty">This lead has no tags.</p>
-              </section>
-              <section class="lqs-card">
-                <div class="lqs-card__head">
-                  <h3>Notes</h3>
-                  <button type="button" class="lqs-link" data-lqs-save-notes>Save</button>
-                </div>
-                <textarea class="lqs-notes" data-lqs-notes maxlength="8000" placeholder="Leave an internal note for yourself or a team member.">${escapeHtml(lead.notes || '')}</textarea>
               </section>
             </aside>
           </div>

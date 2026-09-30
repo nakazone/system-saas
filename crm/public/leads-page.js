@@ -136,6 +136,26 @@
         }
       });
 
+      const viewToggle = $("leadsKanbanViewToggle");
+      const isTablet =
+        (window.__omDevice && typeof window.__omDevice.isTablet === "function" && window.__omDevice.isTablet()) ||
+        document.body.classList.contains("om-device-tablet");
+      if (viewToggle && isTablet) {
+        viewToggle.hidden = false;
+        try {
+          localStorage.setItem("obramate_leads_view", "kanban");
+        } catch (_) {}
+        viewToggle.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-leads-view]");
+          if (!btn) return;
+          const view = btn.getAttribute("data-leads-view") || "kanban";
+          try {
+            localStorage.setItem("obramate_leads_view", view);
+          } catch (_) {}
+          if (view === "list") location.href = "pipeline-lab.html";
+        });
+      }
+
       // Refresh overview when kanban reloads after create/drag
       const origLoad = window.loadKanbanBoard;
       if (typeof origLoad === "function") {

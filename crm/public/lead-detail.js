@@ -269,6 +269,7 @@ async function loadLead() {
             loadInteractions();
             loadVisits();
             loadProposals();
+            loadLeadQuotes_();
 
             const qs = new URLSearchParams(window.location.search);
             const tabWant = qs.get('tab');
@@ -1452,7 +1453,79 @@ async function createVisit(payload, submitBtn) {
 }
 
 function showNewProposalModal() {
-    alert('Funcionalidade de criar proposta em desenvolvimento');
+    const cta = resolveLeadQuoteCta_();
+    location.href = cta.href;
+}
+
+/** @type {Array<{id:string}>} */
+let leadQuotesCache = [];
+
+function normalizeLeadStageSlug_(raw) {
+    if (typeof normalizePipelineSlug === 'function') return normalizePipelineSlug(raw || '');
+    return String(raw || '').trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function stageUsesViewQuote_(slug) {
+    const s = normalizeLeadStageSlug_(slug);
+    return [
+        'quote_sent',
+        'proposal_sent',
+        'proposal_created',
+        'follow_up_1',
+        'follow_up_2',
+        'followup_1',
+        'followup_2',
+        'stand_by',
+        'won',
+        'closed_won',
+        'negotiation',
+        'closing_attempt',
+    ].includes(s);
+}
+
+function resolveLeadQuoteCta_() {
+    const slug = normalizeLeadStageSlug_(
+        (currentLead && (currentLead.status || currentLead.pipeline_stage_slug)) || ''
+    );
+    const q = Array.isArray(leadQuotesCache) ? leadQuotesCache[0] : null;
+    if (stageUsesViewQuote_(slug) && q && q.id) {
+        return {
+            label: 'Visualizar Orçamento',
+            href: `quote-builder.html?id=${encodeURIComponent(String(q.id))}&lead_id=${encodeURIComponent(String(currentLeadId || ''))}`,
+        };
+    }
+    return {
+        label: 'Novo Orçamento',
+        href: `quote-builder.html?lead_id=${encodeURIComponent(String(currentLeadId || ''))}`,
+    };
+}
+
+async function loadLeadQuotes_() {
+    if (!currentLeadId) return;
+    try {
+        const response = await fetch(
+            `/api/quotes?lead_id=${encodeURIComponent(String(currentLeadId))}&limit=20`,
+            { credentials: 'include' }
+        );
+        const data = await response.json().catch(() => ({}));
+        leadQuotesCache =
+            data && data.success && Array.isArray(data.data)
+                ? data.data.filter((q) => q && q.id)
+                : [];
+    } catch (_) {
+        leadQuotesCache = [];
+    }
+    syncLeadQuoteCtas_();
+}
+
+function syncLeadQuoteCtas_() {
+    const cta = resolveLeadQuoteCta_();
+    const menuBtn = document.getElementById('btnLeadCreateQuote');
+    if (menuBtn) menuBtn.textContent = cta.label;
+    const quote = document.getElementById('mldQuoteBtn');
+    const quoteLabel = document.getElementById('mldQuoteLabel');
+    if (quote) quote.href = cta.href;
+    if (quoteLabel) quoteLabel.textContent = cta.label;
 }
 
 async function createInteraction(interaction) {
@@ -1634,7 +1707,16 @@ function renderMobileLeadDetail_() {
   }
   const quote = document.getElementById('mldQuoteBtn');
   if (quote) {
-    quote.href = 'quote-builder.html?lead_id=' + encodeURIComponent(String(currentLeadId || ''));
+    syncLeadQuoteCtas_();
+  }
+
+  const mldNotes = document.getElementById('mldNotes');
+  const desktopNotes = document.getElementById('leadNotes');
+  if (mldNotes && document.activeElement !== mldNotes) {
+    mldNotes.value = currentLead.notes || '';
+  }
+  if (desktopNotes && mldNotes && document.activeElement !== desktopNotes) {
+    /* keep desktop notes as source of truth when both exist */
   }
 
   const meta = document.getElementById('mldEtapaMeta');
@@ -1715,6 +1797,18 @@ function wireMobileLeadDetail_() {
   document.getElementById('mldNextBtn')?.addEventListener('click', () => {
     const next = mldNextStage_();
     if (next) void mldSetStage_(next.slug);
+  });
+
+  document.getElementById('mldSaveNotes')?.addEventListener('click', () => {
+    const ta = document.getElementById('mldNotes');
+    const desktop = document.getElementById('leadNotes');
+    if (desktop && ta) desktop.value = ta.value;
+    void saveLeadNotesOnly_();
+  });
+  document.getElementById('mldNotes')?.addEventListener('change', () => {
+    const ta = document.getElementById('mldNotes');
+    const desktop = document.getElementById('leadNotes');
+    if (desktop && ta) desktop.value = ta.value;
   });
 
   // Load qualification for area when available

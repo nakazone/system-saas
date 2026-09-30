@@ -18,10 +18,10 @@
   <link rel="stylesheet" href="crm-shared-nav.css?v=12" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260930-ipad1" />
-  <link rel="stylesheet" href="leads-mobile.css?v=20260930-ipad1" />
+  <link rel="stylesheet" href="leads-mobile.css?v=20261001-tablet1" />
   <link rel="stylesheet" href="crm-command-palette.css?v=20260929-dash1" />
   <link rel="stylesheet" href="om-dashboard.css?v=20260929-dash1" />
-  <script src="om-device.js?v=20260925-device1"></script>
+  <script src="om-device.js?v=20261001-tablet1"></script>
   <script src="crm-field-gate.js?v=20260929-dash1"></script>
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed plab">
@@ -79,9 +79,15 @@
       <div class="mleads" id="mleadsRoot" aria-label="Leads">
         <header class="mleads-head">
           <h1 class="mleads-title">Leads</h1>
-          <button type="button" class="mleads-add" id="mleadsAdd" aria-label="Novo lead">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          </button>
+          <div class="mleads-head__actions">
+            <div class="mleads-view-toggle" id="mleadsViewToggle" hidden role="group" aria-label="Visualização">
+              <button type="button" class="mleads-view-toggle__btn is-active" data-mleads-view="list" aria-pressed="true">Lista</button>
+              <button type="button" class="mleads-view-toggle__btn" data-mleads-view="kanban" aria-pressed="false">Kanban</button>
+            </div>
+            <button type="button" class="mleads-add" id="mleadsAdd" aria-label="Novo lead">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            </button>
+          </div>
         </header>
 
         <div class="mleads-kpis" aria-label="Indicadores">
@@ -250,6 +256,6 @@
   <script src="novo-lead-sheet.js?v=20260929-leads1"></script>
   <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
   <script src="om-dashboard.js?v=20261001-inv1"></script>
-  <script src="pipeline-lab.js?v=20260929-dash1"></script>
+  <script src="pipeline-lab.js?v=20261001-tablet1"></script>
 </body>
 </html>

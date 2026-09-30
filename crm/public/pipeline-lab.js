@@ -457,8 +457,66 @@
       .split(/\r?\n/)
       .map((s) => s.trim())
       .find((s) => s && !/^CEP:/i.test(s));
-    if (first) return first.length > 60 ? first.slice(0, 59) + "…" : first;
+    if (first) return first.length > 90 ? first.slice(0, 89) + "…" : first;
     return "";
+  }
+
+  function noteSnippet(lead) {
+    const note = String(lead.notes || "")
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .find((s) => s && !/^CEP:/i.test(s));
+    if (!note) return "";
+    return note.length > 100 ? note.slice(0, 99) + "…" : note;
+  }
+
+  function isTabletShell() {
+    if (window.__omDevice && typeof window.__omDevice.isTablet === "function") return window.__omDevice.isTablet();
+    return document.body.classList.contains("om-device-tablet");
+  }
+
+  function preferredLeadsView() {
+    try {
+      const v = localStorage.getItem("obramate_leads_view");
+      if (v === "kanban" || v === "list") return v;
+    } catch (_) {}
+    return isTabletShell() ? "kanban" : "list";
+  }
+
+  function setPreferredLeadsView(view) {
+    try {
+      localStorage.setItem("obramate_leads_view", view);
+    } catch (_) {}
+  }
+
+  function syncMobileViewToggle() {
+    const toggle = $("mleadsViewToggle");
+    if (!toggle) return;
+    // Kanban option is for tablets; phones keep list-only.
+    toggle.hidden = !isTabletShell();
+    if (!isTabletShell()) return;
+    const view = preferredLeadsView();
+    toggle.querySelectorAll("[data-mleads-view]").forEach((btn) => {
+      const on = btn.getAttribute("data-mleads-view") === view;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function bindMobileViewToggle() {
+    const toggle = $("mleadsViewToggle");
+    if (!toggle || toggle.dataset.bound === "1") return;
+    toggle.dataset.bound = "1";
+    toggle.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-mleads-view]");
+      if (!btn) return;
+      const view = btn.getAttribute("data-mleads-view") || "list";
+      setPreferredLeadsView(view);
+      syncMobileViewToggle();
+      if (view === "kanban") {
+        location.href = "leads.html";
+      }
+    });
   }
 
   function mobileBoardStages() {
@@ -542,15 +600,16 @@
       .map((lead) => {
         const val = Number(lead.estimated_value) || 0;
         const src = lead.source ? String(lead.source) : "";
-        const sub = summaryOf(lead) || src || "Lead";
+        const note = noteSnippet(lead);
+        const sub = note || src || "Lead";
         return `<li class="mleads-card" data-id="${esc(lead.id)}">
           <span class="mleads-card__avatar" style="background:${softColorFor(lead.id)}">${esc(initials(lead.name))}</span>
           <div>
             <p class="mleads-card__name">${esc(lead.name || "Lead")}</p>
-            <p class="mleads-card__sub">${esc(sub)}</p>
+            ${note ? `<p class="mleads-card__note">${esc(note)}</p>` : `<p class="mleads-card__sub">${esc(sub)}</p>`}
             <div class="mleads-card__tags">
               <span class="mleads-tag"><span class="mleads-tag__dot" style="background:${esc(stageColor)}"></span>${esc(label)}</span>
-              ${src && sub !== src ? `<span class="mleads-tag">${esc(src)}</span>` : ""}
+              ${src && note ? `<span class="mleads-tag">${esc(src)}</span>` : ""}
             </div>
           </div>
           <div class="mleads-card__right">
@@ -601,6 +660,13 @@
     document.title = "Leads | ObraMate";
     const title = $("plabHeaderTitle");
     if (title) title.textContent = "Leads";
+    bindMobileViewToggle();
+    syncMobileViewToggle();
+    // Tablets that prefer Kanban go straight to the board.
+    if (isTabletShell() && preferredLeadsView() === "kanban") {
+      location.replace("leads.html");
+      return;
+    }
     $("mleadsAdd")?.addEventListener("click", () => openNewLead(() => loadMobile().catch(() => {})));
     $("mleadsSearch")?.addEventListener("input", () => {
       clearTimeout($("mleadsSearch")._t);

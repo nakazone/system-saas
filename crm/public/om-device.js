@@ -3,10 +3,19 @@
  * Uses user-agent (and iPadOS touch Mac) so PC keeps the classic layout.
  */
 (function (global) {
-  function isMobileUa(ua) {
+  function isPhoneUa(ua) {
     const s = String(ua || "");
-    if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(s)) return true;
+    // Phones only — iPad / tablets are handled separately so they can use Kanban.
+    if (/iPhone|iPod|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(s)) return true;
+    if (/Android/i.test(s) && /Mobile/i.test(s)) return true;
+    return false;
+  }
+
+  function isTabletUa(ua) {
+    const s = String(ua || "");
     if (/iPad/i.test(s)) return true;
+    if (/Android/i.test(s) && !/Mobile/i.test(s)) return true;
+    if (/Tablet|PlayBook|Silk/i.test(s)) return true;
     return false;
   }
 
@@ -22,9 +31,20 @@
     }
   }
 
-  function isMobile() {
+  function isPhone() {
     if (typeof navigator === "undefined") return false;
-    return isMobileUa(navigator.userAgent) || isIpadOsDesktopUa();
+    return isPhoneUa(navigator.userAgent);
+  }
+
+  function isTablet() {
+    if (typeof navigator === "undefined") return false;
+    if (isPhone()) return false;
+    return isTabletUa(navigator.userAgent) || isIpadOsDesktopUa();
+  }
+
+  /** Phone or tablet — mobile app chrome (tab bar, etc.). */
+  function isMobile() {
+    return isPhone() || isTablet();
   }
 
   function entryHref() {
@@ -33,8 +53,13 @@
 
   function applyBodyClass() {
     if (typeof document === "undefined" || !document.body) return;
-    document.body.classList.toggle("om-device-mobile", isMobile());
-    document.body.classList.toggle("om-device-desktop", !isMobile());
+    const phone = isPhone();
+    const tablet = isTablet();
+    const mobile = phone || tablet;
+    document.body.classList.toggle("om-device-mobile", mobile);
+    document.body.classList.toggle("om-device-phone", phone);
+    document.body.classList.toggle("om-device-tablet", tablet);
+    document.body.classList.toggle("om-device-desktop", !mobile);
   }
 
   /** Redirect desktop away from the mobile-only Home. */
@@ -50,7 +75,13 @@
   }
 
   const api = {
-    isMobileUa,
+    isMobileUa: function (ua) {
+      return isPhoneUa(ua) || isTabletUa(ua);
+    },
+    isPhoneUa,
+    isTabletUa,
+    isPhone,
+    isTablet,
     isMobile,
     entryHref,
     applyBodyClass,

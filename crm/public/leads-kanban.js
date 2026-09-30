@@ -778,6 +778,16 @@ function renderKanbanCard(lead) {
         lead.estimated_value != null && lead.estimated_value !== ''
             ? `<div class="kanban-card-row"><span class="kanban-card-label">Valor</span><span class="kanban-card-value">$${parseFloat(lead.estimated_value).toLocaleString()}</span></div>`
             : '';
+    const noteRaw = String(lead.notes || '')
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .find((s) => s && !/^CEP:/i.test(s));
+    const noteText = noteRaw
+        ? escapeKanbanHtml(noteRaw.length > 110 ? noteRaw.slice(0, 109) + '…' : noteRaw)
+        : '';
+    const noteRow = noteText
+        ? `<div class="kanban-card-note" title="${noteText}">${noteText}</div>`
+        : '';
     const quoteIcons =
         typeof renderLeadQuoteEngagementIconsHtml === 'function'
             ? renderLeadQuoteEngagementIconsHtml(
@@ -807,6 +817,7 @@ function renderKanbanCard(lead) {
                 ${phoneRow}
                 ${valueRow}
             </div>
+            ${noteRow}
             ${quoteIcons}
             <div class="kanban-card-footer-row" title="Data de entrada · tempo na coluna">
                 <span class="kanban-card-entered-date">${enteredAt}</span>

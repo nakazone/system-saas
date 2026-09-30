@@ -18,11 +18,11 @@
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-pwa" />
   <link rel="stylesheet" href="lead-detail.css?v=20260925-leadui1" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
-  <link rel="stylesheet" href="lead-mobile.css?v=20260930-ipad1" />
+  <link rel="stylesheet" href="lead-mobile.css?v=20261001-leads1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed">
-  <script src="om-device.js?v=20260925-device1"></script>
+  <script src="om-device.js?v=20261001-tablet1"></script>
   <script>
     (function () {
       try {
@@ -128,6 +128,14 @@
           <div class="mld-chips" id="mldStageChips" role="tablist" aria-label="Estágios"></div>
         </section>
 
+        <section class="mld-card mld-card--notes" aria-labelledby="mldNotesTitle">
+          <div class="mld-card__head">
+            <h3 class="mld-card__title" id="mldNotesTitle">Notas</h3>
+            <button type="button" class="mld-card__link" id="mldSaveNotes">Guardar</button>
+          </div>
+          <textarea class="mld-notes" id="mldNotes" maxlength="8000" placeholder="Nota interna para a equipa…" rows="3"></textarea>
+        </section>
+
         <section class="mld-card">
           <ul class="mld-rows" id="mldRows"></ul>
         </section>
@@ -135,7 +143,7 @@
         <footer class="mld-footer">
           <a class="mld-footer__quote" id="mldQuoteBtn" href="quote-builder.html">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
-            Quote
+            <span id="mldQuoteLabel">Novo Orçamento</span>
           </a>
           <button type="button" class="mld-footer__next" id="mldNextBtn">
             <span id="mldNextLabel">Avançar</span>
@@ -175,7 +183,7 @@
                 <button type="button" role="menuitem" data-create="visit">Schedule visit</button>
                 <button type="button" role="menuitem" data-create="interaction">Log interaction</button>
                 <button type="button" role="menuitem" data-create="followup">New follow-up</button>
-                <button type="button" role="menuitem" data-create="proposal">New quote</button>
+                <button type="button" role="menuitem" data-create="proposal" id="btnLeadCreateQuote">Novo Orçamento</button>
               </div>
             </div>
           </div>
@@ -263,6 +271,14 @@
                   <button type="button" class="btn btn-secondary" id="btnCancelLeadEdit">Cancel</button>
                 </div>
               </div>
+
+              <section class="lead-card lead-card--notes-top">
+                <div class="lead-card__head">
+                  <h2>Notas</h2>
+                  <button type="button" class="lead-card__link" id="btnSaveRailNotes">Guardar</button>
+                </div>
+                <textarea class="lead-notes-area" id="leadNotes" placeholder="Nota interna para a equipa…" maxlength="8000"></textarea>
+              </section>
 
               <section class="lead-card">
                 <div class="lead-card__head">
@@ -435,13 +451,6 @@
                   <button type="button" class="lead-card__icon-btn" disabled title="Coming soon">+</button>
                 </div>
                 <p class="lead-rail-empty">This lead has no tags.</p>
-              </section>
-              <section class="lead-card">
-                <div class="lead-card__head">
-                  <h2>Notes</h2>
-                  <button type="button" class="lead-card__link" id="btnSaveRailNotes">Save</button>
-                </div>
-                <textarea class="lead-notes-area" id="leadNotes" placeholder="Leave an internal note for yourself or a team member." maxlength="8000"></textarea>
               </section>
             </aside>
           </div>
@@ -690,15 +699,15 @@
   <script src="crm-toast.js"></script>
   <script src="crm-i18n.js?v=20260929-navia1"></script>
   <script src="saas-branding.js?v=20260929-navia1"></script>
-  <script src="om-device.js?v=20260925-device1"></script>
+  <script src="om-device.js?v=20261001-tablet1"></script>
   <script src="pipeline-stage-labels.js?v=20260924-visit3"></script>
   <script src="lead-contact-links.js?v=20260915-all-stage-sms"></script>
   <script src="crm-address-autocomplete.js?v=20260924-maps4"></script>
   <script src="lead-visit-calendar-format.js?v=20260528-cal-address"></script>
   <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
-  <script src="crm-shared-nav.js?v=20261001-inv1"></script>
+  <script src="crm-shared-nav.js?v=20261001-tablet1"></script>
   <script src="crm-shell.js?v=20260930-maismob2"></script>
-  <script src="om-mobile-nav.js?v=20261001-inv1"></script>
-  <script src="lead-detail.js?v=20260929-leads1"></script>
+  <script src="om-mobile-nav.js?v=20261001-tablet1"></script>
+  <script src="lead-detail.js?v=20261001-leads1"></script>
 </body>
 </html>
