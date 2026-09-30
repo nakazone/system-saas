@@ -7,6 +7,7 @@ import connectPgSimple from "connect-pg-simple";
 import cookieParser from "cookie-parser";
 import pg from "pg";
 import { env } from "./config/env.js";
+import { getEmailTransportStatus } from "./lib/email/index.js";
 import { DEFAULT_ESTIMATE_RULES } from "./lib/tenant/defaults.js";
 import { resolveTenant, requireTenant } from "./lib/tenant/resolve-tenant.js";
 import { subdomainTenantsSupported } from "./lib/tenant/workspace-url.js";
@@ -161,6 +162,10 @@ export function createApp() {
       rootDomain: env.APP_ROOT_DOMAIN,
       tenantRouting: subdomainTenantsSupported() ? "subdomain" : "session",
     });
+  });
+  app.get("/api/health/email", (_req, res) => {
+    const status = getEmailTransportStatus();
+    res.status(status.ready ? 200 : 503).json({ success: status.ready, ...status });
   });
 
   // Canonical host: www → apex (obramate.com)

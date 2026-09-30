@@ -20,6 +20,9 @@ import {
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
 import { storage } from "../../lib/storage/index.js";
+import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
+import { sendCustomerEmail } from "../../lib/email/index.js";
+import { env } from "../../config/env.js";
 
 export const customersQuotesRouter = Router();
 
@@ -1252,6 +1255,212 @@ customersQuotesRouter.post(
     }
   },
 );
+
+function normalizeEmailList(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : raw != null && raw !== "" ? [raw] : [];
+  const out: string[] = [];
+  for (const item of list) {
+    const e = String(item || "")
+      .trim()
+      .toLowerCase();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !out.includes(e)) out.push(e);
+  }
+  return out;
+}
+
+customersQuotesRouter.post(
+  "/api/quotes/:id/send-email",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!asOptionalUuid(id)) {
+        res.status(400).json({ success: false, error: "ID inválido" });
+        return;
+      }
+
+      const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<
+        string,
+        unknown
+      >;
+
+      const prepared = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const quote = await tx.quote.findFirst({
+          where: { id },
+          include: {
+            customer: { select: { id: true, name: true, email: true } },
+            builder: { select: { email: true, company: true, firstName: true, lastName: true } },
+            organization: { select: { name: true, contactEmail: true } },
+          },
+        });
+        if (!quote) return null;
+
+        const toOverride = String(body.to || "").trim().toLowerCase();
+        const primary =
+          toOverride ||
+          quote.customer?.email?.trim().toLowerCase() ||
+          quote.builder?.email?.trim().toLowerCase() ||
+          "";
+        if (!primary) {
+          return { error: "Este cliente não tem e-mail no cadastro." as const };
+        }
+
+        const issued = await issuePublicAccessToken(tx, {
+          organizationId: req.organizationId!,
+          entityType: "quote",
+          entityId: quote.id,
+        });
+
+        const prevStatus = quote.status;
+        const prevPayload =
+          quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
+            ? { ...(quote.payload as Record<string, unknown>) }
+            : {};
+        const emailSentAt = new Date().toISOString();
+
+        await tx.quote.update({
+          where: { id: quote.id },
+          data: {
+            status: "sent",
+            publicToken: null,
+            payload: {
+              ...prevPayload,
+              email_sent_at: emailSentAt,
+              sent_at: emailSentAt,
+            } as Prisma.InputJsonValue,
+          },
+        });
+
+        let leadMoved = false;
+        let leadMoveReason: string | null = null;
+        try {
+          await syncLeadForQuoteStatus(tx, {
+            organizationId: req.organizationId!,
+            quoteId: quote.id,
+            previousStatus: prevStatus,
+            nextStatus: "sent",
+            actorId: req.user?.id,
+          });
+          // If quote has no lead, moveLead is a no-op
+          if (!quote.leadId && !asOptionalUuid(body.lead_id)) {
+            leadMoveReason = "no_lead";
+          } else {
+            leadMoved = normalizeQuoteStatus(prevStatus) !== "sent";
+          }
+        } catch {
+          leadMoveReason = "move_failed";
+        }
+
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          actorType: "user",
+          actorId: req.user?.id ?? null,
+          entityType: "quote",
+          entityId: quote.id,
+          action: "quote.email_sent",
+        });
+
+        return {
+          quote,
+          primary,
+          issued,
+          emailSentAt,
+          leadMoved,
+          leadMoveReason,
+          orgName: quote.organization.name,
+        };
+      });
+
+      if (!prepared) {
+        res.status(404).json({ success: false, error: "Orçamento não encontrado" });
+        return;
+      }
+      if ("error" in prepared && prepared.error) {
+        res.status(400).json({ success: false, error: prepared.error });
+        return;
+      }
+
+      const data = prepared as {
+        quote: {
+          title: string;
+          clientMessage: string | null;
+          customer?: { name: string } | null;
+          builder?: { company: string | null; firstName: string; lastName: string } | null;
+        };
+        primary: string;
+        issued: { rawToken: string };
+        emailSentAt: string;
+        leadMoved: boolean;
+        leadMoveReason: string | null;
+        orgName: string;
+      };
+
+      const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
+      const proto = req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
+      const publicUrl = `${proto}://${host}/public/quotes/${data.issued.rawToken}`;
+      const clientName =
+        data.quote.customer?.name ||
+        data.quote.builder?.company ||
+        [data.quote.builder?.firstName, data.quote.builder?.lastName].filter(Boolean).join(" ") ||
+        "Cliente";
+      const cc = normalizeEmailList(body.cc ?? body.extra_emails ?? body.extraEmails);
+
+      const subject =
+        String(body.subject || "").trim() ||
+        `Orçamento de ${data.orgName}: ${data.quote.title}`;
+      const text =
+        `Olá ${clientName},\n\n` +
+        `O seu orçamento está pronto. Abra o link seguro abaixo para ver os detalhes e o PDF:\n` +
+        `${publicUrl}\n\n` +
+        (data.quote.clientMessage ? `${data.quote.clientMessage}\n\n` : "") +
+        `— ${data.orgName}\n` +
+        `(enviado via ObraMate)`;
+      const html =
+        `<p>Olá ${escapeHtml(clientName)},</p>` +
+        `<p>O seu orçamento está pronto. ` +
+        `<a href="${escapeHtml(publicUrl)}">Ver orçamento online</a> ` +
+        `(detalhes e PDF só neste link seguro).</p>` +
+        (data.quote.clientMessage
+          ? `<p>${escapeHtml(data.quote.clientMessage)}</p>`
+          : "") +
+        `<p>— ${escapeHtml(data.orgName)}<br/><span style="color:#8a8074;font-size:12px">Enviado via ObraMate</span></p>`;
+
+      const sent = await sendCustomerEmail({
+        to: data.primary,
+        cc,
+        subject,
+        text,
+        html,
+      });
+
+      if (!sent.ok) {
+        res.status(503).json({ success: false, error: sent.error });
+        return;
+      }
+
+      res.json({
+        success: true,
+        message_id: sent.id || null,
+        transport: sent.transport,
+        email_sent_at: data.emailSentAt,
+        lead_moved: data.leadMoved,
+        lead_move_reason: data.leadMoveReason,
+        public_url: publicUrl,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 customersQuotesRouter.get(
   "/api/quotes/:id/invoice-pdf",

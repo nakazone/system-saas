@@ -20,8 +20,11 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_BUCKET: z.string().default("flooring-saas"),
   S3_PUBLIC_URL: z.string().optional(),
-  EMAIL_PROVIDER: z.enum(["console", "smtp"]).default("console"),
+  EMAIL_PROVIDER: z.enum(["console", "smtp", "resend"]).default("console"),
   EMAIL_FROM: z.string().default("noreply@localhost"),
+  /** Resend API key — required when EMAIL_PROVIDER=resend (or auto when key is set). */
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().optional(),
   /** Inbox for tenant support tickets (falls back to first platform admin email). */
   SUPPORT_INBOX_EMAIL: z.string().email().optional(),
   /** Web Push VAPID (optional — generated & stored in DB if missing). */
