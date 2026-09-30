@@ -625,6 +625,25 @@
       font-size: 0.875rem;
       box-sizing: border-box;
     }
+    .qb-extra-emails__row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: stretch;
+    }
+    .qb-extra-emails__row .qb-extra-emails__input {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .qb-extra-emails__row .btn {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+    .qb-email-preview-extras {
+      margin-top: 0.35rem;
+      margin-bottom: 0.75rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid #e2e8f0;
+    }
     .qb-pricing-active {
       font-size: 0.8125rem;
       color: #0f172a;
@@ -1675,13 +1694,15 @@
       color: #475569;
     }
     .qb-email-preview-meta strong { color: #1c1917; font-weight: 700; }
+    #qbEmailPreviewModal .qb-invoice-form__label { margin-bottom: 10px; }
     .qb-email-preview-frame {
       width: 100%;
-      min-height: 360px;
-      height: min(52vh, 480px);
+      min-height: 320px;
+      height: min(48vh, 440px);
       border: 1px solid #e2e8f0;
       border-radius: 10px;
       background: #f3f0ea;
+      margin-top: 4px;
     }
     .qb-modal__title { margin: 0 0 6px; font-size: 1.1rem; color: var(--plab-ink, #1c1917); }
     .qb-modal__sub { margin: 0 0 14px; }
@@ -2383,11 +2404,32 @@
   <div id="qbEmailPreviewModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbEmailPreviewTitle">
     <div class="qb-modal__panel qb-modal__panel--wide">
       <h2 id="qbEmailPreviewTitle" class="qb-modal__title">Pré-visualizar e-mail</h2>
-      <p class="qb-modal__sub text-sm text-slate-500">Confira o e-mail antes de enviar. O link seguro é gerado para este orçamento.</p>
+      <p class="qb-modal__sub text-sm text-slate-500">Confira o e-mail antes de enviar. Pode alterar o assunto e adicionar destinatários.</p>
       <div class="qb-email-preview-meta" id="qbEmailPreviewMeta"></div>
-      <label class="qb-invoice-form__label">Assunto
-        <input type="text" id="qbEmailPreviewSubject" class="qb-invoice-form__input" />
+      <label class="qb-invoice-form__label" id="qbEmailPreviewToWrap">Para
+        <input type="email" id="qbEmailPreviewTo" class="qb-invoice-form__input" autocomplete="email" placeholder="cliente@email.com" />
       </label>
+      <label class="qb-invoice-form__label">Assunto
+        <input type="text" id="qbEmailPreviewSubject" class="qb-invoice-form__input" maxlength="200" placeholder="Assunto do e-mail" />
+      </label>
+      <div id="qbEmailPreviewExtrasWrap" class="qb-extra-emails qb-email-preview-extras">
+        <label class="qb-extra-emails__label" for="qbEmailPreviewExtraInput">E-mails adicionais</label>
+        <p class="qb-extra-emails__hint">Enter, OK no telemóvel ou Adicionar — cada e-mail fica em chip.</p>
+        <div class="qb-extra-emails__chips" id="qbEmailPreviewExtraChips" aria-live="polite"></div>
+        <div class="qb-extra-emails__row">
+          <input
+            type="email"
+            id="qbEmailPreviewExtraInput"
+            class="qb-extra-emails__input"
+            autocomplete="off"
+            enterkeyhint="done"
+            inputmode="email"
+            placeholder="outro@email.com"
+            aria-label="Adicionar e-mail adicional"
+          />
+          <button type="button" class="btn btn-secondary btn-sm" id="btnEmailPreviewExtraAdd">Adicionar</button>
+        </div>
+      </div>
       <iframe id="qbEmailPreviewFrame" class="qb-email-preview-frame" title="Pré-visualização do e-mail" sandbox=""></iframe>
       <div class="qb-modal__actions">
         <button type="button" class="btn btn-ghost" id="btnEmailPreviewCancel">Cancelar</button>
@@ -2496,7 +2538,7 @@
   <script src="crm-pdf-viewer.js?v=20260930b"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261001-inv1"></script>
+  <script src="quote-builder.js?v=20261001-email1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

@@ -2044,65 +2044,163 @@
   let pendingEmailSendBody = null;
   /** @type {{ kind: 'quote' | 'receipt', body?: object, invoiceId?: string } | null} */
   let pendingEmailAction = null;
+  /** Extra CC emails for the quote email preview modal. */
+  let previewExtraEmails = [];
 
   function closeEmailPreviewModal() {
     $('qbEmailPreviewModal')?.classList.add('hidden');
     pendingEmailSendBody = null;
     pendingEmailAction = null;
+    previewExtraEmails = [];
     const frame = $('qbEmailPreviewFrame');
     if (frame) frame.removeAttribute('srcdoc');
     const sendBtn = $('btnEmailPreviewSend');
     if (sendBtn) sendBtn.textContent = 'Enviar e-mail';
+    const extraInput = $('qbEmailPreviewExtraInput');
+    if (extraInput) extraInput.value = '';
+    renderPreviewExtraEmailChips();
+  }
+
+  function renderPreviewExtraEmailChips() {
+    const box = $('qbEmailPreviewExtraChips');
+    if (!box) return;
+    if (!previewExtraEmails.length) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = previewExtraEmails
+      .map((email, idx) => {
+        const safe = escapeHtmlText(email);
+        return `<span class="qb-extra-emails__chip" data-preview-email-idx="${idx}">
+          <span title="${safe}">${safe}</span>
+          <button type="button" class="qb-extra-emails__chip-remove" data-remove-preview-email="${idx}" aria-label="Remover ${safe}">×</button>
+        </span>`;
+      })
+      .join('');
+  }
+
+  function addPreviewExtraEmail(raw, { quietInvalid = false } = {}) {
+    const email = String(raw || '').trim().toLowerCase();
+    if (!email) return false;
+    if (!isValidEmailAddress(email)) {
+      if (!quietInvalid) qbToast('E-mail inválido.', 'error');
+      return false;
+    }
+    const primary = String($('qbEmailPreviewTo')?.value || '').trim().toLowerCase();
+    if (primary && email === primary) {
+      if (!quietInvalid) qbToast('Este já é o destinatário principal.', 'info');
+      return false;
+    }
+    if (previewExtraEmails.includes(email)) {
+      if (!quietInvalid) qbToast('E-mail já adicionado.', 'info');
+      return false;
+    }
+    previewExtraEmails.push(email);
+    renderPreviewExtraEmailChips();
+    return true;
+  }
+
+  function removePreviewExtraEmail(idx) {
+    const i = Number(idx);
+    if (!Number.isFinite(i) || i < 0 || i >= previewExtraEmails.length) return;
+    previewExtraEmails.splice(i, 1);
+    renderPreviewExtraEmailChips();
+  }
+
+  function tryCommitPreviewExtraEmailInput({ quietInvalid = false } = {}) {
+    const input = $('qbEmailPreviewExtraInput');
+    if (!input) return;
+    const raw = String(input.value || '').trim();
+    if (!raw) return;
+    const parts = raw.split(/[,;\s]+/).map((p) => p.trim()).filter(Boolean);
+    let added = 0;
+    for (const part of parts) {
+      if (addPreviewExtraEmail(part, { quietInvalid })) added += 1;
+    }
+    if (added > 0) input.value = '';
   }
 
   function openEmailPreviewModal(preview, opts) {
     pendingEmailAction = opts || { kind: 'quote', body: {} };
     pendingEmailSendBody = opts?.kind === 'quote' ? opts.body || {} : null;
+    const isReceipt = opts?.kind === 'receipt';
     const modal = $('qbEmailPreviewModal');
     if (!modal) return;
     const title = $('qbEmailPreviewTitle');
     if (title) {
-      title.textContent =
-        opts?.kind === 'receipt' ? 'Pré-visualizar e-mail do recibo' : 'Pré-visualizar e-mail';
+      title.textContent = isReceipt ? 'Pré-visualizar e-mail do recibo' : 'Pré-visualizar e-mail';
     }
     const meta = $('qbEmailPreviewMeta');
     if (meta) {
-      const cc = Array.isArray(preview.cc) && preview.cc.length ? preview.cc.join(', ') : '';
-      let html =
-        `<div><strong>Para:</strong> ${escapeHtmlText(preview.to || '')}</div>` +
-        (cc ? `<div><strong>CC:</strong> ${escapeHtmlText(cc)}</div>` : '') +
-        (preview.client_name
-          ? `<div><strong>Cliente:</strong> ${escapeHtmlText(preview.client_name)}</div>`
-          : '') +
-        (preview.invoice_number
-          ? `<div><strong>Fatura:</strong> ${escapeHtmlText(preview.invoice_number)}</div>`
-          : '') +
-        (preview.amount != null
-          ? `<div><strong>Valor:</strong> ${money(preview.amount)}${
-              preview.method_label ? ` · ${escapeHtmlText(preview.method_label)}` : ''
-            }</div>`
-          : '') +
-        (preview.quote_number
-          ? `<div><strong>Orçamento:</strong> ${escapeHtmlText(preview.quote_number)}</div>`
-          : '');
+      let html = '';
+      if (preview.client_name) {
+        html += `<div><strong>Cliente:</strong> ${escapeHtmlText(preview.client_name)}</div>`;
+      }
+      if (preview.invoice_number) {
+        html += `<div><strong>Fatura:</strong> ${escapeHtmlText(preview.invoice_number)}</div>`;
+      }
+      if (preview.amount != null) {
+        html += `<div><strong>Valor:</strong> ${money(preview.amount)}${
+          preview.method_label ? ` · ${escapeHtmlText(preview.method_label)}` : ''
+        }</div>`;
+      }
+      if (preview.quote_number) {
+        html += `<div><strong>Orçamento:</strong> ${escapeHtmlText(preview.quote_number)}</div>`;
+      }
       if (preview.note) {
         html += `<div style="margin-top:6px;font-size:12px;color:#78716c">${escapeHtmlText(preview.note)}</div>`;
       }
       meta.innerHTML = html;
     }
+
+    const toEl = $('qbEmailPreviewTo');
+    const toWrap = $('qbEmailPreviewToWrap');
+    if (toEl) {
+      toEl.value = preview.to || '';
+      toEl.readOnly = isReceipt;
+    }
+    if (toWrap) toWrap.classList.toggle('hidden', false);
+
     const subj = $('qbEmailPreviewSubject');
     if (subj) {
       subj.value = preview.subject || '';
-      subj.readOnly = opts?.kind === 'receipt';
+      subj.readOnly = isReceipt;
     }
+
+    const extrasWrap = $('qbEmailPreviewExtrasWrap');
+    if (extrasWrap) extrasWrap.classList.toggle('hidden', isReceipt);
+    previewExtraEmails = [];
+    if (!isReceipt) {
+      const fromPreview = Array.isArray(preview.cc)
+        ? preview.cc
+        : Array.isArray(preview.extra_emails)
+          ? preview.extra_emails
+          : [];
+      const fromBody = Array.isArray(opts?.body?.extra_emails)
+        ? opts.body.extra_emails
+        : Array.isArray(opts?.body?.cc)
+          ? opts.body.cc
+          : [];
+      const seed = [...fromPreview, ...fromBody]
+        .map((e) => String(e || '').trim().toLowerCase())
+        .filter((e) => isValidEmailAddress(e));
+      const primary = String(preview.to || '').trim().toLowerCase();
+      previewExtraEmails = [...new Set(seed)].filter((e) => e && e !== primary);
+    }
+    renderPreviewExtraEmailChips();
+    const extraInput = $('qbEmailPreviewExtraInput');
+    if (extraInput) extraInput.value = '';
+
     const frame = $('qbEmailPreviewFrame');
     if (frame) frame.srcdoc = preview.html || '<p>Sem pré-visualização.</p>';
     const sendBtn = $('btnEmailPreviewSend');
     if (sendBtn) {
-      sendBtn.textContent =
-        opts?.kind === 'receipt' ? 'Registrar e enviar' : 'Enviar e-mail';
+      sendBtn.textContent = isReceipt ? 'Registrar e enviar' : 'Enviar e-mail';
     }
     modal.classList.remove('hidden');
+    if (!isReceipt && subj && !subj.readOnly) {
+      setTimeout(() => subj.focus(), 50);
+    }
   }
 
   async function sendQuoteByEmail() {
@@ -2135,7 +2233,11 @@
         getQuoteParty() === 'builder' && builderExtraEmails.length
           ? builderExtraEmails.slice()
           : [];
-      const body = extra.length ? { extra_emails: extra, cc: extra } : {};
+      const body = { to: previewTo };
+      if (extra.length) {
+        body.extra_emails = extra;
+        body.cc = extra;
+      }
       const lid = getCurrentQuoteLeadId();
       if (lid) body.lead_id = lid;
       const r = await api(`/api/quotes/${quoteId}/email-preview`, {
@@ -2159,6 +2261,30 @@
       return;
     }
     if (!quoteId || !pendingEmailSendBody) return;
+    tryCommitPreviewExtraEmailInput();
+    const to = String($('qbEmailPreviewTo')?.value || '').trim().toLowerCase();
+    if (!isValidEmailAddress(to)) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'E-mail inválido',
+        message: 'Informe um destinatário principal válido.',
+        ms: 8000,
+      });
+      $('qbEmailPreviewTo')?.focus();
+      return;
+    }
+    const subject = String($('qbEmailPreviewSubject')?.value || '').trim();
+    if (!subject) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'Assunto em falta',
+        message: 'Escreva o título (assunto) do e-mail antes de enviar.',
+        ms: 8000,
+      });
+      $('qbEmailPreviewSubject')?.focus();
+      return;
+    }
+    const extras = previewExtraEmails.filter((e) => e && e !== to);
     const btn = $('btnEmailPreviewSend');
     const prev = btn?.textContent;
     if (btn) {
@@ -2166,15 +2292,19 @@
       btn.textContent = 'A enviar…';
     }
     try {
-      const subject = String($('qbEmailPreviewSubject')?.value || '').trim();
-      const body = { ...pendingEmailSendBody };
-      if (subject) body.subject = subject;
+      const body = { ...pendingEmailSendBody, to, subject };
+      if (extras.length) {
+        body.extra_emails = extras;
+        body.cc = extras;
+      } else {
+        delete body.extra_emails;
+        delete body.cc;
+      }
       const r = await api(`/api/quotes/${quoteId}/send-email`, {
         method: 'POST',
         body: JSON.stringify(body),
       });
       closeEmailPreviewModal();
-      const preview = getClientEmailForQuote();
       const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
       updateEmailSentBadge(r.email_sent_at || new Date().toISOString());
       if (r.email_sent_at == null) {
@@ -2188,8 +2318,7 @@
       const statusEl = $('status');
       if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
       startQuoteViewPolling();
-      const extra = Array.isArray(body.cc) ? body.cc : body.extra_emails || [];
-      const ccNote = extra.length ? ` (CC: ${extra.join(', ')})` : '';
+      const ccNote = extras.length ? ` (CC: ${extras.join(', ')})` : '';
       const movedNote =
         r.lead_moved === true
           ? ' Lead movido para Orçamento enviado.'
@@ -2199,7 +2328,7 @@
       showQuoteNotify({
         type: 'success',
         title: 'E-mail enviado',
-        message: `E-mail enviado para ${preview}${ccNote} (${how}) — só com link seguro. Será notificado quando o cliente abrir o link ou descarregar o PDF.${movedNote}`,
+        message: `E-mail enviado para ${to}${ccNote} (${how}) — só com link seguro. Será notificado quando o cliente abrir o link ou descarregar o PDF.${movedNote}`,
       });
     } catch (e) {
       const raw = e.message || '';
@@ -3487,9 +3616,10 @@
       btn.textContent = 'A processar…';
     }
     try {
+      const emailTo = String($('qbEmailPreviewTo')?.value || '').trim() || action.body?.email_to || undefined;
       const r = await api(`/api/quote-invoices/${action.invoiceId}/receipts`, {
         method: 'POST',
-        body: JSON.stringify({ ...action.body, send_email: true, email_to: action.body?.email_to || undefined }),
+        body: JSON.stringify({ ...action.body, send_email: true, email_to: emailTo }),
       });
       closeEmailPreviewModal();
       closeReceiptModal();
@@ -3833,6 +3963,36 @@
     $('btnEmailPreviewSend')?.addEventListener('click', () => void confirmSendQuoteEmail());
     $('qbEmailPreviewModal')?.addEventListener('click', (e) => {
       if (e.target === $('qbEmailPreviewModal')) closeEmailPreviewModal();
+    });
+    const previewExtraChips = $('qbEmailPreviewExtraChips');
+    if (previewExtraChips) {
+      previewExtraChips.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-preview-email]');
+        if (!btn) return;
+        removePreviewExtraEmail(btn.getAttribute('data-remove-preview-email'));
+      });
+    }
+    const previewExtraInput = $('qbEmailPreviewExtraInput');
+    if (previewExtraInput) {
+      previewExtraInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ',') {
+          e.preventDefault();
+          tryCommitPreviewExtraEmailInput();
+        } else if (e.key === 'Backspace' && !String(previewExtraInput.value || '') && previewExtraEmails.length) {
+          removePreviewExtraEmail(previewExtraEmails.length - 1);
+        }
+      });
+      // Mobile keyboards: Done/OK often blurs the field instead of sending Enter.
+      previewExtraInput.addEventListener('blur', () => {
+        tryCommitPreviewExtraEmailInput({ quietInvalid: true });
+      });
+      previewExtraInput.addEventListener('change', () => {
+        setTimeout(() => tryCommitPreviewExtraEmailInput({ quietInvalid: true }), 0);
+      });
+    }
+    $('btnEmailPreviewExtraAdd')?.addEventListener('click', () => {
+      tryCommitPreviewExtraEmailInput({ quietInvalid: false });
+      $('qbEmailPreviewExtraInput')?.focus();
     });
     $('status')?.addEventListener('change', () => {
       syncInvoiceUiVisibility();
