@@ -4,7 +4,7 @@ import {
   type SystemPipelineSlug,
 } from "../tenant/defaults.js";
 import { recordActivity } from "../activity/record.js";
-import { findStageForSlug, stageRank } from "../leads/stage.js";
+import { findStageForSlug, stageRank, ensureStageForSlug } from "../leads/stage.js";
 import { canonicalStageSlug } from "../dashboard/stages.js";
 
 export { SYSTEM_PIPELINE_SLUGS, type SystemPipelineSlug };
@@ -18,7 +18,8 @@ export async function findSystemStage(
     where: { organizationId, slug, isActive: true },
   });
   // Tenants migrated from Senior Floors use other slugs (new_lead, meeting_scheduled…).
-  return exact ?? findStageForSlug(tx, slug);
+  // Ensure missing system milestones so quote send / approve never silently no-ops.
+  return exact ?? (await ensureStageForSlug(tx, slug)) ?? findStageForSlug(tx, slug);
 }
 
 export async function moveLeadToSystemStage(

@@ -7,7 +7,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { notifyNewLeadPush } from "../../lib/push/notify.js";
 import { WON_QUOTE_STATUSES } from "../../lib/dashboard/overview.js";
-import { findDuplicateLead, findStageForSlug } from "../../lib/leads/stage.js";
+import { ensureCanonicalPipelineStages, ensureStageForSlug, findDuplicateLead } from "../../lib/leads/stage.js";
 import { safeTimeZone, startOfZonedDay, startOfZonedMonth } from "../../lib/time/zoned.js";
 
 export const dashboardLeadsRouter = Router();
@@ -78,53 +78,16 @@ const leadInclude = {
   owner: { select: { id: true, name: true, email: true } },
 } as const;
 
-async function resolveStageBySlug(
-  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
-  slug: string,
-) {
-  if (!slug) return null;
-  const hit = await tx.pipelineStage.findFirst({
-    where: {
-      isActive: true,
-      OR: [{ slug }, { name: { equals: slug, mode: "insensitive" } }],
-    },
-  });
-  if (hit) return hit;
-  return null;
-}
-
-/** Stage for a scheduled lead visit — supports CRM + SaaS slug variants. */
+/** Stage for a scheduled lead visit — Meeting Scheduled column (never Stand By). */
 async function resolveVisitScheduledStage(
   tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
 ) {
-  const candidates = ["meeting_scheduled", "visit_scheduled", "assessment_scheduled"];
-  for (const slug of candidates) {
-    const hit = await resolveStageBySlug(tx, slug);
-    if (hit) return hit;
-  }
-  const byName = await tx.pipelineStage.findFirst({
-    where: {
-      isActive: true,
-      OR: [
-        { name: { equals: "Meeting Scheduled", mode: "insensitive" } },
-        { name: { equals: "Assessment scheduled", mode: "insensitive" } },
-        { name: { contains: "Meeting", mode: "insensitive" } },
-        { name: { contains: "Assessment", mode: "insensitive" } },
-        { name: { contains: "Visita", mode: "insensitive" } },
-      ],
-    },
-    orderBy: { order: "asc" },
-  });
-  if (byName) return byName;
-
-  // Fallback: second active stage by order (typical "meeting / assessment" column)
-  const ordered = await tx.pipelineStage.findMany({
-    where: { isActive: true },
-    orderBy: { order: "asc" },
-    take: 5,
-  });
-  if (ordered.length >= 2) return ordered[1];
-  return ordered[0] || null;
+  // Prefer / create the canonical meeting column. Do NOT fall back to "2nd stage by order"
+  // — on legacy tenants that picks contacted → Stand By in the Kanban.
+  return (
+    (await ensureStageForSlug(tx, "meeting_scheduled")) ||
+    (await ensureStageForSlug(tx, "assessment_scheduled"))
+  );
 }
 
 async function loadLeadOrNull(
@@ -136,12 +99,13 @@ async function loadLeadOrNull(
 
 dashboardLeadsRouter.get("/api/pipeline-stages", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const stages = await withTenantTransaction(req.organizationId!, async (tx) =>
-      tx.pipelineStage.findMany({
+    const stages = await withTenantTransaction(req.organizationId!, async (tx) => {
+      await ensureCanonicalPipelineStages(tx);
+      return tx.pipelineStage.findMany({
         where: { isActive: true },
         orderBy: { order: "asc" },
-      }),
-    );
+      });
+    });
     res.json({
       success: true,
       data: stages.map((s) => ({
@@ -840,7 +804,8 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
       let stage = parsed.data.pipeline_stage_id
         ? await tx.pipelineStage.findFirst({ where: { id: parsed.data.pipeline_stage_id, isActive: true } })
         : null;
-      if (!stage && parsed.data.status) stage = await findStageForSlug(tx, parsed.data.status);
+      if (!stage && parsed.data.status) stage = await ensureStageForSlug(tx, parsed.data.status);
+      if (!stage) stage = await ensureStageForSlug(tx, "new");
       if (!stage) {
         stage = await tx.pipelineStage.findFirst({ where: { isActive: true }, orderBy: { order: "asc" } });
       }
@@ -903,13 +868,8 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), a
       let status: string | undefined = body.status !== undefined ? String(body.status) : undefined;
 
       if (pipelineStageId === undefined && status) {
-        // Accept any slug dialect ("new_lead" / "new", "meeting_scheduled" / "assessment_scheduled")
-        // and always store the tenant's own stage slug next to its id.
-        const stage =
-          (await findStageForSlug(tx, status)) ||
-          (["meeting_scheduled", "visit_scheduled"].includes(status)
-            ? await resolveVisitScheduledStage(tx)
-            : null);
+        // Accept any slug dialect and create missing canonical stages (quote_sent, follow_up_1, …).
+        const stage = await ensureStageForSlug(tx, status);
         if (!stage) return { invalidStage: status } as const;
         pipelineStageId = stage.id;
         status = stage.slug || status;

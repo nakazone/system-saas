@@ -197,4 +197,25 @@ describe("lead stage + duplicates", () => {
     expect(lead.status).toBe("quote_sent");
     expect(lead.pipelineStageId).toBe(seeded.qs.id);
   });
+
+  it("creates missing canonical stages so quote_sent / follow_up / meeting resolve", async () => {
+    const { ensureStageForSlug } = await import("../src/lib/leads/stage.js");
+    // Wipe stages to simulate a broken/legacy tenant.
+    await withTenantTransaction(orgId, async (tx) => {
+      await tx.lead.deleteMany({});
+      await tx.pipelineStage.deleteMany({});
+    });
+
+    const quoteSent = await withTenantTransaction(orgId, (tx) => ensureStageForSlug(tx, "quote_sent"));
+    const followUp = await withTenantTransaction(orgId, (tx) => ensureStageForSlug(tx, "follow_up_1"));
+    const meeting = await withTenantTransaction(orgId, (tx) => ensureStageForSlug(tx, "meeting_scheduled"));
+
+    expect(quoteSent?.slug).toBe("quote_sent");
+    expect(followUp?.slug).toBe("follow_up_1");
+    expect(meeting?.slug).toBe("assessment_scheduled");
+
+    // Idempotent
+    const again = await withTenantTransaction(orgId, (tx) => ensureStageForSlug(tx, "quote_sent"));
+    expect(again?.id).toBe(quoteSent?.id);
+  });
 });

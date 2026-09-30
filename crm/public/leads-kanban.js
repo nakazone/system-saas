@@ -196,6 +196,7 @@ function normalizeLeadPipelineSlug(raw) {
         follow_up2: 'follow_up_1',
         proposal_created: 'quote_sent',
         proposal_sent: 'quote_sent',
+        proposal: 'quote_sent',
         negotiation: 'follow_up_1',
         closing_attempt: 'follow_up_1',
         closed_won: 'won',
