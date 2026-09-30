@@ -81,7 +81,7 @@
       const sa = $("sidebarUserAvatar");
       if (sa) sa.textContent = av;
 
-      document.querySelectorAll("#maisOpsGrid [data-crm-permission], #maisOpsGrid [data-crm-permission-any]").forEach((el) => {
+      document.querySelectorAll("#maisRoot [data-crm-permission], #maisRoot [data-crm-permission-any]").forEach((el) => {
         const need = el.getAttribute("data-crm-permission");
         const any = el.getAttribute("data-crm-permission-any");
         el.style.display = canSee(need, any, role, keys) ? "" : "none";

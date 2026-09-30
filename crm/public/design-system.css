@@ -123,6 +123,11 @@ body.dashboard-app-body {
   .dashboard-sidebar {
     width: min(288px, 92vw);
   }
+
+  .dashboard-main {
+    margin-left: 0 !important;
+    width: 100%;
+  }
 }
 
 .sidebar-header {

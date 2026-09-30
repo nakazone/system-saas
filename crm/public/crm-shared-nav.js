@@ -106,7 +106,7 @@
           { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
           { href: 'quotes.html', label: 'Orçamentos', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
           {
-            href: 'dashboard.html?page=customers',
+            href: isMobileDevice() ? 'customers.html' : 'dashboard.html?page=customers',
             label: 'Clientes',
             perm: 'customers.view',
             page: 'customers',

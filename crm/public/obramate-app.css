@@ -753,6 +753,40 @@ body.om-app .om-dock__btn svg { width: 16px; height: 16px; }
     bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   }
   body.om-app .om-dock__btn span { display: none; }
+
+  /*
+   * Mobile: sidebar is an off-canvas drawer. Never leave a desktop
+   * margin-left (expanded 232px / collapsed 72px) on the main column —
+   * that squashes Mais destination pages into a narrow strip.
+   */
+  body.om-app.dashboard-app-body,
+  body.om-app {
+    --crm-sidebar-width: 0px;
+  }
+
+  body.om-app .dashboard-container {
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  body.om-app .dashboard-main,
+  body.om-app.dashboard-app-body .dashboard-main,
+  body.om-app.sidebar-collapsed .dashboard-main {
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body.om-app #dashboardSidebar.dashboard-sidebar,
+  body.om-app .dashboard-sidebar {
+    width: min(288px, 92vw) !important;
+    min-width: 0 !important;
+    max-width: min(288px, 92vw) !important;
+  }
 }
 
 /* (Cadastro flyout styles live under .sidebar-collapsed / expanded blocks above) */
