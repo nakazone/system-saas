@@ -972,6 +972,100 @@ async function emailReceipt(
   return { ok: true, to };
 }
 
+const receiptPreviewSchema = z.object({
+  mode: z.enum(["full", "partial"]).optional(),
+  amount: z.coerce.number().optional().nullable(),
+  payment_date: z.string().optional().nullable(),
+  paid_at: z.string().optional().nullable(),
+  payment_method: z.string().max(40).optional().nullable(),
+  method: z.string().max(40).optional().nullable(),
+  email_to: z.string().max(200).optional().nullable(),
+});
+
+invoicesCrmRouter.post(
+  "/api/quote-invoices/:id/receipt-email-preview",
+  requireCrmAuth,
+  requireCrmPermission("invoices.record_payment"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!UUID_RE.test(id)) return badId(res);
+      const parsed = receiptPreviewSchema.safeParse(req.body || {});
+      if (!parsed.success) return fail(res, 400, "Dados inválidos");
+      const b = parsed.data;
+
+      const prep = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const inv = await loadDetail(tx, id);
+        if (!inv) return null;
+        if (inv.status === "void") return { error: "Fatura anulada.", status: 409 } as const;
+        const m = computeInvoiceMoney(inv);
+        const resolved = resolvePaymentAmount({
+          mode: b.mode,
+          amount: b.amount,
+          balance: m.balance,
+        });
+        if (!resolved.ok) return { error: resolved.error, status: 422 } as const;
+        const token = await ensureInvoicePublicToken(tx, req.organizationId!, id);
+        return { inv, money: m, amount: resolved.amount, token };
+      });
+      if (!prep) return fail(res, 404, "Fatura não encontrada");
+      if ("error" in prep) return fail(res, prep.status ?? 400, prep.error!);
+
+      const paidAt = parseDate(b.paid_at || b.payment_date) || new Date();
+      const method = b.payment_method || b.method || null;
+      const client = clientOf(prep.inv);
+      const to = (b.email_to || "").trim() || client.email || "";
+      if (!EMAIL_RE.test(to)) {
+        return fail(res, 400, "O cliente não tem e-mail cadastrado.");
+      }
+
+      const org = await prisma.organization.findUniqueOrThrow({
+        where: { id: req.organizationId! },
+      });
+      const balanceAfter = Math.max(
+        0,
+        Math.round((prep.money.balance - prep.amount) * 100) / 100,
+      );
+      const receiptNumber = "RCT-PREVIEW";
+      const msg = receiptEmail({
+        companyName: org.name,
+        phone: org.contactPhone,
+        accentColor: org.accentColor,
+        primaryColor: org.primaryColor,
+        clientName: client.name,
+        receiptNumber,
+        invoiceNumber: prep.inv.invoiceNumber || id.slice(0, 8),
+        amount: prep.amount,
+        paidAt,
+        methodLabel: method ? paymentMethodLabel(method) : null,
+        balance: balanceAfter,
+        publicUrl: publicInvoiceUrl(baseUrl(req), prep.token),
+      });
+
+      res.json({
+        success: true,
+        preview: true,
+        to,
+        subject: msg.subject,
+        text: msg.text,
+        html: msg.html,
+        client_name: client.name,
+        client_email: client.email,
+        invoice_number: prep.inv.invoiceNumber,
+        receipt_number: receiptNumber,
+        amount: prep.amount,
+        balance_after: balanceAfter,
+        paid_at: paidAt,
+        method,
+        method_label: method ? paymentMethodLabel(method) : null,
+        note: "O número definitivo do recibo e o PDF anexo são gerados ao registrar o pagamento.",
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 invoicesCrmRouter.post(
   "/api/quote-invoices/:id/receipts",
   requireCrmAuth,

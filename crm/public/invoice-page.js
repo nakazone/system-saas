@@ -464,6 +464,11 @@
     $('paySendReceipt').checked = Boolean(email);
     $('paySendReceipt').disabled = !email;
     $('payReceiptTo').textContent = email ? `para ${email}` : '(cliente sem e-mail)';
+    const previewBtn = $('btnPayPreviewEmail');
+    if (previewBtn) {
+      previewBtn.hidden = !email;
+      previewBtn.disabled = !email;
+    }
     const bal = inv.remaining_amount;
     const quick = [
       { label: '25%', v: bal * 0.25 },
@@ -491,33 +496,85 @@
   );
   $('payAmount').addEventListener('input', syncPay);
 
-  $('payForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (busy) return;
+  let pendingPayBody = null;
+
+  function buildPayBody(emailTo) {
+    const method = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'other';
+    const body = {
+      mode: payMode(),
+      amount: payAmount(),
+      payment_date: $('payDate').value,
+      payment_method: method,
+      reference_number: $('payRef').value.trim() || null,
+      notes: $('payNotes').value.trim() || null,
+      send_email: true,
+    };
+    if (emailTo) body.email_to = emailTo;
+    return body;
+  }
+
+  async function fetchReceiptEmailPreview() {
     const amt = payAmount();
-    if (!(amt > 0)) return showErr('payError', 'Informe o valor recebido.');
-    if (!$('payDate').value) return showErr('payError', 'Informe a data do pagamento.');
+    if (!(amt > 0)) throw new Error('Informe o valor recebido.');
+    if (!$('payDate').value) throw new Error('Informe a data do pagamento.');
+    const method = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'other';
+    return api(`/api/quote-invoices/${invoiceId}/receipt-email-preview`, {
+      method: 'POST',
+      body: JSON.stringify({
+        mode: payMode(),
+        amount: amt,
+        payment_date: $('payDate').value,
+        payment_method: method,
+        email_to: (inv.client && inv.client.email) || null,
+      }),
+    });
+  }
+
+  function openReceiptEmailPreview(preview, payBody) {
+    pendingPayBody = payBody;
+    showErr('receiptEmailPreviewError', '');
+    const meta = $('receiptEmailPreviewMeta');
+    if (meta) {
+      meta.innerHTML =
+        `<div><strong>Cliente:</strong> ${esc(preview.client_name || '—')}</div>` +
+        `<div><strong>Fatura:</strong> ${esc(preview.invoice_number || '')}</div>` +
+        `<div><strong>Valor do recibo:</strong> ${money(preview.amount)}` +
+        (preview.method_label ? ` · ${esc(preview.method_label)}` : '') +
+        `</div>` +
+        `<div><strong>Saldo após pagamento:</strong> ${money(preview.balance_after)}</div>`;
+    }
+    if ($('receiptEmailPreviewTo')) $('receiptEmailPreviewTo').value = preview.to || '';
+    if ($('receiptEmailPreviewSubject')) $('receiptEmailPreviewSubject').value = preview.subject || '';
+    const frame = $('receiptEmailPreviewFrame');
+    if (frame) frame.srcdoc = preview.html || '<p>Sem pré-visualização.</p>';
+    if ($('receiptEmailPreviewNote')) {
+      $('receiptEmailPreviewNote').textContent =
+        preview.note || 'O PDF do recibo será anexado no envio real.';
+    }
+    openModal('receiptEmailPreviewModal');
+  }
+
+  async function submitPayment(body) {
     const wasPaid = inv.display_status === 'paid';
     busy = true;
     const btn = $('paySubmit');
+    const confirmBtn = $('btnReceiptEmailConfirm');
     const prev = btn.textContent;
+    const prevConfirm = confirmBtn ? confirmBtn.textContent : '';
     btn.disabled = true;
     btn.textContent = 'Registrando…';
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Registrando…';
+    }
     try {
-      const method = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'other';
       const r = await api(`/api/quote-invoices/${invoiceId}/receipts`, {
         method: 'POST',
-        body: JSON.stringify({
-          mode: payMode(),
-          amount: amt,
-          payment_date: $('payDate').value,
-          payment_method: method,
-          reference_number: $('payRef').value.trim() || null,
-          notes: $('payNotes').value.trim() || null,
-          send_email: $('paySendReceipt').checked,
-        }),
+        body: JSON.stringify(body),
       });
+      closeModal('receiptEmailPreviewModal');
       closeModal('payModal');
+      pendingPayBody = null;
       inv = r.invoice;
       render();
       const parts = [`${r.data.receipt_number || 'Recibo'} · ${money(r.data.amount)} registrado.`];
@@ -530,11 +587,83 @@
         if (s) s.classList.add('is-landing');
       }
     } catch (err) {
-      showErr('payError', err.message);
+      throw err;
     } finally {
       busy = false;
       btn.textContent = prev;
       syncPay();
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = prevConfirm || 'Registrar e enviar';
+      }
+    }
+  }
+
+  $('btnPayPreviewEmail')?.addEventListener('click', async () => {
+    if (busy) return;
+    showErr('payError', '');
+    try {
+      const preview = await fetchReceiptEmailPreview();
+      openReceiptEmailPreview(preview, buildPayBody(preview.to));
+    } catch (err) {
+      showErr('payError', err.message);
+    }
+  });
+
+  $('paySendReceipt')?.addEventListener('change', () => {
+    const btn = $('btnPayPreviewEmail');
+    if (!btn) return;
+    const email = inv && inv.client && inv.client.email;
+    btn.hidden = !email || !$('paySendReceipt').checked;
+  });
+
+  $('btnReceiptEmailConfirm')?.addEventListener('click', async () => {
+    if (busy || !pendingPayBody) return;
+    showErr('receiptEmailPreviewError', '');
+    const to = String($('receiptEmailPreviewTo')?.value || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      showErr('receiptEmailPreviewError', 'Informe um e-mail válido.');
+      return;
+    }
+    try {
+      await submitPayment({ ...pendingPayBody, send_email: true, email_to: to });
+    } catch (err) {
+      showErr('receiptEmailPreviewError', err.message);
+    }
+  });
+
+  $('payForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const amt = payAmount();
+    if (!(amt > 0)) return showErr('payError', 'Informe o valor recebido.');
+    if (!$('payDate').value) return showErr('payError', 'Informe a data do pagamento.');
+    showErr('payError', '');
+
+    const send = !!$('paySendReceipt')?.checked;
+    if (send) {
+      try {
+        const preview = await fetchReceiptEmailPreview();
+        openReceiptEmailPreview(preview, buildPayBody(preview.to));
+      } catch (err) {
+        showErr('payError', err.message);
+      }
+      return;
+    }
+
+    try {
+      const method = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'other';
+      await submitPayment({
+        mode: payMode(),
+        amount: amt,
+        payment_date: $('payDate').value,
+        payment_method: method,
+        reference_number: $('payRef').value.trim() || null,
+        notes: $('payNotes').value.trim() || null,
+        send_email: false,
+      });
+    } catch (err) {
+      showErr('payError', err.message);
     }
   });
 

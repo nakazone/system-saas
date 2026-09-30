@@ -226,6 +226,30 @@
 .inv-modal__panel { position: relative; width: min(560px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; background: #fff; border-radius: 16px; box-shadow: 0 30px 60px -20px rgba(33, 29, 26, 0.45); transform: translateY(8px) scale(0.98); opacity: 0; transition: transform 0.2s ease, opacity 0.2s ease; }
 .inv-modal.is-open .inv-modal__panel { transform: none; opacity: 1; }
 .inv-modal__panel--sm { width: min(440px, 100%); }
+.inv-modal__panel--wide { width: min(680px, 100%); }
+.inv-email-meta {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--inv-soft, #f5f4f2);
+  font-size: 0.86rem;
+  color: var(--inv-muted, #78716c);
+}
+.inv-email-meta strong { color: var(--inv-ink, #1c1917); font-weight: 700; }
+.inv-email-frame {
+  width: 100%;
+  min-height: 320px;
+  height: min(48vh, 420px);
+  border: 1px solid var(--inv-line-2, #e7e5e4);
+  border-radius: 12px;
+  background: #f3f0ea;
+}
+.inv-email-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--inv-muted, #78716c);
+}
 .inv-modal__head { display: flex; justify-content: space-between; gap: 12px; padding: 20px 22px 6px; }
 .inv-modal__head h3 { margin: 0; font-size: 1.2rem; font-weight: 800; }
 .inv-modal__sub { margin: 4px 0 0; color: var(--inv-muted); font-size: 0.86rem; }

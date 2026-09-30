@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="crm-pdf-viewer.css" />
-  <link rel="stylesheet" href="invoices-module.css?v=20261001-inv1" />
+  <link rel="stylesheet" href="invoices-module.css?v=20261001-rcpmail1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed inv-body">
@@ -213,6 +213,7 @@
           <input type="checkbox" id="paySendReceipt" checked />
           <span>Enviar recibo por e-mail <b id="payReceiptTo"></b></span>
         </label>
+        <button type="button" class="inv-btn inv-btn--secondary" id="btnPayPreviewEmail" hidden>Pré-visualizar e-mail</button>
         <p class="inv-form-error" id="payError" role="alert" hidden></p>
       </div>
       <footer class="inv-modal__foot">
@@ -220,6 +221,32 @@
         <button type="submit" class="inv-btn inv-btn--primary" id="paySubmit">Registrar pagamento</button>
       </footer>
     </form>
+  </div>
+
+  <!-- Pré-visualizar e-mail do recibo -->
+  <div class="inv-modal" id="receiptEmailPreviewModal" role="dialog" aria-modal="true" aria-labelledby="receiptEmailPreviewTitle" hidden>
+    <div class="inv-modal__backdrop" data-close></div>
+    <div class="inv-modal__panel inv-modal__panel--wide">
+      <header class="inv-modal__head">
+        <div>
+          <h3 id="receiptEmailPreviewTitle">Pré-visualizar e-mail do recibo</h3>
+          <p class="inv-modal__sub">Confira o e-mail antes de registrar o pagamento e enviar ao cliente.</p>
+        </div>
+        <button type="button" class="inv-x" data-close aria-label="Fechar">×</button>
+      </header>
+      <div class="inv-modal__body">
+        <div class="inv-email-meta" id="receiptEmailPreviewMeta"></div>
+        <label class="inv-field"><span>Para</span><input type="email" id="receiptEmailPreviewTo" required /></label>
+        <label class="inv-field"><span>Assunto</span><input type="text" id="receiptEmailPreviewSubject" readonly /></label>
+        <iframe id="receiptEmailPreviewFrame" class="inv-email-frame" title="Pré-visualização do e-mail" sandbox=""></iframe>
+        <p class="inv-email-note" id="receiptEmailPreviewNote"></p>
+        <p class="inv-form-error" id="receiptEmailPreviewError" role="alert" hidden></p>
+      </div>
+      <footer class="inv-modal__foot">
+        <button type="button" class="inv-btn inv-btn--ghost" data-close>Voltar</button>
+        <button type="button" class="inv-btn inv-btn--primary" id="btnReceiptEmailConfirm">Registrar e enviar</button>
+      </footer>
+    </div>
   </div>
 
   <!-- Enviar fatura -->
@@ -294,6 +321,6 @@
   <script src="crm-shared-nav.js?v=20261001-inv1"></script>
   <script src="crm-shell.js?v=20260930-maismob2"></script>
   <script src="crm-pdf-viewer.js"></script>
-  <script src="invoice-page.js?v=20261001-inv1"></script>
+  <script src="invoice-page.js?v=20261001-rcpmail1"></script>
 </body>
 </html>

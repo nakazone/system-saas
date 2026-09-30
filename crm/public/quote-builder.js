@@ -2042,30 +2042,66 @@
   }
 
   let pendingEmailSendBody = null;
+  /** @type {{ kind: 'quote' | 'receipt', body?: object, invoiceId?: string } | null} */
+  let pendingEmailAction = null;
 
   function closeEmailPreviewModal() {
     $('qbEmailPreviewModal')?.classList.add('hidden');
     pendingEmailSendBody = null;
+    pendingEmailAction = null;
     const frame = $('qbEmailPreviewFrame');
     if (frame) frame.removeAttribute('srcdoc');
+    const sendBtn = $('btnEmailPreviewSend');
+    if (sendBtn) sendBtn.textContent = 'Enviar e-mail';
   }
 
-  function openEmailPreviewModal(preview, sendBody) {
-    pendingEmailSendBody = sendBody || {};
+  function openEmailPreviewModal(preview, opts) {
+    pendingEmailAction = opts || { kind: 'quote', body: {} };
+    pendingEmailSendBody = opts?.kind === 'quote' ? opts.body || {} : null;
     const modal = $('qbEmailPreviewModal');
     if (!modal) return;
+    const title = $('qbEmailPreviewTitle');
+    if (title) {
+      title.textContent =
+        opts?.kind === 'receipt' ? 'Pré-visualizar e-mail do recibo' : 'Pré-visualizar e-mail';
+    }
     const meta = $('qbEmailPreviewMeta');
     if (meta) {
-      const cc = Array.isArray(preview.cc) && preview.cc.length ? preview.cc.join(', ') : '—';
-      meta.innerHTML =
+      const cc = Array.isArray(preview.cc) && preview.cc.length ? preview.cc.join(', ') : '';
+      let html =
         `<div><strong>Para:</strong> ${escapeHtmlText(preview.to || '')}</div>` +
-        `<div><strong>CC:</strong> ${escapeHtmlText(cc)}</div>` +
-        `<div><strong>Orçamento:</strong> ${escapeHtmlText(preview.quote_number || '')}</div>`;
+        (cc ? `<div><strong>CC:</strong> ${escapeHtmlText(cc)}</div>` : '') +
+        (preview.client_name
+          ? `<div><strong>Cliente:</strong> ${escapeHtmlText(preview.client_name)}</div>`
+          : '') +
+        (preview.invoice_number
+          ? `<div><strong>Fatura:</strong> ${escapeHtmlText(preview.invoice_number)}</div>`
+          : '') +
+        (preview.amount != null
+          ? `<div><strong>Valor:</strong> ${money(preview.amount)}${
+              preview.method_label ? ` · ${escapeHtmlText(preview.method_label)}` : ''
+            }</div>`
+          : '') +
+        (preview.quote_number
+          ? `<div><strong>Orçamento:</strong> ${escapeHtmlText(preview.quote_number)}</div>`
+          : '');
+      if (preview.note) {
+        html += `<div style="margin-top:6px;font-size:12px;color:#78716c">${escapeHtmlText(preview.note)}</div>`;
+      }
+      meta.innerHTML = html;
     }
     const subj = $('qbEmailPreviewSubject');
-    if (subj) subj.value = preview.subject || '';
+    if (subj) {
+      subj.value = preview.subject || '';
+      subj.readOnly = opts?.kind === 'receipt';
+    }
     const frame = $('qbEmailPreviewFrame');
     if (frame) frame.srcdoc = preview.html || '<p>Sem pré-visualização.</p>';
+    const sendBtn = $('btnEmailPreviewSend');
+    if (sendBtn) {
+      sendBtn.textContent =
+        opts?.kind === 'receipt' ? 'Registrar e enviar' : 'Enviar e-mail';
+    }
     modal.classList.remove('hidden');
   }
 
@@ -2106,7 +2142,7 @@
         method: 'POST',
         body: JSON.stringify(body),
       });
-      openEmailPreviewModal(r, body);
+      openEmailPreviewModal(r, { kind: 'quote', body });
     } catch (e) {
       showQuoteNotify({
         type: 'error',
@@ -2118,6 +2154,10 @@
   }
 
   async function confirmSendQuoteEmail() {
+    if (pendingEmailAction?.kind === 'receipt') {
+      await confirmSendReceiptEmail();
+      return;
+    }
     if (!quoteId || !pendingEmailSendBody) return;
     const btn = $('btnEmailPreviewSend');
     const prev = btn?.textContent;
@@ -3409,6 +3449,79 @@
     }
   }
 
+  async function previewReceiptEmail() {
+    const invoiceId = $('rcpInvoiceId')?.value;
+    if (!invoiceId) return;
+    const amount = parseFloat($('rcpAmount')?.value);
+    if (!(amount > 0)) {
+      window.crmToast?.error?.('Indique o valor recebido.');
+      return;
+    }
+    const body = {
+      amount,
+      mode: 'partial',
+      payment_date: $('rcpPaymentDate')?.value || undefined,
+      payment_method: $('rcpMethod')?.value || 'check',
+      reference_number: $('rcpReference')?.value || undefined,
+      notes: $('rcpNotes')?.value || undefined,
+      send_email: true,
+    };
+    try {
+      const preview = await api(`/api/quote-invoices/${invoiceId}/receipt-email-preview`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      openEmailPreviewModal(preview, { kind: 'receipt', invoiceId, body });
+    } catch (err) {
+      window.crmToast?.error?.(err.message || 'Não foi possível pré-visualizar o e-mail.');
+    }
+  }
+
+  async function confirmSendReceiptEmail() {
+    const action = pendingEmailAction;
+    if (!action || action.kind !== 'receipt' || !action.invoiceId) return;
+    const btn = $('btnEmailPreviewSend');
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'A processar…';
+    }
+    try {
+      const r = await api(`/api/quote-invoices/${action.invoiceId}/receipts`, {
+        method: 'POST',
+        body: JSON.stringify({ ...action.body, send_email: true, email_to: action.body?.email_to || undefined }),
+      });
+      closeEmailPreviewModal();
+      closeReceiptModal();
+      if (r.balance) {
+        quoteInvoiceBalance = r.balance;
+        quotePaidTotal = Number(r.balance.paid_total) || 0;
+      }
+      const paidNote = r.invoice_paid ? ' Fatura liquidada.' : '';
+      const emailNote =
+        r.email && r.email.ok === false
+          ? ` Recibo criado, mas e-mail falhou: ${r.email.error || 'erro'}.`
+          : r.email && r.email.ok
+            ? ' Recibo enviado por e-mail.'
+            : '';
+      window.crmToast?.success?.(
+        `Recibo ${r.data?.receipt_number || ''} · ${money(r.data?.amount)}.${paidNote}${emailNote}`
+      );
+      await loadQuoteInvoices();
+      recalc();
+      if (r.data?.id) {
+        void openReceiptPdf(r.data.id, r.data.receipt_number ? `Recibo ${r.data.receipt_number}` : 'Recibo');
+      }
+    } catch (err) {
+      window.crmToast?.error?.(err.message || 'Erro ao gerar recibo');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || 'Registrar e enviar';
+      }
+    }
+  }
+
   async function submitReceiptForm(e) {
     e.preventDefault();
     const invoiceId = $('rcpInvoiceId')?.value;
@@ -3416,6 +3529,10 @@
     const amount = parseFloat($('rcpAmount')?.value);
     if (!(amount > 0)) {
       window.crmToast?.error?.('Indique o valor recebido.');
+      return;
+    }
+    if ($('rcpSendEmail')?.checked) {
+      await previewReceiptEmail();
       return;
     }
     const btn = $('btnReceiptModalSubmit');
@@ -3431,7 +3548,7 @@
         payment_method: $('rcpMethod')?.value || 'check',
         reference_number: $('rcpReference')?.value || undefined,
         notes: $('rcpNotes')?.value || undefined,
-        send_email: !!$('rcpSendEmail')?.checked,
+        send_email: false,
       };
       const r = await api(`/api/quote-invoices/${invoiceId}/receipts`, {
         method: 'POST',
@@ -3443,14 +3560,8 @@
         quotePaidTotal = Number(r.balance.paid_total) || 0;
       }
       const paidNote = r.invoice_paid ? ' Fatura liquidada.' : '';
-      const emailNote =
-        r.email && r.email.ok === false
-          ? ` Recibo criado, mas e-mail falhou: ${r.email.error || 'erro'}.`
-          : r.email && r.email.ok
-            ? ' Recibo enviado por e-mail.'
-            : '';
       window.crmToast?.success?.(
-        `Recibo ${r.data?.receipt_number || ''} · ${money(r.data?.amount)}.${paidNote}${emailNote}`
+        `Recibo ${r.data?.receipt_number || ''} · ${money(r.data?.amount)}.${paidNote}`
       );
       await loadQuoteInvoices();
       recalc();
@@ -3714,6 +3825,7 @@
     });
     $('btnReceiptModalCancel')?.addEventListener('click', closeReceiptModal);
     $('qbReceiptForm')?.addEventListener('submit', submitReceiptForm);
+    $('btnRcpPreviewEmail')?.addEventListener('click', () => void previewReceiptEmail());
     $('qbReceiptModal')?.addEventListener('click', (e) => {
       if (e.target === $('qbReceiptModal')) closeReceiptModal();
     });
