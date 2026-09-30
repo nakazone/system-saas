@@ -165,4 +165,36 @@ describe("lead stage + duplicates", () => {
       expect(lead.pipelineStage?.slug).toBe("quote_sent");
     });
   });
+
+  it("heals stale lead.status when pipeline stage is already Quote Sent", async () => {
+    const { moveLeadToSystemStage } = await import("../src/lib/pipeline/move.js");
+    const seeded = await withTenantTransaction(orgId, async (tx) => {
+      const qs = await tx.pipelineStage.findFirstOrThrow({ where: { slug: "quote_sent" } });
+      const lead = await tx.lead.create({
+        data: {
+          organizationId: orgId,
+          name: "Desynced Lead",
+          status: "new",
+          pipelineStageId: qs.id,
+        },
+      });
+      return { lead, qs };
+    });
+
+    const result = await withTenantTransaction(orgId, (tx) =>
+      moveLeadToSystemStage(tx, {
+        organizationId: orgId,
+        leadId: seeded.lead.id,
+        slug: "quote_sent",
+      }),
+    );
+    expect(result.moved).toBe(true);
+    expect(result.reason).toBe("status_healed");
+
+    const lead = await withTenantTransaction(orgId, (tx) =>
+      tx.lead.findFirstOrThrow({ where: { id: seeded.lead.id } }),
+    );
+    expect(lead.status).toBe("quote_sent");
+    expect(lead.pipelineStageId).toBe(seeded.qs.id);
+  });
 });

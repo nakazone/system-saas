@@ -5,6 +5,7 @@ import {
 } from "../tenant/defaults.js";
 import { recordActivity } from "../activity/record.js";
 import { findStageForSlug, stageRank } from "../leads/stage.js";
+import { canonicalStageSlug } from "../dashboard/stages.js";
 
 export { SYSTEM_PIPELINE_SLUGS, type SystemPipelineSlug };
 
@@ -54,14 +55,34 @@ export async function moveLeadToSystemStage(
   const current = lead.pipelineStageId
     ? await tx.pipelineStage.findFirst({ where: { id: lead.pipelineStageId } })
     : null;
-  if (current?.slug === "won" || current?.slug === "lost") {
+  const currentCanon = canonicalStageSlug(current?.slug) || canonicalStageSlug(lead.status);
+  if (currentCanon === "won" || currentCanon === "lost") {
     if (params.slug !== "won" && params.slug !== "lost") {
       return { moved: false, reason: "already_closed" };
     }
   }
 
+  const wantStatus = stage.slug || params.slug;
   if (lead.pipelineStageId === stage.id && params.slug !== "lost") {
-    return { moved: false, reason: "already_there" };
+    // Kanban reads lead.status first — heal stale status even when stage id already matches.
+    if (canonicalStageSlug(lead.status) === canonicalStageSlug(wantStatus)) {
+      return { moved: false, reason: "already_there" };
+    }
+    await tx.lead.update({ where: { id: lead.id }, data: { status: wantStatus } });
+    await recordActivity(tx, {
+      organizationId: params.organizationId,
+      entityType: "lead",
+      entityId: lead.id,
+      actorType: params.actorType ?? "system",
+      actorId: params.actorId ?? null,
+      action: "status_changed",
+      changes: {
+        status: { from: lead.status, to: wantStatus },
+        systemSlug: { from: current?.slug ?? null, to: params.slug },
+        healed: true,
+      },
+    });
+    return { moved: true, reason: "status_healed" };
   }
 
   if (params.onlyForward) {
@@ -77,7 +98,7 @@ export async function moveLeadToSystemStage(
   } = {
     pipelineStageId: stage.id,
     // Keep `status` in lockstep with the stage — the CRM Kanban reads `status` first.
-    status: stage.slug || params.slug,
+    status: wantStatus,
   };
 
   if (params.slug === "lost") {
@@ -141,6 +162,11 @@ export async function moveLeadForQuoteEvent(
     actorId?: string | null;
     /** Prefer this lead when the quote has no leadId yet (e.g. from send UI). */
     leadIdHint?: string | null;
+    /**
+     * When true, never move backwards (e.g. Follow Up → Quote Sent).
+     * Send/approve actions pass false so the Kanban card lands on the target column.
+     */
+    onlyForward?: boolean;
   },
 ): Promise<{ moved: boolean; leadId: string | null; reason?: string }> {
   const leadId = await resolveLeadIdForQuote(tx, params.quoteId, params.leadIdHint);
@@ -161,8 +187,7 @@ export async function moveLeadForQuoteEvent(
     slug: params.slug,
     actorType: params.actorType,
     actorId: params.actorId,
-    // "Quote sent" must not pull a lead back from Follow Up / Stand By.
-    onlyForward: params.slug === "quote_sent",
+    onlyForward: params.onlyForward === true,
   });
   return {
     moved: result.moved,
@@ -186,7 +211,9 @@ export async function syncLeadForQuoteStatus(
 ): Promise<void> {
   const prev = String(params.previousStatus || "").toLowerCase();
   const next = String(params.nextStatus || "").toLowerCase();
-  if (!next || next === prev) return;
+  if (!next) return;
+  // Re-saving an already-sent quote still attempts Quote Sent (onlyForward), to heal missed moves.
+  if (next === prev && next !== "sent" && !WON_QUOTE.has(next)) return;
   const slug = WON_QUOTE.has(next) ? "won" : next === "sent" ? "quote_sent" : null;
   if (!slug) return;
   if (slug === "won" && WON_QUOTE.has(prev)) return;
@@ -196,6 +223,8 @@ export async function syncLeadForQuoteStatus(
     slug,
     actorType: "user",
     actorId: params.actorId ?? null,
+    // Quiet status sync: don't pull Follow Up / Stand By back to Quote Sent.
+    onlyForward: slug === "quote_sent",
   });
 }
 

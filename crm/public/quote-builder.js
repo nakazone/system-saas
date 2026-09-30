@@ -4125,11 +4125,9 @@
     const dv = parseFloat($('discountValue').value) || 0;
     const party = getQuoteParty();
     let lead_id = null;
-    if (party === 'lead') {
-      if (selectedQuoteLead && selectedQuoteLead.id != null) lead_id = String(selectedQuoteLead.id);
-      else if (loadedQuoteLeadId != null && loadedQuoteLeadId !== '') lead_id = String(loadedQuoteLeadId);
-      else if (pendingLeadId != null && pendingLeadId !== '') lead_id = String(pendingLeadId);
-    }
+    if (selectedQuoteLead && selectedQuoteLead.id != null) lead_id = String(selectedQuoteLead.id);
+    else if (loadedQuoteLeadId != null && loadedQuoteLeadId !== '') lead_id = String(loadedQuoteLeadId);
+    else if (pendingLeadId != null && pendingLeadId !== '') lead_id = String(pendingLeadId);
     const builderRaw = party === 'builder' ? String($('quoteBuilderSelect')?.value || '').trim() : '';
     const jobName =
       party === 'builder' || party === 'contractor' || party === 'loja'
@@ -4174,7 +4172,7 @@
       })),
     };
     if (lead_id != null) base.lead_id = lead_id;
-    else base.lead_id = null;
+    // Never send lead_id: null — a null wipe was clearing the Kanban link on every save.
     return base;
   }
 

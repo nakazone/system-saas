@@ -1134,7 +1134,7 @@ customersQuotesRouter.put(
             validUntil: parseDateInput(body.expiration_date),
             serviceType: body.service_type !== undefined ? body.service_type : undefined,
             customerId: body.customer_id !== undefined ? asOptionalUuid(body.customer_id) : undefined,
-            leadId: body.lead_id !== undefined ? asOptionalUuid(body.lead_id) : undefined,
+            leadId: body.lead_id !== undefined ? asOptionalUuid(body.lead_id) ?? existing.leadId : undefined,
             builderId: body.builder_id !== undefined ? asOptionalUuid(body.builder_id) : undefined,
             subtotal: new Prisma.Decimal(subtotal),
             taxTotal: new Prisma.Decimal(tax),
