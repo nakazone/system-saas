@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa" />
   <link rel="stylesheet" href="crm-push.css?v=20260923-push" />
-  <link rel="stylesheet" href="configuracoes.css?v=20260930-cfg1" />
+  <link rel="stylesheet" href="configuracoes.css?v=20260930-cfg2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -304,6 +304,115 @@
               </div>
             </section>
 
+            <!-- ---------- Orçamentos ---------- -->
+            <section class="cfg-section" data-section="orcamentos" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Orçamentos</h2>
+                <p class="cfg-lead">Valores padrão de cada orçamento novo. Dá para mudar em cada orçamento.</p>
+              </header>
+              <form id="quotesForm" class="cfg-form" novalidate autocomplete="off">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Numeração</h3>
+                  <div class="cfg-grid3">
+                    <div class="cfg-field"><label for="q_number_prefix">Prefixo</label><input id="q_number_prefix" data-qkey="number_prefix" maxlength="8" spellcheck="false" /></div>
+                    <div class="cfg-field"><label for="q_next_number">Próximo número</label><input id="q_next_number" data-qkey="next_number" type="number" min="1" inputmode="numeric" /></div>
+                    <div class="cfg-field cfg-field--static"><label>Próximo orçamento sai como</label><strong id="qNextLabel">—</strong></div>
+                  </div>
+                  <p class="cfg-hint" id="qLastHint"></p>
+                </article>
+
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Padrões</h3>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field"><label for="q_validity_days">Validade (dias)</label><input id="q_validity_days" data-qkey="validity_days" type="number" min="1" max="365" inputmode="numeric" /></div>
+                    <div class="cfg-field"><label for="q_tax_rate">Imposto padrão (%)</label><input id="q_tax_rate" data-qkey="tax_rate" type="number" min="0" max="30" step="0.01" inputmode="decimal" /></div>
+                  </div>
+                  <p class="cfg-hint">O imposto é calculado sobre o subtotal (com desconto) enquanto ninguém digitar outro valor no orçamento. Use 0 se você não cobra imposto no orçamento.</p>
+                </article>
+
+                <article class="cfg-card">
+                  <div class="cfg-card__head">
+                    <div>
+                      <h3 class="cfg-card__title">Termos e condições</h3>
+                      <p class="cfg-card__desc">Entram no fim de cada orçamento novo e no link que o cliente abre.</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnTermsSample">Usar texto de exemplo</button>
+                  </div>
+                  <div class="cfg-field"><label for="q_terms">Texto</label><textarea id="q_terms" data-qkey="terms" rows="8" maxlength="20000" placeholder="Ex.: Pagamento de 50% na aprovação e 50% na conclusão…"></textarea></div>
+                  <p class="cfg-hint"><span id="qTermsCount">0</span> caracteres</p>
+                </article>
+
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">O que o cliente vê</h3>
+                  <p class="cfg-card__desc">Padrão dos orçamentos novos. Ligue e desligue e veja a prévia.</p>
+                  <div class="cfg-cv">
+                    <div class="cfg-cv__toggles">
+                      <div class="cfg-trow"><div><p class="cfg-trow__t">Quantidades</p><p class="cfg-trow__d">Área e quantidade de cada linha.</p></div><button type="button" class="cfg-switch" role="switch" aria-checked="true" data-cv="showQuantities" aria-label="Quantidades"><span></span></button></div>
+                      <div class="cfg-trow"><div><p class="cfg-trow__t">Preço unitário</p><p class="cfg-trow__d">Preço por sq ft ou por unidade.</p></div><button type="button" class="cfg-switch" role="switch" aria-checked="true" data-cv="showUnitPrices" aria-label="Preço unitário"><span></span></button></div>
+                      <div class="cfg-trow"><div><p class="cfg-trow__t">Total por linha</p><p class="cfg-trow__d">Valor de cada serviço.</p></div><button type="button" class="cfg-switch" role="switch" aria-checked="true" data-cv="showLineTotals" aria-label="Total por linha"><span></span></button></div>
+                      <div class="cfg-trow"><div><p class="cfg-trow__t">Divisão por cômodo</p><p class="cfg-trow__d">Agrupa as linhas por cômodo.</p></div><button type="button" class="cfg-switch" role="switch" aria-checked="true" data-cv="showRoomBreakdown" aria-label="Divisão por cômodo"><span></span></button></div>
+                    </div>
+                    <div class="cfg-cv__preview" aria-label="Prévia do cliente">
+                      <p class="cfg-cv__tag">Prévia do cliente</p>
+                      <p class="cfg-cv__room" data-cvp="room">Sala e corredor</p>
+                      <div class="cfg-cv__line"><span>LVP · instalação</span><span data-cvp="qty">420 sq ft</span><span data-cvp="unit">$3.25</span><span data-cvp="total">$1,365.00</span></div>
+                      <div class="cfg-cv__line"><span>Rodapé novo</span><span data-cvp="qty">96 lf</span><span data-cvp="unit">$2.10</span><span data-cvp="total">$201.60</span></div>
+                      <div class="cfg-cv__sum"><span>Total</span><span>$1,566.60</span></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="cfg-card" id="ownerSigCard">
+                  <h3 class="cfg-card__title">Assinatura do responsável</h3>
+                  <p class="cfg-card__desc">Vai no orçamento como a assinatura da sua empresa. O construtor de orçamento usa esta mesma assinatura.</p>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field"><label for="s_name">Nome</label><input id="s_name" maxlength="120" placeholder="Nome de quem assina" /></div>
+                    <div class="cfg-field"><label for="s_title">Cargo</label><input id="s_title" maxlength="120" placeholder="Ex.: Owner" /></div>
+                  </div>
+                  <div class="cfg-sig">
+                    <canvas id="sigCanvas" width="640" height="150" aria-label="Área para desenhar a assinatura"></canvas>
+                    <img id="sigSaved" alt="Assinatura salva" hidden />
+                    <span class="cfg-sig__empty" id="sigEmpty">Desenhe aqui com o dedo ou o mouse</span>
+                  </div>
+                  <div class="cfg-row cfg-row--between">
+                    <label class="cfg-check"><input type="checkbox" id="s_auto" /> <span>Gerar a assinatura a partir do nome</span></label>
+                    <div class="cfg-row">
+                      <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnSigRedraw">Desenhar de novo</button>
+                      <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" id="btnSigRemove" hidden>Remover</button>
+                    </div>
+                  </div>
+                  <p class="cfg-hint" id="sigMeta"></p>
+                </article>
+              </form>
+            </section>
+
+            <!-- ---------- Regras de estimativa ---------- -->
+            <section class="cfg-section" data-section="regras-estimativa" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Regras de estimativa</h2>
+                <p class="cfg-lead">Desperdício e margens por tipo de piso, usados na estimativa rápida e na medição.</p>
+              </header>
+              <article class="cfg-card cfg-card--flush">
+                <div class="cfg-table-wrap">
+                  <table class="cfg-table" id="rulesTable">
+                    <thead>
+                      <tr>
+                        <th scope="col">Tipo de piso</th>
+                        <th scope="col">Desperdício %</th>
+                        <th scope="col">Markup material %</th>
+                        <th scope="col">Markup mão de obra %</th>
+                        <th scope="col">Material $/sq ft</th>
+                        <th scope="col">Mão de obra $/sq ft</th>
+                        <th scope="col"><span class="cfg-sr">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="rulesBody"><tr><td colspan="7"><div class="cfg-skeleton"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+              <p class="cfg-hint">Valores diferentes do padrão ObraMate ficam marcados. “Padrão” volta a linha aos valores originais.</p>
+            </section>
+
             <!-- ---------- App e notificações ---------- -->
             <section class="cfg-section" data-section="app" hidden>
               <header class="cfg-head">
@@ -399,6 +508,7 @@
   <script src="crm-pwa-install.js?v=20260923-pwa"></script>
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js"></script>
-  <script src="configuracoes.js?v=20260930-cfg1"></script>
+  <script src="quote-signature-auto.js?v=20260708"></script>
+  <script src="configuracoes.js?v=20260930-cfg2"></script>
 </body>
 </html>

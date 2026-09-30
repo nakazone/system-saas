@@ -359,6 +359,7 @@ export type SetupFacts = {
   hasContact: boolean;
   hasAddress: boolean;
   hasLicense: boolean;
+  hasQuoteTerms?: boolean;
   pricingCount: number;
   activeUsers: number;
   quoteCount: number;
@@ -373,6 +374,7 @@ export function buildSetupSteps(f: SetupFacts): SetupStep[] {
     { key: "contact", label: "Telefone e e-mail", done: f.hasContact, href: "configuracoes.html#empresa", perm: "settings.manage" },
     { key: "address", label: "Endereço", done: f.hasAddress, href: "configuracoes.html#empresa", perm: "settings.manage" },
     { key: "license", label: "Licença de contratante", done: f.hasLicense, href: "configuracoes.html#empresa", perm: "settings.manage" },
+    { key: "terms", label: "Termos do orçamento", done: Boolean(f.hasQuoteTerms), href: "configuracoes.html#orcamentos", perm: "settings.manage" },
     { key: "pricing", label: "Tabela de preços", done: f.pricingCount > 0, href: "builder-pricing-admin.html", perm: "builders.view" },
     { key: "team", label: "Convidar a equipe", done: f.activeUsers > 1, href: "equipe.html", perm: "users.view" },
     { key: "quote", label: "Primeiro orçamento", done: f.quoteCount > 0, href: "quote-builder.html", perm: "quotes.create" },

@@ -23,11 +23,13 @@ import { jobQuotesRouter } from "./routes/job-quotes.js";
 import { jobFieldExtrasRouter } from "./routes/job-field-extras.js";
 import { chatRouter } from "./routes/chat.js";
 import { settingsOrganizationRouter } from "./routes/settings-organization.js";
+import { settingsQuotesRouter } from "./routes/settings-quotes.js";
 
 export const crmApiRouter = Router();
 
 crmApiRouter.use(brandingRouter);
 crmApiRouter.use(settingsOrganizationRouter);
+crmApiRouter.use(settingsQuotesRouter);
 crmApiRouter.use(supportRouter);
 crmApiRouter.use(pushRouter);
 crmApiRouter.use(scheduleJobsRouter);

@@ -1031,12 +1031,19 @@
     }
   }
 
+  /** Configurações › Orçamentos: default tax % for new quotes until the user types a value. */
+  let defaultTaxRate = 0;
+  let taxTouched = false;
+
   function recalc() {
     const sub = sumItems();
     const dt = $('discountType').value;
     const dv = parseFloat($('discountValue').value) || 0;
-    const tax = parseFloat($('taxTotal').value) || 0;
     const disc = discountAmt(sub, dt, dv);
+    if (!quoteId && defaultTaxRate > 0 && !taxTouched && $('taxTotal')) {
+      $('taxTotal').value = String(Math.round(Math.max(0, sub - disc) * defaultTaxRate) / 100);
+    }
+    const tax = parseFloat($('taxTotal').value) || 0;
     const total = Math.max(0, Math.round((sub - disc + tax) * 100) / 100);
     const subEl = $('dispSubtotal');
     const discEl = $('dispDiscount');
@@ -2858,6 +2865,27 @@
     }
   }
 
+  /** New quote: validity, terms and tax from Configurações › Orçamentos. */
+  async function applyNewQuoteDefaults() {
+    try {
+      const r = await api('/api/quotes/settings/defaults');
+      const d = r.data || {};
+      const exp = $('expirationDate');
+      if (exp && !exp.value && d.validity_days) {
+        const dt = new Date();
+        dt.setDate(dt.getDate() + Number(d.validity_days));
+        exp.value = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      }
+      const terms = $('terms');
+      if (terms && !terms.value.trim() && d.terms) terms.value = d.terms;
+      defaultTaxRate = Number(d.tax_rate) || 0;
+      const meta = $('quoteMeta');
+      if (meta && d.next_label) meta.textContent = `Novo orçamento · será ${d.next_label}`;
+    } catch (_) {
+      /* defaults are optional */
+    }
+  }
+
   let ownerSignaturePad = null;
 
   function createOwnerSignaturePad() {
@@ -3357,6 +3385,7 @@
       loadedQuoteNumber = null;
       quoteId = null;
       $('quoteMeta').textContent = 'Novo orçamento';
+      await applyNewQuoteDefaults();
       updatePreviewHeader();
       renderClientDetails();
       updateClientActionButtons();
@@ -3487,7 +3516,10 @@
     const taxIn = $('taxTotal');
     if (taxIn) {
       wireMoneyField(taxIn);
-      taxIn.addEventListener('input', () => recalc());
+      taxIn.addEventListener('input', () => {
+        taxTouched = true;
+        recalc();
+      });
     }
     const expIn = $('expirationDate');
     if (expIn) expIn.addEventListener('change', updatePreviewHeader);

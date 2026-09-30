@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { param } from "../../lib/http/params.js";
 import { z } from "zod";
@@ -11,6 +12,7 @@ import { email } from "../../lib/email/index.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { buildQuotePdf } from "../../lib/quotes/pdf.js";
+import { computeNextQuoteNumber, formatQuoteNumber, parseQuoteSettings } from "../../lib/settings/quotes.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { runScheduleTriggers, seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
@@ -238,7 +240,7 @@ quotesRouter.post(
         });
 
         const maxNumber = await tx.quote.aggregate({ _max: { number: true } });
-        const number = (maxNumber._max.number ?? 0) + 1;
+        const number = computeNextQuoteNumber(maxNumber._max.number, org.quoteNextNumber);
 
         let rooms: { name: string; areaSqft: number; notes?: string }[] = [];
         try {
@@ -263,6 +265,7 @@ quotesRouter.post(
           data: {
             organizationId: req.organizationId!,
             number,
+            quoteNumber: formatQuoteNumber(org.quoteNumberPrefix, number),
             title: parsed.data.title,
             customerId: parsed.data.customerId || null,
             propertyId: parsed.data.propertyId || null,
@@ -280,7 +283,7 @@ quotesRouter.post(
             notes: parsed.data.notes || null,
             clientMessage: parsed.data.clientMessage || null,
             terms: parsed.data.terms || org.defaultQuoteTerms || null,
-            clientView: defaultClientViewJson(),
+            clientView: parseQuoteSettings(org.quoteSettings).client_view as Prisma.InputJsonValue,
             validUntil: defaultValidUntil(org.quoteValidityDays),
             status: "draft",
           },
@@ -672,10 +675,12 @@ quotesRouter.post(
           where: { id: req.organizationId! },
         });
         const maxNumber = await tx.quote.aggregate({ _max: { number: true } });
+        const dupNumber = computeNextQuoteNumber(maxNumber._max.number, org.quoteNextNumber);
         const created = await tx.quote.create({
           data: {
             organizationId: req.organizationId!,
-            number: (maxNumber._max.number ?? 0) + 1,
+            number: dupNumber,
+            quoteNumber: formatQuoteNumber(org.quoteNumberPrefix, dupNumber),
             title: `${src.title} (copy)`,
             customerId: customerId || src.customerId,
             propertyId: propertyId || src.propertyId,

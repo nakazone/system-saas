@@ -69,6 +69,7 @@ settingsOrganizationRouter.get(
           postalCode: true,
           licenseNumber: true,
           licenseExpiresOn: true,
+          defaultQuoteTerms: true,
           insuranceExpiresOn: true,
         },
       });
@@ -87,6 +88,7 @@ settingsOrganizationRouter.get(
         hasContact: Boolean(org.contactPhone && org.contactEmail),
         hasAddress: Boolean(org.addressLine1 && org.city && org.state && org.postalCode),
         hasLicense: Boolean(org.licenseNumber),
+        hasQuoteTerms: Boolean(org.defaultQuoteTerms && org.defaultQuoteTerms.trim()),
         ...facts,
       });
       const canManage = can(req, "settings.manage");

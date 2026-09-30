@@ -9,6 +9,14 @@ import { canViewPricing, withPricingGate } from "../../lib/pricing/visibility.js
 import { recordActivity } from "../../lib/activity/record.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { syncLeadForQuoteStatus } from "../../lib/pipeline/move.js";
+import { prisma } from "../../lib/prisma.js";
+import {
+  computeNextQuoteNumber,
+  defaultValidUntil,
+  formatQuoteNumber,
+  parseDateInput,
+  parseQuoteSettings,
+} from "../../lib/settings/quotes.js";
 
 export const customersQuotesRouter = Router();
 
@@ -729,13 +737,38 @@ customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedR
   }
 });
 
-async function nextQuoteNumber(tx: TenantPrisma, organizationId: string) {
+async function nextQuoteNumber(tx: TenantPrisma, organizationId: string, configuredNext?: number | null) {
   const last = await tx.quote.findFirst({
     where: { organizationId },
     orderBy: { number: "desc" },
     select: { number: true },
   });
-  return (last?.number ?? 1000) + 1;
+  return computeNextQuoteNumber(last?.number, configuredNext);
+}
+
+/** Company defaults applied to quotes created in the CRM (Configurações › Orçamentos). */
+async function loadQuoteOrgDefaults(organizationId: string) {
+  const org = await prisma.organization.findUniqueOrThrow({
+    where: { id: organizationId },
+    select: {
+      quoteNumberPrefix: true,
+      quoteNextNumber: true,
+      quoteValidityDays: true,
+      defaultQuoteTerms: true,
+      quoteTaxRate: true,
+      quoteSettings: true,
+    },
+  });
+  return { ...org, clientView: parseQuoteSettings(org.quoteSettings).client_view };
+}
+
+/** The builder sends `terms_conditions`; older callers send `terms`. */
+function termsFromBody(body: Record<string, unknown>): string | null | undefined {
+  const raw = body.terms_conditions !== undefined ? body.terms_conditions : body.terms;
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  const s = String(raw);
+  return s.trim() ? s : null;
 }
 
 customersQuotesRouter.post(
@@ -745,9 +778,12 @@ customersQuotesRouter.post(
   async (req: AuthedRequest, res, next) => {
     try {
       const body = req.body || {};
+      const defaults = await loadQuoteOrgDefaults(req.organizationId!);
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const number = await nextQuoteNumber(tx, req.organizationId!);
+        const number = await nextQuoteNumber(tx, req.organizationId!, defaults.quoteNextNumber);
         const items = Array.isArray(body.items) ? body.items : Array.isArray(body.line_items) ? body.line_items : [];
+        const bodyTerms = termsFromBody(body);
+        const bodyValidUntil = parseDateInput(body.expiration_date);
         const subtotal = items.reduce(
           (s: number, it: { amount?: number; quantity?: number; unit_price?: number }) =>
             s + (Number(it.amount) || Number(it.quantity || 0) * Number(it.unit_price || 0)),
@@ -759,8 +795,11 @@ customersQuotesRouter.post(
           data: {
             organizationId: req.organizationId!,
             number,
-            quoteNumber: body.quote_number || `Q-${number}`,
+            quoteNumber: body.quote_number || formatQuoteNumber(defaults.quoteNumberPrefix, number),
             title: String(body.title || body.service_type || `Quote ${number}`),
+            validUntil: bodyValidUntil ?? defaultValidUntil(defaults.quoteValidityDays),
+            clientView: defaults.clientView as Prisma.InputJsonValue,
+            taxRate: defaults.quoteTaxRate,
             status: String(body.status || "draft"),
             flooringType: String(body.flooring_type || "hardwood"),
             areaSqft: new Prisma.Decimal(Number(body.area_sqft) || 0),
@@ -773,7 +812,7 @@ customersQuotesRouter.post(
             taxTotal: new Prisma.Decimal(tax),
             total: new Prisma.Decimal(total),
             notes: body.notes || null,
-            terms: body.terms || null,
+            terms: bodyTerms !== undefined ? bodyTerms : defaults.defaultQuoteTerms || null,
             serviceType: body.service_type || null,
             customerId: body.customer_id || null,
             leadId: body.lead_id || null,
@@ -890,7 +929,8 @@ customersQuotesRouter.put(
             status: body.status !== undefined ? String(body.status) : undefined,
             flooringType: body.flooring_type !== undefined ? String(body.flooring_type) : undefined,
             notes: body.notes !== undefined ? body.notes : undefined,
-            terms: body.terms !== undefined ? body.terms : undefined,
+            terms: termsFromBody(body),
+            validUntil: parseDateInput(body.expiration_date),
             serviceType: body.service_type !== undefined ? body.service_type : undefined,
             customerId: body.customer_id !== undefined ? body.customer_id || null : undefined,
             leadId: body.lead_id !== undefined ? body.lead_id || null : undefined,
@@ -936,12 +976,15 @@ customersQuotesRouter.post(
           include: { lineItems: true },
         });
         if (!src) return null;
-        const number = await nextQuoteNumber(tx, req.organizationId!);
+        const defaults = await loadQuoteOrgDefaults(req.organizationId!);
+        const number = await nextQuoteNumber(tx, req.organizationId!, defaults.quoteNextNumber);
         return tx.quote.create({
           data: {
             organizationId: req.organizationId!,
             number,
-            quoteNumber: `Q-${number}`,
+            quoteNumber: formatQuoteNumber(defaults.quoteNumberPrefix, number),
+            validUntil: defaultValidUntil(defaults.quoteValidityDays),
+            clientView: src.clientView ?? (defaults.clientView as Prisma.InputJsonValue),
             title: `${src.title} (copy)`,
             status: "draft",
             flooringType: src.flooringType,

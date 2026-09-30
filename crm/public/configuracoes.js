@@ -35,8 +35,20 @@
     },
     {
       group: "Vendas",
-      desc: "Preços, catálogo e produtos",
+      desc: "Orçamentos, preços e produtos",
       items: [
+        {
+          id: "orcamentos",
+          label: "Orçamentos",
+          perm: "settings.manage",
+          keywords: "numeração prefixo número validade imposto tax termos condições cliente vê preço unitário quantidade cômodo assinatura responsável",
+        },
+        {
+          id: "regras-estimativa",
+          label: "Regras de estimativa",
+          perm: "estimate_rules.manage",
+          keywords: "desperdício waste markup margem tipo de piso madeira hardwood lvp laminado cerâmica carpete",
+        },
         { href: "builder-pricing-admin.html", label: "Serviços e preços", perm: ["builders.view", "quotes.edit"], keywords: "tabela de valor preço serviço builder desconto volume" },
         { href: "quote-catalog.html", label: "Catálogo de serviços", perm: ["quotes.edit"], keywords: "catálogo serviço orçamento" },
         { href: "products-erp.html", label: "Produtos e margens", perm: ["quotes.view"], keywords: "produto sku custo margem categoria" },
@@ -74,6 +86,14 @@
     ["Idioma padrão", "empresa", "f_default_locale"],
     ["Unidade de área (sq ft / m²)", "empresa", "f_area_unit"],
     ["Link de avaliação no Google", "empresa", "f_google_review_url"],
+    ["Numeração dos orçamentos", "orcamentos", "q_number_prefix"],
+    ["Validade do orçamento", "orcamentos", "q_validity_days"],
+    ["Imposto padrão", "orcamentos", "q_tax_rate"],
+    ["Termos e condições", "orcamentos", "q_terms"],
+    ["O que o cliente vê no orçamento", "orcamentos", null],
+    ["Assinatura do responsável", "orcamentos", "s_name"],
+    ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
+    ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
     ["Logo", "marca", "logoDrop"],
     ["Cores da marca", "marca", "brandPresets"],
     ["Instalar app", "app", null],
@@ -127,6 +147,9 @@
     current: null,
     pendingHash: null,
     company: { loaded: false, snapshot: null, data: null },
+    quotes: { loaded: false, snapshot: null, data: null },
+    sig: { loaded: false, snapshot: null, drawn: false, removed: false, data: null },
+    rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
   };
 
@@ -210,10 +233,16 @@
     });
   }
 
+  function dirtyCount(id) {
+    if (id === "empresa") return companyDirtyKeys().length;
+    if (id === "marca") return brandDirty() ? 1 : 0;
+    if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
+    if (id === "regras-estimativa") return rulesDirtyTypes().length;
+    return 0;
+  }
+
   function dirtySection() {
-    if (state.current === "empresa" && companyDirtyKeys().length) return "empresa";
-    if (state.current === "marca" && brandDirty()) return "marca";
-    return null;
+    return state.current && dirtyCount(state.current) ? state.current : null;
   }
 
   function routeFromHash() {
@@ -380,9 +409,7 @@
   // ---------------------------------------------------------------- savebar
   function updateSavebar() {
     const bar = $("cfgSavebar");
-    let count = 0;
-    if (state.current === "empresa") count = companyDirtyKeys().length;
-    else if (state.current === "marca") count = brandDirty() ? 1 : 0;
+    const count = state.current ? dirtyCount(state.current) : 0;
     bar.hidden = count === 0;
     document.body.classList.toggle("cfg-has-savebar", count > 0);
     if (count) {
@@ -398,13 +425,19 @@
   async function saveCurrent() {
     if (state.current === "empresa") return saveCompany();
     if (state.current === "marca") return saveBrand();
+    if (state.current === "orcamentos") return saveQuotes();
+    if (state.current === "regras-estimativa") return saveRules();
     return true;
   }
 
   function discardCurrent() {
     if (state.current === "empresa") fillCompany(state.company.snapshot);
     if (state.current === "marca") resetBrandToSnapshot();
+    if (state.current === "orcamentos") discardQuotes();
+    if (state.current === "regras-estimativa") renderRules(state.rules.snapshot);
     clearErrors();
+    clearFormErrors("quotesForm");
+    clearFormErrors("rulesTable");
     updateSavebar();
   }
 
@@ -412,6 +445,7 @@
   const GROUP_LINKS = [
     { title: "Dados da empresa", desc: "Contato, endereço, licença e horário", href: "#empresa", perm: "settings.manage" },
     { title: "Marca e aparência", desc: "Logo e cores", href: "#marca", perm: "settings.manage" },
+    { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
     { title: "Produtos e fornecedores", desc: "Custos, margens e SKUs", href: "products-erp.html", perm: ["quotes.view"] },
     { title: "Usuários e cargos", desc: "Quem acessa e o que pode fazer", href: "equipe.html", perm: ["users.view"] },
@@ -1041,6 +1075,509 @@
     });
   }
 
+
+  // ---------------------------------------------------------------- quotes (Orçamentos)
+  const TERMS_SAMPLE = [
+    "Pagamento: 50% na aprovação e 50% na conclusão do serviço.",
+    "Móveis e objetos devem ser retirados dos cômodos antes do início, salvo combinado.",
+    "Umidade do contrapiso acima do limite do fabricante exige barreira de umidade, cobrada à parte.",
+    "Variações de cor e veio são naturais no material e não caracterizam defeito.",
+    "Garantia de mão de obra de 1 ano a partir da conclusão.",
+    "Este orçamento vale até a data indicada.",
+  ].join("\n");
+
+  function clearFormErrors(containerId) {
+    const root = $(containerId);
+    if (!root) return;
+    root.querySelectorAll(".has-error").forEach((w) => w.classList.remove("has-error"));
+    root.querySelectorAll(".cfg-err").forEach((e) => e.remove());
+    root.querySelectorAll("[aria-invalid]").forEach((e) => e.removeAttribute("aria-invalid"));
+  }
+
+  function setErrorOn(el, msg) {
+    if (!el) return;
+    const wrap = el.closest(".cfg-field") || el.closest("td") || el.parentElement;
+    wrap.classList.toggle("has-error", !!msg);
+    let e = wrap.querySelector(".cfg-err");
+    if (msg) {
+      if (!e) {
+        e = document.createElement("p");
+        e.className = "cfg-err";
+        e.id = `${el.id || "f" + Math.random().toString(36).slice(2)}_err`;
+        wrap.appendChild(e);
+      }
+      e.textContent = msg;
+      el.setAttribute("aria-invalid", "true");
+      el.setAttribute("aria-describedby", e.id);
+    } else {
+      if (e) e.remove();
+      el.removeAttribute("aria-invalid");
+      el.removeAttribute("aria-describedby");
+    }
+  }
+
+  function readClientView() {
+    const out = {};
+    document.querySelectorAll("[data-cv]").forEach((b) => {
+      out[b.getAttribute("data-cv")] = b.getAttribute("aria-checked") === "true";
+    });
+    return out;
+  }
+
+  function paintClientView() {
+    const cv = readClientView();
+    document.querySelectorAll('[data-cvp="qty"]').forEach((e) => (e.hidden = !cv.showQuantities));
+    document.querySelectorAll('[data-cvp="unit"]').forEach((e) => (e.hidden = !cv.showUnitPrices));
+    document.querySelectorAll('[data-cvp="total"]').forEach((e) => (e.hidden = !cv.showLineTotals));
+    document.querySelectorAll('[data-cvp="room"]').forEach((e) => (e.hidden = !cv.showRoomBreakdown));
+  }
+
+  function readQuotes() {
+    const v = (id) => $(id).value.trim();
+    return {
+      number_prefix: v("q_number_prefix"),
+      next_number: v("q_next_number"),
+      validity_days: v("q_validity_days"),
+      tax_rate: v("q_tax_rate"),
+      terms: $("q_terms").value,
+      client_view: readClientView(),
+    };
+  }
+
+  function fillQuotes(d) {
+    $("q_number_prefix").value = d.number_prefix || "";
+    $("q_next_number").value = d.next_number != null ? String(d.next_number) : "";
+    $("q_validity_days").value = d.validity_days != null ? String(d.validity_days) : "";
+    $("q_tax_rate").value = d.tax_rate != null ? String(d.tax_rate) : "0";
+    $("q_terms").value = d.terms || "";
+    const cv = d.client_view || {};
+    document.querySelectorAll("[data-cv]").forEach((b) => {
+      b.setAttribute("aria-checked", cv[b.getAttribute("data-cv")] === false ? "false" : "true");
+    });
+    $("qLastHint").textContent = d.last_label
+      ? `Último orçamento criado: ${d.last_label}. O próximo número só pode aumentar.`
+      : "Nenhum orçamento criado ainda.";
+    syncQuotesPreview();
+  }
+
+  function syncQuotesPreview() {
+    const prefix = $("q_number_prefix").value.trim();
+    const n = $("q_next_number").value.trim();
+    $("qNextLabel").textContent = n ? `${prefix}${n}` : "—";
+    $("qTermsCount").textContent = String($("q_terms").value.length);
+    paintClientView();
+  }
+
+  function quotesDirtyKeys() {
+    if (!state.quotes.loaded) return [];
+    const now = readQuotes();
+    const snap = state.quotes.snapshot;
+    return Object.keys(now).filter((k) => comparable(now[k]) !== comparable(snap[k]));
+  }
+
+  // --- owner signature
+  let sigPad = null;
+
+  function makeSigPad() {
+    const canvas = $("sigCanvas");
+    const ctx = canvas.getContext("2d");
+    let down = false;
+    const pos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const pt = e.touches ? e.touches[0] : e;
+      return { x: ((pt.clientX - r.left) * canvas.width) / r.width, y: ((pt.clientY - r.top) * canvas.height) / r.height };
+    };
+    const start = (e) => {
+      down = true;
+      const p = pos(e);
+      ctx.strokeStyle = "#1a2036";
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      showCanvas();
+      e.preventDefault();
+    };
+    const move = (e) => {
+      if (!down) return;
+      const p = pos(e);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      if (!state.sig.drawn) {
+        state.sig.drawn = true;
+        $("s_auto").checked = false;
+        updateSavebar();
+      }
+      e.preventDefault();
+    };
+    const end = () => (down = false);
+    canvas.addEventListener("mousedown", start);
+    canvas.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", end);
+    canvas.addEventListener("touchstart", start, { passive: false });
+    canvas.addEventListener("touchmove", move, { passive: false });
+    canvas.addEventListener("touchend", end);
+    return {
+      clear() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      },
+      fromName(name) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (window.QuoteSignatureAuto && name.length >= 2) {
+          return !!window.QuoteSignatureAuto.renderAutoSignatureOnCanvas(canvas, name);
+        }
+        return false;
+      },
+      toDataURL() {
+        return canvas.toDataURL("image/png");
+      },
+    };
+  }
+
+  function showCanvas() {
+    $("sigSaved").hidden = true;
+    $("sigCanvas").hidden = false;
+    $("sigEmpty").hidden = true;
+  }
+
+  function showSaved(url) {
+    const has = !!url;
+    $("sigSaved").hidden = !has;
+    if (has) $("sigSaved").src = url;
+    $("sigCanvas").hidden = has;
+    $("sigEmpty").hidden = has;
+    $("btnSigRemove").hidden = !has;
+  }
+
+  function readSig() {
+    return { name: $("s_name").value.trim(), title: $("s_title").value.trim(), auto: $("s_auto").checked };
+  }
+
+  function sigDirty() {
+    if (!state.sig.loaded) return false;
+    const now = readSig();
+    const s = state.sig.snapshot;
+    return state.sig.drawn || state.sig.removed || now.name !== s.name || now.title !== s.title || now.auto !== s.auto;
+  }
+
+  function autoSignFromName() {
+    if (!$("s_auto").checked) return;
+    const name = $("s_name").value.trim();
+    showCanvas();
+    if (sigPad.fromName(name)) state.sig.drawn = true;
+    else {
+      sigPad.clear();
+      $("sigEmpty").hidden = false;
+    }
+  }
+
+  function fillSig(d) {
+    $("s_name").value = d.name || "";
+    $("s_title").value = d.title || "";
+    $("s_auto").checked = d.use_auto_signature !== false;
+    state.sig.drawn = false;
+    state.sig.removed = false;
+    sigPad.clear();
+    showSaved(d.has_signature ? d.image_url : null);
+    $("sigMeta").textContent = d.has_signature && d.updated_at
+      ? `Assinatura salva em ${new Date(d.updated_at).toLocaleDateString("pt-BR")}.`
+      : "Nenhuma assinatura salva ainda.";
+    state.sig.snapshot = readSig();
+  }
+
+  async function loadQuotes(force) {
+    if (state.quotes.loaded && !force) return;
+    const form = $("quotesForm");
+    form.classList.add("is-loading");
+    try {
+      const [q, sig] = await Promise.all([api("/api/settings/quotes"), api("/api/quotes/settings/owner-signature")]);
+      state.quotes.data = q.data;
+      fillQuotes(q.data);
+      state.quotes.snapshot = readQuotes();
+      state.quotes.loaded = true;
+      state.sig.data = sig.data;
+      fillSig(sig.data);
+      state.sig.loaded = true;
+    } catch (err) {
+      notify("Não foi possível carregar as configurações de orçamento.", "error");
+    } finally {
+      form.classList.remove("is-loading");
+      updateSavebar();
+    }
+  }
+
+  function discardQuotes() {
+    if (state.quotes.data) fillQuotes(state.quotes.data);
+    if (state.sig.data) fillSig(state.sig.data);
+  }
+
+  function validateQuotes() {
+    const d = readQuotes();
+    const checks = [
+      ["q_number_prefix", /^[A-Za-z0-9#/._-]{0,8}$/.test(d.number_prefix) ? "" : "Use até 8 letras, números ou - _ / . #"],
+      ["q_next_number", !d.next_number || (/^\d+$/.test(d.next_number) && Number(d.next_number) >= 1) ? "" : "Número inválido"],
+      ["q_validity_days", /^\d+$/.test(d.validity_days) && +d.validity_days >= 1 && +d.validity_days <= 365 ? "" : "Entre 1 e 365 dias"],
+      ["q_tax_rate", d.tax_rate !== "" && +d.tax_rate >= 0 && +d.tax_rate <= 30 ? "" : "Entre 0 e 30%"],
+    ];
+    const last = state.quotes.data && state.quotes.data.last_number;
+    if (!checks[1][1] && d.next_number && last != null && +d.next_number <= last) {
+      checks[1][1] = `Precisa ser maior que ${state.quotes.data.last_label}`;
+    }
+    let first = null;
+    for (const [id, msg] of checks) {
+      setErrorOn($(id), msg);
+      if (msg && !first) first = $(id);
+    }
+    if (sigDirty()) {
+      const s = readSig();
+      const nameMsg = s.name.length < 2 ? "Indique o nome" : "";
+      const titleMsg = s.title.length < 2 ? "Indique o cargo" : "";
+      setErrorOn($("s_name"), nameMsg);
+      setErrorOn($("s_title"), titleMsg);
+      if (!first && nameMsg) first = $("s_name");
+      if (!first && titleMsg) first = $("s_title");
+    }
+    return first;
+  }
+
+  async function saveQuotes() {
+    const bad = validateQuotes();
+    if (bad) {
+      bad.focus();
+      notify("Revise os campos destacados.", "error");
+      return false;
+    }
+    setSaving(true);
+    try {
+      const keys = quotesDirtyKeys();
+      if (keys.length) {
+        const now = readQuotes();
+        const body = {};
+        for (const k of keys) {
+          if (k === "next_number") body[k] = now[k] ? Number(now[k]) : null;
+          else if (k === "validity_days" || k === "tax_rate") body[k] = Number(now[k]);
+          else body[k] = now[k];
+        }
+        try {
+          const j = await api("/api/settings/quotes", { method: "PATCH", body: JSON.stringify(body) });
+          state.quotes.data = j.data;
+          fillQuotes(j.data);
+          state.quotes.snapshot = readQuotes();
+        } catch (err) {
+          if (err.fields) {
+            for (const [k, msg] of Object.entries(err.fields)) setErrorOn($(`q_${k}`), msg);
+          }
+          throw err;
+        }
+      }
+      if (sigDirty()) {
+        if (state.sig.removed && !state.sig.drawn) {
+          const j = await api("/api/quotes/settings/owner-signature", { method: "DELETE" });
+          state.sig.data = { ...j.data };
+        }
+        const s = readSig();
+        if (s.auto && !state.sig.drawn && !state.sig.data?.has_signature) autoSignFromName();
+        const payload = { name: s.name, title: s.title, use_auto_signature: s.auto };
+        if (state.sig.drawn) payload.signature_png = sigPad.toDataURL();
+        const j = await api("/api/quotes/settings/owner-signature", { method: "PUT", body: JSON.stringify(payload) });
+        state.sig.data = j.data;
+        fillSig(j.data);
+      }
+      clearFormErrors("quotesForm");
+      notify("Configurações de orçamento salvas.", "success");
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+      updateSavebar();
+    }
+  }
+
+  function bindQuotes() {
+    sigPad = makeSigPad();
+    const form = $("quotesForm");
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      saveQuotes();
+    });
+    form.addEventListener("input", (e) => {
+      if (e.target.id === "s_name" && $("s_auto").checked) autoSignFromName();
+      if (e.target.closest(".has-error")) setErrorOn(e.target, "");
+      syncQuotesPreview();
+      updateSavebar();
+    });
+    form.addEventListener("change", () => updateSavebar());
+    form.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-cv]");
+      if (!b) return;
+      b.setAttribute("aria-checked", b.getAttribute("aria-checked") === "true" ? "false" : "true");
+      paintClientView();
+      updateSavebar();
+    });
+    $("btnTermsSample").addEventListener("click", () => {
+      const t = $("q_terms");
+      if (t.value.trim() && !window.confirm("Substituir o texto atual pelo exemplo?")) return;
+      t.value = TERMS_SAMPLE;
+      syncQuotesPreview();
+      updateSavebar();
+      t.focus();
+    });
+    $("s_auto").addEventListener("change", () => {
+      if ($("s_auto").checked) autoSignFromName();
+      updateSavebar();
+    });
+    $("btnSigRedraw").addEventListener("click", () => {
+      sigPad.clear();
+      showCanvas();
+      $("sigEmpty").hidden = false;
+      $("s_auto").checked = false;
+      state.sig.drawn = false;
+      state.sig.removed = !!(state.sig.data && state.sig.data.has_signature);
+      updateSavebar();
+    });
+    $("btnSigRemove").addEventListener("click", () => {
+      sigPad.clear();
+      showCanvas();
+      $("sigEmpty").hidden = false;
+      $("btnSigRemove").hidden = true;
+      state.sig.drawn = false;
+      state.sig.removed = true;
+      updateSavebar();
+    });
+  }
+
+  // ---------------------------------------------------------------- estimate rules
+  const RULE_FIELDS = [
+    ["waste_percent", "Desperdício %", 100, "0.5"],
+    ["material_markup", "Markup material %", 500, "1"],
+    ["labor_markup", "Markup mão de obra %", 500, "1"],
+    ["default_price_per_sqft", "Material $/sq ft", 10000, "0.01"],
+    ["default_labor_per_sqft", "Mão de obra $/sq ft", 10000, "0.01"],
+  ];
+
+  function renderRules(rows) {
+    if (!rows) return;
+    $("rulesBody").innerHTML = rows
+      .map((r) => {
+        const cells = RULE_FIELDS.map(([k, label, max, step]) => {
+          const isDefault = Number(r[k]) === Number(r.defaults[k]);
+          return (
+            `<td><input class="cfg-num${isDefault ? "" : " is-custom"}" type="number" min="0" max="${max}" step="${step}" inputmode="decimal" ` +
+            `data-rule="${r.flooring_type}" data-rk="${k}" data-default="${r.defaults[k]}" value="${esc(r[k])}" ` +
+            `aria-label="${esc(r.label)}: ${label}" title="Padrão: ${r.defaults[k]}" /></td>`
+          );
+        }).join("");
+        return (
+          `<tr data-row="${r.flooring_type}"><th scope="row">${esc(r.label)}</th>${cells}` +
+          `<td><button type="button" class="btn cfg-btn-sm cfg-btn-ghost" data-reset="${r.flooring_type}">Padrão</button></td></tr>`
+        );
+      })
+      .join("");
+    syncRuleMarks();
+  }
+
+  function readRules() {
+    const out = {};
+    document.querySelectorAll("#rulesBody input[data-rule]").forEach((i) => {
+      const t = i.getAttribute("data-rule");
+      out[t] = out[t] || { flooring_type: t };
+      out[t][i.getAttribute("data-rk")] = i.value.trim();
+    });
+    return Object.values(out);
+  }
+
+  function rulesDirtyTypes() {
+    if (!state.rules.loaded) return [];
+    const snap = new Map(state.rules.snapshot.map((r) => [r.flooring_type, r]));
+    return readRules()
+      .filter((r) => {
+        const s = snap.get(r.flooring_type);
+        return RULE_FIELDS.some(([k]) => Number(r[k]) !== Number(s[k]) || r[k] === "");
+      })
+      .map((r) => r.flooring_type);
+  }
+
+  function syncRuleMarks() {
+    document.querySelectorAll("#rulesBody input[data-rule]").forEach((i) => {
+      i.classList.toggle("is-custom", i.value !== "" && Number(i.value) !== Number(i.getAttribute("data-default")));
+    });
+    document.querySelectorAll("#rulesBody tr[data-row]").forEach((tr) => {
+      const custom = tr.querySelector("input.is-custom");
+      tr.querySelector("[data-reset]").disabled = !custom;
+    });
+  }
+
+  async function loadRules(force) {
+    if (state.rules.loaded && !force) return;
+    try {
+      const j = await api("/api/settings/estimate-rules");
+      state.rules.snapshot = j.data;
+      renderRules(j.data);
+      state.rules.loaded = true;
+    } catch (err) {
+      $("rulesBody").innerHTML = `<tr><td colspan="7" class="cfg-hint">Não foi possível carregar as regras.</td></tr>`;
+    } finally {
+      updateSavebar();
+    }
+  }
+
+  async function saveRules() {
+    let first = null;
+    const rows = readRules();
+    document.querySelectorAll("#rulesBody input[data-rule]").forEach((i) => {
+      const v = i.value.trim();
+      const max = Number(i.getAttribute("max"));
+      const msg = v === "" || Number.isNaN(+v) ? "Obrigatório" : +v < 0 ? "Não pode ser negativo" : +v > max ? `Máximo ${max}` : "";
+      setErrorOn(i, msg);
+      if (msg && !first) first = i;
+    });
+    if (first) {
+      first.focus();
+      notify("Revise os valores destacados.", "error");
+      return false;
+    }
+    setSaving(true);
+    try {
+      const body = { rules: rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === "flooring_type" ? v : Number(v)]))) };
+      const j = await api("/api/settings/estimate-rules", { method: "PUT", body: JSON.stringify(body) });
+      state.rules.snapshot = j.data;
+      renderRules(j.data);
+      notify("Regras de estimativa salvas.", "success");
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+      updateSavebar();
+    }
+  }
+
+  function bindRules() {
+    const body = $("rulesBody");
+    body.addEventListener("input", (e) => {
+      if (e.target.matches("input[data-rule]")) {
+        if (e.target.closest(".has-error")) setErrorOn(e.target, "");
+        syncRuleMarks();
+        updateSavebar();
+      }
+    });
+    body.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-reset]");
+      if (!b) return;
+      const t = b.getAttribute("data-reset");
+      body.querySelectorAll(`input[data-rule="${t}"]`).forEach((i) => {
+        i.value = i.getAttribute("data-default");
+        setErrorOn(i, "");
+      });
+      syncRuleMarks();
+      updateSavebar();
+    });
+  }
+
   // ---------------------------------------------------------------- app / support
   function syncInstalledNote() {
     const standalone =
@@ -1109,6 +1646,8 @@
     if (id === "visao-geral") return loadOverview();
     if (id === "empresa") return loadCompany();
     if (id === "marca") return loadBrand();
+    if (id === "orcamentos") return loadQuotes();
+    if (id === "regras-estimativa") return loadRules();
     if (id === "app") return syncInstalledNote();
     if (id === "suporte" && !loaded.has("suporte")) {
       loaded.add("suporte");
@@ -1192,6 +1731,8 @@
     bindCompany();
     bindBrand();
     bindSupport();
+    bindQuotes();
+    bindRules();
     try {
       if (!(await loadSession())) return;
     } catch (_) {
