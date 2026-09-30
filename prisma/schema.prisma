@@ -885,6 +885,14 @@ model QuoteInvoice {
   dueDate        DateTime?
   issuedAt       DateTime?
   paidAt         DateTime?
+  /// First time the client opened the public invoice link.
+  viewedAt       DateTime?
+  voidedAt       DateTime?
+  /// Last e-mail address the invoice was sent to.
+  sentTo         String?
+  /// Raw public link token (hash lives in PublicAccessToken) so every e-mail reuses the same link.
+  publicToken    String?
+  publicTokenExpiresAt DateTime?
   pdfPath        String?
   notes          String?  @db.Text
   paymentInstructions String? @db.Text
@@ -931,8 +939,14 @@ model InvoiceReceipt {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoiceId      String   @db.Uuid
   invoice        QuoteInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  /// RCT-0001 — allocated from DocumentSequence(kind = receipt).
+  receiptNumber  String?
   amount         Decimal  @db.Decimal(12, 2)
   paidAt         DateTime @default(now())
+  /// Last time the receipt was e-mailed to the client.
+  sentAt         DateTime?
+  sentTo         String?
+  createdById    String?  @db.Uuid
   method         String?  // cash | check | card | ach | other
   referenceNumber String?
   notes          String?
@@ -941,6 +955,7 @@ model InvoiceReceipt {
   processor      String?
   createdAt      DateTime @default(now())
 
+  @@unique([organizationId, receiptNumber])
   @@index([organizationId])
   @@index([invoiceId])
 }

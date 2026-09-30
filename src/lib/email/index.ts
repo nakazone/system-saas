@@ -6,6 +6,9 @@ export type EmailMessage = {
   subject: string;
   text: string;
   html?: string;
+  replyTo?: string;
+  /** Base64 attachments (Resend). The console provider only logs the file names. */
+  attachments?: { filename: string; content: Buffer }[];
 };
 
 export type EmailSendResult = {
@@ -42,6 +45,9 @@ export class ConsoleEmailProvider implements EmailProvider {
     if (message.cc) console.log(`Cc: ${asList(message.cc).join(", ")}`);
     console.log(`Subject: ${message.subject}`);
     console.log(message.text);
+    if (message.attachments?.length) {
+      console.log(`Attachments: ${message.attachments.map((a) => a.filename).join(", ")}`);
+    }
     console.log("----------------------------------");
     return { ok: true, transport: "console", id: `console-${Date.now()}` };
   }
@@ -66,6 +72,13 @@ export class ResendEmailProvider implements EmailProvider {
     };
     if (message.html) payload.html = message.html;
     if (cc.length) payload.cc = cc;
+    if (message.replyTo) payload.reply_to = message.replyTo;
+    if (message.attachments?.length) {
+      payload.attachments = message.attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content.toString("base64"),
+      }));
+    }
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

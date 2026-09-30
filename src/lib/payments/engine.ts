@@ -470,10 +470,13 @@ export async function recordInvoicePayment(
     throw new Error("Payment exceeds invoice balance");
   }
 
+  const receiptNumber = await nextReceiptNumber(tx, params.organizationId);
   const receipt = await tx.invoiceReceipt.create({
     data: {
       organizationId: params.organizationId,
       invoiceId: invoice.id,
+      receiptNumber,
+      createdById: params.actorId || null,
       amount: new Prisma.Decimal(fromCents(amountCents).toFixed(2)),
       paidAt: params.paidAt ?? new Date(),
       method: params.method || null,
@@ -512,6 +515,41 @@ export async function recordInvoicePayment(
       amount: { from: null, to: fromCents(amountCents) },
     },
   });
+  // Invoice timeline entry (the detail page reads invoice events only).
+  await recordActivity(tx, {
+    organizationId: params.organizationId,
+    entityType: "invoice",
+    entityId: invoice.id,
+    actorType: params.actorId ? "user" : "system",
+    actorId: params.actorId ?? null,
+    action: "payment_recorded",
+    changes: {
+      receipt: { from: null, to: receiptNumber },
+      amount: { from: null, to: fromCents(amountCents) },
+      method: { from: null, to: params.method || null },
+      status: { from: invoice.status, to: status },
+    },
+  });
 
   return receipt;
+}
+
+/** Allocate next RCT-0001 style receipt number with row lock. */
+export async function nextReceiptNumber(tx: TenantPrisma, organizationId: string): Promise<string> {
+  await tx.$executeRaw`
+    INSERT INTO "DocumentSequence" ("id", "organizationId", "kind", "nextValue")
+    VALUES (gen_random_uuid(), ${organizationId}::uuid, 'receipt', 1)
+    ON CONFLICT ("organizationId", "kind") DO NOTHING
+  `;
+  const rows = await tx.$queryRaw<{ nextValue: number }[]>`
+    SELECT "nextValue" FROM "DocumentSequence"
+    WHERE "organizationId" = ${organizationId}::uuid AND "kind" = 'receipt'
+    FOR UPDATE
+  `;
+  const current = rows[0]?.nextValue ?? 1;
+  await tx.$executeRaw`
+    UPDATE "DocumentSequence" SET "nextValue" = ${current + 1}
+    WHERE "organizationId" = ${organizationId}::uuid AND "kind" = 'receipt'
+  `;
+  return `RCT-${String(current).padStart(4, "0")}`;
 }
