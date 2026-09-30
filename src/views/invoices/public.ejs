@@ -1,51 +1,151 @@
-<!DOCTYPE html>
+<%
+  const accent = /^#[0-9a-fA-F]{6}$/.test(organization.accentColor || '') ? organization.accentColor : '#e8792c';
+  const ink = /^#[0-9a-fA-F]{6}$/.test(organization.primaryColor || '') ? organization.primaryColor : '#211d1a';
+  const fmt = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fdate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—';
+  const st = money.displayStatus;
+  const instructions = invoice.paymentInstructions || organization.paymentInstructions;
+%><!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
   <title><%= title %> · <%= organization.name %></title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #f7f4ee; color: #211d1a; }
-    header { background: <%= organization.primaryColor || '#211d1a' %>; color: #fff; padding: 1.25rem 1.5rem; }
-    main { max-width: 640px; margin: 0 auto; padding: 1.5rem; }
-    .card { background: #fff; border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
-    .muted { color: #6b7280; }
-    .total { font-size: 1.25rem; font-weight: 700; }
+    :root { --accent: <%= accent %>; --ink: <%= ink %>; --muted: #6b645c; --rule: #e2d9cc; --panel: #f7f4ee; --stamp: #c1652f; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; margin: 0; background: #f3f0ea; color: var(--ink); }
+    .bar { height: 5px; background: var(--accent); }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    .paper { position: relative; background: #fff; border: 1px solid var(--rule); border-radius: 14px; padding: 32px; overflow: hidden; }
+    .top { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .org { display: flex; gap: 12px; align-items: center; }
+    .org img { width: 48px; height: 48px; object-fit: contain; border-radius: 8px; }
+    .org b { font-size: 17px; display: block; }
+    .org span { color: var(--muted); font-size: 13px; }
+    .doc-title { text-align: right; }
+    .doc-title h1 { margin: 0; font-size: 26px; letter-spacing: .04em; }
+    .doc-title p { margin: 4px 0 0; color: var(--muted); }
+    .label { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 4px; }
+    .grid { display: grid; grid-template-columns: 1fr auto; gap: 24px; margin-top: 28px; }
+    .meta { display: grid; grid-template-columns: auto auto; gap: 4px 20px; font-size: 14px; }
+    .meta dt { color: var(--muted); } .meta dd { margin: 0; text-align: right; font-weight: 600; }
+    .due { margin-top: 24px; display: flex; justify-content: space-between; align-items: center; background: var(--panel); border-radius: 10px; padding: 16px 20px; gap: 12px; flex-wrap: wrap; }
+    .due strong { font-size: 28px; }
+    .due small { color: var(--muted); display: block; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 14px; }
+    th { text-align: left; color: #8a8074; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--rule); padding: 8px 0; }
+    td { padding: 12px 0; border-bottom: 1px solid #f0ebe3; vertical-align: top; white-space: pre-line; }
+    .r { text-align: right; }
+    .totals { margin-left: auto; width: min(320px, 100%); margin-top: 16px; font-size: 14px; }
+    .totals div { display: flex; justify-content: space-between; padding: 5px 0; color: var(--muted); }
+    .totals .grand { color: var(--ink); font-weight: 700; font-size: 17px; border-top: 2px solid var(--ink); margin-top: 6px; padding-top: 10px; }
+    .box { margin-top: 24px; }
+    .box p { margin: 0; white-space: pre-line; line-height: 1.5; }
+    .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 9px; font-weight: 600; text-decoration: none; font-size: 14px; border: 1px solid var(--rule); color: var(--ink); background: #fff; cursor: pointer; }
+    .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .totals-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
+    .totals-row .totals { margin-top: 0; }
+    .stamp { position: relative; margin-left: 12px; flex-shrink: 0; transform: rotate(-14deg); border: 4px solid var(--stamp); color: var(--stamp); border-radius: 10px; padding: 8px 22px; text-align: center; font-weight: 800; letter-spacing: .12em; opacity: .85; pointer-events: none; box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3px var(--stamp); }
+    .stamp b { display: block; font-size: 40px; line-height: 1; }
+    .stamp small { display: block; font-size: 11px; margin-top: 4px; }
+    .stamp.partial b { font-size: 22px; }
+    .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 20px; }
+    @media (max-width: 600px) {
+      .paper { padding: 20px; } .grid { grid-template-columns: 1fr; } .meta dd { text-align: left; }
+      .doc-title { text-align: left; } .totals-row { flex-direction: column-reverse; align-items: stretch; } .stamp { align-self: center; margin: 10px 0 0; } .stamp b { font-size: 30px; }
+      .hide-sm { display: none; }
+    }
+    @media print { body { background: #fff; } main { padding: 0; } .actions, .foot { display: none; } .paper { border: 0; } }
   </style>
 </head>
 <body>
-  <header>
-    <div style="font-weight:700"><%= organization.name %></div>
-    <div><%= invoice.invoiceNumber %></div>
-  </header>
+  <div class="bar"></div>
   <main>
-    <div class="card">
-      <p><strong>Status:</strong> <%= invoice.status %></p>
-      <p><strong>Bill to:</strong> <%= invoice.customer ? invoice.customer.name : 'Customer' %></p>
-      <p><strong>Due:</strong> <%= invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : '—' %></p>
-      <p class="total">Amount due: $<%= Number(balance).toFixed(2) %></p>
-      <p class="muted">Invoice total $<%= Number(invoice.amount).toFixed(2) %> · Paid $<%= Number(paid).toFixed(2) %></p>
-    </div>
-    <% if (invoice.lineItems && invoice.lineItems.length) { %>
-    <div class="card">
+    <article class="paper">
+      <div class="top">
+        <div class="org">
+          <% if (organization.logoUrl) { %><img src="<%= organization.logoUrl %>" alt="" /><% } %>
+          <div>
+            <b><%= organization.name %></b>
+            <span><%= [organization.contactPhone, organization.contactEmail].filter(Boolean).join(' · ') %></span>
+          </div>
+        </div>
+        <div class="doc-title">
+          <h1>INVOICE</h1>
+          <p><%= invoice.invoiceNumber %></p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <p class="label">Bill to</p>
+          <strong><%= client.name || 'Client' %></strong>
+          <% if (client.address) { %><div style="color:var(--muted);font-size:14px;margin-top:2px"><%= client.address %></div><% } %>
+        </div>
+        <dl class="meta">
+          <dt>Issued</dt><dd><%= fdate(invoice.issuedAt || invoice.createdAt) %></dd>
+          <dt>Due</dt><dd><%= fdate(invoice.dueDate) %></dd>
+          <% if (quoteNumber) { %><dt>Quote</dt><dd><%= quoteNumber %></dd><% } %>
+        </dl>
+      </div>
+
+      <div class="due">
+        <div>
+          <small><%= st === 'paid' ? 'Balance' : 'Balance due' %></small>
+          <strong><%= fmt(balance) %></strong>
+        </div>
+        <div style="text-align:right">
+          <% if (st === 'paid') { %>
+            <small>Paid in full<%= invoice.paidAt ? ' on ' + fdate(invoice.paidAt) : '' %> — thank you!</small>
+          <% } else if (money.isOverdue) { %>
+            <small style="color:var(--stamp);font-weight:600">Past due since <%= fdate(invoice.dueDate) %></small>
+          <% } else { %>
+            <small>Due <%= fdate(invoice.dueDate) %></small>
+          <% } %>
+        </div>
+      </div>
+
       <table>
-        <thead><tr><th>Description</th><th>Amount</th></tr></thead>
+        <thead><tr><th>Description</th><th class="r hide-sm">Qty</th><th class="r">Amount</th></tr></thead>
         <tbody>
           <% invoice.lineItems.forEach(li => { %>
-            <tr><td><%= li.description %></td><td>$<%= Number(li.amount).toFixed(2) %></td></tr>
+            <tr><td><%= li.description %></td><td class="r hide-sm"><%= Number(li.quantity) %></td><td class="r"><%= fmt(li.amount) %></td></tr>
           <% }) %>
         </tbody>
       </table>
-    </div>
-    <% } %>
-    <% if (invoice.paymentInstructions || organization.paymentInstructions) { %>
-    <div class="card">
-      <h3>How to pay</h3>
-      <p style="white-space:pre-wrap"><%= invoice.paymentInstructions || organization.paymentInstructions %></p>
-    </div>
-    <% } %>
+
+      <div class="totals-row">
+      <% if (st === 'paid') { %>
+        <div class="stamp" aria-label="Paid"><b>PAID</b><% if (invoice.paidAt) { %><small><%= fdate(invoice.paidAt).toUpperCase() %></small><% } %></div>
+      <% } else if (money.paid > 0) { %>
+        <div class="stamp partial" aria-label="Partially paid"><b>PARTIALLY PAID</b><small><%= fmt(money.paid) %> RECEIVED</small></div>
+        <% } else { %><span></span><% } %>
+
+      <div class="totals">
+        <div><span>Total</span><span><%= fmt(money.amount) %></span></div>
+        <% payments.forEach(p => { %>
+          <div><span>Payment <%= fdate(p.paidAt) %> · <%= p.method %></span><span>–<%= fmt(p.amount) %></span></div>
+        <% }) %>
+        <div class="grand"><span>Balance due</span><span><%= fmt(balance) %></span></div>
+      </div>
+      </div>
+
+      <% if (instructions && balance > 0) { %>
+        <div class="box"><p class="label">How to pay</p><p><%= instructions %></p></div>
+      <% } %>
+      <% if (invoice.notes) { %>
+        <div class="box"><p class="label">Notes</p><p><%= invoice.notes %></p></div>
+      <% } %>
+
+      <div class="actions">
+        <a class="btn primary" href="<%= pdfUrl %>" target="_blank" rel="noopener">Download PDF</a>
+        <button class="btn" type="button" onclick="window.print()">Print</button>
+      </div>
+    </article>
+    <p class="foot"><%= organization.name %> · Powered by ObraMate</p>
   </main>
 </body>
 </html>

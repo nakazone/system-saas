@@ -12,118 +12,27 @@ import {
   nextInvoiceNumber,
   recordInvoicePayment,
   seedDefaultPaymentTemplates,
-  toCents,
-  paidTotalCents,
   validatePaymentSchedule,
-  fromCents,
 } from "../../lib/payments/engine.js";
 
 export const invoicesRouter = Router();
 
 invoicesRouter.use(requireAuth);
 
-invoicesRouter.get(
-  "/",
-  requirePermission("invoices.view"),
-  async (req: AuthedRequest, res, next) => {
-    try {
-      const status = typeof req.query.status === "string" ? req.query.status : "";
-      const filter = typeof req.query.filter === "string" ? req.query.filter : "";
-      const now = new Date();
-      const invoices = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const where: Record<string, unknown> = {};
-        if (status) where.status = status;
-        if (filter === "overdue") {
-          where.status = { in: ["sent", "partially_paid"] };
-          where.dueDate = { lt: now };
-        }
-        return tx.quoteInvoice.findMany({
-          where,
-          include: {
-            quote: true,
-            customer: true,
-            receipts: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 200,
-        });
-      });
-      const mapped = invoices.map((inv) => ({
-        ...inv,
-        paid: fromCents(paidTotalCents(inv.receipts)),
-        balance: fromCents(toCents(inv.amount) - paidTotalCents(inv.receipts)),
-      }));
-      const metrics = {
-        total: mapped.length,
-        openBalance: Number(
-          mapped.reduce((s, i) => s + (i.status === "paid" || i.status === "void" ? 0 : i.balance), 0).toFixed(2),
-        ),
-        overdue: mapped.filter(
-          (i) =>
-            i.dueDate &&
-            i.dueDate < now &&
-            i.balance > 0 &&
-            ["sent", "partially_paid"].includes(i.status),
-        ).length,
-      };
-      res.render("invoices/index", {
-        title: "Invoices",
-        organization: req.organization,
-        user: req.user,
-        invoices: mapped,
-        metrics,
-        filters: { status, filter },
-        canViewPricing:
-          req.user?.permissions.includes("pricing.view") || req.user?.roleKey === "admin",
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+/**
+ * The EJS invoice screens were retired: the CRM Faturas module (invoices.html / invoice.html)
+ * owns listing, payments, receipts and sending. Old links and bookmarks land there.
+ */
+invoicesRouter.get("/", requirePermission("invoices.view"), (req: AuthedRequest, res) => {
+  const filter = typeof req.query.filter === "string" ? req.query.filter : "";
+  const status = typeof req.query.status === "string" ? req.query.status : "";
+  const tab = filter === "overdue" ? "overdue" : status || "";
+  res.redirect(tab ? `/invoices.html?status=${encodeURIComponent(tab)}` : "/invoices.html");
+});
 
-invoicesRouter.get(
-  "/:id",
-  requirePermission("invoices.view"),
-  async (req: AuthedRequest, res, next) => {
-    try {
-      const invoice = await withTenantTransaction(req.organizationId!, async (tx) => {
-        return tx.quoteInvoice.findFirst({
-          where: { id: param(req, "id") },
-          include: {
-            quote: true,
-            customer: true,
-            lineItems: { orderBy: { sortOrder: "asc" } },
-            receipts: { orderBy: { paidAt: "desc" } },
-            scheduleItem: true,
-          },
-        });
-      });
-      if (!invoice) {
-        res.status(404).send("Not found");
-        return;
-      }
-      const paid = fromCents(paidTotalCents(invoice.receipts));
-      res.render("invoices/show", {
-        title: invoice.invoiceNumber || "Invoice",
-        organization: req.organization,
-        user: req.user,
-        invoice,
-        paid,
-        balance: fromCents(toCents(invoice.amount) - paidTotalCents(invoice.receipts)),
-        canViewPricing:
-          req.user?.permissions.includes("pricing.view") || req.user?.roleKey === "admin",
-        canRecordPayment: req.user?.permissions.includes("invoices.record_payment"),
-        canManage: req.user?.permissions.includes("invoices.manage"),
-        error: typeof req.query.error === "string" ? req.query.error : null,
-        success: typeof req.query.success === "string" ? req.query.success : null,
-        portalLink: typeof req.query.portal === "string" ? req.query.portal : null,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+invoicesRouter.get("/:id", requirePermission("invoices.view"), (req: AuthedRequest, res) => {
+  res.redirect(`/invoice.html?id=${encodeURIComponent(param(req, "id"))}`);
+});
 
 invoicesRouter.post(
   "/:id/send",

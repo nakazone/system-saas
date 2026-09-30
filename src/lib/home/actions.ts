@@ -146,7 +146,7 @@ export async function buildActionHome(
       label: "Overdue invoices",
       count: overdueCount,
       amount: Number(overdueAmount.toFixed(2)),
-      href: "/invoices?filter=overdue",
+      href: "/invoices.html?status=overdue",
     },
   ];
 

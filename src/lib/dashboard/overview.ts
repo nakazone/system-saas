@@ -549,7 +549,7 @@ export function buildInvoiceSection(
         kind: "invoice_overdue",
         priority: "high",
         entity: { type: "invoice", id: inv.id, name: inv.customerName || inv.invoiceNumber || "Invoice" },
-        href: `quote-builder.html?id=${encodeURIComponent(inv.quoteId)}`,
+        href: `invoice.html?id=${encodeURIComponent(inv.id)}`,
         at: inv.dueDate.toISOString(),
         days: Math.max(1, zonedDayDiff(inv.dueDate, now, tz)),
         amount: round2(balance),
