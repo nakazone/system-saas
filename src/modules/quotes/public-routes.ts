@@ -12,7 +12,7 @@ import {
   lookupPublicAccessToken,
   tokenNeedsLightVerify,
 } from "../../lib/quotes/public-token.js";
-import { buildQuotePdf, pdfLinesFromDbItems } from "../../lib/quotes/pdf.js";
+import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { parseQuoteSettings } from "../../lib/settings/quotes.js";
 import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
@@ -479,9 +479,12 @@ publicQuotesRouter.get("/quotes/:token/pdf", async (req, res, next) => {
       where: { id: ref.organizationId },
     });
     const qs = parseQuoteSettings((org as Record<string, unknown>).quoteSettings);
+    const total = Number(quote.total);
+    const scheduleItems = pdfPaymentItemsFromSchedule(total, quote.paymentSchedule?.items);
+    const publicQuoteUrl = `${req.protocol}://${req.get("host")}/public/quotes/${token}`;
     const pdf = await buildQuotePdf({
       organizationName: org.name,
-      organizationContact: [org.contactEmail, org.contactPhone].filter(Boolean).join(" · "),
+      organizationContact: [org.contactPhone, org.contactEmail].filter(Boolean).join(" · "),
       organizationAddress: documentAddressLine(org as never),
       organizationLicense: documentLicenseLine(org as never),
       title: quote.title,
@@ -491,10 +494,20 @@ publicQuotesRouter.get("/quotes/:token/pdf", async (req, res, next) => {
       customerName: quote.customer?.name,
       customerEmail: quote.customer?.email ?? null,
       customerPhone: quote.customer?.phone ?? null,
+      projectName: quote.property?.label || quote.title,
+      projectAddress: quote.property
+        ? [quote.property.line1, quote.property.line2].filter(Boolean).join(", ")
+        : null,
+      projectCityLine: quote.property
+        ? [quote.property.city, quote.property.state, quote.property.postalCode]
+            .filter(Boolean)
+            .join(", ")
+        : null,
       validUntil: quote.validUntil,
       terms: quote.terms,
       clientMessage: quote.clientMessage,
       notes: quote.notes,
+      floorAreaSqft: Number(quote.areaSqft) || null,
       rooms: quote.rooms.map((r) => ({ name: r.name, areaSqft: Number(r.areaSqft) })),
       optionGroups: quote.optionGroups.map((g) => ({ id: g.id, name: g.name })),
       selectedOptionGroupId: quote.selectedOptionGroupId,
@@ -504,7 +517,17 @@ publicQuotesRouter.get("/quotes/:token/pdf", async (req, res, next) => {
       taxTotal: Number(quote.taxTotal),
       discountType: quote.discountType,
       discountValue: Number(quote.discountValue),
-      total: Number(quote.total),
+      total,
+      depositAmount: scheduleItems[0]?.amount ?? null,
+      paymentSchedule: scheduleItems,
+      preparedBy: quote.salesperson
+        ? { name: quote.salesperson.name, email: quote.salesperson.email }
+        : {
+            name: qs.owner_signature.name,
+            title: qs.owner_signature.title,
+            email: org.contactEmail,
+          },
+      publicQuoteUrl,
       signatureUrl: quote.signatureUrl,
       signedByName: quote.signedByName,
       signedAt: quote.signedAt,

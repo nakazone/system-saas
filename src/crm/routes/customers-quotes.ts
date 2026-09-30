@@ -18,7 +18,7 @@ import {
   parseQuoteSettings,
 } from "../../lib/settings/quotes.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
-import { buildQuotePdf, pdfLinesFromDbItems } from "../../lib/quotes/pdf.js";
+import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
 import { storage } from "../../lib/storage/index.js";
 
 export const customersQuotesRouter = Router();
@@ -79,6 +79,8 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
         property: {
           select: { line1: true, line2: true, city: true, state: true, postalCode: true, label: true },
         },
+        salesperson: { select: { name: true, email: true } },
+        paymentSchedule: { include: { items: { orderBy: { sortOrder: "asc" } } } },
         lineItems: { orderBy: { sortOrder: "asc" } },
         rooms: { orderBy: { sortOrder: "asc" } },
         optionGroups: { orderBy: { sortOrder: "asc" } },
@@ -102,14 +104,18 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
     (isBuilder ? quote.builder?.email : null) || quote.customer?.email || null;
   const customerPhone =
     (isBuilder ? quote.builder?.phone : null) || quote.customer?.phone || null;
-  const propertyAddress = quote.property
-    ? [quote.property.line1, quote.property.line2, quote.property.city, quote.property.state, quote.property.postalCode]
-        .filter(Boolean)
-        .join(", ")
+  const street = quote.property
+    ? [quote.property.line1, quote.property.line2].filter(Boolean).join(", ")
     : null;
+  const cityLine = quote.property
+    ? [quote.property.city, quote.property.state, quote.property.postalCode].filter(Boolean).join(", ")
+    : null;
+  const total = Number(quote.total);
+  const scheduleItems = pdfPaymentItemsFromSchedule(total, quote.paymentSchedule?.items);
+  const depositAmount = scheduleItems[0]?.amount ?? null;
   const buffer = await buildQuotePdf({
     organizationName: org.name,
-    organizationContact: [org.contactEmail, org.contactPhone].filter(Boolean).join(" · "),
+    organizationContact: [org.contactPhone, org.contactEmail].filter(Boolean).join(" · "),
     organizationAddress: documentAddressLine({
       addressPrivate: orgAny.addressPrivate !== false,
       addressLine1: (orgAny.addressLine1 as string | null) ?? null,
@@ -132,11 +138,13 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
     customerPhone,
     quoteParty: isBuilder ? "builder" : "customer",
     projectName: quote.property?.label || quote.title,
-    projectAddress: propertyAddress,
+    projectAddress: street,
+    projectCityLine: cityLine,
     validUntil: quote.validUntil,
     terms: quote.terms,
     clientMessage: quote.clientMessage,
     notes: quote.notes,
+    floorAreaSqft: Number(quote.areaSqft) || null,
     rooms: (quote.rooms || []).map((r) => ({ name: r.name, areaSqft: Number(r.areaSqft) })),
     optionGroups: (quote.optionGroups || []).map((g) => ({ id: g.id, name: g.name })),
     selectedOptionGroupId: quote.selectedOptionGroupId,
@@ -146,7 +154,16 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
     taxTotal: Number(quote.taxTotal),
     discountType: quote.discountType,
     discountValue: Number(quote.discountValue),
-    total: Number(quote.total),
+    total,
+    depositAmount,
+    paymentSchedule: scheduleItems,
+    preparedBy: quote.salesperson
+      ? { name: quote.salesperson.name, email: quote.salesperson.email, title: null }
+      : {
+          name: qs.owner_signature.name,
+          title: qs.owner_signature.title,
+          email: org.contactEmail,
+        },
     signatureUrl: quote.signatureUrl,
     signedByName: quote.signedByName,
     signedAt: quote.signedAt,

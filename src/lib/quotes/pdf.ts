@@ -1,30 +1,50 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-/** ObraMate design tokens (design-system.css) */
+/** ObraMate design tokens — charcoal / orange / cream */
 const PAL = {
   primary: "#211d1a",
   primaryMuted: "#3a332e",
-  secondary: "#e8792c",
-  secondaryDark: "#a85428",
+  accent: "#e8792c",
+  accentDark: "#a85428",
+  label: "#a85428",
   panelBg: "#f7f4ee",
-  lineMuted: "#6b645c",
+  muted: "#6b645c",
+  mutedLight: "#8a8074",
   rule: "#e2d9cc",
   white: "#ffffff",
+  include: "#15803d",
+  exclude: "#dc2626",
 };
 
-const DEFAULT_TAGLINE = "Pisos · Instalação · Acabamento";
+const DEFAULT_TAGLINE = "Hardwood · LVP · Refinishing";
 
 const SECTION_DEFS = [
-  { key: "installation", label: "Instalação" },
-  { key: "sand_finish", label: "Lixamento & Acabamento" },
-  { key: "supply", label: "Fornecimento" },
-  { key: "products", label: "Materiais & produtos" },
+  { key: "installation", label: "INSTALLATION" },
+  { key: "sand_finish", label: "SAND & FINISH" },
+  { key: "supply", label: "SUPPLY" },
+  { key: "products", label: "MATERIALS" },
 ] as const;
+
+const DEFAULT_INCLUSIONS = [
+  "Hardwood sanding of all floors in scope",
+  "Select hardwood / LVP installation as listed",
+  "Baseboard remove & reinstall where noted",
+  "Dust containment during sanding & finishing",
+];
+
+const DEFAULT_EXCLUSIONS = [
+  "Stain (available as optional add-on)",
+  "Subfloor repair or leveling beyond scope",
+  "Moving furniture or appliances",
+  "Areas marked unfinished / not in scope",
+];
+
+const DEFAULT_TERMS = [
+  "This quote is valid until the expiration date shown. Prices assume accurate measurements and site access as discussed.",
+  "Changes in scope, materials, or site conditions may require a revised quote before work continues.",
+  "Natural wood and LVP may vary in color and grain; samples are representative, not exact matches.",
+  "A signed approval and deposit may be required to reserve the schedule. Payment terms are listed above.",
+];
 
 export type QuotePdfLine = {
   name?: string | null;
@@ -40,6 +60,12 @@ export type QuotePdfLine = {
   serviceType?: string | null;
   notes?: string | null;
   catalogNotes?: string | null;
+};
+
+export type QuotePdfPaymentItem = {
+  label: string;
+  amount: number;
+  percent?: number | null;
 };
 
 export type QuotePdfInput = {
@@ -58,10 +84,12 @@ export type QuotePdfInput = {
   quoteParty?: string | null;
   projectName?: string | null;
   projectAddress?: string | null;
+  projectCityLine?: string | null;
   validUntil?: Date | null;
   terms?: string | null;
   clientMessage?: string | null;
   notes?: string | null;
+  floorAreaSqft?: number | null;
   rooms: { name: string; areaSqft: number }[];
   optionGroups: { id: string; name: string }[];
   selectedOptionGroupId?: string | null;
@@ -77,6 +105,17 @@ export type QuotePdfInput = {
   discountType?: string | null;
   discountValue?: number;
   total: number;
+  depositAmount?: number | null;
+  paymentSchedule?: QuotePdfPaymentItem[];
+  paymentMethods?: string | null;
+  inclusions?: string[] | null;
+  exclusions?: string[] | null;
+  preparedBy?: {
+    name?: string | null;
+    title?: string | null;
+    email?: string | null;
+  } | null;
+  publicQuoteUrl?: string | null;
   signatureUrl?: string | null;
   signedByName?: string | null;
   signedAt?: Date | null;
@@ -92,21 +131,43 @@ function money(n: number): string {
   return `$${x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function defaultTerms(): string {
-  return (
-    "Este orçamento é válido até a data de validade indicada. Os preços pressupõem acesso ao local da obra e " +
-    "medições precisas; alterações de escopo podem exigir um orçamento revisado. Uma aprovação assinada ou " +
-    "sinal pode ser necessária para agendar o trabalho."
-  );
+function formatDate(d: Date | null | undefined): string {
+  if (!d) return "—";
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function qtyLabel(qty: number, unit: string): string {
+  const u = String(unit || "sqft").replace(/_/g, " ");
+  const q =
+    Math.abs(qty) >= 100
+      ? qty.toLocaleString("en-US", { maximumFractionDigits: 0 })
+      : qty.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return `${q} ${u}`;
+}
+
+function orgInitials(name: string): string {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+  return String(name || "OM")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .slice(0, 2)
+    .toUpperCase() || "OM";
 }
 
 function lineSection(it: QuotePdfLine): (typeof SECTION_DEFS)[number]["key"] {
   if (String(it.itemType || "").toLowerCase() === "product") return "products";
-  const st = String(it.serviceType || "").trim();
+  const st = String(it.serviceType || "").trim().toLowerCase();
   if (!st) return "installation";
-  const lower = st.toLowerCase();
-  if (lower.includes("supply") || lower.includes("fornec")) return "supply";
-  if (lower.includes("sand") || lower.includes("finish") || lower.includes("lix") || lower.includes("acab")) {
+  if (st.includes("supply") || st.includes("fornec")) return "supply";
+  if (st.includes("sand") || st.includes("finish") || st.includes("lix") || st.includes("acab")) {
     return "sand_finish";
   }
   return "installation";
@@ -128,7 +189,34 @@ export function groupItemsForPdf(items: QuotePdfLine[]) {
   return SECTION_DEFS.filter((d) => buckets[d.key].length > 0).map((d) => ({
     label: d.label,
     items: buckets[d.key],
+    sectionTotal: buckets[d.key].reduce((s, it) => s + (Number(it.amount) || 0), 0),
   }));
+}
+
+/** Map payment schedule rows into PDF payment lines (amounts from percent of total when needed). */
+export function pdfPaymentItemsFromSchedule(
+  total: number,
+  items: Array<{
+    label: string;
+    percent?: unknown;
+    fixedAmount?: unknown;
+  }> | null | undefined,
+): QuotePdfPaymentItem[] {
+  if (!items?.length) return [];
+  return items.map((it) => {
+    const fixed = Number(it.fixedAmount);
+    const pct = Number(it.percent);
+    let amount = Number.isFinite(fixed) && fixed > 0 ? fixed : 0;
+    if (!amount && Number.isFinite(pct) && pct > 0) {
+      amount = Math.round(((total * pct) / 100) * 100) / 100;
+    }
+    const pctLabel = Number.isFinite(pct) && pct > 0 ? ` (${pct}%)` : "";
+    return {
+      label: `${it.label}${pctLabel}`,
+      amount,
+      percent: Number.isFinite(pct) ? pct : null,
+    };
+  });
 }
 
 /** Map persisted quote line rows (+ meta JSON) into PDF line input. */
@@ -171,25 +259,6 @@ export function pdfLinesFromDbItems(
   });
 }
 
-function findLogoPath(): string | null {
-  const candidates = [
-    path.join(__dirname, "../../crm/assets/obramate-logo.png"),
-    path.join(__dirname, "../../src/public/obramate-logo.png"),
-    path.join(__dirname, "../../public/obramateLogoSmallTransp.png"),
-    path.join(process.cwd(), "crm/assets/obramate-logo.png"),
-    path.join(process.cwd(), "src/public/obramate-logo.png"),
-    path.join(process.cwd(), "crm/public/assets/obramateLogoSmallTransp.png"),
-  ];
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) return p;
-    } catch {
-      /* continue */
-    }
-  }
-  return null;
-}
-
 function dataUrlToBuffer(url: string | null | undefined): Buffer | null {
   if (!url || !url.startsWith("data:image")) return null;
   try {
@@ -200,18 +269,18 @@ function dataUrlToBuffer(url: string | null | undefined): Buffer | null {
   }
 }
 
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
-    draft: "rascunho",
-    sent: "enviado",
-    changes_requested: "alterações pedidas",
-    approved: "aprovado",
-    converted: "convertido",
-    archived: "arquivado",
-    expired: "expirado",
-  };
-  const key = String(status || "").toLowerCase();
-  return map[key] || status || "rascunho";
+function termsToItems(terms: string | null | undefined): string[] {
+  if (!terms || !terms.trim()) return DEFAULT_TERMS;
+  const numbered = terms
+    .split(/\n+/)
+    .map((s) => s.replace(/^\d+[\).\s]+/, "").trim())
+    .filter(Boolean);
+  if (numbered.length >= 2) return numbered.slice(0, 8);
+  const sentences = terms
+    .split(/(?<=\.)\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return sentences.length ? sentences.slice(0, 8) : DEFAULT_TERMS;
 }
 
 export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
@@ -221,7 +290,7 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       margin: 0,
       bufferPages: true,
       info: {
-        Title: `Orçamento ${input.number}`,
+        Title: `Quote ${input.number}`,
         Author: input.organizationName,
       },
     });
@@ -234,7 +303,7 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     const pageH = doc.page.height;
     const margin = 48;
     const contentW = pageW - 2 * margin;
-    const lineH = 13;
+    const colGap = 20;
 
     const view = {
       showQuantities: true,
@@ -245,446 +314,596 @@ export function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     };
 
     const selectedGroup = input.selectedOptionGroupId ?? null;
-    const visibleLines = input.lines.filter((line) => {
-      if (line.isOptional && line.isSelected === false) return false;
+    const allVisible = input.lines.filter((line) => {
       if (line.optionGroupId && selectedGroup && line.optionGroupId !== selectedGroup) return false;
       if (line.optionGroupId && !selectedGroup) return false;
       return true;
     });
+    const scopedLines = allVisible.filter((l) => !(l.isOptional && l.isSelected === false));
+    const mainLines = scopedLines.filter((l) => !l.isOptional);
+    const optionalLines = allVisible.filter((l) => l.isOptional);
+
+    const quoteNumber =
+      typeof input.number === "string" && input.number.trim()
+        ? input.number
+        : `Q-${input.number}`;
+    const customerName = input.customerName || "Client";
+    const floorArea =
+      Number(input.floorAreaSqft) ||
+      input.rooms.reduce((s, r) => s + (Number(r.areaSqft) || 0), 0) ||
+      0;
+
+    let depositAmount = Number(input.depositAmount);
+    if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
+      const first = input.paymentSchedule?.[0];
+      if (first && Number(first.amount) > 0) depositAmount = Number(first.amount);
+      else depositAmount = Math.round(input.total * 0.5 * 100) / 100;
+    }
+
+    const paymentItems: QuotePdfPaymentItem[] =
+      input.paymentSchedule && input.paymentSchedule.length
+        ? input.paymentSchedule
+        : [
+            { label: "Deposit · due on approval (50%)", amount: depositAmount, percent: 50 },
+            {
+              label: "Balance · due on completion",
+              amount: Math.max(0, input.total - depositAmount),
+              percent: 50,
+            },
+          ];
+
+    const inclusions = input.inclusions?.length ? input.inclusions : DEFAULT_INCLUSIONS;
+    const exclusions = input.exclusions?.length ? input.exclusions : DEFAULT_EXCLUSIONS;
+    const termItems = termsToItems(input.terms);
+    const prepared = input.preparedBy || input.ownerSignature || {};
 
     let y = 0;
 
     const ensureSpace = (need: number) => {
-      if (y + need <= pageH - margin) return;
+      if (y + need <= pageH - 52) return false;
+      addFooterPage();
       doc.addPage({ size: "LETTER", margin: 0 });
       y = margin;
+      drawCompactHeader();
+      return true;
     };
 
-    const drawAccentBar = () => {
-      doc.rect(0, 0, pageW, 5).fill(PAL.secondary);
+    const rule = (x1: number, x2: number, yy: number, color = PAL.rule, w = 0.6) => {
+      doc.moveTo(x1, yy).lineTo(x2, yy).strokeColor(color).lineWidth(w).stroke();
     };
 
-    // —— Header ——
-    drawAccentBar();
-    y = 5 + 14;
+    const drawMark = (x: number, yy: number, size = 28) => {
+      const r = 4;
+      doc.roundedRect(x, yy, size, size, r).fill(PAL.primary);
+      doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(size >= 30 ? 12 : 10);
+      const ini = orgInitials(input.organizationName);
+      const tw = doc.widthOfString(ini);
+      doc.text(ini, x + (size - tw) / 2, yy + size * 0.28, { lineBreak: false });
+      return size + 12;
+    };
 
-    const logoPath = findLogoPath();
-    const logoW = 72;
-    let logoH = 0;
-    const logoTop = y;
-    if (logoPath) {
-      try {
-        // Aspect ≈ 1000×400
-        logoH = logoW * 0.4;
-        doc.image(logoPath, margin, logoTop, { width: logoW, height: logoH });
-      } catch {
-        logoH = 0;
+    const drawCompactHeader = () => {
+      const markW = drawMark(margin, y, 22);
+      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(12);
+      doc.text(input.organizationName, margin + markW, y + 4, { lineBreak: false });
+      const meta = `Quote ${quoteNumber}${
+        input.projectName || input.projectCityLine
+          ? ` · ${[input.projectName, input.projectCityLine].filter(Boolean).join(", ")}`
+          : ""
+      }`;
+      doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(8);
+      const mw = doc.widthOfString(meta);
+      doc.text(meta, pageW - margin - mw, y + 6, { lineBreak: false });
+      y += 36;
+      rule(margin, pageW - margin, y, PAL.rule, 0.5);
+      y += 16;
+    };
+
+    const addFooterPage = () => {
+      /* footers stamped at end via buffered pages */
+    };
+
+    // ═══════════════════════════════════════
+    // PAGE 1 — Scope
+    // ═══════════════════════════════════════
+    y = margin;
+
+    // Header
+    const markW = drawMark(margin, y, 32);
+    const textX = margin + markW;
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(18);
+    doc.text(input.organizationName, textX, y + 1, { lineBreak: false });
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
+    doc.text(input.organizationTagline || DEFAULT_TAGLINE, textX, y + 22, { lineBreak: false });
+    const contactBits = [
+      input.organizationContact,
+      input.organizationLicense,
+    ]
+      .filter(Boolean)
+      .join("  ·  ");
+    if (contactBits) {
+      doc.fillColor(PAL.mutedLight).fontSize(7.5);
+      doc.text(contactBits, textX, y + 34, { width: 280, lineBreak: false });
+    }
+
+    // Right: QUOTE block
+    doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(8);
+    const quoteLabel = "QUOTE";
+    const qlW = doc.widthOfString(quoteLabel);
+    doc.text(quoteLabel, pageW - margin - qlW, y, { lineBreak: false });
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(16);
+    const qnW = doc.widthOfString(quoteNumber);
+    doc.text(quoteNumber, pageW - margin - qnW, y + 14, { lineBreak: false });
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
+    const issued = `Issued ${formatDate(input.issueDate)}`;
+    const valid = `Valid until ${formatDate(input.validUntil)}`;
+    doc.text(issued, pageW - margin - doc.widthOfString(issued), y + 36, { lineBreak: false });
+    doc.text(valid, pageW - margin - doc.widthOfString(valid), y + 48, { lineBreak: false });
+
+    y += 72;
+
+    // Summary bar
+    const barH = 56;
+    doc.roundedRect(margin, y, contentW, barH, 4).fill(PAL.panelBg);
+    const colW = contentW / 4;
+    const summaryCols: { label: string; value: string; large?: boolean }[] = [
+      { label: "QUOTE TOTAL", value: money(input.total), large: true },
+      { label: "DUE ON APPROVAL", value: money(depositAmount), large: true },
+      {
+        label: "FLOOR AREA",
+        value: floorArea > 0 ? `${floorArea.toLocaleString("en-US")} sq ft` : "—",
+      },
+      { label: "VALID UNTIL", value: formatDate(input.validUntil) },
+    ];
+    summaryCols.forEach((c, i) => {
+      const cx = margin + i * colW + 14;
+      doc.fillColor(PAL.label).font("Helvetica-Bold").fontSize(7);
+      doc.text(c.label, cx, y + 12, { lineBreak: false });
+      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(c.large ? 14 : 11);
+      doc.text(c.value, cx, y + 28, { lineBreak: false });
+    });
+    y += barH + 22;
+
+    // Bill to / Job site / Prepared by
+    const infoColW = (contentW - colGap * 2) / 3;
+    const infoY = y;
+    const drawInfoCol = (
+      x: number,
+      label: string,
+      lines: Array<{ text: string; bold?: boolean; size?: number }>,
+    ) => {
+      doc.fillColor(PAL.label).font("Helvetica-Bold").fontSize(7.5);
+      doc.text(label, x, infoY, { lineBreak: false });
+      let ly = infoY + 14;
+      for (const line of lines) {
+        if (!line.text) continue;
+        doc
+          .fillColor(PAL.primary)
+          .font(line.bold ? "Helvetica-Bold" : "Helvetica")
+          .fontSize(line.size ?? (line.bold ? 10 : 8.5));
+        doc.text(line.text, x, ly, { width: infoColW - 4 });
+        ly = doc.y + 1;
       }
-    }
+      return ly;
+    };
 
-    const textColumnX = margin + (logoH > 0 ? logoW + 18 : 0);
-    const nameSize = 17;
-    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(nameSize);
-    doc.text(input.organizationName, textColumnX, logoTop + 2, { width: 260, lineBreak: false });
-    doc.fillColor(PAL.primaryMuted).font("Helvetica").fontSize(8.5);
-    const tagline = input.organizationTagline || DEFAULT_TAGLINE;
-    doc.text(tagline, textColumnX, logoTop + 20, { width: 260, lineBreak: false });
-    if (input.organizationContact) {
-      doc.text(input.organizationContact, textColumnX, logoTop + 32, { width: 260, lineBreak: false });
-    }
-    let headerLowY = Math.max(logoTop + (logoH || 44), logoTop + 44);
-    if (input.organizationAddress) {
-      doc.text(input.organizationAddress, textColumnX, logoTop + 44, { width: 260 });
-      headerLowY = Math.max(headerLowY, logoTop + 56);
-    }
-    if (input.organizationLicense) {
-      doc.fontSize(8).text(input.organizationLicense, textColumnX, headerLowY, { width: 260 });
-      headerLowY += 12;
-    }
+    const billLines = [
+      { text: customerName, bold: true, size: 10 },
+      { text: input.customerEmail || "", size: 8.5 },
+      { text: input.customerPhone || "", size: 8.5 },
+    ];
+    const jobLines = [
+      { text: input.projectName || input.title || "Project", bold: true, size: 10 },
+      { text: input.projectAddress || "", size: 8.5 },
+      { text: input.projectCityLine || "", size: 8.5 },
+    ];
+    const prepName = prepared.name || input.organizationName;
+    const prepTitle = ("title" in prepared ? prepared.title : null) || "";
+    const prepEmail = ("email" in prepared ? prepared.email : null) || "";
+    const prepLines = [
+      { text: prepName || "", bold: true, size: 10 },
+      { text: [prepTitle, prepEmail].filter(Boolean).join(" · ") || "", size: 8.5 },
+    ];
 
-    // Quote panel (right)
-    const rightW = 178;
-    const rightX = pageW - margin - rightW;
-    const panelH = 82;
-    const panelTop = 5 + 12;
-    doc.rect(rightX - 6, panelTop, rightW + 12, panelH).fill(PAL.panelBg);
-    doc.rect(rightX - 6, panelTop, 3, panelH).fill(PAL.secondaryDark);
-
-    let ry = panelTop + 14;
-    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(11);
-    doc.text("ORÇAMENTO", rightX, ry, { lineBreak: false });
-    ry += lineH;
-    doc.fillColor(PAL.secondaryDark).fontSize(10);
-    const quoteLabel =
-      typeof input.number === "string" && input.number.trim()
-        ? input.number
-        : `Orçamento #${input.number}`;
-    doc.text(quoteLabel, rightX, ry, { lineBreak: false });
-    ry += lineH;
-    doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(8);
-    if (input.issueDate) {
-      doc.text(`Emissão: ${input.issueDate.toISOString().slice(0, 10)}`, rightX, ry, { lineBreak: false });
-      ry += lineH;
-    }
-    if (input.validUntil) {
-      doc.text(`Validade: ${input.validUntil.toISOString().slice(0, 10)}`, rightX, ry, { lineBreak: false });
-      ry += lineH;
-    }
-    doc.text(`Status: ${statusLabel(input.status)}`, rightX, ry, { lineBreak: false });
-
-    y = Math.max(headerLowY, panelTop + panelH) + 18;
-
-    // Bill to
-    doc.fillColor(PAL.secondaryDark).font("Helvetica-Bold").fontSize(9);
-    doc.text("Cliente", margin, y, { lineBreak: false });
-    y += lineH;
-    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(11);
-    doc.text(input.customerName || "Cliente", margin, y, { width: contentW * 0.55, lineBreak: false });
-    y += lineH;
-    doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(8.5);
-    if (input.customerEmail) {
-      doc.text(input.customerEmail, margin, y, { lineBreak: false });
-      y += lineH;
-    }
-    if (input.customerPhone) {
-      doc.text(input.customerPhone, margin, y, { lineBreak: false });
-      y += lineH;
-    }
-    if (input.projectName || input.projectAddress) {
-      y += 6;
-      doc.fillColor(PAL.secondaryDark).font("Helvetica-Bold").fontSize(9);
-      doc.text("Projeto", margin, y, { lineBreak: false });
-      y += lineH;
-      if (input.projectName) {
-        doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9);
-        doc.text(input.projectName, margin, y, { width: contentW * 0.7 });
-        y += lineH;
-      }
-      if (input.projectAddress) {
-        doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(8.5);
-        doc.text(input.projectAddress, margin, y, { width: contentW * 0.7 });
-        y += lineH;
-      }
-    }
-    if (input.title && input.title !== input.projectName) {
-      y += 4;
-      doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(8.5);
-      doc.text(input.title, margin, y, { width: contentW * 0.7 });
-      y += lineH;
-    }
+    const infoEnd = Math.max(
+      drawInfoCol(margin, "BILL TO", billLines),
+      drawInfoCol(margin + infoColW + colGap, "JOB SITE", jobLines),
+      drawInfoCol(margin + 2 * (infoColW + colGap), "PREPARED BY", prepLines),
+    );
+    y = infoEnd + 20;
 
     if (input.clientMessage) {
-      y += 8;
-      ensureSpace(40);
-      doc.fillColor(PAL.primary).font("Helvetica").fontSize(10);
+      doc.fillColor(PAL.muted).font("Helvetica-Oblique").fontSize(9);
       doc.text(input.clientMessage, margin, y, { width: contentW });
-      y = doc.y + 6;
+      y = doc.y + 14;
     }
 
-    if (view.showRoomBreakdown && input.rooms.length) {
-      y += 8;
-      ensureSpace(40);
-      doc.fillColor(PAL.secondaryDark).font("Helvetica-Bold").fontSize(9);
-      doc.text("Ambientes", margin, y, { lineBreak: false });
-      y += lineH;
-      doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(8.5);
-      for (const room of input.rooms) {
-        ensureSpace(20);
-        doc.text(`• ${room.name}: ${Number(room.areaSqft).toFixed(2)} sqft`, margin, y);
-        y += lineH - 1;
-      }
-    }
-
-    if (input.optionGroups.length) {
-      y += 8;
-      ensureSpace(40);
-      doc.fillColor(PAL.secondaryDark).font("Helvetica-Bold").fontSize(9);
-      doc.text("Opções", margin, y, { lineBreak: false });
-      y += lineH;
-      for (const g of input.optionGroups) {
-        ensureSpace(18);
-        const mark = g.id === input.selectedOptionGroupId ? "✓ " : "  ";
-        doc.fillColor(PAL.primary).font("Helvetica").fontSize(8.5);
-        doc.text(`${mark}${g.name}`, margin, y);
-        y += lineH - 1;
-      }
-    }
-
-    y += 16;
-
+    // Table columns
     const colDesc = margin;
-    const colQty = pageW - margin - 210;
-    const colRate = pageW - margin - 128;
-    const colAmt = pageW - margin - 58;
-    const descMaxW = colQty - colDesc - 10;
-
-    const drawSectionTitle = (label: string) => {
-      ensureSpace(48);
-      const barH = 22;
-      doc.rect(margin, y, contentW, barH).fillOpacity(0.22).fill(PAL.secondary);
-      doc.fillOpacity(1);
-      doc.rect(margin, y, 3, barH).fill(PAL.primary);
-      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9);
-      doc.text(label.toUpperCase(), margin + 10, y + 6, { lineBreak: false });
-      y += barH + 8;
-    };
+    const colQty = pageW - margin - 200;
+    const colRate = pageW - margin - 120;
+    const colAmt = pageW - margin - 8;
+    const descMaxW = colQty - colDesc - 12;
 
     const drawTableHeader = () => {
-      ensureSpace(36);
-      const barH = 20;
-      doc.rect(margin, y, contentW, barH).fillOpacity(0.06).fill(PAL.primary);
-      doc.fillOpacity(1);
-      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(8);
-      const ty = y + 6;
-      doc.text("Descrição", colDesc + 4, ty, { lineBreak: false });
-      if (view.showQuantities) doc.text("Qtd", colQty, ty, { lineBreak: false });
-      if (view.showUnitPrices) doc.text("Preço", colRate, ty, { lineBreak: false });
-      if (view.showLineTotals) doc.text("Valor", colAmt, ty, { lineBreak: false });
-      y += barH + 2;
-      doc
-        .moveTo(margin, y)
-        .lineTo(pageW - margin, y)
-        .strokeColor(PAL.secondary)
-        .lineWidth(0.75)
-        .stroke();
-      y += 10;
+      ensureSpace(40);
+      doc.fillColor(PAL.mutedLight).font("Helvetica-Bold").fontSize(7.5);
+      doc.text("DESCRIPTION", colDesc, y, { lineBreak: false });
+      if (view.showQuantities) {
+        doc.text("QTY", colQty, y, { width: 70, align: "right", lineBreak: false });
+      }
+      if (view.showUnitPrices) {
+        doc.text("RATE", colRate, y, { width: 70, align: "right", lineBreak: false });
+      }
+      if (view.showLineTotals) {
+        doc.text("AMOUNT", colAmt - 70, y, { width: 70, align: "right", lineBreak: false });
+      }
+      y += 12;
+      rule(margin, pageW - margin, y, PAL.primary, 0.9);
+      y += 12;
     };
 
-    const sections = groupItemsForPdf(visibleLines);
+    drawTableHeader();
+
+    const sections = groupItemsForPdf(mainLines);
     if (!sections.length) {
-      ensureSpace(40);
-      doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(9);
-      doc.text("Sem itens no orçamento.", margin, y);
-      y += lineH;
+      doc.fillColor(PAL.muted).font("Helvetica").fontSize(9);
+      doc.text("No line items.", margin, y);
+      y += 16;
     }
 
     for (let si = 0; si < sections.length; si++) {
       const sec = sections[si]!;
-      drawSectionTitle(sec.label);
-      drawTableHeader();
+      ensureSpace(56);
+      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10);
+      doc.text(sec.label, colDesc, y, { lineBreak: false });
+      doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
+      const stLabel = `Section total  ${money(sec.sectionTotal)}`;
+      doc.text(stLabel, pageW - margin - doc.widthOfString(stLabel), y + 1, { lineBreak: false });
+      y += 16;
 
       for (const it of sec.items) {
-        ensureSpace(48);
+        ensureSpace(42);
         const nameStr = String(it.name || "").trim();
         const descStr = String(it.description || "").trim();
-        const headline =
-          nameStr || (descStr ? descStr.split(/\n/)[0] : "") || "Item";
-        let bodyStr = "";
-        if (nameStr && descStr && descStr !== nameStr) bodyStr = descStr;
-        else if (!nameStr && descStr.includes("\n")) {
-          bodyStr = descStr.split(/\n/).slice(1).join("\n").trim();
+        const headline = nameStr || descStr.split(/\n/)[0] || "Line item";
+        let body = "";
+        if (nameStr && descStr && descStr !== nameStr) body = descStr;
+        else if (!nameStr && descStr.includes("\n")) body = descStr.split(/\n/).slice(1).join(" ").trim();
+
+        const rowY = y;
+        doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9.5);
+        doc.text(headline, colDesc, rowY, { width: descMaxW });
+        let dy = doc.y;
+        if (body) {
+          doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
+          doc.text(body, colDesc, dy + 1, { width: descMaxW });
+          dy = doc.y;
+        }
+        if (it.catalogNotes || it.notes) {
+          const detail = [it.catalogNotes, it.notes ? `Note: ${it.notes}` : ""]
+            .filter(Boolean)
+            .join(" — ");
+          doc.fillColor(PAL.mutedLight).font("Helvetica-Oblique").fontSize(7.5);
+          doc.text(detail, colDesc, dy + 1, { width: descMaxW });
+          dy = doc.y;
         }
 
-        const qty = Number(it.quantity) || 0;
-        const rate = Number(it.unitPrice) || 0;
-        const amt = Number(it.amount) || qty * rate;
-        const ut = String(it.unit || "sqft").replace(/_/g, " ");
-
-        const rowStartY = y;
-        doc.fillColor(PAL.primary).font("Helvetica").fontSize(8.5);
+        doc.fillColor(PAL.primary).font("Helvetica").fontSize(9);
         if (view.showQuantities) {
-          doc.text(`${qty} ${ut}`, colQty, rowStartY, { lineBreak: false });
+          doc.text(qtyLabel(Number(it.quantity) || 0, it.unit), colQty, rowY, {
+            width: 70,
+            align: "right",
+            lineBreak: false,
+          });
         }
         if (view.showUnitPrices) {
-          doc.text(money(rate), colRate, rowStartY, { lineBreak: false });
+          doc.text(money(Number(it.unitPrice) || 0), colRate, rowY, {
+            width: 70,
+            align: "right",
+            lineBreak: false,
+          });
         }
         if (view.showLineTotals) {
-          doc.font("Helvetica-Bold").text(money(amt), colAmt, rowStartY, { lineBreak: false });
+          doc.font("Helvetica-Bold").text(money(Number(it.amount) || 0), colAmt - 70, rowY, {
+            width: 70,
+            align: "right",
+            lineBreak: false,
+          });
         }
 
-        doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9);
-        doc.text(headline, colDesc, rowStartY, { width: descMaxW });
-        let dy = doc.y;
-
-        if (bodyStr) {
-          doc.fillColor(PAL.lineMuted).font("Helvetica-Oblique").fontSize(7.5);
-          doc.text(bodyStr, colDesc, dy, { width: descMaxW });
-          dy = doc.y;
-        }
-
-        const detailParts: string[] = [];
-        if (it.catalogNotes) detailParts.push(String(it.catalogNotes).trim());
-        if (it.notes) detailParts.push(`Obs.: ${String(it.notes).trim()}`);
-        if (detailParts.length) {
-          doc.fillColor(PAL.lineMuted).font("Helvetica-Oblique").fontSize(7.5);
-          doc.text(detailParts.join(" — "), colDesc, dy, { width: descMaxW });
-          dy = doc.y;
-        }
-
-        y = Math.max(dy, rowStartY + lineH) + 6;
+        y = Math.max(dy, rowY + 14) + 10;
       }
 
       if (si < sections.length - 1) {
         y += 4;
-        ensureSpace(24);
-        doc
-          .moveTo(margin + 20, y)
-          .lineTo(pageW - margin - 20, y)
-          .strokeColor(PAL.rule)
-          .lineWidth(0.35)
-          .stroke();
-        y += 16;
+        rule(margin, pageW - margin, y, PAL.rule, 0.5);
+        y += 14;
       }
     }
 
-    // Totals
-    y += 8;
-    ensureSpace(100);
-    doc
-      .moveTo(margin, y)
-      .lineTo(pageW - margin, y)
-      .strokeColor(PAL.secondaryDark)
-      .lineWidth(0.75)
-      .stroke();
-    y += 16;
+    y += 10;
+    doc.fillColor(PAL.mutedLight).font("Helvetica-Oblique").fontSize(8);
+    doc.text("Totals, optional add-ons and approval on page 2", margin, y, { lineBreak: false });
 
-    const totalsX = pageW - margin - 198;
-    const valX = pageW - margin - 58;
+    // ═══════════════════════════════════════
+    // PAGE 2 — Totals & approval
+    // ═══════════════════════════════════════
+    doc.addPage({ size: "LETTER", margin: 0 });
+    y = margin;
+    drawCompactHeader();
 
-    const drawTotalRow = (label: string, val: string, bold = false) => {
-      ensureSpace(24);
-      doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(9);
-      doc.text(label, totalsX, y, { lineBreak: false });
+    // Optional add-ons
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(11);
+    doc.text("OPTIONAL ADD-ONS", margin, y, { lineBreak: false });
+    doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(8);
+    const addOnHint = "Not included in the total · check to add when approving";
+    doc.text(addOnHint, pageW - margin - doc.widthOfString(addOnHint), y + 2, { lineBreak: false });
+    y += 18;
+
+    if (optionalLines.length) {
+      for (const it of optionalLines) {
+        ensureSpace(48);
+        const boxH = 36;
+        doc
+          .roundedRect(margin, y, contentW, boxH, 3)
+          .dash(3, { space: 2 })
+          .strokeColor(PAL.rule)
+          .lineWidth(0.8)
+          .stroke()
+          .undash();
+        // checkbox
+        doc.rect(margin + 10, y + 12, 10, 10).strokeColor(PAL.muted).lineWidth(0.8).stroke();
+        const nameStr = String(it.name || it.description || "Add-on").trim();
+        const descStr =
+          it.name && it.description && it.description !== it.name ? String(it.description) : "";
+        doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9);
+        doc.text(nameStr, margin + 28, y + 8, { width: descMaxW - 20, lineBreak: false });
+        if (descStr) {
+          doc.fillColor(PAL.muted).font("Helvetica").fontSize(7.5);
+          doc.text(descStr, margin + 28, y + 20, { width: descMaxW - 20, lineBreak: false });
+        }
+        doc.fillColor(PAL.primary).font("Helvetica").fontSize(8.5);
+        doc.text(qtyLabel(Number(it.quantity) || 0, it.unit), colQty, y + 12, {
+          width: 70,
+          align: "right",
+          lineBreak: false,
+        });
+        doc.text(money(Number(it.unitPrice) || 0), colRate, y + 12, {
+          width: 70,
+          align: "right",
+          lineBreak: false,
+        });
+        doc.font("Helvetica-Bold").text(money(Number(it.amount) || 0), colAmt - 70, y + 12, {
+          width: 70,
+          align: "right",
+          lineBreak: false,
+        });
+        y += boxH + 8;
+      }
+    } else {
       doc
-        .fillColor(PAL.primary)
-        .font(bold ? "Helvetica-Bold" : "Helvetica")
-        .fontSize(9);
-      doc.text(val, valX, y, { lineBreak: false });
-      y += lineH + 2;
-    };
-
-    drawTotalRow("Subtotal", money(input.subtotal));
-    if (input.taxTotal > 0) drawTotalRow("Imposto", money(input.taxTotal));
-    const discVal = Number(input.discountValue) || 0;
-    if (discVal > 0) {
-      const discType = input.discountType === "fixed" ? "$" : "%";
-      drawTotalRow(
-        `Desconto (${discType})`,
-        discType === "$" ? money(discVal) : `${discVal}%`,
-      );
+        .roundedRect(margin, y, contentW, 32, 3)
+        .dash(3, { space: 2 })
+        .strokeColor(PAL.rule)
+        .lineWidth(0.8)
+        .stroke()
+        .undash();
+      doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(8.5);
+      doc.text("No optional add-ons on this quote.", margin + 12, y + 11, { lineBreak: false });
+      y += 40;
     }
 
-    y += 6;
-    doc.fillColor(PAL.secondaryDark).font("Helvetica-Bold").fontSize(8);
-    doc.text("Total do orçamento", margin, y, { lineBreak: false });
-    y += 14;
+    y += 10;
 
-    // Grand total callout
-    ensureSpace(56);
-    const barH = 44;
+    // Payment schedule | Totals
+    ensureSpace(110);
+    const halfW = (contentW - colGap) / 2;
+    const payY = y;
+
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10);
+    doc.text("PAYMENT SCHEDULE", margin, payY, { lineBreak: false });
+    let py = payY + 16;
+    for (const item of paymentItems) {
+      doc.fillColor(PAL.primary).font("Helvetica").fontSize(9);
+      doc.text(item.label, margin, py, { width: halfW - 70 });
+      const amt = money(item.amount);
+      doc.font("Helvetica-Bold").text(amt, margin + halfW - 70, py, {
+        width: 70,
+        align: "right",
+        lineBreak: false,
+      });
+      py = Math.max(doc.y, py + 14) + 4;
+    }
+    doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(8);
+    doc.text(
+      `We accept ${input.paymentMethods || "card, ACH, and check"}.`,
+      margin,
+      py + 4,
+      { lineBreak: false },
+    );
+    py += 18;
+
+    // Totals column
+    let ty = payY;
+    const totalsX = margin + halfW + colGap;
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(9);
+    doc.text("Subtotal", totalsX, ty, { lineBreak: false });
+    doc.fillColor(PAL.primary).font("Helvetica").fontSize(9);
+    doc.text(money(input.subtotal), pageW - margin - 70, ty, {
+      width: 70,
+      align: "right",
+      lineBreak: false,
+    });
+    ty += 14;
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(9);
+    doc.text("Tax", totalsX, ty, { lineBreak: false });
+    doc.fillColor(PAL.primary).text(money(input.taxTotal), pageW - margin - 70, ty, {
+      width: 70,
+      align: "right",
+      lineBreak: false,
+    });
+    ty += 18;
+
+    const totalBoxH = 44;
+    doc.roundedRect(totalsX, ty, halfW, totalBoxH, 6).fill(PAL.primary);
+    doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(9);
+    doc.text("TOTAL", totalsX + 14, ty + 16, { lineBreak: false });
+    doc.fontSize(18);
     const totalStr = money(input.total);
-    doc.rect(margin, y, contentW, barH).fill(PAL.primary);
-    doc.rect(margin, y, 5, barH).fill(PAL.secondary);
-    doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(11);
-    doc.text("TOTAL", margin + 14, y + 16, { lineBreak: false });
-    doc.fillColor(PAL.secondary).fontSize(20);
-    const valW = doc.widthOfString(totalStr);
-    doc.text(totalStr, pageW - margin - valW, y + 12, { lineBreak: false });
-    y += barH + 14;
+    doc.text(totalStr, totalsX + halfW - 14 - doc.widthOfString(totalStr), ty + 12, {
+      lineBreak: false,
+    });
+    ty += totalBoxH;
+
+    y = Math.max(py, ty) + 22;
+
+    // What's included / Not included
+    ensureSpace(100);
+    const incY = y;
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10);
+    doc.text("WHAT'S INCLUDED", margin, incY, { lineBreak: false });
+    doc.text("NOT INCLUDED", totalsX, incY, { lineBreak: false });
+    let iy = incY + 16;
+    let ey = incY + 16;
+    for (const item of inclusions) {
+      doc
+        .strokeColor(PAL.include)
+        .lineWidth(1.4)
+        .moveTo(margin, iy + 5)
+        .lineTo(margin + 3.5, iy + 9)
+        .lineTo(margin + 9, iy + 1)
+        .stroke();
+      doc.fillColor(PAL.primary).font("Helvetica").fontSize(8.5);
+      doc.text(item, margin + 14, iy, { width: halfW - 18 });
+      iy = doc.y + 6;
+    }
+    for (const item of exclusions) {
+      doc
+        .strokeColor(PAL.exclude)
+        .lineWidth(1.4)
+        .moveTo(totalsX, ey + 4)
+        .lineTo(totalsX + 9, ey + 4)
+        .stroke();
+      doc.fillColor(PAL.primary).font("Helvetica").fontSize(8.5);
+      doc.text(item, totalsX + 14, ey, { width: halfW - 18 });
+      ey = doc.y + 6;
+    }
+    y = Math.max(iy, ey) + 16;
 
     // Terms
-    ensureSpace(60);
-    doc.fillColor(PAL.secondaryDark).font("Helvetica-Bold").fontSize(9);
-    doc.text("Termos e condições", margin, y, { lineBreak: false });
-    y += lineH + 2;
-    const terms = input.terms || defaultTerms();
-    doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(7.5);
-    doc.text(terms, margin, y, { width: contentW, align: "left" });
-    y = doc.y + 10;
-
-    if (input.notes) {
-      ensureSpace(40);
-      doc.fillColor(PAL.secondaryDark).font("Helvetica-Bold").fontSize(9);
-      doc.text("Notas", margin, y, { lineBreak: false });
-      y += lineH + 2;
-      doc.fillColor(PAL.primary).font("Helvetica").fontSize(7.5);
-      doc.text(input.notes, margin, y, { width: contentW });
-      y = doc.y + 10;
-    }
+    ensureSpace(90);
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10);
+    doc.text("TERMS", margin, y, { lineBreak: false });
+    y += 14;
+    const termColW = halfW;
+    const mid = Math.ceil(termItems.length / 2);
+    const leftTerms = termItems.slice(0, mid);
+    const rightTerms = termItems.slice(mid);
+    let tLeft = y;
+    let tRight = y;
+    leftTerms.forEach((t, i) => {
+      doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
+      doc.text(`${i + 1}.  ${t}`, margin, tLeft, { width: termColW - 8 });
+      tLeft = doc.y + 6;
+    });
+    rightTerms.forEach((t, i) => {
+      doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
+      doc.text(`${mid + i + 1}.  ${t}`, totalsX, tRight, { width: termColW - 8 });
+      tRight = doc.y + 6;
+    });
+    y = Math.max(tLeft, tRight) + 18;
 
     // Signatures
-    ensureSpace(140);
-    y += 8;
-    const colW = (contentW - 24) / 2;
-    const boxH = 56;
+    ensureSpace(110);
+    const sigColW = halfW;
+    doc.fillColor(PAL.label).font("Helvetica-Bold").fontSize(8);
+    doc.text("AUTHORIZED BY", margin, y, { lineBreak: false });
+    doc.text("CLIENT APPROVAL", totalsX, y, { lineBreak: false });
+    y += 14;
+
     const ownerBuf = dataUrlToBuffer(input.ownerSignature?.imageUrl);
     const clientBuf = dataUrlToBuffer(input.signatureUrl);
+    const sigBoxH = 40;
 
-    const drawSigColumn = (
-      x: number,
-      title: string,
-      imgBuf: Buffer | null,
-      signerName: string,
-      signerTitle: string,
-      signedAt: Date | null | undefined,
-    ) => {
-      doc.fillColor(PAL.secondaryDark).font("Helvetica-Bold").fontSize(8);
-      doc.text(title, x, y, { lineBreak: false });
-      const boxTop = y + 12;
-      doc.rect(x, boxTop, colW, boxH).strokeColor(PAL.rule).lineWidth(0.75).stroke();
-      if (imgBuf) {
-        try {
-          doc.image(imgBuf, x + 8, boxTop + 6, {
-            fit: [colW - 16, boxH - 12],
-            align: "center",
-            valign: "center",
-          });
-        } catch {
-          /* ignore bad signature */
-        }
+    if (ownerBuf) {
+      try {
+        doc.image(ownerBuf, margin, y, { fit: [sigColW - 20, sigBoxH], align: "left" });
+      } catch {
+        /* ignore */
       }
-      let sy = boxTop + boxH + 8;
-      if (signerName) {
-        doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(8);
-        doc.text(signerName, x, sy, { width: colW });
-        sy = doc.y + 2;
+    } else if (prepared.name) {
+      doc.fillColor(PAL.primaryMuted).font("Helvetica-Oblique").fontSize(16);
+      doc.text(String(prepared.name), margin, y + 8, { lineBreak: false });
+    }
+    rule(margin, margin + sigColW - 10, y + sigBoxH + 4, PAL.rule, 0.7);
+    if (clientBuf) {
+      try {
+        doc.image(clientBuf, totalsX, y, { fit: [sigColW - 20, sigBoxH], align: "left" });
+      } catch {
+        /* ignore */
       }
-      if (signerTitle) {
-        doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(7.5);
-        doc.text(signerTitle, x, sy, { width: colW });
-        sy = doc.y + 2;
-      }
-      if (signedAt) {
-        doc.fillColor(PAL.lineMuted).font("Helvetica").fontSize(7.5);
-        doc.text(`Data: ${signedAt.toISOString().slice(0, 10)}`, x, sy, { lineBreak: false });
-        sy += lineH;
-      }
-      return sy;
-    };
+    }
+    rule(totalsX, totalsX + sigColW - 10, y + sigBoxH + 4, PAL.rule, 0.7);
 
-    const sigStartY = y;
-    const leftEnd = drawSigColumn(
-      margin,
-      "Autorizado por",
-      ownerBuf,
-      input.ownerSignature?.name || input.organizationName,
-      input.ownerSignature?.title || "",
-      null,
+    y += sigBoxH + 10;
+    const ownerLine = [prepared.name, ("title" in prepared ? prepared.title : null)]
+      .filter(Boolean)
+      .join(" · ");
+    doc.fillColor(PAL.primary).font("Helvetica").fontSize(8);
+    doc.text(ownerLine || input.organizationName, margin, y, { lineBreak: false });
+    doc.fillColor(PAL.muted).fontSize(8);
+    doc.text(formatDate(input.issueDate), margin, y + 12, { lineBreak: false });
+
+    if (input.signedByName) {
+      doc.fillColor(PAL.primary).font("Helvetica").fontSize(8);
+      doc.text(input.signedByName, totalsX, y, { lineBreak: false });
+      doc.fillColor(PAL.muted).text(formatDate(input.signedAt), totalsX, y + 12, {
+        lineBreak: false,
+      });
+    } else {
+      doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
+      doc.text("Name: ________________________", totalsX, y, { lineBreak: false });
+      doc.text("Date: ________________________", totalsX, y + 12, { lineBreak: false });
+    }
+    y += 36;
+
+    // CTA
+    ensureSpace(56);
+    const ctaH = 48;
+    doc.roundedRect(margin, y, contentW, ctaH, 6).fill(PAL.panelBg);
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(11);
+    doc.text("Approve and sign online", margin + 16, y + 12, { lineBreak: false });
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
+    doc.text(
+      "Pick add-ons, sign and pay the deposit from your phone. By signing you accept these terms.",
+      margin + 16,
+      y + 28,
+      { width: contentW * 0.55, lineBreak: false },
     );
-    y = sigStartY;
-    const rightEnd = drawSigColumn(
-      margin + colW + 24,
-      "Aprovação do cliente",
-      clientBuf,
-      input.signedByName || input.customerName || "",
-      "",
-      input.signedAt,
-    );
-    y = Math.max(leftEnd, rightEnd) + 8;
+    const link = input.publicQuoteUrl || "Ask your contractor for the quote link";
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9);
+    const linkDisplay = link.length > 42 ? `${link.slice(0, 40)}…` : link;
+    const lw = doc.widthOfString(linkDisplay);
+    doc.text(linkDisplay, pageW - margin - 16 - lw, y + 18, { lineBreak: false });
+    y += ctaH + 10;
 
-    // Page numbers
+    // Stamp footers on all pages
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(range.start + i);
-      doc
-        .fillColor(PAL.lineMuted)
-        .font("Helvetica")
-        .fontSize(7)
-        .text(`${i + 1} / ${range.count}`, margin, pageH - 28, {
-          width: contentW,
-          align: "center",
-          lineBreak: false,
-        });
+      const footerY = pageH - 32;
+      rule(margin, pageW - margin, footerY - 8, PAL.rule, 0.5);
+      doc.fillColor(PAL.mutedLight).font("Helvetica").fontSize(7.5);
+      const left = `${quoteNumber} · ${customerName}`;
+      doc.text(left, margin, footerY, { lineBreak: false });
+      const brand = "Made with ObraMate";
+      const bw = doc.widthOfString(brand);
+      doc.text(brand, (pageW - bw) / 2, footerY, { lineBreak: false });
+      const pageLabel = `Page ${i + 1} of ${range.count}`;
+      doc.text(pageLabel, pageW - margin - doc.widthOfString(pageLabel), footerY, {
+        lineBreak: false,
+      });
     }
 
     doc.end();
