@@ -1,0 +1,223 @@
+/**
+ * ObraMate mobile — native-app feel (iOS-first polish)
+ * Loaded by om-mobile-nav on phone/tablet. Does not change desktop.
+ */
+
+/* Cross-document view transitions (Safari 18+ / Chromium) */
+@view-transition {
+  navigation: auto;
+}
+
+@media (max-width: 900px) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.28s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  html.om-device-mobile,
+  body.om-device-mobile {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body.om-device-mobile.om-app {
+    background: var(--plab-bg, #f3f1ee);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior-y: contain;
+  }
+
+  @media (display-mode: standalone) {
+    html.om-device-mobile,
+    body.om-device-mobile.om-app {
+      overscroll-behavior-y: none;
+      min-height: 100dvh;
+      min-height: -webkit-fill-available;
+    }
+  }
+
+  body.om-device-mobile.om-app.om-sheet-open {
+    overflow: hidden !important;
+    touch-action: none;
+  }
+
+  body.om-device-mobile.chat-app.om-sheet-open {
+    touch-action: auto;
+  }
+
+  body.om-device-mobile.om-app a,
+  body.om-device-mobile.om-app button,
+  body.om-device-mobile.om-app [role="button"],
+  body.om-device-mobile.om-app input,
+  body.om-device-mobile.om-app select,
+  body.om-device-mobile.om-app textarea {
+    touch-action: manipulation;
+  }
+
+  body.om-device-mobile.om-has-tabbar .dashboard-main {
+    animation: omNativeEnter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  html:active-view-transition body.om-device-mobile.om-has-tabbar .dashboard-main {
+    animation: none;
+  }
+
+  @keyframes omNativeEnter {
+    from {
+      opacity: 0.55;
+      transform: translate3d(0, 8px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body.om-device-mobile.om-has-tabbar .dashboard-main {
+      animation: none;
+    }
+
+    @view-transition {
+      navigation: none;
+    }
+  }
+
+  body.om-device-mobile.om-has-apptop .om-app-top {
+    background: rgba(243, 241, 238, 0.82) !important;
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 0.5px solid rgba(28, 25, 23, 0.08);
+  }
+
+  body.om-device-mobile .om-tabbar {
+    background: rgba(255, 255, 255, 0.86) !important;
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-top: 0.5px solid rgba(28, 25, 23, 0.1);
+    box-shadow: 0 -8px 28px rgba(28, 25, 23, 0.04);
+  }
+
+  body.om-device-mobile .om-tabbar__item {
+    transition: color 0.15s ease, transform 0.12s ease;
+  }
+
+  body.om-device-mobile .om-tabbar__item:active,
+  body.om-device-mobile .om-tabbar__item.is-pressing {
+    transform: scale(0.92);
+  }
+
+  body.om-device-mobile .om-tabbar__item.is-active {
+    font-weight: 750;
+  }
+
+  body.om-device-mobile .om-app-top__bell:active,
+  body.om-device-mobile .om-app-top__avatar:active {
+    transform: scale(0.94);
+    opacity: 0.88;
+  }
+
+  body.om-device-mobile .om-app-top__bell,
+  body.om-device-mobile .om-app-top__avatar {
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+
+  body.om-device-mobile.om-edge-swipe::before {
+    content: "";
+    position: fixed;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    border-radius: 0 4px 4px 0;
+    background: rgba(232, 121, 44, 0.55);
+    z-index: 120;
+    pointer-events: none;
+  }
+
+  body.om-device-mobile .om-sheet-backdrop {
+    background: rgba(28, 25, 23, 0.38);
+    opacity: 0;
+    transition: opacity 0.28s ease;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+
+  body.om-device-mobile .om-sheet-backdrop.is-open {
+    opacity: 1;
+  }
+
+  body.om-device-mobile .om-sheet-backdrop[hidden] {
+    display: block !important;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  body.om-device-mobile .om-sheet {
+    transform: translate3d(0, 110%, 0);
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+    visibility: hidden;
+    pointer-events: none;
+    touch-action: pan-y;
+  }
+
+  body.om-device-mobile .om-sheet.is-open {
+    transform: translate3d(0, 0, 0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  body.om-device-mobile .om-sheet.is-dragging {
+    transition: none !important;
+  }
+
+  body.om-device-mobile .om-sheet[hidden] {
+    display: block !important;
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  body.om-device-mobile .om-sheet__grab {
+    width: 40px;
+    height: 5px;
+    background: rgba(28, 25, 23, 0.18);
+    margin-bottom: 0.55rem;
+  }
+
+  body.om-device-mobile .om-sheet__grab::before {
+    content: "";
+    display: block;
+    margin: -12px auto;
+    height: 28px;
+    width: 100%;
+  }
+
+  body.om-device-mobile .om-mod-card:active,
+  body.om-device-mobile .jcm-job:active,
+  body.om-device-mobile .customers-row:active {
+    transform: scale(0.985);
+    opacity: 0.96;
+  }
+
+  body.om-device-mobile .om-mod-card,
+  body.om-device-mobile .jcm-job,
+  body.om-device-mobile .customers-row {
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body.om-device-mobile .om-sheet,
+    body.om-device-mobile .om-sheet-backdrop,
+    body.om-device-mobile .om-tabbar__item,
+    body.om-device-mobile .om-mod-card,
+    body.om-device-mobile .jcm-job,
+    body.om-device-mobile .customers-row {
+      transition: none !important;
+    }
+  }
+}

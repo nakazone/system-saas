@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260930-maismob3";
+  const SHELL_VER = "20260930-native2";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -748,9 +748,11 @@
     if (wantMobileNav) {
       if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
+        ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
         jobs.push(ensureScript(`om-mobile-nav.js?v=${SHELL_VER}`).catch(() => {}));
       } else {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
+        ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
       }
       if (!window.__omNovoLeadSheet && !document.querySelector('script[src*="novo-lead-sheet.js"]')) {
         jobs.push(ensureScript(`novo-lead-sheet.js?v=${SHELL_VER}`).catch(() => {}));

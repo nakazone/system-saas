@@ -1,13 +1,18 @@
 /**
- * Senior Floors / ObraMate — service worker (cache + Web Push).
+ * ObraMate — service worker (cache + Web Push).
  */
-const CACHE = 'sf-static-v53';
+const CACHE = 'om-static-v55';
 const PRECACHE = [
+  '/home.html',
+  '/mais.html',
   '/dashboard.html',
   '/styles.css',
   '/design-system.css',
   '/mobile-design-system.css',
-  '/manifest.json?v=20260924-pwa',
+  '/om-mobile-nav.css',
+  '/om-native-app.css',
+  '/obramate-app.css',
+  '/manifest.json?v=20260930-native2',
   '/assets/favicon-192.png?v=20260924-pwa',
   '/crm-shell.css',
   '/crm-pwa-install.css',
@@ -51,7 +56,7 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'ObraMate',
     body: 'Nova atualização',
-    url: '/dashboard.html',
+    url: '/home.html',
     tag: 'obramate',
   };
   try {
@@ -73,14 +78,14 @@ self.addEventListener('push', (event) => {
       badge: '/assets/favicon-192.png?v=20260924-pwa',
       tag: data.tag || 'obramate',
       renotify: true,
-      data: { url: data.url || '/dashboard.html' },
+      data: { url: data.url || '/home.html' },
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const raw = (event.notification.data && event.notification.data.url) || '/dashboard.html';
+  const raw = (event.notification.data && event.notification.data.url) || '/home.html';
   const url = new URL(raw, self.location.origin).href;
 
   event.waitUntil(

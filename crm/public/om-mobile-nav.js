@@ -3,9 +3,12 @@
  * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20260930-maismob4";
+  const VER = "20260930-native2";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
+  const SHEET_MS = 380;
+  const TAB_HREFS = ["home.html", "pipeline-lab.html", "schedule.html", "mais.html"];
+  let edgeSwipeBound = false;
 
   const ICONS = {
     home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
@@ -87,6 +90,12 @@
       link.href = `om-mobile-nav.css?v=${VER}`;
       document.head.appendChild(link);
     }
+    if (![...document.querySelectorAll('link[href*="om-native-app.css"]')].length) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = `om-native-app.css?v=${VER}`;
+      document.head.appendChild(link);
+    }
     if (![...document.querySelectorAll('link[href*="agenda-mais.css"]')].length) {
       const link = document.createElement("link");
       link.rel = "stylesheet";
@@ -95,22 +104,258 @@
     }
   }
 
+  function ensureAppleChrome() {
+    const head = document.head;
+    if (!head) return;
+
+    const ensureMeta = (name, content) => {
+      let el = head.querySelector(`meta[name="${name}"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute("name", name);
+        head.appendChild(el);
+      }
+      if (!el.getAttribute("content")) el.setAttribute("content", content);
+    };
+
+    ensureMeta("apple-mobile-web-app-capable", "yes");
+    ensureMeta("mobile-web-app-capable", "yes");
+    ensureMeta("apple-mobile-web-app-status-bar-style", "default");
+    ensureMeta("apple-mobile-web-app-title", "ObraMate");
+    ensureMeta("theme-color", "#f3f1ee");
+    ensureMeta("view-transition", "same-origin");
+
+    if (![...head.querySelectorAll('link[rel="manifest"]')].length) {
+      const man = document.createElement("link");
+      man.rel = "manifest";
+      man.href = "/manifest.json?v=20260930-native2";
+      head.appendChild(man);
+    }
+    if (![...head.querySelectorAll('link[rel="apple-touch-icon"]')].length) {
+      const icon = document.createElement("link");
+      icon.rel = "apple-touch-icon";
+      icon.href = "/assets/favicon-180.png?v=20260924-pwa";
+      head.appendChild(icon);
+    }
+
+    try {
+      if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone) {
+        document.documentElement.classList.add("om-standalone");
+        document.body.classList.add("om-standalone");
+      }
+    } catch (_) {}
+  }
+
+  function haptic(ms) {
+    try {
+      if (navigator.vibrate) navigator.vibrate(ms || 10);
+    } catch (_) {}
+  }
+
   function closeSheets() {
     const create = document.getElementById("omCreateSheet");
     const backdrop = document.getElementById("omSheetBackdrop");
-    if (create) create.hidden = true;
-    if (backdrop) backdrop.hidden = true;
+    if (create) {
+      create.style.transform = "";
+      create.classList.remove("is-open", "is-dragging");
+    }
+    if (backdrop) {
+      backdrop.style.opacity = "";
+      backdrop.classList.remove("is-open");
+    }
     document.body.classList.remove("om-sheet-open");
+    window.setTimeout(() => {
+      if (create && !create.classList.contains("is-open")) create.hidden = true;
+      if (backdrop && !backdrop.classList.contains("is-open")) backdrop.hidden = true;
+    }, SHEET_MS);
   }
 
   function openSheet(id) {
-    closeSheets();
     const sheet = document.getElementById(id);
     const backdrop = document.getElementById("omSheetBackdrop");
     if (!sheet || !backdrop) return;
+    const other = document.getElementById("omCreateSheet");
+    if (other && other !== sheet) {
+      other.classList.remove("is-open", "is-dragging");
+      other.style.transform = "";
+      other.hidden = true;
+    }
     sheet.hidden = false;
+    sheet.style.transform = "";
     backdrop.hidden = false;
+    backdrop.style.opacity = "";
     document.body.classList.add("om-sheet-open");
+    haptic(8);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        sheet.classList.add("is-open");
+        backdrop.classList.add("is-open");
+      });
+    });
+  }
+
+  function bindSheetDrag(sheet) {
+    if (!sheet || sheet.dataset.omDragBound === "1") return;
+    sheet.dataset.omDragBound = "1";
+    const backdrop = () => document.getElementById("omSheetBackdrop");
+    let startY = 0;
+    let dy = 0;
+    let dragging = false;
+    let pointerId = null;
+
+    const onStart = (clientY, id) => {
+      if (!sheet.classList.contains("is-open")) return;
+      if (sheet.scrollTop > 0) return;
+      startY = clientY;
+      dy = 0;
+      dragging = true;
+      pointerId = id;
+      sheet.classList.add("is-dragging");
+    };
+
+    const onMove = (clientY) => {
+      if (!dragging) return;
+      dy = Math.max(0, clientY - startY);
+      sheet.style.transform = `translate3d(0, ${dy}px, 0)`;
+      const bd = backdrop();
+      if (bd) bd.style.opacity = String(Math.max(0.15, 1 - dy / 420));
+    };
+
+    const onEnd = () => {
+      if (!dragging) return;
+      dragging = false;
+      pointerId = null;
+      sheet.classList.remove("is-dragging");
+      const shouldClose = dy > 120 || (dy > 56 && dy / SHEET_MS > 0.35);
+      if (shouldClose) {
+        haptic(12);
+        closeSheets();
+        return;
+      }
+      sheet.style.transform = "";
+      const bd = backdrop();
+      if (bd) bd.style.opacity = "";
+    };
+
+    sheet.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        const grab = e.target.closest(".om-sheet__grab, .om-sheet__title");
+        const fromTop = e.clientY - sheet.getBoundingClientRect().top < 72;
+        if (!grab && !fromTop) return;
+        try {
+          sheet.setPointerCapture(e.pointerId);
+        } catch (_) {}
+        onStart(e.clientY, e.pointerId);
+      },
+      { passive: true },
+    );
+    sheet.addEventListener(
+      "pointermove",
+      (e) => {
+        if (!dragging || (pointerId != null && e.pointerId !== pointerId)) return;
+        onMove(e.clientY);
+      },
+      { passive: true },
+    );
+    sheet.addEventListener("pointerup", onEnd);
+    sheet.addEventListener("pointercancel", onEnd);
+  }
+
+  function bindEdgeSwipeBack() {
+    if (edgeSwipeBound) return;
+    const f = fileName();
+    const primary = new Set(["home.html", "pipeline-lab.html", "schedule.html", "mais.html", "", "dashboard.html"]);
+    if (primary.has(f)) return;
+    edgeSwipeBound = true;
+
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    document.addEventListener(
+      "touchstart",
+      (e) => {
+        if (document.body.classList.contains("om-sheet-open")) return;
+        const t = e.touches[0];
+        if (!t || t.clientX > 22) return;
+        startX = t.clientX;
+        startY = t.clientY;
+        tracking = true;
+      },
+      { passive: true },
+    );
+    document.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!tracking) return;
+        const t = e.touches[0];
+        if (!t) return;
+        const dx = t.clientX - startX;
+        const dy = Math.abs(t.clientY - startY);
+        if (dy > 48) tracking = false;
+        if (dx > 28 && dy < 36) document.body.classList.add("om-edge-swipe");
+      },
+      { passive: true },
+    );
+    document.addEventListener(
+      "touchend",
+      (e) => {
+        if (!tracking) return;
+        tracking = false;
+        document.body.classList.remove("om-edge-swipe");
+        const t = e.changedTouches[0];
+        if (!t) return;
+        const dx = t.clientX - startX;
+        const dy = Math.abs(t.clientY - startY);
+        if (dx < 72 || dy > 56) return;
+        haptic(10);
+        if (window.history.length > 1) window.history.back();
+        else location.href = "mais.html";
+      },
+      { passive: true },
+    );
+  }
+
+  function navigateNative(href) {
+    if (!href) return;
+    location.href = href;
+  }
+
+  function bindTabNativeNav(root) {
+    if (!root || root.dataset.omNavBound === "1") return;
+    root.dataset.omNavBound = "1";
+    root.querySelectorAll("a.om-tabbar__item[href]").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        const href = a.getAttribute("href");
+        if (!href || href.startsWith("#") || href.startsWith("http")) return;
+        const dest = (href.split("?")[0].split("/").pop() || href).toLowerCase();
+        if (dest === fileName().toLowerCase()) {
+          e.preventDefault();
+          return;
+        }
+        haptic(8);
+        a.classList.add("is-pressing");
+      });
+    });
+  }
+
+  function prefetchTabs() {
+    const run = () => {
+      TAB_HREFS.forEach((href) => {
+        try {
+          const link = document.createElement("link");
+          link.rel = "prefetch";
+          link.href = href;
+          link.as = "document";
+          document.head.appendChild(link);
+        } catch (_) {}
+      });
+    };
+    if ("requestIdleCallback" in window) window.requestIdleCallback(run, { timeout: 2500 });
+    else window.setTimeout(run, 1200);
   }
 
   function ensureSheets() {
@@ -167,9 +412,11 @@
 
     document.body.appendChild(backdrop);
     document.body.appendChild(create);
+    bindSheetDrag(create);
 
     create.querySelector("#omCreateNewLead")?.addEventListener("click", () => {
       closeSheets();
+      haptic(8);
       if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead()) return;
       try {
         sessionStorage.setItem("obramate_open_new_lead", "1");
@@ -273,13 +520,19 @@
     document.body.appendChild(nav);
     document.body.classList.add("om-has-tabbar");
     hideLegacyBottomNav();
+    bindTabNativeNav(nav);
 
     document.getElementById("omTabbarFab")?.addEventListener("click", () => openSheet("omCreateSheet"));
   }
 
   /** Field worker nav — mirrors Campo tabs on Jobs / Schedule / Chat pages. */
   function ensureFieldTabbar() {
-    if (document.getElementById("omTabbar")) return;
+    if (document.getElementById("omTabbar")) {
+      document.body.classList.add("om-has-tabbar", "om-field-nav");
+      hideLegacyBottomNav();
+      bindTabNativeNav(document.getElementById("omTabbar"));
+      return;
+    }
     const nav = document.createElement("nav");
     nav.id = "omTabbar";
     nav.className = "om-tabbar om-tabbar--field";
@@ -319,6 +572,7 @@
     document.body.appendChild(nav);
     document.body.classList.add("om-has-tabbar", "om-field-nav");
     hideLegacyBottomNav();
+    bindTabNativeNav(nav);
   }
 
   async function resolveFieldRole() {
@@ -363,17 +617,24 @@
           (navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1);
     if (!mobile) return;
     document.body.dataset.omTabbarBoot = "1";
+    document.documentElement.classList.add("om-device-mobile");
+    document.body.classList.add("om-device-mobile");
     ensureCss();
+    ensureAppleChrome();
 
     const field = await resolveFieldRole();
     if (field) {
       ensureFieldTabbar();
+      bindEdgeSwipeBack();
+      prefetchTabs();
       return;
     }
 
     ensureAppTop();
     ensureSheets();
     ensureTabbar();
+    bindEdgeSwipeBack();
+    prefetchTabs();
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeSheets();
@@ -397,5 +658,7 @@
       location.href = "mais.html";
     },
     close: closeSheets,
+    haptic,
+    navigate: navigateNative,
   };
 })();
