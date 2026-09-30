@@ -1476,6 +1476,16 @@
     .qb-action-bar .btn-secondary:hover:not(:disabled) {
       background: #f1f5f9;
     }
+    .qb-action-bar .btn.qb-btn-danger,
+    .qb-topbar__desk-actions .btn.qb-btn-danger {
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+    .qb-action-bar .btn.qb-btn-danger:hover:not(:disabled),
+    .qb-topbar__desk-actions .btn.qb-btn-danger:hover:not(:disabled) {
+      background: #fef2f2;
+      color: #991b1b;
+    }
     .qb-action-bar .btn:disabled {
       opacity: 0.45;
       cursor: not-allowed;
@@ -1832,6 +1842,7 @@
             <button type="button" class="btn btn-secondary" data-qb-proxy="btnInvoice" hidden disabled>Fatura</button>
             <button type="button" class="btn btn-secondary" data-qb-proxy="btnDup" disabled>Duplicar</button>
             <button type="button" class="btn btn-secondary" data-qb-proxy="btnSaveTpl">Template</button>
+            <button type="button" class="btn btn-secondary qb-btn-danger" data-qb-proxy="btnDeleteQuote" disabled>Apagar</button>
           </div>
         </div>
       </header>
@@ -2351,6 +2362,10 @@
         <span class="qb-action-bar__full">Guardar template</span>
         <span class="qb-action-bar__short">Template</span>
       </button>
+      <button type="button" id="btnDeleteQuote" class="btn btn-secondary qb-btn-danger" disabled title="Apagar orçamento">
+        <span class="qb-action-bar__full">Apagar</span>
+        <span class="qb-action-bar__short">Apagar</span>
+      </button>
     </div>
   </nav>
 
@@ -2481,7 +2496,7 @@
   <script src="crm-pdf-viewer.js?v=20260930b"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261001-rcpmail1"></script>
+  <script src="quote-builder.js?v=20261001-del1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

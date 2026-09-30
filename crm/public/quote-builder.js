@@ -3844,12 +3844,43 @@
     const btnSend = $('btnSend');
     if (btnSend) btnSend.disabled = !quoteId;
     $('btnDup').disabled = !quoteId;
+    if ($('btnDeleteQuote')) $('btnDeleteQuote').disabled = !quoteId;
     syncInvoiceUiVisibility();
     if (!quoteId) {
       updateEmailSentBadge(null);
       updateQuoteViewedBadge(null);
       updatePdfViewedBadge(null);
       stopQuoteViewPolling();
+    }
+  }
+
+  async function deleteQuote() {
+    if (!quoteId) return;
+    const label = loadedQuoteNumber || `#${quoteId}`;
+    if (
+      !confirm(
+        `Apagar o orçamento ${label}?\n\nEsta ação não pode ser desfeita. Faturas ligadas a este orçamento também podem ser removidas.`,
+      )
+    ) {
+      return;
+    }
+    const btn = $('btnDeleteQuote');
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'A apagar…';
+    }
+    try {
+      await api(`/api/quotes/${encodeURIComponent(quoteId)}`, { method: 'DELETE' });
+      window.crmToast?.success?.(`Orçamento ${label} apagado.`);
+      location.href = 'quotes.html';
+    } catch (err) {
+      window.crmToast?.error?.(err.message || 'Não foi possível apagar o orçamento.');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || 'Apagar';
+      }
+      enableActions();
     }
   }
 
@@ -4378,6 +4409,7 @@
         location.href = 'quote-builder.html?id=' + encodeURIComponent(q.id);
       }
     });
+    $('btnDeleteQuote')?.addEventListener('click', () => void deleteQuote());
 
     wireProjectEstimateRules();
 
