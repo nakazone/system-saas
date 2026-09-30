@@ -368,6 +368,7 @@ a.inv-trow:hover { background: var(--inv-soft); }
 .inv-pick button { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; text-align: left; border: 1px solid var(--inv-line); border-radius: 10px; background: #fff; padding: 10px 12px; font: inherit; cursor: pointer; }
 .inv-pick button:hover { border-color: var(--inv-muted-2); }
 .inv-pick button.is-selected { border-color: var(--inv-accent); background: var(--inv-accent-soft); }
+.inv-pick__group { margin: 6px 2px 0; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--inv-muted); }
 .inv-pick b { font-size: 0.9rem; } .inv-pick small { color: var(--inv-muted); font-size: 0.78rem; }
 .inv-pick .r { text-align: right; font-variant-numeric: tabular-nums; }
 .inv-kind { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }

@@ -105,6 +105,8 @@ export type NewInvoiceAmountInput = {
   invoicedTotal: number;
   depositPct?: number | null;
   customAmount?: number | null;
+  /** What is being billed — only changes the wording of errors. Default: quote. */
+  source?: "quote" | "job";
 };
 
 export type NewInvoiceAmount =
@@ -115,8 +117,18 @@ export type NewInvoiceAmount =
 export function computeNewInvoiceAmount(input: NewInvoiceAmountInput): NewInvoiceAmount {
   const totalC = cents(input.quoteTotal);
   const remainingC = Math.max(0, totalC - cents(input.invoicedTotal));
-  if (totalC <= 0) return { ok: false, error: "O orçamento não tem valor total." };
-  if (remainingC <= 0) return { ok: false, error: "Todo o valor deste orçamento já foi faturado." };
+  const isJob = input.source === "job";
+  if (totalC <= 0) {
+    return {
+      ok: false,
+      error: isJob
+        ? "O job não tem valor — adicione os serviços (Tabela de Valores) antes de faturar."
+        : "O orçamento não tem valor total.",
+    };
+  }
+  if (remainingC <= 0) {
+    return { ok: false, error: isJob ? "Todo o valor deste job já foi faturado." : "Todo o valor deste orçamento já foi faturado." };
+  }
 
   const kind = String(input.kind || "").toLowerCase();
   let amountC: number;
@@ -143,7 +155,7 @@ export function computeNewInvoiceAmount(input: NewInvoiceAmountInput): NewInvoic
       if (remainingC !== totalC) {
         return {
           ok: false,
-          error: "Já existem faturas neste orçamento — use \"Saldo restante\".",
+          error: `Já existem faturas neste ${isJob ? "job" : "orçamento"} — use "Saldo restante".`,
         };
       }
       amountC = totalC;

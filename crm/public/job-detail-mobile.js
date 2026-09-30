@@ -5,6 +5,8 @@
   const ROLE_KEY = "om_jobs_role";
   let job = null;
   let canManage = false;
+  let canBill = false;
+  let canInvoice = false;
   let isField = false;
   let jobId = null;
   let detTab = "visitas";
@@ -508,11 +510,20 @@
       }
     } else if (detTab === "financeiro") {
       const total = Number(wo.services_total) || 0;
-      $("jobMobExtra").innerHTML = `<div class="jcm-card"><div class="jcm-dl">
-        <div class="jcm-dl__row"><span class="jcm-dl__k">Serviços</span><span class="jcm-dl__v">${escapeHtml(
-          String(total ? `$${total.toFixed(2)}` : "—"),
-        )}</span></div>
-      </div></div>`;
+      if (canBill && window.JobBilling) {
+        $("jobMobExtra").innerHTML = `<div class="jcm-card"><div id="jobMobBilling"></div></div>`;
+        window.JobBilling.mountCard($("jobMobBilling"), {
+          jobId: wo.id,
+          jobStatus: wo.status,
+          canManage: canInvoice,
+        });
+      } else {
+        $("jobMobExtra").innerHTML = `<div class="jcm-card"><div class="jcm-dl">
+          <div class="jcm-dl__row"><span class="jcm-dl__k">Serviços</span><span class="jcm-dl__v">${escapeHtml(
+            String(total ? `$${total.toFixed(2)}` : "—"),
+          )}</span></div>
+        </div></div>`;
+      }
       restoreVisitCta();
     } else {
       restoreVisitCta();
@@ -628,6 +639,8 @@
       const roleName = String(s.user?.role || "").toLowerCase();
       const perms = s.user?.permissions || [];
       canManage = roleName === "admin" || perms.includes("work_orders.manage");
+      canBill = roleName === "admin" || perms.includes("invoices.view");
+      canInvoice = roleName === "admin" || perms.includes("invoices.manage");
       isField =
         roleName === "installer" ||
         roleName === "crew_lead" ||

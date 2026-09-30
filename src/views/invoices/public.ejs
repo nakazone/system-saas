@@ -1,7 +1,7 @@
 <%
   const accent = /^#[0-9a-fA-F]{6}$/.test(organization.accentColor || '') ? organization.accentColor : '#e8792c';
   const ink = /^#[0-9a-fA-F]{6}$/.test(organization.primaryColor || '') ? organization.primaryColor : '#211d1a';
-  const fmt = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (n) => (Number(n) < 0 ? '-$' : '$') + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fdate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—';
   const st = money.displayStatus;
   const instructions = invoice.paymentInstructions || organization.paymentInstructions;
@@ -89,6 +89,7 @@
           <dt>Issued</dt><dd><%= fdate(invoice.issuedAt || invoice.createdAt) %></dd>
           <dt>Due</dt><dd><%= fdate(invoice.dueDate) %></dd>
           <% if (quoteNumber) { %><dt>Quote</dt><dd><%= quoteNumber %></dd><% } %>
+          <% if (typeof jobNumber !== 'undefined' && jobNumber) { %><dt>Job</dt><dd><%= jobNumber %></dd><% } %>
         </dl>
       </div>
 

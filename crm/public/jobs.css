@@ -581,3 +581,23 @@
   background: #fff;
 }
 
+
+/* Jobs list — billing (ordem de serviço → fatura) */
+.jobs-ov-card--bill {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  border-left: 3px solid #e8792c !important;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.jobs-ov-card--bill:hover { transform: translateY(-1px); border-color: #e8792c !important; }
+.jobs-ov-card--bill .jobs-ov-card__stat { color: #c1652f; }
+.jobs-ov-card--bill[hidden],
+.jobs-ov-card--promo[hidden] { display: none !important; }
+.jobs-table__bill { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.jobs-table__bill strong { margin-right: 0.35rem; }

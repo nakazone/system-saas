@@ -103,7 +103,7 @@ export type InvoiceRow = {
   amount: number;
   paid: number;
   dueDate: Date | null;
-  quoteId: string;
+  quoteId: string | null;
   customerName: string | null;
 };
 
@@ -772,6 +772,7 @@ export async function loadDashboardOverview(
         quoteId: true,
         customer: { select: { name: true } },
         quote: { select: { customer: { select: { name: true } } } },
+        workOrder: { select: { builder: { select: { company: true, firstName: true, lastName: true } } } },
         receipts: { select: { amount: true } },
       },
     });
@@ -784,7 +785,14 @@ export async function loadDashboardOverview(
         paid: inv.receipts.reduce((s, r) => s + Number(r.amount), 0),
         dueDate: inv.dueDate,
         quoteId: inv.quoteId,
-        customerName: inv.customer?.name ?? inv.quote?.customer?.name ?? null,
+        customerName:
+          inv.customer?.name ??
+          inv.quote?.customer?.name ??
+          (inv.workOrder?.builder
+            ? inv.workOrder.builder.company ||
+              [inv.workOrder.builder.firstName, inv.workOrder.builder.lastName].filter(Boolean).join(" ").trim() ||
+              null
+            : null),
       })),
       now,
       tz,

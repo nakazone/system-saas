@@ -153,7 +153,9 @@
         ? `<button type="button" class="jcm-job__cta jcm-job__cta--done" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Concluir visita</button>`
         : wo.status === "scheduled" || wo.status === "draft"
           ? `<button type="button" class="jcm-job__cta jcm-job__cta--start" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar visita</button>`
-          : `<a class="jcm-job__cta jcm-job__cta--done" href="job-detail.html?id=${encodeURIComponent(wo.id)}" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Ver job</a>`;
+          : wo.status === "completed" && wo.billing && wo.billing.remaining_to_invoice > 0.004
+            ? `<a class="jcm-job__cta jcm-job__cta--start" href="job-detail.html?id=${encodeURIComponent(wo.id)}&faturar=1" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Faturar ${escapeHtml(money(wo.billing.remaining_to_invoice))}</a>`
+            : `<a class="jcm-job__cta jcm-job__cta--done" href="job-detail.html?id=${encodeURIComponent(wo.id)}" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Ver job</a>`;
     const crewColor = wo.crew?.color || "#e8792c";
     return `<article class="jcm-job">
       <a href="job-detail.html?id=${encodeURIComponent(wo.id)}" style="text-decoration:none;color:inherit;display:block">
@@ -163,6 +165,7 @@
         </div>
         <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
         <p class="jcm-job__meta">#${escapeHtml(wo.number != null ? wo.number : "—")} · ${escapeHtml(clientLabel(wo))} · ${escapeHtml(wo.address || "—")}</p>
+        ${wo.billing && wo.billing.billing_status !== "no_value" && window.JobBilling ? `<p class="jcm-job__meta" style="margin-top:0.3rem">${window.JobBilling.chip(wo.billing)}</p>` : ""}
         <div class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</div>
       </a>
       <div class="jcm-job__actions">

@@ -12,6 +12,7 @@ import { param } from "../../lib/http/params.js";
 import { env } from "../../config/env.js";
 import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
+import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 
 export const scheduleJobsRouter = Router();
 
@@ -76,7 +77,8 @@ function normalizePhoneForWhatsApp(phone: string | null | undefined): string {
 }
 
 const WO_STATUSES = ["draft", "scheduled", "in_progress", "completed", "canceled"] as const;
-const WO_SOURCES = ["builder", "contractor", "internal", "other"] as const;
+/** Origem do job — also picks the Tabela de Valores column (particular | builder | contractor | loja). */
+const WO_SOURCES = ["particular", "builder", "contractor", "loja", "internal", "other"] as const;
 const MTG_STATUSES = ["scheduled", "completed", "canceled"] as const;
 
 async function nextWorkOrderNumber(organizationId: string): Promise<number> {
@@ -106,6 +108,7 @@ function mapWorkOrder(wo: {
   number: number | null;
   title: string;
   status: string;
+  fieldStatus?: string;
   sourceType: string;
   sourceName: string | null;
   customerId: string | null;
@@ -141,6 +144,7 @@ function mapWorkOrder(wo: {
     sortOrder: number;
     pricingItem?: { unit: string } | null;
   }[];
+  invoices?: { amount: unknown; status: string; receipts?: { amount: unknown }[] }[];
 }) {
   const lineItems = (wo.lineItems || []).map((li) => ({
     id: li.id,
@@ -152,12 +156,14 @@ function mapWorkOrder(wo: {
     sort_order: li.sortOrder,
     unit: li.pricingItem?.unit || null,
   }));
-  const services_total = lineItems.reduce((sum, li) => sum + li.line_total, 0);
+  const services_total = Math.round(lineItems.reduce((sum, li) => sum + li.line_total, 0) * 100) / 100;
+  const billing = wo.invoices ? jobBilling(services_total, wo.invoices) : null;
   return {
     id: wo.id,
     number: wo.number,
     title: wo.title,
     status: wo.status,
+    field_status: wo.fieldStatus ?? null,
     source_type: wo.sourceType,
     source_name: wo.sourceName,
     customer_id: wo.customerId,
@@ -206,6 +212,8 @@ function mapWorkOrder(wo: {
     })),
     line_items: lineItems,
     services_total,
+    /** Present only for users who can see invoices. */
+    billing: billing ? { ...billing, billing_status_label: jobBillingLabel(billing.billing_status) } : null,
   };
 }
 
@@ -258,6 +266,26 @@ const woInclude = {
     include: { pricingItem: { select: { unit: true } } },
   },
 };
+
+/** Money position (faturado / recebido) rides along only for people who can see invoices. */
+function canSeeBilling(user: AuthedRequest["user"]): boolean {
+  if (!user) return false;
+  if (String(user.roleKey || "") === "admin") return true;
+  return (user.permissions || []).includes("invoices.view");
+}
+
+const woBillingInclude = {
+  invoices: {
+    where: { status: { not: "void" } },
+    select: { amount: true, status: true, receipts: { select: { amount: true } } },
+  },
+};
+
+function woIncludeFor(user: AuthedRequest["user"]) {
+  return canSeeBilling(user) ? { ...woInclude, ...woBillingInclude } : woInclude;
+}
+
+const BILLING_FILTERS = ["to_invoice", "awaiting_payment", "paid"] as const;
 
 const lineItemBody = z.object({
   pricing_item_id: z.string().uuid().optional().nullable(),
@@ -430,6 +458,12 @@ scheduleJobsRouter.get(
       const status = typeof req.query.status === "string" ? req.query.status : "";
       const source = typeof req.query.source === "string" ? req.query.source : "";
       const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+      const billingFilter =
+        typeof req.query.billing === "string" &&
+        (BILLING_FILTERS as readonly string[]).includes(req.query.billing) &&
+        canSeeBilling(req.user)
+          ? (req.query.billing as (typeof BILLING_FILTERS)[number])
+          : null;
       const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
       const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
 
@@ -439,6 +473,8 @@ scheduleJobsRouter.get(
             { title: { contains: q, mode: "insensitive" as const } },
             { sourceName: { contains: q, mode: "insensitive" as const } },
             { address: { contains: q, mode: "insensitive" as const } },
+            { customer: { name: { contains: q, mode: "insensitive" as const } } },
+            { builder: { company: { contains: q, mode: "insensitive" as const } } },
           ]
         : null;
 
@@ -466,11 +502,21 @@ scheduleJobsRouter.get(
               }
             : {}),
         },
-        include: woInclude,
+        include: woIncludeFor(req.user),
         orderBy: [{ scheduledStart: "asc" }, { createdAt: "desc" }],
-        take: 200,
+        take: billingFilter ? 500 : 200,
       });
-      res.json({ success: true, data: rows.map(mapWorkOrder) });
+      let data = rows.map(mapWorkOrder);
+      if (billingFilter) {
+        data = data.filter((wo) => {
+          const b = wo.billing;
+          if (!b) return false;
+          if (billingFilter === "to_invoice") return wo.status === "completed" && b.remaining_to_invoice > 0.004;
+          if (billingFilter === "awaiting_payment") return b.open_balance > 0.004;
+          return b.billing_status === "paid";
+        });
+      }
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }
@@ -538,7 +584,7 @@ scheduleJobsRouter.get(
           organizationId: req.organizationId!,
           ...fieldWorkOrderScope(req.user),
         },
-        include: woInclude,
+        include: woIncludeFor(req.user),
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Work order not found" });
@@ -620,7 +666,7 @@ scheduleJobsRouter.post(
       });
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },
-        include: woInclude,
+        include: woIncludeFor(req.user),
       });
 
       const conflicts = await collectConflictHints({
@@ -693,6 +739,32 @@ scheduleJobsRouter.put(
         return;
       }
 
+      // Services already billed: the job total cannot drop below what was invoiced.
+      if (d.line_items !== undefined || d.status === "canceled") {
+        const agg = await prisma.quoteInvoice.aggregate({
+          where: { organizationId: req.organizationId!, workOrderId: existing.id, status: { not: "void" } },
+          _sum: { amount: true },
+        });
+        const invoiced = Number(agg._sum.amount ?? 0);
+        if (d.status === "canceled" && invoiced > 0) {
+          res.status(409).json({ success: false, error: "Este job tem faturas. Anule as faturas antes de cancelar o job." });
+          return;
+        }
+        if (d.line_items !== undefined && invoiced > 0) {
+          const newTotal = d.line_items.reduce(
+            (sum, li) => sum + Math.round((Number(li.quantity_sqft) || 0) * (Number(li.unit_price) || 0) * 100) / 100,
+            0,
+          );
+          if (newTotal + 0.004 < invoiced) {
+            res.status(409).json({
+              success: false,
+              error: `Já foram faturados $${invoiced.toFixed(2)} neste job — o total dos serviços não pode ficar abaixo disso.`,
+            });
+            return;
+          }
+        }
+      }
+
       const row = await prisma.workOrder.update({
         where: { id: existing.id },
         data: {
@@ -720,7 +792,7 @@ scheduleJobsRouter.put(
       });
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },
-        include: woInclude,
+        include: woIncludeFor(req.user),
       });
 
       const conflicts = await collectConflictHints({
@@ -772,10 +844,17 @@ scheduleJobsRouter.delete(
         res.status(404).json({ success: false, error: "Work order not found" });
         return;
       }
+      const openInvoices = await prisma.quoteInvoice.count({
+        where: { organizationId: req.organizationId!, workOrderId: existing.id, status: { not: "void" } },
+      });
+      if (openInvoices > 0) {
+        res.status(409).json({ success: false, error: "Este job tem faturas. Anule as faturas antes de excluir o job." });
+        return;
+      }
       const row = await prisma.workOrder.update({
         where: { id: existing.id },
         data: { status: "canceled" },
-        include: woInclude,
+        include: woIncludeFor(req.user),
       });
       res.json({ success: true, data: mapWorkOrder(row) });
     } catch (error) {

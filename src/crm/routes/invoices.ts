@@ -38,6 +38,7 @@ import {
   type InvoiceDetail,
 } from "../../lib/invoices/service.js";
 import { buildInvoicePdf, buildReceiptPdf } from "../../lib/invoices/pdf.js";
+import { invoicedTotalForJob, jobBilling } from "../../lib/invoices/job.js";
 import { invoiceEmail, receiptEmail } from "../../lib/invoices/email.js";
 
 export const invoicesCrmRouter = Router();
@@ -69,10 +70,32 @@ function parseDate(v: unknown): Date | null {
 type ListRow = Prisma.QuoteInvoiceGetPayload<{
   include: {
     quote: { select: { id: true; title: true; quoteNumber: true; number: true } };
+    workOrder: {
+      select: {
+        id: true;
+        number: true;
+        title: true;
+        builder: { select: { company: true; firstName: true; lastName: true; email: true } };
+      };
+    };
     customer: { select: { name: true; email: true } };
     receipts: { select: { amount: true; paidAt: true } };
   };
 }>;
+
+const listInclude = {
+  quote: { select: { id: true, title: true, quoteNumber: true, number: true } },
+  workOrder: {
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      builder: { select: { company: true, firstName: true, lastName: true, email: true } },
+    },
+  },
+  customer: { select: { name: true, email: true } },
+  receipts: { select: { amount: true, paidAt: true } },
+} as const;
 
 function listItem(inv: ListRow, now: Date) {
   const m = computeInvoiceMoney(inv, now);
@@ -99,8 +122,26 @@ function listItem(inv: ListRow, now: Date) {
     quote_id: inv.quoteId,
     quote_title: inv.quote?.title ?? null,
     quote_number: quoteNumberOf(inv.quote),
-    customer_name: inv.customer?.name || null,
-    customer_email: inv.customer?.email || null,
+    work_order_id: inv.workOrderId,
+    job_number: inv.workOrder?.number ?? null,
+    job_title: inv.workOrder?.title ?? null,
+    /** Short reference for lists: "Q-12" or "Job #7". */
+    source_ref: inv.quote
+      ? quoteNumberOf(inv.quote)
+      : inv.workOrder
+        ? inv.workOrder.number != null
+          ? `Job #${inv.workOrder.number}`
+          : "Job"
+        : null,
+    // Builder jobs are billed to the builder when the job has no customer.
+    customer_name:
+      inv.customer?.name ||
+      (inv.workOrder?.builder
+        ? inv.workOrder.builder.company ||
+          [inv.workOrder.builder.firstName, inv.workOrder.builder.lastName].filter(Boolean).join(" ").trim() ||
+          null
+        : null),
+    customer_email: inv.customer?.email || inv.workOrder?.builder?.email || null,
   };
 }
 
@@ -117,11 +158,13 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
-    tx.quoteInvoice.findMany({
-      where: { quoteId: inv.quoteId },
-      select: { id: true, invoiceNumber: true, invoiceType: true, amount: true, status: true },
-      orderBy: { createdAt: "asc" },
-    }),
+    inv.quoteId || inv.workOrderId
+      ? tx.quoteInvoice.findMany({
+          where: inv.quoteId ? { quoteId: inv.quoteId } : { workOrderId: inv.workOrderId },
+          select: { id: true, invoiceNumber: true, invoiceType: true, amount: true, status: true },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([] as { id: string; invoiceNumber: string | null; invoiceType: string; amount: Prisma.Decimal; status: string }[]),
   ]);
   const userIds = [
     ...new Set(
@@ -183,6 +226,23 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
           lead_id: inv.quote.leadId,
         }
       : null,
+    job: inv.workOrder
+      ? (() => {
+          const servicesTotal = inv.workOrder.lineItems.reduce((acc, li) => acc + dec(li.lineTotal), 0);
+          const jobTotal = Math.round(servicesTotal * 100) / 100;
+          return {
+            id: inv.workOrder.id,
+            number: inv.workOrder.number,
+            title: inv.workOrder.title,
+            address: inv.workOrder.address,
+            status: inv.workOrder.status,
+            total: jobTotal,
+            invoiced_total: Math.round(invoicedTotal * 100) / 100,
+            remaining_to_invoice: Math.max(0, Math.round((jobTotal - invoicedTotal) * 100) / 100),
+            url: `job-detail.html?id=${encodeURIComponent(inv.workOrder.id)}`,
+          };
+        })()
+      : null,
     sibling_invoices: siblings
       .filter((s) => s.id !== inv.id)
       .map((s) => ({
@@ -240,15 +300,19 @@ async function listInvoices(req: AuthedRequest, res: Response, next: (e: unknown
     const q = String(req.query.q || req.query.search || "").trim();
     const customerId = String(req.query.customer_id || "").trim();
     const quoteId = String(req.query.quote_id || "").trim();
+    const workOrderId = String(req.query.work_order_id || "").trim();
 
     const base: Prisma.QuoteInvoiceWhereInput = {};
     if (customerId && UUID_RE.test(customerId)) base.customerId = customerId;
     if (quoteId && UUID_RE.test(quoteId)) base.quoteId = quoteId;
+    if (workOrderId && UUID_RE.test(workOrderId)) base.workOrderId = workOrderId;
     if (q) {
       base.OR = [
         { invoiceNumber: { contains: q, mode: "insensitive" } },
         { quote: { quoteNumber: { contains: q, mode: "insensitive" } } },
         { quote: { title: { contains: q, mode: "insensitive" } } },
+        { workOrder: { title: { contains: q, mode: "insensitive" } } },
+        { workOrder: { builder: { company: { contains: q, mode: "insensitive" } } } },
         { customer: { name: { contains: q, mode: "insensitive" } } },
         { customer: { email: { contains: q, mode: "insensitive" } } },
       ];
@@ -285,11 +349,7 @@ async function listInvoices(req: AuthedRequest, res: Response, next: (e: unknown
         where.status = { not: "void" };
     }
 
-    const include = {
-      quote: { select: { id: true, title: true, quoteNumber: true, number: true } },
-      customer: { select: { name: true, email: true } },
-      receipts: { select: { amount: true, paidAt: true } },
-    } as const;
+    const include = listInclude;
 
     const [total, rows, all] = await withTenantTransaction(req.organizationId!, async (tx) => [
       await tx.quoteInvoice.count({ where }),
@@ -421,6 +481,76 @@ invoicesCrmRouter.get(
   },
 );
 
+/** Jobs (ordens de serviço) with value still to invoice — "Nova fatura" picker, fixed-price flow. */
+invoicesCrmRouter.get(
+  "/api/invoices/billable-jobs",
+  requireCrmAuth,
+  requireCrmPermission("invoices.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const q = String(req.query.q || "").trim();
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+        tx.workOrder.findMany({
+          where: {
+            status: { not: "canceled" },
+            lineItems: { some: {} },
+            ...(q
+              ? {
+                  OR: [
+                    { title: { contains: q, mode: "insensitive" } },
+                    { address: { contains: q, mode: "insensitive" } },
+                    { customer: { name: { contains: q, mode: "insensitive" } } },
+                    { builder: { company: { contains: q, mode: "insensitive" } } },
+                  ],
+                }
+              : {}),
+          },
+          select: {
+            id: true,
+            number: true,
+            title: true,
+            status: true,
+            scheduledStart: true,
+            customer: { select: { name: true } },
+            builder: { select: { company: true, firstName: true, lastName: true } },
+            lineItems: { select: { lineTotal: true } },
+            invoices: { select: { amount: true, status: true, receipts: { select: { amount: true } } } },
+          },
+          orderBy: [{ updatedAt: "desc" }],
+          take: 200,
+        }),
+      );
+      const data = rows
+        .map((r) => {
+          const total = r.lineItems.reduce((acc, li) => acc + dec(li.lineTotal), 0);
+          const billing = jobBilling(total, r.invoices);
+          const builderName = r.builder
+            ? r.builder.company || [r.builder.firstName, r.builder.lastName].filter(Boolean).join(" ").trim()
+            : null;
+          return {
+            id: r.id,
+            number: r.number,
+            title: r.title,
+            status: r.status,
+            scheduled_start: r.scheduledStart,
+            customer_name: r.customer?.name || builderName || null,
+            total: billing.services_total,
+            invoiced_total: billing.invoiced_total,
+            remaining_to_invoice: billing.remaining_to_invoice,
+            invoice_count: billing.invoice_count,
+          };
+        })
+        .filter((r) => r.remaining_to_invoice > 0.004)
+        // Finished work first — that is what is waiting to be billed.
+        .sort((a, b) => Number(b.status === "completed") - Number(a.status === "completed"))
+        .slice(0, 60);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Issue from a quote
 
@@ -438,11 +568,7 @@ invoicesCrmRouter.get(
         rows: await tx.quoteInvoice.findMany({
           where: { quoteId },
           orderBy: { createdAt: "asc" },
-          include: {
-            quote: { select: { id: true, title: true, quoteNumber: true, number: true } },
-            customer: { select: { name: true, email: true } },
-            receipts: { select: { amount: true, paidAt: true } },
-          },
+          include: listInclude,
         }),
       }));
       if (!quote) return fail(res, 404, "Orçamento não encontrado");
@@ -649,8 +775,22 @@ invoicesCrmRouter.patch(
           if (inv.receipts.length) {
             return { error: "Não dá para mudar o valor de uma fatura com pagamentos.", status: 409 } as const;
           }
-          const others = await invoicedTotalForQuote(tx, inv.quoteId, inv.id);
-          const quoteTotal = inv.quote ? dec(inv.quote.total) : 0;
+          if (!inv.quote && inv.lineItems.length > 1) {
+            return {
+              error: "Fatura com os serviços do job: ajuste os serviços no job e emita de novo.",
+              status: 409,
+            } as const;
+          }
+          const others = inv.quoteId
+            ? await invoicedTotalForQuote(tx, inv.quoteId, inv.id)
+            : inv.workOrderId
+              ? await invoicedTotalForJob(tx, inv.workOrderId, inv.id)
+              : 0;
+          const quoteTotal = inv.quote
+            ? dec(inv.quote.total)
+            : inv.workOrder
+              ? inv.workOrder.lineItems.reduce((acc, li) => acc + dec(li.lineTotal), 0)
+              : 0;
           if (others + b.amount > quoteTotal + 0.004) {
             return {
               error: `Valor acima do que falta faturar ($${Math.max(0, quoteTotal - others).toFixed(2)}).`,

@@ -31,7 +31,8 @@ function palette(brandPrimary?: string | null, brandAccent?: string | null) {
 
 function money(n: number): string {
   const x = Number(n) || 0;
-  return `$${x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const s = Math.abs(x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return x < 0 ? `-$${s}` : `$${s}`;
 }
 
 function fmtDate(d: Date | string | null | undefined): string {
@@ -70,6 +71,8 @@ export type InvoicePdfInput = {
   invoiceNumber: string;
   kindLabel: string;
   quoteNumber?: string | null;
+  /** Job reference ("#12") for invoices issued straight from a job. */
+  jobNumber?: string | null;
   projectName?: string | null;
   issueDate?: Date | null;
   dueDate?: Date | null;
@@ -246,6 +249,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     ["Due date", fmtDate(input.dueDate)],
   ];
   if (input.quoteNumber) meta.push(["Quote #", input.quoteNumber]);
+  if (input.jobNumber) meta.push(["Job", input.jobNumber]);
   if (input.projectName) meta.push(["Project", input.projectName]);
   let my = y;
   for (const [k, v] of meta) {

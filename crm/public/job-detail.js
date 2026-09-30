@@ -10,6 +10,10 @@
   let reviewReq = null;
   let orgSlug = null;
   let commsCtl = null;
+  let canBill = false;
+  let canInvoice = false;
+  let billingCtl = null;
+  let billingJobId = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -263,6 +267,8 @@
     renderReports();
     renderProposals();
     renderMarketing();
+    renderBilling();
+
 
     if (!canManage) {
       ["btnEditJob", "btnEditJobAll", "btnDeleteJob", "btnSaveNotes", "btnManageTeam", "btnEditServices", "btnEditDetails", "btnEditScheduleSection", "btnEditScheduleMeta", "btnEditScheduleMeta2", "btnEditTeamMeta", "btnCreateProposal", "btnCreateProposalAi"].forEach((id) => {
@@ -271,6 +277,49 @@
       });
       $("jobNotes").readOnly = true;
     }
+  }
+
+  function renderRail(b) {
+    const m = (n) => (window.JobBilling ? window.JobBilling.money(n) : `$${(Number(n) || 0).toFixed(2)}`);
+    const set = (id, v) => {
+      const el = $(id);
+      if (el) el.textContent = v;
+    };
+    set("jobRailTotal", m(job?.services_total));
+    set("jobRailInvoiced", b ? m(b.invoiced_total) : "—");
+    set("jobRailPaid", b ? m(b.paid_total) : "—");
+    set("jobRailOpen", b ? m(b.open_balance) : "—");
+    set("jobRailToInvoice", b ? m(b.remaining_to_invoice) : "—");
+  }
+
+  function renderBilling() {
+    const card = $("jobBillingCard");
+    const body = $("jobBillingBody");
+    if (!card || !body || !window.JobBilling) return;
+    card.hidden = !canBill;
+    const rail = document.querySelector(".job-rail-total");
+    if (rail) rail.style.display = canBill ? "" : "none";
+    if (!canBill) return;
+    const all = $("jobBillingAll");
+    if (all) all.href = `invoices.html?q=${encodeURIComponent(job.number != null ? `Job #${job.number}` : job.title || "")}`;
+    const chipEl = $("jobBillingChip");
+    if (chipEl) chipEl.innerHTML = window.JobBilling.chip(job.billing);
+    renderRail(job.billing);
+    if (billingCtl && billingJobId === job.id) {
+      billingCtl.setJobStatus(job.status);
+      billingCtl.refresh().catch(() => {});
+      return;
+    }
+    billingJobId = job.id;
+    billingCtl = window.JobBilling.mountCard(body, {
+      jobId: job.id,
+      jobStatus: job.status,
+      canManage: canInvoice,
+      onChange: (b) => {
+        if (chipEl) chipEl.innerHTML = window.JobBilling.chip(b);
+        renderRail(b);
+      },
+    });
   }
 
   function stageLabel(stage) {
@@ -526,6 +575,13 @@
   }
 
   function renderProposals() {
+    // Fixed-price jobs (Builder / Contractor / Loja) are billed from the table — no quote.
+    const proposalCard = $("jobProposalCard");
+    if (proposalCard && job) {
+      const src = String(job.source_type || "").toLowerCase();
+      const b2b = src === "builder" || src === "contractor" || src === "loja" || Boolean(job.builder_id);
+      proposalCard.hidden = b2b && !proposals.length;
+    }
     const body = $("jobProposalBody");
     if (!body) return;
     if (!proposals.length) {
@@ -783,6 +839,8 @@
       const perms = s.user?.permissions || [];
       const role = s.user?.role || "";
       canManage = role === "admin" || perms.includes("work_orders.manage");
+      canBill = role === "admin" || perms.includes("invoices.view");
+      canInvoice = role === "admin" || perms.includes("invoices.manage");
       orgSlug = s.organization?.slug || s.user?.organization?.slug || null;
       if (!canManage) {
         const addBtn = $("btnAddJobPhoto");
@@ -922,6 +980,14 @@
       });
 
       await loadJob();
+
+      // Deep link from the Jobs list ("Faturar"): open the billing dialog straight away.
+      if (new URLSearchParams(location.search).get("faturar") === "1" && canInvoice && window.JobBilling) {
+        const b = await window.JobBilling.load(jobId).catch(() => null);
+        if (b?.billing?.remaining_to_invoice > 0.004) {
+          window.JobBilling.openDialog({ jobId, billing: b.billing, jobStatus: job?.status });
+        }
+      }
     } catch (err) {
       notify(err.message || "Falha ao carregar job", "error");
       window.location.href = "jobs.html";

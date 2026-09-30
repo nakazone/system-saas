@@ -1,6 +1,7 @@
 (function () {
   let canManage = false;
   let allJobs = [];
+  let canBill = false;
 
   function $(id) {
     return document.getElementById(id);
@@ -106,6 +107,24 @@
     set("ovDone", done);
     set("ovNext30", next30);
     set("ovPast30", past30);
+
+    // Fixed-price jobs: finished work that still has to be billed.
+    const billCard = $("ovBillCard");
+    if (billCard && canBill && !$("filterBilling")?.value) {
+      const toBill = rows.filter(
+        (wo) => wo.status === "completed" && wo.billing && wo.billing.remaining_to_invoice > 0.004,
+      );
+      const amt = toBill.reduce((s, wo) => s + (Number(wo.billing.remaining_to_invoice) || 0), 0);
+      set("ovToBill", toBill.length);
+      set("ovToBillAmt", `${money(amt)} para faturar`);
+      billCard.hidden = false;
+      const promo = $("ovPromoCard");
+      if (promo) promo.hidden = true;
+    }
+  }
+
+  function money(n) {
+    return (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
   }
 
   function renderTable(rows) {
@@ -114,7 +133,7 @@
     if (countEl) countEl.textContent = `(${rows.length} result${rows.length === 1 ? "" : "s"})`;
     if (!tbody) return;
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="jobs-empty">Nenhum job encontrado.</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="${canBill ? 7 : 6}" class="jobs-empty">Nenhum job encontrado.</td></tr>`;
       return;
     }
     tbody.innerHTML = rows
@@ -125,6 +144,15 @@
           <td class="jobs-table__muted">${escapeHtml(wo.address || "—")}</td>
           <td>${escapeHtml(fmtSchedule(wo.scheduled_start, wo.scheduled_end))}</td>
           <td><span class="job-status is-${escapeHtml(wo.status)}">${escapeHtml(statusLabel(wo.status))}</span></td>
+          ${
+            canBill
+              ? `<td class="jobs-table__bill">${
+                  Number(wo.services_total) > 0
+                    ? `<strong>${escapeHtml(money(wo.services_total))}</strong> ${window.JobBilling ? window.JobBilling.chip(wo.billing) : ""}`
+                    : '<span class="jobs-table__muted">—</span>'
+                }</td>`
+              : ""
+          }
           <td class="jobs-table__muted">${escapeHtml(wo.assigned_user?.name || "—")}</td>
         </tr>`;
       })
@@ -140,7 +168,9 @@
     const q = $("filterQ").value.trim();
     const status = $("filterStatus").value;
     const source = $("filterSource").value;
+    const billing = $("filterBilling")?.value || "";
     const params = new URLSearchParams();
+    if (billing && canBill) params.set("billing", billing);
     if (q) params.set("q", q);
     if (status) params.set("status", status);
     if (source) params.set("source", source);
@@ -161,6 +191,19 @@
       const perms = s.user?.permissions || [];
       const role = s.user?.role || "";
       canManage = role === "admin" || perms.includes("work_orders.manage");
+      canBill = role === "admin" || perms.includes("invoices.view");
+      if (canBill) {
+        document.querySelectorAll(".jobs-col-billing").forEach((el) => (el.hidden = false));
+        const w = $("filterBillingWrap");
+        if (w) w.hidden = false;
+        const qp = new URLSearchParams(location.search).get("billing");
+        if (qp && $("filterBilling")) $("filterBilling").value = qp;
+        $("ovBillCard")?.addEventListener("click", () => {
+          $("filterBilling").value = "to_invoice";
+          $("filterStatus").value = "";
+          loadJobs().catch(() => {});
+        });
+      }
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
       const sn = $("sidebarUserName");
@@ -178,7 +221,7 @@
         window.__crmJobModal.openCreate().catch((e) => notify(e.message, "error"));
       });
       $("btnReload")?.addEventListener("click", () => loadJobs().catch((e) => notify(e.message, "error")));
-      ["filterQ", "filterStatus", "filterSource"].forEach((id) => {
+      ["filterQ", "filterStatus", "filterSource", "filterBilling"].forEach((id) => {
         const el = $(id);
         if (!el) return;
         el.addEventListener("change", () => loadJobs().catch(() => {}));

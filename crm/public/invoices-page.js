@@ -106,8 +106,8 @@
         const [label, cls] = STATUS[inv.display_status] || STATUS.sent;
         const open = inv.display_status !== 'paid' && inv.display_status !== 'void';
         return `<a class="inv-trow" role="row" href="invoice.html?id=${encodeURIComponent(inv.id)}">
-          <span class="inv-trow__who" role="cell"><b>${esc(inv.customer_name || inv.quote_title || '—')}</b><small>${esc(inv.quote_title || '')}</small></span>
-          <span class="inv-trow__num" role="cell">${esc(inv.invoice_number || '—')}<small>${esc(inv.invoice_type_label)}${inv.quote_number ? ` · ${esc(inv.quote_number)}` : ''}</small></span>
+          <span class="inv-trow__who" role="cell"><b>${esc(inv.customer_name || inv.quote_title || inv.job_title || '—')}</b><small>${esc(inv.quote_title || inv.job_title || '')}</small></span>
+          <span class="inv-trow__num" role="cell">${esc(inv.invoice_number || '—')}<small>${esc(inv.invoice_type_label)}${inv.source_ref ? ` · ${esc(inv.source_ref)}` : ''}</small></span>
           <span class="inv-trow__pay" role="cell">${money(inv.paid_amount)} de ${money(inv.amount)}<div class="inv-progress"><span style="width:${inv.percent_paid}%"></span></div></span>
           ${dueCell(inv)}
           <span class="inv-trow__st" role="cell"><span class="inv-chip ${cls}">${esc(label)}</span></span>
@@ -170,8 +170,21 @@
   async function loadBillable() {
     const q = $('newQ').value.trim();
     try {
-      const j = await api(`/api/invoices/billable-quotes${q ? `?q=${encodeURIComponent(q)}` : ''}`);
-      billable = j.data || [];
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      // Jobs (fixed table prices, no quote) first — that is the day-to-day billing for builders/lojas.
+      const [jobs, quotes] = await Promise.all([
+        api(`/api/invoices/billable-jobs${qs}`).catch(() => ({ data: [] })),
+        api(`/api/invoices/billable-quotes${qs}`),
+      ]);
+      billable = [
+        ...(jobs.data || []).map((j) => ({
+          ...j,
+          kind: 'job',
+          key: `job:${j.id}`,
+          ref: j.number != null ? `Job #${j.number}` : 'Job',
+        })),
+        ...(quotes.data || []).map((x) => ({ ...x, kind: 'quote', key: `quote:${x.id}`, ref: x.number || '' })),
+      ];
       renderPick();
     } catch (err) {
       $('newPick').innerHTML = `<p class="inv-empty">${esc(err.message)}</p>`;
@@ -180,20 +193,21 @@
   function renderPick() {
     if (!billable.length) {
       $('newPick').innerHTML =
-        '<p class="inv-empty">Nenhum orçamento aprovado com valor a faturar. Aprove um orçamento em <a href="quotes.html">Orçamentos</a> primeiro.</p>';
+        '<p class="inv-empty">Nada para faturar. Adicione os serviços a um job em <a href="jobs.html">Jobs</a> ou aprove um orçamento em <a href="quotes.html">Orçamentos</a>.</p>';
       return;
     }
-    $('newPick').innerHTML = billable
-      .map(
-        (q) => `<button type="button" data-id="${esc(q.id)}" class="${picked && picked.id === q.id ? 'is-selected' : ''}">
+    const item = (q) => `<button type="button" data-id="${esc(q.key)}" class="${picked && picked.key === q.key ? 'is-selected' : ''}">
           <b>${esc(q.customer_name || q.title)}</b><span class="r"><b>${money(q.remaining_to_invoice)}</b></span>
-          <small>${esc(q.number || '')} · ${esc(q.title)}</small><small class="r">${q.invoiced_total > 0 ? `de ${money(q.total)}` : 'a faturar'}</small>
-        </button>`,
-      )
-      .join('');
+          <small>${esc(q.ref)} · ${esc(q.title)}${q.kind === 'job' && q.status === 'completed' ? ' · concluído' : ''}</small><small class="r">${q.invoiced_total > 0 ? `de ${money(q.total)}` : 'a faturar'}</small>
+        </button>`;
+    const jobs = billable.filter((x) => x.kind === 'job');
+    const quotes = billable.filter((x) => x.kind === 'quote');
+    $('newPick').innerHTML =
+      (jobs.length ? `<p class="inv-pick__group">Jobs · tabela de valores</p>${jobs.map(item).join('')}` : '') +
+      (quotes.length ? `<p class="inv-pick__group">Orçamentos aprovados</p>${quotes.map(item).join('')}` : '');
     $('newPick').querySelectorAll('[data-id]').forEach((b) =>
       b.addEventListener('click', () => {
-        picked = billable.find((x) => x.id === b.dataset.id);
+        picked = billable.find((x) => x.key === b.dataset.id);
         renderPick();
         const partial = picked.invoiced_total > 0.004;
         $('newFullOpt').hidden = partial;
@@ -248,7 +262,9 @@
     btn.textContent = 'Criando…';
     try {
       const k = newKind();
-      const r = await api(`/api/quotes/${picked.id}/invoices`, {
+      const target =
+        picked.kind === 'job' ? `/api/work-orders/${picked.id}/invoices` : `/api/quotes/${picked.id}/invoices`;
+      const r = await api(target, {
         method: 'POST',
         body: JSON.stringify({
           invoice_type: k,
@@ -279,6 +295,7 @@
     } catch (_) {
       /* api() already redirects on 401 */
     }
+    if (url.get('q') && $('filterQ')) $('filterQ').value = url.get('q');
     $('btnNewInvoice').hidden = !can('invoices.manage');
     $('btnNewInvoice').addEventListener('click', openNew);
     document.querySelectorAll('.inv-tab, .inv-kpi').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));

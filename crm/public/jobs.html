@@ -16,11 +16,12 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260930-maismob1" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20260929-customprice1" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261001-jobinv1" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob3" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260930-ipad1" />
-  <link rel="stylesheet" href="jobs.css?v=20260925-jcm2" />
+  <link rel="stylesheet" href="jobs.css?v=20261001-jobinv1" />
+  <link rel="stylesheet" href="crm-job-billing.css?v=20261001-jobinv1" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20260930-ipad1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20260925-device1"></script>
@@ -130,7 +131,12 @@
             <div class="jobs-ov-card__stat" id="ovPast30">0</div>
             <div class="jobs-ov-card__sub">Jobs concluídos recentemente</div>
           </div>
-          <div class="jobs-ov-card jobs-ov-card--promo">
+          <button type="button" class="jobs-ov-card jobs-ov-card--bill" id="ovBillCard" hidden>
+            <p class="jobs-ov-card__title">Concluídos a faturar</p>
+            <div class="jobs-ov-card__stat" id="ovToBill">0</div>
+            <div class="jobs-ov-card__sub" id="ovToBillAmt">$0.00 para faturar</div>
+          </button>
+          <div class="jobs-ov-card jobs-ov-card--promo" id="ovPromoCard">
             <p>Organize a equipa e os jobs no Schedule.</p>
             <a href="schedule.html">Abrir Schedule →</a>
           </div>
@@ -162,6 +168,14 @@
               <option value="other">Other</option>
             </select>
           </label>
+          <label id="filterBillingWrap" hidden>Cobrança
+            <select id="filterBilling">
+              <option value="">Todos</option>
+              <option value="to_invoice">Concluídos a faturar</option>
+              <option value="awaiting_payment">Aguardando pagamento</option>
+              <option value="paid">Pagos</option>
+            </select>
+          </label>
           <label class="grow">Search
             <input type="search" id="filterQ" placeholder="Search jobs…" />
           </label>
@@ -177,6 +191,7 @@
                 <th>Property</th>
                 <th>Schedule</th>
                 <th>Status</th>
+                <th class="jobs-col-billing" hidden>Valor</th>
                 <th>Assigned</th>
               </tr>
             </thead>
@@ -197,8 +212,9 @@
   <script src="crm-shared-nav.js?v=20261001-inv1"></script>
   <script src="crm-shell.js?v=20260930-maismob3"></script>
   <script src="om-mobile-nav.js?v=20261001-inv1"></script>
-  <script src="crm-job-modal.js?v=20260929-customprice1"></script>
-  <script src="jobs.js?v=20260930-maismob4"></script>
-  <script src="jobs-mobile.js?v=20260930-maismob4"></script>
+  <script src="crm-job-modal.js?v=20261001-jobinv1"></script>
+  <script src="crm-job-billing.js?v=20261001-jobinv1"></script>
+  <script src="jobs.js?v=20261001-jobinv1"></script>
+  <script src="jobs-mobile.js?v=20261001-jobinv1"></script>
 </body>
 </html>

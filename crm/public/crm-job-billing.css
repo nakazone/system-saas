@@ -1,0 +1,124 @@
+/* Job billing — Faturamento card, billing chips and the "Faturar job" dialog.
+   Paid uses carvão (no green, per brand); money to collect uses terracota. */
+
+.jb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.jb-chip--to_invoice { background: #fbe9dc; color: #9a4a1c; border-color: #f2c9a8; }
+.jb-chip--partially_invoiced { background: #fff4e5; color: #8a5a12; border-color: #f3dcb4; }
+.jb-chip--awaiting_payment { background: #fff; color: #211d1a; border-color: #cfc5b7; }
+.jb-chip--paid { background: #211d1a; color: #f7f4ee; }
+.jb-chip--no_value { background: #f3efe8; color: #8a8074; }
+
+/* Card */
+.jb-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+}
+.jb-stat {
+  background: #f7f4ee;
+  border: 1px solid #ece4d8;
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  min-width: 0;
+}
+.jb-stat__k { display: block; font-size: 0.7rem; font-weight: 600; color: #8a8074; text-transform: uppercase; letter-spacing: 0.04em; }
+.jb-stat__v { display: block; margin-top: 0.15rem; font-size: 1.02rem; font-weight: 800; color: #211d1a; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.jb-stat--accent .jb-stat__v { color: #c1652f; }
+
+.jb-bar { height: 6px; border-radius: 999px; background: #efe8dc; overflow: hidden; margin: -0.35rem 0 0.9rem; display: flex; }
+.jb-bar__paid { background: #211d1a; }
+.jb-bar__open { background: #e8792c; }
+
+.jb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.jb-inv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ece4d8;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  background: #fff;
+}
+.jb-inv:hover { border-color: #e8792c; }
+.jb-inv__main { min-width: 0; }
+.jb-inv__num { font-weight: 700; font-size: 0.9rem; }
+.jb-inv__sub { display: block; font-size: 0.78rem; color: #8a8074; }
+.jb-inv__amt { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.jb-inv__amt small { display: block; font-weight: 500; font-size: 0.74rem; color: #8a8074; }
+
+.jb-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+.jb-empty { margin: 0; padding: 0.25rem 0 0; color: #8a8074; font-size: 0.88rem; }
+
+/* Dialog */
+.jb-backdrop { position: fixed; inset: 0; background: rgba(33, 29, 26, 0.45); z-index: 1200; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; }
+.jb-backdrop.is-open { opacity: 1; pointer-events: auto; }
+.jb-dialog {
+  position: fixed;
+  z-index: 1201;
+  left: 50%;
+  top: 50%;
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  transform: translate(-50%, -48%);
+  opacity: 0;
+  pointer-events: none;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(33, 29, 26, 0.25);
+  padding: 1.25rem 1.25rem 1rem;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.jb-dialog.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
+.jb-dialog h2 { margin: 0 0 0.2rem; font-size: 1.1rem; }
+.jb-dialog__sub { margin: 0 0 1rem; color: #6b645c; font-size: 0.86rem; }
+.jb-opts { display: grid; gap: 0.45rem; margin-bottom: 0.9rem; }
+.jb-opt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.7rem 0.8rem;
+  border: 1.5px solid #e2d9cc;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.jb-opt:has(input:checked) { border-color: #e8792c; background: #fdf6f0; }
+.jb-opt input[type="radio"] { accent-color: #e8792c; margin: 0; }
+.jb-opt__t { font-weight: 700; font-size: 0.92rem; }
+.jb-opt__d { display: block; font-weight: 400; font-size: 0.78rem; color: #8a8074; }
+.jb-opt__v { font-weight: 800; font-variant-numeric: tabular-nums; }
+.jb-opt__inp { width: 5.5rem; padding: 0.35rem 0.45rem; border: 1px solid #e2d9cc; border-radius: 8px; font: inherit; text-align: right; }
+.jb-field { display: grid; gap: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #6b645c; margin-bottom: 0.9rem; }
+.jb-field input { padding: 0.55rem 0.65rem; border: 1px solid #e2d9cc; border-radius: 10px; font: inherit; font-weight: 400; color: #211d1a; }
+.jb-dialog__foot { display: flex; justify-content: flex-end; gap: 0.5rem; padding-top: 0.25rem; }
+.jb-err { color: #b42318; font-size: 0.84rem; margin: -0.35rem 0 0.75rem; }
+
+@media (max-width: 640px) {
+  .jb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .jb-dialog { top: auto; bottom: 0; left: 0; width: 100vw; max-height: 88vh; border-radius: 18px 18px 0 0; transform: translateY(12px); }
+  .jb-dialog.is-open { transform: translateY(0); }
+  .jb-inv {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "main amt" "chip amt";
+    row-gap: 0.35rem;
+  }
+  .jb-inv__main { grid-area: main; }
+  .jb-inv .jb-chip { grid-area: chip; justify-self: start; }
+  .jb-inv__amt { grid-area: amt; align-self: center; }
+}

@@ -24,6 +24,19 @@ export const invoiceDetailInclude = {
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
     },
   },
+  workOrder: {
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      address: true,
+      status: true,
+      scheduledStart: true,
+      builderId: true,
+      builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
+      lineItems: { select: { lineTotal: true } },
+    },
+  },
   customer: { select: { id: true, name: true, email: true, phone: true } },
   lineItems: { orderBy: { sortOrder: "asc" as const } },
   receipts: { orderBy: { paidAt: "asc" as const } },
@@ -36,7 +49,35 @@ export function quoteNumberOf(q: { quoteNumber: string | null; number: number } 
   return q.quoteNumber || (q.number != null ? `Q-${q.number}` : null);
 }
 
+/** "Job #12" — the job reference printed on job invoices. */
+export function jobNumberOf(wo: { number: number | null } | null | undefined): string | null {
+  if (!wo) return null;
+  return wo.number != null ? `#${wo.number}` : null;
+}
+
+/** Project line on documents: quote property/title, or the job title + address. */
+export function projectNameOf(inv: Pick<InvoiceDetail, "quote" | "workOrder">): string | null {
+  if (inv.quote) return inv.quote.property?.label || inv.quote.title || null;
+  if (inv.workOrder) {
+    return [inv.workOrder.title, inv.workOrder.address].filter(Boolean).join(" · ") || null;
+  }
+  return null;
+}
+
 export function clientOf(inv: InvoiceDetail): DocClient {
+  if (!inv.quote && inv.workOrder) {
+    const wo = inv.workOrder;
+    const b = wo.builder;
+    const builderName = b ? b.company || [b.firstName, b.lastName].filter(Boolean).join(" ").trim() : null;
+    // Job billed to the customer when one is set; otherwise to the builder.
+    const useBuilder = !inv.customer && Boolean(b);
+    return {
+      name: (useBuilder ? builderName : inv.customer?.name) || builderName || null,
+      email: (useBuilder ? b?.email : inv.customer?.email) || inv.customer?.email || b?.email || null,
+      phone: (useBuilder ? b?.phone : inv.customer?.phone) || inv.customer?.phone || b?.phone || null,
+      address: wo.address || null,
+    };
+  }
   const q = inv.quote;
   const builderName = q?.builder
     ? q.builder.company || [q.builder.firstName, q.builder.lastName].filter(Boolean).join(" ").trim()
@@ -90,7 +131,8 @@ export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: str
     invoiceNumber: inv.invoiceNumber || "Invoice",
     kindLabel: invoiceKindLabel(inv.invoiceType),
     quoteNumber: quoteNumberOf(inv.quote),
-    projectName: inv.quote?.property?.label || inv.quote?.title || null,
+    jobNumber: jobNumberOf(inv.workOrder),
+    projectName: projectNameOf(inv),
     issueDate: inv.issuedAt || inv.createdAt,
     dueDate: inv.dueDate,
     lines: inv.lineItems.map((l) => ({
@@ -141,7 +183,7 @@ export function receiptPdfInput(
     invoiceTotal: m.amount,
     paidToDate: m.paid,
     balance: m.balance,
-    projectName: inv.quote?.property?.label || inv.quote?.title || null,
+    projectName: projectNameOf(inv),
   };
 }
 

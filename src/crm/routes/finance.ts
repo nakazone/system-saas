@@ -202,6 +202,7 @@ financeRouter.get(
           where: { status: { in: ["sent", "partially_paid"] } },
           include: {
             customer: { select: { id: true, name: true } },
+            workOrder: { select: { id: true, number: true, builder: { select: { company: true, firstName: true, lastName: true } } } },
             receipts: { select: { amount: true, paidAt: true } },
           },
           orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
@@ -216,7 +217,15 @@ financeRouter.get(
             id: inv.id,
             invoice_number: inv.invoiceNumber,
             status: inv.status,
-            customer_name: inv.customer?.name || "—",
+            customer_name:
+              inv.customer?.name ||
+              (inv.workOrder?.builder
+                ? inv.workOrder.builder.company ||
+                  [inv.workOrder.builder.firstName, inv.workOrder.builder.lastName].filter(Boolean).join(" ").trim()
+                : "") ||
+              "—",
+            work_order_id: inv.workOrderId,
+            job_number: inv.workOrder?.number ?? null,
             customer_id: inv.customerId,
             amount: money(total),
             paid: money(paid),

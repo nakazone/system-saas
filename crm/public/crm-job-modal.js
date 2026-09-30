@@ -16,6 +16,7 @@
   let tempWorkersCache = [];
   let pricingCatalog = [];
   let customerOptions = [];
+  let builderOptions = [];
   let selectedCustomerPricingMode = "table";
   let selectedCustomerCustomRates = {};
   let serviceRows = [];
@@ -184,9 +185,10 @@
           Serviços
           <span class="jobs-tip">
             <button type="button" class="jobs-tip__btn" aria-label="Ajuda: serviços">?</button>
-            <span class="jobs-tip__pop" role="tooltip">Ao escolher o serviço, quantidade e preço vêm da Tabela de Valores conforme a origem do job (Particular, Builder, Contractor ou Loja).</span>
+            <span class="jobs-tip__pop" role="tooltip">O preço vem da Tabela de Valores na coluna da origem do job (Particular, Builder, Contractor ou Loja) — ou da tabela personalizada do cliente. Estes serviços viram a fatura do job.</span>
           </span>
         </legend>
+        <p class="jobs-hint" id="jobPricingContext" style="margin:0 0 0.5rem"></p>
         <div id="jobServicesList" class="jobs-services-list"></div>
         <div class="jobs-services-footer">
           <button type="button" class="btn btn-secondary btn-sm" id="btnAddService">+ Serviço</button>
@@ -230,12 +232,24 @@
     return (Number(n) || 0).toLocaleString(undefined, { style: "currency", currency: "USD" });
   }
 
+  /** Tabela de Valores column: follows the job's Origem (set from the customer's or builder's type). */
   function pricingRateKey() {
     const src = String($("jobSourceType")?.value || "").toLowerCase();
-    if ($("jobBuilder")?.value || src === "builder") return "price_builder";
+    if (src === "builder") return "price_builder";
     if (src === "contractor") return "price_contractor";
     if (src === "loja" || src === "internal") return "price_loja";
     return "price_particular";
+  }
+
+  function pricingContextLabel() {
+    if (selectedCustomerPricingMode === "custom") return "Preços: tabela personalizada do cliente";
+    const map = {
+      price_builder: "Builder",
+      price_contractor: "Contractor",
+      price_loja: "Loja",
+      price_particular: "Particular",
+    };
+    return `Preços: Tabela de Valores · ${map[pricingRateKey()]}`;
   }
 
   function formatPricingUnit(unit) {
@@ -383,6 +397,8 @@
     const total = serviceRows.reduce((s, r) => s + (Number(r.quantity_sqft) || 0) * (Number(r.unit_price) || 0), 0);
     const el = $("jobServicesTotal");
     if (el) el.textContent = `Total: ${money(total)}`;
+    const ctx = $("jobPricingContext");
+    if (ctx) ctx.textContent = pricingContextLabel();
   }
 
   function collectServiceRowsFromDom() {
@@ -636,6 +652,7 @@
     }));
 
     const bList = Array.isArray(builders.data) ? builders.data : [];
+    builderOptions = bList;
     fillSelect($("jobBuilder"), bList, (b) => ({
       value: b.id,
       label: b.company || b.name || [b.first_name, b.last_name].filter(Boolean).join(" ") || b.id,
@@ -665,6 +682,31 @@
       if (["particular", "builder", "contractor", "loja"].includes(t) && $("jobSourceType")) {
         $("jobSourceType").value = t;
       }
+      const addr = $("jobAddress");
+      if (addr && !addr.value.trim() && cust.address) addr.value = cust.address;
+    }
+    refreshPricesFromCatalog();
+  }
+
+  /** Picking a builder bills the job to them: Origem follows the builder's type, prices follow. */
+  function applyBuilderPricingContext() {
+    const bid = $("jobBuilder")?.value;
+    const b = bid ? builderOptions.find((x) => String(x.id) === String(bid)) : null;
+    const srcEl = $("jobSourceType");
+    if (b && srcEl) {
+      const cur = String(srcEl.value || "").toLowerCase();
+      // A customer with its own type keeps priority; otherwise use the builder's type.
+      const custSet = Boolean($("jobCustomer")?.value);
+      if (!custSet || cur === "particular" || cur === "other" || !cur) {
+        const t = String(b.type || "builder").toLowerCase();
+        srcEl.value = ["builder", "contractor", "loja"].includes(t) ? t : "builder";
+      }
+      const nameEl = $("jobSourceName");
+      if (nameEl && !nameEl.value.trim()) {
+        nameEl.value = b.company || b.name || [b.first_name, b.last_name].filter(Boolean).join(" ") || "";
+      }
+      const addr = $("jobAddress");
+      if (addr && !addr.value.trim() && b.address && !custSet) addr.value = b.address;
     }
     refreshPricesFromCatalog();
   }
@@ -1023,7 +1065,7 @@
     });
     $("btnAddService")?.addEventListener("click", () => addServiceRow());
     $("jobSourceType")?.addEventListener("change", () => refreshPricesFromCatalog());
-    $("jobBuilder")?.addEventListener("change", () => refreshPricesFromCatalog());
+    $("jobBuilder")?.addEventListener("change", () => applyBuilderPricingContext());
     $("jobCustomer")?.addEventListener("change", () => applyCustomerPricingContext());
     const onServicePricingChange = (e) => {
       const t = e.target;

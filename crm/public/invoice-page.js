@@ -17,7 +17,7 @@
       .replace(/"/g, '&quot;');
   }
   function money(n) {
-    return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (Number(n) < 0 ? '-$' : '$') + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function dateObj(d) {
     if (!d) return null;
@@ -81,6 +81,9 @@
       inv.client && inv.client.name ? `<b>${esc(inv.client.name)}</b>` : '',
       esc(inv.invoice_type_label),
       inv.quote ? `Orçamento <a href="quote-builder.html?id=${encodeURIComponent(inv.quote.id)}">${esc(inv.quote.number || '')}</a>` : '',
+      !inv.quote && inv.job
+        ? `<a href="${esc(inv.job.url)}">Job ${inv.job.number != null ? `#${esc(inv.job.number)}` : ''}</a>`
+        : '',
     ]
       .filter(Boolean)
       .join(' · ');
@@ -305,15 +308,24 @@
 
   function renderQuote() {
     const card = $('invQuoteCard');
-    if (!inv.quote) {
+    if (!inv.quote && !inv.job) {
       card.hidden = true;
       return;
     }
     card.hidden = false;
-    const q = inv.quote;
+    const isJob = !inv.quote;
+    $('invQuoteCardTitle').textContent = isJob ? 'Job' : 'Orçamento';
+    const q = isJob
+      ? {
+          ...inv.job,
+          number: inv.job.number != null ? `Job #${inv.job.number}` : 'Job',
+          title: [inv.job.title, inv.job.address].filter(Boolean).join(' · '),
+        }
+      : inv.quote;
+    const href = isJob ? q.url : `quote-builder.html?id=${encodeURIComponent(q.id)}`;
     const pct = q.total > 0 ? Math.min(100, Math.round((q.invoiced_total / q.total) * 100)) : 0;
     $('invQuote').innerHTML = `
-      <a class="inv-quote-link" href="quote-builder.html?id=${encodeURIComponent(q.id)}">
+      <a class="inv-quote-link" href="${esc(href)}">
         <span><b>${esc(q.number || 'Orçamento')}</b><small>${esc(q.title || '')}</small></span>
         <span>${money(q.total)}</span>
       </a>
@@ -827,13 +839,18 @@
     $('editDue').value = inv.due_date ? isoDay(inv.due_date) : '';
     $('editAmount').value = Number(inv.amount).toFixed(2);
     const locked = inv.payments.length > 0;
-    $('editAmount').disabled = locked;
-    const max = inv.quote ? inv.quote.remaining_to_invoice + inv.amount : null;
+    const src = inv.quote || inv.job;
+    const max = src ? src.remaining_to_invoice + inv.amount : null;
+    // Job invoices listing every service are changed through the job's services.
+    const itemizedJob = !inv.quote && inv.job && inv.line_items.length > 1;
+    $('editAmount').disabled = locked || itemizedJob;
     $('editAmountHint').textContent = locked
       ? 'Valor bloqueado: a fatura já tem pagamentos.'
-      : max != null
-        ? `Máximo ${money(max)} (o que falta faturar do orçamento).`
-        : '';
+      : itemizedJob
+        ? 'Valor vem dos serviços do job — ajuste os serviços no job.'
+        : max != null
+          ? `Máximo ${money(max)} (o que falta faturar do ${inv.quote ? 'orçamento' : 'job'}).`
+          : '';
     const single = inv.line_items.length === 1;
     $('editLine').value = single ? inv.line_items[0].description : '';
     $('editLine').closest('.inv-field').hidden = !single;
