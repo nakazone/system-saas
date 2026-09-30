@@ -140,20 +140,54 @@
       const isTablet =
         (window.__omDevice && typeof window.__omDevice.isTablet === "function" && window.__omDevice.isTablet()) ||
         document.body.classList.contains("om-device-tablet");
+      // Honor ?view= from the other screen; never overwrite an explicit list preference on boot.
+      try {
+        const params = new URLSearchParams(location.search);
+        const qView = params.get("view");
+        if (qView === "list" || qView === "kanban") {
+          localStorage.setItem("obramate_leads_view", qView);
+        }
+      } catch (_) {}
       if (viewToggle && isTablet) {
         viewToggle.hidden = false;
-        try {
-          localStorage.setItem("obramate_leads_view", "kanban");
-        } catch (_) {}
+        viewToggle.style.display = "inline-flex";
+        const current = (() => {
+          try {
+            return localStorage.getItem("obramate_leads_view") || "kanban";
+          } catch (_) {
+            return "kanban";
+          }
+        })();
+        viewToggle.querySelectorAll("[data-leads-view]").forEach((btn) => {
+          const on = btn.getAttribute("data-leads-view") === current;
+          btn.classList.toggle("is-active", on);
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+        });
         viewToggle.addEventListener("click", (e) => {
           const btn = e.target.closest("[data-leads-view]");
           if (!btn) return;
+          e.preventDefault();
           const view = btn.getAttribute("data-leads-view") || "kanban";
           try {
             localStorage.setItem("obramate_leads_view", view);
           } catch (_) {}
-          if (view === "list") location.href = "pipeline-lab.html";
+          viewToggle.querySelectorAll("[data-leads-view]").forEach((b) => {
+            const on = b.getAttribute("data-leads-view") === view;
+            b.classList.toggle("is-active", on);
+            b.setAttribute("aria-pressed", on ? "true" : "false");
+          });
+          if (view === "list") location.assign("pipeline-lab.html?view=list");
         });
+      }
+
+      // If a tablet explicitly asked for list, send them there (e.g. stale bookmark).
+      if (isTablet) {
+        try {
+          if (localStorage.getItem("obramate_leads_view") === "list") {
+            location.replace("pipeline-lab.html?view=list");
+            return;
+          }
+        } catch (_) {}
       }
 
       // Refresh overview when kanban reloads after create/drag

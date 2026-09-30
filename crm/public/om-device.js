@@ -5,7 +5,7 @@
 (function (global) {
   function isPhoneUa(ua) {
     const s = String(ua || "");
-    // Phones only — iPad / tablets are handled separately so they can use Kanban.
+    // Narrow phone UAs — large Android devices may also match and get reclassified as tablet.
     if (/iPhone|iPod|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(s)) return true;
     if (/Android/i.test(s) && /Mobile/i.test(s)) return true;
     return false;
@@ -31,15 +31,31 @@
     }
   }
 
-  function isPhone() {
-    if (typeof navigator === "undefined") return false;
-    return isPhoneUa(navigator.userAgent);
+  /** Large touch screens that still report a "phone" UA (common on Android tablets). */
+  function isLargeTouchScreen() {
+    try {
+      if (typeof window === "undefined") return false;
+      const w = Math.max(Number(window.screen && window.screen.width) || 0, Number(window.innerWidth) || 0);
+      const h = Math.max(Number(window.screen && window.screen.height) || 0, Number(window.innerHeight) || 0);
+      const minSide = Math.min(w, h);
+      const maxSide = Math.max(w, h);
+      return minSide >= 600 && maxSide >= 900;
+    } catch (_) {
+      return false;
+    }
   }
 
   function isTablet() {
     if (typeof navigator === "undefined") return false;
-    if (isPhone()) return false;
-    return isTabletUa(navigator.userAgent) || isIpadOsDesktopUa();
+    if (isIpadOsDesktopUa() || isTabletUa(navigator.userAgent)) return true;
+    // Android tablets often include "Mobile" in the UA — upgrade them by screen size.
+    if (isPhoneUa(navigator.userAgent) && isLargeTouchScreen()) return true;
+    return false;
+  }
+
+  function isPhone() {
+    if (typeof navigator === "undefined") return false;
+    return isPhoneUa(navigator.userAgent) && !isTablet();
   }
 
   /** Phone or tablet — mobile app chrome (tab bar, etc.). */

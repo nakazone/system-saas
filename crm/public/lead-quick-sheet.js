@@ -1283,13 +1283,13 @@
       return {
         label: 'Visualizar Orçamento',
         href: `quote-builder.html?id=${encodeURIComponent(String(preferred.id))}&lead_id=${encodeURIComponent(String(sid))}`,
-        external: true,
+        external: false,
       };
     }
     return {
       label: 'Novo Orçamento',
       href: `quote-builder.html?lead_id=${encodeURIComponent(String(sid))}`,
-      external: true,
+      external: false,
     };
   }
 
@@ -1434,11 +1434,11 @@
           </div>
           <div class="lqs-ov-top__actions">
             ${tele}${sms}${mail}
-            <a class="btn btn-primary btn-sm lqs-btn" href="${escapeHtml(quoteCta.href)}" ${quoteCta.external ? 'target="_blank" rel="noopener"' : ''}>${escapeHtml(quoteCta.label)}</a>
+            <a class="btn btn-primary btn-sm lqs-btn" href="${escapeHtml(quoteCta.href)}">${escapeHtml(quoteCta.label)}</a>
             <button type="button" class="btn btn-secondary btn-sm lqs-btn" data-lqs-create-toggle>+ Create</button>
             <div class="lqs-create-menu" id="lqsCreateMenu" hidden>
               <button type="button" data-lqs-open-schedule>Schedule visit</button>
-              <a href="${escapeHtml(quoteCta.href)}" ${quoteCta.external ? 'target="_blank" rel="noopener"' : ''}>${escapeHtml(quoteCta.label)}</a>
+              <a href="${escapeHtml(quoteCta.href)}">${escapeHtml(quoteCta.label)}</a>
               <a class="lqs-full-page" href="lead-detail.html?id=${encodeURIComponent(String(sid))}">Open full page</a>
             </div>
           </div>

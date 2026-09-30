@@ -492,9 +492,10 @@
   function syncMobileViewToggle() {
     const toggle = $("mleadsViewToggle");
     if (!toggle) return;
-    // Kanban option is for tablets; phones keep list-only.
-    toggle.hidden = !isTabletShell();
-    if (!isTabletShell()) return;
+    // Show Lista/Kanban for tablets (and large touch devices classified as tablet).
+    const show = isTabletShell();
+    toggle.hidden = !show;
+    if (!show) return;
     const view = preferredLeadsView();
     toggle.querySelectorAll("[data-mleads-view]").forEach((btn) => {
       const on = btn.getAttribute("data-mleads-view") === view;
@@ -510,11 +511,12 @@
     toggle.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-mleads-view]");
       if (!btn) return;
+      e.preventDefault();
       const view = btn.getAttribute("data-mleads-view") || "list";
       setPreferredLeadsView(view);
       syncMobileViewToggle();
       if (view === "kanban") {
-        location.href = "leads.html";
+        location.assign("leads.html?view=kanban");
       }
     });
   }
@@ -674,6 +676,9 @@
     });
     // Hand-offs from other screens (Início search, "Criar → Novo lead" fallback).
     try {
+      const params = new URLSearchParams(location.search);
+      const qView = params.get("view");
+      if (qView === "list" || qView === "kanban") setPreferredLeadsView(qView);
       const q = sessionStorage.getItem("obramate_home_search");
       if (q && $("mleadsSearch")) $("mleadsSearch").value = q;
       sessionStorage.removeItem("obramate_home_search");

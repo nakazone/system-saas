@@ -2025,20 +2025,9 @@
   }
 
   function getCurrentQuoteLeadId() {
-    if (selectedQuoteLead && selectedQuoteLead.id != null) {
-      const n = Number(selectedQuoteLead.id);
-      if (Number.isFinite(n) && n > 0) return n;
-    }
-    if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId) && loadedQuoteLeadId > 0) {
-      return loadedQuoteLeadId;
-    }
-    if (pendingLeadId != null && Number.isFinite(pendingLeadId) && pendingLeadId > 0) {
-      return pendingLeadId;
-    }
-    const params = new URLSearchParams(location.search);
-    const fromUrl = parseInt(params.get('lead_id'), 10);
-    if (Number.isFinite(fromUrl) && fromUrl > 0) return fromUrl;
-    return null;
+    const raw = getActiveLeadId();
+    if (raw == null || raw === '') return null;
+    return String(raw);
   }
 
   let pendingEmailSendBody = null;
@@ -2409,27 +2398,25 @@
     $('customerId').value = q.customer_id != null ? String(q.customer_id) : '';
 
     if (q.lead_id != null && q.lead_id !== '') {
-      const lid = Number(q.lead_id);
-      if (Number.isFinite(lid)) {
-        loadedQuoteLeadId = lid;
-        selectedQuoteLead = null;
-        pendingLeadId = null;
-        try {
-          const lr = await fetch(`/api/leads/${lid}`, { credentials: 'include' }).then((r) => r.json());
-          if (lr.success && lr.data) {
-            selectedQuoteLead = lr.data;
-            search.value = formatLeadClientLabel(lr.data);
-            const hint = $('leadContextHint');
-            if (hint) {
-              hint.textContent = `Associado ao lead: ${lr.data.name || '#' + lid}.`;
-              hint.classList.remove('hidden');
-            }
-            renderClientDetails();
-            return;
+      const lid = String(q.lead_id);
+      loadedQuoteLeadId = lid;
+      selectedQuoteLead = null;
+      pendingLeadId = null;
+      try {
+        const lr = await fetch(`/api/leads/${encodeURIComponent(lid)}`, { credentials: 'include' }).then((r) => r.json());
+        if (lr.success && lr.data) {
+          selectedQuoteLead = lr.data;
+          search.value = formatLeadClientLabel(lr.data);
+          const hint = $('leadContextHint');
+          if (hint) {
+            hint.textContent = `Associado ao lead: ${lr.data.name || '#' + lid}.`;
+            hint.classList.remove('hidden');
           }
-        } catch (_) {
-          /* ignore */
+          renderClientDetails();
+          return;
         }
+      } catch (_) {
+        /* ignore */
       }
     }
 
@@ -4352,9 +4339,8 @@
     const params = new URLSearchParams(location.search);
     const qid = params.get('id');
     const leadParam = params.get('lead_id');
-    if (leadParam) {
-      const n = parseInt(leadParam, 10);
-      if (Number.isFinite(n) && n > 0) pendingLeadId = n;
+    if (leadParam && String(leadParam).trim()) {
+      pendingLeadId = String(leadParam).trim();
     }
     if (qid) {
       await loadQuote(qid);
@@ -4375,15 +4361,15 @@
 
     updateClientActionButtons();
 
-    if (pendingLeadId != null && Number.isFinite(pendingLeadId)) {
+    if (pendingLeadId != null && String(pendingLeadId).trim() !== '') {
       const alreadyBound =
         (selectedQuoteLead && sameId(selectedQuoteLead.id, pendingLeadId)) ||
         (loadedQuoteLeadId != null && sameId(loadedQuoteLeadId, pendingLeadId));
       if (!alreadyBound || !selectedQuoteLead) {
         try {
-          const lr = await fetch(`/api/leads/${pendingLeadId}`, { credentials: 'include' }).then((r) =>
-            r.json()
-          );
+          const lr = await fetch(`/api/leads/${encodeURIComponent(String(pendingLeadId))}`, {
+            credentials: 'include',
+          }).then((r) => r.json());
           if (lr.success && lr.data) await selectLeadAsClient(lr.data);
         } catch (_) {
           /* ignore */
