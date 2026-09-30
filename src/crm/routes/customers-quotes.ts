@@ -22,6 +22,11 @@ import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from 
 import { storage } from "../../lib/storage/index.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { sendCustomerEmail } from "../../lib/email/index.js";
+import {
+  buildQuoteAccessEmailHtml,
+  buildQuoteAccessEmailText,
+  defaultQuoteAccessSubject,
+} from "../../lib/email/quote-access.js";
 import { env } from "../../config/env.js";
 
 export const customersQuotesRouter = Router();
@@ -1291,7 +1296,15 @@ customersQuotesRouter.post(
           include: {
             customer: { select: { id: true, name: true, email: true } },
             builder: { select: { email: true, company: true, firstName: true, lastName: true } },
-            organization: { select: { name: true, contactEmail: true } },
+            organization: {
+              select: {
+                name: true,
+                contactEmail: true,
+                contactPhone: true,
+                accentColor: true,
+                primaryColor: true,
+              },
+            },
           },
         });
         if (!quote) return null;
@@ -1368,7 +1381,6 @@ customersQuotesRouter.post(
           emailSentAt,
           leadMoved,
           leadMoveReason,
-          orgName: quote.organization.name,
         };
       });
 
@@ -1384,47 +1396,63 @@ customersQuotesRouter.post(
       const data = prepared as {
         quote: {
           title: string;
+          number: number;
+          quoteNumber: string | null;
           clientMessage: string | null;
+          validUntil: Date | null;
           customer?: { name: string } | null;
           builder?: { company: string | null; firstName: string; lastName: string } | null;
+          organization: {
+            name: string;
+            contactPhone: string | null;
+            accentColor: string | null;
+            primaryColor: string | null;
+          };
         };
         primary: string;
         issued: { rawToken: string };
         emailSentAt: string;
         leadMoved: boolean;
         leadMoveReason: string | null;
-        orgName: string;
       };
 
       const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
       const proto = req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
       const publicUrl = `${proto}://${host}/public/quotes/${data.issued.rawToken}`;
+      const org = data.quote.organization;
       const clientName =
         data.quote.customer?.name ||
         data.quote.builder?.company ||
         [data.quote.builder?.firstName, data.quote.builder?.lastName].filter(Boolean).join(" ") ||
         "Cliente";
+      const quoteNumber =
+        data.quote.quoteNumber || formatQuoteNumber("Q-", data.quote.number);
+      // Match the secure link e-mail tone used for US flooring clients
+      const locale = "en";
       const cc = normalizeEmailList(body.cc ?? body.extra_emails ?? body.extraEmails);
+
+      const emailInput = {
+        companyName: org.name,
+        clientName,
+        quoteNumber,
+        publicUrl,
+        phone: org.contactPhone,
+        validUntil: data.quote.validUntil,
+        accentColor: org.accentColor,
+        primaryColor: org.primaryColor,
+        clientMessage: data.quote.clientMessage,
+        locale,
+      };
 
       const subject =
         String(body.subject || "").trim() ||
-        `Orçamento de ${data.orgName}: ${data.quote.title}`;
-      const text =
-        `Olá ${clientName},\n\n` +
-        `O seu orçamento está pronto. Abra o link seguro abaixo para ver os detalhes e o PDF:\n` +
-        `${publicUrl}\n\n` +
-        (data.quote.clientMessage ? `${data.quote.clientMessage}\n\n` : "") +
-        `— ${data.orgName}\n` +
-        `(enviado via ObraMate)`;
-      const html =
-        `<p>Olá ${escapeHtml(clientName)},</p>` +
-        `<p>O seu orçamento está pronto. ` +
-        `<a href="${escapeHtml(publicUrl)}">Ver orçamento online</a> ` +
-        `(detalhes e PDF só neste link seguro).</p>` +
-        (data.quote.clientMessage
-          ? `<p>${escapeHtml(data.quote.clientMessage)}</p>`
-          : "") +
-        `<p>— ${escapeHtml(data.orgName)}<br/><span style="color:#8a8074;font-size:12px">Enviado via ObraMate</span></p>`;
+        defaultQuoteAccessSubject({
+          companyName: org.name,
+          quoteNumber,
+          locale,
+        });
+      const text = buildQuoteAccessEmailText(emailInput);
+      const html = buildQuoteAccessEmailHtml(emailInput);
 
       const sent = await sendCustomerEmail({
         to: data.primary,
@@ -1453,14 +1481,6 @@ customersQuotesRouter.post(
     }
   },
 );
-
-function escapeHtml(s: string): string {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 customersQuotesRouter.get(
   "/api/quotes/:id/invoice-pdf",
