@@ -70,6 +70,8 @@ export function asSnakeBuilder(b: {
     address: b.address,
     notes: b.notes,
     full_name: fullName,
+    label: b.company || fullName || b.email || `Builder ${b.id.slice(0, 8)}`,
+    name: fullName,
     created_at: b.createdAt,
     updated_at: b.updatedAt,
   };

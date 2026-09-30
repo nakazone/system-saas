@@ -284,9 +284,21 @@ buildersPricingRouter.delete(
 buildersPricingRouter.get(
   "/api/pricing",
   requireCrmAuth,
-  requireCrmPermission("builders.view"),
   async (req: AuthedRequest, res, next) => {
     try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ success: false, error: "Authentication required" });
+        return;
+      }
+      const canRead =
+        user.roleKey === "admin" ||
+        user.permissions.includes("builders.view") ||
+        user.permissions.includes("quotes.view");
+      if (!canRead) {
+        res.status(403).json({ success: false, error: "Permission denied", missing: ["builders.view"] });
+        return;
+      }
       const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
         tx.pricingItem.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
       );

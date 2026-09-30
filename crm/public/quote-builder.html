@@ -493,20 +493,29 @@
     }
     .qb-party-tabs {
       display: flex;
+      flex-wrap: wrap;
       gap: 0.4rem;
       margin-bottom: 0.85rem;
     }
     .qb-party-tab {
-      flex: 1;
+      flex: 1 1 calc(50% - 0.4rem);
+      min-width: 7.5rem;
       border: 1px solid #cbd5e1;
       background: #f8fafc;
       color: #334155;
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       font-weight: 600;
       font-family: inherit;
-      padding: 0.55rem 0.75rem;
+      padding: 0.55rem 0.65rem;
       border-radius: 8px;
       cursor: pointer;
+    }
+    @media (min-width: 720px) {
+      .qb-party-tab {
+        flex: 1;
+        font-size: 0.875rem;
+        padding: 0.55rem 0.75rem;
+      }
     }
     .qb-party-tab.is-active {
       background: var(--plab-accent, #e8792c);
@@ -1814,8 +1823,10 @@
               <h2 class="qb-sheet__title">Cliente</h2>
               <div class="qb-sheet__body">
                 <div class="qb-party-tabs" role="tablist" aria-label="Tipo de cliente">
-                  <button type="button" class="qb-party-tab is-active" id="qbPartyLead" data-party="lead">Leads</button>
-                  <button type="button" class="qb-party-tab" id="qbPartyBuilder" data-party="builder">Builders</button>
+                  <button type="button" class="qb-party-tab is-active" id="qbPartyLead" data-party="lead">Leads / Particular</button>
+                  <button type="button" class="qb-party-tab" id="qbPartyBuilder" data-party="builder">Builder</button>
+                  <button type="button" class="qb-party-tab" id="qbPartyContractor" data-party="contractor">Contract</button>
+                  <button type="button" class="qb-party-tab" id="qbPartyLoja" data-party="loja">Loja</button>
                 </div>
                 <div id="qbLeadPanel">
                 <div class="qb-client-search" id="qbClientSearchWrap">
@@ -1824,11 +1835,11 @@
                     id="customerSearch"
                     class="qb-client-search__input"
                     autocomplete="off"
-                    placeholder="Pesquisar lead por nome, email, telefone…"
-                    aria-label="Pesquisar cliente"
+                    placeholder="Pesquisar lead ou particular por nome, e-mail, telefone…"
+                    aria-label="Pesquisar lead ou particular"
                   />
                   <input type="hidden" id="customerId" value="" />
-                  <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads"></div>
+                  <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads e particulares"></div>
                 </div>
                 <div class="qb-client-actions">
                   <button type="button" id="btnAddClientManual" class="btn-link">+ Cliente manual</button>
@@ -1891,7 +1902,7 @@
                   <select id="quoteBuilderSelect" class="qb-builder-select" aria-label="Selecionar builder">
                     <option value="">Selecionar builder…</option>
                   </select>
-                  <p class="text-xs text-slate-500 mt-2">Ao escolher um builder, o catálogo passa automaticamente para a taxa builder.</p>
+                  <p class="text-xs text-slate-500 mt-2">Usa a coluna Builder da Tabela de Valores.</p>
                   <div id="qbBuilderDetails" class="qb-client-details hidden" aria-live="polite">
                     <dl class="qb-client-details__list">
                       <div class="qb-client-details__row">
@@ -1925,16 +1936,50 @@
                       aria-label="Adicionar e-mail extra"
                     />
                   </div>
-                  <div class="qb-job-fields">
-                    <p class="qb-job-fields__title">Projeto deste orçamento</p>
-                    <div>
-                      <label for="quoteJobName">Nome do projeto</label>
-                      <input type="text" id="quoteJobName" autocomplete="off" placeholder="Ex.: Residência Smith — living room" />
-                    </div>
-                    <div>
-                      <label for="quoteJobAddress">Endereço do projeto</label>
-                      <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." />
-                    </div>
+                </div>
+                <div id="qbOrgCustomerPanel" class="hidden">
+                  <div class="qb-client-search" id="qbOrgCustomerSearchWrap">
+                    <input
+                      type="search"
+                      id="orgCustomerSearch"
+                      class="qb-client-search__input"
+                      autocomplete="off"
+                      placeholder="Pesquisar cliente por nome, empresa, e-mail…"
+                      aria-label="Pesquisar cliente"
+                    />
+                    <div id="orgCustomerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de clientes"></div>
+                  </div>
+                  <p id="qbOrgCustomerHint" class="text-xs text-slate-500 mt-2">Usa a coluna correspondente da Tabela de Valores.</p>
+                  <div id="qbOrgCustomerDetails" class="qb-client-details hidden" aria-live="polite">
+                    <dl class="qb-client-details__list">
+                      <div class="qb-client-details__row">
+                        <dt>Nome</dt>
+                        <dd id="qbOrgCustomerName">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>Empresa</dt>
+                        <dd id="qbOrgCustomerCompany">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>E-mail</dt>
+                        <dd id="qbOrgCustomerEmail">—</dd>
+                      </div>
+                      <div class="qb-client-details__row">
+                        <dt>Telefone</dt>
+                        <dd id="qbOrgCustomerPhone">—</dd>
+                      </div>
+                    </dl>
+                  </div>
+                </div>
+                <div id="qbJobFields" class="qb-job-fields hidden">
+                  <p class="qb-job-fields__title">Projeto deste orçamento</p>
+                  <div>
+                    <label for="quoteJobName">Nome do projeto</label>
+                    <input type="text" id="quoteJobName" autocomplete="off" placeholder="Ex.: Residência Smith — living room" />
+                  </div>
+                  <div>
+                    <label for="quoteJobAddress">Endereço do projeto</label>
+                    <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." />
                   </div>
                 </div>
                 <div class="qb-client-meta">
@@ -1957,10 +2002,12 @@
                   </div>
                   <div class="qb-client-meta__pricing">
                     <span class="block text-xs font-semibold text-slate-500 mb-1">Tabela de preços</span>
-                    <p id="qbPricingActiveLabel" class="qb-pricing-active">Taxa cliente final (leads)</p>
-                    <div class="flex flex-wrap gap-4 text-sm hidden" id="qbPricingRadios">
-                      <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="customer" checked class="rounded border-slate-300" /> Taxa cliente final</label>
-                      <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="pricingCatalog" value="builder" class="rounded border-slate-300" /> Taxa builder</label>
+                    <p id="qbPricingActiveLabel" class="qb-pricing-active">Taxa Particular (leads)</p>
+                    <div class="flex flex-wrap gap-4 text-sm hidden" id="qbPricingRadios" aria-hidden="true">
+                      <label><input type="radio" name="pricingCatalog" value="particular" checked /> Particular</label>
+                      <label><input type="radio" name="pricingCatalog" value="builder" /> Builder</label>
+                      <label><input type="radio" name="pricingCatalog" value="contractor" /> Contract</label>
+                      <label><input type="radio" name="pricingCatalog" value="loja" /> Loja</label>
                     </div>
                   </div>
                   <div>
@@ -2394,7 +2441,7 @@
   <script src="crm-pdf-viewer.js?v=20260531"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20260930-qb2"></script>
+  <script src="quote-builder.js?v=20260930-qb3"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

@@ -14,15 +14,18 @@
   let clients = [];
   /** Builders do portal (`/api/quotes/lookup/builders`). */
   let quoteBuilders = [];
-  /** @type {'lead'|'builder'} */
+  /** @type {'lead'|'builder'|'contractor'|'loja'} */
   let quotePartyMode = 'lead';
   /** Builder selecionado no quote. */
   let selectedQuoteBuilder = null;
+  /** Cliente org (contract/loja/particular) selecionado. */
+  let selectedOrgCustomer = null;
   /** E-mails CC adicionais no envio para builders. */
   let builderExtraEmails = [];
   /** Lead escolhido na pesquisa de cliente. */
   let selectedQuoteLead = null;
   let clientSearchTimer = null;
+  let orgCustomerSearchTimer = null;
   /** Índice da linha em edição no painel inline; `-1` = nova linha; `null` = fechado. */
   let inlineEditIdx = null;
   let catalog = [];
@@ -121,12 +124,9 @@
   }
 
   function getActiveLeadId() {
-    if (selectedQuoteLead && selectedQuoteLead.id != null) {
-      const n = Number(selectedQuoteLead.id);
-      if (Number.isFinite(n)) return n;
-    }
-    if (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId)) return loadedQuoteLeadId;
-    if (pendingLeadId != null && Number.isFinite(pendingLeadId)) return pendingLeadId;
+    if (selectedQuoteLead && selectedQuoteLead.id != null) return selectedQuoteLead.id;
+    if (loadedQuoteLeadId != null && loadedQuoteLeadId !== '') return loadedQuoteLeadId;
+    if (pendingLeadId != null && pendingLeadId !== '') return pendingLeadId;
     return null;
   }
 
@@ -175,9 +175,9 @@
     }
     hideClientForms();
     let lead = selectedQuoteLead;
-    if (!lead || Number(lead.id) !== lid) {
+    if (!lead || !sameId(lead.id, lid)) {
       try {
-        const lr = await fetch(`/api/leads/${lid}`, { credentials: 'include' }).then((r) => r.json());
+        const lr = await fetch(`/api/leads/${encodeURIComponent(lid)}`, { credentials: 'include' }).then((r) => r.json());
         if (lr.success && lr.data) lead = lr.data;
       } catch (_) {
         qbToast('Erro ao carregar lead.', 'error');
@@ -227,9 +227,9 @@
       loadedQuoteLeadId = lid;
       const search = $('customerSearch');
       if (search) search.value = formatLeadClientLabel(j.data);
-      const cid = parseInt(String($('customerId')?.value), 10);
-      if (Number.isFinite(cid) && cid > 0) {
-        await fetch(`/api/customers/${cid}`, {
+      const cid = String($('customerId')?.value || '').trim();
+      if (cid) {
+        await fetch(`/api/customers/${encodeURIComponent(cid)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           credentials: 'include',
@@ -466,8 +466,101 @@
 
   function normalizeCatalogId(v) {
     if (v == null || v === '') return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+    const s = String(v).trim();
+    if (!s) return null;
+    const n = Number(s);
+    if (Number.isFinite(n) && String(n) === s) return n;
+    return s;
+  }
+
+  function sameId(a, b) {
+    if (a == null || b == null || a === '' || b === '') return false;
+    return String(a) === String(b);
+  }
+
+  function findCatalogRowById(id) {
+    const nid = normalizeCatalogId(id);
+    if (nid == null) return null;
+    return catalog.find((r) => sameId(r.id, nid)) || null;
+  }
+
+  function pricingTypeFromParty(party) {
+    if (party === 'builder') return 'builder';
+    if (party === 'contractor') return 'contractor';
+    if (party === 'loja') return 'loja';
+    return 'particular';
+  }
+
+  function pricingTypeLabel(type) {
+    const map = {
+      particular: 'Particular (leads)',
+      builder: 'Builder',
+      contractor: 'Contract',
+      loja: 'Loja',
+    };
+    return map[type] || type;
+  }
+
+  function mapPricingRowsToCatalog(rows) {
+    return (Array.isArray(rows) ? rows : [])
+      .filter((r) => r && r.active !== 0 && r.is_visible !== 0)
+      .map((r) => {
+        const particular = Number(r.price_particular) || 0;
+        const builder = Number(r.price_builder) || 0;
+        const contractor = Number(r.price_contractor) || builder || 0;
+        const loja = Number(r.price_loja) || 0;
+        return {
+          id: r.id,
+          name: r.name,
+          category: r.category_label || r.category || '',
+          unit_type: r.unit || 'sq_ft',
+          default_rate: particular,
+          rate_particular: particular,
+          rate_customer: particular,
+          rate_builder: builder,
+          rate_contractor: contractor,
+          rate_loja: loja,
+          notes_customer: r.notes || null,
+          source: 'pricing',
+        };
+      });
+  }
+
+  function mapQuoteCatalogRows(rows) {
+    return (Array.isArray(rows) ? rows : []).map((r) => {
+      const unit = Number(r.unit_price) || Number(r.default_rate) || 0;
+      const particular = Number(r.rate_customer != null ? r.rate_customer : unit) || unit;
+      const builder = Number(r.rate_builder != null ? r.rate_builder : unit) || unit;
+      const contractor = Number(r.rate_contractor != null ? r.rate_contractor : builder) || builder;
+      const loja = Number(r.rate_loja != null ? r.rate_loja : unit) || unit;
+      return {
+        id: r.id,
+        name: r.name,
+        category: r.service_type || r.category || '',
+        unit_type: r.unit_type || 'sq_ft',
+        default_rate: particular,
+        rate_particular: particular,
+        rate_customer: particular,
+        rate_builder: builder,
+        rate_contractor: contractor,
+        rate_loja: loja,
+        notes_customer: r.description || null,
+        source: 'quote-catalog',
+      };
+    });
+  }
+
+  async function loadServiceCatalog() {
+    const [pricingRes, quoteCatRes] = await Promise.all([
+      api('/api/pricing').catch(() => ({ data: [] })),
+      api('/api/quote-catalog').catch(() => ({ data: [] })),
+    ]);
+    const fromPricing = mapPricingRowsToCatalog(pricingRes.data || []);
+    if (fromPricing.length) {
+      catalog = fromPricing;
+      return;
+    }
+    catalog = mapQuoteCatalogRows(quoteCatRes.data || []);
   }
 
   /** Template DB guarda nome+descrição no campo `description` (primeira linha = nome). */
@@ -707,27 +800,37 @@
 
   function catalogPricingSource() {
     const r = document.querySelector('input[name="pricingCatalog"]:checked');
-    return r && r.value === 'builder' ? 'builder' : 'customer';
+    const v = r && r.value ? String(r.value) : '';
+    if (v === 'builder' || v === 'contractor' || v === 'loja' || v === 'particular') return v;
+    if (v === 'customer') return 'particular';
+    return pricingTypeFromParty(getQuoteParty());
   }
 
   function updatePricingActiveLabel() {
     const el = $('qbPricingActiveLabel');
     if (!el) return;
-    el.textContent =
-      catalogPricingSource() === 'builder'
-        ? 'Taxa builder (tabela de parceiro)'
-        : 'Taxa cliente final (leads)';
+    const src = catalogPricingSource();
+    const cid = String($('customerId')?.value || '');
+    const c = cid ? clients.find((x) => sameId(x.id, cid)) : null;
+    if (c && c.pricing_mode === 'custom') {
+      el.textContent = `Preços customizados · base ${pricingTypeLabel(src)}`;
+      return;
+    }
+    el.textContent = `Taxa ${pricingTypeLabel(src)} · Tabela de Valores`;
   }
 
   function setCatalogPricingMode(mode) {
-    const m = mode === 'builder' ? 'builder' : 'customer';
+    const m = pricingTypeFromParty(mode === 'customer' || mode === 'lead' ? 'lead' : mode);
     const el = document.querySelector(`input[name="pricingCatalog"][value="${m}"]`);
     if (el) el.checked = true;
     updatePricingActiveLabel();
   }
 
   function getQuoteParty() {
-    return quotePartyMode === 'builder' ? 'builder' : 'lead';
+    if (quotePartyMode === 'builder' || quotePartyMode === 'contractor' || quotePartyMode === 'loja') {
+      return quotePartyMode;
+    }
+    return 'lead';
   }
 
   function syncQuotePartyUi() {
@@ -737,14 +840,59 @@
     });
     $('qbLeadPanel')?.classList.toggle('hidden', party !== 'lead');
     $('qbBuilderPanel')?.classList.toggle('hidden', party !== 'builder');
+    const org = party === 'contractor' || party === 'loja';
+    $('qbOrgCustomerPanel')?.classList.toggle('hidden', !org);
+    $('qbJobFields')?.classList.toggle('hidden', party === 'lead');
+    const hint = $('qbOrgCustomerHint');
+    if (hint) {
+      hint.textContent =
+        party === 'contractor'
+          ? 'Usa a coluna Contract da Tabela de Valores.'
+          : party === 'loja'
+            ? 'Usa a coluna Loja da Tabela de Valores.'
+            : 'Usa a coluna correspondente da Tabela de Valores.';
+    }
+    const search = $('orgCustomerSearch');
+    if (search && org) {
+      search.placeholder =
+        party === 'contractor'
+          ? 'Pesquisar contract por nome, empresa, e-mail…'
+          : 'Pesquisar loja por nome, empresa, e-mail…';
+    }
   }
 
   function setQuoteParty(party, { applyPrices = true } = {}) {
-    quotePartyMode = party === 'builder' ? 'builder' : 'lead';
+    const next =
+      party === 'builder' || party === 'contractor' || party === 'loja' ? party : 'lead';
+    if (quotePartyMode !== next) {
+      if (next !== 'builder') {
+        selectedQuoteBuilder = null;
+        const sel = $('quoteBuilderSelect');
+        if (sel) sel.value = '';
+        renderBuilderDetails();
+      }
+      if (next === 'lead' || next === 'builder') {
+        selectedOrgCustomer = null;
+        renderOrgCustomerDetails();
+        const orgSearch = $('orgCustomerSearch');
+        if (orgSearch && (next === 'lead' || next === 'builder')) orgSearch.value = '';
+        hideOrgCustomerSearchResults();
+      }
+      if (next !== 'lead') {
+        selectedQuoteLead = null;
+        pendingLeadId = null;
+        const leadSearch = $('customerSearch');
+        if (leadSearch && next !== 'lead') {
+          /* keep label only when staying on lead */
+        }
+      }
+    }
+    quotePartyMode = next;
     syncQuotePartyUi();
     if (quotePartyMode === 'builder') renderBuilderDetails();
+    if (quotePartyMode === 'contractor' || quotePartyMode === 'loja') renderOrgCustomerDetails();
     if (applyPrices) {
-      setCatalogPricingMode(quotePartyMode === 'builder' ? 'builder' : 'customer');
+      setCatalogPricingMode(pricingTypeFromParty(quotePartyMode));
       refreshRatesForCatalogLines();
       renderItems();
     } else {
@@ -765,14 +913,14 @@
     const opts = ['<option value="">Selecionar builder…</option>']
       .concat(
         quoteBuilders.map((b) => {
-          const id = Number(b.id);
-          const label = escapeHtmlText(b.label || b.company || `Builder #${id}`);
-          return `<option value="${id}">${label}</option>`;
+          const id = String(b.id);
+          const label = escapeHtmlText(b.label || b.company || b.full_name || b.name || `Builder ${id.slice(0, 8)}`);
+          return `<option value="${escapeAttr(id)}">${label}</option>`;
         })
       )
       .join('');
     sel.innerHTML = opts;
-    if (current && quoteBuilders.some((b) => String(b.id) === String(current))) {
+    if (current && quoteBuilders.some((b) => sameId(b.id, current))) {
       sel.value = current;
     }
   }
@@ -800,7 +948,7 @@
     if (builder && builder.customer_id) {
       $('customerId').value = String(builder.customer_id);
     } else if (getQuoteParty() === 'builder') {
-      $('customerId').value = '';
+      if (!builder || !builder.customer_id) $('customerId').value = '';
     }
     renderBuilderDetails();
     if (applyPrices) {
@@ -811,31 +959,41 @@
   }
 
   function onQuoteBuilderChange() {
-    const id = parseInt($('quoteBuilderSelect')?.value, 10);
-    if (!Number.isFinite(id) || id <= 0) {
+    const raw = $('quoteBuilderSelect')?.value;
+    if (!raw) {
       applySelectedBuilder(null, { applyPrices: true });
       return;
     }
-    const b = quoteBuilders.find((x) => Number(x.id) === id) || { id };
+    const b = quoteBuilders.find((x) => sameId(x.id, raw)) || { id: raw };
     applySelectedBuilder(b, { applyPrices: true });
   }
 
-  /** Alinha rádios Builder / Cliente final ao tipo do cliente CRM. */
-  function applyPricingFromCustomerId(cidStr) {
-    const cid = parseInt(String(cidStr || '').trim(), 10);
-    if (!Number.isFinite(cid) || cid <= 0) return;
-    const c = clients.find((x) => Number(x.id) === cid);
+  function applyPricingFromCustomer(c) {
     if (!c) return;
-    setCatalogPricingMode(c.customer_type === 'builder' ? 'builder' : 'customer');
+    const type = String(c.customer_type || 'particular').toLowerCase();
+    if (type === 'builder' || type === 'contractor' || type === 'loja') {
+      setCatalogPricingMode(type);
+    } else {
+      setCatalogPricingMode('particular');
+    }
   }
 
-  /** Recalcula `rate` nas linhas vindas do catálogo conforme a taxa atual (builder vs cliente). */
+  /** Alinha a tabela de preços ao tipo do cliente CRM. */
+  function applyPricingFromCustomerId(cidStr) {
+    const cid = String(cidStr || '').trim();
+    if (!cid) return;
+    const c = clients.find((x) => sameId(x.id, cid));
+    if (!c) return;
+    applyPricingFromCustomer(c);
+  }
+
+  /** Recalcula `rate` nas linhas vindas do catálogo conforme a taxa atual. */
   function refreshRatesForCatalogLines() {
     const src = catalogPricingSource();
     for (const it of items) {
       const catId = normalizeCatalogId(it.service_catalog_id);
       if (catId == null) continue;
-      const row = catalog.find((r) => Number(r.id) === catId);
+      const row = findCatalogRowById(catId);
       if (!row) continue;
       it.rate = effectiveCatalogRate(row, src);
     }
@@ -843,11 +1001,18 @@
 
   function effectiveCatalogRate(row, source) {
     if (!row) return 0;
-    const fallback = Number(row.default_rate) || 0;
-    if (source === 'builder') {
-      return pickCatalogRate(row.rate_builder, fallback);
+    const fallback = Number(row.default_rate) || Number(row.rate_particular) || Number(row.rate_customer) || 0;
+    const cid = String($('customerId')?.value || '');
+    const c = cid ? clients.find((x) => sameId(x.id, cid)) : selectedOrgCustomer;
+    if (c && c.pricing_mode === 'custom' && c.custom_pricing_rates) {
+      const custom = Number(c.custom_pricing_rates[String(row.id)]);
+      if (Number.isFinite(custom) && custom > 0) return custom;
     }
-    return pickCatalogRate(row.rate_customer, fallback);
+    const src = source === 'customer' || source === 'lead' ? 'particular' : source;
+    if (src === 'builder') return pickCatalogRate(row.rate_builder, fallback);
+    if (src === 'contractor') return pickCatalogRate(row.rate_contractor, fallback);
+    if (src === 'loja') return pickCatalogRate(row.rate_loja, fallback);
+    return pickCatalogRate(row.rate_particular != null ? row.rate_particular : row.rate_customer, fallback);
   }
 
   function resolveModalCatalogRow() {
@@ -924,9 +1089,17 @@
         address: leadAddress(selectedQuoteLead),
       };
     }
-    const cid = parseInt(String($('customerId') && $('customerId').value), 10);
-    if (Number.isFinite(cid) && cid > 0) {
-      const c = clients.find((x) => Number(x.id) === cid);
+    if (selectedOrgCustomer) {
+      return {
+        name: selectedOrgCustomer.name != null ? String(selectedOrgCustomer.name).trim() : '',
+        phone: selectedOrgCustomer.phone != null ? String(selectedOrgCustomer.phone).trim() : '',
+        email: selectedOrgCustomer.email != null ? String(selectedOrgCustomer.email).trim() : '',
+        address: customerAddress(selectedOrgCustomer),
+      };
+    }
+    const cid = String($('customerId') && $('customerId').value || '').trim();
+    if (cid) {
+      const c = clients.find((x) => sameId(x.id, cid));
       if (c) {
         const name =
           c.name != null
@@ -951,7 +1124,7 @@
     const info = getClientDisplayInfo();
     const hasClient =
       info &&
-      (info.name || info.phone || info.email || info.address || parseInt($('customerId')?.value, 10) > 0);
+      (info.name || info.phone || info.email || info.address || String($('customerId')?.value || '').trim());
     if (!hasClient) {
       box.classList.add('hidden');
       return;
@@ -1090,8 +1263,7 @@
 
   function upsertClientInCache(c) {
     if (!c || c.id == null) return;
-    const id = Number(c.id);
-    const idx = clients.findIndex((x) => Number(x.id) === id);
+    const idx = clients.findIndex((x) => sameId(x.id, c.id));
     if (idx >= 0) clients[idx] = { ...clients[idx], ...c };
     else clients.push(c);
   }
@@ -1123,69 +1295,237 @@
     return Array.isArray(data.data) ? data.data : [];
   }
 
-  function renderClientSearchResults(leads) {
-    if (!leads.length) {
-      showClientSearchResults('<div class="qb-client-search__empty">Nenhum lead encontrado.</div>');
+  async function fetchLeadParticularSearch(query) {
+    const [leads, particulars] = await Promise.all([
+      fetchLeadsForClientSearch(query),
+      fetchCustomersByType('particular', query).catch(() => []),
+    ]);
+    particulars.forEach(upsertClientInCache);
+    return { leads, particulars };
+  }
+
+  function renderClientSearchResults(payload) {
+    const leads = Array.isArray(payload) ? payload : payload?.leads || [];
+    const particulars = Array.isArray(payload) ? [] : payload?.particulars || [];
+    if (!leads.length && !particulars.length) {
+      showClientSearchResults('<div class="qb-client-search__empty">Nenhum lead ou particular encontrado.</div>');
       return;
     }
-    const html = leads
+    const leadHtml = leads
       .map((lead) => {
-        const id = Number(lead.id);
+        const id = String(lead.id);
         const stage = lead.pipeline_stage_name || lead.pipeline_stage_slug || lead.status || '';
         const meta = [
+          'Lead',
           lead.email ? escapeHtmlText(lead.email) : '',
           lead.phone ? escapeHtmlText(lead.phone) : '',
           stage ? escapeHtmlText(stage) : '',
         ]
           .filter(Boolean)
           .join(' · ');
-        return `<button type="button" class="qb-client-search__item" data-lead-id="${id}" role="option">
-          <span class="qb-client-search__item-name">${escapeHtmlText(lead.name || `Lead #${id}`)}</span>
-          <span class="qb-client-search__item-meta">${meta || `ID ${id}`}</span>
+        return `<button type="button" class="qb-client-search__item" data-lead-id="${escapeAttr(id)}" role="option">
+          <span class="qb-client-search__item-name">${escapeHtmlText(lead.name || `Lead ${id.slice(0, 8)}`)}</span>
+          <span class="qb-client-search__item-meta">${meta}</span>
         </button>`;
       })
       .join('');
-    showClientSearchResults(html);
+    const particularHtml = particulars
+      .map((c) => {
+        const id = String(c.id);
+        const meta = [
+          'Particular',
+          c.email ? escapeHtmlText(c.email) : '',
+          c.phone ? escapeHtmlText(c.phone) : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        return `<button type="button" class="qb-client-search__item" data-particular-id="${escapeAttr(id)}" role="option">
+          <span class="qb-client-search__item-name">${escapeHtmlText(c.name || `Cliente ${id.slice(0, 8)}`)}</span>
+          <span class="qb-client-search__item-meta">${meta}</span>
+        </button>`;
+      })
+      .join('');
+    showClientSearchResults(leadHtml + particularHtml);
   }
 
   async function resolveCustomerForLead(leadId) {
-    const lid = parseInt(String(leadId), 10);
-    if (!Number.isFinite(lid) || lid <= 0) return null;
+    const lid = String(leadId || '').trim();
+    if (!lid) return null;
 
-    const byLead = await fetch(`/api/customers/by-lead/${lid}`, { credentials: 'include' }).then((r) =>
-      r.json()
-    );
+    const byLead = await fetch(`/api/customers/by-lead/${encodeURIComponent(lid)}`, {
+      credentials: 'include',
+    }).then((r) => r.json());
     if (byLead.success && byLead.data && byLead.data.id != null) {
       upsertClientInCache(byLead.data);
-      return Number(byLead.data.id);
+      return byLead.data.id;
     }
 
     const created = await fetch('/api/customers/from-lead', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ lead_id: lid, customer_type: 'customer' }),
+      body: JSON.stringify({ lead_id: lid, customer_type: 'particular' }),
     }).then((r) => r.json());
 
     if (created.success && created.data && created.data.id != null) {
-      const cid = Number(created.data.id);
+      const cid = created.data.id;
       try {
-        const cr = await api(`/api/customers/${cid}`);
+        const cr = await api(`/api/customers/${encodeURIComponent(cid)}`);
         if (cr.data) upsertClientInCache(cr.data);
-        else upsertClientInCache({ id: cid, customer_type: 'customer' });
+        else upsertClientInCache({ id: cid, customer_type: 'particular' });
       } catch (_) {
-        upsertClientInCache({ id: cid, customer_type: 'customer' });
+        upsertClientInCache({ id: cid, customer_type: 'particular' });
       }
       return cid;
     }
     throw new Error(created.error || 'Não foi possível criar cliente a partir do lead.');
   }
 
+  function hideOrgCustomerSearchResults() {
+    const box = $('orgCustomerSearchResults');
+    if (box) {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+    }
+  }
+
+  function showOrgCustomerSearchResults(html) {
+    const box = $('orgCustomerSearchResults');
+    if (!box) return;
+    box.innerHTML = html;
+    box.classList.remove('hidden');
+  }
+
+  function renderOrgCustomerDetails() {
+    const box = $('qbOrgCustomerDetails');
+    if (!box) return;
+    const c = selectedOrgCustomer;
+    if (!c) {
+      box.classList.add('hidden');
+      return;
+    }
+    setWrappingField('qbOrgCustomerName', c.name);
+    setWrappingField('qbOrgCustomerCompany', c.company);
+    setWrappingField('qbOrgCustomerEmail', c.email);
+    setWrappingField('qbOrgCustomerPhone', c.phone);
+    box.classList.remove('hidden');
+  }
+
+  async function fetchCustomersByType(customerType, query) {
+    const params = new URLSearchParams({
+      limit: '40',
+      page: '1',
+      customer_type: customerType,
+    });
+    const q = String(query || '').trim();
+    if (q) params.set('q', q);
+    const r = await api(`/api/customers?${params.toString()}`);
+    return Array.isArray(r.data) ? r.data : [];
+  }
+
+  function renderOrgCustomerSearchResults(rows) {
+    if (!rows.length) {
+      showOrgCustomerSearchResults('<div class="qb-client-search__empty">Nenhum cliente encontrado.</div>');
+      return;
+    }
+    const html = rows
+      .map((c) => {
+        const id = String(c.id);
+        const meta = [
+          c.company ? escapeHtmlText(c.company) : '',
+          c.email ? escapeHtmlText(c.email) : '',
+          c.phone ? escapeHtmlText(c.phone) : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        return `<button type="button" class="qb-client-search__item" data-org-customer-id="${escapeAttr(id)}" role="option">
+          <span class="qb-client-search__item-name">${escapeHtmlText(c.name || c.company || `Cliente ${id.slice(0, 8)}`)}</span>
+          <span class="qb-client-search__item-meta">${meta || pricingTypeLabel(c.customer_type || getQuoteParty())}</span>
+        </button>`;
+      })
+      .join('');
+    showOrgCustomerSearchResults(html);
+  }
+
+  function scheduleOrgCustomerSearch() {
+    clearTimeout(orgCustomerSearchTimer);
+    orgCustomerSearchTimer = setTimeout(() => void runOrgCustomerSearch(), 220);
+  }
+
+  async function runOrgCustomerSearch() {
+    const party = getQuoteParty();
+    if (party !== 'contractor' && party !== 'loja') return;
+    const q = $('orgCustomerSearch')?.value || '';
+    try {
+      const rows = await fetchCustomersByType(party, q);
+      rows.forEach(upsertClientInCache);
+      renderOrgCustomerSearchResults(rows);
+    } catch (e) {
+      showOrgCustomerSearchResults(
+        `<div class="qb-client-search__empty">${escapeHtmlText(e.message || 'Erro na pesquisa.')}</div>`
+      );
+    }
+  }
+
+  function selectOrgCustomer(c, { applyPrices = true } = {}) {
+    if (!c || c.id == null) return;
+    selectedOrgCustomer = c;
+    upsertClientInCache(c);
+    $('customerId').value = String(c.id);
+    const search = $('orgCustomerSearch');
+    if (search) search.value = c.name || c.company || '';
+    hideOrgCustomerSearchResults();
+    renderOrgCustomerDetails();
+    if (applyPrices) {
+      applyPricingFromCustomer(c);
+      refreshRatesForCatalogLines();
+      renderItems();
+    } else {
+      updatePricingActiveLabel();
+    }
+  }
+
+  function wireOrgCustomerSearch() {
+    const search = $('orgCustomerSearch');
+    const box = $('orgCustomerSearchResults');
+    const wrap = $('qbOrgCustomerSearchWrap');
+    if (!search || !box) return;
+    search.addEventListener('focus', () => scheduleOrgCustomerSearch());
+    search.addEventListener('input', () => {
+      selectedOrgCustomer = null;
+      $('customerId').value = '';
+      renderOrgCustomerDetails();
+      scheduleOrgCustomerSearch();
+    });
+    search.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') hideOrgCustomerSearchResults();
+    });
+    box.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-org-customer-id]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-org-customer-id');
+      const cached = clients.find((x) => sameId(x.id, id));
+      if (cached) {
+        selectOrgCustomer(cached);
+        return;
+      }
+      api(`/api/customers/${encodeURIComponent(id)}`)
+        .then((r) => {
+          if (r.data) selectOrgCustomer(r.data);
+        })
+        .catch(() => qbToast('Erro ao carregar cliente.', 'error'));
+    });
+    document.addEventListener('click', (e) => {
+      if (!wrap || wrap.contains(e.target)) return;
+      hideOrgCustomerSearchResults();
+    });
+  }
+
   async function selectLeadAsClient(lead) {
     if (!lead || lead.id == null) return;
     setQuoteParty('lead', { applyPrices: true });
     selectedQuoteLead = lead;
-    pendingLeadId = Number(lead.id);
+    pendingLeadId = lead.id;
     loadedQuoteLeadId = null;
     const search = $('customerSearch');
     if (search) search.value = formatLeadClientLabel(lead);
@@ -1217,37 +1557,43 @@
   }
 
   async function ensureCustomerForQuote() {
-    if (getQuoteParty() === 'builder') {
-      const bid = parseInt($('quoteBuilderSelect')?.value, 10);
-      if (!Number.isFinite(bid) || bid <= 0) {
-        throw new Error('Selecione um builder.');
-      }
+    const party = getQuoteParty();
+    if (party === 'builder') {
+      const bid = String($('quoteBuilderSelect')?.value || '').trim();
+      if (!bid) throw new Error('Selecione um builder.');
       const b =
-        selectedQuoteBuilder && Number(selectedQuoteBuilder.id) === bid
+        selectedQuoteBuilder && sameId(selectedQuoteBuilder.id, bid)
           ? selectedQuoteBuilder
-          : quoteBuilders.find((x) => Number(x.id) === bid);
+          : quoteBuilders.find((x) => sameId(x.id, bid));
       if (b && b.customer_id) {
         $('customerId').value = String(b.customer_id);
-        return Number(b.customer_id);
+        return b.customer_id;
       }
-      const cid = parseInt(String($('customerId')?.value), 10);
-      if (Number.isFinite(cid) && cid > 0) return cid;
-      return null;
+      const cid = String($('customerId')?.value || '').trim();
+      return cid || null;
     }
 
-    let cid = parseInt(String($('customerId') && $('customerId').value), 10);
-    if (Number.isFinite(cid) && cid > 0) return cid;
+    if (party === 'contractor' || party === 'loja') {
+      const cid = String($('customerId')?.value || '').trim();
+      if (!cid) {
+        throw new Error(party === 'loja' ? 'Selecione uma loja.' : 'Selecione um contract.');
+      }
+      return cid;
+    }
+
+    let cid = String($('customerId') && $('customerId').value || '').trim();
+    if (cid) return cid;
 
     const leadId =
-      (selectedQuoteLead && selectedQuoteLead.id != null && Number(selectedQuoteLead.id)) ||
-      (pendingLeadId != null && Number.isFinite(pendingLeadId) ? pendingLeadId : null) ||
-      (loadedQuoteLeadId != null && Number.isFinite(loadedQuoteLeadId) ? loadedQuoteLeadId : null);
+      (selectedQuoteLead && selectedQuoteLead.id != null ? selectedQuoteLead.id : null) ||
+      pendingLeadId ||
+      loadedQuoteLeadId;
 
     if (!leadId) {
-      throw new Error('Selecione um cliente (lead).');
+      throw new Error('Selecione um cliente (lead ou particular).');
     }
     cid = await resolveCustomerForLead(leadId);
-    if (!cid) throw new Error('Selecione um cliente (lead).');
+    if (!cid) throw new Error('Selecione um cliente (lead ou particular).');
     $('customerId').value = String(cid);
     return cid;
   }
@@ -1256,9 +1602,12 @@
     if (getQuoteParty() === 'builder' && selectedQuoteBuilder && selectedQuoteBuilder.email) {
       return String(selectedQuoteBuilder.email).trim();
     }
-    const cid = parseInt(String($('customerId') && $('customerId').value), 10);
-    if (Number.isFinite(cid) && cid > 0) {
-      const c = clients.find((x) => Number(x.id) === cid);
+    if (selectedOrgCustomer && selectedOrgCustomer.email) {
+      return String(selectedOrgCustomer.email).trim();
+    }
+    const cid = String($('customerId') && $('customerId').value || '').trim();
+    if (cid) {
+      const c = clients.find((x) => sameId(x.id, cid));
       if (c && c.email) return String(c.email).trim();
     }
     if (selectedQuoteLead && selectedQuoteLead.email) return String(selectedQuoteLead.email).trim();
@@ -1269,10 +1618,13 @@
     if (getQuoteParty() === 'builder' && selectedQuoteBuilder && selectedQuoteBuilder.phone) {
       return String(selectedQuoteBuilder.phone).trim();
     }
+    if (selectedOrgCustomer && selectedOrgCustomer.phone) {
+      return String(selectedOrgCustomer.phone).trim();
+    }
     if (selectedQuoteLead && selectedQuoteLead.phone) return String(selectedQuoteLead.phone).trim();
-    const cid = parseInt(String($('customerId') && $('customerId').value), 10);
-    if (Number.isFinite(cid) && cid > 0) {
-      const c = clients.find((x) => Number(x.id) === cid);
+    const cid = String($('customerId') && $('customerId').value || '').trim();
+    if (cid) {
+      const c = clients.find((x) => sameId(x.id, cid));
       if (c && c.phone) return String(c.phone).trim();
     }
     return '';
@@ -1735,8 +2087,19 @@
     }
 
     if (q.customer_id) {
-      const c = clients.find((x) => Number(x.id) === Number(q.customer_id));
-      if (c) search.value = formatCustomerLabel(c);
+      const c = clients.find((x) => sameId(x.id, q.customer_id));
+      if (c) {
+        search.value = formatCustomerLabel(c);
+        const type = String(c.customer_type || '').toLowerCase();
+        if (type === 'builder' || type === 'contractor' || type === 'loja') {
+          setQuoteParty(type, { applyPrices: false });
+          if (type === 'contractor' || type === 'loja') {
+            selectOrgCustomer(c, { applyPrices: false });
+          }
+        } else {
+          applyPricingFromCustomer(c);
+        }
+      }
     }
     renderClientDetails();
   }
@@ -1748,8 +2111,8 @@
     clearTimeout(clientSearchTimer);
     clientSearchTimer = setTimeout(async () => {
       try {
-        const leads = await fetchLeadsForClientSearch(q);
-        renderClientSearchResults(leads);
+        const payload = await fetchLeadParticularSearch(q);
+        renderClientSearchResults(payload);
       } catch (e) {
         showClientSearchResults(
           `<div class="qb-client-search__empty">${escapeHtmlText(e.message || 'Erro na pesquisa')}</div>`
@@ -1781,11 +2144,42 @@
     });
 
     box.addEventListener('click', (e) => {
+      const particularBtn = e.target.closest('[data-particular-id]');
+      if (particularBtn) {
+        const id = particularBtn.getAttribute('data-particular-id');
+        const cached = clients.find((x) => sameId(x.id, id));
+        const applyParticular = (c) => {
+          setQuoteParty('lead', { applyPrices: false });
+          selectedQuoteLead = null;
+          pendingLeadId = null;
+          selectedOrgCustomer = null;
+          $('customerId').value = String(c.id);
+          upsertClientInCache(c);
+          const searchEl = $('customerSearch');
+          if (searchEl) searchEl.value = formatCustomerLabel(c);
+          hideClientSearchResults();
+          renderClientDetails();
+          updateClientActionButtons();
+          applyPricingFromCustomer(c);
+          refreshRatesForCatalogLines();
+          renderItems();
+        };
+        if (cached) {
+          applyParticular(cached);
+          return;
+        }
+        api(`/api/customers/${encodeURIComponent(id)}`)
+          .then((r) => {
+            if (r.data) applyParticular(r.data);
+          })
+          .catch(() => qbToast('Erro ao carregar particular.', 'error'));
+        return;
+      }
       const btn = e.target.closest('[data-lead-id]');
       if (!btn) return;
-      const lid = parseInt(btn.getAttribute('data-lead-id'), 10);
-      if (!Number.isFinite(lid)) return;
-      fetch(`/api/leads/${lid}`, { credentials: 'include' })
+      const lid = btn.getAttribute('data-lead-id');
+      if (!lid) return;
+      fetch(`/api/leads/${encodeURIComponent(lid)}`, { credentials: 'include' })
         .then((r) => r.json())
         .then((data) => {
           if (data.success && data.data) void selectLeadAsClient(data.data);
@@ -1959,7 +2353,7 @@
     const src = catalogPricingSource();
     const html = modalServiceVisibleRows
       .map((row, i) => {
-        const id = Number(row.id);
+        const id = String(row.id);
         const rate = effectiveCatalogRate(row, src);
         const meta = [
           row.category ? escapeHtmlText(row.category) : '',
@@ -1972,8 +2366,8 @@
           i === modalServiceActiveIndex
             ? ' is-active qb-client-search__item--active'
             : '';
-        return `<button type="button" id="modalServiceOpt-${i}" class="qb-client-search__item${activeClass}" data-catalog-id="${id}" role="option" aria-selected="${i === modalServiceActiveIndex ? 'true' : 'false'}">
-          <span class="qb-client-search__item-name">${escapeHtmlText(row.name || `Serviço #${id}`)}</span>
+        return `<button type="button" id="modalServiceOpt-${i}" class="qb-client-search__item${activeClass}" data-catalog-id="${escapeAttr(id)}" role="option" aria-selected="${i === modalServiceActiveIndex ? 'true' : 'false'}">
+          <span class="qb-client-search__item-name">${escapeHtmlText(row.name || `Serviço ${id.slice(0, 8)}`)}</span>
           <span class="qb-client-search__item-meta">${meta}</span>
         </button>`;
       })
@@ -2046,7 +2440,7 @@
   function fillInlineFormFromItem(it) {
     if (!it) return;
     const cid = normalizeCatalogId(it.service_catalog_id);
-    modalSelectedCatalogRow = cid ? catalog.find((c) => Number(c.id) === cid) || null : null;
+    modalSelectedCatalogRow = cid ? findCatalogRowById(cid) : null;
     $('modalServiceName').value = it.name != null ? String(it.name) : '';
     $('modalServiceDesc').value = it.description != null ? String(it.description) : '';
     $('modalServiceType').value = normalizeServiceType(it.service_type);
@@ -3335,22 +3729,22 @@
       return;
     }
 
-    const [custRes, catRes, tplRes, uiRes] = await Promise.all([
+    const [custRes, tplRes, uiRes] = await Promise.all([
       api('/api/customers?limit=100'),
-      api('/api/quote-catalog').catch(() => ({ data: [] })),
       api('/api/quote-templates').catch(() => ({ data: [] })),
       fetch('/api/config/ui', { credentials: 'include' })
         .then((r) => r.json())
         .catch(() => ({})),
     ]);
     clients = custRes.data || [];
-    catalog = catRes.data || [];
     templates = tplRes.data || [];
+    await loadServiceCatalog();
     if (uiRes.success && uiRes.data && uiRes.data.publicCrmUrl) {
       clientPublicCrmUrl = String(uiRes.data.publicCrmUrl).replace(/\/$/, '');
     }
 
     wireClientLeadSearch();
+    wireOrgCustomerSearch();
     attachItemsListHandlers();
     wireMarginPricingFields();
     bootQuoteAddressAutocomplete();
@@ -3359,6 +3753,14 @@
     $('qbPartyBuilder')?.addEventListener('click', () => {
       setQuoteParty('builder');
       void loadQuoteBuilders();
+    });
+    $('qbPartyContractor')?.addEventListener('click', () => {
+      setQuoteParty('contractor');
+      scheduleOrgCustomerSearch();
+    });
+    $('qbPartyLoja')?.addEventListener('click', () => {
+      setQuoteParty('loja');
+      scheduleOrgCustomerSearch();
     });
     $('quoteBuilderSelect')?.addEventListener('change', onQuoteBuilderChange);
 
@@ -3423,8 +3825,8 @@
 
     if (pendingLeadId != null && Number.isFinite(pendingLeadId)) {
       const alreadyBound =
-        (selectedQuoteLead && Number(selectedQuoteLead.id) === pendingLeadId) ||
-        (loadedQuoteLeadId != null && Number(loadedQuoteLeadId) === pendingLeadId);
+        (selectedQuoteLead && sameId(selectedQuoteLead.id, pendingLeadId)) ||
+        (loadedQuoteLeadId != null && sameId(loadedQuoteLeadId, pendingLeadId));
       if (!alreadyBound || !selectedQuoteLead) {
         try {
           const lr = await fetch(`/api/leads/${pendingLeadId}`, { credentials: 'include' }).then((r) =>
@@ -3500,8 +3902,8 @@
       modalServiceResults.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-catalog-id]');
         if (!btn) return;
-        const cid = parseInt(btn.getAttribute('data-catalog-id'), 10);
-        const row = catalog.find((c) => Number(c.id) === cid);
+        const cid = btn.getAttribute('data-catalog-id');
+        const row = findCatalogRowById(cid);
         if (row) applyCatalogRowToServiceModal(row);
       });
       modalServiceResults.addEventListener('mousemove', (e) => {
