@@ -1652,6 +1652,27 @@
       padding: 1.25rem;
       box-shadow: 0 12px 40px rgba(26, 32, 54, 0.18);
     }
+    .qb-modal__panel--wide {
+      max-width: min(640px, calc(100vw - 24px));
+      max-height: min(92vh, 900px);
+      overflow: auto;
+    }
+    .qb-email-preview-meta {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: #475569;
+    }
+    .qb-email-preview-meta strong { color: #1c1917; font-weight: 700; }
+    .qb-email-preview-frame {
+      width: 100%;
+      min-height: 360px;
+      height: min(52vh, 480px);
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f3f0ea;
+    }
     .qb-modal__title { margin: 0 0 6px; font-size: 1.1rem; color: var(--plab-ink, #1c1917); }
     .qb-modal__sub { margin: 0 0 14px; }
     .qb-modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
@@ -2340,8 +2361,24 @@
     </button>
     <button type="button" class="qb-send-menu__item" id="quoteSendByEmail" role="menuitem">
       E-mail
-      <small>Só link seguro no e-mail — orçamento e PDF na página online</small>
+      <small>Pré-visualizar e enviar o link seguro ao cliente</small>
     </button>
+  </div>
+
+  <div id="qbEmailPreviewModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbEmailPreviewTitle">
+    <div class="qb-modal__panel qb-modal__panel--wide">
+      <h2 id="qbEmailPreviewTitle" class="qb-modal__title">Pré-visualizar e-mail</h2>
+      <p class="qb-modal__sub text-sm text-slate-500">Confira o e-mail antes de enviar. O link seguro é gerado para este orçamento.</p>
+      <div class="qb-email-preview-meta" id="qbEmailPreviewMeta"></div>
+      <label class="qb-invoice-form__label">Assunto
+        <input type="text" id="qbEmailPreviewSubject" class="qb-invoice-form__input" />
+      </label>
+      <iframe id="qbEmailPreviewFrame" class="qb-email-preview-frame" title="Pré-visualização do e-mail" sandbox=""></iframe>
+      <div class="qb-modal__actions">
+        <button type="button" class="btn btn-ghost" id="btnEmailPreviewCancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnEmailPreviewSend">Enviar e-mail</button>
+      </div>
+    </div>
   </div>
 
   <div id="qbInvoiceModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbInvoiceModalTitle">
@@ -2443,7 +2480,7 @@
   <script src="crm-pdf-viewer.js?v=20260930b"></script>
   <script src="lead-contact-links.js?v=20260819-lead-email-msgs"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261001-inv1"></script>
+  <script src="quote-builder.js?v=20261001-inv2"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

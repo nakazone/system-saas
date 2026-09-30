@@ -1107,6 +1107,7 @@ customersQuotesRouter.put(
             ),
           });
         }
+        const prevStatus = existing.status;
         const updated = await tx.quote.update({
           where: { id },
           data: {
@@ -1131,17 +1132,35 @@ customersQuotesRouter.put(
         await syncLeadForQuoteStatus(tx, {
           organizationId: req.organizationId!,
           quoteId: id,
-          previousStatus: existing.status,
+          previousStatus: prevStatus,
           nextStatus: updated.status,
           actorId: req.user?.id,
         });
-        return updated;
+
+        let createdInvoiceIds: string[] = [];
+        const becameApproved =
+          normalizeQuoteStatus(prevStatus) !== "approved" &&
+          normalizeQuoteStatus(updated.status) === "approved";
+        if (becameApproved) {
+          const { ensureInvoicesOnApprove } = await import("../../lib/payments/engine.js");
+          createdInvoiceIds = await ensureInvoicesOnApprove(tx, {
+            organizationId: req.organizationId!,
+            quoteId: id,
+            actorId: req.user?.id ?? null,
+          });
+        }
+
+        return { updated, createdInvoiceIds };
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Quote not found" });
         return;
       }
-      res.json({ success: true, data: mapQuoteForUser(row, req.user) });
+      res.json({
+        success: true,
+        data: mapQuoteForUser(row.updated, req.user),
+        created_invoice_ids: row.createdInvoiceIds || [],
+      });
     } catch (error) {
       next(error);
     }
@@ -1272,6 +1291,155 @@ function normalizeEmailList(raw: unknown): string[] {
   }
   return out;
 }
+
+function buildQuoteEmailPayload(opts: {
+  quote: {
+    title: string;
+    number: number;
+    quoteNumber: string | null;
+    clientMessage: string | null;
+    validUntil: Date | null;
+    customer?: { name: string } | null;
+    builder?: { company: string | null; firstName: string; lastName: string } | null;
+    organization: {
+      name: string;
+      contactPhone: string | null;
+      accentColor: string | null;
+      primaryColor: string | null;
+    };
+  };
+  publicUrl: string;
+  to: string;
+  cc: string[];
+  subjectOverride?: string;
+}) {
+  const org = opts.quote.organization;
+  const clientName =
+    opts.quote.customer?.name ||
+    opts.quote.builder?.company ||
+    [opts.quote.builder?.firstName, opts.quote.builder?.lastName].filter(Boolean).join(" ") ||
+    "Cliente";
+  const quoteNumber =
+    opts.quote.quoteNumber || formatQuoteNumber("Q-", opts.quote.number);
+  const locale = "en";
+  const emailInput = {
+    companyName: org.name,
+    clientName,
+    quoteNumber,
+    publicUrl: opts.publicUrl,
+    phone: org.contactPhone,
+    validUntil: opts.quote.validUntil,
+    accentColor: org.accentColor,
+    primaryColor: org.primaryColor,
+    clientMessage: opts.quote.clientMessage,
+    locale,
+  };
+  const subject =
+    String(opts.subjectOverride || "").trim() ||
+    defaultQuoteAccessSubject({ companyName: org.name, quoteNumber, locale });
+  return {
+    to: opts.to,
+    cc: opts.cc,
+    subject,
+    text: buildQuoteAccessEmailText(emailInput),
+    html: buildQuoteAccessEmailHtml(emailInput),
+    client_name: clientName,
+    quote_number: quoteNumber,
+  };
+}
+
+customersQuotesRouter.post(
+  "/api/quotes/:id/email-preview",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!asOptionalUuid(id)) {
+        res.status(400).json({ success: false, error: "ID inválido" });
+        return;
+      }
+      const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<
+        string,
+        unknown
+      >;
+
+      const prepared = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const quote = await tx.quote.findFirst({
+          where: { id },
+          include: {
+            customer: { select: { id: true, name: true, email: true } },
+            builder: { select: { email: true, company: true, firstName: true, lastName: true } },
+            organization: {
+              select: {
+                name: true,
+                contactEmail: true,
+                contactPhone: true,
+                accentColor: true,
+                primaryColor: true,
+              },
+            },
+          },
+        });
+        if (!quote) return null;
+
+        const toOverride = String(body.to || "").trim().toLowerCase();
+        const primary =
+          toOverride ||
+          quote.customer?.email?.trim().toLowerCase() ||
+          quote.builder?.email?.trim().toLowerCase() ||
+          "";
+        if (!primary) {
+          return { error: "Este cliente não tem e-mail no cadastro." as const };
+        }
+
+        // Preview issues a real token so the CTA link matches production; status is unchanged.
+        const issued = await issuePublicAccessToken(tx, {
+          organizationId: req.organizationId!,
+          entityType: "quote",
+          entityId: quote.id,
+        });
+        return { quote, primary, issued };
+      });
+
+      if (!prepared) {
+        res.status(404).json({ success: false, error: "Orçamento não encontrado" });
+        return;
+      }
+      if ("error" in prepared && prepared.error) {
+        res.status(400).json({ success: false, error: prepared.error });
+        return;
+      }
+
+      const data = prepared as {
+        quote: Parameters<typeof buildQuoteEmailPayload>[0]["quote"];
+        primary: string;
+        issued: { rawToken: string };
+      };
+      const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
+      const proto =
+        req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
+      const publicUrl = `${proto}://${host}/public/quotes/${data.issued.rawToken}`;
+      const cc = normalizeEmailList(body.cc ?? body.extra_emails ?? body.extraEmails);
+      const payload = buildQuoteEmailPayload({
+        quote: data.quote,
+        publicUrl,
+        to: data.primary,
+        cc,
+        subjectOverride: String(body.subject || ""),
+      });
+
+      res.json({
+        success: true,
+        preview: true,
+        ...payload,
+        public_url: publicUrl,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 customersQuotesRouter.post(
   "/api/quotes/:id/send-email",
@@ -1419,47 +1587,21 @@ customersQuotesRouter.post(
       const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
       const proto = req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
       const publicUrl = `${proto}://${host}/public/quotes/${data.issued.rawToken}`;
-      const org = data.quote.organization;
-      const clientName =
-        data.quote.customer?.name ||
-        data.quote.builder?.company ||
-        [data.quote.builder?.firstName, data.quote.builder?.lastName].filter(Boolean).join(" ") ||
-        "Cliente";
-      const quoteNumber =
-        data.quote.quoteNumber || formatQuoteNumber("Q-", data.quote.number);
-      // Match the secure link e-mail tone used for US flooring clients
-      const locale = "en";
       const cc = normalizeEmailList(body.cc ?? body.extra_emails ?? body.extraEmails);
-
-      const emailInput = {
-        companyName: org.name,
-        clientName,
-        quoteNumber,
+      const payload = buildQuoteEmailPayload({
+        quote: data.quote,
         publicUrl,
-        phone: org.contactPhone,
-        validUntil: data.quote.validUntil,
-        accentColor: org.accentColor,
-        primaryColor: org.primaryColor,
-        clientMessage: data.quote.clientMessage,
-        locale,
-      };
-
-      const subject =
-        String(body.subject || "").trim() ||
-        defaultQuoteAccessSubject({
-          companyName: org.name,
-          quoteNumber,
-          locale,
-        });
-      const text = buildQuoteAccessEmailText(emailInput);
-      const html = buildQuoteAccessEmailHtml(emailInput);
-
-      const sent = await sendCustomerEmail({
         to: data.primary,
         cc,
-        subject,
-        text,
-        html,
+        subjectOverride: String(body.subject || ""),
+      });
+
+      const sent = await sendCustomerEmail({
+        to: payload.to,
+        cc: payload.cc,
+        subject: payload.subject,
+        text: payload.text,
+        html: payload.html,
       });
 
       if (!sent.ok) {

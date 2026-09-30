@@ -409,6 +409,137 @@ export async function upsertQuotePaymentSchedule(
   return schedule.id;
 }
 
+/**
+ * Ensure the quote has a payment schedule with at least one on_approve item,
+ * then create invoices for the on_approve trigger. Default = 100% on approval.
+ */
+export async function ensureInvoicesOnApprove(
+  tx: TenantPrisma,
+  params: {
+    organizationId: string;
+    quoteId: string;
+    actorId?: string | null;
+  },
+): Promise<string[]> {
+  const quote = await tx.quote.findFirst({ where: { id: params.quoteId } });
+  if (!quote) return [];
+  const quoteTotal = Number(quote.total) || 0;
+  if (quoteTotal <= 0) return [];
+
+  let schedule = await tx.paymentSchedule.findFirst({
+    where: { quoteId: params.quoteId },
+    include: { items: { orderBy: { sortOrder: "asc" } } },
+  });
+
+  const hasOnApprove = schedule?.items.some((i) => i.trigger === "on_approve");
+  if (!schedule || !hasOnApprove) {
+    // Prefer org template that includes on_approve; else 100% full payment.
+    await seedDefaultPaymentTemplates(tx, params.organizationId);
+    const templates = await tx.orgPaymentTemplate.findMany({
+      where: { organizationId: params.organizationId, active: true },
+      orderBy: { sortOrder: "asc" },
+    });
+    let items: ScheduleItemInput[] = [
+      { label: "Full payment", percent: 100, trigger: "on_approve", sortOrder: 1 },
+    ];
+    let sourceTemplateId: string | null = null;
+    const fullTpl = templates.find((tpl) => {
+      const raw = (Array.isArray(tpl.items) ? tpl.items : []) as PaymentTemplateItemInput[];
+      return (
+        raw.length === 1 &&
+        raw[0]?.trigger === "on_approve" &&
+        Number(raw[0]?.percent) === 100
+      );
+    });
+    const anyOnApprove = templates.find((tpl) => {
+      const raw = (Array.isArray(tpl.items) ? tpl.items : []) as PaymentTemplateItemInput[];
+      return raw.some((i) => i.trigger === "on_approve");
+    });
+    const chosen = fullTpl || anyOnApprove;
+    if (chosen) {
+      const raw = (Array.isArray(chosen.items) ? chosen.items : []) as PaymentTemplateItemInput[];
+      items = raw.map((i, idx) => ({
+        label: i.label,
+        percent: i.percent ?? null,
+        fixedAmount: i.fixedAmount ?? null,
+        trigger: i.trigger,
+        phaseKey: i.phaseKey ?? null,
+        sortOrder: i.sortOrder ?? idx + 1,
+      }));
+      sourceTemplateId = chosen.id;
+    }
+    // If schedule exists without on_approve, don't overwrite locked/custom schedules —
+    // fall back to creating a single full invoice outside the schedule.
+    if (schedule && !hasOnApprove) {
+      const existingInv = await tx.quoteInvoice.findFirst({
+        where: { quoteId: params.quoteId, status: { not: "void" } },
+      });
+      if (existingInv) return [existingInv.id];
+      const invoiceNumber = await nextInvoiceNumber(tx, params.organizationId);
+      const inv = await tx.quoteInvoice.create({
+        data: {
+          organizationId: params.organizationId,
+          quoteId: params.quoteId,
+          customerId: quote.customerId,
+          invoiceNumber,
+          invoiceType: "full",
+          status: "draft",
+          amount: new Prisma.Decimal(quoteTotal.toFixed(2)),
+          dueDate: new Date(Date.now() + 14 * 86400000),
+          notes: "Full payment",
+        },
+      });
+      return [inv.id];
+    }
+    await upsertQuotePaymentSchedule(tx, {
+      organizationId: params.organizationId,
+      quoteId: params.quoteId,
+      quoteTotal,
+      sourceTemplateId,
+      items,
+    });
+  }
+
+  return runScheduleTriggers(tx, {
+    organizationId: params.organizationId,
+    quoteId: params.quoteId,
+    trigger: "on_approve",
+    actorId: params.actorId,
+  });
+}
+
+/** Quote-level invoice/payment summary used by CRM UI. */
+export async function getQuoteInvoiceBalance(
+  tx: TenantPrisma,
+  quoteId: string,
+): Promise<{
+  quote_total: number;
+  invoiced_total: number;
+  paid_total: number;
+  remaining_to_invoice: number;
+  remaining_due: number;
+}> {
+  const quote = await tx.quote.findFirst({ where: { id: quoteId } });
+  const quoteTotal = quote ? Number(quote.total) || 0 : 0;
+  const invoices = await tx.quoteInvoice.findMany({
+    where: { quoteId, status: { not: "void" } },
+    include: { receipts: true },
+  });
+  const invoiced = invoices.reduce((s, inv) => s + (Number(inv.amount) || 0), 0);
+  const paid = invoices.reduce(
+    (s, inv) => s + inv.receipts.reduce((a, r) => a + (Number(r.amount) || 0), 0),
+    0,
+  );
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  return {
+    quote_total: round2(quoteTotal),
+    invoiced_total: round2(invoiced),
+    paid_total: round2(paid),
+    remaining_to_invoice: round2(Math.max(0, quoteTotal - invoiced)),
+    remaining_due: round2(Math.max(0, quoteTotal - paid)),
+  };
+}
+
 export async function applyTemplateToQuote(
   tx: TenantPrisma,
   params: {

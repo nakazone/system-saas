@@ -1272,6 +1272,8 @@
   /** Configurações › Orçamentos: default tax % for new quotes until the user types a value. */
   let defaultTaxRate = 0;
   let taxTouched = false;
+  /** Paid total from invoices — Balance = total − paid. */
+  let quotePaidTotal = 0;
 
   function recalc() {
     const sub = sumItems();
@@ -1283,6 +1285,10 @@
     }
     const tax = parseFloat($('taxTotal').value) || 0;
     const total = Math.max(0, Math.round((sub - disc + tax) * 100) / 100);
+    const remainingDue =
+      quoteInvoiceBalance && quoteInvoiceBalance.remaining_due != null
+        ? Number(quoteInvoiceBalance.remaining_due)
+        : Math.max(0, Math.round((total - quotePaidTotal) * 100) / 100);
     const subEl = $('dispSubtotal');
     const discEl = $('dispDiscount');
     const taxDisp = $('dispTax');
@@ -1292,9 +1298,9 @@
     if (discEl) discEl.textContent = money(disc);
     if (taxDisp) taxDisp.textContent = money(tax);
     if (totalEl) totalEl.textContent = money(total);
-    if (balEl) balEl.textContent = money(total);
+    if (balEl) balEl.textContent = money(remainingDue);
     updateProfitPanel();
-    return { sub, total, disc, tax };
+    return { sub, total, disc, tax, remainingDue };
   }
 
 
@@ -2035,12 +2041,39 @@
     return null;
   }
 
+  let pendingEmailSendBody = null;
+
+  function closeEmailPreviewModal() {
+    $('qbEmailPreviewModal')?.classList.add('hidden');
+    pendingEmailSendBody = null;
+    const frame = $('qbEmailPreviewFrame');
+    if (frame) frame.removeAttribute('srcdoc');
+  }
+
+  function openEmailPreviewModal(preview, sendBody) {
+    pendingEmailSendBody = sendBody || {};
+    const modal = $('qbEmailPreviewModal');
+    if (!modal) return;
+    const meta = $('qbEmailPreviewMeta');
+    if (meta) {
+      const cc = Array.isArray(preview.cc) && preview.cc.length ? preview.cc.join(', ') : '—';
+      meta.innerHTML =
+        `<div><strong>Para:</strong> ${escapeHtmlText(preview.to || '')}</div>` +
+        `<div><strong>CC:</strong> ${escapeHtmlText(cc)}</div>` +
+        `<div><strong>Orçamento:</strong> ${escapeHtmlText(preview.quote_number || '')}</div>`;
+    }
+    const subj = $('qbEmailPreviewSubject');
+    if (subj) subj.value = preview.subject || '';
+    const frame = $('qbEmailPreviewFrame');
+    if (frame) frame.srcdoc = preview.html || '<p>Sem pré-visualização.</p>';
+    modal.classList.remove('hidden');
+  }
+
   async function sendQuoteByEmail() {
     closeQuoteSendMenu();
     if (!quoteId) return;
-    let cid;
     try {
-      cid = await ensureCustomerForQuote();
+      await ensureCustomerForQuote();
     } catch (e) {
       showQuoteNotify({
         type: 'error',
@@ -2050,8 +2083,8 @@
       });
       return;
     }
-    const preview = getClientEmailForQuote();
-    if (!preview) {
+    const previewTo = getClientEmailForQuote();
+    if (!previewTo) {
       showQuoteNotify({
         type: 'error',
         title: 'E-mail em falta',
@@ -2069,10 +2102,39 @@
       const body = extra.length ? { extra_emails: extra, cc: extra } : {};
       const lid = getCurrentQuoteLeadId();
       if (lid) body.lead_id = lid;
+      const r = await api(`/api/quotes/${quoteId}/email-preview`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      openEmailPreviewModal(r, body);
+    } catch (e) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'Pré-visualização',
+        message: e.message || 'Não foi possível gerar a pré-visualização do e-mail.',
+        ms: 10000,
+      });
+    }
+  }
+
+  async function confirmSendQuoteEmail() {
+    if (!quoteId || !pendingEmailSendBody) return;
+    const btn = $('btnEmailPreviewSend');
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'A enviar…';
+    }
+    try {
+      const subject = String($('qbEmailPreviewSubject')?.value || '').trim();
+      const body = { ...pendingEmailSendBody };
+      if (subject) body.subject = subject;
       const r = await api(`/api/quotes/${quoteId}/send-email`, {
         method: 'POST',
         body: JSON.stringify(body),
       });
+      closeEmailPreviewModal();
+      const preview = getClientEmailForQuote();
       const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
       updateEmailSentBadge(r.email_sent_at || new Date().toISOString());
       if (r.email_sent_at == null) {
@@ -2086,6 +2148,7 @@
       const statusEl = $('status');
       if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
       startQuoteViewPolling();
+      const extra = Array.isArray(body.cc) ? body.cc : body.extra_emails || [];
       const ccNote = extra.length ? ` (CC: ${extra.join(', ')})` : '';
       const movedNote =
         r.lead_moved === true
@@ -2110,6 +2173,11 @@
         message: friendly,
         ms: 14000,
       });
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || 'Enviar e-mail';
+      }
     }
   }
 
@@ -3005,7 +3073,7 @@
   }
 
   let quoteInvoices = [];
-  /** @type {{ quote_total: number, invoiced_total: number, remaining_to_invoice: number } | null} */
+  /** @type {{ quote_total: number, invoiced_total: number, remaining_to_invoice: number, paid_total?: number, remaining_due?: number } | null} */
   let quoteInvoiceBalance = null;
 
   function isQuoteApprovedStatus(status) {
@@ -3027,15 +3095,19 @@
 
   function computeLocalInvoiceBalance() {
     const quoteTotal = currentQuoteTotalForInvoice();
-    const invoiced = quoteInvoices
-      .filter((inv) => String(inv.status || '').toLowerCase() !== 'void')
-      .reduce((s, inv) => s + (Number(inv.amount) || 0), 0);
+    const active = quoteInvoices.filter((inv) => String(inv.status || '').toLowerCase() !== 'void');
+    const invoiced = active.reduce((s, inv) => s + (Number(inv.amount) || 0), 0);
+    const paid = active.reduce((s, inv) => s + (Number(inv.paid_amount) || 0), 0);
     const invoiced_total = Math.round(invoiced * 100) / 100;
+    const paid_total = Math.round(paid * 100) / 100;
     const remaining_to_invoice = Math.round(Math.max(0, quoteTotal - invoiced_total) * 100) / 100;
+    const remaining_due = Math.round(Math.max(0, quoteTotal - paid_total) * 100) / 100;
     return {
       quote_total: Math.round(quoteTotal * 100) / 100,
       invoiced_total,
+      paid_total,
       remaining_to_invoice,
+      remaining_due,
     };
   }
 
@@ -3048,7 +3120,12 @@
       if (hint) hint.classList.add('hidden');
       return bal;
     }
-    const text = `Total ${money(bal.quote_total)} · Já faturado ${money(bal.invoiced_total)} · Restante ${money(bal.remaining_to_invoice)}`;
+    const paid = Number(bal.paid_total) || 0;
+    const due =
+      bal.remaining_due != null
+        ? Number(bal.remaining_due)
+        : Math.max(0, Number(bal.quote_total) - paid);
+    const text = `Total ${money(bal.quote_total)} · Faturado ${money(bal.invoiced_total)} · Pago ${money(paid)} · Em aberto ${money(due)}`;
     if (panel) {
       panel.textContent = text;
       panel.classList.toggle('hidden', bal.invoiced_total <= 0 && quoteInvoices.length === 0);
@@ -3158,13 +3235,16 @@
       const r = await api(`/api/quotes/${quoteId}/invoices`);
       quoteInvoices = r.data || [];
       quoteInvoiceBalance = r.balance || null;
+      quotePaidTotal = Number(quoteInvoiceBalance?.paid_total) || 0;
     } catch {
       quoteInvoices = [];
       quoteInvoiceBalance = null;
+      quotePaidTotal = 0;
     }
     renderQuoteInvoicesList();
     renderInvoiceBalanceSummary();
     syncInvoiceUiVisibility();
+    recalc();
   }
 
   function openInvoiceModal() {
@@ -3358,6 +3438,10 @@
         body: JSON.stringify(body),
       });
       closeReceiptModal();
+      if (r.balance) {
+        quoteInvoiceBalance = r.balance;
+        quotePaidTotal = Number(r.balance.paid_total) || 0;
+      }
       const paidNote = r.invoice_paid ? ' Fatura liquidada.' : '';
       const emailNote =
         r.email && r.email.ok === false
@@ -3369,6 +3453,7 @@
         `Recibo ${r.data?.receipt_number || ''} · ${money(r.data?.amount)}.${paidNote}${emailNote}`
       );
       await loadQuoteInvoices();
+      recalc();
       if (r.data?.id) {
         void openReceiptPdf(r.data.id, r.data.receipt_number ? `Recibo ${r.data.receipt_number}` : 'Recibo');
       }
@@ -3632,6 +3717,11 @@
     $('qbReceiptModal')?.addEventListener('click', (e) => {
       if (e.target === $('qbReceiptModal')) closeReceiptModal();
     });
+    $('btnEmailPreviewCancel')?.addEventListener('click', closeEmailPreviewModal);
+    $('btnEmailPreviewSend')?.addEventListener('click', () => void confirmSendQuoteEmail());
+    $('qbEmailPreviewModal')?.addEventListener('click', (e) => {
+      if (e.target === $('qbEmailPreviewModal')) closeEmailPreviewModal();
+    });
     $('status')?.addEventListener('change', () => {
       syncInvoiceUiVisibility();
     });
@@ -3810,6 +3900,7 @@
       return;
     }
     const body = payload();
+    const wasApproved = isQuoteApprovedStatus(loadedQuoteStatus);
     try {
       if (quoteId) {
         const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
@@ -3820,6 +3911,34 @@
           $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
           updatePreviewHeader();
           setPublicLink(q.public_token, q.quote_number);
+        }
+        const createdIds = Array.isArray(r.created_invoice_ids) ? r.created_invoice_ids : [];
+        await loadQuoteInvoices();
+        if (!wasApproved && isQuoteApprovedStatus(loadedQuoteStatus)) {
+          syncInvoiceUiVisibility();
+          const panel = $('quoteInvoicesPanel');
+          if (panel) {
+            panel.classList.remove('hidden');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+          if (createdIds.length) {
+            qbToast(
+              createdIds.length === 1
+                ? 'Orçamento aprovado — fatura criada no painel Invoice.'
+                : `Orçamento aprovado — ${createdIds.length} faturas criadas.`,
+              'success',
+            );
+            const first = quoteInvoices.find((i) => String(i.id) === String(createdIds[0]));
+            if (first?.id) {
+              void openInvoicePdf(
+                first.id,
+                first.invoice_number ? `Fatura ${first.invoice_number}` : 'Fatura',
+              );
+            }
+          } else {
+            qbToast('Orçamento aprovado.', 'success');
+          }
+          return;
         }
       } else {
         const r = await api('/api/quotes/full', { method: 'POST', body: JSON.stringify(body) });

@@ -15,7 +15,7 @@ import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from 
 import { computeNextQuoteNumber, formatQuoteNumber, parseQuoteSettings } from "../../lib/settings/quotes.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
-import { runScheduleTriggers, seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
+import { runScheduleTriggers, seedDefaultPaymentTemplates, ensureInvoicesOnApprove } from "../../lib/payments/engine.js";
 import {
   cancelPendingMessages,
   scheduleQuoteFollowUp,
@@ -573,10 +573,9 @@ quotesRouter.post(
             changeRequestNote: null,
           },
         });
-        await runScheduleTriggers(tx, {
+        await ensureInvoicesOnApprove(tx, {
           organizationId: req.organizationId!,
           quoteId: param(req, "id"),
-          trigger: "on_approve",
           actorId: req.user!.id,
         });
         await cancelPendingMessages(tx, {

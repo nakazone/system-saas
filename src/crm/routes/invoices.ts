@@ -450,14 +450,17 @@ invoicesCrmRouter.get(
       const quoteTotal = dec(quote.total);
       const invoiced = data.filter((d) => d.status !== "void").reduce((s, d) => s + d.amount, 0);
       const paid = data.reduce((s, d) => s + d.paid_amount, 0);
+      const paidRounded = Math.round(paid * 100) / 100;
+      const invoicedRounded = Math.round(invoiced * 100) / 100;
       res.json({
         success: true,
         data,
         balance: {
           quote_total: quoteTotal,
-          invoiced_total: Math.round(invoiced * 100) / 100,
-          remaining_to_invoice: Math.max(0, Math.round((quoteTotal - invoiced) * 100) / 100),
-          paid_total: Math.round(paid * 100) / 100,
+          invoiced_total: invoicedRounded,
+          remaining_to_invoice: Math.max(0, Math.round((quoteTotal - invoicedRounded) * 100) / 100),
+          paid_total: paidRounded,
+          remaining_due: Math.max(0, Math.round((quoteTotal - paidRounded) * 100) / 100),
         },
       });
     } catch (error) {
@@ -1016,6 +1019,14 @@ invoicesCrmRouter.post(
         const fresh = await loadDetail(tx, id);
         return detailPayload(tx, fresh!, req);
       });
+      const quoteId = data.quote?.id;
+      let balance = null;
+      if (quoteId) {
+        balance = await withTenantTransaction(req.organizationId!, async (tx) => {
+          const { getQuoteInvoiceBalance } = await import("../../lib/payments/engine.js");
+          return getQuoteInvoiceBalance(tx, quoteId);
+        });
+      }
       res.status(201).json({
         success: true,
         data: {
@@ -1027,6 +1038,7 @@ invoicesCrmRouter.post(
         },
         invoice_paid: out.invoicePaid,
         invoice: data,
+        balance,
         email,
       });
     } catch (error) {
