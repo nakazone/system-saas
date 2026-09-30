@@ -3,7 +3,7 @@
  * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20260928-chat1";
+  const VER = "20260930-maismob3";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
 
@@ -50,9 +50,32 @@
     if (f === "pipeline-lab.html" || f === "leads.html" || f === "lead-detail.html") return "pipeline";
     if (f === "schedule.html") return "agenda";
     if (f === "jobs.html" || f === "job-detail.html") return "jobs";
-    if (f === "chat.html") return "more";
-    if (f === "mais.html") return "more";
+    if (
+      f === "mais.html" ||
+      f === "chat.html" ||
+      f === "quotes.html" ||
+      f === "quote-builder.html" ||
+      f === "quote-catalog.html" ||
+      f === "invoices.html" ||
+      f === "customers.html" ||
+      f === "equipe.html" ||
+      f === "ajustes.html" ||
+      f === "finance.html" ||
+      f === "financial.html" ||
+      f === "payroll-module.html"
+    ) {
+      return "more";
+    }
     return "";
+  }
+
+  function hideLegacyBottomNav() {
+    document.querySelectorAll("#mobileTabBar, .sf-bottom-nav.mobile-tab-bar, nav.sf-bottom-nav").forEach((el) => {
+      el.style.setProperty("display", "none", "important");
+      el.setAttribute("aria-hidden", "true");
+      el.hidden = true;
+    });
+    document.body.classList.remove("sf-mobile-shell");
   }
 
   function ensureCss() {
@@ -203,7 +226,11 @@
   }
 
   function ensureTabbar() {
-    if (document.getElementById("omTabbar")) return;
+    if (document.getElementById("omTabbar")) {
+      document.body.classList.add("om-has-tabbar");
+      hideLegacyBottomNav();
+      return;
+    }
     const nav = document.createElement("nav");
     nav.id = "omTabbar";
     nav.className = "om-tabbar";
@@ -243,6 +270,7 @@
 
     document.body.appendChild(nav);
     document.body.classList.add("om-has-tabbar");
+    hideLegacyBottomNav();
 
     document.getElementById("omTabbarFab")?.addEventListener("click", () => openSheet("omCreateSheet"));
   }
@@ -288,6 +316,7 @@
       </a>`;
     document.body.appendChild(nav);
     document.body.classList.add("om-has-tabbar", "om-field-nav");
+    hideLegacyBottomNav();
   }
 
   async function resolveFieldRole() {

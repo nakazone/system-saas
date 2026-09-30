@@ -1,0 +1,235 @@
+/**
+ * Orçamentos — mobile UX (phone / small tablet)
+ * Works with om-app-top + om-tabbar (current bottom nav).
+ */
+
+@media (max-width: 900px) {
+  /* Unlock document scroll — coarse-pointer rules lock body at 100dvh */
+  body.om-device-mobile.om-has-tabbar.quotes-app,
+  body.om-device-mobile.quotes-app.om-has-tabbar {
+    height: auto !important;
+    min-height: 100dvh;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: auto;
+  }
+
+  body.om-device-mobile.om-has-tabbar.quotes-app .dashboard-main,
+  body.om-device-mobile.quotes-app.om-has-tabbar .dashboard-main {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0.75rem 0.9rem !important;
+    padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.45rem) !important;
+    padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 1.25rem) !important;
+    background: var(--plab-bg, #f3f1ee) !important;
+  }
+
+  body.quotes-app .mod-page.crm-page {
+    max-width: none;
+    padding: 0;
+    gap: 0.75rem;
+  }
+
+  body.quotes-app .crm-page-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.7rem;
+    margin-bottom: 0.15rem;
+  }
+
+  body.quotes-app .crm-page-header__title {
+    font-size: 1.45rem;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+
+  body.quotes-app .crm-page-header__subtitle {
+    font-size: 0.85rem;
+    color: var(--plab-muted, #78716c);
+  }
+
+  body.quotes-app .crm-page-header__actions {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 0.5rem;
+  }
+
+  body.quotes-app .crm-page-header__actions .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+    border-radius: 12px;
+    font-weight: 700;
+  }
+
+  /* Compact overview: 2 stats only */
+  body.quotes-app .mod-overview {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.55rem;
+    margin-bottom: 0.25rem;
+  }
+
+  body.quotes-app .mod-overview .mod-ov-card {
+    min-height: 0;
+    padding: 0.75rem 0.85rem;
+    border-radius: 14px;
+  }
+
+  body.quotes-app .mod-overview .mod-ov-card:first-child,
+  body.quotes-app .mod-overview .mod-ov-card--promo {
+    display: none;
+  }
+
+  body.quotes-app .mod-ov-card__stat {
+    font-size: 1.35rem;
+  }
+
+  body.quotes-app .mod-ov-card__sub {
+    font-size: 0.75rem;
+  }
+
+  /* Sticky search / filter chrome */
+  body.quotes-app .quotes-list-toolbar {
+    position: sticky;
+    top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) - 0.1rem);
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin: 0 0 0.65rem;
+    padding: 0.45rem 0 0.55rem;
+    background: linear-gradient(
+      180deg,
+      rgba(243, 241, 238, 0.98) 65%,
+      rgba(243, 241, 238, 0)
+    );
+  }
+
+  body.quotes-app .quotes-list-toolbar__search,
+  body.quotes-app .customers-list-toolbar__select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    flex: none;
+    min-height: 44px;
+    border-radius: 12px;
+    font-size: 1rem;
+    box-sizing: border-box;
+  }
+
+  body.quotes-app .quotes-list-toolbar .btn,
+  body.quotes-app .quotes-list-toolbar__total-meta {
+    display: none;
+  }
+
+  body.quotes-app .customers-list-head {
+    display: none !important;
+  }
+
+  body.quotes-app .customers-list-wrap {
+    border-radius: 0;
+    border: none;
+    background: transparent;
+    overflow: visible;
+    box-shadow: none;
+  }
+
+  body.quotes-app .customers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  body.quotes-app .customers-row.customers-row--quote {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.35rem 0.75rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--plab-line, #e7e5e4);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.quotes-app .customers-row.customers-row--quote:active {
+    background: #fafaf9;
+  }
+
+  body.quotes-app .customers-row.customers-row--quote:hover {
+    background: #fff;
+  }
+
+  body.quotes-app .customers-row__identity {
+    grid-column: 1 / -1;
+  }
+
+  body.quotes-app .customers-row__amt {
+    font-size: 1.05rem;
+    font-weight: 750;
+    align-self: end;
+  }
+
+  body.quotes-app .customers-row__status {
+    justify-self: end;
+    align-self: end;
+  }
+
+  body.quotes-app .customers-row__pdf {
+    display: none;
+  }
+
+  body.quotes-app .customers-row__local,
+  body.quotes-app .customers-row__created {
+    grid-column: 1 / -1;
+    font-size: 0.78rem;
+    color: var(--plab-muted, #78716c);
+  }
+
+  body.quotes-app .customers-row__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.45rem;
+    margin-top: 0.2rem;
+  }
+
+  body.quotes-app .customers-row__actions .btn {
+    flex: 1;
+    min-height: 40px;
+    border-radius: 10px;
+  }
+
+  body.quotes-app .customers-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.45rem 0 0.35rem;
+  }
+
+  body.quotes-app .customers-pagination .btn {
+    min-height: 42px;
+    border-radius: 11px;
+  }
+}
+
+/* Coarse pointer / tablet lock from mobile-design-system — force unlock on quotes */
+@media (hover: none) and (pointer: coarse) {
+  body.om-device-mobile.om-has-tabbar.quotes-app {
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  body.om-device-mobile.om-has-tabbar.quotes-app .dashboard-main {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

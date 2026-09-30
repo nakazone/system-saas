@@ -23,9 +23,7 @@
           return;
         }
         if (p === 'leads') { location.replace('leads.html'); return; }
-        var mobile = window.__omDevice && window.__omDevice.isMobile && window.__omDevice.isMobile();
-        // Mobile keeps Quotes inside dashboard (#quotesMobileShell). Invoices use standalone page.
-        if (p === 'quotes' && !mobile) { location.replace('quotes.html'); return; }
+        if (p === 'quotes') { location.replace('quotes.html'); return; }
         if (p === 'invoices') { location.replace('invoices.html'); return; }
       })();
     </script>

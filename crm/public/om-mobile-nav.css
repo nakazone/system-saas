@@ -23,6 +23,15 @@
     display: none !important;
   }
 
+  /* Legacy dashboard bottom bar must never compete with om-tabbar */
+  body.om-app.om-has-tabbar #mobileTabBar,
+  body.om-app.om-has-tabbar .sf-bottom-nav.mobile-tab-bar,
+  body.om-app.om-has-tabbar .sf-bottom-nav,
+  body.om-device-mobile.om-has-tabbar #mobileTabBar,
+  body.om-device-mobile.om-has-tabbar .sf-bottom-nav {
+    display: none !important;
+  }
+
   body.om-app.om-has-tabbar .dashboard-main {
     padding-bottom: calc(var(--om-tabbar-h) + env(safe-area-inset-bottom, 0px) + 0.75rem) !important;
   }
@@ -61,7 +70,9 @@
   body.om-device-mobile.om-has-apptop.sched-body .dashboard-main.sched-main,
   body.om-device-mobile.om-has-apptop.jobs-app .dashboard-main,
   body.om-device-mobile.om-has-apptop.job-detail-app .dashboard-main,
-  body.om-device-mobile.om-has-apptop.cli-app .dashboard-main {
+  body.om-device-mobile.om-has-apptop.cli-app .dashboard-main,
+  body.om-device-mobile.om-has-apptop.quotes-app .dashboard-main,
+  body.om-device-mobile.om-has-apptop.inv-app .dashboard-main {
     padding-top: calc(var(--om-apptop-h) + env(safe-area-inset-top, 0px) + 0.35rem) !important;
     margin-top: 0 !important;
   }

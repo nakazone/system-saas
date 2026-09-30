@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20260930-maismob2";
+  const SHELL_VER = "20260930-maismob3";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -159,6 +159,17 @@
     if (document.getElementById("omDock")) return;
     // Home pipeline page has its own dock
     if (document.body.classList.contains("plab") && document.querySelector(".plab-dock")) return;
+    // Mobile uses om-tabbar — skip legacy floating dock
+    const mobile =
+      window.__omDevice && typeof window.__omDevice.isMobile === "function"
+        ? window.__omDevice.isMobile()
+        : /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(
+            navigator.userAgent || "",
+          ) ||
+          (typeof navigator !== "undefined" &&
+            navigator.platform === "MacIntel" &&
+            Number(navigator.maxTouchPoints || 0) > 1);
+    if (mobile) return;
     const wrap = document.createElement("div");
     wrap.innerHTML = DOCK_HTML.trim();
     document.body.appendChild(wrap.firstElementChild);

@@ -1189,6 +1189,20 @@
     height: 100dvh;
   }
 
+  /* Current mobile chrome (om-tabbar): prefer document scroll — avoids clipped lists */
+  .dashboard-app-body.om-has-tabbar {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .dashboard-app-body.om-has-tabbar .dashboard-main {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
   /* Shell mobile (≤768): main flexível entre header e tab bar */
   .dashboard-app-body.sf-mobile-shell {
     display: flex;
