@@ -2903,6 +2903,16 @@
     return j;
   }
 
+  /** API returns the quote at `data` (sometimes nested as `data.quote`). */
+  function quoteFromApiResponse(r) {
+    const d = r && r.data;
+    if (!d) return null;
+    if (d.quote && typeof d.quote === 'object') return d.quote;
+    if (d.id != null) return d;
+    return null;
+  }
+
+
   function isQuoteNumberForPublicUrl(quoteNumber) {
     return /^(?:SF|Q|OM)-\d{4}-\d+$/i.test(String(quoteNumber || '').trim());
   }
@@ -3168,13 +3178,14 @@
     const body = payload();
     body.status = desired;
     const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
-    loadedQuoteStatus = r.data?.quote?.status || desired;
-    if (r.data?.quote) {
+    const q = quoteFromApiResponse(r);
+    loadedQuoteStatus = q?.status || desired;
+    if (q) {
       loadedQuoteNumber =
-        r.data.quote.quote_number != null ? String(r.data.quote.quote_number).trim() : loadedQuoteNumber;
-      $('quoteMeta').textContent = `Orçamento ${r.data.quote.quote_number || '#' + r.data.quote.id} · total ${money(r.data.quote.total_amount)}`;
+        q.quote_number != null ? String(q.quote_number).trim() : loadedQuoteNumber;
+      $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
       updatePreviewHeader();
-      setPublicLink(r.data.quote.public_token, r.data.quote.quote_number);
+      setPublicLink(q.public_token, q.quote_number);
     }
   }
 
@@ -3766,22 +3777,29 @@
     try {
       if (quoteId) {
         const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
-        if (r.data && r.data.quote) {
-          loadedQuoteStatus = r.data.quote.status || body.status || loadedQuoteStatus;
-          loadedQuoteNumber =
-            r.data.quote.quote_number != null ? String(r.data.quote.quote_number).trim() : null;
-          $('quoteMeta').textContent = `Orçamento ${r.data.quote.quote_number || '#' + r.data.quote.id} · total ${money(r.data.quote.total_amount)}`;
+        const q = quoteFromApiResponse(r);
+        if (q) {
+          loadedQuoteStatus = q.status || body.status || loadedQuoteStatus;
+          loadedQuoteNumber = q.quote_number != null ? String(q.quote_number).trim() : null;
+          $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
           updatePreviewHeader();
-          setPublicLink(r.data.quote.public_token, r.data.quote.quote_number);
+          setPublicLink(q.public_token, q.quote_number);
         }
       } else {
         const r = await api('/api/quotes/full', { method: 'POST', body: JSON.stringify(body) });
-        quoteId = r.data.quote.id;
-        const lid = pendingLeadId != null && Number.isFinite(pendingLeadId) ? pendingLeadId : null;
+        const q = quoteFromApiResponse(r);
+        if (!q || q.id == null) throw new Error('Resposta inválida ao criar orçamento.');
+        quoteId = q.id;
+        const lid =
+          pendingLeadId != null && pendingLeadId !== ''
+            ? pendingLeadId
+            : selectedQuoteLead?.id != null
+              ? selectedQuoteLead.id
+              : null;
         history.replaceState(
           {},
           '',
-          lid ? `?id=${quoteId}&lead_id=${lid}` : `?id=${quoteId}`
+          lid ? `?id=${quoteId}&lead_id=${encodeURIComponent(lid)}` : `?id=${quoteId}`
         );
         await loadQuote(quoteId);
       }
@@ -4109,9 +4127,9 @@
     $('btnDup').addEventListener('click', async () => {
       if (!quoteId) return;
       const r = await api(`/api/quotes/${quoteId}/duplicate`, { method: 'POST', body: '{}' });
-      const d = r.data;
-      if (d && d.quote) {
-        location.href = 'quote-builder.html?id=' + d.quote.id;
+      const q = quoteFromApiResponse(r);
+      if (q && q.id != null) {
+        location.href = 'quote-builder.html?id=' + encodeURIComponent(q.id);
       }
     });
 
