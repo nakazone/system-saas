@@ -1036,9 +1036,24 @@ customersQuotesRouter.post(
           nextStatus: quote.status,
           actorId: req.user?.id,
         });
-        return quote;
+
+        let createdInvoiceIds: string[] = [];
+        if (normalizeQuoteStatus(quote.status) === "approved") {
+          const { ensureInvoicesOnApprove } = await import("../../lib/payments/engine.js");
+          createdInvoiceIds = await ensureInvoicesOnApprove(tx, {
+            organizationId: req.organizationId!,
+            quoteId: quote.id,
+            actorId: req.user?.id ?? null,
+          });
+        }
+
+        return { quote, createdInvoiceIds };
       });
-      res.status(201).json({ success: true, data: mapQuoteForUser(row, req.user) });
+      res.status(201).json({
+        success: true,
+        data: mapQuoteForUser(row.quote, req.user),
+        created_invoice_ids: row.createdInvoiceIds || [],
+      });
     } catch (error) {
       next(error);
     }
