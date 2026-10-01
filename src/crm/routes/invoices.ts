@@ -1224,6 +1224,12 @@ invoicesCrmRouter.post(
         const inv = await tx.quoteInvoice.findFirst({ where: { id }, include: { receipts: true } });
         if (!inv) return { error: "Fatura não encontrada", status: 404 } as const;
         if (inv.status === "void") return { error: "Fatura anulada.", status: 409 } as const;
+        if (inv.status === "draft") {
+          return {
+            error: "Envie a fatura ao cliente antes de registrar o pagamento. Enviar não marca como paga.",
+            status: 409,
+          } as const;
+        }
         const m = computeInvoiceMoney(inv);
         const resolved = resolvePaymentAmount({ mode: b.mode, amount: b.amount, balance: m.balance });
         if (!resolved.ok) return { error: resolved.error, status: 422 } as const;

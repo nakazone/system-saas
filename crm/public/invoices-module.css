@@ -104,8 +104,10 @@
 
 .inv-banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 12px; border: 1px solid; }
 .inv-banner.is-draft { background: var(--inv-soft); border-color: var(--inv-line); color: var(--inv-ink-2); }
+.inv-banner.is-awaiting { background: var(--inv-amber-soft, #fff7ed); border-color: #f5d0a9; color: #9a3412; }
 .inv-banner.is-overdue { background: var(--inv-danger-soft); border-color: #f2c7c2; color: #7f1d17; }
 .inv-banner.is-void { background: #f1ede6; border-color: var(--inv-line); color: var(--inv-muted); }
+.inv-hint { margin: 8px 0 0; font-size: 0.8rem; color: var(--inv-muted); line-height: 1.4; }
 
 /* ---------- paper (document preview) ---------- */
 .inv-paper { position: relative; overflow: hidden; background: #fff; border: 1px solid var(--inv-line); border-radius: 14px; padding: 36px 40px 32px; box-shadow: 0 1px 2px rgba(33, 29, 26, 0.04), 0 8px 24px -12px rgba(33, 29, 26, 0.12); min-height: 520px; }

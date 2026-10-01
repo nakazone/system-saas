@@ -89,15 +89,22 @@
       .join(' · ');
 
     const open = inv.remaining_amount > 0.004 && inv.status !== 'void';
-    const canPay = inv.can.record_payment && open;
+    const isDraft = inv.status === 'draft';
+    // Receive payment only after the invoice left draft — sending ≠ paid.
+    const canPay = inv.can.record_payment && open && !isDraft;
+    const canSend = inv.can.manage && inv.status !== 'void';
     $('btnReceive').hidden = !canPay;
     $('btnReceiveMobile').hidden = !canPay;
     $('btnAddPayment').hidden = !canPay;
-    const canSend = inv.can.manage && inv.status !== 'void';
     $('btnSend').hidden = !canSend;
     $('btnSendMobile').hidden = !canSend;
-    $('btnSendLabel').textContent = inv.status === 'draft' ? 'Enviar' : 'Reenviar';
-    $('btnSendMobile').textContent = inv.status === 'draft' ? 'Enviar' : 'Reenviar';
+    $('btnSendLabel').textContent = isDraft ? 'Enviar' : 'Reenviar';
+    $('btnSendMobile').textContent = isDraft ? 'Enviar' : 'Reenviar';
+    // Draft: Enviar is the primary action. After send: Receber pagamento is primary.
+    $('btnSend').className = isDraft ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
+    $('btnReceive').className = isDraft ? 'inv-btn inv-btn--secondary' : 'inv-btn inv-btn--primary';
+    $('btnSendMobile').className = isDraft ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
+    $('btnReceiveMobile').className = isDraft ? 'inv-btn inv-btn--secondary' : 'inv-btn inv-btn--primary';
     $('invMobileBar').hidden = !canPay && !canSend;
 
     const menu = $('moreMenu');
@@ -158,9 +165,19 @@
     else if (inv.display_status === 'overdue')
       html = `<b>Vencida há ${inv.days_overdue} ${inv.days_overdue === 1 ? 'dia' : 'dias'}.</b> Saldo de ${money(inv.remaining_amount)} em aberto desde ${esc(fdate(inv.due_date))}.`;
     else if (inv.status === 'draft')
-      html = '<b>Rascunho.</b> O cliente ainda não recebeu esta fatura — envie por e-mail ou compartilhe o link.';
+      html = '<b>Rascunho.</b> Envie ao cliente primeiro. Só use <em>Receber pagamento</em> quando o dinheiro entrar — enviar não marca como paga.';
+    else if (inv.display_status !== 'paid' && inv.remaining_amount > 0.004)
+      html = `<b>Aguardando pagamento.</b> Saldo de ${money(inv.remaining_amount)} em aberto${inv.due_date ? ` · vence ${esc(fdate(inv.due_date))}` : ''}. Dê baixa só quando receber.`;
     b.hidden = !html;
-    b.className = `inv-banner ${inv.status === 'void' ? 'is-void' : inv.display_status === 'overdue' ? 'is-overdue' : 'is-draft'}`;
+    b.className = `inv-banner ${
+      inv.status === 'void'
+        ? 'is-void'
+        : inv.display_status === 'overdue'
+          ? 'is-overdue'
+          : inv.status === 'draft'
+            ? 'is-draft'
+            : 'is-awaiting'
+    }`;
     b.innerHTML = html;
   }
 
@@ -276,19 +293,30 @@
         <div><dt>Pago</dt><dd>${money(inv.paid_amount)} <small>(${inv.percent_paid}%)</small></dd></div>
         <div><dt>Saldo</dt><dd><b>${money(inv.remaining_amount)}</b></dd></div>
       </dl>
-      ${inv.can.record_payment && inv.remaining_amount > 0.004 && inv.status !== 'void' ? `
+      ${inv.can.record_payment && inv.remaining_amount > 0.004 && inv.status !== 'void' && inv.status !== 'draft' ? `
         <div class="inv-summary__quick">
           <button type="button" class="inv-btn inv-btn--primary inv-btn--block" data-pay="full">Pagamento integral · ${money(inv.remaining_amount)}</button>
           <button type="button" class="inv-btn inv-btn--secondary inv-btn--block" data-pay="partial">Dar baixa parcial</button>
+        </div>` : inv.status === 'draft' && inv.can.manage ? `
+        <div class="inv-summary__quick">
+          <button type="button" class="inv-btn inv-btn--primary inv-btn--block" id="btnSummarySend">Enviar fatura ao cliente</button>
+          <p class="inv-hint">Depois que o pagamento entrar, use <b>Receber pagamento</b> para dar baixa.</p>
         </div>` : ''}
     `;
     $('invSummary').querySelectorAll('[data-pay]').forEach((b) => b.addEventListener('click', () => openPay(b.dataset.pay)));
+    $('btnSummarySend')?.addEventListener('click', openSend);
   }
 
   function renderPayments() {
     const host = $('invPayments');
     if (!inv.payments.length) {
-      host.innerHTML = `<p class="inv-empty">Nenhum pagamento registrado.${inv.can.record_payment && inv.remaining_amount > 0 && inv.status !== 'void' ? ' Use <b>Receber pagamento</b> quando o cliente pagar.' : ''}</p>`;
+      host.innerHTML = `<p class="inv-empty">${
+        inv.status === 'draft'
+          ? 'Nenhum pagamento ainda. Envie a fatura ao cliente; só registre o pagamento quando o dinheiro entrar.'
+          : inv.can.record_payment && inv.remaining_amount > 0 && inv.status !== 'void'
+            ? 'Nenhum pagamento registrado. Use <b>Receber pagamento</b> quando o cliente pagar.'
+            : 'Nenhum pagamento registrado.'
+      }</p>`;
       return;
     }
     host.innerHTML = inv.payments
@@ -480,6 +508,11 @@
   }
   function openPay(mode) {
     if (!inv || inv.remaining_amount <= 0) return;
+    if (inv.status === 'draft') {
+      toast('Envie a fatura ao cliente antes de registrar o pagamento.', 'info');
+      openSend();
+      return;
+    }
     showErr('payError', '');
     $('payMeta').textContent = `${inv.invoice_number} · total ${money(inv.amount)} · pago ${money(inv.paid_amount)} · saldo ${money(inv.remaining_amount)}`;
     $('payFullAmount').textContent = money(inv.remaining_amount);
@@ -829,7 +862,7 @@
       inv = r.data;
       render();
       closeModal('sendModal');
-      toast(`Fatura enviada para ${to}.`);
+      toast(`Fatura enviada para ${to}. Quando o pagamento entrar, use Receber pagamento para dar baixa.`);
     } catch (err) {
       showErr('sendError', err.message);
     } finally {
@@ -843,7 +876,7 @@
       inv = r.data;
       render();
       closeModal('sendModal');
-      toast('Marcada como enviada.');
+      toast('Marcada como enviada. Quando o pagamento entrar, use Receber pagamento para dar baixa.');
     } catch (err) {
       toast(err.message, 'error');
     }

@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="crm-pdf-viewer.css" />
-  <link rel="stylesheet" href="invoices-module.css?v=20261001-svcnote2" />
+  <link rel="stylesheet" href="invoices-module.css?v=20261001-payflow1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed inv-body">
@@ -170,8 +170,8 @@
       </header>
       <div class="inv-modal__body">
         <div class="inv-seg" role="radiogroup" aria-label="Tipo de pagamento">
-          <label class="inv-seg__opt"><input type="radio" name="payMode" value="full" checked /><span><b>Pagamento integral</b><small>Quita o saldo e carimba PAGO</small></span></label>
-          <label class="inv-seg__opt"><input type="radio" name="payMode" value="partial" /><span><b>Pagamento parcial</b><small>Dá baixa em parte do saldo</small></span></label>
+          <label class="inv-seg__opt"><input type="radio" name="payMode" value="full" checked /><span><b>Pagamento integral</b><small>Só quando o valor total já entrou — carimba PAGO</small></span></label>
+          <label class="inv-seg__opt"><input type="radio" name="payMode" value="partial" /><span><b>Pagamento parcial</b><small>Dá baixa só no valor que já recebeu</small></span></label>
         </div>
 
         <div class="inv-pay-amount" id="payFullBox">
@@ -321,6 +321,6 @@
   <script src="crm-shared-nav.js?v=20261001-folha2"></script>
   <script src="crm-shell.js?v=20261001-folha2"></script>
   <script src="crm-pdf-viewer.js"></script>
-  <script src="invoice-page.js?v=20261001-svcnote2"></script>
+  <script src="invoice-page.js?v=20261001-payflow1"></script>
 </body>
 </html>
