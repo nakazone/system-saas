@@ -312,8 +312,13 @@
         const dy = Math.abs(t.clientY - startY);
         if (dx < 72 || dy > 56) return;
         haptic(10);
-        if (window.history.length > 1) window.history.back();
-        else location.href = "mais.html";
+        if (window.__crmShell && typeof window.__crmShell.goBack === "function") {
+          window.__crmShell.goBack();
+        } else if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          location.href = "mais.html";
+        }
       },
       { passive: true },
     );

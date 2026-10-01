@@ -6,7 +6,9 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20261001-soft2";
+  const NAV_HISTORY_KEY = "crm_nav_history_v1";
+  const NAV_HISTORY_MAX = 50;
+  const SHELL_VER = "20261001-back1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -193,9 +195,15 @@
 
   const TOPBAR_HTML = `
 <header class="crm-topbar" id="crmTopbar" aria-label="Barra superior">
-  <a href="pipeline-lab.html" class="crm-topbar__brand" id="crmTopbarBrand" aria-label="ObraMate — início">
-    <img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-system-logo" width="160" height="36" onerror="this.style.display='none'" />
-  </a>
+  <div class="crm-topbar__left">
+    <button type="button" class="crm-topbar__back-btn" id="crmBackBtn" aria-label="Voltar à tela anterior" title="Voltar" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      <span>Voltar</span>
+    </button>
+    <a href="pipeline-lab.html" class="crm-topbar__brand" id="crmTopbarBrand" aria-label="ObraMate — início">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-system-logo" width="160" height="36" onerror="this.style.display='none'" />
+    </a>
+  </div>
   <div class="crm-topbar__right">
     <button type="button" class="crm-topbar__search" id="crmTopbarSearchBtn" aria-label="Pesquisar no sistema" title="Pesquisar (⌘K)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
@@ -251,6 +259,170 @@
   function isAuthPage() {
     const f = (location.pathname || "").split("/").pop() || "";
     return /^(login|builder-login|change-password)\.html$/i.test(f) || f === "login";
+  }
+
+  function currentNavHref() {
+    return location.pathname + location.search + location.hash;
+  }
+
+  function isAuthHref(href) {
+    try {
+      const file = (String(href || "").split("?")[0].split("/").pop() || "").toLowerCase();
+      return /^(login|builder-login|change-password)\.html$/.test(file);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function readNavHistory() {
+    try {
+      const raw = sessionStorage.getItem(NAV_HISTORY_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter((h) => typeof h === "string" && h) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeNavHistory(arr) {
+    try {
+      sessionStorage.setItem(NAV_HISTORY_KEY, JSON.stringify((arr || []).slice(-NAV_HISTORY_MAX)));
+    } catch (_) {}
+  }
+
+  function clearNavHistory() {
+    try {
+      sessionStorage.removeItem(NAV_HISTORY_KEY);
+    } catch (_) {}
+  }
+
+  function trackPageVisit() {
+    if (isAuthPage()) return;
+    const href = currentNavHref();
+    const stack = readNavHistory();
+    if (stack[stack.length - 1] !== href) {
+      stack.push(href);
+      writeNavHistory(stack);
+    }
+  }
+
+  function getPreviousHref() {
+    const stack = readNavHistory();
+    const cur = currentNavHref();
+    for (let i = stack.length - 1; i >= 0; i -= 1) {
+      if (stack[i] !== cur && !isAuthHref(stack[i])) return stack[i];
+    }
+    return null;
+  }
+
+  function goBack() {
+    const stack = readNavHistory();
+    const cur = currentNavHref();
+    while (stack.length && stack[stack.length - 1] === cur) stack.pop();
+    let prev = null;
+    while (stack.length) {
+      const candidate = stack.pop();
+      if (candidate && candidate !== cur && !isAuthHref(candidate)) {
+        prev = candidate;
+        break;
+      }
+    }
+    writeNavHistory(stack);
+    if (prev) {
+      location.href = prev;
+      return;
+    }
+    const fallback =
+      (window.__omDevice && typeof window.__omDevice.entryHref === "function" && window.__omDevice.entryHref()) ||
+      (document.body.classList.contains("func-app") || document.body.classList.contains("om-field-desktop")
+        ? "funcionario.html"
+        : "pipeline-lab.html");
+    location.href = fallback;
+  }
+
+  function updateBackButtons() {
+    const prev = getPreviousHref();
+    ["crmBackBtn", "crmMobileBackBtn"].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      const enabled = !!prev;
+      btn.disabled = !enabled;
+      btn.setAttribute("aria-disabled", enabled ? "false" : "true");
+      btn.classList.toggle("is-disabled", !enabled);
+      btn.title = enabled ? "Voltar à tela anterior" : "Nenhuma tela anterior";
+    });
+  }
+
+  function bindBackButton(btn) {
+    if (!btn || btn.dataset.crmBackBound === "1") return;
+    btn.dataset.crmBackBound = "1";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (btn.disabled) return;
+      goBack();
+    });
+  }
+
+  function ensureDesktopBackButton() {
+    const topbar = document.getElementById("crmTopbar");
+    if (!topbar) return;
+
+    let left = topbar.querySelector(".crm-topbar__left");
+    const brand = document.getElementById("crmTopbarBrand");
+    if (!left) {
+      left = document.createElement("div");
+      left.className = "crm-topbar__left";
+      if (brand) {
+        brand.replaceWith(left);
+        left.appendChild(brand);
+      } else {
+        topbar.insertBefore(left, topbar.firstChild);
+      }
+    }
+
+    let btn = document.getElementById("crmBackBtn");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.id = "crmBackBtn";
+      btn.className = "crm-topbar__back-btn";
+      btn.setAttribute("aria-label", "Voltar à tela anterior");
+      btn.title = "Voltar";
+      btn.disabled = true;
+      btn.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg><span>Voltar</span>';
+      left.insertBefore(btn, left.firstChild);
+    }
+    bindBackButton(btn);
+  }
+
+  function ensureMobileBackButton() {
+    const mobile = document.getElementById("mobileAppHeader");
+    if (!mobile) return;
+    let btn = document.getElementById("crmMobileBackBtn");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.id = "crmMobileBackBtn";
+      btn.className = "mobile-app-header__back";
+      btn.setAttribute("aria-label", "Voltar à tela anterior");
+      btn.title = "Voltar";
+      btn.disabled = true;
+      btn.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg><span>Voltar</span>';
+      const menu = document.getElementById("mobileMenuToggle");
+      if (menu && menu.parentNode === mobile) menu.after(btn);
+      else mobile.insertBefore(btn, mobile.firstChild);
+    }
+    bindBackButton(btn);
+  }
+
+  function ensureBackButtons() {
+    if (isAuthPage()) return;
+    ensureDesktopBackButton();
+    ensureMobileBackButton();
+    trackPageVisit();
+    updateBackButtons();
   }
 
   function ensureStylesheet(href) {
@@ -858,6 +1030,7 @@
     ensureMobileHeader();
     ensureSidebarStructure(getSidebar());
     ensureTopbarUtilities();
+    ensureBackButtons();
     if (!isField) {
       ensureDock();
       if (document.getElementById("omDock")) {
@@ -873,6 +1046,7 @@
     initTopbar();
     placeNotificationBell();
     bindMobileSidebarToggle();
+    ensureBackButtons();
 
     window.matchMedia("(min-width: 1025px)").addEventListener("change", () => {
       placeNotificationBell();
@@ -902,5 +1076,14 @@
     boot().catch(() => {});
   }
 
-  window.__crmShell = { setCollapsed, isCollapsed, openSearch, boot };
+  window.__crmShell = {
+    setCollapsed,
+    isCollapsed,
+    openSearch,
+    boot,
+    goBack,
+    getPreviousHref,
+    clearNavHistory,
+    updateBackButtons,
+  };
 })();

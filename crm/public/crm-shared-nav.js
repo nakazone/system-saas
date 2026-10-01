@@ -239,6 +239,7 @@
       sessionStorage.removeItem(NAV_CACHE_META);
       sessionStorage.removeItem('crm_shared_nav_html_v1');
       sessionStorage.removeItem('crm_shared_nav_meta_v1');
+      sessionStorage.removeItem('crm_nav_history_v1');
     } catch (_) {}
   }
 

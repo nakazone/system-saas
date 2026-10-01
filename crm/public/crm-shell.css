@@ -90,6 +90,56 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     text-decoration: none;
   }
 
+  .crm-topbar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  .crm-topbar__back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 36px;
+    padding: 0 0.7rem 0 0.45rem;
+    border-radius: 10px;
+    border: 1px solid var(--color-border, #e2d9cc);
+    background: #fff;
+    color: var(--color-text-primary, #211d1a);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  }
+
+  .crm-topbar__back-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .crm-topbar__back-btn:hover:not(:disabled),
+  .crm-topbar__back-btn:focus-visible:not(:disabled) {
+    border-color: var(--color-accent, #e8792c);
+    color: var(--color-accent, #e8792c);
+    outline: none;
+    background: rgba(232, 121, 44, 0.06);
+  }
+
+  .crm-topbar__back-btn:disabled,
+  .crm-topbar__back-btn.is-disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+
   .crm-topbar__brand img {
     height: 36px;
     width: auto;
@@ -681,6 +731,52 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     right: 0;
     left: auto;
     top: calc(100% + 8px);
+  }
+}
+
+/* Global back button — mobile header */
+.mobile-app-header__back {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-app-header__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    flex-shrink: 0;
+    height: 36px;
+    padding: 0 0.55rem 0 0.35rem;
+    margin: 0;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(33, 29, 26, 0.06);
+    color: var(--color-text-primary, #211d1a);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-app-header__back svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .mobile-app-header__back:disabled,
+  .mobile-app-header__back.is-disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .mobile-app-header__back:not(:disabled):active {
+    background: rgba(33, 29, 26, 0.12);
   }
 }
 
