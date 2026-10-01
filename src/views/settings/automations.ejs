@@ -24,6 +24,27 @@
     <label>Reminder lead time (hours)</label>
     <input name="visitReminderHours" type="number" min="0" max="168" value="<%= settings.visitReminderHours %>" />
 
+    <hr style="margin:1.25rem 0;border:0;border-top:1px solid #e5e7eb" />
+    <h3 style="margin:0 0 0.5rem;font-size:1rem">Jobs agendados</h3>
+    <p class="muted" style="margin-top:0">Avisa a equipe no celular e, na hora, marca o job como em progresso no escritório — sem avançar o Campo (eles confirmam “a caminho” / “no local”).</p>
+
+    <label style="font-weight:500;margin-top:0.75rem;display:block">
+      <input type="checkbox" name="jobStartReminderEnabled" <%= settings.jobStartReminderEnabled ? 'checked' : '' %> style="width:auto" />
+      Lembrete push antes do horário
+    </label>
+    <label>Minutos antes do início</label>
+    <input name="jobStartReminderMinutesBefore" type="number" min="0" max="1440" value="<%= settings.jobStartReminderMinutesBefore %>" />
+
+    <label style="font-weight:500;margin-top:1rem;display:block">
+      <input type="checkbox" name="jobStartAtTimeNudgeEnabled" <%= settings.jobStartAtTimeNudgeEnabled ? 'checked' : '' %> style="width:auto" />
+      Notificar na hora (“hora de começar”)
+    </label>
+
+    <label style="font-weight:500;margin-top:1rem;display:block">
+      <input type="checkbox" name="jobStartAutoOfficeStatus" <%= settings.jobStartAutoOfficeStatus ? 'checked' : '' %> style="width:auto" />
+      Na hora, passar status do escritório para Em progresso
+    </label>
+
     <button class="btn" type="submit" style="margin-top:1rem">Save</button>
   </form>
   <form method="post" action="/settings/automations/run-due" style="margin-top:0.75rem">

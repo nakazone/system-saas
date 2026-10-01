@@ -1591,6 +1591,10 @@ model WorkOrder {
   crew           Crew?     @relation(fields: [crewId], references: [id], onDelete: SetNull)
   scheduledStart DateTime?
   scheduledEnd   DateTime?
+  /// Set when the pre-start push reminder was sent (dedupe).
+  startReminderSentAt DateTime?
+  /// Set when the "starts now" nudge / office auto-start ran (dedupe).
+  startNudgeSentAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

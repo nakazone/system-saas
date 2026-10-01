@@ -2,6 +2,7 @@ import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 import { startQuoteExpiryJob } from "./lib/quotes/expire-job.js";
 import { startAutomationWorker } from "./lib/automations/worker.js";
+import { startJobStartReminderJob } from "./lib/work-orders/start-reminder-job.js";
 
 const app = createApp();
 const host = "0.0.0.0";
@@ -12,4 +13,5 @@ app.listen(env.PORT, host, () => {
   console.log(`Public URL: ${env.APP_BASE_URL}`);
   startQuoteExpiryJob();
   startAutomationWorker();
+  startJobStartReminderJob();
 });

@@ -375,10 +375,12 @@ async function syncWorkOrderLineItems(
 function teamUserIdsFromWorkOrder(wo: {
   assignedUserId: string | null;
   members?: { userId: string }[];
+  crew?: { members?: { userId: string }[] } | null;
 }): string[] {
   const ids = new Set<string>();
   if (wo.assignedUserId) ids.add(wo.assignedUserId);
   for (const m of wo.members || []) ids.add(m.userId);
+  for (const m of wo.crew?.members || []) ids.add(m.userId);
   return [...ids];
 }
 
@@ -822,6 +824,10 @@ scheduleJobsRouter.put(
         }
       }
 
+      const scheduleChanged =
+        d.scheduled_start !== undefined &&
+        (existing.scheduledStart?.getTime() ?? null) !== (start?.getTime() ?? null);
+
       const row = await prisma.workOrder.update({
         where: { id: existing.id },
         data: {
@@ -847,6 +853,10 @@ scheduleJobsRouter.put(
           ...(d.crew_id !== undefined ? { crewId: d.crew_id || null } : {}),
           ...(d.scheduled_start !== undefined || d.scheduled_end !== undefined
             ? { scheduledStart: start, scheduledEnd: end }
+            : {}),
+          // Re-arm start reminders when the start time moves.
+          ...(scheduleChanged
+            ? { startReminderSentAt: null, startNudgeSentAt: null }
             : {}),
         },
       });

@@ -5,6 +5,17 @@ export type AutomationSettings = {
   visitReminderEnabled: boolean;
   /** Hours before visit start for reminder */
   visitReminderHours: number;
+  /** Push the job team before scheduledStart */
+  jobStartReminderEnabled: boolean;
+  /** Minutes before scheduledStart for the reminder push */
+  jobStartReminderMinutesBefore: number;
+  /** Push again when scheduledStart arrives */
+  jobStartAtTimeNudgeEnabled: boolean;
+  /**
+   * At scheduledStart, set office status scheduled → in_progress.
+   * Does not change Campo fieldStatus (crew still confirms en_route / on_site).
+   */
+  jobStartAutoOfficeStatus: boolean;
 };
 
 export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings = {
@@ -12,6 +23,10 @@ export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings = {
   quoteFollowUpDays: 3,
   visitReminderEnabled: true,
   visitReminderHours: 24,
+  jobStartReminderEnabled: true,
+  jobStartReminderMinutesBefore: 30,
+  jobStartAtTimeNudgeEnabled: true,
+  jobStartAutoOfficeStatus: true,
 };
 
 export function parseAutomationSettings(raw: unknown): AutomationSettings {
@@ -25,6 +40,18 @@ export function parseAutomationSettings(raw: unknown): AutomationSettings {
   if (typeof o.visitReminderEnabled === "boolean") base.visitReminderEnabled = o.visitReminderEnabled;
   if (typeof o.visitReminderHours === "number" && o.visitReminderHours >= 0) {
     base.visitReminderHours = Math.min(168, Math.floor(o.visitReminderHours));
+  }
+  if (typeof o.jobStartReminderEnabled === "boolean") {
+    base.jobStartReminderEnabled = o.jobStartReminderEnabled;
+  }
+  if (typeof o.jobStartReminderMinutesBefore === "number" && o.jobStartReminderMinutesBefore >= 0) {
+    base.jobStartReminderMinutesBefore = Math.min(24 * 60, Math.floor(o.jobStartReminderMinutesBefore));
+  }
+  if (typeof o.jobStartAtTimeNudgeEnabled === "boolean") {
+    base.jobStartAtTimeNudgeEnabled = o.jobStartAtTimeNudgeEnabled;
+  }
+  if (typeof o.jobStartAutoOfficeStatus === "boolean") {
+    base.jobStartAutoOfficeStatus = o.jobStartAutoOfficeStatus;
   }
   return base;
 }

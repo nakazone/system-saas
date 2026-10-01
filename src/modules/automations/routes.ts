@@ -60,6 +60,10 @@ automationsRouter.post(
         quoteFollowUpDays: z.coerce.number().int().min(0).max(90),
         visitReminderEnabled: z.string().optional(),
         visitReminderHours: z.coerce.number().int().min(0).max(168),
+        jobStartReminderEnabled: z.string().optional(),
+        jobStartReminderMinutesBefore: z.coerce.number().int().min(0).max(1440),
+        jobStartAtTimeNudgeEnabled: z.string().optional(),
+        jobStartAutoOfficeStatus: z.string().optional(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
@@ -72,6 +76,10 @@ automationsRouter.post(
         quoteFollowUpDays: parsed.data.quoteFollowUpDays,
         visitReminderEnabled: parsed.data.visitReminderEnabled === "on",
         visitReminderHours: parsed.data.visitReminderHours,
+        jobStartReminderEnabled: parsed.data.jobStartReminderEnabled === "on",
+        jobStartReminderMinutesBefore: parsed.data.jobStartReminderMinutesBefore,
+        jobStartAtTimeNudgeEnabled: parsed.data.jobStartAtTimeNudgeEnabled === "on",
+        jobStartAutoOfficeStatus: parsed.data.jobStartAutoOfficeStatus === "on",
       };
       await prisma.organization.update({
         where: { id: req.organizationId! },
@@ -89,10 +97,16 @@ automationsRouter.post(
   requirePermission("automations.manage"),
   async (_req: AuthedRequest, res, next) => {
     try {
-      const result = await processDueScheduledMessages();
+      const { processDueJobStartReminders } = await import(
+        "../../lib/work-orders/start-reminder-job.js"
+      );
+      const [emailResult, jobResult] = await Promise.all([
+        processDueScheduledMessages(),
+        processDueJobStartReminders(),
+      ]);
       res.redirect(
         `/settings/automations?success=${encodeURIComponent(
-          `Processed ${result.processed}: ${result.sent} sent, ${result.skipped} skipped, ${result.failed} failed`,
+          `Emails ${emailResult.processed} (${emailResult.sent} sent). Jobs: ${jobResult.reminders} lembretes, ${jobResult.nudges} na hora, ${jobResult.autoStarts} auto-start.`,
         )}`,
       );
     } catch (error) {
