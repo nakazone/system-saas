@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20261001-rich1";
+  const SHELL_VER = "20261001-soft1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -731,6 +731,9 @@
     if (!window.CrmI18n) jobs.push(ensureScript(`crm-i18n.js?v=${SHELL_VER}`).catch(() => {}));
     if (!window.__crmSharedNav && !document.querySelector('script[src*="crm-shared-nav.js"]')) {
       jobs.push(ensureScript(`crm-shared-nav.js?v=${SHELL_VER}`).catch(() => {}));
+    }
+    if (!window.__crmSoftNav && !document.querySelector('script[src*="crm-soft-nav.js"]')) {
+      jobs.push(ensureScript(`crm-soft-nav.js?v=${SHELL_VER}`).catch(() => {}));
     }
     if (!window.__crmPwaInstall && !document.querySelector('script[src*="crm-pwa-install.js"]')) {
       ensureStylesheet(`crm-pwa-install.css?v=${SHELL_VER}`);

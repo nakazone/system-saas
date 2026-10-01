@@ -683,3 +683,42 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     top: calc(100% + 8px);
   }
 }
+
+/* Soft navigation — keep chrome; fade main only */
+html.om-soft-nav-pending main.dashboard-main,
+html.om-soft-nav-pending .dashboard-main {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+html.om-soft-nav-enter main.dashboard-main,
+html.om-soft-nav-enter .dashboard-main {
+  animation: omSoftEnterShell 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes omSoftEnterShell {
+  from {
+    opacity: 0.65;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.om-soft-nav-enter main.dashboard-main,
+  html.om-soft-nav-enter .dashboard-main {
+    animation: none;
+  }
+}
+
+@media (min-width: 1025px) {
+  #dashboardSidebar,
+  .dashboard-sidebar {
+    view-transition-name: om-sidebar;
+  }
+}
+

@@ -321,7 +321,24 @@
 
   function navigateNative(href) {
     if (!href) return;
+    if (window.__crmSoftNav && typeof window.__crmSoftNav.navigate === "function") {
+      window.__crmSoftNav.navigate(href);
+      return;
+    }
     location.href = href;
+  }
+
+  function syncActive() {
+    const nav = document.getElementById("omTabbar");
+    if (!nav) return;
+    const field = document.body.classList.contains("om-field-nav") || !!nav.classList.contains("om-tabbar--field");
+    const tab = activeTab(field);
+    nav.querySelectorAll("[data-om-tab]").forEach((el) => {
+      const on = el.getAttribute("data-om-tab") === tab;
+      el.classList.toggle("is-active", on);
+      if (on) el.setAttribute("aria-current", "page");
+      else el.removeAttribute("aria-current");
+    });
   }
 
   function bindTabNativeNav(root) {
@@ -339,6 +356,8 @@
         }
         haptic(8);
         a.classList.add("is-pressing");
+        // Soft-nav document capture handles the transition; avoid double navigate
+        if (window.__crmSoftNav) return;
       });
     });
   }
@@ -479,6 +498,7 @@
     if (document.getElementById("omTabbar")) {
       document.body.classList.add("om-has-tabbar");
       hideLegacyBottomNav();
+      syncActive();
       return;
     }
     const nav = document.createElement("nav");
@@ -532,6 +552,7 @@
       document.body.classList.add("om-has-tabbar", "om-field-nav");
       hideLegacyBottomNav();
       bindTabNativeNav(document.getElementById("omTabbar"));
+      syncActive();
       return;
     }
     const nav = document.createElement("nav");
@@ -656,10 +677,11 @@
     boot,
     openCreate: () => openSheet("omCreateSheet"),
     openMore: () => {
-      location.href = "mais.html";
+      navigateNative("mais.html");
     },
     close: closeSheets,
     haptic,
     navigate: navigateNative,
+    syncActive,
   };
 })();

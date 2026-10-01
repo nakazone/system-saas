@@ -169,6 +169,76 @@
     return new URLSearchParams(window.location.search).get('page') || '';
   }
 
+  const NAV_CACHE_HTML = 'crm_shared_nav_html_v1';
+  const NAV_CACHE_META = 'crm_shared_nav_meta_v1';
+
+  function itemFromAnchor(a) {
+    const hrefAttr = a.getAttribute('href') || '';
+    const dataPage = a.getAttribute('data-page') || '';
+    if (hrefAttr === '#' && dataPage) {
+      const page = dataPage === 'dashboard' ? '' : dataPage;
+      return {
+        href: page ? `dashboard.html?page=${encodeURIComponent(page)}` : 'dashboard.html',
+        page,
+      };
+    }
+    return { href: hrefAttr, page: dataPage };
+  }
+
+  function syncActiveFromLocation() {
+    const host = document.getElementById('crmSharedNavRoot');
+    if (!host) return;
+    const file = currentFile();
+    const page = pageParam();
+    host.querySelectorAll('a.nav-item').forEach((a) => {
+      const item = itemFromAnchor(a);
+      a.classList.toggle('active', linkActive(item, file, page));
+    });
+    host.querySelectorAll('a.crm-shared-nav__link').forEach((a) => {
+      const item = itemFromAnchor(a);
+      a.classList.toggle('crm-shared-nav__link--active', linkActive(item, file, page));
+    });
+  }
+
+  function paintNavFromCache() {
+    try {
+      const host = document.getElementById('crmSharedNavRoot');
+      if (!host || host.dataset.layout !== 'sidebar') return false;
+      if (host.children.length) return false;
+      const html = sessionStorage.getItem(NAV_CACHE_HTML);
+      if (!html) return false;
+      host.innerHTML = html;
+      host.dataset.mounted = '1';
+      host.dataset.fromCache = '1';
+      syncActiveFromLocation();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function saveNavCache(role, perms) {
+    try {
+      const host = document.getElementById('crmSharedNavRoot');
+      if (!host || host.dataset.layout !== 'sidebar' || !host.children.length) return;
+      sessionStorage.setItem(NAV_CACHE_HTML, host.innerHTML);
+      sessionStorage.setItem(
+        NAV_CACHE_META,
+        JSON.stringify({
+          role: String(role || ''),
+          permHash: (Array.isArray(perms) ? perms : []).slice().sort().join(','),
+        }),
+      );
+    } catch (_) {}
+  }
+
+  function clearNavCache() {
+    try {
+      sessionStorage.removeItem(NAV_CACHE_HTML);
+      sessionStorage.removeItem(NAV_CACHE_META);
+    } catch (_) {}
+  }
+
   function linkActive(item, file, page) {
     const h = item.href || '';
     const pathAndQuery = h.split('#')[0];
@@ -297,6 +367,7 @@
       logoutBtn.dataset.crmNavBound = '1';
       logoutBtn.addEventListener('click', async () => {
         try {
+          clearNavCache();
           await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
         } catch (_) {}
         window.location.href = 'login.html';
@@ -353,12 +424,17 @@
   async function init() {
     const host = document.getElementById('crmSharedNavRoot');
     if (!host) return;
-    // Avoid double-mount / concurrent init races (shell remount + script onload)
-    if (host.dataset.mounted === '1' && host.children.length) return;
+    // Soft-nav / already mounted: only sync active state
+    if (host.dataset.mounted === '1' && host.children.length && host.dataset.fromCache !== '1') {
+      syncActiveFromLocation();
+      return;
+    }
     if (initInFlight) return initInFlight;
 
+    const hadCache = host.dataset.fromCache === '1' && host.children.length;
+
     initInFlight = (async () => {
-    host.innerHTML = '';
+    if (!hadCache) host.innerHTML = '';
 
     let user = null;
     let perms = [];
@@ -381,11 +457,32 @@
     const keys = new Set(perms);
     const file = currentFile();
     const page = pageParam();
+    const permHash = perms.slice().sort().join(',');
+
+    if (hadCache && host.dataset.layout === 'sidebar') {
+      let metaOk = false;
+      try {
+        const m = JSON.parse(sessionStorage.getItem(NAV_CACHE_META) || '{}');
+        metaOk = m.role === String(role || '') && m.permHash === permHash;
+      } catch (_) {}
+      if (metaOk) {
+        host.dataset.fromCache = '0';
+        host.dataset.mounted = '1';
+        syncActiveFromLocation();
+        initSidebarUserFooter(user, role);
+        startChatBadgePolling(perms, role);
+        return;
+      }
+      host.innerHTML = '';
+      host.dataset.fromCache = '0';
+    }
 
     if (host.dataset.layout === 'sidebar') {
       mountSidebarNav(host, perms, role);
       initSidebarUserFooter(user, role);
       host.dataset.mounted = '1';
+      host.dataset.fromCache = '0';
+      saveNavCache(role, perms);
       startChatBadgePolling(perms, role);
       return;
     }
@@ -422,6 +519,7 @@
     logout.textContent = 'Sair';
     logout.addEventListener('click', async () => {
       try {
+        clearNavCache();
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
       } catch (_) {}
       window.location.href = 'login.html';
@@ -449,16 +547,22 @@
     const host = document.getElementById('crmSharedNavRoot');
     // Avoid empty→fill→empty→fill flash on every page (shell + auto-init race)
     if (!force && host && host.dataset.mounted === '1' && host.children.length) {
+      syncActiveFromLocation();
       return;
     }
     if (host) {
       host.dataset.mounted = '0';
+      host.dataset.fromCache = '0';
       host.innerHTML = '';
     }
+    if (force) clearNavCache();
     return init();
   }
 
-  window.__crmSharedNav = { init, remount };
+  // Paint cached sidebar ASAP (script runs at end of body — host exists)
+  paintNavFromCache();
+
+  window.__crmSharedNav = { init, remount, syncActiveFromLocation, paintNavFromCache, clearNavCache };
 
   let chatBadgeTimer = null;
   async function updateChatBadge() {

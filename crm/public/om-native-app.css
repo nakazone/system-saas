@@ -8,6 +8,64 @@
   navigation: auto;
 }
 
+/* Keep chrome stable across document transitions */
+@media (min-width: 1025px) {
+  #dashboardSidebar,
+  .dashboard-sidebar {
+    view-transition-name: om-sidebar;
+  }
+  .crm-topbar,
+  #crmAppTopbar,
+  header.crm-topbar {
+    view-transition-name: om-topbar;
+  }
+}
+
+@media (max-width: 900px) {
+  #omTabbar {
+    view-transition-name: om-tabbar;
+  }
+  .om-app-top,
+  #omAppTop {
+    view-transition-name: om-apptop;
+  }
+}
+
+/* Soft-nav: shell stays; only main fades */
+html.om-soft-nav-pending main.dashboard-main,
+html.om-soft-nav-pending .dashboard-main {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+html.om-soft-nav-enter main.dashboard-main,
+html.om-soft-nav-enter .dashboard-main {
+  animation: omSoftEnter 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes omSoftEnter {
+  from {
+    opacity: 0.65;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+html.om-soft-nav-suppress body.om-device-mobile.om-has-tabbar .dashboard-main {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.om-soft-nav-enter main.dashboard-main,
+  html.om-soft-nav-enter .dashboard-main {
+    animation: none;
+  }
+}
+
 @media (max-width: 900px) {
   ::view-transition-old(root),
   ::view-transition-new(root) {
