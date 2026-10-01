@@ -806,8 +806,9 @@ cadastroPayrollUsersRouter.put(
         return;
       }
 
+      const id = String(req.params.id);
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const current = await tx.role.findFirst({ where: { id: req.params.id } });
+        const current = await tx.role.findFirst({ where: { id } });
         if (!current) throw new Error("NOT_FOUND");
 
         const role = await tx.role.update({
@@ -863,9 +864,10 @@ cadastroPayrollUsersRouter.delete(
   requireCrmPermission("roles.manage"),
   async (req: AuthedRequest, res, next) => {
     try {
+      const id = String(req.params.id);
       await withTenantTransaction(req.organizationId!, async (tx) => {
         const current = await tx.role.findFirst({
-          where: { id: req.params.id },
+          where: { id },
           include: { _count: { select: { users: true } } },
         });
         if (!current) throw new Error("NOT_FOUND");

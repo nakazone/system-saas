@@ -48,9 +48,15 @@ function slugify(raw: string): string {
   );
 }
 
-function parseKind(raw: string | undefined): string | null {
-  const k = String(raw || "").trim().toLowerCase();
+function parseKind(raw: string | string[] | undefined): string | null {
+  const k = String(Array.isArray(raw) ? raw[0] || "" : raw || "")
+    .trim()
+    .toLowerCase();
   return KINDS.has(k) ? k : null;
+}
+
+function paramStr(raw: string | string[] | undefined): string {
+  return String(Array.isArray(raw) ? raw[0] || "" : raw || "");
 }
 
 function serialize(row: {
@@ -216,7 +222,7 @@ settingsCatalogRouter.put(
       }
 
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const current = await tx.orgCatalogItem.findFirst({ where: { id: req.params.id, kind } });
+        const current = await tx.orgCatalogItem.findFirst({ where: { id: paramStr(req.params.id), kind } });
         if (!current) throw new Error("NOT_FOUND");
 
         let key = current.key;
@@ -271,7 +277,7 @@ settingsCatalogRouter.delete(
         return;
       }
       await withTenantTransaction(req.organizationId!, async (tx) => {
-        const current = await tx.orgCatalogItem.findFirst({ where: { id: req.params.id, kind } });
+        const current = await tx.orgCatalogItem.findFirst({ where: { id: paramStr(req.params.id), kind } });
         if (!current) throw new Error("NOT_FOUND");
         if (current.isSystem) {
           // Soft-deactivate system defaults instead of hard delete
