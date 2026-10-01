@@ -308,6 +308,19 @@ body.qp-page {
   white-space: pre-wrap;
 }
 
+.qp-block-text strong,
+.qp-line__body strong,
+.qp-line__detail strong {
+  font-weight: 700;
+  color: inherit;
+}
+
+.qp-block-text em,
+.qp-line__body em,
+.qp-line__detail em {
+  font-style: italic;
+}
+
 .qp-notes .qp-block-text {
   color: var(--qp-primary);
 }

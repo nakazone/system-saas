@@ -37,6 +37,17 @@
       .replace(/"/g, '&quot;');
   }
 
+  /** Plain text with **bold** / _italic_ → safe HTML (public quote). */
+  function formatRichHtml(s) {
+    if (typeof window.sfFormatRichTextHtml === 'function') {
+      return window.sfFormatRichTextHtml(s);
+    }
+    var html = escapeHtml(s);
+    html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+    return html;
+  }
+
   function resolvePublicQuoteAccess() {
     const pathMatch = location.pathname.match(QUOTE_NUMBER_PATH_RE);
     if (pathMatch) {
@@ -115,9 +126,9 @@
     if (catalogNotes) detailParts.push(catalogNotes);
     if (lineComment) detailParts.push(`Comment: ${lineComment}`);
     const detailHtml = detailParts.length
-      ? `<span class="qp-line__detail">${escapeHtml(detailParts.join(' — '))}</span>`
+      ? `<span class="qp-line__detail">${formatRichHtml(detailParts.join(' — '))}</span>`
       : '';
-    const bodyHtml = bodyStr ? `<span class="qp-line__body">${escapeHtml(bodyStr)}</span>` : '';
+    const bodyHtml = bodyStr ? `<span class="qp-line__body">${formatRichHtml(bodyStr)}</span>` : '';
 
     return `<tr>
       <td>
@@ -314,8 +325,8 @@
     const discType = q.discount_type === 'fixed' ? '$' : '%';
     const discVal = Number(q.discount_value) || 0;
     const discDisplay = discType === '$' ? money(discVal) : `${discVal}%`;
-    const terms = escapeHtml((q.terms_conditions && String(q.terms_conditions).trim()) || defaultTerms());
-    const notes = q.notes ? escapeHtml(String(q.notes)) : '';
+    const terms = formatRichHtml((q.terms_conditions && String(q.terms_conditions).trim()) || defaultTerms());
+    const notes = q.notes ? formatRichHtml(String(q.notes)) : '';
 
     const panelMeta = [
       issue ? `<p>Issue: ${escapeHtml(issue)}</p>` : '',

@@ -1,0 +1,75 @@
+/* Compact Bold / Italic toolbar above CRM textareas */
+.crm-rich-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.crm-rich-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid #e2d9cc;
+  border-radius: 8px;
+  background: #faf7f2;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.crm-rich-toolbar__btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #211d1a;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crm-rich-toolbar__btn:hover,
+.crm-rich-toolbar__btn:focus-visible {
+  background: #fff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(232, 121, 44, 0.35);
+}
+
+.crm-rich-toolbar__btn--bold {
+  font-weight: 800;
+}
+
+.crm-rich-toolbar__btn--italic {
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.crm-rich-field textarea,
+.crm-rich-field .jd-ta,
+.crm-rich-field .jm-ta,
+.crm-rich-field .lqs-notes {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Rendered rich snippets in public / previews */
+.crm-rich-html {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.crm-rich-html strong {
+  font-weight: 700;
+}
+
+.crm-rich-html em {
+  font-style: italic;
+}

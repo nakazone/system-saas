@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20261001-addr1";
+  const SHELL_VER = "20261001-rich1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -788,11 +788,36 @@
         window.sfScanCrmAddressAutocomplete();
       } catch (_) {}
     }
+    if (!window.sfBootCrmRichText && !document.querySelector('script[src*="crm-rich-text.js"]')) {
+      ensureStylesheet(`crm-rich-text.css?v=${SHELL_VER}`);
+      jobs.push(
+        ensureScript(`crm-rich-text.js?v=${SHELL_VER}`)
+          .then(() => {
+            if (typeof window.sfBootCrmRichText === "function") {
+              window.sfBootCrmRichText();
+            }
+          })
+          .catch(() => {}),
+      );
+    } else if (typeof window.sfBootCrmRichText === "function") {
+      try {
+        window.sfBootCrmRichText();
+      } catch (_) {}
+    } else if (typeof window.sfScanCrmRichText === "function") {
+      try {
+        window.sfScanCrmRichText();
+      } catch (_) {}
+    }
     await Promise.all(jobs);
     refreshOmUtilityBindings();
     if (typeof window.sfScanCrmAddressAutocomplete === "function") {
       try {
         window.sfScanCrmAddressAutocomplete();
+      } catch (_) {}
+    }
+    if (typeof window.sfScanCrmRichText === "function") {
+      try {
+        window.sfScanCrmRichText();
       } catch (_) {}
     }
   }

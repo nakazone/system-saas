@@ -393,14 +393,19 @@ export function pdfLinesFromDbItems(
   });
 }
 
+function stripRichTextMarkers(text: string): string {
+  return text.replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/_([^_\n]+)_/g, "$1");
+}
+
 function termsToItems(terms: string | null | undefined): string[] {
   if (!terms || !terms.trim()) return DEFAULT_TERMS;
-  const numbered = terms
+  const cleaned = stripRichTextMarkers(terms);
+  const numbered = cleaned
     .split(/\n+/)
     .map((s) => s.replace(/^\d+[\).\s]+/, "").trim())
     .filter(Boolean);
   if (numbered.length >= 2) return numbered.slice(0, 8);
-  const sentences = terms
+  const sentences = cleaned
     .split(/(?<=\.)\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
@@ -731,8 +736,8 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
 
       for (const it of sec.items) {
         ensureSpace(42);
-        const nameStr = String(it.name || "").trim();
-        const descStr = String(it.description || "").trim();
+        const nameStr = stripRichTextMarkers(String(it.name || "").trim());
+        const descStr = stripRichTextMarkers(String(it.description || "").trim());
         const headline = nameStr || descStr.split(/\n/)[0] || "Line item";
         let body = "";
         if (nameStr && descStr && descStr !== nameStr) body = descStr;
@@ -748,7 +753,10 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
           dy = doc.y;
         }
         if (it.catalogNotes || it.notes) {
-          const detail = [it.catalogNotes, it.notes ? `Note: ${it.notes}` : ""]
+          const detail = [
+            it.catalogNotes ? stripRichTextMarkers(String(it.catalogNotes)) : "",
+            it.notes ? `Note: ${stripRichTextMarkers(String(it.notes))}` : "",
+          ]
             .filter(Boolean)
             .join(" — ");
           doc.fillColor(PAL.mutedLight).font("Helvetica-Oblique").fontSize(7.5);
