@@ -169,8 +169,8 @@
     return new URLSearchParams(window.location.search).get('page') || '';
   }
 
-  const NAV_CACHE_HTML = 'crm_shared_nav_html_v1';
-  const NAV_CACHE_META = 'crm_shared_nav_meta_v1';
+  const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
+  const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
@@ -206,7 +206,7 @@
       if (!host || host.dataset.layout !== 'sidebar') return false;
       if (host.children.length) return false;
       const html = sessionStorage.getItem(NAV_CACHE_HTML);
-      if (!html) return false;
+      if (!html || html.indexOf('nav-item') < 0) return false;
       host.innerHTML = html;
       host.dataset.mounted = '1';
       host.dataset.fromCache = '1';
@@ -221,6 +221,7 @@
     try {
       const host = document.getElementById('crmSharedNavRoot');
       if (!host || host.dataset.layout !== 'sidebar' || !host.children.length) return;
+      if (!host.querySelector('a.nav-item')) return;
       sessionStorage.setItem(NAV_CACHE_HTML, host.innerHTML);
       sessionStorage.setItem(
         NAV_CACHE_META,
@@ -236,6 +237,8 @@
     try {
       sessionStorage.removeItem(NAV_CACHE_HTML);
       sessionStorage.removeItem(NAV_CACHE_META);
+      sessionStorage.removeItem('crm_shared_nav_html_v1');
+      sessionStorage.removeItem('crm_shared_nav_meta_v1');
     } catch (_) {}
   }
 
@@ -465,12 +468,16 @@
         const m = JSON.parse(sessionStorage.getItem(NAV_CACHE_META) || '{}');
         metaOk = m.role === String(role || '') && m.permHash === permHash;
       } catch (_) {}
-      if (metaOk) {
+      // Keep painted menu if perms match OR session failed (avoid wiping into empty nav)
+      if (metaOk || !user) {
         host.dataset.fromCache = '0';
         host.dataset.mounted = '1';
         syncActiveFromLocation();
-        initSidebarUserFooter(user, role);
-        startChatBadgePolling(perms, role);
+        if (user) {
+          initSidebarUserFooter(user, role);
+          startChatBadgePolling(perms, role);
+          saveNavCache(role, perms);
+        }
         return;
       }
       host.innerHTML = '';

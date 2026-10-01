@@ -321,10 +321,6 @@
 
   function navigateNative(href) {
     if (!href) return;
-    if (window.__crmSoftNav && typeof window.__crmSoftNav.navigate === "function") {
-      window.__crmSoftNav.navigate(href);
-      return;
-    }
     location.href = href;
   }
 
@@ -356,8 +352,6 @@
         }
         haptic(8);
         a.classList.add("is-pressing");
-        // Soft-nav document capture handles the transition; avoid double navigate
-        if (window.__crmSoftNav) return;
       });
     });
   }

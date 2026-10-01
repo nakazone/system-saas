@@ -6,7 +6,7 @@
  */
 (function () {
   const STORAGE_KEY = "crm_sidebar_collapsed";
-  const SHELL_VER = "20261001-soft1";
+  const SHELL_VER = "20261001-soft2";
 
   const CREATE_MENU_ITEMS = [
     {
