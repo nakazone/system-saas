@@ -98,8 +98,13 @@
         label: 'Visão geral',
         items: [
           { href: homeHref, label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
-          { href: 'relatorios.html', label: 'Relatórios', perm: 'reports.view', page: '', iconKey: 'reports' },
           { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
+        ],
+      },
+      {
+        label: 'Relatórios',
+        items: [
+          { href: 'relatorios.html', label: 'Painel', perm: 'reports.view', page: '', iconKey: 'reports' },
         ],
       },
       {
@@ -276,6 +281,7 @@
     if (base === 'jobs.html') return file === 'jobs.html' || file === 'job-detail.html';
     if (base === 'chat.html') return file === 'chat.html';
     if (base === 'job-media-board.html') return file === 'job-media-board.html';
+    if (base === 'relatorios.html') return file === 'relatorios.html';
     if (base === 'configuracoes.html') return file === 'configuracoes.html';
     if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
       if (file === 'home.html' && !(item.page || '')) return true;
