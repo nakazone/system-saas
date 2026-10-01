@@ -5,7 +5,8 @@
  * POST /api/campo/dia/start           begin the day (time + GPS + first job)
  * POST /api/campo/dia/jobs            add / switch to another job
  * DELETE /api/campo/dia/jobs/:woId    remove a job added by mistake
- * POST /api/campo/dia/finish          finish (jobs + sqft + note + GPS) — photos of today required
+ * POST /api/campo/dia/finish          finish (jobs + sqft + note + GPS + recibos) — photos of today required
+ * POST /api/campo/dia/recibos         upload receipt image (data_url) before / during finish
  * POST /api/campo/dia/manual          forgot to clock: date + times (or fix a returned day)
  * GET  /api/campo/dia/jobs/search     find a job that is not on the agenda
  * GET  /api/campo/dia/semana          the week's days (Horas tab)
@@ -46,6 +47,13 @@ import {
   type Gps,
 } from "../../lib/payroll/day-service.js";
 import { ensureJobGeo } from "../../lib/payroll/geocode.js";
+import {
+  attachExpensesToShift,
+  flagShiftForExpenses,
+  mapExpense,
+} from "../../lib/payroll/shift-expenses.js";
+import { storage } from "../../lib/storage/index.js";
+import { randomUUID } from "node:crypto";
 
 export const campoDiaRouter = Router();
 
@@ -122,6 +130,7 @@ function mapJob(wo: JobRow, tz: string, photos: number, dayStart?: Date) {
 const dayInclude = {
   employee: true,
   jobs: { orderBy: { sortOrder: "asc" as const }, include: { workOrder: { select: jobSelect } } },
+  expenses: { orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.CampoShiftInclude;
 type DayRow = Prisma.CampoShiftGetPayload<{ include: typeof dayInclude }>;
 
@@ -181,6 +190,7 @@ async function mapDay(tx: PayrollTx, d: DayRow, tz: string, now = new Date()) {
       sqft: num(j.sqft),
       arrived_label: timeLabel(j.arrivedAt, tz),
     })),
+    expenses: (d.expenses || []).map(mapExpense),
   };
 }
 
@@ -442,6 +452,13 @@ const jobsField = z
   .array(z.object({ work_order_id: z.string().uuid(), sqft: z.number().min(0).max(100000).optional().nullable() }))
   .max(10);
 
+const expenseItem = z.object({
+  amount: z.number().positive().max(100000),
+  description: z.string().max(300).optional().nullable(),
+  receipt_url: z.string().max(2000).optional().nullable(),
+  receipt_key: z.string().max(500).optional().nullable(),
+});
+
 const finishBody = z.object({
   jobs: jobsField.optional(),
   note: z.string().max(1000).optional().nullable(),
@@ -449,6 +466,8 @@ const finishBody = z.object({
   lng: z.number().optional().nullable(),
   accuracy: z.number().optional().nullable(),
   device_at: z.string().optional().nullable(),
+  /** Reembolsos com recibo enviados na finalização. */
+  expenses: z.array(expenseItem).max(8).optional(),
 });
 
 /** Blocking rules shared by finish and manual: a job, photos of the day per job, sqft for production. */
@@ -474,6 +493,49 @@ async function assertFinishable(
   }
 }
 
+campoDiaRouter.post("/api/campo/dia/recibos", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!guard(req, res)) return;
+    const dataUrl = String((req.body || {}).data_url || (req.body || {}).dataUrl || "");
+    if (!dataUrl.startsWith("data:")) {
+      res.status(400).json({ success: false, error: "Envie a foto do recibo (data_url)." });
+      return;
+    }
+    const m = /^data:([^;]+);base64,(.+)$/s.exec(dataUrl);
+    if (!m) {
+      res.status(400).json({ success: false, error: "Recibo inválido." });
+      return;
+    }
+    const contentType = m[1]!;
+    if (!contentType.startsWith("image/") && contentType !== "application/pdf") {
+      res.status(400).json({ success: false, error: "Use foto (imagem) ou PDF do recibo." });
+      return;
+    }
+    const body = Buffer.from(m[2]!, "base64");
+    if (body.length > 12 * 1024 * 1024) {
+      res.status(400).json({ success: false, error: "Arquivo grande demais (máx. 12MB)." });
+      return;
+    }
+    const emp = await withTenantTransaction(req.organizationId!, (tx) => ownEmployee(tx, req));
+    if (!emp) {
+      res.status(409).json({ success: false, error: "Seu usuário não está ligado à folha.", code: "NOT_LINKED" });
+      return;
+    }
+    const ext = contentType.includes("png")
+      ? "png"
+      : contentType.includes("webp")
+        ? "webp"
+        : contentType.includes("pdf")
+          ? "pdf"
+          : "jpg";
+    const key = `orgs/${req.organizationId}/folha-recibos/${emp.id}/${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
+    const stored = await storage.upload({ key, body, contentType });
+    res.status(201).json({ success: true, data: { url: stored.url, key: stored.key } });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
 campoDiaRouter.post("/api/campo/dia/finish", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     if (!guard(req, res)) return;
@@ -496,6 +558,27 @@ campoDiaRouter.post("/api/campo/dia/finish", requireCrmAuth, async (req: AuthedR
       }
       await assertFinishable(tx, emp, req.user!.id, shift.workDate, tz, jobs);
       await closeDay(tx, shift.id, { clockOut: now, gps, deviceAt: deviceAt(req.body || {}), note: b.data.note ?? null, jobs, now }, { tz, userId: req.user!.id });
+      const expenseItems = (b.data.expenses || [])
+        .filter((e) => e.amount > 0)
+        .map((e) => ({
+          kind: "reimbursement" as const,
+          amount: e.amount,
+          description: e.description,
+          receipt_url: e.receipt_url,
+          receipt_key: e.receipt_key,
+        }));
+      if (expenseItems.length) {
+        await attachExpensesToShift(tx, {
+          organizationId: req.organizationId!,
+          shiftId: shift.id,
+          employeeId: emp.id,
+          createdById: req.user!.id,
+          source: "employee",
+          status: "pending",
+          items: expenseItems,
+        });
+        await flagShiftForExpenses(tx, shift.id);
+      }
       return loadState(tx, req, tz, now);
     });
     res.json({ success: true, data });

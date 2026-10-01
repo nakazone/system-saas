@@ -146,6 +146,7 @@ model Organization {
   meetings           Meeting[]
   campoShifts        CampoShift[]
   campoShiftJobs     CampoShiftJob[]
+  campoShiftExpenses CampoShiftExpense[]
   payrollPayments    PayrollPayment[]
   campoSegments      CampoSegment[]
   campoWeekSubmissions CampoWeekSubmission[]
@@ -1411,6 +1412,7 @@ model PayrollEmployee {
   hourBankEntries PayrollHourBankEntry[]
   periodAdjustments PayrollPeriodAdjustment[]
   shifts     CampoShift[]
+  shiftExpenses CampoShiftExpense[]
   payments   PayrollPayment[]
 
   @@index([organizationId])
@@ -1977,6 +1979,7 @@ model CampoShift {
 
   segments CampoSegment[]
   jobs     CampoShiftJob[]
+  expenses CampoShiftExpense[]
 
   @@unique([organizationId, userId, workDate])
   @@index([organizationId])
@@ -2006,6 +2009,40 @@ model CampoShiftJob {
   @@unique([shiftId, workOrderId])
   @@index([organizationId])
   @@index([workOrderId])
+}
+
+/// Reembolso / desconto ligado a um dia de trabalho (recibo do funcionário ou lançamento do escritório).
+model CampoShiftExpense {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  shiftId        String    @db.Uuid
+  shift          CampoShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  employeeId     String    @db.Uuid
+  employee       PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  /// reimbursement | discount
+  kind           String
+  amount         Decimal   @db.Decimal(12, 2)
+  description    String?
+  receiptUrl     String?
+  receiptKey     String?
+  /// pending | approved | rejected
+  status         String    @default("pending")
+  /// employee | office
+  source         String    @default("employee")
+  /// When rolled into PayrollPeriodAdjustment
+  appliedAt      DateTime?
+  createdById    String?   @db.Uuid
+  reviewedById   String?   @db.Uuid
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([shiftId])
+  @@index([employeeId, status])
+  @@index([organizationId, status])
 }
 
 /// One employee paid for one period — mirrored as a Finance outflow.

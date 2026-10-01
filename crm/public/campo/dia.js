@@ -333,6 +333,22 @@
   async function onPhoto(file) {
     const jobId = camJob;
     if (!file || !jobId) return;
+    if (jobId === "__expense__") {
+      try {
+        const dataUrl = await compress(file);
+        if (sheet && sheet.kind === "finish") {
+          sheet._expDataUrl = dataUrl;
+          sheet._expPreview = dataUrl;
+          sheet._expUrl = null;
+          sheet._expKey = null;
+          sheet._expErr = "";
+          renderFinish();
+        }
+      } catch (e) {
+        toast(e.message || "Falha na foto");
+      }
+      return;
+    }
     try {
       const [dataUrl, g] = await Promise.all([compress(file), gps()]);
       const row = { jobId, dataUrl, stage: "during", takenAtDevice: new Date().toISOString(), lat: g?.lat, lng: g?.lng, gpsAccuracyM: g?.accuracy, deviceLabel: "Campo · Meu dia" };
@@ -469,6 +485,7 @@
     openSheet("finish", "Finalizar o dia", {
       note: "",
       sqft: Object.fromEntries(d.jobs.map((j) => [j.id, j.sqft || ""])),
+      expenses: [],
       err: "",
     });
     renderFinish();
@@ -487,7 +504,8 @@
     const otRate = (emp.daily_rate || 0) * 0.1;
     const sqft = Object.values(sheet.sqft).reduce((s, v) => s + (Number(v) || 0), 0);
     const amount = emp.pay_type === "production" ? sqft * (emp.production_rate || 0) : (emp.daily_rate || 0) + (ot / 60) * otRate;
-    return { worked: elapsed - lunch, ot: emp.pay_type === "production" ? 0 : ot, amount, sqft };
+    const reimb = (sheet.expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    return { worked: elapsed - lunch, ot: emp.pay_type === "production" ? 0 : ot, amount, sqft, reimb };
   }
   function renderFinish() {
     const d = S.day;
@@ -496,6 +514,7 @@
     const waiting = d.jobs.reduce((s, j) => s + (queued[j.id] || 0), 0);
     const est = finishEstimate();
     const now = new Date();
+    const expenses = sheet.expenses || [];
     $("dySheetBody").innerHTML = `
       <div class="dy-step"><p class="dy-step__t">1 · Onde você trabalhou</p>
         ${d.jobs
@@ -522,19 +541,102 @@
       </div>
       <div class="dy-step"><p class="dy-step__t">2 · Nota do dia</p>
         <textarea class="dy-in dy-ta" id="dyNote" maxlength="1000" placeholder="Como foi o dia? O que ficou faltando, material, problemas…">${esc(sheet.note)}</textarea></div>
-      <div class="dy-step"><p class="dy-step__t">3 · Resumo</p>
+      <div class="dy-step"><p class="dy-step__t">3 · Reembolso <small>opcional</small></p>
+        <p class="dy-card__hint" style="text-align:left;margin:0 0 10px">Gasolina, material ou ferramenta? Tire foto do recibo e informe o valor.</p>
+        ${
+          expenses.length
+            ? `<ul class="dy-exp">${expenses
+                .map(
+                  (e, i) => `<li>
+                  ${e.receipt_url ? `<a href="${esc(e.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(e.receipt_url)}" alt="" /></a>` : "<span class='dy-exp__ph'>Sem foto</span>"}
+                  <div><b>${esc(money(e.amount))}</b><small>${esc(e.description || "Reembolso")}</small></div>
+                  <button type="button" class="dy-x" data-act="rm-exp" data-i="${i}" aria-label="Remover">×</button>
+                </li>`,
+                )
+                .join("")}</ul>`
+            : ""
+        }
+        <div class="dy-exp-add">
+          <label class="dy-field">Valor ($)<input class="dy-in" id="dyExpAmt" inputmode="decimal" type="number" min="0" step="0.01" placeholder="0.00" /></label>
+          <label class="dy-field">Descrição<input class="dy-in" id="dyExpDesc" maxlength="300" placeholder="Ex.: gasolina, parafusos…" /></label>
+          <div class="dy-exp-add__row">
+            <button type="button" class="dy-btn dy-btn--sm dy-btn--line" data-act="exp-photo">${ICON.cam} Foto do recibo</button>
+            <button type="button" class="dy-btn dy-btn--sm dy-btn--terra" data-act="exp-add" ${sheet._expBusy ? "disabled" : ""}>Adicionar</button>
+          </div>
+          ${sheet._expPreview ? `<div class="dy-exp-prev"><img src="${esc(sheet._expPreview)}" alt="Prévia do recibo" /><button type="button" class="dy-x" data-act="exp-clear-photo" aria-label="Remover foto">×</button></div>` : ""}
+          ${sheet._expErr ? `<p class="dy-err">${esc(sheet._expErr)}</p>` : ""}
+        </div>
+      </div>
+      <div class="dy-step"><p class="dy-step__t">4 · Resumo</p>
         <div class="dy-sum">
           <div><small>Entrada</small><b>${esc(d.clock_in_label)}</b></div>
           <div><small>Saída</small><b>${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}</b></div>
           <div><small>Horas${d.lunch_minutes ? ` (−${d.lunch_minutes} almoço)` : ""}</small><b>${esc(minLabel(est.worked))}</b></div>
           <div class="ot"><small>Extra (depois das ${esc(d.expected_end_label || emp.schedule.end_time)})</small><b>${est.ot ? esc(minLabel(est.ot)) : "—"}</b></div>
+          ${est.reimb ? `<div><small>Reembolso pedido</small><b>+${esc(money(est.reimb))}</b></div>` : ""}
           <div class="big"><small>${emp.pay_type === "production" ? `${est.sqft || 0} sq ft` : "Estimativa do dia"}</small><b>${esc(money(est.amount))}</b></div>
         </div>
-        <p class="dy-gps">${ICON.pin} Ao enviar registramos a hora e sua localização.</p></div>`;
+        <p class="dy-gps">${ICON.pin} Ao enviar registramos a hora e sua localização.${est.reimb ? " O reembolso vai para o escritório conferir." : ""}</p></div>`;
     const blocked = missing.length > 0 || waiting > 0;
     $("dySheetFt").innerHTML = `${blocked ? `<p>${waiting ? `Enviando ${waiting} foto${waiting > 1 ? "s" : ""}… espere o sinal.` : `Falta foto em ${missing.length} job${missing.length > 1 ? "s" : ""}.`}</p>` : ""}
       <button class="dy-btn dy-btn--terra dy-btn--full" data-act="send" ${blocked ? "disabled" : ""}>${ICON.stop} Enviar o dia</button>
       ${sheet.err ? `<p class="dy-err">${esc(sheet.err)}</p>` : ""}`;
+  }
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ""));
+      r.onerror = () => reject(new Error("Não deu para ler o arquivo"));
+      r.readAsDataURL(file);
+    });
+  }
+  async function addExpenseFromForm() {
+    if (!sheet || sheet._expBusy) return;
+    const amt = Number($("dyExpAmt")?.value || 0);
+    const desc = ($("dyExpDesc")?.value || "").trim();
+    sheet._expErr = "";
+    if (!(amt > 0)) {
+      sheet._expErr = "Informe o valor do reembolso.";
+      return renderFinish();
+    }
+    sheet._expBusy = true;
+    renderFinish();
+    try {
+      let receipt_url = sheet._expUrl || null;
+      let receipt_key = sheet._expKey || null;
+      if (sheet._expDataUrl && !receipt_url) {
+        const up = await api("/api/campo/dia/recibos", {
+          method: "POST",
+          body: JSON.stringify({ data_url: sheet._expDataUrl }),
+        });
+        receipt_url = up.url;
+        receipt_key = up.key;
+      }
+      sheet.expenses.push({
+        amount: Math.round(amt * 100) / 100,
+        description: desc || null,
+        receipt_url,
+        receipt_key,
+      });
+      sheet._expDataUrl = null;
+      sheet._expPreview = null;
+      sheet._expUrl = null;
+      sheet._expKey = null;
+      if ($("dyExpAmt")) $("dyExpAmt").value = "";
+      if ($("dyExpDesc")) $("dyExpDesc").value = "";
+    } catch (e) {
+      sheet._expErr = e.message;
+    } finally {
+      sheet._expBusy = false;
+      renderFinish();
+    }
+  }
+  async function pickExpensePhoto() {
+    const input = $("dyCam");
+    if (!input) return;
+    camJob = "__expense__";
+    input.value = "";
+    input.click();
   }
   async function sendFinish() {
     if (busy) return;
@@ -547,9 +649,23 @@
     const g = await gps();
     try {
       const jobs = S.day.jobs.map((j) => ({ work_order_id: j.id, sqft: Number(sheet.sqft[j.id]) || 0 }));
+      const expenses = (sheet.expenses || []).map((e) => ({
+        amount: e.amount,
+        description: e.description,
+        receipt_url: e.receipt_url,
+        receipt_key: e.receipt_key,
+      }));
       S = await api("/api/campo/dia/finish", {
         method: "POST",
-        body: JSON.stringify({ jobs, note: sheet.note || null, lat: g?.lat, lng: g?.lng, accuracy: g?.accuracy, device_at: new Date().toISOString() }),
+        body: JSON.stringify({
+          jobs,
+          note: sheet.note || null,
+          expenses,
+          lat: g?.lat,
+          lng: g?.lng,
+          accuracy: g?.accuracy,
+          device_at: new Date().toISOString(),
+        }),
       });
       closeSheet();
       render();
@@ -688,6 +804,27 @@
           .catch((err) => toast(err.message));
       case "send":
         return sendFinish();
+      case "exp-photo":
+        return pickExpensePhoto();
+      case "exp-add":
+        return addExpenseFromForm();
+      case "exp-clear-photo":
+        if (sheet) {
+          sheet._expDataUrl = null;
+          sheet._expPreview = null;
+          sheet._expUrl = null;
+          sheet._expKey = null;
+          renderFinish();
+        }
+        return;
+      case "rm-exp": {
+        const i = Number(b.getAttribute("data-i"));
+        if (sheet && sheet.expenses && i >= 0) {
+          sheet.expenses.splice(i, 1);
+          renderFinish();
+        }
+        return;
+      }
       case "manual":
         return openManual(null);
       case "fix":

@@ -162,6 +162,20 @@
 .dy-pick__ck { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); flex: none; display: grid; place-items: center; color: #fff; font-size: 13px; font-weight: 900; }
 .dy-pick button.is-on .dy-pick__ck { background: var(--ink); border-color: var(--ink); }
 .dy-err { margin: 8px 0 0; color: var(--red); font-size: 13.5px; font-weight: 700; text-align: center; }
+.dy-exp { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.dy-exp li { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; }
+.dy-exp img { width: 48px; height: 48px; object-fit: cover; border-radius: 10px; display: block; }
+.dy-exp__ph { width: 48px; height: 48px; border-radius: 10px; background: var(--cream); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--muted); text-align: center; }
+.dy-exp div { flex: 1; min-width: 0; }
+.dy-exp b { display: block; font-size: 15px; }
+.dy-exp small { display: block; color: var(--muted); font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dy-exp-add { display: grid; gap: 8px; }
+.dy-exp-add__row { display: flex; gap: 8px; flex-wrap: wrap; }
+.dy-exp-add__row .dy-btn { flex: 1; min-width: 120px; }
+.dy-field { display: grid; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.dy-exp-prev { position: relative; width: 96px; }
+.dy-exp-prev img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; display: block; border: 1.5px solid var(--line); }
+.dy-exp-prev .dy-x { position: absolute; top: -6px; right: -6px; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: #fff; border: 0; font-size: 18px; line-height: 1; }
 
 .dy-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--cm-tabbar-h, 68px) + 16px + env(safe-area-inset-bottom, 0px)); z-index: 80; background: var(--ink, #211d1a); color: #fff; padding: 11px 16px; border-radius: 12px; font-weight: 700; font-size: 14px; max-width: calc(100% - 32px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); }
 body.dy-lock { overflow: hidden; }

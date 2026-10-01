@@ -29,6 +29,15 @@ import { safeTimeZone } from "../../lib/time/zoned.js";
 import { mondayYmdFromCalendarYmd, overtimeFromDaily, parseYmd, sundayYmdAfterMonday, ymdToBrShort } from "../lib/payroll-calc.js";
 import { DAY_FLAG_LABELS, dayAmount, isHHMM, minutesLabel, wallTimeOn, workDateFor, ymd } from "../../lib/payroll/day.js";
 import { closeDay, dayBounds, periodFor, postDayToPayroll, removeDayFromPayroll } from "../../lib/payroll/day-service.js";
+import {
+  approveShiftExpenses,
+  attachExpensesToShift,
+  flagShiftForExpenses,
+  mapExpense,
+  syncExpenseIntoAdjustment,
+} from "../../lib/payroll/shift-expenses.js";
+import { storage } from "../../lib/storage/index.js";
+import { randomUUID } from "node:crypto";
 import { notifyUsersPush } from "../../lib/push/notify.js";
 
 export const folhaAdminRouter = Router();
@@ -78,6 +87,7 @@ const shiftInclude = {
   user: { select: { id: true, name: true } },
   employee: true,
   jobs: { orderBy: { sortOrder: "asc" as const }, include: { workOrder: { select: { id: true, number: true, title: true, address: true } } } },
+  expenses: { orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.CampoShiftInclude;
 type ShiftRow = Prisma.CampoShiftGetPayload<{ include: typeof shiftInclude }>;
 
@@ -110,6 +120,7 @@ function mapShift(s: ShiftRow, tz: string) {
     gps_in: s.clockInLat != null ? { lat: num(s.clockInLat), lng: num(s.clockInLng), accuracy: s.clockInAccuracyM != null ? num(s.clockInAccuracyM) : null, distance_m: s.clockInDistanceM } : null,
     gps_out: s.clockOutLat != null ? { lat: num(s.clockOutLat), lng: num(s.clockOutLng), accuracy: s.clockOutAccuracyM != null ? num(s.clockOutAccuracyM) : null, distance_m: s.clockOutDistanceM } : null,
     jobs: s.jobs.map((j) => ({ id: j.workOrderId, number: j.workOrder.number, title: j.workOrder.title, address: j.workOrder.address, sqft: num(j.sqft), photos: j.photoCount })),
+    expenses: (s.expenses || []).map(mapExpense),
     in_payroll: Boolean(s.timesheetId),
   };
 }
@@ -356,6 +367,7 @@ async function approveDay(tx: PayrollTx, shiftId: string, reviewerId: string, pa
   if (patch.days_worked !== undefined || patch.overtime_minutes !== undefined) {
     await recompute(tx, shiftId, { daysWorked: patch.days_worked, overtimeMinutes: patch.overtime_minutes });
   }
+  await approveShiftExpenses(tx, shiftId, reviewerId);
   const ok = await postDayToPayroll(tx, shiftId);
   if (!ok) throw httpErr(409, "A semana desse dia está fechada. Reabra a semana para aprovar.", "PERIOD_CLOSED");
   await tx.campoShift.update({
@@ -581,6 +593,108 @@ folhaAdminRouter.put(
     }
   },
 );
+
+const officeExpenseBody = z.object({
+  kind: z.enum(["reimbursement", "discount"]),
+  amount: z.number().positive().max(100000),
+  description: z.string().max(300).optional().nullable(),
+  receipt_data_url: z.string().max(20_000_000).optional().nullable(),
+  approve: z.boolean().optional(),
+});
+
+/** Office registers a reimbursement or discount on a work day (optional receipt). */
+folhaAdminRouter.post("/api/folha/dias/:id/despesas", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const b = officeExpenseBody.safeParse(req.body || {});
+    if (!b.success) {
+      res.status(400).json({ success: false, error: "Informe tipo e valor." });
+      return;
+    }
+    let receiptUrl: string | null = null;
+    let receiptKey: string | null = null;
+    if (b.data.receipt_data_url) {
+      const m = /^data:([^;]+);base64,(.+)$/s.exec(b.data.receipt_data_url);
+      if (!m) {
+        res.status(400).json({ success: false, error: "Recibo inválido." });
+        return;
+      }
+      const contentType = m[1]!;
+      const body = Buffer.from(m[2]!, "base64");
+      if (body.length > 12 * 1024 * 1024) {
+        res.status(400).json({ success: false, error: "Arquivo grande demais (máx. 12MB)." });
+        return;
+      }
+      const ext = contentType.includes("png") ? "png" : contentType.includes("pdf") ? "pdf" : "jpg";
+      const key = `orgs/${req.organizationId}/folha-recibos/office/${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
+      const stored = await storage.upload({ key, body, contentType: contentType || "image/jpeg" });
+      receiptUrl = stored.url;
+      receiptKey = stored.key;
+    }
+    const tz = await orgTz(req.organizationId!);
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const s = await tx.campoShift.findFirst({ where: { id: String(req.params.id) }, include: shiftInclude });
+      if (!s?.employeeId) throw httpErr(404, "Dia não encontrado");
+      await assertNotPaid(tx, s.employeeId, s.workDate);
+      const [row] = await attachExpensesToShift(tx, {
+        organizationId: req.organizationId!,
+        shiftId: s.id,
+        employeeId: s.employeeId,
+        createdById: req.user!.id,
+        source: "office",
+        status: "pending",
+        items: [
+          {
+            kind: b.data.kind,
+            amount: b.data.amount,
+            description: b.data.description,
+            receipt_url: receiptUrl,
+            receipt_key: receiptKey,
+          },
+        ],
+      });
+      if (!row) throw httpErr(400, "Valor inválido");
+      if (b.data.approve !== false) {
+        await syncExpenseIntoAdjustment(tx, row.id, "approved", req.user!.id);
+      } else {
+        await flagShiftForExpenses(tx, s.id);
+      }
+      return mapShift(await tx.campoShift.findFirstOrThrow({ where: { id: s.id }, include: shiftInclude }), tz);
+    });
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
+folhaAdminRouter.post("/api/folha/despesas/:id/aprovar", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const e = await tx.campoShiftExpense.findFirst({ where: { id: String(req.params.id) }, include: { shift: true } });
+      if (!e) throw httpErr(404, "Lançamento não encontrado");
+      await assertNotPaid(tx, e.employeeId, e.shift.workDate);
+      const updated = await syncExpenseIntoAdjustment(tx, e.id, "approved", req.user!.id, req.body?.note);
+      return mapExpense(updated);
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
+folhaAdminRouter.post("/api/folha/despesas/:id/recusar", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const e = await tx.campoShiftExpense.findFirst({ where: { id: String(req.params.id) }, include: { shift: true } });
+      if (!e) throw httpErr(404, "Lançamento não encontrado");
+      await assertNotPaid(tx, e.employeeId, e.shift.workDate);
+      const updated = await syncExpenseIntoAdjustment(tx, e.id, "rejected", req.user!.id, req.body?.reason || req.body?.note);
+      return mapExpense(updated);
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
 
 // ------------------------------------------------------------------ pagamentos
 const payBody = z.object({

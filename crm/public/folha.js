@@ -371,6 +371,26 @@
           .join("")}</div></div>`;
       }
       body += `<div class="fo-box"><h3>Nota do funcionário</h3>${d.note ? `<p class="fo-note">${esc(d.note)}</p>` : '<p class="fo-muted" style="margin:0">Sem nota.</p>'}</div>`;
+      if ((d.expenses || []).length) {
+        body += `<div class="fo-box"><h3>Reembolsos e descontos <small>${d.expenses.length}</small></h3>
+          <ul class="fo-exp">${d.expenses
+            .map(
+              (x) => `<li>
+              ${x.receipt_url ? `<a class="fo-exp__img" href="${esc(x.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(x.receipt_url)}" alt="" /></a>` : `<span class="fo-exp__ph">Sem recibo</span>`}
+              <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.kind_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(x.description)}` : ""}</small></div>
+              ${
+                canAct && x.status === "pending"
+                  ? `<span class="fo-exp__act"><button type="button" class="fo-btn fo-btn--sm fo-btn--pri" data-exp-ok="${esc(x.id)}">Aprovar</button><button type="button" class="fo-btn fo-btn--sm fo-btn--ghost fo-btn--danger" data-exp-no="${esc(x.id)}">Recusar</button></span>`
+                  : ""
+              }
+            </li>`,
+            )
+            .join("")}</ul>
+          ${canAct ? `<button type="button" class="fo-btn fo-btn--sm" data-exp-add="${esc(d.id)}" style="margin-top:10px">+ Lançar reembolso ou desconto</button>` : ""}
+        </div>`;
+      } else if (canAct) {
+        body += `<div class="fo-box"><h3>Reembolsos e descontos</h3><p class="fo-muted" style="margin:0 0 10px">Nenhum lançamento neste dia.</p><button type="button" class="fo-btn fo-btn--sm" data-exp-add="${esc(d.id)}">+ Lançar reembolso ou desconto</button></div>`;
+      }
       if (d.reviewed_by) body += `<p class="fo-muted" style="margin:0;font-size:12.5px;font-weight:600">${d.status === "returned" ? "Devolvido" : "Conferido"} por ${esc(d.reviewed_by)}${d.submitted_label ? ` · enviado ${esc(d.submitted_label)}` : ""}</p>`;
       else if (d.submitted_label) body += `<p class="fo-muted" style="margin:0;font-size:12.5px;font-weight:600">Enviado ${esc(d.submitted_label)}</p>`;
     }
@@ -539,14 +559,86 @@
   function openAdjust(id) {
     const r = st.week.employees.find((x) => x.id === id);
     if (!r) return;
+    const dayExps = r.days
+      .filter((d) => d.kind !== "line" && (d.expenses || []).length)
+      .flatMap((d) =>
+        (d.expenses || []).map((x) => ({
+          ...x,
+          date_label: d.date_label,
+          day_id: d.id,
+        })),
+      );
     openSheet(
-      `${sheetHead(`Ajustes · ${esc(r.name)}`, `Semana ${esc(st.week.week.label)}`)}<div class="fo-sheet__bd"><div class="fo-box">
+      `${sheetHead(`Ajustes · ${esc(r.name)}`, `Semana ${esc(st.week.week.label)}`)}<div class="fo-sheet__bd">
+        ${
+          dayExps.length
+            ? `<div class="fo-box"><h3>Recibos dos dias</h3><ul class="fo-exp">${dayExps
+                .map(
+                  (x) => `<li>
+                  ${x.receipt_url ? `<a class="fo-exp__img" href="${esc(x.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(x.receipt_url)}" alt="" /></a>` : `<span class="fo-exp__ph">—</span>`}
+                  <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.date_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(x.description)}` : ""}</small></div>
+                </li>`,
+                )
+                .join("")}</ul><p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Aprovar o dia (ou o lançamento) inclui o valor no pagamento. Abaixo você ajusta o total da semana.</p></div>`
+            : ""
+        }
+        <div class="fo-box">
         <div class="fo-grid2"><label class="fo-field">Reembolso<input type="number" class="fo-in" id="foAdjR" min="0" step="0.01" value="${r.adjustment.reimbursement || ""}" placeholder="0.00" /><small>Material, gasolina, ferramenta…</small></label>
         <label class="fo-field">Desconto<input type="number" class="fo-in" id="foAdjD" min="0" step="0.01" value="${r.adjustment.discount || ""}" placeholder="0.00" /><small>Adiantamento, dano…</small></label></div>
         <label class="fo-field" style="margin-top:10px">Motivo<input type="text" class="fo-in" id="foAdjN" maxlength="500" value="${esc(r.adjustment.notes || "")}" /></label>
       </div></div>
       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-adj-go="${esc(r.id)}">Salvar</button></footer>`,
     );
+  }
+  function openAddExpense(dayId) {
+    openSheet(
+      `${sheetHead("Lançar reembolso ou desconto", "Entra no pagamento da semana ao aprovar")}<div class="fo-sheet__bd"><div class="fo-box">
+        <div class="fo-chiprow" role="group" aria-label="Tipo">
+          <button type="button" class="fo-chip" data-exp-kind="reimbursement" aria-pressed="true">Reembolso</button>
+          <button type="button" class="fo-chip" data-exp-kind="discount" aria-pressed="false">Desconto</button>
+        </div>
+        <input type="hidden" id="foExpKind" value="reimbursement" />
+        <div class="fo-grid2" style="margin-top:12px"><label class="fo-field">Valor ($)<input type="number" class="fo-in" id="foExpAmt" min="0" step="0.01" autofocus placeholder="0.00" /></label>
+        <label class="fo-field">Descrição<input type="text" class="fo-in" id="foExpDesc" maxlength="300" placeholder="Ex.: gasolina, adiantamento…" /></label></div>
+        <label class="fo-field" style="margin-top:10px">Recibo (opcional)<input type="file" class="fo-in" id="foExpFile" accept="image/*,application/pdf" /></label>
+        <label class="fo-check" style="margin-top:12px"><input type="checkbox" id="foExpApprove" checked /> Aprovar e incluir no pagamento agora</label>
+      </div></div>
+      <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-exp-go="${esc(dayId)}">Salvar</button></footer>`,
+    );
+  }
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ""));
+      r.onerror = () => reject(new Error("Não deu para ler o arquivo"));
+      r.readAsDataURL(file);
+    });
+  }
+  async function expGo(dayId, btn) {
+    const amount = Number($("foExpAmt")?.value || 0);
+    if (!(amount > 0)) {
+      notify("Informe o valor.", "error");
+      return;
+    }
+    const body = {
+      kind: $("foExpKind")?.value || "reimbursement",
+      amount,
+      description: ($("foExpDesc")?.value || "").trim() || null,
+      approve: Boolean($("foExpApprove")?.checked),
+    };
+    const file = $("foExpFile")?.files?.[0];
+    btn.disabled = true;
+    try {
+      if (file) body.receipt_data_url = await fileToDataUrl(file);
+      await api(`/api/folha/dias/${dayId}/despesas`, { method: "POST", body: JSON.stringify(body) });
+      notify(body.approve ? "Lançamento aprovado e incluído no pagamento." : "Lançamento salvo para conferir.", "success");
+      closeSheet();
+      refreshAfterChange();
+      openDay(dayId);
+    } catch (e) {
+      btn.disabled = false;
+      notify(e.message, "error");
+    }
   }
   async function adjustGo(id) {
     try {
@@ -1079,6 +1171,34 @@
     }
     if ((b = el("[data-adjust]"))) return openAdjust(b.getAttribute("data-adjust"));
     if ((b = el("[data-adj-go]"))) return adjustGo(b.getAttribute("data-adj-go"));
+    if ((b = el("[data-exp-add]"))) return openAddExpense(b.getAttribute("data-exp-add"));
+    if ((b = el("[data-exp-kind]"))) {
+      const kind = b.getAttribute("data-exp-kind");
+      if ($("foExpKind")) $("foExpKind").value = kind;
+      document.querySelectorAll("[data-exp-kind]").forEach((x) => x.setAttribute("aria-pressed", String(x.getAttribute("data-exp-kind") === kind)));
+      return;
+    }
+    if ((b = el("[data-exp-go]"))) return expGo(b.getAttribute("data-exp-go"), b);
+    if ((b = el("[data-exp-ok]"))) {
+      return api(`/api/folha/despesas/${b.getAttribute("data-exp-ok")}/aprovar`, { method: "POST", body: "{}" })
+        .then(() => {
+          notify("Reembolso/desconto aprovado.", "success");
+          const id = $("foSheet").dataset.dayId;
+          refreshAfterChange();
+          if (id) return openDay(id);
+        })
+        .catch((e) => notify(e.message, "error"));
+    }
+    if ((b = el("[data-exp-no]"))) {
+      return api(`/api/folha/despesas/${b.getAttribute("data-exp-no")}/recusar`, { method: "POST", body: JSON.stringify({ reason: "Recusado pelo escritório" }) })
+        .then(() => {
+          notify("Lançamento recusado.", "success");
+          const id = $("foSheet").dataset.dayId;
+          refreshAfterChange();
+          if (id) return openDay(id);
+        })
+        .catch((e) => notify(e.message, "error"));
+    }
     if ((b = el("[data-receipt]"))) return openReceipt(b.getAttribute("data-receipt"));
     if ((b = el("[data-void]"))) return voidPay(b.getAttribute("data-void"));
     if (el("[data-print]")) return window.print();

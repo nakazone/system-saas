@@ -25,6 +25,7 @@ export const DAY_FLAG_LABELS: Record<string, string> = {
   no_photos: "Sem fotos do dia",
   no_job: "Sem job informado",
   period_closed: "Semana já fechada",
+  reimbursement: "Reembolso / recibo para conferir",
 };
 
 /** Distance (m) beyond which a start/finish is "far from the job". */
