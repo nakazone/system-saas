@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261001-lockbox2";
+  const CSS_HREF = "crm-job-modal.css?v=20261001-lockbox4";
   const SECTIONS = ["details", "schedule", "services", "team", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -326,9 +326,9 @@
         </section>
 
         <section class="jm-sec" data-job-section="notes">
-          <h3 class="jm-sec__t"><span class="jm-n">5</span>Notas internas</h3>
+          <h3 class="jm-sec__t"><span class="jm-n">5</span>Notas internas <span id="jmLockbox" class="jm-lockbox-slot" hidden></span></h3>
           <textarea id="jobNotes" class="jm-in jm-ta" rows="3" maxlength="8000" placeholder="Ex.: /lockbox 4821 — código da caixa da casa"></textarea>
-          <p class="jm-hint">Escreva <code>/lockbox</code> e o código para mostrar o cadeado no job.</p>
+          <p class="jm-hint">Escreva <code>/lockbox</code> e o código para mostrar o cadeado aqui nas notas.</p>
         </section>
       </div>
       <aside class="jm__side" id="jmSide" aria-label="Resumo"></aside>
@@ -575,6 +575,19 @@
     renderSide();
   }
 
+  function renderLockbox() {
+    const slot = $("jmLockbox");
+    if (!slot) return;
+    const html = jobLockboxBadgeHtml(st?.notes);
+    if (html) {
+      slot.innerHTML = html;
+      slot.hidden = false;
+    } else {
+      slot.innerHTML = "";
+      slot.hidden = true;
+    }
+  }
+
   function renderAll() {
     renderClient();
     $("jobAddress").value = st.address;
@@ -584,6 +597,7 @@
     renderServices();
     renderTeam();
     $("jobNotes").value = st.notes;
+    renderLockbox();
     renderSide();
     renderFoot();
     applySection();
@@ -1098,6 +1112,7 @@
         return;
       case "jobNotes":
         st.notes = t.value;
+        renderLockbox();
         return;
       default:
         break;

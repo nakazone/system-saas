@@ -149,7 +149,7 @@
     $("cmTicketTitle").textContent = `Ticket #${t.number ?? "—"}`;
     $("cmTicketWhen").textContent = t.when_label || "—";
     $("cmTicketBadge").textContent = t.field_status_label || "—";
-    $("cmTicketJob").innerHTML = `${escapeHtml(t.title || "—")}${lockboxBadgeHtml(t.notes)}`;
+    $("cmTicketJob").textContent = t.title || "—";
     const sqft =
       t.sqft_total > 0
         ? ` · ${Number(t.sqft_total).toLocaleString("en-US")} sq ft`

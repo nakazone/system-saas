@@ -163,9 +163,7 @@
           <p class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</p>
           <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
         </div>
-        <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}${
-          typeof window.jobLockboxBadgeHtml === "function" ? ` ${window.jobLockboxBadgeHtml(wo.notes)}` : ""
-        }</p>
+        <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
         <p class="jcm-job__meta">#${escapeHtml(wo.number != null ? wo.number : "—")} · ${escapeHtml(clientLabel(wo))} · ${escapeHtml(wo.address || "—")}</p>
         ${wo.billing && wo.billing.billing_status !== "no_value" && window.JobBilling ? `<p class="jcm-job__meta" style="margin-top:0.3rem">${window.JobBilling.chip(wo.billing)}</p>` : ""}
         <div class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</div>
@@ -202,9 +200,7 @@
           </div>
           <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
         </div>
-        <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}${
-          typeof window.jobLockboxBadgeHtml === "function" ? ` ${window.jobLockboxBadgeHtml(wo.notes)}` : ""
-        }</p>
+        <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
         <p class="jcm-job__client">${escapeHtml(clientLabel(wo))}</p>
         ${
           wo.address

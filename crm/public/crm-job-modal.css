@@ -271,6 +271,13 @@ input.jm-in[type="number"] { -moz-appearance: textfield; }
 }
 .job-lockbox-badge__icon { display: inline-flex; color: #fb923c; }
 .job-lockbox-badge__code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.jm-lockbox-slot {
+  display: inline-flex;
+  margin-left: 0.45rem;
+  vertical-align: middle;
+}
+.jm-lockbox-slot[hidden] { display: none !important; }
+.jm-sec__t .job-lockbox-badge { vertical-align: middle; }
 @keyframes job-lockbox-pulse {
   0% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.5); }
   55% { box-shadow: 0 0 0 8px rgba(232, 121, 44, 0); }

@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-shell.css?v=20260930-maismob1" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20261001-lockbox3" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261001-lockbox4" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-modpanel" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20260930-ipad1" />
@@ -347,11 +347,11 @@
 
             <section class="job-card">
               <div class="job-card__head">
-                <h2>Notes</h2>
+                <h2>Notes <span id="jobNotesLockbox" class="jm-lockbox-slot" hidden></span></h2>
                 <button type="button" class="job-card__link" id="btnSaveNotes" data-crm-permission="work_orders.manage">Save</button>
               </div>
               <textarea class="job-notes-area" id="jobNotes" placeholder="Ex.: /lockbox 4821 — código da caixa da casa" maxlength="8000"></textarea>
-              <p class="jobs-hint" style="margin:0.4rem 0 0;font-size:0.78rem;color:#8a8074">Escreva <code>/lockbox</code> e o código para mostrar o cadeado no job.</p>
+              <p class="jobs-hint" style="margin:0.4rem 0 0;font-size:0.78rem;color:#8a8074">Escreva <code>/lockbox</code> e o código para mostrar o cadeado aqui nas notas.</p>
             </section>
           </div>
 
@@ -368,7 +368,7 @@
             </section>
             <section class="job-card">
               <div class="job-card__head">
-                <h2>Notes</h2>
+                <h2>Notes <span id="jobRailNotesLockbox" class="jm-lockbox-slot" hidden></span></h2>
               </div>
               <div class="job-rail-notes-empty" id="jobRailNotesPreview">
                 Leave an internal note for yourself or a team member.
@@ -388,10 +388,10 @@
   <script src="crm-shared-nav.js?v=20261001-inv1"></script>
   <script src="crm-shell.js?v=20260930-maismob2"></script>
   <script src="om-mobile-nav.js?v=20261001-inv1"></script>
-  <script src="crm-job-modal.js?v=20261001-lockbox3"></script>
+  <script src="crm-job-modal.js?v=20261001-lockbox4"></script>
   <script src="crm-job-billing.js?v=20261001-jobinv1"></script>
   <script src="job-chat-comms.js?v=20260929-obranames1"></script>
-  <script src="job-detail.js?v=20261001-lockbox2"></script>
+  <script src="job-detail.js?v=20261001-lockbox4"></script>
   <script src="job-detail-mobile.js?v=20261001-jobinv1"></script>
 </body>
 </html>

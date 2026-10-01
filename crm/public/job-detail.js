@@ -108,9 +108,7 @@
     badge.className = `job-status is-${job.status || "draft"}`;
     badge.textContent = statusLabel(job.status);
 
-    $("jobDetailTitle").innerHTML = `Job for ${escapeHtml(client)}${
-      typeof window.jobLockboxBadgeHtml === "function" ? ` ${window.jobLockboxBadgeHtml(job.notes)}` : ""
-    }`;
+    $("jobDetailTitle").textContent = `Job for ${client}`;
     $("jobClientName").textContent = client;
     $("jobProperty").textContent = job.address || "No property address";
 
@@ -233,7 +231,18 @@
 
     $("jobNotes").value = job.notes || "";
     const preview = (job.notes || "").trim();
-    $("jobRailNotesPreview").textContent = preview || "Leave an internal note for yourself or a team member.";
+    const lockHtml =
+      typeof window.jobLockboxBadgeHtml === "function" ? window.jobLockboxBadgeHtml(job.notes) : "";
+    ["jobNotesLockbox", "jobRailNotesLockbox"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.innerHTML = lockHtml || "";
+      el.hidden = !lockHtml;
+    });
+    const rail = $("jobRailNotesPreview");
+    if (rail) {
+      rail.textContent = preview || "Leave an internal note for yourself or a team member.";
+    }
 
     const visits = $("jobVisitsBody");
     if (job.scheduled_start) {
@@ -979,6 +988,14 @@
         const preview = $("jobNotes").value.trim();
         $("jobRailNotesPreview").textContent =
           preview || "Leave an internal note for yourself or a team member.";
+        const lockHtml =
+          typeof window.jobLockboxBadgeHtml === "function" ? window.jobLockboxBadgeHtml(preview) : "";
+        ["jobNotesLockbox", "jobRailNotesLockbox"].forEach((id) => {
+          const el = $(id);
+          if (!el) return;
+          el.innerHTML = lockHtml || "";
+          el.hidden = !lockHtml;
+        });
       });
 
       await loadJob();
