@@ -21,12 +21,8 @@
   <script src="om-device.js?v=20260925-device1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
   <script>
-    (async function () {
-      /* Mobile field → Campo; desktop stays here */
-      if (window.__omDevice?.isMobile?.() && window.__crmFieldGate) {
-        await window.__crmFieldGate.bounceFieldWorker();
-      }
-    })();
+    /* The employee day (começar/finalizar com GPS, fotos e nota) lives in Campo · Meu dia. */
+    location.replace("/campo/hoje.html");
   </script>
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed func-app">

@@ -145,6 +145,8 @@ model Organization {
   workOrderLineItems WorkOrderLineItem[]
   meetings           Meeting[]
   campoShifts        CampoShift[]
+  campoShiftJobs     CampoShiftJob[]
+  payrollPayments    PayrollPayment[]
   campoSegments      CampoSegment[]
   campoWeekSubmissions CampoWeekSubmission[]
   campoManualEntries CampoManualEntry[]
@@ -1355,6 +1357,9 @@ model FinancePayrollAbatement {
   notes          String?
   /// pending | paid | void
   status         String   @default("paid")
+  /// Set when the outflow is one employee's payment (PayrollPayment)
+  employeeId     String?  @db.Uuid
+  sector         String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -1384,6 +1389,20 @@ model PayrollEmployee {
   /// $/sqft when payType = production
   productionRate Decimal  @default(0) @db.Decimal(12, 4)
   allowWorkDateOutsidePeriod Boolean @default(false)
+  /// Default day: "job" = starts at the first scheduled job (fallback scheduleStartTime) | "fixed"
+  scheduleStartMode String  @default("job")
+  /// HH:MM, org timezone
+  scheduleStartTime String  @default("07:00")
+  /// HH:MM, org timezone — time worked after this is overtime
+  scheduleEndTime   String  @default("17:00")
+  lunchMinutes      Int     @default(0)
+  /// Also count time before the expected start as overtime
+  countEarlyStart   Boolean @default(false)
+  /// Day can only be finished with ≥1 photo of today per job
+  requirePhotos     Boolean @default(true)
+  requireGps        Boolean @default(true)
+  /// cash | zelle | check | ach | other
+  paymentMethod     String?
   status         String   @default("active")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1391,6 +1410,8 @@ model PayrollEmployee {
   timesheets PayrollTimesheet[]
   hourBankEntries PayrollHourBankEntry[]
   periodAdjustments PayrollPeriodAdjustment[]
+  shifts     CampoShift[]
+  payments   PayrollPayment[]
 
   @@index([organizationId])
   @@index([userId])
@@ -1410,6 +1431,7 @@ model PayrollPeriod {
   timesheets PayrollTimesheet[]
   adjustments PayrollPeriodAdjustment[]
   financeAbatements FinancePayrollAbatement[]
+  payments   PayrollPayment[]
 
   @@index([organizationId])
 }
@@ -1449,6 +1471,12 @@ model PayrollTimesheet {
   overtimeHours  Decimal  @default(0) @db.Decimal(8, 2)
   dailyRateOverride Decimal? @db.Decimal(12, 2)
   calculatedAmount Decimal @default(0) @db.Decimal(12, 2)
+  /// Production pay (sqft × productionRate)
+  sqft           Decimal  @default(0) @db.Decimal(12, 2)
+  /// installation | sand_finish — snapshot from the employee/day
+  sector         String?
+  /// Dia de trabalho this line came from
+  shiftId        String?  @db.Uuid
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1456,6 +1484,7 @@ model PayrollTimesheet {
   @@index([organizationId])
   @@index([periodId])
   @@index([employeeId])
+  @@index([shiftId])
 }
 
 /// Self-service hour bank — employee logs own hours; admin approves into the timesheet.
@@ -1624,6 +1653,11 @@ model WorkOrder {
   lineItems   WorkOrderLineItem[]
   campoSegments CampoSegment[]
   campoManualEntries CampoManualEntry[]
+  campoShiftJobs CampoShiftJob[]
+  /// Geocoded job location (distance check for the day's GPS)
+  geoLat        Decimal? @db.Decimal(10, 7)
+  geoLng        Decimal? @db.Decimal(10, 7)
+  geoCheckedAt  DateTime?
   media       JobMedia[]
   reports     JobReport[]
   quotes      Quote[]
@@ -1903,15 +1937,102 @@ model CampoShift {
   clockOutAt     DateTime?
   /// open | closed
   status         String    @default("open")
+  /// Dia de trabalho (payroll) ---------------------------------------------
+  employeeId     String?   @db.Uuid
+  employee       PayrollEmployee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  /// clock | manual | auto_closed
+  source         String    @default("clock")
+  /// in_progress | pending (admin review) | approved | returned
+  reviewStatus   String    @default("in_progress")
+  /// Reasons the day needs review: ["manual","far_from_job",...]
+  flags          Json?
+  note           String?
+  reviewNote     String?
+  reviewedById   String?   @db.Uuid
+  reviewedAt     DateTime?
+  submittedAt    DateTime?
+  clockInLat     Decimal?  @db.Decimal(10, 7)
+  clockInLng     Decimal?  @db.Decimal(10, 7)
+  clockInAccuracyM Decimal? @db.Decimal(10, 2)
+  clockInDistanceM Int?
+  clockInDeviceAt DateTime?
+  clockOutLat    Decimal?  @db.Decimal(10, 7)
+  clockOutLng    Decimal?  @db.Decimal(10, 7)
+  clockOutAccuracyM Decimal? @db.Decimal(10, 2)
+  clockOutDistanceM Int?
+  clockOutDeviceAt DateTime?
+  expectedStartAt DateTime?
+  expectedEndAt  DateTime?
+  workedMinutes  Int       @default(0)
+  lunchMinutes   Int       @default(0)
+  overtimeMinutes Int      @default(0)
+  daysWorked     Decimal   @default(1) @db.Decimal(4, 2)
+  sqft           Decimal   @default(0) @db.Decimal(12, 2)
+  amount         Decimal   @default(0) @db.Decimal(12, 2)
+  sector         String?
+  timesheetId    String?   @db.Uuid
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   segments CampoSegment[]
+  jobs     CampoShiftJob[]
 
   @@unique([organizationId, userId, workDate])
   @@index([organizationId])
   @@index([userId, status])
   @@index([organizationId, status])
+  @@index([organizationId, reviewStatus])
+  @@index([employeeId, workDate])
+}
+
+/// Jobs the employee worked on during a Dia de trabalho.
+model CampoShiftJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  shiftId        String    @db.Uuid
+  shift          CampoShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  workOrderId    String    @db.Uuid
+  workOrder      WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  arrivedAt      DateTime?
+  sqft           Decimal   @default(0) @db.Decimal(12, 2)
+  /// Photos of the day by this employee on this job (snapshot at submit)
+  photoCount     Int       @default(0)
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([shiftId, workOrderId])
+  @@index([organizationId])
+  @@index([workOrderId])
+}
+
+/// One employee paid for one period — mirrored as a Finance outflow.
+model PayrollPayment {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  periodId       String    @db.Uuid
+  period         PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employeeId     String    @db.Uuid
+  employee       PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  amount         Decimal   @db.Decimal(12, 2)
+  paidOn         DateTime  @db.Date
+  method         String?
+  reference      String?
+  notes          String?
+  sector         String?
+  /// paid | void
+  status         String    @default("paid")
+  financeAbatementId String? @db.Uuid
+  createdById    String?   @db.Uuid
+  voidedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([periodId])
+  @@index([employeeId, paidOn])
 }
 
 /// Activity segment inside a shift (na obra / deslocamento / compras / pausa).

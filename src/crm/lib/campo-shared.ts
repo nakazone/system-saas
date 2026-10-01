@@ -163,6 +163,8 @@ export function myJobAccessWhere(userId: string) {
       { assignedUserId: userId },
       { members: { some: { userId } } },
       { crew: { members: { some: { userId } } } },
+      // Jobs the employee put on one of their work days (helped on a job not assigned to them).
+      { campoShiftJobs: { some: { shift: { userId } } } },
     ],
   };
 }

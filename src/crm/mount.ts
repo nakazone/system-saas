@@ -89,7 +89,8 @@ export function createCrmRouter(): Router {
     const mobile =
       /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(ua);
     if (isField) {
-      res.redirect(mobile ? "/campo/hoje.html" : "/funcionario.html");
+      // One employee app (Meu dia) on phone and desktop.
+      res.redirect("/campo/hoje.html");
       return;
     }
     res.redirect(mobile ? "/home.html" : "/pipeline-lab.html");

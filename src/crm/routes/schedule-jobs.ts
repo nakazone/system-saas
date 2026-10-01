@@ -843,6 +843,10 @@ scheduleJobsRouter.put(
           ...(d.customer_id !== undefined ? { customerId: d.customer_id || null } : {}),
           ...(d.builder_id !== undefined ? { builderId: d.builder_id || null } : {}),
           ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
+          // New address → forget the cached job location (re-geocoded on the next work day).
+          ...(d.address !== undefined && (d.address?.trim() || null) !== existing.address
+            ? { geoLat: null, geoLng: null, geoCheckedAt: null }
+            : {}),
           ...(d.notes !== undefined ? { notes: d.notes?.trim() || null } : {}),
           ...(d.campo_attention !== undefined ? { campoAttention: d.campo_attention?.trim() || null } : {}),
           ...(d.campo_checklist !== undefined

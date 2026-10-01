@@ -1,304 +1,72 @@
-/**
- * Campo · Minhas horas (Fase 4)
- */
+/** Campo · Minhas horas — os dias da semana (status, horas, extra, valor). */
 (function () {
-  const VER = "20260925-campo4";
   const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const money = (n) => (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  const minLabel = (m) => {
+    m = Math.max(0, Math.round(m || 0));
+    const h = Math.floor(m / 60), r = m % 60;
+    return !h ? `${r} min` : r ? `${h}h${String(r).padStart(2, "0")}` : `${h}h`;
+  };
+  let ref = new Date().toISOString().slice(0, 10);
 
-  let state = null;
-  let seg = "ponto";
-  let mType = "hours";
-  let mDay = null;
-  let mJob = null;
-  let mAct = "on_site";
-  let mMinutes = 60;
-  let mSqft = 100;
-
-  function escapeHtml(s) {
-    return String(s || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+  function shift(days) {
+    const d = new Date(`${ref}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    ref = d.toISOString().slice(0, 10);
+    load();
   }
+  const br = (ymd) => ymd.split("-").reverse().slice(0, 2).join("/");
 
-  async function api(path, opts) {
-    const res = await fetch(path, {
-      credentials: "same-origin",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      ...opts,
-    });
-    const json = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      location.href = "/login.html";
-      throw new Error("unauth");
-    }
-    if (!res.ok || json.success === false) {
-      throw new Error(json.error || `HTTP ${res.status}`);
-    }
-    return json;
-  }
-
-  function toast(msg, type) {
-    if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "error" });
-    else alert(msg);
-  }
-
-  function formatDur(mins) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h}h ${String(m).padStart(2, "0")}m`;
-  }
-
-  function apply(data) {
-    state = data;
-    render();
-  }
-
-  function render() {
-    if (!state) return;
-    $("cmHorasWeek").textContent = `Semana ${state.range_label}`;
-    $("cmHorasTotal").textContent = state.totals.hours_label;
-    $("cmHorasProd").textContent = state.totals.production_label;
-    $("cmHorasPay").textContent = state.totals.pay_label;
-    const st = $("cmWeekStatus");
-    st.textContent = state.status_label;
-    st.className =
-      "cm-badge " + (state.status === "submitted" ? "cm-badge--sched" : "cm-badge--draft");
-
-    $("cmLegend").style.display = seg === "ponto" ? "" : "none";
-    $("cmManualBtn").disabled = !state.can_edit;
-    $("cmSubmitWeek").disabled = !state.can_submit;
-    $("cmSubmitWeek").textContent =
-      state.status === "submitted"
-        ? "Semana enviada"
-        : "Enviar semana para aprovação";
-
-    if (seg === "prod") {
-      const jobs = state.production_jobs || [];
-      if (!jobs.length) {
-        $("cmHorasDays").innerHTML =
-          '<p class="cm-subtitle" style="margin:0.5rem 0">Sem produção nesta semana.</p>';
-        return;
-      }
-      $("cmHorasDays").innerHTML = jobs
-        .map(
-          (j) => `
-        <article class="cm-hours-day">
-          <div class="cm-hours-day__top">
-            <p class="cm-hours-day__date">${escapeHtml(j.title)}</p>
-            <p class="cm-hours-day__total">${Number(j.sqft).toLocaleString("en-US")} ft²</p>
-          </div>
-          <p class="cm-hours-day__sub">#${j.number ?? "—"} · ${escapeHtml(j.client)}</p>
-        </article>`,
-        )
-        .join("");
-      return;
-    }
-
-    const days = state.days || [];
-    if (!days.length) {
-      $("cmHorasDays").innerHTML =
-        '<p class="cm-subtitle" style="margin:0.5rem 0">Sem horas nesta semana. Use + para lançamento manual.</p>';
-      return;
-    }
-    $("cmHorasDays").innerHTML = days
-      .map((d) => {
-        const b = d.bar || { obra: 100, travel: 0, shop: 0 };
-        return `
-        <article class="cm-hours-day">
-          <div class="cm-hours-day__top">
-            <p class="cm-hours-day__date">${escapeHtml(d.label)}</p>
-            <p class="cm-hours-day__total">${escapeHtml(d.total)}</p>
-          </div>
-          <p class="cm-hours-day__sub">${escapeHtml(d.sub)}</p>
-          <div class="cm-bar" aria-hidden="true">
-            <span class="cm-bar__seg cm-bar__seg--obra" style="width:${b.obra}%"></span>
-            <span class="cm-bar__seg cm-bar__seg--travel" style="width:${b.travel}%"></span>
-            <span class="cm-bar__seg cm-bar__seg--shop" style="width:${b.shop}%"></span>
-          </div>
-        </article>`;
-      })
-      .join("");
-  }
-
-  function chipHtml(items, selected, dataAttr) {
-    return (items || [])
-      .map((it) => {
-        const id = it.id || it.ymd;
-        const label = it.label;
-        const on = id === selected ? " is-selected" : "";
-        return `<button type="button" class="cm-chip${on}" data-${dataAttr}="${escapeHtml(id)}">${escapeHtml(label)}</button>`;
-      })
-      .join("");
-  }
-
-  function renderManualForm() {
-    const form = state?.form || { days: [], jobs: [], activities: [] };
-    if (!mDay && form.days.length) mDay = form.days[form.days.length - 1].ymd;
-    if (!mJob && form.jobs.length) mJob = form.jobs[0].id;
-    $("cmManualDays").innerHTML = chipHtml(form.days, mDay, "day");
-    $("cmManualJobs").innerHTML = chipHtml(form.jobs, mJob, "job");
-    $("cmManualActs").innerHTML = chipHtml(form.activities, mAct, "act");
-    $("cmDurValue").textContent = formatDur(mMinutes);
-    $("cmSqftValue").textContent = String(mSqft);
-
-    const hoursMode = mType === "hours";
-    $("cmManualActBlock").hidden = !hoursMode;
-    $("cmManualDurBlock").hidden = !hoursMode;
-    $("cmManualSqftBlock").hidden = hoursMode;
-    $("cmManualObraBlock").hidden = false;
-  }
-
-  function openManual() {
-    if (!state?.can_edit) return;
-    mType = "hours";
-    mMinutes = 60;
-    mSqft = 100;
-    document.querySelectorAll("#cmManualType .cm-seg__btn").forEach((b) => {
-      const on = b.getAttribute("data-mtype") === "hours";
-      b.classList.toggle("is-active", on);
-    });
-    $("cmManualReason").value = "";
-    renderManualForm();
-    $("cmManualBackdrop").hidden = false;
-    $("cmManualSheet").hidden = false;
-    document.body.classList.add("cm-sheet-open");
-  }
-
-  function closeManual() {
-    $("cmManualBackdrop").hidden = true;
-    $("cmManualSheet").hidden = true;
-    document.body.classList.remove("cm-sheet-open");
-  }
-
-  function bind() {
-    document.querySelectorAll(".cm-seg__btn[data-seg]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        seg = btn.getAttribute("data-seg") || "ponto";
-        document.querySelectorAll(".cm-seg__btn[data-seg]").forEach((b) => {
-          const on = b === btn;
-          b.classList.toggle("is-active", on);
-          b.setAttribute("aria-selected", on ? "true" : "false");
-        });
-        render();
-      });
-    });
-
-    $("cmManualBtn")?.addEventListener("click", openManual);
-    $("cmManualClose")?.addEventListener("click", closeManual);
-    $("cmManualBackdrop")?.addEventListener("click", closeManual);
-
-    document.querySelectorAll("#cmManualType .cm-seg__btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        mType = btn.getAttribute("data-mtype") || "hours";
-        document.querySelectorAll("#cmManualType .cm-seg__btn").forEach((b) => {
-          b.classList.toggle("is-active", b === btn);
-        });
-        renderManualForm();
-      });
-    });
-
-    $("cmManualDays")?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-day]");
-      if (!btn) return;
-      mDay = btn.getAttribute("data-day");
-      renderManualForm();
-    });
-    $("cmManualJobs")?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-job]");
-      if (!btn) return;
-      mJob = btn.getAttribute("data-job");
-      renderManualForm();
-    });
-    $("cmManualActs")?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-act]");
-      if (!btn) return;
-      mAct = btn.getAttribute("data-act");
-      renderManualForm();
-    });
-
-    $("cmDurMinus")?.addEventListener("click", () => {
-      mMinutes = Math.max(15, mMinutes - 15);
-      $("cmDurValue").textContent = formatDur(mMinutes);
-    });
-    $("cmDurPlus")?.addEventListener("click", () => {
-      mMinutes = Math.min(24 * 60, mMinutes + 15);
-      $("cmDurValue").textContent = formatDur(mMinutes);
-    });
-    $("cmSqftMinus")?.addEventListener("click", () => {
-      mSqft = Math.max(10, mSqft - 10);
-      $("cmSqftValue").textContent = String(mSqft);
-    });
-    $("cmSqftPlus")?.addEventListener("click", () => {
-      mSqft = Math.min(50000, mSqft + 10);
-      $("cmSqftValue").textContent = String(mSqft);
-    });
-
-    $("cmManualSubmit")?.addEventListener("click", async () => {
-      if (!mDay) {
-        toast("Escolha o dia");
-        return;
-      }
-      const payload = {
-        entry_type: mType,
-        work_date: mDay,
-        work_order_id: mJob,
-        reason: ($("cmManualReason").value || "").trim() || null,
-        week: state?.week_start,
-      };
-      if (mType === "hours") {
-        payload.activity_kind = mAct;
-        payload.duration_minutes = mMinutes;
-      } else {
-        payload.sqft = mSqft;
-      }
-      try {
-        const json = await api("/api/campo/horas/manual", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        apply(json.data);
-        closeManual();
-        toast("Lançamento enviado", "success");
-      } catch (err) {
-        toast(err.message || "Falha ao lançar");
-      }
-    });
-
-    $("cmSubmitWeek")?.addEventListener("click", async () => {
-      if (!state?.can_submit) return;
-      if (!confirm("Enviar a semana para aprovação do escritório?")) return;
-      try {
-        const json = await api("/api/campo/horas/submit-week", {
-          method: "POST",
-          body: JSON.stringify({ week: state.week_start }),
-        });
-        apply(json.data);
-        toast("Semana enviada", "success");
-      } catch (err) {
-        toast(err.message || "Falha ao enviar");
-      }
-    });
-  }
-
-  async function init() {
-    bind();
+  async function load() {
     try {
-      const json = await api("/api/campo/horas");
-      apply(json.data);
-    } catch (err) {
-      console.warn("[campo/horas]", err);
-      $("cmHorasDays").innerHTML =
-        '<p class="cm-subtitle">Não foi possível carregar as horas.</p>';
+      const r = await fetch(`/api/campo/dia/semana?week=${ref}`, { credentials: "include" });
+      if (r.status === 401) return (location.href = "/login.html");
+      const j = await r.json();
+      if (!j.success) throw new Error(j.error || "Erro");
+      render(j.data);
+    } catch (e) {
+      $("hrTotals").innerHTML = `<h2>Não foi possível carregar</h2><p class="dy-card__sub">${esc(e.message)}</p>`;
     }
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
+  function render(w) {
+    ref = w.week_start;
+    $("hrWeekLbl").textContent = `Semana ${br(w.week_start)} – ${br(w.week_end)}`;
+    const t = w.totals;
+    $("hrTotals").innerHTML = `<div class="dy-card__lbl"><span>Total da semana</span><span>${t.days} dia${t.days === 1 ? "" : "s"}</span></div>
+      <div class="dy-time"><b>${esc(money(t.amount))}</b><span>${t.approved_amount !== t.amount ? `${esc(money(t.approved_amount))} aprovado` : "tudo aprovado"}</span></div>
+      <div class="dy-stats">
+        <div class="dy-stat"><small>Horas</small><b>${esc(minLabel(t.worked_minutes))}</b></div>
+        <div class="dy-stat dy-stat--ot"><small>Extra</small><b>${t.overtime_minutes ? esc(minLabel(t.overtime_minutes)) : "—"}</b></div>
+        <div class="dy-stat"><small>Produção</small><b>${t.sqft ? `${t.sqft} sq ft` : "—"}</b></div>
+      </div>`;
+    $("hrDays").innerHTML = w.days.length
+      ? w.days
+          .map(
+            (d) => `<div class="dy-job">
+          <div class="dy-job__top">
+            <span class="dy-job__time">${esc(d.date_label.split(", ")[0])}<br><small style="font-weight:600;color:#8a8074">${esc(d.date_label.split(", ")[1] || "")}</small></span>
+            <div class="dy-job__main"><b>${esc(d.clock_in_label)}${d.clock_out_label ? ` – ${esc(d.clock_out_label)}` : " · em andamento"} · ${esc(d.worked_label)}${d.overtime_minutes ? ` · <span style="color:#c1652f">+${esc(minLabel(d.overtime_minutes))} extra</span>` : ""}</b>
+              <small>${esc(d.jobs.map((j) => (j.number != null ? `#${j.number} ` : "") + j.title).join(" · ") || "Sem job")}</small></div>
+            <span class="dy-pill dy-pill--${d.status}" style="${d.status === "approved" ? "background:#211d1a;color:#fff" : d.status === "in_progress" ? "background:#f7f4ee;color:#4a433d" : ""}">${esc(d.status_label)}</span>
+          </div>
+          <div class="dy-job__act" style="align-items:center">
+            <span style="font-weight:800;font-size:15px">${esc(money(d.amount))}</span>
+            ${d.status === "returned" ? `<a class="dy-btn dy-btn--sm dy-btn--ink" href="hoje.html">Ajustar</a>` : ""}
+          </div>
+          ${d.review_note ? `<p style="margin:8px 0 0;font-size:13px;color:#b42318;font-weight:600">${esc(d.review_note)}</p>` : ""}
+          ${d.status === "pending" && d.flags.length ? `<p style="margin:8px 0 0;font-size:12.5px;color:#8a8074;font-weight:600">Em conferência: ${esc(d.flags.map((f) => f.label).join(", "))}</p>` : ""}
+          ${d.note ? `<p style="margin:6px 0 0;font-size:13px;color:#4a433d">“${esc(d.note)}”</p>` : ""}
+        </div>`,
+          )
+          .join("")
+      : '<div class="dy-empty">Nenhum dia lançado nesta semana.</div>';
   }
 
-  window.__campoHoras = { VER };
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-week]");
+    if (b) shift(Number(b.getAttribute("data-week")) * 7);
+  });
+  load();
 })();
