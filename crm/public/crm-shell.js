@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261001-refresh1";
+  const SHELL_VER = "20261001-refresh2";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -159,6 +159,7 @@
       if (label) label.remove();
     }
 
+    const topLeft = document.querySelector("#crmTopbar .crm-topbar__left");
     let refreshBtn = document.getElementById("crmTopbarRefreshBtn");
     if (!refreshBtn) {
       refreshBtn = document.createElement("button");
@@ -171,13 +172,19 @@
       refreshBtn.innerHTML =
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-2.6-6.2"/><path d="M21 3v6h-6"/></svg>' +
         '<span data-crm-refresh-label>Atualizar</span>';
-      const install = topRight.querySelector("[data-crm-pwa-install]");
-      if (install) topRight.insertBefore(refreshBtn, install);
-      else {
-        const helpExisting = document.getElementById("crmTopbarHelpBtn");
-        if (helpExisting) topRight.insertBefore(refreshBtn, helpExisting);
-        else topRight.appendChild(refreshBtn);
+    }
+    // Keep Atualizar next to Voltar (left side), not in the right utilities.
+    if (topLeft) {
+      const back = document.getElementById("crmBackBtn");
+      if (back && back.parentElement === topLeft) {
+        if (refreshBtn.previousElementSibling !== back) {
+          back.insertAdjacentElement("afterend", refreshBtn);
+        }
+      } else if (refreshBtn.parentElement !== topLeft) {
+        topLeft.insertBefore(refreshBtn, topLeft.firstChild);
       }
+    } else if (refreshBtn.parentElement !== topRight) {
+      topRight.insertBefore(refreshBtn, topRight.firstChild);
     }
     if (!refreshBtn.dataset.refreshBound) {
       refreshBtn.dataset.refreshBound = "1";
@@ -278,6 +285,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
       <span>Voltar</span>
     </button>
+    <button type="button" class="crm-topbar__refresh-btn" id="crmTopbarRefreshBtn" data-crm-hard-refresh title="Atualizar o app (limpa cache e recarrega)" aria-label="Atualizar o app">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-2.6-6.2"/><path d="M21 3v6h-6"/></svg>
+      <span data-crm-refresh-label>Atualizar</span>
+    </button>
     <a href="pipeline-lab.html" class="crm-topbar__brand" id="crmTopbarBrand" aria-label="ObraMate — início">
       <img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-system-logo" width="160" height="36" onerror="this.style.display='none'" />
     </a>
@@ -296,10 +307,6 @@
         <p class="crm-create-menu__title">Criar novo</p>
       </div>
     </div>
-    <button type="button" class="crm-topbar__refresh-btn" id="crmTopbarRefreshBtn" data-crm-hard-refresh title="Atualizar o app (limpa cache e recarrega)" aria-label="Atualizar o app">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-2.6-6.2"/><path d="M21 3v6h-6"/></svg>
-      <span data-crm-refresh-label>Atualizar</span>
-    </button>
     <button type="button" class="crm-topbar__install-btn" data-crm-pwa-install title="Instalar ObraMate neste dispositivo" aria-label="Instalar aplicativo">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>
       <span>Instalar app</span>

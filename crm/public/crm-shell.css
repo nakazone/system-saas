@@ -428,12 +428,12 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
   .crm-topbar__refresh-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    height: 40px;
-    padding: 0 12px;
+    gap: 0.3rem;
+    height: 36px;
+    padding: 0 0.7rem 0 0.5rem;
     border-radius: 10px;
     border: 1px solid var(--color-border, #e2d9cc);
-    background: var(--color-surface-secondary, #f7f4ee);
+    background: #fff;
     color: var(--color-text-primary, #211d1a);
     font: inherit;
     font-size: 0.8125rem;
@@ -441,14 +441,16 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     cursor: pointer;
     text-decoration: none;
     white-space: nowrap;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
   }
 
   .crm-topbar__refresh-btn:hover,
   .crm-topbar__refresh-btn:focus-visible {
-    background: #fff;
     border-color: var(--color-accent, #e8792c);
+    color: var(--color-accent, #e8792c);
     outline: none;
+    background: rgba(232, 121, 44, 0.06);
   }
 
   .crm-topbar__refresh-btn:disabled,
@@ -462,7 +464,9 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     height: 18px;
     stroke: currentColor;
     fill: none;
-    stroke-width: 1.75;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
     flex-shrink: 0;
   }
 
@@ -476,12 +480,12 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     }
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 720px) {
     .crm-topbar__refresh-btn span {
       display: none;
     }
     .crm-topbar__refresh-btn {
-      width: 40px;
+      width: 36px;
       padding: 0;
       justify-content: center;
     }
