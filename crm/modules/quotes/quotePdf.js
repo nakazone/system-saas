@@ -61,25 +61,27 @@ async function tryEmbedLogo(pdf) {
 
 /** Classify line for PDF sections (matches quote-builder service_type values). */
 function lineSection(it) {
-  if (String(it.item_type || '').toLowerCase() === 'product') return 'products';
+  if (String(it.item_type || '').toLowerCase() === 'product') return 'supply';
   const st = String(it.service_type || '').trim();
   if (!st) return 'installation';
   const lower = st.toLowerCase();
-  if (lower === 'supply') return 'supply';
-  if (lower.includes('sand') || lower.includes('finishing')) return 'sand_finish';
+  if (lower.includes('supply') || lower.includes('fornec') || lower.includes('material')) return 'supply';
+  if (lower.includes('sand') || lower.includes('finishing') || lower.includes('finish') || lower.includes('lix')) {
+    return 'sand_finish';
+  }
   return 'installation';
 }
 
+/** Fixed customer-facing order: Supply → Installation → Sand & Finish. */
 const SECTION_DEFS = [
-  { key: 'installation', label: 'Installation' },
-  { key: 'sand_finish', label: 'Sand & Finishing' },
-  { key: 'supply', label: 'Supply' },
-  { key: 'products', label: 'Materials & products' },
+  { key: 'supply', label: 'SUPPLY' },
+  { key: 'installation', label: 'INSTALLATION' },
+  { key: 'sand_finish', label: 'SAND & FINISH' },
 ];
 
 export function groupItemsForPdf(items) {
   const list = Array.isArray(items) ? items : [];
-  const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
+  const buckets = { supply: [], installation: [], sand_finish: [] };
   for (const it of list) {
     const k = lineSection(it);
     if (buckets[k]) buckets[k].push(it);
@@ -87,7 +89,13 @@ export function groupItemsForPdf(items) {
   }
   return SECTION_DEFS.filter((d) => buckets[d.key].length > 0).map((d) => ({
     label: d.label,
+    key: d.key,
     items: buckets[d.key],
+    sectionTotal: buckets[d.key].reduce((s, it) => {
+      const qty = Number(it.quantity) || Number(it.area_sqft) || 0;
+      const rate = Number(it.rate ?? it.unit_price) || 0;
+      return s + (Number(it.amount ?? it.total_price) || qty * rate);
+    }, 0),
   }));
 }
 
@@ -180,8 +188,9 @@ export async function buildQuotePdfBuffer(opts) {
     y -= 14;
   };
 
-  const drawSectionTitle = (label) => {
-    ensureSpace(72);
+  const drawSectionTitle = (label, sectionTotal) => {
+    // Keep title with at least one following line (avoid orphan headers).
+    ensureSpace(72 + 110);
     const fs = 9;
     const barPad = 6;
     const th = fontBold.heightAtSize(fs);
@@ -204,14 +213,25 @@ export async function buildQuotePdfBuffer(opts) {
       height: barH,
       color: PAL.primary,
     });
-    page.drawText(label.toUpperCase(), {
+    page.drawText(String(label || '').toUpperCase(), {
       x: margin + 10,
       y: baselineY,
       size: fs,
       font: fontBold,
       color: PAL.primary,
     });
-    y = barBottom - 8;
+    if (sectionTotal != null && Number.isFinite(Number(sectionTotal))) {
+      const tot = `Section total  ${money(sectionTotal)}`;
+      const totW = font.widthOfTextAtSize(tot, 8);
+      page.drawText(tot, {
+        x: pageW - margin - totW,
+        y: baselineY,
+        size: 8,
+        font,
+        color: PAL.lineMuted,
+      });
+    }
+    y = barBottom - 10;
   };
 
   const accentBarH = 5;
@@ -367,7 +387,7 @@ export async function buildQuotePdfBuffer(opts) {
 
   for (let si = 0; si < sections.length; si++) {
     const sec = sections[si];
-    drawSectionTitle(sec.label);
+    drawSectionTitle(sec.label, sec.sectionTotal);
     drawTableHeader();
 
     for (const it of sec.items) {

@@ -147,11 +147,11 @@ function resolvePalette(input: { brandPrimary?: string | null; brandAccent?: str
   };
 }
 
+/** Fixed customer-facing order: Supply → Installation → Sand & Finish. Products roll into Supply. */
 const SECTION_DEFS = [
+  { key: "supply", label: "SUPPLY" },
   { key: "installation", label: "INSTALLATION" },
   { key: "sand_finish", label: "SAND & FINISH" },
-  { key: "supply", label: "SUPPLY" },
-  { key: "products", label: "MATERIALS" },
 ] as const;
 
 const DEFAULT_INCLUSIONS = [
@@ -297,10 +297,11 @@ function orgInitials(name: string): string {
 }
 
 function lineSection(it: QuotePdfLine): (typeof SECTION_DEFS)[number]["key"] {
-  if (String(it.itemType || "").toLowerCase() === "product") return "products";
+  // Catalog products belong with Supply on the customer PDF.
+  if (String(it.itemType || "").toLowerCase() === "product") return "supply";
   const st = String(it.serviceType || "").trim().toLowerCase();
   if (!st) return "installation";
-  if (st.includes("supply") || st.includes("fornec")) return "supply";
+  if (st.includes("supply") || st.includes("fornec") || st.includes("material")) return "supply";
   if (st.includes("sand") || st.includes("finish") || st.includes("lix") || st.includes("acab")) {
     return "sand_finish";
   }
@@ -309,19 +310,18 @@ function lineSection(it: QuotePdfLine): (typeof SECTION_DEFS)[number]["key"] {
 
 export function groupItemsForPdf(items: QuotePdfLine[]) {
   const list = Array.isArray(items) ? items : [];
-  const buckets: Record<string, QuotePdfLine[]> = {
+  const buckets: Record<(typeof SECTION_DEFS)[number]["key"], QuotePdfLine[]> = {
+    supply: [],
     installation: [],
     sand_finish: [],
-    supply: [],
-    products: [],
   };
   for (const it of list) {
     const k = lineSection(it);
-    if (buckets[k]) buckets[k].push(it);
-    else buckets.installation.push(it);
+    buckets[k].push(it);
   }
   return SECTION_DEFS.filter((d) => buckets[d.key].length > 0).map((d) => ({
     label: d.label,
+    key: d.key,
     items: buckets[d.key],
     sectionTotal: buckets[d.key].reduce((s, it) => s + (Number(it.amount) || 0), 0),
   }));
@@ -698,7 +698,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     const descMaxW = colQty - colDesc - 12;
 
     const drawTableHeader = () => {
-      ensureSpace(40);
+      ensureSpace(36);
       doc.fillColor(PAL.mutedLight).font("Helvetica-Bold").fontSize(7.5);
       doc.text("DESCRIPTION", colDesc, y, { lineBreak: false });
       if (view.showQuantities) {
@@ -710,9 +710,9 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       if (view.showLineTotals) {
         doc.text("AMOUNT", colAmt - 70, y, { width: 70, align: "right", lineBreak: false });
       }
-      y += 12;
+      y += 11;
       rule(margin, pageW - margin, y, PAL.primary, 0.9);
-      y += 12;
+      y += 10;
     };
 
     drawTableHeader();
@@ -724,18 +724,31 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       y += 16;
     }
 
+    /** Min height so a section title is never stranded alone at the bottom of a page. */
+    const SECTION_HEAD_H = 26;
+    const LINE_MIN_H = 44;
+
     for (let si = 0; si < sections.length; si++) {
       const sec = sections[si]!;
-      ensureSpace(56);
-      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10);
+      // Keep section header with at least the first line item on the same page.
+      const broke = ensureSpace(SECTION_HEAD_H + LINE_MIN_H);
+      if (broke) drawTableHeader();
+
+      doc.fillColor(PAL.accent).font("Helvetica-Bold").fontSize(9);
       doc.text(sec.label, colDesc, y, { lineBreak: false });
       doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
       const stLabel = `Section total  ${money(sec.sectionTotal)}`;
       doc.text(stLabel, pageW - margin - doc.widthOfString(stLabel), y + 1, { lineBreak: false });
-      y += 16;
+      y += 12;
+      rule(margin, pageW - margin, y, PAL.accent, 0.55);
+      y += 10;
 
-      for (const it of sec.items) {
-        ensureSpace(42);
+      for (let ii = 0; ii < sec.items.length; ii++) {
+        const it = sec.items[ii]!;
+        const brokeItem = ensureSpace(LINE_MIN_H);
+        // After a mid-section page break, repeat column headers (not a lone section title).
+        if (brokeItem && ii > 0) drawTableHeader();
+
         const nameStr = stripRichTextMarkers(String(it.name || "").trim());
         const descStr = stripRichTextMarkers(String(it.description || "").trim());
         const headline = nameStr || descStr.split(/\n/)[0] || "Line item";
@@ -787,19 +800,19 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
           });
         }
 
-        y = Math.max(dy, rowY + 14) + 10;
+        y = Math.max(dy, rowY + 14) + 8;
       }
 
       if (si < sections.length - 1) {
-        y += 4;
-        rule(margin, pageW - margin, y, PAL.rule, 0.5);
-        y += 14;
+        y += 6;
+        rule(margin, pageW - margin, y, PAL.rule, 0.45);
+        y += 12;
       }
     }
 
-    y += 10;
+    y += 12;
     doc.fillColor(PAL.mutedLight).font("Helvetica-Oblique").fontSize(8);
-    doc.text("Totals, optional add-ons and approval on page 2", margin, y, { lineBreak: false });
+    doc.text("Totals, optional add-ons and approval on the next page", margin, y, { lineBreak: false });
 
     // ═══════════════════════════════════════
     // PAGE 2 — Totals & approval

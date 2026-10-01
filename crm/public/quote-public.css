@@ -143,25 +143,44 @@ body.qp-page {
 }
 
 .qp-section {
-  margin-bottom: 8px;
+  margin-bottom: 14px;
+  break-inside: auto;
 }
 
 .qp-section + .qp-section {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 6px;
+  padding-top: 10px;
   border-top: 1px solid var(--qp-rule);
 }
 
-.qp-section-title {
+.qp-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0 0 8px;
-  padding: 6px 10px 6px 10px;
+  padding: 6px 10px;
+  background: rgba(232, 121, 44, 0.12);
+  border-left: 3px solid var(--qp-primary);
+  break-after: avoid-page;
+  page-break-after: avoid;
+}
+
+.qp-section-title {
+  margin: 0;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--qp-primary);
-  background: rgba(214, 181, 152, 0.22);
-  border-left: 3px solid var(--qp-primary);
+}
+
+.qp-section-total {
+  margin: 0;
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--qp-muted);
+  white-space: nowrap;
 }
 
 .qp-table {
@@ -169,6 +188,16 @@ body.qp-page {
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 8.5px;
+}
+
+.qp-table thead {
+  break-after: avoid-page;
+  page-break-after: avoid;
+}
+
+.qp-table tbody tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .qp-table col.col-desc {

@@ -19,10 +19,9 @@
   };
 
   const SECTION_DEFS = [
-    { key: 'installation', label: 'Installation' },
-    { key: 'sand_finish', label: 'Sand & Finishing' },
-    { key: 'supply', label: 'Supply' },
-    { key: 'products', label: 'Materials & products' },
+    { key: 'supply', label: 'SUPPLY' },
+    { key: 'installation', label: 'INSTALLATION' },
+    { key: 'sand_finish', label: 'SAND & FINISH' },
   ];
 
   const money = (n) =>
@@ -77,19 +76,21 @@
     );
   }
 
-  /** Same section logic as quotePdf.js */
+  /** Same section logic / order as quotePdf.js (Supply → Installation → Sand & Finish). */
   function lineSection(it) {
-    if (String(it.item_type || '').toLowerCase() === 'product') return 'products';
+    if (String(it.item_type || '').toLowerCase() === 'product') return 'supply';
     const st = String(it.service_type || '').trim();
     if (!st) return 'installation';
     const lower = st.toLowerCase();
-    if (lower === 'supply') return 'supply';
-    if (lower.includes('sand') || lower.includes('finishing')) return 'sand_finish';
+    if (lower.includes('supply') || lower.includes('fornec') || lower.includes('material')) return 'supply';
+    if (lower.includes('sand') || lower.includes('finishing') || lower.includes('finish') || lower.includes('lix')) {
+      return 'sand_finish';
+    }
     return 'installation';
   }
 
   function groupItems(items) {
-    const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
+    const buckets = { supply: [], installation: [], sand_finish: [] };
     for (const it of items || []) {
       const k = lineSection(it);
       if (buckets[k]) buckets[k].push(it);
@@ -98,6 +99,11 @@
     return SECTION_DEFS.filter((d) => buckets[d.key].length > 0).map((d) => ({
       label: d.label,
       items: buckets[d.key],
+      sectionTotal: buckets[d.key].reduce((s, it) => {
+        const qty = Number(it.quantity) || 0;
+        const rate = Number(it.rate ?? it.unit_price) || 0;
+        return s + (Number(it.amount ?? it.total_price) || qty * rate);
+      }, 0),
     }));
   }
 
@@ -160,7 +166,10 @@
       .map(
         (sec) => `
       <div class="qp-section">
-        <h2 class="qp-section-title">${escapeHtml(sec.label)}</h2>
+        <div class="qp-section-head">
+          <h2 class="qp-section-title">${escapeHtml(sec.label)}</h2>
+          <p class="qp-section-total">Section total ${escapeHtml(money(sec.sectionTotal))}</p>
+        </div>
         <table class="qp-table">
           <colgroup>
             <col class="col-desc" />

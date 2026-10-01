@@ -76,17 +76,50 @@
       margin: 0 0 16px; padding: 8px 0; font-size: 10px; font-style: italic;
       color: var(--qp-primary-muted); border-top: 1px solid var(--qp-rule); border-bottom: 1px solid var(--qp-rule);
     }
-    .qp-section { margin-bottom: 10px; }
+    .qp-section {
+      margin: 0 0 14px;
+      padding-bottom: 4px;
+      break-inside: auto;
+    }
+    .qp-section + .qp-section {
+      margin-top: 6px;
+      padding-top: 10px;
+      border-top: 1px solid var(--qp-rule);
+    }
+    .qp-section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 6px;
+      padding-bottom: 5px;
+      border-bottom: 1.5px solid var(--qp-secondary);
+      break-after: avoid-page;
+      page-break-after: avoid;
+    }
     .qp-section-title {
-      margin: 14px 0 6px; font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.05em; color: var(--qp-secondary-dark);
+      margin: 0;
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--qp-secondary-dark);
+    }
+    .qp-section-total {
+      margin: 0;
+      font-size: 8px;
+      font-weight: 600;
+      color: var(--qp-muted);
+      white-space: nowrap;
     }
     .qp-table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    .qp-table thead { break-after: avoid-page; page-break-after: avoid; }
     .qp-table th {
       text-align: left; padding: 5px 4px; border-bottom: 1.5px solid var(--qp-primary);
       font-size: 8px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--qp-muted);
     }
-    .qp-table td { padding: 7px 4px; border-bottom: 1px solid var(--qp-rule); vertical-align: top; }
+    .qp-table td { padding: 8px 4px; border-bottom: 1px solid var(--qp-rule); vertical-align: top; }
+    .qp-table tbody tr { break-inside: avoid; page-break-inside: avoid; }
     .qp-table .qp-num { text-align: right; white-space: nowrap; }
     .qp-line__title { display: block; font-weight: 700; font-size: 9.5px; }
     .qp-line__body, .qp-line__detail { display: block; margin-top: 2px; color: var(--qp-muted); font-size: 8px; white-space: pre-wrap; }
@@ -241,25 +274,30 @@
       }
       function sectionKey(li) {
         const t = String(li.itemType || '').toLowerCase();
-        if (t === 'product') return 'products';
+        if (t === 'product') return 'supply';
         const meta = lineMeta(li);
         const st = String(meta.service_type || meta.serviceType || quote.serviceType || '').toLowerCase();
-        if (st.includes('sand') || st.includes('finish')) return 'sand_finish';
-        if (st === 'supply') return 'supply';
+        if (st.includes('supply') || st.includes('fornec') || st.includes('material')) return 'supply';
+        if (st.includes('sand') || st.includes('finish') || st.includes('lix') || st.includes('acab')) return 'sand_finish';
         return 'installation';
       }
       const sectionDefs = [
-        { key: 'installation', label: 'Installation' },
-        { key: 'sand_finish', label: 'Sand & Finishing' },
-        { key: 'supply', label: 'Supply' },
-        { key: 'products', label: 'Materials & products' },
+        { key: 'supply', label: 'SUPPLY' },
+        { key: 'installation', label: 'INSTALLATION' },
+        { key: 'sand_finish', label: 'SAND & FINISH' },
       ];
-      const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
+      const buckets = { supply: [], installation: [], sand_finish: [] };
       (quote.lineItems || []).forEach((li) => {
         const k = sectionKey(li);
         (buckets[k] || buckets.installation).push(li);
       });
-      const sections = sectionDefs.filter((d) => buckets[d.key].length);
+      const sections = sectionDefs
+        .filter((d) => buckets[d.key].length)
+        .map((d) => ({
+          ...d,
+          items: buckets[d.key],
+          sectionTotal: buckets[d.key].reduce((s, li) => s + (Number(li.amount) || 0), 0),
+        }));
     %>
 
     <article class="qp-doc" id="quoteDocument">
@@ -365,7 +403,10 @@
 
           <% sections.forEach((sec) => { %>
             <div class="qp-section">
-              <h2 class="qp-section-title"><%= sec.label %></h2>
+              <div class="qp-section-head">
+                <h2 class="qp-section-title"><%= sec.label %></h2>
+                <p class="qp-section-total">Section total <%= money(sec.sectionTotal) %></p>
+              </div>
               <table class="qp-table">
                 <thead>
                   <tr>
@@ -376,7 +417,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <% buckets[sec.key].forEach((li) => { %>
+                  <% sec.items.forEach((li) => { %>
                     <tr
                       data-id="<%= li.id %>"
                       data-optional="<%= li.isOptional ? '1' : '0' %>"
