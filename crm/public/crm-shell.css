@@ -802,6 +802,13 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     left: auto;
     top: calc(100% + 8px);
   }
+
+  /* Lock page scroll while the nav drawer is open */
+  body.dashboard-app-body.mobile-nav-open,
+  body.om-app.mobile-nav-open {
+    overflow: hidden !important;
+    touch-action: none;
+  }
 }
 
 /* Global back button — mobile header */

@@ -296,16 +296,11 @@ body.om-app .dashboard-main {
     backdrop-filter: blur(12px);
     z-index: 40;
     overflow-x: hidden !important;
-    overflow-y: auto !important;
+    overflow-y: hidden !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     transform: none !important;
-  }
-
-  /* Let flyouts / account menu escape the rail */
-  body.om-app #dashboardSidebar.dashboard-sidebar {
-    overflow: visible !important;
   }
 
   body.om-app #dashboardSidebar .sidebar-header {
@@ -834,6 +829,33 @@ body.om-app .om-dock__btn svg { width: 16px; height: 16px; }
   body.om-app #dashboardSidebar.mobile-open,
   body.om-app .dashboard-sidebar.mobile-open {
     transform: translate3d(0, 0, 0) !important;
+  }
+
+  /* Drawer: pin Configurações / Recolher; scroll only the nav list */
+  body.om-app #dashboardSidebar.dashboard-sidebar,
+  body.om-app .dashboard-sidebar {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-header,
+  body.om-app #dashboardSidebar .sidebar-footer {
+    flex-shrink: 0 !important;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-nav {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-footer {
+    margin-top: auto !important;
   }
 }
 
