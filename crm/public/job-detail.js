@@ -314,12 +314,14 @@
     const code = lockbox(raw);
     let text = raw.replace(/\/lockbox\s*[#:]?\s*[0-9A-Za-z-]{2,24}\b\s*[—–-]?\s*/i, "").trim();
     if (code && text) text = text.charAt(0).toUpperCase() + text.slice(1);
+    const bodyHtml =
+      typeof window.sfFormatRichTextHtml === "function" ? window.sfFormatRichTextHtml(text) : esc(text);
     $("jdNotesView").innerHTML = raw
       ? `<div class="jd-note">${
           code
             ? `<span class="jd-lock" title="Código da caixa (lockbox)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>${esc(code)}</span>`
             : ""
-        }${text ? `<p>${esc(text)}</p>` : ""}</div>`
+        }${text ? `<p class="crm-rich-html">${bodyHtml}</p>` : ""}</div>`
       : `<p class="jd-empty">Sem notas.${canManage ? " Use para acesso, código do portão, cuidados com a obra." : ""}</p>`;
     $("jobNotes").value = job.notes || "";
   }
