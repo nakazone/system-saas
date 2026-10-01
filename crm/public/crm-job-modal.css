@@ -178,10 +178,16 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
 
 /* services */
 .jm-svc { border: 1px solid var(--jm-line); border-radius: 12px; overflow: visible; }
-.jm-ln { display: grid; grid-template-columns: minmax(0, 1fr) 128px 108px 96px 28px; gap: 8px; align-items: start; padding: 8px 10px; border-top: 1px solid var(--jm-line-2); position: relative; }
-.jm-ln--hdr { border-top: 0; background: #fbf9f5; padding-top: 7px; padding-bottom: 7px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--jm-muted); align-items: center; }
+.jm-ln { display: grid; grid-template-columns: minmax(0, 1fr) 128px 108px 96px 28px; grid-template-areas: "svc qty price tot del" "note note note note note"; gap: 8px; align-items: start; padding: 8px 10px; border-top: 1px solid var(--jm-line-2); position: relative; }
+.jm-ln--hdr { border-top: 0; background: #fbf9f5; padding-top: 7px; padding-bottom: 7px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--jm-muted); align-items: center; grid-template-areas: "svc qty price tot del"; }
 .jm-ln--hdr span:nth-child(4) { text-align: right; }
-.jm-ln__svc { display: grid; gap: 6px; min-width: 0; position: relative; }
+.jm-ln__svc { display: grid; gap: 6px; min-width: 0; position: relative; grid-area: svc; }
+.jm-ln__qty { grid-area: qty; }
+.jm-ln__price { grid-area: price; }
+.jm-ln__tot { grid-area: tot; }
+.jm-ln__del { grid-area: del; }
+.jm-ln__note { grid-area: note; display: block; min-width: 0; }
+.jm-ln__note .jm-in { height: 34px; font-size: 12.5px; color: var(--jm-ink-2); background: #fbf9f5; }
 .jm-svc-pick { position: relative; min-width: 0; }
 .jm-search--svc {
   border: 1px solid var(--jm-line);
@@ -336,12 +342,13 @@ input.jm-in[type="number"] { -moz-appearance: textfield; }
   .jm-in { height: 46px; font-size: 16px; }
   .jm-in--sm { height: 42px; font-size: 16px; }
   .jm-ln--hdr { display: none; }
-  .jm-ln { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-areas: "svc svc del" "qty price tot"; row-gap: 8px; padding: 10px; }
+  .jm-ln { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-areas: "svc svc del" "qty price tot" "note note note"; row-gap: 8px; padding: 10px; }
   .jm-ln__svc { grid-area: svc; }
   .jm-ln__qty { grid-area: qty; }
   .jm-ln__price { grid-area: price; }
   .jm-ln__tot { grid-area: tot; min-width: 84px; padding-top: 10px; }
   .jm-ln__del { grid-area: del; margin-top: 0; }
+  .jm-ln__note { grid-area: note; }
   .jm-svc-dd { max-height: 180px; }
   .jm-temp-add { grid-template-columns: 1fr; }
   .jm-lead { display: flex; }
@@ -375,12 +382,13 @@ body.om-device-mobile .jm__grab { display: block; width: 42px; height: 5px; bord
 body.om-device-mobile .jm__body { grid-template-columns: 1fr; overflow: hidden; }
 body.om-device-mobile .jm__side { display: none; }
 body.om-device-mobile .jm-ln--hdr { display: none; }
-body.om-device-mobile .jm-ln { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-areas: "svc svc del" "qty price tot"; row-gap: 8px; }
+body.om-device-mobile .jm-ln { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-areas: "svc svc del" "qty price tot" "note note note"; row-gap: 8px; }
 body.om-device-mobile .jm-ln__svc { grid-area: svc; }
 body.om-device-mobile .jm-ln__qty { grid-area: qty; }
 body.om-device-mobile .jm-ln__price { grid-area: price; }
 body.om-device-mobile .jm-ln__tot { grid-area: tot; min-width: 84px; }
 body.om-device-mobile .jm-ln__del { grid-area: del; margin-top: 0; }
+body.om-device-mobile .jm-ln__note { grid-area: note; }
 body.om-device-mobile .jm-btn--cancel,
 body.om-device-mobile .jm-btn--open,
 body.om-device-mobile .jm-sp { display: none; }

@@ -146,6 +146,7 @@ publicJobsRouter.get("/:token", async (req, res, next) => {
     const services = (wo.lineItems || []).map((li) => ({
       name: li.serviceName,
       qty: formatQuantity(Number(li.quantitySqft) || 0, li.pricingItem?.unit),
+      notes: li.notes || null,
     }));
 
     const photos = (wo.media || []).map((m) => ({

@@ -1809,6 +1809,8 @@ model WorkOrderLineItem {
   pricingItemId  String?  @db.Uuid
   pricingItem    PricingItem? @relation(fields: [pricingItemId], references: [id], onDelete: SetNull)
   serviceName    String
+  /// Optional note for this service line (shown on the job, not required for billing).
+  notes          String?
   quantitySqft   Decimal  @default(0) @db.Decimal(12, 2)
   unitPrice      Decimal  @default(0) @db.Decimal(12, 2)
   lineTotal      Decimal  @default(0) @db.Decimal(12, 2)

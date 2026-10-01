@@ -555,7 +555,9 @@
               const price = Number(li.unit_price) || 0;
               const lineTot = qty * price;
               return `<div class="jcm-dl__row">
-                <span class="jcm-dl__k">${escapeHtml(li.service_name || "Serviço")}${qty ? ` · ${escapeHtml(String(qty))}${li.unit ? ` ${escapeHtml(li.unit)}` : ""}` : ""}</span>
+                <span class="jcm-dl__k">${escapeHtml(li.service_name || "Serviço")}${qty ? ` · ${escapeHtml(String(qty))}${li.unit ? ` ${escapeHtml(li.unit)}` : ""}` : ""}${
+                  li.notes ? `<small style="display:block;margin-top:3px;font-weight:600;color:#8a8074">${escapeHtml(li.notes)}</small>` : ""
+                }</span>
                 <span class="jcm-dl__v">${escapeHtml(money(lineTot || price))}</span>
               </div>`;
             })

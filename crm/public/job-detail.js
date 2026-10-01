@@ -291,11 +291,12 @@
     return `<table class="jd-table">
       <thead><tr><th>Serviço</th><th class="r">Qtd</th>${full ? '<th class="r">Preço</th>' : ""}<th class="r">Total</th></tr></thead>
       <tbody>${lines
-        .map(
-          (l) => `<tr><td>${esc(l.service_name)}</td><td class="r">${esc(qty(l.quantity_sqft))} ${esc(unitLabel(l.unit))}</td>${
+        .map((l) => {
+          const note = String(l.notes || "").trim();
+          return `<tr><td>${esc(l.service_name)}${note ? `<small class="jd-svc-note">${esc(note)}</small>` : ""}</td><td class="r">${esc(qty(l.quantity_sqft))} ${esc(unitLabel(l.unit))}</td>${
             full ? `<td class="r jd-muted">${money(l.unit_price)}</td>` : ""
-          }<td class="r">${money(l.line_total)}</td></tr>`,
-        )
+          }<td class="r">${money(l.line_total)}</td></tr>`;
+        })
         .join("")}</tbody>
       <tfoot><tr><td colspan="${full ? 3 : 2}">Total do job</td><td class="r">${money(job.services_total)}</td></tr></tfoot>
     </table>`;

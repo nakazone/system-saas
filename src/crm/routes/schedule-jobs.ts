@@ -141,6 +141,7 @@ function mapWorkOrder(wo: {
     id: string;
     pricingItemId: string | null;
     serviceName: string;
+    notes?: string | null;
     quantitySqft: unknown;
     unitPrice: unknown;
     lineTotal: unknown;
@@ -153,6 +154,7 @@ function mapWorkOrder(wo: {
     id: li.id,
     pricing_item_id: li.pricingItemId,
     service_name: li.serviceName,
+    notes: li.notes || null,
     quantity_sqft: dec(li.quantitySqft),
     unit_price: dec(li.unitPrice),
     line_total: dec(li.lineTotal),
@@ -307,6 +309,7 @@ const lineItemBody = z.object({
   service_name: z.string().min(1).max(200),
   quantity_sqft: z.number().min(0).max(1_000_000),
   unit_price: z.number().min(0).max(1_000_000),
+  notes: z.string().max(2000).optional().nullable(),
 });
 
 async function syncWorkOrderMembers(
@@ -363,6 +366,7 @@ async function syncWorkOrderLineItems(
         workOrderId,
         pricingItemId: pid,
         serviceName: item.service_name.trim(),
+        notes: item.notes != null && String(item.notes).trim() ? String(item.notes).trim().slice(0, 2000) : null,
         quantitySqft: new Prisma.Decimal(qty),
         unitPrice: new Prisma.Decimal(price),
         lineTotal: new Prisma.Decimal(Math.round(qty * price * 100) / 100),

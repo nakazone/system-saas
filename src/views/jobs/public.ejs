@@ -228,7 +228,13 @@
         <h2>Serviços</h2>
         <ul class="list">
           <% job.services.forEach(function (s) { %>
-            <li><span><%= s.name %></span><% if (s.qty) { %><span class="q"><%= s.qty %></span><% } %></li>
+            <li>
+              <span>
+                <%= s.name %>
+                <% if (s.notes) { %><small style="display:block;margin-top:3px;opacity:0.75;font-weight:600"><%= s.notes %></small><% } %>
+              </span>
+              <% if (s.qty) { %><span class="q"><%= s.qty %></span><% } %>
+            </li>
           <% }) %>
         </ul>
       </section>

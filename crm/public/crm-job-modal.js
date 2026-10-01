@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261001-svc3";
+  const CSS_HREF = "crm-job-modal.css?v=20261001-svcnote1";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -473,6 +473,7 @@
       unit: o.unit || null,
       priceTouched: Boolean(o.priceTouched),
       manual: Boolean(o.manual),
+      note: o.note || "",
       svcQuery: o.svcQuery != null ? o.svcQuery : "",
       svcOpen: false,
     };
@@ -555,6 +556,7 @@
           <label class="jm-ln__price"><span>$</span><input type="number" class="jm-in jm-in--sm" data-f="price" min="0" step="0.01" inputmode="decimal" value="${Number(l.price) ? esc(Number(l.price).toFixed(2)) : ""}" placeholder="0.00" aria-label="Preço por ${esc(unit)}" /></label>
           <b class="jm-ln__tot" data-tot>${money(lineTotal(l))}</b>
           <button type="button" class="jm-ln__del" data-act="del-line" aria-label="Remover serviço">×</button>
+          <label class="jm-ln__note"><span class="jm-sr">Nota do serviço</span><input type="text" class="jm-in jm-in--sm" data-f="note" maxlength="2000" placeholder="Nota deste serviço (opcional)" value="${esc(l.note || "")}" /></label>
         </div>`;
       })
       .join("");
@@ -969,6 +971,7 @@
         unit: li.unit || null,
         priceTouched: true,
         manual: !li.pricing_item_id,
+        note: li.notes || "",
       }),
     );
     st.notes = wo.notes || "";
@@ -1011,6 +1014,7 @@
             service_name: (item?.name || l.name || "Serviço").trim(),
             quantity_sqft: Number(l.qty) || 0,
             unit_price: Number(l.price) || 0,
+            notes: String(l.note || "").trim() || null,
           };
         }),
       scheduled_start: start ? start.toISOString() : null,
@@ -1422,7 +1426,7 @@
       }
       return;
     }
-    if (f === "qty" || f === "price" || f === "name") {
+    if (f === "qty" || f === "price" || f === "name" || f === "note") {
       const { row, line } = lineFromEl(t);
       if (!line) return;
       if (f === "qty") line.qty = t.value;
@@ -1431,6 +1435,7 @@
         line.priceTouched = true;
       }
       if (f === "name") line.name = t.value;
+      if (f === "note") line.note = t.value;
       const tot = row.querySelector("[data-tot]");
       if (tot) tot.textContent = money(lineTotal(line));
       refreshNumbers();
