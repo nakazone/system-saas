@@ -11,7 +11,7 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { prisma } from "../../lib/prisma.js";
-import { env } from "../../config/env.js";
+import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { sendCustomerEmail } from "../../lib/email/index.js";
 import { nextInvoiceNumber, recordInvoicePayment, seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
@@ -55,9 +55,7 @@ function fail(res: Response, status: number, error: string) {
 }
 
 function baseUrl(req: AuthedRequest): string {
-  const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
-  const proto = req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
-  return `${proto}://${host}`;
+  return publicBaseUrl(req);
 }
 
 function parseDate(v: unknown): Date | null {

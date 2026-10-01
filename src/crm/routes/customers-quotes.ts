@@ -27,7 +27,7 @@ import {
   buildQuoteAccessEmailText,
   defaultQuoteAccessSubject,
 } from "../../lib/email/quote-access.js";
-import { env } from "../../config/env.js";
+import { publicBaseUrl } from "../../lib/http/public-url.js";
 
 export const customersQuotesRouter = Router();
 
@@ -1471,10 +1471,7 @@ customersQuotesRouter.post(
         primary: string;
         issued: { rawToken: string };
       };
-      const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
-      const proto =
-        req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
-      const publicUrl = `${proto}://${host}/public/quotes/${data.issued.rawToken}`;
+      const publicUrl = `${publicBaseUrl(req)}/public/quotes/${data.issued.rawToken}`;
       const cc = normalizeEmailList(body.cc ?? body.extra_emails ?? body.extraEmails);
       const payload = buildQuoteEmailPayload({
         quote: data.quote,
@@ -1590,9 +1587,7 @@ customersQuotesRouter.post(
         return;
       }
 
-      const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
-      const proto = req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
-      const publicUrl = `${proto}://${host}/public/quotes/${result.issued.rawToken}`;
+      const publicUrl = `${publicBaseUrl(req)}/public/quotes/${result.issued.rawToken}`;
 
       res.json({
         success: true,
@@ -1749,9 +1744,7 @@ customersQuotesRouter.post(
         leadMoveReason: string | null;
       };
 
-      const host = req.get("host") || env.APP_BASE_URL.replace(/^https?:\/\//, "");
-      const proto = req.protocol === "http" && env.NODE_ENV === "production" ? "https" : req.protocol;
-      const publicUrl = `${proto}://${host}/public/quotes/${data.issued.rawToken}`;
+      const publicUrl = `${publicBaseUrl(req)}/public/quotes/${data.issued.rawToken}`;
       const cc = normalizeEmailList(body.cc ?? body.extra_emails ?? body.extraEmails);
       const payload = buildQuoteEmailPayload({
         quote: data.quote,
