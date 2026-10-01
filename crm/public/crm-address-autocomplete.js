@@ -172,7 +172,11 @@
   function dismissPacDropdown(inputEl) {
     document.querySelectorAll('.pac-container').forEach(function (pac) {
       pac.style.display = 'none';
-      pac.innerHTML = '';
+      pac.style.visibility = 'hidden';
+      pac.style.opacity = '0';
+      pac.style.pointerEvents = 'none';
+      pac.setAttribute('aria-hidden', 'true');
+      while (pac.firstChild) pac.removeChild(pac.firstChild);
     });
     if (inputEl && typeof inputEl.blur === 'function') {
       try {
@@ -188,11 +192,17 @@
       'mousedown',
       function (e) {
         var item = e.target && e.target.closest ? e.target.closest('.pac-item') : null;
-        if (item) {
-          setTimeout(function () {
-            dismissPacDropdown();
-          }, 0);
-        }
+        if (!item) return;
+        // Close Google dropdown after the pick is applied
+        setTimeout(function () {
+          dismissPacDropdown();
+        }, 0);
+        setTimeout(function () {
+          dismissPacDropdown();
+        }, 80);
+        setTimeout(function () {
+          dismissPacDropdown();
+        }, 200);
       },
       true
     );
@@ -390,6 +400,8 @@
     var items = [];
     var active = -1;
     var countries = countryList(options.country);
+    var suppressSearch = false;
+    var suppressUntil = 0;
 
     function hide() {
       list.hidden = true;
@@ -407,6 +419,7 @@
         if (idx === active) li.className = 'is-active';
         li.addEventListener('mousedown', function (e) {
           e.preventDefault();
+          e.stopPropagation();
           select(idx);
         });
         list.appendChild(li);
@@ -417,16 +430,32 @@
     function select(idx) {
       var parsed = items[idx];
       if (!parsed) return;
+      suppressSearch = true;
+      suppressUntil = Date.now() + 600;
+      clearTimeout(timer);
+      hide();
       applySelection(parsed, options.map, inputEl);
       inputEl.dispatchEvent(new Event('input', { bubbles: true }));
       inputEl.dispatchEvent(new Event('change', { bubbles: true }));
       if (typeof options.onSelect === 'function') {
         options.onSelect(parsed, null, inputEl);
       }
+      // Keep closed — applySelection can dispatch input and would reopen the list
       hide();
+      try {
+        inputEl.blur();
+      } catch (_) {}
+      setTimeout(function () {
+        hide();
+        suppressSearch = false;
+      }, 650);
     }
 
     async function search(q) {
+      if (suppressSearch || Date.now() < suppressUntil) {
+        hide();
+        return;
+      }
       if (!q || q.trim().length < 3) {
         hide();
         return;
@@ -446,6 +475,10 @@
         var r = await fetch(url);
         if (!r.ok) throw new Error('photon ' + r.status);
         var j = await r.json();
+        if (suppressSearch || Date.now() < suppressUntil) {
+          hide();
+          return;
+        }
         items = (j.features || [])
           .map(parsePhotonFeature)
           .filter(function (p) {
@@ -464,6 +497,11 @@
     }
 
     inputEl.addEventListener('input', function () {
+      if (suppressSearch || Date.now() < suppressUntil) {
+        clearTimeout(timer);
+        hide();
+        return;
+      }
       clearTimeout(timer);
       timer = setTimeout(function () {
         search(inputEl.value);
@@ -530,6 +568,16 @@
 
       bindPacDismissHandlers();
 
+      var pacLockUntil = 0;
+      function lockAndDismiss() {
+        pacLockUntil = Date.now() + 700;
+        dismissPacDropdown(inputEl);
+      }
+
+      inputEl.addEventListener('input', function () {
+        if (Date.now() < pacLockUntil) dismissPacDropdown(inputEl);
+      });
+
       inputEl.addEventListener('blur', function () {
         setTimeout(function () {
           dismissPacDropdown();
@@ -540,12 +588,12 @@
         var place = ac.getPlace();
         if (!place) return;
         var parsed = parsePlaceComponents(place);
+        lockAndDismiss();
         applySelection(parsed, options.map, inputEl);
         if (typeof options.onSelect === 'function') {
           options.onSelect(parsed, place, inputEl);
         }
-        // Google writes the full formatted address into the input after place_changed —
-        // re-apply street-only / structured fields and hide the dropdown.
+        // Google may rewrite the input and reopen .pac-container after place_changed
         function finalize() {
           applySelection(parsed, options.map, inputEl);
           dismissPacDropdown(inputEl);
@@ -553,6 +601,10 @@
         setTimeout(finalize, 0);
         setTimeout(finalize, 50);
         setTimeout(finalize, 150);
+        setTimeout(finalize, 300);
+        setTimeout(function () {
+          dismissPacDropdown(inputEl);
+        }, 500);
       });
       return true;
     } catch (err) {
