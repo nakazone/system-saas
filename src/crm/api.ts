@@ -30,6 +30,7 @@ import { chatRouter } from "./routes/chat.js";
 import { settingsOrganizationRouter } from "./routes/settings-organization.js";
 import { settingsQuotesRouter } from "./routes/settings-quotes.js";
 import { settingsCatalogRouter } from "./routes/settings-catalog.js";
+import { reportsHubRouter } from "./routes/reports-hub.js";
 
 export const crmApiRouter = Router();
 
@@ -60,3 +61,4 @@ crmApiRouter.use(jobInvoicesRouter);
 crmApiRouter.use(jobFieldSummaryRouter);
 crmApiRouter.use(jobFieldExtrasRouter);
 crmApiRouter.use(chatRouter);
+crmApiRouter.use(reportsHubRouter);
