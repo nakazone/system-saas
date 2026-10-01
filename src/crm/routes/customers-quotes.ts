@@ -1192,22 +1192,15 @@ customersQuotesRouter.put(
             quoteId: id,
             actorId: req.user?.id ?? null,
           });
-          try {
-            const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
-            const job = await ensureWorkOrderOnApprove(tx, {
-              organizationId: req.organizationId!,
-              quoteId: id,
-              actorId: req.user?.id ?? null,
-            });
-            if (job?.created) createdJobId = job.id;
-            if (job?.id && !updated.workOrderId) {
-              updated = { ...updated, workOrderId: job.id };
-            }
-          } catch (err) {
-            console.error("[quotes] ensureWorkOrderOnApprove failed on update", {
-              quoteId: id,
-              err: err instanceof Error ? err.message : err,
-            });
+          const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
+          const job = await ensureWorkOrderOnApprove(tx, {
+            organizationId: req.organizationId!,
+            quoteId: id,
+            actorId: req.user?.id ?? null,
+          });
+          if (job?.created) createdJobId = job.id;
+          if (job?.id && !updated.workOrderId) {
+            updated = { ...updated, workOrderId: job.id };
           }
         }
 
