@@ -55,21 +55,24 @@ describe("worker ticket — helpers (pure)", () => {
     expect(html).toContain('<a href="tel:+17205550143">(720) 555-0143</a>');
   });
 
-  it("hands out the brand domain instead of the hosting provider's", () => {
-    const req = (host: string) => ({ get: (h: string) => (h.toLowerCase() === "host" ? host : undefined), protocol: "https" }) as unknown as Request;
-    const prevRoot = env.APP_ROOT_DOMAIN;
+  it("builds links on the host the office is using, not the hosting provider's", () => {
+    const req = (host: string) => ({ get: (h: string) => (h.toLowerCase() === "host" ? host : undefined), protocol: "http" }) as unknown as Request;
     const prevEnv = env.NODE_ENV;
+    const prevOverride = process.env.PUBLIC_LINK_BASE_URL;
     try {
-      (env as { APP_ROOT_DOMAIN: string }).APP_ROOT_DOMAIN = "obramate.com";
+      delete process.env.PUBLIC_LINK_BASE_URL;
       (env as { NODE_ENV: string }).NODE_ENV = "production";
-      expect(publicBaseUrl(req("system-saas-production.up.railway.app"))).toBe("https://obramate.com");
       expect(publicBaseUrl(req("obramate.com"))).toBe("https://obramate.com");
       expect(publicBaseUrl(req("www.obramate.com"))).toBe("https://obramate.com");
+      process.env.PUBLIC_LINK_BASE_URL = "https://obramate.com/";
+      expect(publicBaseUrl(req("system-saas-production.up.railway.app"))).toBe("https://obramate.com");
+      delete process.env.PUBLIC_LINK_BASE_URL;
       (env as { NODE_ENV: string }).NODE_ENV = "development";
-      expect(publicBaseUrl(req("localhost:3100"))).toMatch(/^https?:\/\/localhost:3100$/);
+      expect(publicBaseUrl(req("localhost:3100"))).toBe("http://localhost:3100");
     } finally {
-      (env as { APP_ROOT_DOMAIN: string }).APP_ROOT_DOMAIN = prevRoot;
       (env as { NODE_ENV: string }).NODE_ENV = prevEnv;
+      if (prevOverride === undefined) delete process.env.PUBLIC_LINK_BASE_URL;
+      else process.env.PUBLIC_LINK_BASE_URL = prevOverride;
     }
   });
 });
