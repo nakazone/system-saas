@@ -134,12 +134,22 @@
     }
   }
 
+  function parseLockbox(notes) {
+    const m = String(notes || "").match(/\/lockbox\s*[#:]?\s*([0-9A-Za-z-]{2,24})\b/i);
+    return m ? m[1] : null;
+  }
+  function lockboxBadgeHtml(notes) {
+    const code = parseLockbox(notes);
+    if (!code) return "";
+    return `<span class="job-lockbox-badge" title="Código da caixa (lockbox)"><span class="job-lockbox-badge__icon" aria-hidden="true">🔐</span><span class="job-lockbox-badge__code">${escapeHtml(code)}</span></span>`;
+  }
+
   function renderHero() {
     const t = ticket;
     $("cmTicketTitle").textContent = `Ticket #${t.number ?? "—"}`;
     $("cmTicketWhen").textContent = t.when_label || "—";
     $("cmTicketBadge").textContent = t.field_status_label || "—";
-    $("cmTicketJob").textContent = t.title || "—";
+    $("cmTicketJob").innerHTML = `${escapeHtml(t.title || "—")}${lockboxBadgeHtml(t.notes)}`;
     const sqft =
       t.sqft_total > 0
         ? ` · ${Number(t.sqft_total).toLocaleString("en-US")} sq ft`
@@ -209,7 +219,10 @@
     const notes = $("cmNotes");
     if (t.notes && !t.attention) {
       notes.hidden = false;
-      notes.textContent = t.notes;
+      const code = parseLockbox(t.notes);
+      notes.innerHTML = code
+        ? `${lockboxBadgeHtml(t.notes)} <span>${escapeHtml(t.notes)}</span>`
+        : escapeHtml(t.notes);
     } else {
       notes.hidden = true;
     }

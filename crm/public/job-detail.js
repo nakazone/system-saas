@@ -108,7 +108,9 @@
     badge.className = `job-status is-${job.status || "draft"}`;
     badge.textContent = statusLabel(job.status);
 
-    $("jobDetailTitle").textContent = `Job for ${client}`;
+    $("jobDetailTitle").innerHTML = `Job for ${escapeHtml(client)}${
+      typeof window.jobLockboxBadgeHtml === "function" ? ` ${window.jobLockboxBadgeHtml(job.notes)}` : ""
+    }`;
     $("jobClientName").textContent = client;
     $("jobProperty").textContent = job.address || "No property address";
 
@@ -126,7 +128,7 @@
     if ($("jobMetaTitle")) $("jobMetaTitle").textContent = job.title || "—";
     $("jobMetaSource").textContent = sourceLabel(job);
     $("jobMetaStart").textContent = fmtDay(job.scheduled_start);
-    $("jobMetaEnd").textContent = fmtDay(job.scheduled_end);
+    $("jobMetaEnd").textContent = job.scheduled_end ? fmtDay(job.scheduled_end) : "Aberto";
     $("jobMetaAssignee").textContent = job.assigned_user?.name || "—";
 
     const members = Array.isArray(job.members) ? job.members : [];

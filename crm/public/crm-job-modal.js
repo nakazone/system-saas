@@ -10,11 +10,11 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261001-jobform1";
+  const CSS_HREF = "crm-job-modal.css?v=20261001-lockbox2";
   const SECTIONS = ["details", "schedule", "services", "team", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
-    schedule: "Agenda",
+    schedule: "Quando",
     team: "Equipe & temporários",
     services: "Serviços do job",
     notes: "Notas",
@@ -28,15 +28,6 @@
     particular: "price_particular",
     other: "price_particular",
   };
-  const DURATIONS = [
-    { key: "half", label: "Meio dia" },
-    { key: "1", label: "1 dia" },
-    { key: "2", label: "2 dias" },
-    { key: "3", label: "3 dias" },
-    { key: "custom", label: "Personalizar" },
-    { key: "none", label: "Sem data" },
-  ];
-  const DAY_END_HOUR = 17;
 
   let canManage = false;
   let meId = null;
@@ -67,8 +58,6 @@
       addressTouched: false,
       date: "",
       time: "07:30",
-      duration: "1",
-      customEnd: "",
       assigneeId: null,
       members: new Set(),
       lines: [],
@@ -94,6 +83,30 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
+
+  /** `/lockbox 4821` in internal notes → house lockbox code badge. */
+  function parseJobLockbox(notes) {
+    const m = String(notes || "").match(/\/lockbox\s*[#:]?\s*([0-9A-Za-z-]{2,24})\b/i);
+    return m ? m[1] : null;
+  }
+  function jobLockboxBadgeHtml(notes) {
+    const code = parseJobLockbox(notes);
+    if (!code) return "";
+    return (
+      `<span class="job-lockbox-badge" title="Código da caixa (lockbox)">` +
+      `<span class="job-lockbox-badge__icon" aria-hidden="true">` +
+      `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
+      `<rect x="5" y="11" width="14" height="10" rx="2"/>` +
+      `<path d="M8 11V8a4 4 0 018 0v3"/>` +
+      `<circle cx="12" cy="16" r="1.2" fill="currentColor" stroke="none"/>` +
+      `</svg></span>` +
+      `<span class="job-lockbox-badge__code">${esc(code)}</span>` +
+      `</span>`
+    );
+  }
+  window.parseJobLockbox = parseJobLockbox;
+  window.jobLockboxBadgeHtml = jobLockboxBadgeHtml;
+
   function money(n) {
     return (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
   }
@@ -233,42 +246,20 @@
     });
   }
 
-  // ---------------------------------------------------------------- schedule
+  // ---------------------------------------------------------------- schedule (date + start only — duration stays open)
   function computeRange() {
-    if (st.duration === "none" || !st.date) return { start: null, end: null };
+    if (!st.date) return { start: null, end: null };
     const [y, m, d] = st.date.split("-").map(Number);
     const [hh, mm] = (st.time || "07:30").split(":").map(Number);
     const start = new Date(y, m - 1, d, hh || 0, mm || 0, 0, 0);
-    let end;
-    if (st.duration === "half") end = new Date(start.getTime() + 4 * 3600000);
-    else if (st.duration === "custom") {
-      end = st.customEnd ? new Date(st.customEnd) : new Date(start.getTime() + 8 * 3600000);
-    } else {
-      const days = Number(st.duration) || 1;
-      end = new Date(y, m - 1, d + days - 1, DAY_END_HOUR, 0, 0, 0);
-      if (end <= start) end = new Date(start.getTime() + 8 * 3600000);
-    }
-    return { start, end };
-  }
-  function durationFrom(start, end) {
-    if (!start || !end) return "none";
-    const ms = end - start;
-    if (Math.abs(ms - 4 * 3600000) < 60000) return "half";
-    if (end.getHours() === DAY_END_HOUR && end.getMinutes() === 0) {
-      const a = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-      const b = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-      const days = Math.round((b - a) / 86400000) + 1;
-      if (days >= 1 && days <= 3) return String(days);
-    }
-    return "custom";
+    return { start, end: null };
   }
   function whenLabel() {
-    const { start, end } = computeRange();
+    const { start } = computeRange();
     if (!start) return "Sem data";
     const day = start.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
     const t = start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    const multi = end && ymd(end) !== ymd(start);
-    return `${day} · ${t}${multi ? ` → ${end.toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}` : ""}`;
+    return `${day} · ${t}`;
   }
 
   // ---------------------------------------------------------------- auto title
@@ -308,7 +299,7 @@
           <h3 class="jm-sec__t"><span class="jm-n">1</span>Para quem</h3>
           <div id="jmClient"></div>
           <label class="jm-field jm-field--addr">Endereço da obra
-            <span class="jm-inwrap"><input type="text" id="jobAddress" class="jm-in" maxlength="500" autocomplete="off" placeholder="Rua, cidade" /><small class="jm-in__hint" id="jmAddrHint"></small></span>
+            <span class="jm-inwrap"><input type="text" id="jobAddress" class="jm-in" maxlength="500" autocomplete="off" placeholder="Local da obra (não o cadastro do cliente)" /><small class="jm-in__hint" id="jmAddrHint"></small></span>
           </label>
           <div class="jm-more" id="jmMore"></div>
         </section>
@@ -318,9 +309,8 @@
           <div class="jm-when">
             <label class="jm-field">Data<input type="date" id="jmDate" class="jm-in" /></label>
             <label class="jm-field">Início<input type="time" id="jmTime" class="jm-in" step="900" /></label>
-            <label class="jm-field" id="jmEndWrap" hidden>Fim<input type="datetime-local" id="jmEnd" class="jm-in" /></label>
           </div>
-          <div class="jm-chips" id="jmDur" role="radiogroup" aria-label="Duração"></div>
+          <p class="jm-hint">Só data e hora de início — a duração fica aberta (obras são imprevisíveis).</p>
         </section>
 
         <section class="jm-sec" data-job-section="services">
@@ -337,7 +327,8 @@
 
         <section class="jm-sec" data-job-section="notes">
           <h3 class="jm-sec__t"><span class="jm-n">5</span>Notas internas</h3>
-          <textarea id="jobNotes" class="jm-in jm-ta" rows="3" maxlength="8000" placeholder="Acesso, código do portão, cuidados com a obra…"></textarea>
+          <textarea id="jobNotes" class="jm-in jm-ta" rows="3" maxlength="8000" placeholder="Ex.: /lockbox 4821 — código da caixa da casa"></textarea>
+          <p class="jm-hint">Escreva <code>/lockbox</code> e o código para mostrar o cadeado no job.</p>
         </section>
       </div>
       <aside class="jm__side" id="jmSide" aria-label="Resumo"></aside>
@@ -449,22 +440,8 @@
   }
 
   function renderWhen() {
-    const none = st.duration === "none";
     $("jmDate").value = st.date || "";
     $("jmTime").value = st.time || "";
-    $("jmDate").disabled = none;
-    $("jmTime").disabled = none;
-    $("jmEndWrap").hidden = st.duration !== "custom";
-    if (st.duration === "custom") {
-      if (!st.customEnd) {
-        const r = computeRange();
-        st.customEnd = r.end ? localInput(r.end) : "";
-      }
-      $("jmEnd").value = st.customEnd;
-    }
-    $("jmDur").innerHTML = DURATIONS.map(
-      (d) => `<button type="button" role="radio" aria-checked="${st.duration === d.key}" class="jm-chip${st.duration === d.key ? " is-on" : ""}" data-act="dur" data-key="${d.key}">${d.label}</button>`,
-    ).join("");
   }
 
   function renderServices() {
@@ -646,7 +623,7 @@
       const t = String(c?.customer_type || "particular").toLowerCase();
       st.sourceType = TYPE_LABEL[t] ? t : "particular";
       if (st.sourceNameAuto) st.sourceName = c?.company || "";
-      if (!st.addressTouched && c?.address) st.address = c.address;
+      // Keep address blank for the job site — do not copy the customer mailing address.
     } else {
       st.builderId = id;
       st.customerId = null;
@@ -654,7 +631,7 @@
       const t = String(b?.type || "builder").toLowerCase();
       st.sourceType = ["builder", "contractor", "loja"].includes(t) ? t : "builder";
       if (st.sourceNameAuto) st.sourceName = builderName(b);
-      if (!st.addressTouched && b?.address) st.address = b.address;
+      // Do not copy builder mailing address into the job site field.
     }
     st.pickerOpen = false;
     st.pickerQuery = "";
@@ -820,13 +797,10 @@
     st.address = wo.address || "";
     st.addressTouched = true;
     const s = wo.scheduled_start ? new Date(wo.scheduled_start) : null;
-    const e = wo.scheduled_end ? new Date(wo.scheduled_end) : null;
     if (s) {
       st.date = ymd(s);
       st.time = hm(s);
     }
-    st.duration = durationFrom(s, e);
-    st.customEnd = st.duration === "custom" && e ? localInput(e) : "";
     st.assigneeId = wo.assigned_user_id ? String(wo.assigned_user_id) : null;
     (wo.members || []).forEach((m) => st.members.add(String(m.user_id)));
     st.lines = (wo.line_items || []).map((li) => ({
@@ -901,7 +875,6 @@
     if ((all || st.section === "details") && !st.customerId && !st.builderId && !(st.titleTouched && st.title.trim())) {
       return "Escolha para quem é o job (ou escreva um título em Editar).";
     }
-    if ((all || st.section === "schedule") && st.duration !== "none" && !st.date) return "Escolha a data ou marque “Sem data”.";
     if ((all || st.section === "schedule") && body.scheduled_start && body.scheduled_end) {
       if (new Date(body.scheduled_end) <= new Date(body.scheduled_start)) return "O fim precisa ser depois do início.";
     }
@@ -1048,20 +1021,6 @@
         st.moreOpen = !st.moreOpen;
         renderMore();
         break;
-      case "dur": {
-        const key = btn.getAttribute("data-key");
-        // "Personalizar" starts from whatever end the previous choice gave.
-        if (key === "custom" && st.duration !== "custom") {
-          const prev = computeRange();
-          st.customEnd = prev.end ? localInput(prev.end) : "";
-        }
-        st.duration = key;
-        if (st.duration !== "none" && !st.date) st.date = ymd(new Date());
-        if (st.duration !== "custom") st.customEnd = "";
-        renderWhen();
-        renderSide();
-        break;
-      }
       case "add-line":
         st.lines.push({ pricingId: null, name: "", qty: 0, price: 0, unit: null, priceTouched: false });
         renderServices();
@@ -1139,10 +1098,6 @@
         return;
       case "jobNotes":
         st.notes = t.value;
-        return;
-      case "jmEnd":
-        st.customEnd = t.value;
-        renderSide();
         return;
       default:
         break;

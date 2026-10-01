@@ -490,7 +490,7 @@ scheduleJobsRouter.get(
           ...(from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())
             ? {
                 scheduledStart: { lte: to },
-                scheduledEnd: { gte: from },
+                OR: [{ scheduledEnd: null }, { scheduledEnd: { gte: from } }],
               }
             : {}),
           ...(Object.keys(fieldScope).length || searchOr
@@ -628,8 +628,9 @@ scheduleJobsRouter.post(
       const d = parsed.data;
       const start = d.scheduled_start ? new Date(d.scheduled_start) : null;
       const end = d.scheduled_end ? new Date(d.scheduled_end) : null;
-      if ((start && !end) || (!start && end)) {
-        res.status(400).json({ success: false, error: "Provide both start and end, or neither" });
+      // Start-only is allowed (open-ended jobs); end without start is not.
+      if (!start && end) {
+        res.status(400).json({ success: false, error: "Informe a data/hora de início antes do fim" });
         return;
       }
       if (start && end && end.getTime() <= start.getTime()) {
@@ -730,8 +731,8 @@ scheduleJobsRouter.put(
           : d.scheduled_end
             ? new Date(d.scheduled_end)
             : null;
-      if ((start && !end) || (!start && end)) {
-        res.status(400).json({ success: false, error: "Provide both start and end, or neither" });
+      if (!start && end) {
+        res.status(400).json({ success: false, error: "Informe a data/hora de início antes do fim" });
         return;
       }
       if (start && end && end.getTime() <= start.getTime()) {
@@ -1241,7 +1242,7 @@ scheduleJobsRouter.get(
             organizationId: req.organizationId!,
             status: { not: "canceled" },
             scheduledStart: { not: null, lte: to },
-            scheduledEnd: { not: null, gte: from },
+            OR: [{ scheduledEnd: null }, { scheduledEnd: { gte: from } }],
             ...fieldWorkOrderScope(req.user),
           },
           include: woInclude,
@@ -1261,16 +1262,22 @@ scheduleJobsRouter.get(
       ]);
 
       const events = [
-        ...workOrders.map((wo) => ({
-          id: wo.id,
-          type: "job" as const,
-          title: wo.title,
-          status: wo.status,
-          start: wo.scheduledStart!.toISOString(),
-          end: wo.scheduledEnd!.toISOString(),
-          color: wo.crew?.color || "#e8792c",
-          meta: mapWorkOrder(wo),
-        })),
+        ...workOrders.map((wo) => {
+          const startIso = wo.scheduledStart!.toISOString();
+          const endIso = wo.scheduledEnd
+            ? wo.scheduledEnd.toISOString()
+            : new Date(wo.scheduledStart!.getTime() + 60 * 60 * 1000).toISOString();
+          return {
+            id: wo.id,
+            type: "job" as const,
+            title: wo.title,
+            status: wo.status,
+            start: startIso,
+            end: endIso,
+            color: wo.crew?.color || "#e8792c",
+            meta: mapWorkOrder(wo),
+          };
+        }),
         ...meetings.map((m) => ({
           id: m.id,
           type: "meeting" as const,

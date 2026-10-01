@@ -138,8 +138,10 @@
     }
     tbody.innerHTML = rows
       .map((wo) => {
+        const lock =
+          typeof window.jobLockboxBadgeHtml === "function" ? window.jobLockboxBadgeHtml(wo.notes) : "";
         return `<tr data-id="${wo.id}">
-          <td class="jobs-table__client">${escapeHtml(clientLabel(wo))}</td>
+          <td class="jobs-table__client">${escapeHtml(clientLabel(wo))}${lock ? ` ${lock}` : ""}</td>
           <td>${wo.number != null ? `#${wo.number}` : "—"}</td>
           <td class="jobs-table__muted">${escapeHtml(wo.address || "—")}</td>
           <td>${escapeHtml(fmtSchedule(wo.scheduled_start, wo.scheduled_end))}</td>

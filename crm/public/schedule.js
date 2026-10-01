@@ -501,7 +501,11 @@
         html += `<button type="button" class="gcal-event is-packed" data-ev="${item.ev.type}:${item.ev.id}"
           style="${eventPlaceStyle(item)}">
           <span class="gcal-event__time">${fmtTime(item.ev.start)}</span>
-          ${escapeHtml(item.ev.title)}
+          ${escapeHtml(item.ev.title)}${
+            item.ev.type === "job" && typeof window.jobLockboxBadgeHtml === "function"
+              ? ` ${window.jobLockboxBadgeHtml(item.ev.meta?.notes)}`
+              : ""
+          }
         </button>`;
       });
       html += nowLineHtml(day);
