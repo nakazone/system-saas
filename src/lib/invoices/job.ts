@@ -10,6 +10,7 @@ import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
 import { nextInvoiceNumber, seedDefaultPaymentTemplates } from "../payments/engine.js";
 import { computeNewInvoiceAmount } from "./core.js";
+import { stripLockbox } from "../../modules/work-orders/public-ticket.js";
 
 const cents = (n: unknown) => Math.round((Number(n) || 0) * 100);
 const money = (c: number) => Math.round(c) / 100;
@@ -76,9 +77,23 @@ export function jobRef(job: { number: number | null; title: string }): string {
   return job.number != null ? `Job #${job.number} · ${job.title}` : job.title;
 }
 
-type JobLine = { serviceName: string; quantitySqft: unknown; unitPrice: unknown; lineTotal: unknown };
+type JobLine = {
+  serviceName: string;
+  notes?: string | null;
+  quantitySqft: unknown;
+  unitPrice: unknown;
+  lineTotal: unknown;
+};
 
 export type InvoiceLineDraft = { description: string; quantity: number; unitPrice: number; amount: number };
+
+function invoiceLineDescription(li: JobLine): string {
+  const name = String(li.serviceName || "Serviço").trim() || "Serviço";
+  const note = String(li.notes || "").trim();
+  if (!note) return name;
+  const combined = `${name} — ${note}`;
+  return combined.length > 500 ? combined.slice(0, 497) + "…" : combined;
+}
 
 /**
  * Invoice lines for a job invoice. When the invoice closes the job (full / final), the client
@@ -99,7 +114,7 @@ export function jobInvoiceLines(params: {
     return [{ description: `${label} — ${ref}`, quantity: 1, unitPrice: amount, amount }];
   }
   const lines: InvoiceLineDraft[] = job.lineItems.map((li) => ({
-    description: li.serviceName,
+    description: invoiceLineDescription(li),
     quantity: Number(li.quantitySqft) || 0,
     unitPrice: Number(li.unitPrice) || 0,
     amount: money(cents(li.lineTotal)),
@@ -163,6 +178,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
   await seedDefaultPaymentTemplates(tx, input.organizationId);
   const invoiceNumber = await nextInvoiceNumber(tx, input.organizationId);
   const amount = new Prisma.Decimal(calc.amount.toFixed(2));
+  const jobNotesForInvoice = stripLockbox(job.notes).slice(0, 4000) || null;
   const inv = await tx.quoteInvoice.create({
     data: {
       organizationId: input.organizationId,
@@ -174,7 +190,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
       status: "draft",
       amount,
       dueDate: input.dueDate || new Date(Date.now() + 14 * 86400000),
-      notes: input.notes?.trim() || null,
+      notes: input.notes?.trim() || jobNotesForInvoice,
       paymentInstructions: input.paymentInstructions?.trim() || job.organization.paymentInstructions || null,
     },
   });

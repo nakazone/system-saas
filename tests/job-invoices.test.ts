@@ -30,12 +30,12 @@ describe("jobs — billing math (pure)", () => {
       number: 7,
       title: "Smith townhomes",
       lineItems: [
-        { serviceName: "LVP install", quantitySqft: 800, unitPrice: 2.1, lineTotal: 1680 },
+        { serviceName: "LVP install", quantitySqft: 800, unitPrice: 2.1, lineTotal: 1680, notes: "Hallway only" },
         { serviceName: "Stairs", quantitySqft: 12, unitPrice: 45, lineTotal: 540 },
       ],
     };
     const full = jobInvoiceLines({ kind: "full", label: "Full payment", amount: 2220, job, invoicedBefore: 0 });
-    expect(full.map((l) => l.description)).toEqual(["LVP install", "Stairs"]);
+    expect(full.map((l) => l.description)).toEqual(["LVP install — Hallway only", "Stairs"]);
     const final = jobInvoiceLines({ kind: "final", label: "Final balance", amount: 1554, job, invoicedBefore: 666 });
     expect(final.at(-1)).toMatchObject({ description: "Less: previously invoiced", amount: -666 });
     expect(final.reduce((s, l) => s + l.amount, 0)).toBeCloseTo(1554, 2);
