@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261001-refresh2";
+  const SHELL_VER = "20261001-tabletnav1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -572,13 +572,21 @@
       localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
     } catch (_) {}
     const btn = document.getElementById("sidebarCollapseBtn");
-    if (btn) {
-      btn.setAttribute("aria-pressed", collapsed ? "true" : "false");
-      btn.setAttribute("aria-label", collapsed ? "Expandir menu lateral" : "Recolher menu lateral");
-      btn.title = collapsed ? "Expandir menu" : "Recolher menu";
+    if (!btn) return;
+    const desktop = window.matchMedia("(min-width: 1025px)").matches;
+    if (!desktop && document.body.classList.contains("om-device-tablet")) {
+      btn.setAttribute("aria-pressed", "false");
+      btn.setAttribute("aria-label", "Fechar menu");
+      btn.title = "Fechar menu";
       const lab = btn.querySelector(".nav-item__label");
-      if (lab) lab.textContent = collapsed ? "Expandir menu" : "Recolher menu";
+      if (lab) lab.textContent = "Fechar menu";
+      return;
     }
+    btn.setAttribute("aria-pressed", collapsed ? "true" : "false");
+    btn.setAttribute("aria-label", collapsed ? "Expandir menu lateral" : "Recolher menu lateral");
+    btn.title = collapsed ? "Expandir menu" : "Recolher menu";
+    const lab = btn.querySelector(".nav-item__label");
+    if (lab) lab.textContent = collapsed ? "Expandir menu" : "Recolher menu";
   }
 
   function isCollapsed() {
@@ -791,8 +799,19 @@
       if (!btn.dataset.bound) {
         btn.dataset.bound = "1";
         btn.addEventListener("click", () => {
-          if (!window.matchMedia("(min-width: 1025px)").matches) return;
-          setCollapsed(!isCollapsed());
+          const desktop = window.matchMedia("(min-width: 1025px)").matches;
+          if (desktop) {
+            setCollapsed(!isCollapsed());
+            return;
+          }
+          // Tablet/phone drawer: treat as close menu.
+          const sidebar = getSidebar();
+          const overlay = document.getElementById("mobileOverlay");
+          const toggle = document.getElementById("mobileMenuToggle");
+          if (sidebar) sidebar.classList.remove("mobile-open");
+          if (overlay) overlay.classList.remove("active");
+          if (toggle) toggle.setAttribute("aria-expanded", "false");
+          document.body.classList.remove("mobile-nav-open");
         });
       }
     }

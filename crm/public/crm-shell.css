@@ -760,8 +760,12 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
 }
 
 @media (max-width: 1024px) {
-  .crm-topbar,
-  .sidebar-collapse-btn {
+  .crm-topbar {
+    display: none !important;
+  }
+
+  /* Phones hide collapse; tablets keep it (fullscreen drawer / sticky footer). */
+  body:not(.om-device-tablet) .sidebar-collapse-btn {
     display: none !important;
   }
 

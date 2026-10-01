@@ -1137,13 +1137,14 @@ input.score-auto {
 
 /* iPad / tablets (incl. landscape ~1366): gaveta + hamburger, sem tab bar */
 @media (min-width: 769px) and (max-width: 1366px) {
-    .dashboard-sidebar {
+    /* Tablets use om-device-tablet fullscreen / desktop rail in obramate-app.css */
+    body:not(.om-device-tablet) .dashboard-sidebar {
         transform: translateX(-100%);
         width: min(288px, 80vw);
         z-index: 1100;
     }
 
-    .dashboard-sidebar.mobile-open {
+    body:not(.om-device-tablet) .dashboard-sidebar.mobile-open {
         transform: translateX(0);
         box-shadow: 12px 0 40px rgba(0, 0, 0, 0.22);
     }
