@@ -1203,6 +1203,31 @@
     overflow: visible;
   }
 
+  /*
+   * Tablets use the desktop CRM shell — unlock document scroll.
+   * The coarse-pointer body lock was meant for phone shells and breaks iPad page scroll.
+   */
+  body.om-device-tablet.dashboard-app-body,
+  body.om-device-tablet.om-app {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    touch-action: auto !important;
+  }
+
+  body.om-device-tablet.dashboard-app-body .dashboard-main,
+  body.om-device-tablet.om-app .dashboard-main {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.om-device-tablet.mobile-nav-open {
+    overflow: hidden !important;
+  }
+
   /* Shell mobile (≤768): main flexível entre header e tab bar */
   .dashboard-app-body.sf-mobile-shell {
     display: flex;

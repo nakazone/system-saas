@@ -803,10 +803,15 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     top: calc(100% + 8px);
   }
 
-  /* Lock page scroll while the nav drawer is open */
+  /* Lock page scroll while the nav drawer is open (do not set touch-action on body —
+     that blocks scrolling inside the drawer and can stick after close on iPad). */
   body.dashboard-app-body.mobile-nav-open,
   body.om-app.mobile-nav-open {
     overflow: hidden !important;
+  }
+
+  body.dashboard-app-body.mobile-nav-open .mobile-overlay,
+  body.om-app.mobile-nav-open .mobile-overlay {
     touch-action: none;
   }
 }
