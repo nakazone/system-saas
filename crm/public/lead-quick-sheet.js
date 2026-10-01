@@ -404,11 +404,20 @@
       typeof global.sfAttachAddressAutocomplete === 'function'
     ) {
       focusEl.placeholder = 'Digite a morada (Google Maps)...';
+      const country =
+        (typeof global.sfGetOrgAddressCountry === 'function'
+          ? await global.sfGetOrgAddressCountry().catch(function () {
+              return 'us';
+            })
+          : null) || 'us';
       const ok = await global.sfAttachAddressAutocomplete(focusEl, {
-        country: 'us',
+        country: country,
         map: { combined: focusEl },
         onSelect: function (parsed) {
-          if (parsed && parsed.formatted) focusEl.value = parsed.formatted;
+          if (parsed && (parsed.formatted || parsed.line1)) {
+            focusEl.value = parsed.formatted || parsed.line1;
+          }
+          if (typeof global.sfDismissPacDropdown === 'function') global.sfDismissPacDropdown(focusEl);
         },
       });
       if (!ok) {

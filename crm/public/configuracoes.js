@@ -114,6 +114,15 @@
     ["WV", "West Virginia"], ["WI", "Wisconsin"], ["WY", "Wyoming"],
   ];
 
+  const COUNTRIES = [
+    ["US", "Estados Unidos"],
+    ["CA", "Canadá"],
+    ["BR", "Brasil"],
+    ["MX", "México"],
+    ["PT", "Portugal"],
+    ["GB", "Reino Unido"],
+  ];
+
   const TIMEZONES = [
     ["America/New_York", "Eastern (Nova York, Miami)"],
     ["America/Chicago", "Central (Chicago, Dallas)"],
@@ -507,6 +516,7 @@
     const stateOpts = `<option value="">Selecione</option>` + US_STATES.map(([c, n]) => `<option value="${c}">${n}</option>`).join("");
     $("f_state").innerHTML = stateOpts;
     $("f_license_state").innerHTML = stateOpts;
+    $("f_country").innerHTML = COUNTRIES.map(([c, n]) => `<option value="${c}">${n}</option>`).join("");
     $("f_timezone").innerHTML = TIMEZONES.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
     $("hoursRows").innerHTML = DAYS.map(
       ([k, label]) =>
@@ -851,9 +861,10 @@
     });
     // Address autocomplete (Google Places, falls back to Photon in the shared helper)
     if (typeof window.sfAttachAddressAutocomplete === "function") {
+      const country = String(($("f_country") && $("f_country").value) || "US").toLowerCase();
       window
         .sfAttachAddressAutocomplete($("f_address_line1"), {
-          country: "us",
+          country,
           map: { line1: "#f_address_line1", city: "#f_city", state: "#f_state", zip: "#f_postal_code" },
         })
         .catch(() => undefined);

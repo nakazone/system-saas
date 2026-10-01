@@ -120,16 +120,22 @@
                     <div class="cfg-field"><label for="f_state">Estado</label><select id="f_state" data-key="state"></select></div>
                     <div class="cfg-field"><label for="f_postal_code">ZIP</label><input id="f_postal_code" data-key="postal_code" maxlength="10" inputmode="numeric" /></div>
                   </div>
-                  <div class="cfg-row">
-                    <a class="btn btn-secondary cfg-btn-sm" id="btnMap" href="#" target="_blank" rel="noopener" aria-disabled="true">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 1114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
-                      Ver no mapa
-                    </a>
-                    <span class="cfg-hint">País: Estados Unidos</span>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field">
+                      <label for="f_country">País</label>
+                      <select id="f_country" data-key="country"></select>
+                    </div>
+                    <div class="cfg-field" style="justify-content:flex-end">
+                      <label class="cfg-hint" style="visibility:hidden">Mapa</label>
+                      <a class="btn btn-secondary cfg-btn-sm" id="btnMap" href="#" target="_blank" rel="noopener" aria-disabled="true">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 1114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                        Ver no mapa
+                      </a>
+                    </div>
                   </div>
                   <label class="cfg-check">
                     <input type="checkbox" id="f_address_private" data-key="address_private" />
-                    <span><strong>Manter endereço privado</strong><br /><span class="cfg-hint">Não aparece no link do orçamento nem no PDF.</span></span>
+                    <span><strong>Manter endereço privado</strong><br /><span class="cfg-hint">Não aparece no link do orçamento nem no PDF. O autocomplete usa o país acima.</span></span>
                   </label>
                 </article>
 
@@ -507,7 +513,7 @@
   <script src="crm-toast.js"></script>
   <script src="crm-pwa-install.js?v=20260923-pwa"></script>
   <script src="crm-push.js?v=20260923-push"></script>
-  <script src="crm-address-autocomplete.js"></script>
+  <script src="crm-address-autocomplete.js?v=20261001-addr1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="configuracoes.js?v=20260930-cfg2"></script>
 </body>

@@ -793,7 +793,7 @@ cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (req: Aut
   try {
     const org = await prisma.organization.findUnique({
       where: { id: req.organizationId! },
-      select: { name: true, logoUrl: true, primaryColor: true, accentColor: true },
+      select: { name: true, logoUrl: true, primaryColor: true, accentColor: true, country: true },
     });
     const brand = org
       ? buildBrandPalette({
@@ -829,11 +829,18 @@ cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (req: Aut
       }
     }
 
+    const country = String(org?.country || "US")
+      .trim()
+      .toUpperCase()
+      .slice(0, 2);
+
     res.json({
       success: true,
       data: {
         brand_name: brand?.name || "Workspace",
         branding: brand,
+        country,
+        organizationCountry: country,
         googleMapsJsKey: googleMapsUsable ? key : null,
         googleMapsConfigured: Boolean(key),
         googleMapsUsable,

@@ -836,10 +836,16 @@ function renderOverviewTab(p, pl) {
 function wireProjectAddressAutocomplete() {
   const el = document.getElementById('pd-edit-address');
   if (!el || typeof window.sfAttachAddressAutocomplete !== 'function') return;
-  window.sfAttachAddressAutocomplete(el, {
-    country: 'us',
-    map: { combined: '#pd-edit-address' },
-  }).catch(() => {});
+  const attach = (country) =>
+    window.sfAttachAddressAutocomplete(el, {
+      country: country || 'us',
+      map: { combined: '#pd-edit-address' },
+    }).catch(() => {});
+  if (typeof window.sfGetOrgAddressCountry === 'function') {
+    window.sfGetOrgAddressCountry().then(attach).catch(() => attach('us'));
+  } else {
+    attach('us');
+  }
 }
 
 async function ensureBuilderPartnerOptions() {

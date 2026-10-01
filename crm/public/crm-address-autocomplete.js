@@ -1,6 +1,7 @@
 /**
  * Google Places Autocomplete reutilizavel para formularios de morada do CRM.
  * Usa Google quando billing/APIs estão OK; senão cai para sugestões OSM (Photon).
+ * Restringe sugestões ao país da empresa (Configurações › Empresa).
  */
 (function (global) {
   'use strict';
@@ -8,7 +9,67 @@
   let mapsKey = null;
   let loadPromise = null;
   let lastLoadFailed = false;
+  let orgCountryPromise = null;
+  let orgCountryCode = null; // lowercase ISO-2 for Places, e.g. "us"
   const attached = new WeakSet();
+
+  function normalizeCountryCode(raw) {
+    if (!raw) return null;
+    if (Array.isArray(raw)) {
+      var list = raw
+        .map(function (c) {
+          return String(c || '')
+            .trim()
+            .toLowerCase()
+            .slice(0, 2);
+        })
+        .filter(Boolean);
+      return list.length ? list : null;
+    }
+    var one = String(raw)
+      .trim()
+      .toLowerCase()
+      .slice(0, 2);
+    return one || null;
+  }
+
+  async function fetchOrgCountry() {
+    if (orgCountryCode) return orgCountryCode;
+    if (orgCountryPromise) return orgCountryPromise;
+    orgCountryPromise = (async function () {
+      try {
+        var r = await fetch('/api/config/ui', { credentials: 'include', cache: 'no-store' });
+        if (r.ok) {
+          var j = await r.json().catch(function () {
+            return {};
+          });
+          var data = (j && j.data) || {};
+          var code = normalizeCountryCode(data.organizationCountry || data.country);
+          if (code) {
+            orgCountryCode = code;
+            return code;
+          }
+        }
+      } catch (_) {}
+      try {
+        var r2 = await fetch('/api/settings/organization', { credentials: 'include', cache: 'no-store' });
+        if (r2.ok) {
+          var j2 = await r2.json().catch(function () {
+            return {};
+          });
+          var d2 = (j2 && j2.data) || j2 || {};
+          var code2 = normalizeCountryCode(d2.country);
+          if (code2) {
+            orgCountryCode = code2;
+            return code2;
+          }
+        }
+      } catch (_) {}
+      orgCountryCode = 'us';
+      return orgCountryCode;
+    })();
+    return orgCountryPromise;
+  }
 
   function parsePlaceComponents(place) {
     const out = {
@@ -17,6 +78,7 @@
       city: '',
       state: '',
       zip: '',
+      country: '',
       formatted: place && place.formatted_address ? String(place.formatted_address) : '',
       placeId: place && place.place_id ? String(place.place_id) : '',
       lat: null,
@@ -39,6 +101,7 @@
       else if (types.indexOf('sublocality') !== -1 && !out.city) out.city = comp.long_name;
       if (types.indexOf('administrative_area_level_1') !== -1) out.state = comp.short_name;
       if (types.indexOf('postal_code') !== -1) out.zip = comp.long_name;
+      if (types.indexOf('country') !== -1) out.country = comp.short_name;
     });
     out.line1 = [streetNumber, route].filter(Boolean).join(' ').trim();
     if (!out.line1 && out.formatted) {
@@ -56,25 +119,60 @@
 
   function setFieldValue(ref, value) {
     const el = resolveEl(ref);
-    if (!el || value == null || String(value).trim() === '') return;
+    if (!el) return;
+    if (value == null) return;
     el.value = String(value);
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function applyFieldMap(parsed, map) {
-    if (!map || !parsed) return;
-    if (map.line1) setFieldValue(map.line1, parsed.line1);
-    if (map.line2) setFieldValue(map.line2, parsed.line2);
-    if (map.city) setFieldValue(map.city, parsed.city);
-    if (map.state) setFieldValue(map.state, parsed.state);
-    if (map.zip) setFieldValue(map.zip, parsed.zip);
-    if (map.combined) setFieldValue(map.combined, parsed.formatted || parsed.line1);
+  function mapHasStructuredFields(map) {
+    if (!map) return false;
+    return !!(map.city || map.state || map.zip || map.line2 || map.line1);
+  }
+
+  /**
+   * Fill street/city/state/zip. When structured fields exist, the search input
+   * keeps only the street (not the full "Street, City, ST ZIP, Country").
+   * Optional map.search is cleared after pick.
+   */
+  function applySelection(parsed, map, inputEl) {
+    if (!parsed) return;
+    if (!map) {
+      if (inputEl) inputEl.value = parsed.formatted || parsed.line1 || '';
+      return;
+    }
+
+    if (mapHasStructuredFields(map)) {
+      if (map.line1) setFieldValue(map.line1, parsed.line1 || '');
+      if (map.line2) setFieldValue(map.line2, parsed.line2 || '');
+      if (map.city) setFieldValue(map.city, parsed.city || '');
+      if (map.state) setFieldValue(map.state, parsed.state || '');
+      if (map.zip) setFieldValue(map.zip, parsed.zip || '');
+
+      var street = parsed.line1 || '';
+      if (map.combined) {
+        // Combined field with sibling city/state/zip → street only (avoid duplicating city/zip).
+        if (map.city || map.state || map.zip) setFieldValue(map.combined, street);
+        else setFieldValue(map.combined, parsed.formatted || street);
+      } else if (!map.line1 && inputEl) {
+        inputEl.value = street;
+      } else if (map.line1 && resolveEl(map.line1) === inputEl) {
+        inputEl.value = street;
+      }
+
+      if (map.search) setFieldValue(map.search, '');
+      return;
+    }
+
+    if (map.combined) setFieldValue(map.combined, parsed.formatted || parsed.line1 || '');
+    if (map.search) setFieldValue(map.search, '');
   }
 
   function dismissPacDropdown(inputEl) {
     document.querySelectorAll('.pac-container').forEach(function (pac) {
       pac.style.display = 'none';
+      pac.innerHTML = '';
     });
     if (inputEl && typeof inputEl.blur === 'function') {
       try {
@@ -146,7 +244,6 @@
       };
       var s = document.createElement('script');
       s.async = true;
-      // Do not use loading=async with classic callback — it breaks Map init.
       s.src =
         'https://maps.googleapis.com/maps/api/js?key=' +
         encodeURIComponent(key) +
@@ -187,7 +284,8 @@
       return {};
     });
     var data = (j && j.data) || {};
-    // Only expose key when server probe confirms Places works (billing + APIs).
+    var code = normalizeCountryCode(data.organizationCountry || data.country);
+    if (code) orgCountryCode = code;
     if (data.googleMapsUsable === false) return null;
     var key = data.googleMapsJsKey ? String(data.googleMapsJsKey).trim() : '';
     return key || null;
@@ -243,7 +341,8 @@
     var city = p.city || p.town || p.village || p.municipality || '';
     var state = p.state || p.county || '';
     var zip = p.postcode || '';
-    var parts = [street, city, state, zip, p.country].filter(Boolean);
+    var countryCode = String(p.countrycode || '').toLowerCase();
+    var parts = [street, city, state, zip].filter(Boolean);
     var formatted = parts.join(', ');
     return {
       line1: street || p.name || formatted,
@@ -251,11 +350,19 @@
       city: city,
       state: state,
       zip: zip,
+      country: countryCode,
       formatted: formatted || p.name || '',
       placeId: p.osm_id ? String(p.osm_id) : '',
       lat: coords && coords.length >= 2 ? Number(coords[1]) : null,
       lng: coords && coords.length >= 2 ? Number(coords[0]) : null,
     };
+  }
+
+  function countryList(optionsCountry) {
+    var fromOpt = normalizeCountryCode(optionsCountry);
+    if (fromOpt) return Array.isArray(fromOpt) ? fromOpt : [fromOpt];
+    if (orgCountryCode) return [orgCountryCode];
+    return ['us'];
   }
 
   function attachPhotonAutocomplete(inputEl, options) {
@@ -282,6 +389,7 @@
     var timer = null;
     var items = [];
     var active = -1;
+    var countries = countryList(options.country);
 
     function hide() {
       list.hidden = true;
@@ -309,8 +417,7 @@
     function select(idx) {
       var parsed = items[idx];
       if (!parsed) return;
-      if (options.map) applyFieldMap(parsed, options.map);
-      else inputEl.value = parsed.formatted || parsed.line1;
+      applySelection(parsed, options.map, inputEl);
       inputEl.dispatchEvent(new Event('input', { bubbles: true }));
       inputEl.dispatchEvent(new Event('change', { bubbles: true }));
       if (typeof options.onSelect === 'function') {
@@ -328,17 +435,26 @@
         var url =
           'https://photon.komoot.io/api/?q=' +
           encodeURIComponent(q.trim()) +
-          '&limit=6&lang=en';
-        if (options.country === 'us' || (Array.isArray(options.country) && options.country.indexOf('us') >= 0)) {
-          // Soft bias: append USA to query when empty country filter (Photon has limited country filter)
-          if (!/\busa\b|\bunited states\b/i.test(q)) url += '&lat=39.8&lon=-98.5';
+          '&limit=8&lang=en';
+        if (countries.indexOf('us') >= 0 && countries.length === 1) {
+          url += '&lat=39.8&lon=-98.5';
+        } else if (countries.indexOf('br') >= 0 && countries.length === 1) {
+          url += '&lat=-14.2&lon=-51.9';
+        } else if (countries.indexOf('ca') >= 0 && countries.length === 1) {
+          url += '&lat=56.1&lon=-106.3';
         }
         var r = await fetch(url);
         if (!r.ok) throw new Error('photon ' + r.status);
         var j = await r.json();
-        items = (j.features || []).map(parsePhotonFeature).filter(function (p) {
-          return p.formatted || p.line1;
-        });
+        items = (j.features || [])
+          .map(parsePhotonFeature)
+          .filter(function (p) {
+            if (!(p.formatted || p.line1)) return false;
+            if (!countries.length) return true;
+            if (!p.country) return true;
+            return countries.indexOf(String(p.country).toLowerCase()) >= 0;
+          })
+          .slice(0, 6);
         active = items.length ? 0 : -1;
         render();
       } catch (err) {
@@ -385,6 +501,9 @@
     if (!inputEl || inputEl.tagName !== 'INPUT') return false;
     if (attached.has(inputEl)) return true;
 
+    var country = normalizeCountryCode(options.country) || (await fetchOrgCountry());
+    options = Object.assign({}, options, { country: country });
+
     var ready = await ensureMapsReady(false);
     if (!ready) {
       ready = await ensureMapsReady(true);
@@ -398,8 +517,8 @@
         fields: ['formatted_address', 'address_components', 'geometry', 'place_id'],
         types: options.types || ['address'],
       };
-      if (options.country) {
-        acOptions.componentRestrictions = { country: options.country };
+      if (country) {
+        acOptions.componentRestrictions = { country: country };
       }
       var ac = new global.google.maps.places.Autocomplete(inputEl, acOptions);
       attached.add(inputEl);
@@ -421,13 +540,19 @@
         var place = ac.getPlace();
         if (!place) return;
         var parsed = parsePlaceComponents(place);
-        if (options.map) applyFieldMap(parsed, options.map);
+        applySelection(parsed, options.map, inputEl);
         if (typeof options.onSelect === 'function') {
           options.onSelect(parsed, place, inputEl);
         }
-        setTimeout(function () {
+        // Google writes the full formatted address into the input after place_changed —
+        // re-apply street-only / structured fields and hide the dropdown.
+        function finalize() {
+          applySelection(parsed, options.map, inputEl);
           dismissPacDropdown(inputEl);
-        }, 0);
+        }
+        setTimeout(finalize, 0);
+        setTimeout(finalize, 50);
+        setTimeout(finalize, 150);
       });
       return true;
     } catch (err) {
@@ -445,7 +570,6 @@
   var PRESETS = [
     {
       input: '#clientAddress',
-      country: 'us',
       map: {
         combined: '#clientAddress',
         city: '#clientCity',
@@ -455,7 +579,6 @@
     },
     {
       input: '#lqsVisitAddressLine1',
-      country: 'us',
       map: {
         line1: '#lqsVisitAddressLine1',
         city: '#lqsVisitCity',
@@ -464,7 +587,6 @@
     },
     {
       input: '#qualAddressStreet',
-      country: 'us',
       map: {
         line1: '#qualAddressStreet',
         line2: '#qualAddressLine2',
@@ -475,12 +597,10 @@
     },
     {
       input: '#leadFullAddress',
-      country: 'us',
       map: { combined: '#leadFullAddress' },
     },
     {
       input: '#visitAddressLine1',
-      country: 'us',
       map: {
         line1: '#visitAddressLine1',
         line2: '#visitAddressLine2',
@@ -490,7 +610,6 @@
     },
     {
       input: '#editVisitAddressLine1',
-      country: 'us',
       map: {
         line1: '#editVisitAddressLine1',
         line2: '#editVisitAddressLine2',
@@ -500,7 +619,6 @@
     },
     {
       input: '#manualClientAddress',
-      country: 'us',
       map: {
         combined: '#manualClientAddress',
         zip: '#manualClientZip',
@@ -508,7 +626,6 @@
     },
     {
       input: '#editClientAddress',
-      country: 'us',
       map: {
         combined: '#editClientAddress',
         zip: '#editClientZip',
@@ -516,32 +633,26 @@
     },
     {
       input: '#pd-edit-address',
-      country: 'us',
       map: { combined: '#pd-edit-address' },
     },
     {
       input: '#quoteJobAddress',
-      country: 'us',
       map: { combined: '#quoteJobAddress' },
     },
     {
       input: '#estAddress',
-      country: 'us',
       map: { combined: '#estAddress' },
     },
     {
       input: '#jobAddress',
-      country: 'us',
       map: { combined: '#jobAddress' },
     },
     {
       input: '#mtgLocation',
-      country: 'us',
       map: { combined: '#mtgLocation' },
     },
     {
       input: '#visitLine1',
-      country: 'us',
       map: {
         line1: '#visitLine1',
         city: '#visitCity',
@@ -550,13 +661,20 @@
     },
     {
       input: '#fAddress',
-      country: 'us',
       map: { combined: '#fAddress' },
     },
     {
       input: '#v-addr',
-      country: 'us',
       map: { combined: '#v-addr' },
+    },
+    {
+      input: '#f_address_line1',
+      map: {
+        line1: '#f_address_line1',
+        city: '#f_city',
+        state: '#f_state',
+        zip: '#f_postal_code',
+      },
     },
   ];
 
@@ -598,8 +716,8 @@
       ['ZipCode', 'zip'],
       ['ZIP', 'zip'],
       ['Postal', 'zip'],
+      ['Line2', 'line2'],
     ];
-    // e.g. visitAddressLine1 → visitCity / visitZipCode
     var base = id
       .replace(/(AddressLine1|address_line1|Address|Addr|Street|Location|Line1)$/i, '')
       .replace(/(Full)?$/i, '');
@@ -616,6 +734,12 @@
     return map;
   }
 
+  async function resolveAttachCountry(presetCountry) {
+    var fromPreset = normalizeCountryCode(presetCountry);
+    if (fromPreset) return fromPreset;
+    return fetchOrgCountry();
+  }
+
   function scanAndAttachAll() {
     var nodes = document.querySelectorAll(
       'input[type="text"], input:not([type]), input[autocomplete="street-address"], input[data-crm-address-autocomplete]',
@@ -626,9 +750,12 @@
       var preset = PRESETS.find(function (p) {
         return p.input === '#' + el.id;
       });
-      attachAddressAutocomplete(el, {
-        country: (preset && preset.country) || 'us',
-        map: (preset && preset.map) || guessMapForInput(el),
+      resolveAttachCountry(preset && preset.country).then(function (country) {
+        if (attached.has(el)) return;
+        attachAddressAutocomplete(el, {
+          country: country,
+          map: (preset && preset.map) || guessMapForInput(el),
+        });
       });
     });
   }
@@ -636,9 +763,11 @@
   function initCrmAddressAutocomplete() {
     PRESETS.forEach(function (preset) {
       if (!document.querySelector(preset.input)) return;
-      attachBySelector(preset.input, {
-        country: preset.country,
-        map: preset.map,
+      resolveAttachCountry(preset.country).then(function (country) {
+        attachBySelector(preset.input, {
+          country: country,
+          map: preset.map,
+        });
       });
     });
     scanAndAttachAll();
@@ -664,10 +793,13 @@
   global.sfEnsureCrmAddressAutocomplete = ensureMapsReady;
   global.sfParseGooglePlaceComponents = parsePlaceComponents;
   global.sfDismissPacDropdown = dismissPacDropdown;
+  global.sfGetOrgAddressCountry = fetchOrgCountry;
 
   function bootAfterAuth() {
-    initCrmAddressAutocomplete();
-    startDomObserver();
+    fetchOrgCountry().finally(function () {
+      initCrmAddressAutocomplete();
+      startDomObserver();
+    });
   }
 
   global.sfBootCrmAddressAutocomplete = bootAfterAuth;

@@ -32,9 +32,13 @@
     const input = document.getElementById('estAddress');
     const hint = document.getElementById('estAddressHint');
     if (!input || typeof window.sfAttachAddressAutocomplete !== 'function') return;
-    window.sfEnsureCrmAddressAutocomplete?.().then((ok) => {
+    window.sfEnsureCrmAddressAutocomplete?.().then(async (ok) => {
       if (!ok) return;
-      window.sfAttachAddressAutocomplete(input, { country: 'us', map: { combined: '#estAddress' } }).then((attached) => {
+      const country =
+        (typeof window.sfGetOrgAddressCountry === 'function'
+          ? await window.sfGetOrgAddressCountry().catch(() => 'us')
+          : null) || 'us';
+      window.sfAttachAddressAutocomplete(input, { country, map: { combined: '#estAddress' } }).then((attached) => {
         if (attached && hint) hint.classList.remove('hidden');
       });
     });
