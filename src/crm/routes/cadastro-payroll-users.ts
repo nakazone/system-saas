@@ -788,6 +788,114 @@ cadastroPayrollUsersRouter.post(
   },
 );
 
+cadastroPayrollUsersRouter.put(
+  "/api/roles/:id",
+  requireCrmAuth,
+  requireCrmPermission("roles.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const schema = z.object({
+        name: z.string().min(2).max(80),
+        description: z.string().max(255).optional().nullable(),
+        permission_ids: z.array(z.string()).optional(),
+        permission_keys: z.array(z.string()).optional(),
+      });
+      const parsed = schema.safeParse(req.body || {});
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "Dados do cargo inválidos", details: parsed.error.flatten() });
+        return;
+      }
+
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const current = await tx.role.findFirst({ where: { id: req.params.id } });
+        if (!current) throw new Error("NOT_FOUND");
+
+        const role = await tx.role.update({
+          where: { id: current.id },
+          data: {
+            name: parsed.data.name,
+            description: parsed.data.description === undefined ? current.description : parsed.data.description || null,
+          },
+        });
+
+        let permIds = parsed.data.permission_ids;
+        if (permIds === undefined && parsed.data.permission_keys?.length) {
+          const found = await tx.permission.findMany({
+            where: { key: { in: parsed.data.permission_keys } },
+          });
+          permIds = found.map((p) => p.id);
+        }
+        if (permIds) {
+          await tx.rolePermission.deleteMany({ where: { roleId: role.id } });
+          if (permIds.length) {
+            const perms = await tx.permission.findMany({ where: { id: { in: permIds } } });
+            for (const p of perms) {
+              await tx.rolePermission.create({ data: { roleId: role.id, permissionId: p.id } });
+            }
+          }
+        }
+        return role;
+      });
+
+      res.json({
+        success: true,
+        data: {
+          id: row.id,
+          key: row.key,
+          name: row.name,
+          description: row.description,
+          is_system: row.isSystem,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "NOT_FOUND") {
+        res.status(404).json({ success: false, error: "Cargo não encontrado" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+cadastroPayrollUsersRouter.delete(
+  "/api/roles/:id",
+  requireCrmAuth,
+  requireCrmPermission("roles.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      await withTenantTransaction(req.organizationId!, async (tx) => {
+        const current = await tx.role.findFirst({
+          where: { id: req.params.id },
+          include: { _count: { select: { users: true } } },
+        });
+        if (!current) throw new Error("NOT_FOUND");
+        if (current.isSystem) throw new Error("SYSTEM");
+        if (current._count.users > 0) throw new Error("HAS_USERS");
+        await tx.rolePermission.deleteMany({ where: { roleId: current.id } });
+        await tx.role.delete({ where: { id: current.id } });
+      });
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof Error && error.message === "NOT_FOUND") {
+        res.status(404).json({ success: false, error: "Cargo não encontrado" });
+        return;
+      }
+      if (error instanceof Error && error.message === "SYSTEM") {
+        res.status(400).json({ success: false, error: "Cargos do sistema não podem ser removidos" });
+        return;
+      }
+      if (error instanceof Error && error.message === "HAS_USERS") {
+        res.status(400).json({
+          success: false,
+          error: "Há utilizadores com este cargo. Mova-os antes de remover.",
+        });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
 /** UI config stub so SF chrome boots */
 cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {

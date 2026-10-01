@@ -92,6 +92,7 @@ model Organization {
   users              User[]
   roles              Role[]
   invitations        Invitation[]
+  orgCatalogItems    OrgCatalogItem[]
   pipelineStages     PipelineStage[]
   lossReasons        LossReason[]
   leads              Lead[]
@@ -255,6 +256,26 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId])
+}
+
+/// Org-managed lookup lists for quotes/catalog (service categories, units, …).
+model OrgCatalogItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// service_category | unit
+  kind           String
+  key            String
+  label          String
+  description    String?
+  sortOrder      Int      @default(0)
+  active         Boolean  @default(true)
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, kind, key])
+  @@index([organizationId, kind])
 }
 
 model UserPermission {

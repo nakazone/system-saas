@@ -419,6 +419,89 @@
               <p class="cfg-hint">Valores diferentes do padrão ObraMate ficam marcados. “Padrão” volta a linha aos valores originais.</p>
             </section>
 
+            <!-- ---------- Cargos ---------- -->
+            <section class="cfg-section" data-section="cargos" hidden>
+              <header class="cfg-head cfg-head--row">
+                <div>
+                  <h2 class="cfg-title">Cargos</h2>
+                  <p class="cfg-lead">Defina os cargos da equipe e as permissões padrão de cada um.</p>
+                </div>
+                <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgRoleAddBtn">+ Novo cargo</button>
+              </header>
+              <article class="cfg-card cfg-card--flush">
+                <div class="cfg-table-wrap">
+                  <table class="cfg-table" id="cfgRolesTable">
+                    <thead>
+                      <tr>
+                        <th scope="col">Nome</th>
+                        <th scope="col">Chave</th>
+                        <th scope="col">Utilizadores</th>
+                        <th scope="col">Permissões</th>
+                        <th scope="col"><span class="cfg-sr">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="cfgRolesBody"><tr><td colspan="5"><div class="cfg-skeleton"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+            </section>
+
+            <!-- ---------- Categorias de serviço ---------- -->
+            <section class="cfg-section" data-section="categorias-servico" hidden>
+              <header class="cfg-head cfg-head--row">
+                <div>
+                  <h2 class="cfg-title">Categorias de serviço</h2>
+                  <p class="cfg-lead">Categorias usadas em orçamentos, catálogo e custos (ex.: Supply, Installation).</p>
+                </div>
+                <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgCatAddBtn">+ Nova categoria</button>
+              </header>
+              <article class="cfg-card cfg-card--flush">
+                <div class="cfg-table-wrap">
+                  <table class="cfg-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Nome</th>
+                        <th scope="col">Chave</th>
+                        <th scope="col">Descrição</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col"><span class="cfg-sr">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="cfgCatsBody"><tr><td colspan="5"><div class="cfg-skeleton"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+              <p class="cfg-hint">Itens padrão do sistema podem ser desativados, mas a chave não muda.</p>
+            </section>
+
+            <!-- ---------- Unidades ---------- -->
+            <section class="cfg-section" data-section="unidades" hidden>
+              <header class="cfg-head cfg-head--row">
+                <div>
+                  <h2 class="cfg-title">Unidades</h2>
+                  <p class="cfg-lead">Unidades de medida dos itens de orçamento e catálogo (sq ft, linear ft, peça…).</p>
+                </div>
+                <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgUnitAddBtn">+ Nova unidade</button>
+              </header>
+              <article class="cfg-card cfg-card--flush">
+                <div class="cfg-table-wrap">
+                  <table class="cfg-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Nome</th>
+                        <th scope="col">Chave</th>
+                        <th scope="col">Descrição</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col"><span class="cfg-sr">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="cfgUnitsBody"><tr><td colspan="5"><div class="cfg-skeleton"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+              <p class="cfg-hint">Itens padrão do sistema podem ser desativados, mas a chave não muda.</p>
+            </section>
+
             <!-- ---------- App e notificações ---------- -->
             <section class="cfg-section" data-section="app" hidden>
               <header class="cfg-head">
@@ -508,13 +591,58 @@
     </div>
   </div>
 
-  <script src="crm-shell.js?v=20261001-addr2"></script>
-  <script src="crm-shared-nav.js?v=20261001-addr2"></script>
+  <!-- Role editor -->
+  <div class="cfg-modal" id="cfgRoleModal" role="dialog" aria-modal="true" aria-labelledby="cfgRoleModalTitle" hidden>
+    <div class="cfg-modal__scrim" data-close="cfgRoleModal"></div>
+    <div class="cfg-modal__box cfg-modal__box--wide">
+      <h3 id="cfgRoleModalTitle">Novo cargo</h3>
+      <form id="cfgRoleForm" autocomplete="off">
+        <input type="hidden" id="cfgRoleId" value="" />
+        <div class="cfg-field"><label for="cfgRoleName">Nome do cargo</label><input id="cfgRoleName" required maxlength="80" placeholder="Ex.: Supervisor de obra" /></div>
+        <div class="cfg-field"><label for="cfgRoleKey">Chave <span class="cfg-muted">(opcional na criação)</span></label><input id="cfgRoleKey" maxlength="40" pattern="[a-z][a-z0-9_]*" placeholder="supervisor_obra" /><p class="cfg-hint">Só letras minúsculas, números e _. Em cargos existentes a chave não muda.</p></div>
+        <div class="cfg-field"><label for="cfgRoleDescription">Descrição</label><input id="cfgRoleDescription" maxlength="255" placeholder="Opcional" /></div>
+        <div class="cfg-field">
+          <label>Permissões do cargo</label>
+          <p class="cfg-hint">Marque os módulos que este cargo pode aceder por defeito.</p>
+          <div id="cfgRolePermsGroups" class="cfg-perm-groups"></div>
+        </div>
+        <p class="cfg-err" id="cfgRoleFormError" hidden></p>
+        <div class="cfg-row cfg-row--end">
+          <button type="button" class="btn btn-secondary" data-close="cfgRoleModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="cfgRoleFormSubmit">Criar cargo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Catalog item editor (categories / units) -->
+  <div class="cfg-modal" id="cfgCatalogModal" role="dialog" aria-modal="true" aria-labelledby="cfgCatalogModalTitle" hidden>
+    <div class="cfg-modal__scrim" data-close="cfgCatalogModal"></div>
+    <div class="cfg-modal__box">
+      <h3 id="cfgCatalogModalTitle">Novo item</h3>
+      <form id="cfgCatalogForm" autocomplete="off">
+        <input type="hidden" id="cfgCatalogId" value="" />
+        <input type="hidden" id="cfgCatalogKind" value="" />
+        <div class="cfg-field"><label for="cfgCatalogLabel">Nome</label><input id="cfgCatalogLabel" required maxlength="80" placeholder="Ex.: Installation" /></div>
+        <div class="cfg-field"><label for="cfgCatalogKey">Chave <span class="cfg-muted">(opcional na criação)</span></label><input id="cfgCatalogKey" maxlength="40" pattern="[a-z][a-z0-9_]*" placeholder="installation" /><p class="cfg-hint">Usada internamente em orçamentos e catálogo. Itens padrão não alteram a chave.</p></div>
+        <div class="cfg-field"><label for="cfgCatalogDescription">Descrição</label><input id="cfgCatalogDescription" maxlength="255" placeholder="Opcional" /></div>
+        <div class="cfg-field cfg-field--check"><label><input type="checkbox" id="cfgCatalogActive" checked /> Ativo</label></div>
+        <p class="cfg-err" id="cfgCatalogFormError" hidden></p>
+        <div class="cfg-row cfg-row--end">
+          <button type="button" class="btn btn-secondary" data-close="cfgCatalogModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="cfgCatalogFormSubmit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="crm-shell.js?v=20261001-cfgcat1"></script>
+  <script src="crm-shared-nav.js?v=20261001-cfgcat1"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pwa-install.js?v=20260923-pwa"></script>
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261001-addr2"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20260930-cfg2"></script>
+  <script src="configuracoes.js?v=20261001-cfgcat1"></script>
 </body>
 </html>

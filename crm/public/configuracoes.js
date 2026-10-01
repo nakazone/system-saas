@@ -49,6 +49,18 @@
           perm: "estimate_rules.manage",
           keywords: "desperdício waste markup margem tipo de piso madeira hardwood lvp laminado cerâmica carpete",
         },
+        {
+          id: "categorias-servico",
+          label: "Categorias de serviço",
+          perm: "settings.manage",
+          keywords: "categoria serviço supply installation sand finishing geral",
+        },
+        {
+          id: "unidades",
+          label: "Unidades",
+          perm: "settings.manage",
+          keywords: "unidade sq ft linear inches fixed box piece medida",
+        },
         { href: "builder-pricing-admin.html", label: "Serviços e preços", perm: ["builders.view", "quotes.edit"], keywords: "tabela de valor preço serviço builder desconto volume" },
         { href: "quote-catalog.html", label: "Catálogo de serviços", perm: ["quotes.edit"], keywords: "catálogo serviço orçamento" },
         { href: "products-erp.html", label: "Produtos e margens", perm: ["quotes.view"], keywords: "produto sku custo margem categoria" },
@@ -58,7 +70,15 @@
     {
       group: "Equipe e acesso",
       desc: "Usuários, cargos e permissões",
-      items: [{ href: "equipe.html", label: "Usuários e cargos", perm: ["users.view"], keywords: "usuário equipe convidar cargo permissão senha" }],
+      items: [
+        {
+          id: "cargos",
+          label: "Cargos",
+          perm: ["roles.manage", "users.view"],
+          keywords: "cargo role permissão função acesso",
+        },
+        { href: "equipe.html", label: "Usuários", perm: ["users.view"], keywords: "usuário equipe convidar senha" },
+      ],
     },
     {
       group: "Sistema",
@@ -94,6 +114,9 @@
     ["Assinatura do responsável", "orcamentos", "s_name"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
     ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
+    ["Cargos", "cargos", "cfgRolesBody"],
+    ["Categorias de serviço", "categorias-servico", "cfgCatsBody"],
+    ["Unidades", "unidades", "cfgUnitsBody"],
     ["Logo", "marca", "logoDrop"],
     ["Cores da marca", "marca", "brandPresets"],
     ["Instalar app", "app", null],
@@ -455,9 +478,11 @@
     { title: "Dados da empresa", desc: "Contato, endereço, licença e horário", href: "#empresa", perm: "settings.manage" },
     { title: "Marca e aparência", desc: "Logo e cores", href: "#marca", perm: "settings.manage" },
     { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
+    { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
     { title: "Produtos e fornecedores", desc: "Custos, margens e SKUs", href: "products-erp.html", perm: ["quotes.view"] },
-    { title: "Usuários e cargos", desc: "Quem acessa e o que pode fazer", href: "equipe.html", perm: ["users.view"] },
+    { title: "Cargos", desc: "Funções e permissões da equipe", href: "#cargos", perm: ["roles.manage", "users.view"] },
+    { title: "Usuários", desc: "Quem acessa o workspace", href: "equipe.html", perm: ["users.view"] },
     { title: "App e alertas", desc: "Instalar e receber avisos", href: "#app", perm: null },
   ];
 
@@ -1651,6 +1676,322 @@
     });
   }
 
+  // ---------------------------------------------------------------- cargos + catalog
+  const catalogState = {
+    roles: null,
+    permsByGroup: null,
+    service_category: null,
+    unit: null,
+  };
+
+  function openCfgModal(id) {
+    const m = $(id);
+    if (m) m.hidden = false;
+  }
+  function closeCfgModal(id) {
+    const m = $(id);
+    if (m) m.hidden = true;
+  }
+
+  function canManageRolesLocal() {
+    return state.isAdmin || state.perms.has("roles.manage");
+  }
+  function canManageCatalogLocal() {
+    return state.isAdmin || state.perms.has("settings.manage");
+  }
+
+  function renderPermGroups(byGroup, selectedIds) {
+    const selected = new Set(selectedIds || []);
+    const groups = Object.keys(byGroup || {}).sort();
+    if (!groups.length) return '<p class="cfg-hint">Nenhuma permissão disponível.</p>';
+    return groups
+      .map((g) => {
+        const items = byGroup[g] || [];
+        const checks = items
+          .map((p) => {
+            const id = p.id || p.permission_id;
+            const key = p.permission_key || p.key || "";
+            const name = p.permission_name || p.description || key;
+            const checked = selected.has(id) ? " checked" : "";
+            return `<label class="cfg-perm"><input type="checkbox" value="${esc(id)}" data-perm-id="${esc(id)}"${checked} /> <span>${esc(name)}</span><small>${esc(key)}</small></label>`;
+          })
+          .join("");
+        return `<div class="cfg-perm-group"><h4>${esc(g)}</h4>${checks}</div>`;
+      })
+      .join("");
+  }
+
+  function collectCfgPermIds() {
+    return [...document.querySelectorAll("#cfgRolePermsGroups input[type=checkbox]:checked")].map((el) => el.value).filter(Boolean);
+  }
+
+  async function ensurePermRegistry() {
+    if (catalogState.permsByGroup) return catalogState.permsByGroup;
+    const j = await api("/api/permissions");
+    catalogState.permsByGroup = j.by_group || {};
+    return catalogState.permsByGroup;
+  }
+
+  async function loadRolesSection() {
+    const body = $("cfgRolesBody");
+    if (!body) return;
+    body.innerHTML = `<tr><td colspan="5"><div class="cfg-skeleton"></div></td></tr>`;
+    try {
+      const j = await api("/api/roles");
+      catalogState.roles = j.data || [];
+      const manage = canManageRolesLocal();
+      if ($("cfgRoleAddBtn")) $("cfgRoleAddBtn").hidden = !manage;
+      if (!catalogState.roles.length) {
+        body.innerHTML = `<tr><td colspan="5" class="cfg-hint">Nenhum cargo ainda.</td></tr>`;
+        return;
+      }
+      body.innerHTML = catalogState.roles
+        .map((r) => {
+          const perms = (r.permission_keys || []).length;
+          const badge = r.is_system ? '<span class="cfg-badge">Sistema</span>' : "";
+          const actions = manage
+            ? `<button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-role-edit="${esc(r.id)}">Editar</button>` +
+              (!r.is_system && !(r.user_count > 0)
+                ? ` <button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-role-del="${esc(r.id)}">Remover</button>`
+                : "")
+            : "—";
+          return `<tr>
+            <td><strong>${esc(r.name)}</strong> ${badge}<div class="cfg-hint">${esc(r.description || "")}</div></td>
+            <td><code>${esc(r.key)}</code></td>
+            <td>${Number(r.user_count || 0)}</td>
+            <td>${perms}</td>
+            <td class="cfg-actions">${actions}</td>
+          </tr>`;
+        })
+        .join("");
+    } catch (err) {
+      body.innerHTML = `<tr><td colspan="5" class="cfg-err">${esc(err.message || "Erro ao carregar cargos")}</td></tr>`;
+    }
+  }
+
+  async function openRoleEditor(roleId) {
+    if (!canManageRolesLocal()) {
+      notify("Sem permissão para gerir cargos", "error");
+      return;
+    }
+    const byGroup = await ensurePermRegistry();
+    const role = roleId ? (catalogState.roles || []).find((r) => r.id === roleId) : null;
+    $("cfgRoleId").value = role ? role.id : "";
+    $("cfgRoleName").value = role ? role.name : "";
+    $("cfgRoleKey").value = role ? role.key : "";
+    $("cfgRoleKey").disabled = !!role;
+    $("cfgRoleDescription").value = role ? role.description || "" : "";
+    $("cfgRoleModalTitle").textContent = role ? "Editar cargo" : "Novo cargo";
+    $("cfgRoleFormSubmit").textContent = role ? "Guardar" : "Criar cargo";
+    $("cfgRoleFormError").hidden = true;
+    $("cfgRolePermsGroups").innerHTML = renderPermGroups(byGroup, role ? role.permission_ids || [] : []);
+    openCfgModal("cfgRoleModal");
+  }
+
+  async function submitRoleForm(e) {
+    e.preventDefault();
+    const err = $("cfgRoleFormError");
+    err.hidden = true;
+    const id = $("cfgRoleId").value.trim();
+    const name = $("cfgRoleName").value.trim();
+    const key = $("cfgRoleKey").value.trim();
+    const description = $("cfgRoleDescription").value.trim();
+    const permission_ids = collectCfgPermIds();
+    if (!name) {
+      err.textContent = "Indique o nome do cargo.";
+      err.hidden = false;
+      return;
+    }
+    const btn = $("cfgRoleFormSubmit");
+    btn.disabled = true;
+    try {
+      if (id) {
+        await api(`/api/roles/${id}`, {
+          method: "PUT",
+          body: JSON.stringify({ name, description: description || null, permission_ids }),
+        });
+        notify("Cargo atualizado", "success");
+      } else {
+        const body = { name, permission_ids };
+        if (key) body.key = key;
+        if (description) body.description = description;
+        await api("/api/roles", { method: "POST", body: JSON.stringify(body) });
+        notify("Cargo criado", "success");
+      }
+      closeCfgModal("cfgRoleModal");
+      await loadRolesSection();
+    } catch (ex) {
+      err.textContent = ex.message || "Erro ao guardar.";
+      err.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function deleteRole(id) {
+    if (!canManageRolesLocal()) return;
+    const role = (catalogState.roles || []).find((r) => r.id === id);
+    if (!role || role.is_system) return;
+    if (!window.confirm(`Remover o cargo “${role.name}”?`)) return;
+    try {
+      await api(`/api/roles/${id}`, { method: "DELETE" });
+      notify("Cargo removido", "success");
+      await loadRolesSection();
+    } catch (ex) {
+      notify(ex.message || "Não foi possível remover", "error");
+    }
+  }
+
+  async function loadCatalogKind(kind, bodyId, addBtnId) {
+    const body = $(bodyId);
+    if (!body) return;
+    body.innerHTML = `<tr><td colspan="5"><div class="cfg-skeleton"></div></td></tr>`;
+    try {
+      const j = await api(`/api/settings/catalog/${kind}`);
+      catalogState[kind] = j.data || [];
+      const manage = canManageCatalogLocal();
+      if ($(addBtnId)) $(addBtnId).hidden = !manage;
+      if (!catalogState[kind].length) {
+        body.innerHTML = `<tr><td colspan="5" class="cfg-hint">Nenhum item ainda.</td></tr>`;
+        return;
+      }
+      body.innerHTML = catalogState[kind]
+        .map((it) => {
+          const status = it.active ? '<span class="cfg-badge cfg-badge--ok">Ativo</span>' : '<span class="cfg-badge">Inativo</span>';
+          const sys = it.is_system ? ' <span class="cfg-badge">Padrão</span>' : "";
+          const actions = manage
+            ? `<button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-cat-edit="${esc(it.id)}" data-cat-kind="${esc(kind)}">Editar</button>
+               <button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-cat-del="${esc(it.id)}" data-cat-kind="${esc(kind)}">${it.is_system ? "Desativar" : "Remover"}</button>`
+            : "—";
+          return `<tr>
+            <td><strong>${esc(it.label)}</strong>${sys}</td>
+            <td><code>${esc(it.key)}</code></td>
+            <td>${esc(it.description || "—")}</td>
+            <td>${status}</td>
+            <td class="cfg-actions">${actions}</td>
+          </tr>`;
+        })
+        .join("");
+    } catch (err) {
+      body.innerHTML = `<tr><td colspan="5" class="cfg-err">${esc(err.message || "Erro ao carregar")}</td></tr>`;
+    }
+  }
+
+  function openCatalogEditor(kind, itemId) {
+    if (!canManageCatalogLocal()) {
+      notify("Sem permissão para editar", "error");
+      return;
+    }
+    const list = catalogState[kind] || [];
+    const item = itemId ? list.find((x) => x.id === itemId) : null;
+    $("cfgCatalogKind").value = kind;
+    $("cfgCatalogId").value = item ? item.id : "";
+    $("cfgCatalogLabel").value = item ? item.label : "";
+    $("cfgCatalogKey").value = item ? item.key : "";
+    $("cfgCatalogKey").disabled = !!(item && item.is_system);
+    $("cfgCatalogDescription").value = item ? item.description || "" : "";
+    $("cfgCatalogActive").checked = item ? !!item.active : true;
+    const titles = {
+      service_category: item ? "Editar categoria" : "Nova categoria",
+      unit: item ? "Editar unidade" : "Nova unidade",
+    };
+    $("cfgCatalogModalTitle").textContent = titles[kind] || (item ? "Editar" : "Novo");
+    $("cfgCatalogFormSubmit").textContent = "Guardar";
+    $("cfgCatalogFormError").hidden = true;
+    openCfgModal("cfgCatalogModal");
+  }
+
+  async function submitCatalogForm(e) {
+    e.preventDefault();
+    const err = $("cfgCatalogFormError");
+    err.hidden = true;
+    const kind = $("cfgCatalogKind").value;
+    const id = $("cfgCatalogId").value.trim();
+    const label = $("cfgCatalogLabel").value.trim();
+    const key = $("cfgCatalogKey").value.trim();
+    const description = $("cfgCatalogDescription").value.trim();
+    const active = $("cfgCatalogActive").checked;
+    if (!label) {
+      err.textContent = "Indique o nome.";
+      err.hidden = false;
+      return;
+    }
+    const btn = $("cfgCatalogFormSubmit");
+    btn.disabled = true;
+    try {
+      const body = { label, description: description || null, active };
+      if (key && !$("cfgCatalogKey").disabled) body.key = key;
+      if (id) {
+        await api(`/api/settings/catalog/${kind}/${id}`, { method: "PUT", body: JSON.stringify(body) });
+        notify("Item atualizado", "success");
+      } else {
+        await api(`/api/settings/catalog/${kind}`, { method: "POST", body: JSON.stringify(body) });
+        notify("Item criado", "success");
+      }
+      closeCfgModal("cfgCatalogModal");
+      if (kind === "service_category") await loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
+      else await loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
+    } catch (ex) {
+      err.textContent = ex.message || "Erro ao guardar.";
+      err.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function deleteCatalogItem(kind, id) {
+    if (!canManageCatalogLocal()) return;
+    const item = (catalogState[kind] || []).find((x) => x.id === id);
+    if (!item) return;
+    const msg = item.is_system
+      ? `Desativar “${item.label}”? (itens padrão não são apagados)`
+      : `Remover “${item.label}”?`;
+    if (!window.confirm(msg)) return;
+    try {
+      await api(`/api/settings/catalog/${kind}/${id}`, { method: "DELETE" });
+      notify(item.is_system ? "Item desativado" : "Item removido", "success");
+      if (kind === "service_category") await loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
+      else await loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
+    } catch (ex) {
+      notify(ex.message || "Não foi possível remover", "error");
+    }
+  }
+
+  function bindCatalogUi() {
+    $("cfgRoleAddBtn")?.addEventListener("click", () => openRoleEditor(null));
+    $("cfgRoleForm")?.addEventListener("submit", submitRoleForm);
+    $("cfgCatAddBtn")?.addEventListener("click", () => openCatalogEditor("service_category", null));
+    $("cfgUnitAddBtn")?.addEventListener("click", () => openCatalogEditor("unit", null));
+    $("cfgCatalogForm")?.addEventListener("submit", submitCatalogForm);
+
+    document.addEventListener("click", (e) => {
+      const closeId = e.target.closest?.("[data-close]")?.getAttribute("data-close");
+      if (closeId === "cfgRoleModal" || closeId === "cfgCatalogModal") {
+        closeCfgModal(closeId);
+        return;
+      }
+      const editRole = e.target.closest?.("[data-role-edit]");
+      if (editRole) {
+        openRoleEditor(editRole.getAttribute("data-role-edit"));
+        return;
+      }
+      const delRole = e.target.closest?.("[data-role-del]");
+      if (delRole) {
+        deleteRole(delRole.getAttribute("data-role-del"));
+        return;
+      }
+      const editCat = e.target.closest?.("[data-cat-edit]");
+      if (editCat) {
+        openCatalogEditor(editCat.getAttribute("data-cat-kind"), editCat.getAttribute("data-cat-edit"));
+        return;
+      }
+      const delCat = e.target.closest?.("[data-cat-del]");
+      if (delCat) {
+        deleteCatalogItem(delCat.getAttribute("data-cat-kind"), delCat.getAttribute("data-cat-del"));
+      }
+    });
+  }
+
   // ---------------------------------------------------------------- boot
   const loaded = new Set();
   function loadSection(id) {
@@ -1659,6 +2000,9 @@
     if (id === "marca") return loadBrand();
     if (id === "orcamentos") return loadQuotes();
     if (id === "regras-estimativa") return loadRules();
+    if (id === "cargos") return loadRolesSection();
+    if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
+    if (id === "unidades") return loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     if (id === "app") return syncInstalledNote();
     if (id === "suporte" && !loaded.has("suporte")) {
       loaded.add("suporte");
@@ -1697,7 +2041,11 @@
       else show(routeFromHash());
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !$("cfgLeaveModal").hidden) closeLeaveModal();
+      if (e.key === "Escape") {
+        if (!$("cfgLeaveModal").hidden) closeLeaveModal();
+        else if ($("cfgRoleModal") && !$("cfgRoleModal").hidden) closeCfgModal("cfgRoleModal");
+        else if ($("cfgCatalogModal") && !$("cfgCatalogModal").hidden) closeCfgModal("cfgCatalogModal");
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && dirtySection()) {
         e.preventDefault();
         saveCurrent();
@@ -1738,6 +2086,7 @@
   async function boot() {
     buildSelects();
     bindShell();
+    bindCatalogUi();
     bindSearch();
     bindCompany();
     bindBrand();
