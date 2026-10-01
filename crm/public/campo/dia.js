@@ -192,6 +192,13 @@
             ? `<p class="dy-card__sub">Já está na folha da semana.</p>`
             : ""
       }
+      ${
+        (d.expenses || []).length
+          ? `<ul class="dy-flags" style="margin-top:10px">${d.expenses
+              .map((x) => `<li>${esc(x.kind_label)} ${esc(money(x.amount))} · ${esc(x.status_label)}</li>`)
+              .join("")}</ul>`
+          : ""
+      }
       ${d.note ? `<p class="dy-card__hint" style="text-align:left">Nota: ${esc(d.note)}</p>` : ""}`;
   }
 
