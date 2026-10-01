@@ -891,7 +891,7 @@ customersQuotesRouter.get(
 
 customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const row = await withTenantTransaction(req.organizationId!, async (tx) =>
+    let row = await withTenantTransaction(req.organizationId!, async (tx) =>
       tx.quote.findFirst({
         where: { id: String(req.params.id) },
         include: { customer: { select: { name: true } }, lineItems: { orderBy: { sortOrder: "asc" } } },
@@ -900,6 +900,25 @@ customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedR
     if (!row) {
       res.status(404).json({ success: false, error: "Quote not found" });
       return;
+    }
+    // Heal outside the read txn: approved quotes missing a job get one on open.
+    if (normalizeQuoteStatus(row.status) === "approved" && !row.workOrderId) {
+      try {
+        const job = await withTenantTransaction(req.organizationId!, async (tx) => {
+          const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
+          return ensureWorkOrderOnApprove(tx, {
+            organizationId: req.organizationId!,
+            quoteId: row!.id,
+            actorId: req.user?.id ?? null,
+          });
+        });
+        if (job?.id) row = { ...row, workOrderId: job.id };
+      } catch (err) {
+        console.error("[quotes] ensureWorkOrderOnApprove heal failed", {
+          quoteId: row.id,
+          err: err instanceof Error ? err.message : err,
+        });
+      }
     }
     res.json({ success: true, data: mapQuoteForUser(row, req.user) });
   } catch (error) {
@@ -1173,15 +1192,22 @@ customersQuotesRouter.put(
             quoteId: id,
             actorId: req.user?.id ?? null,
           });
-          const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
-          const job = await ensureWorkOrderOnApprove(tx, {
-            organizationId: req.organizationId!,
-            quoteId: id,
-            actorId: req.user?.id ?? null,
-          });
-          if (job?.created) createdJobId = job.id;
-          if (job?.id && !updated.workOrderId) {
-            updated = { ...updated, workOrderId: job.id };
+          try {
+            const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
+            const job = await ensureWorkOrderOnApprove(tx, {
+              organizationId: req.organizationId!,
+              quoteId: id,
+              actorId: req.user?.id ?? null,
+            });
+            if (job?.created) createdJobId = job.id;
+            if (job?.id && !updated.workOrderId) {
+              updated = { ...updated, workOrderId: job.id };
+            }
+          } catch (err) {
+            console.error("[quotes] ensureWorkOrderOnApprove failed on update", {
+              quoteId: id,
+              err: err instanceof Error ? err.message : err,
+            });
           }
         }
 
