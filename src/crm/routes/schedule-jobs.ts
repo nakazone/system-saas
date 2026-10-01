@@ -375,12 +375,13 @@ async function syncWorkOrderLineItems(
 function teamUserIdsFromWorkOrder(wo: {
   assignedUserId: string | null;
   members?: { userId: string }[];
-  crew?: { members?: { userId: string }[] } | null;
+  crew?: unknown;
 }): string[] {
   const ids = new Set<string>();
   if (wo.assignedUserId) ids.add(wo.assignedUserId);
   for (const m of wo.members || []) ids.add(m.userId);
-  for (const m of wo.crew?.members || []) ids.add(m.userId);
+  const crew = wo.crew as { members?: { userId: string }[] } | null | undefined;
+  for (const m of crew?.members || []) ids.add(m.userId);
   return [...ids];
 }
 
