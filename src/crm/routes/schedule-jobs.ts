@@ -10,7 +10,8 @@ import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
-import { myJobAccessWhere } from "../lib/campo-shared.js";
+import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
+import { randomUUID } from "node:crypto";
 import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
 import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 
@@ -116,6 +117,7 @@ function mapWorkOrder(wo: {
   address: string | null;
   notes: string | null;
   campoAttention?: string | null;
+  campoChecklist?: unknown;
   assignedUserId: string | null;
   crewId: string | null;
   scheduledStart: Date | null;
@@ -173,6 +175,16 @@ function mapWorkOrder(wo: {
     notes: wo.notes,
     /** "Atenção" box shown to the field crew in Campo. */
     campo_attention: wo.campoAttention ?? null,
+    /** null = no checklist set for this job (Campo falls back to the default template). */
+    campo_checklist:
+      Array.isArray(wo.campoChecklist) && (wo.campoChecklist as unknown[]).length
+        ? parseChecklist(wo.campoChecklist).map((c) => ({
+            id: c.id,
+            text: c.text,
+            photo_required: Boolean(c.photo_required),
+            done: c.done,
+          }))
+        : null,
     assigned_user_id: wo.assignedUserId,
     crew_id: wo.crewId,
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
@@ -600,6 +612,32 @@ scheduleJobsRouter.get(
   },
 );
 
+/** Office edits the list; keep what the crew already did on items that survive (matched by id). */
+function mergeOfficeChecklist(
+  current: unknown,
+  next: { id?: string | null; text: string; photo_required?: boolean }[],
+): Prisma.InputJsonValue {
+  const prev = Array.isArray(current) && current.length ? parseChecklist(current) : [];
+  const byId = new Map(prev.map((c) => [c.id, c]));
+  const used = new Set<string>();
+  return next.map((item) => {
+    let id = item.id && !used.has(item.id) ? item.id : "";
+    if (!id) id = `o${randomUUID().slice(0, 8)}`;
+    used.add(id);
+    const old = byId.get(id);
+    return {
+      id,
+      text: item.text.trim(),
+      done: old?.done ?? false,
+      photo_required: Boolean(item.photo_required),
+      photo_media_ids: old?.photo_media_ids ?? [],
+      note: old?.note ?? null,
+      done_by: old?.done_by ?? null,
+      done_at: old?.done_at ?? null,
+    };
+  }) as unknown as Prisma.InputJsonValue;
+}
+
 const workOrderBody = z.object({
   title: z.string().min(2).max(200),
   status: z.enum(WO_STATUSES).optional(),
@@ -610,6 +648,18 @@ const workOrderBody = z.object({
   address: z.string().max(500).optional().nullable(),
   notes: z.string().max(8000).optional().nullable(),
   campo_attention: z.string().max(2000).optional().nullable(),
+  /** Checklist set by the office; done/photos already recorded by the crew are kept by id. */
+  campo_checklist: z
+    .array(
+      z.object({
+        id: z.string().max(40).optional().nullable(),
+        text: z.string().trim().min(1).max(200),
+        photo_required: z.boolean().optional(),
+      }),
+    )
+    .max(40)
+    .optional()
+    .nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
   crew_id: z.string().uuid().optional().nullable(),
   member_user_ids: z.array(z.string().uuid()).optional(),
@@ -659,6 +709,7 @@ scheduleJobsRouter.post(
           address: d.address?.trim() || null,
           notes: d.notes?.trim() || null,
           campoAttention: d.campo_attention?.trim() || null,
+          ...(d.campo_checklist?.length ? { campoChecklist: mergeOfficeChecklist(null, d.campo_checklist) } : {}),
           assignedUserId: d.assigned_user_id || null,
           crewId: d.crew_id || null,
           scheduledStart: start,
@@ -783,6 +834,13 @@ scheduleJobsRouter.put(
           ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
           ...(d.notes !== undefined ? { notes: d.notes?.trim() || null } : {}),
           ...(d.campo_attention !== undefined ? { campoAttention: d.campo_attention?.trim() || null } : {}),
+          ...(d.campo_checklist !== undefined
+            ? {
+                campoChecklist: d.campo_checklist?.length
+                  ? mergeOfficeChecklist(existing.campoChecklist, d.campo_checklist)
+                  : Prisma.DbNull,
+              }
+            : {}),
           ...(d.assigned_user_id !== undefined
             ? { assignedUserId: d.assigned_user_id || null }
             : {}),
@@ -821,6 +879,7 @@ scheduleJobsRouter.put(
           d.status !== undefined ||
           d.address !== undefined ||
           d.campo_attention !== undefined ||
+          d.campo_checklist !== undefined ||
           d.line_items !== undefined;
         if (shouldNotify) {
           notifyJobTeamPush(

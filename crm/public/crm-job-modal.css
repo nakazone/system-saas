@@ -283,3 +283,30 @@ input.jm-in[type="number"] { -moz-appearance: textfield; }
   55% { box-shadow: 0 0 0 8px rgba(232, 121, 44, 0); }
   100% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0); }
 }
+
+/* Para o campo — atenção + checklist definido pelo escritório */
+.jm-ta--sm { min-height: 60px; }
+.jm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.jm-btn--sm { height: 38px; padding: 0 14px; font-size: 13.5px; }
+.jm-ck { margin-top: 14px; border: 1px solid var(--jm-line); border-radius: 14px; padding: 12px; background: #fff; display: grid; gap: 10px; }
+.jm-ck__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+.jm-ck__head span { font-size: 12.5px; color: var(--jm-muted); font-weight: 700; }
+.jm-ck__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.jm-ck__it { display: flex; align-items: center; gap: 6px; }
+.jm-ck__it .jm-in { flex: 1; min-width: 0; }
+.jm-ck__n { width: 24px; height: 24px; border-radius: 50%; background: var(--jm-cream); color: var(--jm-ink-2); font-size: 11.5px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.jm-ck__it.is-done .jm-ck__n { background: var(--jm-ink); color: #fff; }
+.jm-ck__it.is-done .jm-in { color: var(--jm-muted); }
+.jm-ck__ic { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--jm-line); background: #fff; color: var(--jm-muted); font: inherit; font-size: 16px; font-weight: 800; display: grid; place-items: center; cursor: pointer; flex: none; position: relative; }
+.jm-ck__ic:hover:not(:disabled):not(.is-on) { border-color: #d6c9b8; color: var(--jm-ink); }
+.jm-ck__ic:disabled { opacity: .35; cursor: default; }
+.jm-ck__ic.is-on { background: var(--jm-ink); border-color: var(--jm-ink); color: #fff; }
+.jm-ck__ic--x:hover:not(:disabled) { color: #b42318; border-color: #f1c7c0; }
+.jm-ck__add { display: flex; gap: 6px; }
+.jm-ck__add .jm-in { flex: 1; min-width: 0; }
+.jm-ck__tpl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.jm-ck__tpl small { font-size: 12px; color: var(--jm-muted); font-weight: 700; margin-right: 2px; }
+@media (max-width: 720px) {
+  .jm-ck__ic { width: 40px; height: 40px; }
+  .jm-btn--sm { height: 42px; }
+}

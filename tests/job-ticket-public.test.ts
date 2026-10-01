@@ -209,6 +209,96 @@ describe.skipIf(!privileged)("worker ticket — link + page (HTTP)", () => {
     expect((await fetch(`${base}/t/${tokenOf(rotated.json.data.url)}`)).status).toBe(404);
   });
 
+  it("office sets the checklist + attention on the job; the temp sees it and adds photos that reach ObraCam", async () => {
+    const admin = await login();
+    const job = await call(admin, "POST", "/api/work-orders", {
+      title: "Checklist job",
+      address: "1 Main St",
+      campo_attention: "Cachorro no quintal",
+      campo_checklist: [
+        { text: "Proteger degraus", photo_required: false },
+        { text: "Fotos de antes", photo_required: true },
+      ],
+    });
+    expect(job.status, JSON.stringify(job.json)).toBe(201);
+    const woId = job.json.data.id as string;
+    const ck = job.json.data.campo_checklist as { id: string; text: string; done: boolean; photo_required: boolean }[];
+    expect(ck.map((c) => c.text)).toEqual(["Proteger degraus", "Fotos de antes"]);
+    expect(ck[1]!.photo_required).toBe(true);
+
+    // Crew already ticked the first item in Campo …
+    await prisma.workOrder.update({
+      where: { id: woId },
+      data: { campoChecklist: ck.map((c, i) => ({ ...c, done: i === 0, done_by: i === 0 ? "Lead" : null })) },
+    });
+    // … then the office renames it, drops the second and adds a third: the tick survives.
+    const edited = await call(admin, "PUT", `/api/work-orders/${woId}`, {
+      campo_checklist: [{ id: ck[0]!.id, text: "Proteger os degraus" }, { text: "Limpeza final", photo_required: true }],
+    });
+    expect(edited.status).toBe(200);
+    const ck2 = edited.json.data.campo_checklist as { id: string; text: string; done: boolean }[];
+    expect(ck2).toHaveLength(2);
+    expect(ck2[0]).toMatchObject({ id: ck[0]!.id, text: "Proteger os degraus", done: true });
+    expect(ck2[1]).toMatchObject({ text: "Limpeza final", done: false });
+
+    const temp = await call(admin, "POST", `/api/work-orders/${woId}/temp-workers`, { name: "Carlos Mendes" });
+    const token = tokenOf(temp.json.data.share.url);
+    const html = await (await fetch(`${base}/t/${token}`)).text();
+    expect(html).toContain("Checklist");
+    expect(html).toContain("Proteger os degraus");
+    expect(html).toContain("1 de 2 feito");
+    expect(html).toContain("Cachorro no quintal");
+    expect(html).toContain("Adicionar fotos");
+    expect(html).toContain("Nenhuma foto ainda");
+
+    // 1x1 PNG
+    const png =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const up = await fetch(`${base}/t/${token}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data_url: png, stage: "before", client_upload_id: "abc123" }),
+    });
+    const upJson = (await up.json()) as Record<string, any>;
+    expect(up.status, JSON.stringify(upJson)).toBe(201);
+    // Same photo retried (bad signal) → no duplicate.
+    const again = await fetch(`${base}/t/${token}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data_url: png, stage: "before", client_upload_id: "abc123" }),
+    });
+    expect(((await again.json()) as Record<string, any>).deduped).toBe(true);
+
+    const media = await call(admin, "GET", `/api/work-orders/${woId}/media`);
+    expect(media.json.data).toHaveLength(1);
+    expect(media.json.data[0]).toMatchObject({ stage: "before", author_name: "Carlos", is_public: false });
+    expect(media.json.data[0].device_label).toBe("Temporário · Carlos Mendes");
+
+    const after = await (await fetch(`${base}/t/${token}`)).text();
+    expect(after).toContain(">Antes<");
+    expect(after).not.toContain("Nenhuma foto ainda");
+
+    // Not an image / bad token.
+    const bad = await fetch(`${base}/t/${token}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data_url: "data:text/html;base64,PGgxPg==" }),
+    });
+    expect(bad.status).toBe(400);
+    const dead = await fetch(`${base}/t/aaaaaaaaaaaaaaaaaaaaaa/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data_url: png }),
+    });
+    expect(dead.status).toBe(404);
+
+    // Clearing the checklist removes it from the ticket.
+    await call(admin, "PUT", `/api/work-orders/${woId}`, { campo_checklist: [] });
+    const cleared = await call(admin, "GET", `/api/work-orders/${woId}`);
+    expect(cleared.json.data.campo_checklist).toBeNull();
+    expect(await (await fetch(`${base}/t/${token}`)).text()).not.toContain("Proteger os degraus");
+  });
+
   it("answers junk tokens with the friendly page", async () => {
     const r = await fetch(`${base}/t/nope`);
     expect(r.status).toBe(404);

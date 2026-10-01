@@ -121,6 +121,19 @@
     .stg { position: absolute; top: 8px; left: 8px; background: rgba(33,29,26,.82); color: #fff; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; }
     .cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 7px; color: #fff; font-size: 12px; font-weight: 700; background: linear-gradient(transparent, rgba(0,0,0,.7)); }
 
+    .btn--ink { background: var(--ink); color: #fff; cursor: pointer; }
+    .up { margin-bottom: 12px; }
+    .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: var(--cream); border-radius: 12px; margin-bottom: 10px; }
+    .seg__b { min-height: 40px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-weight: 800; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+    .seg__b[aria-checked="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(33,29,26,.15); }
+    .up__hint { margin: 8px 0 0; text-align: center; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+    .empty { margin: 0; color: var(--muted); font-size: 14px; font-weight: 600; text-align: center; padding: 6px 0 2px; }
+    .photos .pend { display: grid; place-items: center; }
+    .photos .pend img { opacity: .55; }
+    .photos .pend .st { position: absolute; inset: auto 8px 8px 8px; background: rgba(33,29,26,.82); color: #fff; font-size: 11.5px; font-weight: 800; padding: 4px 8px; border-radius: 8px; text-align: center; }
+    .photos .pend.err .st { background: #b42318; cursor: pointer; }
+    .photos .pend.ok img { opacity: 1; }
+    .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.2); z-index: 9; max-width: calc(100% - 32px); }
     .rep + .rep { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
     .rep b { display: block; }
     .rep span { font-size: 12.5px; color: var(--muted); font-weight: 600; }
@@ -246,10 +259,25 @@
       </div>
     </section>
 
-    <% if (job.photos.length) { %>
-      <section class="sec">
-        <h2>Fotos <small><%= job.photos.length %></small></h2>
-        <div class="photos">
+    <% if (job.photos.length || canUpload) { %>
+      <section class="sec" id="fotos">
+        <h2>Fotos <small id="phCount"><%= job.photos.length || '' %></small></h2>
+        <% if (canUpload) { %>
+          <div class="up" id="up" data-url="<%= uploadUrl %>">
+            <div class="seg" role="radiogroup" aria-label="Momento da foto">
+              <% [['before','Antes'],['during','Durante'],['after','Depois']].forEach(function (o) { %>
+                <button type="button" role="radio" class="seg__b" data-stage="<%= o[0] %>" aria-checked="<%= o[0] === defaultStage ? 'true' : 'false' %>"><%= o[1] %></button>
+              <% }) %>
+            </div>
+            <label class="btn btn--ink up__btn">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>
+              Adicionar fotos
+              <input type="file" id="phInput" accept="image/*" multiple hidden />
+            </label>
+            <p class="up__hint">Vão direto para o ObraCam do escritório.</p>
+          </div>
+        <% } %>
+        <div class="photos" id="phGrid"<%= job.photos.length ? '' : ' hidden' %>>
           <% job.photos.forEach(function (p) { %>
             <a href="<%= p.url %>" target="_blank" rel="noopener">
               <img src="<%= p.thumbUrl %>" alt="<%= p.caption || 'Foto do job' %>" loading="lazy" />
@@ -258,6 +286,7 @@
             </a>
           <% }) %>
         </div>
+        <% if (!job.photos.length) { %><p class="empty" id="phEmpty">Nenhuma foto ainda. Tire fotos de antes, durante e depois do serviço.</p><% } %>
       </section>
     <% } %>
 
@@ -297,5 +326,114 @@
       <p>Atualiza sozinho: abra de novo para ver mudanças.</p>
     </footer>
   </main>
+<% if (canUpload) { %>
+<script>
+(function () {
+  var box = document.getElementById("up");
+  if (!box) return;
+  var url = box.getAttribute("data-url");
+  var input = document.getElementById("phInput");
+  var grid = document.getElementById("phGrid");
+  var count = document.getElementById("phCount");
+  var LABEL = { before: "Antes", during: "Durante", after: "Depois" };
+  var sel = box.querySelector('[aria-checked="true"]');
+  var stage = sel ? sel.getAttribute("data-stage") : "during";
+  var total = grid.querySelectorAll("a").length;
+
+  box.querySelector(".seg").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-stage]");
+    if (!b) return;
+    stage = b.getAttribute("data-stage");
+    box.querySelectorAll("[data-stage]").forEach(function (x) { x.setAttribute("aria-checked", x === b ? "true" : "false"); });
+  });
+
+  function toast(msg) {
+    var t = document.createElement("div");
+    t.className = "toast"; t.textContent = msg; t.setAttribute("role", "status");
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 3200);
+  }
+
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var src = URL.createObjectURL(file);
+      img.onload = function () {
+        var max = 1920, w = img.naturalWidth, h = img.naturalHeight;
+        var k = Math.min(1, max / Math.max(w, h));
+        var c = document.createElement("canvas");
+        c.width = Math.round(w * k); c.height = Math.round(h * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(src);
+        resolve(c.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = function () { URL.revokeObjectURL(src); reject(new Error("Não deu para ler esta foto.")); };
+      img.src = src;
+    });
+  }
+
+  function tile(preview, st) {
+    var a = document.createElement("a");
+    a.className = "pend";
+    a.innerHTML = '<img alt="" /><span class="stg"></span><span class="st">Enviando…</span>';
+    a.querySelector("img").src = preview;
+    a.querySelector(".stg").textContent = LABEL[st] || "";
+    grid.hidden = false;
+    var empty = document.getElementById("phEmpty");
+    if (empty) empty.remove();
+    grid.insertBefore(a, grid.firstChild);
+    return a;
+  }
+
+  function send(job) {
+    job.el.className = "pend";
+    job.el.querySelector(".st").textContent = "Enviando…";
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data_url: job.data, stage: job.stage, client_upload_id: job.id, taken_at_device: job.taken })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok || !j.success) throw new Error(j.error || "Falha no envio");
+        return j.data;
+      });
+    }).then(function (d) {
+      job.el.className = "pend ok";
+      job.el.href = d.url; job.el.target = "_blank"; job.el.rel = "noopener";
+      job.el.querySelector(".st").remove();
+      total += 1; count.textContent = total;
+      return true;
+    }).catch(function (err) {
+      job.el.className = "pend err";
+      job.el.querySelector(".st").textContent = "Falhou — tocar para tentar de novo";
+      job.el.onclick = function (e) { e.preventDefault(); job.el.onclick = null; send(job); };
+      toast(err.message || "Falha no envio");
+      return false;
+    });
+  }
+
+  input.addEventListener("change", function () {
+    var files = Array.prototype.slice.call(input.files || []);
+    input.value = "";
+    if (!files.length) return;
+    var st = stage, ok = 0;
+    var chain = Promise.resolve();
+    files.forEach(function (f) {
+      chain = chain.then(function () {
+        return shrink(f).then(function (data) {
+          var job = { data: data, stage: st, taken: f.lastModified ? new Date(f.lastModified).toISOString() : null,
+            id: (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)) };
+          job.el = tile(data, st);
+          return send(job).then(function (good) { if (good) ok += 1; });
+        }, function (err) { toast(err.message); });
+      });
+    });
+    chain.then(function () {
+      if (ok) toast(ok === 1 ? "Foto enviada ao escritório." : ok + " fotos enviadas ao escritório.");
+    });
+  });
+})();
+</script>
+<% } %>
 </body>
 </html>

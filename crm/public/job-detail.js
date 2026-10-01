@@ -666,16 +666,21 @@
       <div class="jd-col">
         ${field.problem_note ? `<div class="jd-card jd-alert jd-alert--problem"><div><b>Problema relatado</b><p>${esc(field.problem_note)}</p></div></div>` : ""}
         <div class="jd-card">
-          <div class="jd-ch"><h2>Checklist</h2><span class="jd-ch__n">${c.done}/${c.total}</span><a class="jd-link" href="${esc(field.campo_url)}">Abrir no Campo</a></div>
-          ${!c.customized ? '<p class="jd-hint">Modelo padrão — a equipe ajusta o checklist no Campo.</p>' : ""}
-          <div class="jd-bar jd-bar--thin"><i class="p" style="width:${c.total ? ((c.done / c.total) * 100).toFixed(0) : 0}%"></i></div>
+          <div class="jd-ch"><h2>Checklist</h2>${c.customized ? `<span class="jd-ch__n">${c.done}/${c.total}</span>` : ""}${
+            canManage ? `<button type="button" class="jd-link" data-edit-campo>${c.customized ? "Editar" : "Criar checklist"}</button>` : ""
+          }</div>
+          ${
+            !c.customized
+              ? `<p class="jd-empty">Nenhum checklist definido para este job.${canManage ? " Crie a lista do que a equipe precisa fazer — ela aparece no Campo e no ticket do temporário." : ""}</p>`
+              : `<div class="jd-bar jd-bar--thin"><i class="p" style="width:${c.total ? ((c.done / c.total) * 100).toFixed(0) : 0}%"></i></div>
           <ul class="jd-check">${c.items
             .map(
               (i) => `<li class="${i.done ? "is-done" : ""}"><i aria-hidden="true">${i.done ? "✓" : ""}</i><span>${esc(i.text)}${
                 i.photo_required ? ` <em class="jd-tag">${i.photos ? `${i.photos} foto${i.photos > 1 ? "s" : ""}` : "foto obrigatória"}</em>` : ""
-              }${i.note ? `<small>${esc(i.note)}</small>` : ""}</span></li>`,
+              }${i.done && i.done_by ? `<small>${esc(i.done_by)}</small>` : ""}${i.note ? `<small>${esc(i.note)}</small>` : ""}</span></li>`,
             )
-            .join("")}</ul>
+            .join("")}</ul>`
+          }
         </div>
         ${
           field.measurements.length
@@ -952,6 +957,10 @@
       const sendQ = t.closest("[data-send-quote]");
       if (sendQ) {
         sendProposal(sendQ.getAttribute("data-send-quote")).catch((err) => notify(err.message, "error"));
+        return;
+      }
+      if (t.closest("[data-edit-campo]")) {
+        openSection("campo");
         return;
       }
       if (t.closest("#jdAttentionSave")) {

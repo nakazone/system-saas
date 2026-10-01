@@ -10,15 +10,22 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261001-lockbox4";
-  const SECTIONS = ["details", "schedule", "services", "team", "notes"];
+  const CSS_HREF = "crm-job-modal.css?v=20261001-campo1";
+  const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
     schedule: "Quando",
     team: "Equipe & temporários",
     services: "Serviços do job",
+    campo: "Atenção e checklist do campo",
     notes: "Notas",
   };
+  /** Quick-start lists the office can drop into a job's checklist (appended, duplicates skipped). */
+  const CK_TEMPLATES = [
+    { key: "pre", name: "Pré-instalação", items: [["Umidade medida e anotada", false], ["Contrapiso nivelado e limpo", true], ["Material aclimatado", false], ["Área livre de móveis", true]] },
+    { key: "install", name: "Dia da instalação", items: [["Linhas de referência marcadas", false], ["Primeiras fileiras instaladas", true], ["Transições planejadas", false], ["Limpeza no fim do dia", true]] },
+    { key: "final", name: "Vistoria final", items: [["Pendências revisadas", false], ["Fotos de depois completas", true], ["Vistoria com o cliente", false], ["Guia de cuidados entregue", false]] },
+  ];
   const TYPE_LABEL = { builder: "Builder", contractor: "Contractor", loja: "Loja", particular: "Particular" };
   const RATE_KEY = {
     builder: "price_builder",
@@ -62,6 +69,9 @@
       members: new Set(),
       lines: [],
       notes: "",
+      attention: "",
+      /** [{ id|null, text, photo, done }] — done is read-only here (the crew ticks it in Campo). */
+      checklist: [],
       temps: [],
       pickerOpen: true,
       pickerQuery: "",
@@ -325,8 +335,17 @@
           <div id="jmTemps"></div>
         </section>
 
+        <section class="jm-sec" data-job-section="campo">
+          <h3 class="jm-sec__t"><span class="jm-n">5</span>Para o campo</h3>
+          <label class="jm-field">Atenção
+            <textarea id="jmAttention" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="2000" placeholder="Ex.: Proteger os degraus com papelão antes de começar."></textarea>
+          </label>
+          <p class="jm-hint">Aparece em destaque no ticket do funcionário e no Campo.</p>
+          <div class="jm-ck" id="jmCk"></div>
+        </section>
+
         <section class="jm-sec" data-job-section="notes">
-          <h3 class="jm-sec__t"><span class="jm-n">5</span>Notas internas <span id="jmLockbox" class="jm-lockbox-slot" hidden></span></h3>
+          <h3 class="jm-sec__t"><span class="jm-n">6</span>Notas internas <span id="jmLockbox" class="jm-lockbox-slot" hidden></span></h3>
           <textarea id="jobNotes" class="jm-in jm-ta" rows="3" maxlength="8000" placeholder="Ex.: /lockbox 4821 — código da caixa da casa"></textarea>
           <p class="jm-hint">Escreva <code>/lockbox</code> e o código para mostrar o cadeado aqui nas notas.</p>
         </section>
@@ -534,6 +553,54 @@
     </div>`;
   }
 
+  function renderChecklist() {
+    const box = $("jmCk");
+    if (!box) return;
+    const items = st.checklist;
+    const done = items.filter((c) => c.done).length;
+    box.innerHTML = `
+      <div class="jm-ck__head"><b>Checklist</b><span>${items.length ? `${items.length} ${items.length === 1 ? "item" : "itens"}${done ? ` · ${done} feito${done > 1 ? "s" : ""}` : ""}` : "Opcional"}</span></div>
+      ${
+        items.length
+          ? `<ol class="jm-ck__list">${items
+              .map(
+                (c, i) => `<li class="jm-ck__it${c.done ? " is-done" : ""}">
+                  <span class="jm-ck__n" aria-hidden="true">${c.done ? "✓" : i + 1}</span>
+                  <input type="text" class="jm-in jm-in--sm" data-ck-text="${i}" value="${esc(c.text)}" maxlength="200" aria-label="Item ${i + 1}" />
+                  <button type="button" class="jm-ck__ic${c.photo ? " is-on" : ""}" data-act="ck-photo" data-i="${i}" aria-pressed="${c.photo}" title="${c.photo ? "Foto obrigatória" : "Exigir foto"}">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>
+                    <span class="jm-sr">Foto</span>
+                  </button>
+                  <button type="button" class="jm-ck__ic" data-act="ck-up" data-i="${i}" title="Subir" ${i === 0 ? "disabled" : ""}>↑</button>
+                  <button type="button" class="jm-ck__ic jm-ck__ic--x" data-act="ck-del" data-i="${i}" title="Remover">×</button>
+                </li>`,
+              )
+              .join("")}</ol>`
+          : ""
+      }
+      <div class="jm-ck__add">
+        <input type="text" id="jmCkNew" class="jm-in jm-in--sm" maxlength="200" placeholder="${items.length ? "Mais um item…" : "Ex.: Fotos de antes de cada cômodo"}" />
+        <button type="button" class="jm-btn jm-btn--sm" data-act="ck-add">Adicionar</button>
+      </div>
+      <div class="jm-ck__tpl"><small>Modelos:</small>${CK_TEMPLATES.map((t) => `<button type="button" class="jm-chip jm-chip--sm" data-act="ck-tpl" data-key="${t.key}">+ ${esc(t.name)}</button>`).join("")}</div>
+      <p class="jm-hint">A câmera marca itens que exigem foto. A equipe marca os itens feitos no Campo ou no ticket.</p>`;
+  }
+  function ckAdd() {
+    const inp = $("jmCkNew");
+    const text = (inp?.value || "").trim();
+    if (!text) {
+      inp?.focus();
+      return;
+    }
+    if (st.checklist.length >= 40) {
+      notify("Máximo de 40 itens.", "error");
+      return;
+    }
+    st.checklist.push({ id: null, text, photo: false, done: false });
+    renderChecklist();
+    setTimeout(() => $("jmCkNew")?.focus(), 10);
+  }
+
   function renderSide() {
     const side = $("jmSide");
     const card = clientCard();
@@ -597,6 +664,8 @@
     renderServices();
     renderTeam();
     $("jobNotes").value = st.notes;
+    $("jmAttention").value = st.attention;
+    renderChecklist();
     renderLockbox();
     renderSide();
     renderFoot();
@@ -826,6 +895,10 @@
       priceTouched: true,
     }));
     st.notes = wo.notes || "";
+    st.attention = wo.campo_attention || "";
+    st.checklist = Array.isArray(wo.campo_checklist)
+      ? wo.campo_checklist.map((c) => ({ id: c.id, text: c.text, photo: Boolean(c.photo_required), done: Boolean(c.done) }))
+      : [];
     st.temps = Array.isArray(wo.temp_workers) ? wo.temp_workers : [];
     st.pickerOpen = !(st.customerId || st.builderId);
     open();
@@ -846,6 +919,10 @@
       builder_id: st.builderId || null,
       address: st.address.trim() || null,
       notes: st.notes.trim() || null,
+      campo_attention: st.attention.trim() || null,
+      campo_checklist: st.checklist
+        .filter((c) => String(c.text || "").trim())
+        .map((c) => ({ id: c.id || null, text: String(c.text).trim().slice(0, 200), photo_required: Boolean(c.photo) })),
       assigned_user_id: st.assigneeId || null,
       member_user_ids: members,
       line_items: st.lines
@@ -873,6 +950,7 @@
       schedule: ["scheduled_start", "scheduled_end"],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
+      campo: ["campo_attention", "campo_checklist"],
       notes: ["notes"],
     }[st.section];
     const out = {};
@@ -917,7 +995,9 @@
         ? await api("/api/work-orders", { method: "POST", body: JSON.stringify(body) })
         : await api(`/api/work-orders/${st.id}`, { method: "PUT", body: JSON.stringify(body) });
       const n = j.data?.number != null ? `#${j.data.number}` : "";
-      if (j.conflicts && j.conflicts.length) {
+      // Agenda conflicts only matter when the edit touched when/who.
+      const touchesAgenda = ["all", "schedule", "team"].includes(st.section);
+      if (touchesAgenda && j.conflicts && j.conflicts.length) {
         notify(`Job ${n} salvo — atenção: conflito de agenda com a equipe.`, "warning");
       } else {
         notify(isCreate ? `Job ${n} criado.` : "Job salvo.", "success");
@@ -1015,6 +1095,37 @@
       case "close":
         close();
         break;
+      case "ck-add":
+        ckAdd();
+        break;
+      case "ck-del": {
+        const i = Number(btn.getAttribute("data-i"));
+        st.checklist.splice(i, 1);
+        renderChecklist();
+        break;
+      }
+      case "ck-up": {
+        const i = Number(btn.getAttribute("data-i"));
+        if (i > 0) [st.checklist[i - 1], st.checklist[i]] = [st.checklist[i], st.checklist[i - 1]];
+        renderChecklist();
+        break;
+      }
+      case "ck-photo": {
+        const c = st.checklist[Number(btn.getAttribute("data-i"))];
+        if (c) c.photo = !c.photo;
+        renderChecklist();
+        break;
+      }
+      case "ck-tpl": {
+        const t = CK_TEMPLATES.find((x) => x.key === btn.getAttribute("data-key"));
+        if (!t) break;
+        const have = new Set(st.checklist.map((c) => c.text.trim().toLowerCase()));
+        t.items.forEach(([text, photo]) => {
+          if (!have.has(text.toLowerCase()) && st.checklist.length < 40) st.checklist.push({ id: null, text, photo, done: false });
+        });
+        renderChecklist();
+        break;
+      }
       case "pick":
         setClient(btn.getAttribute("data-kind"), btn.getAttribute("data-id"));
         break;
@@ -1090,7 +1201,15 @@
   function onInput(e) {
     if (!st) return;
     const t = e.target;
+    if (t.hasAttribute && t.hasAttribute("data-ck-text")) {
+      const c = st.checklist[Number(t.getAttribute("data-ck-text"))];
+      if (c) c.text = t.value;
+      return;
+    }
     switch (t.id) {
+      case "jmAttention":
+        st.attention = t.value;
+        return;
       case "jmClientQ":
         st.pickerQuery = t.value;
         renderPickerKeepFocus();
@@ -1208,6 +1327,16 @@
     if (e.key === "Enter" && e.target.id === "jmClientQ") {
       e.preventDefault();
       $("jmClient").querySelector('[data-act="pick"]')?.click();
+    }
+    if (e.key === "Enter" && e.target.id === "jmCkNew") {
+      e.preventDefault();
+      ckAdd();
+      return;
+    }
+    if (e.key === "Enter" && e.target.hasAttribute && e.target.hasAttribute("data-ck-text")) {
+      e.preventDefault();
+      $("jmCkNew")?.focus();
+      return;
     }
     if (e.key === "Enter" && (e.target.id === "tempName" || e.target.id === "tempPhone")) {
       e.preventDefault();

@@ -80,6 +80,9 @@ export function normalizeMediaUrl(url: string | null | undefined): string {
   return url;
 }
 
+/** Photos sent by a temporary worker from the ticket link have no user; the label carries the name. */
+export const TEMP_DEVICE_PREFIX = "Temporário · ";
+
 export function mapJobMedia(row: JobMediaRow) {
   const lat = numOrNull(row.lat);
   const lng = numOrNull(row.lng);
@@ -108,7 +111,10 @@ export function mapJobMedia(row: JobMediaRow) {
     client_upload_id: row.clientUploadId || null,
     device_label: row.deviceLabel || null,
     author_id: row.authorId || null,
-    author_name: row.author?.name?.split(/\s+/)[0] || null,
+    author_name:
+      row.author?.name?.split(/\s+/)[0] ||
+      (row.deviceLabel?.startsWith(TEMP_DEVICE_PREFIX) ? row.deviceLabel.slice(TEMP_DEVICE_PREFIX.length).split(/\s+/)[0] : null) ||
+      null,
     created_at: row.createdAt.toISOString(),
     /** Campo ticket gallery compat */
     createdAt: row.createdAt.toISOString(),

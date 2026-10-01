@@ -174,6 +174,7 @@ jobFieldSummaryRouter.get(
               photo_required: Boolean(c.photo_required),
               photos: (c.photo_media_ids || []).length,
               done_at: c.done_at || null,
+              done_by: c.done_by || null,
               note: c.note || null,
             })),
             done: checklist.filter((c) => c.done).length,
