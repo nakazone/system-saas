@@ -52,10 +52,9 @@
       return window.__omDevice.isMobile();
     }
     const ua = navigator.userAgent || '';
-    if (/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(ua)) return true;
-    try {
-      if (navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1) return true;
-    } catch (_) {}
+    // Phone-only fallback — tablets use the desktop CRM.
+    if (/iPhone|iPod|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(ua)) return true;
+    if (/Android/i.test(ua) && /Mobile/i.test(ua)) return true;
     return false;
   }
 
