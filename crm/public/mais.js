@@ -92,6 +92,14 @@
 
     $("maisLogout")?.addEventListener("click", () => logout());
     $("logoutBtn")?.addEventListener("click", () => logout());
+    $("maisRefreshApp")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (typeof window.__crmHardRefresh === "function") {
+        window.__crmHardRefresh($("maisRefreshApp"));
+      } else {
+        location.reload();
+      }
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

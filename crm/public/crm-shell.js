@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261001-tablet2";
+  const SHELL_VER = "20261001-refresh1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -88,6 +88,60 @@
     document.head.appendChild(font);
   }
 
+  /**
+   * Clear app caches + service workers and reload so deploys show up
+   * without closing/reopening the PWA.
+   */
+  async function hardRefreshApp(triggerEl) {
+    if (hardRefreshApp._busy) return;
+    hardRefreshApp._busy = true;
+    const targets = [];
+    if (triggerEl) targets.push(triggerEl);
+    document.querySelectorAll("[data-crm-hard-refresh]").forEach((el) => {
+      if (!targets.includes(el)) targets.push(el);
+    });
+    targets.forEach((el) => {
+      el.disabled = true;
+      el.classList.add("is-refreshing");
+      if (el.dataset.refreshLabel !== "1") {
+        const label = el.querySelector("[data-crm-refresh-label]");
+        if (label) {
+          el.dataset.refreshPrev = label.textContent || "";
+          label.textContent = "Atualizando…";
+        }
+      }
+    });
+    try {
+      if (window.crmToast?.info) window.crmToast.info("Atualizando o app…");
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(
+          regs.map(async (reg) => {
+            try {
+              await reg.update();
+            } catch (_) {}
+            try {
+              await reg.unregister();
+            } catch (_) {}
+          }),
+        );
+      }
+    } catch (_) {
+      /* still reload — best effort */
+    }
+    try {
+      const url = new URL(location.href);
+      url.searchParams.set("_omr", String(Date.now()));
+      location.replace(url.toString());
+    } catch (_) {
+      location.reload();
+    }
+  }
+
   /** Keep Ajuda / account chip in the fixed top bar (never move into sidebar). */
   function ensureTopbarUtilities() {
     const topRight = document.querySelector("#crmTopbar .crm-topbar__right");
@@ -103,6 +157,34 @@
       el.classList.remove("nav-item", "om-sidebar-util-btn");
       const label = el.querySelector(".nav-item__label");
       if (label) label.remove();
+    }
+
+    let refreshBtn = document.getElementById("crmTopbarRefreshBtn");
+    if (!refreshBtn) {
+      refreshBtn = document.createElement("button");
+      refreshBtn.type = "button";
+      refreshBtn.id = "crmTopbarRefreshBtn";
+      refreshBtn.className = "crm-topbar__refresh-btn";
+      refreshBtn.setAttribute("data-crm-hard-refresh", "1");
+      refreshBtn.title = "Atualizar o app (limpa cache e recarrega)";
+      refreshBtn.setAttribute("aria-label", "Atualizar o app");
+      refreshBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-2.6-6.2"/><path d="M21 3v6h-6"/></svg>' +
+        '<span data-crm-refresh-label>Atualizar</span>';
+      const install = topRight.querySelector("[data-crm-pwa-install]");
+      if (install) topRight.insertBefore(refreshBtn, install);
+      else {
+        const helpExisting = document.getElementById("crmTopbarHelpBtn");
+        if (helpExisting) topRight.insertBefore(refreshBtn, helpExisting);
+        else topRight.appendChild(refreshBtn);
+      }
+    }
+    if (!refreshBtn.dataset.refreshBound) {
+      refreshBtn.dataset.refreshBound = "1";
+      refreshBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        hardRefreshApp(refreshBtn);
+      });
     }
 
     let help = document.getElementById("crmTopbarHelpBtn");
@@ -214,6 +296,10 @@
         <p class="crm-create-menu__title">Criar novo</p>
       </div>
     </div>
+    <button type="button" class="crm-topbar__refresh-btn" id="crmTopbarRefreshBtn" data-crm-hard-refresh title="Atualizar o app (limpa cache e recarrega)" aria-label="Atualizar o app">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-2.6-6.2"/><path d="M21 3v6h-6"/></svg>
+      <span data-crm-refresh-label>Atualizar</span>
+    </button>
     <button type="button" class="crm-topbar__install-btn" data-crm-pwa-install title="Instalar ObraMate neste dispositivo" aria-label="Instalar aplicativo">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>
       <span>Instalar app</span>
@@ -994,6 +1080,14 @@
 
   async function boot() {
     if (isAuthPage()) return;
+    // Drop one-shot cache-bust query from hard refresh.
+    try {
+      const u = new URL(location.href);
+      if (u.searchParams.has("_omr")) {
+        u.searchParams.delete("_omr");
+        history.replaceState(null, "", u.pathname + u.search + u.hash);
+      }
+    } catch (_) {}
     if (document.body.dataset.crmShellBoot === "1") return;
     document.body.dataset.crmShellBoot = "1";
 
@@ -1080,5 +1174,7 @@
     getPreviousHref,
     clearNavHistory,
     updateBackButtons,
+    hardRefreshApp,
   };
+  window.__crmHardRefresh = hardRefreshApp;
 })();

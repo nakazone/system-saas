@@ -425,6 +425,68 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     stroke-width: 1.75;
   }
 
+  .crm-topbar__refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border, #e2d9cc);
+    background: var(--color-surface-secondary, #f7f4ee);
+    color: var(--color-text-primary, #211d1a);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .crm-topbar__refresh-btn:hover,
+  .crm-topbar__refresh-btn:focus-visible {
+    background: #fff;
+    border-color: var(--color-accent, #e8792c);
+    outline: none;
+  }
+
+  .crm-topbar__refresh-btn:disabled,
+  .crm-topbar__refresh-btn.is-refreshing {
+    opacity: 0.75;
+    cursor: wait;
+  }
+
+  .crm-topbar__refresh-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.75;
+    flex-shrink: 0;
+  }
+
+  .crm-topbar__refresh-btn.is-refreshing svg {
+    animation: crm-refresh-spin 0.8s linear infinite;
+  }
+
+  @keyframes crm-refresh-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (max-width: 900px) {
+    .crm-topbar__refresh-btn span {
+      display: none;
+    }
+    .crm-topbar__refresh-btn {
+      width: 40px;
+      padding: 0;
+      justify-content: center;
+    }
+  }
+
   /* Account / tools dropdown */
   .crm-account-menu-wrap {
     position: relative;

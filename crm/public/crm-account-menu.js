@@ -80,6 +80,10 @@
       "</button>" +
       "</div></div>" +
       '<div class="crm-account-menu__sep" role="separator"></div>' +
+      '<button type="button" class="crm-account-menu__item" data-account-action="refresh" data-crm-hard-refresh>' +
+      '<span data-crm-refresh-label data-i18n="menu.refresh">' +
+      t("menu.refresh") +
+      "</span></button>" +
       '<button type="button" class="crm-account-menu__item crm-account-menu__item--danger" data-account-action="logout">' +
       '<span data-i18n="menu.logout">' +
       t("menu.logout") +
@@ -167,8 +171,11 @@
       "</span>";
     if (!wrap.querySelector("#crmAccountMenu")) {
       wrap.insertAdjacentHTML("beforeend", buildMenuHtml());
-    } else if (!wrap.querySelector("#crmAccountMenuEmail")) {
-      // Refresh menu markup once for header email
+    } else if (
+      !wrap.querySelector("#crmAccountMenuEmail") ||
+      !wrap.querySelector('[data-account-action="refresh"]')
+    ) {
+      // Refresh menu markup for header email / refresh action
       var oldMenu = wrap.querySelector("#crmAccountMenu");
       if (oldMenu) oldMenu.outerHTML = buildMenuHtml();
     }
@@ -202,6 +209,16 @@
       var actionEl = e.target.closest("[data-account-action]");
       if (!actionEl) return;
       var action = actionEl.getAttribute("data-account-action");
+      if (action === "refresh") {
+        e.preventDefault();
+        closeMenu(wrap);
+        if (typeof window.__crmHardRefresh === "function") {
+          window.__crmHardRefresh(actionEl);
+        } else {
+          window.location.reload();
+        }
+        return;
+      }
       if (action === "logout") {
         e.preventDefault();
         closeMenu(wrap);
