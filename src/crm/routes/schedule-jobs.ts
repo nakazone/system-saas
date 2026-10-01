@@ -115,6 +115,7 @@ function mapWorkOrder(wo: {
   builderId: string | null;
   address: string | null;
   notes: string | null;
+  campoAttention?: string | null;
   assignedUserId: string | null;
   crewId: string | null;
   scheduledStart: Date | null;
@@ -170,6 +171,8 @@ function mapWorkOrder(wo: {
     builder_id: wo.builderId,
     address: wo.address,
     notes: wo.notes,
+    /** "Atenção" box shown to the field crew in Campo. */
+    campo_attention: wo.campoAttention ?? null,
     assigned_user_id: wo.assignedUserId,
     crew_id: wo.crewId,
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
@@ -606,6 +609,7 @@ const workOrderBody = z.object({
   builder_id: z.string().uuid().optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   notes: z.string().max(8000).optional().nullable(),
+  campo_attention: z.string().max(2000).optional().nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
   crew_id: z.string().uuid().optional().nullable(),
   member_user_ids: z.array(z.string().uuid()).optional(),
@@ -654,6 +658,7 @@ scheduleJobsRouter.post(
           builderId: d.builder_id || null,
           address: d.address?.trim() || null,
           notes: d.notes?.trim() || null,
+          campoAttention: d.campo_attention?.trim() || null,
           assignedUserId: d.assigned_user_id || null,
           crewId: d.crew_id || null,
           scheduledStart: start,
@@ -777,6 +782,7 @@ scheduleJobsRouter.put(
           ...(d.builder_id !== undefined ? { builderId: d.builder_id || null } : {}),
           ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
           ...(d.notes !== undefined ? { notes: d.notes?.trim() || null } : {}),
+          ...(d.campo_attention !== undefined ? { campoAttention: d.campo_attention?.trim() || null } : {}),
           ...(d.assigned_user_id !== undefined
             ? { assignedUserId: d.assigned_user_id || null }
             : {}),
@@ -814,6 +820,7 @@ scheduleJobsRouter.put(
           d.scheduled_end !== undefined ||
           d.status !== undefined ||
           d.address !== undefined ||
+          d.campo_attention !== undefined ||
           d.line_items !== undefined;
         if (shouldNotify) {
           notifyJobTeamPush(

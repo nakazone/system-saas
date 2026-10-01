@@ -445,7 +445,12 @@
 
     const notes = (wo.notes || "").trim();
     $("jobMobInstr").hidden = !notes;
-    $("jobMobInstrBody").textContent = notes;
+    const lockCode = typeof window.parseJobLockbox === "function" ? window.parseJobLockbox(notes) : null;
+    let noteText = lockCode ? notes.replace(/\/lockbox\s*[#:]?\s*[0-9A-Za-z-]{2,24}\b\s*[—–-]?\s*/i, "").trim() : notes;
+    if (lockCode && noteText) noteText = noteText.charAt(0).toUpperCase() + noteText.slice(1);
+    $("jobMobInstrBody").innerHTML =
+      (lockCode && window.jobLockboxBadgeHtml ? `<span style="display:block;margin-bottom:6px">${window.jobLockboxBadgeHtml(notes)}</span>` : "") +
+      escapeHtml(noteText).replace(/\n/g, "<br>");
 
     const cta = $("jobMobCta");
     const foot = $("jobMobFoot");
@@ -485,8 +490,31 @@
         renderFotos();
       }
     } else if (detTab === "checklist") {
-      $("jobMobExtra").innerHTML = `<p class="jcm-empty">Checklist em breve.</p>`;
+      $("jobMobExtra").innerHTML = `<p class="jcm-empty">A carregar checklist…</p>`;
       restoreVisitCta();
+      fetch(`/api/work-orders/${encodeURIComponent(wo.id)}/field`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((j) => {
+          if (detTab !== "checklist") return;
+          const f = j && j.data;
+          if (!f) throw new Error(j?.error || "Erro");
+          const c = f.checklist;
+          const hours = f.hours && f.hours.total ? ` · ${f.hours.total} h registradas` : "";
+          $("jobMobExtra").innerHTML = `<div class="jcm-card">
+            <p class="jcm-dl__k" style="margin:0 0 10px">${c.done}/${c.total} feitos${hours}${c.customized ? "" : " · modelo padrão"}</p>
+            ${c.items
+              .map(
+                (i) => `<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #efe8dc">
+                  <span style="width:20px;height:20px;border-radius:6px;flex:none;display:grid;place-items:center;font-size:12px;color:#fff;${i.done ? "background:#211d1a" : "border:2px solid #e2d9cc"}">${i.done ? "✓" : ""}</span>
+                  <span style="${i.done ? "color:#8a8074" : ""}">${escapeHtml(i.text)}${i.photo_required ? ` <small style="color:#c1652f;font-weight:700">· foto</small>` : ""}</span></div>`,
+              )
+              .join("")}
+            <a href="${escapeHtml(f.campo_url)}" style="display:inline-block;margin-top:10px;font-weight:800;color:#c1652f;text-decoration:none">Abrir no Campo →</a>
+          </div>`;
+        })
+        .catch((e) => {
+          if (detTab === "checklist") $("jobMobExtra").innerHTML = `<p class="jcm-empty">${escapeHtml(e.message || "Erro")}</p>`;
+        });
     } else if (detTab === "comunicacoes") {
       cta.textContent = "Abrir canal";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";

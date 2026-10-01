@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20260930-ipad1" />
   <link rel="stylesheet" href="job-comms.css?v=20260928-chat1" />
   <link rel="stylesheet" href="crm-job-billing.css?v=20261001-jobinv1" />
+  <link rel="stylesheet" href="job-detail.css?v=20261001-jdtabs1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20260925-device1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
@@ -133,249 +134,147 @@
         <button type="button" class="jcm-foot__btn jcm-foot__btn--primary" id="jobMobCta">Iniciar visita</button>
       </div>
 
-      <div class="job-detail-page crm-page" id="jobDetailRoot">
-        <a class="job-back-link" href="jobs.html">← All jobs</a>
+      <div class="job-detail-page crm-page jd" id="jobDetailRoot">
+        <a class="jd-back" href="jobs.html">← Jobs</a>
 
-        <div class="job-detail-top">
-          <div class="job-detail-top__left">
-            <div class="job-detail-crumb">
-              <span class="job-status" id="jobStatusBadge">—</span>
+        <header class="jd-hd">
+          <div class="jd-hd__main">
+            <div class="jd-hd__chips" id="jdChips"></div>
+            <h1 class="jd-hd__title" id="jobDetailTitle">Job</h1>
+            <div class="jd-hd__sub" id="jdSub"></div>
+          </div>
+          <div class="jd-hd__act">
+            <button type="button" class="jd-btn" id="btnEditJobAll" data-crm-permission="work_orders.manage">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Editar
+            </button>
+            <span id="jdPrimary"></span>
+            <div class="jd-menu">
+              <button type="button" class="jd-btn jd-btn--icon" id="jdMoreBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">⋯</button>
+              <div class="jd-menu__list" id="jdMoreMenu" role="menu" hidden>
+                <a role="menuitem" id="btnOpenSchedule" href="schedule.html">Ver no Schedule</a>
+                <a role="menuitem" id="jdOpenCampo" href="#">Abrir no Campo</a>
+                <a role="menuitem" id="jdOpenMap" href="#" target="_blank" rel="noopener">Abrir no mapa</a>
+                <button type="button" role="menuitem" id="jdStatusMenu" data-crm-permission="work_orders.manage">Mudar status…</button>
+                <div class="jd-menu__sub" id="jdStatusList" role="menu" hidden></div>
+                <button type="button" role="menuitem" class="is-danger" id="btnDeleteJob" data-crm-permission="work_orders.manage">Excluir job</button>
+              </div>
             </div>
-            <div class="job-detail-title-row">
-              <h1 id="jobDetailTitle">Job</h1>
-              <button type="button" class="job-detail-edit-icon" id="btnEditJob" title="Editar detalhes" aria-label="Editar detalhes" data-crm-permission="work_orders.manage">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
-              </button>
+          </div>
+        </header>
+
+        <ol class="jd-steps" id="jdSteps" aria-label="Andamento do job"></ol>
+
+        <nav class="jd-tabs" id="jdTabs" role="tablist" aria-label="Seções do job">
+          <button type="button" role="tab" data-tab="geral" class="is-on" aria-selected="true">Visão geral</button>
+          <button type="button" role="tab" data-tab="servicos" aria-selected="false">Serviços e faturas</button>
+          <button type="button" role="tab" data-tab="fotos" aria-selected="false">Fotos <em id="jdTabFotos"></em></button>
+          <button type="button" role="tab" data-tab="campo" aria-selected="false">Campo <em id="jdTabCampo"></em></button>
+          <button type="button" role="tab" data-tab="conversa" aria-selected="false">Conversa</button>
+        </nav>
+
+        <!-- Visão geral -->
+        <section class="jd-panel" data-panel="geral" role="tabpanel">
+          <div class="jd-grid">
+            <div class="jd-col">
+              <div class="jd-card jd-facts" id="jdFacts"></div>
+              <div class="jd-card" id="jdAttentionCard" hidden></div>
+              <div class="jd-card">
+                <div class="jd-ch"><h2>Serviços</h2><span class="jd-ch__n" id="jdSvcCount"></span><button type="button" class="jd-link" id="btnEditServices" data-crm-permission="work_orders.manage">Editar</button></div>
+                <div id="jobServicesBody"></div>
+              </div>
+              <div class="jd-card">
+                <div class="jd-ch"><h2>Notas da obra</h2><button type="button" class="jd-link" id="jdNotesEdit" data-crm-permission="work_orders.manage">Editar</button></div>
+                <div id="jdNotesView"></div>
+                <div id="jdNotesEditor" hidden>
+                  <textarea class="jd-ta" id="jobNotes" maxlength="8000" placeholder="Ex.: /lockbox 4821 — caixa na porta da garagem"></textarea>
+                  <p class="jd-hint">Escreva <code>/lockbox</code> e o código para mostrar o cadeado.</p>
+                  <div class="jd-row-end"><button type="button" class="jd-btn jd-btn--ghost" id="jdNotesCancel">Cancelar</button><button type="button" class="jd-btn jd-btn--pri" id="btnSaveNotes">Salvar notas</button></div>
+                </div>
+              </div>
+              <div class="jd-card" id="jdAfterCard">
+                <div class="jd-ch"><h2>Depois do job</h2></div>
+                <div class="jd-actions" id="jdAfterActions"></div>
+                <div id="jdAfterBody"></div>
+              </div>
             </div>
+            <aside class="jd-col jd-side">
+              <div class="jd-card" id="jdMoneyCard" hidden>
+                <div class="jd-ch"><h2>Dinheiro</h2><button type="button" class="jd-link" data-goto="servicos">Faturas</button></div>
+                <div id="jdMoney"></div>
+              </div>
+              <div class="jd-card">
+                <div class="jd-ch"><h2>Equipe</h2><button type="button" class="jd-link" id="btnManageTeam" data-crm-permission="work_orders.manage">Gerir</button></div>
+                <div id="jobTeamBody"></div>
+              </div>
+            </aside>
           </div>
-          <div class="job-detail-top__actions">
-            <a class="btn btn-secondary" id="btnOpenSchedule" href="schedule.html">Ver no Schedule</a>
-            <button type="button" class="btn btn-secondary" id="btnEditJobAll" data-crm-permission="work_orders.manage">Editar tudo</button>
-            <button type="button" class="btn btn-danger" id="btnDeleteJob" data-crm-permission="work_orders.manage">Excluir</button>
+        </section>
+
+        <!-- Serviços e faturas -->
+        <section class="jd-panel" data-panel="servicos" role="tabpanel" hidden>
+          <div class="jd-grid jd-grid--split">
+            <div class="jd-col">
+              <div class="jd-card">
+                <div class="jd-ch"><h2>Serviços</h2><span class="jd-ch__n" id="jdSvcCount2"></span><button type="button" class="jd-link" id="btnEditServices2" data-crm-permission="work_orders.manage">Editar serviços</button></div>
+                <div id="jdServicesFull"></div>
+              </div>
+              <div class="jd-card" id="jobProposalCard" hidden>
+                <div class="jd-ch"><h2>Proposta ao cliente</h2>
+                  <span class="jd-ch__end"><button type="button" class="jd-link" id="btnCreateProposal" data-crm-permission="work_orders.manage">Criar proposta</button><button type="button" class="jd-link" id="btnCreateProposalAi" data-crm-permission="work_orders.manage">Criar com IA</button></span>
+                </div>
+                <div id="jobProposalBody"></div>
+              </div>
+            </div>
+            <aside class="jd-col jd-side">
+              <div class="jd-card" id="jobBillingCard" hidden>
+                <div class="jd-ch"><h2>Faturamento</h2><span id="jobBillingChip"></span><a class="jd-link" id="jobBillingAll" href="invoices.html">Ver faturas</a></div>
+                <div id="jobBillingBody"></div>
+              </div>
+            </aside>
           </div>
-        </div>
+        </section>
 
-        <div class="job-detail-grid">
-          <div class="job-detail-main">
-            <section class="job-card">
-              <div class="job-card__head">
-                <h2>Detalhes</h2>
-                <button type="button" class="job-card__link" id="btnEditDetails" data-crm-permission="work_orders.manage">Editar</button>
-              </div>
-              <div class="job-overview">
-                <div class="job-client-box">
-                  <p class="job-client-box__name" id="jobClientName">—</p>
-                  <p class="job-client-box__addr" id="jobProperty">—</p>
-                  <div class="job-client-box__contact" id="jobClientContact"></div>
-                </div>
-                <dl class="job-meta-list">
-                  <div><dt>Job #</dt><dd id="jobMetaNumber">—</dd></div>
-                  <div><dt>Título</dt><dd id="jobMetaTitle">—</dd></div>
-                  <div><dt>Origem</dt><dd id="jobMetaSource">—</dd></div>
-                  <div>
-                    <dt>Início</dt>
-                    <dd class="job-meta-editable">
-                      <span id="jobMetaStart">—</span>
-                      <button type="button" class="job-meta-edit" id="btnEditScheduleMeta" data-crm-permission="work_orders.manage" title="Editar agenda">✎</button>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Fim</dt>
-                    <dd class="job-meta-editable">
-                      <span id="jobMetaEnd">—</span>
-                      <button type="button" class="job-meta-edit" id="btnEditScheduleMeta2" data-crm-permission="work_orders.manage" title="Editar agenda">✎</button>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Responsável</dt>
-                    <dd class="job-meta-editable">
-                      <span id="jobMetaAssignee">—</span>
-                      <button type="button" class="job-meta-edit" id="btnEditTeamMeta" data-crm-permission="work_orders.manage" title="Editar equipe">✎</button>
-                    </dd>
-                  </div>
-                  <div><dt>Equipe</dt><dd id="jobMetaTeam">—</dd></div>
-                </dl>
-              </div>
-            </section>
-
-            <section class="job-card" id="jobTeamCard">
-              <div class="job-card__head">
-                <h2>Equipe &amp; temporários</h2>
-                <button type="button" class="job-card__link" id="btnManageTeam" data-crm-permission="work_orders.manage">Gerir equipe</button>
-              </div>
-              <div id="jobTeamBody">
-                <p class="jobs-empty" style="padding:0.5rem 0">Sem equipe adicional.</p>
-              </div>
-            </section>
-
-            <section class="job-card">
-              <div class="job-card__head">
-                <h2>Serviços</h2>
-                <button type="button" class="job-card__link" id="btnEditServices" data-crm-permission="work_orders.manage">Editar serviços</button>
-              </div>
-              <div id="jobServicesBody">
-                <p class="jobs-empty" style="padding:1rem 0">Sem serviços neste job.</p>
-              </div>
-            </section>
-
-            <section class="job-card" id="jobBillingCard" hidden>
-              <div class="job-card__head">
-                <h2>Faturamento <span id="jobBillingChip"></span></h2>
-                <a class="job-card__link" id="jobBillingAll" href="invoices.html">Ver faturas</a>
-              </div>
-              <div id="jobBillingBody"></div>
-            </section>
-
-            <section class="job-card" id="jobMediaCard">
-              <div class="job-card__head">
-                <h2>Fotos do job</h2>
-                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-                  <input type="file" id="jobPhotoInput" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp" hidden />
-                  <button type="button" class="job-card__link" id="btnAddJobPhoto" data-crm-permission="work_orders.manage">Adicionar foto</button>
-                  <a class="job-card__link" href="job-media-board.html">ObraCam</a>
-                  <a class="job-card__link" id="jobPortfolioLink" href="#" target="_blank" rel="noopener" hidden>Portfólio público</a>
-                  <button type="button" class="job-card__link" id="btnRefreshMedia">Atualizar</button>
-                </div>
-              </div>
-              <div class="job-media-upload" id="jobMediaUploadBar">
-                <label class="job-media-upload__stage">
-                  Etapa
-                  <select id="jobPhotoStage">
-                    <option value="">Geral</option>
-                    <option value="before">Antes</option>
-                    <option value="during">Durante</option>
-                    <option value="after">Depois</option>
-                  </select>
-                </label>
-                <label class="job-media-upload__cap grow">
-                  Legenda
-                  <input type="text" id="jobPhotoCaption" maxlength="500" placeholder="Opcional" />
-                </label>
-              </div>
-              <div id="jobMediaBody">
-                <p class="jobs-empty" style="padding:1rem 0">Ainda sem fotos de campo.</p>
-              </div>
-            </section>
-
-            <section class="job-card" id="jobCommsCard">
-              <div class="job-card__head">
-                <h2>Comunicações</h2>
-                <a class="job-card__link" href="chat.html">Abrir ObraChat</a>
-              </div>
-              <p class="job-card__hint" style="margin:0 0 0.75rem;color:#6b645c;font-size:0.9rem">
-                Mensagens vinculadas a este job (canal, grupos e DMs com vínculo explícito).
-              </p>
-              <div id="jobCommsBody">
-                <p class="jobs-empty" style="padding:1rem 0">A carregar comunicações…</p>
-              </div>
-            </section>
-
-            <section class="job-card" id="jobReportCard">
-              <div class="job-card__head">
-                <h2>Relatório de fotos</h2>
-                <div style="display:flex;gap:0.5rem;align-items:center">
-                  <button type="button" class="job-card__link" id="btnGenerateReport">Gerar com IA</button>
-                </div>
-              </div>
-              <div id="jobReportBody">
-                <p class="jobs-empty" style="padding:1rem 0">Gere um rascunho a partir das fotos do job.</p>
-              </div>
-            </section>
-
-            <section class="job-card" id="jobProposalCard">
-              <div class="job-card__head">
-                <h2>Proposta ao cliente</h2>
-                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-                  <button type="button" class="job-card__link" id="btnCreateProposal" data-crm-permission="work_orders.manage">Criar proposta</button>
-                  <button type="button" class="job-card__link" id="btnCreateProposalAi" data-crm-permission="work_orders.manage">Criar com IA</button>
-                </div>
-              </div>
-              <div id="jobProposalBody">
-                <p class="jobs-empty" style="padding:1rem 0">Transforme este job num quote que o cliente assina online.</p>
-              </div>
-            </section>
-
-            <section class="job-card" id="jobMarketingCard">
-              <div class="job-card__head">
-                <h2>Antes / depois &amp; review</h2>
-                <button type="button" class="job-card__link" id="btnRefreshMarketing">Atualizar</button>
-              </div>
-              <div id="jobMarketingBody">
-                <p class="jobs-empty" style="padding:1rem 0">Exporte legenda + fotos, ou copie o pedido de review.</p>
-              </div>
-            </section>
-
-            <section class="job-card">
-              <div class="job-card__head">
-                <h2>Labor</h2>
-                <button type="button" class="job-card__link" disabled>Add Time Entry</button>
-              </div>
-              <div class="job-empty-block">
-                <p>O tempo registado neste job aparecerá aqui.</p>
-              </div>
-            </section>
-
-            <section class="job-card">
-              <div class="job-card__head">
-                <h2>Expenses</h2>
-                <button type="button" class="job-card__link" disabled>Add Expense</button>
-              </div>
-              <div class="job-empty-block">
-                <p>Acompanhe todas as despesas deste job num só lugar.</p>
-              </div>
-            </section>
-
-            <section class="job-card">
-              <div class="job-card__head">
-                <h2>Agenda</h2>
-                <button type="button" class="job-card__link" id="btnEditScheduleSection" data-crm-permission="work_orders.manage">Editar agenda</button>
-              </div>
-              <div id="jobVisitsBody">
-                <p class="jobs-empty" style="padding:1rem 0">Sem agendamento.</p>
-              </div>
-            </section>
-
-            <section class="job-card">
-              <div class="job-card__head">
-                <h2>Billing</h2>
-                <button type="button" class="job-card__link" disabled>Edit Invoice Settings</button>
-              </div>
-              <div class="job-empty-block">
-                <p>Faturação ligada a este job estará disponível em breve.</p>
-              </div>
-            </section>
-
-            <section class="job-card">
-              <div class="job-card__head">
-                <h2>Notes <span id="jobNotesLockbox" class="jm-lockbox-slot" hidden></span></h2>
-                <button type="button" class="job-card__link" id="btnSaveNotes" data-crm-permission="work_orders.manage">Save</button>
-              </div>
-              <textarea class="job-notes-area" id="jobNotes" placeholder="Ex.: /lockbox 4821 — código da caixa da casa" maxlength="8000"></textarea>
-              <p class="jobs-hint" style="margin:0.4rem 0 0;font-size:0.78rem;color:#8a8074">Escreva <code>/lockbox</code> e o código para mostrar o cadeado aqui nas notas.</p>
-            </section>
+        <!-- Fotos -->
+        <section class="jd-panel" data-panel="fotos" role="tabpanel" hidden>
+          <div class="jd-card">
+            <div class="jd-ch"><h2>Fotos</h2><span class="jd-ch__n" id="jdPhotoCount"></span>
+              <span class="jd-ch__end">
+                <a class="jd-link" href="job-media-board.html">ObraCam</a>
+                <a class="jd-link" id="jobPortfolioLink" href="#" target="_blank" rel="noopener" hidden>Portfólio público</a>
+              </span>
+            </div>
+            <div class="jd-photo-bar" id="jobMediaUploadBar">
+              <div class="jd-seg" id="jdPhotoFilter"></div>
+              <span class="jd-sp"></span>
+              <select id="jobPhotoStage" class="jd-in jd-in--sm" aria-label="Etapa da foto">
+                <option value="">Etapa: geral</option>
+                <option value="before">Antes</option>
+                <option value="during">Durante</option>
+                <option value="after">Depois</option>
+              </select>
+              <input type="file" id="jobPhotoInput" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp" multiple hidden />
+              <button type="button" class="jd-btn jd-btn--pri" id="btnAddJobPhoto" data-crm-permission="work_orders.manage">+ Adicionar fotos</button>
+            </div>
+            <div id="jobMediaBody"></div>
           </div>
+          <div class="jd-card" id="jobReportCard">
+            <div class="jd-ch"><h2>Relatório com fotos</h2><button type="button" class="jd-link" id="btnGenerateReport">Gerar com IA</button></div>
+            <div id="jobReportBody"></div>
+          </div>
+        </section>
 
-          <aside class="job-detail-rail">
-            <section class="job-card job-rail-total">
-              <p class="job-rail-total__label">Valor do job</p>
-              <p class="job-rail-total__value" id="jobRailTotal">—</p>
-              <ul class="job-rail-breakdown">
-                <li><span>Faturado</span><span id="jobRailInvoiced">—</span></li>
-                <li><span>Recebido</span><span id="jobRailPaid">—</span></li>
-                <li><span>Em aberto</span><span id="jobRailOpen">—</span></li>
-                <li><span>A faturar</span><span id="jobRailToInvoice">—</span></li>
-              </ul>
-            </section>
-            <section class="job-card">
-              <div class="job-card__head">
-                <h2>Notes <span id="jobRailNotesLockbox" class="jm-lockbox-slot" hidden></span></h2>
-              </div>
-              <div class="job-rail-notes-empty" id="jobRailNotesPreview">
-                Leave an internal note for yourself or a team member.
-              </div>
-            </section>
-          </aside>
-        </div>
+        <!-- Campo -->
+        <section class="jd-panel" data-panel="campo" role="tabpanel" hidden>
+          <div id="jdField"></div>
+        </section>
+
+        <!-- Conversa -->
+        <section class="jd-panel" data-panel="conversa" role="tabpanel" hidden>
+          <div class="jd-card" id="jobCommsCard">
+            <div class="jd-ch"><h2>Conversa da obra</h2><a class="jd-link" href="chat.html">Abrir ObraChat</a></div>
+            <div id="jobCommsBody"></div>
+          </div>
+        </section>
       </div>
     </main>
   </div>
@@ -391,7 +290,7 @@
   <script src="crm-job-modal.js?v=20261001-lockbox4"></script>
   <script src="crm-job-billing.js?v=20261001-jobinv1"></script>
   <script src="job-chat-comms.js?v=20260929-obranames1"></script>
-  <script src="job-detail.js?v=20261001-lockbox4"></script>
-  <script src="job-detail-mobile.js?v=20261001-jobinv1"></script>
+  <script src="job-detail.js?v=20261001-jdtabs1"></script>
+  <script src="job-detail-mobile.js?v=20261001-jdtabs1"></script>
 </body>
 </html>
