@@ -143,12 +143,19 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
 
     const status = normalizeQuoteStatus(quote.status);
     const readOnly = !["sent", "changes_requested"].includes(status);
+    const orgFull = await prisma.organization.findUnique({
+      where: { id: ref.organizationId },
+      select: { quoteSettings: true, website: true },
+    });
+    const qs = parseQuoteSettings(orgFull?.quoteSettings);
 
     res.render("quotes/public", {
       title: quote.title,
       organization: quote.organization,
       organizationAddress: documentAddressLine(quote.organization),
       organizationLicense: documentLicenseLine(quote.organization),
+      organizationWebsite: orgFull?.website || null,
+      ownerSignature: qs.owner_signature,
       quote,
       token,
       clientView: clientViewFlags(quote.clientView),

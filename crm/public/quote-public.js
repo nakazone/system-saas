@@ -12,10 +12,10 @@
   const QUOTE_NUMBER_PATH_RE = /^\/((?:SF|Q)-\d{4}-\d+)\/?$/i;
 
   const COMPANY = {
-    name: 'Senior Floors',
-    tagline: 'Hardwood · LVP · Refinishing · Denver Metro',
-    phone: '(720) 751-9813',
-    email: 'contact@senior-floors.com',
+    name: 'ObraMate',
+    tagline: 'Hardwood · LVP · Refinishing',
+    phone: '',
+    email: '',
   };
 
   const SECTION_DEFS = [
@@ -263,7 +263,7 @@
     const owner = ownerSig || {};
     const ownerImg = owner.image_url
       ? `<img src="${owner.image_url}" alt="Authorized signature" />`
-      : '<span class="qp-muted-text">Senior Floors</span>';
+      : `<span class="qp-muted-text">${escapeHtml(COMPANY.name)}</span>`;
     const ownerName = owner.name
       ? `<p class="qp-signatures__name">${escapeHtml(owner.name)}</p>`
       : '';
@@ -305,7 +305,14 @@
     return `<section class="qp-signatures${single ? ' qp-signatures--single' : ''}">${ownerCol}${clientCol}</section>`;
   }
 
-  function renderDocument(q, items, ownerSig) {
+  function renderDocument(q, items, ownerSig, brand) {
+    const company = {
+      name: (brand && brand.name) || q.organization_name || COMPANY.name,
+      tagline: (brand && brand.tagline) || COMPANY.tagline,
+      phone: (brand && brand.phone) || q.organization_phone || COMPANY.phone,
+      email: (brand && brand.email) || q.organization_email || COMPANY.email,
+      logo: (brand && brand.logo_url) || q.organization_logo_url || '/assets/obramate-logo.png',
+    };
     const isBuilder = String(q.quote_party || '') === 'builder' || q.builder_id;
     const builderPerson = [q.builder_first_name, q.builder_last_name].filter(Boolean).join(' ').trim();
     const clientName = escapeHtml(
@@ -334,14 +341,16 @@
       `<p>Status: ${escapeHtml(q.status || 'draft')}</p>`,
     ].join('');
 
+    const contactLine = [company.phone, company.email].filter(Boolean).join(' · ');
+
     return `
       <header class="qp-header">
         <div class="qp-header__brand">
-          <img class="qp-logo" src="/assets/SeniorFloors.png" alt="" width="68" height="68" onerror="this.style.display='none'" />
+          <img class="qp-logo" src="${escapeHtml(company.logo)}" alt="" width="68" height="68" onerror="this.style.display='none'" />
           <div class="qp-company">
-            <h1 class="qp-company__name">${escapeHtml(COMPANY.name)}</h1>
-            <p class="qp-company__tagline">${escapeHtml(COMPANY.tagline)}</p>
-            <p class="qp-company__contact">${escapeHtml(COMPANY.phone)} · ${escapeHtml(COMPANY.email)}</p>
+            <h1 class="qp-company__name">${escapeHtml(company.name)}</h1>
+            <p class="qp-company__tagline">${escapeHtml(company.tagline)}</p>
+            ${contactLine ? `<p class="qp-company__contact">${escapeHtml(contactLine)}</p>` : ''}
           </div>
         </div>
         <aside class="qp-quote-panel">
@@ -504,7 +513,7 @@
         target="_blank"
         rel="noopener noreferrer"
       >Download PDF</a>
-      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove">Approve &amp; sign</button>
+      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove">Assinar</button>
     `;
     document.getElementById('btnApprove')?.addEventListener('click', openSignModal);
   }
@@ -541,10 +550,10 @@
       errorEl.hidden = true;
       errorEl.classList.add('hidden');
 
-      innerEl.innerHTML = renderDocument(q, items, ownerSig);
+      innerEl.innerHTML = renderDocument(q, items, ownerSig, j.data.brand || null);
       docEl.hidden = false;
       renderActions(clientSigned);
-      document.title = `Quote ${q.quote_number || q.id} — Senior Floors`;
+      document.title = `Quote ${q.quote_number || q.id} — ${q.organization_name || 'ObraMate'}`;
     } catch {
       showError('Could not load quote.');
     }

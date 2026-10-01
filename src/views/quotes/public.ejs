@@ -3,255 +3,694 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= title %></title>
+  <title><%= (quote.quoteNumber || ('#' + quote.number)) %> — <%= organization.name %></title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png" />
   <style>
     :root {
-      --brand: <%= organization.primaryColor || '#211d1a' %>;
-      --accent: <%= organization.accentColor || '#e8792c' %>;
+      --qp-primary: <%= organization.primaryColor || '#211d1a' %>;
+      --qp-primary-muted: #3a332e;
+      --qp-secondary: <%= organization.accentColor || '#e8792c' %>;
+      --qp-secondary-dark: #a85428;
+      --qp-panel-bg: #f7f4ee;
+      --qp-muted: #6b645c;
+      --qp-rule: #e2d9cc;
+      --qp-page-w: 612px;
     }
-    body { font-family: Georgia, 'Times New Roman', serif; margin: 0; background: #f7f4ee; color: #211d1a; }
-    header { background: var(--brand); color: #fff; padding: 1.25rem 1.5rem; }
-    header img { max-height: 40px; }
-    main { max-width: 720px; margin: 0 auto; padding: 1.5rem; }
-    .panel { background: #fff; padding: 1.25rem; margin-bottom: 1rem; border-radius: 4px; }
-    .muted { color: #6b7280; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 0.4rem 0; border-bottom: 1px solid #eee; }
-    .total { font-size: 1.35rem; font-weight: 700; text-align: right; margin-top: 1rem; }
-    button, .btn { background: var(--accent); color: #fff; border: 0; padding: 0.7rem 1.1rem; cursor: pointer; font-size: 1rem; }
-    button.secondary { background: #64748b; }
-    canvas { border: 1px solid #ccc; width: 100%; max-width: 420px; height: 140px; touch-action: none; background: #fff; }
-    .alert { padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 4px; }
-    .alert-ok { background: #dcfce7; }
-    .alert-error { background: #fee2e2; }
+    * { box-sizing: border-box; }
+    body.qp-page {
+      margin: 0;
+      min-height: 100vh;
+      background: #e8eaef;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      color: var(--qp-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+    .qp-wrap { padding: 24px 12px 110px; }
+    .qp-doc {
+      max-width: var(--qp-page-w);
+      margin: 0 auto;
+      background: #fff;
+      box-shadow: 0 4px 28px rgba(26, 32, 54, 0.14);
+      position: relative;
+    }
+    .qp-accent-bar { height: 5px; background: var(--qp-secondary); width: 100%; }
+    .qp-doc-inner { padding: 14px 40px 36px; }
+    .qp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+    .qp-header__brand { display: flex; align-items: flex-start; gap: 16px; min-width: 0; flex: 1; }
+    .qp-logo { width: 68px; height: auto; flex-shrink: 0; display: block; }
+    .qp-company__name { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.2; }
+    .qp-company__tagline, .qp-company__contact {
+      margin: 4px 0 0; font-size: 8.5px; line-height: 1.4; color: var(--qp-primary-muted);
+    }
+    .qp-quote-panel {
+      flex-shrink: 0; width: 180px; background: var(--qp-panel-bg);
+      border-left: 3px solid var(--qp-secondary-dark); padding: 12px 14px 10px 12px;
+      font-size: 8px; color: var(--qp-muted); line-height: 1.45;
+    }
+    .qp-quote-panel__label { margin: 0 0 2px; font-size: 11px; font-weight: 700; color: var(--qp-primary); }
+    .qp-quote-panel__number { margin: 0 0 8px; font-size: 10px; font-weight: 700; color: var(--qp-secondary-dark); }
+    .qp-quote-panel p { margin: 0 0 4px; }
+    .qp-summary {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      background: var(--qp-panel-bg); padding: 10px 12px; margin-bottom: 16px; border-radius: 4px;
+    }
+    .qp-summary__item label {
+      display: block; font-size: 7.5px; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--qp-secondary-dark); margin-bottom: 2px;
+    }
+    .qp-summary__item strong { font-size: 12px; color: var(--qp-primary); }
+    .qp-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+    .qp-col__label {
+      margin: 0 0 4px; font-size: 8px; font-weight: 700; color: var(--qp-secondary-dark);
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .qp-col__name { margin: 0 0 3px; font-size: 11px; font-weight: 700; }
+    .qp-col__meta { margin: 0; font-size: 8.5px; color: var(--qp-muted); line-height: 1.4; }
+    .qp-msg {
+      margin: 0 0 16px; padding: 8px 0; font-size: 10px; font-style: italic;
+      color: var(--qp-primary-muted); border-top: 1px solid var(--qp-rule); border-bottom: 1px solid var(--qp-rule);
+    }
+    .qp-section { margin-bottom: 10px; }
+    .qp-section-title {
+      margin: 14px 0 6px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--qp-secondary-dark);
+    }
+    .qp-table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    .qp-table th {
+      text-align: left; padding: 5px 4px; border-bottom: 1.5px solid var(--qp-primary);
+      font-size: 8px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--qp-muted);
+    }
+    .qp-table td { padding: 7px 4px; border-bottom: 1px solid var(--qp-rule); vertical-align: top; }
+    .qp-table .qp-num { text-align: right; white-space: nowrap; }
+    .qp-line__title { display: block; font-weight: 700; font-size: 9.5px; }
+    .qp-line__body, .qp-line__detail { display: block; margin-top: 2px; color: var(--qp-muted); font-size: 8px; white-space: pre-wrap; }
+    .qp-totals-wrap { margin-top: 16px; display: flex; flex-direction: column; align-items: flex-end; }
+    .qp-totals { width: 220px; border-collapse: collapse; font-size: 9px; }
+    .qp-totals td { padding: 3px 0; }
+    .qp-totals td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .qp-totals-label {
+      width: 220px; margin: 8px 0 4px; font-size: 8px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.04em; color: var(--qp-muted);
+    }
+    .qp-grand-total {
+      width: 220px; display: flex; justify-content: space-between; align-items: center;
+      background: var(--qp-primary); color: #fff; padding: 10px 12px;
+      border-left: 4px solid var(--qp-secondary);
+    }
+    .qp-grand-total__label { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; }
+    .qp-grand-total__value { font-size: 16px; font-weight: 700; }
+    .qp-block-title {
+      margin: 18px 0 6px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--qp-secondary-dark);
+    }
+    .qp-block-text { margin: 0; font-size: 9px; line-height: 1.5; color: var(--qp-primary-muted); white-space: pre-wrap; }
+    .qp-options { margin: 12px 0; padding: 10px 12px; border: 1px dashed var(--qp-rule); border-radius: 6px; }
+    .qp-options label { display: block; font-size: 10px; margin: 4px 0; cursor: pointer; }
+    .qp-signatures {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 22px;
+      padding-top: 14px; border-top: 1px solid var(--qp-rule);
+    }
+    .qp-signatures--single { grid-template-columns: 1fr; max-width: 280px; }
+    .qp-signatures h3 {
+      margin: 0 0 6px; font-size: 8px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--qp-secondary-dark);
+    }
+    .qp-signatures__box {
+      min-height: 72px; border: 1px solid var(--qp-rule); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; padding: 8px; background: #fff;
+    }
+    .qp-signatures__box img { max-width: 100%; max-height: 64px; object-fit: contain; }
+    .qp-signatures__name { margin: 8px 0 0; font-size: 12px; font-weight: 700; }
+    .qp-signatures__title, .qp-signatures__date { margin: 2px 0 0; font-size: 11px; color: var(--qp-muted); }
+    .qp-alert { max-width: var(--qp-page-w); margin: 0 auto 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+    .qp-alert-ok { background: #dcfce7; color: #166534; }
+    .qp-alert-error { background: #fee2e2; color: #991b1b; }
+    .qp-actions {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+      display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+      padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+      background: rgba(255,255,255,0.96); border-top: 1px solid var(--qp-rule);
+      box-shadow: 0 -8px 24px rgba(33,29,26,0.08);
+    }
+    .qp-actions[hidden] { display: none !important; }
+    .qp-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 44px; padding: 0 18px; border-radius: 10px; font: inherit;
+      font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; border: 1px solid transparent;
+    }
+    .qp-btn--primary { background: var(--qp-secondary); color: #fff; }
+    .qp-btn--primary:hover { filter: brightness(0.96); }
+    .qp-btn--outline { background: #fff; color: var(--qp-primary); border-color: var(--qp-rule); }
+    .qp-btn--ghost { background: transparent; color: var(--qp-muted); border-color: transparent; }
+    .qp-approved {
+      max-width: var(--qp-page-w); margin: 16px auto 0; text-align: center;
+      font-size: 14px; font-weight: 600; color: #166534;
+    }
+    .qp-sign-modal {
+      position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+    }
+    .qp-sign-modal[hidden] { display: none !important; }
+    .qp-sign-modal__backdrop { position: absolute; inset: 0; background: rgba(26,32,54,0.45); }
+    .qp-sign-modal__panel {
+      position: relative; z-index: 1; width: min(560px, calc(100vw - 24px));
+      background: #fff; border-radius: 12px; padding: 22px 24px 20px;
+      box-shadow: 0 16px 48px rgba(26,32,54,0.2); max-height: 92vh; overflow: auto;
+    }
+    .qp-sign-modal__title { margin: 0 0 6px; font-size: 18px; }
+    .qp-sign-modal__sub { margin: 0 0 16px; font-size: 13px; color: var(--qp-muted); }
+    .qp-sign-field { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--qp-primary-muted); }
+    .qp-sign-input {
+      width: 100%; margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--qp-rule);
+      border-radius: 8px; font-size: 14px;
+    }
+    .qp-sign-canvas-wrap {
+      border: 1px solid var(--qp-rule); border-radius: 8px; background: #fff; margin-bottom: 14px; overflow: hidden;
+    }
+    .qp-sign-canvas-wrap canvas { display: block; width: 100%; height: 140px; touch-action: none; }
+    .qp-sign-modal__actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    .qp-changes { max-width: var(--qp-page-w); margin: 18px auto 0; }
+    .qp-changes details {
+      background: #fff; border-radius: 10px; padding: 12px 14px; border: 1px solid var(--qp-rule);
+    }
+    .qp-changes summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+    .qp-changes textarea {
+      width: 100%; margin-top: 10px; min-height: 80px; padding: 10px; border: 1px solid var(--qp-rule);
+      border-radius: 8px; font: inherit; font-size: 13px;
+    }
+    @media (max-width: 640px) {
+      .qp-doc-inner { padding: 12px 18px 28px; }
+      .qp-header, .qp-cols, .qp-summary { grid-template-columns: 1fr; display: grid; }
+      .qp-header { display: grid; }
+      .qp-quote-panel { width: auto; }
+      .qp-signatures { grid-template-columns: 1fr; }
+    }
     @media print {
-      header { background: #fff; color: #000; }
-      button, .no-print { display: none !important; }
-      body { background: #fff; }
+      body.qp-page { background: #fff; }
+      .qp-wrap { padding: 0; }
+      .qp-doc { box-shadow: none; max-width: none; }
+      .qp-actions, .qp-changes, .no-print { display: none !important; }
     }
   </style>
 </head>
-<body>
-  <header>
-    <% if (organization.logoUrl) { %>
-      <img src="<%= organization.logoUrl %>" alt="<%= organization.name %>" />
-    <% } else { %>
-      <strong><%= organization.name %></strong>
-    <% } %>
-  </header>
-  <main>
+<body class="qp-page">
+  <div class="qp-wrap">
     <% if (typeof success !== 'undefined' && success === 'approved') { %>
-      <div class="alert alert-ok">Thank you — this quote is approved.</div>
+      <div class="qp-alert qp-alert-ok">Thank you — this quote is approved.</div>
     <% } %>
     <% if (typeof success !== 'undefined' && success === 'changes') { %>
-      <div class="alert alert-ok">Your change request was sent.</div>
+      <div class="qp-alert qp-alert-ok">Your change request was sent.</div>
     <% } %>
     <% if (typeof error !== 'undefined' && error) { %>
-      <div class="alert alert-error"><%= error === 'invalid' ? 'Please complete all approval fields.' : error %></div>
+      <div class="qp-alert qp-alert-error"><%= error === 'invalid' ? 'Please complete all approval fields.' : (error === 'signature' ? 'Please add your signature.' : error) %></div>
     <% } %>
 
-    <div class="panel">
-      <h1><%= quote.title %></h1>
-      <p class="muted">Quote #<%= quote.number %> · <%= organization.name %></p>
-      <% if (organization.contactEmail || organization.contactPhone) { %>
-        <p class="muted"><%= [organization.contactEmail, organization.contactPhone].filter(Boolean).join(' · ') %></p>
-      <% } %>
-      <% if (typeof organizationAddress !== 'undefined' && organizationAddress) { %>
-        <p class="muted"><%= organizationAddress %></p>
-      <% } %>
-      <% if (typeof organizationLicense !== 'undefined' && organizationLicense) { %>
-        <p class="muted"><%= organizationLicense %></p>
-      <% } %>
-      <% if (quote.validUntil) { %>
-        <p><strong>Valid until:</strong> <%= quote.validUntil.toISOString().slice(0,10) %></p>
-      <% } %>
-      <% if (quote.clientMessage) { %><p><%= quote.clientMessage %></p><% } %>
-      <p class="no-print">
-        <a href="/public/quotes/<%= token %>/pdf" target="_blank">Download PDF</a>
-        · <a href="#" onclick="window.print();return false;">Print</a>
-      </p>
-    </div>
+    <%
+      const money = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const fmtDate = (d) => d ? new Date(d).toISOString().slice(0, 10) : '—';
+      const contactBits = [organization.contactPhone, organization.contactEmail].filter(Boolean);
+      const quoteLabel = quote.quoteNumber || ('Q-' + quote.number);
+      const cust = quote.customer || {};
+      const prop = quote.property || {};
+      const propAddr = [prop.line1, prop.line2].filter(Boolean).join(', ');
+      const propCity = [prop.city, prop.state, prop.postalCode].filter(Boolean).join(', ');
+      const prep = quote.salesperson || {};
+      const owner = (typeof ownerSignature !== 'undefined' && ownerSignature) ? ownerSignature : {};
+      const signed = !!(quote.signedByName || quote.signatureUrl);
+      const scheduleRaw = (quote.paymentSchedule && quote.paymentSchedule.items) ? quote.paymentSchedule.items : [];
+      const quoteTotalNum = Number(quote.total) || 0;
+      const scheduleItems = scheduleRaw.map((it) => {
+        const fixed = Number(it.fixedAmount);
+        const pct = Number(it.percent);
+        let amount = Number.isFinite(fixed) && fixed > 0 ? fixed : 0;
+        if (!amount && Number.isFinite(pct) && pct > 0) {
+          amount = Math.round(((quoteTotalNum * pct) / 100) * 100) / 100;
+        }
+        const pctLabel = Number.isFinite(pct) && pct > 0 ? (' (' + pct + '%)') : '';
+        return { label: (it.label || 'Payment') + pctLabel, amount: amount };
+      });
 
-    <% if (clientView.showRoomBreakdown && quote.rooms.length) { %>
-    <div class="panel">
-      <h2>Rooms</h2>
-      <ul>
-        <% quote.rooms.forEach(r => { %>
-          <li><%= r.name %> — <%= Number(r.areaSqft).toFixed(2) %> sqft</li>
-        <% }) %>
-      </ul>
-    </div>
+      function lineMeta(li) {
+        const m = li.meta && typeof li.meta === 'object' ? li.meta : {};
+        return m;
+      }
+      function sectionKey(li) {
+        const t = String(li.itemType || '').toLowerCase();
+        if (t === 'product') return 'products';
+        const meta = lineMeta(li);
+        const st = String(meta.service_type || meta.serviceType || quote.serviceType || '').toLowerCase();
+        if (st.includes('sand') || st.includes('finish')) return 'sand_finish';
+        if (st === 'supply') return 'supply';
+        return 'installation';
+      }
+      const sectionDefs = [
+        { key: 'installation', label: 'Installation' },
+        { key: 'sand_finish', label: 'Sand & Finishing' },
+        { key: 'supply', label: 'Supply' },
+        { key: 'products', label: 'Materials & products' },
+      ];
+      const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
+      (quote.lineItems || []).forEach((li) => {
+        const k = sectionKey(li);
+        (buckets[k] || buckets.installation).push(li);
+      });
+      const sections = sectionDefs.filter((d) => buckets[d.key].length);
+    %>
+
+    <article class="qp-doc" id="quoteDocument">
+      <div class="qp-accent-bar" aria-hidden="true"></div>
+      <div class="qp-doc-inner">
+        <header class="qp-header">
+          <div class="qp-header__brand">
+            <% if (organization.logoUrl) { %>
+              <img class="qp-logo" src="<%= organization.logoUrl %>" alt="" width="68" height="68" onerror="this.style.display='none'" />
+            <% } else { %>
+              <img class="qp-logo" src="/assets/obramate-logo.png" alt="" width="68" height="68" onerror="this.style.display='none'" />
+            <% } %>
+            <div class="qp-company">
+              <h1 class="qp-company__name"><%= organization.name %></h1>
+              <% if (organizationAddress) { %><p class="qp-company__tagline"><%= organizationAddress %></p><% } %>
+              <% if (organizationLicense) { %><p class="qp-company__tagline"><%= organizationLicense %></p><% } %>
+              <% if (contactBits.length) { %><p class="qp-company__contact"><%= contactBits.join(' · ') %></p><% } %>
+            </div>
+          </div>
+          <aside class="qp-quote-panel">
+            <p class="qp-quote-panel__label">QUOTE</p>
+            <p class="qp-quote-panel__number"><%= quoteLabel %></p>
+            <p>Issue: <%= fmtDate(quote.createdAt) %></p>
+            <% if (quote.validUntil) { %><p>Expires: <%= fmtDate(quote.validUntil) %></p><% } %>
+            <p>Status: <%= quote.status %></p>
+          </aside>
+        </header>
+
+        <div class="qp-summary">
+          <div class="qp-summary__item">
+            <label>Quote total</label>
+            <strong id="summaryTotal"><%= money(quote.total) %></strong>
+          </div>
+          <div class="qp-summary__item">
+            <label>Due on approval</label>
+            <strong><%= scheduleItems.length ? money(scheduleItems[0].amount) : money(quote.total) %></strong>
+          </div>
+          <div class="qp-summary__item">
+            <label>Floor area</label>
+            <strong><%= Number(quote.areaSqft || 0) ? (Number(quote.areaSqft).toFixed(0) + ' sq ft') : '—' %></strong>
+          </div>
+          <div class="qp-summary__item">
+            <label>Valid until</label>
+            <strong><%= quote.validUntil ? fmtDate(quote.validUntil) : '—' %></strong>
+          </div>
+        </div>
+
+        <div class="qp-cols">
+          <div>
+            <p class="qp-col__label">Bill to</p>
+            <p class="qp-col__name"><%= cust.name || 'Client' %></p>
+            <% if (cust.email) { %><p class="qp-col__meta"><%= cust.email %></p><% } %>
+            <% if (cust.phone) { %><p class="qp-col__meta"><%= cust.phone %></p><% } %>
+          </div>
+          <div>
+            <p class="qp-col__label">Job site</p>
+            <p class="qp-col__name"><%= prop.label || quote.title || 'Project' %></p>
+            <% if (propAddr) { %><p class="qp-col__meta"><%= propAddr %></p><% } %>
+            <% if (propCity) { %><p class="qp-col__meta"><%= propCity %></p><% } %>
+          </div>
+          <div>
+            <p class="qp-col__label">Prepared by</p>
+            <p class="qp-col__name"><%= prep.name || owner.name || organization.name %></p>
+            <% if (prep.email || organization.contactEmail) { %>
+              <p class="qp-col__meta"><%= prep.email || organization.contactEmail %></p>
+            <% } %>
+            <% if (owner.title && !prep.name) { %><p class="qp-col__meta"><%= owner.title %></p><% } %>
+          </div>
+        </div>
+
+        <% if (quote.clientMessage) { %>
+          <p class="qp-msg"><%= quote.clientMessage %></p>
+        <% } %>
+
+        <form id="quotePublicForm" method="post" action="/public/quotes/<%= token %>/approve">
+          <% if (quote.optionGroups && quote.optionGroups.length) { %>
+            <div class="qp-options no-print">
+              <p class="qp-col__label">Choose an option</p>
+              <% quote.optionGroups.forEach((g, i) => { %>
+                <label>
+                  <input type="radio" name="selectedOptionGroupId" value="<%= g.id %>"
+                    <%= (quote.selectedOptionGroupId === g.id || (!quote.selectedOptionGroupId && i===0)) ? 'checked' : '' %>
+                    <%= readOnly ? 'disabled' : '' %> />
+                  <%= g.name %>
+                </label>
+              <% }) %>
+            </div>
+          <% } %>
+
+          <% if (clientView.showRoomBreakdown && quote.rooms && quote.rooms.length) { %>
+            <div class="qp-section">
+              <h2 class="qp-section-title">Rooms</h2>
+              <table class="qp-table">
+                <thead><tr><th>Room</th><th class="qp-num">Area</th></tr></thead>
+                <tbody>
+                  <% quote.rooms.forEach((r) => { %>
+                    <tr><td><%= r.name %></td><td class="qp-num"><%= Number(r.areaSqft).toFixed(2) %> sq ft</td></tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+
+          <% sections.forEach((sec) => { %>
+            <div class="qp-section">
+              <h2 class="qp-section-title"><%= sec.label %></h2>
+              <table class="qp-table">
+                <thead>
+                  <tr>
+                    <th>Description</th>
+                    <% if (clientView.showQuantities) { %><th class="qp-num">Qty</th><% } %>
+                    <% if (clientView.showUnitPrices) { %><th class="qp-num">Rate</th><% } %>
+                    <% if (clientView.showLineTotals) { %><th class="qp-num">Amount</th><% } %>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% buckets[sec.key].forEach((li) => { %>
+                    <tr
+                      data-id="<%= li.id %>"
+                      data-optional="<%= li.isOptional ? '1' : '0' %>"
+                      data-group="<%= li.optionGroupId || '' %>"
+                    >
+                      <td>
+                        <% if (li.isOptional && !readOnly) { %>
+                          <label style="display:inline-flex;gap:6px;align-items:flex-start;margin-bottom:4px;">
+                            <input type="checkbox" class="opt-check" name="selectedOptionalIds" value="<%= li.id %>" <%= li.isSelected ? 'checked' : '' %> />
+                            <span class="qp-line__title"><%= li.name || li.description %></span>
+                          </label>
+                        <% } else { %>
+                          <span class="qp-line__title"><%= li.name || li.description %></span>
+                        <% } %>
+                        <% if (li.name && li.description && li.description !== li.name) { %>
+                          <span class="qp-line__body"><%= li.description %></span>
+                        <% } %>
+                      </td>
+                      <% if (clientView.showQuantities) { %>
+                        <td class="qp-num"><%= Number(li.quantity).toFixed(2) %> <%= String(li.unit || '').replace(/_/g, ' ') %></td>
+                      <% } %>
+                      <% if (clientView.showUnitPrices) { %>
+                        <td class="qp-num"><%= money(li.unitPrice) %></td>
+                      <% } %>
+                      <% if (clientView.showLineTotals) { %>
+                        <td class="qp-num"><%= money(li.amount) %></td>
+                      <% } %>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          <% }) %>
+
+          <div class="qp-totals-wrap">
+            <table class="qp-totals">
+              <tbody>
+                <tr><td>Subtotal</td><td id="subtotalDisplay"><%= money(quote.subtotal) %></td></tr>
+                <tr><td>Tax</td><td id="taxDisplay"><%= money(quote.taxTotal) %></td></tr>
+                <% if (Number(quote.discountValue)) { %>
+                  <tr>
+                    <td>Discount (<%= quote.discountType === 'fixed' ? '$' : '%' %>)</td>
+                    <td><%= quote.discountType === 'fixed' ? money(quote.discountValue) : (Number(quote.discountValue) + '%') %></td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+            <p class="qp-totals-label">Quote total</p>
+            <div class="qp-grand-total">
+              <span class="qp-grand-total__label">TOTAL</span>
+              <span class="qp-grand-total__value" id="totalDisplay"><%= money(quote.total) %></span>
+            </div>
+          </div>
+
+          <% if (scheduleItems.length) { %>
+            <h3 class="qp-block-title">Payment schedule</h3>
+            <table class="qp-table">
+              <thead><tr><th>Milestone</th><th class="qp-num">Amount</th></tr></thead>
+              <tbody>
+                <% scheduleItems.forEach((it) => { %>
+                  <tr>
+                    <td><%= it.label || it.name || 'Payment' %></td>
+                    <td class="qp-num"><%= money(it.amount) %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } %>
+
+          <% if (quote.terms) { %>
+            <h3 class="qp-block-title">Terms &amp; conditions</h3>
+            <p class="qp-block-text"><%= quote.terms %></p>
+          <% } %>
+
+          <% if (organization.paymentInstructions) { %>
+            <h3 class="qp-block-title">Payment instructions</h3>
+            <p class="qp-block-text"><%= organization.paymentInstructions %></p>
+          <% } %>
+
+          <% if (quote.notes) { %>
+            <h3 class="qp-block-title">Notes</h3>
+            <p class="qp-block-text"><%= quote.notes %></p>
+          <% } %>
+
+          <% const showOwner = !!(owner.image_url || owner.name); %>
+          <% if (showOwner || signed) { %>
+            <section class="qp-signatures<%= (showOwner && !signed) || (!showOwner && signed) ? ' qp-signatures--single' : '' %>">
+              <% if (showOwner) { %>
+                <div>
+                  <h3>Authorized by</h3>
+                  <div class="qp-signatures__box">
+                    <% if (owner.image_url) { %>
+                      <img src="<%= owner.image_url %>" alt="Authorized signature" />
+                    <% } else { %>
+                      <span style="color:var(--qp-muted);font-size:12px;"><%= organization.name %></span>
+                    <% } %>
+                  </div>
+                  <% if (owner.name) { %><p class="qp-signatures__name"><%= owner.name %></p><% } %>
+                  <% if (owner.title) { %><p class="qp-signatures__title"><%= owner.title %></p><% } %>
+                </div>
+              <% } %>
+              <% if (signed) { %>
+                <div>
+                  <h3>Client approval</h3>
+                  <div class="qp-signatures__box">
+                    <% if (quote.signatureUrl) { %>
+                      <img src="<%= quote.signatureUrl %>" alt="Client signature" />
+                    <% } else { %>
+                      <span style="color:var(--qp-muted);font-size:12px;">Signed</span>
+                    <% } %>
+                  </div>
+                  <p class="qp-signatures__name"><%= quote.signedByName || cust.name || 'Client' %></p>
+                  <p class="qp-signatures__date">Date: <%= fmtDate(quote.signedAt) %></p>
+                </div>
+              <% } %>
+            </section>
+          <% } %>
+
+          <input type="hidden" name="signedByName" id="signedByName" value="" />
+          <input type="hidden" name="signatureDataUrl" id="signatureDataUrl" value="" />
+          <input type="hidden" name="acceptTerms" id="acceptTerms" value="" />
+          <input type="hidden" name="approvedLat" id="approvedLat" />
+          <input type="hidden" name="approvedLng" id="approvedLng" />
+          <input type="hidden" name="approvedGpsAccuracyM" id="approvedGpsAccuracyM" />
+        </form>
+      </div>
+    </article>
+
+    <% if (signed) { %>
+      <p class="qp-approved">Thank you — this quote is approved<%= quote.signedByName ? (' and signed by ' + quote.signedByName) : '' %>.</p>
     <% } %>
-
-    <form id="quotePublicForm" method="post" action="/public/quotes/<%= token %>/approve">
-      <% if (quote.optionGroups.length) { %>
-      <div class="panel">
-        <h2>Choose an option</h2>
-        <% quote.optionGroups.forEach((g, i) => { %>
-          <label style="display:block;margin:0.4rem 0">
-            <input type="radio" name="selectedOptionGroupId" value="<%= g.id %>"
-              <%= (quote.selectedOptionGroupId === g.id || (!quote.selectedOptionGroupId && i===0)) ? 'checked' : '' %>
-              <%= readOnly ? 'disabled' : '' %> />
-            <%= g.name %>
-          </label>
-        <% }) %>
-      </div>
-      <% } %>
-
-      <div class="panel">
-        <h2>Line items</h2>
-        <table>
-          <thead>
-            <tr>
-              <th></th>
-              <th>Item</th>
-              <% if (clientView.showQuantities) { %><th>Qty</th><% } %>
-              <% if (clientView.showUnitPrices) { %><th>Price</th><% } %>
-              <% if (clientView.showLineTotals) { %><th>Amount</th><% } %>
-            </tr>
-          </thead>
-          <tbody id="linesBody">
-            <% quote.lineItems.forEach(li => { %>
-              <tr
-                data-id="<%= li.id %>"
-                data-optional="<%= li.isOptional ? '1' : '0' %>"
-                data-group="<%= li.optionGroupId || '' %>"
-                data-qty="<%= Number(li.quantity) %>"
-                data-unit-price="<%= Number(li.unitPrice) %>"
-                data-amount="<%= Number(li.amount) %>"
-              >
-                <td>
-                  <% if (li.isOptional) { %>
-                    <input type="checkbox" name="selectedOptionalIds" value="<%= li.id %>"
-                      <%= li.isSelected ? 'checked' : '' %> <%= readOnly ? 'disabled' : '' %> class="opt-check" />
-                  <% } %>
-                </td>
-                <td><%= li.description %></td>
-                <% if (clientView.showQuantities) { %><td><%= Number(li.quantity).toFixed(2) %> <%= li.unit %></td><% } %>
-                <% if (clientView.showUnitPrices) { %><td>$<%= Number(li.unitPrice).toFixed(2) %></td><% } %>
-                <% if (clientView.showLineTotals) { %><td class="line-amt">$<%= Number(li.amount).toFixed(2) %></td><% } %>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-        <p class="total">Total: $<span id="totalDisplay"><%= Number(quote.total).toFixed(2) %></span></p>
-      </div>
-
-      <% if (quote.terms) { %>
-      <div class="panel">
-        <h2>Terms</h2>
-        <p style="white-space:pre-wrap"><%= quote.terms %></p>
-      </div>
-      <% } %>
-
-      <% if (organization.paymentInstructions) { %>
-      <div class="panel">
-        <h2>Payment instructions</h2>
-        <p style="white-space:pre-wrap"><%= organization.paymentInstructions %></p>
-      </div>
-      <% } %>
-
-      <% if (!readOnly) { %>
-      <div class="panel no-print">
-        <h2>Approve</h2>
-        <label>Your name</label><br />
-        <input name="signedByName" required style="width:100%;max-width:320px;padding:0.5rem;margin:0.4rem 0 1rem" />
-        <label>Signature</label><br />
-        <canvas id="sig" width="420" height="140"></canvas>
-        <input type="hidden" name="signatureDataUrl" id="signatureDataUrl" />
-        <input type="hidden" name="approvedLat" id="approvedLat" />
-        <input type="hidden" name="approvedLng" id="approvedLng" />
-        <input type="hidden" name="approvedGpsAccuracyM" id="approvedGpsAccuracyM" />
-        <p>
-          <button type="button" class="secondary" id="clearSig">Clear</button>
-        </p>
-        <label>
-          <input type="checkbox" name="acceptTerms" required /> I accept the terms above
-        </label>
-        <p style="margin-top:1rem">
-          <button type="submit">Approve quote</button>
-        </p>
-      </div>
-      <% } else if (quote.signedByName) { %>
-      <div class="panel">
-        <h2>Approved</h2>
-        <p>Signed by <%= quote.signedByName %></p>
-        <% if (quote.signatureUrl) { %><p><img src="<%= quote.signatureUrl %>" alt="Signature" style="max-width:280px" /></p><% } %>
-      </div>
-      <% } %>
-    </form>
 
     <% if (!readOnly) { %>
-    <div class="panel no-print">
-      <h2>Request changes</h2>
-      <form method="post" action="/public/quotes/<%= token %>/request-changes">
-        <textarea name="note" required rows="3" style="width:100%" placeholder="What would you like changed?"></textarea>
-        <p><button type="submit" class="secondary">Request changes</button></p>
-      </form>
-    </div>
+      <div class="qp-changes no-print">
+        <details>
+          <summary>Request changes</summary>
+          <form method="post" action="/public/quotes/<%= token %>/request-changes">
+            <textarea name="note" required placeholder="What would you like changed?"></textarea>
+            <p style="margin:10px 0 0;text-align:right;">
+              <button type="submit" class="qp-btn qp-btn--outline">Send request</button>
+            </p>
+          </form>
+        </details>
+      </div>
     <% } %>
-  </main>
+  </div>
+
+  <div class="qp-actions no-print" id="quoteActions">
+    <a class="qp-btn qp-btn--outline" href="/public/quotes/<%= token %>/pdf" target="_blank" rel="noopener noreferrer">Download PDF</a>
+    <% if (!readOnly && !signed) { %>
+      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove">Assinar</button>
+    <% } %>
+  </div>
+
+  <% if (!readOnly && !signed) { %>
+  <div class="qp-sign-modal" id="qpSignModal" hidden role="dialog" aria-modal="true" aria-labelledby="qpSignTitle">
+    <div class="qp-sign-modal__backdrop" id="qpSignBackdrop"></div>
+    <div class="qp-sign-modal__panel">
+      <h2 id="qpSignTitle" class="qp-sign-modal__title">Approve &amp; sign</h2>
+      <p class="qp-sign-modal__sub">A assinatura é gerada automaticamente a partir do seu nome. Pode desenhar por cima para personalizar.</p>
+      <label class="qp-sign-field" for="qpSignerName">Your full name</label>
+      <input type="text" id="qpSignerName" class="qp-sign-input" autocomplete="name" placeholder="Full name" value="<%= cust.name || '' %>" />
+      <label class="qp-sign-field" for="qpSignCanvas">Your signature</label>
+      <div class="qp-sign-canvas-wrap">
+        <canvas id="qpSignCanvas" width="520" height="140" aria-label="Draw your signature"></canvas>
+      </div>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:14px;">
+        <input type="checkbox" id="qpAcceptTerms" />
+        <span>I accept the terms and conditions in this quote.</span>
+      </label>
+      <div class="qp-sign-modal__actions">
+        <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear">Clear</button>
+        <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel">Cancel</button>
+        <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit">Approve quote</button>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <script src="/quote-signature-auto.js?v=20260708"></script>
   <script>
     (function () {
       const readOnly = <%= readOnly ? 'true' : 'false' %>;
-      const canvas = document.getElementById('sig');
-      if (canvas && !readOnly) {
+      const token = <%= JSON.stringify(token) %>;
+      const defaultName = <%= JSON.stringify((quote.customer && quote.customer.name) || '') %>;
+
+      function money(n) {
+        return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function createPad(canvas) {
         const ctx = canvas.getContext('2d');
         let drawing = false;
-        function pos(e) {
+        let hasStroke = false;
+        ctx.strokeStyle = '#1a2036';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        const pos = (e) => {
           const r = canvas.getBoundingClientRect();
           const t = e.touches ? e.touches[0] : e;
-          return { x: (t.clientX - r.left) * (canvas.width / r.width), y: (t.clientY - r.top) * (canvas.height / r.height) };
-        }
-        function start(e) { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
-        function move(e) { if (!drawing) return; const p = pos(e); ctx.lineWidth = 2; ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
-        function end() { drawing = false; document.getElementById('signatureDataUrl').value = canvas.toDataURL('image/png'); }
+          return {
+            x: (t.clientX - r.left) * (canvas.width / r.width),
+            y: (t.clientY - r.top) * (canvas.height / r.height),
+          };
+        };
+        const start = (e) => {
+          drawing = true;
+          hasStroke = true;
+          const p = pos(e);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          e.preventDefault();
+        };
+        const move = (e) => {
+          if (!drawing) return;
+          const p = pos(e);
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+          e.preventDefault();
+        };
+        const end = () => { drawing = false; };
         canvas.addEventListener('mousedown', start);
         canvas.addEventListener('mousemove', move);
-        canvas.addEventListener('mouseup', end);
-        canvas.addEventListener('mouseleave', end);
+        window.addEventListener('mouseup', end);
         canvas.addEventListener('touchstart', start, { passive: false });
         canvas.addEventListener('touchmove', move, { passive: false });
         canvas.addEventListener('touchend', end);
-        document.getElementById('clearSig')?.addEventListener('click', () => {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          document.getElementById('signatureDataUrl').value = '';
-        });
-        document.getElementById('quotePublicForm')?.addEventListener('submit', (e) => {
-          if (!document.getElementById('signatureDataUrl').value) {
-            e.preventDefault();
-            alert('Please sign before approving.');
-          }
-        });
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              const lat = document.getElementById('approvedLat');
-              const lng = document.getElementById('approvedLng');
-              const acc = document.getElementById('approvedGpsAccuracyM');
-              if (lat) lat.value = String(pos.coords.latitude);
-              if (lng) lng.value = String(pos.coords.longitude);
-              if (acc) acc.value = String(pos.coords.accuracy || '');
-            },
-            () => {},
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
-          );
-        }
+        return {
+          clear() { ctx.clearRect(0, 0, canvas.width, canvas.height); hasStroke = false; },
+          isEmpty() { return !hasStroke; },
+          renderFromName(name) {
+            const ok = window.QuoteSignatureAuto && window.QuoteSignatureAuto.renderAutoSignatureOnCanvas(canvas, name);
+            hasStroke = !!ok;
+            return ok;
+          },
+          toDataURL() { return canvas.toDataURL('image/png'); },
+        };
       }
 
-      async function recalc() {
-        const selectedOptionGroupId = document.querySelector('input[name="selectedOptionGroupId"]:checked')?.value || null;
-        const selectedOptionalIds = [...document.querySelectorAll('.opt-check:checked')].map(el => el.value);
-        const res = await fetch('/public/quotes/<%= token %>/recalculate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selectedOptionGroupId, selectedOptionalIds }),
-        });
-        const json = await res.json();
-        if (json.success) {
-          document.getElementById('totalDisplay').textContent = Number(json.data.total).toFixed(2);
+      let pad = null;
+      const modal = document.getElementById('qpSignModal');
+      const canvas = document.getElementById('qpSignCanvas');
+      const nameInput = document.getElementById('qpSignerName');
+
+      function openModal() {
+        if (!modal || !canvas) return;
+        if (!pad) pad = createPad(canvas);
+        pad.clear();
+        if (nameInput) {
+          if (!nameInput.value && defaultName) nameInput.value = defaultName;
+          if (nameInput.value.trim().length >= 2) pad.renderFromName(nameInput.value.trim());
         }
-        document.querySelectorAll('#linesBody tr').forEach(tr => {
+        modal.hidden = false;
+        nameInput && nameInput.focus();
+      }
+      function closeModal() { if (modal) modal.hidden = true; }
+
+      document.getElementById('btnApprove')?.addEventListener('click', openModal);
+      document.getElementById('qpSignBackdrop')?.addEventListener('click', closeModal);
+      document.getElementById('qpSignCancel')?.addEventListener('click', closeModal);
+      document.getElementById('qpSignClear')?.addEventListener('click', () => pad && pad.clear());
+
+      let debounceTimer = null;
+      nameInput?.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          if (!pad) return;
+          const n = nameInput.value.trim();
+          if (n.length >= 2) pad.renderFromName(n);
+          else pad.clear();
+        }, 250);
+      });
+
+      document.getElementById('qpSignSubmit')?.addEventListener('click', () => {
+        const name = (nameInput && nameInput.value.trim()) || '';
+        if (name.length < 2) { alert('Please enter your full name.'); return; }
+        if (!document.getElementById('qpAcceptTerms')?.checked) {
+          alert('Please accept the terms and conditions.');
+          return;
+        }
+        if (!pad) pad = createPad(canvas);
+        if (pad.isEmpty()) pad.renderFromName(name);
+        if (pad.isEmpty()) { alert('Please add your signature.'); return; }
+        document.getElementById('signedByName').value = name;
+        document.getElementById('signatureDataUrl').value = pad.toDataURL();
+        document.getElementById('acceptTerms').value = 'on';
+        document.getElementById('quotePublicForm').submit();
+      });
+
+      async function recalc() {
+        if (readOnly) return;
+        const selectedOptionGroupId = document.querySelector('input[name="selectedOptionGroupId"]:checked')?.value || null;
+        const selectedOptionalIds = [...document.querySelectorAll('.opt-check:checked')].map((el) => el.value);
+        try {
+          const res = await fetch('/public/quotes/' + encodeURIComponent(token) + '/recalculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ selectedOptionGroupId, selectedOptionalIds }),
+          });
+          const json = await res.json();
+          if (json.success && json.data) {
+            const t = money(json.data.total);
+            const totalEl = document.getElementById('totalDisplay');
+            const summaryEl = document.getElementById('summaryTotal');
+            const subEl = document.getElementById('subtotalDisplay');
+            const taxEl = document.getElementById('taxDisplay');
+            if (totalEl) totalEl.textContent = t;
+            if (summaryEl) summaryEl.textContent = t;
+            if (subEl && json.data.subtotal != null) subEl.textContent = money(json.data.subtotal);
+            if (taxEl && json.data.taxTotal != null) taxEl.textContent = money(json.data.taxTotal);
+          }
+        } catch (_) {}
+        document.querySelectorAll('#quotePublicForm tr[data-id]').forEach((tr) => {
           const group = tr.dataset.group;
           const optional = tr.dataset.optional === '1';
           let show = true;
@@ -263,10 +702,25 @@
           tr.style.display = show ? '' : 'none';
         });
       }
-      document.querySelectorAll('input[name="selectedOptionGroupId"], .opt-check').forEach(el => {
+      document.querySelectorAll('input[name="selectedOptionGroupId"], .opt-check').forEach((el) => {
         el.addEventListener('change', recalc);
       });
       if (!readOnly) recalc();
+
+      if (navigator.geolocation && !readOnly) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = document.getElementById('approvedLat');
+            const lng = document.getElementById('approvedLng');
+            const acc = document.getElementById('approvedGpsAccuracyM');
+            if (lat) lat.value = String(pos.coords.latitude);
+            if (lng) lng.value = String(pos.coords.longitude);
+            if (acc) acc.value = String(pos.coords.accuracy || '');
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+        );
+      }
     })();
   </script>
 </body>
