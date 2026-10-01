@@ -299,7 +299,7 @@
           <h3 class="jm-sec__t"><span class="jm-n">1</span>Para quem</h3>
           <div id="jmClient"></div>
           <label class="jm-field jm-field--addr">Endereço da obra
-            <span class="jm-inwrap"><input type="text" id="jobAddress" class="jm-in" maxlength="500" autocomplete="off" placeholder="Local da obra (não o cadastro do cliente)" /><small class="jm-in__hint" id="jmAddrHint"></small></span>
+            <span class="jm-inwrap"><input type="text" id="jobAddress" class="jm-in" maxlength="500" autocomplete="off" placeholder="Local da obra" /><small class="jm-in__hint" id="jmAddrHint"></small></span>
           </label>
           <div class="jm-more" id="jmMore"></div>
         </section>
