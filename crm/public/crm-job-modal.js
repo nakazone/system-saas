@@ -15,7 +15,7 @@
   const SECTION_TITLES = {
     details: "Cliente e endereço",
     schedule: "Quando",
-    team: "Equipe & temporários",
+    team: "Equipe & funcionário extra",
     services: "Serviços do job",
     campo: "Atenção e checklist do campo",
     notes: "Notas",
@@ -73,6 +73,8 @@
       /** [{ id|null, text, photo, done }] — done is read-only here (the crew ticks it in Campo). */
       checklist: [],
       temps: [],
+      /** Local-only temps queued while creating the job (flushed after POST). */
+      pendingTemps: [],
       pickerOpen: true,
       pickerQuery: "",
       moreOpen: false,
@@ -604,28 +606,40 @@
             .join("")}</select></label>`
         : "";
     const temps = $("jmTemps");
-    if (!st.id) {
-      temps.innerHTML = `${leadPick}<p class="jm-hint">Toque para incluir ou tirar do job. Temporários (link por WhatsApp) entram depois de criar.</p>`;
-      return;
-    }
-    temps.innerHTML = `${leadPick}<div class="jm-temps">
-      <p class="jm-grp">Temporários (link por WhatsApp/SMS)</p>
-      ${st.temps
-        .map(
-          (t) => `<div class="jm-temp"><span><b>${esc(t.name)}</b><small>${esc([t.phone, t.email].filter(Boolean).join(" · ") || "sem telefone")}</small></span>
+    const pendingList = Array.isArray(st.pendingTemps) ? st.pendingTemps : [];
+    const tempRows = st.id
+      ? st.temps
+          .map(
+            (t) => `<div class="jm-temp"><span><b>${esc(t.name)}</b><small>${esc([t.phone, t.email].filter(Boolean).join(" · ") || "sem telefone")}</small></span>
             <span class="jm-temp__act">
               <button type="button" class="jm-chip jm-chip--sm" data-act="temp-wa" data-id="${esc(t.id)}">WhatsApp</button>
               <button type="button" class="jm-chip jm-chip--sm" data-act="temp-sms" data-id="${esc(t.id)}">SMS</button>
               <button type="button" class="jm-chip jm-chip--sm" data-act="temp-copy" data-id="${esc(t.id)}">Copiar link</button>
               <button type="button" class="jm-ln__del" data-act="temp-del" data-id="${esc(t.id)}" aria-label="Remover">×</button>
             </span></div>`,
-        )
-        .join("")}
+          )
+          .join("")
+      : pendingList
+          .map(
+            (t, i) => `<div class="jm-temp"><span><b>${esc(t.name)}</b><small>${esc(t.phone || "sem telefone")}</small></span>
+            <span class="jm-temp__act">
+              <button type="button" class="jm-ln__del" data-act="temp-pending-del" data-i="${i}" aria-label="Remover">×</button>
+            </span></div>`,
+          )
+          .join("");
+    temps.innerHTML = `${leadPick}<div class="jm-temps">
+      <p class="jm-grp">Funcionário extra / temporário (link por WhatsApp/SMS)</p>
+      ${tempRows}
       <div class="jm-temp-add">
         <input type="text" id="tempName" class="jm-in jm-in--sm" maxlength="200" placeholder="Nome *" />
         <input type="tel" id="tempPhone" class="jm-in jm-in--sm" maxlength="40" placeholder="Telefone (WhatsApp)" />
-        <button type="button" class="jm-chip jm-chip--sm" data-act="temp-add">+ Adicionar</button>
+        <button type="button" class="jm-chip jm-chip--sm" data-act="temp-add">+ Cadastrar</button>
       </div>
+      ${
+        st.id
+          ? ""
+          : '<p class="jm-hint">Cadastre aqui na criação do job. O link de acesso é gerado ao salvar.</p>'
+      }
     </div>`;
   }
 
@@ -1068,6 +1082,7 @@
       return;
     }
     const body = sectionPayload(full);
+    const pendingToFlush = !st.id && Array.isArray(st.pendingTemps) ? st.pendingTemps.slice() : [];
     st.busy = true;
     renderFoot();
     try {
@@ -1075,11 +1090,37 @@
       const j = isCreate
         ? await api("/api/work-orders", { method: "POST", body: JSON.stringify(body) })
         : await api(`/api/work-orders/${st.id}`, { method: "PUT", body: JSON.stringify(body) });
+      const createdId = j.data?.id;
+      let tempsOk = 0;
+      let tempsFail = 0;
+      if (isCreate && createdId && pendingToFlush.length) {
+        for (const t of pendingToFlush) {
+          try {
+            await api(`/api/work-orders/${createdId}/temp-workers`, {
+              method: "POST",
+              body: JSON.stringify({ name: t.name, phone: t.phone || null }),
+            });
+            tempsOk += 1;
+          } catch (_) {
+            tempsFail += 1;
+          }
+        }
+      }
       const n = j.data?.number != null ? `#${j.data.number}` : "";
       // Agenda conflicts only matter when the edit touched when/who.
       const touchesAgenda = ["all", "schedule", "team"].includes(st.section);
       if (touchesAgenda && j.conflicts && j.conflicts.length) {
         notify(`Job ${n} salvo — atenção: conflito de agenda com a equipe.`, "warning");
+      } else if (tempsFail) {
+        notify(
+          `Job ${n} criado, mas ${tempsFail} funcionário${tempsFail > 1 ? "s" : ""} extra não ${tempsFail > 1 ? "foram cadastrados" : "foi cadastrado"}. Abra o job e tente de novo.`,
+          "warning",
+        );
+      } else if (tempsOk) {
+        notify(
+          `Job ${n} criado com ${tempsOk} funcionário${tempsOk > 1 ? "s" : ""} extra. Envie o link por WhatsApp/SMS na edição do job.`,
+          "success",
+        );
       } else {
         notify(isCreate ? `Job ${n} criado.` : "Job salvo.", "success");
       }
@@ -1133,23 +1174,39 @@
   async function tempAdd() {
     const name = ($("tempName")?.value || "").trim();
     if (name.length < 2) {
-      notify("Informe o nome do temporário.", "error");
+      notify("Informe o nome do funcionário extra.", "error");
+      return;
+    }
+    const phone = ($("tempPhone")?.value || "").trim() || null;
+    // During create, queue locally — API needs the job id first.
+    if (!st.id) {
+      if (!Array.isArray(st.pendingTemps)) st.pendingTemps = [];
+      st.pendingTemps.push({ name, phone });
+      renderTeam();
+      notify("Funcionário extra na fila — será cadastrado ao salvar o job.", "success");
       return;
     }
     try {
       const j = await api(`/api/work-orders/${st.id}/temp-workers`, {
         method: "POST",
-        body: JSON.stringify({ name, phone: ($("tempPhone")?.value || "").trim() || null }),
+        body: JSON.stringify({ name, phone }),
       });
       st.temps = [...st.temps, j.data];
       renderTeam();
-      notify("Temporário adicionado — envie o link por WhatsApp ou SMS.", "success");
+      notify("Funcionário extra adicionado — envie o link por WhatsApp ou SMS.", "success");
     } catch (err) {
       notify(err.message || "Erro", "error");
     }
   }
+  function tempPendingDel(index) {
+    if (!Array.isArray(st.pendingTemps)) return;
+    const i = Number(index);
+    if (!Number.isInteger(i) || i < 0 || i >= st.pendingTemps.length) return;
+    st.pendingTemps.splice(i, 1);
+    renderTeam();
+  }
   async function tempDel(id) {
-    if (!confirm("Remover este temporário? O link dele deixa de funcionar.")) return;
+    if (!confirm("Remover este funcionário extra? O link dele deixa de funcionar.")) return;
     try {
       await api(`/api/work-orders/${st.id}/temp-workers/${id}`, { method: "DELETE" });
       st.temps = st.temps.filter((t) => t.id !== id);
@@ -1322,6 +1379,9 @@
         break;
       case "temp-add":
         tempAdd();
+        break;
+      case "temp-pending-del":
+        tempPendingDel(btn.getAttribute("data-i"));
         break;
       case "temp-del":
         tempDel(btn.getAttribute("data-id"));
