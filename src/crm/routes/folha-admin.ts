@@ -498,6 +498,8 @@ const officeDayBody = z.object({
   start: z.string(),
   end: z.string(),
   days_worked: z.number().min(0).max(2).optional(),
+  /** When set, overrides schedule-based overtime after close (office quick-add HE). */
+  overtime_minutes: z.number().int().min(0).max(16 * 60).optional(),
   jobs: z.array(z.object({ work_order_id: z.string().uuid(), sqft: z.number().min(0).max(100000).optional().nullable() })).max(10).default([]),
   note: z.string().max(500).optional().nullable(),
 });
@@ -527,8 +529,9 @@ folhaAdminRouter.post("/api/folha/dias", requireCrmAuth, requireCrmPermission("p
       const clockIn = wallTimeOn(workDate, b.data.start, tz);
       const clockOut = wallTimeOn(workDate, b.data.end, tz);
       if (clockOut.getTime() <= clockIn.getTime()) throw httpErr(400, "A saída precisa ser depois da entrada.");
+      const daysWorked = b.data.days_worked ?? 1;
       const s = await tx.campoShift.create({
-        data: { organizationId: req.organizationId!, userId: ownerId, employeeId: emp.id, workDate, clockInAt: clockIn, status: "open", source: "manual", reviewStatus: "in_progress", sector: emp.sector, daysWorked: new Prisma.Decimal(b.data.days_worked ?? 1) },
+        data: { organizationId: req.organizationId!, userId: ownerId, employeeId: emp.id, workDate, clockInAt: clockIn, status: "open", source: "manual", reviewStatus: "in_progress", sector: emp.sector, daysWorked: new Prisma.Decimal(daysWorked) },
       });
       await closeDay(
         tx,
@@ -536,6 +539,9 @@ folhaAdminRouter.post("/api/folha/dias", requireCrmAuth, requireCrmPermission("p
         { clockOut, gps: null, deviceAt: null, note: b.data.note ?? "Lançado pelo escritório", jobs: b.data.jobs.map((j) => ({ workOrderId: j.work_order_id, sqft: num(j.sqft) })), source: "manual" },
         { tz, userId: ownerId },
       );
+      if (b.data.overtime_minutes !== undefined) {
+        await recompute(tx, s.id, { daysWorked, overtimeMinutes: b.data.overtime_minutes });
+      }
       await approveDay(tx, s.id, req.user!.id);
       return mapShift(await tx.campoShift.findFirstOrThrow({ where: { id: s.id }, include: shiftInclude }), tz);
     });

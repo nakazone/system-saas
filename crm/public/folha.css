@@ -149,6 +149,8 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .fo-chip { appearance: none; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink-2); cursor: pointer; }
 .fo-chip[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.fo-chiprow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.fo-chiprow .fo-chip { min-width: 72px; }
 .fo-dl { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* Pay bar */

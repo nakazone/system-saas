@@ -388,10 +388,26 @@
     $("foSheet")._day = d;
   }
   function editForm(d) {
+    const days = Number(d.days_worked) === 0.5 ? 0.5 : Number(d.days_worked) >= 2 ? 2 : 1;
+    const ot = d.overtime_minutes != null ? String(d.overtime_minutes) : "";
     return `<div class="fo-box"><h3>Corrigir o dia</h3>
       <div class="fo-grid2"><label class="fo-field">Entrada<input type="time" class="fo-in" id="foEdIn" value="${esc(d.clock_in_label || "")}" /></label><label class="fo-field">Saída<input type="time" class="fo-in" id="foEdOut" value="${esc(d.clock_out_label || "")}" /></label></div>
-      <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Dias<select class="fo-sel" id="foEdDays"><option value="1"${d.days_worked !== 0.5 ? " selected" : ""}>Dia inteiro</option><option value="0.5"${d.days_worked === 0.5 ? " selected" : ""}>Meio dia</option></select></label>
-      <label class="fo-field">Extra (minutos)<input type="number" class="fo-in" id="foEdOt" min="0" step="15" placeholder="calcular pelo horário" /><small>Vazio = calcula pela saída</small></label></div>
+      <div style="margin-top:12px">
+        <div class="fo-field"><span>Diária</span></div>
+        <div class="fo-chiprow" role="group" aria-label="Quantidade de diárias">
+          <button type="button" class="fo-chip" data-ed-days="0.5" aria-pressed="${days === 0.5}">½ dia</button>
+          <button type="button" class="fo-chip" data-ed-days="1" aria-pressed="${days === 1}">1 diária</button>
+          <button type="button" class="fo-chip" data-ed-days="2" aria-pressed="${days === 2}" title="Duas diárias no mesmo dia">Double</button>
+        </div>
+        <input type="hidden" id="foEdDays" value="${days}" />
+      </div>
+      <div style="margin-top:12px">
+        <label class="fo-field">Extra (minutos)<input type="number" class="fo-in" id="foEdOt" min="0" step="15" value="${esc(ot)}" placeholder="calcular pelo horário" /><small>Vazio = calcula pela saída</small></label>
+        <div class="fo-chiprow" style="margin-top:8px" role="group" aria-label="Adicionar hora extra">
+          <button type="button" class="fo-chip" data-ed-ot="30">+½ h</button>
+          <button type="button" class="fo-chip" data-ed-ot="60">+1 h</button>
+        </div>
+      </div>
       ${
         d.jobs.length
           ? `<div style="margin-top:10px;display:grid;gap:8px">${d.jobs
@@ -911,15 +927,65 @@
         <div class="fo-box">
           <label class="fo-field">Funcionário<select class="fo-sel" id="ldEmp" autofocus><option value="">Escolha…</option>${emps.map((e) => `<option value="${esc(e.id)}">${esc(e.name)} · ${esc(SECTORS[e.sector || "installation"])}</option>`).join("")}</select></label>
           <div class="fo-grid3" style="margin-top:10px"><label class="fo-field">Data<input type="date" class="fo-in" id="ldDate" value="${esc(date)}" max="${ymdOf(new Date())}" /></label><label class="fo-field">Entrada<input type="time" class="fo-in" id="ldIn" value="07:00" /></label><label class="fo-field">Saída<input type="time" class="fo-in" id="ldOut" value="17:00" /></label></div>
-          <label class="fo-field" style="margin-top:10px">Dias<select class="fo-sel" id="ldDays"><option value="1">Dia inteiro</option><option value="0.5">Meio dia</option></select></label>
+          <div style="margin-top:12px">
+            <div class="fo-field"><span>Diária</span></div>
+            <div class="fo-chiprow" id="ldDaysRow" role="group" aria-label="Quantidade de diárias">
+              <button type="button" class="fo-chip" data-ld-days="0.5" aria-pressed="false">½ dia</button>
+              <button type="button" class="fo-chip" data-ld-days="1" aria-pressed="true">1 diária</button>
+              <button type="button" class="fo-chip" data-ld-days="2" aria-pressed="false" title="Duas diárias no mesmo dia">Double</button>
+            </div>
+            <input type="hidden" id="ldDays" value="1" />
+          </div>
+          <div style="margin-top:12px">
+            <div class="fo-field"><span>Hora extra</span><small id="ldOtLabel">Nenhuma — ou calcula pelo horário</small></div>
+            <div class="fo-chiprow" role="group" aria-label="Adicionar hora extra">
+              <button type="button" class="fo-chip" data-ld-ot="30">+½ h</button>
+              <button type="button" class="fo-chip" data-ld-ot="60">+1 h</button>
+              <button type="button" class="fo-chip" data-ld-ot-clear hidden>Limpar</button>
+            </div>
+            <input type="hidden" id="ldOt" value="" />
+          </div>
         </div>
         <div class="fo-box"><h3>Jobs do dia <small>opcional</small></h3><div class="fo-jobpick" id="ldJobs"></div><button type="button" class="fo-btn fo-btn--sm" data-ld-addjob style="margin-top:8px">+ Job</button></div>
         <div class="fo-box"><label class="fo-field">Nota<textarea class="fo-ta" id="ldNote" maxlength="500" placeholder="Ex.: esqueceu o celular; confirmado com o líder."></textarea></label></div>
-        <p class="fo-muted" style="margin:0;font-size:13px;font-weight:600">Entra aprovado na folha, marcado como lançado pelo escritório. Hora extra calculada pelo horário padrão do funcionário.</p>
+        <p class="fo-muted" style="margin:0;font-size:13px;font-weight:600">Entra aprovado na folha, marcado como lançado pelo escritório. Sem hora extra manual, o sistema calcula pelo horário padrão do funcionário.</p>
       </div>
       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-ld-go>Lançar</button></footer>`,
     );
     if (prefill && prefill.employee) $("ldEmp").value = prefill.employee;
+  }
+  function ldSyncOtLabel() {
+    const raw = $("ldOt")?.value;
+    const lab = $("ldOtLabel");
+    const clear = document.querySelector("[data-ld-ot-clear]");
+    if (!lab) return;
+    if (raw === "" || raw == null) {
+      lab.textContent = "Nenhuma — ou calcula pelo horário";
+      if (clear) clear.hidden = true;
+      return;
+    }
+    const min = Math.max(0, Math.round(Number(raw) || 0));
+    lab.textContent = min ? `+${hm(min)}` : "0 min";
+    if (clear) clear.hidden = false;
+  }
+  function ldSetDays(v) {
+    const n = Number(v);
+    const days = n === 0.5 || n === 2 ? n : 1;
+    if ($("ldDays")) $("ldDays").value = String(days);
+    document.querySelectorAll("[data-ld-days]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(Number(b.getAttribute("data-ld-days")) === days));
+    });
+  }
+  function ldAddOt(addMin) {
+    const el = $("ldOt");
+    if (!el) return;
+    const cur = el.value === "" ? 0 : Math.max(0, Math.round(Number(el.value) || 0));
+    el.value = String(Math.min(16 * 60, cur + Math.max(0, Math.round(Number(addMin) || 0))));
+    ldSyncOtLabel();
+  }
+  function ldClearOt() {
+    if ($("ldOt")) $("ldOt").value = "";
+    ldSyncOtLabel();
   }
   async function ldAddJob() {
     const date = $("ldDate").value || ymdOf(new Date());
@@ -930,6 +996,7 @@
     $("ldJobs").appendChild(row);
   }
   async function ldGo(btn) {
+    const otRaw = $("ldOt")?.value;
     const body = {
       employee_id: $("ldEmp").value,
       date: $("ldDate").value,
@@ -941,6 +1008,7 @@
         .filter((j) => j.work_order_id),
       note: $("ldNote").value.trim() || null,
     };
+    if (otRaw !== "" && otRaw != null) body.overtime_minutes = Math.max(0, Math.round(Number(otRaw) || 0));
     if (!body.employee_id || !body.date || !body.start || !body.end) {
       notify("Escolha o funcionário, a data, a entrada e a saída.", "error");
       return;
@@ -1055,6 +1123,25 @@
     if ((b = el("[data-emp-edit]"))) return openEmp(b.getAttribute("data-emp-edit"));
     if ((b = el("[data-emp-save]"))) return saveEmp(b.getAttribute("data-emp-save") || null);
     if (el("#foLogDay")) return openLogDay();
+    if ((b = el("[data-ld-days]"))) return ldSetDays(b.getAttribute("data-ld-days"));
+    if ((b = el("[data-ld-ot]"))) return ldAddOt(b.getAttribute("data-ld-ot"));
+    if (el("[data-ld-ot-clear]")) return ldClearOt();
+    if ((b = el("[data-ed-ot]"))) {
+      const elOt = $("foEdOt");
+      if (!elOt) return;
+      const cur = elOt.value === "" ? 0 : Math.max(0, Math.round(Number(elOt.value) || 0));
+      elOt.value = String(Math.min(16 * 60, cur + Math.max(0, Math.round(Number(b.getAttribute("data-ed-ot")) || 0))));
+      return;
+    }
+    if ((b = el("[data-ed-days]"))) {
+      const days = Number(b.getAttribute("data-ed-days"));
+      const v = days === 0.5 || days === 2 ? days : 1;
+      if ($("foEdDays")) $("foEdDays").value = String(v);
+      document.querySelectorAll("[data-ed-days]").forEach((x) => {
+        x.setAttribute("aria-pressed", String(Number(x.getAttribute("data-ed-days")) === v));
+      });
+      return;
+    }
     if (el("[data-ld-addjob]")) return ldAddJob();
     if ((b = el("[data-ld-rm]"))) return b.closest(".fo-jobpick__row").remove();
     if ((b = el("[data-ld-go]"))) return ldGo(b);
