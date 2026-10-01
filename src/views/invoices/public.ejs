@@ -112,8 +112,23 @@
       <table>
         <thead><tr><th>Description</th><th class="r hide-sm">Qty</th><th class="r">Amount</th></tr></thead>
         <tbody>
-          <% invoice.lineItems.forEach(li => { %>
-            <tr><td><%= li.description %></td><td class="r hide-sm"><%= Number(li.quantity) %></td><td class="r"><%= fmt(li.amount) %></td></tr>
+          <% invoice.lineItems.forEach(li => {
+            const raw = String(li.description || '');
+            const nl = raw.indexOf('\n');
+            const dash = nl < 0 ? raw.search(/\s+—\s+/) : -1;
+            let name = raw;
+            let note = '';
+            if (nl >= 0) { name = raw.slice(0, nl).trim(); note = raw.slice(nl + 1).trim(); }
+            else if (dash >= 0) { name = raw.slice(0, dash).trim(); note = raw.slice(dash).replace(/^\s+—\s+/, '').trim(); }
+          %>
+            <tr>
+              <td>
+                <span style="display:block;font-weight:700"><%= name %></span>
+                <% if (note) { %><span style="display:block;margin-top:3px;font-size:13px;color:var(--muted);font-weight:500;white-space:pre-line"><%= note %></span><% } %>
+              </td>
+              <td class="r hide-sm"><%= Number(li.quantity) %></td>
+              <td class="r"><%= fmt(li.amount) %></td>
+            </tr>
           <% }) %>
         </tbody>
       </table>

@@ -35,7 +35,7 @@ describe("jobs — billing math (pure)", () => {
       ],
     };
     const full = jobInvoiceLines({ kind: "full", label: "Full payment", amount: 2220, job, invoicedBefore: 0 });
-    expect(full.map((l) => l.description)).toEqual(["LVP install — Hallway only", "Stairs"]);
+    expect(full.map((l) => l.description)).toEqual(["LVP install\nHallway only", "Stairs"]);
     const final = jobInvoiceLines({ kind: "final", label: "Final balance", amount: 1554, job, invoicedBefore: 666 });
     expect(final.at(-1)).toMatchObject({ description: "Less: previously invoiced", amount: -666 });
     expect(final.reduce((s, l) => s + l.amount, 0)).toBeCloseTo(1554, 2);

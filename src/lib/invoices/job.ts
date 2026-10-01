@@ -91,7 +91,8 @@ function invoiceLineDescription(li: JobLine): string {
   const name = String(li.serviceName || "Serviço").trim() || "Serviço";
   const note = String(li.notes || "").trim();
   if (!note) return name;
-  const combined = `${name} — ${note}`;
+  // Newline: invoice UI + PDF render the second line as a description under the service.
+  const combined = `${name}\n${note}`;
   return combined.length > 500 ? combined.slice(0, 497) + "…" : combined;
 }
 

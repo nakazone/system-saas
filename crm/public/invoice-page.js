@@ -175,6 +175,23 @@
     return '';
   }
 
+  function formatInvLineDesc(desc) {
+    const raw = String(desc == null ? "" : desc);
+    const nl = raw.indexOf("\n");
+    const dash = nl < 0 ? raw.search(/\s+—\s+/) : -1;
+    let name = raw;
+    let note = "";
+    if (nl >= 0) {
+      name = raw.slice(0, nl).trim();
+      note = raw.slice(nl + 1).trim();
+    } else if (dash >= 0) {
+      name = raw.slice(0, dash).trim();
+      note = raw.slice(dash).replace(/^\s+—\s+/, "").trim();
+    }
+    if (!note) return esc(name);
+    return `<span class="inv-line__name">${esc(name)}</span><span class="inv-line__note">${esc(note)}</span>`;
+  }
+
   function renderPaper() {
     const c = inv.client || {};
     const lines = inv.line_items.length
@@ -214,7 +231,7 @@
         <tbody>
           ${lines
             .map(
-              (l) => `<tr><td>${esc(l.description)}</td><td class="r">${Number(l.quantity || 1).toLocaleString('en-US')}</td><td class="r">${money(l.amount)}</td></tr>`,
+              (l) => `<tr><td>${formatInvLineDesc(l.description)}</td><td class="r">${Number(l.quantity || 1).toLocaleString('en-US')}</td><td class="r">${money(l.amount)}</td></tr>`,
             )
             .join('')}
         </tbody>

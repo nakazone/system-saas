@@ -130,6 +130,8 @@
 .inv-lines td:first-child { overflow-wrap: anywhere; }
 .inv-lines th { background: transparent !important; text-align: left; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--inv-muted-2); border-bottom: 1px solid var(--inv-line); padding: 8px 0; }
 .inv-lines td { padding: 12px 0; border-bottom: 1px solid var(--inv-line-2); white-space: pre-line; vertical-align: top; }
+.inv-line__name { display: block; font-weight: 700; }
+.inv-line__note { display: block; margin-top: 3px; font-size: 0.82rem; font-weight: 500; color: var(--inv-muted); line-height: 1.35; white-space: pre-line; }
 .inv-lines .r { text-align: right; padding-left: 12px; font-variant-numeric: tabular-nums; }
 .inv-totals { margin: 16px 0 0 auto; width: min(340px, 100%); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 .inv-totals > div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; }
