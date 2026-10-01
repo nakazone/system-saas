@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261001-folha2";
+  const SHELL_VER = "20261001-tablet1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -171,16 +171,12 @@
       document.body.classList.add("om-no-dock");
       return;
     }
-    // Mobile uses om-tabbar — skip legacy floating dock
+    // Phone tab bar replaces the floating dock; tablets keep the desktop dock.
     const mobile =
       window.__omDevice && typeof window.__omDevice.isMobile === "function"
         ? window.__omDevice.isMobile()
-        : /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(
-            navigator.userAgent || "",
-          ) ||
-          (typeof navigator !== "undefined" &&
-            navigator.platform === "MacIntel" &&
-            Number(navigator.maxTouchPoints || 0) > 1);
+        : /iPhone|iPod|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(navigator.userAgent || "") ||
+          (/Android/i.test(navigator.userAgent || "") && /Mobile/i.test(navigator.userAgent || ""));
     if (mobile) return;
     const wrap = document.createElement("div");
     wrap.innerHTML = DOCK_HTML.trim();
@@ -928,9 +924,8 @@
     const wantMobileNav =
       typeof window.__omDevice?.isMobile === "function"
         ? window.__omDevice.isMobile()
-        : /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(
-            navigator.userAgent || "",
-          );
+        : /iPhone|iPod|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(navigator.userAgent || "") ||
+          (/Android/i.test(navigator.userAgent || "") && /Mobile/i.test(navigator.userAgent || ""));
     if (wantMobileNav) {
       if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);

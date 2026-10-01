@@ -633,10 +633,10 @@
     const mobile =
       window.__omDevice && typeof window.__omDevice.isMobile === "function"
         ? window.__omDevice.isMobile()
-        : /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(
-            navigator.userAgent || "",
-          ) ||
-          (navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1);
+        : /iPhone|iPod|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(navigator.userAgent || "") ||
+          (/Android/i.test(navigator.userAgent || "") &&
+            /Mobile/i.test(navigator.userAgent || "") &&
+            !(window.__omDevice && typeof window.__omDevice.isTablet === "function" && window.__omDevice.isTablet()));
     if (!mobile) return;
     document.body.dataset.omTabbarBoot = "1";
     document.documentElement.classList.add("om-device-mobile");

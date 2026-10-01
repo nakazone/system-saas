@@ -1,5 +1,6 @@
 /**
- * ObraMate device gate — mobile app shell vs desktop CRM.
+ * ObraMate device gate — phone app shell vs desktop CRM.
+ * Tablets use the desktop CRM (sidebar, job detail, etc.), not the phone shell.
  * Uses user-agent (and iPadOS touch Mac) so PC keeps the classic layout.
  */
 (function (global) {
@@ -58,9 +59,12 @@
     return isPhoneUa(navigator.userAgent) && !isTablet();
   }
 
-  /** Phone or tablet — mobile app chrome (tab bar, etc.). */
+  /**
+   * Phone-only mobile app chrome (tab bar, jcm overlays, home.html).
+   * Tablets intentionally use the desktop CRM shell.
+   */
   function isMobile() {
-    return isPhone() || isTablet();
+    return isPhone();
   }
 
   function entryHref() {
@@ -71,14 +75,14 @@
     if (typeof document === "undefined" || !document.body) return;
     const phone = isPhone();
     const tablet = isTablet();
-    const mobile = phone || tablet;
-    document.body.classList.toggle("om-device-mobile", mobile);
+    // Mobile shell only on phones. Tablets keep desktop CRM (+ optional tablet tweaks).
+    document.body.classList.toggle("om-device-mobile", phone);
     document.body.classList.toggle("om-device-phone", phone);
     document.body.classList.toggle("om-device-tablet", tablet);
-    document.body.classList.toggle("om-device-desktop", !mobile);
+    document.body.classList.toggle("om-device-desktop", !phone);
   }
 
-  /** Redirect desktop away from the mobile-only Home. */
+  /** Redirect desktop/tablet away from the mobile-only Home. */
   function guardMobileOnlyPage(desktopHref) {
     if (isMobile()) return false;
     const target = desktopHref || "pipeline-lab.html";

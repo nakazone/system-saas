@@ -12,7 +12,7 @@
   box-sizing: border-box;
 }
 
-/* Gate on .om-device-mobile (not max-width:900) so iPad / tablets keep the mobile UI. */
+/* Gate on .om-device-mobile (phones only). Tablets use the desktop Jobs / Clientes UI. */
 body.om-device-mobile.jobs-app .jobs-page,
 body.om-device-mobile.job-detail-app .job-detail-page,
 body.om-device-mobile.cli-app .cli-desktop {
