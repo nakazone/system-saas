@@ -68,7 +68,8 @@
       f === "configuracoes.html" ||
       f === "finance.html" ||
       f === "financial.html" ||
-      f === "payroll-module.html"
+      f === "payroll-module.html" ||
+      f === "folha.html"
     ) {
       return "more";
     }

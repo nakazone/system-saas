@@ -226,11 +226,14 @@
         .map((p) => {
           const ab = p.abatement;
           const abHtml = ab
-            ? `<span class="fin-badge is-paid">${money(ab.amount)} · ${escapeHtml(ab.paid_on)}</span>`
+            ? ab.status === "partial"
+              ? `<span class="fin-badge is-pending">${money(ab.amount)} pago · parcial</span>`
+              : `<span class="fin-badge is-paid">${money(ab.amount)} · ${escapeHtml(ab.paid_on)}</span>`
             : '<span class="fin-badge is-pending">Pendente</span>';
-          const btn = ab
-            ? ""
-            : `<button type="button" class="btn btn-sm btn-primary" data-abate="${escapeHtml(p.id)}" data-label="${escapeHtml(p.label)}" data-amount="${p.estimated_cost}">Abater</button>`;
+          // Weeks are paid employee by employee in Folha; the old one-total "Abater" stays for legacy weeks.
+          const btn = p.paid_per_employee || (ab && ab.status !== "partial")
+            ? `<a class="btn btn-sm" href="folha.html#semana=${escapeHtml(p.start_date)}">Ver na Folha</a>`
+            : `<a class="btn btn-sm btn-primary" href="folha.html#semana=${escapeHtml(p.start_date)}">Pagar na Folha</a>`;
           return `<tr>
             <td>${escapeHtml(p.label)}<div class="fin-hint" style="margin:0">${escapeHtml(p.start_date)} → ${escapeHtml(p.end_date)}</div></td>
             <td>${escapeHtml(p.status)}</td>

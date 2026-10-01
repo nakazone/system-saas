@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261001-back1";
+  const SHELL_VER = "20261001-folha2";
 
   const CREATE_MENU_ITEMS = [
     {

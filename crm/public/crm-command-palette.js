@@ -21,7 +21,7 @@
     { id: 'team', label: 'Equipe', sub: 'Cadastro', href: 'equipe.html', perm: 'users.view' },
     { id: 'schedule', label: 'Schedule', sub: 'Calendário de jobs e visitas', href: 'schedule.html', perm: 'schedule.view' },
     { id: 'jobs', label: 'Jobs', sub: 'Work orders / trabalhos', href: 'jobs.html', perm: 'work_orders.view' },
-    { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'payroll-module.html', perm: 'payroll.view' },
+    { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'folha.html', perm: 'payroll.view' },
     { id: 'finance', label: 'Financeiro', sub: 'Fluxo de caixa, recebimentos e custos', href: 'finance.html', perm: 'finance.view' },
     { id: 'settings', label: 'Configurações', sub: 'Visão geral da empresa', href: 'configuracoes.html#visao-geral', perm: null },
     { id: 'settings-company', label: 'Dados da empresa', sub: 'Configurações · endereço, licença, horário', href: 'configuracoes.html#empresa', perm: 'settings.manage' },

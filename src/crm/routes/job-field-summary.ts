@@ -142,7 +142,7 @@ jobFieldSummaryRouter.get(
         const checklist = parseChecklist(wo.campoChecklist);
         const hasCustomChecklist = Array.isArray(wo.campoChecklist) && (wo.campoChecklist as unknown[]).length > 0;
         const hours = summarizeHours(
-          segments.map((s) => ({
+          segments.filter((s): s is typeof s & { shift: { userId: string } } => Boolean(s.shift.userId)).map((s) => ({
             startedAt: s.startedAt,
             endedAt: s.endedAt,
             activityKind: s.activityKind,

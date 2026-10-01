@@ -428,16 +428,26 @@ constructionPayrollRouter.delete(
     try {
       const id = String(req.params.id);
       const ok = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const existing = await tx.payrollEmployee.findFirst({ where: { id } });
-        if (!existing) return false;
+        const existing = await tx.payrollEmployee.findFirst({ where: { id, organizationId: req.organizationId! } });
+        if (!existing) return null;
+        // Paid history is needed for reports / 1099: an employee with history is inactivated, never erased.
+        const [lines, pays, days] = await Promise.all([
+          tx.payrollTimesheet.count({ where: { employeeId: id } }),
+          tx.payrollPayment.count({ where: { employeeId: id } }),
+          tx.campoShift.count({ where: { employeeId: id } }),
+        ]);
+        if (lines || pays || days) {
+          await tx.payrollEmployee.update({ where: { id }, data: { status: "inactive", userId: null } });
+          return "inactivated" as const;
+        }
         await tx.payrollEmployee.delete({ where: { id } });
-        return true;
+        return "deleted" as const;
       });
       if (!ok) {
         res.status(404).json({ success: false, error: "Employee not found" });
         return;
       }
-      res.json({ success: true });
+      res.json({ success: true, data: { result: ok } });
     } catch (error) {
       next(error);
     }

@@ -77,7 +77,7 @@
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
           { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
           {
-            href: 'payroll-module.html',
+            href: '/campo/horas.html',
             label: 'Minha folha',
             perm: 'payroll.self',
             permAny: ['payroll.self', 'payroll.view'],
@@ -134,10 +134,10 @@
           { href: 'invoices.html', label: 'Faturas', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
           { href: 'finance.html', label: 'Fluxo de caixa', perm: 'finance.view', page: '', iconKey: 'finance' },
           {
-            href: 'payroll-module.html',
+            href: 'folha.html',
             label: 'Folha',
             perm: 'payroll.view',
-            permAny: ['payroll.view', 'payroll.self'],
+            permAny: ['payroll.view'],
             page: '',
             iconKey: 'payroll',
           },

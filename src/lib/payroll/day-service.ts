@@ -115,13 +115,14 @@ export async function jobPlaces(tx: PayrollTx, workOrderIds: string[]): Promise<
  */
 export async function photoCounts(
   tx: PayrollTx,
-  userId: string,
+  userId: string | null,
   workOrderIds: string[],
   workDate: Date,
   tz: string,
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  if (!workOrderIds.length) return out;
+  // No login (day logged by the office) → no photos of their own to count.
+  if (!workOrderIds.length || !userId) return out;
   const { start, end } = dayBounds(workDate, tz);
   const rows = await tx.jobMedia.groupBy({
     by: ["workOrderId"],
@@ -227,7 +228,7 @@ export async function closeDay(
   tx: PayrollTx,
   shiftId: string,
   input: FinishInput,
-  ctx: { tz: string; userId: string },
+  ctx: { tz: string; userId: string | null },
 ) {
   const now = input.now ?? new Date();
   const shift = await tx.campoShift.findFirstOrThrow({ where: { id: shiftId }, include: { employee: true } });

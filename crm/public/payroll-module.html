@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+  <script>
+    /* Folha nova: folha.html (admin) e Campo › Minhas horas (funcionário). A grade antiga só com ?antiga=1. */
+    if (!/[?&]antiga=1/.test(location.search)) location.replace("folha.html" + location.hash);
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#f7f4ee" />
@@ -832,9 +836,9 @@
   <script src="saas-branding.js"></script>
   <script src="crm-toast.js?v=2"></script>
   <script src="om-device.js?v=20260925-device1"></script>
-  <script src="crm-shell.js?v=20261001-addr2"></script>
-  <script src="crm-shared-nav.js?v=20261001-addr2"></script>
-  <script src="om-mobile-nav.js?v=20261001-addr2"></script>
+  <script src="crm-shell.js?v=20261001-folha2"></script>
+  <script src="crm-shared-nav.js?v=20261001-folha2"></script>
+  <script src="om-mobile-nav.js?v=20261001-folha2"></script>
   <script src="payroll-module.js?v=20260929-tabs1"></script>
   <script src="payroll-mobile.js?v=20260925-payscroll1"></script>
 </body>

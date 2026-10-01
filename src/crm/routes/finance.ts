@@ -2,6 +2,7 @@
  * Finance module APIs — cash flow, receivables, payroll abatement, costs/receipts (+ scan).
  */
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { storage } from "../../lib/storage/index.js";
@@ -254,9 +255,8 @@ financeRouter.get(
         const [periods, abatements] = await Promise.all([
           tx.payrollPeriod.findMany({
             include: {
-              timesheets: {
-                include: { employee: { select: { hourlyRate: true, name: true } } },
-              },
+              timesheets: { select: { calculatedAmount: true } },
+              adjustments: { select: { reimbursement: true, discount: true } },
             },
             orderBy: { startDate: "desc" },
             take: 40,
@@ -267,14 +267,28 @@ financeRouter.get(
           }),
         ]);
 
-        const byPeriod = new Map(abatements.filter((a) => a.periodId).map((a) => [a.periodId!, a]));
+        // A period can be paid as one total (legacy) or employee by employee (Folha → Pagar).
+        const byPeriod = new Map<string, typeof abatements>();
+        for (const a of abatements) {
+          if (!a.periodId) continue;
+          byPeriod.set(a.periodId, [...(byPeriod.get(a.periodId) || []), a]);
+        }
 
         const periodRows = periods.map((p) => {
+          // What the week costs: payroll lines + reimbursements − discounts.
           let estimated = 0;
-          for (const t of p.timesheets) {
-            estimated += dec(t.hours) * dec(t.employee?.hourlyRate ?? 0);
-          }
-          const ab = byPeriod.get(p.id);
+          for (const t of p.timesheets) estimated += dec(t.calculatedAmount);
+          for (const a of p.adjustments) estimated += dec(a.reimbursement) - dec(a.discount);
+          const list = byPeriod.get(p.id) || [];
+          const perEmployee = list.some((a) => a.employeeId);
+          const paidSum = list.filter((a) => a.status === "paid").reduce((s, a) => s + dec(a.amount), 0);
+          const ab = list.length
+            ? {
+                ...list[0]!,
+                amount: new Prisma.Decimal(perEmployee ? paidSum : dec(list[0]!.amount)),
+                status: perEmployee && paidSum + 0.004 < estimated ? "partial" : list[0]!.status,
+              }
+            : undefined;
           return {
             id: p.id,
             label: p.label,
@@ -283,6 +297,7 @@ financeRouter.get(
             status: p.status,
             estimated_cost: money(estimated),
             timesheet_count: p.timesheets.length,
+            paid_per_employee: perEmployee,
             abatement: ab
               ? {
                   id: ab.id,
@@ -346,6 +361,12 @@ financeRouter.post(
           if (!period) {
             const err = new Error("Período de folha não encontrado");
             (err as Error & { status: number }).status = 404;
+            throw err;
+          }
+          const perEmployee = await tx.payrollPayment.count({ where: { periodId: period.id, status: "paid" } });
+          if (perEmployee) {
+            const err = new Error("Essa semana está sendo paga por funcionário na Folha — registre os pagamentos por lá.");
+            (err as Error & { status: number }).status = 409;
             throw err;
           }
           const existing = await tx.financePayrollAbatement.findFirst({

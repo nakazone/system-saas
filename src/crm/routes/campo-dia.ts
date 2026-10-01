@@ -636,8 +636,13 @@ campoDiaRouter.get("/api/campo/dia/semana", requireCrmAuth, async (req: AuthedRe
       const ref = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.week || "")) ? String(req.query.week) : ymd(workDateFor(now, tz));
       const mon = mondayYmdFromCalendarYmd(ref)!;
       const sun = sundayYmdAfterMonday(mon)!;
+      // Also the days the office logged for this employee (no owner user on those).
+      const me = await tx.payrollEmployee.findFirst({ where: { userId: req.user!.id }, select: { id: true } });
       const days = await tx.campoShift.findMany({
-        where: { userId: req.user!.id, workDate: { gte: parseYmd(mon)!, lte: parseYmd(sun)! } },
+        where: {
+          OR: [{ userId: req.user!.id }, ...(me ? [{ employeeId: me.id }] : [])],
+          workDate: { gte: parseYmd(mon)!, lte: parseYmd(sun)! },
+        },
         include: dayInclude,
         orderBy: { workDate: "asc" },
       });

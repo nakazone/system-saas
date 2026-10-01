@@ -1925,12 +1925,13 @@ model Meeting {
 // ---------------------------------------------------------------------------
 
 /// One shift (turno) per user per calendar day. Open until clock-out.
+/// userId is null for a day the office logged for an employee without a login.
 model CampoShift {
   id             String    @id @default(uuid()) @db.Uuid
   organizationId String    @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId         String    @db.Uuid
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?   @db.Uuid
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Calendar day in org-local intent (stored as date)
   workDate       DateTime  @db.Date
   clockInAt      DateTime
