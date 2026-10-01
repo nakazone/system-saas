@@ -178,6 +178,8 @@
 
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
+  // Bump when sidebar groups/items change so role+perm cache does not hide new links.
+  const NAV_STRUCTURE_VERSION = '20261001-reports3';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
@@ -212,6 +214,16 @@
       const host = document.getElementById('crmSharedNavRoot');
       if (!host || host.dataset.layout !== 'sidebar') return false;
       if (host.children.length) return false;
+      let meta = {};
+      try {
+        meta = JSON.parse(sessionStorage.getItem(NAV_CACHE_META) || '{}');
+      } catch (_) {
+        meta = {};
+      }
+      if (meta.navVersion !== NAV_STRUCTURE_VERSION) {
+        clearNavCache();
+        return false;
+      }
       const html = sessionStorage.getItem(NAV_CACHE_HTML);
       if (!html || html.indexOf('nav-item') < 0) return false;
       host.innerHTML = html;
@@ -235,6 +247,7 @@
         JSON.stringify({
           role: String(role || ''),
           permHash: (Array.isArray(perms) ? perms : []).slice().sort().join(','),
+          navVersion: NAV_STRUCTURE_VERSION,
         }),
       );
     } catch (_) {}
@@ -475,7 +488,10 @@
       let metaOk = false;
       try {
         const m = JSON.parse(sessionStorage.getItem(NAV_CACHE_META) || '{}');
-        metaOk = m.role === String(role || '') && m.permHash === permHash;
+        metaOk =
+          m.navVersion === NAV_STRUCTURE_VERSION &&
+          m.role === String(role || '') &&
+          m.permHash === permHash;
       } catch (_) {}
       // Keep painted menu if perms match OR session failed (avoid wiping into empty nav)
       if (metaOk || !user) {
