@@ -20,6 +20,7 @@ import { persistQuoteTotals, quoteDetailInclude, recomputeTotalsFromQuote } from
 import { applyQuoteTransition } from "./service.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { ensureInvoicesOnApprove } from "../../lib/payments/engine.js";
+import { ensureWorkOrderOnApprove } from "../../lib/work-orders/from-quote.js";
 import { cancelPendingMessages } from "../../lib/automations/schedule.js";
 import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
 
@@ -367,6 +368,12 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
       });
 
       await ensureInvoicesOnApprove(tx, {
+        organizationId: ref.organizationId,
+        quoteId: quote.id,
+        actorId: null,
+      });
+
+      await ensureWorkOrderOnApprove(tx, {
         organizationId: ref.organizationId,
         quoteId: quote.id,
         actorId: null,

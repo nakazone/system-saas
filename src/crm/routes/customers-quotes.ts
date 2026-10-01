@@ -298,6 +298,7 @@ function mapQuote(q: {
   customerId: string | null;
   leadId: string | null;
   builderId: string | null;
+  workOrderId: string | null;
   publicToken: string | null;
   invoicePdfPath: string | null;
   validUntil: Date | null;
@@ -360,6 +361,7 @@ function mapQuote(q: {
     customer_name: q.customer?.name ?? null,
     lead_id: q.leadId,
     builder_id: q.builderId,
+    work_order_id: q.workOrderId ?? null,
     public_token: q.publicToken,
     has_invoice_pdf: Boolean(q.invoicePdfPath),
     invoice_pdf_url: q.invoicePdfPath ? `/api/quotes/${q.id}/invoice-pdf` : null,
@@ -1038,6 +1040,7 @@ customersQuotesRouter.post(
         });
 
         let createdInvoiceIds: string[] = [];
+        let createdJobId: string | null = null;
         if (normalizeQuoteStatus(quote.status) === "approved") {
           const { ensureInvoicesOnApprove } = await import("../../lib/payments/engine.js");
           createdInvoiceIds = await ensureInvoicesOnApprove(tx, {
@@ -1045,14 +1048,22 @@ customersQuotesRouter.post(
             quoteId: quote.id,
             actorId: req.user?.id ?? null,
           });
+          const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
+          const job = await ensureWorkOrderOnApprove(tx, {
+            organizationId: req.organizationId!,
+            quoteId: quote.id,
+            actorId: req.user?.id ?? null,
+          });
+          if (job?.created) createdJobId = job.id;
         }
 
-        return { quote, createdInvoiceIds };
+        return { quote, createdInvoiceIds, createdJobId };
       });
       res.status(201).json({
         success: true,
         data: mapQuoteForUser(row.quote, req.user),
         created_invoice_ids: row.createdInvoiceIds || [],
+        created_job_id: row.createdJobId || null,
       });
     } catch (error) {
       next(error);
@@ -1123,7 +1134,7 @@ customersQuotesRouter.put(
           });
         }
         const prevStatus = existing.status;
-        const updated = await tx.quote.update({
+        let updated = await tx.quote.update({
           where: { id },
           data: {
             title: body.title !== undefined ? String(body.title) : body.job_name !== undefined ? String(body.job_name || existing.title) : undefined,
@@ -1153,7 +1164,8 @@ customersQuotesRouter.put(
         });
 
         let createdInvoiceIds: string[] = [];
-        // Idempotent: create on transition to approved, and backfill if already approved with no invoices.
+        let createdJobId: string | null = null;
+        // Idempotent: create on transition to approved, and backfill if already approved with no invoices/job.
         if (normalizeQuoteStatus(updated.status) === "approved") {
           const { ensureInvoicesOnApprove } = await import("../../lib/payments/engine.js");
           createdInvoiceIds = await ensureInvoicesOnApprove(tx, {
@@ -1161,9 +1173,19 @@ customersQuotesRouter.put(
             quoteId: id,
             actorId: req.user?.id ?? null,
           });
+          const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
+          const job = await ensureWorkOrderOnApprove(tx, {
+            organizationId: req.organizationId!,
+            quoteId: id,
+            actorId: req.user?.id ?? null,
+          });
+          if (job?.created) createdJobId = job.id;
+          if (job?.id && !updated.workOrderId) {
+            updated = { ...updated, workOrderId: job.id };
+          }
         }
 
-        return { updated, createdInvoiceIds };
+        return { updated, createdInvoiceIds, createdJobId };
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Quote not found" });
@@ -1173,6 +1195,7 @@ customersQuotesRouter.put(
         success: true,
         data: mapQuoteForUser(row.updated, req.user),
         created_invoice_ids: row.createdInvoiceIds || [],
+        created_job_id: row.createdJobId || null,
       });
     } catch (error) {
       next(error);

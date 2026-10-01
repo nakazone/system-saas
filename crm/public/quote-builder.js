@@ -4206,13 +4206,14 @@
           syncInvoiceUiVisibility();
           const createdIds = Array.isArray(r.created_invoice_ids) ? r.created_invoice_ids : [];
           const hasInvoice = createdIds.length > 0 || quoteInvoices.length > 0;
+          const jobCreated = Boolean(r.created_job_id);
           if (!wasApproved) {
-            qbToast(
-              hasInvoice
-                ? 'Orçamento aprovado — fatura criada.'
-                : 'Orçamento aprovado, mas a fatura não foi criada. Grave de novo ou emita manualmente.',
-              hasInvoice ? 'success' : 'error'
-            );
+            let msg = 'Orçamento aprovado';
+            if (hasInvoice && jobCreated) msg = 'Orçamento aprovado — fatura e job criados.';
+            else if (hasInvoice) msg = 'Orçamento aprovado — fatura criada.';
+            else if (jobCreated) msg = 'Orçamento aprovado — job criado (fatura pendente).';
+            else msg = 'Orçamento aprovado, mas a fatura não foi criada. Grave de novo ou emita manualmente.';
+            qbToast(msg, hasInvoice || jobCreated ? 'success' : 'error');
             enableActions();
             return;
           }
@@ -4240,12 +4241,13 @@
         await loadQuote(quoteId);
         if (isQuoteApprovedStatus(loadedQuoteStatus) && !quoteInvoices.length) {
           const createdIds = Array.isArray(r.created_invoice_ids) ? r.created_invoice_ids : [];
-          qbToast(
-            createdIds.length
-              ? 'Orçamento aprovado — fatura criada.'
-              : 'Orçamento aprovado, mas a fatura não foi criada. Grave de novo ou emita manualmente.',
-            createdIds.length ? 'success' : 'error'
-          );
+          const jobCreated = Boolean(r.created_job_id);
+          let msg = 'Orçamento aprovado';
+          if (createdIds.length && jobCreated) msg = 'Orçamento aprovado — fatura e job criados.';
+          else if (createdIds.length) msg = 'Orçamento aprovado — fatura criada.';
+          else if (jobCreated) msg = 'Orçamento aprovado — job criado (fatura pendente).';
+          else msg = 'Orçamento aprovado, mas a fatura não foi criada. Grave de novo ou emita manualmente.';
+          qbToast(msg, createdIds.length || jobCreated ? 'success' : 'error');
           enableActions();
           return;
         }
