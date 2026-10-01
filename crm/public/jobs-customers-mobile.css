@@ -615,7 +615,7 @@ body.jcm-field .jcm-job__actions {
 
 .jcm-quick {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
   gap: 0.45rem;
   margin-bottom: 0.85rem;
 }

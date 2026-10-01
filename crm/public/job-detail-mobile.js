@@ -428,6 +428,10 @@
     const phone = wo.customer?.phone || "";
     $("jobMobCallQuick").href = phone ? `tel:${phone}` : "customers.html";
     $("jobMobNotesQuick").href = `#`;
+    const svcBtn = $("jobMobEditServices");
+    if (svcBtn) {
+      svcBtn.hidden = !canManage;
+    }
 
     const steps = buildTimeline(wo);
     $("jobMobTimeline").innerHTML = steps
@@ -536,17 +540,56 @@
       } else {
         $("jobMobExtra").innerHTML = `<p class="jcm-empty">ObraChat indisponível.</p>`;
       }
+    } else if (detTab === "servicos") {
+      restoreVisitCta();
+      const items = Array.isArray(wo.line_items) ? wo.line_items : [];
+      const total = Number(wo.services_total) || 0;
+      const money = (n) =>
+        Number.isFinite(Number(n))
+          ? `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : "—";
+      const list = items.length
+        ? `<div class="jcm-dl">${items
+            .map((li) => {
+              const qty = Number(li.quantity_sqft) || 0;
+              const price = Number(li.unit_price) || 0;
+              const lineTot = qty * price;
+              return `<div class="jcm-dl__row">
+                <span class="jcm-dl__k">${escapeHtml(li.service_name || "Serviço")}${qty ? ` · ${escapeHtml(String(qty))}${li.unit ? ` ${escapeHtml(li.unit)}` : ""}` : ""}</span>
+                <span class="jcm-dl__v">${escapeHtml(money(lineTot || price))}</span>
+              </div>`;
+            })
+            .join("")}
+            <div class="jcm-dl__row" style="margin-top:8px;padding-top:8px;border-top:1px solid #efe8dc">
+              <span class="jcm-dl__k"><strong>Total</strong></span>
+              <span class="jcm-dl__v"><strong>${escapeHtml(money(total))}</strong></span>
+            </div>
+          </div>`
+        : `<p class="jcm-empty" style="padding:0.5rem 0">Nenhum serviço neste job.</p>`;
+      const acts = canManage
+        ? `<div class="jcm-photo-actions" style="margin-top:12px">
+            <button type="button" class="jcm-foot__btn jcm-foot__btn--primary" data-job-mob-svc="edit">${items.length ? "Editar serviços" : "Adicionar serviços"}</button>
+            <button type="button" class="jcm-foot__btn jcm-foot__btn--ghost" data-job-mob-svc="add">+ Serviço</button>
+          </div>`
+        : "";
+      $("jobMobExtra").innerHTML = `<div class="jcm-card"><div class="jcm-ch" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px"><h2 style="margin:0;font-size:15px;font-weight:800">Serviços</h2><span style="color:#8a8074;font-weight:700;font-size:13px">${items.length}</span></div>${list}${acts}</div>`;
     } else if (detTab === "financeiro") {
       const total = Number(wo.services_total) || 0;
+      const svcActs = canManage
+        ? `<div class="jcm-photo-actions" style="margin:0 0 12px">
+            <button type="button" class="jcm-foot__btn jcm-foot__btn--ghost" data-job-mob-svc="edit">Editar serviços</button>
+            <button type="button" class="jcm-foot__btn jcm-foot__btn--ghost" data-job-mob-svc="add">+ Serviço</button>
+          </div>`
+        : "";
       if (canBill && window.JobBilling) {
-        $("jobMobExtra").innerHTML = `<div class="jcm-card"><div id="jobMobBilling"></div></div>`;
+        $("jobMobExtra").innerHTML = `${svcActs}<div class="jcm-card"><div id="jobMobBilling"></div></div>`;
         window.JobBilling.mountCard($("jobMobBilling"), {
           jobId: wo.id,
           jobStatus: wo.status,
           canManage: canInvoice,
         });
       } else {
-        $("jobMobExtra").innerHTML = `<div class="jcm-card"><div class="jcm-dl">
+        $("jobMobExtra").innerHTML = `${svcActs}<div class="jcm-card"><div class="jcm-dl">
           <div class="jcm-dl__row"><span class="jcm-dl__k">Serviços</span><span class="jcm-dl__v">${escapeHtml(
             String(total ? `$${total.toFixed(2)}` : "—"),
           )}</span></div>
@@ -591,6 +634,13 @@
     render();
   }
 
+  function openServicesModal() {
+    if (!canManage || !jobId || !window.__crmJobModal) return;
+    window.__crmJobModal
+      .openEdit(jobId, { section: "services" })
+      .catch((e) => window.crmToast?.error?.(e.message || "Erro"));
+  }
+
   function bind() {
     document.querySelectorAll("[data-jd-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -608,6 +658,12 @@
           b.classList.toggle("is-active", b.getAttribute("data-jobs-role") === role);
         });
       });
+    });
+    $("jobMobEditServices")?.addEventListener("click", () => openServicesModal());
+    $("jobMobExtra")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-job-mob-svc]");
+      if (!btn) return;
+      openServicesModal();
     });
     $("jobMobCta")?.addEventListener("click", async () => {
       const action = $("jobMobCta").dataset.action;
@@ -679,6 +735,24 @@
       job = j.data;
       bind();
       render();
+      if (window.__crmJobModal?.onSaved) {
+        window.__crmJobModal.onSaved(async (data) => {
+          if (data?.id && String(data.id) === String(jobId)) {
+            job = data;
+            render();
+          } else if (jobId) {
+            try {
+              const refreshed = await fetch(`/api/work-orders/${jobId}`, { credentials: "include" }).then((r) =>
+                r.json(),
+              );
+              if (refreshed?.data) {
+                job = refreshed.data;
+                render();
+              }
+            } catch (_) {}
+          }
+        });
+      }
     } catch (e) {
       window.crmToast?.error?.(e.message || "Erro");
     }

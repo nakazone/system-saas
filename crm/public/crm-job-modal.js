@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261001-campo1";
+  const CSS_HREF = "crm-job-modal.css?v=20261001-svc3";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -463,25 +463,93 @@
     $("jmTime").value = st.time || "";
   }
 
+  function blankLine(opts) {
+    const o = opts || {};
+    return {
+      pricingId: o.pricingId || null,
+      name: o.name || "",
+      qty: o.qty != null ? o.qty : 0,
+      price: o.price != null ? o.price : 0,
+      unit: o.unit || null,
+      priceTouched: Boolean(o.priceTouched),
+      manual: Boolean(o.manual),
+      svcQuery: o.svcQuery != null ? o.svcQuery : "",
+      svcOpen: false,
+    };
+  }
+
+  function closeSvcDropdowns(exceptI) {
+    if (!st) return;
+    let changed = false;
+    st.lines.forEach((l, i) => {
+      if (l.svcOpen && i !== exceptI) {
+        l.svcOpen = false;
+        changed = true;
+      }
+    });
+    if (changed) renderServices();
+  }
+
+  function filterPricing(q) {
+    const needle = String(q || "")
+      .trim()
+      .toLowerCase();
+    if (!needle) return pricing.slice(0, 12);
+    return pricing
+      .filter((p) => {
+        const hay = `${p.name || ""} ${p.unit || ""} ${p.category || ""}`.toLowerCase();
+        return hay.includes(needle);
+      })
+      .slice(0, 12);
+  }
+
   function renderServices() {
     const box = $("jmSvc");
-    const opts = (sel) =>
-      ['<option value="">Serviço personalizado…</option>']
-        .concat(
-          pricing.map((p) => {
-            const rate = priceFor(p);
-            return `<option value="${esc(p.id)}"${p.id === sel ? " selected" : ""}>${esc(p.name)}${rate > 0 ? ` — ${money(rate)}/${esc(unitLabel(p.unit))}` : ""}</option>`;
-          }),
-        )
-        .join("");
+    if (!box) return;
     const rows = st.lines
       .map((l, i) => {
         const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
         const unit = unitLabel(item?.unit || l.unit);
+        const useManualUi = Boolean(l.manual);
+        const displayQ =
+          l.svcOpen || String(l.svcQuery || "").length
+            ? l.svcQuery
+            : item
+              ? item.name
+              : l.pricingId
+                ? l.name
+                : l.svcQuery || "";
+        const matches = filterPricing(l.svcOpen ? l.svcQuery : displayQ);
+        const dd = l.svcOpen
+          ? `<div class="jm-svc-dd" role="listbox" aria-label="Serviços da tabela">
+              ${
+                matches.length
+                  ? matches
+                      .map((p) => {
+                        const rate = priceFor(p);
+                        return `<button type="button" class="jm-svc-dd__opt" role="option" data-act="pick-svc" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(p.unit))}` : esc(unitLabel(p.unit))}</small></button>`;
+                      })
+                      .join("")
+                  : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`
+              }
+              <button type="button" class="jm-svc-dd__manual" data-act="manual-line">+ Serviço manual (fora da tabela)</button>
+            </div>`
+          : "";
         return `<div class="jm-ln" data-i="${i}">
           <div class="jm-ln__svc">
-            <select class="jm-in jm-in--sm" data-f="svc" aria-label="Serviço">${opts(l.pricingId)}</select>
-            ${!l.pricingId ? `<input type="text" class="jm-in jm-in--sm" data-f="name" maxlength="200" placeholder="Descrição do serviço" value="${esc(l.name)}" />` : ""}
+            ${
+              useManualUi
+                ? `<span class="jm-ln__manual-lbl">Serviço manual</span>
+                   <input type="text" class="jm-in jm-in--sm" data-f="name" maxlength="200" placeholder="Descrição do serviço" value="${esc(l.name)}" aria-label="Nome do serviço" />
+                   <button type="button" class="jm-link" data-act="to-catalog" style="justify-self:start">Buscar na tabela</button>`
+                : `<div class="jm-svc-pick">
+                    <span class="jm-search jm-search--svc${l.svcOpen ? " is-open" : ""}">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                      <input type="search" class="jm-in" data-f="svc-q" maxlength="200" placeholder="Buscar serviço na tabela…" autocomplete="off" aria-label="Buscar serviço" aria-expanded="${l.svcOpen ? "true" : "false"}" value="${esc(displayQ)}" />
+                    </span>
+                    ${dd}
+                  </div>`
+            }
           </div>
           <label class="jm-ln__qty"><input type="number" class="jm-in jm-in--sm" data-f="qty" min="0" step="0.01" inputmode="decimal" value="${Number(l.qty) ? esc(l.qty) : ""}" placeholder="0" aria-label="Quantidade" /><span>${esc(unit)}</span></label>
           <label class="jm-ln__price"><span>$</span><input type="number" class="jm-in jm-in--sm" data-f="price" min="0" step="0.01" inputmode="decimal" value="${Number(l.price) ? esc(Number(l.price).toFixed(2)) : ""}" placeholder="0.00" aria-label="Preço por ${esc(unit)}" /></label>
@@ -495,7 +563,13 @@
         ? `<div class="jm-ln jm-ln--hdr" aria-hidden="true"><span>Serviço</span><span>Quantidade</span><span>Preço</span><span>Total</span><span></span></div>${rows}`
         : `<p class="jm-empty jm-empty--svc">Nenhum serviço ainda. Os serviços, com o preço da tabela, viram a fatura do job.</p>`
     }
-      <div class="jm-svc__foot"><button type="button" class="jm-link" data-act="add-line">+ Adicionar serviço</button><span id="jmSvcCount"></span></div>`;
+      <div class="jm-svc__foot">
+        <span class="jm-svc__foot-acts">
+          <button type="button" class="jm-link" data-act="add-line">+ Adicionar serviço</button>
+          <button type="button" class="jm-link" data-act="add-manual">+ Serviço manual</button>
+        </span>
+        <span id="jmSvcCount"></span>
+      </div>`;
     const card = clientCard();
     $("jmPriceHint").innerHTML = `Preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Dá para ajustar o preço em cada linha.`;
     updateSvcCount();
@@ -848,7 +922,7 @@
       st.assigneeId = String(meId);
       st.members.add(String(meId));
     }
-    st.lines = [{ pricingId: null, name: "", qty: 0, price: 0, unit: null, priceTouched: false }];
+    st.lines = [blankLine()];
     open();
   }
 
@@ -886,14 +960,17 @@
     }
     st.assigneeId = wo.assigned_user_id ? String(wo.assigned_user_id) : null;
     (wo.members || []).forEach((m) => st.members.add(String(m.user_id)));
-    st.lines = (wo.line_items || []).map((li) => ({
-      pricingId: li.pricing_item_id || null,
-      name: li.service_name || "",
-      qty: li.quantity_sqft || 0,
-      price: li.unit_price || 0,
-      unit: li.unit || null,
-      priceTouched: true,
-    }));
+    st.lines = (wo.line_items || []).map((li) =>
+      blankLine({
+        pricingId: li.pricing_item_id || null,
+        name: li.service_name || "",
+        qty: li.quantity_sqft || 0,
+        price: li.unit_price || 0,
+        unit: li.unit || null,
+        priceTouched: true,
+        manual: !li.pricing_item_id,
+      }),
+    );
     st.notes = wo.notes || "";
     st.attention = wo.campo_attention || "";
     st.checklist = Array.isArray(wo.campo_checklist)
@@ -1147,14 +1224,75 @@
         renderMore();
         break;
       case "add-line":
-        st.lines.push({ pricingId: null, name: "", qty: 0, price: 0, unit: null, priceTouched: false });
+        st.lines.push(blankLine());
         renderServices();
         refreshNumbers();
         setTimeout(() => {
-          const sels = $("jmSvc").querySelectorAll('select[data-f="svc"]');
-          sels[sels.length - 1]?.focus();
+          const inputs = $("jmSvc").querySelectorAll('[data-f="svc-q"]');
+          const last = inputs[inputs.length - 1];
+          if (last) {
+            last.focus();
+            const { line } = lineFromEl(last);
+            if (line) {
+              line.svcOpen = true;
+              line.svcQuery = "";
+              renderServices();
+              $("jmSvc").querySelector(`.jm-ln[data-i="${st.lines.length - 1}"] [data-f="svc-q"]`)?.focus();
+            }
+          }
         }, 20);
         break;
+      case "add-manual":
+        st.lines.push(blankLine({ manual: true }));
+        renderServices();
+        refreshNumbers();
+        setTimeout(() => {
+          const inputs = $("jmSvc").querySelectorAll('[data-f="name"]');
+          inputs[inputs.length - 1]?.focus();
+        }, 20);
+        break;
+      case "manual-line": {
+        const { line, i } = lineFromEl(btn);
+        if (!line) break;
+        const q = String(line.svcQuery || "").trim();
+        line.manual = true;
+        line.pricingId = null;
+        line.unit = null;
+        line.svcOpen = false;
+        line.svcQuery = "";
+        if (!String(line.name || "").trim() && q) line.name = q;
+        renderServices();
+        refreshNumbers();
+        setTimeout(() => $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="name"]`)?.focus(), 20);
+        break;
+      }
+      case "to-catalog": {
+        const { line, i } = lineFromEl(btn);
+        if (!line) break;
+        line.manual = false;
+        line.svcOpen = true;
+        line.svcQuery = "";
+        renderServices();
+        setTimeout(() => $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="svc-q"]`)?.focus(), 20);
+        break;
+      }
+      case "pick-svc": {
+        const { line, i } = lineFromEl(btn);
+        if (!line) break;
+        const item = pricing.find((p) => p.id === btn.getAttribute("data-id")) || null;
+        line.manual = false;
+        line.pricingId = item ? item.id : null;
+        line.unit = item?.unit || null;
+        if (item) line.name = item.name;
+        line.price = item ? priceFor(item) : line.price;
+        line.priceTouched = false;
+        line.svcOpen = false;
+        line.svcQuery = "";
+        renderServices();
+        refreshNumbers();
+        setTimeout(() => $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="qty"]`)?.focus(), 20);
+        break;
+      }
       case "del-line": {
         const { i } = lineFromEl(btn);
         if (i >= 0) st.lines.splice(i, 1);
@@ -1237,6 +1375,53 @@
         break;
     }
     const f = t.getAttribute && t.getAttribute("data-f");
+    if (f === "svc-q") {
+      const { line, i } = lineFromEl(t);
+      if (!line) return;
+      line.svcQuery = t.value;
+      line.svcOpen = true;
+      line.manual = false;
+      // Keep caret: re-render dropdown only via lightweight update
+      const pick = t.closest(".jm-svc-pick");
+      if (pick) {
+        const matches = filterPricing(line.svcQuery);
+        let dd = pick.querySelector(".jm-svc-dd");
+        if (!dd) {
+          dd = document.createElement("div");
+          dd.className = "jm-svc-dd";
+          dd.setAttribute("role", "listbox");
+          dd.setAttribute("aria-label", "Serviços da tabela");
+          pick.appendChild(dd);
+        }
+        dd.hidden = false;
+        t.closest(".jm-search--svc")?.classList.add("is-open");
+        t.setAttribute("aria-expanded", "true");
+        dd.innerHTML =
+          (matches.length
+            ? matches
+                .map((p) => {
+                  const rate = priceFor(p);
+                  return `<button type="button" class="jm-svc-dd__opt" role="option" data-act="pick-svc" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(p.unit))}` : esc(unitLabel(p.unit))}</small></button>`;
+                })
+                .join("")
+            : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`) +
+          `<button type="button" class="jm-svc-dd__manual" data-act="manual-line">+ Serviço manual (fora da tabela)</button>`;
+        // Close other rows' dropdowns without full re-render
+        st.lines.forEach((other, oi) => {
+          if (oi !== i && other.svcOpen) other.svcOpen = false;
+        });
+        $("jmSvc")
+          .querySelectorAll(".jm-ln")
+          .forEach((row) => {
+            const ri = Number(row.getAttribute("data-i"));
+            if (ri === i) return;
+            row.querySelector(".jm-svc-dd")?.remove();
+            row.querySelector(".jm-search--svc")?.classList.remove("is-open");
+            row.querySelector('[data-f="svc-q"]')?.setAttribute("aria-expanded", "false");
+          });
+      }
+      return;
+    }
     if (f === "qty" || f === "price" || f === "name") {
       const { row, line } = lineFromEl(t);
       if (!line) return;
@@ -1306,19 +1491,8 @@
         break;
     }
     if (t.getAttribute("data-f") === "svc") {
-      const { line } = lineFromEl(t);
-      if (!line) return;
-      const item = pricing.find((p) => p.id === t.value) || null;
-      line.pricingId = item ? item.id : null;
-      line.unit = item?.unit || null;
-      if (item) line.name = item.name;
-      line.price = item ? priceFor(item) : line.price;
-      line.priceTouched = false;
-      const i = st.lines.indexOf(line);
-      renderServices();
-      refreshNumbers();
-      // Quantity is what is left to type.
-      setTimeout(() => $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="${item ? "qty" : "name"}"]`)?.focus(), 20);
+      // Legacy select removed — kept for safety if old HTML is cached.
+      return;
     }
   }
 
@@ -1352,9 +1526,51 @@
     modal.addEventListener("click", onClick);
     modal.addEventListener("input", onInput);
     modal.addEventListener("change", onChange);
+    modal.addEventListener("focusin", (e) => {
+      if (!st) return;
+      const t = e.target;
+      if (t.getAttribute && t.getAttribute("data-f") === "svc-q") {
+        const { line, i } = lineFromEl(t);
+        if (!line) return;
+        const wasOpen = Boolean(line.svcOpen);
+        st.lines.forEach((other, oi) => {
+          other.svcOpen = oi === i;
+        });
+        if (!wasOpen) {
+          line.svcQuery = "";
+          renderServices();
+          const again = $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="svc-q"]`);
+          if (again) {
+            again.focus();
+            try {
+              again.select();
+            } catch (_) {}
+          }
+        }
+      }
+    });
     modal.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", (e) => {
+      if (!st || !modal.classList.contains("is-open")) return;
+      if (e.target.closest(".jm-svc-pick")) return;
+      if (!st.lines.some((l) => l.svcOpen)) return;
+      st.lines.forEach((l) => {
+        l.svcOpen = false;
+        l.svcQuery = "";
+      });
+      renderServices();
+    });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && st && modal.classList.contains("is-open")) {
+        if (st.lines.some((l) => l.svcOpen)) {
+          st.lines.forEach((l) => {
+            l.svcOpen = false;
+            l.svcQuery = "";
+          });
+          renderServices();
+          e.stopPropagation();
+          return;
+        }
         // Let the address suggestions close first.
         if (document.activeElement?.id === "jobAddress" && document.querySelector(".crm-photon-ac:not([hidden]), .pac-container[style*='block']")) return;
         close();
