@@ -6,10 +6,10 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
-import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
+import { publicBaseUrl } from "../../lib/http/public-url.js";
+import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
-import { env } from "../../config/env.js";
 import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
 import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
@@ -57,15 +57,15 @@ function fieldMeetingScope(user: AuthedRequest["user"]): Record<string, unknown>
   return { assignedUserId: user.id };
 }
 
+/** Short worker ticket link on the brand domain: https://obramate.com/t/<token>. */
 function publicJobShareUrl(req: AuthedRequest, rawToken: string): string {
-  const base = (env.APP_BASE_URL || "").replace(/\/$/, "");
-  if (base) return `${base}/public/jobs/${rawToken}`;
-  const proto =
-    (typeof req.get === "function" && (req.get("x-forwarded-proto") || "").split(",")[0]?.trim()) ||
-    req.protocol ||
-    "https";
-  const host = req.get("host") || "localhost";
-  return `${proto}://${host}/public/jobs/${rawToken}`;
+  return `${publicBaseUrl(req)}/t/${rawToken}`;
+}
+
+function tempShareMessage(name: string | null | undefined, wo: { number: number | null; title: string }, url: string): string {
+  const hi = `Olá${name ? ` ${name.trim().split(/\s+/)[0]}` : ""}!`;
+  const ref = [wo.number ? `#${wo.number}` : "", wo.title ? `(${wo.title})` : ""].filter(Boolean).join(" ");
+  return `${hi} Seu ticket do job${ref ? ` ${ref}` : ""}: ${url}`;
 }
 
 function normalizePhoneForWhatsApp(phone: string | null | undefined): string {
@@ -919,17 +919,15 @@ scheduleJobsRouter.post(
             notes: d.notes?.trim() || null,
           },
         });
-        const issued = await issuePublicAccessToken(tx, {
+        const issued = await ensureTempShareToken(tx, {
           organizationId: req.organizationId!,
-          entityType: "work_order_temp",
-          entityId: row.id,
-          ttlDays: 60,
+          tempWorkerId: row.id,
         });
         return { row, issued };
       });
       const url = publicJobShareUrl(req, result.issued.rawToken);
       const phone = normalizePhoneForWhatsApp(result.row.phone);
-      const msg = `Olá${result.row.name ? ` ${result.row.name}` : ""}! Segue o link do job: ${url}`;
+      const msg = tempShareMessage(result.row.name, wo, url);
       res.status(201).json({
         success: true,
         data: {
@@ -1001,17 +999,22 @@ scheduleJobsRouter.post(
         res.status(404).json({ success: false, error: "Funcionário temporário não encontrado" });
         return;
       }
+      const wo = await prisma.workOrder.findFirst({
+        where: { id: woId, organizationId: req.organizationId! },
+        select: { number: true, title: true },
+      });
+      // Same link every time; `rotate` (body or ?rotate=1) issues a new one and kills the old.
+      const rotate = req.body?.rotate === true || String(req.query.rotate || "") === "1";
       const issued = await withTenantTransaction(req.organizationId!, async (tx) =>
-        issuePublicAccessToken(tx, {
+        ensureTempShareToken(tx, {
           organizationId: req.organizationId!,
-          entityType: "work_order_temp",
-          entityId: existing.id,
-          ttlDays: 60,
+          tempWorkerId: existing.id,
+          rotate,
         }),
       );
       const url = publicJobShareUrl(req, issued.rawToken);
       const phone = normalizePhoneForWhatsApp(existing.phone);
-      const msg = `Olá${existing.name ? ` ${existing.name}` : ""}! Segue o link do job: ${url}`;
+      const msg = tempShareMessage(existing.name, wo || { number: null, title: "" }, url);
       res.json({
         success: true,
         data: {

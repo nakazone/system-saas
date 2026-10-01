@@ -205,6 +205,8 @@ export function createApp() {
   app.use("/public", publicQuotesRouter);
   app.use("/public/invoices", publicInvoicesRouter);
   app.use("/public/jobs", publicJobsRouter);
+  // Short worker ticket links (sent by WhatsApp/SMS): /t/<token>
+  app.use("/t", publicJobsRouter);
   app.use("/public/portfolio", publicPortfolioRouter);
 
   // Public LP / Meta lead intake (tenant via slug header/query/subdomain — no session)

@@ -3,6 +3,7 @@
  * Reuses existing Quote + public accept/sign. No payment gateway.
  */
 import { Router } from "express";
+import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import type { AuthedRequest } from "../../middleware/auth.js";
@@ -13,7 +14,6 @@ import { applyQuoteTransition, defaultClientViewJson, defaultValidUntil } from "
 import { toDecimal } from "../../lib/quotes/totals.js";
 import { mapJobMedia } from "../../lib/job-media/index.js";
 import { aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
-import { env } from "../../config/env.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { syncLeadForQuoteStatus } from "../../lib/pipeline/move.js";
 import { prisma } from "../../lib/prisma.js";
@@ -28,13 +28,7 @@ function canPropose(req: AuthedRequest): boolean {
 }
 
 function publicBase(req: AuthedRequest): string {
-  const base = (env.APP_BASE_URL || "").replace(/\/$/, "");
-  if (base) return base;
-  const proto =
-    (typeof req.get === "function" && (req.get("x-forwarded-proto") || "").split(",")[0]?.trim()) ||
-    req.protocol ||
-    "https";
-  return `${proto}://${req.get("host") || "localhost"}`;
+  return publicBaseUrl(req);
 }
 
 function mapQuoteSummary(q: {

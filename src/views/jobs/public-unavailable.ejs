@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Link indisponível</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: #f7f4ee; color: #211d1a; font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif; }
+    .card { max-width: 420px; width: 100%; background: #fff; border: 1px solid #e8dfd2; border-radius: 18px; padding: 28px 22px; text-align: center; }
+    .ico { width: 56px; height: 56px; margin: 0 auto 14px; border-radius: 50%; background: #fdf1e7; color: #c1652f; display: grid; place-items: center; }
+    h1 { margin: 0 0 8px; font-size: 20px; font-weight: 800; }
+    p { margin: 0; color: #4a433d; line-height: 1.5; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="ico" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg></div>
+    <% if (reason === 'gone') { %>
+      <h1>Este trabalho não está mais disponível</h1>
+      <p>O job foi cancelado ou removido. Fale com o escritório se tiver dúvidas.</p>
+    <% } else { %>
+      <h1>Este link não está mais ativo</h1>
+      <p>Ele pode ter expirado ou sido substituído por um novo. Peça o link atualizado ao escritório.</p>
+    <% } %>
+  </div>
+</body>
+</html>

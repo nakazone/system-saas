@@ -1823,6 +1823,10 @@ model WorkOrderTempWorker {
   phone          String?
   email          String?
   notes          String?
+  /// Raw token of the current ticket link, kept so "copy link" again sends the same URL
+  /// instead of revoking the one the worker already has. Hash lives in PublicAccessToken.
+  shareToken          String?
+  shareTokenExpiresAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
