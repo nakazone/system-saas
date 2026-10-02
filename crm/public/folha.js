@@ -1014,13 +1014,35 @@
     await ensureEmps().catch(() => null);
     const emps = (st.emps ? st.emps.employees : []).filter((e) => e.status === "active");
     const date = (prefill && prefill.date) || ymdOf(new Date());
+    const fromDef = date;
+    const toDef = date;
     openSheet(
-      `${sheetHead("Lançar dia", "Para quem esqueceu o ponto ou não tem o app")}<div class="fo-sheet__bd">
+      `${sheetHead("Lançar diárias", "Um dia ou vários de uma vez — mesmo horário para todos")}<div class="fo-sheet__bd">
         <div class="fo-box">
+          <div class="fo-seg" id="ldMode" role="group" aria-label="Modo de lançamento" style="margin-bottom:12px">
+            <button type="button" data-ld-mode="one" aria-pressed="true">Um dia</button>
+            <button type="button" data-ld-mode="multi" aria-pressed="false">Vários dias</button>
+          </div>
           <label class="fo-field">Funcionário<select class="fo-sel" id="ldEmp" autofocus><option value="">Escolha…</option>${emps.map((e) => `<option value="${esc(e.id)}">${esc(e.name)} · ${esc(SECTORS[e.sector || "installation"])}</option>`).join("")}</select></label>
-          <div class="fo-grid3" style="margin-top:10px"><label class="fo-field">Data<input type="date" class="fo-in" id="ldDate" value="${esc(date)}" max="${ymdOf(new Date())}" /></label><label class="fo-field">Entrada<input type="time" class="fo-in" id="ldIn" value="07:00" /></label><label class="fo-field">Saída<input type="time" class="fo-in" id="ldOut" value="17:00" /></label></div>
+          <div class="fo-grid3" id="ldSingleRow" style="margin-top:10px">
+            <label class="fo-field">Data<input type="date" class="fo-in" id="ldDate" value="${esc(date)}" max="${ymdOf(new Date())}" /></label>
+            <label class="fo-field">Entrada<input type="time" class="fo-in" id="ldIn" value="07:00" /></label>
+            <label class="fo-field">Saída<input type="time" class="fo-in" id="ldOut" value="17:00" /></label>
+          </div>
+          <div id="ldMultiRow" hidden style="margin-top:10px">
+            <div class="fo-grid3">
+              <label class="fo-field">De<input type="date" class="fo-in" id="ldFrom" value="${esc(fromDef)}" max="${ymdOf(new Date())}" /></label>
+              <label class="fo-field">Até<input type="date" class="fo-in" id="ldTo" value="${esc(toDef)}" max="${ymdOf(new Date())}" /></label>
+              <label class="fo-field">Entrada<input type="time" class="fo-in" id="ldInMulti" value="07:00" /></label>
+            </div>
+            <div class="fo-grid3" style="margin-top:8px">
+              <label class="fo-field">Saída<input type="time" class="fo-in" id="ldOutMulti" value="17:00" /></label>
+              <label class="fo-check" style="align-self:end;padding-bottom:8px"><input type="checkbox" id="ldSkipWe" checked /> <span>Só dias úteis</span></label>
+              <p class="fo-muted" id="ldMultiHint" style="margin:0;align-self:end;padding-bottom:10px;font-size:13px;font-weight:700">1 dia</p>
+            </div>
+          </div>
           <div style="margin-top:12px">
-            <div class="fo-field"><span>Diária</span></div>
+            <div class="fo-field"><span>Diária (por dia)</span></div>
             <div class="fo-chiprow" id="ldDaysRow" role="group" aria-label="Quantidade de diárias">
               <button type="button" class="fo-chip" data-ld-days="0.5" aria-pressed="false">½ dia</button>
               <button type="button" class="fo-chip" data-ld-days="1" aria-pressed="true">1 diária</button>
@@ -1038,13 +1060,85 @@
             <input type="hidden" id="ldOt" value="" />
           </div>
         </div>
-        <div class="fo-box"><h3>Jobs do dia <small>opcional</small></h3><div class="fo-jobpick" id="ldJobs"></div><button type="button" class="fo-btn fo-btn--sm" data-ld-addjob style="margin-top:8px">+ Job</button></div>
+        <div class="fo-box"><h3>Jobs do dia <small>opcional · igual em todos os dias</small></h3><div class="fo-jobpick" id="ldJobs"></div><button type="button" class="fo-btn fo-btn--sm" data-ld-addjob style="margin-top:8px">+ Job</button></div>
         <div class="fo-box"><label class="fo-field">Nota<textarea class="fo-ta" id="ldNote" maxlength="500" placeholder="Ex.: esqueceu o celular; confirmado com o líder."></textarea></label></div>
         <p class="fo-muted" style="margin:0;font-size:13px;font-weight:600">Entra aprovado na folha, marcado como lançado pelo escritório. Sem hora extra manual, o sistema calcula pelo horário padrão do funcionário.</p>
       </div>
-      <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-ld-go>Lançar</button></footer>`,
+      <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-ld-go id="ldGoBtn">Lançar</button></footer>`,
     );
     if (prefill && prefill.employee) $("ldEmp").value = prefill.employee;
+    ldSyncMultiHint();
+  }
+
+  function ldMode() {
+    const btn = document.querySelector("#ldMode [aria-pressed='true']");
+    return btn?.getAttribute("data-ld-mode") === "multi" ? "multi" : "one";
+  }
+
+  function ldSetMode(mode) {
+    const multi = mode === "multi";
+    document.querySelectorAll("#ldMode [data-ld-mode]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-ld-mode") === (multi ? "multi" : "one")));
+    });
+    const single = $("ldSingleRow");
+    const multiRow = $("ldMultiRow");
+    if (single) single.hidden = multi;
+    if (multiRow) multiRow.hidden = !multi;
+    if (multi) {
+      // Keep times in sync when switching
+      if ($("ldInMulti") && $("ldIn")) $("ldInMulti").value = $("ldIn").value || "07:00";
+      if ($("ldOutMulti") && $("ldOut")) $("ldOutMulti").value = $("ldOut").value || "17:00";
+      if ($("ldFrom") && $("ldDate")) $("ldFrom").value = $("ldDate").value;
+      if ($("ldTo") && !$("ldTo").value) $("ldTo").value = $("ldFrom")?.value || ymdOf(new Date());
+    } else if ($("ldDate") && $("ldFrom")) {
+      $("ldDate").value = $("ldFrom").value || $("ldDate").value;
+      if ($("ldIn") && $("ldInMulti")) $("ldIn").value = $("ldInMulti").value || $("ldIn").value;
+      if ($("ldOut") && $("ldOutMulti")) $("ldOut").value = $("ldOutMulti").value || $("ldOut").value;
+    }
+    ldSyncMultiHint();
+  }
+
+  function ldExpandDates(fromYmd, toYmd, skipWeekends) {
+    const out = [];
+    if (!fromYmd || !toYmd) return out;
+    let a = fromYmd;
+    let b = toYmd;
+    if (a > b) {
+      const t = a;
+      a = b;
+      b = t;
+    }
+    const cur = new Date(`${a}T12:00:00`);
+    const end = new Date(`${b}T12:00:00`);
+    const today = ymdOf(new Date());
+    while (cur.getTime() <= end.getTime()) {
+      const y = ymdOf(cur);
+      if (y > today) break;
+      const dow = cur.getDay();
+      if (!(skipWeekends && (dow === 0 || dow === 6))) out.push(y);
+      cur.setDate(cur.getDate() + 1);
+      if (out.length >= 31) break;
+    }
+    return out;
+  }
+
+  function ldSyncMultiHint() {
+    const hint = $("ldMultiHint");
+    const go = $("ldGoBtn");
+    if (ldMode() !== "multi") {
+      if (go) go.textContent = "Lançar";
+      return;
+    }
+    const dates = ldExpandDates($("ldFrom")?.value, $("ldTo")?.value, !!$("ldSkipWe")?.checked);
+    if (hint) {
+      hint.textContent =
+        dates.length === 0
+          ? "Nenhuma data"
+          : dates.length === 1
+            ? "1 dia"
+            : `${dates.length} dias`;
+    }
+    if (go) go.textContent = dates.length > 1 ? `Lançar ${dates.length} dias` : "Lançar";
   }
   function ldSyncOtLabel() {
     const raw = $("ldOt")?.value;
@@ -1080,7 +1174,8 @@
     ldSyncOtLabel();
   }
   async function ldAddJob() {
-    const date = $("ldDate").value || ymdOf(new Date());
+    const date =
+      (ldMode() === "multi" ? $("ldFrom")?.value : $("ldDate")?.value) || ymdOf(new Date());
     const jobs = await jobsAround(date);
     const row = document.createElement("div");
     row.className = "fo-jobpick__row";
@@ -1088,12 +1183,14 @@
     $("ldJobs").appendChild(row);
   }
   async function ldGo(btn) {
+    const multi = ldMode() === "multi";
     const otRaw = $("ldOt")?.value;
+    const start = multi ? $("ldInMulti")?.value : $("ldIn")?.value;
+    const end = multi ? $("ldOutMulti")?.value : $("ldOut")?.value;
     const body = {
       employee_id: $("ldEmp").value,
-      date: $("ldDate").value,
-      start: $("ldIn").value,
-      end: $("ldOut").value,
+      start,
+      end,
       days_worked: Number($("ldDays").value),
       jobs: [...document.querySelectorAll("#ldJobs .fo-jobpick__row")]
         .map((r) => ({ work_order_id: r.querySelector("[data-ld-job]").value, sqft: Number(r.querySelector("[data-ld-sqft]").value) || 0 }))
@@ -1101,16 +1198,46 @@
       note: $("ldNote").value.trim() || null,
     };
     if (otRaw !== "" && otRaw != null) body.overtime_minutes = Math.max(0, Math.round(Number(otRaw) || 0));
-    if (!body.employee_id || !body.date || !body.start || !body.end) {
+    if (!body.employee_id || !body.start || !body.end) {
       notify("Escolha o funcionário, a data, a entrada e a saída.", "error");
       return;
     }
     btn.disabled = true;
     try {
-      await api("/api/folha/dias", { method: "POST", body: JSON.stringify(body) });
-      notify("Dia lançado e aprovado.", "success");
-      closeSheet();
-      st.weekRef = body.date;
+      if (multi) {
+        const dates = ldExpandDates($("ldFrom")?.value, $("ldTo")?.value, !!$("ldSkipWe")?.checked);
+        if (!dates.length) {
+          btn.disabled = false;
+          notify("Escolha um período com pelo menos um dia válido.", "error");
+          return;
+        }
+        const j = await api("/api/folha/dias/lote", { method: "POST", body: JSON.stringify({ ...body, dates }) });
+        const created = j.data?.created || 0;
+        const skipped = (j.data?.results || []).filter((r) => !r.ok);
+        const exists = skipped.filter((r) => r.code === "DAY_EXISTS").length;
+        const other = skipped.length - exists;
+        let msg = created === 1 ? "1 dia lançado e aprovado." : `${created} dias lançados e aprovados.`;
+        if (exists) msg += ` ${exists} já existiam.`;
+        if (other) msg += ` ${other} falharam.`;
+        notify(msg, created ? "success" : "error");
+        if (!created) {
+          btn.disabled = false;
+          return;
+        }
+        closeSheet();
+        st.weekRef = dates[0];
+      } else {
+        body.date = $("ldDate").value;
+        if (!body.date) {
+          btn.disabled = false;
+          notify("Escolha o funcionário, a data, a entrada e a saída.", "error");
+          return;
+        }
+        await api("/api/folha/dias", { method: "POST", body: JSON.stringify(body) });
+        notify("Dia lançado e aprovado.", "success");
+        closeSheet();
+        st.weekRef = body.date;
+      }
       if (st.tab !== "semana") setTab("semana");
       else loadWeek();
     } catch (e) {
@@ -1243,6 +1370,7 @@
     if ((b = el("[data-emp-edit]"))) return openEmp(b.getAttribute("data-emp-edit"));
     if ((b = el("[data-emp-save]"))) return saveEmp(b.getAttribute("data-emp-save") || null);
     if (el("#foLogDay")) return openLogDay();
+    if ((b = el("[data-ld-mode]"))) return ldSetMode(b.getAttribute("data-ld-mode"));
     if ((b = el("[data-ld-days]"))) return ldSetDays(b.getAttribute("data-ld-days"));
     if ((b = el("[data-ld-ot]"))) return ldAddOt(b.getAttribute("data-ld-ot"));
     if (el("[data-ld-ot-clear]")) return ldClearOt();
@@ -1274,6 +1402,7 @@
   }
   function onChange(e) {
     const t = e.target;
+    if (t.id === "ldFrom" || t.id === "ldTo" || t.id === "ldSkipWe") return ldSyncMultiHint();
     if (t.id === "foRepEmp") {
       st.rep.employee = t.value;
       return loadReport();

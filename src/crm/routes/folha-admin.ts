@@ -9,6 +9,7 @@
  * POST /api/folha/dias/:id/devolver                 devolve ao funcionário com motivo
  * PUT  /api/folha/dias/:id                          corrige horários / dias / extra / sqft
  * POST /api/folha/dias                              lança um dia pelo funcionário (sem app)
+ * POST /api/folha/dias/lote                         lança vários dias de uma vez (mesmo horário)
  * PUT  /api/folha/semana/:periodId/ajustes/:empId   reembolso / desconto
  * POST /api/folha/pagamentos                        paga um ou vários funcionários → Financeiro
  * POST /api/folha/pagamentos/:id/estornar           estorna (anula no Financeiro)
@@ -516,6 +517,75 @@ const officeDayBody = z.object({
   note: z.string().max(500).optional().nullable(),
 });
 
+const officeDayLoteBody = z.object({
+  employee_id: z.string().uuid(),
+  dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(31),
+  start: z.string(),
+  end: z.string(),
+  days_worked: z.number().min(0).max(2).optional(),
+  overtime_minutes: z.number().int().min(0).max(16 * 60).optional(),
+  jobs: z.array(z.object({ work_order_id: z.string().uuid(), sqft: z.number().min(0).max(100000).optional().nullable() })).max(10).default([]),
+  note: z.string().max(500).optional().nullable(),
+});
+
+type OfficeDayInput = z.infer<typeof officeDayBody>;
+
+async function createApprovedOfficeDay(
+  tx: PayrollTx,
+  orgId: string,
+  reviewerId: string,
+  tz: string,
+  input: OfficeDayInput,
+) {
+  const emp = await tx.payrollEmployee.findFirst({ where: { id: input.employee_id } });
+  if (!emp) throw httpErr(404, "Funcionário não encontrado");
+  const ownerId = emp.userId || null;
+  const workDate = parseYmd(input.date)!;
+  await assertNotPaid(tx, emp.id, workDate);
+  const dup = await tx.campoShift.findFirst({ where: { employeeId: emp.id, workDate } });
+  if (dup) throw httpErr(409, "Já existe um dia lançado para esse funcionário nessa data.", "DAY_EXISTS");
+  if (ownerId) {
+    const mine = await tx.campoShift.findFirst({ where: { userId: ownerId, workDate } });
+    if (mine) throw httpErr(409, "Já existe um dia desse funcionário nessa data.", "DAY_EXISTS");
+  }
+  const clockIn = wallTimeOn(workDate, input.start, tz);
+  const clockOut = wallTimeOn(workDate, input.end, tz);
+  if (clockOut.getTime() <= clockIn.getTime()) throw httpErr(400, "A saída precisa ser depois da entrada.");
+  const daysWorked = input.days_worked ?? 1;
+  const s = await tx.campoShift.create({
+    data: {
+      organizationId: orgId,
+      userId: ownerId,
+      employeeId: emp.id,
+      workDate,
+      clockInAt: clockIn,
+      status: "open",
+      source: "manual",
+      reviewStatus: "in_progress",
+      sector: emp.sector,
+      daysWorked: new Prisma.Decimal(daysWorked),
+    },
+  });
+  await closeDay(
+    tx,
+    s.id,
+    {
+      clockOut,
+      gps: null,
+      deviceAt: null,
+      note: input.note ?? "Lançado pelo escritório",
+      jobs: input.jobs.map((j) => ({ workOrderId: j.work_order_id, sqft: num(j.sqft) })),
+      source: "manual",
+    },
+    { tz, userId: ownerId },
+  );
+  if (input.overtime_minutes !== undefined) {
+    await recompute(tx, s.id, { daysWorked, overtimeMinutes: input.overtime_minutes });
+  }
+  await approveDay(tx, s.id, reviewerId);
+  return mapShift(await tx.campoShift.findFirstOrThrow({ where: { id: s.id }, include: shiftInclude }), tz);
+}
+
 /** Office logs a day for an employee (no phone / forgot): approved right away. */
 folhaAdminRouter.post("/api/folha/dias", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
   try {
@@ -524,40 +594,63 @@ folhaAdminRouter.post("/api/folha/dias", requireCrmAuth, requireCrmPermission("p
       res.status(400).json({ success: false, error: "Informe funcionário, data, entrada e saída." });
       return;
     }
+    const today = ymd(new Date());
+    if (b.data.date > today) {
+      res.status(400).json({ success: false, error: "Não dá para lançar data futura." });
+      return;
+    }
     const tz = await orgTz(req.organizationId!);
-    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
-      const emp = await tx.payrollEmployee.findFirst({ where: { id: b.data.employee_id } });
-      if (!emp) throw httpErr(404, "Funcionário não encontrado");
-      // Employee without a login: the day has no owner user (only the employee).
-      const ownerId = emp.userId || null;
-      const workDate = parseYmd(b.data.date)!;
-      await assertNotPaid(tx, emp.id, workDate);
-      const dup = await tx.campoShift.findFirst({ where: { employeeId: emp.id, workDate } });
-      if (dup) throw httpErr(409, "Já existe um dia lançado para esse funcionário nessa data.", "DAY_EXISTS");
-      if (ownerId) {
-        const mine = await tx.campoShift.findFirst({ where: { userId: ownerId, workDate } });
-        if (mine) throw httpErr(409, "Já existe um dia desse funcionário nessa data.", "DAY_EXISTS");
-      }
-      const clockIn = wallTimeOn(workDate, b.data.start, tz);
-      const clockOut = wallTimeOn(workDate, b.data.end, tz);
-      if (clockOut.getTime() <= clockIn.getTime()) throw httpErr(400, "A saída precisa ser depois da entrada.");
-      const daysWorked = b.data.days_worked ?? 1;
-      const s = await tx.campoShift.create({
-        data: { organizationId: req.organizationId!, userId: ownerId, employeeId: emp.id, workDate, clockInAt: clockIn, status: "open", source: "manual", reviewStatus: "in_progress", sector: emp.sector, daysWorked: new Prisma.Decimal(daysWorked) },
-      });
-      await closeDay(
-        tx,
-        s.id,
-        { clockOut, gps: null, deviceAt: null, note: b.data.note ?? "Lançado pelo escritório", jobs: b.data.jobs.map((j) => ({ workOrderId: j.work_order_id, sqft: num(j.sqft) })), source: "manual" },
-        { tz, userId: ownerId },
-      );
-      if (b.data.overtime_minutes !== undefined) {
-        await recompute(tx, s.id, { daysWorked, overtimeMinutes: b.data.overtime_minutes });
-      }
-      await approveDay(tx, s.id, req.user!.id);
-      return mapShift(await tx.campoShift.findFirstOrThrow({ where: { id: s.id }, include: shiftInclude }), tz);
-    });
+    const data = await withTenantTransaction(req.organizationId!, async (tx) =>
+      createApprovedOfficeDay(tx, req.organizationId!, req.user!.id, tz, b.data),
+    );
     res.status(201).json({ success: true, data });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
+/** Bulk-create approved office days (same hours / jobs for each date). */
+folhaAdminRouter.post("/api/folha/dias/lote", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const b = officeDayLoteBody.safeParse(req.body || {});
+    if (!b.success || !isHHMM(b.data.start) || !isHHMM(b.data.end)) {
+      res.status(400).json({ success: false, error: "Informe funcionário, datas, entrada e saída." });
+      return;
+    }
+    const today = ymd(new Date());
+    const dates = [...new Set(b.data.dates)].sort();
+    if (dates.some((d) => d > today)) {
+      res.status(400).json({ success: false, error: "Não dá para lançar data futura." });
+      return;
+    }
+    const tz = await orgTz(req.organizationId!);
+    const results: { date: string; ok: boolean; id?: string; error?: string; code?: string }[] = [];
+    for (const date of dates) {
+      try {
+        const data = await withTenantTransaction(req.organizationId!, async (tx) =>
+          createApprovedOfficeDay(tx, req.organizationId!, req.user!.id, tz, {
+            employee_id: b.data.employee_id,
+            date,
+            start: b.data.start,
+            end: b.data.end,
+            days_worked: b.data.days_worked,
+            overtime_minutes: b.data.overtime_minutes,
+            jobs: b.data.jobs,
+            note: b.data.note,
+          }),
+        );
+        results.push({ date, ok: true, id: data.id });
+      } catch (e) {
+        const err = e as Error & { status?: number; code?: string };
+        results.push({ date, ok: false, error: err.message || "Erro", code: err.code });
+      }
+    }
+    const created = results.filter((r) => r.ok).length;
+    res.status(created ? 201 : 400).json({
+      success: created > 0,
+      data: { created, total: results.length, results },
+      error: created ? undefined : results.find((r) => !r.ok)?.error || "Nenhum dia lançado.",
+    });
   } catch (error) {
     fail(res, error, next);
   }

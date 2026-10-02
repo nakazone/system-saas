@@ -205,4 +205,28 @@ describe.skipIf(!privileged)("folha — painel do admin (HTTP)", () => {
     const inst = await login(emails.inst);
     expect((await call(inst, "GET", `/api/folha/semana?week=${WED}`)).status).toBe(403);
   });
+
+  it("lança várias diárias de uma vez e ignora datas que já existem", async () => {
+    const admin = await login(emails.admin);
+    const emp = (await call(admin, "GET", "/api/folha/funcionarios")).json.data.employees.find((e: { name: string }) => e.name === "Marcos");
+    const dates = ["2026-09-21", "2026-09-22", "2026-09-23"]; // Mon–Wed
+    // Seed one day that should be skipped as DAY_EXISTS.
+    expect((await call(admin, "POST", "/api/folha/dias", { employee_id: emp.id, date: dates[0], start: "07:00", end: "17:00" })).status).toBe(201);
+    const lote = await call(admin, "POST", "/api/folha/dias/lote", {
+      employee_id: emp.id,
+      dates,
+      start: "07:00",
+      end: "17:00",
+      days_worked: 1,
+    });
+    expect(lote.status, JSON.stringify(lote.json)).toBe(201);
+    expect(lote.json.data.created).toBe(2);
+    expect(lote.json.data.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ date: dates[0], ok: false, code: "DAY_EXISTS" }),
+        expect.objectContaining({ date: dates[1], ok: true }),
+        expect.objectContaining({ date: dates[2], ok: true }),
+      ]),
+    );
+  });
 });
