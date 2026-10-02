@@ -146,15 +146,13 @@
     const rate = Number(it.rate ?? it.unit_price) || 0;
     const amt = Number(it.amount ?? it.total_price) || qty * rate;
     const ut = it.unit_type ? String(it.unit_type).replace(/_/g, ' ') : 'sq ft';
-    let catalogNotes = String(it.catalog_customer_notes || '').trim();
-    if (catalogNotes) {
-      catalogNotes = descriptionBodyWithoutTitle(nameStr, catalogNotes);
-      if (
-        catalogNotes === bodyStr ||
-        catalogNotes === nameStr ||
-        catalogNotes === descStr
-      ) {
-        catalogNotes = '';
+    // Catalog notes mirror the line description in Quotes — never print a second copy.
+    let catalogNotes = '';
+    const catalogRaw = String(it.catalog_customer_notes || '').trim();
+    if (catalogRaw) {
+      const catalogBody = descriptionBodyWithoutTitle(nameStr, catalogRaw);
+      if (catalogBody && catalogBody !== bodyStr && catalogBody !== nameStr && catalogBody !== descStr) {
+        catalogNotes = catalogBody;
       }
     }
     const lineComment = String(it.notes || '').trim();

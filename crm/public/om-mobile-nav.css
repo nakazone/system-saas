@@ -2,6 +2,8 @@
 :root {
   --om-tabbar-h: 64px;
   --om-apptop-h: 56px;
+  /* Stable phone viewport height (set by om-device.js; falls back to dvh). */
+  --om-app-height: 100dvh;
   --om-tab-accent: var(--plab-accent, #e8792c);
   --om-tab-ink: var(--plab-ink, #1c1917);
   --om-tab-muted: var(--plab-muted, #78716c);
@@ -165,6 +167,14 @@ body.om-device-mobile.om-has-apptop.inv-app .dashboard-main {
   font-weight: 750;
   letter-spacing: 0.02em;
   text-decoration: none;
+}
+
+body.om-device-mobile {
+  min-height: var(--om-app-height, 100dvh);
+}
+body.om-device-mobile .dashboard-container,
+body.om-device-mobile .dashboard-main {
+  min-height: var(--om-app-height, 100dvh);
 }
 
 body.om-device-mobile .om-tabbar {

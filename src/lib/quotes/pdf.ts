@@ -338,46 +338,6 @@ export function pdfPaymentItemsFromSchedule(
   });
 }
 
-/** Map persisted quote line rows (+ meta JSON) into PDF line input. */
-export function pdfLinesFromDbItems(
-  lineItems: Array<{
-    name?: string | null;
-    description: string;
-    quantity: unknown;
-    unit: string;
-    unitPrice: unknown;
-    amount: unknown;
-    isOptional?: boolean;
-    isSelected?: boolean;
-    optionGroupId?: string | null;
-    itemType?: string | null;
-    meta?: unknown;
-  }>,
-): QuotePdfLine[] {
-  return lineItems.map((li) => {
-    const meta =
-      li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
-        ? (li.meta as Record<string, unknown>)
-        : {};
-    return {
-      name: li.name ?? null,
-      description: li.description,
-      quantity: Number(li.quantity),
-      unit: li.unit,
-      unitPrice: Number(li.unitPrice),
-      amount: Number(li.amount),
-      isOptional: li.isOptional,
-      isSelected: li.isSelected,
-      optionGroupId: li.optionGroupId,
-      itemType: li.itemType ?? null,
-      serviceType: meta.service_type != null ? String(meta.service_type) : null,
-      notes: meta.notes != null ? String(meta.notes) : null,
-      catalogNotes:
-        meta.catalog_customer_notes != null ? String(meta.catalog_customer_notes) : null,
-    };
-  });
-}
-
 function stripRichTextMarkers(text: string): string {
   return String(text || "")
     .replace(/\*\*([^*\n]+)\*\*/g, "$1")
@@ -400,6 +360,54 @@ function descriptionBodyWithoutTitle(name: string, description: string): string 
     desc = desc.slice(n.length).replace(/^[\s\u2014\u2013:·.\-]+/, "").trim();
   }
   return desc;
+}
+
+/** Map persisted quote line rows (+ meta JSON) into PDF line input. */
+export function pdfLinesFromDbItems(
+  lineItems: Array<{
+    name?: string | null;
+    description: string;
+    quantity: unknown;
+    unit: string;
+    unitPrice: unknown;
+    amount: unknown;
+    isOptional?: boolean;
+    isSelected?: boolean;
+    optionGroupId?: string | null;
+    itemType?: string | null;
+    meta?: unknown;
+  }>,
+): QuotePdfLine[] {
+  return lineItems.map((li) => {
+    const meta =
+      li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
+        ? (li.meta as Record<string, unknown>)
+        : {};
+    const name = li.name != null ? String(li.name).trim() : "";
+    // DB stores "Name\nBody" — PDF body must be the body only (no repeated title).
+    const body = descriptionBodyWithoutTitle(name, String(li.description || ""));
+    const catalogRaw =
+      meta.catalog_customer_notes != null ? String(meta.catalog_customer_notes).trim() : "";
+    const catalogBody = catalogRaw ? descriptionBodyWithoutTitle(name, catalogRaw) : "";
+    // Catalog notes are the same concept as the line description in Quotes — don't print twice.
+    const catalogNotes =
+      catalogBody && catalogBody !== body && catalogBody !== name ? catalogBody : null;
+    return {
+      name: name || null,
+      description: body,
+      quantity: Number(li.quantity),
+      unit: li.unit,
+      unitPrice: Number(li.unitPrice),
+      amount: Number(li.amount),
+      isOptional: li.isOptional,
+      isSelected: li.isSelected,
+      optionGroupId: li.optionGroupId,
+      itemType: li.itemType ?? null,
+      serviceType: meta.service_type != null ? String(meta.service_type) : null,
+      notes: meta.notes != null ? String(meta.notes) : null,
+      catalogNotes,
+    };
+  });
 }
 
 type RichSeg = { text: string; bold?: boolean; italic?: boolean };
@@ -858,23 +866,24 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
         if (brokeItem && ii > 0) drawTableHeader();
 
         const nameStr = stripRichTextMarkers(String(it.name || "").trim());
-        const rawDesc = String(it.description || "").trim();
-        const descPlain = stripRichTextMarkers(rawDesc);
-        const headline = nameStr || descPlain.split(/\n/)[0] || "Line item";
-        let bodyRaw = "";
-        if (nameStr && rawDesc) {
-          bodyRaw = descriptionBodyWithoutTitle(nameStr, rawDesc);
-        } else if (!nameStr && rawDesc.includes("\n")) {
-          bodyRaw = rawDesc.split(/\n/).slice(1).join("\n").trim();
-        }
-        const bodyPlain = stripRichTextMarkers(bodyRaw);
+        // `pdfLinesFromDbItems` already strips the leading title from description.
+        const bodyRaw = descriptionBodyWithoutTitle(nameStr, String(it.description || "").trim());
+        const headline = nameStr || stripRichTextMarkers(bodyRaw).split(/\n/)[0] || "Line item";
+        const bodyForPdf =
+          nameStr && bodyRaw === nameStr
+            ? ""
+            : nameStr
+              ? bodyRaw
+              : bodyRaw.includes("\n")
+                ? bodyRaw.split(/\n/).slice(1).join("\n").trim()
+                : "";
 
         const rowY = y;
         doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9.5);
         doc.text(headline, colDesc, rowY, { width: descMaxW });
         let dy = doc.y;
-        if (bodyRaw) {
-          dy = drawRichTextParagraph(doc, bodyRaw, colDesc, dy + 1, {
+        if (bodyForPdf) {
+          dy = drawRichTextParagraph(doc, bodyForPdf, colDesc, dy + 1, {
             width: descMaxW,
             fontSize: 8,
             color: PAL.muted,
@@ -884,11 +893,11 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
           const catalogPlain = it.catalogNotes
             ? stripRichTextMarkers(descriptionBodyWithoutTitle(nameStr, String(it.catalogNotes)))
             : "";
+          const bodyPlain = stripRichTextMarkers(bodyForPdf);
           const skipCatalog =
             !catalogPlain ||
             catalogPlain === bodyPlain ||
-            catalogPlain === nameStr ||
-            catalogPlain === descPlain;
+            catalogPlain === nameStr;
           const detailParts = [
             skipCatalog ? "" : String(it.catalogNotes || "").trim(),
             it.notes ? `Note: ${String(it.notes)}` : "",

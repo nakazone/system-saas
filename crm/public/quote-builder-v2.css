@@ -205,7 +205,19 @@ body.qb-dashboard-inner .qb-sidebar-footer { border: 0 !important; padding: 0 !i
   body.qb-dashboard-inner .qb-action-bar #btnSend:disabled { opacity: 0.55; }
   body.qb-dashboard-inner .qb-action-bar .qb-action-bar__more { order: 3; font-size: 20px; }
   body.qb-dashboard-inner .qb-action-bar .btn { border-bottom: 0 !important; min-height: 56px; font-weight: 800; font-size: 15px; }
-  body.qb-dashboard-inner, body.qb-dashboard-inner .qb-page { padding-bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px)) !important; }
+  /*
+   * Quote focus mode hides the om-tabbar (see obramate-app.css). Keep the action bar
+   * pinned to the real bottom — do not reserve tabbar height or it floats with a gap.
+   */
+  body.qb-dashboard-inner .qb-action-bar {
+    left: 0 !important;
+    bottom: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+  body.qb-dashboard-inner,
+  body.qb-dashboard-inner .qb-page {
+    padding-bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
 }
 @media (min-width: 1100px) {
   .qb-action-bar__more { display: none !important; }

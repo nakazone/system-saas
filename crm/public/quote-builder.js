@@ -3589,6 +3589,7 @@
     const existing = inlineEditIdx >= 0 ? items[inlineEditIdx] : null;
     const typedDescRaw = String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim();
     const typedDesc = descriptionBodyWithoutTitle(name, typedDescRaw);
+    // Prefer the text the user typed; fall back to catalog notes (already de-titled).
     const lineDesc = typedDesc || catNotes || '';
     const line = {
       item_type: existing && existing.item_type === 'product' ? 'product' : 'service',
@@ -3599,8 +3600,8 @@
       rate: sellRate,
       service_type: normalizeServiceType($('modalServiceType').value || 'Installation'),
       notes: noteVal || null,
-      catalog_customer_notes:
-        catNotes || (existing && existing.catalog_customer_notes) || null,
+      // Keep in sync with the line description so PDF/public don't show a stale catalog blurb.
+      catalog_customer_notes: lineDesc || null,
       service_catalog_id: row
         ? normalizeCatalogId(row.id)
         : existing
@@ -5137,8 +5138,10 @@
     const baseRateEl = $('modalServiceRate');
     if (baseRateEl) baseRateEl.addEventListener('keydown', handleServiceFormEnter);
     $('modalServiceDesc')?.addEventListener('keydown', (e) => {
-      // Enter = nova linha; Ctrl/⌘+Enter = salvar (não interceptar B/I do rich text).
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      // Enter = nova linha (deixar o browser inserir \n). Ctrl/⌘+Enter = salvar.
+      if (e.key !== 'Enter') return;
+      e.stopPropagation();
+      if (e.metaKey || e.ctrlKey) {
         e.preventDefault();
         confirmAddServiceLine();
       }
@@ -5246,7 +5249,6 @@
 
     $('btnSave').addEventListener('click', saveQuote);
     $('btnPdf').addEventListener('click', async () => {
-      if (!quoteId) return;
       const btn = $('btnPdf');
       const prevLabel = btn?.textContent || 'Gerar PDF';
       if (btn) {
@@ -5254,6 +5256,12 @@
         btn.textContent = 'A gerar…';
       }
       try {
+        // PDF reads from the DB — persist unsaved description/price edits first.
+        if (qbDirtyFlag || !quoteId) {
+          const ok = await saveQuote();
+          if (!ok) return;
+        }
+        if (!quoteId) return;
         await api(`/api/quotes/${quoteId}/generate-pdf`, { method: 'POST', body: '{}' });
         const title = loadedQuoteNumber ? `Orçamento ${loadedQuoteNumber}` : 'Orçamento';
         const filename = loadedQuoteNumber

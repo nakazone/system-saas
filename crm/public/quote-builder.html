@@ -22,12 +22,12 @@
   <style>
     .qb-dashboard-inner { font-family: "Plus Jakarta Sans", system-ui, sans-serif; }
     body.qb-sidebar-page .dashboard-container {
-      min-height: 100vh;
+      min-height: var(--om-app-height, 100dvh);
     }
     body.qb-dashboard-inner .dashboard-main {
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      min-height: var(--om-app-height, 100dvh);
       padding: 0;
       overflow: hidden;
     }
@@ -1192,6 +1192,8 @@
     .qb-item-editor__textarea {
       resize: vertical;
       min-height: 2.5rem;
+      font-size: 16px; /* avoid iOS zoom-on-focus which resizes the whole shell */
+      line-height: 1.35;
     }
     .qb-item-editor__row {
       display: flex;
@@ -1554,14 +1556,9 @@
     @media (max-width: 1099px) {
       .qb-action-bar {
         left: 0;
-      }
-      body.om-has-tabbar .qb-action-bar {
-        bottom: calc(var(--om-tabbar-h, 64px));
-        padding-bottom: 0;
-      }
-      body.om-has-tabbar.qb-dashboard-inner,
-      body.om-has-tabbar.qb-dashboard-inner .qb-page {
-        padding-bottom: calc(3.25rem + var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px));
+        /* Tab bar is hidden on quote focus — pin dock to the screen bottom. */
+        bottom: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
       }
       .qb-action-bar__inner {
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1583,11 +1580,7 @@
       }
       body.qb-dashboard-inner,
       body.qb-dashboard-inner .qb-page {
-        padding-bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
-      }
-      body.om-has-tabbar.qb-dashboard-inner,
-      body.om-has-tabbar.qb-dashboard-inner .qb-page {
-        padding-bottom: calc(6.75rem + var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
       }
     }
     @media (max-width: 1100px) {
@@ -1754,10 +1747,10 @@
   </style>
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261002-pdfclose" />
-  <link rel="stylesheet" href="quote-builder-v2.css?v=20261002-descrich1" />
+  <link rel="stylesheet" href="quote-builder-v2.css?v=20261002-qbfix2" />
 </head>
 <body class="qb-dashboard-inner dashboard-app-body om-app qb-sidebar-page om-no-dock sidebar-collapsed">
-  <script src="om-device.js?v=20261001-tablet2"></script>
+  <script src="om-device.js?v=20261002-qbfix2"></script>
   <script>
     (function () {
       try {
@@ -2103,7 +2096,7 @@
                 </div>
                 <div class="qb-item-editor__field">
                   <label for="modalServiceDesc">Descrição <span class="font-normal">(PDF / público)</span></label>
-                  <textarea id="modalServiceDesc" class="qb-item-editor__textarea" rows="3" data-crm-rich="basic" placeholder="Texto longo no PDF e na página pública. Selecione texto e use B / I."></textarea>
+                  <textarea id="modalServiceDesc" class="qb-item-editor__textarea" rows="3" data-crm-rich="basic" enterkeyhint="enter" placeholder="Texto longo no PDF e na página pública. Enter = nova linha. Selecione texto e use B / I."></textarea>
                 </div>
                 <div class="qb-item-editor__row qb-item-editor__row--pricing">
                   <div class="qb-item-editor__pricing">
@@ -2646,7 +2639,7 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261002-leadmsg1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261002-leave1"></script>
+  <script src="quote-builder.js?v=20261002-qbfix2"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

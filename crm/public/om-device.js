@@ -82,6 +82,33 @@
     document.body.classList.toggle("om-device-desktop", !phone);
   }
 
+  /**
+   * Lock a stable app height on phones so the UI doesn't jump when the browser
+   * chrome (URL bar) shows/hides. Update only on orientation change.
+   */
+  function lockMobileAppHeight() {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+    if (!isPhone()) return;
+    try {
+      const h = Math.round(Number(window.innerHeight) || 0);
+      if (h > 0) {
+        document.documentElement.style.setProperty("--om-app-height", h + "px");
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function wireMobileAppHeightLock() {
+    if (typeof window === "undefined") return;
+    lockMobileAppHeight();
+    window.addEventListener("orientationchange", function () {
+      setTimeout(lockMobileAppHeight, 250);
+      setTimeout(lockMobileAppHeight, 700);
+    });
+    // Ignore visualViewport / resize — those fire when the keyboard or URL bar moves.
+  }
+
   /** Redirect desktop/tablet away from the mobile-only Home. */
   function guardMobileOnlyPage(desktopHref) {
     if (isMobile()) return false;
@@ -106,6 +133,7 @@
     entryHref,
     applyBodyClass,
     guardMobileOnlyPage,
+    lockMobileAppHeight,
   };
 
   global.__omDevice = api;
@@ -113,5 +141,6 @@
   if (typeof document !== "undefined") {
     if (document.body) applyBodyClass();
     else document.addEventListener("DOMContentLoaded", applyBodyClass);
+    wireMobileAppHeightLock();
   }
 })(typeof window !== "undefined" ? window : globalThis);
