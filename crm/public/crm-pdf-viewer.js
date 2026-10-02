@@ -5,6 +5,7 @@
   let root = null;
   let currentObjectUrl = null;
   let previousBodyOverflow = '';
+  let bodyLocked = false;
 
   function ensureRoot() {
     if (root) return root;
@@ -53,13 +54,19 @@
 
   function setBodyLock(locked) {
     if (locked) {
-      previousBodyOverflow = document.body.style.overflow;
+      // openFromUrl calls open() twice (loading → blob); only lock once so we
+      // don't snapshot overflow:"hidden" and restore a frozen page on close.
+      if (bodyLocked) return;
+      previousBodyOverflow = document.body.style.overflow || '';
       document.body.classList.add('crm-pdf-viewer-open');
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.classList.remove('crm-pdf-viewer-open');
-      document.body.style.overflow = previousBodyOverflow || '';
+      bodyLocked = true;
+      return;
     }
+    document.body.classList.remove('crm-pdf-viewer-open');
+    document.body.style.overflow = previousBodyOverflow || '';
+    previousBodyOverflow = '';
+    bodyLocked = false;
   }
 
   function showFrame(src) {
@@ -131,13 +138,26 @@
 
   function close() {
     if (!root) return;
+    // Blur before tearing down so iOS/Safari doesn't leave focus stuck in the PDF embed.
+    const active = document.activeElement;
+    if (active && root.contains(active) && typeof active.blur === 'function') {
+      active.blur();
+    }
     root.classList.remove('is-open');
     root.setAttribute('aria-hidden', 'true');
-    setBodyLock(false);
-    revokeUrl();
     const body = root.querySelector('#crmPdfViewerBody');
     if (body) {
+      // Drop the embed first — PDF plugins can keep intercepting touches after hide.
       body.innerHTML = '<p class="crm-pdf-viewer__loading" id="crmPdfViewerLoading">A carregar PDF…</p>';
+    }
+    revokeUrl();
+    setBodyLock(false);
+    // Safety: never leave scroll locked if a previous open raced.
+    if (document.body.classList.contains('crm-pdf-viewer-open')) {
+      document.body.classList.remove('crm-pdf-viewer-open');
+    }
+    if (document.body.style.overflow === 'hidden' && !bodyLocked) {
+      document.body.style.overflow = '';
     }
   }
 
@@ -160,9 +180,13 @@
         const j = await r.json().catch(() => ({}));
         throw new Error(j.error || 'Resposta inválida');
       }
+      // If the user already closed while fetch was in flight, don't reopen.
+      if (!root.classList.contains('is-open')) return;
       const blob = await r.blob();
+      if (!root.classList.contains('is-open')) return;
       open({ blob, title, filename });
     } catch (e) {
+      if (!root?.classList.contains('is-open')) return;
       showError(e.message || 'Não foi possível abrir o PDF.');
       window.crmToast?.error?.(e.message || 'Não foi possível abrir o PDF.');
     }
