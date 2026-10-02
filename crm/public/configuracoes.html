@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa" />
   <link rel="stylesheet" href="crm-push.css?v=20260923-push" />
-  <link rel="stylesheet" href="configuracoes.css?v=20261002-leadmsg1" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261002-quotesms2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -368,27 +368,6 @@
                   </div>
                 </article>
 
-                <article class="cfg-card">
-                  <h3 class="cfg-card__title">Mensagens ao cliente (SMS / WhatsApp)</h3>
-                  <p class="cfg-card__desc">
-                    Textos em inglês enviados ao cliente ao partilhar o orçamento. Placeholders:
-                    <code>[name]</code>, <code>[company]</code>, <code>[quote_number]</code>, <code>[link]</code>.
-                  </p>
-                  <div class="cfg-field">
-                    <label for="q_sms_body">Ao enviar o orçamento (SMS)</label>
-                    <textarea id="q_sms_body" data-qshare="sms_body" rows="6" maxlength="2000" spellcheck="true"></textarea>
-                    <p class="cfg-hint"><span id="qSmsBodyCount">0</span> caracteres · abre a app de mensagens do telefone</p>
-                  </div>
-                  <div class="cfg-field">
-                    <label for="q_followup_body">Follow-up (cliente já abriu o link)</label>
-                    <textarea id="q_followup_body" data-qshare="followup_body" rows="4" maxlength="2000" spellcheck="true"></textarea>
-                    <p class="cfg-hint"><span id="qFollowupBodyCount">0</span> caracteres · usado no lembrete por WhatsApp</p>
-                  </div>
-                  <div class="cfg-row">
-                    <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnShareMsgDefaults">Restaurar textos padrão (EN)</button>
-                  </div>
-                </article>
-
                 <article class="cfg-card" id="ownerSigCard">
                   <h3 class="cfg-card__title">Assinatura do responsável</h3>
                   <p class="cfg-card__desc">Vai no orçamento como a assinatura da sua empresa. O construtor de orçamento usa esta mesma assinatura.</p>
@@ -410,6 +389,40 @@
                   </div>
                   <p class="cfg-hint" id="sigMeta"></p>
                 </article>
+              </form>
+            </section>
+
+            <!-- ---------- Mensagens do Orçamento (SMS / WhatsApp) ---------- -->
+            <section class="cfg-section" data-section="mensagens-orcamento" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Mensagens do Orçamento</h2>
+                <p class="cfg-lead">
+                  Textos enviados ao cliente ao partilhar o orçamento por SMS ou WhatsApp.
+                  Placeholders: <code>[name]</code>, <code>[company]</code>, <code>[quote_number]</code>, <code>[link]</code>.
+                </p>
+              </header>
+              <form id="quoteShareForm" class="cfg-form" novalidate autocomplete="off">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">SMS ao enviar o orçamento</h3>
+                  <p class="cfg-card__desc">Abre a app de mensagens do telefone com este texto e o link público.</p>
+                  <div class="cfg-field">
+                    <label for="q_sms_body">Texto da mensagem</label>
+                    <textarea id="q_sms_body" data-qshare="sms_body" rows="7" maxlength="2000" spellcheck="true"></textarea>
+                    <p class="cfg-hint"><span id="qSmsBodyCount">0</span> caracteres</p>
+                  </div>
+                </article>
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Follow-up (cliente já abriu o link)</h3>
+                  <p class="cfg-card__desc">Usado no lembrete por WhatsApp quando o cliente visualizou o orçamento e ainda não aprovou.</p>
+                  <div class="cfg-field">
+                    <label for="q_followup_body">Texto do follow-up</label>
+                    <textarea id="q_followup_body" data-qshare="followup_body" rows="5" maxlength="2000" spellcheck="true"></textarea>
+                    <p class="cfg-hint"><span id="qFollowupBodyCount">0</span> caracteres</p>
+                  </div>
+                </article>
+                <div class="cfg-row">
+                  <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnShareMsgDefaults">Restaurar textos padrão (EN)</button>
+                </div>
               </form>
             </section>
 
@@ -695,6 +708,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261001-addr2"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261002-quotesms1"></script>
+  <script src="configuracoes.js?v=20261002-quotesms2"></script>
 </body>
 </html>

@@ -26,6 +26,7 @@
     { id: 'settings', label: 'Configurações', sub: 'Visão geral da empresa', href: 'configuracoes.html#visao-geral', perm: null },
     { id: 'settings-company', label: 'Dados da empresa', sub: 'Configurações · endereço, licença, horário', href: 'configuracoes.html#empresa', perm: 'settings.manage' },
     { id: 'settings-brand', label: 'Marca e aparência', sub: 'Configurações · logo e cores', href: 'configuracoes.html#marca', perm: 'settings.manage' },
+    { id: 'settings-quote-messages', label: 'Mensagens do Orçamento', sub: 'Configurações · SMS e WhatsApp do quote', href: 'configuracoes.html#mensagens-orcamento', perm: 'settings.manage' },
     { id: 'settings-lead-messages', label: 'Mensagens para Leads', sub: 'Configurações · e-mails do pipeline', href: 'configuracoes.html#mensagens-fase', perm: 'settings.manage' },
     { id: 'support', label: 'Ajuda / suporte', sub: 'Help center e contato', href: '#help', perm: null },
     { id: 'install', label: 'Instalar app', sub: 'Baixar no dispositivo', href: '#pwa-install', perm: null },

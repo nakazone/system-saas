@@ -1,7 +1,7 @@
 /**
  * ObraMate — service worker (cache + Web Push).
  */
-const CACHE = 'om-static-v56';
+const CACHE = 'om-static-v57';
 const PRECACHE = [
   '/home.html',
   '/mais.html',

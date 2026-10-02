@@ -41,7 +41,13 @@
           id: "orcamentos",
           label: "Orçamentos",
           perm: "settings.manage",
-          keywords: "numeração prefixo número validade imposto tax termos condições cliente vê preço unitário quantidade cômodo assinatura responsável sms mensagem whatsapp follow-up quote share",
+          keywords: "numeração prefixo número validade imposto tax termos condições cliente vê preço unitário quantidade cômodo assinatura responsável",
+        },
+        {
+          id: "mensagens-orcamento",
+          label: "Mensagens do Orçamento",
+          perm: "settings.manage",
+          keywords: "sms mensagem whatsapp follow-up quote orçamento enviar link template share",
         },
         {
           id: "mensagens-fase",
@@ -117,8 +123,9 @@
     ["Imposto padrão", "orcamentos", "q_tax_rate"],
     ["Termos e condições", "orcamentos", "q_terms"],
     ["O que o cliente vê no orçamento", "orcamentos", null],
-    ["Mensagens SMS / WhatsApp do orçamento", "orcamentos", "q_sms_body"],
     ["Assinatura do responsável", "orcamentos", "s_name"],
+    ["SMS ao enviar o orçamento", "mensagens-orcamento", "q_sms_body"],
+    ["Follow-up WhatsApp do orçamento", "mensagens-orcamento", "q_followup_body"],
     ["Mensagens para Leads", "mensagens-fase", "lm_company"],
     ["Assunto padrão do e-mail", "mensagens-fase", "lm_subject"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
@@ -279,6 +286,7 @@
     if (id === "empresa") return companyDirtyKeys().length;
     if (id === "marca") return brandDirty() ? 1 : 0;
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
+    if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
     if (id === "mensagens-fase") return leadMsgDirty() ? 1 : 0;
     if (id === "regras-estimativa") return rulesDirtyTypes().length;
     return 0;
@@ -469,6 +477,7 @@
     if (state.current === "empresa") return saveCompany();
     if (state.current === "marca") return saveBrand();
     if (state.current === "orcamentos") return saveQuotes();
+    if (state.current === "mensagens-orcamento") return saveQuoteShareMessages();
     if (state.current === "mensagens-fase") return saveLeadMessages();
     if (state.current === "regras-estimativa") return saveRules();
     return true;
@@ -478,6 +487,7 @@
     if (state.current === "empresa") fillCompany(state.company.snapshot);
     if (state.current === "marca") resetBrandToSnapshot();
     if (state.current === "orcamentos") discardQuotes();
+    if (state.current === "mensagens-orcamento") discardQuoteShareMessages();
     if (state.current === "mensagens-fase") discardLeadMessages();
     if (state.current === "regras-estimativa") renderRules(state.rules.snapshot);
     clearErrors();
@@ -490,7 +500,8 @@
   const GROUP_LINKS = [
     { title: "Dados da empresa", desc: "Contato, endereço, licença e horário", href: "#empresa", perm: "settings.manage" },
     { title: "Marca e aparência", desc: "Logo e cores", href: "#marca", perm: "settings.manage" },
-    { title: "Orçamentos", desc: "Numeração, validade, termos, SMS e assinatura", href: "#orcamentos", perm: "settings.manage" },
+    { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
+    { title: "Mensagens do Orçamento", desc: "SMS e WhatsApp ao enviar o orçamento", href: "#mensagens-orcamento", perm: "settings.manage" },
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
@@ -1210,6 +1221,44 @@
     if (fu) fu.textContent = String(($("q_followup_body")?.value || "").length);
   }
 
+  function shareMessagesDirty() {
+    if (!state.quotes.loaded || !state.quotes.snapshot) return false;
+    return comparable(readShareMessages()) !== comparable(state.quotes.snapshot.share_messages || {});
+  }
+
+  async function saveQuoteShareMessages() {
+    const sms = String($("q_sms_body")?.value || "").trim();
+    const followup = String($("q_followup_body")?.value || "").trim();
+    setErrorOn($("q_sms_body"), sms ? "" : "Indique o texto do SMS");
+    setErrorOn($("q_followup_body"), followup ? "" : "Indique o texto de follow-up");
+    if (!sms || !followup) {
+      ($("q_sms_body")?.value.trim() ? $("q_followup_body") : $("q_sms_body"))?.focus();
+      notify("Revise os campos destacados.", "error");
+      return false;
+    }
+    setSaving(true);
+    try {
+      const body = { share_messages: { sms_body: sms, followup_body: followup } };
+      const j = await api("/api/settings/quotes", { method: "PATCH", body: JSON.stringify(body) });
+      state.quotes.data = j.data;
+      fillQuotes(j.data);
+      state.quotes.snapshot = readQuotes();
+      notify("Mensagens do orçamento salvas.", "success");
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+      updateSavebar();
+    }
+  }
+
+  function discardQuoteShareMessages() {
+    if (state.quotes.data) fillShareMessages(state.quotes.data);
+    else if (state.quotes.snapshot) fillShareMessages({ share_messages: state.quotes.snapshot.share_messages });
+  }
+
   function readQuotes() {
     const v = (id) => $(id).value.trim();
     return {
@@ -1253,7 +1302,11 @@
     if (!state.quotes.loaded) return [];
     const now = readQuotes();
     const snap = state.quotes.snapshot;
-    return Object.keys(now).filter((k) => comparable(now[k]) !== comparable(snap[k]));
+    // share_messages has its own settings section — don't mix into Orçamentos dirty count
+    return Object.keys(now).filter((k) => {
+      if (k === "share_messages") return false;
+      return comparable(now[k]) !== comparable(snap[k]);
+    });
   }
 
   // --- owner signature
@@ -1625,8 +1678,6 @@
       ["q_next_number", !d.next_number || (/^\d+$/.test(d.next_number) && Number(d.next_number) >= 1) ? "" : "Número inválido"],
       ["q_validity_days", /^\d+$/.test(d.validity_days) && +d.validity_days >= 1 && +d.validity_days <= 365 ? "" : "Entre 1 e 365 dias"],
       ["q_tax_rate", d.tax_rate !== "" && +d.tax_rate >= 0 && +d.tax_rate <= 30 ? "" : "Entre 0 e 30%"],
-      ["q_sms_body", d.share_messages.sms_body ? "" : "Indique o texto do SMS"],
-      ["q_followup_body", d.share_messages.followup_body ? "" : "Indique o texto de follow-up"],
     ];
     const last = state.quotes.data && state.quotes.data.last_number;
     if (!checks[1][1] && d.next_number && last != null && +d.next_number <= last) {
@@ -1745,6 +1796,18 @@
       syncShareMsgCounts();
       updateSavebar();
     });
+    const shareForm = $("quoteShareForm");
+    if (shareForm) {
+      shareForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        saveQuoteShareMessages();
+      });
+      shareForm.addEventListener("input", (e) => {
+        if (e.target.closest(".has-error")) setErrorOn(e.target, "");
+        syncShareMsgCounts();
+        updateSavebar();
+      });
+    }
     $("s_auto").addEventListener("change", () => {
       if ($("s_auto").checked) autoSignFromName();
       updateSavebar();
@@ -2283,6 +2346,7 @@
     if (id === "empresa") return loadCompany();
     if (id === "marca") return loadBrand();
     if (id === "orcamentos") return loadQuotes();
+    if (id === "mensagens-orcamento") return loadQuotes();
     if (id === "mensagens-fase") return loadLeadMessages();
     if (id === "regras-estimativa") return loadRules();
     if (id === "cargos") return loadRolesSection();
