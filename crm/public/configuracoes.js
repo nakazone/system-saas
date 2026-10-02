@@ -44,6 +44,12 @@
           keywords: "numeração prefixo número validade imposto tax termos condições cliente vê preço unitário quantidade cômodo assinatura responsável",
         },
         {
+          id: "mensagens-fase",
+          label: "Mensagens padrão por fase",
+          perm: "settings.manage",
+          keywords: "mensagem email e-mail sms template fase pipeline lead novo visita orçamento follow-up",
+        },
+        {
           id: "regras-estimativa",
           label: "Regras de estimativa",
           perm: "estimate_rules.manage",
@@ -112,6 +118,8 @@
     ["Termos e condições", "orcamentos", "q_terms"],
     ["O que o cliente vê no orçamento", "orcamentos", null],
     ["Assinatura do responsável", "orcamentos", "s_name"],
+    ["Mensagens padrão por fase", "mensagens-fase", "lm_company"],
+    ["Assunto padrão do e-mail", "mensagens-fase", "lm_subject"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
     ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
     ["Cargos", "cargos", "cfgRolesBody"],
@@ -180,6 +188,7 @@
     pendingHash: null,
     company: { loaded: false, snapshot: null, data: null },
     quotes: { loaded: false, snapshot: null, data: null },
+    leadMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "new_lead" },
     sig: { loaded: false, snapshot: null, drawn: false, removed: false, data: null },
     rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
@@ -269,6 +278,7 @@
     if (id === "empresa") return companyDirtyKeys().length;
     if (id === "marca") return brandDirty() ? 1 : 0;
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
+    if (id === "mensagens-fase") return leadMsgDirty() ? 1 : 0;
     if (id === "regras-estimativa") return rulesDirtyTypes().length;
     return 0;
   }
@@ -458,6 +468,7 @@
     if (state.current === "empresa") return saveCompany();
     if (state.current === "marca") return saveBrand();
     if (state.current === "orcamentos") return saveQuotes();
+    if (state.current === "mensagens-fase") return saveLeadMessages();
     if (state.current === "regras-estimativa") return saveRules();
     return true;
   }
@@ -466,6 +477,7 @@
     if (state.current === "empresa") fillCompany(state.company.snapshot);
     if (state.current === "marca") resetBrandToSnapshot();
     if (state.current === "orcamentos") discardQuotes();
+    if (state.current === "mensagens-fase") discardLeadMessages();
     if (state.current === "regras-estimativa") renderRules(state.rules.snapshot);
     clearErrors();
     clearFormErrors("quotesForm");
@@ -478,6 +490,7 @@
     { title: "Dados da empresa", desc: "Contato, endereço, licença e horário", href: "#empresa", perm: "settings.manage" },
     { title: "Marca e aparência", desc: "Logo e cores", href: "#marca", perm: "settings.manage" },
     { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
+    { title: "Mensagens por fase", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
     { title: "Produtos e fornecedores", desc: "Custos, margens e SKUs", href: "products-erp.html", perm: ["quotes.view"] },
@@ -1348,6 +1361,231 @@
     if (state.sig.data) fillSig(state.sig.data);
   }
 
+  // ---------------------------------------------------------------- lead messages (pipeline stages)
+  function cloneLeadMsg(data) {
+    return JSON.parse(JSON.stringify(data || null));
+  }
+
+  function leadMsgDirty() {
+    if (!state.leadMsg.snapshot) return false;
+    try {
+      const body = leadMsgPutBody();
+      const snapStages = {};
+      (state.leadMsg.snapshot.stages || []).forEach((st) => {
+        snapStages[st.slug] = {
+          email_subject: st.email_subject || null,
+          templates: (st.templates || []).map((t) => ({ id: t.id, label: t.label, body: t.body })),
+        };
+      });
+      const snap = {
+        company_name: state.leadMsg.snapshot.company_name || null,
+        default_email_subject: state.leadMsg.snapshot.default_email_subject || null,
+        stages: snapStages,
+      };
+      return JSON.stringify(snap) !== JSON.stringify(body);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function leadMsgPutBody() {
+    const company_name = String($("lm_company")?.value || "").trim() || null;
+    const default_email_subject = String($("lm_subject")?.value || "").trim() || null;
+    const stages = {};
+    const list = state.leadMsg.draft?.stages || state.leadMsg.snapshot?.stages || [];
+    list.forEach((st) => {
+      const slug = st.slug;
+      const subjectEl = document.querySelector(`[data-lm-subject="${slug}"]`);
+      const cards = document.querySelectorAll(`[data-lm-stage="${slug}"] .cfg-lm-tpl`);
+      const templates = [];
+      cards.forEach((card, idx) => {
+        const id = card.getAttribute("data-lm-id") || `tpl_${idx + 1}`;
+        const label = String(card.querySelector("[data-lm-label]")?.value || "").trim();
+        const body = String(card.querySelector("[data-lm-body]")?.value || "").trim();
+        if (!label && !body) return;
+        templates.push({
+          id,
+          label: label || `Mensagem ${idx + 1}`,
+          body,
+        });
+      });
+      // Inactive tab panels are still in DOM (hidden) — use them; if empty, keep draft.
+      stages[slug] = {
+        email_subject: subjectEl ? String(subjectEl.value || "").trim() || null : st.email_subject || null,
+        templates: templates.length
+          ? templates
+          : (st.templates || []).map((t) => ({ id: t.id, label: t.label, body: t.body })),
+      };
+    });
+    return { company_name, default_email_subject, stages };
+  }
+
+  function renderLeadMsgStage(stage, active) {
+    const templates = stage.templates || [];
+    const list = templates
+      .map(
+        (t, idx) =>
+          `<div class="cfg-lm-tpl" data-lm-id="${esc(t.id)}">
+            <div class="cfg-lm-tpl__head">
+              <div class="cfg-field cfg-grow"><label>Título</label><input data-lm-label maxlength="120" value="${esc(t.label)}" /></div>
+              <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" data-lm-del-tpl title="Remover">Remover</button>
+            </div>
+            <div class="cfg-field"><label>Texto da mensagem ${idx + 1}</label><textarea data-lm-body rows="5" maxlength="4000">${esc(t.body)}</textarea></div>
+          </div>`,
+      )
+      .join("");
+    return `<div class="cfg-lm-panel" data-lm-stage="${esc(stage.slug)}" ${active ? "" : "hidden"}>
+      <div class="cfg-field">
+        <label>Assunto do e-mail nesta fase <span class="font-normal">(opcional)</span></label>
+        <input data-lm-subject="${esc(stage.slug)}" maxlength="200" value="${esc(stage.email_subject || "")}" placeholder="Usa o assunto padrão se vazio" />
+      </div>
+      <div class="cfg-lm-tpls">${list}</div>
+      <button type="button" class="btn btn-secondary cfg-btn-sm" data-lm-add-tpl>Adicionar mensagem</button>
+    </div>`;
+  }
+
+  function renderLeadMessages(data) {
+    const stages = data.stages || [];
+    if (!stages.length) return;
+    let active = state.leadMsg.activeSlug;
+    if (!stages.some((s) => s.slug === active)) active = stages[0].slug;
+    state.leadMsg.activeSlug = active;
+    if ($("lm_company")) $("lm_company").value = data.company_name || "";
+    if ($("lm_subject")) $("lm_subject").value = data.default_email_subject || "";
+    $("lmStageTabs").innerHTML = stages
+      .map(
+        (s) =>
+          `<button type="button" class="cfg-lm-tab${s.slug === active ? " is-active" : ""}" role="tab" aria-selected="${
+            s.slug === active ? "true" : "false"
+          }" data-lm-tab="${esc(s.slug)}">${esc(s.label)}</button>`,
+      )
+      .join("");
+    $("lmStagePanels").innerHTML = stages.map((s) => renderLeadMsgStage(s, s.slug === active)).join("");
+  }
+
+  function syncLeadMsgDraftFromDom() {
+    const body = leadMsgPutBody();
+    const stagesArr = (state.leadMsg.draft?.stages || []).map((st) => ({
+      slug: st.slug,
+      label: st.label,
+      email_subject: body.stages[st.slug]?.email_subject ?? null,
+      templates: body.stages[st.slug]?.templates || st.templates,
+    }));
+    state.leadMsg.draft = {
+      company_name: body.company_name,
+      default_email_subject: body.default_email_subject,
+      stages: stagesArr,
+      tokens: state.leadMsg.draft?.tokens || ["[name]", "[company]"],
+    };
+  }
+
+  function discardLeadMessages() {
+    if (!state.leadMsg.snapshot) return;
+    state.leadMsg.draft = cloneLeadMsg(state.leadMsg.snapshot);
+    renderLeadMessages(state.leadMsg.draft);
+  }
+
+  async function loadLeadMessages(force) {
+    if (state.leadMsg.loaded && !force) {
+      renderLeadMessages(state.leadMsg.draft || state.leadMsg.snapshot);
+      return;
+    }
+    const j = await api("/api/settings/lead-messages");
+    state.leadMsg.snapshot = cloneLeadMsg(j.data);
+    state.leadMsg.draft = cloneLeadMsg(j.data);
+    state.leadMsg.loaded = true;
+    renderLeadMessages(state.leadMsg.draft);
+  }
+
+  async function saveLeadMessages() {
+    syncLeadMsgDraftFromDom();
+    const body = leadMsgPutBody();
+    for (const [slug, st] of Object.entries(body.stages || {})) {
+      if (!st.templates || !st.templates.length) {
+        const label =
+          (state.leadMsg.draft?.stages || []).find((s) => s.slug === slug)?.label || slug;
+        notify(`Adicione ao menos uma mensagem em “${label}”.`, "error");
+        return false;
+      }
+      for (const t of st.templates) {
+        if (!String(t.body || "").trim()) {
+          notify("Preencha o texto de todas as mensagens.", "error");
+          return false;
+        }
+      }
+    }
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/lead-messages", { method: "PUT", body: JSON.stringify(body) });
+      state.leadMsg.snapshot = cloneLeadMsg(j.data);
+      state.leadMsg.draft = cloneLeadMsg(j.data);
+      renderLeadMessages(state.leadMsg.draft);
+      notify("Mensagens salvas.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindLeadMessagesUi() {
+    const form = $("leadMsgForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("input", () => updateSavebar());
+    form.addEventListener("click", (e) => {
+      const tab = e.target.closest?.("[data-lm-tab]");
+      if (tab) {
+        e.preventDefault();
+        syncLeadMsgDraftFromDom();
+        state.leadMsg.activeSlug = tab.getAttribute("data-lm-tab");
+        renderLeadMessages(state.leadMsg.draft);
+        updateSavebar();
+        return;
+      }
+      const add = e.target.closest?.("[data-lm-add-tpl]");
+      if (add) {
+        e.preventDefault();
+        syncLeadMsgDraftFromDom();
+        const slug = state.leadMsg.activeSlug;
+        const st = (state.leadMsg.draft.stages || []).find((s) => s.slug === slug);
+        if (!st) return;
+        if ((st.templates || []).length >= 12) {
+          notify("Máximo de 12 mensagens por fase.", "error");
+          return;
+        }
+        st.templates.push({
+          id: `custom_${Date.now()}`,
+          label: `Mensagem ${(st.templates.length || 0) + 1}`,
+          body: "Hi [name], …",
+        });
+        renderLeadMessages(state.leadMsg.draft);
+        updateSavebar();
+        return;
+      }
+      const del = e.target.closest?.("[data-lm-del-tpl]");
+      if (del) {
+        e.preventDefault();
+        const card = del.closest(".cfg-lm-tpl");
+        const id = card?.getAttribute("data-lm-id");
+        syncLeadMsgDraftFromDom();
+        const slug = state.leadMsg.activeSlug;
+        const st = (state.leadMsg.draft.stages || []).find((s) => s.slug === slug);
+        if (!st || !id) return;
+        if ((st.templates || []).length <= 1) {
+          notify("Mantenha ao menos uma mensagem por fase.", "error");
+          return;
+        }
+        st.templates = st.templates.filter((t) => t.id !== id);
+        renderLeadMessages(state.leadMsg.draft);
+        updateSavebar();
+      }
+    });
+  }
+
   function validateQuotes() {
     const d = readQuotes();
     const checks = [
@@ -1999,6 +2237,7 @@
     if (id === "empresa") return loadCompany();
     if (id === "marca") return loadBrand();
     if (id === "orcamentos") return loadQuotes();
+    if (id === "mensagens-fase") return loadLeadMessages();
     if (id === "regras-estimativa") return loadRules();
     if (id === "cargos") return loadRolesSection();
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
@@ -2030,6 +2269,7 @@
   function bindShell() {
     $("cfgSave").addEventListener("click", () => saveCurrent());
     $("cfgDiscard").addEventListener("click", () => discardCurrent());
+    bindLeadMessagesUi();
     $("cfgLeaveModal").addEventListener("click", (e) => {
       if (e.target.closest("[data-close]")) closeLeaveModal();
     });

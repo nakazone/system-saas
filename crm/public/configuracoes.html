@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa" />
   <link rel="stylesheet" href="crm-push.css?v=20260923-push" />
-  <link rel="stylesheet" href="configuracoes.css?v=20260930-cfg2" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261002-leadmsg1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -392,6 +392,37 @@
               </form>
             </section>
 
+            <!-- ---------- Mensagens padrão por fase ---------- -->
+            <section class="cfg-section" data-section="mensagens-fase" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Mensagens padrão por fase</h2>
+                <p class="cfg-lead">Textos usados nos e-mails (e SMS) ao contato do lead em cada fase do pipeline. Use <code>[name]</code> e <code>[company]</code>.</p>
+              </header>
+              <form id="leadMsgForm" class="cfg-form" novalidate autocomplete="off">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Geral</h3>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field">
+                      <label for="lm_company">Nome da empresa nas mensagens</label>
+                      <input id="lm_company" maxlength="120" placeholder="Ex.: ObraMate Floors" />
+                      <p class="cfg-hint">Substitui <code>[company]</code>. Se vazio, usa o nome da organização.</p>
+                    </div>
+                    <div class="cfg-field">
+                      <label for="lm_subject">Assunto padrão do e-mail</label>
+                      <input id="lm_subject" maxlength="200" placeholder="[company] — [name]" />
+                    </div>
+                  </div>
+                </article>
+
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Por fase do pipeline</h3>
+                  <p class="cfg-card__desc">Cada fase pode ter várias mensagens. No lead, o botão E-mail mostra estas opções.</p>
+                  <div class="cfg-lm-tabs" id="lmStageTabs" role="tablist" aria-label="Fases do pipeline"></div>
+                  <div id="lmStagePanels"></div>
+                </article>
+              </form>
+            </section>
+
             <!-- ---------- Regras de estimativa ---------- -->
             <section class="cfg-section" data-section="regras-estimativa" hidden>
               <header class="cfg-head">
@@ -643,6 +674,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261001-addr2"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261001-cfgcat1"></script>
+  <script src="configuracoes.js?v=20261002-leadmsg1"></script>
 </body>
 </html>

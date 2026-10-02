@@ -54,6 +54,8 @@ model Organization {
   quoteSettings    Json?
   /// Automation toggles/delays: quoteFollowUpEnabled, quoteFollowUpDays, visitReminderEnabled, visitReminderHours
   automationSettings Json?
+  /// Default lead email/SMS templates per pipeline stage (Configurações › Mensagens por fase)
+  leadMessageSettings Json?
   stripeCustomerId String?
   trialEndsAt      DateTime?
   /// Feature flags per org, e.g. { "job_media": true }

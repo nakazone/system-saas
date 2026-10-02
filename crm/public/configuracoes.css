@@ -517,3 +517,51 @@ body.cfg-has-savebar #omDock { display: none !important; }
 .cfg-table th:first-child { padding-left: 16px; }
 .cfg-table td:last-child { padding-right: 12px; width: 1%; }
 .cfg .cfg-num { min-width: 64px; }
+
+/* ---------------- lead messages by pipeline stage ---------------- */
+.cfg-lm-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 12px;
+}
+.cfg-lm-tab {
+  appearance: none;
+  border: 1px solid var(--cfg-line);
+  background: var(--cfg-soft-2);
+  color: var(--cfg-ink);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.cfg-lm-tab:hover { border-color: #e0d4c4; background: #fff; }
+.cfg-lm-tab.is-active {
+  background: var(--cfg-accent);
+  border-color: var(--cfg-accent);
+  color: #fff;
+}
+.cfg-lm-panel { display: flex; flex-direction: column; gap: 12px; }
+.cfg-lm-panel[hidden] { display: none !important; }
+.cfg-lm-tpls { display: flex; flex-direction: column; gap: 12px; }
+.cfg-lm-tpl {
+  border: 1px solid var(--cfg-line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--cfg-soft-2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cfg-lm-tpl__head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.cfg-lm-tpl__head .cfg-grow,
+.cfg-lm-tpl__head .cfg-field.grow { flex: 1; min-width: 0; }
+.cfg-lm-tpl .cfg-field { background: #fff; }
+.cfg .font-normal { font-weight: 400; }

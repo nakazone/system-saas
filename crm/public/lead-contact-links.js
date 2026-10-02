@@ -1,43 +1,43 @@
 /**
  * Native tel:/sms:/mailto links and stage-based message templates for leads.
+ * Templates come from Configurações › Mensagens padrão por fase (/api/settings/lead-messages),
+ * with built-in defaults as fallback until the API loads.
  */
 (function (global) {
-  const SMS_COMPANY = 'Senior Floors';
+  const FALLBACK_COMPANY = 'ObraMate';
 
   const FOLLOW_UP_TEMPLATES = [
     {
       id: 'follow_up_quote_reminder',
-      label: 'Follow up — quote reminder',
+      label: 'Follow-up — lembrete do orçamento',
       template:
         "Hello [name], I hope all is well. Just following up on the quote I sent a few days ago. If everything looks good, I'd be happy to help get your project scheduled and reserve a spot for you.",
     },
     {
       id: 'follow_up_last_check',
-      label: 'Follow up — last check-in',
+      label: 'Follow-up — último contato',
       template:
         "Hello [name], just wanted to check in one last time regarding your flooring project. If timing is better later, no problem at all — I'd still be happy to help whenever you're ready.",
     },
   ];
 
-  /** Templates disponíveis em New Lead — replicados em todas as abas. */
   const NEW_LEAD_TEMPLATES = [
     {
       id: 'new_lead_intro',
-      label: 'New lead — introduction',
+      label: 'Novo lead — introdução',
       template:
-        "Hi [name], thanks for reaching out to Senior Floors. I'd be happy to help. Can you tell me a little about the project?",
+        "Hi [name], thanks for reaching out to [company]. I'd be happy to help. Can you tell me a little about the project?",
     },
     ...FOLLOW_UP_TEMPLATES,
   ];
 
-  /** Extras por estágio (antes dos templates New Lead). */
   const STAGE_SMS_EXTRAS = {
     quote_sent: [
       {
         id: 'quote_sent_followup',
-        label: 'Quote sent — thank you',
+        label: 'Orçamento enviado — agradecimento',
         template:
-          "Hello [name], thank you for your time today. I've sent email and attached the quote PDF with the options we discussed. Thank you!\n\nFor know more about us\nhttps://senior-floors.com/",
+          "Hello [name], thank you for your time today. I've sent email and attached the quote PDF with the options we discussed. Thank you!",
       },
     ],
   };
@@ -53,6 +53,10 @@
     won: NEW_LEAD_TEMPLATES.slice(),
     lost: NEW_LEAD_TEMPLATES.slice(),
   };
+
+  /** @type {{ company_name: string|null, default_email_subject: string|null, stages: Record<string, { email_subject: string|null, templates: Array<{id:string,label:string,body:string}> }> } | null} */
+  let remoteSettings = null;
+  let loadPromise = null;
 
   function escapeHtml(s) {
     if (s == null || s === '') return '';
@@ -89,6 +93,13 @@
     return full.split(/\s+/).filter(Boolean)[0] || 'there';
   }
 
+  function resolveCompanyName() {
+    if (remoteSettings && remoteSettings.company_name) {
+      return String(remoteSettings.company_name).trim() || FALLBACK_COMPANY;
+    }
+    return FALLBACK_COMPANY;
+  }
+
   function resolveLeadStageSlug(lead) {
     if (!lead) return '';
     const raw = String(lead.pipeline_stage_slug || lead.status || '').trim();
@@ -99,19 +110,79 @@
   }
 
   function fillSmsTemplate(template, lead) {
-    return String(template).replace(/\[name\]/gi, leadFirstName(lead));
+    const company = resolveCompanyName();
+    return String(template)
+      .replace(/\[name\]/gi, leadFirstName(lead))
+      .replace(/\[company\]/gi, company);
   }
 
   function defaultLeadSmsBody(lead) {
     const first = leadFirstName(lead);
-    return `Hi ${first}, this is ${SMS_COMPANY}. How can I help you today?`;
+    return `Hi ${first}, this is ${resolveCompanyName()}. How can I help you today?`;
+  }
+
+  function applyRemoteStages(data) {
+    if (!data || !Array.isArray(data.stages)) return;
+    const map = {};
+    data.stages.forEach((st) => {
+      if (!st || !st.slug) return;
+      map[st.slug] = {
+        email_subject: st.email_subject || null,
+        templates: (st.templates || [])
+          .filter((t) => t && String(t.body || '').trim())
+          .map((t) => ({
+            id: t.id || 'tpl',
+            label: t.label || 'Mensagem',
+            body: String(t.body),
+          })),
+      };
+    });
+    remoteSettings = {
+      company_name: data.company_name || null,
+      default_email_subject: data.default_email_subject || null,
+      stages: map,
+    };
+  }
+
+  function loadLeadMessageSettings(force) {
+    if (remoteSettings && !force) return Promise.resolve(remoteSettings);
+    if (loadPromise && !force) return loadPromise;
+    loadPromise = fetch('/api/settings/lead-messages', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j && j.success && j.data) applyRemoteStages(j.data);
+        return remoteSettings;
+      })
+      .catch(() => null)
+      .finally(() => {
+        loadPromise = null;
+      });
+    return loadPromise;
+  }
+
+  // Warm cache on pages that include this script (CRM session).
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        loadLeadMessageSettings();
+      });
+    } else {
+      loadLeadMessageSettings();
+    }
   }
 
   function getStageSmsDefinitions(slug) {
+    const remote = remoteSettings && remoteSettings.stages && remoteSettings.stages[slug];
+    if (remote && remote.templates && remote.templates.length) {
+      return remote.templates.map((t) => ({
+        id: t.id,
+        label: t.label,
+        template: t.body,
+      }));
+    }
     if (STAGE_SMS_TEMPLATES[slug] && STAGE_SMS_TEMPLATES[slug].length) {
       return STAGE_SMS_TEMPLATES[slug];
     }
-    // Qualquer outra aba: mesmos módulos de New Lead
     return NEW_LEAD_TEMPLATES.slice();
   }
 
@@ -154,9 +225,21 @@
       .filter((o) => o.href);
   }
 
+  function resolveEmailSubject(lead) {
+    const slug = resolveLeadStageSlug(lead);
+    const stageSub =
+      remoteSettings && remoteSettings.stages && remoteSettings.stages[slug]
+        ? remoteSettings.stages[slug].email_subject
+        : null;
+    const raw =
+      (stageSub && String(stageSub).trim()) ||
+      (remoteSettings && remoteSettings.default_email_subject) ||
+      '[company] — [name]';
+    return fillSmsTemplate(raw, lead);
+  }
+
   function defaultLeadEmailSubject(lead) {
-    const first = leadFirstName(lead);
-    return first && first !== 'there' ? `${SMS_COMPANY} — ${first}` : SMS_COMPANY;
+    return resolveEmailSubject(lead);
   }
 
   function buildMailtoHref(email, subject, body) {
@@ -293,13 +376,15 @@
     });
   }
 
-  function openSmsChoiceMenu(anchorEl, lead) {
+  async function openSmsChoiceMenu(anchorEl, lead) {
     if (!anchorEl || !lead) return;
+    await loadLeadMessageSettings();
     openMessageChoiceMenu(anchorEl, getLeadSmsOptions(lead), 'sfSmsChoiceMenu');
   }
 
-  function openEmailChoiceMenu(anchorEl, lead) {
+  async function openEmailChoiceMenu(anchorEl, lead) {
     if (!anchorEl || !lead) return;
+    await loadLeadMessageSettings();
     openMessageChoiceMenu(anchorEl, getLeadEmailOptions(lead), 'sfEmailChoiceMenu');
   }
 
@@ -313,7 +398,7 @@
     if (!opts.length) return '';
     const cls = buttonClass || 'lead-quick-sheet__action';
     if (opts.length === 1) {
-      return `<a class="${cls}" href="${escapeAttr(opts[0].href)}">SMS</a>`;
+      return `<a class="${cls}" href="${escapeAttr(opts[0].href)}">${escapeHtml('SMS')}</a>`;
     }
     const extra = attrs && typeof attrs === 'object' ? attrs : {};
     let dataAttrs = ' data-lqs-sms-menu data-sf-sms-picker-btn aria-haspopup="menu"';
@@ -356,5 +441,6 @@
   global.sfOpenSmsChoiceMenu = openSmsChoiceMenu;
   global.sfOpenEmailChoiceMenu = openEmailChoiceMenu;
   global.sfCloseSmsChoiceMenu = closeMessageChoiceMenu;
+  global.sfLoadLeadMessageSettings = loadLeadMessageSettings;
   global.STAGE_SMS_TEMPLATES = STAGE_SMS_TEMPLATES;
 })(typeof window !== 'undefined' ? window : globalThis);
