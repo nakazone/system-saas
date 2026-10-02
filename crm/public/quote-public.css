@@ -220,7 +220,7 @@ body.qp-page {
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--qp-primary);
-  background: rgba(26, 32, 54, 0.07);
+  background: #e8eaee;
   border-bottom: none;
 }
 

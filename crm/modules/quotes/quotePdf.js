@@ -25,6 +25,8 @@ const PAL = {
   panelBg: rgb(240 / 255, 242 / 255, 248 / 255),
   /** Solid band behind Supply / Installation / Sand & Finish headers */
   sectionBg: rgb(236 / 255, 228 / 255, 216 / 255),
+  /** Light gray band behind Description / Qty / Rate / Amount */
+  tableHeaderBg: rgb(232 / 255, 234 / 255, 238 / 255),
   lineMuted: rgb(0.35, 0.37, 0.42),
   rule: rgb(0.86, 0.88, 0.92),
   white: rgb(1, 1, 1),
@@ -183,7 +185,7 @@ export async function buildQuotePdfBuffer(opts) {
       y: barBottom,
       width: contentW,
       height: barH,
-      color: PAL.panelBg,
+      color: PAL.tableHeaderBg,
     });
     page.drawText('Description', {
       x: colDesc + 8,

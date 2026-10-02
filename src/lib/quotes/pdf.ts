@@ -14,6 +14,7 @@ const DEFAULT_PAL = {
   accentDark: "#a85428",
   label: "#a85428",
   panelBg: "#f7f4ee",
+  tableHeaderBg: "#e8eaee",
   muted: "#6b645c",
   mutedLight: "#8a8074",
   rule: "#e2d9cc",
@@ -705,7 +706,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       const headH = 18;
       const headTop = y;
       doc.save();
-      doc.rect(margin, headTop, contentW, headH).fill(PAL.panelBg);
+      doc.rect(margin, headTop, contentW, headH).fill(PAL.tableHeaderBg);
       doc.restore();
       const titleY = headTop + (headH - 8) / 2;
       doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(8);
