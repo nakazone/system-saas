@@ -7162,6 +7162,18 @@ body.lead-quick-sheet-open {
     align-items: flex-start;
     justify-content: space-between;
     gap: 8px;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 4px 2px;
+    margin: -4px -2px;
+    min-height: 36px;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.lead-quick-sheet__field-view:hover,
+.lead-quick-sheet__field-view:focus-visible {
+    background: rgba(37, 99, 235, 0.04);
+    outline: none;
 }
 
 .lead-quick-sheet__field-val {
@@ -7171,18 +7183,21 @@ body.lead-quick-sheet-open {
 
 .lead-quick-sheet__edit-btn {
     flex-shrink: 0;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
+    border: 1px solid #d9d0c4;
+    background: #fff;
+    color: #3d3832;
     cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    line-height: 1;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.2;
+    min-height: 32px;
 }
 
 .lead-quick-sheet__edit-btn:hover {
     color: var(--primary-color, #2563eb);
+    border-color: rgba(37, 99, 235, 0.35);
     background: rgba(37, 99, 235, 0.08);
 }
 
@@ -8204,6 +8219,17 @@ button.lead-quick-sheet__schedule-btn-min {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 0.35rem 0.25rem;
+  margin: -0.35rem -0.25rem;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lqs-property-row:hover,
+.lqs-property-row:focus-visible {
+  background: rgba(37, 99, 235, 0.04);
+  outline: none;
 }
 
 .lqs-property-row__text {
@@ -8215,12 +8241,23 @@ button.lead-quick-sheet__schedule-btn-min {
 }
 
 .lqs-property-row__edit {
-  border: none;
-  background: none;
-  color: #8a8074;
+  border: 1px solid #d9d0c4;
+  background: #fff;
+  color: #3d3832;
   cursor: pointer;
-  padding: 0.2rem;
-  border-radius: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  min-height: 32px;
+  flex-shrink: 0;
+}
+
+.lqs-property-row__edit:hover {
+  color: var(--primary-color, #2563eb);
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .lqs-banner {

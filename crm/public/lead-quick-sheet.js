@@ -222,9 +222,9 @@
     return `<div class="lead-quick-sheet__row lead-quick-sheet__row--editable" data-lqs-row="owner_id">
       <dt>Responsavel</dt>
       <dd class="lead-quick-sheet__dd-field" data-lqs-dd="owner_id">
-        <div class="lead-quick-sheet__field-view" data-lqs-view="owner_id">
+        <div class="lead-quick-sheet__field-view" data-lqs-view="owner_id" data-lqs-edit="owner_id" role="button" tabindex="0" title="Toque para editar">
           <span class="lead-quick-sheet__field-val">${display}</span>
-          <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="owner_id" title="Editar" aria-label="Editar responsavel">\u270E</button>
+          <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="owner_id" title="Editar" aria-label="Editar responsavel">Editar</button>
         </div>
       </dd>
     </div>`;
@@ -236,9 +236,9 @@
     return `<div class="lead-quick-sheet__row lead-quick-sheet__row--editable" data-lqs-row="${fieldKey}">
       <dt>${escapeHtml(label)}</dt>
       <dd class="lead-quick-sheet__dd-field" data-lqs-dd="${fieldKey}">
-        <div class="lead-quick-sheet__field-view" data-lqs-view="${fieldKey}">
+        <div class="lead-quick-sheet__field-view" data-lqs-view="${fieldKey}" data-lqs-edit="${fieldKey}" role="button" tabindex="0" title="Toque para editar">
           <span class="lead-quick-sheet__field-val">${display}</span>
-          <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="${fieldKey}" title="Editar" aria-label="Editar ${escapeHtml(label)}">\u270E</button>
+          <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="${fieldKey}" title="Editar" aria-label="Editar ${escapeHtml(label)}">Editar</button>
         </div>
       </dd>
     </div>`;
@@ -308,9 +308,9 @@
       return `<div class="lead-quick-sheet__row lead-quick-sheet__row--editable" data-lqs-row="${escapeHtml(key)}">
         <dt>${escapeHtml(label)}</dt>
         <dd class="lead-quick-sheet__dd-field" data-lqs-dd="${escapeHtml(key)}">
-          <div class="lead-quick-sheet__field-view" data-lqs-view="${escapeHtml(key)}">
+          <div class="lead-quick-sheet__field-view" data-lqs-view="${escapeHtml(key)}" data-lqs-edit="${escapeHtml(key)}" role="button" tabindex="0" title="Toque para editar">
             <span class="lead-quick-sheet__field-val">${display}</span>
-            <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="${escapeHtml(key)}" title="Editar" aria-label="Editar ${escapeHtml(label)}">\u270E</button>
+            <button type="button" class="lead-quick-sheet__edit-btn" data-lqs-edit="${escapeHtml(key)}" title="Editar" aria-label="Editar ${escapeHtml(label)}">Editar</button>
           </div>
         </dd>
       </div>`;
@@ -414,9 +414,12 @@
         country: country,
         map: { combined: focusEl },
         onSelect: function (parsed) {
-          if (parsed && (parsed.formatted || parsed.line1)) {
-            focusEl.value = parsed.formatted || parsed.line1;
-          }
+          if (!parsed) return;
+          // Prefer line1 when it has a street number; formatted can drop housenumber on route picks
+          var line = String(parsed.line1 || '').trim();
+          var fmt = String(parsed.formatted || '').trim();
+          var hasNum = /^\d/.test(line);
+          focusEl.value = hasNum && line ? (fmt && /^\d/.test(fmt) ? fmt : line) : fmt || line;
           if (typeof global.sfDismissPacDropdown === 'function') global.sfDismissPacDropdown(focusEl);
         },
       });
@@ -1390,6 +1393,29 @@
     );
   }
 
+  function scrollEditPanelIntoView_(panel) {
+    if (!panel) return;
+    requestAnimationFrame(function () {
+      try {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (_) {
+        try {
+          panel.scrollIntoView(true);
+        } catch (__) {}
+      }
+    });
+  }
+
+  function openEditPanel_(opts) {
+    opts = opts || {};
+    const panel = document.querySelector('[data-lqs-edit-panel]');
+    if (!panel) return null;
+    const wasHidden = panel.hasAttribute('hidden');
+    panel.removeAttribute('hidden');
+    if (wasHidden || opts.forceScroll) scrollEditPanelIntoView_(panel);
+    return panel;
+  }
+
   function renderPropertyBlock_(lead) {
     const addr = String(lead.address || '').trim();
     const zip = String(lead.zipcode || '').trim();
@@ -1398,12 +1424,12 @@
       return '<p class="lqs-ov-empty">No property address yet. <button type="button" class="lqs-link" data-lqs-edit-toggle>Add address</button></p>';
     }
     return (
-      '<div class="lqs-property-row">' +
+      '<div class="lqs-property-row" data-lqs-edit-toggle role="button" tabindex="0" title="Toque para editar">' +
       '<span class="lqs-property-row__icon" aria-hidden="true">📍</span>' +
       '<div class="lqs-property-row__text">' +
       escapeHtml(line) +
       '</div>' +
-      '<button type="button" class="lqs-property-row__edit" data-lqs-edit-toggle title="Edit" aria-label="Edit address">✎</button>' +
+      '<button type="button" class="lqs-property-row__edit" data-lqs-edit-toggle title="Editar" aria-label="Editar morada">Editar</button>' +
       '</div>'
     );
   }
@@ -1626,8 +1652,12 @@
       e.preventDefault();
       const panel = document.querySelector('[data-lqs-edit-panel]');
       if (panel) {
-        if (panel.hasAttribute('hidden')) panel.removeAttribute('hidden');
-        else panel.setAttribute('hidden', '');
+        if (panel.hasAttribute('hidden')) {
+          openEditPanel_({ forceScroll: true });
+          void enterFieldEdit('address');
+        } else {
+          panel.setAttribute('hidden', '');
+        }
       }
       return;
     }
@@ -1680,8 +1710,7 @@
       const fk = editBtn.getAttribute('data-lqs-edit');
       if (fk) {
         e.preventDefault();
-        const panel = document.querySelector('[data-lqs-edit-panel]');
-        if (panel) panel.removeAttribute('hidden');
+        openEditPanel_({ forceScroll: true });
         void enterFieldEdit(fk);
       }
       return;
@@ -1785,6 +1814,20 @@
     body.addEventListener('click', onSheetBodyClick);
     body.addEventListener('change', onSheetBodyChange);
     body.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const hit = e.target.closest('[data-lqs-edit], [data-lqs-edit-toggle]');
+        if (
+          hit &&
+          hit === e.target &&
+          hit.tagName !== 'BUTTON' &&
+          hit.tagName !== 'A' &&
+          !e.target.matches('input, textarea, select, button, a')
+        ) {
+          e.preventDefault();
+          hit.click();
+          return;
+        }
+      }
       if (e.key !== 'Enter') return;
       const t = e.target;
       if (

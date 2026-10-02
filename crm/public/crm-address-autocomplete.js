@@ -71,6 +71,29 @@
     return orgCountryPromise;
   }
 
+  function extractLeadingStreetNumber(text) {
+    const m = String(text || '')
+      .trim()
+      .match(/^(\d+[A-Za-z]?(?:[-\/]\d+[A-Za-z]?)*)\b/);
+    return m ? m[1] : '';
+  }
+
+  /** Google/Photon often omit housenumber on route-level picks — recover from typed text or formatted address. */
+  function ensureStreetNumber(parsed, hintText) {
+    if (!parsed) return parsed;
+    const line = String(parsed.line1 || '').trim();
+    if (extractLeadingStreetNumber(line)) return parsed;
+    const num =
+      extractLeadingStreetNumber(hintText) || extractLeadingStreetNumber(parsed.formatted);
+    if (!num) return parsed;
+    parsed.line1 = [num, line].filter(Boolean).join(' ').trim();
+    const fmt = String(parsed.formatted || '').trim();
+    if (fmt && !extractLeadingStreetNumber(fmt)) {
+      parsed.formatted = [num, fmt].filter(Boolean).join(' ').trim();
+    }
+    return parsed;
+  }
+
   function parsePlaceComponents(place) {
     const out = {
       line1: '',
@@ -103,6 +126,13 @@
       if (types.indexOf('postal_code') !== -1) out.zip = comp.long_name;
       if (types.indexOf('country') !== -1) out.country = comp.short_name;
     });
+    // Place name sometimes carries "123 Main St" when components omit street_number
+    if (!streetNumber && place && place.name) {
+      streetNumber = extractLeadingStreetNumber(place.name);
+    }
+    if (!streetNumber && out.formatted) {
+      streetNumber = extractLeadingStreetNumber(out.formatted);
+    }
     out.line1 = [streetNumber, route].filter(Boolean).join(' ').trim();
     if (!out.line1 && out.formatted) {
       out.line1 = out.formatted.split(',')[0] || out.formatted;
@@ -165,7 +195,15 @@
       return;
     }
 
-    if (map.combined) setFieldValue(map.combined, parsed.formatted || parsed.line1 || '');
+    if (map.combined) {
+      var combinedVal = parsed.formatted || parsed.line1 || '';
+      var line1 = String(parsed.line1 || '').trim();
+      var fmt = String(parsed.formatted || '').trim();
+      if (line1 && /^\d/.test(line1) && fmt && !/^\d/.test(fmt)) {
+        combinedVal = line1;
+      }
+      setFieldValue(map.combined, combinedVal);
+    }
     if (map.search) setFieldValue(map.search, '');
   }
 
@@ -434,6 +472,7 @@
       suppressUntil = Date.now() + 600;
       clearTimeout(timer);
       hide();
+      parsed = ensureStreetNumber(parsed, inputEl._sfLastTyped || inputEl.value || '');
       applySelection(parsed, options.map, inputEl);
       inputEl.dispatchEvent(new Event('input', { bubbles: true }));
       inputEl.dispatchEvent(new Event('change', { bubbles: true }));
@@ -497,6 +536,7 @@
     }
 
     inputEl.addEventListener('input', function () {
+      inputEl._sfLastTyped = inputEl.value;
       if (suppressSearch || Date.now() < suppressUntil) {
         clearTimeout(timer);
         hide();
@@ -575,6 +615,7 @@
       }
 
       inputEl.addEventListener('input', function () {
+        inputEl._sfLastTyped = inputEl.value;
         if (Date.now() < pacLockUntil) dismissPacDropdown(inputEl);
       });
 
@@ -587,7 +628,8 @@
       ac.addListener('place_changed', function () {
         var place = ac.getPlace();
         if (!place) return;
-        var parsed = parsePlaceComponents(place);
+        var hint = inputEl._sfLastTyped || '';
+        var parsed = ensureStreetNumber(parsePlaceComponents(place), hint);
         lockAndDismiss();
         applySelection(parsed, options.map, inputEl);
         if (typeof options.onSelect === 'function') {
