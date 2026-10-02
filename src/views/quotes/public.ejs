@@ -112,6 +112,90 @@
       color: var(--qp-muted);
       white-space: nowrap;
     }
+    .qp-page-break {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 14px;
+      font-size: 8px;
+      font-style: italic;
+      color: var(--qp-muted);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .qp-page-break::before,
+    .qp-page-break::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--qp-rule);
+    }
+    .qp-addons { display: flex; flex-direction: column; gap: 8px; }
+    .qp-addon {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) auto auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 1px dashed var(--qp-rule);
+      border-radius: 4px;
+      background: #fff;
+    }
+    .qp-addon.is-dim .qp-addon__amt,
+    .qp-addon.is-dim .qp-addon__meta { opacity: 0.45; }
+    .qp-addon__check { display: flex; align-items: center; margin: 0; }
+    .qp-addon__box {
+      width: 12px; height: 12px; border: 1px solid var(--qp-muted); border-radius: 2px; display: inline-block;
+    }
+    .qp-addon__body { min-width: 0; }
+    .qp-addon__meta, .qp-addon__amt {
+      font-size: 8.5px; color: var(--qp-primary); text-align: right; white-space: nowrap;
+    }
+    .qp-addon__amt { font-weight: 700; min-width: 56px; }
+    .qp-addons-empty {
+      margin: 0; padding: 12px; border: 1px dashed var(--qp-rule); border-radius: 4px;
+      font-size: 8.5px; color: var(--qp-muted);
+    }
+    .qp-inclex {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0 8px;
+    }
+    .qp-inclex__list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 8.5px;
+      line-height: 1.45;
+      color: var(--qp-primary);
+    }
+    .qp-inclex__list li {
+      position: relative;
+      padding-left: 14px;
+      margin: 0 0 6px;
+    }
+    .qp-inclex__list--in li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 3px;
+      width: 7px; height: 4px;
+      border-left: 1.5px solid #15803d;
+      border-bottom: 1.5px solid #15803d;
+      transform: rotate(-45deg);
+    }
+    .qp-inclex__list--out li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 6px;
+      width: 9px; height: 0;
+      border-top: 1.5px solid #dc2626;
+    }
+    @media (max-width: 640px) {
+      .qp-inclex { grid-template-columns: 1fr; }
+      .qp-addon { grid-template-columns: 22px minmax(0, 1fr); }
+      .qp-addon__meta, .qp-addon__amt { justify-self: start; }
+    }
     .qp-table { width: 100%; border-collapse: collapse; font-size: 9px; }
     .qp-table thead { break-after: avoid-page; page-break-after: avoid; }
     .qp-table th {
@@ -287,7 +371,12 @@
         { key: 'sand_finish', label: 'SAND & FINISH' },
       ];
       const buckets = { supply: [], installation: [], sand_finish: [] };
+      const optionalItems = [];
       (quote.lineItems || []).forEach((li) => {
+        if (li.isOptional) {
+          optionalItems.push(li);
+          return;
+        }
         const k = sectionKey(li);
         (buckets[k] || buckets.installation).push(li);
       });
@@ -298,6 +387,22 @@
           items: buckets[d.key],
           sectionTotal: buckets[d.key].reduce((s, li) => s + (Number(li.amount) || 0), 0),
         }));
+      const inclusionsList = (typeof inclusions !== 'undefined' && Array.isArray(inclusions) && inclusions.length)
+        ? inclusions
+        : [
+          'Hardwood sanding of all floors in scope',
+          'Select hardwood / LVP installation as listed',
+          'Baseboard remove & reinstall where noted',
+          'Dust containment during sanding & finishing',
+        ];
+      const exclusionsList = (typeof exclusions !== 'undefined' && Array.isArray(exclusions) && exclusions.length)
+        ? exclusions
+        : [
+          'Stain (available as optional add-on)',
+          'Subfloor repair or leveling beyond scope',
+          'Moving furniture or appliances',
+          'Areas marked unfinished / not in scope',
+        ];
     %>
 
     <article class="qp-doc" id="quoteDocument">
@@ -420,18 +525,11 @@
                   <% sec.items.forEach((li) => { %>
                     <tr
                       data-id="<%= li.id %>"
-                      data-optional="<%= li.isOptional ? '1' : '0' %>"
+                      data-optional="0"
                       data-group="<%= li.optionGroupId || '' %>"
                     >
                       <td>
-                        <% if (li.isOptional && !readOnly) { %>
-                          <label style="display:inline-flex;gap:6px;align-items:flex-start;margin-bottom:4px;">
-                            <input type="checkbox" class="opt-check" name="selectedOptionalIds" value="<%= li.id %>" <%= li.isSelected ? 'checked' : '' %> />
-                            <span class="qp-line__title"><%= li.name || li.description %></span>
-                          </label>
-                        <% } else { %>
-                          <span class="qp-line__title"><%= li.name || li.description %></span>
-                        <% } %>
+                        <span class="qp-line__title"><%= li.name || li.description %></span>
                         <% if (li.name && li.description && li.description !== li.name) { %>
                           <span class="qp-line__body"><%= li.description %></span>
                         <% } %>
@@ -451,6 +549,54 @@
               </table>
             </div>
           <% }) %>
+
+          <div class="qp-page-break" aria-hidden="true">
+            <span>Totals, optional add-ons and approval</span>
+          </div>
+
+          <div class="qp-section qp-section--addons">
+            <div class="qp-section-head">
+              <h2 class="qp-section-title">Optional add-ons</h2>
+              <p class="qp-section-total">Not included in the total · check to add when approving</p>
+            </div>
+            <% if (optionalItems.length) { %>
+              <div class="qp-addons">
+                <% optionalItems.forEach((li) => { %>
+                  <div
+                    class="qp-addon"
+                    data-id="<%= li.id %>"
+                    data-optional="1"
+                    data-group="<%= li.optionGroupId || '' %>"
+                  >
+                    <% if (!readOnly) { %>
+                      <label class="qp-addon__check">
+                        <input type="checkbox" class="opt-check" name="selectedOptionalIds" value="<%= li.id %>" <%= li.isSelected ? 'checked' : '' %> />
+                      </label>
+                    <% } else { %>
+                      <span class="qp-addon__box" aria-hidden="true"></span>
+                    <% } %>
+                    <div class="qp-addon__body">
+                      <span class="qp-line__title"><%= li.name || li.description %></span>
+                      <% if (li.name && li.description && li.description !== li.name) { %>
+                        <span class="qp-line__body"><%= li.description %></span>
+                      <% } %>
+                    </div>
+                    <% if (clientView.showQuantities) { %>
+                      <span class="qp-addon__meta"><%= Number(li.quantity).toFixed(2) %> <%= String(li.unit || '').replace(/_/g, ' ') %></span>
+                    <% } %>
+                    <% if (clientView.showUnitPrices) { %>
+                      <span class="qp-addon__meta"><%= money(li.unitPrice) %></span>
+                    <% } %>
+                    <% if (clientView.showLineTotals) { %>
+                      <span class="qp-addon__amt"><%= money(li.amount) %></span>
+                    <% } %>
+                  </div>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <p class="qp-addons-empty">No optional add-ons on this quote.</p>
+            <% } %>
+          </div>
 
           <div class="qp-totals-wrap">
             <table class="qp-totals">
@@ -486,6 +632,25 @@
               </tbody>
             </table>
           <% } %>
+
+          <div class="qp-inclex">
+            <div>
+              <h3 class="qp-block-title">What's included</h3>
+              <ul class="qp-inclex__list qp-inclex__list--in">
+                <% inclusionsList.forEach((item) => { %>
+                  <li><%= item %></li>
+                <% }) %>
+              </ul>
+            </div>
+            <div>
+              <h3 class="qp-block-title">Not included</h3>
+              <ul class="qp-inclex__list qp-inclex__list--out">
+                <% exclusionsList.forEach((item) => { %>
+                  <li><%= item %></li>
+                <% }) %>
+              </ul>
+            </div>
+          </div>
 
           <% if (quote.terms) { %>
             <h3 class="qp-block-title">Terms &amp; conditions</h3>
@@ -731,16 +896,16 @@
             if (taxEl && json.data.taxTotal != null) taxEl.textContent = money(json.data.taxTotal);
           }
         } catch (_) {}
-        document.querySelectorAll('#quotePublicForm tr[data-id]').forEach((tr) => {
-          const group = tr.dataset.group;
-          const optional = tr.dataset.optional === '1';
+        document.querySelectorAll('#quotePublicForm [data-id]').forEach((el) => {
+          const group = el.dataset.group;
+          const optional = el.dataset.optional === '1';
           let show = true;
           if (group && selectedOptionGroupId && group !== selectedOptionGroupId) show = false;
+          el.style.display = show ? '' : 'none';
           if (optional) {
-            const cb = tr.querySelector('.opt-check');
-            if (cb && !cb.checked) show = false;
+            const cb = el.querySelector('.opt-check');
+            el.classList.toggle('is-dim', !!(cb && !cb.checked));
           }
-          tr.style.display = show ? '' : 'none';
         });
       }
       document.querySelectorAll('input[name="selectedOptionGroupId"], .opt-check').forEach((el) => {

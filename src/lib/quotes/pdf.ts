@@ -3,6 +3,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
 import { getLocalFileStorage } from "../storage/index.js";
+import {
+  DEFAULT_QUOTE_EXCLUSIONS,
+  DEFAULT_QUOTE_INCLUSIONS,
+  DEFAULT_QUOTE_TERMS,
+} from "./client-document.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -154,27 +159,6 @@ const SECTION_DEFS = [
   { key: "installation", label: "INSTALLATION" },
   { key: "sand_finish", label: "SAND & FINISH" },
 ] as const;
-
-const DEFAULT_INCLUSIONS = [
-  "Hardwood sanding of all floors in scope",
-  "Select hardwood / LVP installation as listed",
-  "Baseboard remove & reinstall where noted",
-  "Dust containment during sanding & finishing",
-];
-
-const DEFAULT_EXCLUSIONS = [
-  "Stain (available as optional add-on)",
-  "Subfloor repair or leveling beyond scope",
-  "Moving furniture or appliances",
-  "Areas marked unfinished / not in scope",
-];
-
-const DEFAULT_TERMS = [
-  "This quote is valid until the expiration date shown. Prices assume accurate measurements and site access as discussed.",
-  "Changes in scope, materials, or site conditions may require a revised quote before work continues.",
-  "Natural wood and LVP may vary in color and grain; samples are representative, not exact matches.",
-  "A signed approval and deposit may be required to reserve the schedule. Payment terms are listed above.",
-];
 
 export type QuotePdfLine = {
   name?: string | null;
@@ -399,7 +383,7 @@ function stripRichTextMarkers(text: string): string {
 }
 
 function termsToItems(terms: string | null | undefined): string[] {
-  if (!terms || !terms.trim()) return DEFAULT_TERMS;
+  if (!terms || !terms.trim()) return [...DEFAULT_QUOTE_TERMS];
   const cleaned = stripRichTextMarkers(terms);
   const numbered = cleaned
     .split(/\n+/)
@@ -410,7 +394,7 @@ function termsToItems(terms: string | null | undefined): string[] {
     .split(/(?<=\.)\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
-  return sentences.length ? sentences.slice(0, 8) : DEFAULT_TERMS;
+  return sentences.length ? sentences.slice(0, 8) : [...DEFAULT_QUOTE_TERMS];
 }
 
 export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
@@ -523,8 +507,8 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
             },
           ];
 
-    const inclusions = input.inclusions?.length ? input.inclusions : DEFAULT_INCLUSIONS;
-    const exclusions = input.exclusions?.length ? input.exclusions : DEFAULT_EXCLUSIONS;
+    const inclusions = input.inclusions?.length ? input.inclusions : [...DEFAULT_QUOTE_INCLUSIONS];
+    const exclusions = input.exclusions?.length ? input.exclusions : [...DEFAULT_QUOTE_EXCLUSIONS];
     const termItems = termsToItems(input.terms);
     const prepared = input.preparedBy || input.ownerSignature || {};
 

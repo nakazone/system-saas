@@ -13,6 +13,10 @@ import {
   tokenNeedsLightVerify,
 } from "../../lib/quotes/public-token.js";
 import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
+import {
+  DEFAULT_QUOTE_EXCLUSIONS,
+  DEFAULT_QUOTE_INCLUSIONS,
+} from "../../lib/quotes/client-document.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { parseQuoteSettings } from "../../lib/settings/quotes.js";
 import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
@@ -159,6 +163,8 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
       quote,
       token,
       clientView: clientViewFlags(quote.clientView),
+      inclusions: [...DEFAULT_QUOTE_INCLUSIONS],
+      exclusions: [...DEFAULT_QUOTE_EXCLUSIONS],
       readOnly,
       error: typeof req.query.error === "string" ? req.query.error : null,
       success: typeof req.query.success === "string" ? req.query.success : null,
