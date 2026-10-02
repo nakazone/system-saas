@@ -191,10 +191,35 @@
       width: 9px; height: 0;
       border-top: 1.5px solid #dc2626;
     }
+    .qp-terms-list {
+      margin: 0 0 12px;
+      padding: 0 0 0 18px;
+      font-size: 8.5px;
+      line-height: 1.45;
+      color: var(--qp-muted);
+      columns: 2;
+      column-gap: 18px;
+    }
+    .qp-terms-list li { margin: 0 0 8px; break-inside: avoid; }
+    .qp-sign-cta {
+      margin: 16px 0 8px;
+      padding: 14px;
+      border: 1px solid var(--qp-rule);
+      border-radius: 8px;
+      background: var(--qp-panel-bg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .qp-sign-cta__text { margin: 0; font-size: 12px; color: var(--qp-primary-muted); flex: 1; min-width: 180px; }
+    body.qp-sign-open { overflow: hidden; }
     @media (max-width: 640px) {
       .qp-inclex { grid-template-columns: 1fr; }
       .qp-addon { grid-template-columns: 22px minmax(0, 1fr); }
       .qp-addon__meta, .qp-addon__amt { justify-self: start; }
+      .qp-terms-list { columns: 1; }
     }
     .qp-table { width: 100%; border-collapse: collapse; font-size: 9px; }
     .qp-table thead { break-after: avoid-page; page-break-after: avoid; }
@@ -270,9 +295,10 @@
       font-size: 14px; font-weight: 600; color: #166534;
     }
     .qp-sign-modal {
-      position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+      position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center;
     }
-    .qp-sign-modal[hidden] { display: none !important; }
+    .qp-sign-modal[hidden]:not(.is-open) { display: none !important; }
+    .qp-sign-modal.is-open { display: flex !important; }
     .qp-sign-modal__backdrop { position: absolute; inset: 0; background: rgba(26,32,54,0.45); }
     .qp-sign-modal__panel {
       position: relative; z-index: 1; width: min(560px, calc(100vw - 24px));
@@ -652,9 +678,25 @@
             </div>
           </div>
 
-          <% if (quote.terms) { %>
-            <h3 class="qp-block-title">Terms &amp; conditions</h3>
-            <p class="qp-block-text"><%= quote.terms %></p>
+          <div class="qp-terms-block">
+            <h3 class="qp-block-title">Terms</h3>
+            <ol class="qp-terms-list">
+              <% (typeof termsItems !== 'undefined' && termsItems.length ? termsItems : [
+                'This quote is valid until the expiration date shown. Prices assume accurate measurements and site access as discussed.',
+                'Changes in scope, materials, or site conditions may require a revised quote before work continues.',
+                'Natural wood and LVP may vary in color and grain; samples are representative, not exact matches.',
+                'A signed approval and deposit may be required to reserve the schedule. Payment terms are listed above.',
+              ]).forEach((item) => { %>
+                <li><%= item %></li>
+              <% }) %>
+            </ol>
+          </div>
+
+          <% if (!readOnly && !signed) { %>
+            <div class="qp-sign-cta no-print">
+              <p class="qp-sign-cta__text">Ready to proceed? Review the terms above, then sign to approve this quote.</p>
+              <button type="button" class="qp-btn qp-btn--primary" data-qp-open-sign>Assinar</button>
+            </div>
           <% } %>
 
           <% if (organization.paymentInstructions) { %>
@@ -733,7 +775,7 @@
   <div class="qp-actions no-print" id="quoteActions">
     <a class="qp-btn qp-btn--outline" href="/public/quotes/<%= token %>/pdf" target="_blank" rel="noopener noreferrer">Download PDF</a>
     <% if (!readOnly && !signed) { %>
-      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove">Assinar</button>
+      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove" data-qp-open-sign>Assinar</button>
     <% } %>
   </div>
 
@@ -811,11 +853,32 @@
         canvas.addEventListener('touchstart', start, { passive: false });
         canvas.addEventListener('touchmove', move, { passive: false });
         canvas.addEventListener('touchend', end);
+
+        function drawName(name) {
+          const text = String(name || '').trim();
+          if (text.length < 2) return false;
+          if (window.QuoteSignatureAuto && window.QuoteSignatureAuto.renderAutoSignatureOnCanvas(canvas, text)) {
+            return true;
+          }
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#1a2036';
+          let fontSize = 36;
+          ctx.font = 'italic ' + fontSize + 'px "Brush Script MT", "Segoe Script", cursive';
+          while (fontSize > 14 && ctx.measureText(text).width > canvas.width - 32) {
+            fontSize -= 1;
+            ctx.font = 'italic ' + fontSize + 'px "Brush Script MT", "Segoe Script", cursive';
+          }
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'center';
+          ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+          return true;
+        }
+
         return {
           clear() { ctx.clearRect(0, 0, canvas.width, canvas.height); hasStroke = false; },
           isEmpty() { return !hasStroke; },
           renderFromName(name) {
-            const ok = window.QuoteSignatureAuto && window.QuoteSignatureAuto.renderAutoSignatureOnCanvas(canvas, name);
+            const ok = drawName(name);
             hasStroke = !!ok;
             return ok;
           },
@@ -828,20 +891,46 @@
       const canvas = document.getElementById('qpSignCanvas');
       const nameInput = document.getElementById('qpSignerName');
 
-      function openModal() {
-        if (!modal || !canvas) return;
-        if (!pad) pad = createPad(canvas);
-        pad.clear();
-        if (nameInput) {
-          if (!nameInput.value && defaultName) nameInput.value = defaultName;
-          if (nameInput.value.trim().length >= 2) pad.renderFromName(nameInput.value.trim());
+      function openModal(e) {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
         }
-        modal.hidden = false;
-        nameInput && nameInput.focus();
+        if (!modal || !canvas) {
+          alert('Não foi possível abrir a assinatura. Atualize a página e tente de novo.');
+          return;
+        }
+        try {
+          if (!pad) pad = createPad(canvas);
+          pad.clear();
+          if (nameInput) {
+            if (!nameInput.value && defaultName) nameInput.value = defaultName;
+            const n = nameInput.value.trim();
+            if (n.length >= 2) pad.renderFromName(n);
+          }
+          modal.hidden = false;
+          modal.classList.add('is-open');
+          modal.setAttribute('aria-hidden', 'false');
+          document.body.classList.add('qp-sign-open');
+          setTimeout(() => nameInput && nameInput.focus(), 50);
+        } catch (err) {
+          console.error(err);
+          alert('Erro ao abrir a assinatura. Atualize a página e tente de novo.');
+        }
       }
-      function closeModal() { if (modal) modal.hidden = true; }
+      function closeModal() {
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        modal.hidden = true;
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('qp-sign-open');
+      }
 
-      document.getElementById('btnApprove')?.addEventListener('click', openModal);
+      window.__qpOpenSign = openModal;
+
+      document.querySelectorAll('#btnApprove, [data-qp-open-sign]').forEach((btn) => {
+        btn.addEventListener('click', openModal);
+      });
       document.getElementById('qpSignBackdrop')?.addEventListener('click', closeModal);
       document.getElementById('qpSignCancel')?.addEventListener('click', closeModal);
       document.getElementById('qpSignClear')?.addEventListener('click', () => pad && pad.clear());
@@ -867,10 +956,12 @@
         if (!pad) pad = createPad(canvas);
         if (pad.isEmpty()) pad.renderFromName(name);
         if (pad.isEmpty()) { alert('Please add your signature.'); return; }
+        const form = document.getElementById('quotePublicForm');
+        if (!form) { alert('Formulário não encontrado.'); return; }
         document.getElementById('signedByName').value = name;
         document.getElementById('signatureDataUrl').value = pad.toDataURL();
         document.getElementById('acceptTerms').value = 'on';
-        document.getElementById('quotePublicForm').submit();
+        form.submit();
       });
 
       async function recalc() {

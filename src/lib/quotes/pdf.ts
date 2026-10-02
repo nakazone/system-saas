@@ -6,7 +6,7 @@ import { getLocalFileStorage } from "../storage/index.js";
 import {
   DEFAULT_QUOTE_EXCLUSIONS,
   DEFAULT_QUOTE_INCLUSIONS,
-  DEFAULT_QUOTE_TERMS,
+  resolveQuoteTermsItems,
 } from "./client-document.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -383,18 +383,7 @@ function stripRichTextMarkers(text: string): string {
 }
 
 function termsToItems(terms: string | null | undefined): string[] {
-  if (!terms || !terms.trim()) return [...DEFAULT_QUOTE_TERMS];
-  const cleaned = stripRichTextMarkers(terms);
-  const numbered = cleaned
-    .split(/\n+/)
-    .map((s) => s.replace(/^\d+[\).\s]+/, "").trim())
-    .filter(Boolean);
-  if (numbered.length >= 2) return numbered.slice(0, 8);
-  const sentences = cleaned
-    .split(/(?<=\.)\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return sentences.length ? sentences.slice(0, 8) : [...DEFAULT_QUOTE_TERMS];
+  return resolveQuoteTermsItems(terms);
 }
 
 export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {

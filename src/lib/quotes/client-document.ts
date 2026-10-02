@@ -21,3 +21,24 @@ export const DEFAULT_QUOTE_TERMS = [
   "Natural wood and LVP may vary in color and grain; samples are representative, not exact matches.",
   "A signed approval and deposit may be required to reserve the schedule. Payment terms are listed above.",
 ] as const;
+
+/** Split org/quote terms into bullet items; fall back to defaults (same as PDF). */
+export function resolveQuoteTermsItems(terms: string | null | undefined): string[] {
+  if (!terms || !String(terms).trim()) return [...DEFAULT_QUOTE_TERMS];
+  const cleaned = String(terms)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\*\*/g, "")
+    .replace(/_/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const numbered = cleaned
+    .split(/\n+/)
+    .map((s) => s.replace(/^\d+[).\s]+/, "").trim())
+    .filter(Boolean);
+  if (numbered.length >= 2) return numbered.slice(0, 8);
+  const sentences = cleaned
+    .split(/(?<=\.)\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return sentences.length ? sentences.slice(0, 8) : [...DEFAULT_QUOTE_TERMS];
+}

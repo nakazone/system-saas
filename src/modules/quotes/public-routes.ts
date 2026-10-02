@@ -16,6 +16,7 @@ import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from 
 import {
   DEFAULT_QUOTE_EXCLUSIONS,
   DEFAULT_QUOTE_INCLUSIONS,
+  resolveQuoteTermsItems,
 } from "../../lib/quotes/client-document.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { parseQuoteSettings } from "../../lib/settings/quotes.js";
@@ -165,6 +166,7 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
       clientView: clientViewFlags(quote.clientView),
       inclusions: [...DEFAULT_QUOTE_INCLUSIONS],
       exclusions: [...DEFAULT_QUOTE_EXCLUSIONS],
+      termsItems: resolveQuoteTermsItems(quote.terms),
       readOnly,
       error: typeof req.query.error === "string" ? req.query.error : null,
       success: typeof req.query.success === "string" ? req.query.success : null,
