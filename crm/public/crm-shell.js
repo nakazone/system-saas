@@ -1031,7 +1031,7 @@
       jobs.push(ensureScript(`crm-help-panel.js?v=${SHELL_VER}`).catch(() => {}));
     }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
-      jobs.push(ensureScript("saas-branding.js?v=20260924-pwa").catch(() => {}));
+      jobs.push(ensureScript("saas-branding.js?v=20261002-branddoc1").catch(() => {}));
     }
     const wantMobileNav =
       typeof window.__omDevice?.isMobile === "function"

@@ -1,7 +1,4 @@
 <% const displayProductName = (typeof productName !== 'undefined' && productName) ? productName : 'ObraMate'; %>
-<% const accent = (typeof organization !== 'undefined' && organization && organization.primaryColor)
-  ? (organization.accentColor || organization.primaryColor)
-  : '#e8792c'; %>
 <% const isLandingPage = typeof landingPage !== 'undefined' && landingPage; %>
 <!DOCTYPE html>
 <html lang="en">
@@ -21,7 +18,7 @@
   <style>:root { --brand: #E8792C; --brand-600: #D0651B; }</style>
   <% } else { %>
   <link rel="stylesheet" href="/assets/css/app.css" />
-  <style>:root { --brand: <%= accent %>; --brand-dark: #c1652f; --brand-ink: #211d1a; --brand-surface: #f7f4ee; }</style>
+  <style>:root { --brand: #e8792c; --brand-dark: #c1652f; --brand-ink: #211d1a; --brand-surface: #f7f4ee; }</style>
   <% } %>
 </head>
 <body class="<%= isLandingPage ? 'landing-shell' : (typeof organization !== 'undefined' && organization ? 'app-shell' : 'marketing-shell') %>">

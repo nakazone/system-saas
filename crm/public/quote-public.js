@@ -314,7 +314,26 @@
     return `<section class="qp-signatures${single ? ' qp-signatures--single' : ''}">${ownerCol}${clientCol}</section>`;
   }
 
+  function applyDocumentBrandColors(brand, quote) {
+    const primary =
+      (brand && brand.primary_color) ||
+      (quote && quote.organization_primary_color) ||
+      '';
+    const accent =
+      (brand && brand.accent_color) ||
+      (quote && quote.organization_accent_color) ||
+      '';
+    const root = document.documentElement;
+    if (primary && /^#[0-9a-fA-F]{6}$/.test(primary)) {
+      root.style.setProperty('--qp-primary', primary);
+    }
+    if (accent && /^#[0-9a-fA-F]{6}$/.test(accent)) {
+      root.style.setProperty('--qp-secondary', accent);
+    }
+  }
+
   function renderDocument(q, items, ownerSig, brand) {
+    applyDocumentBrandColors(brand, q);
     const company = {
       name: (brand && brand.name) || q.organization_name || COMPANY.name,
       tagline: (brand && brand.tagline) || COMPANY.tagline,

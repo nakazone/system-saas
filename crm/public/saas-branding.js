@@ -1,8 +1,7 @@
 /**
- * Applies multi-tenant branding across CRM HTML pages.
- * - System chrome (top bar, mobile header, favicons, login, sidebar mark) = fixed ObraMate
- * - Sidebar brand mark = same square favicon (logo only, no wordmark)
- * Colors also come from /api/branding.css.
+ * Applies multi-tenant branding for client documents metadata (name / logo slots).
+ * System chrome (top bar, mobile header, favicons, login, sidebar mark, CRM colors)
+ * stays fixed ObraMate — tenant brand colors apply to quotes, invoices, PDFs and emails only.
  */
 (function () {
   // mount.ts injects this script into every CRM page and many pages also include it
@@ -16,6 +15,8 @@
   var SYSTEM_APP_ICON = "/assets/favicon-192.png?v=20260924-pwa";
   var SYSTEM_TOUCH_ICON = "/assets/favicon-180.png?v=20260924-pwa";
   var SYSTEM_FAVICON_ICO = "/favicon.ico?v=20260924-pwa";
+  /** Fixed ObraMate chrome colors — never replace with tenant brand. */
+  var SYSTEM_THEME_COLOR = "#211d1a";
 
   /** Fixed ObraMate marks — never swap for tenant logo. */
   function lockSystemLogos() {
@@ -89,21 +90,14 @@
     }
   }
 
-  function applyCssVars(vars) {
-    if (!vars || typeof vars !== "object") return;
-    var root = document.documentElement;
-    Object.keys(vars).forEach(function (k) {
-      root.style.setProperty(k, vars[k]);
-    });
-    var primary = vars["--sf-navy"] || vars["--color-primary"];
-    if (primary) {
-      var meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute("content", primary);
-    }
+  function lockSystemThemeColor() {
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", SYSTEM_THEME_COLOR);
   }
 
   async function boot() {
     lockSystemLogos();
+    lockSystemThemeColor();
     try {
       var r = await fetch("/api/branding", { credentials: "include", cache: "no-store" });
       var j = await r.json();
@@ -114,14 +108,16 @@
       }
       var d = j.data;
       window.__saasBrand = d;
-      applyCssVars(d.css_vars);
+      // Do NOT apply tenant css_vars to the CRM — colors are for client documents only.
       applyCompanyLogo(d.logo_url || DEFAULT_LOGO, d.name || DEFAULT_NAME);
       applyName(d.name || DEFAULT_NAME);
       lockSystemLogos();
+      lockSystemThemeColor();
     } catch (e) {
       applyCompanyLogo(DEFAULT_LOGO, DEFAULT_NAME);
       applyName(DEFAULT_NAME);
       lockSystemLogos();
+      lockSystemThemeColor();
     }
   }
 

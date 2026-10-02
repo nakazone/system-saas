@@ -20,7 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const BRANDING_INJECT = [
   '<link rel="stylesheet" href="/api/branding.css" data-saas-branding-css />',
-  '<script src="/saas-branding.js" defer data-saas-branding-js></script>',
+  '<script src="/saas-branding.js?v=20261002-branddoc1" defer data-saas-branding-js></script>',
 ].join("\n    ");
 
 /**

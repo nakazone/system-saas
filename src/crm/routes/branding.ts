@@ -5,9 +5,10 @@ import { storage } from "../../lib/storage/index.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import type { TenantRequest } from "../../lib/tenant/resolve-tenant.js";
 import {
-  brandPaletteToCss,
   buildBrandPalette,
+  documentBrandCss,
   parseHexColor,
+  systemChromeCss,
 } from "../../lib/branding/palette.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
 
@@ -19,12 +20,25 @@ function orgBrandFields(org: {
   primaryColor: string | null;
   accentColor: string | null;
 }) {
-  return buildBrandPalette({
+  const document = buildBrandPalette({
     name: org.name,
     logoUrl: org.logoUrl,
     primaryColor: org.primaryColor,
     accentColor: org.accentColor,
   });
+  // CRM chrome stays ObraMate; tenant colors are exposed for documents / settings only.
+  const chrome = buildBrandPalette({
+    name: "ObraMate",
+    logoUrl: null,
+    primaryColor: null,
+    accentColor: null,
+  });
+  return {
+    ...document,
+    // css_vars applied by legacy CRM loaders → system defaults (do not recolor the app)
+    css_vars: chrome.css_vars,
+    document_css_vars: document.css_vars,
+  };
 }
 
 async function loadOrg(organizationId: string) {
@@ -60,6 +74,17 @@ brandingRouter.get("/api/branding", async (req: TenantRequest, res, next) => {
 
 brandingRouter.get("/api/branding.css", async (req: TenantRequest, res, next) => {
   try {
+    // CRM UI always uses ObraMate chrome. Tenant brand colors apply to quotes/invoices/PDFs/emails only.
+    res.setHeader("Cache-Control", "private, max-age=60");
+    res.type("text/css").send(systemChromeCss());
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Tenant brand colors for client-facing documents (public quote / invoice pages). */
+brandingRouter.get("/api/branding/documents.css", async (req: TenantRequest, res, next) => {
+  try {
     res.setHeader("Cache-Control", "private, max-age=60");
     if (!req.organizationId) {
       res.type("text/css").send("/* no tenant */\n");
@@ -70,7 +95,13 @@ brandingRouter.get("/api/branding.css", async (req: TenantRequest, res, next) =>
       res.type("text/css").send("/* org missing */\n");
       return;
     }
-    res.type("text/css").send(brandPaletteToCss(orgBrandFields(org)));
+    const palette = buildBrandPalette({
+      name: org.name,
+      logoUrl: org.logoUrl,
+      primaryColor: org.primaryColor,
+      accentColor: org.accentColor,
+    });
+    res.type("text/css").send(documentBrandCss(palette));
   } catch (error) {
     next(error);
   }

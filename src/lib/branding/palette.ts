@@ -140,3 +140,33 @@ export function brandPaletteToCss(palette: BrandPalette): string {
     .join("\n");
   return `:root {\n${lines}\n}\n`;
 }
+
+/** Fixed ObraMate chrome for the CRM app UI (menus, buttons, chrome). Tenant brand colors are for client documents only. */
+export function systemChromePalette(): BrandPalette {
+  return buildBrandPalette({
+    name: "ObraMate",
+    logoUrl: null,
+    primaryColor: null,
+    accentColor: null,
+  });
+}
+
+/** CSS for :root CRM chrome — always ObraMate defaults, never tenant brand colors. */
+export function systemChromeCss(): string {
+  return brandPaletteToCss(systemChromePalette());
+}
+
+/** Document-scoped CSS variables for public quote / invoice surfaces. */
+export function documentBrandCss(palette: BrandPalette): string {
+  const primary = palette.primary_color;
+  const accent = palette.accent_color;
+  return `:root {
+  --qp-primary: ${primary};
+  --qp-secondary: ${accent};
+  --doc-primary: ${primary};
+  --doc-accent: ${accent};
+  --inv-primary: ${primary};
+  --inv-accent: ${accent};
+}
+`;
+}

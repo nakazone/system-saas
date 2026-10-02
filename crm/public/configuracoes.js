@@ -1040,14 +1040,6 @@
     paintPreview();
   }
 
-  function applyCssVars(vars) {
-    if (!vars) return;
-    const root = document.documentElement;
-    Object.keys(vars).forEach((k) => root.style.setProperty(k, vars[k]));
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta && vars["--sf-navy"]) meta.setAttribute("content", vars["--sf-navy"]);
-  }
-
   async function saveBrand() {
     const v = brandValues();
     if (!HEX.test(v.primary) || !HEX.test(v.accent)) {
@@ -1065,9 +1057,8 @@
       state.brand.logoDataUrl = null;
       state.brand.clearLogo = false;
       state.brand.snapshot = brandValues();
-      applyCssVars(d.css_vars);
       paintPreview();
-      notify("Marca salva.", "success");
+      notify("Marca salva. As cores valem para orçamentos, faturas e e-mails ao cliente.", "success");
       return true;
     } catch (err) {
       notify(err.message || "Não foi possível salvar a marca.", "error");
