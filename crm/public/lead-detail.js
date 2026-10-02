@@ -1508,12 +1508,15 @@ function resolveLeadQuoteCta_() {
     );
     const q = Array.isArray(leadQuotesCache) ? leadQuotesCache[0] : null;
     if (stageUsesViewQuote_(slug) && q && q.id) {
+        const qid = String(q.id);
         return {
             label: 'Visualizar Orçamento',
-            href: `quote-builder.html?id=${encodeURIComponent(String(q.id))}&lead_id=${encodeURIComponent(String(currentLeadId || ''))}`,
+            href: `quote-builder.html?id=${encodeURIComponent(qid)}&lead_id=${encodeURIComponent(String(currentLeadId || ''))}`,
             openPdf: true,
-            quoteId: String(q.id),
+            quoteId: qid,
             pdfLabel: q.quote_number || `Orçamento #${q.id}`,
+            editHref: `quote-builder.html?id=${encodeURIComponent(qid)}&lead_id=${encodeURIComponent(String(currentLeadId || ''))}`,
+            editLabel: 'Editar orçamento',
         };
     }
     return {
@@ -1522,6 +1525,8 @@ function resolveLeadQuoteCta_() {
         openPdf: false,
         quoteId: null,
         pdfLabel: null,
+        editHref: null,
+        editLabel: null,
     };
 }
 
@@ -1547,9 +1552,29 @@ function syncLeadQuoteCtas_() {
     const cta = resolveLeadQuoteCta_();
     const menuBtn = document.getElementById('btnLeadCreateQuote');
     if (menuBtn) menuBtn.textContent = cta.label;
+    const editMenu = document.getElementById('btnLeadEditQuote');
+    if (editMenu) {
+        if (cta.editHref) {
+            editMenu.href = cta.editHref;
+            editMenu.textContent = cta.editLabel || 'Editar orçamento';
+            editMenu.hidden = false;
+        } else {
+            editMenu.hidden = true;
+        }
+    }
     const quote = document.getElementById('mldQuoteBtn');
     const quoteLabel = document.getElementById('mldQuoteLabel');
+    const quoteEdit = document.getElementById('mldQuoteEditBtn');
     if (quoteLabel) quoteLabel.textContent = cta.label;
+    if (quoteEdit) {
+        if (cta.editHref) {
+            quoteEdit.href = cta.editHref;
+            quoteEdit.textContent = cta.editLabel || 'Editar orçamento';
+            quoteEdit.hidden = false;
+        } else {
+            quoteEdit.hidden = true;
+        }
+    }
     if (quote) {
         if (cta.openPdf && cta.quoteId) {
             quote.href = '#';

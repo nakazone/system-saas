@@ -357,6 +357,15 @@ body.plab-leads-list .nls-root {
   backdrop-filter: blur(10px);
 }
 
+.mld-footer__quote-wrap {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 .mld-footer__quote {
   flex: 0 0 auto;
   display: inline-flex;
@@ -372,6 +381,19 @@ body.plab-leads-list .nls-root {
   font-weight: 750;
   text-decoration: none;
   cursor: pointer;
+}
+
+.mld-footer__quote-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.4rem;
+  color: var(--mld-muted, #78716c);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .mld-footer__quote svg {

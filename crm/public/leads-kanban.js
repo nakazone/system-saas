@@ -621,6 +621,12 @@ function initKanbanSortables() {
                 draggable: '.kanban-card[data-lead-id]:not([data-lead-id=""])',
                 filter: '.btn-lead-delete-kanban, button, a, .kanban-column-empty, .lead-quote-icons',
                 preventOnFilter: false,
+                // Native HTML5 DnD + horizontal board scroll often shows a ghost but
+                // fails to commit the drop (card snaps back). Use Sortable's fallback.
+                forceFallback: true,
+                fallbackOnBody: true,
+                fallbackTolerance: 4,
+                emptyInsertThreshold: 48,
                 delay: 140,
                 delayOnTouchOnly: true,
                 touchStartThreshold: 6,

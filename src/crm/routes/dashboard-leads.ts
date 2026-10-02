@@ -867,8 +867,9 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), a
           : undefined;
       let status: string | undefined = body.status !== undefined ? String(body.status) : undefined;
 
-      if (pipelineStageId === undefined && status) {
-        // Accept any slug dialect and create missing canonical stages (quote_sent, follow_up_1, …).
+      // Prefer status slug (any dialect) so Kanban DnD never fails on a stale/wrong stage id.
+      // Fall back to pipeline_stage_id only when no status was sent.
+      if (status) {
         const stage = await ensureStageForSlug(tx, status);
         if (!stage) return { invalidStage: status } as const;
         pipelineStageId = stage.id;

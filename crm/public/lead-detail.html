@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-pwa" />
   <link rel="stylesheet" href="lead-detail.css?v=20260925-leadui1" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
-  <link rel="stylesheet" href="lead-mobile.css?v=20261001-leads1" />
+  <link rel="stylesheet" href="lead-mobile.css?v=20261002-dnd2" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261002-pdfclose" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
@@ -142,10 +142,13 @@
         </section>
 
         <footer class="mld-footer">
-          <a class="mld-footer__quote" id="mldQuoteBtn" href="quote-builder.html">
-            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
-            <span id="mldQuoteLabel">Novo Orçamento</span>
-          </a>
+          <div class="mld-footer__quote-wrap">
+            <a class="mld-footer__quote" id="mldQuoteBtn" href="quote-builder.html">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span id="mldQuoteLabel">Novo Orçamento</span>
+            </a>
+            <a class="mld-footer__quote-edit" id="mldQuoteEditBtn" href="quote-builder.html" hidden>Editar orçamento</a>
+          </div>
           <button type="button" class="mld-footer__next" id="mldNextBtn">
             <span id="mldNextLabel">Avançar</span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
@@ -185,6 +188,7 @@
                 <button type="button" role="menuitem" data-create="interaction">Log interaction</button>
                 <button type="button" role="menuitem" data-create="followup">New follow-up</button>
                 <button type="button" role="menuitem" data-create="proposal" id="btnLeadCreateQuote">Novo Orçamento</button>
+                <a role="menuitem" id="btnLeadEditQuote" href="quote-builder.html" hidden>Editar orçamento</a>
               </div>
             </div>
           </div>
@@ -710,6 +714,6 @@
   <script src="crm-shared-nav.js?v=20261001-reports3"></script>
   <script src="crm-shell.js?v=20261001-tabletnav3"></script>
   <script src="om-mobile-nav.js?v=20261001-tablet1"></script>
-  <script src="lead-detail.js?v=20261002-dnd1"></script>
+  <script src="lead-detail.js?v=20261002-dnd2"></script>
 </body>
 </html>

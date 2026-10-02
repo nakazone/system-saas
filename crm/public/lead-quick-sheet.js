@@ -798,20 +798,23 @@
     } catch (_) {}
   }
 
-  /** Payload PUT com slug + pipeline_stage_id quando o estágio está na lista (Kanban usa o id). */
+  /** Payload PUT com slug (+ UUID do estágio quando conhecido). Nunca enviar id numérico. */
   function payloadForStatusSlug(slug, stagesList) {
     const raw = String(slug || '').trim();
     if (!raw) return {};
     const list = Array.isArray(stagesList) ? stagesList : sheetStagesCache;
     const hit = list.find((s) => slugMatchesCurrent(s.slug, raw));
-    const canonical = hit && hit.slug ? String(hit.slug).trim() : raw;
-    const idRaw = hit && hit.id != null ? hit.id : null;
-    const idNum = idRaw != null ? Number(idRaw) : NaN;
-    if (Number.isFinite(idNum) && idNum > 0) {
-      return { status: canonical, pipeline_stage_id: idNum };
-    }
-    if (idRaw != null && String(idRaw).trim()) {
-      return { status: canonical, pipeline_stage_id: String(idRaw) };
+    const canonical =
+      (hit && hit.slug ? String(hit.slug).trim() : '') ||
+      (typeof global.normalizePipelineSlug === 'function'
+        ? global.normalizePipelineSlug(raw)
+        : raw);
+    const idRaw = hit && hit.id != null ? String(hit.id).trim() : '';
+    // Only send UUID-like stage ids. Numeric legacy ids break Prisma UUID columns.
+    const looksUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idRaw);
+    if (looksUuid) {
+      return { status: canonical, pipeline_stage_id: idRaw };
     }
     return { status: canonical };
   }
@@ -1297,12 +1300,15 @@
     const preferred =
       rows.find((r) => r && r.kind !== 'proposal' && r.id) || rows.find((r) => r && r.id) || null;
     if (stageUsesViewQuoteLqs_(slug) && preferred && preferred.id) {
+      const qid = String(preferred.id);
       return {
         label: 'Visualizar Orçamento',
         href: null,
         openPdf: true,
-        quoteId: String(preferred.id),
+        quoteId: qid,
         pdfLabel: preferred.label || 'Orçamento',
+        editHref: `quote-builder.html?id=${encodeURIComponent(qid)}&lead_id=${encodeURIComponent(String(sid))}`,
+        editLabel: 'Editar orçamento',
       };
     }
     return {
@@ -1311,15 +1317,29 @@
       openPdf: false,
       quoteId: null,
       pdfLabel: null,
+      editHref: null,
+      editLabel: null,
     };
   }
 
   function quoteCtaMarkupLqs_(quoteCta, extraClass) {
     const cls = extraClass || 'btn btn-primary btn-sm lqs-btn';
     if (quoteCta.openPdf && quoteCta.quoteId) {
-      return `<button type="button" class="${cls}" data-lqs-pdf="${escapeHtml(quoteCta.quoteId)}" data-lqs-pdf-label="${escapeHtml(
+      const pdfBtn = `<button type="button" class="${cls}" data-lqs-pdf="${escapeHtml(quoteCta.quoteId)}" data-lqs-pdf-label="${escapeHtml(
         quoteCta.pdfLabel || 'Orçamento'
       )}">${escapeHtml(quoteCta.label)}</button>`;
+      if (!quoteCta.editHref) return pdfBtn;
+      // Create-menu item: keep a single entry that opens the builder.
+      if (extraClass && String(extraClass).indexOf('lqs-create-menu') !== -1) {
+        return `<a class="${escapeHtml(extraClass)}" href="${escapeHtml(quoteCta.editHref)}">${escapeHtml(
+          quoteCta.editLabel || 'Editar orçamento'
+        )}</a>`;
+      }
+      const editCls = 'btn btn-secondary btn-sm lqs-btn';
+      const editBtn = `<a class="${editCls}" href="${escapeHtml(quoteCta.editHref)}">${escapeHtml(
+        quoteCta.editLabel || 'Editar orçamento'
+      )}</a>`;
+      return `${pdfBtn}${editBtn}`;
     }
     return `<a class="${cls}" href="${escapeHtml(quoteCta.href || '#')}">${escapeHtml(quoteCta.label)}</a>`;
   }
