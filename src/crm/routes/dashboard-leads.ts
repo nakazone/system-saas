@@ -22,7 +22,46 @@ type LeadMeta = {
   interactions?: Array<Record<string, unknown>>;
   followups?: Array<Record<string, unknown>>;
   visits?: Array<Record<string, unknown>>;
+  tags?: string[];
+  [key: string]: unknown;
 };
+
+/** Free-form lead fields kept in metadata (web form, marketing attribution, extra contact data). */
+const META_TEXT_KEYS = [
+  "message",
+  "form_type",
+  "project_type",
+  "company_name",
+  "job_title",
+  "city",
+  "state",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "utm_adset",
+  "utm_ad",
+  "marketing_platform",
+  "landing_page",
+  "referrer_url",
+  "gclid",
+  "fbclid",
+] as const;
+
+function cleanTags(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : [];
+  const out: string[] = [];
+  for (const t of list) {
+    const v = String(t ?? "").trim().slice(0, 40);
+    if (v && !out.some((x) => x.toLowerCase() === v.toLowerCase())) out.push(v);
+  }
+  return out.slice(0, 20);
+}
+
+function isLostSlug(slug: string | null | undefined): boolean {
+  return ["lost", "closed_lost"].includes(String(slug || ""));
+}
 
 function asMeta(raw: unknown): LeadMeta {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -42,8 +81,12 @@ function mapLead(l: {
   ownerId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  lossReasonId?: string | null;
+  lostAt?: Date | null;
+  lastContactedAt?: Date | null;
   pipelineStage?: { name: string; color: string | null; slug: string | null; isClosed: boolean } | null;
   owner?: { id: string; name: string; email: string } | null;
+  lossReason?: { id: string; name: string } | null;
 }) {
   const meta = asMeta(l.metadata);
   // Prefer explicit lead.status (set by visit/automation) over stale pipeline join
@@ -70,12 +113,20 @@ function mapLead(l: {
     owner_name: l.owner?.name ?? null,
     created_at: l.createdAt.toISOString(),
     updated_at: l.updatedAt.toISOString(),
+    ...Object.fromEntries(META_TEXT_KEYS.map((k) => [k, meta[k] != null && meta[k] !== "" ? String(meta[k]) : null])),
+    tags: cleanTags(meta.tags),
+    loss_reason_id: l.lossReasonId ?? null,
+    loss_reason_name: l.lossReason?.name ?? null,
+    loss_note: meta.loss_note != null ? String(meta.loss_note) : null,
+    lost_at: l.lostAt ? l.lostAt.toISOString() : null,
+    last_contacted_at: l.lastContactedAt ? l.lastContactedAt.toISOString() : null,
   };
 }
 
 const leadInclude = {
   pipelineStage: true,
   owner: { select: { id: true, name: true, email: true } },
+  lossReason: { select: { id: true, name: true } },
 } as const;
 
 /** Stage for a scheduled lead visit — Meeting Scheduled column (never Stand By). */
@@ -147,7 +198,7 @@ dashboardLeadsRouter.get("/api/leads", requireCrmPermission("leads.view"), async
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
-        include: { pipelineStage: true, owner: { select: { id: true, name: true, email: true } } },
+        include: leadInclude,
       });
       return [count, rows] as const;
     });
@@ -392,6 +443,84 @@ dashboardLeadsRouter.post("/api/leads/:id/followups", requireCrmPermission("lead
   }
 });
 
+/** Edit or complete a follow-up (status: pending | done). */
+dashboardLeadsRouter.put("/api/leads/:id/followups/:fid", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const fid = String(req.params.fid);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const existing = await loadLeadOrNull(tx, id);
+      if (!existing) return null;
+      const meta = asMeta(existing.metadata);
+      const list = Array.isArray(meta.followups) ? meta.followups : [];
+      const idx = list.findIndex((f) => String(f.id) === fid);
+      if (idx < 0) return null;
+      const prev = list[idx];
+      const status = body.status != null ? (String(body.status) === "done" ? "done" : "pending") : String(prev.status || "pending");
+      const item = {
+        ...prev,
+        title: body.title != null ? String(body.title).slice(0, 200) || "Follow-up" : prev.title,
+        description: body.description !== undefined ? (body.description ? String(body.description) : null) : prev.description,
+        due_date: body.due_date !== undefined ? (body.due_date ? String(body.due_date) : null) : prev.due_date,
+        status,
+        completed_at: status === "done" ? (prev.completed_at || new Date().toISOString()) : null,
+        updated_at: new Date().toISOString(),
+      };
+      list[idx] = item;
+      meta.followups = list;
+      await tx.lead.update({ where: { id }, data: { metadata: meta as Prisma.InputJsonValue } });
+      return item;
+    });
+    if (!row) {
+      res.status(404).json({ success: false, error: "Follow-up não encontrado" });
+      return;
+    }
+    res.json({ success: true, data: row });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Remove a note / call log or a follow-up from the lead. Stage history is kept. */
+for (const kind of ["interactions", "followups"] as const) {
+  dashboardLeadsRouter.delete(`/api/leads/:id/${kind}/:itemId`, requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const itemId = String(req.params.itemId);
+      const ok = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const existing = await loadLeadOrNull(tx, id);
+        if (!existing) return false;
+        const meta = asMeta(existing.metadata);
+        const list = Array.isArray(meta[kind]) ? (meta[kind] as Array<Record<string, unknown>>) : [];
+        const next = list.filter((x) => !(String(x.id) === itemId && x.type !== "stage"));
+        if (next.length === list.length) return false;
+        meta[kind] = next;
+        await tx.lead.update({ where: { id }, data: { metadata: meta as Prisma.InputJsonValue } });
+        return true;
+      });
+      if (!ok) {
+        res.status(404).json({ success: false, error: "Item não encontrado" });
+        return;
+      }
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+}
+
+dashboardLeadsRouter.get("/api/loss-reasons", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
+  try {
+    const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+      tx.lossReason.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, name: true, slug: true } }),
+    );
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 dashboardLeadsRouter.get("/api/leads/:id/proposals", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
     const id = String(req.params.id);
@@ -400,7 +529,6 @@ dashboardLeadsRouter.get("/api/leads/:id/proposals", requireCrmPermission("leads
       if (!lead) return null;
       const customers = await tx.customer.findMany({ where: { leadId: id }, select: { id: true } });
       const customerIds = customers.map((c) => c.id);
-      if (!customerIds.length) return [];
       const quotes = await tx.quote.findMany({
         where: {
           OR: [
@@ -411,14 +539,22 @@ dashboardLeadsRouter.get("/api/leads/:id/proposals", requireCrmPermission("leads
         orderBy: { createdAt: "desc" },
         take: 50,
       });
-      return quotes.map((q) => ({
-        id: q.id,
-        title: q.title || `Quote #${q.number ?? q.id.slice(0, 8)}`,
-        status: q.status,
-        total: q.total != null ? Number(q.total) : null,
-        created_at: q.createdAt.toISOString(),
-        lead_id: id,
-      }));
+      return quotes.map((q) => {
+        const number = q.quoteNumber || String(q.number);
+        const total = q.total != null ? Number(q.total) : null;
+        return {
+          id: q.id,
+          title: q.title || `Orçamento ${number}`,
+          // Older screens read proposal_number / total_value — keep both shapes.
+          proposal_number: number,
+          quote_number: number,
+          status: q.status,
+          total,
+          total_value: total,
+          created_at: q.createdAt.toISOString(),
+          lead_id: id,
+        };
+      });
     });
     if (rows === null) {
       res.status(404).json({ success: false, error: "Lead not found" });
@@ -822,7 +958,7 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
           ownerId: parsed.data.owner_id ?? req.user?.id ?? null,
           ...(Object.keys(meta).length ? { metadata: meta as Prisma.InputJsonValue } : {}),
         },
-        include: { pipelineStage: true, owner: { select: { id: true, name: true, email: true } } },
+        include: leadInclude,
       });
       return { lead } as const;
     });
@@ -882,11 +1018,55 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), a
 
       const meta = asMeta(existing.metadata);
       let metaChanged = false;
-      for (const key of ["address", "zipcode", "priority", "estimated_value", "next_steps"] as const) {
+      for (const key of ["address", "zipcode", "priority", "estimated_value", "next_steps", ...META_TEXT_KEYS] as const) {
         if (body[key] !== undefined) {
           (meta as Record<string, unknown>)[key] = body[key] === "" || body[key] == null ? null : body[key];
           metaChanged = true;
         }
+      }
+      if (body.tags !== undefined) {
+        meta.tags = cleanTags(body.tags);
+        metaChanged = true;
+      }
+
+      // Loss reason: kept while the lead is lost, cleared when it comes back into the funnel.
+      const prevSlug = existing.status || "";
+      const stageChanged = status !== undefined && status !== prevSlug;
+      let lossReasonId: string | null | undefined;
+      let lostAt: Date | null | undefined;
+      if (isLostSlug(status ?? prevSlug)) {
+        if (body.loss_reason_id !== undefined) {
+          const rid = body.loss_reason_id ? String(body.loss_reason_id) : null;
+          lossReasonId = rid && (await tx.lossReason.findFirst({ where: { id: rid }, select: { id: true } })) ? rid : null;
+        }
+        if (body.loss_note !== undefined) {
+          meta.loss_note = body.loss_note ? String(body.loss_note).slice(0, 2000) : null;
+          metaChanged = true;
+        }
+        if (!isLostSlug(prevSlug)) lostAt = new Date();
+      } else if (stageChanged && isLostSlug(prevSlug)) {
+        lossReasonId = null;
+        lostAt = null;
+        meta.loss_note = null;
+        metaChanged = true;
+      }
+
+      // Stage history shows up on the lead's activity timeline.
+      if (stageChanged) {
+        const list = Array.isArray(meta.interactions) ? meta.interactions : [];
+        list.unshift({
+          id: randomUUID(),
+          type: "stage",
+          subject: null,
+          notes: body.loss_note ? String(body.loss_note).slice(0, 2000) : null,
+          from_stage: prevSlug || null,
+          to_stage: status,
+          user_id: req.user?.id || null,
+          user_name: req.user?.name || req.user?.email || null,
+          created_at: new Date().toISOString(),
+        });
+        meta.interactions = list.slice(0, 500);
+        metaChanged = true;
       }
 
       return tx.lead.update({
@@ -901,6 +1081,8 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), a
           pipelineStageId,
           ownerId:
             body.owner_id !== undefined ? (body.owner_id ? String(body.owner_id) : null) : undefined,
+          lossReasonId,
+          lostAt,
           ...(metaChanged ? { metadata: meta as Prisma.InputJsonValue } : {}),
         },
         include: leadInclude,

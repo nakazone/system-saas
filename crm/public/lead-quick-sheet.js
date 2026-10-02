@@ -2302,26 +2302,18 @@
     wire();
   }
 
-  global.openLeadQuickSheet = openLeadQuickSheet;
+  // The popup was replaced by the lead page (lead-detail.html). Anything that still calls the old
+  // entry points navigates there; the stage helper stays for drag-and-drop on the Kanban.
+  function openLeadPage(id) {
+    if (!id) return;
+    global.location.href = 'lead-detail.html?id=' + encodeURIComponent(String(id));
+  }
+  global.openLeadQuickSheet = openLeadPage;
+  global.openLeadQuickSheetPopup = openLeadQuickSheet;
   global.animatePanelFromAnchor = animatePanelFromAnchor;
   global.closeLeadQuickSheet = closeLeadQuickSheet;
   global.updateLeadPipelineStage = updateLeadPipelineStage;
-
-  const origViewLead = typeof global.viewLead === 'function' ? global.viewLead : null;
-  global.viewLead = function (id, ev) {
-    const r = document.getElementById('leadQuickSheet');
-    let anchorEl = null;
-    if (ev && ev.currentTarget && ev.currentTarget.closest) {
-      anchorEl = ev.currentTarget.closest('.kanban-card, .lcard, [data-lcard-open]');
-    } else if (ev && ev.target && ev.target.closest) {
-      anchorEl = ev.target.closest('.kanban-card, .lcard, [data-lcard-open]');
-    }
-    if (r && typeof openLeadQuickSheet === 'function') {
-      void openLeadQuickSheet(id, anchorEl);
-    } else if (origViewLead) {
-      origViewLead(id);
-    } else {
-      window.location.href = 'lead-detail.html?id=' + encodeURIComponent(id);
-    }
+  global.viewLead = function (id) {
+    openLeadPage(id);
   };
 })(typeof window !== 'undefined' ? window : globalThis);

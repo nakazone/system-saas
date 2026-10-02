@@ -1666,13 +1666,10 @@ function bindLeadsMobileListInteractions(container) {
             }
             const id = openEl.getAttribute('data-lcard-open');
             if (!id) return;
-            if (typeof window.openLeadQuickSheet === 'function') {
-                void window.openLeadQuickSheet(id, openEl);
-            } else if (typeof viewLead === 'function') {
-                viewLead(id);
-            } else {
-                window.location.href = 'lead-detail.html?id=' + encodeURIComponent(id);
-            }
+            // The lead opens as a full page (no more popup); Ctrl/Cmd-click opens a new tab.
+            const url = 'lead-detail.html?id=' + encodeURIComponent(id);
+            if (e.metaKey || e.ctrlKey) window.open(url, '_blank');
+            else window.location.href = url;
         });
     }
 }
