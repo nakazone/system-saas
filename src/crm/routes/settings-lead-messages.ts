@@ -26,8 +26,7 @@ export const settingsLeadMessagesRouter = Router();
 
 function canReadLeadMessages(req: AuthedRequest): boolean {
   const perms = req.user?.permissions || [];
-  const role = String(req.user?.role || "").toLowerCase();
-  if (role === "admin") return true;
+  if (req.user?.roleKey === "admin") return true;
   return perms.includes("settings.manage") || perms.includes("leads.view");
 }
 
