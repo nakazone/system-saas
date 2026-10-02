@@ -951,9 +951,11 @@ cadastroPayrollUsersRouter.get("/api/config/ui", requireCrmAuth, async (req: Aut
         branding: brand,
         country,
         organizationCountry: country,
-        googleMapsJsKey: googleMapsUsable ? key : null,
+        googleMapsJsKey: key,
         googleMapsConfigured: Boolean(key),
-        googleMapsUsable,
+        // Prefer Google in the browser whenever a key is configured.
+        // Server Places REST probe can fail under HTTP-referrer restrictions.
+        googleMapsUsable: googleMapsUsable || Boolean(key),
         modules: {
           dashboard: true,
           leads: true,

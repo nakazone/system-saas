@@ -48,11 +48,13 @@ export async function probeGoogleMapsUsable(key) {
 
 export async function buildUiConfigData() {
   const key = resolveGoogleMapsJsKey();
+  // Probe is diagnostic only — always expose the JS key when configured so the
+  // browser prefers Google Maps (HTTP-referrer keys often fail server Places REST).
   const usable = key ? await probeGoogleMapsUsable(key) : false;
   return {
-    googleMapsJsKey: usable ? key : null,
+    googleMapsJsKey: key,
     googleMapsConfigured: Boolean(key),
-    googleMapsUsable: usable,
+    googleMapsUsable: usable || Boolean(key),
     publicCrmUrl: getPublicCrmBaseUrl() || null,
   };
 }

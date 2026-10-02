@@ -1506,49 +1506,46 @@
   }
 
   async function ensureMapEngine() {
-    // Prefer OpenStreetMap while Google Cloud billing/APIs are unavailable.
-    // Google is only used when the server probe marks the key as usable.
-    if (mapEngine === "leaflet" && window.L) return "leaflet";
+    // Prefer Google Maps whenever a key is configured; Leaflet/OSM is last resort.
+    if (mapEngine === "google" && googleMapsReady() && !window.__crmGoogleMapsAuthFailed) {
+      return "google";
+    }
     if (mapsApiReady) return mapsApiReady;
 
     mapsApiReady = (async () => {
-      let googleOk = false;
+      let mapsKey = null;
       try {
         const cfg = await api("/api/config/ui");
-        googleOk = Boolean(cfg.data?.googleMapsUsable && cfg.data?.googleMapsJsKey);
+        mapsKey =
+          (cfg.data?.googleMapsJsKey && String(cfg.data.googleMapsJsKey).trim()) ||
+          null;
       } catch (_) {
-        googleOk = false;
+        mapsKey = null;
       }
 
-      if (googleOk && !window.__crmGoogleMapsAuthFailed) {
+      if (mapsKey && !window.__crmGoogleMapsAuthFailed) {
         try {
           installGoogleAuthHook();
-          const key = (await api("/api/config/ui")).data?.googleMapsJsKey;
-          if (key) {
-            await loadGoogleMapsOnce(String(key).trim());
-            if (!window.__crmGoogleMapsAuthFailed && googleMapsReady()) {
-              mapEngine = "google";
-              return "google";
-            }
+          await loadGoogleMapsOnce(String(mapsKey).trim());
+          if (!window.__crmGoogleMapsAuthFailed && googleMapsReady()) {
+            mapEngine = "google";
+            return "google";
           }
         } catch (err) {
-          console.warn("[schedule] Google Maps indisponível, a usar OpenStreetMap", err);
+          console.warn("[schedule] Google Maps load failed, falling back to Leaflet", err);
         }
       }
 
-      await ensureLeaflet();
+      // Fallback: Leaflet / OSM
+      if (window.L) {
+        mapEngine = "leaflet";
+        return "leaflet";
+      }
       mapEngine = "leaflet";
       return "leaflet";
     })();
 
-    try {
-      return await mapsApiReady;
-    } catch (_) {
-      mapsApiReady = null;
-      await ensureLeaflet();
-      mapEngine = "leaflet";
-      return "leaflet";
-    }
+    return mapsApiReady;
   }
 
   function sleep(ms) {

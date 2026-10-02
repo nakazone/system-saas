@@ -1,6 +1,7 @@
 /**
  * Google Places Autocomplete reutilizavel para formularios de morada do CRM.
- * Usa Google quando billing/APIs estão OK; senão cai para sugestões OSM (Photon).
+ * Prioriza sempre Google Maps quando a chave estiver configurada; Photon (OSM)
+ * so entra como ultimo recurso se o script Google falhar.
  * Restringe sugestões ao país da empresa (Configurações › Empresa).
  */
 (function (global) {
@@ -334,7 +335,7 @@
     var data = (j && j.data) || {};
     var code = normalizeCountryCode(data.organizationCountry || data.country);
     if (code) orgCountryCode = code;
-    if (data.googleMapsUsable === false) return null;
+    // Always prefer Google when a key is present (ignore server probe fail).
     var key = data.googleMapsJsKey ? String(data.googleMapsJsKey).trim() : '';
     return key || null;
   }
@@ -343,7 +344,10 @@
     if (global.google && global.google.maps && global.google.maps.places && !global.__crmGoogleMapsAuthFailed) {
       return true;
     }
-    if (forceRetry) resetMapsLoadState();
+    if (forceRetry) {
+      resetMapsLoadState();
+      global.__crmGoogleMapsAuthFailed = false;
+    }
     if (loadPromise && !lastLoadFailed) return loadPromise;
 
     loadPromise = (async function () {
@@ -351,11 +355,13 @@
         mapsKey = await fetchMapsKey();
         if (!mapsKey) {
           lastLoadFailed = true;
-          console.warn('[crm-address-autocomplete] Google Maps indisponível (billing/API); a usar sugestões OSM');
+          console.warn('[crm-address-autocomplete] Google Maps key ausente; a usar sugestões OSM');
           return false;
         }
         await loadGoogleMapsScript(mapsKey);
-        var ok = !!(global.google && global.google.maps && global.google.maps.places) && !global.__crmGoogleMapsAuthFailed;
+        var ok =
+          !!(global.google && global.google.maps && global.google.maps.places) &&
+          !global.__crmGoogleMapsAuthFailed;
         lastLoadFailed = !ok;
         return ok;
       } catch (err) {
@@ -584,9 +590,11 @@
 
     var ready = await ensureMapsReady(false);
     if (!ready) {
+      // One forced retry before falling back to Photon
       ready = await ensureMapsReady(true);
     }
     if (!ready) {
+      console.warn('[crm-address-autocomplete] Google indisponivel — fallback Photon');
       return attachPhotonAutocomplete(inputEl, options);
     }
 
