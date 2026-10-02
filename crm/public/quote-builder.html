@@ -2538,6 +2538,34 @@
     </div>
   </div>
 
+  <div id="qbSaveRateModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbSaveRateTitle">
+    <div class="qb-modal__panel">
+      <h2 id="qbSaveRateTitle" class="qb-modal__title">Gravar novo preço?</h2>
+      <p class="qb-modal__sub text-sm text-slate-600">
+        O serviço <strong id="qbSaveRateServiceName"></strong> está ligado à Tabela de Valores.
+        Valor na tabela (<span id="qbSaveRateTypeLabel"></span>): <strong id="qbSaveRateOld"></strong>.
+        Novo valor nesta linha: <strong id="qbSaveRateNew"></strong>.
+      </p>
+      <p id="qbSaveRateClientHint" class="text-sm text-amber-700 hidden mb-2">
+        Para gravar só para o cliente, selecione ou crie um registo de cliente CRM neste orçamento.
+      </p>
+      <div class="flex flex-col gap-2 mt-3">
+        <button type="button" id="qbSaveRateClient" class="w-full px-4 py-2.5 rounded-lg bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900">
+          Só para este cliente
+        </button>
+        <button type="button" id="qbSaveRateTable" class="w-full px-4 py-2.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-bold hover:opacity-95">
+          Atualizar Tabela de Valores
+        </button>
+        <button type="button" id="qbSaveRateQuoteOnly" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">
+          Só neste orçamento
+        </button>
+        <button type="button" id="qbSaveRateCancel" class="w-full px-4 py-2 text-sm text-slate-500 hover:text-slate-800">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
     <div class="qb-notify__panel" role="document">
       <button type="button" class="qb-notify__close" id="qbNotifyClose" aria-label="Fechar">×</button>
@@ -2557,7 +2585,7 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261002-leadmsg1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261002-notes2"></script>
+  <script src="quote-builder.js?v=20261002-rate-save1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

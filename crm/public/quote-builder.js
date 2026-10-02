@@ -484,6 +484,154 @@
     });
   }
 
+  /** Contexto ao editar preço inline (focus → blur). */
+  let inlineRateEditCtx = null;
+  let rateSavePending = null;
+
+  function closeSaveRateModal() {
+    const root = $('qbSaveRateModal');
+    if (root) root.classList.add('hidden');
+    rateSavePending = null;
+  }
+
+  function openSaveRateModal(payload) {
+    const root = $('qbSaveRateModal');
+    if (!root) return;
+    rateSavePending = payload;
+    const nameEl = $('qbSaveRateServiceName');
+    const oldEl = $('qbSaveRateOld');
+    const newEl = $('qbSaveRateNew');
+    const typeEl = $('qbSaveRateTypeLabel');
+    const clientBtn = $('qbSaveRateClient');
+    const clientHint = $('qbSaveRateClientHint');
+    if (nameEl) nameEl.textContent = payload.serviceName || 'Serviço';
+    if (oldEl) oldEl.textContent = money(payload.tableRate);
+    if (newEl) newEl.textContent = money(payload.newRate);
+    if (typeEl) typeEl.textContent = pricingTypeLabel(payload.src);
+    const noCustomer = !payload.customer || payload.customer.id == null;
+    if (clientBtn) {
+      clientBtn.disabled = noCustomer;
+      clientBtn.classList.toggle('opacity-50', noCustomer);
+    }
+    if (clientHint) clientHint.classList.toggle('hidden', !noCustomer);
+    root.classList.remove('hidden');
+  }
+
+  function maybeOfferRatePersist(opts) {
+    const modalOpen = $('qbSaveRateModal') && !$('qbSaveRateModal').classList.contains('hidden');
+    if (modalOpen) return;
+    const it = items[opts.itemIdx];
+    if (!it) return;
+    const row = opts.row || catalogRowForItem(it);
+    const pricingItemId = opts.pricingItemId || catalogPricingItemId(row);
+    if (!pricingItemId) return;
+    const src = opts.src || catalogPricingSource();
+    const tableRate = opts.tableRate != null ? Number(opts.tableRate) : systemRateForCatalogRow(row, src);
+    const newRate = Number(opts.newRate);
+    if (!Number.isFinite(newRate) || newRate < 0) return;
+    if (ratesNearlyEqual(newRate, tableRate)) return;
+    const customer = getQuoteCustomerRecord();
+    openSaveRateModal({
+      itemIdx: opts.itemIdx,
+      serviceName: it.name || (row && row.name) || '',
+      newRate,
+      tableRate,
+      pricingItemId,
+      src,
+      row,
+      customer,
+    });
+  }
+
+  async function persistRateForCustomerOnly() {
+    const p = rateSavePending;
+    if (!p || !p.customer || p.customer.id == null) {
+      qbToast('Selecione um cliente CRM para gravar preço personalizado.', 'error');
+      return;
+    }
+    const cid = String(p.customer.id);
+    const prevRates =
+      p.customer.custom_pricing_rates && typeof p.customer.custom_pricing_rates === 'object'
+        ? { ...p.customer.custom_pricing_rates }
+        : {};
+    prevRates[String(p.pricingItemId)] = p.newRate;
+    const btn = $('qbSaveRateClient');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await fetch(`/api/customers/${encodeURIComponent(cid)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          pricing_mode: 'custom',
+          custom_pricing_rates: prevRates,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Não foi possível gravar preço do cliente.');
+      if (j.data) upsertClientInCache(j.data);
+      if (selectedOrgCustomer && sameId(selectedOrgCustomer.id, cid)) {
+        selectedOrgCustomer = { ...selectedOrgCustomer, ...j.data };
+      }
+      qbToast('Preço gravado só para este cliente.', 'success');
+      closeSaveRateModal();
+    } catch (e) {
+      qbToast(e.message || 'Erro ao gravar preço do cliente.', 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function persistRateToPricingTable() {
+    const p = rateSavePending;
+    if (!p || !p.pricingItemId) return;
+    const field = pricingFieldKeyForSource(p.src);
+    const label = pricingTypeLabel(p.src);
+    const ok = confirm(
+      `Atualizar a Tabela de Valores (${label}) para ${money(p.newRate)}?\n\n` +
+        `Isto altera o preço do sistema para todos os orçamentos futuros (exceto clientes com preço personalizado).`,
+    );
+    if (!ok) return;
+    const btn = $('qbSaveRateTable');
+    if (btn) btn.disabled = true;
+    try {
+      const body = { [field]: p.newRate };
+      const r = await fetch(`/api/pricing/${encodeURIComponent(p.pricingItemId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Não foi possível atualizar a Tabela de Valores.');
+      patchLocalCatalogRates(p.pricingItemId, p.src, p.newRate);
+      const it = items[p.itemIdx];
+      if (it) it.pricing_item_id = p.pricingItemId;
+      qbToast('Tabela de Valores atualizada.', 'success');
+      closeSaveRateModal();
+    } catch (e) {
+      qbToast(e.message || 'Erro ao atualizar a Tabela de Valores.', 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function wireSaveRateModal() {
+    $('qbSaveRateQuoteOnly')?.addEventListener('click', () => closeSaveRateModal());
+    $('qbSaveRateClient')?.addEventListener('click', () => void persistRateForCustomerOnly());
+    $('qbSaveRateTable')?.addEventListener('click', () => void persistRateToPricingTable());
+    $('qbSaveRateCancel')?.addEventListener('click', () => closeSaveRateModal());
+    const root = $('qbSaveRateModal');
+    if (root) {
+      root.addEventListener('click', (e) => {
+        if (e.target === root) closeSaveRateModal();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && root && !root.classList.contains('hidden')) closeSaveRateModal();
+    });
+  }
+
   function lineAmount(q, r) {
     return Math.round(q * r * 100) / 100;
   }
@@ -506,6 +654,98 @@
     const nid = normalizeCatalogId(id);
     if (nid == null) return null;
     return catalog.find((r) => sameId(r.id, nid)) || null;
+  }
+
+  function catalogPricingItemId(row) {
+    if (!row) return null;
+    if (row.pricing_item_id != null && String(row.pricing_item_id).trim() !== '') {
+      return String(row.pricing_item_id);
+    }
+    if (row.source === 'pricing' && row.id != null) return String(row.id);
+    return null;
+  }
+
+  function catalogRowForItem(it) {
+    if (!it) return null;
+    const catId = normalizeCatalogId(it.service_catalog_id);
+    if (catId != null) {
+      const row = findCatalogRowById(catId);
+      if (row) return row;
+    }
+    const pid = it.pricing_item_id != null ? String(it.pricing_item_id).trim() : '';
+    if (pid) {
+      const byPid = catalog.find((r) => catalogPricingItemId(r) === pid);
+      if (byPid) return byPid;
+    }
+    const key = catalogNameKey(it.name);
+    if (!key) return null;
+    const matches = catalog.filter((r) => catalogNameKey(r.name) === key);
+    if (!matches.length) return null;
+    if (matches.length === 1) return matches[0];
+    const withPricing = matches.find((r) => catalogPricingItemId(r));
+    return withPricing || matches[0];
+  }
+
+  function getQuoteCustomerRecord() {
+    const cid = String($('customerId')?.value || '').trim();
+    if (cid) {
+      const c = clients.find((x) => sameId(x.id, cid));
+      if (c) return c;
+    }
+    return selectedOrgCustomer || null;
+  }
+
+  function customRateForCatalogRow(c, row) {
+    if (!c || String(c.pricing_mode || '').toLowerCase() !== 'custom' || !c.custom_pricing_rates) return null;
+    const rates = c.custom_pricing_rates;
+    const pid = catalogPricingItemId(row);
+    if (pid && rates[pid] != null) {
+      const n = Number(rates[pid]);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    if (row.id != null && rates[String(row.id)] != null) {
+      const n = Number(rates[String(row.id)]);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+    return null;
+  }
+
+  function systemRateForCatalogRow(row, source) {
+    if (!row) return 0;
+    const fallback = Number(row.default_rate) || Number(row.rate_particular) || Number(row.rate_customer) || 0;
+    const src = source === 'customer' || source === 'lead' ? 'particular' : source;
+    if (src === 'builder') return pickCatalogRate(row.rate_builder, fallback);
+    if (src === 'contractor') return pickCatalogRate(row.rate_contractor, fallback);
+    if (src === 'loja') return pickCatalogRate(row.rate_loja, fallback);
+    return pickCatalogRate(row.rate_particular != null ? row.rate_particular : row.rate_customer, fallback);
+  }
+
+  function pricingFieldKeyForSource(src) {
+    if (src === 'builder') return 'price_builder';
+    if (src === 'contractor') return 'price_contractor';
+    if (src === 'loja') return 'price_loja';
+    return 'price_particular';
+  }
+
+  function ratesNearlyEqual(a, b) {
+    return Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.009;
+  }
+
+  function patchLocalCatalogRates(pricingItemId, src, newRate) {
+    const pid = String(pricingItemId);
+    const n = Number(newRate);
+    if (!Number.isFinite(n)) return;
+    for (const row of catalog) {
+      if (catalogPricingItemId(row) !== pid && String(row.id) !== pid) continue;
+      if (src === 'builder') row.rate_builder = n;
+      else if (src === 'contractor') row.rate_contractor = n;
+      else if (src === 'loja') row.rate_loja = n;
+      else {
+        row.rate_particular = n;
+        row.rate_customer = n;
+        row.default_rate = n;
+      }
+    }
   }
 
   function pricingTypeFromParty(party) {
@@ -555,6 +795,7 @@
           default_description: r.notes != null ? String(r.notes).trim() || null : null,
           notes_customer: r.notes != null ? String(r.notes).trim() || null : null,
           source: 'pricing',
+          pricing_item_id: r.id,
         };
       });
   }
@@ -694,6 +935,7 @@
       notes: null,
       catalog_customer_notes: null,
       service_catalog_id: null,
+      pricing_item_id: null,
       product_id: null,
       cost_price: null,
       markup_percentage: null,
@@ -1106,18 +1348,9 @@
 
   function effectiveCatalogRate(row, source) {
     if (!row) return 0;
-    const fallback = Number(row.default_rate) || Number(row.rate_particular) || Number(row.rate_customer) || 0;
-    const cid = String($('customerId')?.value || '');
-    const c = cid ? clients.find((x) => sameId(x.id, cid)) : selectedOrgCustomer;
-    if (c && c.pricing_mode === 'custom' && c.custom_pricing_rates) {
-      const custom = Number(c.custom_pricing_rates[String(row.id)]);
-      if (Number.isFinite(custom) && custom > 0) return custom;
-    }
-    const src = source === 'customer' || source === 'lead' ? 'particular' : source;
-    if (src === 'builder') return pickCatalogRate(row.rate_builder, fallback);
-    if (src === 'contractor') return pickCatalogRate(row.rate_contractor, fallback);
-    if (src === 'loja') return pickCatalogRate(row.rate_loja, fallback);
-    return pickCatalogRate(row.rate_particular != null ? row.rate_particular : row.rate_customer, fallback);
+    const custom = customRateForCatalogRow(getQuoteCustomerRecord(), row);
+    if (custom != null && custom > 0) return custom;
+    return systemRateForCatalogRow(row, source);
   }
 
   function resolveModalCatalogRow() {
@@ -2593,6 +2826,27 @@
     const list = $('itemsList');
     if (!list || list.dataset.bound) return;
     list.dataset.bound = '1';
+    list.addEventListener('focusin', (e) => {
+      const q = e.target.closest('[data-rate]');
+      if (!q) return;
+      const idx = parseInt(q.getAttribute('data-rate'), 10);
+      const it = items[idx];
+      if (!it) return;
+      const row = catalogRowForItem(it);
+      const pricingItemId = catalogPricingItemId(row);
+      if (!pricingItemId) {
+        inlineRateEditCtx = null;
+        return;
+      }
+      const src = catalogPricingSource();
+      inlineRateEditCtx = {
+        idx,
+        pricingItemId,
+        tableRate: systemRateForCatalogRow(row, src),
+        row,
+        src,
+      };
+    });
     list.addEventListener('input', (e) => {
       const q = e.target.closest('[data-qty],[data-rate]');
       if (!q) return;
@@ -2612,7 +2866,23 @@
     });
     list.addEventListener('focusout', (e) => {
       const q = e.target.closest('[data-rate]');
-      if (q) q.value = inlineNum(parseInlineNumber(q.value), true);
+      if (!q) return;
+      const idx = parseInt(q.getAttribute('data-rate'), 10);
+      const newRate = parseInlineNumber(q.value);
+      q.value = inlineNum(newRate, true);
+      const ctx = inlineRateEditCtx;
+      inlineRateEditCtx = null;
+      if (!ctx || ctx.idx !== idx) return;
+      setTimeout(() => {
+        maybeOfferRatePersist({
+          itemIdx: idx,
+          newRate,
+          pricingItemId: ctx.pricingItemId,
+          tableRate: ctx.tableRate,
+          row: ctx.row,
+          src: ctx.src,
+        });
+      }, 0);
     });
     list.addEventListener('keydown', (e) => {
       const q = e.target.closest('[data-qty],[data-rate]');
@@ -3078,12 +3348,33 @@
       cost_price: costPrice,
       markup_percentage: markupPct,
       sell_price: sellRate,
+      pricing_item_id: catalogPricingItemId(row) || (existing && existing.pricing_item_id) || null,
       estimateAuto: existing ? !!existing.estimateAuto : false,
     };
+    const savedIdx = inlineEditIdx >= 0 ? inlineEditIdx : items.length;
     if (inlineEditIdx >= 0) items[inlineEditIdx] = line;
     else items.push(line);
     closeAddItemPanel();
     renderItems();
+    const pid = line.pricing_item_id;
+    if (pid && row) {
+      const src = catalogPricingSource();
+      const tableRate = systemRateForCatalogRow(row, src);
+      if (!ratesNearlyEqual(sellRate, tableRate)) {
+        setTimeout(
+          () =>
+            maybeOfferRatePersist({
+              itemIdx: savedIdx,
+              newRate: sellRate,
+              pricingItemId: String(pid),
+              tableRate,
+              row,
+              src,
+            }),
+          80,
+        );
+      }
+    }
   }
 
   function applyProjectSqftToAllSqFtLines() {
@@ -4204,6 +4495,7 @@
         service_type: it.item_type === 'product' ? null : normalizeServiceType(it.service_type),
         catalog_customer_notes: it.catalog_customer_notes || null,
         service_catalog_id: normalizeCatalogId(it.service_catalog_id),
+        pricing_item_id: it.pricing_item_id != null ? String(it.pricing_item_id) : null,
         product_id: it.product_id != null ? it.product_id : null,
         cost_price: it.cost_price != null ? Number(it.cost_price) : null,
         markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
@@ -4211,6 +4503,12 @@
         estimateAuto: false,
       };
     });
+    for (const it of items) {
+      if (!it.pricing_item_id) {
+        const pid = catalogPricingItemId(catalogRowForItem(it));
+        if (pid) it.pricing_item_id = pid;
+      }
+    }
     loadedQuoteNumber = q.quote_number != null ? String(q.quote_number).trim() : null;
     const totalAmt = q.total_amount != null ? q.total_amount : q.total;
     $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(totalAmt)}`;
@@ -4679,6 +4977,7 @@
       }
     });
     wireQuoteNotify();
+    wireSaveRateModal();
     wireInvoiceUi();
     wireOwnerSignatureUi();
     await loadOwnerSignatureSettings();
