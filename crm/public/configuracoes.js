@@ -30,6 +30,12 @@
           perm: "settings.manage",
           keywords: "nome razão social telefone e-mail email site endereço rua cidade estado zip licença seguro apólice horário funcionamento fuso horário idioma unidade área semana avaliação google review",
         },
+        {
+          id: "agenda",
+          label: "Agenda e calendários",
+          perm: "settings.manage",
+          keywords: "agenda calendário schedule meeting job cor cores visita",
+        },
         { id: "marca", label: "Marca e aparência", perm: "settings.manage", keywords: "logo cores cor principal destaque tema" },
       ],
     },
@@ -118,6 +124,9 @@
     ["Idioma padrão", "empresa", "f_default_locale"],
     ["Unidade de área (sq ft / m²)", "empresa", "f_area_unit"],
     ["Link de avaliação no Google", "empresa", "f_google_review_url"],
+    ["Cores da agenda Jobs", "agenda", "schedCalList"],
+    ["Cores da agenda Meetings", "agenda", "schedCalList"],
+    ["Criar agenda personalizada", "agenda", "btnAddSchedCal"],
     ["Numeração dos orçamentos", "orcamentos", "q_number_prefix"],
     ["Validade do orçamento", "orcamentos", "q_validity_days"],
     ["Imposto padrão", "orcamentos", "q_tax_rate"],
@@ -200,6 +209,7 @@
     sig: { loaded: false, snapshot: null, drawn: false, removed: false, data: null },
     rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
+    schedule: { loaded: false, snapshot: null, draft: null },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -284,6 +294,7 @@
 
   function dirtyCount(id) {
     if (id === "empresa") return companyDirtyKeys().length;
+    if (id === "agenda") return scheduleDirty() ? 1 : 0;
     if (id === "marca") return brandDirty() ? 1 : 0;
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
     if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
@@ -475,6 +486,7 @@
 
   async function saveCurrent() {
     if (state.current === "empresa") return saveCompany();
+    if (state.current === "agenda") return saveSchedule();
     if (state.current === "marca") return saveBrand();
     if (state.current === "orcamentos") return saveQuotes();
     if (state.current === "mensagens-orcamento") return saveQuoteShareMessages();
@@ -485,6 +497,7 @@
 
   function discardCurrent() {
     if (state.current === "empresa") fillCompany(state.company.snapshot);
+    if (state.current === "agenda") discardSchedule();
     if (state.current === "marca") resetBrandToSnapshot();
     if (state.current === "orcamentos") discardQuotes();
     if (state.current === "mensagens-orcamento") discardQuoteShareMessages();
@@ -499,6 +512,7 @@
   // ---------------------------------------------------------------- overview
   const GROUP_LINKS = [
     { title: "Dados da empresa", desc: "Contato, endereço, licença e horário", href: "#empresa", perm: "settings.manage" },
+    { title: "Agenda e calendários", desc: "Cores e agendas extras no Schedule", href: "#agenda", perm: "settings.manage" },
     { title: "Marca e aparência", desc: "Logo e cores", href: "#marca", perm: "settings.manage" },
     { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
     { title: "Mensagens do Orçamento", desc: "SMS e WhatsApp ao enviar o orçamento", href: "#mensagens-orcamento", perm: "settings.manage" },
@@ -933,6 +947,169 @@
         origDescriptor.set.call(this, hit ? hit[0] : s);
       },
     });
+  }
+
+  // ---------------------------------------------------------------- schedule / agendas
+  function cloneSched(cals) {
+    return (cals || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      color: c.color,
+      kind: c.kind,
+    }));
+  }
+
+  function scheduleDirty() {
+    if (!state.schedule.loaded || !state.schedule.snapshot || !state.schedule.draft) return false;
+    return JSON.stringify(state.schedule.draft) !== JSON.stringify(state.schedule.snapshot);
+  }
+
+  function renderScheduleCals() {
+    const host = $("schedCalList");
+    if (!host || !state.schedule.draft) return;
+    host.innerHTML = state.schedule.draft
+      .map((c, i) => {
+        const locked = c.kind === "jobs" || c.kind === "meetings";
+        const kindLbl = c.kind === "jobs" ? "Jobs" : c.kind === "meetings" ? "Meetings" : "Extra";
+        return `<div class="cfg-sched-row" data-sched-i="${i}">
+          <span class="cfg-sched-row__kind">${esc(kindLbl)}</span>
+          <div class="cfg-field cfg-grow">
+            <label class="cfg-sr-only" for="schedName_${i}">Nome</label>
+            <input id="schedName_${i}" data-sched-name="${i}" maxlength="80" value="${esc(c.name)}" ${locked ? "" : ""} />
+          </div>
+          <div class="cfg-field cfg-color">
+            <label class="cfg-sr-only" for="schedColor_${i}">Cor</label>
+            <div class="cfg-color__row">
+              <input type="color" id="schedColorPicker_${i}" data-sched-color-picker="${i}" value="${esc(c.color)}" aria-label="Cor" />
+              <input id="schedColor_${i}" data-sched-color="${i}" maxlength="7" spellcheck="false" value="${esc(c.color)}" />
+            </div>
+          </div>
+          ${
+            locked
+              ? `<span class="cfg-hint cfg-sched-row__lock">Fixo</span>`
+              : `<button type="button" class="btn cfg-btn-sm cfg-btn-ghost" data-sched-del="${i}" aria-label="Remover agenda">Remover</button>`
+          }
+        </div>`;
+      })
+      .join("");
+  }
+
+  function bindScheduleCalsOnce() {
+    const host = $("schedCalList");
+    if (!host || host.dataset.bound === "1") return;
+    host.dataset.bound = "1";
+    host.addEventListener("input", (e) => {
+      const t = e.target;
+      if (!state.schedule.draft) return;
+      const ni = t.getAttribute("data-sched-name");
+      if (ni != null) {
+        const i = Number(ni);
+        if (state.schedule.draft[i]) state.schedule.draft[i].name = t.value;
+        updateSavebar();
+        return;
+      }
+      const ci = t.getAttribute("data-sched-color");
+      if (ci != null) {
+        const i = Number(ci);
+        let v = String(t.value || "").trim();
+        if (v && v[0] !== "#") v = `#${v}`;
+        if (/^#[0-9A-Fa-f]{6}$/.test(v) && state.schedule.draft[i]) {
+          state.schedule.draft[i].color = v.toLowerCase();
+          const picker = host.querySelector(`[data-sched-color-picker="${i}"]`);
+          if (picker) picker.value = v.toLowerCase();
+        }
+        updateSavebar();
+        return;
+      }
+      const pi = t.getAttribute("data-sched-color-picker");
+      if (pi != null) {
+        const i = Number(pi);
+        const v = String(t.value || "").toLowerCase();
+        if (state.schedule.draft[i]) state.schedule.draft[i].color = v;
+        const text = host.querySelector(`[data-sched-color="${i}"]`);
+        if (text) text.value = v;
+        updateSavebar();
+      }
+    });
+    host.addEventListener("click", (e) => {
+      const btn = e.target.closest?.("[data-sched-del]");
+      if (!btn || !state.schedule.draft) return;
+      const i = Number(btn.getAttribute("data-sched-del"));
+      const row = state.schedule.draft[i];
+      if (!row || row.kind !== "custom") return;
+      state.schedule.draft.splice(i, 1);
+      renderScheduleCals();
+      updateSavebar();
+    });
+    $("btnAddSchedCal")?.addEventListener("click", () => {
+      if (!state.schedule.draft) return;
+      if (state.schedule.draft.length >= 24) {
+        notify("Limite de agendas atingido.", "error");
+        return;
+      }
+      const id =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`.replace(/[xy]/g, (ch) => {
+              const r = (Math.random() * 16) | 0;
+              const v = ch === "x" ? r : (r & 0x3) | 0x8;
+              return v.toString(16);
+            });
+      state.schedule.draft.push({
+        id,
+        name: "Nova agenda",
+        color: "#16a34a",
+        kind: "custom",
+      });
+      renderScheduleCals();
+      updateSavebar();
+    });
+  }
+
+  async function loadSchedule(force) {
+    if (state.schedule.loaded && !force) {
+      renderScheduleCals();
+      bindScheduleCalsOnce();
+      return;
+    }
+    try {
+      const j = await api("/api/settings/schedule");
+      const cals = (j.data && j.data.calendars) || [];
+      state.schedule.snapshot = cloneSched(cals);
+      state.schedule.draft = cloneSched(cals);
+      state.schedule.loaded = true;
+      renderScheduleCals();
+      bindScheduleCalsOnce();
+      updateSavebar();
+    } catch (err) {
+      notify(err.status === 403 ? "Sem permissão para gerir agendas." : "Não foi possível carregar as agendas.", "error");
+    }
+  }
+
+  function discardSchedule() {
+    if (!state.schedule.snapshot) return;
+    state.schedule.draft = cloneSched(state.schedule.snapshot);
+    renderScheduleCals();
+  }
+
+  async function saveSchedule() {
+    if (!state.schedule.draft) return false;
+    try {
+      const j = await api("/api/settings/schedule", {
+        method: "PUT",
+        body: JSON.stringify({ calendars: state.schedule.draft }),
+      });
+      const cals = (j.data && j.data.calendars) || state.schedule.draft;
+      state.schedule.snapshot = cloneSched(cals);
+      state.schedule.draft = cloneSched(cals);
+      renderScheduleCals();
+      updateSavebar();
+      notify("Agendas salvas.", "success");
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar as agendas.", "error");
+      return false;
+    }
   }
 
   // ---------------------------------------------------------------- brand
@@ -2335,6 +2512,7 @@
   function loadSection(id) {
     if (id === "visao-geral") return loadOverview();
     if (id === "empresa") return loadCompany();
+    if (id === "agenda") return loadSchedule();
     if (id === "marca") return loadBrand();
     if (id === "orcamentos") return loadQuotes();
     if (id === "mensagens-orcamento") return loadQuotes();

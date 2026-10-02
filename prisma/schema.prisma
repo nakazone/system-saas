@@ -56,6 +56,8 @@ model Organization {
   automationSettings Json?
   /// Default lead email/SMS templates per pipeline stage (Configurações › Mensagens por fase)
   leadMessageSettings Json?
+  /// Schedule calendars (Jobs/Meetings colors + custom agendas)
+  scheduleSettings Json?
   stripeCustomerId String?
   trialEndsAt      DateTime?
   /// Feature flags per org, e.g. { "job_media": true }
@@ -1914,12 +1916,15 @@ model Meeting {
   customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   assignedUserId String?  @db.Uuid
   assignedUser   User?    @relation("MeetingAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  /// Custom agenda id from Organization.scheduleSettings (null = Meetings)
+  calendarId     String?  @db.Uuid
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([organizationId])
   @@index([organizationId, scheduledStart])
   @@index([organizationId, status])
+  @@index([organizationId, calendarId])
   @@index([customerId])
   @@index([assignedUserId])
 }

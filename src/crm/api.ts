@@ -30,6 +30,7 @@ import { chatRouter } from "./routes/chat.js";
 import { settingsOrganizationRouter } from "./routes/settings-organization.js";
 import { settingsQuotesRouter } from "./routes/settings-quotes.js";
 import { settingsLeadMessagesRouter } from "./routes/settings-lead-messages.js";
+import { settingsScheduleRouter } from "./routes/settings-schedule.js";
 import { settingsCatalogRouter } from "./routes/settings-catalog.js";
 import { reportsHubRouter } from "./routes/reports-hub.js";
 
@@ -39,6 +40,7 @@ crmApiRouter.use(brandingRouter);
 crmApiRouter.use(settingsOrganizationRouter);
 crmApiRouter.use(settingsQuotesRouter);
 crmApiRouter.use(settingsLeadMessagesRouter);
+crmApiRouter.use(settingsScheduleRouter);
 crmApiRouter.use(settingsCatalogRouter);
 crmApiRouter.use(supportRouter);
 crmApiRouter.use(pushRouter);

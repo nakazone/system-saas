@@ -14,6 +14,11 @@ import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
 import { randomUUID } from "node:crypto";
 import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
 import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
+import {
+  parseScheduleSettings,
+  resolveJobColor,
+  resolveMeetingColor,
+} from "../../lib/settings/schedule.js";
 
 export const scheduleJobsRouter = Router();
 
@@ -244,6 +249,7 @@ function mapMeeting(m: {
   notes: string | null;
   customerId: string | null;
   assignedUserId: string | null;
+  calendarId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   customer?: { id: string; name: string } | null;
@@ -259,6 +265,7 @@ function mapMeeting(m: {
     notes: m.notes,
     customer_id: m.customerId,
     assigned_user_id: m.assignedUserId,
+    calendar_id: m.calendarId || null,
     created_at: m.createdAt.toISOString(),
     updated_at: m.updatedAt.toISOString(),
     customer: m.customer ? { id: m.customer.id, name: m.customer.name } : null,
@@ -1177,6 +1184,7 @@ const meetingBody = z.object({
   notes: z.string().max(8000).optional().nullable(),
   customer_id: z.string().uuid().optional().nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
+  calendar_id: z.string().uuid().optional().nullable(),
 });
 
 scheduleJobsRouter.post(
@@ -1208,6 +1216,7 @@ scheduleJobsRouter.post(
           notes: d.notes?.trim() || null,
           customerId: d.customer_id || null,
           assignedUserId: d.assigned_user_id || null,
+          calendarId: d.calendar_id || null,
         },
         include: mtgInclude,
       });
@@ -1264,6 +1273,7 @@ scheduleJobsRouter.put(
           ...(d.assigned_user_id !== undefined
             ? { assignedUserId: d.assigned_user_id || null }
             : {}),
+          ...(d.calendar_id !== undefined ? { calendarId: d.calendar_id || null } : {}),
         },
         include: mtgInclude,
       });
@@ -1324,7 +1334,7 @@ scheduleJobsRouter.get(
         return;
       }
 
-      const [workOrders, meetings] = await Promise.all([
+      const [workOrders, meetings, org] = await Promise.all([
         prisma.workOrder.findMany({
           where: {
             organizationId: req.organizationId!,
@@ -1347,8 +1357,13 @@ scheduleJobsRouter.get(
           include: mtgInclude,
           orderBy: { scheduledStart: "asc" },
         }),
+        prisma.organization.findUnique({
+          where: { id: req.organizationId! },
+          select: { scheduleSettings: true },
+        }),
       ]);
 
+      const sched = parseScheduleSettings(org?.scheduleSettings);
       const events = [
         ...workOrders.map((wo) => {
           const startIso = wo.scheduledStart!.toISOString();
@@ -1362,7 +1377,8 @@ scheduleJobsRouter.get(
             status: wo.status,
             start: startIso,
             end: endIso,
-            color: wo.crew?.color || "#e8792c",
+            calendar_id: "jobs",
+            color: resolveJobColor(sched, wo.crew?.color || null),
             meta: mapWorkOrder(wo),
           };
         }),
@@ -1373,7 +1389,8 @@ scheduleJobsRouter.get(
           status: m.status,
           start: m.scheduledStart.toISOString(),
           end: m.scheduledEnd.toISOString(),
-          color: "#3b6ea5",
+          calendar_id: m.calendarId || "meetings",
+          color: resolveMeetingColor(sched, m.calendarId),
           meta: mapMeeting(m),
         })),
       ].sort((a, b) => a.start.localeCompare(b.start));

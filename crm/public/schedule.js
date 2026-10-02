@@ -41,12 +41,21 @@
   const filters = {
     jobs: true,
     meetings: true,
+    /** @type {Record<string, boolean>} custom calendar id → visible */
+    custom: {},
     assignee: "",
     source: "",
     status: "",
     mine: false,
     q: "",
   };
+
+  /** @type {{ id: string, name: string, color: string, kind: string }[]} */
+  let scheduleCalendars = [
+    { id: "jobs", name: "Jobs", color: "#e8792c", kind: "jobs" },
+    { id: "meetings", name: "Meetings", color: "#3b6ea5", kind: "meetings" },
+  ];
+  let mtgEndTouched = false;
 
   function $(id) {
     return document.getElementById(id);
@@ -106,9 +115,107 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
 
-  function toLocalInput(d) {
+  function toLocalDateValue(d) {
+    return ymd(d);
+  }
+
+  function toLocalTimeValue(d) {
     const pad = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function combineDateAndTime(dateStr, timeStr) {
+    if (!dateStr || !timeStr) return null;
+    const d = new Date(`${dateStr}T${timeStr}`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function addHours(d, h) {
+    const x = new Date(d);
+    x.setHours(x.getHours() + h);
+    return x;
+  }
+
+  function calendarById(id) {
+    return scheduleCalendars.find((c) => c.id === id) || null;
+  }
+
+  function meetingCalendars() {
+    return scheduleCalendars.filter((c) => c.kind === "meetings" || c.kind === "custom");
+  }
+
+  function fillMeetingCalendarSelect(selectedId) {
+    const sel = $("mtgCalendar");
+    if (!sel) return;
+    const rows = meetingCalendars();
+    const pick = selectedId && rows.some((c) => c.id === selectedId) ? selectedId : "meetings";
+    sel.innerHTML = rows
+      .map(
+        (c) =>
+          `<option value="${escapeAttr(c.id)}"${c.id === pick ? " selected" : ""}>${escapeHtml(c.name)}</option>`,
+      )
+      .join("");
+  }
+
+  function applyCalendarCssVars() {
+    const root = document.documentElement;
+    const jobs = calendarById("jobs");
+    const mtg = calendarById("meetings");
+    if (jobs) root.style.setProperty("--sched-job", jobs.color);
+    if (mtg) root.style.setProperty("--sched-meeting", mtg.color);
+    const swJ = $("swatchJobs");
+    const swM = $("swatchMeetings");
+    if (swJ && jobs) swJ.style.background = jobs.color;
+    if (swM && mtg) swM.style.background = mtg.color;
+  }
+
+  function renderCalendarFilters() {
+    const host = $("gcalCalList");
+    if (!host) return;
+    const customs = scheduleCalendars.filter((c) => c.kind === "custom");
+    host.innerHTML = `
+      <label class="gcal-check">
+        <input type="checkbox" id="filterJobs" data-cal-id="jobs" ${filters.jobs ? "checked" : ""} />
+        <span class="gcal-swatch gcal-swatch--job" id="swatchJobs" style="background:${escapeAttr((calendarById("jobs") || {}).color || "#e8792c")}"></span>
+        ${escapeHtml((calendarById("jobs") || {}).name || "Jobs")}
+      </label>
+      <label class="gcal-check">
+        <input type="checkbox" id="filterMeetings" data-cal-id="meetings" ${filters.meetings ? "checked" : ""} />
+        <span class="gcal-swatch gcal-swatch--meeting" id="swatchMeetings" style="background:${escapeAttr((calendarById("meetings") || {}).color || "#3b6ea5")}"></span>
+        ${escapeHtml((calendarById("meetings") || {}).name || "Meetings")}
+      </label>
+      ${customs
+        .map((c) => {
+          const on = filters.custom[c.id] !== false;
+          return `<label class="gcal-check">
+            <input type="checkbox" data-cal-id="${escapeAttr(c.id)}" data-cal-kind="custom" ${on ? "checked" : ""} />
+            <span class="gcal-swatch" style="background:${escapeAttr(c.color)}"></span>
+            ${escapeHtml(c.name)}
+          </label>`;
+        })
+        .join("")}
+    `;
+    host.querySelectorAll("input[type=checkbox][data-cal-id]").forEach((el) => {
+      el.addEventListener("change", readFiltersFromDom);
+    });
+    applyCalendarCssVars();
+  }
+
+  async function loadScheduleSettings() {
+    try {
+      const j = await api("/api/settings/schedule");
+      if (j && Array.isArray(j.data?.calendars) && j.data.calendars.length) {
+        scheduleCalendars = j.data.calendars;
+        scheduleCalendars
+          .filter((c) => c.kind === "custom")
+          .forEach((c) => {
+            if (filters.custom[c.id] === undefined) filters.custom[c.id] = true;
+          });
+      }
+    } catch (_) {
+      /* keep defaults */
+    }
+    renderCalendarFilters();
   }
 
   function escapeHtml(s) {
@@ -188,7 +295,14 @@
     const q = filters.q.trim().toLowerCase();
     filtered = events.filter((ev) => {
       if (ev.type === "job" && !filters.jobs) return false;
-      if (ev.type === "meeting" && !filters.meetings) return false;
+      if (ev.type === "meeting") {
+        const calId = ev.calendar_id || ev.meta?.calendar_id || "meetings";
+        if (calId === "meetings") {
+          if (!filters.meetings) return false;
+        } else if (filters.custom[calId] === false) {
+          return false;
+        }
+      }
       const meta = ev.meta || {};
       if (filters.assignee) {
         const aid = meta.assigned_user_id || meta.assigned_user?.id;
@@ -1296,6 +1410,7 @@
   function openMeetingModal(prefStart, existing) {
     if (!canManageMeetings) return;
     editingMeetingId = existing ? existing.id : null;
+    mtgEndTouched = !!existing;
     const titleEl = $("meetingModalTitle");
     if (titleEl) titleEl.textContent = editingMeetingId ? "Editar meeting" : "Novo meeting";
     const delBtn = $("btnDeleteMeeting");
@@ -1303,24 +1418,29 @@
 
     if (existing) {
       const meta = existing.meta || {};
+      const start = new Date(existing.start);
+      const end = new Date(existing.end);
       $("mtgTitle").value = existing.title || "";
-      $("mtgStart").value = toLocalInput(new Date(existing.start));
-      $("mtgEnd").value = toLocalInput(new Date(existing.end));
+      $("mtgDate").value = toLocalDateValue(start);
+      $("mtgStartTime").value = toLocalTimeValue(start);
+      $("mtgEndTime").value = toLocalTimeValue(end);
       $("mtgLocation").value = meta.location || "";
       $("mtgNotes").value = meta.notes || "";
       $("mtgAssignee").value = meta.assigned_user_id || meta.assigned_user?.id || "";
+      fillMeetingCalendarSelect(existing.calendar_id || meta.calendar_id || "meetings");
     } else {
       const now = prefStart ? new Date(prefStart) : new Date();
       now.setMinutes(0, 0, 0);
       if (!prefStart) now.setHours(now.getHours() + 1);
-      const end = new Date(now);
-      end.setHours(end.getHours() + 1);
+      const end = addHours(now, 1);
       $("mtgTitle").value = "";
-      $("mtgStart").value = toLocalInput(now);
-      $("mtgEnd").value = toLocalInput(end);
+      $("mtgDate").value = toLocalDateValue(now);
+      $("mtgStartTime").value = toLocalTimeValue(now);
+      $("mtgEndTime").value = toLocalTimeValue(end);
       $("mtgLocation").value = "";
       $("mtgNotes").value = "";
       $("mtgAssignee").value = "";
+      fillMeetingCalendarSelect("meetings");
     }
 
     $("meetingModal").classList.add("is-open");
@@ -1345,8 +1465,12 @@
   }
 
   function readFiltersFromDom() {
-    filters.jobs = $("filterJobs").checked;
-    filters.meetings = $("filterMeetings").checked;
+    filters.jobs = !!$("filterJobs")?.checked;
+    filters.meetings = !!$("filterMeetings")?.checked;
+    document.querySelectorAll("#gcalCalList input[data-cal-kind=custom]").forEach((el) => {
+      const id = el.getAttribute("data-cal-id");
+      if (id) filters.custom[id] = !!el.checked;
+    });
     filters.assignee = $("filterAssignee").value;
     filters.source = $("filterSource").value;
     filters.status = $("filterStatus").value;
@@ -2138,9 +2262,9 @@
         deleteEvent(ev).catch((err) => notify(err.message, "error"));
       });
 
-      ["filterJobs", "filterMeetings", "filterAssignee", "filterSource", "filterStatus", "filterMine"].forEach(
+      ["filterAssignee", "filterSource", "filterStatus", "filterMine"].forEach(
         (id) => {
-          $(id).addEventListener("change", readFiltersFromDom);
+          $(id)?.addEventListener("change", readFiltersFromDom);
         },
       );
       let qTimer;
@@ -2149,11 +2273,36 @@
         qTimer = setTimeout(readFiltersFromDom, 200);
       });
 
+      $("mtgStartTime")?.addEventListener("change", () => {
+        if (mtgEndTouched) return;
+        const start = combineDateAndTime($("mtgDate").value, $("mtgStartTime").value);
+        if (!start) return;
+        $("mtgEndTime").value = toLocalTimeValue(addHours(start, 1));
+      });
+      $("mtgEndTime")?.addEventListener("change", () => {
+        mtgEndTouched = true;
+      });
+      $("mtgDate")?.addEventListener("change", () => {
+        if (mtgEndTouched) return;
+        const start = combineDateAndTime($("mtgDate").value, $("mtgStartTime").value);
+        if (!start) return;
+        $("mtgEndTime").value = toLocalTimeValue(addHours(start, 1));
+      });
+
       $("meetingForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         try {
-          const start = new Date($("mtgStart").value);
-          const end = new Date($("mtgEnd").value);
+          const start = combineDateAndTime($("mtgDate").value, $("mtgStartTime").value);
+          const end = combineDateAndTime($("mtgDate").value, $("mtgEndTime").value);
+          if (!start || !end) {
+            notify("Informe data, início e fim.", "error");
+            return;
+          }
+          if (end.getTime() <= start.getTime()) {
+            notify("O fim precisa ser depois do início.", "error");
+            return;
+          }
+          const calId = $("mtgCalendar")?.value || "meetings";
           const payload = {
             title: $("mtgTitle").value.trim(),
             scheduled_start: start.toISOString(),
@@ -2161,6 +2310,7 @@
             location: $("mtgLocation").value.trim() || null,
             notes: $("mtgNotes").value.trim() || null,
             assigned_user_id: $("mtgAssignee").value || null,
+            calendar_id: calId === "meetings" ? null : calId,
           };
           if (editingMeetingId) {
             await api(`/api/meetings/${editingMeetingId}`, {
@@ -2193,6 +2343,7 @@
         backdrop.hidden = true;
       });
 
+      await loadScheduleSettings();
       await loadEvents();
     } catch (err) {
       notify(err.message || "Falha ao carregar", "error");

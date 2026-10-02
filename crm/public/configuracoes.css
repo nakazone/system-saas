@@ -565,3 +565,12 @@ body.cfg-has-savebar #omDock { display: none !important; }
 .cfg-lm-tpl__head .cfg-field.grow { flex: 1; min-width: 0; }
 .cfg-lm-tpl .cfg-field { background: #fff; }
 .cfg .font-normal { font-weight: 400; }
+
+/* Schedule calendars */
+.cfg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.cfg-sched-cals{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.cfg-sched-row{display:grid;grid-template-columns:72px minmax(0,1.4fr) minmax(140px,0.9fr) auto;gap:10px;align-items:end;padding:10px 0;border-bottom:1px solid var(--cfg-line)}
+.cfg-sched-row:last-child{border-bottom:0}
+.cfg-sched-row__kind{font-size:0.72rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--cfg-muted);padding-bottom:10px}
+.cfg-sched-row__lock{font-size:0.78rem;color:var(--cfg-muted);padding-bottom:10px}
+@media (max-width:720px){.cfg-sched-row{grid-template-columns:1fr 1fr;}.cfg-sched-row__kind{grid-column:1/-1;padding-bottom:0}}

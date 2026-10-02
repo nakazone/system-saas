@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261001-tabletnav3" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20261001-svcnote2" />
-  <link rel="stylesheet" href="schedule.css?v=20260925-week1" />
+  <link rel="stylesheet" href="schedule.css?v=20261002-agenda1" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261001-tablet1" />
   <link rel="stylesheet" href="agenda-mais.css?v=20260930-ipad1" />
@@ -131,16 +131,19 @@
 
           <div class="gcal-cal-section">
             <p class="gcal-cal-section__title">Calendários</p>
-            <label class="gcal-check">
-              <input type="checkbox" id="filterJobs" checked />
-              <span class="gcal-swatch gcal-swatch--job"></span>
-              Jobs
-            </label>
-            <label class="gcal-check">
-              <input type="checkbox" id="filterMeetings" checked />
-              <span class="gcal-swatch gcal-swatch--meeting"></span>
-              Meetings
-            </label>
+            <div id="gcalCalList" class="gcal-cal-list">
+              <label class="gcal-check">
+                <input type="checkbox" id="filterJobs" checked data-cal-id="jobs" />
+                <span class="gcal-swatch gcal-swatch--job" id="swatchJobs"></span>
+                Jobs
+              </label>
+              <label class="gcal-check">
+                <input type="checkbox" id="filterMeetings" checked data-cal-id="meetings" />
+                <span class="gcal-swatch gcal-swatch--meeting" id="swatchMeetings"></span>
+                Meetings
+              </label>
+            </div>
+            <a class="gcal-cal-manage" href="configuracoes.html#agenda">Gerir agendas</a>
           </div>
 
           <div class="gcal-cal-section">
@@ -266,13 +269,19 @@
         <input type="text" id="mtgTitle" required maxlength="200" />
       </label>
       <div class="sched-form-row">
+        <label>Data *
+          <input type="date" id="mtgDate" required />
+        </label>
         <label>Início *
-          <input type="datetime-local" id="mtgStart" required />
+          <input type="time" id="mtgStartTime" required step="300" />
         </label>
         <label>Fim *
-          <input type="datetime-local" id="mtgEnd" required />
+          <input type="time" id="mtgEndTime" required step="300" />
         </label>
       </div>
+      <label>Agenda
+        <select id="mtgCalendar"></select>
+      </label>
       <label>Local
         <input type="text" id="mtgLocation" maxlength="500" placeholder="Digite a morada (Google Maps)..." autocomplete="street-address" data-crm-address-autocomplete="1" />
       </label>
@@ -327,6 +336,6 @@
   <script src="om-mobile-nav.js?v=20261001-tablet1"></script>
   <script src="novo-lead-sheet.js?v=20261001-addr1"></script>
   <script src="crm-job-modal.js?v=20261001-extra1"></script>
-  <script src="schedule.js?v=20261002-gmaps1"></script>
+  <script src="schedule.js?v=20261002-agenda1"></script>
 </body>
 </html>
