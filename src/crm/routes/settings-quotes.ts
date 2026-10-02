@@ -33,6 +33,7 @@ import {
   parseQuoteSettings,
   quoteSettingsPatchSchema,
 } from "../../lib/settings/quotes.js";
+import { resolveQuoteInclusions } from "../../lib/quotes/client-document.js";
 
 export const settingsQuotesRouter = Router();
 
@@ -71,6 +72,7 @@ async function loadQuoteConfig(organizationId: string) {
       client_view: settings.client_view,
       owner_signature: settings.owner_signature,
       share_messages: settings.share_messages,
+      inclusions: settings.inclusions,
       company_name: org.name || null,
     },
   };
@@ -155,7 +157,7 @@ settingsQuotesRouter.patch(
         track("defaultQuoteTerms", before.org.defaultQuoteTerms ? "(texto)" : null, t ? "(texto alterado)" : null);
         if (t === before.org.defaultQuoteTerms) delete changes.defaultQuoteTerms;
       }
-      if (p.client_view !== undefined || p.share_messages !== undefined) {
+      if (p.client_view !== undefined || p.share_messages !== undefined || p.inclusions !== undefined) {
         const nextSettings = { ...before.settings };
         if (p.client_view !== undefined) {
           nextSettings.client_view = p.client_view;
@@ -164,6 +166,10 @@ settingsQuotesRouter.patch(
         if (p.share_messages !== undefined) {
           nextSettings.share_messages = p.share_messages;
           track("shareMessages", before.settings.share_messages, p.share_messages);
+        }
+        if (p.inclusions !== undefined) {
+          nextSettings.inclusions = resolveQuoteInclusions(p.inclusions);
+          track("inclusions", before.settings.inclusions, nextSettings.inclusions);
         }
         data.quoteSettings = nextSettings as Prisma.InputJsonValue;
       }

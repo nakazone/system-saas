@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa" />
   <link rel="stylesheet" href="crm-push.css?v=20260923-push" />
-  <link rel="stylesheet" href="configuracoes.css?v=20261002-jobssector1" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261002-incl1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -353,6 +353,21 @@
                     <div class="cfg-field"><label for="q_tax_rate">Imposto padrão (%)</label><input id="q_tax_rate" data-qkey="tax_rate" type="number" min="0" max="30" step="0.01" inputmode="decimal" /></div>
                   </div>
                   <p class="cfg-hint">O imposto é calculado sobre o subtotal (com desconto) enquanto ninguém digitar outro valor no orçamento. Use 0 se você não cobra imposto no orçamento.</p>
+                </article>
+
+                <article class="cfg-card">
+                  <div class="cfg-card__head">
+                    <div>
+                      <h3 class="cfg-card__title">What's Included</h3>
+                      <p class="cfg-card__desc">Itens que aparecem no PDF e no link do cliente. Uma linha por item.</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnInclusionsSample">Usar lista de exemplo</button>
+                  </div>
+                  <div class="cfg-field">
+                    <label for="q_inclusions">Lista</label>
+                    <textarea id="q_inclusions" data-qkey="inclusions" rows="6" maxlength="8000" placeholder="Hardwood sanding of all floors in scope&#10;Select hardwood / LVP installation as listed&#10;…"></textarea>
+                  </div>
+                  <p class="cfg-hint"><span id="qInclusionsCount">0</span> itens</p>
                 </article>
 
                 <article class="cfg-card">
@@ -727,6 +742,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261001-addr2"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261002-jobssector1"></script>
+  <script src="configuracoes.js?v=20261002-incl1"></script>
 </body>
 </html>

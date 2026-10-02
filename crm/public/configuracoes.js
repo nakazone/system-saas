@@ -47,7 +47,7 @@
           id: "orcamentos",
           label: "Orçamentos",
           perm: "settings.manage",
-          keywords: "numeração prefixo número validade imposto tax termos condições cliente vê preço unitário quantidade cômodo assinatura responsável",
+          keywords: "numeração prefixo número validade imposto tax termos condições included inclusão what's included cliente vê preço unitário quantidade cômodo assinatura responsável",
         },
         {
           id: "mensagens-orcamento",
@@ -131,6 +131,7 @@
     ["Validade do orçamento", "orcamentos", "q_validity_days"],
     ["Imposto padrão", "orcamentos", "q_tax_rate"],
     ["Termos e condições", "orcamentos", "q_terms"],
+    ["What's Included", "orcamentos", "q_inclusions"],
     ["O que o cliente vê no orçamento", "orcamentos", null],
     ["Assinatura do responsável", "orcamentos", "s_name"],
     ["SMS ao enviar o orçamento", "mensagens-orcamento", "q_sms_body"],
@@ -1373,6 +1374,13 @@
     "Este orçamento vale até a data indicada.",
   ].join("\n");
 
+  const INCLUSIONS_SAMPLE = [
+    "Hardwood sanding of all floors in scope",
+    "Select hardwood / LVP installation as listed",
+    "Baseboard remove & reinstall where noted",
+    "Dust containment during sanding & finishing",
+  ].join("\n");
+
   function clearFormErrors(containerId) {
     const root = $(containerId);
     if (!root) return;
@@ -1493,6 +1501,11 @@
       validity_days: v("q_validity_days"),
       tax_rate: v("q_tax_rate"),
       terms: $("q_terms").value,
+      inclusions: ($("q_inclusions")?.value || "")
+        .split(/\n+/)
+        .map((s) => s.replace(/^[-•*\d.)\s]+/, "").trim())
+        .filter(Boolean)
+        .slice(0, 24),
       client_view: readClientView(),
       share_messages: readShareMessages(),
     };
@@ -1504,6 +1517,10 @@
     $("q_validity_days").value = d.validity_days != null ? String(d.validity_days) : "";
     $("q_tax_rate").value = d.tax_rate != null ? String(d.tax_rate) : "0";
     $("q_terms").value = d.terms || "";
+    if ($("q_inclusions")) {
+      const inc = Array.isArray(d.inclusions) ? d.inclusions : [];
+      $("q_inclusions").value = inc.length ? inc.join("\n") : "";
+    }
     const cv = d.client_view || {};
     document.querySelectorAll("[data-cv]").forEach((b) => {
       b.setAttribute("aria-checked", cv[b.getAttribute("data-cv")] === false ? "false" : "true");
@@ -1520,6 +1537,13 @@
     const n = $("q_next_number").value.trim();
     $("qNextLabel").textContent = n ? `${prefix}${n}` : "—";
     $("qTermsCount").textContent = String($("q_terms").value.length);
+    if ($("qInclusionsCount") && $("q_inclusions")) {
+      const nItems = ($("q_inclusions").value || "")
+        .split(/\n+/)
+        .map((s) => s.trim())
+        .filter(Boolean).length;
+      $("qInclusionsCount").textContent = String(nItems);
+    }
     syncShareMsgCounts();
     paintClientView();
   }
@@ -2006,6 +2030,15 @@
       const t = $("q_terms");
       if (t.value.trim() && !window.confirm("Substituir o texto atual pelo exemplo?")) return;
       t.value = TERMS_SAMPLE;
+      syncQuotesPreview();
+      updateSavebar();
+      t.focus();
+    });
+    $("btnInclusionsSample")?.addEventListener("click", () => {
+      const t = $("q_inclusions");
+      if (!t) return;
+      if (t.value.trim() && !window.confirm("Substituir a lista atual pelo exemplo?")) return;
+      t.value = INCLUSIONS_SAMPLE;
       syncQuotesPreview();
       updateSavebar();
       t.focus();

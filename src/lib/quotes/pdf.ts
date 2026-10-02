@@ -4,7 +4,6 @@ import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
 import { getLocalFileStorage } from "../storage/index.js";
 import {
-  DEFAULT_QUOTE_EXCLUSIONS,
   DEFAULT_QUOTE_INCLUSIONS,
   resolveQuoteTermsItems,
 } from "./client-document.js";
@@ -228,6 +227,7 @@ export type QuotePdfInput = {
   paymentSchedule?: QuotePdfPaymentItem[];
   paymentMethods?: string | null;
   inclusions?: string[] | null;
+  /** @deprecated Not Included is no longer rendered on the PDF. */
   exclusions?: string[] | null;
   preparedBy?: {
     name?: string | null;
@@ -607,7 +607,6 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
           ];
 
     const inclusions = input.inclusions?.length ? input.inclusions : [...DEFAULT_QUOTE_INCLUSIONS];
-    const exclusions = input.exclusions?.length ? input.exclusions : [...DEFAULT_QUOTE_EXCLUSIONS];
     const termItems = termsToItems(input.terms);
     const prepared = input.preparedBy || input.ownerSignature || {};
 
@@ -1080,14 +1079,12 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
 
     y = Math.max(py, ty) + 22;
 
-    // What's included / Not included
-    ensureSpace(100);
+    // What's included (full width — Not Included removed)
+    ensureSpace(80);
     const incY = y;
     doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10);
     doc.text("WHAT'S INCLUDED", margin, incY, { lineBreak: false });
-    doc.text("NOT INCLUDED", totalsX, incY, { lineBreak: false });
     let iy = incY + 16;
-    let ey = incY + 16;
     for (const item of inclusions) {
       doc
         .strokeColor(PAL.include)
@@ -1097,21 +1094,10 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
         .lineTo(margin + 9, iy + 1)
         .stroke();
       doc.fillColor(PAL.primary).font("Helvetica").fontSize(8.5);
-      doc.text(item, margin + 14, iy, { width: halfW - 18 });
+      doc.text(item, margin + 14, iy, { width: contentW - 14 });
       iy = doc.y + 6;
     }
-    for (const item of exclusions) {
-      doc
-        .strokeColor(PAL.exclude)
-        .lineWidth(1.4)
-        .moveTo(totalsX, ey + 4)
-        .lineTo(totalsX + 9, ey + 4)
-        .stroke();
-      doc.fillColor(PAL.primary).font("Helvetica").fontSize(8.5);
-      doc.text(item, totalsX + 14, ey, { width: halfW - 18 });
-      ey = doc.y + 6;
-    }
-    y = Math.max(iy, ey) + 16;
+    y = iy + 16;
 
     // Terms
     ensureSpace(90);

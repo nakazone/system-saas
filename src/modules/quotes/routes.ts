@@ -920,6 +920,7 @@ quotesRouter.get(
           title: qs.owner_signature.title,
           imageUrl: qs.owner_signature.image_url,
         },
+        inclusions: qs.inclusions,
       });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(

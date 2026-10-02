@@ -8,6 +8,7 @@ export const DEFAULT_QUOTE_INCLUSIONS = [
   "Dust containment during sanding & finishing",
 ] as const;
 
+/** @deprecated Kept for older callers; Not Included is no longer shown on quotes. */
 export const DEFAULT_QUOTE_EXCLUSIONS = [
   "Stain (available as optional add-on)",
   "Subfloor repair or leveling beyond scope",
@@ -21,6 +22,26 @@ export const DEFAULT_QUOTE_TERMS = [
   "Natural wood and LVP may vary in color and grain; samples are representative, not exact matches.",
   "A signed approval and deposit may be required to reserve the schedule. Payment terms are listed above.",
 ] as const;
+
+/** Resolve org-configured What's Included lines; fall back to product defaults. */
+export function resolveQuoteInclusions(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    const items = raw
+      .map((x) => String(x ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 24);
+    if (items.length) return items;
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const items = raw
+      .split(/\n+/)
+      .map((s) => s.replace(/^[-•*\d.)\s]+/, "").trim())
+      .filter(Boolean)
+      .slice(0, 24);
+    if (items.length) return items;
+  }
+  return [...DEFAULT_QUOTE_INCLUSIONS];
+}
 
 /** Split org/quote terms into bullet items; fall back to defaults (same as PDF). */
 export function resolveQuoteTermsItems(terms: string | null | undefined): string[] {

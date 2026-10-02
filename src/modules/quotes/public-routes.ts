@@ -14,7 +14,6 @@ import {
 } from "../../lib/quotes/public-token.js";
 import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
 import {
-  DEFAULT_QUOTE_EXCLUSIONS,
   DEFAULT_QUOTE_INCLUSIONS,
   resolveQuoteTermsItems,
 } from "../../lib/quotes/client-document.js";
@@ -164,8 +163,7 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
       quote,
       token,
       clientView: clientViewFlags(quote.clientView),
-      inclusions: [...DEFAULT_QUOTE_INCLUSIONS],
-      exclusions: [...DEFAULT_QUOTE_EXCLUSIONS],
+      inclusions: qs.inclusions?.length ? qs.inclusions : [...DEFAULT_QUOTE_INCLUSIONS],
       termsItems: resolveQuoteTermsItems(quote.terms),
       readOnly,
       error: typeof req.query.error === "string" ? req.query.error : null,
@@ -560,6 +558,7 @@ publicQuotesRouter.get("/quotes/:token/pdf", async (req, res, next) => {
         title: qs.owner_signature.title,
         imageUrl: qs.owner_signature.image_url,
       },
+      inclusions: qs.inclusions,
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="quote-${quote.number}.pdf"`);

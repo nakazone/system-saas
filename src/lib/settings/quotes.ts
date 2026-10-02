@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { DEFAULT_CLIENT_VIEW, DEFAULT_ESTIMATE_RULES } from "../tenant/defaults.js";
+import { resolveQuoteInclusions } from "../quotes/client-document.js";
 
 export type ClientView = {
   showQuantities: boolean;
@@ -30,6 +31,8 @@ export type QuoteSettings = {
   client_view: ClientView;
   owner_signature: OwnerSignature;
   share_messages: QuoteShareMessages;
+  /** What's Included lines shown on PDF / public quote. */
+  inclusions: string[];
 };
 
 export const DEFAULT_QUOTE_SHARE_MESSAGES: QuoteShareMessages = {
@@ -80,6 +83,7 @@ export function parseQuoteSettings(raw: unknown): QuoteSettings {
       updated_at: str(os.updated_at),
     },
     share_messages: parseShareMessages(o.share_messages),
+    inclusions: resolveQuoteInclusions(o.inclusions ?? o.whats_included),
   };
 }
 
@@ -123,6 +127,12 @@ export const quoteSettingsPatchSchema = z
     validity_days: z.coerce.number().int().min(1, "Mínimo 1 dia").max(365, "Máximo 365 dias").optional(),
     tax_rate: z.coerce.number().min(0, "Não pode ser negativo").max(30, "Máximo 30%").optional(),
     terms: z.string().max(20000).nullable().optional(),
+    inclusions: z
+      .union([
+        z.array(z.string().trim().max(300)).max(24),
+        z.string().max(8000),
+      ])
+      .optional(),
     client_view: z
       .object({
         showQuantities: z.boolean(),

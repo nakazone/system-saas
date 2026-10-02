@@ -296,6 +296,7 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
       title: qs.owner_signature.title,
       imageUrl: qs.owner_signature.image_url,
     },
+    inclusions: qs.inclusions,
   });
 
   return { buffer, quote, number: quote.quoteNumber || String(quote.number) };
