@@ -258,7 +258,7 @@ function mapMeeting(m: {
   leadId?: string | null;
   customer?: { id: string; name: string } | null;
   assignedUser?: { id: string; name: string } | null;
-  lead?: { id: string; name: string; phone: string | null; email: string | null; metadata: unknown } | null;
+  lead?: { id: string; name: string; phone: string | null; email: string | null; notes?: string | null; metadata: unknown } | null;
 }) {
   const leadMeta =
     m.lead?.metadata && typeof m.lead.metadata === "object" && !Array.isArray(m.lead.metadata)
@@ -288,6 +288,7 @@ function mapMeeting(m: {
           name: m.lead.name,
           phone: m.lead.phone,
           email: m.lead.email,
+          notes: m.lead.notes ?? null,
           address: leadMeta.address != null ? String(leadMeta.address) : null,
         }
       : null,
@@ -418,7 +419,7 @@ function teamUserIdsFromWorkOrder(wo: {
 const mtgInclude = {
   customer: { select: { id: true, name: true } },
   assignedUser: { select: { id: true, name: true } },
-  lead: { select: { id: true, name: true, phone: true, email: true, metadata: true } },
+  lead: { select: { id: true, name: true, phone: true, email: true, notes: true, metadata: true } },
 } as const;
 
 /** Keep the lead's visit (Lead.metadata.visits) in step when its meeting changes on the agenda. */

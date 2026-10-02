@@ -356,7 +356,7 @@
         const room = Math.max(0, slots - Math.min(lanes, slots));
         const show = timed.length > room ? timed.slice(0, Math.max(0, room - 1)) : timed;
         const hidden = timed.length - show.length + bars.filter((b) => b.lane >= slots && b.s <= i && b.en >= i).length;
-        html += `<div class="ag-day${out ? ' is-out' : ''}${i === 0 || i === 6 ? ' is-we' : ''}${sameDay(d, S.selected) ? ' is-sel' : ''}" data-ag-day="${ymd(d)}">
+        html += `<div class="ag-day${out ? ' is-out' : ''}${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-day="${ymd(d)}">
           <div class="ag-day__n"><span class="${isT ? 'is-today' : ''}">${d.getDate() === 1 && !isT ? `${MON3[d.getMonth()]} ${d.getDate()}` : d.getDate()}</span></div>
           <div class="ag-day__list" style="margin-top:${Math.min(lanes, slots) * 21}px">${show
             .map(
@@ -569,10 +569,10 @@
         const show = timed.slice(0, room);
         const more = timed.length - show.length + bars.filter((b) => b.lane >= maxLanes && b.s <= i && b.en >= i).length;
         void laneCount;
-        html += `<button type="button" class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-mday="${ymd(d)}"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>
+        html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-mday="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>
           <span class="ag-md__list" style="margin-top:${Math.min(lanesAll, maxLanes) * 19}px">${show
-            .map((e) => `<span class="ag-pill" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(e.title)}</span></span>`)
-            .join('')}${more > 0 ? `<span class="ag-pill ag-pill--more">+${more}</span>` : ''}</span></button>`;
+            .map((e) => `<button type="button" class="ag-pill" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(e.title)}</span></button>`)
+            .join('')}${more > 0 ? `<button type="button" class="ag-pill ag-pill--more" data-ag-daylist="${ymd(d)}">+${more}</button>` : ''}</span></div>`;
       }
       html += `<div class="ag-bars ag-bars--m">${bars
         .filter((b) => b.lane < maxLanes)
@@ -583,7 +583,7 @@
           while (s <= en && addDays(ws, s).getMonth() !== m.getMonth()) s++;
           while (en >= s && addDays(ws, en).getMonth() !== m.getMonth()) en--;
           if (en < s) return '';
-          return `<span class="ag-bar${b.contL || s > b.s ? ' cont-l' : ''}${b.contR || en < b.en ? ' cont-r' : ''}" style="${evStyle(b.e)};--s:${s};--n:${en - s + 1};--lane:${b.lane}"><span class="ag-bar__ic">${typeIcon(b.e)}</span><span>${esc(b.e.title)}</span></span>`;
+          return `<button type="button" class="ag-bar${b.contL || s > b.s ? ' cont-l' : ''}${b.contR || en < b.en ? ' cont-r' : ''}" data-ag-ev="${esc(b.e.id)}" style="${evStyle(b.e)};--s:${s};--n:${en - s + 1};--lane:${b.lane}"><span class="ag-bar__ic">${typeIcon(b.e)}</span><span>${esc(b.e.title)}</span></button>`;
         })
         .join('')}</div></div>`;
     }
@@ -799,8 +799,11 @@
     const ppl = peopleOf(e);
     const tel = ct.phone ? 'tel:' + String(ct.phone).replace(/[^\d+]/g, '') : '';
     const maps = e.address ? 'https://maps.google.com/?q=' + encodeURIComponent(e.address) : '';
-    const notes = e.type === 'job' ? [e.meta.campo_attention ? 'Atenção: ' + e.meta.campo_attention : '', e.meta.notes].filter(Boolean).join('\n\n') : e.meta.notes;
+    const jobNotes = e.type === 'job' ? [e.meta.campo_attention ? 'Atenção: ' + e.meta.campo_attention : '', e.meta.notes].filter(Boolean).join('\n\n') : '';
+    const eventNotes = e.type === 'job' ? '' : e.meta.notes || '';
+    const leadNotes = e.type === 'visit' && e.meta.lead ? e.meta.lead.notes || '' : '';
     const canEdit = S.canManage;
+    const canEditNotes = canEdit && (e.type === 'visit' || e.type === 'meeting');
     const startH = e.allDay ? null : Math.max(0, e.start.getHours() - 1);
     const mini =
       phone && !e.allDay
@@ -811,6 +814,32 @@
             (e.end - e.start) / 3600e3
           ) * 44 - 2}px;left:64px;right:12px;width:auto"><b>${esc(e.title)}</b>${e.address ? `<small>${esc(e.address)}</small>` : ''}</div></div>`
         : '';
+    const notesBlock =
+      e.type === 'job'
+        ? jobNotes
+          ? `<div class="ag-card ag-dtl__notes"><span>Notas</span><p>${esc(jobNotes)}</p></div>`
+          : ''
+        : `<div class="ag-card ag-dtl__notes${eventNotes ? '' : ' is-empty'}" data-ag-notes-box="${esc(e.id)}">
+            <span>${e.type === 'visit' ? 'Notas do agendamento' : 'Notas'}</span>
+            ${
+              canEditNotes
+                ? `<textarea name="event_notes" data-ag-notes="${esc(e.id)}" maxlength="8000" placeholder="Adicionar notas…">${esc(eventNotes)}</textarea>
+                   <div class="ag-dtl__notes-ft"><button type="button" class="ag-btn ag-btn--pri" data-ag-save-notes="${esc(e.id)}" disabled>Guardar notas</button></div>`
+                : `<p>${esc(eventNotes || 'Sem notas')}</p>`
+            }
+          </div>${
+            e.type === 'visit'
+              ? `<div class="ag-card ag-dtl__notes${leadNotes ? '' : ' is-empty'}" data-ag-lead-notes-box="${esc(e.meta.lead_id || (e.meta.lead && e.meta.lead.id) || '')}">
+                  <span>Notas do lead</span>
+                  ${
+                    canEditNotes && (e.meta.lead_id || (e.meta.lead && e.meta.lead.id))
+                      ? `<textarea name="lead_notes" data-ag-lead-notes="${esc(e.meta.lead_id || e.meta.lead.id)}" maxlength="8000" placeholder="Notas do lead…">${esc(leadNotes)}</textarea>
+                         <div class="ag-dtl__notes-ft"><button type="button" class="ag-btn ag-btn--pri" data-ag-save-lead-notes="${esc(e.meta.lead_id || e.meta.lead.id)}" disabled>Guardar notas do lead</button></div>`
+                      : `<p>${esc(leadNotes || 'Sem notas no lead')}</p>`
+                  }
+                </div>`
+              : ''
+          }`;
     return `<div class="ag-dtl" style="${evStyle(e)}">
       <div class="ag-dtl__head"><h2>${esc(e.title)}</h2>
         <p>${esc(w.date)}</p><p>${esc(w.time)}</p>
@@ -835,12 +864,32 @@
         ${ppl.length ? `<div><span>Equipe</span><b>${esc(ppl.join(', '))}</b></div>` : ''}
         ${e.type === 'job' && e.meta.services_total ? `<div><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
       </div>
-      ${notes ? `<div class="ag-card ag-dtl__notes"><span>Notas</span><p>${esc(notes)}</p></div>` : ''}
+      ${notesBlock}
       <div class="ag-dtl__acts">${ct.href ? `<a class="ag-btn ag-btn--pri" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
         canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
       }</div>
       ${canEdit ? `<button type="button" class="ag-btn ag-btn--danger ag-btn--block" data-ag-del="${esc(e.id)}">${e.type === 'job' ? 'Cancelar job' : e.type === 'visit' ? 'Cancelar visita' : 'Cancelar compromisso'}</button>` : ''}
     </div>`;
+  }
+
+  function openDayEventsSheet(day) {
+    const d = typeof day === 'string' ? parseYmd(day) : day;
+    if (!d) return;
+    const list = eventsOnDay(d);
+    if (!list.length) {
+      if (S.canManage) return newMenu(window.innerWidth / 2, window.innerHeight / 2, d);
+      return toast('Sem eventos neste dia.', 'info');
+    }
+    if (list.length === 1) return openDetail(list[0].id);
+    openSheet(
+      `<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h2>${esc(fmtDateShort(d))}</h2><span></span></header>
+       <div class="ag-sheet__body"><div class="ag-card" style="padding:6px">${list
+         .map(
+           (e) =>
+             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(e.title)}</b><small>${esc(TYPES[e.type].one)}</small></div></button>`
+         )
+         .join('')}</div></div>`
+    );
   }
 
   function openDetail(id, anchor) {
@@ -1202,6 +1251,44 @@
         }
         return;
       }
+      if ((el = t.closest('[data-ag-save-notes]'))) {
+        const id = el.dataset.agSaveNotes;
+        const ta = document.querySelector(`[data-ag-notes="${CSS.escape(id)}"]`);
+        if (!ta) return;
+        el.disabled = true;
+        try {
+          const notes = String(ta.value || '').trim() || null;
+          await api('/api/meetings/' + encodeURIComponent(id), { method: 'PUT', body: { notes } });
+          const evn = findEv(id);
+          if (evn) evn.meta.notes = notes;
+          toast('Notas guardadas', 'success');
+          el.disabled = true;
+        } catch (err) {
+          el.disabled = false;
+          toast(err.message, 'error');
+        }
+        return;
+      }
+      if ((el = t.closest('[data-ag-save-lead-notes]'))) {
+        const leadId = el.dataset.agSaveLeadNotes;
+        const ta = document.querySelector(`[data-ag-lead-notes="${CSS.escape(leadId)}"]`);
+        if (!ta || !leadId) return;
+        el.disabled = true;
+        try {
+          const notes = String(ta.value || '').trim() || null;
+          await api('/api/leads/' + encodeURIComponent(leadId), { method: 'PUT', body: { notes } });
+          S.events.forEach((e) => {
+            if (e.meta && e.meta.lead && String(e.meta.lead.id) === String(leadId)) e.meta.lead.notes = notes;
+            if (e.meta && String(e.meta.lead_id || '') === String(leadId) && e.meta.lead) e.meta.lead.notes = notes;
+          });
+          toast('Notas do lead guardadas', 'success');
+          el.disabled = true;
+        } catch (err) {
+          el.disabled = false;
+          toast(err.message, 'error');
+        }
+        return;
+      }
       if ((el = t.closest('[data-ag-ev]'))) {
         ev.stopPropagation();
         return openDetail(el.dataset.agEv, el);
@@ -1289,10 +1376,14 @@
         } else S.view = 'month';
         return go();
       }
+      if ((el = t.closest('[data-ag-daylist]'))) {
+        ev.stopPropagation();
+        return openDayEventsSheet(el.dataset.agDaylist);
+      }
       if ((el = t.closest('[data-ag-mday]'))) {
-        S.selected = parseYmd(el.dataset.agMday);
-        S.mmode = 'day';
-        return goDay(S.selected);
+        // Month phone: open event card / day list — never enter day view.
+        if (t.closest('[data-ag-ev]')) return;
+        return openDayEventsSheet(el.dataset.agMday);
       }
       if ((el = t.closest('[data-ag-strip]'))) return goDay(parseYmd(el.dataset.agStrip));
       if ((el = t.closest('[data-ag-users-all]'))) {
@@ -1301,10 +1392,8 @@
         return render();
       }
       if ((el = t.closest('[data-ag-day]')) && !isPhone()) {
-        const d = parseYmd(el.dataset.agDay);
-        S.selected = d;
-        $$('.ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
-        el.classList.add('is-sel');
+        // Keep selection in state for create shortcuts; no visual selection square.
+        S.selected = parseYmd(el.dataset.agDay);
         return;
       }
       if ((el = t.closest('[data-ag-col]')) && !t.closest('.ag-blk')) {
@@ -1317,6 +1406,22 @@
     document.addEventListener('dblclick', (ev) => {
       const el = ev.target.closest('[data-ag-day]');
       if (el && !ev.target.closest('[data-ag-ev]')) newMenu(ev.clientX, ev.clientY, parseYmd(el.dataset.agDay));
+    });
+
+    document.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (t.matches('[data-ag-notes]')) {
+        const id = t.getAttribute('data-ag-notes');
+        const btn = document.querySelector(`[data-ag-save-notes="${CSS.escape(id || '')}"]`);
+        if (btn) btn.disabled = false;
+        return;
+      }
+      if (t.matches('[data-ag-lead-notes]')) {
+        const id = t.getAttribute('data-ag-lead-notes');
+        const btn = document.querySelector(`[data-ag-save-lead-notes="${CSS.escape(id || '')}"]`);
+        if (btn) btn.disabled = false;
+      }
     });
 
     document.addEventListener('change', (ev) => {
