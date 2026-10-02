@@ -1454,7 +1454,26 @@ async function createVisit(payload, submitBtn) {
 
 function showNewProposalModal() {
     const cta = resolveLeadQuoteCta_();
+    if (cta.openPdf && cta.quoteId) {
+        openLeadQuotePdf_(cta);
+        return;
+    }
     location.href = cta.href;
+}
+
+function openLeadQuotePdf_(cta) {
+    const qid = cta && cta.quoteId ? String(cta.quoteId) : '';
+    if (!qid) return;
+    const title = (cta && cta.pdfLabel) || 'Orçamento';
+    const url = `/api/quotes/${encodeURIComponent(qid)}/invoice-pdf`;
+    if (window.crmPdfViewer && typeof window.crmPdfViewer.openFromUrl === 'function') {
+        void window.crmPdfViewer.openFromUrl(url, {
+            title,
+            filename: `orcamento-${qid}.pdf`,
+        });
+        return;
+    }
+    window.open(url, '_blank', 'noopener');
 }
 
 /** @type {Array<{id:string}>} */
@@ -1492,11 +1511,17 @@ function resolveLeadQuoteCta_() {
         return {
             label: 'Visualizar Orçamento',
             href: `quote-builder.html?id=${encodeURIComponent(String(q.id))}&lead_id=${encodeURIComponent(String(currentLeadId || ''))}`,
+            openPdf: true,
+            quoteId: String(q.id),
+            pdfLabel: q.quote_number || `Orçamento #${q.id}`,
         };
     }
     return {
         label: 'Novo Orçamento',
         href: `quote-builder.html?lead_id=${encodeURIComponent(String(currentLeadId || ''))}`,
+        openPdf: false,
+        quoteId: null,
+        pdfLabel: null,
     };
 }
 
@@ -1524,8 +1549,29 @@ function syncLeadQuoteCtas_() {
     if (menuBtn) menuBtn.textContent = cta.label;
     const quote = document.getElementById('mldQuoteBtn');
     const quoteLabel = document.getElementById('mldQuoteLabel');
-    if (quote) quote.href = cta.href;
     if (quoteLabel) quoteLabel.textContent = cta.label;
+    if (quote) {
+        if (cta.openPdf && cta.quoteId) {
+            quote.href = '#';
+            quote.dataset.openPdf = cta.quoteId;
+            quote.dataset.pdfLabel = cta.pdfLabel || 'Orçamento';
+        } else {
+            quote.href = cta.href;
+            delete quote.dataset.openPdf;
+            delete quote.dataset.pdfLabel;
+        }
+        if (!quote.dataset.pdfClickBound) {
+            quote.dataset.pdfClickBound = '1';
+            quote.addEventListener('click', (e) => {
+                if (!quote.dataset.openPdf) return;
+                e.preventDefault();
+                openLeadQuotePdf_({
+                    quoteId: quote.dataset.openPdf,
+                    pdfLabel: quote.dataset.pdfLabel || 'Orçamento',
+                });
+            });
+        }
+    }
 }
 
 async function createInteraction(interaction) {

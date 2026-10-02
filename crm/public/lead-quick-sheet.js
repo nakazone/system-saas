@@ -1291,15 +1291,29 @@
     if (stageUsesViewQuoteLqs_(slug) && preferred && preferred.id) {
       return {
         label: 'Visualizar Orçamento',
-        href: `quote-builder.html?id=${encodeURIComponent(String(preferred.id))}&lead_id=${encodeURIComponent(String(sid))}`,
-        external: false,
+        href: null,
+        openPdf: true,
+        quoteId: String(preferred.id),
+        pdfLabel: preferred.label || 'Orçamento',
       };
     }
     return {
       label: 'Novo Orçamento',
       href: `quote-builder.html?lead_id=${encodeURIComponent(String(sid))}`,
-      external: false,
+      openPdf: false,
+      quoteId: null,
+      pdfLabel: null,
     };
+  }
+
+  function quoteCtaMarkupLqs_(quoteCta, extraClass) {
+    const cls = extraClass || 'btn btn-primary btn-sm lqs-btn';
+    if (quoteCta.openPdf && quoteCta.quoteId) {
+      return `<button type="button" class="${cls}" data-lqs-pdf="${escapeHtml(quoteCta.quoteId)}" data-lqs-pdf-label="${escapeHtml(
+        quoteCta.pdfLabel || 'Orçamento'
+      )}">${escapeHtml(quoteCta.label)}</button>`;
+    }
+    return `<a class="${cls}" href="${escapeHtml(quoteCta.href || '#')}">${escapeHtml(quoteCta.label)}</a>`;
   }
 
   function priorityLabelLqs_(p) {
@@ -1443,11 +1457,11 @@
           </div>
           <div class="lqs-ov-top__actions">
             ${tele}${sms}${mail}
-            <a class="btn btn-primary btn-sm lqs-btn" href="${escapeHtml(quoteCta.href)}">${escapeHtml(quoteCta.label)}</a>
+            ${quoteCtaMarkupLqs_(quoteCta)}
             <button type="button" class="btn btn-secondary btn-sm lqs-btn" data-lqs-create-toggle>+ Create</button>
             <div class="lqs-create-menu" id="lqsCreateMenu" hidden>
               <button type="button" data-lqs-open-schedule>Schedule visit</button>
-              <a href="${escapeHtml(quoteCta.href)}">${escapeHtml(quoteCta.label)}</a>
+              ${quoteCtaMarkupLqs_(quoteCta, 'lqs-create-menu__quote')}
               <a class="lqs-full-page" href="lead-detail.html?id=${encodeURIComponent(String(sid))}">Open full page</a>
             </div>
           </div>

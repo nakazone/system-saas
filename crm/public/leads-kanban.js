@@ -21,6 +21,9 @@ let kanbanShowLostColumn = false;
 let kanbanLostToggleBound = false;
 /** Chave = slug do estágio (ex.: meeting_scheduled); usado em "Ver mais" */
 let kanbanColumnVisible = {};
+/** Sortable.js instances for drag-and-drop between pipeline columns */
+let kanbanSortables = [];
+let kanbanSuppressCardClick = false;
 
 function kanbanLeadId(v) {
     if (v == null || v === '') return null;
@@ -577,6 +580,88 @@ function renderKanbanBoard() {
     }
     syncKanbanLostToggleUi();
     renderLeadsMobilePipeline();
+    initKanbanSortables();
+}
+
+function destroyKanbanSortables() {
+    kanbanSortables.forEach((s) => {
+        try {
+            s.destroy();
+        } catch (_) {
+            /* ignore */
+        }
+    });
+    kanbanSortables = [];
+}
+
+function initKanbanSortables() {
+    destroyKanbanSortables();
+    if (typeof Sortable === 'undefined') return;
+    const board = document.getElementById('kanbanBoard');
+    if (!board) return;
+
+    if (!board.dataset.dndClickGuard) {
+        board.dataset.dndClickGuard = '1';
+        board.addEventListener(
+            'click',
+            (e) => {
+                if (!kanbanSuppressCardClick) return;
+                e.preventDefault();
+                e.stopPropagation();
+            },
+            true,
+        );
+    }
+
+    board.querySelectorAll('.kanban-column-cards').forEach((el) => {
+        kanbanSortables.push(
+            Sortable.create(el, {
+                group: 'leads-kanban',
+                animation: 160,
+                draggable: '.kanban-card[data-lead-id]:not([data-lead-id=""])',
+                filter: '.btn-lead-delete-kanban, button, a, .kanban-column-empty, .lead-quote-icons',
+                preventOnFilter: false,
+                delay: 140,
+                delayOnTouchOnly: true,
+                touchStartThreshold: 6,
+                ghostClass: 'kanban-card--ghost',
+                chosenClass: 'kanban-card--chosen',
+                dragClass: 'kanban-card--drag',
+                onStart() {
+                    kanbanSuppressCardClick = true;
+                },
+                async onAdd(evt) {
+                    const card = evt.item;
+                    const leadId = card && card.getAttribute('data-lead-id');
+                    const toCol = evt.to && evt.to.closest('.kanban-column');
+                    const fromCol = evt.from && evt.from.closest('.kanban-column');
+                    const toSlug = toCol && toCol.dataset.stageSlug ? String(toCol.dataset.stageSlug) : '';
+                    const fromSlug =
+                        fromCol && fromCol.dataset.stageSlug ? String(fromCol.dataset.stageSlug) : '';
+
+                    if (!leadId || !toSlug || toCol?.dataset.visitOnly === 'true') {
+                        if (typeof loadKanbanBoard === 'function') await loadKanbanBoard();
+                        return;
+                    }
+                    if (toSlug === fromSlug || toSlug === 'visit_booked_column') {
+                        return;
+                    }
+
+                    if (typeof window.updateLeadPipelineStage === 'function') {
+                        const ok = await window.updateLeadPipelineStage(leadId, toSlug);
+                        if (!ok && typeof loadKanbanBoard === 'function') await loadKanbanBoard();
+                    } else if (typeof loadKanbanBoard === 'function') {
+                        await loadKanbanBoard();
+                    }
+                },
+                onEnd() {
+                    setTimeout(() => {
+                        kanbanSuppressCardClick = false;
+                    }, 50);
+                },
+            }),
+        );
+    });
 }
 
 function bindKanbanLoadMore() {
