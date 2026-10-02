@@ -33,11 +33,32 @@
       .replace(/_([^_\n]+)_/g, '$1');
   }
 
+  /**
+   * Remove a leading service title from a description body so PDF / public
+   * pages do not repeat "Name" under the bold headline.
+   */
+  function descriptionBodyWithoutTitle(name, description) {
+    var n = String(name == null ? '' : name).trim();
+    var desc = String(description == null ? '' : description).trim();
+    if (!desc) return '';
+    if (!n) return desc;
+    if (desc === n) return '';
+    var nLower = n.toLowerCase();
+    var lines = desc.split(/\n/);
+    if (lines[0] && String(lines[0]).trim().toLowerCase() === nLower) {
+      desc = lines.slice(1).join('\n').trim();
+    }
+    while (desc && desc.toLowerCase().startsWith(nLower)) {
+      desc = desc.slice(n.length).replace(/^[\s\u2014\u2013:·.\-]+/, '').trim();
+    }
+    return desc;
+  }
+
   function wrapOrToggle(ta, marker) {
     if (!ta || ta.tagName !== 'TEXTAREA') return;
-    var start = ta.selectionStart;
-    var end = ta.selectionEnd;
-    if (start == null || end == null || start === end) {
+    var start = typeof ta.selectionStart === 'number' ? ta.selectionStart : ta.value.length;
+    var end = typeof ta.selectionEnd === 'number' ? ta.selectionEnd : start;
+    if (start === end) {
       // No selection: insert empty markers and place caret inside
       var empty = marker + marker;
       var before = ta.value.slice(0, start);
@@ -96,7 +117,7 @@
     var s = document.createElement('link');
     s.id = 'crm-rich-text-style';
     s.rel = 'stylesheet';
-    s.href = 'crm-rich-text.css?v=20261001-rich1';
+    s.href = 'crm-rich-text.css?v=20261002-rich2';
     document.head.appendChild(s);
   }
 
@@ -216,6 +237,7 @@
 
   global.sfFormatRichTextHtml = formatRichTextHtml;
   global.sfStripRichMarkers = stripRichMarkers;
+  global.sfDescriptionBodyWithoutTitle = descriptionBodyWithoutTitle;
   global.sfEscapeHtml = escapeHtml;
   global.sfAttachRichText = wrapField;
   global.sfScanCrmRichText = scanAndAttach;

@@ -111,14 +111,34 @@
     return !!(q.client_signed_name || q.has_client_signature || q.client_signature_url);
   }
 
+  function descriptionBodyWithoutTitle(name, description) {
+    if (typeof window.sfDescriptionBodyWithoutTitle === 'function') {
+      return window.sfDescriptionBodyWithoutTitle(name, description);
+    }
+    const n = String(name || '').trim();
+    let desc = String(description || '').trim();
+    if (!desc) return '';
+    if (!n) return desc;
+    if (desc === n) return '';
+    const nLower = n.toLowerCase();
+    const lines = desc.split(/\n/);
+    if (lines[0] && lines[0].trim().toLowerCase() === nLower) {
+      desc = lines.slice(1).join('\n').trim();
+    }
+    while (desc && desc.toLowerCase().startsWith(nLower)) {
+      desc = desc.slice(n.length).replace(/^[\s—–:·.\-]+/, '').trim();
+    }
+    return desc;
+  }
+
   function renderLineRow(it) {
     const nameStr = String(it.name || '').trim();
     const descStr = String(it.description || '').trim();
     const headline =
       nameStr || (descStr ? descStr.split(/\n/)[0] : '') || String(it.floor_type || '') || 'Line item';
     let bodyStr = '';
-    if (nameStr && descStr && descStr !== nameStr) {
-      bodyStr = descStr;
+    if (nameStr && descStr) {
+      bodyStr = descriptionBodyWithoutTitle(nameStr, descStr);
     } else if (!nameStr && descStr && descStr.includes('\n')) {
       bodyStr = descStr.split(/\n/).slice(1).join('\n').trim();
     }
@@ -126,7 +146,17 @@
     const rate = Number(it.rate ?? it.unit_price) || 0;
     const amt = Number(it.amount ?? it.total_price) || qty * rate;
     const ut = it.unit_type ? String(it.unit_type).replace(/_/g, ' ') : 'sq ft';
-    const catalogNotes = String(it.catalog_customer_notes || '').trim();
+    let catalogNotes = String(it.catalog_customer_notes || '').trim();
+    if (catalogNotes) {
+      catalogNotes = descriptionBodyWithoutTitle(nameStr, catalogNotes);
+      if (
+        catalogNotes === bodyStr ||
+        catalogNotes === nameStr ||
+        catalogNotes === descStr
+      ) {
+        catalogNotes = '';
+      }
+    }
     const lineComment = String(it.notes || '').trim();
     const detailParts = [];
     if (catalogNotes) detailParts.push(catalogNotes);

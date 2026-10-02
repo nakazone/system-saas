@@ -1754,7 +1754,7 @@
   </style>
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261002-pdfclose" />
-  <link rel="stylesheet" href="quote-builder-v2.css?v=20261002-qb2" />
+  <link rel="stylesheet" href="quote-builder-v2.css?v=20261002-descrich1" />
 </head>
 <body class="qb-dashboard-inner dashboard-app-body om-app qb-sidebar-page om-no-dock sidebar-collapsed">
   <script src="om-device.js?v=20261001-tablet2"></script>
@@ -2103,7 +2103,7 @@
                 </div>
                 <div class="qb-item-editor__field">
                   <label for="modalServiceDesc">Descrição <span class="font-normal">(PDF / público)</span></label>
-                  <textarea id="modalServiceDesc" class="qb-item-editor__textarea" rows="2" placeholder="Texto longo no PDF e na página pública"></textarea>
+                  <textarea id="modalServiceDesc" class="qb-item-editor__textarea" rows="3" data-crm-rich="basic" placeholder="Texto longo no PDF e na página pública. Selecione texto e use B / I."></textarea>
                 </div>
                 <div class="qb-item-editor__row qb-item-editor__row--pricing">
                   <div class="qb-item-editor__pricing">
@@ -2582,6 +2582,51 @@
     </div>
   </div>
 
+  <div id="qbSaveDescModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbSaveDescTitle">
+    <div class="qb-modal__panel">
+      <h2 id="qbSaveDescTitle" class="qb-modal__title">Gravar nova descrição?</h2>
+      <p class="qb-modal__sub text-sm text-slate-600">
+        O serviço <strong id="qbSaveDescServiceName"></strong> está ligado à Tabela de Valores.
+        Alterou a descrição neste trabalho.
+      </p>
+      <div class="text-sm text-slate-600 mb-2 space-y-1">
+        <div><span class="font-semibold text-slate-500">Na tabela:</span> <span id="qbSaveDescOld"></span></div>
+        <div><span class="font-semibold text-slate-500">Neste orçamento:</span> <span id="qbSaveDescNew"></span></div>
+      </div>
+      <div class="flex flex-col gap-2 mt-3">
+        <button type="button" id="qbSaveDescTable" class="w-full px-4 py-2.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-bold hover:opacity-95">
+          Atualizar no sistema (Tabela de Valores)
+        </button>
+        <button type="button" id="qbSaveDescQuoteOnly" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">
+          Só neste orçamento
+        </button>
+        <button type="button" id="qbSaveDescCancel" class="w-full px-4 py-2 text-sm text-slate-500 hover:text-slate-800">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="qbLeaveModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbLeaveTitle">
+    <div class="qb-modal__panel">
+      <h2 id="qbLeaveTitle" class="qb-modal__title">Salvar orçamento antes de sair?</h2>
+      <p class="qb-modal__sub text-sm text-slate-600">
+        Há alterações não salvas. Se sair agora, pode perdê-las.
+      </p>
+      <div class="flex flex-col gap-2 mt-3">
+        <button type="button" id="qbLeaveSave" class="w-full px-4 py-2.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-bold hover:opacity-95">
+          Salvar e sair
+        </button>
+        <button type="button" id="qbLeaveDiscard" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">
+          Sair sem salvar
+        </button>
+        <button type="button" id="qbLeaveStay" class="w-full px-4 py-2 text-sm text-slate-500 hover:text-slate-800">
+          Continuar editando
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="qbNotify" class="qb-notify hidden" role="alertdialog" aria-modal="true" aria-labelledby="qbNotifyTitle" aria-hidden="true">
     <div class="qb-notify__panel" role="document">
       <button type="button" class="qb-notify__close" id="qbNotifyClose" aria-label="Fechar">×</button>
@@ -2593,15 +2638,15 @@
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script src="crm-address-autocomplete.js?v=20261002-gmaps1"></script>
-  <script src="crm-rich-text.js?v=20261001-rich1"></script>
-  <link rel="stylesheet" href="crm-rich-text.css?v=20261001-rich1" />
+  <script src="crm-rich-text.js?v=20261002-rich2"></script>
+  <link rel="stylesheet" href="crm-rich-text.css?v=20261002-rich2" />
   <script src="crm-shell.js?v=20261002-phone1"></script>
   <script src="crm-shared-nav.js?v=20261001-reports3"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261002-leadmsg1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261002-smslink1"></script>
+  <script src="quote-builder.js?v=20261002-leave1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

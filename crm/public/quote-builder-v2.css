@@ -108,6 +108,8 @@ body.qb-dashboard-inner .qb-row .qb-item-card__grip { color: #c9bdad; cursor: gr
 .qb-row__name:hover b { text-decoration: underline; text-decoration-color: var(--q-line); text-underline-offset: 3px; }
 .qb-row__name b { font-weight: 800; font-size: 14px; color: var(--q-ink); }
 .qb-row__name small { display: block; font-size: 12.5px; color: var(--q-mut); font-weight: 500; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qb-row__name small strong { font-weight: 800; color: var(--q-ink2, #3a332e); }
+.qb-row__name small em { font-style: italic; }
 .qb-row__mk { display: inline-block; font-size: 11px; font-weight: 800; color: var(--q-terrad); margin-top: 2px; }
 .qb-row__name .qb-item-card__badge { margin-left: 6px; vertical-align: 1px; }
 .qb-row__lbl { display: none; }

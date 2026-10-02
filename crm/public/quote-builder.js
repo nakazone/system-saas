@@ -488,10 +488,23 @@
   let inlineRateEditCtx = null;
   let rateSavePending = null;
 
+  let descSavePending = null;
+  /** Queued after rate modal so both prompts can run in sequence. */
+  let pendingDescOffer = null;
+
+  function flushPendingDescOffer() {
+    const next = pendingDescOffer;
+    pendingDescOffer = null;
+    if (next) {
+      setTimeout(() => maybeOfferDescPersist(next), 50);
+    }
+  }
+
   function closeSaveRateModal() {
     const root = $('qbSaveRateModal');
     if (root) root.classList.add('hidden');
     rateSavePending = null;
+    flushPendingDescOffer();
   }
 
   function openSaveRateModal(payload) {
@@ -540,6 +553,151 @@
       src,
       row,
       customer,
+    });
+  }
+
+  function catalogDescriptionForRow(row) {
+    if (!row) return '';
+    return String(row.default_description || row.notes_customer || row.notes || '').trim();
+  }
+
+  function normalizeDescText(s) {
+    return String(s == null ? '' : s).trim().replace(/\s+/g, ' ');
+  }
+
+  function descriptionBodyWithoutTitle(name, description) {
+    if (typeof window.sfDescriptionBodyWithoutTitle === 'function') {
+      return window.sfDescriptionBodyWithoutTitle(name, description);
+    }
+    const n = String(name || '').trim();
+    let desc = String(description || '').trim();
+    if (!desc) return '';
+    if (!n) return desc;
+    if (desc === n) return '';
+    const nLower = n.toLowerCase();
+    const lines = desc.split(/\n/);
+    if (lines[0] && lines[0].trim().toLowerCase() === nLower) {
+      desc = lines.slice(1).join('\n').trim();
+    }
+    while (desc && desc.toLowerCase().startsWith(nLower)) {
+      desc = desc.slice(n.length).replace(/^[\s—–:·.\-]+/, '').trim();
+    }
+    return desc;
+  }
+
+  function formatRichHtml(s) {
+    if (typeof window.sfFormatRichTextHtml === 'function') {
+      return window.sfFormatRichTextHtml(s);
+    }
+    return escapeHtmlText(s);
+  }
+
+  function closeSaveDescModal() {
+    const root = $('qbSaveDescModal');
+    if (root) root.classList.add('hidden');
+    descSavePending = null;
+  }
+
+  function openSaveDescModal(payload) {
+    const root = $('qbSaveDescModal');
+    if (!root) return;
+    descSavePending = payload;
+    const nameEl = $('qbSaveDescServiceName');
+    const oldEl = $('qbSaveDescOld');
+    const newEl = $('qbSaveDescNew');
+    if (nameEl) nameEl.textContent = payload.serviceName || 'Serviço';
+    if (oldEl) {
+      const oldTxt = payload.tableDesc || '(sem descrição)';
+      oldEl.textContent = oldTxt.length > 160 ? `${oldTxt.slice(0, 157)}…` : oldTxt;
+    }
+    if (newEl) {
+      const newTxt = payload.newDesc || '(vazia)';
+      newEl.textContent = newTxt.length > 160 ? `${newTxt.slice(0, 157)}…` : newTxt;
+    }
+    root.classList.remove('hidden');
+  }
+
+  function maybeOfferDescPersist(opts) {
+    const rateOpen = $('qbSaveRateModal') && !$('qbSaveRateModal').classList.contains('hidden');
+    if (rateOpen) {
+      pendingDescOffer = opts;
+      return;
+    }
+    const descOpen = $('qbSaveDescModal') && !$('qbSaveDescModal').classList.contains('hidden');
+    if (descOpen) return;
+    const it = items[opts.itemIdx];
+    if (!it) return;
+    const row = opts.row || catalogRowForItem(it);
+    const pricingItemId = opts.pricingItemId || catalogPricingItemId(row);
+    if (!pricingItemId) return;
+    const tableDesc =
+      opts.tableDesc != null ? String(opts.tableDesc) : catalogDescriptionForRow(row);
+    const newDesc = opts.newDesc != null ? String(opts.newDesc) : String(it.description || '');
+    if (normalizeDescText(newDesc) === normalizeDescText(tableDesc)) return;
+    openSaveDescModal({
+      itemIdx: opts.itemIdx,
+      serviceName: it.name || (row && row.name) || '',
+      newDesc,
+      tableDesc,
+      pricingItemId,
+      row,
+    });
+  }
+
+  function patchLocalCatalogDescription(pricingItemId, notes) {
+    const pid = String(pricingItemId);
+    const text = notes != null ? String(notes) : '';
+    for (const row of catalog) {
+      if (catalogPricingItemId(row) !== pid && String(row.id) !== pid) continue;
+      row.default_description = text || null;
+      row.notes_customer = text || null;
+      row.notes = text || null;
+    }
+  }
+
+  async function persistDescToPricingTable() {
+    const p = descSavePending;
+    if (!p || !p.pricingItemId) return;
+    const ok = confirm(
+      'Atualizar a descrição deste serviço na Tabela de Valores?\n\n' +
+        'Isto altera a descrição do sistema para todos os orçamentos futuros.',
+    );
+    if (!ok) return;
+    const btn = $('qbSaveDescTable');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await fetch(`/api/pricing/${encodeURIComponent(p.pricingItemId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ notes: p.newDesc || null }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Não foi possível atualizar a descrição.');
+      patchLocalCatalogDescription(p.pricingItemId, p.newDesc || '');
+      const it = items[p.itemIdx];
+      if (it) it.pricing_item_id = p.pricingItemId;
+      qbToast('Descrição atualizada na Tabela de Valores.', 'success');
+      closeSaveDescModal();
+    } catch (e) {
+      qbToast(e.message || 'Erro ao atualizar a descrição.', 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function wireSaveDescModal() {
+    $('qbSaveDescQuoteOnly')?.addEventListener('click', () => closeSaveDescModal());
+    $('qbSaveDescTable')?.addEventListener('click', () => void persistDescToPricingTable());
+    $('qbSaveDescCancel')?.addEventListener('click', () => closeSaveDescModal());
+    const root = $('qbSaveDescModal');
+    if (root) {
+      root.addEventListener('click', (e) => {
+        if (e.target === root) closeSaveDescModal();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && root && !root.classList.contains('hidden')) closeSaveDescModal();
     });
   }
 
@@ -3195,11 +3353,9 @@
     qbSuppressServiceNameInput = true;
     $('modalServiceName').value = row.name || '';
     qbSuppressServiceNameInput = false;
-    const desc =
-      (row.default_description != null && String(row.default_description).trim()) ||
-      (row.notes_customer != null && String(row.notes_customer).trim()) ||
-      '';
-    $('modalServiceDesc').value = desc;
+    const name = row.name || '';
+    const descRaw = catalogDescriptionForRow(row);
+    $('modalServiceDesc').value = descriptionBodyWithoutTitle(name, descRaw);
     $('modalServiceType').value = serviceTypeFromCatalogCategory(row.category);
     $('modalServiceUnit').value = row.unit_type || 'sq_ft';
     setMoneyFieldValue($('modalServiceRate'), rate);
@@ -3226,8 +3382,12 @@
     if (!it) return;
     const cid = normalizeCatalogId(it.service_catalog_id);
     modalSelectedCatalogRow = cid ? findCatalogRowById(cid) : null;
-    $('modalServiceName').value = it.name != null ? String(it.name) : '';
-    $('modalServiceDesc').value = it.description != null ? String(it.description) : '';
+    const itemName = it.name != null ? String(it.name) : '';
+    $('modalServiceName').value = itemName;
+    $('modalServiceDesc').value = descriptionBodyWithoutTitle(
+      itemName,
+      it.description != null ? String(it.description) : '',
+    );
     $('modalServiceType').value = normalizeServiceType(it.service_type);
     $('modalServiceUnit').value = it.unit_type || 'sq_ft';
     $('modalServiceQty').value = String(it.quantity ?? 1);
@@ -3351,6 +3511,16 @@
     });
   }
 
+  function ensureServiceDescRichText() {
+    const ta = $('modalServiceDesc');
+    if (!ta) return;
+    if (typeof window.sfAttachRichText === 'function') {
+      window.sfAttachRichText(ta);
+    } else if (typeof window.sfScanCrmRichText === 'function') {
+      window.sfScanCrmRichText(ta.parentElement || document);
+    }
+  }
+
   function openAddItemPanel(idx) {
     const panel = $('addItemPanel');
     const modalError = $('modalError');
@@ -3364,6 +3534,7 @@
       resetServiceModalForm();
     }
     panel.classList.remove('hidden');
+    ensureServiceDescRichText();
     const btnAdd = $('btnAddLine');
     if (btnAdd) btnAdd.classList.add('hidden');
     const confirmBtn = $('modalConfirmService');
@@ -3412,14 +3583,17 @@
     const sellRate = computeSellUnitRate(baseRate, markupPct);
     const costPrice = baseRate > 0 ? baseRate : null;
     const row = catalogRow;
-    const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
+    const catNotesRaw = row ? catalogDescriptionForRow(row) : '';
+    const catNotes = descriptionBodyWithoutTitle(name, catNotesRaw);
     const noteVal = $('inlineItemNote') ? String($('inlineItemNote').value || '').trim() : '';
     const existing = inlineEditIdx >= 0 ? items[inlineEditIdx] : null;
-    const typedDesc = String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim();
+    const typedDescRaw = String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim();
+    const typedDesc = descriptionBodyWithoutTitle(name, typedDescRaw);
+    const lineDesc = typedDesc || catNotes || '';
     const line = {
       item_type: existing && existing.item_type === 'product' ? 'product' : 'service',
       name,
-      description: typedDesc || catNotes || '',
+      description: lineDesc,
       unit_type: $('modalServiceUnit').value || 'sq_ft',
       quantity: qty,
       rate: sellRate,
@@ -3445,24 +3619,39 @@
     closeAddItemPanel();
     renderItems();
     const pid = line.pricing_item_id;
-    if (pid && row) {
-      const src = catalogPricingSource();
-      const tableRate = systemRateForCatalogRow(row, src);
-      if (!ratesNearlyEqual(sellRate, tableRate)) {
-        setTimeout(
-          () =>
-            maybeOfferRatePersist({
-              itemIdx: savedIdx,
-              newRate: sellRate,
-              pricingItemId: String(pid),
-              tableRate,
-              row,
-              src,
-            }),
-          80,
-        );
+    const tableDesc = row ? catalogDescriptionForRow(row) : '';
+    const descChanged =
+      !!pid &&
+      !!row &&
+      normalizeDescText(lineDesc) !== normalizeDescText(descriptionBodyWithoutTitle(name, tableDesc)) &&
+      normalizeDescText(lineDesc) !== normalizeDescText(tableDesc);
+    const src = catalogPricingSource();
+    const tableRate = row ? systemRateForCatalogRow(row, src) : 0;
+    const rateChanged = !!pid && !!row && !ratesNearlyEqual(sellRate, tableRate);
+    const descOffer = descChanged
+      ? {
+          itemIdx: savedIdx,
+          newDesc: lineDesc,
+          tableDesc,
+          pricingItemId: String(pid),
+          row,
+        }
+      : null;
+    setTimeout(() => {
+      if (rateChanged) {
+        if (descOffer) pendingDescOffer = descOffer;
+        maybeOfferRatePersist({
+          itemIdx: savedIdx,
+          newRate: sellRate,
+          pricingItemId: String(pid),
+          tableRate,
+          row,
+          src,
+        });
+      } else if (descOffer) {
+        maybeOfferDescPersist(descOffer);
       }
-    }
+    }, 80);
   }
 
   function applyProjectSqftToAllSqFtLines() {
@@ -3555,7 +3744,7 @@
     const name = it.name != null ? String(it.name).trim() : '';
     let desc = it.description != null ? String(it.description).trim() : '';
     // Older lines saved "Name Description" in the description: don't repeat the name.
-    while (name && desc.toLowerCase().startsWith(name.toLowerCase())) desc = desc.slice(name.length).replace(/^[\s—–:·-]+/, '').trim();
+    desc = descriptionBodyWithoutTitle(name, desc);
     const isProduct = it.item_type === 'product';
     const badges = [];
     if (it.estimateAuto) badges.push('<span class="qb-item-card__badge qb-item-card__badge--auto">auto</span>');
@@ -3572,7 +3761,7 @@
         <div class="qb-item-card__grip" aria-hidden="true" title="Arrastar para reordenar">⋮⋮</div>
         <div class="qb-row__name" data-edit="${idx}" role="button" tabindex="0" title="Editar descrição e detalhes">
           <b>${escapeHtmlText(name || 'Sem nome')}</b>${badges.join('')}
-          ${desc ? `<small>${escapeHtmlText(desc)}</small>` : ''}${markup}
+          ${desc ? `<small>${formatRichHtml(desc)}</small>` : ''}${markup}
         </div>
         <label class="qb-row__qty"><span class="qb-row__lbl">Qtd</span><input type="text" inputmode="decimal" data-qty="${idx}" value="${inlineNum(it.quantity)}" aria-label="Quantidade de ${escapeHtmlText(name)}" autocomplete="off" /></label>
         <span class="qb-row__unit">${escapeHtmlText(unitLabel(it.unit_type))}</span>
@@ -3986,7 +4175,7 @@
       const inv = r.data;
       /* A fatura tem módulo próprio: seguir para ela em vez de ficar no orçamento. */
       if (inv?.id) {
-        window.location.href = `invoice.html?id=${encodeURIComponent(inv.id)}&new=1`;
+        qbForceNavigate(`invoice.html?id=${encodeURIComponent(inv.id)}&new=1`);
         return;
       }
       await loadQuoteInvoices();
@@ -4531,7 +4720,7 @@
     try {
       await api(`/api/quotes/${encodeURIComponent(quoteId)}`, { method: 'DELETE' });
       window.crmToast?.success?.(`Orçamento ${label} excluído.`);
-      location.href = 'quotes.html';
+      qbForceNavigate('quotes.html');
     } catch (err) {
       window.crmToast?.error?.(err.message || 'Não foi possível excluir o orçamento.');
       if (btn) {
@@ -4704,17 +4893,18 @@
     return base;
   }
 
+  /** @returns {Promise<boolean>} true when the quote was saved successfully */
   async function saveQuote() {
     let cid;
     try {
       cid = await ensureCustomerForQuote();
     } catch (e) {
       qbToast(e.message || 'Selecione um lead ou um builder.', 'error');
-      return;
+      return false;
     }
     if (getQuoteParty() === 'lead' && !cid) {
       qbToast('Selecione um cliente (lead).', 'error');
-      return;
+      return false;
     }
     const body = payload();
     const wasApproved = isQuoteApprovedStatus(loadedQuoteStatus);
@@ -4743,7 +4933,7 @@
             else msg = 'Orçamento aprovado, mas a fatura não foi criada. Salve de novo ou emita manualmente.';
             qbToast(msg, hasInvoice || jobCreated ? 'success' : 'error');
             enableActions();
-            return;
+            return true;
           }
           // Backfill path: already approved, save again to create missing invoice.
           if (!hasInvoice) {
@@ -4777,14 +4967,16 @@
           else msg = 'Orçamento aprovado, mas a fatura não foi criada. Salve de novo ou emita manualmente.';
           qbToast(msg, createdIds.length || jobCreated ? 'success' : 'error');
           enableActions();
-          return;
+          return true;
         }
       }
       qbToast('Salvo.', 'success');
       enableActions();
       await loadQuoteInvoices();
+      return true;
     } catch (e) {
       qbToast(e.message || 'Erro ao salvar', 'error');
+      return false;
     }
   }
 
@@ -4945,7 +5137,8 @@
     const baseRateEl = $('modalServiceRate');
     if (baseRateEl) baseRateEl.addEventListener('keydown', handleServiceFormEnter);
     $('modalServiceDesc')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      // Enter = nova linha; Ctrl/⌘+Enter = salvar (não interceptar B/I do rich text).
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         confirmAddServiceLine();
       }
@@ -5082,6 +5275,8 @@
     });
     wireQuoteNotify();
     wireSaveRateModal();
+    wireSaveDescModal();
+    ensureServiceDescRichText();
     wireInvoiceUi();
     wireOwnerSignatureUi();
     await loadOwnerSignatureSettings();
@@ -5106,7 +5301,7 @@
       const r = await api(`/api/quotes/${quoteId}/duplicate`, { method: 'POST', body: '{}' });
       const q = quoteFromApiResponse(r);
       if (q && q.id != null) {
-        location.href = 'quote-builder.html?id=' + encodeURIComponent(q.id);
+        qbForceNavigate('quote-builder.html?id=' + encodeURIComponent(q.id));
       }
     });
     $('btnDeleteQuote')?.addEventListener('click', () => void deleteQuote());
@@ -5181,6 +5376,9 @@
   // ---------------------------------------------------------------- painel (status, andamento, próximo passo)
   let qbMeta = { created_at: null, email_sent_at: null, viewed_at: null, pdf_viewed_at: null, signed_at: null, work_order_id: null };
   let qbDirtyFlag = false;
+  /** When true, next navigation skips the unsaved-changes guard. */
+  let qbLeaveAllow = false;
+  let qbLeavePendingUrl = null;
   let qbProgressTimer = null;
   const QB_STATUS = {
     draft: ['Rascunho', 'draft'],
@@ -5203,6 +5401,113 @@
   }
   function qbMarkDirty() {
     qbSetDirty(true);
+  }
+
+  function qbForceNavigate(url) {
+    qbLeaveAllow = true;
+    qbSetDirty(false);
+    window.location.href = url;
+  }
+
+  function qbCloseLeaveModal() {
+    const root = $('qbLeaveModal');
+    if (root) root.classList.add('hidden');
+    qbLeavePendingUrl = null;
+    const saveBtn = $('qbLeaveSave');
+    if (saveBtn) saveBtn.disabled = false;
+  }
+
+  function qbOpenLeaveModal(url) {
+    qbLeavePendingUrl = url;
+    const root = $('qbLeaveModal');
+    if (root) root.classList.remove('hidden');
+    $('qbLeaveSave')?.focus();
+  }
+
+  function qbRequestNavigate(url) {
+    if (!url) return;
+    if (qbLeaveAllow || !qbDirtyFlag) {
+      qbForceNavigate(url);
+      return;
+    }
+    qbOpenLeaveModal(url);
+  }
+
+  function qbIsInternalNavLink(a) {
+    if (!a || !a.getAttribute) return false;
+    if (a.target && a.target !== '_self') return false;
+    if (a.hasAttribute('download')) return false;
+    const raw = String(a.getAttribute('href') || '').trim();
+    if (!raw || raw === '#' || raw.startsWith('#')) return false;
+    if (/^(mailto:|tel:|sms:|javascript:)/i.test(raw)) return false;
+    try {
+      const u = new URL(a.href, location.href);
+      if (u.origin !== location.origin) return false;
+      if (u.pathname === location.pathname && u.search === location.search) return false;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function qbLeaveSaveAndGo() {
+    const url = qbLeavePendingUrl;
+    if (!url) return;
+    const btn = $('qbLeaveSave');
+    if (btn) btn.disabled = true;
+    try {
+      const ok = await saveQuote();
+      if (ok) {
+        qbCloseLeaveModal();
+        qbForceNavigate(url);
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function qbLeaveDiscardAndGo() {
+    const url = qbLeavePendingUrl;
+    qbCloseLeaveModal();
+    if (url) qbForceNavigate(url);
+  }
+
+  function wireLeaveGuard() {
+    $('qbLeaveSave')?.addEventListener('click', () => void qbLeaveSaveAndGo());
+    $('qbLeaveDiscard')?.addEventListener('click', () => qbLeaveDiscardAndGo());
+    $('qbLeaveStay')?.addEventListener('click', () => qbCloseLeaveModal());
+    const root = $('qbLeaveModal');
+    if (root) {
+      root.addEventListener('click', (e) => {
+        if (e.target === root) qbCloseLeaveModal();
+      });
+    }
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (!qbDirtyFlag || qbLeaveAllow) return;
+        if (e.defaultPrevented) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (typeof e.button === 'number' && e.button !== 0) return;
+        const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if (!qbIsInternalNavLink(a)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        qbOpenLeaveModal(a.href);
+      },
+      true,
+    );
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && root && !root.classList.contains('hidden')) {
+        e.preventDefault();
+        qbCloseLeaveModal();
+      }
+    });
+    window.addEventListener('beforeunload', (e) => {
+      if (qbLeaveAllow || !qbDirtyFlag) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
   }
   function qbWhen(iso) {
     if (!iso) return '';
@@ -5380,14 +5685,14 @@
       if (!SKIP.has(e.target.id) && !e.target.closest('#addItemPanel')) qbMarkDirty();
     });
     root?.addEventListener('input', (e) => {
-      if (e.target.matches('#notes, #terms, #discountValue, #taxTotal, #quoteJobName, #quoteJobAddress')) qbMarkDirty();
+      if (SKIP.has(e.target.id) || e.target.closest('#addItemPanel')) {
+        if (e.target.id === 'quoteJobName') qbScheduleProgress();
+        return;
+      }
+      qbMarkDirty();
       if (e.target.id === 'quoteJobName') qbScheduleProgress();
     });
-    window.addEventListener('beforeunload', (e) => {
-      if (!qbDirtyFlag) return;
-      e.preventDefault();
-      e.returnValue = '';
-    });
+    wireLeaveGuard();
     qbRenderProgress();
   }
 

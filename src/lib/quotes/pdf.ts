@@ -379,7 +379,109 @@ export function pdfLinesFromDbItems(
 }
 
 function stripRichTextMarkers(text: string): string {
-  return text.replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/_([^_\n]+)_/g, "$1");
+  return String(text || "")
+    .replace(/\*\*([^*\n]+)\*\*/g, "$1")
+    .replace(/_([^_\n]+)_/g, "$1");
+}
+
+/** Drop a leading service title so the PDF body does not repeat the headline. */
+function descriptionBodyWithoutTitle(name: string, description: string): string {
+  const n = String(name || "").trim();
+  let desc = String(description || "").trim();
+  if (!desc) return "";
+  if (!n) return desc;
+  if (desc === n) return "";
+  const nLower = n.toLowerCase();
+  const lines = desc.split(/\n/);
+  if (lines[0] && lines[0]!.trim().toLowerCase() === nLower) {
+    desc = lines.slice(1).join("\n").trim();
+  }
+  while (desc && desc.toLowerCase().startsWith(nLower)) {
+    desc = desc.slice(n.length).replace(/^[\s\u2014\u2013:·.\-]+/, "").trim();
+  }
+  return desc;
+}
+
+type RichSeg = { text: string; bold?: boolean; italic?: boolean };
+
+/** Parse **bold** / _italic_ markers into font segments (no nesting). */
+function parseRichTextSegments(text: string): RichSeg[] {
+  const s = String(text || "");
+  const out: RichSeg[] = [];
+  let i = 0;
+  while (i < s.length) {
+    if (s.startsWith("**", i)) {
+      const end = s.indexOf("**", i + 2);
+      if (end !== -1 && !s.slice(i + 2, end).includes("\n")) {
+        out.push({ text: s.slice(i + 2, end), bold: true });
+        i = end + 2;
+        continue;
+      }
+    }
+    if (s[i] === "_") {
+      const end = s.indexOf("_", i + 1);
+      if (end !== -1 && !s.slice(i + 1, end).includes("\n")) {
+        out.push({ text: s.slice(i + 1, end), italic: true });
+        i = end + 1;
+        continue;
+      }
+    }
+    let next = s.length;
+    const nb = s.indexOf("**", i);
+    const ni = s.indexOf("_", i);
+    if (nb !== -1) next = Math.min(next, nb);
+    if (ni !== -1) next = Math.min(next, ni);
+    out.push({ text: s.slice(i, next) });
+    i = next;
+  }
+  return out.filter((seg) => seg.text.length > 0);
+}
+
+function richFont(seg: RichSeg, base: "Helvetica" | "Helvetica-Oblique" = "Helvetica"): string {
+  if (seg.bold) return "Helvetica-Bold";
+  if (seg.italic) return "Helvetica-Oblique";
+  return base;
+}
+
+/**
+ * Draw a paragraph with **bold** / _italic_ markers. Returns doc.y after drawing.
+ */
+function drawRichTextParagraph(
+  doc: PDFKit.PDFDocument,
+  text: string,
+  x: number,
+  y: number,
+  opts: { width: number; fontSize: number; color: string; baseFont?: "Helvetica" | "Helvetica-Oblique" },
+): number {
+  const baseFont = opts.baseFont || "Helvetica";
+  const paragraphs = String(text || "").split(/\n/);
+  let cy = y;
+  for (let pi = 0; pi < paragraphs.length; pi++) {
+    const line = paragraphs[pi]!;
+    const segs = parseRichTextSegments(line);
+    if (!segs.length) {
+      cy += opts.fontSize * 1.25;
+      continue;
+    }
+    doc.fillColor(opts.color).fontSize(opts.fontSize);
+    for (let si = 0; si < segs.length; si++) {
+      const seg = segs[si]!;
+      const isFirst = si === 0;
+      const isLast = si === segs.length - 1;
+      doc.font(richFont(seg, baseFont));
+      if (isFirst) {
+        doc.text(seg.text, x, cy, {
+          width: opts.width,
+          continued: !isLast,
+          lineBreak: isLast,
+        });
+      } else {
+        doc.text(seg.text, { continued: !isLast, lineBreak: isLast });
+      }
+    }
+    cy = doc.y;
+  }
+  return cy;
 }
 
 function termsToItems(terms: string | null | undefined): string[] {
@@ -756,31 +858,49 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
         if (brokeItem && ii > 0) drawTableHeader();
 
         const nameStr = stripRichTextMarkers(String(it.name || "").trim());
-        const descStr = stripRichTextMarkers(String(it.description || "").trim());
-        const headline = nameStr || descStr.split(/\n/)[0] || "Line item";
-        let body = "";
-        if (nameStr && descStr && descStr !== nameStr) body = descStr;
-        else if (!nameStr && descStr.includes("\n")) body = descStr.split(/\n/).slice(1).join(" ").trim();
+        const rawDesc = String(it.description || "").trim();
+        const descPlain = stripRichTextMarkers(rawDesc);
+        const headline = nameStr || descPlain.split(/\n/)[0] || "Line item";
+        let bodyRaw = "";
+        if (nameStr && rawDesc) {
+          bodyRaw = descriptionBodyWithoutTitle(nameStr, rawDesc);
+        } else if (!nameStr && rawDesc.includes("\n")) {
+          bodyRaw = rawDesc.split(/\n/).slice(1).join("\n").trim();
+        }
+        const bodyPlain = stripRichTextMarkers(bodyRaw);
 
         const rowY = y;
         doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9.5);
         doc.text(headline, colDesc, rowY, { width: descMaxW });
         let dy = doc.y;
-        if (body) {
-          doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
-          doc.text(body, colDesc, dy + 1, { width: descMaxW });
-          dy = doc.y;
+        if (bodyRaw) {
+          dy = drawRichTextParagraph(doc, bodyRaw, colDesc, dy + 1, {
+            width: descMaxW,
+            fontSize: 8,
+            color: PAL.muted,
+          });
         }
         if (it.catalogNotes || it.notes) {
-          const detail = [
-            it.catalogNotes ? stripRichTextMarkers(String(it.catalogNotes)) : "",
-            it.notes ? `Note: ${stripRichTextMarkers(String(it.notes))}` : "",
-          ]
-            .filter(Boolean)
-            .join(" — ");
-          doc.fillColor(PAL.mutedLight).font("Helvetica-Oblique").fontSize(7.5);
-          doc.text(detail, colDesc, dy + 1, { width: descMaxW });
-          dy = doc.y;
+          const catalogPlain = it.catalogNotes
+            ? stripRichTextMarkers(descriptionBodyWithoutTitle(nameStr, String(it.catalogNotes)))
+            : "";
+          const skipCatalog =
+            !catalogPlain ||
+            catalogPlain === bodyPlain ||
+            catalogPlain === nameStr ||
+            catalogPlain === descPlain;
+          const detailParts = [
+            skipCatalog ? "" : String(it.catalogNotes || "").trim(),
+            it.notes ? `Note: ${String(it.notes)}` : "",
+          ].filter(Boolean);
+          if (detailParts.length) {
+            dy = drawRichTextParagraph(doc, detailParts.join(" — "), colDesc, dy + 1, {
+              width: descMaxW,
+              fontSize: 7.5,
+              color: PAL.mutedLight,
+              baseFont: "Helvetica-Oblique",
+            });
+          }
         }
 
         doc.fillColor(PAL.primary).font("Helvetica").fontSize(9);
