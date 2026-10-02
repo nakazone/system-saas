@@ -1738,6 +1738,7 @@
   </style>
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261002-pdfclose" />
+  <link rel="stylesheet" href="quote-builder-v2.css?v=20261002-qb2" />
 </head>
 <body class="qb-dashboard-inner dashboard-app-body om-app qb-sidebar-page om-no-dock sidebar-collapsed">
   <script src="om-device.js?v=20261001-tablet2"></script>
@@ -1792,8 +1793,8 @@
       <div class="qb-page">
       <header class="qb-topbar">
         <div class="qb-topbar__left">
-          <a href="quotes.html" class="qb-topbar__back">← Orçamentos</a>
-          <h1 class="qb-topbar__title" id="topbarTitle">Novo orçamento</h1>
+          <p class="qb-topbar__crumb"><a href="quotes.html" class="qb-topbar__back">← Orçamentos</a><span id="qbTopJob" class="qb-topbar__job"></span></p>
+          <h1 class="qb-topbar__title"><span id="topbarTitle">Novo orçamento</span> <span class="qb-status-pill" id="qbStatusPill" data-status="draft">Rascunho</span> <span class="qb-dirty" id="qbDirty" hidden>Alterações não salvas</span></h1>
         </div>
         <div class="qb-topbar__actions">
           <span
@@ -1841,7 +1842,7 @@
             class="qb-pdf-viewed-badge hidden"
             role="status"
             aria-live="polite"
-            aria-label="PDF ainda não descarregado pelo cliente"
+            aria-label="PDF ainda não baixado pelo cliente"
           >
             <span class="qb-pdf-viewed-badge__icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1854,16 +1855,15 @@
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
             </span>
-            <span class="qb-pdf-viewed-badge__label" id="qbPdfViewedBadgeLabel">PDF descarregado</span>
+            <span class="qb-pdf-viewed-badge__label" id="qbPdfViewedBadgeLabel">PDF baixado</span>
           </span>
           <div class="qb-topbar__desk-actions" aria-label="Ações do orçamento">
-            <button type="button" class="btn btn-primary" data-qb-proxy="btnSave">Guardar</button>
-            <button type="button" class="btn btn-secondary" data-qb-proxy="btnPdf" disabled>PDF</button>
-            <button type="button" class="btn btn-secondary" data-qb-proxy="btnSend" disabled>Enviar</button>
-            <button type="button" class="btn btn-secondary" data-qb-proxy="btnInvoice" hidden disabled>Fatura</button>
-            <button type="button" class="btn btn-secondary" data-qb-proxy="btnDup" disabled>Duplicar</button>
-            <button type="button" class="btn btn-secondary" data-qb-proxy="btnSaveTpl">Template</button>
-            <button type="button" class="btn btn-secondary qb-btn-danger" data-qb-proxy="btnDeleteQuote" disabled>Apagar</button>
+            <button type="button" class="btn qb-btn-ghost" data-qb-proxy="btnPdf" disabled>PDF</button>
+            <div class="qb-more">
+              <button type="button" class="btn qb-btn-ghost" data-qb-more aria-haspopup="menu" aria-expanded="false">⋯ Mais</button>
+            </div>
+            <button type="button" class="btn btn-secondary" data-qb-proxy="btnSave">Salvar</button>
+            <button type="button" class="btn btn-primary" data-qb-proxy="btnSend" disabled>Enviar ao cliente</button>
           </div>
         </div>
       </header>
@@ -1880,7 +1880,7 @@
                 <div class="qb-party-tabs" role="tablist" aria-label="Tipo de cliente">
                   <button type="button" class="qb-party-tab is-active" id="qbPartyLead" data-party="lead">Leads / Particular</button>
                   <button type="button" class="qb-party-tab" id="qbPartyBuilder" data-party="builder">Builder</button>
-                  <button type="button" class="qb-party-tab" id="qbPartyContractor" data-party="contractor">Contract</button>
+                  <button type="button" class="qb-party-tab" id="qbPartyContractor" data-party="contractor">Contractor</button>
                   <button type="button" class="qb-party-tab" id="qbPartyLoja" data-party="loja">Loja</button>
                 </div>
                 <div id="qbLeadPanel">
@@ -1890,8 +1890,8 @@
                     id="customerSearch"
                     class="qb-client-search__input"
                     autocomplete="off"
-                    placeholder="Pesquisar lead ou particular por nome, e-mail, telefone…"
-                    aria-label="Pesquisar lead ou particular"
+                    placeholder="Buscar lead ou particular por nome, e-mail, telefone…"
+                    aria-label="Buscar lead ou particular"
                   />
                   <input type="hidden" id="customerId" value="" />
                   <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de leads e particulares"></div>
@@ -1908,7 +1908,7 @@
                     <div><label for="manualClientPhone">Telefone *</label><input type="tel" id="manualClientPhone" autocomplete="tel" /></div>
                     <div><label for="manualClientEmail">E-mail *</label><input type="email" id="manualClientEmail" autocomplete="email" /></div>
                     <div><label for="manualClientZip">CEP *</label><input type="text" id="manualClientZip" inputmode="numeric" maxlength="10" placeholder="80202" /></div>
-                    <div><label for="manualClientAddress">Morada</label><input type="text" id="manualClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
+                    <div><label for="manualClientAddress">Endereço</label><input type="text" id="manualClientAddress" autocomplete="off" placeholder="Digite o endereço (Google Maps)..." /></div>
                   </div>
                   <p id="manualClientError" class="text-red-600 text-sm hidden mt-2"></p>
                   <div class="qb-client-form__actions">
@@ -1923,12 +1923,12 @@
                     <div><label for="editClientPhone">Telefone</label><input type="tel" id="editClientPhone" autocomplete="tel" /></div>
                     <div><label for="editClientEmail">E-mail</label><input type="email" id="editClientEmail" autocomplete="email" /></div>
                     <div><label for="editClientZip">CEP</label><input type="text" id="editClientZip" inputmode="numeric" maxlength="10" /></div>
-                    <div><label for="editClientAddress">Morada</label><input type="text" id="editClientAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." /></div>
+                    <div><label for="editClientAddress">Endereço</label><input type="text" id="editClientAddress" autocomplete="off" placeholder="Digite o endereço (Google Maps)..." /></div>
                   </div>
                   <p id="editClientError" class="text-red-600 text-sm hidden mt-2"></p>
                   <div class="qb-client-form__actions">
                     <button type="button" id="btnEditClientCancel" class="px-3 py-1.5 text-sm text-slate-600">Cancelar</button>
-                    <button type="button" id="btnEditClientSave" class="px-3 py-1.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-semibold">Guardar no CRM</button>
+                    <button type="button" id="btnEditClientSave" class="px-3 py-1.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-semibold">Salvar no CRM</button>
                   </div>
                 </div>
                 <div id="qbClientDetails" class="qb-client-details hidden" aria-live="polite">
@@ -1946,7 +1946,7 @@
                       <dd id="qbClientEmail">—</dd>
                     </div>
                     <div class="qb-client-details__row">
-                      <dt>Morada</dt>
+                      <dt>Endereço</dt>
                       <dd id="qbClientAddress">—</dd>
                     </div>
                   </dl>
@@ -1999,8 +1999,8 @@
                       id="orgCustomerSearch"
                       class="qb-client-search__input"
                       autocomplete="off"
-                      placeholder="Pesquisar cliente por nome, empresa, e-mail…"
-                      aria-label="Pesquisar cliente"
+                      placeholder="Buscar cliente por nome, empresa, e-mail…"
+                      aria-label="Buscar cliente"
                     />
                     <div id="orgCustomerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de clientes"></div>
                   </div>
@@ -2034,7 +2034,7 @@
                   </div>
                   <div>
                     <label for="quoteJobAddress">Endereço do projeto</label>
-                    <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Digite a morada (Google Maps)..." />
+                    <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Digite o endereço (Google Maps)..." />
                   </div>
                 </div>
                 <div class="qb-client-meta">
@@ -2046,12 +2046,12 @@
                         <option value="sent">Enviado</option>
                         <option value="viewed">Visualizado</option>
                         <option value="approved">Aprovado</option>
-                        <option value="accepted">Aceite</option>
-                        <option value="rejected">Rejeitado</option>
+                        <option value="accepted">Aceito</option>
+                        <option value="rejected">Recusado</option>
                       </select>
                     </div>
                     <div>
-                      <label class="block text-xs font-semibold text-slate-500 mb-1" for="expirationDate">Expiração</label>
+                      <label class="block text-xs font-semibold text-slate-500 mb-1" for="expirationDate">Validade</label>
                       <input type="date" id="expirationDate" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
                     </div>
                   </div>
@@ -2082,7 +2082,7 @@
               <div id="addItemPanel" class="qb-item-editor hidden" aria-label="Adicionar ou editar serviço">
                 <div class="qb-item-editor__field qb-client-search" id="modalServiceSearchWrap">
                   <label for="modalServiceName">Nome do serviço</label>
-                  <input type="search" id="modalServiceName" class="qb-item-editor__input" autocomplete="off" placeholder="Pesquisar no catálogo…" />
+                  <input type="search" id="modalServiceName" class="qb-item-editor__input" autocomplete="off" placeholder="Buscar na Tabela de Valores…" />
                   <div id="modalServiceResults" class="qb-client-search__results hidden" role="listbox" aria-label="Serviços do catálogo"></div>
                 </div>
                 <div class="qb-item-editor__field">
@@ -2148,12 +2148,27 @@
                 <p id="modalError" class="text-red-600 text-sm hidden mt-2"></p>
                 <div class="qb-item-editor__actions">
                   <button type="button" id="modalCancel" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900">Cancelar</button>
-                  <button type="button" id="modalConfirmService" class="px-4 py-2 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-bold hover:opacity-95">Guardar</button>
+                  <button type="button" id="modalConfirmService" class="px-4 py-2 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-bold hover:opacity-95">Salvar</button>
                 </div>
               </div>
               <div class="qb-items-foot">
                 <button type="button" id="btnAddLine" class="qb-items-foot__add">+ Adicionar serviço</button>
               </div>
+            </section>
+          </div>
+
+          <section class="qb-notes" aria-label="Notas e termos">
+            <div class="qb-notes__box">
+              <h3 class="qb-notes__t">Notas para o cliente</h3>
+              <textarea id="notes" rows="3" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Ex.: preço inclui mover os móveis do andar principal"></textarea>
+            </div>
+            <div class="qb-notes__box">
+              <h3 class="qb-notes__t">Termos e condições</h3>
+              <textarea id="terms" rows="3" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Termos e condições"></textarea>
+            </div>
+          </section>
+          <details class="qb-tools" id="qbProjectDetails">
+            <summary>Ferramentas · área do projeto e regras automáticas</summary>
               <div class="qb-sqft-toolbar">
                 <div class="qb-sqft-toolbar__inner">
                   <div class="flex-1 min-w-[140px]">
@@ -2163,14 +2178,10 @@
                   <button type="button" id="btnApplySqftToLines" class="btn btn-primary btn-sm whitespace-nowrap">Aplicar nas linhas (sq ft)</button>
                 </div>
               </div>
-            </section>
-          </div>
 
-          <details class="qb-accordion bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6" id="qbProjectDetails">
-            <summary>Contexto do projeto (regras automáticas)</summary>
             <div class="space-y-4 mt-4">
             <p class="text-xs text-slate-500 max-w-3xl">
-              Regras do orçamento: madeira em concreto → barreira de humidade; nivelamento «major» → massa niveladora; escadas → mão-de-obra por degrau.
+              Regras do orçamento: madeira em concreto → barreira de umidade; nivelamento «major» → massa niveladora; escadas → mão de obra por degrau.
               As linhas marcadas <strong>auto</strong> são recalculadas ao alterar estes campos.
             </p>
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2238,7 +2249,7 @@
                 <input type="number" id="qbStairsCount" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-500 mb-1">Divisões</label>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Cômodos</label>
                 <input type="number" id="qbRoomsCount" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </div>
             </div>
@@ -2252,6 +2263,8 @@
 
         <aside class="builder-sidebar" aria-label="Resumo do orçamento">
           <div class="qb-preview">
+            <div class="qb-next" id="qbNext" aria-live="polite"></div>
+            <div class="qb-progress" id="qbProgress"></div>
             <div class="qb-preview__head">
               <p class="qb-preview__label">Orçamento</p>
               <p class="qb-preview__number" id="previewEstimateNo">—</p>
@@ -2292,7 +2305,7 @@
             </div>
 
             <details class="qb-preview__profit">
-              <summary class="text-xs font-semibold text-slate-600 cursor-pointer">Lucro (materiais)</summary>
+              <summary class="text-xs font-semibold text-slate-600 cursor-pointer">Custo e margem <span id="qbMarginInline" class="qb-margin-inline"></span></summary>
               <div class="margin-visualization mt-3" id="profitPanel" style="font-size: 0.8rem">
                 <div class="flex justify-between mb-1"><span>Custo</span><span id="dispCost">$0.00</span></div>
                 <div class="flex justify-between mb-1"><span>Receita</span><span id="dispRevenue">$0.00</span></div>
@@ -2302,15 +2315,11 @@
               </div>
             </details>
 
-            <div class="qb-sidebar-notes space-y-2 pt-2 border-t border-slate-100">
-              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notas &amp; termos</h3>
-              <textarea id="notes" rows="2" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Notas para o cliente"></textarea>
-              <textarea id="terms" rows="3" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Termos e condições"></textarea>
-            </div>
 
-            <div id="qbOwnerSignaturePanel" class="qb-owner-sig space-y-2 pt-2 border-t border-slate-100">
-              <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Assinatura do responsável</h3>
-              <p class="text-xs text-slate-500">Defina uma vez — aplica-se a todos os orçamentos. A assinatura é gerada a partir do nome; pode desenhar por cima.</p>
+            <details id="qbOwnerSignaturePanel" class="qb-owner-sig qb-collapse">
+              <summary>Assinatura do responsável <small>padrão da empresa</small></summary>
+              <div class="space-y-2 pt-2">
+              <p class="text-xs text-slate-500">Vale para todos os orçamentos. A assinatura é gerada a partir do nome; dá para desenhar por cima. Também em Configurações › Orçamentos.</p>
               <label class="flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
                 <input type="checkbox" id="ownerSignAutoDefault" class="mt-0.5" checked />
                 <span>Usar assinatura automática como padrão em todos os orçamentos</span>
@@ -2324,11 +2333,12 @@
               </div>
               <div class="flex flex-wrap gap-2">
                 <button type="button" id="btnOwnerSignClear" class="btn btn-sm btn-ghost">Limpar</button>
-                <button type="button" id="btnOwnerSignSave" class="btn btn-sm btn-secondary">Guardar assinatura padrão</button>
+                <button type="button" id="btnOwnerSignSave" class="btn btn-sm btn-secondary">Salvar assinatura padrão</button>
               </div>
               <div id="ownerSignSavedMeta" class="hidden text-xs text-slate-500"></div>
-              <img id="ownerSignPreview" class="hidden max-h-16 border border-slate-200 rounded p-1 bg-white" alt="Assinatura guardada" />
-            </div>
+              <img id="ownerSignPreview" class="hidden max-h-16 border border-slate-200 rounded p-1 bg-white" alt="Assinatura salva" />
+              </div>
+            </details>
 
             <div id="qbClientSignaturePanel" class="hidden space-y-2 pt-2 border-t border-slate-100">
               <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Assinatura do cliente</h3>
@@ -2348,7 +2358,7 @@
 
             <div class="qb-sidebar-footer pt-2 border-t border-slate-100">
               <p class="text-xs text-slate-500 hidden" id="quoteMeta">Novo orçamento</p>
-              <p class="text-xs break-all hidden" id="publicLinkWrap"><span class="font-semibold">Link:</span> <a id="publicLink" class="text-blue-600 underline" target="_blank" rel="noopener"></a></p>
+              <div class="qb-link hidden" id="publicLinkWrap"><span class="qb-link__lbl">Link do cliente</span><a id="publicLink" class="qb-link__url" target="_blank" rel="noopener"></a><button type="button" class="btn btn-sm btn-secondary" id="qbCopyLink">Copiar</button></div>
             </div>
           </div>
         </aside>
@@ -2359,9 +2369,9 @@
 
   <nav class="qb-action-bar" id="qbActionBar" aria-label="Ações do orçamento">
     <div class="qb-action-bar__inner">
-      <button type="button" id="btnSave" class="btn btn-primary" title="Guardar rascunho">
-        <span class="qb-action-bar__full">Guardar rascunho</span>
-        <span class="qb-action-bar__short">Guardar</span>
+      <button type="button" id="btnSave" class="btn btn-primary" title="Salvar">
+        <span class="qb-action-bar__full">Salvar</span>
+        <span class="qb-action-bar__short">Salvar</span>
       </button>
       <button type="button" id="btnPdf" class="btn btn-secondary" disabled title="Gerar PDF">
         <span class="qb-action-bar__full">Gerar PDF</span>
@@ -2379,21 +2389,29 @@
         <span class="qb-action-bar__full">Duplicar</span>
         <span class="qb-action-bar__short">Duplicar</span>
       </button>
-      <button type="button" id="btnSaveTpl" class="btn btn-secondary" title="Guardar template">
-        <span class="qb-action-bar__full">Guardar template</span>
+      <button type="button" id="btnSaveTpl" class="btn btn-secondary" title="Salvar como template">
+        <span class="qb-action-bar__full">Salvar template</span>
         <span class="qb-action-bar__short">Template</span>
       </button>
-      <button type="button" id="btnDeleteQuote" class="btn btn-secondary qb-btn-danger" disabled title="Apagar orçamento">
-        <span class="qb-action-bar__full">Apagar</span>
-        <span class="qb-action-bar__short">Apagar</span>
+      <button type="button" id="btnDeleteQuote" class="btn btn-secondary qb-btn-danger" disabled title="Excluir orçamento">
+        <span class="qb-action-bar__full">Excluir</span>
+        <span class="qb-action-bar__short">Excluir</span>
       </button>
+      <button type="button" class="btn btn-secondary qb-action-bar__more" data-qb-more aria-haspopup="menu" aria-expanded="false" title="Mais ações">⋯</button>
     </div>
   </nav>
 
+  <div id="qbMoreMenu" class="qb-more-menu hidden" role="menu" aria-label="Mais ações">
+    <button type="button" class="qb-more-menu__item qb-more-menu__mob" role="menuitem" data-qb-proxy="btnPdf">Ver PDF</button>
+    <button type="button" class="qb-more-menu__item" role="menuitem" data-qb-proxy="btnInvoice">Emitir fatura</button>
+    <button type="button" class="qb-more-menu__item" role="menuitem" data-qb-proxy="btnDup">Duplicar</button>
+    <button type="button" class="qb-more-menu__item" role="menuitem" data-qb-proxy="btnSaveTpl">Salvar como template</button>
+    <button type="button" class="qb-more-menu__item qb-more-menu__item--danger" role="menuitem" data-qb-proxy="btnDeleteQuote">Excluir orçamento</button>
+  </div>
   <div id="quoteSendMenu" class="qb-send-menu hidden" role="menu" aria-label="Enviar orçamento">
     <button type="button" class="qb-send-menu__item" id="quoteSendBySms" role="menuitem">
       Mensagem (SMS)
-      <small>Abre a app de mensagens com o link do orçamento</small>
+      <small>Abre o app de mensagens com o link do orçamento</small>
     </button>
     <button type="button" class="qb-send-menu__item" id="quoteSendByEmail" role="menuitem">
       E-mail
@@ -2539,7 +2557,7 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261002-leadmsg1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261002-pricing-cat"></script>
+  <script src="quote-builder.js?v=20261002-qb2"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

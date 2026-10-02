@@ -284,9 +284,9 @@
       qbToast('Cliente atualizado no CRM.', 'success');
     } catch (e) {
       if (errEl) {
-        errEl.textContent = e.message || 'Erro ao guardar.';
+        errEl.textContent = e.message || 'Erro ao salvar.';
         errEl.classList.remove('hidden');
-      } else qbToast(e.message || 'Erro ao guardar.', 'error');
+      } else qbToast(e.message || 'Erro ao salvar.', 'error');
     }
   }
 
@@ -517,9 +517,9 @@
 
   function pricingTypeLabel(type) {
     const map = {
-      particular: 'Particular (leads)',
+      particular: 'Particular',
       builder: 'Builder',
-      contractor: 'Contract',
+      contractor: 'Contractor',
       loja: 'Loja',
     };
     return map[type] || type;
@@ -883,6 +883,8 @@
     $('dispRevenue').textContent = money(p.totalRevenue);
     $('dispProfit').textContent = money(p.grossProfit);
     $('dispMarginPct').textContent = p.marginPct != null ? `${p.marginPct}%` : '—';
+    const inl = $('qbMarginInline');
+    if (inl) inl.textContent = p.marginPct != null && p.totalCost > 0 ? `· ${p.marginPct}%` : '';
     const bar = $('marginBarFill');
     if (bar) {
       const w = p.marginPct != null ? Math.min(100, Math.max(0, Number(p.marginPct))) : 0;
@@ -908,7 +910,8 @@
       el.textContent = `Preços customizados · base ${pricingTypeLabel(src)}`;
       return;
     }
-    el.textContent = `Taxa ${pricingTypeLabel(src)} · Tabela de Valores`;
+    el.textContent = `${pricingTypeLabel(src)} · Tabela de Valores`;
+    el.title = el.textContent;
   }
 
   function setCatalogPricingMode(mode) {
@@ -1236,11 +1239,9 @@
   }
 
   function unitLabel(unit) {
-    const u = String(unit || 'sq_ft');
-    if (u === 'sq_ft') return 'Sq Ft';
-    if (u === 'linear_ft') return 'Linear Ft';
-    if (u === 'fixed') return 'Fixed';
-    return u.replace(/_/g, ' ');
+    const u = String(unit || 'sq_ft').toLowerCase();
+    const map = { sq_ft: 'sq ft', sqft: 'sq ft', linear_ft: 'lin ft', lf: 'lin ft', fixed: 'fixo', step: 'degraus', steps: 'degraus', each: 'un', unit: 'un', hour: 'h', hours: 'h', day: 'dias', days: 'dias' };
+    return map[u] || u.replace(/_/g, ' ');
   }
 
   function sumItems() {
@@ -1631,7 +1632,7 @@
 
     const hint = $('leadContextHint');
     if (hint) {
-      hint.textContent = `Associado ao lead: ${lead.name || '#' + lead.id}. O orçamento ficará ligado a este lead ao guardar.`;
+      hint.textContent = `Associado ao lead: ${lead.name || '#' + lead.id}. O orçamento ficará ligado a este lead ao salvar.`;
       hint.classList.remove('hidden');
     }
 
@@ -1791,6 +1792,8 @@
   }
 
   function updateEmailSentBadge(sentAt) {
+    qbMeta.email_sent_at = sentAt || null;
+    qbScheduleProgress();
     loadedQuoteEmailSentAt = sentAt || null;
     const badge = $('qbEmailSentBadge');
     const label = $('qbEmailSentBadgeLabel');
@@ -1874,6 +1877,8 @@
   }
 
   function updateQuoteViewedBadge(viewedAt, opts = {}) {
+    qbMeta.viewed_at = viewedAt || null;
+    qbScheduleProgress();
     const wasViewed = !!loadedQuoteViewedAt;
     loadedQuoteViewedAt = viewedAt || null;
     const badge = $('qbQuoteViewedBadge');
@@ -1910,6 +1915,8 @@
   }
 
   function updatePdfViewedBadge(pdfAt, opts = {}) {
+    qbMeta.pdf_viewed_at = pdfAt || null;
+    qbScheduleProgress();
     const wasPdf = !!loadedQuotePdfViewedAt;
     loadedQuotePdfViewedAt = pdfAt || null;
     const badge = $('qbPdfViewedBadge');
@@ -1918,27 +1925,27 @@
     if (loadedQuotePdfViewedAt) {
       maybeStopQuoteViewPolling();
       const when = formatEmailSentWhen(loadedQuotePdfViewedAt);
-      const tip = when ? `Cliente descarregou o PDF em ${when}` : 'Cliente descarregou o PDF';
+      const tip = when ? `Cliente baixou o PDF em ${when}` : 'Cliente baixou o PDF';
       badge.classList.remove('hidden');
       badge.title = tip;
       badge.setAttribute('aria-label', tip);
-      if (label) label.textContent = when ? `PDF · ${when}` : 'PDF descarregado';
+      if (label) label.textContent = when ? `PDF · ${when}` : 'PDF baixado';
       if (opts.notify && !wasPdf && !quotePdfNotifyShown) {
         quotePdfNotifyShown = true;
         showQuoteNotify({
           type: 'success',
-          title: 'PDF descarregado',
+          title: 'PDF baixado',
           message: when
-            ? `O cliente descarregou o PDF do orçamento (${when}).`
-            : 'O cliente descarregou o PDF do orçamento.',
+            ? `O cliente baixou o PDF do orçamento (${when}).`
+            : 'O cliente baixou o PDF do orçamento.',
           ms: 12000,
         });
       }
     } else {
       badge.classList.add('hidden');
       badge.removeAttribute('title');
-      badge.setAttribute('aria-label', 'PDF ainda não descarregado pelo cliente');
-      if (label) label.textContent = 'PDF descarregado';
+      badge.setAttribute('aria-label', 'PDF ainda não baixado pelo cliente');
+      if (label) label.textContent = 'PDF baixado';
       if (!opts.keepNotifyFlag) quotePdfNotifyShown = false;
     }
   }
@@ -2016,7 +2023,8 @@
     if (
       e.target.closest('#quoteSendMenu') ||
       e.target.closest('#btnSend') ||
-      e.target.closest('[data-qb-proxy="btnSend"]')
+      e.target.closest('[data-qb-proxy="btnSend"]') ||
+      e.target.closest('[data-qb-proxy-now="btnSend"]')
     ) {
       return;
     }
@@ -2341,7 +2349,7 @@
       showQuoteNotify({
         type: 'success',
         title: 'E-mail enviado',
-        message: `E-mail enviado para ${to}${ccNote} (${how}) — só com link seguro. Será notificado quando o cliente abrir o link ou descarregar o PDF.${movedNote}`,
+        message: `E-mail enviado para ${to}${ccNote} (${how}) — só com link seguro. Você será avisado quando o cliente abrir o link ou baixar o PDF.${movedNote}`,
       });
     } catch (e) {
       const raw = e.message || '';
@@ -2381,7 +2389,7 @@
       showQuoteNotify({
         type: 'error',
         title: 'Link do orçamento',
-        message: 'Guarde o orçamento primeiro para gerar o link público antes de enviar por mensagem.',
+        message: 'Salve o orçamento primeiro para gerar o link público antes de enviar por mensagem.',
         ms: 10000,
       });
       return;
@@ -2558,10 +2566,49 @@
       .replace(/</g, '&lt;');
   }
 
+  function parseInlineNumber(v) {
+    const n = parseFloat(String(v || '').replace(/[^0-9.,-]/g, '').replace(/,/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }
+
   function attachItemsListHandlers() {
     const list = $('itemsList');
     if (!list || list.dataset.bound) return;
     list.dataset.bound = '1';
+    list.addEventListener('input', (e) => {
+      const q = e.target.closest('[data-qty],[data-rate]');
+      if (!q) return;
+      const idx = parseInt(q.getAttribute('data-qty') ?? q.getAttribute('data-rate'), 10);
+      const it = items[idx];
+      if (!it) return;
+      const val = parseInlineNumber(q.value);
+      if (q.hasAttribute('data-qty')) it.quantity = val;
+      else {
+        it.rate = val;
+        it.sell_price = val;
+      }
+      const tot = list.querySelector(`[data-total="${idx}"]`);
+      if (tot) tot.textContent = money(lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0));
+      recalc();
+      qbMarkDirty();
+    });
+    list.addEventListener('focusout', (e) => {
+      const q = e.target.closest('[data-rate]');
+      if (q) q.value = inlineNum(parseInlineNumber(q.value), true);
+    });
+    list.addEventListener('keydown', (e) => {
+      const q = e.target.closest('[data-qty],[data-rate]');
+      if (q && e.key === 'Enter') {
+        e.preventDefault();
+        q.blur();
+        return;
+      }
+      const nm = e.target.closest('.qb-row__name');
+      if (nm && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        nm.click();
+      }
+    });
     list.addEventListener('click', (e) => {
       const editBtn = e.target.closest('[data-edit]');
       if (editBtn) {
@@ -2578,6 +2625,7 @@
         items.splice(idx, 1);
         recalc();
         renderItems();
+        qbMarkDirty();
       }
     });
   }
@@ -2940,7 +2988,7 @@
     const btnAdd = $('btnAddLine');
     if (btnAdd) btnAdd.classList.add('hidden');
     const confirmBtn = $('modalConfirmService');
-    if (confirmBtn) confirmBtn.textContent = inlineEditIdx >= 0 ? 'Guardar' : 'Adicionar';
+    if (confirmBtn) confirmBtn.textContent = inlineEditIdx >= 0 ? 'Salvar' : 'Adicionar';
     scheduleModalServiceSearch();
     const nameEl = $('modalServiceName');
     if (nameEl) {
@@ -3087,48 +3135,51 @@
           onEnd: () => {
             syncItemsOrderFromDom();
             renderItems();
+            qbMarkDirty();
           },
         })
       );
     });
   }
 
+  /** Plain number for an inline input (no thousands separator, trimmed decimals). */
+  function inlineNum(n, decimals) {
+    const v = Number(n) || 0;
+    return decimals ? v.toFixed(2) : String(Math.round(v * 100) / 100);
+  }
+
+  /** One line of the quote: name/description open the full editor; quantity and price edit in place. */
   function createItemCard(it, idx) {
     const amt = lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
-    const qty = Number(it.quantity) || 0;
-    const rate = Number(it.rate) || 0;
     const name = it.name != null ? String(it.name).trim() : '';
-    const desc = it.description != null ? String(it.description).trim() : '';
+    let desc = it.description != null ? String(it.description).trim() : '';
+    // Older lines saved "Name Description" in the description: don't repeat the name.
+    while (name && desc.toLowerCase().startsWith(name.toLowerCase())) desc = desc.slice(name.length).replace(/^[\s—–:·-]+/, '').trim();
     const isProduct = it.item_type === 'product';
     const badges = [];
     if (it.estimateAuto) badges.push('<span class="qb-item-card__badge qb-item-card__badge--auto">auto</span>');
     if (isProduct) badges.push('<span class="qb-item-card__badge qb-item-card__badge--product">produto</span>');
-    if (!isProduct) {
-      badges.push(
-        `<span class="qb-item-card__badge qb-item-card__badge--cat">${escapeHtmlText(categoryLabel(it.service_type))}</span>`
-      );
-    }
     const markup =
-      it.markup_percentage != null && Number.isFinite(Number(it.markup_percentage))
-        ? ` · ${Number(it.markup_percentage)}% margem`
+      it.markup_percentage != null && Number.isFinite(Number(it.markup_percentage)) && Number(it.markup_percentage) !== 0
+        ? `<span class="qb-row__mk">${Number(it.markup_percentage)}% margem</span>`
         : '';
     const card = document.createElement('article');
-    card.className = 'qb-item-card';
+    card.className = 'qb-item-card qb-row';
     card.setAttribute('role', 'listitem');
     card.setAttribute('data-item-idx', String(idx));
     card.innerHTML = `
         <div class="qb-item-card__grip" aria-hidden="true" title="Arrastar para reordenar">⋮⋮</div>
-        <div class="qb-item-card__body">
-          <div class="qb-item-card__top">
-            <span class="qb-item-card__name">${escapeHtmlText(name || 'Sem nome')}${badges.join('')}</span>
-            <span class="qb-item-card__total">${money(amt)}</span>
-          </div>
-          ${desc ? `<p class="qb-item-card__desc">— ${escapeHtmlText(desc)}</p>` : ''}
-          <p class="qb-item-card__meta">${qty} × ${money(rate)} <span class="text-slate-400">(${escapeHtmlText(unitLabel(it.unit_type))})</span>${markup}</p>
+        <div class="qb-row__name" data-edit="${idx}" role="button" tabindex="0" title="Editar descrição e detalhes">
+          <b>${escapeHtmlText(name || 'Sem nome')}</b>${badges.join('')}
+          ${desc ? `<small>${escapeHtmlText(desc)}</small>` : ''}${markup}
         </div>
-        <div class="qb-item-card__actions">
-          <button type="button" class="qb-item-card__btn" data-edit="${idx}">Editar</button>
-          <button type="button" class="qb-item-card__btn qb-item-card__btn--danger" data-del="${idx}" title="Remover">Remover</button>
+        <label class="qb-row__qty"><span class="qb-row__lbl">Qtd</span><input type="text" inputmode="decimal" data-qty="${idx}" value="${inlineNum(it.quantity)}" aria-label="Quantidade de ${escapeHtmlText(name)}" autocomplete="off" /></label>
+        <span class="qb-row__unit">${escapeHtmlText(unitLabel(it.unit_type))}</span>
+        <label class="qb-row__rate"><span class="qb-row__lbl">Preço</span><span class="qb-row__cur">$</span><input type="text" inputmode="decimal" data-rate="${idx}" value="${inlineNum(it.rate, true)}" aria-label="Preço de ${escapeHtmlText(name)}" autocomplete="off" /></label>
+        <span class="qb-row__total" data-total="${idx}">${money(amt)}</span>
+        <div class="qb-row__act">
+          <button type="button" class="qb-row__ic" data-edit="${idx}" title="Editar" aria-label="Editar ${escapeHtmlText(name)}">✎</button>
+          <button type="button" class="qb-row__ic qb-row__ic--del" data-del="${idx}" title="Remover" aria-label="Remover ${escapeHtmlText(name)}">×</button>
         </div>`;
     return card;
   }
@@ -3147,6 +3198,13 @@
       else buckets[normalizeServiceType(it.service_type)].push(idx);
     });
 
+    if (items.length) {
+      const headRow = document.createElement('div');
+      headRow.className = 'qb-rows-head';
+      headRow.setAttribute('aria-hidden', 'true');
+      headRow.innerHTML = '<span></span><span>Serviço</span><span class="r">Qtd</span><span>Un.</span><span class="r">Preço</span><span class="r">Total</span><span></span>';
+      list.appendChild(headRow);
+    }
     QB_CATEGORIES.forEach(({ value, label }) => {
       const indices = buckets[value];
       if (!indices.length) return;
@@ -3193,6 +3251,17 @@
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || j.message || r.statusText);
+    const method = String((opt && opt.method) || 'GET').toUpperCase();
+    if ((method === 'POST' || method === 'PUT') && /^\/api\/quotes(\/[^/]+)?\/full$/.test(path)) {
+      const q = j && j.data && (j.data.quote || j.data);
+      if (q && q.created_at && !qbMeta.created_at) qbMeta.created_at = q.created_at;
+      if (q && q.work_order_id) qbMeta.work_order_id = q.work_order_id;
+      if (j.created_job_id) qbMeta.work_order_id = j.created_job_id;
+      setTimeout(() => {
+        qbSetDirty(false);
+        qbRenderProgress();
+      }, 0);
+    }
     return j;
   }
 
@@ -3723,13 +3792,13 @@
     if (!invoiceId) return;
     const inv = quoteInvoices.find((i) => String(i.id) === String(invoiceId));
     const label = inv?.invoice_number || `INV-${invoiceId}`;
-    if (!confirm(`Apagar o invoice ${label}? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Excluir a fatura ${label}? Esta ação não pode ser desfeita.`)) return;
     try {
       await api(`/api/quote-invoices/${invoiceId}`, { method: 'DELETE' });
-      window.crmToast?.success?.(`Fatura ${label} apagada.`);
+      window.crmToast?.success?.(`Fatura ${label} excluída.`);
       await loadQuoteInvoices();
     } catch (err) {
-      window.crmToast?.error?.(err.message || 'Erro ao apagar invoice');
+      window.crmToast?.error?.(err.message || 'Erro ao excluir a fatura');
     }
   }
 
@@ -3863,7 +3932,7 @@
           const parts = [d.name, d.title].filter(Boolean);
           meta.textContent = parts.length
             ? `Padrão ativo: ${parts.join(' · ')}`
-            : 'Assinatura padrão guardada para todos os orçamentos.';
+            : 'Assinatura padrão salva para todos os orçamentos.';
           meta.classList.remove('hidden');
         } else {
           meta.classList.add('hidden');
@@ -3880,11 +3949,11 @@
     const title = $('ownerSignTitle')?.value?.trim() || '';
     const useAuto = !!$('ownerSignAutoDefault')?.checked;
     if (!name || name.length < 2) {
-      qbToast('Indique o nome antes de guardar.', 'error');
+      qbToast('Indique o nome antes de salvar.', 'error');
       return;
     }
     if (!title || title.length < 2) {
-      qbToast('Indique o cargo antes de guardar.', 'error');
+      qbToast('Indique o cargo antes de salvar.', 'error');
       return;
     }
     if (!ownerSignaturePad) ownerSignaturePad = createOwnerSignaturePad();
@@ -3897,7 +3966,7 @@
     const prev = btn?.textContent;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'A guardar…';
+      btn.textContent = 'Salvando…';
     }
     try {
       await api('/api/quotes/settings/owner-signature', {
@@ -3909,15 +3978,15 @@
           signature_png: ownerSignaturePad.toDataURL(),
         }),
       });
-      qbToast('Assinatura padrão guardada para todos os orçamentos.', 'success');
+      qbToast('Assinatura padrão salva para todos os orçamentos.', 'success');
       ownerSignaturePad.clear();
       await loadOwnerSignatureSettings();
     } catch (err) {
-      qbToast(err.message || 'Erro ao guardar assinatura', 'error');
+      qbToast(err.message || 'Erro ao salvar a assinatura', 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prev || 'Guardar assinatura padrão';
+        btn.textContent = prev || 'Salvar assinatura padrão';
       }
     }
   }
@@ -4007,6 +4076,7 @@
     });
     $('status')?.addEventListener('change', () => {
       syncInvoiceUiVisibility();
+      qbRenderProgress();
     });
   }
 
@@ -4030,7 +4100,7 @@
     const label = loadedQuoteNumber || `#${quoteId}`;
     if (
       !confirm(
-        `Apagar o orçamento ${label}?\n\nEsta ação não pode ser desfeita. Faturas ligadas a este orçamento também podem ser removidas.`,
+        `Excluir o orçamento ${label}?\n\nEsta ação não pode ser desfeita. Faturas ligadas a este orçamento também podem ser removidas.`,
       )
     ) {
       return;
@@ -4039,17 +4109,17 @@
     const prev = btn?.textContent;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'A apagar…';
+      btn.textContent = 'Excluindo…';
     }
     try {
       await api(`/api/quotes/${encodeURIComponent(quoteId)}`, { method: 'DELETE' });
-      window.crmToast?.success?.(`Orçamento ${label} apagado.`);
+      window.crmToast?.success?.(`Orçamento ${label} excluído.`);
       location.href = 'quotes.html';
     } catch (err) {
-      window.crmToast?.error?.(err.message || 'Não foi possível apagar o orçamento.');
+      window.crmToast?.error?.(err.message || 'Não foi possível excluir o orçamento.');
       if (btn) {
         btn.disabled = false;
-        btn.textContent = prev || 'Apagar';
+        btn.textContent = prev || 'Excluir';
       }
       enableActions();
     }
@@ -4127,11 +4197,21 @@
     quotePdfNotifyShown = !!q.pdf_viewed_at;
     updateQuoteViewedBadge(q.viewed_at || null, { keepNotifyFlag: true });
     updatePdfViewedBadge(q.pdf_viewed_at || null, { keepNotifyFlag: true });
+    qbMeta = {
+      created_at: q.created_at || null,
+      email_sent_at: q.email_sent_at || null,
+      viewed_at: q.viewed_at || null,
+      pdf_viewed_at: q.pdf_viewed_at || null,
+      signed_at: q.signed_at || null,
+      work_order_id: q.work_order_id || null,
+    };
     startQuoteViewPolling();
     updatePreviewHeader();
     renderClientDetails();
     setPublicLink(q.public_token, q.quote_number);
     enableActions();
+    qbRenderProgress();
+    qbSetDirty(false);
     if (getQuoteParty() === 'builder') {
       setCatalogPricingMode('builder');
       refreshRatesForCatalogLines();
@@ -4236,14 +4316,14 @@
             if (hasInvoice && jobCreated) msg = 'Orçamento aprovado — fatura e job criados.';
             else if (hasInvoice) msg = 'Orçamento aprovado — fatura criada.';
             else if (jobCreated) msg = 'Orçamento aprovado — job criado (fatura pendente).';
-            else msg = 'Orçamento aprovado, mas a fatura não foi criada. Grave de novo ou emita manualmente.';
+            else msg = 'Orçamento aprovado, mas a fatura não foi criada. Salve de novo ou emita manualmente.';
             qbToast(msg, hasInvoice || jobCreated ? 'success' : 'error');
             enableActions();
             return;
           }
           // Backfill path: already approved, save again to create missing invoice.
           if (!hasInvoice) {
-            qbToast('Orçamento aprovado sem fatura — tente gravar de novo.', 'error');
+            qbToast('Orçamento aprovado sem fatura — tente salvar de novo.', 'error');
           }
         }
       } else {
@@ -4270,17 +4350,17 @@
           if (createdIds.length && jobCreated) msg = 'Orçamento aprovado — fatura e job criados.';
           else if (createdIds.length) msg = 'Orçamento aprovado — fatura criada.';
           else if (jobCreated) msg = 'Orçamento aprovado — job criado (fatura pendente).';
-          else msg = 'Orçamento aprovado, mas a fatura não foi criada. Grave de novo ou emita manualmente.';
+          else msg = 'Orçamento aprovado, mas a fatura não foi criada. Salve de novo ou emita manualmente.';
           qbToast(msg, createdIds.length || jobCreated ? 'success' : 'error');
           enableActions();
           return;
         }
       }
-      qbToast('Guardado.', 'success');
+      qbToast('Salvo.', 'success');
       enableActions();
       await loadQuoteInvoices();
     } catch (e) {
-      qbToast(e.message || 'Erro ao guardar', 'error');
+      qbToast(e.message || 'Erro ao salvar', 'error');
     }
   }
 
@@ -4632,9 +4712,9 @@
       };
       try {
         await api('/api/quote-templates', { method: 'POST', body: JSON.stringify(body) });
-        qbToast('Template guardado.', 'success');
+        qbToast('Template salvo.', 'success');
       } catch (e) {
-        qbToast(e.message || 'Erro ao guardar template', 'error');
+        qbToast(e.message || 'Erro ao salvar template', 'error');
       }
     });
 
@@ -4672,6 +4752,221 @@
       });
     }
   }
+
+  // ---------------------------------------------------------------- painel (status, andamento, próximo passo)
+  let qbMeta = { created_at: null, email_sent_at: null, viewed_at: null, pdf_viewed_at: null, signed_at: null, work_order_id: null };
+  let qbDirtyFlag = false;
+  let qbProgressTimer = null;
+  const QB_STATUS = {
+    draft: ['Rascunho', 'draft'],
+    sent: ['Enviado', 'sent'],
+    viewed: ['Visualizado', 'viewed'],
+    approved: ['Aprovado', 'approved'],
+    accepted: ['Aceito', 'approved'],
+    rejected: ['Recusado', 'rejected'],
+  };
+
+  function qbScheduleProgress() {
+    clearTimeout(qbProgressTimer);
+    qbProgressTimer = setTimeout(qbRenderProgress, 30);
+  }
+  function qbSetDirty(on) {
+    qbDirtyFlag = Boolean(on) && Boolean(quoteId || items.length);
+    const el = $('qbDirty');
+    if (el) el.hidden = !qbDirtyFlag;
+    document.querySelectorAll('[data-qb-proxy="btnSave"], #btnSave').forEach((b) => b.classList.toggle('qb-save--dirty', qbDirtyFlag));
+  }
+  function qbMarkDirty() {
+    qbSetDirty(true);
+  }
+  function qbWhen(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const day = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const t = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return `${day} ${t}`;
+  }
+  function qbAgo(iso) {
+    const d = new Date(iso);
+    const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    if (days <= 0) return `hoje às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    if (days === 1) return `ontem às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    return `há ${days} dias`;
+  }
+  function qbDigits(phone) {
+    let d = String(phone || '').replace(/\D/g, '');
+    if (d.length === 10) d = `1${d}`;
+    return d.length >= 11 ? d : '';
+  }
+  function qbClientFirstName() {
+    const n = String($('qbClientName')?.textContent || $('qbBuilderContact')?.textContent || '').trim();
+    return n && n !== '—' ? n.split(/\s+/)[0] : '';
+  }
+  function qbClientPhone() {
+    const t = String($('qbClientPhone')?.textContent || $('qbBuilderPhone')?.textContent || $('qbOrgCustomerPhone')?.textContent || '').trim();
+    return t === '—' ? '' : t;
+  }
+
+  function qbRenderProgress() {
+    const status = String($('status')?.value || 'draft').toLowerCase();
+    const [label, tone] = QB_STATUS[status] || [status, 'draft'];
+    const pill = $('qbStatusPill');
+    if (pill) {
+      pill.textContent = label;
+      pill.dataset.status = tone;
+    }
+    const job = String($('quoteJobName')?.value || '').trim();
+    const tj = $('qbTopJob');
+    if (tj) tj.textContent = job ? ` · ${job}` : '';
+
+    const approved = isQuoteApprovedStatus(status);
+    const sent = qbMeta.email_sent_at || ['sent', 'viewed', 'approved', 'accepted'].includes(status);
+    const viewed = qbMeta.viewed_at || ['viewed', 'approved', 'accepted'].includes(status);
+    const steps = [
+      { on: Boolean(quoteId), label: 'Criado', at: qbMeta.created_at },
+      { on: Boolean(sent), label: qbMeta.email_sent_at ? 'Enviado por e-mail' : 'Enviado', at: qbMeta.email_sent_at },
+      { on: Boolean(viewed), label: 'Aberto pelo cliente', at: qbMeta.viewed_at },
+      { on: approved, label: qbMeta.signed_at ? 'Aprovado e assinado' : 'Aprovado', at: qbMeta.signed_at },
+      { on: Boolean(qbMeta.work_order_id), label: 'Job criado', at: null, href: qbMeta.work_order_id ? `job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}` : null },
+    ];
+    if (status === 'rejected') steps.splice(3, 2, { on: true, label: 'Recusado pelo cliente', at: null, bad: true });
+    const nowIdx = steps.findIndex((x) => !x.on);
+    const prog = $('qbProgress');
+    if (prog) {
+      prog.innerHTML = `<h3 class="qb-side-t">Andamento</h3><ol class="qb-tl">${steps
+        .map((x, i) => {
+          const cls = x.bad ? 'is-bad' : x.on ? 'is-on' : i === nowIdx ? 'is-now' : '';
+          const txt = x.href && x.on ? `<a href="${x.href}">${x.label} →</a>` : x.label;
+          return `<li class="${cls}"><i aria-hidden="true">${x.bad ? '!' : x.on ? '✓' : ''}</i><span>${txt}</span>${x.at ? `<small>${qbWhen(x.at)}</small>` : ''}</li>`;
+        })
+        .join('')}</ol>`;
+    }
+
+    // Next step: one clear action for where the quote is.
+    const box = $('qbNext');
+    if (!box) return;
+    const link = $('publicLink')?.href || '';
+    const first = qbClientFirstName();
+    const phone = qbDigits(qbClientPhone());
+    let title = '';
+    let text = '';
+    let btn = '';
+    if (!quoteId) {
+      title = 'Monte o orçamento';
+      text = 'Escolha o cliente, adicione os serviços e salve.';
+      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSave">Salvar orçamento</button>';
+    } else if (status === 'rejected') {
+      title = 'Cliente recusou';
+      text = 'Duplique para mandar uma nova versão com outro preço ou escopo.';
+      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnDup">Duplicar como nova versão</button>';
+    } else if (approved && qbMeta.work_order_id) {
+      title = 'Aprovado — job criado';
+      text = 'Agende a equipe e acompanhe as faturas pelo job.';
+      btn = `<a class="btn btn-primary" href="job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}">Abrir o job</a>`;
+    } else if (approved) {
+      title = 'Aprovado';
+      text = 'Emita a fatura de depósito para começar.';
+      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnInvoice">Emitir fatura</button>';
+    } else if (viewed) {
+      title = 'Cliente abriu o orçamento';
+      text = `${first || 'O cliente'} abriu ${qbMeta.viewed_at ? qbAgo(qbMeta.viewed_at) : ''} e ainda não aprovou.`;
+      const msg = `Olá${first ? ` ${first}` : ''}! Conseguiu ver o orçamento? Qualquer dúvida estou à disposição. ${link}`.trim();
+      btn = phone
+        ? `<a class="btn btn-primary" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Lembrar por WhatsApp</a>`
+        : '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>';
+    } else if (sent) {
+      title = 'Enviado — aguardando o cliente';
+      text = qbMeta.email_sent_at ? `Enviado ${qbAgo(qbMeta.email_sent_at)}. Ainda não abriu.` : 'Ainda não abriu.';
+      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>';
+    } else {
+      title = 'Pronto para enviar';
+      text = 'Confira os itens e mande o link por e-mail ou SMS.';
+      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Enviar ao cliente</button>';
+    }
+    box.innerHTML = `<b>${title}</b><p>${text}</p>${btn}`;
+  }
+
+  function qbOpenMoreMenu(anchor) {
+    const menu = $('qbMoreMenu');
+    if (!menu) return;
+    const open = menu.classList.contains('hidden');
+    document.querySelectorAll('[data-qb-more]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    if (!open) {
+      menu.classList.add('hidden');
+      return;
+    }
+    menu.querySelectorAll('[data-qb-proxy]').forEach((proxy) => {
+      const src = document.getElementById(proxy.getAttribute('data-qb-proxy'));
+      proxy.disabled = !src || !!src.disabled;
+      proxy.hidden = !src || src.classList.contains('hidden') || !!src.hidden;
+    });
+    menu.classList.remove('hidden');
+    anchor.setAttribute('aria-expanded', 'true');
+    const mobile = window.matchMedia('(max-width: 1099px)').matches;
+    menu.classList.toggle('qb-more-menu--sheet', mobile);
+    if (!mobile) {
+      const r = anchor.getBoundingClientRect();
+      menu.style.top = `${r.bottom + 6}px`;
+      menu.style.left = `${Math.max(8, r.right - menu.offsetWidth)}px`;
+    } else {
+      menu.style.top = '';
+      menu.style.left = '';
+    }
+  }
+
+  function initQbPanel() {
+    document.addEventListener('click', (e) => {
+      const more = e.target.closest('[data-qb-more]');
+      if (more) {
+        e.preventDefault();
+        qbOpenMoreMenu(more);
+        return;
+      }
+      const menu = $('qbMoreMenu');
+      if (menu && !menu.classList.contains('hidden') && !e.target.closest('#qbMoreMenu')) menu.classList.add('hidden');
+      if (menu && e.target.closest('#qbMoreMenu [data-qb-proxy]')) setTimeout(() => menu.classList.add('hidden'), 0);
+      const now = e.target.closest('[data-qb-proxy-now]');
+      if (now) {
+        const id = now.getAttribute('data-qb-proxy-now');
+        const src = $(id);
+        if (!src || src.disabled) return;
+        if (id === 'btnSend') {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleQuoteSendMenu(now);
+          return;
+        }
+        src.click();
+      }
+      if (e.target.closest('#qbCopyLink')) {
+        const url = $('publicLink')?.href;
+        if (url && navigator.clipboard) navigator.clipboard.writeText(url).then(() => qbToast('Link copiado.', 'success'));
+      }
+      if (e.target.closest('#modalConfirmService, #btnApplyTemplate, #btnApplySqftToLines, #btnQbApplyRules')) qbMarkDirty();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') $('qbMoreMenu')?.classList.add('hidden');
+    });
+    // Anything typed in the quote (except the search boxes) leaves unsaved changes.
+    const root = document.querySelector('.estimate-builder');
+    const SKIP = new Set(['customerSearch', 'orgCustomerSearch', 'modalServiceName', 'qbBuilderExtraEmailInput', 'ownerSignName', 'ownerSignTitle']);
+    root?.addEventListener('change', (e) => {
+      if (!SKIP.has(e.target.id) && !e.target.closest('#addItemPanel')) qbMarkDirty();
+    });
+    root?.addEventListener('input', (e) => {
+      if (e.target.matches('#notes, #terms, #discountValue, #taxTotal, #quoteJobName, #quoteJobAddress')) qbMarkDirty();
+      if (e.target.id === 'quoteJobName') qbScheduleProgress();
+    });
+    window.addEventListener('beforeunload', (e) => {
+      if (!qbDirtyFlag) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+    qbRenderProgress();
+  }
+
+  initQbPanel();
 
   init().catch((e) => {
     $('authMsg').textContent = e.message;

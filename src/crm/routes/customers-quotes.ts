@@ -59,6 +59,18 @@ function lineItemDescription(it: {
   return name || desc || "Item";
 }
 
+/**
+ * Stored description is "Name\nDescription" (PDF / templates read the first line as the name).
+ * The editor wants only the description: drop leading lines equal to the name — older saves
+ * prepended the name again on every save ("Name\nName\nName\n…").
+ */
+export function editorDescription(name: string, stored: string | null | undefined): string {
+  const n = String(name || "").trim().toLowerCase();
+  const lines = String(stored || "").split("\n");
+  while (lines.length && n && lines[0]!.trim().toLowerCase() === n) lines.shift();
+  return lines.join("\n").trim();
+}
+
 function lineItemAmount(
   it: { amount?: unknown; quantity?: unknown; unit_price?: unknown; rate?: unknown; sell_price?: unknown },
   qty: number,
@@ -403,6 +415,7 @@ function mapQuote(q: {
   invoicePdfPath: string | null;
   validUntil: Date | null;
   viewedAt: Date | null;
+  signedAt?: Date | null;
   payload: unknown;
   createdAt: Date;
   updatedAt: Date;
@@ -463,6 +476,7 @@ function mapQuote(q: {
     lead_id: q.leadId,
     builder_id: q.builderId,
     work_order_id: q.workOrderId ?? null,
+    signed_at: q.signedAt ?? null,
     public_token: q.publicToken,
     has_invoice_pdf: Boolean(q.invoicePdfPath),
     invoice_pdf_url: q.invoicePdfPath ? `/api/quotes/${q.id}/invoice-pdf` : null,
@@ -490,7 +504,7 @@ function mapQuote(q: {
       return {
         id: li.id,
         name,
-        description: li.description,
+        description: editorDescription(name, li.description),
         quantity: dec(li.quantity),
         unit: li.unit,
         unit_type: unitToSf(li.unit),
