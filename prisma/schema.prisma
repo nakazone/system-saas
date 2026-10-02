@@ -1646,6 +1646,12 @@ model WorkOrder {
   assignedUser   User?     @relation("WorkOrderAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
   crewId         String?   @db.Uuid
   crew           Crew?     @relation(fields: [crewId], references: [id], onDelete: SetNull)
+  /// null | installation | sand_finish — routes the job to a Jobs calendar sector
+  sector         String?
+  /// Lixa → Instalação (or sibling link). Sand-finish jobs point at the installation job.
+  relatedWorkOrderId String? @db.Uuid
+  relatedWorkOrder   WorkOrder?  @relation("WorkOrderRelated", fields: [relatedWorkOrderId], references: [id], onDelete: SetNull)
+  relatedChildren    WorkOrder[] @relation("WorkOrderRelated")
   scheduledStart DateTime?
   scheduledEnd   DateTime?
   /// Set when the pre-start push reminder was sent (dedupe).
@@ -1680,10 +1686,12 @@ model WorkOrder {
   @@index([organizationId, status])
   @@index([organizationId, fieldStatus])
   @@index([organizationId, scheduledStart])
+  @@index([organizationId, sector])
   @@index([customerId])
   @@index([builderId])
   @@index([assignedUserId])
   @@index([crewId])
+  @@index([relatedWorkOrderId])
 }
 
 /// Field job photo/video proof — SHA-256 verified, GPS optional, stages before/during/after.

@@ -65,6 +65,13 @@
       addressTouched: false,
       date: "",
       time: "07:30",
+      /** null | installation | sand_finish */
+      sector: null,
+      relatedWorkOrderId: null,
+      relatedWorkOrder: null,
+      relatedChildren: [],
+      /** Cached installation jobs for the related-job picker. */
+      installOptions: [],
       assigneeId: null,
       members: new Set(),
       lines: [],
@@ -81,6 +88,13 @@
       busy: false,
     };
   }
+
+  const SECTOR_OPTS = [
+    { id: "", label: "Geral" },
+    { id: "installation", label: "Instalação" },
+    { id: "sand_finish", label: "Lixa" },
+  ];
+  const sectorLabel = (s) => SECTOR_OPTS.find((o) => o.id === (s || ""))?.label || "Geral";
 
   // ---------------------------------------------------------------- utils
   const $ = (id) => document.getElementById(id);
@@ -322,7 +336,19 @@
             <label class="jm-field">Data<input type="date" id="jmDate" class="jm-in" /></label>
             <label class="jm-field">Início<input type="time" id="jmTime" class="jm-in" step="900" /></label>
           </div>
-          <p class="jm-hint">Só data e hora de início — a duração fica aberta (obras são imprevisíveis).</p>
+          <div class="jm-when" style="margin-top:10px">
+            <label class="jm-field">Setor
+              <select id="jmSector" class="jm-in">
+                <option value="">Geral</option>
+                <option value="installation">Instalação</option>
+                <option value="sand_finish">Lixa</option>
+              </select>
+            </label>
+            <label class="jm-field" id="jmRelatedWrap" hidden>Job de Instalação
+              <select id="jmRelated" class="jm-in"><option value="">—</option></select>
+            </label>
+          </div>
+          <p class="jm-hint">Só data e hora de início — a duração fica aberta (obras são imprevisíveis). Setor define em qual agenda de Jobs o evento aparece.</p>
         </section>
 
         <section class="jm-sec" data-job-section="services">
@@ -460,9 +486,49 @@
     </div>`;
   }
 
+  async function ensureInstallOptions() {
+    if (!st || st.sector !== "sand_finish") return;
+    if (st.installOptions && st.installOptions.length) return;
+    try {
+      const j = await api("/api/work-orders");
+      st.installOptions = (j.data || [])
+        .filter((w) => w.sector === "installation" && w.status !== "canceled" && String(w.id) !== String(st.id || ""))
+        .map((w) => ({
+          id: w.id,
+          label: `#${w.number != null ? w.number : "—"} · ${w.title}${w.address ? " · " + w.address : ""}`,
+        }));
+    } catch (_) {
+      st.installOptions = [];
+    }
+  }
+
   function renderWhen() {
-    $("jmDate").value = st.date || "";
-    $("jmTime").value = st.time || "";
+    if ($("jmDate")) $("jmDate").value = st.date || "";
+    if ($("jmTime")) $("jmTime").value = st.time || "";
+    const sec = $("jmSector");
+    if (sec) sec.value = st.sector || "";
+    const wrap = $("jmRelatedWrap");
+    const rel = $("jmRelated");
+    if (wrap && rel) {
+      const show = st.sector === "sand_finish";
+      wrap.hidden = !show;
+      if (show) {
+        const opts = st.installOptions || [];
+        const cur = st.relatedWorkOrderId || "";
+        const hasCur = cur && opts.some((o) => String(o.id) === String(cur));
+        const curLabel =
+          st.relatedWorkOrder &&
+          `#${st.relatedWorkOrder.number != null ? st.relatedWorkOrder.number : "—"} · ${st.relatedWorkOrder.title}`;
+        rel.innerHTML =
+          `<option value="">—</option>` +
+          (!hasCur && cur
+            ? `<option value="${esc(cur)}" selected>${esc(curLabel || "Job ligado")}</option>`
+            : "") +
+          opts
+            .map((o) => `<option value="${esc(o.id)}" ${String(o.id) === String(cur) ? "selected" : ""}>${esc(o.label)}</option>`)
+            .join("");
+      }
+    }
   }
 
   function blankLine(opts) {
@@ -704,6 +770,7 @@
         <div><dt>Cliente</dt><dd>${esc(card?.name || "—")}</dd></div>
         <div><dt>Preços</dt><dd>${esc(customRates() ? "Personalizada" : TYPE_LABEL[st.sourceType] || "Particular")}</dd></div>
         <div><dt>Quando</dt><dd>${esc(whenLabel())}</dd></div>
+        <div><dt>Setor</dt><dd>${esc(sectorLabel(st.sector))}</dd></div>
         <div><dt>Equipe</dt><dd>${esc(assignee ? `${assignee.name || assignee.email}${others ? ` +${others}` : ""}` : "—")}</dd></div>
         <div><dt>Status</dt><dd>${esc(statusLbl)}</dd></div>
       </dl>
@@ -721,6 +788,11 @@
     foot.innerHTML = `
       ${showTotal ? `<span class="jm-foot__tot"><small>Total</small><b id="jmFootTotal">${money(linesTotal())}</b></span>` : ""}
       ${isEdit && st.section === "all" ? `<button type="button" class="jm-btn jm-btn--danger" data-act="cancel-job">Excluir</button>` : ""}
+      ${
+        isEdit && st.sector === "installation" && st.section === "all"
+          ? `<button type="button" class="jm-btn jm-btn--ghost" data-act="schedule-lixa">Agendar Lixa</button>`
+          : ""
+      }
       ${isEdit && !onDetail ? `<a class="jm-btn jm-btn--ghost jm-btn--open" href="job-detail.html?id=${encodeURIComponent(st.id)}">Abrir job</a>` : ""}
       <span class="jm-sp"></span>
       <button type="button" class="jm-btn jm-btn--ghost jm-btn--cancel" data-act="close">Cancelar</button>
@@ -745,11 +817,12 @@
     }
   }
 
-  function renderAll() {
+  async function renderAll() {
     renderClient();
     $("jobAddress").value = st.address;
     renderAddrHint();
     renderMore();
+    if (st.sector === "sand_finish") await ensureInstallOptions();
     renderWhen();
     renderServices();
     renderTeam();
@@ -891,7 +964,7 @@
     $("jobModal").classList.add("is-open");
     $("jobModalBackdrop").classList.add("is-open");
     document.body.classList.add("jm-open");
-    renderAll();
+    Promise.resolve(renderAll()).catch(() => {});
     if (window.sfAttachAddressAutocomplete) {
       try {
         window.sfAttachAddressAutocomplete($("jobAddress"), { map: { combined: $("jobAddress") } });
@@ -910,6 +983,17 @@
     st = null;
   }
 
+  function nextDayAfter(isoOrDate) {
+    const d = isoOrDate ? new Date(isoOrDate) : new Date();
+    if (Number.isNaN(d.getTime())) {
+      const t = new Date();
+      t.setDate(t.getDate() + 1);
+      return t;
+    }
+    const n = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, d.getHours() || 7, d.getMinutes() || 30, 0, 0);
+    return n;
+  }
+
   async function openCreate(opts) {
     if (!canManage) {
       notify("Sem permissão para criar jobs.", "error");
@@ -917,7 +1001,8 @@
     }
     await loadLookups();
     st = blankState();
-    let start = opts && opts.start ? new Date(opts.start) : null;
+    const o = opts || {};
+    let start = o.start ? new Date(o.start) : null;
     if (!start || Number.isNaN(start.getTime())) {
       const pref = sessionStorage.getItem("obramate_job_pref_start");
       if (pref) {
@@ -938,8 +1023,60 @@
       st.assigneeId = String(meId);
       st.members.add(String(meId));
     }
+    if (o.sector === "installation" || o.sector === "sand_finish") st.sector = o.sector;
+    if (o.relatedWorkOrderId) {
+      st.relatedWorkOrderId = String(o.relatedWorkOrderId);
+      st.relatedWorkOrder = o.relatedWorkOrder || { id: st.relatedWorkOrderId, title: o.relatedTitle || "Job ligado", number: o.relatedNumber ?? null };
+    }
+    if (o.customerId) {
+      st.customerId = String(o.customerId);
+      st.pickerOpen = false;
+    }
+    if (o.builderId) {
+      st.builderId = String(o.builderId);
+      st.pickerOpen = false;
+    }
+    if (o.sourceType) st.sourceType = o.sourceType;
+    if (o.sourceName != null) {
+      st.sourceName = o.sourceName;
+      st.sourceNameAuto = false;
+    }
+    if (o.address != null) {
+      st.address = o.address;
+      st.addressTouched = true;
+    }
+    if (o.notes != null) st.notes = o.notes;
+    if (o.title) {
+      st.title = o.title;
+      st.titleTouched = true;
+    }
     st.lines = [blankLine()];
     open();
+  }
+
+  async function openScheduleLixaFrom(wo) {
+    const base = wo || null;
+    if (!base || !base.id) return;
+    const start = nextDayAfter(base.scheduled_end || base.scheduled_start);
+    await openCreate({
+      start,
+      sector: "sand_finish",
+      relatedWorkOrderId: base.id,
+      relatedWorkOrder: {
+        id: base.id,
+        number: base.number,
+        title: base.title,
+        sector: base.sector,
+        status: base.status,
+      },
+      customerId: base.customer_id || null,
+      builderId: base.builder_id || null,
+      sourceType: base.source_type || "particular",
+      sourceName: base.source_name || "",
+      address: base.address || "",
+      notes: base.notes || "",
+      title: base.title ? `${base.title} — Lixa` : "Lixa",
+    });
   }
 
   async function openEdit(id, opts) {
@@ -994,6 +1131,10 @@
       ? wo.campo_checklist.map((c) => ({ id: c.id, text: c.text, photo: Boolean(c.photo_required), done: Boolean(c.done) }))
       : [];
     st.temps = Array.isArray(wo.temp_workers) ? wo.temp_workers : [];
+    st.sector = wo.sector === "installation" || wo.sector === "sand_finish" ? wo.sector : null;
+    st.relatedWorkOrderId = wo.related_work_order_id || null;
+    st.relatedWorkOrder = wo.related_work_order || null;
+    st.relatedChildren = Array.isArray(wo.related_children) ? wo.related_children : [];
     st.pickerOpen = !(st.customerId || st.builderId);
     open();
   }
@@ -1034,6 +1175,8 @@
       scheduled_start: start ? start.toISOString() : null,
       scheduled_end: end ? end.toISOString() : null,
       status: st.id ? st.status : start ? "scheduled" : "draft",
+      sector: st.sector || null,
+      related_work_order_id: st.sector === "sand_finish" ? st.relatedWorkOrderId || null : null,
     };
     return body;
   }
@@ -1042,7 +1185,7 @@
     if (st.section === "all") return full;
     const pick = {
       details: ["title", "source_type", "source_name", "customer_id", "builder_id", "address", "status"],
-      schedule: ["scheduled_start", "scheduled_end"],
+      schedule: ["scheduled_start", "scheduled_end", "sector", "related_work_order_id"],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
       campo: ["campo_attention", "campo_checklist"],
@@ -1284,6 +1427,27 @@
         st.moreOpen = !st.moreOpen;
         renderMore();
         break;
+      case "schedule-lixa": {
+        if (!st?.id) break;
+        const snap = {
+          id: st.id,
+          number: st.number,
+          title: st.title || autoTitle(),
+          sector: st.sector,
+          status: st.status,
+          customer_id: st.customerId,
+          builder_id: st.builderId,
+          source_type: st.sourceType,
+          source_name: st.sourceName,
+          address: st.address,
+          notes: st.notes,
+          scheduled_start: computeRange().start ? computeRange().start.toISOString() : null,
+          scheduled_end: null,
+        };
+        close();
+        openScheduleLixaFrom(snap);
+        break;
+      }
       case "add-line":
         st.lines.push(blankLine());
         renderServices();
@@ -1514,6 +1678,19 @@
         st.time = t.value;
         renderSide();
         return;
+      case "jmSector":
+        st.sector = t.value === "installation" || t.value === "sand_finish" ? t.value : null;
+        if (st.sector !== "sand_finish") st.relatedWorkOrderId = null;
+        ensureInstallOptions().then(() => {
+          renderWhen();
+          renderSide();
+          renderFoot();
+        });
+        return;
+      case "jmRelated":
+        st.relatedWorkOrderId = t.value || null;
+        renderSide();
+        return;
       case "jobAddress":
         // Address autocomplete writes the value without an input event.
         st.address = t.value;
@@ -1667,6 +1844,7 @@
     openCreate: (opts) => ready.then(() => openCreate(opts)),
     openEdit: (id, opts) => ready.then(() => openEdit(id, opts)),
     openSection: (id, section) => ready.then(() => openEdit(id, { section: section || "all" })),
+    openScheduleLixa: (wo) => ready.then(() => openScheduleLixaFrom(wo)),
     close: () => close(),
     onSaved: (fn) => {
       if (typeof fn === "function") savedListeners.push(fn);

@@ -1,16 +1,20 @@
 /**
- * Configurações › Agenda — Jobs/Visitas/Meetings colors + custom calendars.
+ * Configurações › Agenda — calendars livres (Jobs/Visitas/Meetings/Extra).
+ * Jobs podem ter sector: all | installation | sand_finish.
  */
 import { z } from "zod";
 import { randomUUID } from "crypto";
 
 export type ScheduleCalendarKind = "jobs" | "visits" | "meetings" | "custom";
+export type ScheduleJobSector = "all" | "installation" | "sand_finish";
 
 export type ScheduleCalendar = {
   id: string;
   name: string;
   color: string;
   kind: ScheduleCalendarKind;
+  /** Only for kind=jobs. all = catches jobs without a specific sector match. */
+  sector?: ScheduleJobSector;
 };
 
 export type ScheduleSettings = {
@@ -18,9 +22,10 @@ export type ScheduleSettings = {
 };
 
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+const UUID_RE = /^[0-9a-f-]{36}$/i;
 
 export const DEFAULT_SCHEDULE_CALENDARS: ScheduleCalendar[] = [
-  { id: "jobs", name: "Jobs", color: "#e8792c", kind: "jobs" },
+  { id: "jobs", name: "Jobs", color: "#e8792c", kind: "jobs", sector: "all" },
   { id: "visits", name: "Visitas", color: "#7a5ea8", kind: "visits" },
   { id: "meetings", name: "Meetings", color: "#3b6ea5", kind: "meetings" },
 ];
@@ -54,63 +59,61 @@ function kindOf(r: Record<string, unknown>): ScheduleCalendarKind {
   return "custom";
 }
 
-/** Normalize stored JSON into Jobs + Visitas + Meetings + optional customs. */
+function sectorOf(r: Record<string, unknown>, kind: ScheduleCalendarKind): ScheduleJobSector | undefined {
+  if (kind !== "jobs") return undefined;
+  if (r.sector === "installation" || r.sector === "sand_finish" || r.sector === "all") {
+    return r.sector;
+  }
+  return "all";
+}
+
+function stableId(r: Record<string, unknown>, kind: ScheduleCalendarKind): string {
+  if (typeof r.id === "string" && r.id.trim()) {
+    const id = r.id.trim();
+    // Keep legacy fixed ids and UUIDs.
+    if (id === "jobs" || id === "visits" || id === "meetings" || UUID_RE.test(id)) return id;
+  }
+  if (kind === "visits") return randomUUID();
+  if (kind === "meetings") return randomUUID();
+  if (kind === "jobs") return randomUUID();
+  return randomUUID();
+}
+
+/** Normalize stored JSON. Empty/missing → defaults. Otherwise trust the list as-is. */
 export function parseScheduleSettings(raw: unknown): ScheduleSettings {
-  const base = defaultScheduleSettings();
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return defaultScheduleSettings();
+  }
   const o = raw as Record<string, unknown>;
   const list = Array.isArray(o.calendars) ? o.calendars : [];
+  if (!list.length) return defaultScheduleSettings();
 
-  let jobs = { ...base.calendars[0]! };
-  let visits = { ...base.calendars[1]! };
-  let meetings = { ...base.calendars[2]! };
-  const customs: ScheduleCalendar[] = [];
-  const seenCustom = new Set<string>();
+  const out: ScheduleCalendar[] = [];
+  const seen = new Set<string>();
 
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
     const r = item as Record<string, unknown>;
     const kind = kindOf(r);
-    if (kind === "jobs") {
-      jobs = {
-        id: "jobs",
-        kind: "jobs",
-        name: normalizeName(r.name, "Jobs"),
-        color: normalizeColor(r.color, jobs.color),
-      };
-      continue;
-    }
-    if (kind === "visits") {
-      visits = {
-        id: "visits",
-        kind: "visits",
-        name: normalizeName(r.name, "Visitas"),
-        color: normalizeColor(r.color, visits.color),
-      };
-      continue;
-    }
-    if (kind === "meetings") {
-      meetings = {
-        id: "meetings",
-        kind: "meetings",
-        name: normalizeName(r.name, "Meetings"),
-        color: normalizeColor(r.color, meetings.color),
-      };
-      continue;
-    }
-    const id =
-      typeof r.id === "string" && /^[0-9a-f-]{36}$/i.test(r.id) ? r.id : randomUUID();
-    if (seenCustom.has(id)) continue;
-    seenCustom.add(id);
-    customs.push({
+    const id = stableId(r, kind);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const fallbackName =
+      kind === "jobs" ? "Jobs" : kind === "visits" ? "Visitas" : kind === "meetings" ? "Meetings" : "Agenda";
+    const fallbackColor =
+      kind === "jobs" ? "#e8792c" : kind === "visits" ? "#7a5ea8" : kind === "meetings" ? "#3b6ea5" : "#16a34a";
+    const cal: ScheduleCalendar = {
       id,
-      kind: "custom",
-      name: normalizeName(r.name, "Agenda"),
-      color: normalizeColor(r.color, "#16a34a"),
-    });
+      kind,
+      name: normalizeName(r.name, fallbackName),
+      color: normalizeColor(r.color, fallbackColor),
+    };
+    const sector = sectorOf(r, kind);
+    if (sector) cal.sector = sector;
+    out.push(cal);
   }
 
-  return { calendars: [jobs, visits, meetings, ...customs] };
+  return out.length ? { calendars: out } : defaultScheduleSettings();
 }
 
 export function serializeScheduleSettings(settings: ScheduleSettings) {
@@ -120,6 +123,7 @@ export function serializeScheduleSettings(settings: ScheduleSettings) {
       name: c.name,
       color: c.color,
       kind: c.kind,
+      ...(c.kind === "jobs" ? { sector: c.sector || "all" } : {}),
     })),
   };
 }
@@ -129,22 +133,19 @@ const calendarSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório").max(80),
   color: z.string().regex(COLOR_RE, "Cor inválida"),
   kind: z.enum(["jobs", "visits", "meetings", "custom"]).optional(),
+  sector: z.enum(["all", "installation", "sand_finish"]).optional().nullable(),
 });
 
 export const scheduleSettingsPutSchema = z.object({
-  calendars: z.array(calendarSchema).min(3).max(24),
+  calendars: z.array(calendarSchema).min(0).max(24),
 });
 
 export type ScheduleSettingsPut = z.infer<typeof scheduleSettingsPutSchema>;
 
-/** Merge PUT body into a full settings object (always keeps Jobs + Visitas + Meetings). */
+/** Apply PUT body as the full calendar list (no forced built-ins). */
 export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSettings {
-  const current = defaultScheduleSettings();
-  let jobs = { ...current.calendars[0]! };
-  let visits = { ...current.calendars[1]! };
-  let meetings = { ...current.calendars[2]! };
-  const customs: ScheduleCalendar[] = [];
-  const seenCustom = new Set<string>();
+  const out: ScheduleCalendar[] = [];
+  const seen = new Set<string>();
 
   for (const row of body.calendars) {
     const kind =
@@ -156,46 +157,28 @@ export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSet
           : row.id === "meetings"
             ? "meetings"
             : "custom");
-    if (kind === "jobs") {
-      jobs = {
-        id: "jobs",
-        kind: "jobs",
-        name: row.name.trim() || "Jobs",
-        color: row.color.toLowerCase(),
-      };
-      continue;
-    }
-    if (kind === "visits") {
-      visits = {
-        id: "visits",
-        kind: "visits",
-        name: row.name.trim() || "Visitas",
-        color: row.color.toLowerCase(),
-      };
-      continue;
-    }
-    if (kind === "meetings") {
-      meetings = {
-        id: "meetings",
-        kind: "meetings",
-        name: row.name.trim() || "Meetings",
-        color: row.color.toLowerCase(),
-      };
-      continue;
-    }
     const id =
-      row.id && /^[0-9a-f-]{36}$/i.test(row.id) ? row.id : randomUUID();
-    if (seenCustom.has(id)) continue;
-    seenCustom.add(id);
-    customs.push({
+      row.id && (row.id === "jobs" || row.id === "visits" || row.id === "meetings" || UUID_RE.test(row.id))
+        ? row.id
+        : randomUUID();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const cal: ScheduleCalendar = {
       id,
-      kind: "custom",
-      name: row.name.trim(),
+      kind,
+      name: row.name.trim() || (kind === "jobs" ? "Jobs" : kind === "visits" ? "Visitas" : kind === "meetings" ? "Meetings" : "Agenda"),
       color: row.color.toLowerCase(),
-    });
+    };
+    if (kind === "jobs") {
+      cal.sector =
+        row.sector === "installation" || row.sector === "sand_finish" || row.sector === "all"
+          ? row.sector
+          : "all";
+    }
+    out.push(cal);
   }
 
-  return { calendars: [jobs, visits, meetings, ...customs] };
+  return { calendars: out };
 }
 
 /** Attach custom agendas found on meetings but missing from settings. */
@@ -204,13 +187,13 @@ export function mergeOrphanCalendars(
   orphanIds: Array<string | null | undefined>,
 ): { settings: ScheduleSettings; added: boolean } {
   const known = new Set(settings.calendars.map((c) => c.id));
-  const customs = settings.calendars.filter((c) => c.kind === "custom");
+  const extras: ScheduleCalendar[] = [];
   let added = false;
   for (const raw of orphanIds) {
     if (!raw || typeof raw !== "string") continue;
-    if (!/^[0-9a-f-]{36}$/i.test(raw)) continue;
+    if (!UUID_RE.test(raw)) continue;
     if (known.has(raw)) continue;
-    customs.push({
+    extras.push({
       id: raw,
       kind: "custom",
       name: "Agenda",
@@ -220,8 +203,7 @@ export function mergeOrphanCalendars(
     added = true;
   }
   if (!added) return { settings, added: false };
-  const fixed = settings.calendars.filter((c) => c.kind !== "custom");
-  return { settings: { calendars: [...fixed, ...customs] }, added: true };
+  return { settings: { calendars: [...settings.calendars, ...extras] }, added: true };
 }
 
 export function resolveMeetingColor(
@@ -238,10 +220,36 @@ export function resolveVisitColor(settings: ScheduleSettings): string {
   return settings.calendars.find((c) => c.kind === "visits")?.color || "#7a5ea8";
 }
 
+export function resolveVisitCalendarId(settings: ScheduleSettings): string {
+  return settings.calendars.find((c) => c.kind === "visits")?.id || "visits";
+}
+
+/**
+ * Pick which jobs calendar a work order belongs to.
+ * Match: exact sector → jobs/all → first jobs → synthetic "jobs".
+ */
+export function resolveJobCalendar(
+  settings: ScheduleSettings,
+  sector: string | null | undefined,
+): ScheduleCalendar {
+  const jobs = settings.calendars.filter((c) => c.kind === "jobs");
+  const sec =
+    sector === "installation" || sector === "sand_finish" ? sector : null;
+  if (sec) {
+    const hit = jobs.find((c) => (c.sector || "all") === sec);
+    if (hit) return hit;
+  }
+  const all = jobs.find((c) => (c.sector || "all") === "all");
+  if (all) return all;
+  if (jobs[0]) return jobs[0];
+  return { id: "jobs", name: "Jobs", color: "#e8792c", kind: "jobs", sector: "all" };
+}
+
 export function resolveJobColor(
   settings: ScheduleSettings,
   crewColor: string | null | undefined,
+  sector?: string | null,
 ): string {
   if (crewColor && COLOR_RE.test(crewColor)) return crewColor.toLowerCase();
-  return settings.calendars.find((c) => c.kind === "jobs")?.color || "#e8792c";
+  return resolveJobCalendar(settings, sector).color;
 }

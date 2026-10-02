@@ -90,27 +90,25 @@
   const FIELD_STATUS = { en_route: 'A caminho', on_site: 'No local', completed: 'Finalizado no campo' };
   const MTG_STATUS = { scheduled: 'Agendado', completed: 'Concluído', canceled: 'Cancelado' };
 
-  /** Calendar list for the sidebar / forms: Jobs, Visitas, Compromissos + custom agendas. */
+  /** Calendar list for the sidebar / forms — mirrors Configurações › Agenda. */
   function calList() {
     const fallback = [
-      { id: 'jobs', name: 'Jobs', color: TYPES.job.color, kind: 'jobs' },
+      { id: 'jobs', name: 'Jobs', color: TYPES.job.color, kind: 'jobs', sector: 'all' },
       { id: 'visits', name: 'Visitas', color: TYPES.visit.color, kind: 'visits' },
       { id: 'meetings', name: 'Meetings', color: TYPES.meeting.color, kind: 'meetings' },
     ];
     const cfg = S.calendars.length ? S.calendars : fallback;
     const pt = (c) => (c.kind === 'meetings' && /^meetings?$/i.test(c.name) ? 'Compromissos' : c.name);
-    const jobs = cfg.find((c) => c.kind === 'jobs') || fallback[0];
-    const visits = cfg.find((c) => c.kind === 'visits') || fallback[1];
-    const out = [
-      { id: 'jobs', name: pt(jobs), color: jobs.color, kind: 'jobs' },
-      { id: 'visits', name: pt(visits), color: visits.color, kind: 'visits' },
-    ];
-    cfg
-      .filter((c) => c.kind !== 'jobs' && c.kind !== 'visits')
-      .forEach((c) => out.push({ id: c.id, name: pt(c), color: c.color, kind: c.kind }));
-    return out;
+    return cfg.map((c) => ({
+      id: c.id,
+      name: pt(c),
+      color: c.color,
+      kind: c.kind,
+      sector: c.sector || (c.kind === 'jobs' ? 'all' : undefined),
+    }));
   }
   const calOf = (e) => calList().find((c) => c.id === e.calendar) || { name: TYPES[e.type].one, color: e.color };
+  const SECTOR_LBL = { installation: 'Instalação', sand_finish: 'Lixa' };
 
   // ---------------------------------------------------------------- state
   const S = {
@@ -881,12 +879,34 @@
       ${mini}
       <div class="ag-card ag-dtl__kv">
         <div><span>Calendário</span><b><i class="ag-dot" style="background:${esc(calOf(e).color)}"></i>${esc(calOf(e).name)}${e.type === 'job' && e.meta.crew ? ' · ' + esc(e.meta.crew.name) : ''}</b></div>
+        ${e.type === 'job' && e.meta.sector ? `<div><span>Setor</span><b>${esc(SECTOR_LBL[e.meta.sector] || e.meta.sector)}</b></div>` : ''}
+        ${
+          e.type === 'job' && e.meta.related_work_order
+            ? `<div><span>Job ligado</span><b><a class="ag-link" href="job-detail.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
+                e.meta.related_work_order.number != null ? e.meta.related_work_order.number : '—'
+              )} · ${esc(e.meta.related_work_order.title)}</a></b></div>`
+            : ''
+        }
+        ${
+          e.type === 'job' && e.meta.related_children && e.meta.related_children.length
+            ? `<div><span>Lixa / relacionados</span><b>${e.meta.related_children
+                .map(
+                  (c) =>
+                    `<a class="ag-link" href="job-detail.html?id=${encodeURIComponent(c.id)}">#${esc(c.number != null ? c.number : '—')} · ${esc(c.title)}</a>`
+                )
+                .join('<br>')}</b></div>`
+            : ''
+        }
         ${ppl.length ? `<div><span>Equipe</span><b>${esc(ppl.join(', '))}</b></div>` : ''}
         ${e.type === 'job' && e.meta.services_total ? `<div><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
       </div>
       ${notesBlock}
       <div class="ag-dtl__acts">${ct.href ? `<a class="ag-btn ag-btn--pri" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
         canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
+      }${
+        canEdit && e.type === 'job' && e.meta.sector === 'installation'
+          ? `<button type="button" class="ag-btn" data-ag-lixa="${esc(e.id)}">Agendar Lixa</button>`
+          : ''
       }</div>
       ${canEdit ? `<button type="button" class="ag-btn ag-btn--danger ag-btn--block" data-ag-del="${esc(e.id)}">${e.type === 'job' ? 'Cancelar job' : e.type === 'visit' ? 'Cancelar visita' : 'Cancelar compromisso'}</button>` : ''}
     </div>`;
@@ -1252,6 +1272,31 @@
       if ((el = t.closest('[data-ag-edit]'))) {
         const e = findEv(el.dataset.agEdit);
         if (e) openEditor(e.type, e);
+        return;
+      }
+      if ((el = t.closest('[data-ag-lixa]'))) {
+        const e = findEv(el.dataset.agLixa);
+        closePop();
+        closeSheet();
+        if (!e || !window.__crmJobModal) return toast('Editor de job indisponível.', 'error');
+        const m = e.meta || {};
+        window.__crmJobModal
+          .openScheduleLixa({
+            id: e.id,
+            number: m.number,
+            title: e.title,
+            sector: m.sector,
+            status: e.status,
+            customer_id: m.customer_id,
+            builder_id: m.builder_id,
+            source_type: m.source_type,
+            source_name: m.source_name,
+            address: e.address || m.address,
+            notes: m.notes,
+            scheduled_start: e.start && e.start.toISOString ? e.start.toISOString() : m.scheduled_start,
+            scheduled_end: e.end && e.end.toISOString ? e.end.toISOString() : m.scheduled_end,
+          })
+          .catch((err) => toast(err.message, 'error'));
         return;
       }
       if ((el = t.closest('[data-ag-del]'))) {

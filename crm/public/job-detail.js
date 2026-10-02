@@ -124,8 +124,10 @@
   function renderHeader() {
     const [label, cls] = STATUS[job.status] || [job.status, "draft"];
     const b = billing?.billing || job.billing;
+    const sectorLbl = job.sector === "installation" ? "Instalação" : job.sector === "sand_finish" ? "Lixa" : "";
     $("jdChips").innerHTML = `
       <span class="jd-pill jd-pill--${cls}">${esc(label)}</span>
+      ${sectorLbl ? `<span class="jd-pill">${esc(sectorLbl)}</span>` : ""}
       ${canBill && b && b.billing_status !== "no_value" && window.JobBilling ? window.JobBilling.chip(b) : ""}
       ${job.number != null ? `<span class="jd-num">Job #${esc(job.number)}</span>` : ""}`;
     $("jobDetailTitle").textContent = job.title || `Job para ${clientName()}`;
@@ -138,6 +140,13 @@
         : `<span class="jd-muted">Sem endereço</span>`,
       `<span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>${esc(shortRange())}</span>`,
     ];
+    if (job.related_work_order) {
+      parts.push(
+        `<a href="job-detail.html?id=${encodeURIComponent(job.related_work_order.id)}">Ligado a #${esc(
+          job.related_work_order.number != null ? job.related_work_order.number : "—",
+        )} · ${esc(job.related_work_order.title)}</a>`,
+      );
+    }
     $("jdSub").innerHTML = parts.join("");
     renderPrimary();
     $("btnOpenSchedule").href = job.scheduled_start ? `schedule.html?focus=${encodeURIComponent(job.scheduled_start)}&event=${encodeURIComponent(job.id)}` : "schedule.html";
@@ -145,6 +154,8 @@
     const map = $("jdOpenMap");
     map.hidden = !job.address;
     if (job.address) map.href = mapsUrl();
+    const lixaBtn = $("btnScheduleLixa");
+    if (lixaBtn) lixaBtn.hidden = !(canManage && job.sector === "installation" && job.status !== "canceled");
   }
 
   /** One obvious next step, depending on where the job is. */
@@ -990,6 +1001,11 @@
     $("btnEditServices").addEventListener("click", () => openSection("services"));
     $("btnEditServices2").addEventListener("click", () => openSection("services"));
     $("btnManageTeam").addEventListener("click", () => openSection("team"));
+    $("btnScheduleLixa")?.addEventListener("click", () => {
+      closeMenu();
+      if (!window.__crmJobModal) return notify("Editor de job indisponível.", "error");
+      window.__crmJobModal.openScheduleLixa(job).catch((e) => notify(e.message, "error"));
+    });
     $("btnDeleteJob").addEventListener("click", async () => {
       closeMenu();
       if (!confirm("Excluir este job? Ele será cancelado e sairá da agenda.")) return;

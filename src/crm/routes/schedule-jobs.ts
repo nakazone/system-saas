@@ -16,11 +16,44 @@ import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
 import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 import {
   parseScheduleSettings,
+  resolveJobCalendar,
   resolveJobColor,
   resolveMeetingColor,
+  resolveVisitCalendarId,
   resolveVisitColor,
 } from "../../lib/settings/schedule.js";
 import { formatUsPhone } from "../../lib/phone.js";
+
+const WO_SECTORS = ["installation", "sand_finish"] as const;
+
+function normalizeWoSector(raw: unknown): string | null {
+  const v = String(raw || "").trim().toLowerCase();
+  if (v === "installation" || v === "sand_finish") return v;
+  return null;
+}
+
+async function resolveRelatedWorkOrderId(
+  organizationId: string,
+  relatedId: string | null | undefined,
+  selfId?: string | null,
+): Promise<string | null> {
+  if (!relatedId) return null;
+  if (selfId && relatedId === selfId) {
+    const err = new Error("Um job não pode se ligar a si mesmo") as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+  const hit = await prisma.workOrder.findFirst({
+    where: { id: relatedId, organizationId, status: { not: "canceled" } },
+    select: { id: true },
+  });
+  if (!hit) {
+    const err = new Error("Job de Instalação ligado não encontrado") as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+  return hit.id;
+}
 
 export const scheduleJobsRouter = Router();
 
@@ -127,6 +160,8 @@ function mapWorkOrder(wo: {
   campoChecklist?: unknown;
   assignedUserId: string | null;
   crewId: string | null;
+  sector?: string | null;
+  relatedWorkOrderId?: string | null;
   scheduledStart: Date | null;
   scheduledEnd: Date | null;
   createdAt: Date;
@@ -135,6 +170,8 @@ function mapWorkOrder(wo: {
   builder?: { id: string; firstName: string; lastName: string; company: string | null } | null;
   assignedUser?: { id: string; name: string } | null;
   crew?: { id: string; name: string; color: string | null } | null;
+  relatedWorkOrder?: { id: string; number: number | null; title: string; sector: string | null; status: string } | null;
+  relatedChildren?: { id: string; number: number | null; title: string; sector: string | null; status: string }[];
   members?: { userId: string; user: { id: string; name: string; email: string } }[];
   tempWorkers?: {
     id: string;
@@ -196,6 +233,24 @@ function mapWorkOrder(wo: {
         : null,
     assigned_user_id: wo.assignedUserId,
     crew_id: wo.crewId,
+    sector: wo.sector ?? null,
+    related_work_order_id: wo.relatedWorkOrderId ?? null,
+    related_work_order: wo.relatedWorkOrder
+      ? {
+          id: wo.relatedWorkOrder.id,
+          number: wo.relatedWorkOrder.number,
+          title: wo.relatedWorkOrder.title,
+          sector: wo.relatedWorkOrder.sector,
+          status: wo.relatedWorkOrder.status,
+        }
+      : null,
+    related_children: (wo.relatedChildren || []).map((c) => ({
+      id: c.id,
+      number: c.number,
+      title: c.title,
+      sector: c.sector,
+      status: c.status,
+    })),
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
     scheduled_end: wo.scheduledEnd?.toISOString() ?? null,
     created_at: wo.createdAt.toISOString(),
@@ -294,11 +349,25 @@ function mapMeeting(m: {
   };
 }
 
+const relatedWoSelect = {
+  id: true,
+  number: true,
+  title: true,
+  sector: true,
+  status: true,
+} as const;
+
 const woInclude = {
   customer: { select: { id: true, name: true, email: true, phone: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
+  relatedWorkOrder: { select: relatedWoSelect },
+  relatedChildren: {
+    where: { status: { not: "canceled" } },
+    select: relatedWoSelect,
+    orderBy: { createdAt: "asc" as const },
+  },
   members: {
     include: { user: { select: { id: true, name: true, email: true } } },
     orderBy: { createdAt: "asc" as const },
@@ -723,6 +792,8 @@ const workOrderBody = z.object({
     .nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
   crew_id: z.string().uuid().optional().nullable(),
+  sector: z.enum(WO_SECTORS).optional().nullable(),
+  related_work_order_id: z.string().uuid().optional().nullable(),
   member_user_ids: z.array(z.string().uuid()).optional(),
   line_items: z.array(lineItemBody).max(50).optional(),
   scheduled_start: z.string().datetime().optional().nullable(),
@@ -756,6 +827,15 @@ scheduleJobsRouter.post(
       let status = d.status ?? "draft";
       if (!d.status && start) status = "scheduled";
 
+      const relatedId = await resolveRelatedWorkOrderId(
+        req.organizationId!,
+        d.related_work_order_id || null,
+      ).catch((e: Error & { status?: number }) => {
+        res.status(e.status || 400).json({ success: false, error: e.message });
+        return "__abort__" as const;
+      });
+      if (relatedId === "__abort__") return;
+
       const number = await nextWorkOrderNumber(req.organizationId!);
       const row = await prisma.workOrder.create({
         data: {
@@ -773,6 +853,8 @@ scheduleJobsRouter.post(
           ...(d.campo_checklist?.length ? { campoChecklist: mergeOfficeChecklist(null, d.campo_checklist) } : {}),
           assignedUserId: d.assigned_user_id || null,
           crewId: d.crew_id || null,
+          sector: normalizeWoSector(d.sector),
+          relatedWorkOrderId: relatedId,
           scheduledStart: start,
           scheduledEnd: end,
         },
@@ -857,6 +939,21 @@ scheduleJobsRouter.put(
         return;
       }
 
+      let relatedResolved: string | null | undefined = undefined;
+      if (d.related_work_order_id !== undefined) {
+        try {
+          relatedResolved = await resolveRelatedWorkOrderId(
+            req.organizationId!,
+            d.related_work_order_id || null,
+            existing.id,
+          );
+        } catch (e) {
+          const err = e as Error & { status?: number };
+          res.status(err.status || 400).json({ success: false, error: err.message });
+          return;
+        }
+      }
+
       // Services already billed: the job total cannot drop below what was invoiced.
       if (d.line_items !== undefined || d.status === "canceled") {
         const agg = await prisma.quoteInvoice.aggregate({
@@ -914,6 +1011,8 @@ scheduleJobsRouter.put(
             ? { assignedUserId: d.assigned_user_id || null }
             : {}),
           ...(d.crew_id !== undefined ? { crewId: d.crew_id || null } : {}),
+          ...(d.sector !== undefined ? { sector: normalizeWoSector(d.sector) } : {}),
+          ...(relatedResolved !== undefined ? { relatedWorkOrderId: relatedResolved } : {}),
           ...(d.scheduled_start !== undefined || d.scheduled_end !== undefined
             ? { scheduledStart: start, scheduledEnd: end }
             : {}),
@@ -1416,12 +1515,14 @@ scheduleJobsRouter.get(
       ]);
 
       const sched = parseScheduleSettings(org?.scheduleSettings);
+      const visitCalId = resolveVisitCalendarId(sched);
       const events = [
         ...workOrders.map((wo) => {
           const startIso = wo.scheduledStart!.toISOString();
           const endIso = wo.scheduledEnd
             ? wo.scheduledEnd.toISOString()
             : new Date(wo.scheduledStart!.getTime() + 60 * 60 * 1000).toISOString();
+          const jobCal = resolveJobCalendar(sched, wo.sector);
           return {
             id: wo.id,
             type: "job" as const,
@@ -1429,8 +1530,8 @@ scheduleJobsRouter.get(
             status: wo.status,
             start: startIso,
             end: endIso,
-            calendar_id: "jobs",
-            color: resolveJobColor(sched, wo.crew?.color || null),
+            calendar_id: jobCal.id,
+            color: resolveJobColor(sched, wo.crew?.color || null, wo.sector),
             meta: mapWorkOrder(wo),
           };
         }),
@@ -1443,7 +1544,7 @@ scheduleJobsRouter.get(
           start: m.scheduledStart.toISOString(),
           end: m.scheduledEnd.toISOString(),
           // Visits / meetings follow Configurações › Agenda.
-          calendar_id: m.leadId ? "visits" : m.calendarId || "meetings",
+          calendar_id: m.leadId ? visitCalId : m.calendarId || "meetings",
           color: m.leadId ? resolveVisitColor(sched) : resolveMeetingColor(sched, m.calendarId),
           meta: mapMeeting(m),
         })),

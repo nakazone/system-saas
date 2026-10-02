@@ -950,12 +950,31 @@
   }
 
   // ---------------------------------------------------------------- schedule / agendas
+  const SCHED_KINDS = [
+    { id: "jobs", label: "Jobs" },
+    { id: "visits", label: "Visitas" },
+    { id: "meetings", label: "Meetings" },
+    { id: "custom", label: "Extra" },
+  ];
+  const SCHED_SECTORS = [
+    { id: "all", label: "Todos" },
+    { id: "installation", label: "Instalação" },
+    { id: "sand_finish", label: "Lixa" },
+  ];
+  const SCHED_KIND_DEFAULTS = {
+    jobs: { name: "Jobs", color: "#e8792c", sector: "all" },
+    visits: { name: "Visitas", color: "#7a5ea8" },
+    meetings: { name: "Meetings", color: "#3b6ea5" },
+    custom: { name: "Nova agenda", color: "#16a34a" },
+  };
+
   function cloneSched(cals) {
     return (cals || []).map((c) => ({
       id: c.id,
       name: c.name,
       color: c.color,
-      kind: c.kind,
+      kind: c.kind || "custom",
+      sector: c.kind === "jobs" ? c.sector || "all" : undefined,
     }));
   }
 
@@ -964,20 +983,44 @@
     return JSON.stringify(state.schedule.draft) !== JSON.stringify(state.schedule.snapshot);
   }
 
+  function schedNewId() {
+    return typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`.replace(/[xy]/g, (ch) => {
+          const r = (Math.random() * 16) | 0;
+          const v = ch === "x" ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+  }
+
   function renderScheduleCals() {
     const host = $("schedCalList");
     if (!host || !state.schedule.draft) return;
     host.innerHTML = state.schedule.draft
       .map((c, i) => {
-        const locked = c.kind === "jobs" || c.kind === "visits" || c.kind === "meetings";
-        const kindLbl =
-          c.kind === "jobs" ? "Jobs" : c.kind === "visits" ? "Visitas" : c.kind === "meetings" ? "Meetings" : "Extra";
+        const kind = c.kind || "custom";
+        const sector = c.sector || "all";
         return `<div class="cfg-sched-row" data-sched-i="${i}">
-          <span class="cfg-sched-row__kind">${esc(kindLbl)}</span>
+          <div class="cfg-field">
+            <label class="cfg-sr-only" for="schedKind_${i}">Tipo</label>
+            <select id="schedKind_${i}" data-sched-kind="${i}">
+              ${SCHED_KINDS.map((k) => `<option value="${k.id}" ${k.id === kind ? "selected" : ""}>${esc(k.label)}</option>`).join("")}
+            </select>
+          </div>
           <div class="cfg-field cfg-grow">
             <label class="cfg-sr-only" for="schedName_${i}">Nome</label>
-            <input id="schedName_${i}" data-sched-name="${i}" maxlength="80" value="${esc(c.name)}" ${locked ? "" : ""} />
+            <input id="schedName_${i}" data-sched-name="${i}" maxlength="80" value="${esc(c.name)}" />
           </div>
+          ${
+            kind === "jobs"
+              ? `<div class="cfg-field">
+                  <label class="cfg-sr-only" for="schedSector_${i}">Setor</label>
+                  <select id="schedSector_${i}" data-sched-sector="${i}">
+                    ${SCHED_SECTORS.map((s) => `<option value="${s.id}" ${s.id === sector ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
+                  </select>
+                </div>`
+              : `<span class="cfg-sched-row__lock" aria-hidden="true"></span>`
+          }
           <div class="cfg-field cfg-color">
             <label class="cfg-sr-only" for="schedColor_${i}">Cor</label>
             <div class="cfg-color__row">
@@ -985,11 +1028,7 @@
               <input id="schedColor_${i}" data-sched-color="${i}" maxlength="7" spellcheck="false" value="${esc(c.color)}" />
             </div>
           </div>
-          ${
-            locked
-              ? `<span class="cfg-hint cfg-sched-row__lock">Fixo</span>`
-              : `<button type="button" class="btn cfg-btn-sm cfg-btn-ghost" data-sched-del="${i}" aria-label="Remover agenda">Remover</button>`
-          }
+          <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" data-sched-del="${i}" aria-label="Remover agenda">Remover</button>
         </div>`;
       })
       .join("");
@@ -1032,12 +1071,37 @@
         updateSavebar();
       }
     });
+    host.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!state.schedule.draft) return;
+      const ki = t.getAttribute("data-sched-kind");
+      if (ki != null) {
+        const i = Number(ki);
+        const row = state.schedule.draft[i];
+        if (!row) return;
+        const kind = String(t.value || "custom");
+        row.kind = kind;
+        if (kind === "jobs") {
+          if (!row.sector) row.sector = "all";
+        } else {
+          delete row.sector;
+        }
+        renderScheduleCals();
+        updateSavebar();
+        return;
+      }
+      const si = t.getAttribute("data-sched-sector");
+      if (si != null) {
+        const i = Number(si);
+        if (state.schedule.draft[i]) state.schedule.draft[i].sector = String(t.value || "all");
+        updateSavebar();
+      }
+    });
     host.addEventListener("click", (e) => {
       const btn = e.target.closest?.("[data-sched-del]");
       if (!btn || !state.schedule.draft) return;
       const i = Number(btn.getAttribute("data-sched-del"));
-      const row = state.schedule.draft[i];
-      if (!row || row.kind !== "custom") return;
+      if (!state.schedule.draft[i]) return;
       state.schedule.draft.splice(i, 1);
       renderScheduleCals();
       updateSavebar();
@@ -1048,18 +1112,11 @@
         notify("Limite de agendas atingido.", "error");
         return;
       }
-      const id =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`.replace(/[xy]/g, (ch) => {
-              const r = (Math.random() * 16) | 0;
-              const v = ch === "x" ? r : (r & 0x3) | 0x8;
-              return v.toString(16);
-            });
+      const def = SCHED_KIND_DEFAULTS.custom;
       state.schedule.draft.push({
-        id,
-        name: "Nova agenda",
-        color: "#16a34a",
+        id: schedNewId(),
+        name: def.name,
+        color: def.color,
         kind: "custom",
       });
       renderScheduleCals();
