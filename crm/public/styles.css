@@ -8019,6 +8019,18 @@ button.lead-quick-sheet__schedule-btn-min {
   border-radius: 14px;
 }
 
+/* Tablet/mobile keyboard: pin panel into the visual viewport (vars set by JS) */
+.lead-quick-sheet--kb-open .lead-quick-sheet__panel {
+  top: var(--lqs-vv-top, 8px) !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  max-height: var(--lqs-vv-height, 70dvh) !important;
+  height: var(--lqs-vv-height, 70dvh) !important;
+  width: min(980px, calc(100vw - 16px)) !important;
+}
+
 .lead-quick-sheet--overview .lead-quick-sheet__body {
   padding: 8px 16px 18px;
 }

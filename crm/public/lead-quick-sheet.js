@@ -378,6 +378,9 @@
           <button type="button" class="btn btn-secondary btn-sm" data-lqs-cancel="owner_id">Cancelar</button>
         </div>
       </div>`;
+      const ownerEl = dd.querySelector('[data-lqs-input]');
+      if (ownerEl && typeof ownerEl.focus === 'function') ownerEl.focus();
+      ensureLqsFieldVisibleForKeyboard();
       return;
     }
     const raw = sheetLead[fieldKey];
@@ -397,6 +400,7 @@
     </div>`;
     const focusEl = dd.querySelector('[data-lqs-input]');
     if (focusEl && typeof focusEl.focus === 'function') focusEl.focus();
+    ensureLqsFieldVisibleForKeyboard();
     if (
       fieldKey === 'address' &&
       focusEl &&
@@ -429,6 +433,7 @@
           'warning'
         );
       }
+      ensureLqsFieldVisibleForKeyboard();
     }
   }
 
@@ -1397,12 +1402,154 @@
     if (!panel) return;
     requestAnimationFrame(function () {
       try {
-        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } catch (_) {
         try {
           panel.scrollIntoView(true);
         } catch (__) {}
       }
+      ensureLqsFieldVisibleForKeyboard();
+    });
+  }
+
+  function getLqsKeyboardMetrics_() {
+    const vv = window.visualViewport;
+    const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
+    const vvTop = vv ? vv.offsetTop : 0;
+    const vvH = vv ? vv.height : layoutH;
+    const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
+    return { vvTop, vvH, layoutH, keyboardOverlap };
+  }
+
+  function isTouchQuickSheetLayout_() {
+    if (typeof window.matchMedia !== 'function') return window.innerWidth <= 1180;
+    return (
+      window.matchMedia('(max-width: 1180px)').matches ||
+      window.matchMedia('(pointer: coarse)').matches
+    );
+  }
+
+  let lqsKbScrollTimers_ = [];
+  let lqsViewportWired_ = false;
+
+  function clearLqsKbTimers_() {
+    lqsKbScrollTimers_.forEach(function (t) {
+      clearTimeout(t);
+    });
+    lqsKbScrollTimers_ = [];
+  }
+
+  function clearLqsKeyboardLayout_() {
+    const root = document.getElementById('leadQuickSheet');
+    if (!root) return;
+    root.classList.remove('lead-quick-sheet--kb-open');
+    root.style.removeProperty('--lqs-vv-top');
+    root.style.removeProperty('--lqs-vv-height');
+    const body = document.getElementById('leadQuickSheetBody');
+    if (body) body.style.paddingBottom = '';
+  }
+
+  /** Pin sheet into the visual viewport so the tablet keyboard does not cover the edit area. */
+  function applyLqsPanelForKeyboard_() {
+    const root = document.getElementById('leadQuickSheet');
+    if (!root || !root.classList.contains('is-open')) return;
+    const { vvTop, vvH, keyboardOverlap } = getLqsKeyboardMetrics_();
+    const pin = keyboardOverlap > 90 && isTouchQuickSheetLayout_();
+    if (!pin) {
+      clearLqsKeyboardLayout_();
+      return;
+    }
+    const pad = 8;
+    const height = Math.max(180, Math.round(vvH - pad * 2));
+    root.classList.add('lead-quick-sheet--kb-open');
+    root.style.setProperty('--lqs-vv-top', Math.round(vvTop + pad) + 'px');
+    root.style.setProperty('--lqs-vv-height', height + 'px');
+    const body = document.getElementById('leadQuickSheetBody');
+    if (body) {
+      // Extra scroll room so Guardar/Cancelar can sit above the keyboard
+      body.style.paddingBottom = Math.min(220, Math.max(96, Math.round(keyboardOverlap * 0.35))) + 'px';
+    }
+  }
+
+  function scrollLqsFocusedFieldIntoView_(opts) {
+    const force = opts && opts.force;
+    const body = document.getElementById('leadQuickSheetBody');
+    const active = document.activeElement;
+    if (!body || !active || !body.contains(active)) return;
+    if (!active.matches || !active.matches('input, textarea, select')) return;
+
+    const block = active.closest('[data-lqs-editing]') || active.closest('.lead-quick-sheet__row') || active;
+    const { vvTop, vvH } = getLqsKeyboardMetrics_();
+    const gapTop = 12;
+    const gapBottom = 28;
+    const safeTop = vvTop + gapTop;
+    const safeBottom = vvTop + vvH - gapBottom;
+
+    const rect = block.getBoundingClientRect();
+    const actions = block.querySelector && block.querySelector('.lead-quick-sheet__edit-actions');
+    const bottom = actions ? Math.max(rect.bottom, actions.getBoundingClientRect().bottom) : rect.bottom;
+    const top = rect.top;
+
+    let delta = 0;
+    if (bottom > safeBottom) delta = bottom - safeBottom + 8;
+    else if (top < safeTop) delta = top - safeTop - 8;
+
+    if (!force && Math.abs(delta) < 4) return;
+    if (delta) body.scrollTop += delta;
+
+    const rect2 = block.getBoundingClientRect();
+    const bottom2 = actions
+      ? Math.max(rect2.bottom, actions.getBoundingClientRect().bottom)
+      : rect2.bottom;
+    if (bottom2 > safeBottom || rect2.top < safeTop) {
+      try {
+        block.scrollIntoView({
+          block: 'center',
+          inline: 'nearest',
+          behavior: force ? 'auto' : 'smooth',
+        });
+      } catch (_) {
+        try {
+          block.scrollIntoView(true);
+        } catch (__) {}
+      }
+    }
+  }
+
+  function ensureLqsFieldVisibleForKeyboard() {
+    clearLqsKbTimers_();
+    const run = function () {
+      applyLqsPanelForKeyboard_();
+      scrollLqsFocusedFieldIntoView_({ force: true });
+    };
+    requestAnimationFrame(run);
+    // iPad/iOS opens the keyboard with delay — re-fit after animation
+    [80, 200, 360, 560, 800].forEach(function (ms) {
+      lqsKbScrollTimers_.push(setTimeout(run, ms));
+    });
+  }
+
+  function onLqsVisualViewportChange_() {
+    const root = document.getElementById('leadQuickSheet');
+    if (!root || !root.classList.contains('is-open')) return;
+    applyLqsPanelForKeyboard_();
+    const body = document.getElementById('leadQuickSheetBody');
+    const active = document.activeElement;
+    if (active && body && body.contains(active) && active.matches('input, textarea, select')) {
+      scrollLqsFocusedFieldIntoView_();
+    }
+  }
+
+  function wireLqsKeyboardViewport_() {
+    if (lqsViewportWired_) return;
+    lqsViewportWired_ = true;
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onLqsVisualViewportChange_);
+      window.visualViewport.addEventListener('scroll', onLqsVisualViewportChange_);
+    }
+    window.addEventListener('orientationchange', function () {
+      const root = document.getElementById('leadQuickSheet');
+      if (root && root.classList.contains('is-open')) ensureLqsFieldVisibleForKeyboard();
     });
   }
 
@@ -1807,12 +1954,31 @@
     const body = document.getElementById('leadQuickSheetBody');
     if (!body) return;
     sheetBodyDelegated = true;
+    wireLqsKeyboardViewport_();
     if (!docStatusOptionDelegated) {
       docStatusOptionDelegated = true;
       document.addEventListener('click', onDocumentStatusOptionClick, true);
     }
     body.addEventListener('click', onSheetBodyClick);
     body.addEventListener('change', onSheetBodyChange);
+    body.addEventListener('focusin', (e) => {
+      const t = e.target;
+      if (t && t.matches && t.matches('input, textarea, select')) {
+        ensureLqsFieldVisibleForKeyboard();
+      }
+    });
+    body.addEventListener(
+      'touchstart',
+      (e) => {
+        const t = e.target;
+        if (t && t.matches && t.matches('input, textarea, select, .lead-quick-sheet__inline-input')) {
+          setTimeout(function () {
+            ensureLqsFieldVisibleForKeyboard();
+          }, 50);
+        }
+      },
+      { passive: true }
+    );
     body.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         const hit = e.target.closest('[data-lqs-edit], [data-lqs-edit-toggle]');
@@ -2061,6 +2227,8 @@
   function closeLeadQuickSheet() {
     closeLqsScheduleVisitModal();
     closeStatusMenu();
+    clearLqsKbTimers_();
+    clearLqsKeyboardLayout_();
     if (typeof global.sfCloseSmsChoiceMenu === 'function') global.sfCloseSmsChoiceMenu();
     if (typeof global.sfDismissPacDropdown === 'function') global.sfDismissPacDropdown();
     ownerUsersCache = null;
