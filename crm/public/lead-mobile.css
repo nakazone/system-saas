@@ -57,7 +57,8 @@ body.om-device-mobile.lead-detail-mobile .mld {
   background: var(--mld-bg);
 }
 
-body.om-device-mobile .nls-root {
+body.om-device-mobile .nls-root,
+body.plab-leads-list .nls-root {
   display: block;
 }
 

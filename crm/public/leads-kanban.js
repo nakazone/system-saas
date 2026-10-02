@@ -612,16 +612,16 @@ function renderVisitKanbanCard(visit) {
     const when = formatVisitKanbanDateTime(visit.scheduled_at);
     const addr = escapeKanbanHtml(visitKanbanAddress(visit) || '—');
     const assignee = escapeKanbanHtml(visit.assigned_to_name || '');
-    const leadId = kanbanLeadId(visit.lead_id);
-    const leadIdAttr = Number.isFinite(leadId) ? leadId : '';
-    const titleBtn = Number.isFinite(leadId)
-        ? `<span class="kanban-card-title-btn">${name}</span>`
-        : `<span class="kanban-card-title-fallback">${name}</span>`;
-    const sheetAttrs = Number.isFinite(leadId)
-        ? ` role="button" tabindex="0" onclick="viewLead('${leadId}', event)" title="Ver detalhes do lead" class="kanban-card kanban-card--visit kanban-card--compact kanban-card--open-sheet"`
-        : ` class="kanban-card kanban-card--visit kanban-card--compact"`;
-    return `
-        <div${sheetAttrs} data-lead-id="${leadIdAttr}" data-visit-id="${visit.id}">
+  const leadId = kanbanLeadId(visit.lead_id);
+  const hasLead = !!leadId;
+  const titleBtn = hasLead
+    ? `<span class="kanban-card-title-btn">${name}</span>`
+    : `<span class="kanban-card-title-fallback">${name}</span>`;
+  const sheetAttrs = hasLead
+    ? ` role="button" tabindex="0" onclick="viewLead('${escapeKanbanHtml(leadId)}', event)" title="Ver detalhes do lead" class="kanban-card kanban-card--visit kanban-card--compact kanban-card--open-sheet"`
+    : ` class="kanban-card kanban-card--visit kanban-card--compact"`;
+  return `
+        <div${sheetAttrs} data-lead-id="${hasLead ? escapeKanbanHtml(leadId) : ''}" data-visit-id="${visit.id}">
             <div class="kanban-card-top">
                 ${titleBtn}
                 ${kanbanPriorityMarkup(lead?.priority)}

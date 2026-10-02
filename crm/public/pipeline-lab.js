@@ -475,12 +475,30 @@
     return document.body.classList.contains("om-device-tablet");
   }
 
+  function urlLeadsView() {
+    try {
+      const v = new URLSearchParams(location.search).get("view");
+      if (v === "list" || v === "kanban") return v;
+    } catch (_) {}
+    return null;
+  }
+
   function preferredLeadsView() {
+    const fromUrl = urlLeadsView();
+    if (fromUrl) return fromUrl;
     try {
       const v = localStorage.getItem("obramate_leads_view");
       if (v === "kanban" || v === "list") return v;
     } catch (_) {}
     return isTabletShell() ? "kanban" : "list";
+  }
+
+  /** Phones always use the Leads list; tablets only with explicit ?view=list (Lista toggle). */
+  function wantsLeadsListShell() {
+    if (isMobileShell()) return true;
+    if (!isTabletShell()) return false;
+    // Do not use localStorage alone — pipeline-lab is also the tablet dashboard home.
+    return urlLeadsView() === "list";
   }
 
   function setPreferredLeadsView(view) {
@@ -660,13 +678,19 @@
 
   function bootMobile() {
     document.title = "Leads | ObraMate";
+    document.body.classList.add("plab-leads-list");
     const title = $("plabHeaderTitle");
     if (title) title.textContent = "Leads";
+    // Apply ?view= before any redirect so Lista ↔ Kanban does not bounce.
+    try {
+      const qView = urlLeadsView();
+      if (qView) setPreferredLeadsView(qView);
+    } catch (_) {}
     bindMobileViewToggle();
     syncMobileViewToggle();
     // Tablets that prefer Kanban go straight to the board.
     if (isTabletShell() && preferredLeadsView() === "kanban") {
-      location.replace("leads.html");
+      location.replace("leads.html?view=kanban");
       return;
     }
     $("mleadsAdd")?.addEventListener("click", () => openNewLead(() => loadMobile().catch(() => {})));
@@ -677,8 +701,6 @@
     // Hand-offs from other screens (Início search, "Criar → Novo lead" fallback).
     try {
       const params = new URLSearchParams(location.search);
-      const qView = params.get("view");
-      if (qView === "list" || qView === "kanban") setPreferredLeadsView(qView);
       const q = sessionStorage.getItem("obramate_home_search");
       if (q && $("mleadsSearch")) $("mleadsSearch").value = q;
       sessionStorage.removeItem("obramate_home_search");
@@ -699,7 +721,8 @@
   function boot() {
     if (!D) return;
     if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
-    if (isMobileShell()) bootMobile();
+    // Tablets with Lista preference must use the leads list shell — bootDesktop hid it.
+    if (wantsLeadsListShell()) bootMobile();
     else bootDesktop();
   }
 

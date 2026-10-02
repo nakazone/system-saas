@@ -31,8 +31,10 @@ body.plab {
   color: var(--omd-ink);
 }
 
-/* The mobile app uses the Início screen (home.html); pipeline-lab on phones is the Leads list. */
-body.om-device-mobile .omd {
+/* The mobile app uses the Início screen (home.html); pipeline-lab on phones is the Leads list.
+   Tablets in Lista mode (.plab-leads-list) also hide the desktop dashboard. */
+body.om-device-mobile .omd,
+body.plab-leads-list .omd {
   display: none !important;
 }
 
