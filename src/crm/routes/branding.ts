@@ -72,7 +72,7 @@ brandingRouter.get("/api/branding", async (req: TenantRequest, res, next) => {
   }
 });
 
-brandingRouter.get("/api/branding.css", async (req: TenantRequest, res, next) => {
+brandingRouter.get("/api/branding.css", async (_req: TenantRequest, res, next) => {
   try {
     // CRM UI always uses ObraMate chrome. Tenant brand colors apply to quotes/invoices/PDFs/emails only.
     res.setHeader("Cache-Control", "private, max-age=60");
