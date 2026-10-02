@@ -1,0 +1,153 @@
+/**
+ * Shared gesture styles — pull-to-refresh, swipe rows, dock padding.
+ */
+.om-ptr {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  max-width: 280px;
+  border-radius: 999px;
+  background: rgba(33, 29, 26, 0.06);
+  color: #5c564f;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.om-ptr.om-ptr-visible,
+.om-ptr.sf-ptr-visible {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+.om-ptr.is-ready {
+  background: rgba(232, 121, 44, 0.14);
+  color: #9a4e1c;
+}
+
+.om-swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  touch-action: pan-y;
+}
+.om-swipe__actions {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  z-index: 0;
+  min-width: 148px;
+}
+.om-swipe__actions button,
+.om-swipe__actions a {
+  flex: 1 1 74px;
+  min-width: 74px;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-direction: column;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  padding: 8px 6px;
+  cursor: pointer;
+}
+.om-swipe__act--edit {
+  background: #3b82f6;
+}
+.om-swipe__act--delete {
+  background: #dc2626;
+}
+.om-swipe__act--open {
+  background: #211d1a;
+}
+.om-swipe__body {
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  transition: transform 0.18s ease;
+  will-change: transform;
+}
+.om-swipe--open .om-swipe__body {
+  box-shadow: -4px 0 12px rgba(28, 25, 23, 0.08);
+}
+
+/* Keep list content clear of fixed tabbar + docked CTAs */
+.om-dock-pad {
+  padding-bottom: calc(5.5rem + var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+.om-swipe.jcm-cli-swipe {
+  margin-bottom: 8px;
+}
+.om-swipe.jcm-cli-swipe .jcm-cli {
+  width: 100%;
+  border-radius: 14px;
+  border: 0;
+  text-align: left;
+}
+.om-swipe.inv-swipe {
+  margin-bottom: 0;
+}
+.om-swipe.inv-swipe .inv-trow {
+  width: 100%;
+  box-sizing: border-box;
+}
+@media (max-width: 900px) {
+  .inv-swipe .om-swipe__actions {
+    display: flex;
+  }
+}
+.om-swipe.jcm-job-swipe {
+  margin-bottom: 10px;
+  border-radius: 16px;
+}
+.om-swipe.jcm-job-swipe .om-swipe__body.jcm-job {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 16px;
+  margin: 0;
+}
+
+/* Quotes list: swipe on touch; desktop keeps table row grid */
+@media (min-width: 901px) and (pointer: fine) {
+  .quote-swipe .om-swipe__actions {
+    display: none !important;
+  }
+  .quote-swipe .om-swipe__body {
+    display: contents;
+  }
+}
+@media (max-width: 900px), (pointer: coarse) {
+  body.quotes-app .quote-swipe.customers-row--quote {
+    display: block;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    overflow: hidden;
+    border-radius: 14px;
+  }
+  body.quotes-app .quote-swipe .om-swipe__body {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.35rem 0.75rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--plab-line, #e7e5e4);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
+  }
+  body.quotes-app .quote-swipe .customers-row__actions--desktop {
+    display: none !important;
+  }
+}

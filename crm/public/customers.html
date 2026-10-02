@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261001-tablet1" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20261001-tablet1" />
+  <link rel="stylesheet" href="om-gestures.css?v=20261002-gest1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cli-app">
   <script>
@@ -84,7 +85,8 @@
             <input type="search" id="cliSearch" placeholder="Nome, endereço ou telefone" autocomplete="off" />
           </label>
           <div class="jcm-chips" id="cliChips"></div>
-          <div class="jcm-list" id="cliList"></div>
+          <div class="om-ptr" id="cliPtr" aria-hidden="true">↓ Puxe para atualizar</div>
+          <div class="jcm-list om-dock-pad" id="cliList"></div>
         </div>
 
         <!-- Detail -->
@@ -138,8 +140,9 @@
   <script src="saas-branding.js"></script>
   <script src="om-device.js?v=20261001-tablet2"></script>
   <script src="crm-shared-nav.js?v=20261001-reports3"></script>
-  <script src="crm-shell.js?v=20261001-tabletnav3"></script>
-  <script src="om-mobile-nav.js?v=20261001-tablet1"></script>
-  <script src="customers-mobile.js?v=20260929-clienttype1"></script>
+  <script src="crm-shell.js?v=20261002-gest1"></script>
+  <script src="om-mobile-nav.js?v=20261002-gest1"></script>
+  <script src="om-gestures.js?v=20261002-gest1"></script>
+  <script src="customers-mobile.js?v=20261002-gest1"></script>
 </body>
 </html>

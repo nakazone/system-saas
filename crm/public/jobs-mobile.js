@@ -148,29 +148,36 @@
     const maps = wo.address
       ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}`
       : "";
+    const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
     const cta =
       wo.status === "in_progress"
         ? `<button type="button" class="jcm-job__cta jcm-job__cta--done" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Concluir visita</button>`
         : wo.status === "scheduled" || wo.status === "draft"
           ? `<button type="button" class="jcm-job__cta jcm-job__cta--start" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar visita</button>`
           : wo.status === "completed" && wo.billing && wo.billing.remaining_to_invoice > 0.004
-            ? `<a class="jcm-job__cta jcm-job__cta--start" href="job-detail.html?id=${encodeURIComponent(wo.id)}&faturar=1" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Faturar ${escapeHtml(money(wo.billing.remaining_to_invoice))}</a>`
-            : `<a class="jcm-job__cta jcm-job__cta--done" href="job-detail.html?id=${encodeURIComponent(wo.id)}" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Ver job</a>`;
+            ? `<a class="jcm-job__cta jcm-job__cta--start" href="${detailHref}&faturar=1" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Faturar ${escapeHtml(money(wo.billing.remaining_to_invoice))}</a>`
+            : `<a class="jcm-job__cta jcm-job__cta--done" href="${detailHref}" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Ver job</a>`;
     const crewColor = wo.crew?.color || "#e8792c";
-    return `<article class="jcm-job">
-      <a href="job-detail.html?id=${encodeURIComponent(wo.id)}" style="text-decoration:none;color:inherit;display:block">
-        <div class="jcm-job__top">
-          <p class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</p>
-          <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
+    return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
+      <div class="om-swipe__actions" aria-hidden="true">
+        <a class="om-swipe__act--edit" href="${detailHref}">Editar</a>
+        <a class="om-swipe__act--open" href="${detailHref}">Abrir</a>
+      </div>
+      <div class="om-swipe__body jcm-job">
+        <a href="${detailHref}" style="text-decoration:none;color:inherit;display:block">
+          <div class="jcm-job__top">
+            <p class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</p>
+            <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
+          </div>
+          <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
+          <p class="jcm-job__meta">#${escapeHtml(wo.number != null ? wo.number : "—")} · ${escapeHtml(clientLabel(wo))} · ${escapeHtml(wo.address || "—")}</p>
+          ${wo.billing && wo.billing.billing_status !== "no_value" && window.JobBilling ? `<p class="jcm-job__meta" style="margin-top:0.3rem">${window.JobBilling.chip(wo.billing)}</p>` : ""}
+          <div class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</div>
+        </a>
+        <div class="jcm-job__actions">
+          ${maps ? `<a class="jcm-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : `<span class="jcm-job__map" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`}
+          ${cta}
         </div>
-        <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
-        <p class="jcm-job__meta">#${escapeHtml(wo.number != null ? wo.number : "—")} · ${escapeHtml(clientLabel(wo))} · ${escapeHtml(wo.address || "—")}</p>
-        ${wo.billing && wo.billing.billing_status !== "no_value" && window.JobBilling ? `<p class="jcm-job__meta" style="margin-top:0.3rem">${window.JobBilling.chip(wo.billing)}</p>` : ""}
-        <div class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</div>
-      </a>
-      <div class="jcm-job__actions">
-        ${maps ? `<a class="jcm-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : `<span class="jcm-job__map" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`}
-        ${cta}
       </div>
     </article>`;
   }
@@ -191,34 +198,40 @@
         : wo.status === "completed"
           ? "Ver detalhes"
           : "Abrir no campo";
-    return `<article class="jcm-job jcm-job--field" style="--job-accent:${escapeHtml(crewColor)}">
-      <a class="jcm-job__body" href="${openHref}">
-        <div class="jcm-job__top">
-          <div class="jcm-job__when">
-            <span class="jcm-job__day${today ? " is-today" : ""}">${escapeHtml(today ? "Hoje" : day || "Sem data")}</span>
-            <span class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</span>
+    return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}" style="--job-accent:${escapeHtml(crewColor)}">
+      <div class="om-swipe__actions" aria-hidden="true">
+        <a class="om-swipe__act--edit" href="${openHref}">Abrir</a>
+        <a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>
+      </div>
+      <div class="om-swipe__body jcm-job jcm-job--field">
+        <a class="jcm-job__body" href="${openHref}">
+          <div class="jcm-job__top">
+            <div class="jcm-job__when">
+              <span class="jcm-job__day${today ? " is-today" : ""}">${escapeHtml(today ? "Hoje" : day || "Sem data")}</span>
+              <span class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</span>
+            </div>
+            <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
           </div>
-          <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
+          <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
+          <p class="jcm-job__client">${escapeHtml(clientLabel(wo))}</p>
+          ${
+            wo.address
+              ? `<p class="jcm-job__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></p>`
+              : ""
+          }
+          <div class="jcm-job__foot">
+            <span class="jcm-job__num">#${escapeHtml(wo.number != null ? wo.number : "—")}</span>
+            <span class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</span>
+          </div>
+        </a>
+        <div class="jcm-job__actions">
+          ${
+            maps
+              ? `<a class="jcm-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>`
+              : `<span class="jcm-job__map" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`
+          }
+          <a class="jcm-job__cta jcm-job__cta--start" href="${openHref}">${ctaLabel}</a>
         </div>
-        <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
-        <p class="jcm-job__client">${escapeHtml(clientLabel(wo))}</p>
-        ${
-          wo.address
-            ? `<p class="jcm-job__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></p>`
-            : ""
-        }
-        <div class="jcm-job__foot">
-          <span class="jcm-job__num">#${escapeHtml(wo.number != null ? wo.number : "—")}</span>
-          <span class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</span>
-        </div>
-      </a>
-      <div class="jcm-job__actions">
-        ${
-          maps
-            ? `<a class="jcm-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>`
-            : `<span class="jcm-job__map" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`
-        }
-        <a class="jcm-job__cta jcm-job__cta--start" href="${openHref}">${ctaLabel}</a>
       </div>
     </article>`;
   }
@@ -265,6 +278,7 @@
       return;
     }
     host.innerHTML = rows.map((wo) => (isField ? renderFieldCard(wo) : renderOfficeCard(wo))).join("");
+    if (window.OmGestures) window.OmGestures.bindSwipeRow(host);
 
     host.querySelectorAll("[data-job-action]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
@@ -358,6 +372,14 @@
       }
       bind();
       await load();
+      if (window.OmGestures) {
+        window.OmGestures.initPullToRefresh({
+          key: "jobs",
+          indicator: "#jobsPtr",
+          refresh: () => load(),
+        });
+        window.OmGestures.ensureDockPadding("#jobsMobile, #jobsMobList");
+      }
       if (window.__crmJobModal?.onSaved) {
         window.__crmJobModal.onSaved(() => load().catch(() => {}));
       }

@@ -141,21 +141,41 @@
         const st = statusFor(fin);
         const jobs = jobsByCustomer.get(String(c.id)) || 0;
         const bg = AV[i % AV.length];
-        return `<button type="button" class="jcm-cli" data-cli-id="${escapeHtml(c.id)}">
-          <span class="jcm-cli__av" style="background:${bg}">${escapeHtml(initials(c.name))}</span>
-          <span>
-            <p class="jcm-cli__name">${escapeHtml(c.name || "—")}</p>
-            <p class="jcm-cli__meta">${escapeHtml(typeLabel(c))} · ${jobs} job${jobs === 1 ? "" : "s"}</p>
-          </span>
-          <span style="text-align:right">
-            <p class="jcm-cli__amt">${money(fin.balance)}</p>
-            <span class="jcm-badge ${st.cls}">${st.label}</span>
-          </span>
-        </button>`;
+        const id = escapeHtml(c.id);
+        return `<article class="om-swipe jcm-cli-swipe" data-cli-id="${id}">
+          <div class="om-swipe__actions" aria-hidden="true">
+            <button type="button" class="om-swipe__act--edit" data-cli-edit="${id}">Editar</button>
+            <button type="button" class="om-swipe__act--open" data-cli-open="${id}">Abrir</button>
+          </div>
+          <button type="button" class="om-swipe__body jcm-cli" data-cli-open="${id}">
+            <span class="jcm-cli__av" style="background:${bg}">${escapeHtml(initials(c.name))}</span>
+            <span>
+              <p class="jcm-cli__name">${escapeHtml(c.name || "—")}</p>
+              <p class="jcm-cli__meta">${escapeHtml(typeLabel(c))} · ${jobs} job${jobs === 1 ? "" : "s"}</p>
+            </span>
+            <span style="text-align:right">
+              <p class="jcm-cli__amt">${money(fin.balance)}</p>
+              <span class="jcm-badge ${st.cls}">${st.label}</span>
+            </span>
+          </button>
+        </article>`;
       })
       .join("");
-    host.querySelectorAll("[data-cli-id]").forEach((btn) => {
-      btn.addEventListener("click", () => openDetail(btn.getAttribute("data-cli-id")));
+    if (window.OmGestures) window.OmGestures.bindSwipeRow(host);
+    host.querySelectorAll("[data-cli-open]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        openDetail(btn.getAttribute("data-cli-open"));
+      });
+    });
+    host.querySelectorAll("[data-cli-edit]").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.getAttribute("data-cli-edit");
+        await openDetail(id);
+        $("cliEditBtn")?.click();
+      });
     });
   }
 
@@ -322,6 +342,14 @@
       });
 
       await load();
+      if (window.OmGestures) {
+        window.OmGestures.initPullToRefresh({
+          key: "customers",
+          indicator: "#cliPtr",
+          refresh: () => load(),
+        });
+        window.OmGestures.ensureDockPadding("#cliListPane, #cliDetailPane");
+      }
       const id = new URLSearchParams(location.search).get("id");
       if (id) await openDetail(id);
     } catch (e) {

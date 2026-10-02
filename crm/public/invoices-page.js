@@ -105,16 +105,26 @@
       .map((inv) => {
         const [label, cls] = STATUS[inv.display_status] || STATUS.sent;
         const open = inv.display_status !== 'paid' && inv.display_status !== 'void';
-        return `<a class="inv-trow" role="row" href="invoice.html?id=${encodeURIComponent(inv.id)}">
+        const href = `invoice.html?id=${encodeURIComponent(inv.id)}`;
+        const cells = `
           <span class="inv-trow__who" role="cell"><b>${esc(inv.customer_name || inv.quote_title || inv.job_title || '—')}</b><small>${esc(inv.quote_title || inv.job_title || '')}</small></span>
           <span class="inv-trow__num" role="cell">${esc(inv.invoice_number || '—')}<small>${esc(inv.invoice_type_label)}${inv.source_ref ? ` · ${esc(inv.source_ref)}` : ''}</small></span>
           <span class="inv-trow__pay" role="cell">${money(inv.paid_amount)} de ${money(inv.amount)}<div class="inv-progress"><span style="width:${inv.percent_paid}%"></span></div></span>
           ${dueCell(inv)}
           <span class="inv-trow__st" role="cell"><span class="inv-chip ${cls}">${esc(label)}</span></span>
-          <span class="inv-trow__amt" role="cell"><b>${money(open ? inv.remaining_amount : inv.amount)}</b><small>${open && inv.paid_amount > 0 ? `de ${money(inv.amount)}` : open ? 'a receber' : inv.display_status === 'paid' ? 'recebido' : ''}</small></span>
-        </a>`;
+          <span class="inv-trow__amt" role="cell"><b>${money(open ? inv.remaining_amount : inv.amount)}</b><small>${open && inv.paid_amount > 0 ? `de ${money(inv.amount)}` : open ? 'a receber' : inv.display_status === 'paid' ? 'recebido' : ''}</small></span>`;
+        return `<article class="om-swipe inv-swipe" data-inv-id="${esc(inv.id)}">
+          <div class="om-swipe__actions" aria-hidden="true">
+            <a class="om-swipe__act--edit" href="${href}">Abrir</a>
+            ${open ? `<a class="om-swipe__act--open" href="${href}&receber=1">Receber</a>` : `<a class="om-swipe__act--open" href="${href}">Ver</a>`}
+          </div>
+          <a class="om-swipe__body inv-trow" role="row" href="${href}">${cells}</a>
+        </article>`;
       })
       .join('');
+    if (window.OmGestures && window.matchMedia('(max-width: 900px), (pointer: coarse)').matches) {
+      window.OmGestures.bindSwipeRow(host);
+    }
   }
 
   let reqSeq = 0;
@@ -318,6 +328,14 @@
       }, 280);
     });
     setTab(tab);
+    if (window.OmGestures) {
+      window.OmGestures.initPullToRefresh({
+        key: 'invoices',
+        indicator: '#invPtr',
+        refresh: () => load(),
+      });
+      window.OmGestures.ensureDockPadding('#invList, .inv-page, .mod-page');
+    }
     if (url.get('new') === '1' && can('invoices.manage')) openNew();
   }
 

@@ -51,7 +51,7 @@ body.om-device-mobile.lead-detail-mobile .mld {
   min-height: 100dvh;
   width: 100%;
   box-sizing: border-box;
-  padding: 0.65rem 0.85rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.65rem 0.85rem calc(7.25rem + env(safe-area-inset-bottom, 0px));
   font-family: var(--mld-font);
   color: var(--mld-ink);
   background: var(--mld-bg);
@@ -347,6 +347,7 @@ body.plab-leads-list .nls-root {
   position: fixed;
   left: 0;
   right: 0;
+  /* Tab bar is hidden on lead detail — dock to bottom safe-area only. */
   bottom: 0;
   z-index: 40;
   display: flex;

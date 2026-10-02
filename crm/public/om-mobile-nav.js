@@ -3,7 +3,7 @@
  * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20260930-ipad1";
+  const VER = "20261002-gest1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
@@ -275,16 +275,44 @@
     let startX = 0;
     let startY = 0;
     let tracking = false;
+    let fromEdge = false;
+    let pageLeft = false;
+    // Edge swipe-right (iOS) + full-screen swipe-left = back.
+    const EDGE_PX = 36;
+    const BLOCK_SEL =
+      ".om-swipe, .lcard, .sf-quote-card, .kanban-card, .kanban-board, .chiptrack, .om-sheet, [data-om-no-back-swipe], input, textarea, select";
+
+    function goBack() {
+      haptic(10);
+      if (window.__crmShell && typeof window.__crmShell.goBack === "function") {
+        window.__crmShell.goBack();
+      } else if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        location.href = "mais.html";
+      }
+    }
+
+    function blockedTarget(el) {
+      try {
+        return !!(el && el.closest && el.closest(BLOCK_SEL));
+      } catch (_) {
+        return true;
+      }
+    }
 
     document.addEventListener(
       "touchstart",
       (e) => {
         if (document.body.classList.contains("om-sheet-open")) return;
+        if (document.body.classList.contains("om-edge-swipe-lock")) return;
         const t = e.touches[0];
-        if (!t || t.clientX > 22) return;
+        if (!t) return;
         startX = t.clientX;
         startY = t.clientY;
-        tracking = true;
+        fromEdge = startX <= EDGE_PX;
+        pageLeft = !fromEdge && !blockedTarget(e.target);
+        tracking = fromEdge || pageLeft;
       },
       { passive: true },
     );
@@ -296,8 +324,12 @@
         if (!t) return;
         const dx = t.clientX - startX;
         const dy = Math.abs(t.clientY - startY);
-        if (dy > 48) tracking = false;
-        if (dx > 28 && dy < 36) document.body.classList.add("om-edge-swipe");
+        if (dy > 56) {
+          tracking = false;
+          document.body.classList.remove("om-edge-swipe");
+          return;
+        }
+        if (fromEdge && dx > 24 && dy < 40) document.body.classList.add("om-edge-swipe");
       },
       { passive: true },
     );
@@ -311,14 +343,14 @@
         if (!t) return;
         const dx = t.clientX - startX;
         const dy = Math.abs(t.clientY - startY);
-        if (dx < 72 || dy > 56) return;
-        haptic(10);
-        if (window.__crmShell && typeof window.__crmShell.goBack === "function") {
-          window.__crmShell.goBack();
-        } else if (window.history.length > 1) {
-          window.history.back();
-        } else {
-          location.href = "mais.html";
+        if (dy > 60) return;
+        if (fromEdge && dx >= 64) {
+          goBack();
+          return;
+        }
+        // Arrastar tela para a esquerda = voltar (fora de linhas swipe / kanban).
+        if (pageLeft && dx <= -72) {
+          goBack();
         }
       },
       { passive: true },

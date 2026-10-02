@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261002-gmaps1";
+  const SHELL_VER = "20261002-gest1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1042,10 +1042,16 @@
       if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
+        ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
         jobs.push(ensureScript(`om-mobile-nav.js?v=${SHELL_VER}`).catch(() => {}));
+        jobs.push(ensureScript(`om-gestures.js?v=${SHELL_VER}`).catch(() => {}));
       } else {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
+        ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
+        if (!document.querySelector('script[src*="om-gestures.js"]')) {
+          jobs.push(ensureScript(`om-gestures.js?v=${SHELL_VER}`).catch(() => {}));
+        }
       }
       if (!window.__omNovoLeadSheet && !document.querySelector('script[src*="novo-lead-sheet.js"]')) {
         jobs.push(ensureScript(`novo-lead-sheet.js?v=${SHELL_VER}`).catch(() => {}));

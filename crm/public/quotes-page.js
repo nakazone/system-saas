@@ -147,29 +147,42 @@
           : "—";
         const av = escapeHtml(initials(q.customer_name || q.lead_name || "OR"));
         return `
-        <article class="customers-row customers-row--quote" role="listitem" tabindex="0" data-id="${escapeHtml(String(q.id))}" style="--av-hue:${(i * 47) % 360}">
-          <div class="customers-row__identity">
-            <span class="customers-row__av" aria-hidden="true">${av}</span>
-            <div class="customers-row__who">
-              <div class="customers-row__name" title="${client}">${client}</div>
-              <div class="customers-row__refs"><span class="customers-ref">#${qnum}</span></div>
-            </div>
-          </div>
-          <div class="customers-row__amt tabular-nums">$${amt}</div>
-          <div class="customers-row__status"><span class="mod-status is-${escapeHtml(slug)}">${escapeHtml(statusLabel(q.status))}</span></div>
-          <div class="customers-row__pdf"></div>
-          <div class="customers-row__local">${escapeHtml(created)}</div>
-          <div class="customers-row__actions">
-            <button type="button" class="btn btn-sm btn-secondary" data-open-quote="${escapeHtml(String(q.id))}">Abrir</button>
+        <article class="om-swipe quote-swipe customers-row customers-row--quote" role="listitem" tabindex="0" data-id="${escapeHtml(String(q.id))}" style="--av-hue:${(i * 47) % 360}">
+          <div class="om-swipe__actions" aria-hidden="true">
+            <button type="button" class="om-swipe__act--edit" data-open-quote="${escapeHtml(String(q.id))}">Abrir</button>
             ${
               canDelete
-                ? `<button type="button" class="btn btn-sm btn-secondary quotes-row__delete" data-delete-quote="${escapeHtml(String(q.id))}" data-delete-label="${escapeHtml(q.quote_number != null ? String(q.quote_number) : String(q.id))}" title="Apagar orçamento">Apagar</button>`
+                ? `<button type="button" class="om-swipe__act--delete" data-delete-quote="${escapeHtml(String(q.id))}" data-delete-label="${escapeHtml(q.quote_number != null ? String(q.quote_number) : String(q.id))}">Apagar</button>`
                 : ""
             }
+          </div>
+          <div class="om-swipe__body customers-row__swipe-body">
+            <div class="customers-row__identity">
+              <span class="customers-row__av" aria-hidden="true">${av}</span>
+              <div class="customers-row__who">
+                <div class="customers-row__name" title="${client}">${client}</div>
+                <div class="customers-row__refs"><span class="customers-ref">#${qnum}</span></div>
+              </div>
+            </div>
+            <div class="customers-row__amt tabular-nums">$${amt}</div>
+            <div class="customers-row__status"><span class="mod-status is-${escapeHtml(slug)}">${escapeHtml(statusLabel(q.status))}</span></div>
+            <div class="customers-row__pdf"></div>
+            <div class="customers-row__local">${escapeHtml(created)}</div>
+            <div class="customers-row__actions customers-row__actions--desktop">
+              <button type="button" class="btn btn-sm btn-secondary" data-open-quote="${escapeHtml(String(q.id))}">Abrir</button>
+              ${
+                canDelete
+                  ? `<button type="button" class="btn btn-sm btn-secondary quotes-row__delete" data-delete-quote="${escapeHtml(String(q.id))}" data-delete-label="${escapeHtml(q.quote_number != null ? String(q.quote_number) : String(q.id))}" title="Apagar orçamento">Apagar</button>`
+                  : ""
+              }
+            </div>
           </div>
         </article>`;
       })
       .join("");
+    if (window.OmGestures && window.matchMedia("(max-width: 900px), (pointer: coarse)").matches) {
+      window.OmGestures.bindSwipeRow(list);
+    }
     list.querySelectorAll("[data-id]").forEach((row) => {
       const open = () => {
         window.location.href = `quote-builder.html?id=${encodeURIComponent(row.getAttribute("data-id"))}`;
@@ -302,6 +315,13 @@
       });
 
       await loadQuotes();
+      if (window.OmGestures) {
+        window.OmGestures.initPullToRefresh({
+          key: "quotes",
+          indicator: "#quotesPtr",
+          refresh: () => loadQuotes(),
+        });
+      }
     } catch (err) {
       notify(err.message || "Falha ao carregar", "error");
       location.href = "/login.html";
