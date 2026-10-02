@@ -497,7 +497,7 @@
       S.editing === 'contact'
         ? `<form class="lp-form" data-lp-form="contact">
           <label>Nome<input name="name" required value="${esc(L.name)}" /></label>
-          <div class="lp-form__2"><label>Telefone<input name="phone" type="tel" value="${esc(L.phone || '')}" /></label>
+          <div class="lp-form__2"><label>Telefone<input name="phone" type="tel" value="${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(L.phone) || L.phone || '' : L.phone || '')}" /></label>
           <label>E-mail<input name="email" type="email" value="${esc(L.email || '')}" /></label></div>
           <label>Endereço<input name="address" data-lp-address autocomplete="off" value="${esc(L.address || '')}" /></label>
           <div class="lp-form__2"><label>CEP / ZIP<input name="zipcode" value="${esc(L.zipcode && L.zipcode !== '00000' ? L.zipcode : '')}" /></label>
@@ -506,7 +506,7 @@
           <div class="lp-form__acts"><button type="button" class="lp-btn" data-lp-cancel>Cancelar</button><button type="submit" class="lp-btn lp-btn--ink">Salvar</button></div>
         </form>`
         : `<dl class="lp-kv">
-          <dt>Telefone</dt><dd>${L.phone ? `<a href="tel:${esc(String(L.phone).replace(/[^\d+]/g, ''))}">${esc(L.phone)}</a>` : '<span class="lp-mut">—</span>'}</dd>
+          <dt>Telefone</dt><dd>${L.phone ? `<a href="tel:${esc(String(L.phone).replace(/[^\d+]/g, ''))}">${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(L.phone) || L.phone : L.phone)}</a>` : '<span class="lp-mut">—</span>'}</dd>
           <dt>E-mail</dt><dd>${L.email ? `<a href="mailto:${esc(L.email)}">${esc(L.email)}</a>` : '<span class="lp-mut">—</span>'}</dd>
           <dt>Endereço</dt><dd>${leadAddress() ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(leadAddress())}" target="_blank" rel="noopener">${esc(leadAddress())}</a>` : '<button type="button" class="lp-link" data-lp-edit="contact">Adicionar endereço</button>'}</dd>
           ${L.company_name ? `<dt>Empresa</dt><dd>${esc(L.company_name)}</dd>` : ''}

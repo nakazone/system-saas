@@ -2113,7 +2113,7 @@ async function loadLeads() {
                             <td>${lead.id}</td>
                             <td>${lead.name || '-'}${urgentBadge}</td>
                             <td>${lead.email || '-'}</td>
-                            <td>${lead.phone || '-'}</td>
+                            <td>${(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(lead.phone) : lead.phone) || '-'}</td>
                             <td>${lead.zipcode || '-'}</td>
                             <td><span class="lead-status-pipeline" title="${escapeHtmlLeadList(statusLabel)}"><span class="lead-stage-color-dot" style="background-color: ${stageColor}" aria-hidden="true"></span><span class="badge badge-${statusSlug}">${escapeHtmlLeadList(statusLabel)}</span></span></td>
                             <td>${lead.source || '-'}</td>
@@ -2364,8 +2364,9 @@ function escapeClientCell(s) {
         .replace(/"/g, '&quot;');
 }
 
-/** Até 10 dígitos → (XXX) XXX-XXXX */
+/** Até 10 dígitos → (XXX) XXX-XXXX (usa crm-phone.js quando disponível). */
 function formatUsPhoneMaskFromDigits(raw) {
+    if (typeof window.sfMaskPhoneInput === 'function') return window.sfMaskPhoneInput(raw);
     const d = String(raw || '').replace(/\D/g, '').slice(0, 10);
     if (d.length === 0) return '';
     if (d.length <= 3) return `(${d}`;
@@ -2374,6 +2375,7 @@ function formatUsPhoneMaskFromDigits(raw) {
 }
 
 function displayPhoneInClientForm(phone) {
+    if (typeof window.sfFormatPhone === 'function') return window.sfFormatPhone(phone) || '';
     if (phone == null || phone === '') return '';
     const s = String(phone).trim();
     if (s === '—' || s === '-' || /^n\/?a$/i.test(s)) return '';

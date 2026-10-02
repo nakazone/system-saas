@@ -859,7 +859,9 @@ function renderKanbanCard(lead) {
             : '';
     const name = escapeKanbanHtml(lead.name || 'Sem nome');
     const email = lead.email ? escapeKanbanHtml(lead.email) : '';
-    const phone = lead.phone ? escapeKanbanHtml(lead.phone) : '';
+    const phone = lead.phone
+      ? escapeKanbanHtml(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(lead.phone) || lead.phone : lead.phone)
+      : '';
     const emailRow = email
         ? `<div class="kanban-card-row"><span class="kanban-card-label">Email</span><span class="kanban-card-value kanban-card-truncate" title="${email}">${email}</span></div>`
         : '';
@@ -1321,7 +1323,9 @@ function leadsMobileTelHref(phone) {
 function renderLeadsMobileCard(lead, stage, stages) {
     const id = kanbanLeadId(lead.id);
     const name = escapeKanbanHtml(lead.name || 'Sem nome');
-    const phone = lead.phone ? escapeKanbanHtml(lead.phone) : '';
+    const phone = lead.phone
+      ? escapeKanbanHtml(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(lead.phone) || lead.phone : lead.phone)
+      : '';
     const tel = leadsMobileTelHref(lead.phone);
     const days = kanbanDaysInCurrentColumn(lead);
     const daysLabel = formatKanbanDaysInColumnLabel(days);

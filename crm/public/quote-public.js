@@ -349,7 +349,10 @@
         : q.customer_name || 'Client'
     );
     const email = escapeHtml(q.customer_email || q.builder_email || '');
-    const phone = escapeHtml(q.customer_phone || q.builder_phone || '');
+    const rawPhone = q.customer_phone || q.builder_phone || '';
+    const phone = escapeHtml(
+      typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(rawPhone) || rawPhone : rawPhone,
+    );
     const jobName = isBuilder && q.job_name ? escapeHtml(String(q.job_name)) : '';
     const jobAddr = isBuilder && q.job_address ? escapeHtml(String(q.job_address)) : '';
     const issue = q.issue_date ? String(q.issue_date).slice(0, 10) : '';

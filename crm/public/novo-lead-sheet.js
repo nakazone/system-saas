@@ -60,7 +60,7 @@
           </div>
           <div class="nls-field">
             <label class="nls-label" for="nlsPhone">Telefone</label>
-            <input class="nls-input" id="nlsPhone" name="phone" required maxlength="40" placeholder="(555) 000-0000" autocomplete="tel" inputmode="tel" />
+            <input class="nls-input" id="nlsPhone" name="phone" required maxlength="14" placeholder="(XXX) XXX-XXXX" autocomplete="tel" inputmode="tel" />
           </div>
           <div class="nls-field">
             <label class="nls-label" for="nlsAddress">Endereço</label>

@@ -20,6 +20,7 @@ import {
   resolveMeetingColor,
   resolveVisitColor,
 } from "../../lib/settings/schedule.js";
+import { formatUsPhone } from "../../lib/phone.js";
 
 export const scheduleJobsRouter = Router();
 
@@ -204,7 +205,7 @@ function mapWorkOrder(wo: {
           id: wo.customer.id,
           name: wo.customer.name,
           email: wo.customer.email ?? null,
-          phone: wo.customer.phone ?? null,
+          phone: formatUsPhone(wo.customer.phone ?? null),
         }
       : null,
     builder: wo.builder
@@ -284,7 +285,7 @@ function mapMeeting(m: {
       ? {
           id: m.lead.id,
           name: m.lead.name,
-          phone: m.lead.phone,
+          phone: formatUsPhone(m.lead.phone),
           email: m.lead.email,
           notes: m.lead.notes ?? null,
           address: leadMeta.address != null ? String(leadMeta.address) : null,

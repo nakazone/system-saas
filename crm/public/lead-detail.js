@@ -357,7 +357,7 @@ function renderLead() {
 
     if (phone && phoneLink) {
         const tel = typeof window.sfBuildTelHref === 'function' ? window.sfBuildTelHref(phone) : 'tel:' + phone.replace(/\D/g, '');
-        phoneLink.textContent = phone;
+        phoneLink.textContent = typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(phone) || phone : phone;
         phoneLink.href = tel || '#';
         phoneLink.hidden = !tel;
         if (phoneEl) phoneEl.hidden = true;

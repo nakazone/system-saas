@@ -8,6 +8,7 @@ import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { notifyNewLeadPush } from "../../lib/push/notify.js";
 import { WON_QUOTE_STATUSES } from "../../lib/dashboard/overview.js";
 import { ensureCanonicalPipelineStages, ensureStageForSlug, findDuplicateLead } from "../../lib/leads/stage.js";
+import { formatUsPhone } from "../../lib/phone.js";
 import { safeTimeZone, startOfZonedDay, startOfZonedMonth } from "../../lib/time/zoned.js";
 
 export const dashboardLeadsRouter = Router();
@@ -102,7 +103,7 @@ function mapLead(l: {
     id: l.id,
     name: l.name,
     email: l.email,
-    phone: l.phone,
+    phone: formatUsPhone(l.phone),
     source: l.source,
     status: statusSlug,
     notes: l.notes,
@@ -960,7 +961,7 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
           organizationId: req.organizationId!,
           name: parsed.data.name.trim(),
           email: parsed.data.email || null,
-          phone: parsed.data.phone || null,
+          phone: formatUsPhone(parsed.data.phone ?? null),
           source: parsed.data.source || null,
           notes: notesMerged,
           status: stage?.slug || "new",
@@ -1084,7 +1085,7 @@ dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), a
         data: {
           name: body.name !== undefined ? String(body.name) : undefined,
           email: body.email !== undefined ? String(body.email || "") || null : undefined,
-          phone: body.phone !== undefined ? String(body.phone || "") || null : undefined,
+          phone: body.phone !== undefined ? formatUsPhone(String(body.phone || "") || null) : undefined,
           source: body.source !== undefined ? String(body.source || "") || null : undefined,
           notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
           status,

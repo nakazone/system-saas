@@ -231,7 +231,7 @@
           <p class="inv-paper__client">${esc(c.name || 'Cliente')}</p>
           ${c.address ? `<p class="inv-paper__muted">${esc(c.address)}</p>` : ''}
           ${c.email ? `<p class="inv-paper__muted">${esc(c.email)}</p>` : ''}
-          ${c.phone ? `<p class="inv-paper__muted">${esc(c.phone)}</p>` : ''}
+          ${c.phone ? `<p class="inv-paper__muted">${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(c.phone) || c.phone : c.phone)}</p>` : ''}
         </div>
         <div class="inv-paper__doc">
           <p class="inv-paper__kind">INVOICE</p>

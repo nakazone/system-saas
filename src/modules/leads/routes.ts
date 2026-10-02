@@ -11,6 +11,7 @@ import {
   assertCanDeleteOrReorderStage,
   moveLeadToSystemStage,
 } from "../../lib/pipeline/move.js";
+import { formatUsPhone } from "../../lib/phone.js";
 
 export const leadsRouter = Router();
 
@@ -275,7 +276,7 @@ leadsRouter.post(
             organizationId: req.organizationId!,
             name: parsed.data.name,
             email: parsed.data.email || null,
-            phone: parsed.data.phone || null,
+            phone: formatUsPhone(parsed.data.phone || null),
             source: parsed.data.source || null,
             pipelineStageId: stageId,
             notes: parsed.data.notes || null,
@@ -409,7 +410,7 @@ leadsRouter.post(
           data: {
             name: parsed.data.name,
             email: parsed.data.email || null,
-            phone: parsed.data.phone || null,
+            phone: formatUsPhone(parsed.data.phone || null),
             source: parsed.data.source || null,
             status: parsed.data.status,
             pipelineStageId: parsed.data.pipelineStageId || null,

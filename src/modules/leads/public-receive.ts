@@ -21,6 +21,7 @@ import { prisma } from "../../lib/prisma.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { notifyNewLeadPush } from "../../lib/push/notify.js";
 import type { TenantRequest } from "../../lib/tenant/resolve-tenant.js";
+import { formatUsPhone } from "../../lib/phone.js";
 
 export const publicReceiveLeadRouter = Router();
 
@@ -336,7 +337,7 @@ export async function ingestPublicLead(
         organizationId,
         name,
         email,
-        phone,
+        phone: formatUsPhone(phone) || phone,
         source,
         status: "new",
         notes: noteParts.length ? noteParts.join("\n") : null,

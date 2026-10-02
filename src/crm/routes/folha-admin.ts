@@ -27,6 +27,7 @@ import { orgScoped } from "../../lib/tenant/org-scoped.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import type { PayrollTx } from "../lib/payroll-employee-link.js";
 import { safeTimeZone } from "../../lib/time/zoned.js";
+import { formatUsPhone } from "../../lib/phone.js";
 import { mondayYmdFromCalendarYmd, overtimeFromDaily, parseYmd, sundayYmdAfterMonday, ymdToBrShort } from "../lib/payroll-calc.js";
 import { DAY_FLAG_LABELS, dayAmount, isHHMM, minutesLabel, wallTimeOn, workDateFor, ymd } from "../../lib/payroll/day.js";
 import { closeDay, dayBounds, periodFor, postDayToPayroll, removeDayFromPayroll } from "../../lib/payroll/day-service.js";
@@ -915,7 +916,7 @@ function mapEmployee(e: Prisma.PayrollEmployeeGetPayload<{ include: { user: { se
     id: e.id,
     name: e.name,
     email: e.email,
-    phone: e.phone,
+    phone: formatUsPhone(e.phone),
     role_title: e.roleTitle,
     sector: e.sector,
     pay_type: e.payType === "production" ? "production" : "daily",
@@ -969,7 +970,7 @@ function employeeData(d: z.infer<typeof employeeBody>) {
   return {
     name: d.name,
     ...(d.email !== undefined ? { email: d.email || null } : {}),
-    ...(d.phone !== undefined ? { phone: d.phone || null } : {}),
+    ...(d.phone !== undefined ? { phone: formatUsPhone(d.phone || null) } : {}),
     ...(d.role_title !== undefined ? { roleTitle: d.role_title || null } : {}),
     ...(d.sector !== undefined ? { sector: d.sector || null } : {}),
     ...(d.pay_type !== undefined ? { payType: d.pay_type } : {}),

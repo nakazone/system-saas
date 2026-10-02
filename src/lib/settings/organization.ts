@@ -3,6 +3,7 @@
  * "Configuração da empresa" setup checklist shown on the settings overview.
  */
 import { z } from "zod";
+import { formatUsPhone } from "../phone.js";
 
 export const WEEK_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 export type WeekDay = (typeof WEEK_DAYS)[number];
@@ -121,6 +122,11 @@ export const organizationSettingsPatchSchema = z
         if (digits.length < 10 || digits.length > 15) {
           ctx.addIssue({ code: "custom", message: "Telefone precisa ter DDD e número" });
           return z.NEVER;
+        }
+        let d = digits;
+        if (d.length === 11 && d.startsWith("1")) d = d.slice(1);
+        if (d.length === 10) {
+          return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
         }
         return v;
       }),
@@ -299,7 +305,7 @@ export function serializeOrganizationSettings(o: OrganizationSettingsRow) {
     slug: o.slug,
     logo_url: o.logoUrl,
     legal_name: o.legalName,
-    contact_phone: o.contactPhone,
+    contact_phone: formatUsPhone(o.contactPhone),
     contact_email: o.contactEmail,
     website: o.website,
     address_line1: o.addressLine1,

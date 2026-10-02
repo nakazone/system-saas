@@ -610,7 +610,7 @@
     const tempRows = st.id
       ? st.temps
           .map(
-            (t) => `<div class="jm-temp"><span><b>${esc(t.name)}</b><small>${esc([t.phone, t.email].filter(Boolean).join(" · ") || "sem telefone")}</small></span>
+            (t) => `<div class="jm-temp"><span><b>${esc(t.name)}</b><small>${esc([(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(t.phone) : t.phone) || t.phone, t.email].filter(Boolean).join(" · ") || "sem telefone")}</small></span>
             <span class="jm-temp__act">
               <button type="button" class="jm-chip jm-chip--sm" data-act="temp-wa" data-id="${esc(t.id)}">WhatsApp</button>
               <button type="button" class="jm-chip jm-chip--sm" data-act="temp-sms" data-id="${esc(t.id)}">SMS</button>
@@ -621,7 +621,7 @@
           .join("")
       : pendingList
           .map(
-            (t, i) => `<div class="jm-temp"><span><b>${esc(t.name)}</b><small>${esc(t.phone || "sem telefone")}</small></span>
+            (t, i) => `<div class="jm-temp"><span><b>${esc(t.name)}</b><small>${esc((typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(t.phone) : t.phone) || t.phone || "sem telefone")}</small></span>
             <span class="jm-temp__act">
               <button type="button" class="jm-ln__del" data-act="temp-pending-del" data-i="${i}" aria-label="Remover">×</button>
             </span></div>`,

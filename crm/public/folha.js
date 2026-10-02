@@ -903,14 +903,15 @@
       <div class="fo-card">${
         list.length
           ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th><th>Setor</th><th>Pagamento</th><th>Horário padrão</th><th>Login no app</th><th>Status</th></tr></thead><tbody>${list
-              .map(
-                (e) => `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || e.phone || e.email || "")}</small></span></div></td>
+              .map((e) => {
+                const ph = e.phone && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(e.phone) || e.phone : e.phone;
+                return `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || ph || e.email || "")}</small></span></div></td>
                 <td>${e.sector ? sectorTag(e.sector) : '<span class="fo-pill fo-pill--due">Definir</span>'}</td>
                 <td>${e.pay_type === "production" ? `Produção · ${money(e.production_rate)}/sq ft` : `Diária · ${money0(e.daily_rate)}`}<div class="fo-muted" style="font-size:12px">extra ${money(e.overtime_rate)}/h${e.payment_method ? ` · ${esc(METHOD_LABEL[e.payment_method] || e.payment_method)}` : ""}</div></td>
                 <td>${esc(schedLabel(e))}<div class="fo-muted" style="font-size:12px">${[e.require_photos ? "fotos obrigatórias" : "", e.require_gps ? "GPS" : ""].filter(Boolean).join(" · ") || "sem exigências"}</div></td>
                 <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td>
-                <td>${e.status === "active" ? '<span class="fo-pill fo-pill--muted">Ativo</span>' : '<span class="fo-pill fo-pill--red">Inativo</span>'}</td></tr>`,
-              )
+                <td>${e.status === "active" ? '<span class="fo-pill fo-pill--muted">Ativo</span>' : '<span class="fo-pill fo-pill--red">Inativo</span>'}</td></tr>`;
+              })
               .join("")}</tbody></table>`
           : '<div class="fo-empty"><b>Nenhum funcionário ainda.</b>Cadastre a equipe com setor, diária e horário padrão.</div>'
       }</div>
@@ -924,7 +925,7 @@
     const dis = st.manage ? "" : "disabled";
     const body = `<div class="fo-box"><h3>Dados</h3>
         <label class="fo-field">Nome<input type="text" class="fo-in" id="feName" value="${esc(v.name)}" maxlength="120" autofocus ${dis} /></label>
-        <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Telefone<input type="tel" class="fo-in" id="fePhone" value="${esc(v.phone || "")}" ${dis} /></label><label class="fo-field">E-mail<input type="email" class="fo-in" id="feEmail" value="${esc(v.email || "")}" ${dis} /></label></div>
+        <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Telefone<input type="tel" class="fo-in" id="fePhone" value="${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(v.phone) || v.phone || "" : v.phone || "")}" ${dis} /></label><label class="fo-field">E-mail<input type="email" class="fo-in" id="feEmail" value="${esc(v.email || "")}" ${dis} /></label></div>
         <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Função<input type="text" class="fo-in" id="feRole" value="${esc(v.role_title || "")}" maxlength="80" placeholder="Instalador, ajudante…" ${dis} /></label>
         <label class="fo-field">Setor da folha<select class="fo-sel" id="feSector" ${dis}><option value="installation"${v.sector !== "sand_finish" ? " selected" : ""}>Instalação</option><option value="sand_finish"${v.sector === "sand_finish" ? " selected" : ""}>Lixa</option></select></label></div>
       </div>

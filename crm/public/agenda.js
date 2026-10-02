@@ -861,11 +861,11 @@
       ${
         ct.name || tel
           ? `<div class="ag-card ag-dtl__row">${tel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(ct.name || '')}</b>${
-              ct.phone ? `<small>${esc(ct.phone)}</small>` : ''
+              ct.phone ? `<small>${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(ct.phone) : ct.phone)}</small>` : ''
             }</div>${
               tel || sms
                 ? `<span class="ag-dtl__chips">${tel ? `<a class="ag-chip" href="${esc(tel)}">Ligar</a>` : ''}${
-                    sms ? `<a class="ag-chip" href="${esc(sms)}">Txt</a>` : ''
+                    sms ? `<a class="ag-chip" href="${esc(sms)}">Text</a>` : ''
                   }</span>`
                 : ''
             }</div>`
@@ -1098,7 +1098,10 @@
           res.innerHTML = (j.data || []).length
             ? j.data
                 .map(
-                  (l) => `<button type="button" class="ag-lead-opt" data-ag-lead="${esc(l.id)}" data-ag-lead-name="${esc(l.name)}" data-ag-lead-addr="${esc([l.address, l.zipcode && l.address && !String(l.address).includes(l.zipcode) ? l.zipcode : ''].filter(Boolean).join(', '))}"><b>${esc(l.name)}</b><small>${esc([l.phone, l.address].filter(Boolean).join(' · '))}</small></button>`
+                  (l) => {
+                    const ph = typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(l.phone) : l.phone;
+                    return `<button type="button" class="ag-lead-opt" data-ag-lead="${esc(l.id)}" data-ag-lead-name="${esc(l.name)}" data-ag-lead-addr="${esc([l.address, l.zipcode && l.address && !String(l.address).includes(l.zipcode) ? l.zipcode : ''].filter(Boolean).join(', '))}"><b>${esc(l.name)}</b><small>${esc([ph, l.address].filter(Boolean).join(' · '))}</small></button>`;
+                  }
                 )
                 .join('')
             : '<p class="ag-empty">Nenhum lead encontrado.</p>';

@@ -244,7 +244,7 @@
     $("cliKpiOpen").textContent = money(fin.balance);
 
     $("cliDetDl").innerHTML = `
-      <div class="jcm-dl__row"><span class="jcm-dl__k">Telefone</span><span class="jcm-dl__v">${escapeHtml(phone || "—")}</span></div>
+      <div class="jcm-dl__row"><span class="jcm-dl__k">Telefone</span><span class="jcm-dl__v">${escapeHtml((typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) : phone) || "—")}</span></div>
       <div class="jcm-dl__row"><span class="jcm-dl__k">E-mail</span><span class="jcm-dl__v">${escapeHtml(email || "—")}</span></div>
       <div class="jcm-dl__row"><span class="jcm-dl__k">Contato</span><span class="jcm-dl__v">${escapeHtml(c.responsible_name || "—")}</span></div>
       <div class="jcm-dl__row"><span class="jcm-dl__k">Cidade</span><span class="jcm-dl__v">${escapeHtml([c.city, c.state].filter(Boolean).join(", ") || "—")}</span></div>`;

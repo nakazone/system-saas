@@ -31,7 +31,7 @@
       tr.innerHTML = `
         <td class="px-4 py-3 font-medium">${esc(r.name)}</td>
         <td class="px-4 py-3">${esc(r.contact_name)}</td>
-        <td class="px-4 py-3">${esc(r.phone)}</td>
+        <td class="px-4 py-3">${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(r.phone) || r.phone : r.phone)}</td>
         <td class="px-4 py-3">${esc(r.email)}</td>
         <td class="px-4 py-3">${on ? 'Yes' : 'No'}</td>
         <td class="px-4 py-3 text-right space-x-2">

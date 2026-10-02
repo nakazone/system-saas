@@ -28,6 +28,7 @@ import {
   defaultQuoteAccessSubject,
 } from "../../lib/email/quote-access.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
+import { formatUsPhone } from "../../lib/phone.js";
 
 export const customersQuotesRouter = Router();
 
@@ -349,7 +350,7 @@ function mapCustomer(c: {
     id: c.id,
     name: c.name,
     email: c.email,
-    phone: c.phone,
+    phone: formatUsPhone(c.phone),
     address: c.address,
     customer_type: normalizeCustomerType(c.customerType),
     pricing_mode: c.pricingMode === "custom" ? "custom" : "table",
@@ -819,7 +820,7 @@ customersQuotesRouter.post(
             organizationId: req.organizationId!,
             name: parsed.data.name,
             email: parsed.data.email || null,
-            phone: parsed.data.phone || null,
+            phone: formatUsPhone(parsed.data.phone ?? null),
             address: parsed.data.address || null,
             customerType: normalizeCustomerType(parsed.data.customer_type),
             pricingMode,
@@ -916,7 +917,7 @@ customersQuotesRouter.put(
           data: {
             name: body.name !== undefined ? String(body.name) : undefined,
             email: body.email !== undefined ? String(body.email || "") || null : undefined,
-            phone: body.phone !== undefined ? String(body.phone || "") || null : undefined,
+            phone: body.phone !== undefined ? formatUsPhone(String(body.phone || "") || null) : undefined,
             address: body.address !== undefined ? String(body.address || "") || null : undefined,
             customerType: body.customer_type !== undefined ? normalizeCustomerType(body.customer_type) : undefined,
             pricingMode: body.pricing_mode !== undefined ? normalizePricingMode(body.pricing_mode) : undefined,

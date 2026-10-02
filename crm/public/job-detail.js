@@ -255,7 +255,12 @@
   function renderFacts() {
     const w = whenText();
     const c = job.customer;
-    const contact = [c?.phone ? `<a href="tel:${esc(c.phone)}">${esc(c.phone)}</a>` : "", c?.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : ""]
+    const phoneDisp = c?.phone
+      ? typeof window.sfFormatPhone === "function"
+        ? window.sfFormatPhone(c.phone) || c.phone
+        : c.phone
+      : "";
+    const contact = [phoneDisp ? `<a href="tel:${esc(String(c.phone).replace(/[^\d+]/g, ""))}">${esc(phoneDisp)}</a>` : "", c?.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : ""]
       .filter(Boolean)
       .join(" · ");
     const members = (job.members || []).filter((m) => m.user_id !== job.assigned_user_id);
