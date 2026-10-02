@@ -92,11 +92,22 @@
 
   /** Calendar list for the sidebar / forms: Jobs, Visitas, Compromissos + custom agendas. */
   function calList() {
-    const cfg = S.calendars.length ? S.calendars : [{ id: 'jobs', name: 'Jobs', color: TYPES.job.color, kind: 'jobs' }, { id: 'meetings', name: 'Meetings', color: TYPES.meeting.color, kind: 'meetings' }];
+    const fallback = [
+      { id: 'jobs', name: 'Jobs', color: TYPES.job.color, kind: 'jobs' },
+      { id: 'visits', name: 'Visitas', color: TYPES.visit.color, kind: 'visits' },
+      { id: 'meetings', name: 'Meetings', color: TYPES.meeting.color, kind: 'meetings' },
+    ];
+    const cfg = S.calendars.length ? S.calendars : fallback;
     const pt = (c) => (c.kind === 'meetings' && /^meetings?$/i.test(c.name) ? 'Compromissos' : c.name);
-    const jobs = cfg.find((c) => c.kind === 'jobs') || cfg[0];
-    const out = [{ id: 'jobs', name: pt(jobs), color: jobs.color, kind: 'jobs' }, { id: 'visits', name: 'Visitas', color: TYPES.visit.color, kind: 'visits' }];
-    cfg.filter((c) => c.kind !== 'jobs').forEach((c) => out.push({ id: c.id, name: pt(c), color: c.color, kind: c.kind }));
+    const jobs = cfg.find((c) => c.kind === 'jobs') || fallback[0];
+    const visits = cfg.find((c) => c.kind === 'visits') || fallback[1];
+    const out = [
+      { id: 'jobs', name: pt(jobs), color: jobs.color, kind: 'jobs' },
+      { id: 'visits', name: pt(visits), color: visits.color, kind: 'visits' },
+    ];
+    cfg
+      .filter((c) => c.kind !== 'jobs' && c.kind !== 'visits')
+      .forEach((c) => out.push({ id: c.id, name: pt(c), color: c.color, kind: c.kind }));
     return out;
   }
   const calOf = (e) => calList().find((c) => c.id === e.calendar) || { name: TYPES[e.type].one, color: e.color };
@@ -799,11 +810,14 @@
     const ppl = peopleOf(e);
     const tel = ct.phone ? 'tel:' + String(ct.phone).replace(/[^\d+]/g, '') : '';
     const maps = e.address ? 'https://maps.google.com/?q=' + encodeURIComponent(e.address) : '';
-    const jobNotes = e.type === 'job' ? [e.meta.campo_attention ? 'Atenção: ' + e.meta.campo_attention : '', e.meta.notes].filter(Boolean).join('\n\n') : '';
-    const eventNotes = e.type === 'job' ? '' : e.meta.notes || '';
-    const leadNotes = e.type === 'visit' && e.meta.lead ? e.meta.lead.notes || '' : '';
     const canEdit = S.canManage;
-    const canEditNotes = canEdit && (e.type === 'visit' || e.type === 'meeting');
+    const leadId = e.meta.lead_id || (e.meta.lead && e.meta.lead.id) || '';
+    const notesTarget =
+      e.type === 'job'
+        ? { kind: 'job', id: e.id, value: e.meta.notes || '', label: 'Notas do job', placeholder: 'Notas do job…' }
+        : leadId
+          ? { kind: 'lead', id: leadId, value: (e.meta.lead && e.meta.lead.notes) || '', label: 'Notas', placeholder: 'Notas do lead…' }
+          : null;
     const startH = e.allDay ? null : Math.max(0, e.start.getHours() - 1);
     const mini =
       phone && !e.allDay
@@ -814,32 +828,22 @@
             (e.end - e.start) / 3600e3
           ) * 44 - 2}px;left:64px;right:12px;width:auto"><b>${esc(e.title)}</b>${e.address ? `<small>${esc(e.address)}</small>` : ''}</div></div>`
         : '';
-    const notesBlock =
-      e.type === 'job'
-        ? jobNotes
-          ? `<div class="ag-card ag-dtl__notes"><span>Notas</span><p>${esc(jobNotes)}</p></div>`
-          : ''
-        : `<div class="ag-card ag-dtl__notes${eventNotes ? '' : ' is-empty'}" data-ag-notes-box="${esc(e.id)}">
-            <span>${e.type === 'visit' ? 'Notas do agendamento' : 'Notas'}</span>
+    const notesBlock = notesTarget
+      ? `<div class="ag-card ag-dtl__notes">
+          <button type="button" class="ag-dtl__notes-tog" data-ag-notes-tog aria-expanded="false">
+            <span>${esc(notesTarget.label)}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>
+          </button>
+          <div class="ag-dtl__notes-panel" hidden>
             ${
-              canEditNotes
-                ? `<textarea name="event_notes" data-ag-notes="${esc(e.id)}" maxlength="8000" placeholder="Adicionar notas…">${esc(eventNotes)}</textarea>
-                   <div class="ag-dtl__notes-ft"><button type="button" class="ag-btn ag-btn--pri" data-ag-save-notes="${esc(e.id)}" disabled>Guardar notas</button></div>`
-                : `<p>${esc(eventNotes || 'Sem notas')}</p>`
+              canEdit
+                ? `<textarea name="notes" data-ag-notes="${esc(notesTarget.kind)}" data-ag-notes-id="${esc(notesTarget.id)}" maxlength="8000" placeholder="${esc(notesTarget.placeholder)}">${esc(notesTarget.value)}</textarea>
+                   <div class="ag-dtl__notes-ft"><button type="button" class="ag-btn ag-btn--pri" data-ag-save-notes="${esc(notesTarget.kind)}" data-ag-notes-id="${esc(notesTarget.id)}" disabled>Guardar</button></div>`
+                : `<p class="${notesTarget.value ? '' : 'is-empty'}">${esc(notesTarget.value || 'Sem notas')}</p>`
             }
-          </div>${
-            e.type === 'visit'
-              ? `<div class="ag-card ag-dtl__notes${leadNotes ? '' : ' is-empty'}" data-ag-lead-notes-box="${esc(e.meta.lead_id || (e.meta.lead && e.meta.lead.id) || '')}">
-                  <span>Notas do lead</span>
-                  ${
-                    canEditNotes && (e.meta.lead_id || (e.meta.lead && e.meta.lead.id))
-                      ? `<textarea name="lead_notes" data-ag-lead-notes="${esc(e.meta.lead_id || e.meta.lead.id)}" maxlength="8000" placeholder="Notas do lead…">${esc(leadNotes)}</textarea>
-                         <div class="ag-dtl__notes-ft"><button type="button" class="ag-btn ag-btn--pri" data-ag-save-lead-notes="${esc(e.meta.lead_id || e.meta.lead.id)}" disabled>Guardar notas do lead</button></div>`
-                      : `<p>${esc(leadNotes || 'Sem notas no lead')}</p>`
-                  }
-                </div>`
-              : ''
-          }`;
+          </div>
+        </div>`
+      : '';
     return `<div class="ag-dtl" style="${evStyle(e)}">
       <div class="ag-dtl__head"><h2>${esc(e.title)}</h2>
         <p>${esc(w.date)}</p><p>${esc(w.time)}</p>
@@ -1251,37 +1255,37 @@
         }
         return;
       }
-      if ((el = t.closest('[data-ag-save-notes]'))) {
-        const id = el.dataset.agSaveNotes;
-        const ta = document.querySelector(`[data-ag-notes="${CSS.escape(id)}"]`);
-        if (!ta) return;
-        el.disabled = true;
-        try {
-          const notes = String(ta.value || '').trim() || null;
-          await api('/api/meetings/' + encodeURIComponent(id), { method: 'PUT', body: { notes } });
-          const evn = findEv(id);
-          if (evn) evn.meta.notes = notes;
-          toast('Notas guardadas', 'success');
-          el.disabled = true;
-        } catch (err) {
-          el.disabled = false;
-          toast(err.message, 'error');
-        }
+      if ((el = t.closest('[data-ag-notes-tog]'))) {
+        const box = el.closest('.ag-dtl__notes');
+        const panel = box && box.querySelector('.ag-dtl__notes-panel');
+        if (!panel) return;
+        const open = panel.hasAttribute('hidden');
+        if (open) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', '');
+        el.setAttribute('aria-expanded', open ? 'true' : 'false');
+        box.classList.toggle('is-open', open);
         return;
       }
-      if ((el = t.closest('[data-ag-save-lead-notes]'))) {
-        const leadId = el.dataset.agSaveLeadNotes;
-        const ta = document.querySelector(`[data-ag-lead-notes="${CSS.escape(leadId)}"]`);
-        if (!ta || !leadId) return;
+      if ((el = t.closest('[data-ag-save-notes]'))) {
+        const kind = el.dataset.agSaveNotes;
+        const id = el.dataset.agNotesId;
+        const ta = document.querySelector(`[data-ag-notes="${CSS.escape(kind || '')}"][data-ag-notes-id="${CSS.escape(id || '')}"]`);
+        if (!ta || !id) return;
         el.disabled = true;
         try {
           const notes = String(ta.value || '').trim() || null;
-          await api('/api/leads/' + encodeURIComponent(leadId), { method: 'PUT', body: { notes } });
-          S.events.forEach((e) => {
-            if (e.meta && e.meta.lead && String(e.meta.lead.id) === String(leadId)) e.meta.lead.notes = notes;
-            if (e.meta && String(e.meta.lead_id || '') === String(leadId) && e.meta.lead) e.meta.lead.notes = notes;
-          });
-          toast('Notas do lead guardadas', 'success');
+          if (kind === 'job') {
+            await api('/api/work-orders/' + encodeURIComponent(id), { method: 'PUT', body: { notes } });
+            const evn = findEv(id);
+            if (evn) evn.meta.notes = notes;
+          } else {
+            await api('/api/leads/' + encodeURIComponent(id), { method: 'PUT', body: { notes } });
+            S.events.forEach((e) => {
+              if (e.meta && e.meta.lead && String(e.meta.lead.id) === String(id)) e.meta.lead.notes = notes;
+              if (e.meta && String(e.meta.lead_id || '') === String(id) && e.meta.lead) e.meta.lead.notes = notes;
+            });
+          }
+          toast('Notas guardadas', 'success');
           el.disabled = true;
         } catch (err) {
           el.disabled = false;
@@ -1412,14 +1416,9 @@
       const t = ev.target;
       if (!(t instanceof HTMLElement)) return;
       if (t.matches('[data-ag-notes]')) {
-        const id = t.getAttribute('data-ag-notes');
-        const btn = document.querySelector(`[data-ag-save-notes="${CSS.escape(id || '')}"]`);
-        if (btn) btn.disabled = false;
-        return;
-      }
-      if (t.matches('[data-ag-lead-notes]')) {
-        const id = t.getAttribute('data-ag-lead-notes');
-        const btn = document.querySelector(`[data-ag-save-lead-notes="${CSS.escape(id || '')}"]`);
+        const kind = t.getAttribute('data-ag-notes');
+        const id = t.getAttribute('data-ag-notes-id');
+        const btn = document.querySelector(`[data-ag-save-notes="${CSS.escape(kind || '')}"][data-ag-notes-id="${CSS.escape(id || '')}"]`);
         if (btn) btn.disabled = false;
       }
     });

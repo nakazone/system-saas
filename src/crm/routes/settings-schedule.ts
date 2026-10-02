@@ -14,6 +14,7 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { fieldErrors } from "../../lib/settings/organization.js";
 import {
   applyScheduleSettingsPut,
+  mergeOrphanCalendars,
   parseScheduleSettings,
   scheduleSettingsPutSchema,
   serializeScheduleSettings,
@@ -44,7 +45,30 @@ settingsScheduleRouter.get(
         where: { id: req.organizationId! },
         select: { scheduleSettings: true },
       });
-      const settings = parseScheduleSettings(org.scheduleSettings);
+      let settings = parseScheduleSettings(org.scheduleSettings);
+
+      // Register custom agendas already used on meetings but missing from settings.
+      const used = await prisma.meeting.findMany({
+        where: {
+          organizationId: req.organizationId!,
+          calendarId: { not: null },
+        },
+        select: { calendarId: true },
+        distinct: ["calendarId"],
+      });
+      const merged = mergeOrphanCalendars(
+        settings,
+        used.map((r) => r.calendarId),
+      );
+      if (merged.added) {
+        settings = merged.settings;
+        const payload = serializeScheduleSettings(settings);
+        await prisma.organization.update({
+          where: { id: req.organizationId! },
+          data: { scheduleSettings: payload as Prisma.InputJsonValue },
+        });
+      }
+
       res.json({ success: true, data: serializeScheduleSettings(settings) });
     } catch (error) {
       next(error);

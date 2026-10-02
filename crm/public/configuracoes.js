@@ -969,8 +969,9 @@
     if (!host || !state.schedule.draft) return;
     host.innerHTML = state.schedule.draft
       .map((c, i) => {
-        const locked = c.kind === "jobs" || c.kind === "meetings";
-        const kindLbl = c.kind === "jobs" ? "Jobs" : c.kind === "meetings" ? "Meetings" : "Extra";
+        const locked = c.kind === "jobs" || c.kind === "visits" || c.kind === "meetings";
+        const kindLbl =
+          c.kind === "jobs" ? "Jobs" : c.kind === "visits" ? "Visitas" : c.kind === "meetings" ? "Meetings" : "Extra";
         return `<div class="cfg-sched-row" data-sched-i="${i}">
           <span class="cfg-sched-row__kind">${esc(kindLbl)}</span>
           <div class="cfg-field cfg-grow">

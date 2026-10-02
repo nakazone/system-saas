@@ -53,6 +53,7 @@
   /** @type {{ id: string, name: string, color: string, kind: string }[]} */
   let scheduleCalendars = [
     { id: "jobs", name: "Jobs", color: "#e8792c", kind: "jobs" },
+    { id: "visits", name: "Visitas", color: "#7a5ea8", kind: "visits" },
     { id: "meetings", name: "Meetings", color: "#3b6ea5", kind: "meetings" },
   ];
   let mtgEndTouched = false;

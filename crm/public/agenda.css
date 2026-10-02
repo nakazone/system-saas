@@ -204,17 +204,25 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-dtl__kv span { color: var(--ink); font-weight: 600; }
 .ag-dtl__kv b { color: var(--mut); font-weight: 600; text-align: right; display: flex; align-items: center; gap: 7px; }
 .ag-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ev); flex: none; display: inline-block; }
-.ag-dtl__notes span { font-size: 14.5px; font-weight: 700; }
-.ag-dtl__notes p { margin: 6px 0 0; font-size: 14px; color: var(--ink2); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ag-dtl__notes { padding: 0; overflow: hidden; }
+.ag-dtl__notes-tog {
+  appearance: none; width: 100%; border: 0; background: transparent; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; font: inherit; font-size: 14.5px; font-weight: 700; color: var(--ink); text-align: left;
+}
+.ag-dtl__notes-tog svg { width: 18px; height: 18px; stroke: var(--mut); stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; flex: none; transition: transform .18s ease; }
+.ag-dtl__notes.is-open .ag-dtl__notes-tog svg { transform: rotate(180deg); }
+.ag-dtl__notes-panel { padding: 0 14px 12px; }
+.ag-dtl__notes-panel p { margin: 0; font-size: 14px; color: var(--ink2); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ag-dtl__notes-panel p.is-empty { color: var(--mut); font-style: italic; }
 .ag-dtl__notes textarea {
-  display: block; width: 100%; margin-top: 8px; min-height: 72px; resize: vertical;
+  display: block; width: 100%; min-height: 72px; resize: vertical;
   border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
   font: inherit; font-size: 14px; color: var(--ink); background: #fff; outline: 0;
 }
 .ag-dtl__notes textarea:focus { border-color: var(--terra); box-shadow: 0 0 0 3px rgba(232, 121, 44, .15); }
 .ag-dtl__notes-ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .ag-dtl__notes-ft .ag-btn { height: 36px; padding: 0 14px; font-size: 13.5px; }
-.ag-dtl__notes.is-empty p { color: var(--mut); font-style: italic; }
 .ag-dtl__acts { display: flex; gap: 8px; margin-top: 2px; }
 .ag-dtl__acts .ag-btn { flex: 1; }
 .ag-btn { appearance: none; height: 42px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-size: 14.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: var(--ink) !important; }

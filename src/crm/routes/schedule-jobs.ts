@@ -18,12 +18,10 @@ import {
   parseScheduleSettings,
   resolveJobColor,
   resolveMeetingColor,
+  resolveVisitColor,
 } from "../../lib/settings/schedule.js";
 
 export const scheduleJobsRouter = Router();
-
-/** Lead visits on the agenda (not configurable yet). */
-const VISIT_COLOR = "#7a5ea8";
 
 const OFFICE_SEE_ALL_ROLES = new Set([
   "admin",
@@ -1443,9 +1441,9 @@ scheduleJobsRouter.get(
           status: m.status,
           start: m.scheduledStart.toISOString(),
           end: m.scheduledEnd.toISOString(),
-          // Visits are their own built-in calendar; meetings follow Configurações › Agenda.
+          // Visits / meetings follow Configurações › Agenda.
           calendar_id: m.leadId ? "visits" : m.calendarId || "meetings",
-          color: m.leadId ? VISIT_COLOR : resolveMeetingColor(sched, m.calendarId),
+          color: m.leadId ? resolveVisitColor(sched) : resolveMeetingColor(sched, m.calendarId),
           meta: mapMeeting(m),
         })),
       ].sort((a, b) => a.start.localeCompare(b.start));
