@@ -22,6 +22,9 @@ import {
 
 export const scheduleJobsRouter = Router();
 
+/** Lead visits on the agenda (not configurable yet). */
+const VISIT_COLOR = "#7a5ea8";
+
 const OFFICE_SEE_ALL_ROLES = new Set([
   "admin",
   "general_manager",
@@ -252,9 +255,15 @@ function mapMeeting(m: {
   calendarId?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  leadId?: string | null;
   customer?: { id: string; name: string } | null;
   assignedUser?: { id: string; name: string } | null;
+  lead?: { id: string; name: string; phone: string | null; email: string | null; metadata: unknown } | null;
 }) {
+  const leadMeta =
+    m.lead?.metadata && typeof m.lead.metadata === "object" && !Array.isArray(m.lead.metadata)
+      ? (m.lead.metadata as Record<string, unknown>)
+      : {};
   return {
     id: m.id,
     title: m.title,
@@ -271,6 +280,16 @@ function mapMeeting(m: {
     customer: m.customer ? { id: m.customer.id, name: m.customer.name } : null,
     assigned_user: m.assignedUser
       ? { id: m.assignedUser.id, name: m.assignedUser.name }
+      : null,
+    lead_id: m.leadId ?? null,
+    lead: m.lead
+      ? {
+          id: m.lead.id,
+          name: m.lead.name,
+          phone: m.lead.phone,
+          email: m.lead.email,
+          address: leadMeta.address != null ? String(leadMeta.address) : null,
+        }
       : null,
   };
 }
@@ -399,7 +418,35 @@ function teamUserIdsFromWorkOrder(wo: {
 const mtgInclude = {
   customer: { select: { id: true, name: true } },
   assignedUser: { select: { id: true, name: true } },
+  lead: { select: { id: true, name: true, phone: true, email: true, metadata: true } },
 } as const;
+
+/** Keep the lead's visit (Lead.metadata.visits) in step when its meeting changes on the agenda. */
+async function syncLeadVisitFromMeeting(
+  organizationId: string,
+  meeting: { id: string; leadId: string | null; scheduledStart: Date; location: string | null; notes: string | null; status: string; assignedUserId: string | null },
+) {
+  if (!meeting.leadId) return;
+  await withTenantTransaction(organizationId, async (tx) => {
+    const lead = await tx.lead.findFirst({ where: { id: meeting.leadId! } });
+    if (!lead || !lead.metadata || typeof lead.metadata !== "object" || Array.isArray(lead.metadata)) return;
+    const meta = lead.metadata as Record<string, unknown>;
+    const visits = Array.isArray(meta.visits) ? (meta.visits as Array<Record<string, unknown>>) : [];
+    const idx = visits.findIndex((v) => String(v.meeting_id || "") === meeting.id);
+    if (idx < 0) return;
+    visits[idx] = {
+      ...visits[idx],
+      scheduled_at: meeting.scheduledStart.toISOString(),
+      address: meeting.location,
+      notes: meeting.notes,
+      seller_id: meeting.assignedUserId,
+      status: meeting.status === "canceled" ? "cancelled" : meeting.status,
+      updated_at: new Date().toISOString(),
+    };
+    meta.visits = visits;
+    await tx.lead.update({ where: { id: lead.id }, data: { metadata: meta as Prisma.InputJsonValue } });
+  });
+}
 
 async function collectConflictHints(params: {
   organizationId: string;
@@ -702,7 +749,7 @@ scheduleJobsRouter.post(
         return;
       }
       if (start && end && end.getTime() <= start.getTime()) {
-        res.status(400).json({ success: false, error: "End must be after start" });
+        res.status(400).json({ success: false, error: "O fim precisa ser depois do início" });
         return;
       }
 
@@ -806,7 +853,7 @@ scheduleJobsRouter.put(
         return;
       }
       if (start && end && end.getTime() <= start.getTime()) {
-        res.status(400).json({ success: false, error: "End must be after start" });
+        res.status(400).json({ success: false, error: "O fim precisa ser depois do início" });
         return;
       }
 
@@ -1165,7 +1212,7 @@ scheduleJobsRouter.get(
         include: mtgInclude,
       });
       if (!row) {
-        res.status(404).json({ success: false, error: "Meeting not found" });
+        res.status(404).json({ success: false, error: "Compromisso não encontrado" });
         return;
       }
       res.json({ success: true, data: mapMeeting(row) });
@@ -1185,6 +1232,7 @@ const meetingBody = z.object({
   customer_id: z.string().uuid().optional().nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
   calendar_id: z.string().uuid().optional().nullable(),
+  lead_id: z.string().uuid().optional().nullable(),
 });
 
 scheduleJobsRouter.post(
@@ -1195,14 +1243,14 @@ scheduleJobsRouter.post(
     try {
       const parsed = meetingBody.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json({ success: false, error: "Invalid meeting payload" });
+        res.status(400).json({ success: false, error: "Dados do compromisso inválidos" });
         return;
       }
       const d = parsed.data;
       const start = new Date(d.scheduled_start);
       const end = new Date(d.scheduled_end);
       if (end.getTime() <= start.getTime()) {
-        res.status(400).json({ success: false, error: "End must be after start" });
+        res.status(400).json({ success: false, error: "O fim precisa ser depois do início" });
         return;
       }
       const row = await prisma.meeting.create({
@@ -1217,6 +1265,7 @@ scheduleJobsRouter.post(
           customerId: d.customer_id || null,
           assignedUserId: d.assigned_user_id || null,
           calendarId: d.calendar_id || null,
+          leadId: d.lead_id || null,
         },
         include: mtgInclude,
       });
@@ -1245,19 +1294,19 @@ scheduleJobsRouter.put(
         where: { id: String(req.params.id), organizationId: req.organizationId! },
       });
       if (!existing) {
-        res.status(404).json({ success: false, error: "Meeting not found" });
+        res.status(404).json({ success: false, error: "Compromisso não encontrado" });
         return;
       }
       const parsed = meetingBody.partial().safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json({ success: false, error: "Invalid meeting payload" });
+        res.status(400).json({ success: false, error: "Dados do compromisso inválidos" });
         return;
       }
       const d = parsed.data;
       const start = d.scheduled_start ? new Date(d.scheduled_start) : existing.scheduledStart;
       const end = d.scheduled_end ? new Date(d.scheduled_end) : existing.scheduledEnd;
       if (end.getTime() <= start.getTime()) {
-        res.status(400).json({ success: false, error: "End must be after start" });
+        res.status(400).json({ success: false, error: "O fim precisa ser depois do início" });
         return;
       }
       const row = await prisma.meeting.update({
@@ -1274,9 +1323,11 @@ scheduleJobsRouter.put(
             ? { assignedUserId: d.assigned_user_id || null }
             : {}),
           ...(d.calendar_id !== undefined ? { calendarId: d.calendar_id || null } : {}),
+          ...(d.lead_id !== undefined ? { leadId: d.lead_id || null } : {}),
         },
         include: mtgInclude,
       });
+      await syncLeadVisitFromMeeting(req.organizationId!, row);
       const conflicts = await collectConflictHints({
         organizationId: req.organizationId!,
         id: row.id,
@@ -1302,7 +1353,7 @@ scheduleJobsRouter.delete(
         where: { id: String(req.params.id), organizationId: req.organizationId! },
       });
       if (!existing) {
-        res.status(404).json({ success: false, error: "Meeting not found" });
+        res.status(404).json({ success: false, error: "Compromisso não encontrado" });
         return;
       }
       const row = await prisma.meeting.update({
@@ -1310,6 +1361,7 @@ scheduleJobsRouter.delete(
         data: { status: "canceled" },
         include: mtgInclude,
       });
+      await syncLeadVisitFromMeeting(req.organizationId!, row);
       res.json({ success: true, data: mapMeeting(row) });
     } catch (error) {
       next(error);
@@ -1384,13 +1436,15 @@ scheduleJobsRouter.get(
         }),
         ...meetings.map((m) => ({
           id: m.id,
-          type: "meeting" as const,
-          title: m.title,
+          // A meeting booked from a lead is a site visit.
+          type: (m.leadId ? "visit" : "meeting") as "visit" | "meeting",
+          title: m.leadId && m.lead ? m.lead.name : m.title,
           status: m.status,
           start: m.scheduledStart.toISOString(),
           end: m.scheduledEnd.toISOString(),
-          calendar_id: m.calendarId || "meetings",
-          color: resolveMeetingColor(sched, m.calendarId),
+          // Visits are their own built-in calendar; meetings follow Configurações › Agenda.
+          calendar_id: m.leadId ? "visits" : m.calendarId || "meetings",
+          color: m.leadId ? VISIT_COLOR : resolveMeetingColor(sched, m.calendarId),
           meta: mapMeeting(m),
         })),
       ].sort((a, b) => a.start.localeCompare(b.start));

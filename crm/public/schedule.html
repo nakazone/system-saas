@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#f7f4ee" />
-  <title>Schedule | ObraMate</title>
+  <title>Agenda | ObraMate</title>
   <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}/*maismob2*/@media (max-width:1024px){body.om-app.dashboard-app-body,body.om-app{--crm-sidebar-width:0px!important}body.om-app .dashboard-container{display:block!important;margin:0!important;width:100%!important;max-width:100%!important}body.om-app .dashboard-main,body.om-app.dashboard-app-body .dashboard-main,body.om-app.sidebar-collapsed .dashboard-main{margin:0!important;margin-left:0!important;margin-top:0!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;left:0!important;top:0!important;height:100vh!important;height:100dvh!important;width:min(288px,92vw)!important;min-width:0!important;max-width:min(288px,92vw)!important;transform:translate3d(-105%,0,0)!important;z-index:1100!important;margin:0!important}body.om-app #dashboardSidebar.mobile-open,body.om-app .dashboard-sidebar.mobile-open{transform:translate3d(0,0,0)!important}}</style>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
@@ -17,15 +17,14 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261001-tabletnav3" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260924-shell2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20261001-svcnote2" />
-  <link rel="stylesheet" href="schedule.css?v=20261002-agenda1" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261001-tablet1" />
-  <link rel="stylesheet" href="agenda-mais.css?v=20260930-ipad1" />
+  <link rel="stylesheet" href="agenda.css?v=20261002-ag2" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261001-tablet2"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
 </head>
-<body class="dashboard-app-body sched-body om-app sidebar-collapsed">
+<body class="dashboard-app-body ag-body om-app sidebar-collapsed">
   <script>
     (function () {
       try {
@@ -33,12 +32,6 @@
           document.body.classList.remove("sidebar-collapsed");
         }
       } catch (e) {}
-      try {
-        var m = localStorage.getItem("om_sched_acal_mode");
-        document.body.classList.add(m === "week" ? "acal-mode-week" : "acal-mode-month");
-      } catch (e) {
-        document.body.classList.add("acal-mode-month");
-      }
       if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
     })();
   </script>
@@ -49,11 +42,8 @@
     </button>
     <div class="mobile-app-header__brand">
       <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
-      <h1 class="mobile-app-header__title">Schedule</h1>
+      <h1 class="mobile-app-header__title">Agenda</h1>
     </div>
-    <button type="button" class="sched-mobile-filters-btn" id="btnToggleCalSidebar" aria-label="Filtros">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
-    </button>
   </header>
 
   <div class="dashboard-container">
@@ -82,260 +72,78 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
 
-    <main class="dashboard-main sched-main crm-main--fluid">
-      <!-- Google Calendar–style top chrome -->
-      <header class="gcal-topbar">
-        <div class="gcal-topbar__left">
-          <button type="button" class="gcal-create" id="btnCreate" data-crm-permission="schedule.manage" aria-haspopup="menu" aria-expanded="false">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Criar
-          </button>
-          <div class="gcal-create-menu" id="createMenu" hidden role="menu">
-            <button type="button" role="menuitem" id="menuNewMeeting" data-crm-permission="schedule.manage">Meeting</button>
-            <button type="button" role="menuitem" id="menuNewJob" data-crm-permission="work_orders.manage">Job</button>
+    <main class="dashboard-main ag-main">
+      <div class="ag" id="ag" data-view="month">
+        <!-- desktop / tablet toolbar -->
+        <div class="ag-tool">
+          <div class="ag-tool__left">
+            <div class="ag-capsule">
+              <button type="button" class="ag-icon" data-ag-act="sidebar" aria-label="Calendários" title="Calendários"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M3.5 9.5h17M8 3v3M16 3v3"/><path d="M7.5 13h.01M10.5 13h.01M13.5 13h.01M16.5 13h.01M7.5 16.5h.01M10.5 16.5h.01M13.5 16.5h.01"/></svg></button>
+              <button type="button" class="ag-icon" data-ag-act="list" aria-label="Lista" title="Próximos eventos"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg></button>
+            </div>
+            <button type="button" class="ag-capsule ag-icon ag-icon--solo" data-ag-act="new" aria-label="Novo" title="Novo"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
           </div>
-          <button type="button" class="gcal-today" id="btnToday">Hoje</button>
-          <div class="gcal-nav-arrows">
-            <button type="button" class="gcal-icon-btn" id="btnPrev" aria-label="Anterior">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-            </button>
-            <button type="button" class="gcal-icon-btn" id="btnNext" aria-label="Seguinte">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-          </div>
-          <h1 class="gcal-range" id="schedRangeLabel">—</h1>
-        </div>
-        <div class="gcal-topbar__right">
-          <label class="gcal-search">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="search" id="filterQ" placeholder="Pesquisar jobs e meetings" autocomplete="off" />
+          <nav class="ag-seg" aria-label="Visualização">
+            <button type="button" data-ag-view="day">Dia</button>
+            <button type="button" data-ag-view="week">Semana</button>
+            <button type="button" data-ag-view="month">Mês</button>
+            <button type="button" data-ag-view="year">Ano</button>
+          </nav>
+          <label class="ag-search">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+            <input type="search" id="agSearch" placeholder="Buscar" autocomplete="off" />
           </label>
-          <div class="gcal-view-toggle" role="group" aria-label="Vista">
-            <button type="button" class="gcal-view-btn" data-view="day">Dia</button>
-            <button type="button" class="gcal-view-btn is-active" data-view="week">Semana</button>
-            <button type="button" class="gcal-view-btn" data-view="month">Mês</button>
-            <button type="button" class="gcal-view-btn" data-view="agenda">Agenda</button>
-          </div>
-          <button type="button" class="gcal-map-btn" id="btnOpenMap" title="Mapa e distâncias entre eventos">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6l7-3 8 3 7-3v15l-7 3-8-3-7 3V6z"/><path d="M8 3v15"/><path d="M16 6v15"/></svg>
-            Mapa
-          </button>
-          <a class="gcal-link-jobs" href="jobs.html">Jobs</a>
-        </div>
-      </header>
-
-      <div class="gcal-layout">
-        <!-- Left rail: mini month + business calendars/filters -->
-        <aside class="gcal-rail" id="gcalRail">
-          <div class="gcal-mini" id="miniMonth" aria-label="Mini calendário"></div>
-
-          <div class="gcal-cal-section">
-            <p class="gcal-cal-section__title">Calendários</p>
-            <div id="gcalCalList" class="gcal-cal-list">
-              <label class="gcal-check">
-                <input type="checkbox" id="filterJobs" checked data-cal-id="jobs" />
-                <span class="gcal-swatch gcal-swatch--job" id="swatchJobs"></span>
-                Jobs
-              </label>
-              <label class="gcal-check">
-                <input type="checkbox" id="filterMeetings" checked data-cal-id="meetings" />
-                <span class="gcal-swatch gcal-swatch--meeting" id="swatchMeetings"></span>
-                Meetings
-              </label>
-            </div>
-            <a class="gcal-cal-manage" href="configuracoes.html#agenda">Gerir agendas</a>
-          </div>
-
-          <div class="gcal-cal-section">
-            <p class="gcal-cal-section__title">Filtros do negócio</p>
-            <label class="gcal-field">Responsável
-              <select id="filterAssignee"><option value="">Todos</option></select>
-            </label>
-            <label class="gcal-field">Origem
-              <select id="filterSource">
-                <option value="">Todas</option>
-                <option value="particular">Particular</option>
-                <option value="builder">Builder</option>
-                <option value="contractor">Contractor</option>
-                <option value="loja">Loja</option>
-                <option value="internal">Internal</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-            <label class="gcal-field">Status do job
-              <select id="filterStatus">
-                <option value="">Todos</option>
-                <option value="draft">Draft</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="in_progress">In progress</option>
-                <option value="completed">Completed</option>
-              </select>
-            </label>
-            <label class="gcal-check gcal-check--solo">
-              <input type="checkbox" id="filterMine" />
-              Só os meus
-            </label>
-          </div>
-        </aside>
-        <div class="gcal-rail-backdrop" id="gcalRailBackdrop" hidden></div>
-
-        <section class="gcal-board" aria-live="polite">
-          <div id="schedCalendar" class="gcal-board__inner"></div>
-        </section>
-      </div>
-
-      <!-- Mobile Agenda -->
-      <div id="acalRoot" class="acal" aria-label="Agenda">
-        <!-- Week view (day strip) -->
-        <div class="acal-week" id="acalWeek" hidden>
-          <header class="aw-head">
-            <div>
-              <h1 class="aw-title">Agenda</h1>
-              <p class="aw-month" id="awMonthLabel">—</p>
-            </div>
-            <div class="aw-tools">
-              <button type="button" class="aw-mode-btn" id="awMonthToggle" aria-label="Vista mensal">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                <span>Mês</span>
-              </button>
-              <button type="button" class="aw-add" id="awAddBtn" data-crm-permission="schedule.manage" aria-label="Criar">
-                <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              </button>
-            </div>
-          </header>
-          <div class="aw-strip" id="awStrip" role="tablist" aria-label="Dias da semana"></div>
-          <h2 class="aw-day-title" id="awDayTitle">—</h2>
-          <div class="aw-list" id="awList"></div>
         </div>
 
-        <header class="acal-chrome">
-          <button type="button" class="acal-year" id="acalYearBtn" aria-label="Ir para o ano">‹ <span id="acalYearLabel">2026</span></button>
-          <div class="acal-chrome-actions">
-            <button type="button" class="acal-today-btn" id="acalTodayBtn">Hoje</button>
-            <button type="button" class="acal-mode-btn" id="acalWeekToggle" aria-label="Vista semanal">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
-              <span>Semana</span>
-            </button>
-            <button type="button" class="acal-icon-btn" id="acalSearchToggle" aria-label="Pesquisar" aria-pressed="false">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            </button>
-            <button type="button" class="acal-icon-btn acal-icon-btn--accent" id="acalAddBtn" data-crm-permission="schedule.manage" aria-label="Criar" aria-haspopup="menu">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
+        <!-- phone header (Apple Calendar style) -->
+        <div class="ag-mbar">
+          <button type="button" class="ag-mback" data-ag-act="mback" id="agMBack"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg><span id="agMBackLabel">2026</span></button>
+          <div class="ag-capsule">
+            <button type="button" class="ag-icon" data-ag-act="mmode" aria-label="Lista do dia" title="Lista"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="5.5" rx="1.6"/><rect x="4" y="13.5" width="16" height="5.5" rx="1.6"/></svg></button>
+            <button type="button" class="ag-icon" data-ag-act="msearch" aria-label="Buscar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></button>
+            <button type="button" class="ag-icon" data-ag-act="new" aria-label="Novo"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
           </div>
-        </header>
-        <div class="acal-search-bar" id="acalSearchBar" hidden>
-          <input type="search" id="acalSearchInput" placeholder="Pesquisar jobs e meetings" autocomplete="off" />
         </div>
-        <div class="acal-add-menu" id="acalAddMenu" hidden role="menu">
-          <button type="button" role="menuitem" id="acalNewMeeting" data-crm-permission="schedule.manage">Meeting</button>
-          <button type="button" role="menuitem" id="acalNewJob" data-crm-permission="work_orders.manage">Job</button>
-        </div>
-        <div class="acal-scroll" id="acalScroll"></div>
-        <div class="acal-list" id="acalList" hidden></div>
-        <div class="acal-day-sheet" id="acalDaySheet" hidden>
-          <div class="acal-day-sheet__grab" aria-hidden="true"></div>
-          <div class="acal-day-sheet__head">
-            <strong id="acalDaySheetTitle">—</strong>
-            <button type="button" class="acal-icon-btn" id="acalDaySheetClose" aria-label="Fechar">×</button>
+
+        <div class="ag-head">
+          <h1 class="ag-title" id="agTitle"></h1>
+          <div class="ag-nav">
+            <button type="button" class="ag-icon" data-ag-act="prev" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+            <button type="button" class="ag-today" data-ag-act="today">Hoje</button>
+            <button type="button" class="ag-icon" data-ag-act="next" aria-label="Próximo"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
           </div>
-          <div class="acal-day-sheet__body" id="acalDaySheetBody"></div>
+        </div>
+
+        <div class="ag-body">
+          <aside class="ag-side" id="agSide" hidden></aside>
+          <section class="ag-stage" id="agStage" aria-live="polite"></section>
+        </div>
+
+        <div class="ag-mfloat">
+          <button type="button" class="ag-mtoday" data-ag-act="today">Hoje</button>
+          <button type="button" class="ag-capsule ag-icon ag-mcal" data-ag-act="mcal" aria-label="Calendários"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M3.5 9.5h17M8 3v3M16 3v3"/><path d="M7.5 13h.01M10.5 13h.01M13.5 13h.01M16.5 13h.01M7.5 16.5h.01M10.5 16.5h.01M13.5 16.5h.01"/></svg></button>
         </div>
       </div>
     </main>
   </div>
 
-  <!-- Event popover -->
-  <div class="gcal-popover-backdrop" id="eventBackdrop" hidden></div>
-  <div class="gcal-popover" id="eventModal" role="dialog" aria-modal="true" hidden>
-    <button type="button" class="gcal-popover__close" id="btnCloseEvent" aria-label="Fechar">×</button>
-    <div class="gcal-popover__accent" id="eventAccent"></div>
-    <h2 id="eventModalTitle">Evento</h2>
-    <div id="eventModalBody" class="gcal-popover__body"></div>
-    <div class="gcal-popover__actions">
-      <a class="btn btn-secondary btn-sm" id="btnOpenJob" href="jobs.html" hidden>Abrir job</a>
-      <button type="button" class="btn btn-primary btn-sm" id="btnEditEvent" hidden>Editar</button>
-      <button type="button" class="btn btn-danger btn-sm" id="btnDeleteEvent" hidden>Excluir</button>
-      <button type="button" class="btn btn-secondary btn-sm" id="btnCloseEvent2">Fechar</button>
-    </div>
+  <div class="ag-pop" id="agPop" hidden role="dialog" aria-modal="false"></div>
+  <div class="ag-sheet" id="agSheet" hidden>
+    <div class="ag-sheet__backdrop" data-ag-close></div>
+    <div class="ag-sheet__card" role="dialog" aria-modal="true"></div>
   </div>
-
-  <!-- Meeting create / edit -->
-  <div class="sched-modal-backdrop" id="meetingBackdrop"></div>
-  <div class="sched-modal" id="meetingModal" role="dialog" aria-modal="true">
-    <h2 id="meetingModalTitle">Novo meeting</h2>
-    <form id="meetingForm" class="sched-form">
-      <label>Título *
-        <input type="text" id="mtgTitle" required maxlength="200" />
-      </label>
-      <div class="sched-form-row">
-        <label>Data *
-          <input type="date" id="mtgDate" required />
-        </label>
-        <label>Início *
-          <input type="time" id="mtgStartTime" required step="300" />
-        </label>
-        <label>Fim *
-          <input type="time" id="mtgEndTime" required step="300" />
-        </label>
-      </div>
-      <label>Agenda
-        <select id="mtgCalendar"></select>
-      </label>
-      <label>Local
-        <input type="text" id="mtgLocation" maxlength="500" placeholder="Digite a morada (Google Maps)..." autocomplete="street-address" data-crm-address-autocomplete="1" />
-      </label>
-      <label>Responsável
-        <select id="mtgAssignee"><option value="">—</option></select>
-      </label>
-      <label>Notas
-        <textarea id="mtgNotes" rows="3" maxlength="8000"></textarea>
-      </label>
-      <div class="sched-modal-actions">
-        <button type="button" class="btn btn-danger" id="btnDeleteMeeting" hidden>Excluir</button>
-        <button type="button" class="btn btn-secondary" id="btnCancelMeeting">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Salvar</button>
-      </div>
-    </form>
-  </div>
-
-  <!-- Quick create chooser when clicking empty slot -->
-  <div class="gcal-slot-menu" id="slotMenu" hidden role="menu">
-    <button type="button" role="menuitem" id="slotNewMeeting">+ Meeting neste horário</button>
-    <button type="button" role="menuitem" id="slotNewJob">+ Job neste horário</button>
-  </div>
-
-  <!-- Schedule map / distances -->
-  <div class="sched-map-backdrop" id="mapBackdrop" hidden></div>
-  <div class="sched-map-panel" id="mapPanel" role="dialog" aria-modal="true" aria-labelledby="mapPanelTitle" hidden>
-    <header class="sched-map-panel__head">
-      <div>
-        <h2 id="mapPanelTitle">Mapa dos eventos</h2>
-        <p class="sched-map-panel__sub" id="mapPanelSub">Distâncias entre locais na agenda atual</p>
-      </div>
-      <button type="button" class="gcal-icon-btn" id="btnCloseMap" aria-label="Fechar mapa">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </header>
-    <div class="sched-map-panel__body">
-      <aside class="sched-map-list" id="mapList"></aside>
-      <div class="sched-map-canvas-wrap">
-        <div id="schedMapCanvas" class="sched-map-canvas" aria-label="Mapa"></div>
-        <p class="sched-map-hint" id="mapHint">Eventos com endereço aparecem no mapa. Selecione dois na lista para medir a distância.</p>
-      </div>
-    </div>
-  </div>
+  <div class="ag-menu" id="agMenu" hidden></div>
+  <div class="ag-results" id="agResults" hidden></div>
 
   <script src="crm-toast.js"></script>
   <script src="crm-i18n.js?v=20261001-refresh1"></script>
   <script src="saas-branding.js"></script>
   <script src="crm-address-autocomplete.js?v=20261001-addr2"></script>
-  <script src="om-device.js?v=20261001-tablet2"></script>
   <script src="crm-shared-nav.js?v=20261001-reports3"></script>
   <script src="crm-shell.js?v=20261001-tabletnav3"></script>
   <script src="om-mobile-nav.js?v=20261001-tablet1"></script>
   <script src="novo-lead-sheet.js?v=20261001-addr1"></script>
   <script src="crm-job-modal.js?v=20261001-extra1"></script>
-  <script src="schedule.js?v=20261002-agenda1"></script>
+  <script src="agenda.js?v=20261002-ag2"></script>
 </body>
 </html>

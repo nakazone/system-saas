@@ -398,6 +398,7 @@ model Lead {
 
   customers Customer[]
   siteAssessments SiteAssessment[]
+  meetings  Meeting[]
 
   @@index([organizationId])
   @@index([organizationId, pipelineStageId])
@@ -1918,6 +1919,9 @@ model Meeting {
   assignedUser   User?    @relation("MeetingAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
   /// Custom agenda id from Organization.scheduleSettings (null = Meetings)
   calendarId     String?  @db.Uuid
+  /// Lead visit booked from the lead page (Lead.metadata.visits[].meeting_id points back here).
+  leadId         String?  @db.Uuid
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -1927,6 +1931,7 @@ model Meeting {
   @@index([organizationId, calendarId])
   @@index([customerId])
   @@index([assignedUserId])
+  @@index([leadId])
 }
 
 // ---------------------------------------------------------------------------

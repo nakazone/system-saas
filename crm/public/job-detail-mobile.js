@@ -612,7 +612,7 @@
       cta.className = "jcm-foot__btn jcm-foot__btn--ink";
       cta.dataset.action = "complete";
     } else if (wo.status === "completed") {
-      cta.textContent = "Ver no Schedule";
+      cta.textContent = "Ver na agenda";
       cta.className = "jcm-foot__btn jcm-foot__btn--ghost";
       cta.dataset.action = "schedule";
     } else {

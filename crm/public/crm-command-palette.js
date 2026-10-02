@@ -19,7 +19,7 @@
     { id: 'clients', label: 'Clientes', sub: 'Cadastro', href: 'dashboard.html?page=customers', perm: 'customers.view' },
     { id: 'pricing', label: 'Tabela de Valor', sub: 'Cadastro', href: 'builder-pricing-admin.html', perm: 'builders.view' },
     { id: 'team', label: 'Equipe', sub: 'Cadastro', href: 'equipe.html', perm: 'users.view' },
-    { id: 'schedule', label: 'Schedule', sub: 'Calendário de jobs e visitas', href: 'schedule.html', perm: 'schedule.view' },
+    { id: 'schedule', label: 'Agenda', sub: 'Jobs, visitas e compromissos', href: 'schedule.html', perm: 'schedule.view' },
     { id: 'jobs', label: 'Jobs', sub: 'Work orders / trabalhos', href: 'jobs.html', perm: 'work_orders.view' },
     { id: 'payroll', label: 'Folha de pagamento', sub: '', href: 'folha.html', perm: 'payroll.view' },
     { id: 'finance', label: 'Financeiro', sub: 'Fluxo de caixa, recebimentos e custos', href: 'finance.html', perm: 'finance.view' },

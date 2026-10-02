@@ -140,7 +140,7 @@
     ];
     $("jdSub").innerHTML = parts.join("");
     renderPrimary();
-    $("btnOpenSchedule").href = job.scheduled_start ? `schedule.html?focus=${encodeURIComponent(job.scheduled_start)}` : "schedule.html";
+    $("btnOpenSchedule").href = job.scheduled_start ? `schedule.html?focus=${encodeURIComponent(job.scheduled_start)}&event=${encodeURIComponent(job.id)}` : "schedule.html";
     $("jdOpenCampo").href = `/campo/ticket.html?id=${encodeURIComponent(job.id)}`;
     const map = $("jdOpenMap");
     map.hidden = !job.address;

@@ -59,6 +59,13 @@ function cleanTags(raw: unknown): string[] {
   return out.slice(0, 20);
 }
 
+/** Visit statuses (scheduled | completed | cancelled | no_show) → Meeting statuses. */
+function meetingStatusForVisit(status: string): string {
+  if (status === "cancelled" || status === "canceled") return "canceled";
+  if (status === "completed" || status === "no_show") return "completed";
+  return "scheduled";
+}
+
 function isLostSlug(slug: string | null | undefined): boolean {
   return ["lost", "closed_lost"].includes(String(slug || ""));
 }
@@ -676,7 +683,8 @@ dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), asy
         const meeting = await tx.meeting.create({
           data: {
             organizationId: req.organizationId!,
-            title: `Visit — ${existing.name}`,
+            title: `Visita — ${existing.name}`,
+            leadId: existing.id,
             status: "scheduled",
             scheduledStart: start,
             scheduledEnd: end,
@@ -793,13 +801,14 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
               await tx.meeting.update({
                 where: { id: meetingId },
                 data: {
-                  title: `Visit — ${lead.name}`,
+                  title: `Visita — ${lead.name}`,
+                  leadId: lead.id,
                   scheduledStart: start,
                   scheduledEnd: end,
                   location: addr ? String(addr) : null,
                   notes: body.notes != null ? String(body.notes) : (prev.notes as string | null),
                   assignedUserId: assigneeId,
-                  status: body.status != null ? String(body.status) : existingMtg.status,
+                  status: body.status != null ? meetingStatusForVisit(String(body.status)) : existingMtg.status,
                 },
               });
             } else {
@@ -810,7 +819,8 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
             const meeting = await tx.meeting.create({
               data: {
                 organizationId: req.organizationId!,
-                title: `Visit — ${lead.name}`,
+                title: `Visita — ${lead.name}`,
+                leadId: lead.id,
                 status: "scheduled",
                 scheduledStart: start,
                 scheduledEnd: end,
