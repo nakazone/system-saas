@@ -41,10 +41,34 @@
     { value: 'Sand & Finishing', label: 'Sand & Finish' },
   ];
 
+  /** Map Tabela de Valores keys/labels (and quote service_type) → QB category values. */
   function normalizeServiceType(st) {
     const s = String(st || '').trim();
-    if (s === 'Supply' || s.toLowerCase() === 'supply') return 'Supply';
-    if (s.includes('Sand') || s.toLowerCase().includes('sand')) return 'Sand & Finishing';
+    if (!s) return 'Installation';
+    const lower = s
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (
+      lower === 'supply' ||
+      lower.includes('supply') ||
+      lower.includes('fornec') ||
+      lower.includes('material')
+    ) {
+      return 'Supply';
+    }
+    if (
+      lower === 'sand finish' ||
+      lower === 'sand finishing' ||
+      lower === 'sandfinish' ||
+      lower.includes('sand') ||
+      lower.includes('lix') ||
+      lower.includes('acab') ||
+      (lower.includes('finish') && !lower.includes('install'))
+    ) {
+      return 'Sand & Finishing';
+    }
     return 'Installation';
   }
 
@@ -518,7 +542,8 @@
         return {
           id: r.id,
           name: r.name,
-          category: r.category_label || r.category || '',
+          // Prefer raw key (supply|installation|sand_finish); normalize handles labels too.
+          category: normalizeServiceType(r.category || r.category_label || ''),
           unit_type: r.unit || 'sq_ft',
           default_rate: particular,
           rate_particular: particular,
@@ -544,7 +569,7 @@
         return {
           id: r.id,
           name: r.name,
-          category: r.service_type || r.category || '',
+          category: normalizeServiceType(r.service_type || r.category || ''),
           unit_type: r.unit_type || 'sq_ft',
           default_rate: particular,
           rate_particular: particular,
@@ -608,6 +633,8 @@
       if (!hit) return q;
       return {
         ...q,
+        // Tabela de Valores is source of truth for category when names match.
+        category: hit.category || q.category,
         default_rate: hit.rate_particular || q.default_rate,
         rate_particular: hit.rate_particular || q.rate_particular,
         rate_customer: hit.rate_particular || q.rate_customer,
@@ -1107,10 +1134,7 @@
 
 
   function serviceTypeFromCatalogCategory(category) {
-    const catStr = String(category || '');
-    if (catStr === 'Supply' || catStr.toLowerCase() === 'supply') return 'Supply';
-    if (catStr === 'Sand & Finishing' || catStr.includes('Sand')) return 'Sand & Finishing';
-    return 'Installation';
+    return normalizeServiceType(category);
   }
 
   function filterCatalogForServiceSearch(query) {

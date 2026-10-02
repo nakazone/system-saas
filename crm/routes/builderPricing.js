@@ -62,7 +62,13 @@ export async function listPricingAdmin(req, res) {
     const pool = await getDBConnection();
     if (!pool) return res.status(503).json({ success: false, error: 'Database not available' });
     const [rows] = await pool.query('SELECT * FROM pricing_services ORDER BY sort_order ASC, id ASC');
-    res.json({ success: true, data: rows });
+    res.json({
+      success: true,
+      data: rows.map((r) => ({
+        ...r,
+        category_label: CATEGORY_LABELS[r.category] || r.category,
+      })),
+    });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

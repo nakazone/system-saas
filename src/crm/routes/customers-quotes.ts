@@ -69,6 +69,98 @@ function lineItemAmount(
   return Math.round(qty * unitPrice * 100) / 100;
 }
 
+type QuoteLineBody = {
+  name?: unknown;
+  description?: unknown;
+  quantity?: unknown;
+  unit?: unknown;
+  unit_type?: unknown;
+  unit_price?: unknown;
+  rate?: unknown;
+  sell_price?: unknown;
+  amount?: unknown;
+  item_type?: unknown;
+  service_type?: unknown;
+  notes?: unknown;
+  catalog_customer_notes?: unknown;
+  service_catalog_id?: unknown;
+  product_id?: unknown;
+  cost_price?: unknown;
+  markup_percentage?: unknown;
+};
+
+function lineItemName(it: QuoteLineBody): string | null {
+  const name = it.name != null ? String(it.name).trim() : "";
+  return name || null;
+}
+
+/** Persist category + notes so PDF/public/mapQuote can read service_type. */
+function lineItemMetaJson(it: QuoteLineBody): Prisma.InputJsonValue | undefined {
+  const meta: Record<string, unknown> = {};
+  if (it.service_type != null && String(it.service_type).trim()) {
+    meta.service_type = String(it.service_type).trim();
+  }
+  if (it.notes != null && String(it.notes).trim()) {
+    meta.notes = String(it.notes).trim();
+  }
+  if (it.catalog_customer_notes != null && String(it.catalog_customer_notes).trim()) {
+    meta.catalog_customer_notes = String(it.catalog_customer_notes).trim();
+  }
+  if (it.service_catalog_id != null && String(it.service_catalog_id).trim()) {
+    meta.service_catalog_id = String(it.service_catalog_id).trim();
+  }
+  if (it.product_id != null && String(it.product_id).trim()) {
+    meta.product_id = String(it.product_id).trim();
+  }
+  if (it.cost_price != null && Number.isFinite(Number(it.cost_price))) {
+    meta.cost_price = Number(it.cost_price);
+  }
+  if (it.markup_percentage != null && Number.isFinite(Number(it.markup_percentage))) {
+    meta.markup_percentage = Number(it.markup_percentage);
+  }
+  return Object.keys(meta).length ? (meta as Prisma.InputJsonValue) : undefined;
+}
+
+function lineItemCreateRow(it: QuoteLineBody, idx: number, organizationId: string, quoteId?: string) {
+  const qty = Number(it.quantity) || 0;
+  const unitPrice = lineItemUnitPrice(it);
+  const amount = lineItemAmount(it, qty, unitPrice);
+  const meta = lineItemMetaJson(it);
+  return {
+    organizationId,
+    ...(quoteId ? { quoteId } : {}),
+    name: lineItemName(it),
+    description: lineItemDescription(it),
+    quantity: new Prisma.Decimal(qty),
+    unit: String(it.unit || it.unit_type || "sq_ft"),
+    unitPrice: new Prisma.Decimal(unitPrice),
+    amount: new Prisma.Decimal(amount),
+    itemType: String(it.item_type || "service"),
+    sortOrder: idx,
+    ...(meta !== undefined ? { meta } : {}),
+  };
+}
+
+function payloadLineItems(payload: unknown): Array<Record<string, unknown>> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];
+  const p = payload as Record<string, unknown>;
+  const items = Array.isArray(p.items) ? p.items : Array.isArray(p.line_items) ? p.line_items : [];
+  return items.filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x));
+}
+
+function serviceTypeFromMetaOrPayload(
+  meta: Record<string, unknown>,
+  payloadItem: Record<string, unknown> | undefined,
+): string | null {
+  if (meta.service_type != null && String(meta.service_type).trim()) {
+    return String(meta.service_type).trim();
+  }
+  if (payloadItem?.service_type != null && String(payloadItem.service_type).trim()) {
+    return String(payloadItem.service_type).trim();
+  }
+  return null;
+}
+
 async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
   const quote = await withTenantTransaction(organizationId, async (tx) =>
     tx.quote.findFirst({
@@ -159,7 +251,15 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
     rooms: (quote.rooms || []).map((r) => ({ name: r.name, areaSqft: Number(r.areaSqft) })),
     optionGroups: (quote.optionGroups || []).map((g) => ({ id: g.id, name: g.name })),
     selectedOptionGroupId: quote.selectedOptionGroupId,
-    lines: pdfLinesFromDbItems(quote.lineItems || []),
+    lines: (() => {
+      const payloadItems = payloadLineItems(quote.payload);
+      return pdfLinesFromDbItems(quote.lineItems || []).map((line, idx) => {
+        if (line.serviceType) return line;
+        const st = payloadItems[idx]?.service_type;
+        if (st == null || !String(st).trim()) return line;
+        return { ...line, serviceType: String(st).trim() };
+      });
+    })(),
     clientView: quote.clientView as never,
     subtotal: Number(quote.subtotal),
     taxTotal: Number(quote.taxTotal),
@@ -333,6 +433,7 @@ function mapQuote(q: {
     if (x === "fixed" || x === "each" || x === "ea") return "fixed";
     return x || "sq_ft";
   };
+  const payloadItems = payloadLineItems(q.payload);
   return {
     id: q.id,
     number: q.number,
@@ -375,7 +476,7 @@ function mapQuote(q: {
     payload: q.payload,
     created_at: q.createdAt,
     updated_at: q.updatedAt,
-    items: (q.lineItems || []).map((li) => {
+    items: (q.lineItems || []).map((li, idx) => {
       const meta =
         li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
           ? (li.meta as Record<string, unknown>)
@@ -402,7 +503,7 @@ function mapQuote(q: {
         sell_price: unitPrice,
         markup_percentage: meta.markup_percentage != null ? Number(meta.markup_percentage) : null,
         catalog_customer_notes: meta.catalog_customer_notes != null ? String(meta.catalog_customer_notes) : null,
-        service_type: meta.service_type != null ? String(meta.service_type) : null,
+        service_type: serviceTypeFromMetaOrPayload(meta, payloadItems[idx]),
         service_catalog_id: meta.service_catalog_id != null ? String(meta.service_catalog_id) : null,
         product_id: meta.product_id != null ? String(meta.product_id) : null,
         notes: meta.notes != null ? String(meta.notes) : null,
@@ -1015,36 +1116,8 @@ customersQuotesRouter.post(
             publicToken: randomBytes(16).toString("hex"),
             payload: body,
             lineItems: {
-              create: items.map(
-                (
-                  it: {
-                    name?: string;
-                    description?: string;
-                    quantity?: number;
-                    unit?: string;
-                    unit_type?: string;
-                    unit_price?: number;
-                    rate?: number;
-                    sell_price?: number;
-                    amount?: number;
-                    item_type?: string;
-                  },
-                  idx: number,
-                ) => {
-                  const qty = Number(it.quantity) || 0;
-                  const unitPrice = lineItemUnitPrice(it);
-                  const amount = lineItemAmount(it, qty, unitPrice);
-                  return {
-                    organizationId: req.organizationId!,
-                    description: lineItemDescription(it),
-                    quantity: new Prisma.Decimal(qty),
-                    unit: String(it.unit || it.unit_type || "sq_ft"),
-                    unitPrice: new Prisma.Decimal(unitPrice),
-                    amount: new Prisma.Decimal(amount),
-                    itemType: String(it.item_type || "service"),
-                    sortOrder: idx,
-                  };
-                },
+              create: items.map((it: QuoteLineBody, idx: number) =>
+                lineItemCreateRow(it, idx, req.organizationId!),
               ),
             },
           },
@@ -1118,37 +1191,8 @@ customersQuotesRouter.put(
           total = Number(body.total != null ? body.total : subtotal + tax);
           await tx.quoteLineItem.deleteMany({ where: { quoteId: id } });
           await tx.quoteLineItem.createMany({
-            data: items.map(
-              (
-                it: {
-                  name?: string;
-                  description?: string;
-                  quantity?: number;
-                  unit?: string;
-                  unit_type?: string;
-                  unit_price?: number;
-                  rate?: number;
-                  sell_price?: number;
-                  amount?: number;
-                  item_type?: string;
-                },
-                idx: number,
-              ) => {
-                const qty = Number(it.quantity) || 0;
-                const unitPrice = lineItemUnitPrice(it);
-                const amount = lineItemAmount(it, qty, unitPrice);
-                return {
-                  organizationId: req.organizationId!,
-                  quoteId: id,
-                  description: lineItemDescription(it),
-                  quantity: new Prisma.Decimal(qty),
-                  unit: String(it.unit || it.unit_type || "sq_ft"),
-                  unitPrice: new Prisma.Decimal(unitPrice),
-                  amount: new Prisma.Decimal(amount),
-                  itemType: String(it.item_type || "service"),
-                  sortOrder: idx,
-                };
-              },
+            data: items.map((it: QuoteLineBody, idx: number) =>
+              lineItemCreateRow(it, idx, req.organizationId!, id),
             ),
           });
         }
@@ -1267,6 +1311,7 @@ customersQuotesRouter.post(
             lineItems: {
               create: src.lineItems.map((li) => ({
                 organizationId: req.organizationId!,
+                name: li.name ?? undefined,
                 description: li.description,
                 quantity: li.quantity,
                 unit: li.unit,
