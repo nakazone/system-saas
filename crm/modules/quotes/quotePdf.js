@@ -141,10 +141,20 @@ export async function buildQuotePdfBuffer(opts) {
   };
 
   const colDesc = margin;
-  const colQty = pageW - margin - 210;
-  const colRate = pageW - margin - 128;
-  const colAmt = pageW - margin - 58;
-  const descMaxW = colQty - colDesc - 10;
+  /** Right edges for numeric columns — wider gaps so Qty / Rate / Amount breathe. */
+  const colAmtRight = pageW - margin;
+  const colAmtW = 78;
+  const colRateRight = colAmtRight - colAmtW - 22;
+  const colRateW = 72;
+  const colQtyRight = colRateRight - colRateW - 22;
+  const colQtyW = 68;
+  const descMaxW = colQtyRight - colQtyW - colDesc - 14;
+
+  const drawRightText = (text, rightX, baselineY, size, f, color) => {
+    const str = String(text ?? '');
+    const w = f.widthOfTextAtSize(str, size);
+    page.drawText(str, { x: rightX - w, y: baselineY, size, font: f, color });
+  };
 
   const ensureSpace = (needFromBottom) => {
     if (y >= needFromBottom) return;
@@ -162,7 +172,7 @@ export async function buildQuotePdfBuffer(opts) {
   const drawTableHeader = () => {
     ensureSpace(100);
     const fs = 8;
-    const barPad = 5;
+    const barPad = 6;
     const th = fontBold.heightAtSize(fs);
     const barH = th + 2 * barPad;
     const barTop = y;
@@ -173,21 +183,19 @@ export async function buildQuotePdfBuffer(opts) {
       y: barBottom,
       width: contentW,
       height: barH,
+      color: PAL.panelBg,
+    });
+    page.drawText('Description', {
+      x: colDesc + 8,
+      y: baselineY,
+      size: fs,
+      font: fontBold,
       color: PAL.primary,
-      opacity: 0.06,
     });
-    page.drawText('Description', { x: colDesc + 4, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
-    page.drawText('Qty', { x: colQty, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
-    page.drawText('Rate', { x: colRate, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
-    page.drawText('Amount', { x: colAmt, y: baselineY, size: fs, font: fontBold, color: PAL.primary });
-    y = barBottom - 4;
-    page.drawLine({
-      start: { x: margin, y },
-      end: { x: pageW - margin, y },
-      thickness: 0.75,
-      color: PAL.secondary,
-    });
-    y -= 14;
+    drawRightText('Qty', colQtyRight, baselineY, fs, fontBold, PAL.primary);
+    drawRightText('Rate', colRateRight, baselineY, fs, fontBold, PAL.primary);
+    drawRightText('Amount', colAmtRight, baselineY, fs, fontBold, PAL.primary);
+    y = barBottom - 8;
   };
 
   const drawSectionTitle = (label, sectionTotal) => {
@@ -232,7 +240,7 @@ export async function buildQuotePdfBuffer(opts) {
         color: PAL.lineMuted,
       });
     }
-    y = barBottom - 10;
+    y = barBottom - 6;
   };
 
   const accentBarH = 5;
@@ -410,9 +418,9 @@ export async function buildQuotePdfBuffer(opts) {
 
       const descLines = wrap(headline, descMaxW, 9, fontBold);
       const rowStartY = y;
-      page.drawText(`${qty} ${ut}`, { x: colQty, y: rowStartY, size: 8.5, font, color: textColor });
-      page.drawText(money(rate), { x: colRate, y: rowStartY, size: 8.5, font, color: textColor });
-      page.drawText(money(amt), { x: colAmt, y: rowStartY, size: 8.5, font: fontBold, color: PAL.primary });
+      drawRightText(`${qty} ${ut}`, colQtyRight, rowStartY, 8.5, font, textColor);
+      drawRightText(money(rate), colRateRight, rowStartY, 8.5, font, textColor);
+      drawRightText(money(amt), colAmtRight, rowStartY, 8.5, fontBold, PAL.primary);
 
       let dy = rowStartY;
       for (const line of descLines) {

@@ -158,10 +158,10 @@ body.qp-page {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin: 0 0 8px;
-  padding: 6px 10px;
-  background: rgba(232, 121, 44, 0.12);
-  border-left: 3px solid var(--qp-primary);
+  margin: 0 0 6px;
+  padding: 7px 10px;
+  background: #ece4d8;
+  border-left: 3.5px solid var(--qp-primary);
   break-after: avoid-page;
   page-break-after: avoid;
 }
@@ -204,31 +204,33 @@ body.qp-page {
   width: auto;
 }
 .qp-table col.col-qty {
-  width: 72px;
+  width: 88px;
 }
 .qp-table col.col-rate {
-  width: 82px;
+  width: 96px;
 }
 .qp-table col.col-amt {
-  width: 72px;
+  width: 88px;
 }
 
 .qp-table thead th {
-  padding: 5px 4px;
+  padding: 7px 10px;
   text-align: left;
   font-size: 8px;
   font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--qp-primary);
-  background: rgba(26, 32, 54, 0.06);
-  border-bottom: 2px solid var(--qp-secondary);
+  background: rgba(26, 32, 54, 0.07);
+  border-bottom: none;
 }
 
 .qp-table thead th.qp-num {
   text-align: right;
+  padding-left: 16px;
 }
 
 .qp-table tbody td {
-  padding: 8px 4px 10px;
+  padding: 8px 10px 10px;
   vertical-align: top;
   border-bottom: 1px solid var(--qp-rule);
 }
@@ -237,6 +239,7 @@ body.qp-page {
   text-align: right;
   white-space: nowrap;
   color: var(--qp-primary);
+  padding-left: 16px;
 }
 
 .qp-line__title {

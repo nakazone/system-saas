@@ -690,32 +690,49 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       y = doc.y + 14;
     }
 
-    // Table columns
+    // Table columns — right edges with wider gaps between Qty / Rate / Amount
     const colDesc = margin;
-    const colQty = pageW - margin - 200;
-    const colRate = pageW - margin - 120;
-    const colAmt = pageW - margin - 8;
-    const descMaxW = colQty - colDesc - 12;
+    const colAmtRight = pageW - margin;
+    const colAmtW = 78;
+    const colRateRight = colAmtRight - colAmtW - 22;
+    const colRateW = 72;
+    const colQtyRight = colRateRight - colRateW - 22;
+    const colQtyW = 68;
+    const descMaxW = colQtyRight - colQtyW - colDesc - 14;
 
     const drawTableHeader = () => {
       ensureSpace(36);
-      doc.fillColor(PAL.mutedLight).font("Helvetica-Bold").fontSize(7.5);
-      doc.text("DESCRIPTION", colDesc, y, { lineBreak: false });
+      const headH = 18;
+      const headTop = y;
+      doc.save();
+      doc.rect(margin, headTop, contentW, headH).fill(PAL.panelBg);
+      doc.restore();
+      const titleY = headTop + (headH - 8) / 2;
+      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(8);
+      doc.text("DESCRIPTION", colDesc + 8, titleY, { lineBreak: false });
       if (view.showQuantities) {
-        doc.text("QTY", colQty, y, { width: 70, align: "right", lineBreak: false });
+        doc.text("QTY", colQtyRight - colQtyW, titleY, {
+          width: colQtyW,
+          align: "right",
+          lineBreak: false,
+        });
       }
       if (view.showUnitPrices) {
-        doc.text("RATE", colRate, y, { width: 70, align: "right", lineBreak: false });
+        doc.text("RATE", colRateRight - colRateW, titleY, {
+          width: colRateW,
+          align: "right",
+          lineBreak: false,
+        });
       }
       if (view.showLineTotals) {
-        doc.text("AMOUNT", colAmt - 70, y, { width: 70, align: "right", lineBreak: false });
+        doc.text("AMOUNT", colAmtRight - colAmtW, titleY, {
+          width: colAmtW,
+          align: "right",
+          lineBreak: false,
+        });
       }
-      y += 11;
-      rule(margin, pageW - margin, y, PAL.primary, 0.9);
-      y += 10;
+      y = headTop + headH + 8;
     };
-
-    drawTableHeader();
 
     const sections = groupItemsForPdf(mainLines);
     if (!sections.length) {
@@ -724,15 +741,18 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       y += 16;
     }
 
-    /** Min height so a section title is never stranded alone at the bottom of a page. */
+    /** Min height so category + description header stay with the first service line. */
     const SECTION_HEAD_H = 28;
+    const TABLE_HEAD_H = 26;
     const LINE_MIN_H = 44;
 
     for (let si = 0; si < sections.length; si++) {
       const sec = sections[si]!;
-      // Keep section header with at least the first line item on the same page.
-      const broke = ensureSpace(SECTION_HEAD_H + LINE_MIN_H);
-      if (broke) drawTableHeader();
+      // Keep category + description header + first line on the same page.
+      const broke = ensureSpace(SECTION_HEAD_H + TABLE_HEAD_H + LINE_MIN_H);
+      if (broke && si === 0) {
+        /* first section on fresh page after break — nothing else to redraw */
+      }
 
       const headPadY = 5;
       const headH = 20;
@@ -750,12 +770,15 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       doc.text(stLabel, pageW - margin - doc.widthOfString(stLabel) - 6, titleY + 1, {
         lineBreak: false,
       });
-      y = headTop + headH + 8;
+      y = headTop + headH + 6;
+
+      // Order: Category → Description header → Services
+      drawTableHeader();
 
       for (let ii = 0; ii < sec.items.length; ii++) {
         const it = sec.items[ii]!;
         const brokeItem = ensureSpace(LINE_MIN_H);
-        // After a mid-section page break, repeat column headers (not a lone section title).
+        // After a mid-section page break, repeat Description header (not a lone title).
         if (brokeItem && ii > 0) drawTableHeader();
 
         const nameStr = stripRichTextMarkers(String(it.name || "").trim());
@@ -788,22 +811,22 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
 
         doc.fillColor(PAL.primary).font("Helvetica").fontSize(9);
         if (view.showQuantities) {
-          doc.text(qtyLabel(Number(it.quantity) || 0, it.unit), colQty, rowY, {
-            width: 70,
+          doc.text(qtyLabel(Number(it.quantity) || 0, it.unit), colQtyRight - colQtyW, rowY, {
+            width: colQtyW,
             align: "right",
             lineBreak: false,
           });
         }
         if (view.showUnitPrices) {
-          doc.text(money(Number(it.unitPrice) || 0), colRate, rowY, {
-            width: 70,
+          doc.text(money(Number(it.unitPrice) || 0), colRateRight - colRateW, rowY, {
+            width: colRateW,
             align: "right",
             lineBreak: false,
           });
         }
         if (view.showLineTotals) {
-          doc.font("Helvetica-Bold").text(money(Number(it.amount) || 0), colAmt - 70, rowY, {
-            width: 70,
+          doc.font("Helvetica-Bold").text(money(Number(it.amount) || 0), colAmtRight - colAmtW, rowY, {
+            width: colAmtW,
             align: "right",
             lineBreak: false,
           });
@@ -813,9 +836,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       }
 
       if (si < sections.length - 1) {
-        y += 6;
-        rule(margin, pageW - margin, y, PAL.rule, 0.45);
-        y += 12;
+        y += 10;
       }
     }
 
@@ -861,18 +882,18 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
           doc.text(descStr, margin + 28, y + 20, { width: descMaxW - 20, lineBreak: false });
         }
         doc.fillColor(PAL.primary).font("Helvetica").fontSize(8.5);
-        doc.text(qtyLabel(Number(it.quantity) || 0, it.unit), colQty, y + 12, {
-          width: 70,
+        doc.text(qtyLabel(Number(it.quantity) || 0, it.unit), colQtyRight - colQtyW, y + 12, {
+          width: colQtyW,
           align: "right",
           lineBreak: false,
         });
-        doc.text(money(Number(it.unitPrice) || 0), colRate, y + 12, {
-          width: 70,
+        doc.text(money(Number(it.unitPrice) || 0), colRateRight - colRateW, y + 12, {
+          width: colRateW,
           align: "right",
           lineBreak: false,
         });
-        doc.font("Helvetica-Bold").text(money(Number(it.amount) || 0), colAmt - 70, y + 12, {
-          width: 70,
+        doc.font("Helvetica-Bold").text(money(Number(it.amount) || 0), colAmtRight - colAmtW, y + 12, {
+          width: colAmtW,
           align: "right",
           lineBreak: false,
         });
