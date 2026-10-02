@@ -20,7 +20,40 @@ export type OwnerSignature = {
   updated_at: string | null;
 };
 
-export type QuoteSettings = { client_view: ClientView; owner_signature: OwnerSignature };
+/** Customer-facing texts when sharing a quote (SMS / WhatsApp). Placeholders: [name] [company] [quote_number] [link] */
+export type QuoteShareMessages = {
+  sms_body: string;
+  followup_body: string;
+};
+
+export type QuoteSettings = {
+  client_view: ClientView;
+  owner_signature: OwnerSignature;
+  share_messages: QuoteShareMessages;
+};
+
+export const DEFAULT_QUOTE_SHARE_MESSAGES: QuoteShareMessages = {
+  sms_body:
+    "Hi [name], your quote [quote_number] is ready.\n\nView your quote here:\n[link]\n\nThank you!",
+  followup_body:
+    "Hi [name]! Did you get a chance to review the quote? Happy to answer any questions. [link]",
+};
+
+const SHARE_SMS_MAX = 2000;
+const SHARE_FOLLOWUP_MAX = 2000;
+
+function parseShareMessages(raw: unknown): QuoteShareMessages {
+  const o = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const sms =
+    typeof o.sms_body === "string" && o.sms_body.trim()
+      ? o.sms_body.trim().slice(0, SHARE_SMS_MAX)
+      : DEFAULT_QUOTE_SHARE_MESSAGES.sms_body;
+  const followup =
+    typeof o.followup_body === "string" && o.followup_body.trim()
+      ? o.followup_body.trim().slice(0, SHARE_FOLLOWUP_MAX)
+      : DEFAULT_QUOTE_SHARE_MESSAGES.followup_body;
+  return { sms_body: sms, followup_body: followup };
+}
 
 const bool = (v: unknown, fallback: boolean) => (typeof v === "boolean" ? v : fallback);
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -46,6 +79,7 @@ export function parseQuoteSettings(raw: unknown): QuoteSettings {
       image_url: str(os.image_url),
       updated_at: str(os.updated_at),
     },
+    share_messages: parseShareMessages(o.share_messages),
   };
 }
 
@@ -95,6 +129,12 @@ export const quoteSettingsPatchSchema = z
         showUnitPrices: z.boolean(),
         showLineTotals: z.boolean(),
         showRoomBreakdown: z.boolean(),
+      })
+      .optional(),
+    share_messages: z
+      .object({
+        sms_body: z.string().trim().min(1, "Indique o texto do SMS").max(SHARE_SMS_MAX),
+        followup_body: z.string().trim().min(1, "Indique o texto de follow-up").max(SHARE_FOLLOWUP_MAX),
       })
       .optional(),
   })

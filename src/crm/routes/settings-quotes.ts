@@ -37,6 +37,7 @@ import {
 export const settingsQuotesRouter = Router();
 
 const ORG_QUOTE_SELECT = {
+  name: true,
   quoteNumberPrefix: true,
   quoteNextNumber: true,
   quoteValidityDays: true,
@@ -69,6 +70,8 @@ async function loadQuoteConfig(organizationId: string) {
       terms: org.defaultQuoteTerms,
       client_view: settings.client_view,
       owner_signature: settings.owner_signature,
+      share_messages: settings.share_messages,
+      company_name: org.name || null,
     },
   };
 }
@@ -152,9 +155,17 @@ settingsQuotesRouter.patch(
         track("defaultQuoteTerms", before.org.defaultQuoteTerms ? "(texto)" : null, t ? "(texto alterado)" : null);
         if (t === before.org.defaultQuoteTerms) delete changes.defaultQuoteTerms;
       }
-      if (p.client_view !== undefined) {
-        data.quoteSettings = { ...before.settings, client_view: p.client_view } as Prisma.InputJsonValue;
-        track("clientView", before.settings.client_view, p.client_view);
+      if (p.client_view !== undefined || p.share_messages !== undefined) {
+        const nextSettings = { ...before.settings };
+        if (p.client_view !== undefined) {
+          nextSettings.client_view = p.client_view;
+          track("clientView", before.settings.client_view, p.client_view);
+        }
+        if (p.share_messages !== undefined) {
+          nextSettings.share_messages = p.share_messages;
+          track("shareMessages", before.settings.share_messages, p.share_messages);
+        }
+        data.quoteSettings = nextSettings as Prisma.InputJsonValue;
       }
 
       if (Object.keys(changes).length) {
@@ -188,6 +199,8 @@ settingsQuotesRouter.get(
           tax_rate: data.tax_rate,
           terms: data.terms,
           client_view: data.client_view,
+          share_messages: data.share_messages,
+          company_name: data.company_name,
         },
       });
     } catch (error) {

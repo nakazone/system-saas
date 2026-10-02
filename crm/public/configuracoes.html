@@ -368,6 +368,27 @@
                   </div>
                 </article>
 
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Mensagens ao cliente (SMS / WhatsApp)</h3>
+                  <p class="cfg-card__desc">
+                    Textos em inglês enviados ao cliente ao partilhar o orçamento. Placeholders:
+                    <code>[name]</code>, <code>[company]</code>, <code>[quote_number]</code>, <code>[link]</code>.
+                  </p>
+                  <div class="cfg-field">
+                    <label for="q_sms_body">Ao enviar o orçamento (SMS)</label>
+                    <textarea id="q_sms_body" data-qshare="sms_body" rows="6" maxlength="2000" spellcheck="true"></textarea>
+                    <p class="cfg-hint"><span id="qSmsBodyCount">0</span> caracteres · abre a app de mensagens do telefone</p>
+                  </div>
+                  <div class="cfg-field">
+                    <label for="q_followup_body">Follow-up (cliente já abriu o link)</label>
+                    <textarea id="q_followup_body" data-qshare="followup_body" rows="4" maxlength="2000" spellcheck="true"></textarea>
+                    <p class="cfg-hint"><span id="qFollowupBodyCount">0</span> caracteres · usado no lembrete por WhatsApp</p>
+                  </div>
+                  <div class="cfg-row">
+                    <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnShareMsgDefaults">Restaurar textos padrão (EN)</button>
+                  </div>
+                </article>
+
                 <article class="cfg-card" id="ownerSigCard">
                   <h3 class="cfg-card__title">Assinatura do responsável</h3>
                   <p class="cfg-card__desc">Vai no orçamento como a assinatura da sua empresa. O construtor de orçamento usa esta mesma assinatura.</p>
@@ -674,6 +695,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261001-addr2"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261002-leadmsg2"></script>
+  <script src="configuracoes.js?v=20261002-quotesms1"></script>
 </body>
 </html>

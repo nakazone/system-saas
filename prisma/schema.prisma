@@ -50,7 +50,7 @@ model Organization {
   quoteNumberPrefix String   @default("Q-")
   /// Minimum for the next quote number (only moves forward)
   quoteNextNumber  Int?
-  /// { client_view: {…}, owner_signature: { name, title, use_auto, image_url, updated_at } }
+  /// { client_view: {…}, owner_signature: {…}, share_messages: { sms_body, followup_body } }
   quoteSettings    Json?
   /// Automation toggles/delays: quoteFollowUpEnabled, quoteFollowUpDays, visitReminderEnabled, visitReminderHours
   automationSettings Json?

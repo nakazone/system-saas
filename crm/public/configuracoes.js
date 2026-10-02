@@ -41,7 +41,7 @@
           id: "orcamentos",
           label: "Orçamentos",
           perm: "settings.manage",
-          keywords: "numeração prefixo número validade imposto tax termos condições cliente vê preço unitário quantidade cômodo assinatura responsável",
+          keywords: "numeração prefixo número validade imposto tax termos condições cliente vê preço unitário quantidade cômodo assinatura responsável sms mensagem whatsapp follow-up quote share",
         },
         {
           id: "mensagens-fase",
@@ -117,6 +117,7 @@
     ["Imposto padrão", "orcamentos", "q_tax_rate"],
     ["Termos e condições", "orcamentos", "q_terms"],
     ["O que o cliente vê no orçamento", "orcamentos", null],
+    ["Mensagens SMS / WhatsApp do orçamento", "orcamentos", "q_sms_body"],
     ["Assinatura do responsável", "orcamentos", "s_name"],
     ["Mensagens para Leads", "mensagens-fase", "lm_company"],
     ["Assunto padrão do e-mail", "mensagens-fase", "lm_subject"],
@@ -489,7 +490,7 @@
   const GROUP_LINKS = [
     { title: "Dados da empresa", desc: "Contato, endereço, licença e horário", href: "#empresa", perm: "settings.manage" },
     { title: "Marca e aparência", desc: "Logo e cores", href: "#marca", perm: "settings.manage" },
-    { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
+    { title: "Orçamentos", desc: "Numeração, validade, termos, SMS e assinatura", href: "#orcamentos", perm: "settings.manage" },
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
@@ -1181,6 +1182,34 @@
     document.querySelectorAll('[data-cvp="room"]').forEach((e) => (e.hidden = !cv.showRoomBreakdown));
   }
 
+  const SHARE_MSG_DEFAULTS = {
+    sms_body:
+      "Hi [name], your quote [quote_number] is ready.\n\nView your quote here:\n[link]\n\nThank you!",
+    followup_body:
+      "Hi [name]! Did you get a chance to review the quote? Happy to answer any questions. [link]",
+  };
+
+  function readShareMessages() {
+    return {
+      sms_body: String($("q_sms_body")?.value || "").trim(),
+      followup_body: String($("q_followup_body")?.value || "").trim(),
+    };
+  }
+
+  function fillShareMessages(d) {
+    const sm = (d && d.share_messages) || {};
+    if ($("q_sms_body")) $("q_sms_body").value = sm.sms_body || SHARE_MSG_DEFAULTS.sms_body;
+    if ($("q_followup_body")) $("q_followup_body").value = sm.followup_body || SHARE_MSG_DEFAULTS.followup_body;
+    syncShareMsgCounts();
+  }
+
+  function syncShareMsgCounts() {
+    const sms = $("qSmsBodyCount");
+    const fu = $("qFollowupBodyCount");
+    if (sms) sms.textContent = String(($("q_sms_body")?.value || "").length);
+    if (fu) fu.textContent = String(($("q_followup_body")?.value || "").length);
+  }
+
   function readQuotes() {
     const v = (id) => $(id).value.trim();
     return {
@@ -1190,6 +1219,7 @@
       tax_rate: v("q_tax_rate"),
       terms: $("q_terms").value,
       client_view: readClientView(),
+      share_messages: readShareMessages(),
     };
   }
 
@@ -1203,6 +1233,7 @@
     document.querySelectorAll("[data-cv]").forEach((b) => {
       b.setAttribute("aria-checked", cv[b.getAttribute("data-cv")] === false ? "false" : "true");
     });
+    fillShareMessages(d);
     $("qLastHint").textContent = d.last_label
       ? `Último orçamento criado: ${d.last_label}. O próximo número só pode aumentar.`
       : "Nenhum orçamento criado ainda.";
@@ -1214,6 +1245,7 @@
     const n = $("q_next_number").value.trim();
     $("qNextLabel").textContent = n ? `${prefix}${n}` : "—";
     $("qTermsCount").textContent = String($("q_terms").value.length);
+    syncShareMsgCounts();
     paintClientView();
   }
 
@@ -1593,6 +1625,8 @@
       ["q_next_number", !d.next_number || (/^\d+$/.test(d.next_number) && Number(d.next_number) >= 1) ? "" : "Número inválido"],
       ["q_validity_days", /^\d+$/.test(d.validity_days) && +d.validity_days >= 1 && +d.validity_days <= 365 ? "" : "Entre 1 e 365 dias"],
       ["q_tax_rate", d.tax_rate !== "" && +d.tax_rate >= 0 && +d.tax_rate <= 30 ? "" : "Entre 0 e 30%"],
+      ["q_sms_body", d.share_messages.sms_body ? "" : "Indique o texto do SMS"],
+      ["q_followup_body", d.share_messages.followup_body ? "" : "Indique o texto de follow-up"],
     ];
     const last = state.quotes.data && state.quotes.data.last_number;
     if (!checks[1][1] && d.next_number && last != null && +d.next_number <= last) {
@@ -1698,6 +1732,18 @@
       syncQuotesPreview();
       updateSavebar();
       t.focus();
+    });
+    $("btnShareMsgDefaults")?.addEventListener("click", () => {
+      const sms = $("q_sms_body");
+      const fu = $("q_followup_body");
+      const hasCustom =
+        (sms && sms.value.trim() && sms.value.trim() !== SHARE_MSG_DEFAULTS.sms_body) ||
+        (fu && fu.value.trim() && fu.value.trim() !== SHARE_MSG_DEFAULTS.followup_body);
+      if (hasCustom && !window.confirm("Restaurar os textos padrão em inglês?")) return;
+      if (sms) sms.value = SHARE_MSG_DEFAULTS.sms_body;
+      if (fu) fu.value = SHARE_MSG_DEFAULTS.followup_body;
+      syncShareMsgCounts();
+      updateSavebar();
     });
     $("s_auto").addEventListener("change", () => {
       if ($("s_auto").checked) autoSignFromName();

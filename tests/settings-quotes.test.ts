@@ -29,6 +29,21 @@ describe("settings/quotes — pure helpers", () => {
     expect(s.client_view).toEqual({ showQuantities: true, showUnitPrices: false, showLineTotals: true, showRoomBreakdown: true });
     expect(s.owner_signature.use_auto).toBe(true);
     expect(s.owner_signature.image_url).toBeNull();
+    expect(s.share_messages.sms_body).toMatch(/Hi \[name\]/);
+    expect(s.share_messages.followup_body).toMatch(/review the quote/i);
+  });
+
+  it("keeps custom share message templates", () => {
+    const s = parseQuoteSettings({
+      share_messages: { sms_body: "Hello [name] — [link]", followup_body: "Ping [name]" },
+    });
+    expect(s.share_messages).toEqual({ sms_body: "Hello [name] — [link]", followup_body: "Ping [name]" });
+    expect(quoteSettingsPatchSchema.safeParse({ share_messages: { sms_body: "", followup_body: "x" } }).success).toBe(false);
+    expect(
+      quoteSettingsPatchSchema.safeParse({
+        share_messages: { sms_body: "Hi [name]", followup_body: "Follow up [link]" },
+      }).success,
+    ).toBe(true);
   });
 
   it("parses builder dates and validates patches", () => {

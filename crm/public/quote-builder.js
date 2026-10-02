@@ -2007,16 +2007,52 @@
     return '';
   }
 
+  /** Customer-facing SMS / WhatsApp templates from Configurações › Orçamentos. */
+  let quoteShareMessages = {
+    sms_body:
+      "Hi [name], your quote [quote_number] is ready.\n\nView your quote here:\n[link]\n\nThank you!",
+    followup_body:
+      "Hi [name]! Did you get a chance to review the quote? Happy to answer any questions. [link]",
+  };
+  let quoteShareCompanyName = '';
+
+  function applyQuoteShareTemplate(tpl, vars) {
+    let out = String(tpl || '');
+    const map = {
+      name: vars.name != null ? String(vars.name) : '',
+      company: vars.company != null ? String(vars.company) : '',
+      quote_number: vars.quote_number != null ? String(vars.quote_number) : '',
+      link: vars.link != null ? String(vars.link) : '',
+    };
+    out = out.replace(/\[name\]/gi, map.name);
+    out = out.replace(/\[company\]/gi, map.company);
+    out = out.replace(/\[quote_number\]/gi, map.quote_number);
+    out = out.replace(/\[link\]/gi, map.link);
+    out = out.replace(/\(\s*\)/g, '');
+    out = out.replace(/[ \t]{2,}/g, ' ');
+    out = out.replace(/[ \t]+\n/g, '\n');
+    out = out.replace(/\n{3,}/g, '\n\n');
+    return out.trim();
+  }
+
   function buildQuoteSmsBody(lead, publicUrl) {
     const first = leadFirstNameForSms(lead);
     const num = loadedQuoteNumber ? formatQuoteNumberLabel(loadedQuoteNumber) : '';
-    const ref = num ? ` (${num})` : '';
-    let body = `Olá ${first}, o seu orçamento ObraMate${ref} está pronto.`;
-    if (publicUrl) {
-      body += `\n\nVeja o orçamento aqui:\n${publicUrl}`;
-    }
-    body += '\n\nObrigado!';
-    return body;
+    return applyQuoteShareTemplate(quoteShareMessages.sms_body, {
+      name: first,
+      company: quoteShareCompanyName,
+      quote_number: num,
+      link: publicUrl || '',
+    });
+  }
+
+  function buildQuoteFollowupBody(firstName, publicUrl) {
+    return applyQuoteShareTemplate(quoteShareMessages.followup_body, {
+      name: firstName || 'there',
+      company: quoteShareCompanyName,
+      quote_number: loadedQuoteNumber ? formatQuoteNumberLabel(loadedQuoteNumber) : '',
+      link: publicUrl || '',
+    });
   }
 
   let quoteSendMenuOpen = false;
@@ -4116,10 +4152,26 @@
   }
 
   /** New quote: validity, terms and tax from Configurações › Orçamentos. */
-  async function applyNewQuoteDefaults() {
+  async function loadQuoteShareSettings() {
     try {
       const r = await api('/api/quotes/settings/defaults');
       const d = r.data || {};
+      if (d.share_messages && typeof d.share_messages === 'object') {
+        if (d.share_messages.sms_body) quoteShareMessages.sms_body = String(d.share_messages.sms_body);
+        if (d.share_messages.followup_body) {
+          quoteShareMessages.followup_body = String(d.share_messages.followup_body);
+        }
+      }
+      if (d.company_name) quoteShareCompanyName = String(d.company_name).trim();
+      return d;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  async function applyNewQuoteDefaults() {
+    try {
+      const d = await loadQuoteShareSettings();
       const exp = $('expirationDate');
       if (exp && !exp.value && d.validity_days) {
         const dt = new Date();
@@ -4767,7 +4819,7 @@
       pendingLeadId = String(leadParam).trim();
     }
     if (qid) {
-      await loadQuote(qid);
+      await Promise.all([loadQuote(qid), loadQuoteShareSettings()]);
     } else {
       items = [];
       loadedQuoteLeadId = null;
@@ -5192,7 +5244,7 @@
     } else if (viewed) {
       title = 'Cliente abriu o orçamento';
       text = `${first || 'O cliente'} abriu ${qbMeta.viewed_at ? qbAgo(qbMeta.viewed_at) : ''} e ainda não aprovou.`;
-      const msg = `Olá${first ? ` ${first}` : ''}! Conseguiu ver o orçamento? Qualquer dúvida estou à disposição. ${link}`.trim();
+      const msg = buildQuoteFollowupBody(first, link);
       btn = phone
         ? `<a class="btn btn-primary" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Lembrar por WhatsApp</a>`
         : '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>';
