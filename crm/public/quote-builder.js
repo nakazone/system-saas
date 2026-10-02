@@ -1984,27 +1984,82 @@
     return bit || 'there';
   }
 
+  function isLikelyQuotePublicUrl(url) {
+    const s = String(url || '').trim();
+    if (!/^https?:\/\//i.test(s)) return false;
+    if (/\/public\/quotes\//i.test(s)) return true;
+    if (/quote-public\.html\?t=/i.test(s)) return true;
+    if (/\/(?:SF|Q|OM)-\d{4}-\d+/i.test(s)) return true;
+    return false;
+  }
+
   function getQuotePublicUrlFromDom() {
     const a = $('publicLink');
-    if (a && a.href && String(a.href).startsWith('http')) return a.href;
-    return '';
+    if (!a || !a.href) return '';
+    const href = String(a.href).trim();
+    return isLikelyQuotePublicUrl(href) ? href : '';
+  }
+
+  function applyPublicUrlToDom(url) {
+    const href = String(url || '').trim();
+    if (!isLikelyQuotePublicUrl(href)) return;
+    const w = $('publicLinkWrap');
+    const a = $('publicLink');
+    if (!w || !a) return;
+    a.href = href;
+    a.textContent = href;
+    w.classList.remove('hidden');
   }
 
   async function resolveQuotePublicUrl() {
     const existing = getQuotePublicUrlFromDom();
     if (existing) return existing;
+    if (loadedQuoteNumber) {
+      const pretty = buildClientPublicQuoteUrl(loadedQuoteNumber);
+      if (pretty) {
+        applyPublicUrlToDom(pretty);
+        return pretty;
+      }
+    }
     if (!quoteId) return '';
     try {
       const r = await api(`/api/quotes/${quoteId}`);
       const q = r.data || {};
-      if (q.quote_number || q.public_token) {
-        setPublicLink(q.public_token, q.quote_number);
-        return getQuotePublicUrlFromDom();
+      if (q.quote_number) loadedQuoteNumber = String(q.quote_number).trim();
+      const pretty = buildClientPublicQuoteUrl(q.quote_number || loadedQuoteNumber);
+      if (pretty) {
+        applyPublicUrlToDom(pretty);
+        return pretty;
+      }
+      if (q.public_token) {
+        setPublicLink(q.public_token, q.quote_number || loadedQuoteNumber);
+        const fromDom = getQuotePublicUrlFromDom();
+        if (fromDom) return fromDom;
       }
     } catch (_) {
       /* ignore */
     }
     return '';
+  }
+
+  /** Issue a secure public access link (same path used by e-mail). */
+  async function issueQuotePublicUrl(opts) {
+    if (!quoteId) return '';
+    const markBody = {};
+    if (opts && opts.markSent) markBody.mark_sent = true;
+    const lid = getCurrentQuoteLeadId();
+    if (lid) markBody.lead_id = lid;
+    const pub = await api(`/api/quotes/${quoteId}/publish-client`, {
+      method: 'POST',
+      body: JSON.stringify(markBody),
+    });
+    const url = pub && pub.public_url ? String(pub.public_url).trim() : '';
+    if (url) applyPublicUrlToDom(url);
+    if (opts && opts.markSent) {
+      const statusEl = $('status');
+      if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
+    }
+    return isLikelyQuotePublicUrl(url) ? url : '';
   }
 
   /** Customer-facing SMS / WhatsApp templates from Configurações › Orçamentos. */
@@ -2613,6 +2668,7 @@
         body: JSON.stringify(body),
       });
       closeEmailPreviewModal();
+      if (r.public_url) applyPublicUrlToDom(r.public_url);
       const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
       updateEmailSentBadge(r.email_sent_at || new Date().toISOString());
       if (r.email_sent_at == null) {
@@ -2671,28 +2727,24 @@
       });
       return;
     }
-    const publicUrl = await resolveQuotePublicUrl();
+    let publicUrl = '';
+    try {
+      publicUrl = await issueQuotePublicUrl({ markSent: true });
+    } catch (_) {
+      /* try legacy / cached link below */
+    }
+    if (!publicUrl) {
+      publicUrl = await resolveQuotePublicUrl();
+    }
     if (!publicUrl) {
       showQuoteNotify({
         type: 'error',
         title: 'Link do orçamento',
-        message: 'Salve o orçamento primeiro para gerar o link público antes de enviar por mensagem.',
+        message:
+          'Não foi possível gerar o link público. Salve o orçamento e tente de novo. Se o erro continuar, recarregue a página.',
         ms: 10000,
       });
       return;
-    }
-    try {
-      const markBody = { mark_sent: true };
-      const lid = getCurrentQuoteLeadId();
-      if (lid) markBody.lead_id = lid;
-      await api(`/api/quotes/${quoteId}/publish-client`, {
-        method: 'POST',
-        body: JSON.stringify(markBody),
-      });
-      const statusEl = $('status');
-      if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
-    } catch (_) {
-      /* envio SMS segue; a cópia pública pode ficar na versão anterior */
     }
     const lead = selectedQuoteLead || {
       name: $('qbClientName')?.textContent || '',
