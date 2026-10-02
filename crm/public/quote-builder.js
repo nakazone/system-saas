@@ -551,7 +551,9 @@
           rate_builder: builder,
           rate_contractor: contractor,
           rate_loja: loja,
-          notes_customer: r.notes || null,
+          // Tabela de Valores.notes → descrição da linha no Quote
+          default_description: r.notes != null ? String(r.notes).trim() || null : null,
+          notes_customer: r.notes != null ? String(r.notes).trim() || null : null,
           source: 'pricing',
         };
       });
@@ -577,7 +579,8 @@
           rate_builder: builder,
           rate_contractor: contractor,
           rate_loja: loja,
-          notes_customer: r.description || null,
+          default_description: r.description != null ? String(r.description).trim() || null : null,
+          notes_customer: r.description != null ? String(r.description).trim() || null : null,
           source: 'quote-catalog',
         };
       });
@@ -631,6 +634,10 @@
     const merged = fromQuote.map((q) => {
       const hit = pricingByName.get(catalogNameKey(q.name));
       if (!hit) return q;
+      const pricingNotes =
+        (hit.default_description && String(hit.default_description).trim()) ||
+        (hit.notes_customer && String(hit.notes_customer).trim()) ||
+        '';
       return {
         ...q,
         // Tabela de Valores is source of truth for category when names match.
@@ -641,6 +648,9 @@
         rate_builder: hit.rate_builder || q.rate_builder,
         rate_contractor: hit.rate_contractor || q.rate_contractor,
         rate_loja: hit.rate_loja || q.rate_loja,
+        // Prefer notes from Tabela de Valores as the quote line description.
+        default_description: pricingNotes || q.default_description || q.notes_customer || null,
+        notes_customer: pricingNotes || q.notes_customer || null,
         pricing_item_id: hit.id,
       };
     });
@@ -1117,7 +1127,15 @@
       .toLowerCase();
     if (!name) return null;
     const matches = catalog.filter((r) => String(r.name || '').trim().toLowerCase() === name);
-    return matches.length === 1 ? matches[0] : null;
+    if (!matches.length) return null;
+    if (matches.length === 1) return matches[0];
+    // Prefer the row that carries Tabela de Valores notes / description
+    const withNotes = matches.find(
+      (r) =>
+        (r.default_description && String(r.default_description).trim()) ||
+        (r.notes_customer && String(r.notes_customer).trim())
+    );
+    return withNotes || matches[0];
   }
 
   function resolveInlineBaseRate() {
@@ -2819,8 +2837,11 @@
     qbSuppressServiceNameInput = true;
     $('modalServiceName').value = row.name || '';
     qbSuppressServiceNameInput = false;
-    $('modalServiceDesc').value =
-      row.default_description != null ? String(row.default_description).trim() : '';
+    const desc =
+      (row.default_description != null && String(row.default_description).trim()) ||
+      (row.notes_customer != null && String(row.notes_customer).trim()) ||
+      '';
+    $('modalServiceDesc').value = desc;
     $('modalServiceType').value = serviceTypeFromCatalogCategory(row.category);
     $('modalServiceUnit').value = row.unit_type || 'sq_ft';
     setMoneyFieldValue($('modalServiceRate'), rate);
@@ -3036,10 +3057,11 @@
     const catNotes = row && row.notes_customer != null ? String(row.notes_customer).trim() : '';
     const noteVal = $('inlineItemNote') ? String($('inlineItemNote').value || '').trim() : '';
     const existing = inlineEditIdx >= 0 ? items[inlineEditIdx] : null;
+    const typedDesc = String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim();
     const line = {
       item_type: existing && existing.item_type === 'product' ? 'product' : 'service',
       name,
-      description: String(($('modalServiceDesc') && $('modalServiceDesc').value) || '').trim(),
+      description: typedDesc || catNotes || '',
       unit_type: $('modalServiceUnit').value || 'sq_ft',
       quantity: qty,
       rate: sellRate,
