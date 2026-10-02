@@ -725,7 +725,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     }
 
     /** Min height so a section title is never stranded alone at the bottom of a page. */
-    const SECTION_HEAD_H = 26;
+    const SECTION_HEAD_H = 28;
     const LINE_MIN_H = 44;
 
     for (let si = 0; si < sections.length; si++) {
@@ -734,14 +734,23 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       const broke = ensureSpace(SECTION_HEAD_H + LINE_MIN_H);
       if (broke) drawTableHeader();
 
-      doc.fillColor(PAL.accent).font("Helvetica-Bold").fontSize(9);
-      doc.text(sec.label, colDesc, y, { lineBreak: false });
+      const headPadY = 5;
+      const headH = 20;
+      const headTop = y - headPadY;
+      doc.save();
+      doc.rect(margin, headTop, contentW, headH).fill(PAL.panelBg);
+      doc.rect(margin, headTop, 3.5, headH).fill(PAL.accent);
+      doc.restore();
+
+      const titleY = headTop + (headH - 9) / 2;
+      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(9);
+      doc.text(sec.label, colDesc + 10, titleY, { lineBreak: false });
       doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
       const stLabel = `Section total  ${money(sec.sectionTotal)}`;
-      doc.text(stLabel, pageW - margin - doc.widthOfString(stLabel), y + 1, { lineBreak: false });
-      y += 12;
-      rule(margin, pageW - margin, y, PAL.accent, 0.55);
-      y += 10;
+      doc.text(stLabel, pageW - margin - doc.widthOfString(stLabel) - 6, titleY + 1, {
+        lineBreak: false,
+      });
+      y = headTop + headH + 8;
 
       for (let ii = 0; ii < sec.items.length; ii++) {
         const it = sec.items[ii]!;

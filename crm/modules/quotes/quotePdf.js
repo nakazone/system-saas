@@ -23,6 +23,8 @@ const PAL = {
   secondary: rgb(214 / 255, 181 / 255, 152 / 255),
   secondaryDark: rgb(196 / 255, 165 / 255, 136 / 255),
   panelBg: rgb(240 / 255, 242 / 255, 248 / 255),
+  /** Solid band behind Supply / Installation / Sand & Finish headers */
+  sectionBg: rgb(236 / 255, 228 / 255, 216 / 255),
   lineMuted: rgb(0.35, 0.37, 0.42),
   rule: rgb(0.86, 0.88, 0.92),
   white: rgb(1, 1, 1),
@@ -192,7 +194,7 @@ export async function buildQuotePdfBuffer(opts) {
     // Keep title with at least one following line (avoid orphan headers).
     ensureSpace(72 + 110);
     const fs = 9;
-    const barPad = 6;
+    const barPad = 7;
     const th = fontBold.heightAtSize(fs);
     const barH = th + 2 * barPad;
     const barTop = y;
@@ -203,13 +205,12 @@ export async function buildQuotePdfBuffer(opts) {
       y: barBottom,
       width: contentW,
       height: barH,
-      color: PAL.secondary,
-      opacity: 0.22,
+      color: PAL.sectionBg,
     });
     page.drawRectangle({
       x: margin,
       y: barBottom,
-      width: 3,
+      width: 3.5,
       height: barH,
       color: PAL.primary,
     });
@@ -224,7 +225,7 @@ export async function buildQuotePdfBuffer(opts) {
       const tot = `Section total  ${money(sectionTotal)}`;
       const totW = font.widthOfTextAtSize(tot, 8);
       page.drawText(tot, {
-        x: pageW - margin - totW,
+        x: pageW - margin - totW - 6,
         y: baselineY,
         size: 8,
         font,
