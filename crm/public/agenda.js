@@ -808,7 +808,17 @@
     const w = whenText(e);
     const ct = contactOf(e);
     const ppl = peopleOf(e);
-    const tel = ct.phone ? 'tel:' + String(ct.phone).replace(/[^\d+]/g, '') : '';
+    const phoneDigits = ct.phone ? String(ct.phone).replace(/[^\d+]/g, '') : '';
+    const tel = phoneDigits
+      ? typeof window.sfBuildTelHref === 'function'
+        ? window.sfBuildTelHref(ct.phone)
+        : 'tel:' + phoneDigits
+      : '';
+    const sms = phoneDigits
+      ? typeof window.sfBuildSmsHref === 'function'
+        ? window.sfBuildSmsHref(ct.phone)
+        : 'sms:' + phoneDigits
+      : '';
     const maps = e.address ? 'https://maps.google.com/?q=' + encodeURIComponent(e.address) : '';
     const canEdit = S.canManage;
     const leadId = e.meta.lead_id || (e.meta.lead && e.meta.lead.id) || '';
@@ -852,7 +862,13 @@
         ct.name || tel
           ? `<div class="ag-card ag-dtl__row">${tel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(ct.name || '')}</b>${
               ct.phone ? `<small>${esc(ct.phone)}</small>` : ''
-            }</div>${tel ? `<a class="ag-chip" href="${esc(tel)}">Ligar</a>` : ''}</div>`
+            }</div>${
+              tel || sms
+                ? `<span class="ag-dtl__chips">${tel ? `<a class="ag-chip" href="${esc(tel)}">Ligar</a>` : ''}${
+                    sms ? `<a class="ag-chip" href="${esc(sms)}">Txt</a>` : ''
+                  }</span>`
+                : ''
+            }</div>`
           : ''
       }
       ${

@@ -195,6 +195,7 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-dtl__ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; flex: none; }
 .ag-dtl__ic--phone { background: #211d1a; color: #fff; }
 .ag-dtl__ic svg { width: 20px; height: 20px; }
+.ag-dtl__chips { flex: none; display: flex; align-items: center; gap: 6px; }
 .ag-chip { flex: none; text-decoration: none; background: #e6e1d9; color: var(--ink) !important; font-size: 14px; font-weight: 700; padding: 7px 14px; border-radius: 999px; }
 .ag-dtl__map { flex: none; display: grid; justify-items: center; gap: 2px; width: 74px; height: 58px; align-content: center; border-radius: 12px; border: 1px solid var(--line); background: repeating-linear-gradient(45deg, #f5f1ea 0 6px, #efe9df 6px 12px); color: var(--terrad); font-size: 11.5px; font-weight: 800; }
 .ag-dtl__map svg { width: 20px; height: 20px; }
