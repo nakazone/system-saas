@@ -7,7 +7,7 @@
  *   PUT    /api/settings/catalog/:kind/:id      settings.manage
  *   DELETE /api/settings/catalog/:kind/:id      settings.manage
  *
- * kind = service_category | unit
+ * kind = service_category | unit | customer_type
  */
 import { Router } from "express";
 import { z } from "zod";
@@ -17,7 +17,7 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 
 export const settingsCatalogRouter = Router();
 
-const KINDS = new Set(["service_category", "unit"]);
+const KINDS = new Set(["service_category", "unit", "customer_type"]);
 
 const DEFAULTS: Record<string, Array<{ key: string; label: string; description?: string; sortOrder: number }>> = {
   service_category: [
@@ -33,6 +33,11 @@ const DEFAULTS: Record<string, Array<{ key: string; label: string; description?:
     { key: "fixed", label: "fixed", description: "Valor fixo / lump sum", sortOrder: 40 },
     { key: "box", label: "box", description: "Caixa", sortOrder: 50 },
     { key: "piece", label: "piece", description: "Peça / unidade", sortOrder: 60 },
+  ],
+  customer_type: [
+    { key: "particular", label: "Particular", description: "Cliente final / residencial", sortOrder: 10 },
+    { key: "builder", label: "Builder", description: "Builders e contractors (cadastro unificado)", sortOrder: 20 },
+    { key: "loja", label: "Loja", description: "Loja / retail partner", sortOrder: 30 },
   ],
 };
 
@@ -121,7 +126,7 @@ settingsCatalogRouter.get(
     try {
       const kind = parseKind(req.params.kind);
       if (!kind) {
-        res.status(400).json({ success: false, error: "Tipo inválido (use service_category ou unit)" });
+        res.status(400).json({ success: false, error: "Tipo inválido (use service_category, unit ou customer_type)" });
         return;
       }
       const isAdmin = req.user?.roleKey === "admin";
@@ -130,7 +135,8 @@ settingsCatalogRouter.get(
         isAdmin ||
         perms.includes("settings.manage") ||
         perms.includes("quotes.view") ||
-        perms.includes("quotes.edit");
+        perms.includes("quotes.edit") ||
+        perms.includes("customers.view");
       if (!allowed) {
         res.status(403).json({ success: false, error: "Sem permissão" });
         return;
@@ -158,7 +164,7 @@ settingsCatalogRouter.post(
     try {
       const kind = parseKind(req.params.kind);
       if (!kind) {
-        res.status(400).json({ success: false, error: "Tipo inválido (use service_category ou unit)" });
+        res.status(400).json({ success: false, error: "Tipo inválido (use service_category, unit ou customer_type)" });
         return;
       }
       const parsed = itemSchema.safeParse(req.body || {});
@@ -169,6 +175,14 @@ settingsCatalogRouter.post(
       let key = parsed.data.key || slugify(parsed.data.label);
       if (!/^[a-z][a-z0-9_]*$/.test(key)) {
         res.status(400).json({ success: false, error: "Chave inválida (use a-z, 0-9, _)" });
+        return;
+      }
+      // Contractor was consolidated into Builder — do not recreate as a separate type.
+      if (kind === "customer_type" && key === "contractor") {
+        res.status(400).json({
+          success: false,
+          error: "Use o tipo Builder (Contractor foi unificado no cadastro).",
+        });
         return;
       }
 

@@ -601,6 +601,34 @@
               <p class="cfg-hint">Itens padrão do sistema podem ser desativados, mas a chave não muda.</p>
             </section>
 
+            <!-- ---------- Tipos de cliente ---------- -->
+            <section class="cfg-section" data-section="tipos-cliente" hidden>
+              <header class="cfg-head cfg-head--row">
+                <div>
+                  <h2 class="cfg-title">Tipos de cliente</h2>
+                  <p class="cfg-lead">Tipos usados no cadastro de Clientes (ex.: Particular, Builder, Loja). Builder inclui o antigo Contractor.</p>
+                </div>
+                <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgCustTypeAddBtn">+ Novo tipo</button>
+              </header>
+              <article class="cfg-card cfg-card--flush">
+                <div class="cfg-table-wrap">
+                  <table class="cfg-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Nome</th>
+                        <th scope="col">Chave</th>
+                        <th scope="col">Descrição</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col"><span class="cfg-sr">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="cfgCustTypesBody"><tr><td colspan="5"><div class="cfg-skeleton"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+              <p class="cfg-hint">Itens padrão do sistema podem ser desativados, mas a chave não muda. Novos tipos aparecem nos filtros e no formulário de Clientes.</p>
+            </section>
+
             <!-- ---------- App e notificações ---------- -->
             <section class="cfg-section" data-section="app" hidden>
               <header class="cfg-head">
@@ -742,6 +770,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261001-addr2"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261002-incl1"></script>
+  <script src="configuracoes.js?v=20261005-cli1"></script>
 </body>
 </html>

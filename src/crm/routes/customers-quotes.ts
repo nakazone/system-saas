@@ -365,11 +365,37 @@ function mapCustomer(c: {
 }
 
 function normalizeCustomerType(raw: unknown): string {
-  const v = String(raw || "particular").toLowerCase();
-  if (v === "builder" || v === "contractor" || v === "loja" || v === "particular") return v;
+  const v = String(raw || "particular")
+    .toLowerCase()
+    .trim();
+  // Builder + Contractor share one cadastro type.
+  if (v === "contractor") return "builder";
   if (v === "commercial") return "loja";
   if (v === "residential" || v === "customer" || v === "property_manager" || v === "investor") return "particular";
+  if (v === "builder" || v === "loja" || v === "particular") return v;
+  // Org-defined types from Configurações › Tipos de cliente.
+  if (/^[a-z][a-z0-9_]{0,39}$/.test(v)) return v;
   return "particular";
+}
+
+function digitsOnlyPhone(raw: unknown): string {
+  let d = String(raw || "").replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("1")) d = d.slice(1);
+  return d.length === 10 ? d : "";
+}
+
+function customerDupKey(c: { name: string; company: string | null; email: string | null; phone: string | null }) {
+  const name = String(c.company || c.name || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const email = String(c.email || "")
+    .toLowerCase()
+    .trim();
+  const phone = digitsOnlyPhone(c.phone);
+  return { name, email, phone };
 }
 
 function normalizePricingMode(raw: unknown): "table" | "custom" {
@@ -540,12 +566,16 @@ customersQuotesRouter.get("/api/customers", requireCrmAuth, async (req: AuthedRe
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
     const skip = (page - 1) * limit;
-    const customerType = req.query.customer_type || req.query.type || null;
+    const customerTypeRaw = req.query.customer_type || req.query.type || null;
     const search = String(req.query.q || req.query.search || "").trim();
 
     const [total, rows] = await withTenantTransaction(req.organizationId!, async (tx) => {
       const where: Prisma.CustomerWhereInput = {};
-      if (customerType) where.customerType = String(customerType);
+      if (customerTypeRaw) {
+        const t = normalizeCustomerType(customerTypeRaw);
+        // Builder filter includes legacy contractor rows until migration runs everywhere.
+        where.customerType = t === "builder" ? { in: ["builder", "contractor"] } : t;
+      }
       if (search) {
         where.OR = [
           { name: { contains: search, mode: "insensitive" } },
@@ -564,6 +594,105 @@ customersQuotesRouter.get("/api/customers", requireCrmAuth, async (req: AuthedRe
     next(error);
   }
 });
+
+customersQuotesRouter.get("/api/customers/duplicates", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+      tx.customer.findMany({ orderBy: { createdAt: "asc" } }),
+    );
+    const byName = new Map<string, typeof rows>();
+    const byEmail = new Map<string, typeof rows>();
+    const byPhone = new Map<string, typeof rows>();
+    for (const c of rows) {
+      const k = customerDupKey(c);
+      if (k.name.length >= 3) {
+        const list = byName.get(k.name) || [];
+        list.push(c);
+        byName.set(k.name, list);
+      }
+      if (k.email) {
+        const list = byEmail.get(k.email) || [];
+        list.push(c);
+        byEmail.set(k.email, list);
+      }
+      if (k.phone) {
+        const list = byPhone.get(k.phone) || [];
+        list.push(c);
+        byPhone.set(k.phone, list);
+      }
+    }
+    const seen = new Set<string>();
+    const groups: Array<{ reason: string; key: string; customers: ReturnType<typeof mapCustomer>[] }> = [];
+    const pushGroup = (reason: string, key: string, list: typeof rows) => {
+      if (list.length < 2) return;
+      const ids = list
+        .map((c) => c.id)
+        .sort()
+        .join(",");
+      if (seen.has(ids)) return;
+      seen.add(ids);
+      groups.push({ reason, key, customers: list.map(mapCustomer) });
+    };
+    for (const [key, list] of byEmail) pushGroup("email", key, list);
+    for (const [key, list] of byPhone) pushGroup("phone", key, list);
+    for (const [key, list] of byName) pushGroup("name", key, list);
+    res.json({ success: true, data: groups, total: groups.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+customersQuotesRouter.post(
+  "/api/customers/merge",
+  requireCrmAuth,
+  requireCrmPermission("customers.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const keepId = String(req.body?.keep_id || "");
+      const mergeId = String(req.body?.merge_id || "");
+      if (!keepId || !mergeId || keepId === mergeId) {
+        res.status(400).json({ success: false, error: "Informe keep_id e merge_id diferentes." });
+        return;
+      }
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const keep = await tx.customer.findFirst({ where: { id: keepId } });
+        const merge = await tx.customer.findFirst({ where: { id: mergeId } });
+        if (!keep || !merge) return { ok: false as const, error: "Cliente não encontrado" };
+
+        await tx.quote.updateMany({ where: { customerId: mergeId }, data: { customerId: keepId } });
+        await tx.workOrder.updateMany({ where: { customerId: mergeId }, data: { customerId: keepId } });
+        await tx.quoteInvoice.updateMany({ where: { customerId: mergeId }, data: { customerId: keepId } });
+        await tx.project.updateMany({ where: { customerId: mergeId }, data: { customerId: keepId } });
+        await tx.meeting.updateMany({ where: { customerId: mergeId }, data: { customerId: keepId } });
+        await tx.siteAssessment.updateMany({ where: { customerId: mergeId }, data: { customerId: keepId } });
+        await tx.scheduledMessage.updateMany({ where: { customerId: mergeId }, data: { customerId: keepId } });
+        await tx.property.updateMany({ where: { customerId: mergeId }, data: { customerId: keepId } });
+
+        await tx.customer.update({
+          where: { id: keepId },
+          data: {
+            email: keep.email || merge.email,
+            phone: keep.phone || merge.phone,
+            address: keep.address || merge.address,
+            company: keep.company || merge.company,
+            notes: keep.notes || merge.notes,
+            customerType: normalizeCustomerType(keep.customerType || merge.customerType),
+          },
+        });
+        await tx.customer.delete({ where: { id: mergeId } });
+        const updated = await tx.customer.findFirst({ where: { id: keepId } });
+        return { ok: true as const, customer: updated };
+      });
+      if (!result.ok) {
+        res.status(404).json({ success: false, error: result.error });
+        return;
+      }
+      res.json({ success: true, data: result.customer ? mapCustomer(result.customer) : null });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 customersQuotesRouter.get("/api/customers/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
@@ -942,6 +1071,58 @@ customersQuotesRouter.put(
         return;
       }
       res.json({ success: true, data: mapCustomer(row), message: "Client updated" });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersQuotesRouter.delete(
+  "/api/customers/:id",
+  requireCrmAuth,
+  requireCrmPermission("customers.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const force = String(req.query.force || "") === "1" || req.body?.force === true;
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const existing = await tx.customer.findFirst({ where: { id } });
+        if (!existing) return { ok: false as const, status: 404, error: "Cliente não encontrado" };
+
+        const [quotes, jobs, invoices] = await Promise.all([
+          tx.quote.count({ where: { customerId: id } }),
+          tx.workOrder.count({ where: { customerId: id } }),
+          tx.quoteInvoice.count({ where: { customerId: id } }),
+        ]);
+        const linked = quotes + jobs + invoices;
+        if (linked > 0 && !force) {
+          return {
+            ok: false as const,
+            status: 409,
+            error: `Este cliente tem ${quotes} orçamento(s), ${jobs} job(s) e ${invoices} fatura(s). Confirme a exclusão forçada.`,
+            counts: { quotes, jobs, invoices },
+          };
+        }
+
+        await tx.quote.updateMany({ where: { customerId: id }, data: { customerId: null } });
+        await tx.workOrder.updateMany({ where: { customerId: id }, data: { customerId: null } });
+        await tx.quoteInvoice.updateMany({ where: { customerId: id }, data: { customerId: null } });
+        await tx.project.updateMany({ where: { customerId: id }, data: { customerId: null } });
+        await tx.meeting.updateMany({ where: { customerId: id }, data: { customerId: null } });
+        await tx.siteAssessment.updateMany({ where: { customerId: id }, data: { customerId: null } });
+        await tx.scheduledMessage.updateMany({ where: { customerId: id }, data: { customerId: null } });
+        await tx.customer.delete({ where: { id } });
+        return { ok: true as const };
+      });
+      if (!result.ok) {
+        res.status(result.status).json({
+          success: false,
+          error: result.error,
+          counts: "counts" in result ? result.counts : undefined,
+        });
+        return;
+      }
+      res.json({ success: true });
     } catch (error) {
       next(error);
     }

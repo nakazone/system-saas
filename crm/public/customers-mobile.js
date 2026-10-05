@@ -44,8 +44,7 @@
 
   function typeLabel(c) {
     const t = String(c.customer_type || "").toLowerCase();
-    if (t === "builder") return "Builder";
-    if (t === "contractor") return "Contractor";
+    if (t === "builder" || t === "contractor") return "Builder";
     if (t === "loja") return "Loja";
     if (t === "particular" || t === "residential") return "Particular";
     if (t === "lead") return "Lead";
@@ -75,7 +74,7 @@
       const fin = financeFor(c.id);
       const t = String(c.customer_type || "").toLowerCase();
       if (filter === "balance" && !(fin.balance > 0)) return false;
-      if (filter === "builder" && t !== "builder") return false;
+      if (filter === "builder" && t !== "builder" && t !== "contractor") return false;
       if (filter === "particular" && t !== "particular" && t !== "residential" && t) return false;
       if (filter === "lead" && t !== "lead" && !c.lead_id) return false;
       if (q) {
@@ -94,7 +93,10 @@
     if (!host) return;
     const all = customers.length;
     const withBal = customers.filter((c) => financeFor(c.id).balance > 0).length;
-    const builders = customers.filter((c) => String(c.customer_type || "").toLowerCase() === "builder").length;
+    const builders = customers.filter((c) => {
+      const t = String(c.customer_type || "").toLowerCase();
+      return t === "builder" || t === "contractor";
+    }).length;
     const particular = customers.filter((c) => {
       const t = String(c.customer_type || "").toLowerCase();
       return t === "particular" || t === "residential" || !t;
@@ -145,7 +147,7 @@
         return `<article class="om-swipe jcm-cli-swipe" data-cli-id="${id}">
           <div class="om-swipe__actions" aria-hidden="true">
             <button type="button" class="om-swipe__act--edit" data-cli-edit="${id}">Editar</button>
-            <button type="button" class="om-swipe__act--open" data-cli-open="${id}">Abrir</button>
+            <button type="button" class="om-swipe__act--delete" data-cli-delete="${id}" data-cli-label="${escapeHtml(c.name || "")}">Apagar</button>
           </div>
           <button type="button" class="om-swipe__body jcm-cli" data-cli-open="${id}">
             <span class="jcm-cli__av" style="background:${bg}">${escapeHtml(initials(c.name))}</span>
@@ -177,6 +179,58 @@
         $("cliEditBtn")?.click();
       });
     });
+    host.querySelectorAll("[data-cli-delete]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void deleteCustomer(btn.getAttribute("data-cli-delete"), btn.getAttribute("data-cli-label"), btn);
+      });
+    });
+  }
+
+  async function deleteCustomer(id, label, btn) {
+    if (!id) return;
+    const name = label || id;
+    if (!confirm(`Apagar o cliente “${name}”?\n\nEsta ação não pode ser desfeita.`)) return;
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "…";
+    }
+    try {
+      let r = await fetch(`/api/customers/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      let j = await r.json().catch(() => ({}));
+      if (r.status === 409) {
+        const force = confirm(
+          `${j.error || "Este cliente tem registos ligados."}\n\nApagar mesmo assim?`,
+        );
+        if (!force) {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = prev || "Apagar";
+          }
+          return;
+        }
+        r = await fetch(`/api/customers/${encodeURIComponent(id)}?force=1`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        j = await r.json().catch(() => ({}));
+      }
+      if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+      window.crmToast?.success?.("Cliente apagado.");
+      if (selectedId && String(selectedId) === String(id)) showList();
+      await load();
+    } catch (err) {
+      window.crmToast?.error?.(err.message || "Não foi possível apagar.");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || "Apagar";
+      }
+    }
   }
 
   function showList() {

@@ -270,7 +270,7 @@ model OrgCatalogItem {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /// service_category | unit
+  /// service_category | unit | customer_type
   kind           String
   key            String
   label          String
@@ -417,7 +417,7 @@ model Customer {
   phone          String?
   /// @deprecated Prefer Property records. Kept for back-compat; do not remove in M1.
   address        String?
-  customerType   String   @default("particular") // particular | builder | contractor | loja
+  customerType   String   @default("particular") // particular | builder | loja | custom keys from OrgCatalogItem
   /// table = use PricingItem rates for this type; custom = use customPricingRates overrides
   pricingMode    String   @default("table") // table | custom
   /// Map of pricingItemId -> unit rate when pricingMode is custom.

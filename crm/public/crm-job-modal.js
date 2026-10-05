@@ -26,7 +26,7 @@
     { key: "install", name: "Dia da instalação", items: [["Linhas de referência marcadas", false], ["Primeiras fileiras instaladas", true], ["Transições planejadas", false], ["Limpeza no fim do dia", true]] },
     { key: "final", name: "Vistoria final", items: [["Pendências revisadas", false], ["Fotos de depois completas", true], ["Vistoria com o cliente", false], ["Guia de cuidados entregue", false]] },
   ];
-  const TYPE_LABEL = { builder: "Builder", contractor: "Contractor", loja: "Loja", particular: "Particular" };
+  const TYPE_LABEL = { builder: "Builder", contractor: "Builder", loja: "Loja", particular: "Particular" };
   const RATE_KEY = {
     builder: "price_builder",
     contractor: "price_contractor",
@@ -186,7 +186,11 @@
     if (c) {
       return {
         name: c.name || c.company || "Cliente",
-        type: String(c.customer_type || "particular").toLowerCase(),
+        type: (() => {
+          let t = String(c.customer_type || "particular").toLowerCase();
+          if (t === "contractor") t = "builder";
+          return t;
+        })(),
         sub: [c.company && c.company !== c.name ? c.company : null, c.phone, c.email].filter(Boolean).join(" · "),
         address: c.address || "",
         custom: c.pricing_mode === "custom",
@@ -195,9 +199,11 @@
     const b = currentBuilder();
     if (b) {
       const person = [b.first_name, b.last_name].filter(Boolean).join(" ");
+      let bType = String(b.type || "builder").toLowerCase();
+      if (bType === "contractor") bType = "builder";
       return {
         name: builderName(b),
-        type: String(b.type || "builder").toLowerCase(),
+        type: bType,
         sub: [person && person !== builderName(b) ? person : null, b.phone, b.email].filter(Boolean).join(" · "),
         address: b.address || "",
         custom: false,
@@ -219,14 +225,18 @@
       }));
     const cRows = customers
       .filter((c) => match(c.name) || match(c.company) || match(c.email) || match(c.phone))
-      .map((c) => ({
-        kind: "customer",
-        id: c.id,
-        name: c.name || c.company || "Cliente",
-        type: String(c.customer_type || "particular").toLowerCase(),
-        sub: [c.address, c.phone].filter(Boolean)[0] || "",
-      }));
-    // Fixed-price accounts (builder / contractor / loja) first — that is the day-to-day job.
+      .map((c) => {
+        let type = String(c.customer_type || "particular").toLowerCase();
+        if (type === "contractor") type = "builder";
+        return {
+          kind: "customer",
+          id: c.id,
+          name: c.name || c.company || "Cliente",
+          type,
+          sub: [c.address, c.phone].filter(Boolean)[0] || "",
+        };
+      });
+    // Fixed-price accounts (builder / loja) first — that is the day-to-day job.
     const rank = (r) => (r.type === "particular" ? 1 : 0);
     return [...bRows, ...cRows].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   }
@@ -615,15 +625,15 @@
       </button>`;
     box.innerHTML = `<div class="jm-picker">
       <span class="jm-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="search" id="jmClientQ" class="jm-in" placeholder="Buscar builder, contractor, loja ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
+        <input type="search" id="jmClientQ" class="jm-in" placeholder="Buscar builder, loja ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
       <div class="jm-opts">
-        ${fixed.length ? `<p class="jm-grp">Builders, contractors e lojas</p>${fixed.map(item).join("")}` : ""}
+        ${fixed.length ? `<p class="jm-grp">Builders e lojas</p>${fixed.map(item).join("")}` : ""}
         ${part.length ? `<p class="jm-grp">Particulares</p>${part.map(item).join("")}` : ""}
         ${!list.length ? `<p class="jm-empty">${q ? "Ninguém com esse nome." : "Nenhum cliente cadastrado ainda."}</p>` : ""}
         ${
           q
             ? `<div class="jm-new"><span>Cadastrar <b>${esc(q)}</b> como</span>
-                ${["builder", "contractor", "loja", "particular"].map((t) => `<button type="button" class="jm-chip jm-chip--sm" data-act="quick-client" data-type="${t}">${TYPE_LABEL[t]}</button>`).join("")}</div>`
+                ${["builder", "loja", "particular"].map((t) => `<button type="button" class="jm-chip jm-chip--sm" data-act="quick-client" data-type="${t}">${TYPE_LABEL[t]}</button>`).join("")}</div>`
             : ""
         }
         ${card ? `<button type="button" class="jm-link jm-link--back" data-act="keep-client">Manter ${esc(card.name)}</button>` : ""}
@@ -636,7 +646,7 @@
     const hint = $("jmAddrHint");
     if (!hint) return;
     const same = card && card.address && st.address.trim() === card.address.trim();
-    const from = { builder: "do builder", contractor: "do contractor", loja: "da loja" }[card?.type] || "do cliente";
+    const from = { builder: "do builder", contractor: "do builder", loja: "da loja" }[card?.type] || "do cliente";
     hint.textContent = same ? from : "";
   }
 
@@ -1070,7 +1080,7 @@
       st.builderId = null;
       const c = currentCustomer();
       const t = String(c?.customer_type || "particular").toLowerCase();
-      st.sourceType = TYPE_LABEL[t] ? t : "particular";
+      st.sourceType = t === "contractor" ? "builder" : TYPE_LABEL[t] ? t : "particular";
       if (st.sourceNameAuto) st.sourceName = c?.company || "";
       // Keep address blank for the job site — do not copy the customer mailing address.
     } else {
@@ -1921,7 +1931,8 @@
         st.customerId = t.value || null;
         const c = currentCustomer();
         const ty = String(c?.customer_type || "").toLowerCase();
-        if (TYPE_LABEL[ty]) st.sourceType = ty;
+        if (ty === "contractor") st.sourceType = "builder";
+        else if (TYPE_LABEL[ty]) st.sourceType = ty;
         repriceLines();
         st.pickerOpen = !(st.customerId || st.builderId);
         renderAll();

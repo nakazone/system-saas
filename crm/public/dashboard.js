@@ -950,7 +950,8 @@ function showPage(pageName) {
         else if (pageName === 'customers') {
             customersPage = 1;
             syncCustomersPageChrome();
-            loadCustomers();
+            void loadCustomerTypeCatalog().then(() => loadCustomers());
+            void refreshCustomerDuplicatesButton();
         }
         else if (pageName === 'quotes') {
             currentPage = 1;
@@ -2224,26 +2225,82 @@ let clientCustomPricingSearch = '';
 const CUSTOMERS_TYPE_LABELS = {
     particular: 'Particular',
     builder: 'Builder',
-    contractor: 'Contractor',
+    contractor: 'Builder', // legacy — consolidated into Builder
     loja: 'Loja',
-    // legacy labels (pre-migration rows)
     residential: 'Particular',
     commercial: 'Loja',
     property_manager: 'Particular',
     investor: 'Particular',
 };
 
-const CUSTOMERS_ORG_TYPES = new Set(['builder', 'contractor', 'loja']);
+const CUSTOMERS_ORG_TYPES = new Set(['builder', 'loja']);
+/** Dynamic types from Configurações (active catalog items). */
+let customerTypeCatalog = [
+    { key: 'particular', label: 'Particular' },
+    { key: 'builder', label: 'Builder' },
+    { key: 'loja', label: 'Loja' },
+];
 
 function normalizeClientTypeUi(raw) {
     const v = String(raw || 'particular').toLowerCase();
-    if (CUSTOMERS_ORG_TYPES.has(v) || v === 'particular') return v;
+    if (v === 'contractor') return 'builder';
     if (v === 'commercial') return 'loja';
+    if (CUSTOMERS_ORG_TYPES.has(v) || v === 'particular') return v;
+    if (/^[a-z][a-z0-9_]{0,39}$/.test(v)) return v;
     return 'particular';
 }
 
 function isOrgClientType(type) {
-    return CUSTOMERS_ORG_TYPES.has(normalizeClientTypeUi(type));
+    const t = normalizeClientTypeUi(type);
+    return t !== 'particular';
+}
+
+function customerTypeLabel(type) {
+    const t = normalizeClientTypeUi(type);
+    const fromCat = customerTypeCatalog.find((x) => x.key === t);
+    return fromCat?.label || CUSTOMERS_TYPE_LABELS[t] || t || '—';
+}
+
+async function loadCustomerTypeCatalog() {
+    try {
+        const r = await fetch('/api/settings/catalog/customer_type', { credentials: 'include' });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j.success && Array.isArray(j.data) && j.data.length) {
+            customerTypeCatalog = j.data
+                .filter((x) => x.active !== false)
+                .map((x) => ({ key: normalizeClientTypeUi(x.key), label: x.label || x.key }))
+                .filter((x, i, arr) => arr.findIndex((y) => y.key === x.key) === i);
+            if (!customerTypeCatalog.some((x) => x.key === 'builder')) {
+                customerTypeCatalog.splice(1, 0, { key: 'builder', label: 'Builder' });
+            }
+        }
+    } catch (_) {
+        /* keep defaults */
+    }
+    fillCustomerTypeSelects();
+}
+
+function fillCustomerTypeSelects() {
+    const opts = customerTypeCatalog
+        .map((t) => `<option value="${escapeClientCell(t.key)}">${escapeClientCell(t.label)}</option>`)
+        .join('');
+    const formSel = document.getElementById('clientType');
+    if (formSel) {
+        const cur = formSel.value;
+        formSel.innerHTML = opts;
+        const want = normalizeClientTypeUi(cur);
+        if ([...formSel.options].some((o) => o.value === want)) formSel.value = want;
+    }
+    const filterSel = document.getElementById('customersTypeSelect');
+    if (filterSel) {
+        const cur = filterSel.value;
+        filterSel.innerHTML =
+            `<option value="">Todos os tipos</option>` +
+            customerTypeCatalog
+                .map((t) => `<option value="${escapeClientCell(t.key)}">${escapeClientCell(t.label)}</option>`)
+                .join('');
+        if (cur) filterSel.value = cur;
+    }
 }
 
 function syncCustomersPageChrome() {
@@ -2409,10 +2466,7 @@ async function loadCustomers() {
                     const leadId = c.lead_id != null && c.lead_id !== '' ? String(c.lead_id) : '';
                     const shortLead = leadId ? shortRefId(leadId) : '';
                     const isOrg = isOrgClientType(c.customer_type);
-                    const typeLabel =
-                        CUSTOMERS_TYPE_LABELS[normalizeClientTypeUi(c.customer_type)] ||
-                        c.customer_type ||
-                        '—';
+                    const typeLabel = customerTypeLabel(c.customer_type);
                     const name = escapeClientCell(c.name) || '—';
                     const email = c.email ? escapeClientCell(c.email) : '';
                     const phoneRaw = c.phone ? displayPhoneInClientForm(c.phone) || String(c.phone) : '';
@@ -2465,6 +2519,7 @@ async function loadCustomers() {
                         <div class="customers-row__actions">
                             <button type="button" class="btn btn-sm btn-secondary" onclick="inspectCustomer('${idAttr}')">Ver</button>
                             <button type="button" class="btn btn-sm" onclick="viewCustomer('${idAttr}')">Editar</button>
+                            <button type="button" class="btn btn-sm btn-secondary" data-delete-customer="${idAttr}" data-delete-label="${escapeClientCell(c.name || '')}" onclick="event.stopPropagation(); deleteCustomer(this.getAttribute('data-delete-customer'), this.getAttribute('data-delete-label'))" title="Excluir cliente">Excluir</button>
                         </div>
                     </article>`;
                 }).join('');
@@ -2475,6 +2530,7 @@ async function loadCustomers() {
                 `Página ${customersPage} de ${totalPages}`;
             document.getElementById('prevPageCustomers').disabled = customersPage <= 1;
             document.getElementById('nextPageCustomers').disabled = customersPage >= totalPages;
+            void refreshCustomerDuplicatesButton();
         }
     } catch (error) {
         list.innerHTML = `<p class="customers-list-empty">Erro: ${escapeClientCell(error.message)}</p>`;
@@ -2510,10 +2566,10 @@ function syncClientFormBuilderFields() {
     updateClientCustomPricingCount();
     if (hint) {
         const t = normalizeClientTypeUi(typeEl.value);
-        const labels = { particular: 'Particular', builder: 'Builder', contractor: 'Contractor', loja: 'Loja' };
+        const labels = { particular: 'Particular', builder: 'Builder', loja: 'Loja' };
         hint.textContent = isCustom
             ? 'Preços só deste cliente. Clique em «Editar preços customizados» para ajustar a lista de serviços.'
-            : `Jobs e quotes usam a coluna «${labels[t] || t}» da Tabela de Valores.`;
+            : `Jobs e quotes usam a coluna «${customerTypeLabel(t) || labels[t] || t}» da Tabela de Valores.`;
     }
 }
 
@@ -2543,11 +2599,9 @@ function tableRateForCustomerType(item, customerType) {
     const key =
         t === 'builder'
             ? 'price_builder'
-            : t === 'contractor'
-              ? 'price_contractor'
-              : t === 'loja'
-                ? 'price_loja'
-                : 'price_particular';
+            : t === 'loja'
+              ? 'price_loja'
+              : 'price_particular';
     const preferred = Number(item[key]);
     if (Number.isFinite(preferred) && preferred > 0) return preferred;
     const fallbacks = [item.price_loja, item.price_min, item.price_builder, item.partner_price, item.price_particular, item.price_max];
@@ -2626,9 +2680,9 @@ async function openClientCustomPricingModal() {
     const list = document.getElementById('clientCustomPricingList');
     const intro = document.getElementById('clientCustomPricingIntro');
     const type = normalizeClientTypeUi(document.getElementById('clientType')?.value);
-    const labels = { particular: 'Particular', builder: 'Builder', contractor: 'Contractor', loja: 'Loja' };
+    const labels = { particular: 'Particular', builder: 'Builder', loja: 'Loja' };
     if (intro) {
-        intro.textContent = `Preços só deste cadastro. Coluna de referência da tabela: ${labels[type] || type}. Deixe em branco para manter o valor da tabela.`;
+        intro.textContent = `Preços só deste cadastro. Coluna de referência da tabela: ${customerTypeLabel(type)}. Deixe em branco para manter o valor da tabela.`;
     }
     if (list) list.innerHTML = '<p class="client-custom-pricing-empty">A carregar serviços…</p>';
     if (modal) modal.style.display = 'flex';
@@ -2730,7 +2784,7 @@ async function inspectCustomer(id) {
         }
         const { customer, lead_insight, builder_insight } = data.data;
         const isOrg = isOrgClientType(customer.customer_type);
-        const typeLabel = CUSTOMERS_TYPE_LABELS[normalizeClientTypeUi(customer.customer_type)] || customer.customer_type;
+        const typeLabel = customerTypeLabel(customer.customer_type);
         if (title) {
             title.textContent =
                 isOrg && customer.responsible_name
@@ -2997,11 +3051,134 @@ async function submitClientForm(ev) {
     }
 }
 
+async function deleteCustomer(id, label) {
+    if (!id) return;
+    const name = label || 'este cliente';
+    if (!confirm(`Excluir ${name === 'este cliente' ? name : `o cliente “${name}”`}?\n\nEsta ação não pode ser desfeita.`)) return;
+    try {
+        let res = await fetch(`/api/customers/${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
+        let data = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+            const force = confirm(
+                `${data.error || 'Este cliente tem registos ligados.'}\n\nExcluir mesmo assim? Orçamentos/jobs ficarão sem cliente.`,
+            );
+            if (!force) return;
+            res = await fetch(`/api/customers/${encodeURIComponent(id)}?force=1`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            data = await res.json().catch(() => ({}));
+        }
+        if (!res.ok || data.success === false) {
+            if (typeof crmNotify === 'function') crmNotify(data.error || 'Não foi possível excluir.', 'error');
+            else alert(data.error || 'Não foi possível excluir.');
+            return;
+        }
+        if (typeof crmNotify === 'function') crmNotify('Cliente excluído.', 'success');
+        loadCustomers();
+    } catch (e) {
+        if (typeof crmNotify === 'function') crmNotify(e.message || 'Erro de rede.', 'error');
+        else alert(e.message || 'Erro de rede.');
+    }
+}
+
+async function refreshCustomerDuplicatesButton() {
+    const btn = document.getElementById('btnCustomerDuplicates');
+    if (!btn) return;
+    try {
+        const res = await fetch('/api/customers/duplicates', { credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        const n = res.ok && data.success ? Number(data.total) || (data.data || []).length : 0;
+        btn.hidden = n < 1;
+        btn.textContent = n ? `Ver duplicados (${n})` : 'Ver duplicados';
+    } catch (_) {
+        btn.hidden = true;
+    }
+}
+
+async function showCustomerDuplicates() {
+    try {
+        const res = await fetch('/api/customers/duplicates', { credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            if (typeof crmNotify === 'function') crmNotify(data.error || 'Não foi possível verificar duplicados.', 'error');
+            return;
+        }
+        const groups = data.data || [];
+        if (!groups.length) {
+            if (typeof crmNotify === 'function') crmNotify('Nenhum duplicado encontrado.', 'success');
+            const btn = document.getElementById('btnCustomerDuplicates');
+            if (btn) btn.hidden = true;
+            return;
+        }
+        const reasonLabel = { email: 'mesmo e-mail', phone: 'mesmo telefone', name: 'mesmo nome' };
+        const lines = groups
+            .slice(0, 12)
+            .map((g, gi) => {
+                const reason = reasonLabel[g.reason] || g.reason;
+                const names = (g.customers || [])
+                    .map((c, i) => `  ${i + 1}. ${c.name || c.company || c.id} (${customerTypeLabel(c.customer_type)})`)
+                    .join('\n');
+                return `Grupo ${gi + 1} — ${reason}:\n${names}`;
+            })
+            .join('\n\n');
+        const pick = prompt(
+            `Encontrados ${groups.length} grupo(s) de possíveis duplicados.\n\n${lines}\n\nPara unificar: informe o número do grupo (1–${Math.min(groups.length, 12)}), ou cancele.`,
+        );
+        if (pick == null || !String(pick).trim()) return;
+        const gi = parseInt(String(pick).trim(), 10) - 1;
+        if (!Number.isFinite(gi) || gi < 0 || gi >= groups.length) {
+            alert('Grupo inválido.');
+            return;
+        }
+        const group = groups[gi];
+        const custs = group.customers || [];
+        if (custs.length < 2) return;
+        const keepPick = prompt(
+            `Manter qual registo?\n${custs.map((c, i) => `${i + 1}. ${c.name || c.id}`).join('\n')}\n\nNúmero do registo a manter:`,
+            '1',
+        );
+        if (keepPick == null) return;
+        const ki = parseInt(String(keepPick).trim(), 10) - 1;
+        if (!Number.isFinite(ki) || ki < 0 || ki >= custs.length) {
+            alert('Registo inválido.');
+            return;
+        }
+        const keep = custs[ki];
+        const others = custs.filter((_, i) => i !== ki);
+        if (!confirm(`Unificar ${others.length} registo(s) em “${keep.name || keep.id}”? Os outros serão removidos.`)) return;
+        for (const other of others) {
+            const mr = await fetch('/api/customers/merge', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keep_id: keep.id, merge_id: other.id }),
+            });
+            const md = await mr.json().catch(() => ({}));
+            if (!mr.ok || md.success === false) {
+                if (typeof crmNotify === 'function') crmNotify(md.error || 'Falha ao unificar.', 'error');
+                else alert(md.error || 'Falha ao unificar.');
+                loadCustomers();
+                return;
+            }
+        }
+        if (typeof crmNotify === 'function') crmNotify('Duplicados unificados.', 'success');
+        loadCustomers();
+    } catch (e) {
+        if (typeof crmNotify === 'function') crmNotify(e.message || 'Erro ao verificar duplicados.', 'error');
+    }
+}
+
 window.viewCustomer = viewCustomer;
 window.inspectCustomer = inspectCustomer;
 window.customerViewOpenEdit = customerViewOpenEdit;
 window.showNewCustomerModal = showNewCustomerModal;
 window.submitClientForm = submitClientForm;
+window.deleteCustomer = deleteCustomer;
+window.showCustomerDuplicates = showCustomerDuplicates;
 
 // Quotes (pagination: não usar nome "quotesPage" — colide com id DOM #quotesPage e quebrava showPage)
 let quotesListPage = 1;

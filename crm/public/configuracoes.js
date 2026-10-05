@@ -79,6 +79,12 @@
           perm: "settings.manage",
           keywords: "unidade sq ft linear inches fixed box piece medida",
         },
+        {
+          id: "tipos-cliente",
+          label: "Tipos de cliente",
+          perm: "settings.manage",
+          keywords: "tipo cliente builder particular loja contractor cadastro",
+        },
         { href: "builder-pricing-admin.html", label: "Serviços e preços", perm: ["builders.view", "quotes.edit"], keywords: "tabela de valor preço serviço builder desconto volume" },
         { href: "quote-catalog.html", label: "Catálogo de serviços", perm: ["quotes.edit"], keywords: "catálogo serviço orçamento" },
         { href: "products-erp.html", label: "Produtos e margens", perm: ["quotes.view"], keywords: "produto sku custo margem categoria" },
@@ -143,6 +149,7 @@
     ["Cargos", "cargos", "cfgRolesBody"],
     ["Categorias de serviço", "categorias-servico", "cfgCatsBody"],
     ["Unidades", "unidades", "cfgUnitsBody"],
+    ["Tipos de cliente", "tipos-cliente", "cfgCustTypesBody"],
     ["Logo", "marca", "logoDrop"],
     ["Cores da marca", "marca", "brandPresets"],
     ["Instalar app", "app", null],
@@ -519,6 +526,7 @@
     { title: "Mensagens do Orçamento", desc: "SMS e WhatsApp ao enviar o orçamento", href: "#mensagens-orcamento", perm: "settings.manage" },
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
+    { title: "Tipos de cliente", desc: "Particular, Builder, Loja e tipos personalizados", href: "#tipos-cliente", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
     { title: "Produtos e fornecedores", desc: "Custos, margens e SKUs", href: "products-erp.html", perm: ["quotes.view"] },
     { title: "Cargos", desc: "Funções e permissões da equipe", href: "#cargos", perm: ["roles.manage", "users.view"] },
@@ -2288,6 +2296,7 @@
     permsByGroup: null,
     service_category: null,
     unit: null,
+    customer_type: null,
   };
 
   function openCfgModal(id) {
@@ -2500,6 +2509,7 @@
     const titles = {
       service_category: item ? "Editar categoria" : "Nova categoria",
       unit: item ? "Editar unidade" : "Nova unidade",
+      customer_type: item ? "Editar tipo de cliente" : "Novo tipo de cliente",
     };
     $("cfgCatalogModalTitle").textContent = titles[kind] || (item ? "Editar" : "Novo");
     $("cfgCatalogFormSubmit").textContent = "Guardar";
@@ -2536,6 +2546,7 @@
       }
       closeCfgModal("cfgCatalogModal");
       if (kind === "service_category") await loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
+      else if (kind === "customer_type") await loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
       else await loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     } catch (ex) {
       err.textContent = ex.message || "Erro ao guardar.";
@@ -2557,6 +2568,7 @@
       await api(`/api/settings/catalog/${kind}/${id}`, { method: "DELETE" });
       notify(item.is_system ? "Item desativado" : "Item removido", "success");
       if (kind === "service_category") await loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
+      else if (kind === "customer_type") await loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
       else await loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     } catch (ex) {
       notify(ex.message || "Não foi possível remover", "error");
@@ -2568,6 +2580,7 @@
     $("cfgRoleForm")?.addEventListener("submit", submitRoleForm);
     $("cfgCatAddBtn")?.addEventListener("click", () => openCatalogEditor("service_category", null));
     $("cfgUnitAddBtn")?.addEventListener("click", () => openCatalogEditor("unit", null));
+    $("cfgCustTypeAddBtn")?.addEventListener("click", () => openCatalogEditor("customer_type", null));
     $("cfgCatalogForm")?.addEventListener("submit", submitCatalogForm);
 
     document.addEventListener("click", (e) => {
@@ -2612,6 +2625,7 @@
     if (id === "cargos") return loadRolesSection();
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
     if (id === "unidades") return loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
+    if (id === "tipos-cliente") return loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
     if (id === "app") return syncInstalledNote();
     if (id === "suporte" && !loaded.has("suporte")) {
       loaded.add("suporte");
