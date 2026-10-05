@@ -855,89 +855,27 @@
         </div>`
       : '';
 
-    const users = S.users || [];
-    const assigneeId = e.meta.assigned_user_id || (e.meta.assigned_user && e.meta.assigned_user.id) || '';
-    const jobCals = calList().filter((c) => c.kind === 'jobs');
-    const meetCals = calList().filter((c) => c.kind === 'meetings' || c.kind === 'custom');
-    const statusOpts =
-      e.type === 'job'
-        ? Object.entries(JOB_STATUS).filter(([k]) => k !== 'canceled')
-        : Object.entries(MTG_STATUS).filter(([k]) => k !== 'canceled');
+    const tap = (field, inner, extraClass) =>
+      canEdit
+        ? `<button type="button" class="ag-dtl__tap${extraClass ? ' ' + extraClass : ''}" data-ag-tap="${esc(field)}" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Clique para editar">${inner}</button>`
+        : inner;
 
-    function inlineField(label, controlHtml) {
-      return `<div class="ag-dtl__kv-row"><span>${esc(label)}</span><div class="ag-dtl__kv-ctl">${controlHtml}</div></div>`;
-    }
+    const titleInner = `<h2>${esc(e.title)}</h2>`;
+    const whenInner = `<p>${esc(w.date)}</p><p>${esc(w.time)}</p>`;
+    const calInner = `<b><i class="ag-dot" style="background:${esc(calOf(e).color)}"></i>${esc(calOf(e).name)}${
+      e.type === 'job' && e.meta.crew ? ' · ' + esc(e.meta.crew.name) : ''
+    }</b>`;
+    const statusInner = `<b>${esc(statusText(e))}</b>`;
+    const sectorInner =
+      e.type === 'job' ? `<b>${esc(SECTOR_LBL[e.meta.sector] || e.meta.sector || 'Geral')}</b>` : '';
+    const assigneeInner = `<b>${esc(ppl.join(', ') || '—')}</b>`;
 
-    const titleCtl = canEdit && e.type !== 'visit'
-      ? `<input type="text" class="ag-dtl__in" data-ag-inline="title" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${esc(e.title)}" maxlength="200" />`
-      : `<h2>${esc(e.title)}</h2>`;
-
-    const whenCtl = canEdit
-      ? `<div class="ag-dtl__when">
-          <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
-          <input type="time" class="ag-dtl__in" data-ag-inline="start" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${hm(e.start)}" step="900" />
-          ${e.type === 'visit' ? '' : `<input type="time" class="ag-dtl__in" data-ag-inline="end" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${hm(e.end)}" step="900" />`}
-        </div>`
-      : `<p>${esc(w.date)}</p><p>${esc(w.time)}</p>`;
-
-    const calCtl =
-      canEdit && e.type === 'job' && jobCals.length
-        ? `<select class="ag-dtl__sel" data-ag-inline="calendar" data-ag-id="${esc(e.id)}" data-ag-type="job">${jobCals
-            .map(
-              (c) =>
-                `<option value="${esc(c.id)}" data-sector="${esc(c.sector || 'all')}" ${c.id === e.calendar ? 'selected' : ''}>${esc(c.name)}</option>`,
-            )
-            .join('')}</select>`
-        : canEdit && e.type === 'meeting' && meetCals.length
-          ? `<select class="ag-dtl__sel" data-ag-inline="calendar" data-ag-id="${esc(e.id)}" data-ag-type="meeting">${meetCals
-              .map(
-                (c) =>
-                  `<option value="${esc(c.kind === 'meetings' ? '' : c.id)}" ${
-                    (e.meta.calendar_id || '') === (c.kind === 'meetings' ? '' : c.id) || c.id === e.calendar ? 'selected' : ''
-                  }>${esc(c.name)}</option>`,
-              )
-              .join('')}</select>`
-          : `<b><i class="ag-dot" style="background:${esc(calOf(e).color)}"></i>${esc(calOf(e).name)}${
-              e.type === 'job' && e.meta.crew ? ' · ' + esc(e.meta.crew.name) : ''
-            }</b>`;
-
-    const statusCtl = canEdit
-      ? `<select class="ag-dtl__sel" data-ag-inline="status" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}">${statusOpts
-          .map(([k, l]) => `<option value="${esc(k)}" ${k === e.status ? 'selected' : ''}>${esc(l)}</option>`)
-          .join('')}</select>`
-      : `<b>${esc(statusText(e))}</b>`;
-
-    const sectorCtl =
-      e.type === 'job'
-        ? canEdit
-          ? `<select class="ag-dtl__sel" data-ag-inline="sector" data-ag-id="${esc(e.id)}" data-ag-type="job">
-              <option value="" ${!e.meta.sector ? 'selected' : ''}>Geral</option>
-              <option value="installation" ${e.meta.sector === 'installation' ? 'selected' : ''}>Instalação</option>
-              <option value="sand_finish" ${e.meta.sector === 'sand_finish' ? 'selected' : ''}>Lixa</option>
-            </select>`
-          : e.meta.sector
-            ? `<b>${esc(SECTOR_LBL[e.meta.sector] || e.meta.sector)}</b>`
-            : ''
-        : '';
-
-    const addrCtl = canEdit
-      ? `<input type="text" class="ag-dtl__in ag-dtl__in--wide" data-ag-inline="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" data-ag-address value="${esc(e.address || '')}" placeholder="Endereço" autocomplete="off" />`
-      : e.address
-        ? `<a class="ag-dtl__addr-link" href="${esc(maps)}" target="_blank" rel="noopener"><b>${esc(e.address.split(',')[0])}</b><small>${esc(
-            e.address.split(',').slice(1).join(',').trim(),
-          )}</small></a>`
-        : '<b class="is-mut">—</b>';
-
-    const assigneeCtl = canEdit
-      ? `<select class="ag-dtl__sel" data-ag-inline="assigned_user_id" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}"><option value="">—</option>${users
-          .map((u) => `<option value="${esc(u.id)}" ${String(u.id) === String(assigneeId) ? 'selected' : ''}>${esc(u.name || u.email)}</option>`)
-          .join('')}</select>`
-      : `<b>${esc(ppl.join(', ') || '—')}</b>`;
-
-    return `<div class="ag-dtl" style="${evStyle(e)}" data-ag-detail="${esc(e.id)}">
-      <div class="ag-dtl__head">${titleCtl}
-        ${canEdit ? '' : whenCtl}
-        ${!canEdit && e.status && e.status !== 'scheduled' ? `<span class="ag-dtl__st">${esc(statusText(e))}</span>` : ''}</div>
+    return `<div class="ag-dtl" style="${evStyle(e)}" data-ag-detail="${esc(e.id)}" data-ag-type="${esc(e.type)}">
+      <div class="ag-dtl__head">${
+        canEdit && e.type !== 'visit' ? tap('title', titleInner, 'ag-dtl__tap--block') : titleInner
+      }
+        ${canEdit ? tap('when', whenInner, 'ag-dtl__tap--block') : whenInner}
+        ${e.status && e.status !== 'scheduled' ? `<span class="ag-dtl__st">${esc(statusText(e))}</span>` : ''}</div>
       ${
         ct.name || tel
           ? `<div class="ag-card ag-dtl__row">${tel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(ct.name || '')}</b>${
@@ -951,29 +889,41 @@
             }</div>`
           : ''
       }
-      ${!canEdit && e.address
-        ? `<a class="ag-card ag-dtl__row ag-dtl__addr" href="${esc(maps)}" target="_blank" rel="noopener"><div><b>${esc(e.address.split(',')[0])}</b><small>${esc(
-            e.address.split(',').slice(1).join(',').trim(),
-          )}</small></div><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Mapa</span></a>`
-        : ''}
+      ${
+        e.address
+          ? canEdit
+            ? `<button type="button" class="ag-card ag-dtl__row ag-dtl__addr ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Clique para editar"><div><b>${esc(e.address.split(',')[0])}</b><small>${esc(
+                e.address.split(',').slice(1).join(',').trim() || 'Toque para alterar',
+              )}</small></div><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Editar</span></button>`
+            : `<a class="ag-card ag-dtl__row ag-dtl__addr" href="${esc(maps)}" target="_blank" rel="noopener"><div><b>${esc(e.address.split(',')[0])}</b><small>${esc(
+                e.address.split(',').slice(1).join(',').trim(),
+              )}</small></div><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Mapa</span></a>`
+          : canEdit
+            ? `<button type="button" class="ag-card ag-dtl__row ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Adicionar endereço"><div><b>Sem endereço</b><small>Toque para adicionar</small></div></button>`
+            : ''
+      }
       ${mini}
       <div class="ag-card ag-dtl__kv">
-        ${canEdit ? inlineField('Quando', whenCtl) : ''}
-        ${inlineField('Calendário', calCtl)}
-        ${inlineField('Status', statusCtl)}
-        ${sectorCtl ? inlineField('Setor', sectorCtl) : ''}
-        ${inlineField('Local', addrCtl)}
-        ${inlineField(e.type === 'job' ? 'Responsável' : 'Responsável', assigneeCtl)}
+        <div><span>Calendário</span>${
+          canEdit && (e.type === 'job' || e.type === 'meeting') ? tap('calendar', calInner) : calInner
+        }</div>
+        <div><span>Status</span>${canEdit ? tap('status', statusInner) : statusInner}</div>
+        ${
+          e.type === 'job'
+            ? `<div><span>Setor</span>${canEdit ? tap('sector', sectorInner) : sectorInner}</div>`
+            : ''
+        }
+        <div><span>Responsável</span>${canEdit ? tap('assigned_user_id', assigneeInner) : assigneeInner}</div>
         ${
           e.type === 'job' && e.meta.related_work_order
-            ? `<div class="ag-dtl__kv-row"><span>Job ligado</span><b><a class="ag-link" href="job-detail.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
+            ? `<div><span>Job ligado</span><b><a class="ag-link" href="job-detail.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
                 e.meta.related_work_order.number != null ? e.meta.related_work_order.number : '—'
               )} · ${esc(e.meta.related_work_order.title)}</a></b></div>`
             : ''
         }
         ${
           e.type === 'job' && e.meta.related_children && e.meta.related_children.length
-            ? `<div class="ag-dtl__kv-row"><span>Lixa / relacionados</span><b>${e.meta.related_children
+            ? `<div><span>Lixa / relacionados</span><b>${e.meta.related_children
                 .map(
                   (c) =>
                     `<a class="ag-link" href="job-detail.html?id=${encodeURIComponent(c.id)}">#${esc(c.number != null ? c.number : '—')} · ${esc(c.title)}</a>`
@@ -981,8 +931,8 @@
                 .join('<br>')}</b></div>`
             : ''
         }
-        ${e.type === 'job' && e.meta.services_total ? `<div class="ag-dtl__kv-row"><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
-        ${!canEdit && ppl.length ? `<div class="ag-dtl__kv-row"><span>Equipe</span><b>${esc(ppl.join(', '))}</b></div>` : ''}
+        ${ppl.length && !canEdit ? `<div><span>Equipe</span><b>${esc(ppl.join(', '))}</b></div>` : ''}
+        ${e.type === 'job' && e.meta.services_total ? `<div><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
       </div>
       ${notesBlock}
       <div class="ag-dtl__acts">${ct.href ? `<a class="ag-btn ag-btn--pri" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
@@ -990,7 +940,7 @@
           ? `<a class="ag-btn" href="campo/ticket.html?id=${encodeURIComponent(e.id)}">Editar ticket</a>`
           : ''
       }${
-        canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Mais detalhes</button>` : ''
+        canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
       }${
         canEdit && e.type === 'job' && e.meta.sector === 'installation'
           ? `<button type="button" class="ag-btn" data-ag-lixa="${esc(e.id)}">Agendar Lixa</button>`
@@ -1000,17 +950,139 @@
     </div>`;
   }
 
-  function wireDetailEditors(root) {
-    const host = root || document;
-    const addr = host.querySelector('[data-ag-address]');
-    if (addr && typeof window.sfAttachAddressAutocomplete === 'function') {
-      window.sfAttachAddressAutocomplete(addr, {
-        map: { combined: addr },
-        onSelect: () => {
-          void applyInlinePatch(addr);
-        },
-      }).catch(() => {});
+  function fieldEditorHtml(e, field) {
+    const users = S.users || [];
+    const assigneeId = e.meta.assigned_user_id || (e.meta.assigned_user && e.meta.assigned_user.id) || '';
+    const jobCals = calList().filter((c) => c.kind === 'jobs');
+    const meetCals = calList().filter((c) => c.kind === 'meetings' || c.kind === 'custom');
+    const statusOpts =
+      e.type === 'job'
+        ? Object.entries(JOB_STATUS).filter(([k]) => k !== 'canceled')
+        : Object.entries(MTG_STATUS).filter(([k]) => k !== 'canceled');
+    const common = `data-ag-inline="${esc(field)}" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}"`;
+
+    if (field === 'title') {
+      return `<input type="text" class="ag-dtl__in ag-dtl__in--wide" ${common} value="${esc(e.title)}" maxlength="200" />`;
     }
+    if (field === 'when') {
+      return `<div class="ag-dtl__when" data-ag-when-wrap>
+        <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
+        <input type="time" class="ag-dtl__in" data-ag-inline="start" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${hm(e.start)}" step="900" />
+        ${e.type === 'visit' ? '' : `<input type="time" class="ag-dtl__in" data-ag-inline="end" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${hm(e.end)}" step="900" />`}
+      </div>`;
+    }
+    if (field === 'calendar') {
+      if (e.type === 'job') {
+        return `<select class="ag-dtl__sel" ${common}>${jobCals
+          .map(
+            (c) =>
+              `<option value="${esc(c.id)}" data-sector="${esc(c.sector || 'all')}" ${c.id === e.calendar ? 'selected' : ''}>${esc(c.name)}</option>`,
+          )
+          .join('')}</select>`;
+      }
+      return `<select class="ag-dtl__sel" ${common}>${meetCals
+        .map(
+          (c) =>
+            `<option value="${esc(c.kind === 'meetings' ? '' : c.id)}" ${
+              (e.meta.calendar_id || '') === (c.kind === 'meetings' ? '' : c.id) || c.id === e.calendar ? 'selected' : ''
+            }>${esc(c.name)}</option>`,
+        )
+        .join('')}</select>`;
+    }
+    if (field === 'status') {
+      return `<select class="ag-dtl__sel" ${common}>${statusOpts
+        .map(([k, l]) => `<option value="${esc(k)}" ${k === e.status ? 'selected' : ''}>${esc(l)}</option>`)
+        .join('')}</select>`;
+    }
+    if (field === 'sector') {
+      return `<select class="ag-dtl__sel" ${common}>
+        <option value="" ${!e.meta.sector ? 'selected' : ''}>Geral</option>
+        <option value="installation" ${e.meta.sector === 'installation' ? 'selected' : ''}>Instalação</option>
+        <option value="sand_finish" ${e.meta.sector === 'sand_finish' ? 'selected' : ''}>Lixa</option>
+      </select>`;
+    }
+    if (field === 'address') {
+      return `<input type="text" class="ag-dtl__in ag-dtl__in--wide" ${common} data-ag-address value="${esc(e.address || '')}" placeholder="Endereço" autocomplete="off" />`;
+    }
+    if (field === 'assigned_user_id') {
+      return `<select class="ag-dtl__sel" ${common}><option value="">—</option>${users
+        .map((u) => `<option value="${esc(u.id)}" ${String(u.id) === String(assigneeId) ? 'selected' : ''}>${esc(u.name || u.email)}</option>`)
+        .join('')}</select>`;
+    }
+    return '';
+  }
+
+  async function beginFieldEdit(tapEl) {
+    if (!tapEl || !S.canManage) return;
+    const field = tapEl.getAttribute('data-ag-tap');
+    const id = tapEl.getAttribute('data-ag-id');
+    const type = tapEl.getAttribute('data-ag-type');
+    const ev = findEv(id);
+    if (!ev || !field) return;
+    if (!S.users.length) await ensureUsers().catch(() => {});
+    const html = fieldEditorHtml(ev, field);
+    if (!html) return;
+
+    const root = tapEl.closest('[data-ag-detail]');
+    if (root && root.querySelector('[data-ag-editing]')) {
+      // Another field is mid-edit — refresh static card then re-open this field.
+      const anchor = $(`[data-ag-ev="${CSS.escape(id)}"]`);
+      openDetail(id, anchor);
+      const again = document.querySelector(
+        `[data-ag-tap="${CSS.escape(field)}"][data-ag-id="${CSS.escape(id)}"]`,
+      );
+      if (again && again !== tapEl) return beginFieldEdit(again);
+      return;
+    }
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ag-dtl__kv-ctl ag-dtl__editing';
+    wrap.setAttribute('data-ag-id', id);
+    wrap.setAttribute('data-ag-type', type);
+    wrap.setAttribute('data-ag-editing', field);
+    wrap.innerHTML = html;
+
+    if (field === 'title' || field === 'when') {
+      tapEl.replaceWith(wrap);
+      wrap.classList.add('ag-dtl__editing--block');
+    } else if (field === 'address') {
+      tapEl.replaceWith(wrap);
+      wrap.classList.add('ag-card', 'ag-dtl__editing--addr');
+    } else {
+      const cell = tapEl.closest('.ag-dtl__kv > div') || tapEl.parentNode;
+      if (cell && cell !== tapEl) {
+        const label = cell.querySelector(':scope > span');
+        Array.from(cell.children).forEach((ch) => {
+          if (ch !== label) ch.remove();
+        });
+        cell.appendChild(wrap);
+      } else {
+        tapEl.replaceWith(wrap);
+      }
+    }
+
+    const focusEl = wrap.querySelector('input, select');
+    if (focusEl) {
+      focusEl.focus();
+      if (focusEl.tagName === 'SELECT' && typeof focusEl.showPicker === 'function') {
+        try {
+          focusEl.showPicker();
+        } catch (_) {}
+      }
+    }
+    if (field === 'address' && typeof window.sfAttachAddressAutocomplete === 'function') {
+      const addr = wrap.querySelector('[data-ag-address]');
+      if (addr) {
+        window.sfAttachAddressAutocomplete(addr, {
+          map: { combined: addr },
+          onSelect: () => void applyInlinePatch(addr),
+        }).catch(() => {});
+      }
+    }
+  }
+
+  function wireDetailEditors() {
+    /* editors attach on click via beginFieldEdit */
   }
 
   let inlineBusy = false;
@@ -1154,15 +1226,13 @@
     const paint = () => {
       if (isPhone()) {
         openSheet(`<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${
-          S.canManage ? `<button type="button" class="ag-pillbtn" data-ag-edit="${esc(e.id)}">Mais</button>` : ''
+          S.canManage ? `<button type="button" class="ag-pillbtn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
         }</header><div class="ag-sheet__body">${detailHtml(e, true)}</div>`);
-        wireDetailEditors($('#agSheet'));
         return;
       }
       const pop = $('#agPop');
       pop.innerHTML = detailHtml(e, false);
       pop.hidden = false;
-      wireDetailEditors(pop);
       $$('.is-active-ev').forEach((x) => x.classList.remove('is-active-ev'));
       if (anchor) anchor.classList.add('is-active-ev');
       const r = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth / 2, right: window.innerWidth / 2, top: 200, bottom: 220, width: 0 };
@@ -1889,6 +1959,12 @@
         }
         return;
       }
+      if ((el = t.closest('[data-ag-tap]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        void beginFieldEdit(el);
+        return;
+      }
       if ((el = t.closest('[data-ag-notes-tog]'))) {
         const box = el.closest('.ag-dtl__notes');
         const panel = box && box.querySelector('.ag-dtl__notes-panel');
@@ -2066,10 +2142,7 @@
       const t = ev.target;
       if (!(t instanceof HTMLElement)) return;
       if (t.matches('[data-ag-inline]')) {
-        // Debounce text fields via blur; selects/date/time save immediately.
-        if (t.matches('select, input[type="date"], input[type="time"]')) {
-          void applyInlinePatch(t);
-        }
+        void applyInlinePatch(t);
         return;
       }
       if (t.matches('[data-ag-cal]')) {
@@ -2090,7 +2163,12 @@
       const t = ev.target;
       if (!(t instanceof HTMLElement)) return;
       if (!t.matches('[data-ag-inline="title"], [data-ag-inline="address"]')) return;
-      void applyInlinePatch(t);
+      // Delay so a click on another control can take over first.
+      setTimeout(() => {
+        if (!t.isConnected) return;
+        if (document.activeElement && t.closest('[data-ag-editing]')?.contains(document.activeElement)) return;
+        void applyInlinePatch(t);
+      }, 120);
     });
 
     document.addEventListener('submit', async (ev) => {
