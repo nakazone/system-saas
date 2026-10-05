@@ -215,9 +215,12 @@
       pac.style.opacity = '0';
       pac.style.pointerEvents = 'none';
       pac.setAttribute('aria-hidden', 'true');
-      while (pac.firstChild) pac.removeChild(pac.firstChild);
+      // Never wipe .pac-item nodes — Google Places reuses this DOM; clearing
+      // children breaks suggestions after the first pick/clear cycle.
     });
     if (inputEl && typeof inputEl.blur === 'function') {
+      // Keep focus when the user is still editing the field.
+      if (document.activeElement === inputEl) return;
       try {
         inputEl.blur();
       } catch (_) {}
@@ -480,6 +483,7 @@
       hide();
       parsed = ensureStreetNumber(parsed, inputEl._sfLastTyped || inputEl.value || '');
       applySelection(parsed, options.map, inputEl);
+      inputEl._sfAppliedValue = inputEl.value;
       inputEl.dispatchEvent(new Event('input', { bubbles: true }));
       inputEl.dispatchEvent(new Event('change', { bubbles: true }));
       if (typeof options.onSelect === 'function') {
@@ -487,9 +491,6 @@
       }
       // Keep closed — applySelection can dispatch input and would reopen the list
       hide();
-      try {
-        inputEl.blur();
-      } catch (_) {}
       setTimeout(function () {
         hide();
         suppressSearch = false;
@@ -543,6 +544,15 @@
 
     inputEl.addEventListener('input', function () {
       inputEl._sfLastTyped = inputEl.value;
+      if (inputEl._sfAppliedValue != null && String(inputEl.value) !== String(inputEl._sfAppliedValue)) {
+        suppressSearch = false;
+        suppressUntil = 0;
+      }
+      if (!String(inputEl.value || '').trim()) {
+        suppressSearch = false;
+        suppressUntil = 0;
+        inputEl._sfAppliedValue = null;
+      }
       if (suppressSearch || Date.now() < suppressUntil) {
         clearTimeout(timer);
         hide();
@@ -618,17 +628,29 @@
 
       var pacLockUntil = 0;
       function lockAndDismiss() {
-        pacLockUntil = Date.now() + 700;
-        dismissPacDropdown(inputEl);
+        pacLockUntil = Date.now() + 400;
+        dismissPacDropdown();
       }
 
       inputEl.addEventListener('input', function () {
         inputEl._sfLastTyped = inputEl.value;
-        if (Date.now() < pacLockUntil) dismissPacDropdown(inputEl);
+        // User cleared or retyped after a pick — unlock so suggestions work again.
+        if (inputEl._sfAppliedValue != null && String(inputEl.value) !== String(inputEl._sfAppliedValue)) {
+          pacLockUntil = 0;
+        }
+        if (!String(inputEl.value || '').trim()) {
+          pacLockUntil = 0;
+          inputEl._sfAppliedValue = null;
+        }
+        // Only suppress the brief post-pick reopen; never block a new search.
+        if (Date.now() < pacLockUntil && String(inputEl.value) === String(inputEl._sfAppliedValue || '')) {
+          dismissPacDropdown();
+        }
       });
 
       inputEl.addEventListener('blur', function () {
         setTimeout(function () {
+          if (document.activeElement === inputEl) return;
           dismissPacDropdown();
         }, 150);
       });
@@ -638,23 +660,21 @@
         if (!place) return;
         var hint = inputEl._sfLastTyped || '';
         var parsed = ensureStreetNumber(parsePlaceComponents(place), hint);
-        lockAndDismiss();
         applySelection(parsed, options.map, inputEl);
+        inputEl._sfAppliedValue = inputEl.value;
+        lockAndDismiss();
         if (typeof options.onSelect === 'function') {
           options.onSelect(parsed, place, inputEl);
         }
         // Google may rewrite the input and reopen .pac-container after place_changed
         function finalize() {
           applySelection(parsed, options.map, inputEl);
-          dismissPacDropdown(inputEl);
+          inputEl._sfAppliedValue = inputEl.value;
+          dismissPacDropdown();
         }
         setTimeout(finalize, 0);
         setTimeout(finalize, 50);
         setTimeout(finalize, 150);
-        setTimeout(finalize, 300);
-        setTimeout(function () {
-          dismissPacDropdown(inputEl);
-        }, 500);
       });
       return true;
     } catch (err) {

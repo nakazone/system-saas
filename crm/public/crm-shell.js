@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261002-qbfix2";
+  const SHELL_VER = "20261005-tab1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1195,6 +1195,92 @@
     if (needsNav) await mountNav();
     wrapNavLabels(getSidebar());
     refreshOmUtilityBindings();
+    wireFormTabNavigation();
+  }
+
+  /**
+   * Keep Tab advancing through visible form fields (including those inside
+   * modals / sheets). Skips hidden, disabled, and aria-hidden controls.
+   */
+  function wireFormTabNavigation() {
+    if (document.documentElement.dataset.crmTabNav === "1") return;
+    document.documentElement.dataset.crmTabNav = "1";
+
+    const FOCUSABLE =
+      'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    function isVisible(el) {
+      if (!el || el.disabled) return false;
+      if (el.getAttribute("aria-hidden") === "true") return false;
+      if (el.closest("[hidden], [aria-hidden='true']")) return false;
+      const st = window.getComputedStyle(el);
+      if (st.display === "none" || st.visibility === "hidden" || Number(st.opacity) === 0) return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }
+
+    function scopeRoot(el) {
+      return (
+        (el &&
+          el.closest &&
+          el.closest(
+            'form, [role="dialog"], .modal, .jm-modal, .ag-pop, .ag-sheet, .lead-quick-sheet, .cfg-section:not([hidden]), .qb-modal, .sf-sheet',
+          )) ||
+        document
+      );
+    }
+
+    function listFocusables(root) {
+      return Array.from((root || document).querySelectorAll(FOCUSABLE)).filter(isVisible);
+    }
+
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key !== "Tab" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+        const active = document.activeElement;
+        if (!active || active === document.body || active === document.documentElement) {
+          const first = listFocusables(document)[0];
+          if (first) {
+            e.preventDefault();
+            first.focus();
+          }
+          return;
+        }
+        // Let the browser handle normal Tab; only intervene when the next
+        // candidate would leave a dialog/sheet without wrapping, or when the
+        // active node is a non-tabbable host that owns focusable children.
+        const root = scopeRoot(active);
+        if (root === document) return;
+        const list = listFocusables(root);
+        if (list.length < 2) return;
+        const idx = list.indexOf(active);
+        if (idx < 0) {
+          // Focus is on a wrapper — jump to first/last field in the dialog.
+          e.preventDefault();
+          (e.shiftKey ? list[list.length - 1] : list[0]).focus();
+          return;
+        }
+        if (!e.shiftKey && idx === list.length - 1) {
+          e.preventDefault();
+          list[0].focus();
+        } else if (e.shiftKey && idx === 0) {
+          e.preventDefault();
+          list[list.length - 1].focus();
+        }
+      },
+      false,
+    );
+
+    // Prefer native text selection on form controls even if a parent set user-select:none.
+    if (!document.getElementById("crm-tab-form-style")) {
+      const st = document.createElement("style");
+      st.id = "crm-tab-form-style";
+      st.textContent =
+        'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, select {' +
+        "-webkit-user-select:text!important;user-select:text!important;}";
+      document.head.appendChild(st);
+    }
   }
 
   if (document.readyState === "loading") {

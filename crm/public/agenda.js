@@ -825,7 +825,9 @@
         ? { kind: 'job', id: e.id, value: e.meta.notes || '', label: 'Notas do job', placeholder: 'Notas do job…' }
         : leadId
           ? { kind: 'lead', id: leadId, value: (e.meta.lead && e.meta.lead.notes) || '', label: 'Notas', placeholder: 'Notas do lead…' }
-          : null;
+          : e.type === 'meeting'
+            ? { kind: 'meeting', id: e.id, value: e.meta.notes || '', label: 'Notas', placeholder: 'Notas…' }
+            : null;
     const startH = e.allDay ? null : Math.max(0, e.start.getHours() - 1);
     const mini =
       phone && !e.allDay
@@ -852,10 +854,90 @@
           </div>
         </div>`
       : '';
-    return `<div class="ag-dtl" style="${evStyle(e)}">
-      <div class="ag-dtl__head"><h2>${esc(e.title)}</h2>
-        <p>${esc(w.date)}</p><p>${esc(w.time)}</p>
-        ${e.status && e.status !== 'scheduled' ? `<span class="ag-dtl__st">${esc(statusText(e))}</span>` : ''}</div>
+
+    const users = S.users || [];
+    const assigneeId = e.meta.assigned_user_id || (e.meta.assigned_user && e.meta.assigned_user.id) || '';
+    const jobCals = calList().filter((c) => c.kind === 'jobs');
+    const meetCals = calList().filter((c) => c.kind === 'meetings' || c.kind === 'custom');
+    const statusOpts =
+      e.type === 'job'
+        ? Object.entries(JOB_STATUS).filter(([k]) => k !== 'canceled')
+        : Object.entries(MTG_STATUS).filter(([k]) => k !== 'canceled');
+
+    function inlineField(label, controlHtml) {
+      return `<div class="ag-dtl__kv-row"><span>${esc(label)}</span><div class="ag-dtl__kv-ctl">${controlHtml}</div></div>`;
+    }
+
+    const titleCtl = canEdit && e.type !== 'visit'
+      ? `<input type="text" class="ag-dtl__in" data-ag-inline="title" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${esc(e.title)}" maxlength="200" />`
+      : `<h2>${esc(e.title)}</h2>`;
+
+    const whenCtl = canEdit
+      ? `<div class="ag-dtl__when">
+          <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
+          <input type="time" class="ag-dtl__in" data-ag-inline="start" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${hm(e.start)}" step="900" />
+          ${e.type === 'visit' ? '' : `<input type="time" class="ag-dtl__in" data-ag-inline="end" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${hm(e.end)}" step="900" />`}
+        </div>`
+      : `<p>${esc(w.date)}</p><p>${esc(w.time)}</p>`;
+
+    const calCtl =
+      canEdit && e.type === 'job' && jobCals.length
+        ? `<select class="ag-dtl__sel" data-ag-inline="calendar" data-ag-id="${esc(e.id)}" data-ag-type="job">${jobCals
+            .map(
+              (c) =>
+                `<option value="${esc(c.id)}" data-sector="${esc(c.sector || 'all')}" ${c.id === e.calendar ? 'selected' : ''}>${esc(c.name)}</option>`,
+            )
+            .join('')}</select>`
+        : canEdit && e.type === 'meeting' && meetCals.length
+          ? `<select class="ag-dtl__sel" data-ag-inline="calendar" data-ag-id="${esc(e.id)}" data-ag-type="meeting">${meetCals
+              .map(
+                (c) =>
+                  `<option value="${esc(c.kind === 'meetings' ? '' : c.id)}" ${
+                    (e.meta.calendar_id || '') === (c.kind === 'meetings' ? '' : c.id) || c.id === e.calendar ? 'selected' : ''
+                  }>${esc(c.name)}</option>`,
+              )
+              .join('')}</select>`
+          : `<b><i class="ag-dot" style="background:${esc(calOf(e).color)}"></i>${esc(calOf(e).name)}${
+              e.type === 'job' && e.meta.crew ? ' · ' + esc(e.meta.crew.name) : ''
+            }</b>`;
+
+    const statusCtl = canEdit
+      ? `<select class="ag-dtl__sel" data-ag-inline="status" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}">${statusOpts
+          .map(([k, l]) => `<option value="${esc(k)}" ${k === e.status ? 'selected' : ''}>${esc(l)}</option>`)
+          .join('')}</select>`
+      : `<b>${esc(statusText(e))}</b>`;
+
+    const sectorCtl =
+      e.type === 'job'
+        ? canEdit
+          ? `<select class="ag-dtl__sel" data-ag-inline="sector" data-ag-id="${esc(e.id)}" data-ag-type="job">
+              <option value="" ${!e.meta.sector ? 'selected' : ''}>Geral</option>
+              <option value="installation" ${e.meta.sector === 'installation' ? 'selected' : ''}>Instalação</option>
+              <option value="sand_finish" ${e.meta.sector === 'sand_finish' ? 'selected' : ''}>Lixa</option>
+            </select>`
+          : e.meta.sector
+            ? `<b>${esc(SECTOR_LBL[e.meta.sector] || e.meta.sector)}</b>`
+            : ''
+        : '';
+
+    const addrCtl = canEdit
+      ? `<input type="text" class="ag-dtl__in ag-dtl__in--wide" data-ag-inline="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" data-ag-address value="${esc(e.address || '')}" placeholder="Endereço" autocomplete="off" />`
+      : e.address
+        ? `<a class="ag-dtl__addr-link" href="${esc(maps)}" target="_blank" rel="noopener"><b>${esc(e.address.split(',')[0])}</b><small>${esc(
+            e.address.split(',').slice(1).join(',').trim(),
+          )}</small></a>`
+        : '<b class="is-mut">—</b>';
+
+    const assigneeCtl = canEdit
+      ? `<select class="ag-dtl__sel" data-ag-inline="assigned_user_id" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}"><option value="">—</option>${users
+          .map((u) => `<option value="${esc(u.id)}" ${String(u.id) === String(assigneeId) ? 'selected' : ''}>${esc(u.name || u.email)}</option>`)
+          .join('')}</select>`
+      : `<b>${esc(ppl.join(', ') || '—')}</b>`;
+
+    return `<div class="ag-dtl" style="${evStyle(e)}" data-ag-detail="${esc(e.id)}">
+      <div class="ag-dtl__head">${titleCtl}
+        ${canEdit ? '' : whenCtl}
+        ${!canEdit && e.status && e.status !== 'scheduled' ? `<span class="ag-dtl__st">${esc(statusText(e))}</span>` : ''}</div>
       ${
         ct.name || tel
           ? `<div class="ag-card ag-dtl__row">${tel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(ct.name || '')}</b>${
@@ -869,27 +951,29 @@
             }</div>`
           : ''
       }
-      ${
-        e.address
-          ? `<a class="ag-card ag-dtl__row ag-dtl__addr" href="${esc(maps)}" target="_blank" rel="noopener"><div><b>${esc(e.address.split(',')[0])}</b><small>${esc(
-              e.address.split(',').slice(1).join(',').trim()
-            )}</small></div><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Mapa</span></a>`
-          : ''
-      }
+      ${!canEdit && e.address
+        ? `<a class="ag-card ag-dtl__row ag-dtl__addr" href="${esc(maps)}" target="_blank" rel="noopener"><div><b>${esc(e.address.split(',')[0])}</b><small>${esc(
+            e.address.split(',').slice(1).join(',').trim(),
+          )}</small></div><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Mapa</span></a>`
+        : ''}
       ${mini}
       <div class="ag-card ag-dtl__kv">
-        <div><span>Calendário</span><b><i class="ag-dot" style="background:${esc(calOf(e).color)}"></i>${esc(calOf(e).name)}${e.type === 'job' && e.meta.crew ? ' · ' + esc(e.meta.crew.name) : ''}</b></div>
-        ${e.type === 'job' && e.meta.sector ? `<div><span>Setor</span><b>${esc(SECTOR_LBL[e.meta.sector] || e.meta.sector)}</b></div>` : ''}
+        ${canEdit ? inlineField('Quando', whenCtl) : ''}
+        ${inlineField('Calendário', calCtl)}
+        ${inlineField('Status', statusCtl)}
+        ${sectorCtl ? inlineField('Setor', sectorCtl) : ''}
+        ${inlineField('Local', addrCtl)}
+        ${inlineField(e.type === 'job' ? 'Responsável' : 'Responsável', assigneeCtl)}
         ${
           e.type === 'job' && e.meta.related_work_order
-            ? `<div><span>Job ligado</span><b><a class="ag-link" href="job-detail.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
+            ? `<div class="ag-dtl__kv-row"><span>Job ligado</span><b><a class="ag-link" href="job-detail.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
                 e.meta.related_work_order.number != null ? e.meta.related_work_order.number : '—'
               )} · ${esc(e.meta.related_work_order.title)}</a></b></div>`
             : ''
         }
         ${
           e.type === 'job' && e.meta.related_children && e.meta.related_children.length
-            ? `<div><span>Lixa / relacionados</span><b>${e.meta.related_children
+            ? `<div class="ag-dtl__kv-row"><span>Lixa / relacionados</span><b>${e.meta.related_children
                 .map(
                   (c) =>
                     `<a class="ag-link" href="job-detail.html?id=${encodeURIComponent(c.id)}">#${esc(c.number != null ? c.number : '—')} · ${esc(c.title)}</a>`
@@ -897,8 +981,8 @@
                 .join('<br>')}</b></div>`
             : ''
         }
-        ${ppl.length ? `<div><span>Equipe</span><b>${esc(ppl.join(', '))}</b></div>` : ''}
-        ${e.type === 'job' && e.meta.services_total ? `<div><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
+        ${e.type === 'job' && e.meta.services_total ? `<div class="ag-dtl__kv-row"><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
+        ${!canEdit && ppl.length ? `<div class="ag-dtl__kv-row"><span>Equipe</span><b>${esc(ppl.join(', '))}</b></div>` : ''}
       </div>
       ${notesBlock}
       <div class="ag-dtl__acts">${ct.href ? `<a class="ag-btn ag-btn--pri" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
@@ -906,7 +990,7 @@
           ? `<a class="ag-btn" href="campo/ticket.html?id=${encodeURIComponent(e.id)}">Editar ticket</a>`
           : ''
       }${
-        canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
+        canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Mais detalhes</button>` : ''
       }${
         canEdit && e.type === 'job' && e.meta.sector === 'installation'
           ? `<button type="button" class="ag-btn" data-ag-lixa="${esc(e.id)}">Agendar Lixa</button>`
@@ -914,6 +998,134 @@
       }</div>
       ${canEdit ? `<button type="button" class="ag-btn ag-btn--danger ag-btn--block" data-ag-del="${esc(e.id)}">${e.type === 'job' ? 'Cancelar job' : e.type === 'visit' ? 'Cancelar visita' : 'Cancelar compromisso'}</button>` : ''}
     </div>`;
+  }
+
+  function wireDetailEditors(root) {
+    const host = root || document;
+    const addr = host.querySelector('[data-ag-address]');
+    if (addr && typeof window.sfAttachAddressAutocomplete === 'function') {
+      window.sfAttachAddressAutocomplete(addr, {
+        map: { combined: addr },
+        onSelect: () => {
+          void applyInlinePatch(addr);
+        },
+      }).catch(() => {});
+    }
+  }
+
+  let inlineBusy = false;
+  async function applyInlinePatch(el) {
+    if (!el || !S.canManage || inlineBusy) return;
+    const id = el.getAttribute('data-ag-id');
+    const type = el.getAttribute('data-ag-type');
+    const field = el.getAttribute('data-ag-inline');
+    if (!id || !type || !field) return;
+    const ev = findEv(id);
+    if (!ev) return;
+
+    const detail = el.closest('[data-ag-detail]') || document;
+    const valOf = (f) => {
+      const n = detail.querySelector(`[data-ag-inline="${f}"][data-ag-id="${CSS.escape(id)}"]`);
+      return n ? String(n.value || '').trim() : '';
+    };
+
+    // Skip no-op saves (e.g. focusout without edits).
+    if (field === 'title' && valOf('title') === String(ev.title || '').trim()) return;
+    if (field === 'address') {
+      const cur = String(ev.address || '').trim();
+      if (valOf('address') === cur) return;
+    }
+    if (field === 'status' && valOf('status') === String(ev.status || '')) return;
+    if (field === 'sector') {
+      const next = valOf('sector') || '';
+      const cur = String(ev.meta.sector || '');
+      if (next === cur) return;
+    }
+    if (field === 'assigned_user_id') {
+      const cur = String(ev.meta.assigned_user_id || (ev.meta.assigned_user && ev.meta.assigned_user.id) || '');
+      if (valOf('assigned_user_id') === cur) return;
+    }
+    if (field === 'calendar') {
+      if (type === 'job' && valOf('calendar') === String(ev.calendar || '')) return;
+      if (type === 'meeting') {
+        const cur = String(ev.meta.calendar_id || '');
+        if (valOf('calendar') === cur) return;
+      }
+    }
+    if (field === 'date' || field === 'start' || field === 'end') {
+      const date = valOf('date');
+      const st = valOf('start') || hm(ev.start);
+      const en = valOf('end') || hm(ev.end);
+      if (date === ymd(ev.start) && st === hm(ev.start) && (type === 'visit' || en === hm(ev.end))) return;
+    }
+
+    try {
+      inlineBusy = true;
+      el.classList.add('is-saving');
+      if (type === 'job') {
+        const body = {};
+        if (field === 'title') {
+          if (valOf('title').length < 2) throw new Error('Título muito curto.');
+          body.title = valOf('title');
+        } else if (field === 'status') body.status = valOf('status');
+        else if (field === 'sector') body.sector = valOf('sector') || null;
+        else if (field === 'address') body.address = valOf('address') || null;
+        else if (field === 'assigned_user_id') body.assigned_user_id = valOf('assigned_user_id') || null;
+        else if (field === 'calendar') {
+          const sel = detail.querySelector(`[data-ag-inline="calendar"][data-ag-id="${CSS.escape(id)}"]`);
+          const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
+          const sector = opt ? opt.getAttribute('data-sector') || 'all' : 'all';
+          body.sector = sector === 'all' ? null : sector;
+        } else if (field === 'date' || field === 'start' || field === 'end') {
+          const date = valOf('date');
+          const st = valOf('start') || hm(ev.start);
+          const en = valOf('end') || hm(ev.end);
+          if (!date || !st) throw new Error('Informe data e horário.');
+          let start = new Date(`${date}T${st}`);
+          let end = new Date(`${date}T${en}`);
+          if (!(end > start)) end = new Date(start.getTime() + 3600e3);
+          body.scheduled_start = start.toISOString();
+          body.scheduled_end = end.toISOString();
+        }
+        await api('/api/work-orders/' + encodeURIComponent(id), { method: 'PUT', body });
+      } else {
+        const body = {};
+        if (field === 'title' && type === 'meeting') {
+          if (valOf('title').length < 2) throw new Error('Título muito curto.');
+          body.title = valOf('title');
+        } else if (field === 'status') body.status = valOf('status');
+        else if (field === 'address') body.location = valOf('address') || null;
+        else if (field === 'assigned_user_id') body.assigned_user_id = valOf('assigned_user_id') || null;
+        else if (field === 'calendar' && type === 'meeting') body.calendar_id = valOf('calendar') || null;
+        else if (field === 'date' || field === 'start' || field === 'end') {
+          const date = valOf('date');
+          const st = valOf('start') || hm(ev.start);
+          let en = valOf('end');
+          if (!date || !st) throw new Error('Informe data e horário.');
+          const start = new Date(`${date}T${st}`);
+          let end = en
+            ? new Date(`${date}T${en}`)
+            : new Date(start.getTime() + (type === 'visit' ? 3600e3 : Math.max(3600e3, ev.end - ev.start)));
+          if (!(end > start)) end = new Date(start.getTime() + 3600e3);
+          body.scheduled_start = start.toISOString();
+          body.scheduled_end = end.toISOString();
+        }
+        await api('/api/meetings/' + encodeURIComponent(id), { method: 'PUT', body });
+      }
+      toast('Atualizado', 'success');
+      const wasPhone = isPhone() && !$('#agSheet').hidden;
+      await reload();
+      if (wasPhone) openDetail(id);
+      else {
+        const anchor = $(`[data-ag-ev="${CSS.escape(id)}"]`);
+        openDetail(id, anchor);
+      }
+    } catch (err) {
+      toast(err.message || 'Não foi possível salvar.', 'error');
+    } finally {
+      el.classList.remove('is-saving');
+      inlineBusy = false;
+    }
   }
 
   function openDayEventsSheet(day) {
@@ -939,35 +1151,42 @@
   function openDetail(id, anchor) {
     const e = findEv(id);
     if (!e) return;
-    if (isPhone()) {
-      openSheet(`<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${
-        S.canManage ? `<button type="button" class="ag-pillbtn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
-      }</header><div class="ag-sheet__body">${detailHtml(e, true)}</div>`);
-      return;
-    }
-    const pop = $('#agPop');
-    pop.innerHTML = detailHtml(e, false);
-    pop.hidden = false;
-    $$('.is-active-ev').forEach((x) => x.classList.remove('is-active-ev'));
-    if (anchor) anchor.classList.add('is-active-ev');
-    const r = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth / 2, right: window.innerWidth / 2, top: 200, bottom: 220, width: 0 };
-    const pw = pop.offsetWidth;
-    const ph = pop.offsetHeight;
-    let left = r.right + 12;
-    let side = 'r';
-    if (left + pw > window.innerWidth - 12) {
-      left = r.left - pw - 12;
-      side = 'l';
-    }
-    if (left < 12) {
-      left = Math.max(12, Math.min(window.innerWidth - pw - 12, r.left));
-      side = 'b';
-    }
-    let top = side === 'b' ? r.bottom + 10 : r.top + r.height / 2 - ph / 2;
-    top = Math.max(70, Math.min(window.innerHeight - ph - 12, top));
-    pop.style.left = left + 'px';
-    pop.style.top = top + 'px';
-    pop.dataset.side = side;
+    const paint = () => {
+      if (isPhone()) {
+        openSheet(`<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${
+          S.canManage ? `<button type="button" class="ag-pillbtn" data-ag-edit="${esc(e.id)}">Mais</button>` : ''
+        }</header><div class="ag-sheet__body">${detailHtml(e, true)}</div>`);
+        wireDetailEditors($('#agSheet'));
+        return;
+      }
+      const pop = $('#agPop');
+      pop.innerHTML = detailHtml(e, false);
+      pop.hidden = false;
+      wireDetailEditors(pop);
+      $$('.is-active-ev').forEach((x) => x.classList.remove('is-active-ev'));
+      if (anchor) anchor.classList.add('is-active-ev');
+      const r = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth / 2, right: window.innerWidth / 2, top: 200, bottom: 220, width: 0 };
+      const pw = pop.offsetWidth;
+      const ph = pop.offsetHeight;
+      let left = r.right + 12;
+      let side = 'r';
+      if (left + pw > window.innerWidth - 12) {
+        left = r.left - pw - 12;
+        side = 'l';
+      }
+      if (left < 12) {
+        left = Math.max(12, Math.min(window.innerWidth - pw - 12, r.left));
+        side = 'b';
+      }
+      let top = side === 'b' ? r.bottom + 10 : r.top + r.height / 2 - ph / 2;
+      top = Math.max(70, Math.min(window.innerHeight - ph - 12, top));
+      pop.style.left = left + 'px';
+      pop.style.top = top + 'px';
+      pop.dataset.side = side;
+    };
+    if (S.canManage && !S.users.length) {
+      ensureUsers().then(paint).catch(paint);
+    } else paint();
   }
   function closePop() {
     const p = $('#agPop');
@@ -1693,6 +1912,10 @@
             await api('/api/work-orders/' + encodeURIComponent(id), { method: 'PUT', body: { notes } });
             const evn = findEv(id);
             if (evn) evn.meta.notes = notes;
+          } else if (kind === 'meeting') {
+            await api('/api/meetings/' + encodeURIComponent(id), { method: 'PUT', body: { notes } });
+            const evn = findEv(id);
+            if (evn) evn.meta.notes = notes;
           } else {
             await api('/api/leads/' + encodeURIComponent(id), { method: 'PUT', body: { notes } });
             S.events.forEach((e) => {
@@ -1841,6 +2064,14 @@
 
     document.addEventListener('change', (ev) => {
       const t = ev.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (t.matches('[data-ag-inline]')) {
+        // Debounce text fields via blur; selects/date/time save immediately.
+        if (t.matches('select, input[type="date"], input[type="time"]')) {
+          void applyInlinePatch(t);
+        }
+        return;
+      }
       if (t.matches('[data-ag-cal]')) {
         S.filters.cals[t.dataset.agCal] = t.checked;
       } else if (t.matches('[data-ag-mine]')) {
@@ -1853,6 +2084,13 @@
       } else return;
       savePrefs();
       render();
+    });
+
+    document.addEventListener('focusout', (ev) => {
+      const t = ev.target;
+      if (!(t instanceof HTMLElement)) return;
+      if (!t.matches('[data-ag-inline="title"], [data-ag-inline="address"]')) return;
+      void applyInlinePatch(t);
     });
 
     document.addEventListener('submit', async (ev) => {
