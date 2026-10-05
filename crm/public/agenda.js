@@ -1016,8 +1016,13 @@
       m.style.left = m.style.top = '';
     } else {
       m.classList.remove('is-sheet');
-      m.style.left = Math.min(x, window.innerWidth - m.offsetWidth - 10) + 'px';
-      m.style.top = Math.min(y, window.innerHeight - m.offsetHeight - 10) + 'px';
+      // Measure after paint so fixed positioning + padding are applied.
+      m.style.left = '0px';
+      m.style.top = '0px';
+      const w = m.offsetWidth || 260;
+      const h = m.offsetHeight || 160;
+      m.style.left = Math.max(10, Math.min(x, window.innerWidth - w - 10)) + 'px';
+      m.style.top = Math.max(10, Math.min(y, window.innerHeight - h - 10)) + 'px';
     }
   }
   const closeMenu = () => {
