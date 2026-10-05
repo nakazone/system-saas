@@ -902,7 +902,7 @@ scheduleJobsRouter.post(
 scheduleJobsRouter.put(
   "/api/work-orders/:id",
   requireCrmAuth,
-  requireCrmPermission("work_orders.manage"),
+  requireCrmPermission("work_orders.manage", "schedule.manage"),
   async (req: AuthedRequest, res, next) => {
     try {
       const existing = await prisma.workOrder.findFirst({

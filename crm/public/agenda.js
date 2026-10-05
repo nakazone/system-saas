@@ -902,6 +902,10 @@
       </div>
       ${notesBlock}
       <div class="ag-dtl__acts">${ct.href ? `<a class="ag-btn ag-btn--pri" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
+        canEdit && e.type === 'job'
+          ? `<a class="ag-btn" href="campo/ticket.html?id=${encodeURIComponent(e.id)}">Editar ticket</a>`
+          : ''
+      }${
         canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
       }${
         canEdit && e.type === 'job' && e.meta.sector === 'installation'
@@ -995,9 +999,17 @@
   // ---------------------------------------------------------------- create / edit
   function openMenu(x, y, items) {
     const m = $('#agMenu');
-    m.innerHTML = items
-      .map((it) => (it.sep ? '<hr/>' : `<button type="button" class="ag-menu__i${it.danger ? ' is-danger' : ''}" data-ag-menu="${esc(it.act)}" ${it.data ? `data-ag-when="${esc(it.data)}"` : ''}><span class="ag-dot" style="--ev:${it.color || '#8a8074'}"></span>${esc(it.label)}</button>`))
-      .join('');
+    m.innerHTML =
+      items
+        .map((it) =>
+          it.sep
+            ? '<hr/>'
+            : `<button type="button" class="ag-menu__i${it.danger ? ' is-danger' : ''}" data-ag-menu="${esc(it.act)}" ${
+                it.data ? `data-ag-when="${esc(it.data)}"` : ''
+              }><span class="ag-dot" style="--ev:${it.color || '#8a8074'}"></span>${esc(it.label)}</button>`,
+        )
+        .join('') +
+      `<hr/><button type="button" class="ag-menu__i ag-menu__close" data-ag-menu="close">Fechar</button>`;
     m.hidden = false;
     if (isPhone()) {
       m.classList.add('is-sheet');
@@ -1243,7 +1255,340 @@
     return d;
   }
 
+  /** Move a job / visit / meeting to another calendar day, keeping duration and clock time. */
+  async function moveEventToDay(e, day) {
+    if (!e || !day || !S.canManage) return;
+    if (sameDay(e.start, day)) return;
+    const ms = Math.max(15 * 60e3, (e.end && e.start ? e.end - e.start : 3600e3) || 3600e3);
+    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), e.start.getHours(), e.start.getMinutes(), 0, 0);
+    if (!e.allDay && !e.start.getHours() && !e.start.getMinutes()) start.setHours(9, 0, 0, 0);
+    const end = new Date(start.getTime() + ms);
+    const body = {
+      scheduled_start: start.toISOString(),
+      scheduled_end: end.toISOString(),
+    };
+    try {
+      if (e.type === 'job') {
+        await api('/api/work-orders/' + encodeURIComponent(e.id), { method: 'PUT', body });
+      } else {
+        await api('/api/meetings/' + encodeURIComponent(e.id), { method: 'PUT', body });
+      }
+      toast('Movido para ' + fmtDateShort(day), 'success');
+      closePop();
+      closeSheet();
+      await reload();
+    } catch (err) {
+      toast(err.message || 'Não foi possível mover.', 'error');
+    }
+  }
+
+  function dayElFromPoint(x, y) {
+    // Prefer geometric hit-test: bars overlay sibling day cells, so elementsFromPoint alone is flaky.
+    const sels = '#agStage [data-ag-day], #agStage [data-ag-mday], #agStage [data-ag-col], #agStage [data-ag-strip], #agStage [data-ag-goday]';
+    let best = null;
+    let bestArea = Infinity;
+    document.querySelectorAll(sels).forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return;
+      if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) return;
+      const area = r.width * r.height;
+      if (area < bestArea) {
+        bestArea = area;
+        best = el;
+      }
+    });
+    if (best) return best;
+    const stack = typeof document.elementsFromPoint === 'function' ? document.elementsFromPoint(x, y) : [document.elementFromPoint(x, y)];
+    for (const node of stack) {
+      if (!node || !node.closest) continue;
+      const day = node.closest('[data-ag-day], [data-ag-mday], [data-ag-col], [data-ag-strip], [data-ag-goday]');
+      if (day) return day;
+    }
+    return null;
+  }
+
+  function ymdFromDayEl(el) {
+    if (!el) return null;
+    return el.dataset.agDay || el.dataset.agMday || el.dataset.agCol || el.dataset.agStrip || el.dataset.agGoday || null;
+  }
+
+  function clearTextSelection() {
+    try {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.removeAllRanges) sel.removeAllRanges();
+    } catch (_) {}
+  }
+
+  /** Long-press (2s) on an empty calendar day → open + Schedule menu. */
+  function wireLongPressCreate() {
+    const HOLD_MS = 2000;
+    const LOCK_MS = 280;
+    let timer = null;
+    let lockTimer = null;
+    let startX = 0;
+    let startY = 0;
+    let day = null;
+    let cell = null;
+    let fired = false;
+    let locked = false;
+    let pointerId = null;
+
+    const unlock = () => {
+      locked = false;
+      document.body.classList.remove('ag-holding');
+      if (cell) cell.classList.remove('is-pressing');
+      cell = null;
+    };
+
+    const clear = () => {
+      clearTimeout(timer);
+      clearTimeout(lockTimer);
+      timer = null;
+      lockTimer = null;
+      day = null;
+      pointerId = null;
+      unlock();
+    };
+
+    const dayFromTarget = (t) => {
+      if (!t || !t.closest) return { day: null, cell: null };
+      if (t.closest('[data-ag-ev], [data-ag-daylist], .ag-bar, .ag-blk, .ag-row, .ag-li, a, input, textarea, select')) {
+        return { day: null, cell: null };
+      }
+      const chromeBtn = t.closest('button');
+      if (chromeBtn && !chromeBtn.closest('[data-ag-day], [data-ag-mday], [data-ag-col]')) {
+        return { day: null, cell: null };
+      }
+      const el = t.closest('[data-ag-day], [data-ag-mday], [data-ag-col]');
+      if (!el) return { day: null, cell: null };
+      const key = el.dataset.agDay || el.dataset.agMday || el.dataset.agCol;
+      return key ? { day: parseYmd(key), cell: el } : { day: null, cell: null };
+    };
+
+    document.addEventListener(
+      'pointerdown',
+      (ev) => {
+        if (!S.canManage) return;
+        if (typeof ev.button === 'number' && ev.button !== 0) return;
+        if (document.body.classList.contains('ag-dragging')) return;
+        const hit = dayFromTarget(ev.target);
+        if (!hit.day) return;
+        fired = false;
+        locked = false;
+        startX = ev.clientX;
+        startY = ev.clientY;
+        day = hit.day;
+        cell = hit.cell;
+        pointerId = ev.pointerId;
+        clearTimeout(timer);
+        clearTimeout(lockTimer);
+        lockTimer = setTimeout(() => {
+          if (!day) return;
+          locked = true;
+          document.body.classList.add('ag-holding');
+          if (cell) cell.classList.add('is-pressing');
+          clearTextSelection();
+        }, LOCK_MS);
+        timer = setTimeout(() => {
+          if (!day) return;
+          fired = true;
+          const when = day;
+          const cx = startX || window.innerWidth / 2;
+          const cy = startY || window.innerHeight / 2;
+          clearTextSelection();
+          clear();
+          try {
+            if (navigator.vibrate) navigator.vibrate(18);
+          } catch (_) {}
+          newMenu(cx, cy, when);
+        }, HOLD_MS);
+      },
+      true,
+    );
+
+    document.addEventListener(
+      'pointermove',
+      (ev) => {
+        if (pointerId != null && ev.pointerId !== pointerId) return;
+        if (!timer && !lockTimer) return;
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 12) {
+          clear();
+          return;
+        }
+        if (locked) {
+          ev.preventDefault();
+          clearTextSelection();
+        }
+      },
+      { capture: true, passive: false },
+    );
+
+    document.addEventListener(
+      'pointerup',
+      (ev) => {
+        if (pointerId != null && ev.pointerId !== pointerId) return;
+        if (!fired) clear();
+        else {
+          pointerId = null;
+          unlock();
+        }
+      },
+      true,
+    );
+    document.addEventListener(
+      'pointercancel',
+      (ev) => {
+        if (pointerId != null && ev.pointerId !== pointerId) return;
+        clear();
+      },
+      true,
+    );
+    document.addEventListener(
+      'contextmenu',
+      (ev) => {
+        if (!timer && !locked && !fired) return;
+        ev.preventDefault();
+        clearTextSelection();
+      },
+      true,
+    );
+    document.addEventListener(
+      'selectstart',
+      (ev) => {
+        if (!timer && !locked && !fired) return;
+        ev.preventDefault();
+      },
+      true,
+    );
+    document.addEventListener(
+      'click',
+      (ev) => {
+        if (!fired) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        fired = false;
+      },
+      true,
+    );
+  }
+
+  /** Drag schedule chips onto another day to reschedule. */
+  function wireEventDragDrop() {
+    let drag = null;
+
+    const cleanup = () => {
+      if (!drag) return;
+      if (drag.ghost) drag.ghost.remove();
+      if (drag.el) {
+        drag.el.classList.remove('is-dragging');
+        try {
+          if (drag.pointerId != null) drag.el.releasePointerCapture(drag.pointerId);
+        } catch (_) {}
+      }
+      $$('.ag-drop-target').forEach((n) => n.classList.remove('ag-drop-target'));
+      document.body.classList.remove('ag-dragging');
+      drag = null;
+    };
+
+    document.addEventListener(
+      'pointerdown',
+      (ev) => {
+        if (!S.canManage) return;
+        if (typeof ev.button === 'number' && ev.button !== 0) return;
+        if (document.body.classList.contains('ag-holding')) return;
+        const btn = ev.target.closest('[data-ag-ev]');
+        if (!btn || !btn.closest('#agStage')) return;
+        if (ev.target.closest('a, input, textarea, select')) return;
+        drag = {
+          id: btn.dataset.agEv,
+          el: btn,
+          startX: ev.clientX,
+          startY: ev.clientY,
+          moved: false,
+          pointerId: ev.pointerId,
+          ghost: null,
+        };
+      },
+      true,
+    );
+
+    document.addEventListener(
+      'pointermove',
+      (ev) => {
+        if (!drag || drag.pointerId !== ev.pointerId) return;
+        const dist = Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY);
+        if (!drag.moved) {
+          if (dist < 10) return;
+          drag.moved = true;
+          document.body.classList.add('ag-dragging');
+          clearTextSelection();
+          drag.el.classList.add('is-dragging');
+          const g = document.createElement('div');
+          g.className = 'ag-drag-ghost';
+          g.textContent = (drag.el.querySelector('b, span') || drag.el).textContent || 'Evento';
+          const st = getComputedStyle(drag.el);
+          g.style.background = st.backgroundColor || 'var(--ev-bg, #fdf1e7)';
+          g.style.color = st.color || 'var(--ev-ink, #211d1a)';
+          g.style.borderLeft = st.borderLeft || '3px solid var(--ev, #e8792c)';
+          document.body.appendChild(g);
+          drag.ghost = g;
+          try {
+            drag.el.setPointerCapture(ev.pointerId);
+          } catch (_) {}
+        }
+        ev.preventDefault();
+        if (drag.ghost) {
+          drag.ghost.style.left = ev.clientX + 12 + 'px';
+          drag.ghost.style.top = ev.clientY + 12 + 'px';
+        }
+        $$('.ag-drop-target').forEach((n) => n.classList.remove('ag-drop-target'));
+        const dayEl = dayElFromPoint(ev.clientX, ev.clientY);
+        if (dayEl) dayEl.classList.add('ag-drop-target');
+      },
+      { capture: true, passive: false },
+    );
+
+    document.addEventListener(
+      'pointerup',
+      async (ev) => {
+        if (!drag || drag.pointerId !== ev.pointerId) return;
+        const moved = drag.moved;
+        const id = drag.id;
+        const x = ev.clientX;
+        const y = ev.clientY;
+        cleanup();
+        if (!moved) return;
+        window.__agSuppressEvClick = true;
+        setTimeout(() => {
+          window.__agSuppressEvClick = false;
+        }, 120);
+        const dayEl = dayElFromPoint(x, y);
+        const key = ymdFromDayEl(dayEl);
+        if (!key) {
+          toast('Solte sobre um dia do calendário.', 'info');
+          return;
+        }
+        const target = parseYmd(key);
+        const e = findEv(id);
+        if (!e || !target) return;
+        await moveEventToDay(e, target);
+      },
+      true,
+    );
+
+    document.addEventListener(
+      'pointercancel',
+      (ev) => {
+        if (!drag || drag.pointerId !== ev.pointerId) return;
+        cleanup();
+      },
+      true,
+    );
+  }
+
   function wire() {
+    wireLongPressCreate();
+    wireEventDragDrop();
     document.addEventListener('click', async (ev) => {
       const t = ev.target;
       const menuOpen = !$('#agMenu').hidden;
@@ -1255,6 +1600,7 @@
         const act = el.dataset.agMenu;
         const when = el.dataset.agWhen || '';
         closeMenu();
+        if (act === 'close') return;
         if (act === 'new-job') return openEditor('job', null, when || null);
         if (act === 'new-visit') return openEditor('visit', null, when || null);
         if (act === 'new-meeting') return openEditor('meeting', null, when || null);
@@ -1358,6 +1704,7 @@
         return;
       }
       if ((el = t.closest('[data-ag-ev]'))) {
+        if (window.__agSuppressEvClick) return;
         ev.stopPropagation();
         return openDetail(el.dataset.agEv, el);
       }
@@ -1614,7 +1961,11 @@
       S.me = sess.user || null;
       const perms = (S.me && S.me.permissions) || [];
       const role = String((S.me && (S.me.role || S.me.roleKey)) || '').toLowerCase();
-      S.canManage = perms.includes('schedule.manage') || perms.includes('*') || role === 'admin';
+      S.canManage =
+        perms.includes('schedule.manage') ||
+        perms.includes('work_orders.manage') ||
+        perms.includes('*') ||
+        role === 'admin';
       const un = $('#sidebarUserName');
       if (un && S.me) un.textContent = S.me.name || S.me.email;
     } catch (_) {

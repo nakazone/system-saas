@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261001-svcnote2";
+  const CSS_HREF = "crm-job-modal.css?v=20261005-rate1";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -272,6 +272,143 @@
     });
   }
 
+  function systemRateFor(item) {
+    if (!item) return 0;
+    const order = [rateKey(), "price_builder", "price_contractor", "price_loja", "price_particular"];
+    for (const k of order) {
+      const n = Number(item[k]);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return 0;
+  }
+
+  function ratesNearlyEqual(a, b) {
+    return Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.009;
+  }
+
+  function pricingTypeLabel() {
+    return (
+      { builder: "Builder", contractor: "Contractor", loja: "Loja", internal: "Loja" }[st && st.sourceType] || "Particular"
+    );
+  }
+
+  let rateSavePending = null;
+  let priceEditCtx = null;
+
+  function closeSaveRateModal() {
+    const root = $("jmSaveRateModal");
+    if (root) root.classList.add("hidden");
+    rateSavePending = null;
+  }
+
+  function openSaveRateModal(payload) {
+    const root = $("jmSaveRateModal");
+    if (!root) return;
+    rateSavePending = payload;
+    const nameEl = $("jmSaveRateServiceName");
+    const oldEl = $("jmSaveRateOld");
+    const newEl = $("jmSaveRateNew");
+    const typeEl = $("jmSaveRateTypeLabel");
+    const clientBtn = $("jmSaveRateClient");
+    const clientHint = $("jmSaveRateClientHint");
+    if (nameEl) nameEl.textContent = payload.serviceName || "Serviço";
+    if (oldEl) oldEl.textContent = money(payload.tableRate);
+    if (newEl) newEl.textContent = money(payload.newRate);
+    if (typeEl) typeEl.textContent = pricingTypeLabel();
+    const noCustomer = !payload.customer || payload.customer.id == null;
+    if (clientBtn) {
+      clientBtn.disabled = noCustomer;
+      clientBtn.classList.toggle("is-disabled", noCustomer);
+    }
+    if (clientHint) clientHint.classList.toggle("hidden", !noCustomer);
+    root.classList.remove("hidden");
+  }
+
+  function maybeOfferRatePersist(lineIdx) {
+    const root = $("jmSaveRateModal");
+    if (root && !root.classList.contains("hidden")) return;
+    const line = st && st.lines[lineIdx];
+    if (!line || !line.pricingId || line.manual) return;
+    const item = pricing.find((p) => String(p.id) === String(line.pricingId));
+    if (!item) return;
+    const newRate = Number(line.price);
+    if (!Number.isFinite(newRate) || newRate < 0) return;
+    const tableRate = systemRateFor(item);
+    if (ratesNearlyEqual(newRate, tableRate)) return;
+    openSaveRateModal({
+      lineIdx,
+      serviceName: line.name || item.name || "",
+      newRate,
+      tableRate,
+      pricingItemId: String(item.id),
+      customer: currentCustomer(),
+    });
+  }
+
+  async function persistRateForCustomerOnly() {
+    const p = rateSavePending;
+    if (!p || !p.customer || p.customer.id == null) {
+      notify("Selecione um cliente CRM para gravar preço personalizado.", "error");
+      return;
+    }
+    const cid = String(p.customer.id);
+    const prevRates =
+      p.customer.custom_pricing_rates && typeof p.customer.custom_pricing_rates === "object"
+        ? { ...p.customer.custom_pricing_rates }
+        : {};
+    prevRates[String(p.pricingItemId)] = p.newRate;
+    const btn = $("jmSaveRateClient");
+    if (btn) btn.disabled = true;
+    try {
+      const j = await api(`/api/customers/${encodeURIComponent(cid)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          pricing_mode: "custom",
+          custom_pricing_rates: prevRates,
+        }),
+      });
+      const updated = j.data || j;
+      const idx = customers.findIndex((c) => String(c.id) === cid);
+      if (idx >= 0) customers[idx] = { ...customers[idx], ...updated };
+      else if (updated && updated.id) customers.push(updated);
+      notify("Preço gravado no cadastro deste cliente.", "success");
+      closeSaveRateModal();
+      renderServices();
+    } catch (e) {
+      notify(e.message || "Erro ao gravar preço do cliente.", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function persistRateToPricingTable() {
+    const p = rateSavePending;
+    if (!p || !p.pricingItemId) return;
+    const field = rateKey();
+    const label = pricingTypeLabel();
+    const ok = confirm(
+      `Atualizar a Tabela de Valores (${label}) para ${money(p.newRate)}?\n\n` +
+        `Isto altera o preço do sistema para jobs e orçamentos futuros (exceto clientes com preço personalizado).`,
+    );
+    if (!ok) return;
+    const btn = $("jmSaveRateTable");
+    if (btn) btn.disabled = true;
+    try {
+      await api(`/api/pricing/${encodeURIComponent(p.pricingItemId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ [field]: p.newRate }),
+      });
+      const item = pricing.find((x) => String(x.id) === String(p.pricingItemId));
+      if (item) item[field] = p.newRate;
+      notify("Tabela de Valores atualizada.", "success");
+      closeSaveRateModal();
+    } catch (e) {
+      notify(e.message || "Erro ao atualizar a Tabela de Valores.", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   // ---------------------------------------------------------------- schedule (date + start only — duration stays open)
   function computeRange() {
     if (!st.date) return { start: null, end: null };
@@ -383,6 +520,25 @@
     <p class="jm-err" id="jmErr" hidden></p>
     <footer class="jm__foot" id="jmFoot"></footer>
   </form>
+</div>
+<div class="jm-rate hidden" id="jmSaveRateModal" role="dialog" aria-modal="true" aria-labelledby="jmSaveRateTitle">
+  <div class="jm-rate__panel">
+    <h2 id="jmSaveRateTitle" class="jm-rate__title">Gravar novo preço?</h2>
+    <p class="jm-rate__sub">
+      O serviço <strong id="jmSaveRateServiceName"></strong> está ligado à Tabela de Valores.
+      Valor na tabela (<span id="jmSaveRateTypeLabel"></span>): <strong id="jmSaveRateOld"></strong>.
+      Novo valor neste job: <strong id="jmSaveRateNew"></strong>.
+    </p>
+    <p id="jmSaveRateClientHint" class="jm-rate__hint hidden">
+      Para gravar só para o cliente, selecione um cliente CRM neste job.
+    </p>
+    <div class="jm-rate__acts">
+      <button type="button" id="jmSaveRateClient" class="jm-btn jm-btn--dark">Só para este cliente</button>
+      <button type="button" id="jmSaveRateTable" class="jm-btn jm-btn--pri">Atualizar Tabela de Valores</button>
+      <button type="button" id="jmSaveRateJobOnly" class="jm-btn">Só neste job</button>
+      <button type="button" id="jmSaveRateCancel" class="jm-btn jm-btn--ghost">Cancelar</button>
+    </div>
+  </div>
 </div>`;
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
   }
@@ -977,6 +1133,7 @@
   }
 
   function close() {
+    closeSaveRateModal();
     $("jobModal")?.classList.remove("is-open");
     $("jobModalBackdrop")?.classList.remove("is-open");
     document.body.classList.remove("jm-open");
@@ -1771,6 +1928,17 @@
     modal.addEventListener("focusin", (e) => {
       if (!st) return;
       const t = e.target;
+      if (t.getAttribute && t.getAttribute("data-f") === "price") {
+        const { line, i } = lineFromEl(t);
+        if (!line) return;
+        const item = line.pricingId ? pricing.find((p) => String(p.id) === String(line.pricingId)) : null;
+        priceEditCtx = {
+          i,
+          pricingId: line.pricingId || null,
+          baseline: Number(line.price) || 0,
+          tableRate: item ? systemRateFor(item) : 0,
+        };
+      }
       if (t.getAttribute && t.getAttribute("data-f") === "svc-q") {
         const { line, i } = lineFromEl(t);
         if (!line) return;
@@ -1791,7 +1959,27 @@
         }
       }
     });
+    modal.addEventListener("focusout", (e) => {
+      if (!st) return;
+      const t = e.target;
+      if (!(t.getAttribute && t.getAttribute("data-f") === "price")) return;
+      const { line, i } = lineFromEl(t);
+      const ctx = priceEditCtx;
+      priceEditCtx = null;
+      if (!line || !ctx || ctx.i !== i) return;
+      const newRate = Number(line.price);
+      if (!Number.isFinite(newRate)) return;
+      if (ratesNearlyEqual(newRate, ctx.baseline)) return;
+      setTimeout(() => maybeOfferRatePersist(i), 0);
+    });
     modal.addEventListener("keydown", onKey);
+    $("jmSaveRateClient")?.addEventListener("click", () => void persistRateForCustomerOnly());
+    $("jmSaveRateTable")?.addEventListener("click", () => void persistRateToPricingTable());
+    $("jmSaveRateJobOnly")?.addEventListener("click", () => closeSaveRateModal());
+    $("jmSaveRateCancel")?.addEventListener("click", () => closeSaveRateModal());
+    $("jmSaveRateModal")?.addEventListener("click", (e) => {
+      if (e.target === $("jmSaveRateModal")) closeSaveRateModal();
+    });
     document.addEventListener("pointerdown", (e) => {
       if (!st || !modal.classList.contains("is-open")) return;
       if (e.target.closest(".jm-svc-pick")) return;
@@ -1803,6 +1991,11 @@
       renderServices();
     });
     document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && $("jmSaveRateModal") && !$("jmSaveRateModal").classList.contains("hidden")) {
+        closeSaveRateModal();
+        e.stopPropagation();
+        return;
+      }
       if (e.key === "Escape" && st && modal.classList.contains("is-open")) {
         if (st.lines.some((l) => l.svcOpen)) {
           st.lines.forEach((l) => {
