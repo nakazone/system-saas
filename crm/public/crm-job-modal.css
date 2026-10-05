@@ -454,6 +454,13 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 
 /* Persist rate prompt (above job modal) */
 .jm-rate {
+  --jm-ink: #211d1a;
+  --jm-ink-2: #4a433d;
+  --jm-muted: #8a8074;
+  --jm-line: #e8dfd2;
+  --jm-cream: #f7f4ee;
+  --jm-terra: #e8792c;
+  --jm-terra-d: #c1652f;
   position: fixed;
   inset: 0;
   z-index: 1600;
@@ -464,6 +471,7 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 }
 .jm-rate.hidden { display: none; }
 .jm-rate__panel {
+  position: relative;
   width: min(420px, 100%);
   background: #fff;
   border-radius: 16px;
@@ -471,7 +479,24 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
   box-shadow: 0 24px 60px rgba(33, 29, 26, 0.28);
   color: var(--jm-ink);
 }
-.jm-rate__title { margin: 0 0 8px; font-size: 18px; font-weight: 800; }
+.jm-rate__x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--jm-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.jm-rate__x:hover { background: var(--jm-cream); color: var(--jm-ink); }
+.jm-rate__title { margin: 0 36px 8px 0; font-size: 18px; font-weight: 800; }
 .jm-rate__sub { margin: 0 0 12px; font-size: 13.5px; line-height: 1.45; color: var(--jm-ink-2); }
 .jm-rate__cmp {
   display: grid;
@@ -494,5 +519,24 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 .jm-rate__cmp strong { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--jm-ink); }
 .jm-rate__hint { margin: 0 0 10px; font-size: 13px; color: #9a6700; }
 .jm-rate__acts { display: grid; gap: 8px; }
-.jm-rate__acts .jm-btn { width: 100%; justify-content: center; height: 44px; white-space: normal; text-align: center; line-height: 1.25; padding: 8px 14px; }
+.jm-rate__acts .jm-btn {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+  height: auto;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+  padding: 10px 14px;
+}
+.jm-rate__acts .jm-btn--pri {
+  background: #e8792c;
+  border-color: #e8792c;
+  color: #fff;
+}
+.jm-rate__acts .jm-btn--dark {
+  background: #211d1a;
+  border-color: #211d1a;
+  color: #fff;
+}
 

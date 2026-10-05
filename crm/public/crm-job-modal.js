@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261005-rate2";
+  const CSS_HREF = "crm-job-modal.css?v=20261005-rate3";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -540,11 +540,13 @@
   let rateModalBound = false;
 
   function ensureRateModal() {
-    if (!$("jmSaveRateModal")) {
+    let root = $("jmSaveRateModal");
+    if (!root) {
       const wrap = document.createElement("div");
       wrap.innerHTML = `
 <div class="jm-rate hidden" id="jmSaveRateModal" role="dialog" aria-modal="true" aria-labelledby="jmSaveRateTitle">
   <div class="jm-rate__panel">
+    <button type="button" class="jm-rate__x" id="jmSaveRateClose" aria-label="Fechar">×</button>
     <h2 id="jmSaveRateTitle" class="jm-rate__title">Gravar novo preço?</h2>
     <p class="jm-rate__sub">O serviço <strong id="jmSaveRateServiceName">—</strong> está ligado à Tabela de Valores.</p>
     <div class="jm-rate__cmp">
@@ -563,6 +565,18 @@
   </div>
 </div>`;
       while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+      root = $("jmSaveRateModal");
+    } else if (!$("jmSaveRateClose")) {
+      const panel = root.querySelector(".jm-rate__panel");
+      if (panel) {
+        const x = document.createElement("button");
+        x.type = "button";
+        x.className = "jm-rate__x";
+        x.id = "jmSaveRateClose";
+        x.setAttribute("aria-label", "Fechar");
+        x.textContent = "×";
+        panel.insertBefore(x, panel.firstChild);
+      }
     }
     if (rateModalBound) return;
     rateModalBound = true;
@@ -570,8 +584,9 @@
     $("jmSaveRateTable")?.addEventListener("click", () => void persistRateToPricingTable());
     $("jmSaveRateJobOnly")?.addEventListener("click", () => closeSaveRateModal());
     $("jmSaveRateCancel")?.addEventListener("click", () => closeSaveRateModal());
-    $("jmSaveRateModal")?.addEventListener("click", (e) => {
-      if (e.target === $("jmSaveRateModal")) closeSaveRateModal();
+    $("jmSaveRateClose")?.addEventListener("click", () => closeSaveRateModal());
+    root?.addEventListener("click", (e) => {
+      if (e.target === root) closeSaveRateModal();
     });
   }
 
