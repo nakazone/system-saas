@@ -464,7 +464,7 @@
             <section class="cfg-section" data-section="mensagens-fase" hidden>
               <header class="cfg-head">
                 <h2 class="cfg-title">Mensagens para Leads</h2>
-                <p class="cfg-lead">Textos usados nos e-mails (e SMS) ao contato do lead em cada fase do pipeline. Use <code>[name]</code> e <code>[company]</code>.</p>
+                <p class="cfg-lead">Textos usados nos e-mails (e SMS) ao contato do lead em cada fase do pipeline. Use <code>[name]</code>, <code>[company]</code> e <code>[coupon]</code>.</p>
               </header>
               <form id="leadMsgForm" class="cfg-form" novalidate autocomplete="off">
                 <article class="cfg-card">
@@ -483,10 +483,56 @@
                 </article>
 
                 <article class="cfg-card">
+                  <h3 class="cfg-card__title">Cupom / oferta</h3>
+                  <p class="cfg-card__desc">Código editável inserido nas mensagens com o token <code>[coupon]</code>. Não aplica desconto automático no orçamento.</p>
+                  <label class="cfg-check" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.85rem">
+                    <input type="checkbox" id="lm_coupon_enabled" />
+                    Incluir cupom nas mensagens
+                  </label>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field">
+                      <label for="lm_coupon_code">Código</label>
+                      <input id="lm_coupon_code" maxlength="40" placeholder="SAVE10" />
+                    </div>
+                    <div class="cfg-field">
+                      <label for="lm_coupon_label">Descrição da oferta</label>
+                      <input id="lm_coupon_label" maxlength="120" placeholder="10% off your flooring project" />
+                    </div>
+                  </div>
+                  <div class="cfg-field">
+                    <label for="lm_coupon_line">Linha da mensagem</label>
+                    <textarea id="lm_coupon_line" rows="2" maxlength="500" placeholder="Special offer: use code [code] for [label]."></textarea>
+                    <p class="cfg-hint">Use <code>[code]</code> e <code>[label]</code>. Substitui <code>[coupon]</code> no texto das mensagens.</p>
+                  </div>
+                </article>
+
+                <article class="cfg-card">
                   <h3 class="cfg-card__title">Por fase do pipeline</h3>
-                  <p class="cfg-card__desc">Cada fase pode ter várias mensagens. No lead, o botão E-mail mostra estas opções.</p>
+                  <p class="cfg-card__desc">Cada fase pode ter várias mensagens. A mensagem “último contato” marca o lead como gelo (🧊) ao enviar.</p>
                   <div class="cfg-lm-tabs" id="lmStageTabs" role="tablist" aria-label="Fases do pipeline"></div>
                   <div id="lmStagePanels"></div>
+                </article>
+              </form>
+            </section>
+
+            <!-- ---------- Automações de Leads ---------- -->
+            <section class="cfg-section" data-section="automacoes-leads" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Automações de Leads</h2>
+                <p class="cfg-lead">Mover automaticamente leads de Orçamento enviado para Follow-up após N dias (mesmo prazo do e-mail de follow-up).</p>
+              </header>
+              <form id="leadAutoForm" class="cfg-form" novalidate autocomplete="off">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Quote Sent → Follow-up</h3>
+                  <label class="cfg-check" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.85rem">
+                    <input type="checkbox" id="la_auto_stage" />
+                    Mover Quote Sent → Follow-up após N dias
+                  </label>
+                  <div class="cfg-field" style="max-width:12rem">
+                    <label for="la_days">Dias após orçamento enviado</label>
+                    <input id="la_days" type="number" min="0" max="90" step="1" />
+                    <p class="cfg-hint">Também usado no e-mail automático de follow-up do orçamento.</p>
+                  </div>
                 </article>
               </form>
             </section>
@@ -770,6 +816,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261001-addr2"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261005-cli1"></script>
+  <script src="configuracoes.js?v=20261005-leadauto1"></script>
 </body>
 </html>

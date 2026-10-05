@@ -44,8 +44,12 @@ function toPublicPayload(settings: LeadMessageSettings, orgName: string) {
   return {
     company_name: settings.company_name || orgName || null,
     default_email_subject: settings.default_email_subject,
+    coupon_enabled: settings.coupon_enabled,
+    coupon_code: settings.coupon_code,
+    coupon_label: settings.coupon_label,
+    coupon_sms_line: settings.coupon_sms_line,
     stages: serialized.stages,
-    tokens: ["[name]", "[company]"],
+    tokens: ["[name]", "[company]", "[coupon]"],
   };
 }
 
@@ -95,11 +99,20 @@ settingsLeadMessagesRouter.put(
                 ? String(incoming.email_subject).trim() || null
                 : null
               : fallback.email_subject,
-          templates: (incoming?.templates || fallback.templates).map((t) => ({
-            id: t.id,
-            label: t.label,
-            body: t.body,
-          })),
+          templates: (incoming?.templates || fallback.templates).map((t) => {
+            const action =
+              t.on_send_action && t.on_send_action.set_priority
+                ? { set_priority: t.on_send_action.set_priority }
+                : t.id === "follow_up_last_check"
+                  ? { set_priority: "low" as const }
+                  : null;
+            return {
+              id: t.id,
+              label: t.label,
+              body: t.body,
+              on_send_action: action,
+            };
+          }),
         } satisfies LeadStageMessages;
       }
       const next: LeadMessageSettings = {
@@ -115,6 +128,25 @@ settingsLeadMessagesRouter.put(
               ? String(p.default_email_subject).trim() || null
               : null
             : defaults.default_email_subject,
+        coupon_enabled: p.coupon_enabled !== undefined ? !!p.coupon_enabled : defaults.coupon_enabled,
+        coupon_code:
+          p.coupon_code !== undefined
+            ? p.coupon_code
+              ? String(p.coupon_code).trim() || null
+              : null
+            : defaults.coupon_code,
+        coupon_label:
+          p.coupon_label !== undefined
+            ? p.coupon_label
+              ? String(p.coupon_label).trim() || null
+              : null
+            : defaults.coupon_label,
+        coupon_sms_line:
+          p.coupon_sms_line !== undefined
+            ? p.coupon_sms_line
+              ? String(p.coupon_sms_line).trim() || null
+              : null
+            : defaults.coupon_sms_line,
         stages,
       };
 

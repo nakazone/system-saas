@@ -2,6 +2,11 @@ export type AutomationSettings = {
   quoteFollowUpEnabled: boolean;
   /** Days after quote send before follow-up email */
   quoteFollowUpDays: number;
+  /**
+   * After quoteFollowUpDays in quote_sent, move the lead to follow_up_1
+   * (same timer as the follow-up email; also sweeps email-less leads).
+   */
+  quoteSentAutoFollowUpStageEnabled: boolean;
   visitReminderEnabled: boolean;
   /** Hours before visit start for reminder */
   visitReminderHours: number;
@@ -21,6 +26,7 @@ export type AutomationSettings = {
 export const DEFAULT_AUTOMATION_SETTINGS: AutomationSettings = {
   quoteFollowUpEnabled: true,
   quoteFollowUpDays: 3,
+  quoteSentAutoFollowUpStageEnabled: true,
   visitReminderEnabled: true,
   visitReminderHours: 24,
   jobStartReminderEnabled: true,
@@ -36,6 +42,9 @@ export function parseAutomationSettings(raw: unknown): AutomationSettings {
   if (typeof o.quoteFollowUpEnabled === "boolean") base.quoteFollowUpEnabled = o.quoteFollowUpEnabled;
   if (typeof o.quoteFollowUpDays === "number" && o.quoteFollowUpDays >= 0) {
     base.quoteFollowUpDays = Math.min(90, Math.floor(o.quoteFollowUpDays));
+  }
+  if (typeof o.quoteSentAutoFollowUpStageEnabled === "boolean") {
+    base.quoteSentAutoFollowUpStageEnabled = o.quoteSentAutoFollowUpStageEnabled;
   }
   if (typeof o.visitReminderEnabled === "boolean") base.visitReminderEnabled = o.visitReminderEnabled;
   if (typeof o.visitReminderHours === "number" && o.visitReminderHours >= 0) {

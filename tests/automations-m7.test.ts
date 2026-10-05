@@ -10,6 +10,8 @@ import {
   processDueScheduledMessages,
 } from "../src/lib/automations/worker.js";
 import { email } from "../src/lib/email/index.js";
+import { canonicalStageSlug } from "../src/lib/dashboard/stages.js";
+import { moveLeadToSystemStage } from "../src/lib/pipeline/move.js";
 
 const prisma = new PrismaClient();
 
@@ -243,5 +245,164 @@ describe("automations M7", () => {
 
     await processDueScheduledMessages(fixed);
     expect(sent).toContain("iso-a@example.com");
+  });
+
+  it("moves quote_sent lead to follow_up_1 when quote follow-up fires", async () => {
+    const fixed = new Date("2033-03-01T12:00:00.000Z");
+    automationClock.now = () => fixed;
+    email.send = async () => undefined;
+
+    const { leadId, msgId } = await withTenantTransaction(orgAId, async (tx) => {
+      const quoteSent = await tx.pipelineStage.findFirstOrThrow({ where: { slug: "quote_sent" } });
+      const lead = await tx.lead.create({
+        data: {
+          organizationId: orgAId,
+          name: "Stage Auto Lead",
+          email: "stage-auto@example.com",
+          status: "quote_sent",
+          pipelineStageId: quoteSent.id,
+        },
+      });
+      await moveLeadToSystemStage(tx, {
+        organizationId: orgAId,
+        leadId: lead.id,
+        slug: "quote_sent",
+        actorType: "system",
+      });
+      const quote = await tx.quote.create({
+        data: {
+          organizationId: orgAId,
+          number: 88,
+          title: "Stage move quote",
+          customerId: customerAId,
+          leadId: lead.id,
+          status: "sent",
+          total: 200,
+          subtotal: 200,
+        },
+      });
+      const msg = await tx.scheduledMessage.create({
+        data: {
+          organizationId: orgAId,
+          channel: "email",
+          triggerKey: "quote_follow_up",
+          entityType: "quote",
+          entityId: quote.id,
+          customerId: customerAId,
+          toAddress: "stage-auto@example.com",
+          subject: "Follow up",
+          body: "body",
+          scheduledFor: new Date(fixed.getTime() - 1000),
+          status: "pending",
+          payload: { leadId: lead.id, quoteFollowUpDays: 3 },
+        },
+      });
+      return { leadId: lead.id, msgId: msg.id };
+    });
+
+    await prisma.organization.update({
+      where: { id: orgAId },
+      data: {
+        automationSettings: {
+          quoteFollowUpEnabled: true,
+          quoteFollowUpDays: 3,
+          quoteSentAutoFollowUpStageEnabled: true,
+          visitReminderEnabled: false,
+          visitReminderHours: 24,
+        },
+      },
+    });
+
+    const result = await processDueScheduledMessages(fixed);
+    expect(result.stagesMoved).toBeGreaterThanOrEqual(1);
+
+    const after = await withTenantTransaction(orgAId, async (tx) => {
+      const lead = await tx.lead.findFirstOrThrow({
+        where: { id: leadId },
+        include: { pipelineStage: true },
+      });
+      const msg = await tx.scheduledMessage.findFirstOrThrow({ where: { id: msgId } });
+      return {
+        status: lead.status,
+        stageSlug: lead.pipelineStage?.slug ?? null,
+        msgStatus: msg.status,
+      };
+    });
+
+    expect(canonicalStageSlug(after.status)).toBe("follow_up_1");
+    expect(canonicalStageSlug(after.stageSlug)).toBe("follow_up_1");
+    expect(after.msgStatus).toBe("sent");
+  });
+
+  it("does not move lead when quoteSentAutoFollowUpStageEnabled is false", async () => {
+    const fixed = new Date("2033-04-01T12:00:00.000Z");
+    automationClock.now = () => fixed;
+    email.send = async () => undefined;
+
+    await prisma.organization.update({
+      where: { id: orgAId },
+      data: {
+        automationSettings: {
+          quoteFollowUpEnabled: true,
+          quoteFollowUpDays: 3,
+          quoteSentAutoFollowUpStageEnabled: false,
+          visitReminderEnabled: false,
+          visitReminderHours: 24,
+        },
+      },
+    });
+
+    const leadId = await withTenantTransaction(orgAId, async (tx) => {
+      const quoteSent = await tx.pipelineStage.findFirstOrThrow({ where: { slug: "quote_sent" } });
+      const lead = await tx.lead.create({
+        data: {
+          organizationId: orgAId,
+          name: "No Move Lead",
+          email: "no-move@example.com",
+          status: "quote_sent",
+          pipelineStageId: quoteSent.id,
+        },
+      });
+      const quote = await tx.quote.create({
+        data: {
+          organizationId: orgAId,
+          number: 89,
+          title: "No move quote",
+          customerId: customerAId,
+          leadId: lead.id,
+          status: "sent",
+          total: 200,
+          subtotal: 200,
+        },
+      });
+      await tx.scheduledMessage.create({
+        data: {
+          organizationId: orgAId,
+          channel: "email",
+          triggerKey: "quote_follow_up",
+          entityType: "quote",
+          entityId: quote.id,
+          customerId: customerAId,
+          toAddress: "no-move@example.com",
+          subject: "Follow up",
+          body: "body",
+          scheduledFor: new Date(fixed.getTime() - 1000),
+          status: "pending",
+          payload: { leadId: lead.id },
+        },
+      });
+      return lead.id;
+    });
+
+    await processDueScheduledMessages(fixed);
+
+    const after = await withTenantTransaction(orgAId, async (tx) => {
+      const lead = await tx.lead.findFirstOrThrow({
+        where: { id: leadId },
+        include: { pipelineStage: true },
+      });
+      return canonicalStageSlug(lead.pipelineStage?.slug) || canonicalStageSlug(lead.status);
+    });
+    expect(after).toBe("quote_sent");
   });
 });

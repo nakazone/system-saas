@@ -59,7 +59,13 @@
           id: "mensagens-fase",
           label: "Mensagens para Leads",
           perm: "settings.manage",
-          keywords: "mensagem email e-mail sms template fase pipeline lead novo visita orçamento follow-up",
+          keywords: "mensagem email e-mail sms template fase pipeline lead novo visita orçamento follow-up cupom coupon gelo",
+        },
+        {
+          id: "automacoes-leads",
+          label: "Automações de Leads",
+          perm: "settings.manage",
+          keywords: "automação follow-up quote sent estágio dias pipeline lead",
         },
         {
           id: "regras-estimativa",
@@ -144,6 +150,9 @@
     ["Follow-up WhatsApp do orçamento", "mensagens-orcamento", "q_followup_body"],
     ["Mensagens para Leads", "mensagens-fase", "lm_company"],
     ["Assunto padrão do e-mail", "mensagens-fase", "lm_subject"],
+    ["Cupom / oferta", "mensagens-fase", "lm_coupon_code"],
+    ["Automações de Leads", "automacoes-leads", "la_auto_stage"],
+    ["Dias Quote Sent → Follow-up", "automacoes-leads", "la_days"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
     ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
     ["Cargos", "cargos", "cfgRolesBody"],
@@ -214,6 +223,7 @@
     company: { loaded: false, snapshot: null, data: null },
     quotes: { loaded: false, snapshot: null, data: null },
     leadMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "new_lead" },
+    leadAuto: { loaded: false, snapshot: null },
     sig: { loaded: false, snapshot: null, drawn: false, removed: false, data: null },
     rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
@@ -307,6 +317,7 @@
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
     if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
     if (id === "mensagens-fase") return leadMsgDirty() ? 1 : 0;
+    if (id === "automacoes-leads") return leadAutoDirty() ? 1 : 0;
     if (id === "regras-estimativa") return rulesDirtyTypes().length;
     return 0;
   }
@@ -499,6 +510,7 @@
     if (state.current === "orcamentos") return saveQuotes();
     if (state.current === "mensagens-orcamento") return saveQuoteShareMessages();
     if (state.current === "mensagens-fase") return saveLeadMessages();
+    if (state.current === "automacoes-leads") return saveLeadAutomations();
     if (state.current === "regras-estimativa") return saveRules();
     return true;
   }
@@ -510,6 +522,7 @@
     if (state.current === "orcamentos") discardQuotes();
     if (state.current === "mensagens-orcamento") discardQuoteShareMessages();
     if (state.current === "mensagens-fase") discardLeadMessages();
+    if (state.current === "automacoes-leads") discardLeadAutomations();
     if (state.current === "regras-estimativa") renderRules(state.rules.snapshot);
     clearErrors();
     clearFormErrors("quotesForm");
@@ -525,6 +538,7 @@
     { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
     { title: "Mensagens do Orçamento", desc: "SMS e WhatsApp ao enviar o orçamento", href: "#mensagens-orcamento", perm: "settings.manage" },
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
+    { title: "Automações de Leads", desc: "Mover Quote Sent → Follow-up automaticamente", href: "#automacoes-leads", perm: "settings.manage" },
     { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
     { title: "Tipos de cliente", desc: "Particular, Builder, Loja e tipos personalizados", href: "#tipos-cliente", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
@@ -1717,12 +1731,21 @@
       (state.leadMsg.snapshot.stages || []).forEach((st) => {
         snapStages[st.slug] = {
           email_subject: st.email_subject || null,
-          templates: (st.templates || []).map((t) => ({ id: t.id, label: t.label, body: t.body })),
+          templates: (st.templates || []).map((t) => ({
+            id: t.id,
+            label: t.label,
+            body: t.body,
+            on_send_action: t.on_send_action || null,
+          })),
         };
       });
       const snap = {
         company_name: state.leadMsg.snapshot.company_name || null,
         default_email_subject: state.leadMsg.snapshot.default_email_subject || null,
+        coupon_enabled: !!state.leadMsg.snapshot.coupon_enabled,
+        coupon_code: state.leadMsg.snapshot.coupon_code || null,
+        coupon_label: state.leadMsg.snapshot.coupon_label || null,
+        coupon_sms_line: state.leadMsg.snapshot.coupon_sms_line || null,
         stages: snapStages,
       };
       return JSON.stringify(snap) !== JSON.stringify(body);
@@ -1734,6 +1757,10 @@
   function leadMsgPutBody() {
     const company_name = String($("lm_company")?.value || "").trim() || null;
     const default_email_subject = String($("lm_subject")?.value || "").trim() || null;
+    const coupon_enabled = !!$("lm_coupon_enabled")?.checked;
+    const coupon_code = String($("lm_coupon_code")?.value || "").trim() || null;
+    const coupon_label = String($("lm_coupon_label")?.value || "").trim() || null;
+    const coupon_sms_line = String($("lm_coupon_line")?.value || "").trim() || null;
     const stages = {};
     const list = state.leadMsg.draft?.stages || state.leadMsg.snapshot?.stages || [];
     list.forEach((st) => {
@@ -1746,36 +1773,56 @@
         const label = String(card.querySelector("[data-lm-label]")?.value || "").trim();
         const body = String(card.querySelector("[data-lm-body]")?.value || "").trim();
         if (!label && !body) return;
+        const draftTpl = (st.templates || []).find((t) => t.id === id);
+        const on_send_action =
+          draftTpl?.on_send_action ||
+          (id === "follow_up_last_check" ? { set_priority: "low" } : null);
         templates.push({
           id,
           label: label || `Mensagem ${idx + 1}`,
           body,
+          on_send_action,
         });
       });
-      // Inactive tab panels are still in DOM (hidden) — use them; if empty, keep draft.
       stages[slug] = {
         email_subject: subjectEl ? String(subjectEl.value || "").trim() || null : st.email_subject || null,
         templates: templates.length
           ? templates
-          : (st.templates || []).map((t) => ({ id: t.id, label: t.label, body: t.body })),
+          : (st.templates || []).map((t) => ({
+              id: t.id,
+              label: t.label,
+              body: t.body,
+              on_send_action: t.on_send_action || null,
+            })),
       };
     });
-    return { company_name, default_email_subject, stages };
+    return {
+      company_name,
+      default_email_subject,
+      coupon_enabled,
+      coupon_code,
+      coupon_label,
+      coupon_sms_line,
+      stages,
+    };
   }
 
   function renderLeadMsgStage(stage, active) {
     const templates = stage.templates || [];
     const list = templates
-      .map(
-        (t, idx) =>
-          `<div class="cfg-lm-tpl" data-lm-id="${esc(t.id)}">
+      .map((t, idx) => {
+        const ice =
+          t.id === "follow_up_last_check" || (t.on_send_action && t.on_send_action.set_priority === "low")
+            ? ' <span class="cfg-badge" title="Ao enviar, marca o lead como gelo">🧊 gelo</span>'
+            : "";
+        return `<div class="cfg-lm-tpl" data-lm-id="${esc(t.id)}">
             <div class="cfg-lm-tpl__head">
-              <div class="cfg-field cfg-grow"><label>Título</label><input data-lm-label maxlength="120" value="${esc(t.label)}" /></div>
+              <div class="cfg-field cfg-grow"><label>Título${ice}</label><input data-lm-label maxlength="120" value="${esc(t.label)}" /></div>
               <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" data-lm-del-tpl title="Remover">Remover</button>
             </div>
             <div class="cfg-field"><label>Texto da mensagem ${idx + 1}</label><textarea data-lm-body rows="5" maxlength="4000">${esc(t.body)}</textarea></div>
-          </div>`,
-      )
+          </div>`;
+      })
       .join("");
     return `<div class="cfg-lm-panel" data-lm-stage="${esc(stage.slug)}" ${active ? "" : "hidden"}>
       <div class="cfg-field">
@@ -1795,6 +1842,10 @@
     state.leadMsg.activeSlug = active;
     if ($("lm_company")) $("lm_company").value = data.company_name || "";
     if ($("lm_subject")) $("lm_subject").value = data.default_email_subject || "";
+    if ($("lm_coupon_enabled")) $("lm_coupon_enabled").checked = !!data.coupon_enabled;
+    if ($("lm_coupon_code")) $("lm_coupon_code").value = data.coupon_code || "";
+    if ($("lm_coupon_label")) $("lm_coupon_label").value = data.coupon_label || "";
+    if ($("lm_coupon_line")) $("lm_coupon_line").value = data.coupon_sms_line || "";
     $("lmStageTabs").innerHTML = stages
       .map(
         (s) =>
@@ -1817,8 +1868,12 @@
     state.leadMsg.draft = {
       company_name: body.company_name,
       default_email_subject: body.default_email_subject,
+      coupon_enabled: body.coupon_enabled,
+      coupon_code: body.coupon_code,
+      coupon_label: body.coupon_label,
+      coupon_sms_line: body.coupon_sms_line,
       stages: stagesArr,
-      tokens: state.leadMsg.draft?.tokens || ["[name]", "[company]"],
+      tokens: state.leadMsg.draft?.tokens || ["[name]", "[company]", "[coupon]"],
     };
   }
 
@@ -1879,6 +1934,7 @@
     if (!form || form.dataset.bound === "1") return;
     form.dataset.bound = "1";
     form.addEventListener("input", () => updateSavebar());
+    form.addEventListener("change", () => updateSavebar());
     form.addEventListener("click", (e) => {
       const tab = e.target.closest?.("[data-lm-tab]");
       if (tab) {
@@ -1927,6 +1983,81 @@
         updateSavebar();
       }
     });
+  }
+
+  function readLeadAutomations() {
+    const daysRaw = String($("la_days")?.value || "").trim();
+    const days = Number(daysRaw);
+    return {
+      quoteSentAutoFollowUpStageEnabled: !!$("la_auto_stage")?.checked,
+      quoteFollowUpDays: Number.isFinite(days) ? Math.min(90, Math.max(0, Math.floor(days))) : 3,
+    };
+  }
+
+  function fillLeadAutomations(data) {
+    if ($("la_auto_stage")) $("la_auto_stage").checked = !!data?.quoteSentAutoFollowUpStageEnabled;
+    if ($("la_days")) $("la_days").value = String(data?.quoteFollowUpDays ?? 3);
+  }
+
+  function leadAutoDirty() {
+    if (!state.leadAuto.snapshot) return false;
+    const cur = readLeadAutomations();
+    const snap = state.leadAuto.snapshot;
+    return (
+      !!cur.quoteSentAutoFollowUpStageEnabled !== !!snap.quoteSentAutoFollowUpStageEnabled ||
+      Number(cur.quoteFollowUpDays) !== Number(snap.quoteFollowUpDays)
+    );
+  }
+
+  function discardLeadAutomations() {
+    if (!state.leadAuto.snapshot) return;
+    fillLeadAutomations(state.leadAuto.snapshot);
+  }
+
+  async function loadLeadAutomations(force) {
+    if (state.leadAuto.loaded && !force) {
+      fillLeadAutomations(state.leadAuto.snapshot);
+      return;
+    }
+    const j = await api("/api/settings/lead-automations");
+    state.leadAuto.snapshot = {
+      quoteSentAutoFollowUpStageEnabled: !!j.data?.quoteSentAutoFollowUpStageEnabled,
+      quoteFollowUpDays: Number(j.data?.quoteFollowUpDays ?? 3),
+    };
+    state.leadAuto.loaded = true;
+    fillLeadAutomations(state.leadAuto.snapshot);
+  }
+
+  async function saveLeadAutomations() {
+    const body = readLeadAutomations();
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/lead-automations", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      state.leadAuto.snapshot = {
+        quoteSentAutoFollowUpStageEnabled: !!j.data?.quoteSentAutoFollowUpStageEnabled,
+        quoteFollowUpDays: Number(j.data?.quoteFollowUpDays ?? body.quoteFollowUpDays),
+      };
+      fillLeadAutomations(state.leadAuto.snapshot);
+      notify("Automações salvas.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindLeadAutomationsUi() {
+    const form = $("leadAutoForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("input", () => updateSavebar());
+    form.addEventListener("change", () => updateSavebar());
   }
 
   function validateQuotes() {
@@ -2621,6 +2752,7 @@
     if (id === "orcamentos") return loadQuotes();
     if (id === "mensagens-orcamento") return loadQuotes();
     if (id === "mensagens-fase") return loadLeadMessages();
+    if (id === "automacoes-leads") return loadLeadAutomations();
     if (id === "regras-estimativa") return loadRules();
     if (id === "cargos") return loadRolesSection();
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
@@ -2654,6 +2786,7 @@
     $("cfgSave").addEventListener("click", () => saveCurrent());
     $("cfgDiscard").addEventListener("click", () => discardCurrent());
     bindLeadMessagesUi();
+    bindLeadAutomationsUi();
     $("cfgLeaveModal").addEventListener("click", (e) => {
       if (e.target.closest("[data-close]")) closeLeaveModal();
     });

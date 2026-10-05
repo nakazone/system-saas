@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { parseAutomationSettings, automationClock } from "./settings.js";
+import { resolveLeadIdForQuote } from "../pipeline/move.js";
 
 export async function cancelPendingMessages(
   tx: TenantPrisma,
@@ -30,6 +31,8 @@ export async function scheduleQuoteFollowUp(
     orgName: string;
     automationSettings: unknown;
     publicLink?: string | null;
+    /** Optional; resolved from quote/customer when omitted. */
+    leadId?: string | null;
   },
 ): Promise<string | null> {
   const settings = parseAutomationSettings(params.automationSettings);
@@ -41,6 +44,11 @@ export async function scheduleQuoteFollowUp(
     entityId: params.quoteId,
     triggerKey: "quote_follow_up",
   });
+
+  const leadId =
+    (params.leadId ? String(params.leadId).trim() : "") ||
+    (await resolveLeadIdForQuote(tx, params.quoteId)) ||
+    null;
 
   const scheduledFor = new Date(
     automationClock.now().getTime() + settings.quoteFollowUpDays * 24 * 60 * 60 * 1000,
@@ -62,6 +70,7 @@ export async function scheduleQuoteFollowUp(
       status: "pending",
       payload: {
         quoteFollowUpDays: settings.quoteFollowUpDays,
+        leadId,
       } as Prisma.InputJsonValue,
     },
   });

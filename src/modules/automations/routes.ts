@@ -58,6 +58,7 @@ automationsRouter.post(
       const schema = z.object({
         quoteFollowUpEnabled: z.string().optional(),
         quoteFollowUpDays: z.coerce.number().int().min(0).max(90),
+        quoteSentAutoFollowUpStageEnabled: z.string().optional(),
         visitReminderEnabled: z.string().optional(),
         visitReminderHours: z.coerce.number().int().min(0).max(168),
         jobStartReminderEnabled: z.string().optional(),
@@ -74,6 +75,7 @@ automationsRouter.post(
         ...DEFAULT_AUTOMATION_SETTINGS,
         quoteFollowUpEnabled: parsed.data.quoteFollowUpEnabled === "on",
         quoteFollowUpDays: parsed.data.quoteFollowUpDays,
+        quoteSentAutoFollowUpStageEnabled: parsed.data.quoteSentAutoFollowUpStageEnabled === "on",
         visitReminderEnabled: parsed.data.visitReminderEnabled === "on",
         visitReminderHours: parsed.data.visitReminderHours,
         jobStartReminderEnabled: parsed.data.jobStartReminderEnabled === "on",

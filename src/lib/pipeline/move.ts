@@ -9,10 +9,13 @@ import { canonicalStageSlug } from "../dashboard/stages.js";
 
 export { SYSTEM_PIPELINE_SLUGS, type SystemPipelineSlug };
 
+/** System milestones plus common Kanban columns used by automations. */
+export type MoveablePipelineSlug = SystemPipelineSlug | "follow_up_1" | "stand_by";
+
 export async function findSystemStage(
   tx: TenantPrisma,
   organizationId: string,
-  slug: SystemPipelineSlug,
+  slug: MoveablePipelineSlug | string,
 ) {
   const exact = await tx.pipelineStage.findFirst({
     where: { organizationId, slug, isActive: true },
@@ -27,7 +30,7 @@ export async function moveLeadToSystemStage(
   params: {
     organizationId: string;
     leadId: string;
-    slug: SystemPipelineSlug;
+    slug: MoveablePipelineSlug | string;
     actorType?: "user" | "system";
     actorId?: string | null;
     /** Required when moving to lost */

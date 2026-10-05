@@ -18,6 +18,11 @@
     <input name="quoteFollowUpDays" type="number" min="0" max="90" value="<%= settings.quoteFollowUpDays %>" />
 
     <label style="font-weight:500;margin-top:1rem;display:block">
+      <input type="checkbox" name="quoteSentAutoFollowUpStageEnabled" <%= settings.quoteSentAutoFollowUpStageEnabled ? 'checked' : '' %> style="width:auto" />
+      Move Quote Sent → Follow-up after the same delay
+    </label>
+
+    <label style="font-weight:500;margin-top:1rem;display:block">
       <input type="checkbox" name="visitReminderEnabled" <%= settings.visitReminderEnabled ? 'checked' : '' %> style="width:auto" />
       Visit reminder before start
     </label>
