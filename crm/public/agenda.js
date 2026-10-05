@@ -1000,6 +1000,7 @@
   function openMenu(x, y, items) {
     const m = $('#agMenu');
     m.innerHTML =
+      `<button type="button" class="ag-menu__x" data-ag-menu="close" aria-label="Fechar">×</button>` +
       items
         .map((it) =>
           it.sep
@@ -1008,8 +1009,7 @@
                 it.data ? `data-ag-when="${esc(it.data)}"` : ''
               }><span class="ag-dot" style="--ev:${it.color || '#8a8074'}"></span>${esc(it.label)}</button>`,
         )
-        .join('') +
-      `<hr/><button type="button" class="ag-menu__i ag-menu__close" data-ag-menu="close">Fechar</button>`;
+        .join('');
     m.hidden = false;
     if (isPhone()) {
       m.classList.add('is-sheet');

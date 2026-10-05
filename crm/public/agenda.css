@@ -239,7 +239,28 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 /* ---------- menu & search results */
 .ag-menu, .ag-results { position: fixed; z-index: 10070; background: rgba(255, 255, 255, .98); border-radius: 14px; box-shadow: 0 16px 48px rgba(33, 29, 26, .2), 0 0 0 1px rgba(33, 29, 26, .05); padding: 6px; font-family: "Plus Jakarta Sans", -apple-system, system-ui, sans-serif; color: #211d1a;
   --ink: #211d1a; --ink2: #4a433d; --mut: #8a8074; --cream: #f7f4ee; }
-.ag-menu { min-width: 250px; }
+.ag-menu { min-width: 250px; position: relative; padding-top: 34px; }
+.ag-menu__x {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #8a8074;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+.ag-menu__x:hover { background: #f7f4ee; color: #211d1a; }
+.ag-menu.is-sheet { padding-top: 40px; }
+.ag-menu.is-sheet .ag-menu__x { top: 8px; right: 8px; width: 36px; height: 36px; font-size: 24px; }
 .ag-menu[hidden], .ag-results[hidden] { display: none; }
 .ag-menu__i { appearance: none; border: 0; background: none; width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 9px; font-size: 14px; font-weight: 700; }
 .ag-menu__i:hover { background: #f7f4ee; }
@@ -460,13 +481,4 @@ body.ag-dragging {
 }
 body.ag-dragging {
   overflow: hidden;
-}
-.ag-menu__close {
-  justify-content: center;
-  color: var(--mut, #8a8074);
-  font-weight: 600 !important;
-}
-.ag-menu__close:hover {
-  background: #f7f4ee;
-  color: var(--ink, #211d1a);
 }

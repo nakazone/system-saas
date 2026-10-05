@@ -473,7 +473,26 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 }
 .jm-rate__title { margin: 0 0 8px; font-size: 18px; font-weight: 800; }
 .jm-rate__sub { margin: 0 0 12px; font-size: 13.5px; line-height: 1.45; color: var(--jm-ink-2); }
+.jm-rate__cmp {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--jm-cream);
+  border: 1px solid var(--jm-line);
+}
+.jm-rate__cmp > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+}
+.jm-rate__cmp span { color: var(--jm-ink-2); font-weight: 600; }
+.jm-rate__cmp b { font-weight: 800; color: var(--jm-ink); }
+.jm-rate__cmp strong { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--jm-ink); }
 .jm-rate__hint { margin: 0 0 10px; font-size: 13px; color: #9a6700; }
 .jm-rate__acts { display: grid; gap: 8px; }
-.jm-rate__acts .jm-btn { width: 100%; justify-content: center; height: 44px; }
+.jm-rate__acts .jm-btn { width: 100%; justify-content: center; height: 44px; white-space: normal; text-align: center; line-height: 1.25; padding: 8px 14px; }
 

@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261005-rate1";
+  const CSS_HREF = "crm-job-modal.css?v=20261005-rate2";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -302,29 +302,39 @@
   }
 
   function openSaveRateModal(payload) {
+    ensureRateModal();
     const root = $("jmSaveRateModal");
     if (!root) return;
     rateSavePending = payload;
+    const typeLabel = payload.typeLabel || pricingTypeLabel();
+    const customer = payload.customer || null;
+    const customerName = customer && (customer.name || customer.company) ? String(customer.name || customer.company) : "";
     const nameEl = $("jmSaveRateServiceName");
     const oldEl = $("jmSaveRateOld");
     const newEl = $("jmSaveRateNew");
     const typeEl = $("jmSaveRateTypeLabel");
     const clientBtn = $("jmSaveRateClient");
+    const tableBtn = $("jmSaveRateTable");
     const clientHint = $("jmSaveRateClientHint");
     if (nameEl) nameEl.textContent = payload.serviceName || "Serviço";
-    if (oldEl) oldEl.textContent = money(payload.tableRate);
-    if (newEl) newEl.textContent = money(payload.newRate);
-    if (typeEl) typeEl.textContent = pricingTypeLabel();
-    const noCustomer = !payload.customer || payload.customer.id == null;
+    if (oldEl) oldEl.textContent = money(Number(payload.tableRate) || 0);
+    if (newEl) newEl.textContent = money(Number(payload.newRate) || 0);
+    if (typeEl) typeEl.textContent = typeLabel;
+    const noCustomer = !customer || customer.id == null;
     if (clientBtn) {
       clientBtn.disabled = noCustomer;
       clientBtn.classList.toggle("is-disabled", noCustomer);
+      clientBtn.textContent = noCustomer
+        ? "Só para este cliente"
+        : `Só para ${customerName || "este cliente"}`;
     }
+    if (tableBtn) tableBtn.textContent = `Atualizar Tabela · ${typeLabel}`;
     if (clientHint) clientHint.classList.toggle("hidden", !noCustomer);
     root.classList.remove("hidden");
   }
 
   function maybeOfferRatePersist(lineIdx) {
+    ensureRateModal();
     const root = $("jmSaveRateModal");
     if (root && !root.classList.contains("hidden")) return;
     const line = st && st.lines[lineIdx];
@@ -337,9 +347,10 @@
     if (ratesNearlyEqual(newRate, tableRate)) return;
     openSaveRateModal({
       lineIdx,
-      serviceName: line.name || item.name || "",
+      serviceName: String(line.name || item.name || "Serviço").trim() || "Serviço",
       newRate,
       tableRate,
+      typeLabel: pricingTypeLabel(),
       pricingItemId: String(item.id),
       customer: currentCustomer(),
     });
@@ -445,9 +456,9 @@
   }
 
   function ensureDom() {
-    if ($("jobModal")) return;
-    const wrap = document.createElement("div");
-    wrap.innerHTML = `
+    if (!$("jobModal")) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
 <div class="jm-backdrop" id="jobModalBackdrop"></div>
 <div class="jm" id="jobModal" role="dialog" aria-modal="true" aria-labelledby="jobModalTitle">
   <div class="jm__grab" aria-hidden="true"></div>
@@ -520,17 +531,28 @@
     <p class="jm-err" id="jmErr" hidden></p>
     <footer class="jm__foot" id="jmFoot"></footer>
   </form>
-</div>
+</div>`;
+      while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    }
+    ensureRateModal();
+  }
+
+  let rateModalBound = false;
+
+  function ensureRateModal() {
+    if (!$("jmSaveRateModal")) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
 <div class="jm-rate hidden" id="jmSaveRateModal" role="dialog" aria-modal="true" aria-labelledby="jmSaveRateTitle">
   <div class="jm-rate__panel">
     <h2 id="jmSaveRateTitle" class="jm-rate__title">Gravar novo preço?</h2>
-    <p class="jm-rate__sub">
-      O serviço <strong id="jmSaveRateServiceName"></strong> está ligado à Tabela de Valores.
-      Valor na tabela (<span id="jmSaveRateTypeLabel"></span>): <strong id="jmSaveRateOld"></strong>.
-      Novo valor neste job: <strong id="jmSaveRateNew"></strong>.
-    </p>
+    <p class="jm-rate__sub">O serviço <strong id="jmSaveRateServiceName">—</strong> está ligado à Tabela de Valores.</p>
+    <div class="jm-rate__cmp">
+      <div><span>Na tabela (<b id="jmSaveRateTypeLabel">—</b>)</span><strong id="jmSaveRateOld">—</strong></div>
+      <div><span>Neste job</span><strong id="jmSaveRateNew">—</strong></div>
+    </div>
     <p id="jmSaveRateClientHint" class="jm-rate__hint hidden">
-      Para gravar só para o cliente, selecione um cliente CRM neste job.
+      Para gravar no cadastro do cliente, selecione um cliente CRM neste job.
     </p>
     <div class="jm-rate__acts">
       <button type="button" id="jmSaveRateClient" class="jm-btn jm-btn--dark">Só para este cliente</button>
@@ -540,7 +562,17 @@
     </div>
   </div>
 </div>`;
-    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+      while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+    }
+    if (rateModalBound) return;
+    rateModalBound = true;
+    $("jmSaveRateClient")?.addEventListener("click", () => void persistRateForCustomerOnly());
+    $("jmSaveRateTable")?.addEventListener("click", () => void persistRateToPricingTable());
+    $("jmSaveRateJobOnly")?.addEventListener("click", () => closeSaveRateModal());
+    $("jmSaveRateCancel")?.addEventListener("click", () => closeSaveRateModal());
+    $("jmSaveRateModal")?.addEventListener("click", (e) => {
+      if (e.target === $("jmSaveRateModal")) closeSaveRateModal();
+    });
   }
 
   // ---------------------------------------------------------------- render
@@ -1973,13 +2005,7 @@
       setTimeout(() => maybeOfferRatePersist(i), 0);
     });
     modal.addEventListener("keydown", onKey);
-    $("jmSaveRateClient")?.addEventListener("click", () => void persistRateForCustomerOnly());
-    $("jmSaveRateTable")?.addEventListener("click", () => void persistRateToPricingTable());
-    $("jmSaveRateJobOnly")?.addEventListener("click", () => closeSaveRateModal());
-    $("jmSaveRateCancel")?.addEventListener("click", () => closeSaveRateModal());
-    $("jmSaveRateModal")?.addEventListener("click", (e) => {
-      if (e.target === $("jmSaveRateModal")) closeSaveRateModal();
-    });
+    ensureRateModal();
     document.addEventListener("pointerdown", (e) => {
       if (!st || !modal.classList.contains("is-open")) return;
       if (e.target.closest(".jm-svc-pick")) return;
