@@ -973,20 +973,27 @@
     }
     if (field === 'calendar') {
       if (e.type === 'job') {
-        return `<select class="ag-dtl__sel" ${common}>${jobCals
+        const list = jobCals.length
+          ? jobCals
+          : [{ id: 'jobs', name: 'Jobs', color: '#e8792c', kind: 'jobs', sector: 'all' }];
+        return `<select class="ag-dtl__sel" ${common}>${list
           .map(
             (c) =>
-              `<option value="${esc(c.id)}" data-sector="${esc(c.sector || 'all')}" ${c.id === e.calendar ? 'selected' : ''}>${esc(c.name)}</option>`,
+              `<option value="${esc(c.id)}" data-sector="${esc(c.sector || 'all')}" ${
+                c.id === e.calendar ? 'selected' : ''
+              }>${esc(c.name)}</option>`,
           )
           .join('')}</select>`;
       }
-      return `<select class="ag-dtl__sel" ${common}>${meetCals
-        .map(
-          (c) =>
-            `<option value="${esc(c.kind === 'meetings' ? '' : c.id)}" ${
-              (e.meta.calendar_id || '') === (c.kind === 'meetings' ? '' : c.id) || c.id === e.calendar ? 'selected' : ''
-            }>${esc(c.name)}</option>`,
-        )
+      const list = meetCals.length
+        ? meetCals
+        : [{ id: 'meetings', name: 'Compromissos', color: '#3b6ea5', kind: 'meetings' }];
+      return `<select class="ag-dtl__sel" ${common}>${list
+        .map((c) => {
+          const current = String(e.meta.calendar_id || e.calendar || 'meetings');
+          const selected = current === String(c.id) || (current === 'meetings' && (c.id === 'meetings' || c.kind === 'meetings'));
+          return `<option value="${esc(c.id)}" ${selected ? 'selected' : ''}>${esc(c.name)}</option>`;
+        })
         .join('')}</select>`;
     }
     if (field === 'status') {
@@ -1118,10 +1125,29 @@
       if (valOf('assigned_user_id') === cur) return;
     }
     if (field === 'calendar') {
-      if (type === 'job' && valOf('calendar') === String(ev.calendar || '')) return;
-      if (type === 'meeting') {
-        const cur = String(ev.meta.calendar_id || '');
-        if (valOf('calendar') === cur) return;
+      if (type === 'job') {
+        const sel = detail.querySelector(`[data-ag-inline="calendar"][data-ag-id="${CSS.escape(id)}"]`);
+        const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
+        const sector = opt ? String(opt.getAttribute('data-sector') || 'all') : 'all';
+        const nextSector = sector === 'installation' || sector === 'sand_finish' ? sector : '';
+        const curSector = String(ev.meta.sector || '');
+        if (nextSector === curSector) {
+          // Job calendar is derived from sector — same sector cannot move the job.
+          if (valOf('calendar') !== String(ev.calendar || '')) {
+            toast('Este calendário usa o mesmo setor do job.', 'info');
+          }
+          openDetail(id, $(`[data-ag-ev="${CSS.escape(id)}"]`));
+          return;
+        }
+      } else if (type === 'meeting') {
+        const next = valOf('calendar');
+        const cur = String(ev.meta.calendar_id || ev.calendar || 'meetings');
+        const nextNorm = !next || next === 'meetings' ? 'meetings' : next;
+        const curNorm = !cur || cur === 'meetings' ? 'meetings' : cur;
+        if (nextNorm === curNorm) {
+          openDetail(id, $(`[data-ag-ev="${CSS.escape(id)}"]`));
+          return;
+        }
       }
     }
     if (field === 'date' || field === 'start' || field === 'end') {
@@ -1146,8 +1172,8 @@
         else if (field === 'calendar') {
           const sel = detail.querySelector(`[data-ag-inline="calendar"][data-ag-id="${CSS.escape(id)}"]`);
           const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
-          const sector = opt ? opt.getAttribute('data-sector') || 'all' : 'all';
-          body.sector = sector === 'all' ? null : sector;
+          const sector = opt ? String(opt.getAttribute('data-sector') || 'all') : 'all';
+          body.sector = sector === 'installation' || sector === 'sand_finish' ? sector : null;
         } else if (field === 'date' || field === 'start' || field === 'end') {
           const date = valOf('date');
           const st = valOf('start') || hm(ev.start);
@@ -1168,8 +1194,12 @@
         } else if (field === 'status') body.status = valOf('status');
         else if (field === 'address') body.location = valOf('address') || null;
         else if (field === 'assigned_user_id') body.assigned_user_id = valOf('assigned_user_id') || null;
-        else if (field === 'calendar' && type === 'meeting') body.calendar_id = valOf('calendar') || null;
-        else if (field === 'date' || field === 'start' || field === 'end') {
+        else if (field === 'calendar' && type === 'meeting') {
+          const raw = valOf('calendar');
+          // Default meetings calendar uses a non-UUID id ("meetings") → store null.
+          body.calendar_id =
+            raw && raw !== 'meetings' && /^[0-9a-f-]{36}$/i.test(raw) ? raw : null;
+        } else if (field === 'date' || field === 'start' || field === 'end') {
           const date = valOf('date');
           const st = valOf('start') || hm(ev.start);
           let en = valOf('end');
@@ -2012,7 +2042,11 @@
         ev.stopPropagation();
         return openDetail(el.dataset.agEv, el);
       }
-      if (!$('#agPop').hidden && !t.closest('#agPop')) closePop();
+      if (!$('#agPop').hidden && !t.closest('#agPop')) {
+        // Native <select> option clicks land "outside" the pop — don't abort mid-edit.
+        if ($('#agPop [data-ag-editing]')) return;
+        closePop();
+      }
       if ((el = t.closest('[data-ag-view]'))) return setView(el.dataset.agView);
       if ((el = t.closest('[data-ag-act]'))) {
         const a = el.dataset.agAct;
