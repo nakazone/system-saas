@@ -1252,11 +1252,27 @@ document.addEventListener(
 let leadsMobileActiveSlug = '';
 let leadsMobileSwipeBound = false;
 let leadsMobileSearchBound = false;
-const LCARD_SWIPE_LEFT = -96;
-const LCARD_SWIPE_RIGHT = 176;
-/** Swipe-right reveals Excluir + Ligar, or only Ligar without leads.delete. */
-function lcardSwipeRight() {
-    return kanbanCanDeleteLeads() ? LCARD_SWIPE_RIGHT : 96;
+const LCARD_BTN_W = 80;
+const LCARD_SWIPE_LEFT_BASE = -LCARD_BTN_W;
+/** Swipe-right reveals Excluir / SMS / Email / Ligar as available. */
+function lcardSwipeRightForCard(card) {
+    const slot = card && card.querySelector('.lcard__action-slot--left');
+    const n = slot ? slot.querySelectorAll('.lcard__action-btn').length : 0;
+    return Math.max(LCARD_BTN_W, n * LCARD_BTN_W);
+}
+function lcardSwipeLeftForCard(card) {
+    const slot = card && card.querySelector('.lcard__action-slot--right');
+    const n = slot ? slot.querySelectorAll('.lcard__action-btn').length : 0;
+    return n ? -(n * LCARD_BTN_W) : LCARD_SWIPE_LEFT_BASE;
+}
+
+function leadForStageMessages(lead, stage) {
+    if (!lead || !stage || !stage.slug) return lead;
+    const slug = String(stage.slug);
+    return Object.assign({}, lead, {
+        pipeline_stage_slug: slug,
+        status: slug,
+    });
 }
 
 function isLeadsMobileLayout() {
@@ -1347,19 +1363,54 @@ function renderLeadsMobileCard(lead, stage, stages) {
     const metaBits = [phone, lead.email ? escapeKanbanHtml(lead.email) : ''].filter(Boolean);
     const callIcon =
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.74-1.74a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>';
+    const smsIcon =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    const emailIcon =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>';
     const advanceIcon =
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>';
     const deleteIcon =
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
 
+    const msgLead = leadForStageMessages(lead, stage);
+    const smsOpts =
+        typeof window.sfGetLeadSmsOptions === 'function' ? window.sfGetLeadSmsOptions(msgLead) : [];
+    const emailOpts =
+        typeof window.sfGetLeadEmailOptions === 'function' ? window.sfGetLeadEmailOptions(msgLead) : [];
+    const hasSms = smsOpts.length > 0;
+    const hasEmail = emailOpts.length > 0;
+    const smsDisabled = !tel;
+    const emailDisabled = !(lead.email && String(lead.email).includes('@'));
+
+    const leftActions = [];
+    if (kanbanCanDeleteLeads()) {
+        leftActions.push(
+            `<button type="button" class="lcard__action-btn lcard__action-btn--delete" data-lcard-delete="${id}" data-crm-permission="leads.delete">${deleteIcon}<span>Excluir</span></button>`,
+        );
+    }
+    leftActions.push(
+        `<button type="button" class="lcard__action-btn lcard__action-btn--sms" data-lcard-sms="${id}" data-sf-sms-picker-btn aria-haspopup="menu" ${smsDisabled ? 'disabled' : ''} data-crm-permission="leads.view">${smsIcon}<span>SMS</span></button>`,
+    );
+    if (!emailDisabled || hasEmail) {
+        leftActions.push(
+            `<button type="button" class="lcard__action-btn lcard__action-btn--email" data-lcard-email="${id}" data-sf-email-picker-btn aria-haspopup="menu" ${emailDisabled ? 'disabled' : ''} data-crm-permission="leads.view">${emailIcon}<span>Email</span></button>`,
+        );
+    }
+    leftActions.push(
+        `<button type="button" class="lcard__action-btn lcard__action-btn--call" data-lcard-call="${id}" ${callDisabled ? 'disabled' : ''} data-crm-permission="leads.view">${callIcon}<span>Ligar</span></button>`,
+    );
+
+    const rightActions = [
+        `<button type="button" class="lcard__action-btn lcard__action-btn--advance" data-lcard-advance="${id}" ${hasNext ? '' : 'disabled'} data-crm-permission="leads.view">${advanceIcon}<span>Avançar</span></button>`,
+    ];
+
     return `<article class="lcard" data-lead-id="${id}">
   <div class="lcard__actions" aria-hidden="true">
     <div class="lcard__action-slot lcard__action-slot--left">
-      ${kanbanCanDeleteLeads() ? `<button type="button" class="lcard__action-btn lcard__action-btn--delete" data-lcard-delete="${id}" data-crm-permission="leads.delete">${deleteIcon}<span>Excluir</span></button>` : ''}
-      <button type="button" class="lcard__action-btn lcard__action-btn--call" data-lcard-call="${id}" ${callDisabled ? 'disabled' : ''} data-crm-permission="leads.view">${callIcon}<span>Ligar</span></button>
+      ${leftActions.join('')}
     </div>
     <div class="lcard__action-slot lcard__action-slot--right">
-      <button type="button" class="lcard__action-btn lcard__action-btn--advance" data-lcard-advance="${id}" ${hasNext ? '' : 'disabled'} data-crm-permission="leads.view">${advanceIcon}<span>Avançar</span></button>
+      ${rightActions.join('')}
     </div>
   </div>
   <div class="lcard__body touchable" data-lcard-open="${id}" role="button" tabindex="0">
@@ -1455,6 +1506,9 @@ function renderLeadsMobilePipeline() {
     if (!stageLeads.length) {
         listEl.innerHTML = `<div class="llist__empty">Nenhum lead em ${leadsMobileStageLabel(active)}</div>`;
     } else {
+        if (typeof window.sfLoadLeadMessageSettings === 'function') {
+            void window.sfLoadLeadMessageSettings();
+        }
         listEl.innerHTML = stageLeads.map((lead) => renderLeadsMobileCard(lead, active, stages)).join('');
     }
 
@@ -1594,8 +1648,10 @@ function bindLeadsMobileListInteractions(container) {
                 dragging = true;
                 skipClick = true;
                 let next = dx;
-                if (next > lcardSwipeRight() + 20) next = lcardSwipeRight() + 20;
-                if (next < LCARD_SWIPE_LEFT - 20) next = LCARD_SWIPE_LEFT - 20;
+                const maxR = lcardSwipeRightForCard(activeCard) + 20;
+                const maxL = lcardSwipeLeftForCard(activeCard) - 20;
+                if (next > maxR) next = maxR;
+                if (next < maxL) next = maxL;
                 setOffset(activeCard, next);
             },
             { passive: true }
@@ -1618,8 +1674,8 @@ function bindLeadsMobileListInteractions(container) {
             const m = /translateX\((-?\d+(?:\.\d+)?)px\)/.exec(style);
             const x = m ? parseFloat(m[1]) : 0;
             closeAll(card);
-            if (x >= 56) setOffset(card, lcardSwipeRight());
-            else if (x <= -56) setOffset(card, LCARD_SWIPE_LEFT);
+            if (x >= 56) setOffset(card, lcardSwipeRightForCard(card));
+            else if (x <= -56) setOffset(card, lcardSwipeLeftForCard(card));
             else setOffset(card, 0);
             try {
                 if (Math.abs(x) >= 56) navigator.vibrate(8);
@@ -1636,6 +1692,58 @@ function bindLeadsMobileListInteractions(container) {
                 e.stopPropagation();
                 const id = delBtn.getAttribute('data-lcard-delete');
                 if (id && typeof window.deleteLead === 'function') void window.deleteLead(id);
+                return;
+            }
+            const smsBtn = e.target.closest('[data-lcard-sms]');
+            if (smsBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (smsBtn.disabled) {
+                    notifyLeadsMobile('Este lead não tem telefone.', 'error');
+                    return;
+                }
+                const id = smsBtn.getAttribute('data-lcard-sms');
+                const lead = allLeads.find((l) => kanbanLeadId(l.id) === kanbanLeadId(id));
+                if (!lead) return;
+                const card = smsBtn.closest('.lcard');
+                if (card) setOffset(card, 0);
+                const stage = getLeadsMobileActiveStage();
+                const msgLead = leadForStageMessages(lead, stage);
+                if (typeof window.sfOpenSmsChoiceMenu === 'function') {
+                    void window.sfOpenSmsChoiceMenu(smsBtn, msgLead);
+                } else if (typeof window.sfBuildLeadSmsHref === 'function') {
+                    const href = window.sfBuildLeadSmsHref(msgLead);
+                    if (href) window.location.href = href;
+                    else notifyLeadsMobile('Nenhuma mensagem SMS disponível.', 'error');
+                } else {
+                    notifyLeadsMobile('SMS indisponível neste dispositivo.', 'error');
+                }
+                return;
+            }
+            const emailBtn = e.target.closest('[data-lcard-email]');
+            if (emailBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (emailBtn.disabled) {
+                    notifyLeadsMobile('Este lead não tem e-mail.', 'error');
+                    return;
+                }
+                const id = emailBtn.getAttribute('data-lcard-email');
+                const lead = allLeads.find((l) => kanbanLeadId(l.id) === kanbanLeadId(id));
+                if (!lead) return;
+                const card = emailBtn.closest('.lcard');
+                if (card) setOffset(card, 0);
+                const stage = getLeadsMobileActiveStage();
+                const msgLead = leadForStageMessages(lead, stage);
+                if (typeof window.sfOpenEmailChoiceMenu === 'function') {
+                    void window.sfOpenEmailChoiceMenu(emailBtn, msgLead);
+                } else if (typeof window.sfBuildLeadMailtoHref === 'function') {
+                    const href = window.sfBuildLeadMailtoHref(msgLead);
+                    if (href) window.location.href = href;
+                    else notifyLeadsMobile('Nenhuma mensagem de e-mail disponível.', 'error');
+                } else {
+                    notifyLeadsMobile('E-mail indisponível neste dispositivo.', 'error');
+                }
                 return;
             }
             const callBtn = e.target.closest('[data-lcard-call]');

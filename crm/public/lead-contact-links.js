@@ -339,6 +339,8 @@
         e.target.closest('#sfEmailChoiceMenu') ||
         e.target.closest('[data-lqs-sms-menu]') ||
         e.target.closest('[data-lqs-email-menu]') ||
+        e.target.closest('[data-lcard-sms]') ||
+        e.target.closest('[data-lcard-email]') ||
         e.target.closest('[data-sf-sms-picker-btn]') ||
         e.target.closest('[data-sf-email-picker-btn]'))
     ) {
