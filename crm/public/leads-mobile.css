@@ -353,6 +353,95 @@ body.plab.plab-leads-list .mleads {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  touch-action: pan-y;
+}
+
+.mleads-swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  touch-action: pan-y;
+  list-style: none;
+}
+
+.mleads-swipe__actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.mleads-swipe__actions > * {
+  pointer-events: auto;
+}
+
+.mleads-swipe__slot {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.mleads-swipe__slot--right {
+  margin-left: auto;
+}
+
+.mleads-swipe__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 76px;
+  padding: 8px 8px;
+  border: none;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mleads-swipe__btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mleads-swipe__btn--delete {
+  background: #b91c1c;
+}
+.mleads-swipe__btn--sms {
+  background: #0369a1;
+}
+.mleads-swipe__btn--email {
+  background: #6d28d9;
+}
+.mleads-swipe__btn--call {
+  background: #15803d;
+}
+.mleads-swipe__btn--advance {
+  background: #c2410c;
+}
+.mleads-swipe__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mleads-swipe__body.mleads-card {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  transition: transform 0.18s ease;
+  will-change: transform;
+  background: #fff;
 }
 
 .mleads-card {

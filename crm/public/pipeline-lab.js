@@ -423,6 +423,8 @@
   let stages = [];
   let leads = [];
   let mobileStageSlug = "";
+  let mleadsSwipeBound = false;
+  const MLEADS_BTN_W = 76;
 
   function initials(name) {
     const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -468,6 +470,277 @@
       .find((s) => s && !/^CEP:/i.test(s));
     if (!note) return "";
     return note.length > 100 ? note.slice(0, 99) + "…" : note;
+  }
+
+  function leadForStageMessages(lead, stage) {
+    if (!lead || !stage || !stage.slug) return lead;
+    const slug = normalizeSlug(stage.slug);
+    return Object.assign({}, lead, {
+      pipeline_stage_slug: slug,
+      status: slug,
+    });
+  }
+
+  function telHref(phone) {
+    if (typeof window.sfBuildTelHref === "function") return window.sfBuildTelHref(phone) || "";
+    const d = String(phone || "").replace(/\D/g, "");
+    return d ? `tel:${d}` : "";
+  }
+
+  function canDeleteLead() {
+    return can("leads.delete") || can("leads.edit") || (session && session.user && session.user.role === "admin");
+  }
+
+  function nextStageFor(lead) {
+    const cols = mobileBoardStages();
+    const cur = leadSlug(lead);
+    const idx = cols.findIndex((s) => normalizeSlug(s.slug) === cur);
+    if (idx < 0 || idx >= cols.length - 1) return null;
+    return cols[idx + 1];
+  }
+
+  async function deleteLeadById(id) {
+    if (!id) return;
+    if (!confirm("Excluir este lead permanentemente? Esta ação não pode ser desfeita.")) return;
+    try {
+      const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+      notify("Lead excluído.", "success");
+      leads = leads.filter((l) => String(l.id) !== String(id));
+      renderMobileList();
+    } catch (e) {
+      notify(e.message || "Não foi possível excluir.", "error");
+    }
+  }
+
+  async function advanceLeadById(id) {
+    const lead = leads.find((l) => String(l.id) === String(id));
+    if (!lead) return;
+    const next = nextStageFor(lead);
+    if (!next) {
+      notify("Já está no último estágio do pipeline.", "info");
+      return;
+    }
+    try {
+      const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next.slug }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+      const updated = j.data || {};
+      lead.status = updated.status || next.slug;
+      lead.pipeline_stage_slug = updated.pipeline_stage_slug || next.slug;
+      if (updated.pipeline_stage_id) lead.pipeline_stage_id = updated.pipeline_stage_id;
+      mobileStageSlug = normalizeSlug(next.slug);
+      notify(`Movido para ${stageLabel(next)}`, "success");
+      renderMobileList();
+    } catch (e) {
+      notify(e.message || "Não foi possível avançar.", "error");
+    }
+  }
+
+  function mleadsSwipeRight(card) {
+    const n = card ? card.querySelectorAll(".mleads-swipe__slot--left .mleads-swipe__btn").length : 0;
+    return Math.max(MLEADS_BTN_W, n * MLEADS_BTN_W);
+  }
+  function mleadsSwipeLeft(card) {
+    const n = card ? card.querySelectorAll(".mleads-swipe__slot--right .mleads-swipe__btn").length : 0;
+    return n ? -(n * MLEADS_BTN_W) : -MLEADS_BTN_W;
+  }
+
+  function bindMleadsSwipe(list) {
+    if (!list) return;
+    if (!mleadsSwipeBound) {
+      mleadsSwipeBound = true;
+      let active = null;
+      let startX = 0;
+      let startY = 0;
+      let dragging = false;
+      let axis = null;
+      let skipClick = false;
+
+      const bodyOf = (card) => card && card.querySelector(".mleads-swipe__body");
+      const setOffset = (card, x) => {
+        const body = bodyOf(card);
+        if (!body) return;
+        if (!x) {
+          body.style.transform = "";
+          card.classList.remove("mleads-swipe--open-left", "mleads-swipe--open-right");
+          return;
+        }
+        body.style.transform = `translateX(${x}px)`;
+        card.classList.toggle("mleads-swipe--open-right", x > 40);
+        card.classList.toggle("mleads-swipe--open-left", x < -40);
+      };
+      const closeAll = (except) => {
+        list.querySelectorAll(".mleads-swipe").forEach((c) => {
+          if (c !== except) setOffset(c, 0);
+        });
+      };
+
+      list.addEventListener(
+        "pointerdown",
+        (e) => {
+          const card = e.target.closest(".mleads-swipe");
+          if (!card || e.target.closest("button,a")) return;
+          active = card;
+          startX = e.clientX;
+          startY = e.clientY;
+          dragging = false;
+          axis = null;
+          skipClick = false;
+          const body = bodyOf(card);
+          if (body) body.style.transition = "none";
+        },
+        { passive: true },
+      );
+
+      list.addEventListener(
+        "pointermove",
+        (e) => {
+          if (!active) return;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          if (!axis) {
+            if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+            axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+          }
+          if (axis !== "x") return;
+          dragging = true;
+          skipClick = true;
+          let next = dx;
+          const maxR = mleadsSwipeRight(active) + 20;
+          const maxL = mleadsSwipeLeft(active) - 20;
+          if (next > maxR) next = maxR;
+          if (next < maxL) next = maxL;
+          setOffset(active, next);
+        },
+        { passive: true },
+      );
+
+      const endDrag = () => {
+        if (!active) return;
+        const card = active;
+        const body = bodyOf(card);
+        active = null;
+        if (body) body.style.transition = "";
+        if (!dragging || axis !== "x") {
+          dragging = false;
+          axis = null;
+          return;
+        }
+        dragging = false;
+        axis = null;
+        const style = body && body.style.transform ? body.style.transform : "";
+        const m = /translateX\((-?\d+(?:\.\d+)?)px\)/.exec(style);
+        const x = m ? parseFloat(m[1]) : 0;
+        closeAll(card);
+        if (x >= 56) setOffset(card, mleadsSwipeRight(card));
+        else if (x <= -56) setOffset(card, mleadsSwipeLeft(card));
+        else setOffset(card, 0);
+        try {
+          if (Math.abs(x) >= 56) navigator.vibrate(8);
+        } catch (_) {}
+      };
+
+      list.addEventListener("pointerup", endDrag, { passive: true });
+      list.addEventListener("pointercancel", endDrag, { passive: true });
+
+      list.addEventListener("click", (e) => {
+        const del = e.target.closest("[data-mleads-delete]");
+        if (del) {
+          e.preventDefault();
+          e.stopPropagation();
+          void deleteLeadById(del.getAttribute("data-mleads-delete"));
+          return;
+        }
+        const sms = e.target.closest("[data-mleads-sms]");
+        if (sms) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (sms.disabled) {
+            notify("Este lead não tem telefone.", "error");
+            return;
+          }
+          const id = sms.getAttribute("data-mleads-sms");
+          const lead = leads.find((l) => String(l.id) === String(id));
+          if (!lead) return;
+          const card = sms.closest(".mleads-swipe");
+          if (card) setOffset(card, 0);
+          const stage = mobileBoardStages().find((s) => normalizeSlug(s.slug) === mobileStageSlug);
+          const msgLead = leadForStageMessages(lead, stage);
+          if (typeof window.sfOpenSmsChoiceMenu === "function") void window.sfOpenSmsChoiceMenu(sms, msgLead);
+          else if (typeof window.sfBuildLeadSmsHref === "function") {
+            const href = window.sfBuildLeadSmsHref(msgLead);
+            if (href) location.href = href;
+            else notify("Nenhuma mensagem SMS disponível.", "error");
+          }
+          return;
+        }
+        const email = e.target.closest("[data-mleads-email]");
+        if (email) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (email.disabled) {
+            notify("Este lead não tem e-mail.", "error");
+            return;
+          }
+          const id = email.getAttribute("data-mleads-email");
+          const lead = leads.find((l) => String(l.id) === String(id));
+          if (!lead) return;
+          const card = email.closest(".mleads-swipe");
+          if (card) setOffset(card, 0);
+          const stage = mobileBoardStages().find((s) => normalizeSlug(s.slug) === mobileStageSlug);
+          const msgLead = leadForStageMessages(lead, stage);
+          if (typeof window.sfOpenEmailChoiceMenu === "function") void window.sfOpenEmailChoiceMenu(email, msgLead);
+          else if (typeof window.sfBuildLeadMailtoHref === "function") {
+            const href = window.sfBuildLeadMailtoHref(msgLead);
+            if (href) location.href = href;
+            else notify("Nenhuma mensagem de e-mail disponível.", "error");
+          }
+          return;
+        }
+        const call = e.target.closest("[data-mleads-call]");
+        if (call) {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = call.getAttribute("data-mleads-call");
+          const lead = leads.find((l) => String(l.id) === String(id));
+          const href = lead ? telHref(lead.phone) : "";
+          if (href) location.href = href;
+          else notify("Este lead não tem telefone.", "error");
+          return;
+        }
+        const adv = e.target.closest("[data-mleads-advance]");
+        if (adv) {
+          e.preventDefault();
+          e.stopPropagation();
+          void advanceLeadById(adv.getAttribute("data-mleads-advance"));
+          return;
+        }
+        if (skipClick) {
+          skipClick = false;
+          return;
+        }
+        const openEl = e.target.closest("[data-mleads-open]");
+        if (!openEl) return;
+        const card = openEl.closest(".mleads-swipe");
+        if (card && (card.classList.contains("mleads-swipe--open-left") || card.classList.contains("mleads-swipe--open-right"))) {
+          setOffset(card, 0);
+          return;
+        }
+        const id = openEl.getAttribute("data-mleads-open");
+        if (!id) return;
+        location.href = "lead-detail.html?id=" + encodeURIComponent(id);
+      });
+    }
   }
 
   function isTabletShell() {
@@ -616,34 +889,74 @@
       return;
     }
     empty.hidden = true;
+    if (typeof window.sfLoadLeadMessageSettings === "function") {
+      void window.sfLoadLeadMessageSettings();
+    }
+    const canDel = canDeleteLead();
+    const deleteIcon =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
+    const smsIcon =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    const emailIcon =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>';
+    const callIcon =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.74-1.74a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/></svg>';
+    const advanceIcon =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>';
+
     list.innerHTML = stageRows
       .map((lead) => {
+        const id = esc(lead.id);
         const val = Number(lead.estimated_value) || 0;
         const src = lead.source ? String(lead.source) : "";
         const note = noteSnippet(lead);
         const sub = note || src || "Lead";
-        return `<li class="mleads-card" data-id="${esc(lead.id)}">
-          <span class="mleads-card__avatar" style="background:${softColorFor(lead.id)}">${esc(initials(lead.name))}</span>
-          <div>
-            <p class="mleads-card__name">${esc(lead.name || "Lead")}</p>
-            ${note ? `<p class="mleads-card__note">${esc(note)}</p>` : `<p class="mleads-card__sub">${esc(sub)}</p>`}
-            <div class="mleads-card__tags">
-              <span class="mleads-tag"><span class="mleads-tag__dot" style="background:${esc(stageColor)}"></span>${esc(label)}</span>
-              ${src && note ? `<span class="mleads-tag">${esc(src)}</span>` : ""}
+        const hasPhone = Boolean(telHref(lead.phone));
+        const hasEmail = Boolean(lead.email && String(lead.email).includes("@"));
+        const hasNext = Boolean(nextStageFor(lead));
+        const left = [];
+        if (canDel) {
+          left.push(
+            `<button type="button" class="mleads-swipe__btn mleads-swipe__btn--delete" data-mleads-delete="${id}">${deleteIcon}<span>Excluir</span></button>`,
+          );
+        }
+        left.push(
+          `<button type="button" class="mleads-swipe__btn mleads-swipe__btn--sms" data-mleads-sms="${id}" data-sf-sms-picker-btn aria-haspopup="menu" ${hasPhone ? "" : "disabled"}>${smsIcon}<span>SMS</span></button>`,
+        );
+        if (hasEmail) {
+          left.push(
+            `<button type="button" class="mleads-swipe__btn mleads-swipe__btn--email" data-mleads-email="${id}" data-sf-email-picker-btn aria-haspopup="menu">${emailIcon}<span>Email</span></button>`,
+          );
+        }
+        left.push(
+          `<button type="button" class="mleads-swipe__btn mleads-swipe__btn--call" data-mleads-call="${id}" ${hasPhone ? "" : "disabled"}>${callIcon}<span>Ligar</span></button>`,
+        );
+        return `<li class="mleads-swipe" data-id="${id}">
+          <div class="mleads-swipe__actions" aria-hidden="true">
+            <div class="mleads-swipe__slot mleads-swipe__slot--left">${left.join("")}</div>
+            <div class="mleads-swipe__slot mleads-swipe__slot--right">
+              <button type="button" class="mleads-swipe__btn mleads-swipe__btn--advance" data-mleads-advance="${id}" ${hasNext ? "" : "disabled"}>${advanceIcon}<span>Avançar</span></button>
             </div>
           </div>
-          <div class="mleads-card__right">
-            <p class="mleads-card__value">${val > 0 ? esc(D.money(val)) : '<span class="mleads-card__novalue">Sem valor</span>'}</p>
-            <p class="mleads-card__ago">${esc(D.ago(lead.created_at))}</p>
+          <div class="mleads-swipe__body mleads-card" data-mleads-open="${id}" role="button" tabindex="0">
+            <span class="mleads-card__avatar" style="background:${softColorFor(lead.id)}">${esc(initials(lead.name))}</span>
+            <div>
+              <p class="mleads-card__name">${esc(lead.name || "Lead")}</p>
+              ${note ? `<p class="mleads-card__note">${esc(note)}</p>` : `<p class="mleads-card__sub">${esc(sub)}</p>`}
+              <div class="mleads-card__tags">
+                <span class="mleads-tag"><span class="mleads-tag__dot" style="background:${esc(stageColor)}"></span>${esc(label)}</span>
+                ${src && note ? `<span class="mleads-tag">${esc(src)}</span>` : ""}
+              </div>
+            </div>
+            <div class="mleads-card__right">
+              <p class="mleads-card__value">${val > 0 ? esc(D.money(val)) : '<span class="mleads-card__novalue">Sem valor</span>'}</p>
+              <p class="mleads-card__ago">${esc(D.ago(lead.created_at))}</p>
+            </div>
           </div>
         </li>`;
       })
       .join("");
-    list.querySelectorAll(".mleads-card[data-id]").forEach((el) => {
-      el.addEventListener("click", () => {
-        location.href = "lead-detail.html?id=" + encodeURIComponent(el.getAttribute("data-id"));
-      });
-    });
+    bindMleadsSwipe(list);
   }
 
   async function loadMobile() {

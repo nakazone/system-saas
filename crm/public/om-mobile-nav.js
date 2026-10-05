@@ -280,7 +280,7 @@
     // Edge swipe-right (iOS) + full-screen swipe-left = back.
     const EDGE_PX = 36;
     const BLOCK_SEL =
-      ".om-swipe, .lcard, .sf-quote-card, .kanban-card, .kanban-board, .chiptrack, .om-sheet, [data-om-no-back-swipe], input, textarea, select";
+      ".om-swipe, .lcard, .mleads-swipe, .sf-quote-card, .kanban-card, .kanban-board, .chiptrack, .om-sheet, [data-om-no-back-swipe], input, textarea, select";
 
     function goBack() {
       haptic(10);
