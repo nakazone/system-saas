@@ -142,7 +142,13 @@
   function lockboxBadgeHtml(notes) {
     const code = parseLockbox(notes);
     if (!code) return "";
-    return `<span class="job-lockbox-badge" title="Código da caixa (lockbox)"><span class="job-lockbox-badge__icon" aria-hidden="true">🔐</span><span class="job-lockbox-badge__code">${escapeHtml(code)}</span></span>`;
+    return `<span class="job-lockbox-badge" title="Lockbox ${escapeHtml(code)}" aria-label="Lockbox ${escapeHtml(code)}"><span class="job-lockbox-badge__icon" aria-hidden="true">🔐</span></span>`;
+  }
+
+  function stripLockboxText(notes) {
+    return String(notes || "")
+      .replace(/\/lockbox\s*[#:]?\s*[0-9A-Za-z-]{2,24}\b\s*[—–-]?\s*/i, "")
+      .trim();
   }
 
   function renderHero() {
@@ -219,11 +225,21 @@
 
     const notes = $("cmNotes");
     if (t.notes && !t.attention) {
-      notes.hidden = false;
       const code = parseLockbox(t.notes);
-      notes.innerHTML = code
-        ? `${lockboxBadgeHtml(t.notes)} <span>${escapeHtml(t.notes)}</span>`
-        : escapeHtml(t.notes);
+      const text = stripLockboxText(t.notes);
+      if (!code && !text) {
+        notes.hidden = true;
+      } else {
+        notes.hidden = false;
+        const badge = code ? lockboxBadgeHtml(t.notes) : "";
+        const delivery = t.needs_delivery
+          ? `<span class="job-delivery-badge" title="Retirar material da obra">Delivery</span>`
+          : "";
+        notes.innerHTML = `${badge}${delivery}${text ? ` <span>${escapeHtml(text)}</span>` : ""}`;
+      }
+    } else if (t.needs_delivery && !t.attention) {
+      notes.hidden = false;
+      notes.innerHTML = `<span class="job-delivery-badge" title="Retirar material da obra">Delivery</span>`;
     } else {
       notes.hidden = true;
     }

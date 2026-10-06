@@ -129,6 +129,7 @@
     $("jdChips").innerHTML = `
       <span class="jd-pill jd-pill--${cls}">${esc(label)}</span>
       ${sectorLbl ? `<span class="jd-pill">${esc(sectorLbl)}</span>` : ""}
+      ${job.needs_delivery ? `<span class="jd-pill jd-pill--delivery" title="Retirar material da obra">Delivery</span>` : ""}
       ${canBill && b && b.billing_status !== "no_value" && window.JobBilling ? window.JobBilling.chip(b) : ""}
       ${job.number != null ? `<span class="jd-num">Job #${esc(job.number)}</span>` : ""}`;
     $("jobDetailTitle").textContent = job.title || `Job para ${clientName()}`;
@@ -583,17 +584,31 @@
             const hasGps = p.location_available && p.lat != null && p.lng != null;
             const maps = hasGps ? mapsCoordsUrl(p.lat, p.lng) : "";
             const dist = fmtDistance(p.distance_m);
+            const jobAddr = (job && job.address) || "";
+            const gpsTitle = hasGps
+              ? [jobAddr, p.address, `${p.lat}, ${p.lng}`, dist ? `${dist} do job` : ""]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "";
             const locBits = [];
-            if (hasGps) locBits.push(`<a class="jd-photo__gps${p.far_from_job ? " is-far" : ""}" href="${esc(maps)}" target="_blank" rel="noopener" title="${esc(`${p.lat}, ${p.lng}`)}">📍 ${p.far_from_job ? "Longe" : dist || "GPS"}</a>`);
-            else locBits.push(`<span class="jd-photo__gps is-off">Sem GPS</span>`);
+            if (hasGps) {
+              locBits.push(
+                `<a class="jd-photo__gps${p.far_from_job ? " is-far" : ""}" href="${esc(maps)}" target="_blank" rel="noopener" title="${esc(gpsTitle)}">📍 ${p.far_from_job ? "Longe" : dist || "GPS"}</a>`,
+              );
+            } else {
+              locBits.push(`<span class="jd-photo__gps is-off">Sem GPS</span>`);
+            }
             if (dist && !p.far_from_job) locBits.push(`<span class="jd-photo__dist">${esc(dist)} do job</span>`);
             else if (p.far_from_job && dist) locBits.push(`<span class="jd-photo__dist is-far">${esc(dist)} do job</span>`);
+            const portBtn =
+              canManage && !p.legacy
+                ? `<button type="button" class="jd-photo__port" data-port="${esc(p.id)}" data-on="${p.in_portfolio ? "1" : "0"}" title="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${p.in_portfolio ? "★" : "☆"}</button>`
+                : "";
             return `<figure class="jd-photo">
               <a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.thumb_url || p.url)}" alt="${esc(p.caption || st || "Foto")}" loading="lazy" /></a>
               ${st ? `<span class="jd-photo__stage">${esc(st)}</span>` : ""}
-              ${p.in_portfolio ? '<span class="jd-photo__flag">Portfólio</span>' : ""}
-              <figcaption><span>${esc(p.caption || "")}</span>
-              ${canManage && !p.legacy ? `<button type="button" class="jd-photo__port" data-port="${esc(p.id)}" data-on="${p.in_portfolio ? "1" : "0"}" title="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${p.in_portfolio ? "★" : "☆"}</button>` : ""}</figcaption>
+              ${portBtn}
+              <figcaption><span>${esc(p.caption || "")}</span></figcaption>
               <div class="jd-photo__loc">${locBits.join("")}</div>
             </figure>`;
           })

@@ -41,6 +41,7 @@
 .jd-pill--progress { background: var(--jd-terra-soft); color: var(--jd-terra-d); border: 1px solid #f3cfb1; }
 .jd-pill--done { background: var(--jd-ink); color: #fff; }
 .jd-pill--canceled { background: #f6e3e0; color: #9b2c1f; }
+.jd-pill--delivery { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
 
 .jd-btn { height: 40px; padding: 0 15px; border-radius: 11px; border: 1px solid var(--jd-line); background: #fff; font: inherit; font-size: 13.5px; font-weight: 800; color: var(--jd-ink); display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; text-decoration: none; white-space: nowrap; }
 .jd-btn:hover { border-color: #d6c9b8; }
@@ -208,10 +209,18 @@
 .jd-photo__stage, .jd-photo__flag { position: absolute; top: 7px; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
 .jd-photo__stage { left: 7px; background: rgba(33, 29, 26, 0.78); color: #fff; }
 .jd-photo__flag { right: 7px; background: var(--jd-terra); color: #fff; }
+.jd-photo__port {
+  position: absolute; top: 7px; right: 7px; z-index: 2;
+  border: 0; background: rgba(33, 29, 26, 0.72); color: #fff;
+  font-size: 16px; line-height: 1; cursor: pointer;
+  width: 30px; height: 30px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.jd-photo__port:hover { background: rgba(33, 29, 26, 0.9); }
+.jd-photo__port[data-on="1"] { color: #fbbf24; background: rgba(33, 29, 26, 0.82); }
 .jd-photo figcaption { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 8px 6px 10px; font-size: 12.5px; color: var(--jd-ink-2); }
 .jd-photo figcaption span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jd-photo__port { border: 0; background: none; font-size: 17px; line-height: 1; color: var(--jd-terra); cursor: pointer; padding: 2px 4px; border-radius: 6px; }
-.jd-photo__port:hover { background: var(--jd-terra-soft); }
 .jd-photo__loc {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
   padding: 0 10px 8px; font-size: 11.5px; color: var(--jd-ink-2);

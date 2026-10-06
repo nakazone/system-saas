@@ -77,6 +77,7 @@
       lines: [],
       notes: "",
       attention: "",
+      needsDelivery: false,
       /** [{ id|null, text, photo, done }] — done is read-only here (the crew ticks it in Campo). */
       checklist: [],
       temps: [],
@@ -527,6 +528,10 @@
             <textarea id="jmAttention" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="2000" placeholder="Ex.: Proteger os degraus com papelão antes de começar."></textarea>
           </label>
           <p class="jm-hint">Aparece em destaque no ticket do funcionário e no Campo.</p>
+          <label class="jm-check">
+            <input type="checkbox" id="jmNeedsDelivery" />
+            <span><strong>Delivery</strong> — retirar material da obra</span>
+          </label>
           <div class="jm-ck" id="jmCk"></div>
         </section>
 
@@ -1004,6 +1009,7 @@
         <div><dt>Preços</dt><dd>${esc(customRates() ? "Personalizada" : TYPE_LABEL[st.sourceType] || "Particular")}</dd></div>
         <div><dt>Quando</dt><dd>${esc(whenLabel())}</dd></div>
         <div><dt>Setor</dt><dd>${esc(sectorLabel(st.sector))}</dd></div>
+        <div><dt>Delivery</dt><dd>${st.needsDelivery ? "Retirar material" : "—"}</dd></div>
         <div><dt>Equipe</dt><dd>${esc(assignee ? `${assignee.name || assignee.email}${others ? ` +${others}` : ""}` : "—")}</dd></div>
         <div><dt>Status</dt><dd>${esc(statusLbl)}</dd></div>
       </dl>
@@ -1061,6 +1067,7 @@
     renderTeam();
     $("jobNotes").value = st.notes;
     $("jmAttention").value = st.attention;
+    if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = Boolean(st.needsDelivery);
     renderChecklist();
     renderLockbox();
     renderSide();
@@ -1361,6 +1368,7 @@
     );
     st.notes = wo.notes || "";
     st.attention = wo.campo_attention || "";
+    st.needsDelivery = Boolean(wo.needs_delivery);
     st.checklist = Array.isArray(wo.campo_checklist)
       ? wo.campo_checklist.map((c) => ({ id: c.id, text: c.text, photo: Boolean(c.photo_required), done: Boolean(c.done) }))
       : [];
@@ -1389,6 +1397,7 @@
       address: st.address.trim() || null,
       notes: st.notes.trim() || null,
       campo_attention: st.attention.trim() || null,
+      needs_delivery: Boolean(st.needsDelivery),
       assigned_user_id: st.assigneeId || null,
       member_user_ids: members,
       line_items: st.lines
@@ -1424,7 +1433,9 @@
       schedule: ["scheduled_start", "scheduled_end", "sector", "related_work_order_id"],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
-      campo: checklistEnabled ? ["campo_attention", "campo_checklist"] : ["campo_attention"],
+      campo: checklistEnabled
+        ? ["campo_attention", "campo_checklist", "needs_delivery"]
+        : ["campo_attention", "needs_delivery"],
       notes: ["notes"],
     }[st.section];
     const out = {};
@@ -1812,6 +1823,9 @@
       case "jmAttention":
         st.attention = t.value;
         return;
+      case "jmNeedsDelivery":
+        st.needsDelivery = Boolean(t.checked);
+        return;
       case "jmClientQ":
         st.pickerQuery = t.value;
         renderPickerKeepFocus();
@@ -1912,6 +1926,10 @@
         return;
       case "jmTime":
         st.time = t.value;
+        renderSide();
+        return;
+      case "jmNeedsDelivery":
+        st.needsDelivery = Boolean(t.checked);
         renderSide();
         return;
       case "jmSector":

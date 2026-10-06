@@ -200,6 +200,7 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     client_short: shortClient(client),
     address: wo.address || "",
     notes: wo.notes,
+    needs_delivery: Boolean(wo.needsDelivery),
     attention,
     field_status: field,
     field_status_label: fieldStatusLabel(field),

@@ -220,6 +220,8 @@
     const m = L.marker([lat, lng], { icon }).addTo(map);
     const sourceLabel =
       source === "photo" ? "GPS da foto" : source === "site" ? "Local do job (GPS/fotos)" : "Endereço do job";
+    const tip = j.address || `#${j.number ?? ""} ${j.title || ""}`.trim() || sourceLabel;
+    m.bindTooltip(escapeHtml(tip), { direction: "top", opacity: 0.95 });
     m.bindPopup(
       `<strong>#${escapeHtml(String(j.number ?? ""))}</strong> · ${escapeHtml(proofLabel(j))}<br/>` +
         `${escapeHtml(j.title || "")}<br/>` +
@@ -244,6 +246,8 @@
     const m = L.marker([Number(photo.lat), Number(photo.lng)], { icon }).addTo(map);
     const dist = fmtDistance(photo.distance_m);
     const maps = `https://maps.google.com/?q=${encodeURIComponent(`${photo.lat},${photo.lng}`)}`;
+    const tip = j.address || `#${j.number ?? ""}`.trim() || "Foto";
+    m.bindTooltip(escapeHtml(tip), { direction: "top", opacity: 0.95 });
     m.bindPopup(
       `<strong>#${escapeHtml(String(j.number ?? ""))}</strong> · foto<br/>` +
         `${escapeHtml(stageLabel(photo.stage))} · ${escapeHtml(fmtWhen(photo.created_at))}<br/>` +

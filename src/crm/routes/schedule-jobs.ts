@@ -158,6 +158,7 @@ function mapWorkOrder(wo: {
   address: string | null;
   notes: string | null;
   campoAttention?: string | null;
+  needsDelivery?: boolean;
   campoChecklist?: unknown;
   assignedUserId: string | null;
   crewId: string | null;
@@ -222,6 +223,8 @@ function mapWorkOrder(wo: {
     notes: wo.notes,
     /** "Atenção" box shown to the field crew in Campo. */
     campo_attention: wo.campoAttention ?? null,
+    /** Pickup leftover material from the job site. */
+    needs_delivery: Boolean(wo.needsDelivery),
     /** null = no checklist set for this job (Campo falls back to the default template). */
     campo_checklist:
       Array.isArray(wo.campoChecklist) && (wo.campoChecklist as unknown[]).length
@@ -779,6 +782,7 @@ const workOrderBody = z.object({
   address: z.string().max(500).optional().nullable(),
   notes: z.string().max(8000).optional().nullable(),
   campo_attention: z.string().max(2000).optional().nullable(),
+  needs_delivery: z.boolean().optional(),
   /** Checklist set by the office; done/photos already recorded by the crew are kept by id. */
   campo_checklist: z
     .array(
@@ -858,6 +862,7 @@ scheduleJobsRouter.post(
           address: d.address?.trim() || null,
           notes: d.notes?.trim() || null,
           campoAttention: d.campo_attention?.trim() || null,
+          needsDelivery: d.needs_delivery === true,
           ...(d.campo_checklist?.length ? { campoChecklist: mergeOfficeChecklist(null, d.campo_checklist) } : {}),
           assignedUserId: d.assigned_user_id || null,
           crewId: d.crew_id || null,
@@ -1015,6 +1020,7 @@ scheduleJobsRouter.put(
             : {}),
           ...(d.notes !== undefined ? { notes: d.notes?.trim() || null } : {}),
           ...(d.campo_attention !== undefined ? { campoAttention: d.campo_attention?.trim() || null } : {}),
+          ...(d.needs_delivery !== undefined ? { needsDelivery: d.needs_delivery === true } : {}),
           ...(d.campo_checklist !== undefined
             ? {
                 campoChecklist: d.campo_checklist?.length

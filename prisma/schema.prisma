@@ -1638,6 +1638,8 @@ model WorkOrder {
   notes          String?   @db.Text
   /// Highlight for field workers (ATENÇÃO box)
   campoAttention String?   @db.Text
+  /// Pickup / delivery of leftover material from the job site
+  needsDelivery  Boolean   @default(false)
   /// [{ id, text, done }]
   campoChecklist Json?
   /// [{ id, url, createdAt }]
