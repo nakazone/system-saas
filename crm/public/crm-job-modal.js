@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261006-deliv2";
+  const CSS_HREF = "crm-job-modal.css?v=20261006-deliv3";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -539,7 +539,7 @@
           </label>
           <div class="jm-delivery" id="jmDeliveryBox" hidden>
             <label class="jm-field">Endereço da retirada
-              <input type="text" id="jmDeliveryPickup" class="jm-in" maxlength="500" placeholder="Onde pegar o material (pode ser diferente do job)" />
+              <span class="jm-inwrap"><input type="text" id="jmDeliveryPickup" class="jm-in" maxlength="500" autocomplete="off" placeholder="Onde pegar o material (pode ser diferente do job)" /></span>
             </label>
             <label class="jm-field">Notas / nº do PO
               <textarea id="jmDeliveryNotes" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="4000" placeholder="Ex.: PO 45821 — retirar sobras de madeira"></textarea>
@@ -1076,6 +1076,14 @@
     }
   }
 
+  function attachDeliveryAddressAutocomplete() {
+    const el = $("jmDeliveryPickup");
+    if (!el || !window.sfAttachAddressAutocomplete) return;
+    try {
+      window.sfAttachAddressAutocomplete(el, { map: { combined: el } });
+    } catch (_) {}
+  }
+
   function renderDeliveryBox() {
     const box = $("jmDeliveryBox");
     if (!box) return;
@@ -1103,6 +1111,7 @@
       if (nameEl) nameEl.textContent = "Nenhum arquivo";
       if (clearBtn) clearBtn.hidden = true;
     }
+    if (on) attachDeliveryAddressAutocomplete();
   }
 
   function readFileAsDataUrl(file) {
@@ -1269,6 +1278,7 @@
         window.sfAttachAddressAutocomplete($("jobAddress"), { map: { combined: $("jobAddress") } });
       } catch (_) {}
     }
+    attachDeliveryAddressAutocomplete();
     $("jobModalMain").scrollTop = 0;
     setTimeout(() => {
       if (st && !st.id && st.pickerOpen && window.matchMedia("(min-width: 901px)").matches) $("jmClientQ")?.focus();
@@ -1923,6 +1933,7 @@
         renderSide();
         return;
       case "jmDeliveryPickup":
+        // Address autocomplete writes the value without an input event.
         st.deliveryPickupAddress = t.value;
         renderSide();
         return;
@@ -2080,6 +2091,10 @@
         renderAddrHint();
         if (!st.titleTouched && !st.moreOpen) renderMore();
         return;
+      case "jmDeliveryPickup":
+        st.deliveryPickupAddress = t.value;
+        renderSide();
+        return;
       case "jmLead":
         st.assigneeId = t.value || null;
         renderTeam();
@@ -2227,7 +2242,11 @@
           return;
         }
         // Let the address suggestions close first.
-        if (document.activeElement?.id === "jobAddress" && document.querySelector(".crm-photon-ac:not([hidden]), .pac-container[style*='block']")) return;
+        if (
+          (document.activeElement?.id === "jobAddress" || document.activeElement?.id === "jmDeliveryPickup") &&
+          document.querySelector(".crm-photon-ac:not([hidden]), .pac-container[style*='block']")
+        )
+          return;
         close();
       }
     });
