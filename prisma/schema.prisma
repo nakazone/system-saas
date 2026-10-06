@@ -270,7 +270,7 @@ model OrgCatalogItem {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  /// service_category | unit | customer_type
+  /// service_category | unit | customer_type | payroll_payment_method
   kind           String
   key            String
   label          String

@@ -558,6 +558,34 @@
               </form>
             </section>
 
+            <!-- ---------- Folha de pagamento ---------- -->
+            <section class="cfg-section" data-section="folha" hidden>
+              <header class="cfg-head cfg-head--row">
+                <div>
+                  <h2 class="cfg-title">Folha de pagamento</h2>
+                  <p class="cfg-lead">Formas de pagar os funcionários (Zelle, dinheiro, PIX…). Aparecem no cadastro e na hora de pagar.</p>
+                </div>
+                <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgPayMethodAddBtn">+ Nova forma</button>
+              </header>
+              <article class="cfg-card cfg-card--flush">
+                <div class="cfg-table-wrap">
+                  <table class="cfg-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Nome</th>
+                        <th scope="col">Chave</th>
+                        <th scope="col">Descrição</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col"><span class="cfg-sr">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="cfgPayMethodsBody"><tr><td colspan="5"><div class="cfg-skeleton"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+              <p class="cfg-hint">Desative o que a empresa não usa. Para criar uma nova (ex.: PIX), use “Nova forma” — só o nome basta.</p>
+            </section>
+
             <!-- ---------- Regras de estimativa ---------- -->
             <section class="cfg-section" data-section="regras-estimativa" hidden>
               <header class="cfg-head">
@@ -837,6 +865,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261006-jobsck1"></script>
+  <script src="configuracoes.js?v=20261006-folha1"></script>
 </body>
 </html>

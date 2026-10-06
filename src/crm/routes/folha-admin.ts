@@ -13,6 +13,7 @@
  * PUT  /api/folha/semana/:periodId/ajustes/:empId   reembolso / desconto
  * POST /api/folha/pagamentos                        paga um ou vários funcionários → Financeiro
  * POST /api/folha/pagamentos/:id/estornar           estorna (anula no Financeiro)
+ * GET  /api/folha/formas-pagamento                  formas de pagamento ativas (Configurações › Folha)
  * GET/POST/PUT /api/folha/funcionarios              cadastro com horário padrão
  * GET  /api/folha/relatorio?from&to&employee_id&sector[&format=csv&kind=]  totais por funcionário, pagamentos, custo por job
  * GET  /api/folha/pagamentos?from&to                 histórico de pagamentos
@@ -41,6 +42,11 @@ import {
 import { storage } from "../../lib/storage/index.js";
 import { randomUUID } from "node:crypto";
 import { notifyUsersPush } from "../../lib/push/notify.js";
+import {
+  DEFAULT_PAYROLL_PAYMENT_METHODS,
+  PAYROLL_PAYMENT_METHOD_KIND,
+  payrollMethodLabel,
+} from "../../lib/settings/payroll-payment-methods.js";
 
 export const folhaAdminRouter = Router();
 
@@ -82,8 +88,21 @@ const STATUS_LABEL: Record<string, string> = {
   approved: "Aprovado",
   returned: "Devolvido",
 };
-export const PAY_METHODS = ["cash", "zelle", "check", "ach", "transfer", "other"] as const;
-const METHOD_LABEL: Record<string, string> = { cash: "Dinheiro", zelle: "Zelle", check: "Cheque", ach: "ACH", transfer: "Transferência", other: "Outro" };
+/** @deprecated Prefer catalog keys from Configurações › Folha; kept for imports/tests. */
+export const PAY_METHODS = DEFAULT_PAYROLL_PAYMENT_METHODS.map((m) => m.key);
+const payMethodField = z
+  .union([
+    z.literal(""),
+    z
+      .string()
+      .trim()
+      .max(40)
+      .regex(/^[a-z][a-z0-9_]*$/, "forma inválida"),
+  ])
+  .optional()
+  .nullable()
+  .transform((v) => (v == null || v === "" ? null : v));
+const methodLabel = (key: string | null | undefined) => payrollMethodLabel(key);
 
 const shiftInclude = {
   user: { select: { id: true, name: true } },
@@ -231,7 +250,7 @@ async function weekData(tx: PayrollTx, _organizationId: string, refYmd: string, 
         },
         adjustment: { reimbursement, discount, notes: adj?.notes || "" },
         payment: pay
-          ? { id: pay.id, amount: num(pay.amount), paid_on: ymd(pay.paidOn), method: pay.method, method_label: pay.method ? METHOD_LABEL[pay.method] || pay.method : null, reference: pay.reference }
+          ? { id: pay.id, amount: num(pay.amount), paid_on: ymd(pay.paidOn), method: pay.method, method_label: pay.method ? methodLabel(pay.method) : null, reference: pay.reference }
           : null,
       };
     })
@@ -795,7 +814,7 @@ const payBody = z.object({
   period_id: z.string().uuid(),
   employee_ids: z.array(z.string().uuid()).min(1).max(200),
   paid_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  method: z.enum(PAY_METHODS).optional().nullable(),
+  method: payMethodField,
   reference: z.string().max(120).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
   /** Pay even when some days are still waiting for review. */
@@ -884,7 +903,7 @@ folhaAdminRouter.post("/api/folha/pagamentos", requireCrmAuth, requireCrmPermiss
       if (!c.user_id) continue;
       void notifyUsersPush(req.organizationId!, [c.user_id], {
         title: `Pagamento: ${c.amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}`,
-        body: `${data.week}${c.method ? ` · ${METHOD_LABEL[c.method] || c.method}` : ""}`,
+        body: `${data.week}${c.method ? ` · ${methodLabel(c.method)}` : ""}`,
         url: "/campo/horas.html",
         tag: `pagamento-${c.employee_id}`,
       }).catch(() => {});
@@ -948,7 +967,7 @@ const employeeBody = z.object({
   daily_rate: z.number().min(0).max(100000).optional(),
   overtime_rate: z.number().min(0).max(10000).optional().nullable(),
   production_rate: z.number().min(0).max(1000).optional(),
-  payment_method: z.enum(PAY_METHODS).optional().nullable(),
+  payment_method: payMethodField,
   user_id: z.string().uuid().optional().nullable(),
   status: z.enum(["active", "inactive"]).optional(),
   schedule: z
@@ -999,7 +1018,51 @@ async function linkUser(tx: PayrollTx, userId: string | null | undefined, except
   return { userId };
 }
 
+async function ensurePayrollPaymentMethods(tx: PayrollTx, organizationId: string) {
+  const count = await tx.orgCatalogItem.count({ where: { kind: PAYROLL_PAYMENT_METHOD_KIND } });
+  if (count > 0) return;
+  for (const s of DEFAULT_PAYROLL_PAYMENT_METHODS) {
+    await tx.orgCatalogItem.create({
+      data: {
+        organizationId,
+        kind: PAYROLL_PAYMENT_METHOD_KIND,
+        key: s.key,
+        label: s.label,
+        description: s.description,
+        sortOrder: s.sortOrder,
+        active: true,
+        isSystem: true,
+      },
+    });
+  }
+}
+
+async function activePayrollMethods(tx: PayrollTx, organizationId: string) {
+  await ensurePayrollPaymentMethods(tx, organizationId);
+  return tx.orgCatalogItem.findMany({
+    where: { kind: PAYROLL_PAYMENT_METHOD_KIND, active: true },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+  });
+}
+
 const empInclude = { user: { select: { id: true, name: true, email: true } } } as const;
+
+folhaAdminRouter.get("/api/folha/formas-pagamento", requireCrmAuth, requireCrmPermission("payroll.view"), async (req: AuthedRequest, res, next) => {
+  try {
+    const rows = await withTenantTransaction(req.organizationId!, async (tx) => activePayrollMethods(tx, req.organizationId!));
+    res.json({
+      success: true,
+      data: rows.map((r) => ({
+        key: r.key,
+        label: r.label,
+        description: r.description,
+        sort_order: r.sortOrder,
+      })),
+    });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
 
 folhaAdminRouter.get("/api/folha/funcionarios", requireCrmAuth, requireCrmPermission("payroll.view"), async (req: AuthedRequest, res, next) => {
   try {
@@ -1168,7 +1231,7 @@ export async function reportData(tx: PayrollTx, f: ReportFilter) {
     employees: list,
     payments: payments
       .filter((p) => inSector(p.employeeId, p.sector))
-      .map((p) => ({ id: p.id, employee_id: p.employeeId, name: empById.get(p.employeeId)?.name || "—", sector: sectorOf(p.employeeId, p.sector), amount: num(p.amount), paid_on: ymd(p.paidOn), method: p.method, method_label: p.method ? METHOD_LABEL[p.method] || p.method : null, reference: p.reference, week: p.period.label, week_start: ymd(p.period.startDate) })),
+      .map((p) => ({ id: p.id, employee_id: p.employeeId, name: empById.get(p.employeeId)?.name || "—", sector: sectorOf(p.employeeId, p.sector), amount: num(p.amount), paid_on: ymd(p.paidOn), method: p.method, method_label: p.method ? methodLabel(p.method) : null, reference: p.reference, week: p.period.label, week_start: ymd(p.period.startDate) })),
     jobs: jobList,
   };
 }

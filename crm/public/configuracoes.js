@@ -99,13 +99,19 @@
     },
     {
       group: "Operações",
-      desc: "Jobs e Campo",
+      desc: "Jobs, Campo e Folha",
       items: [
         {
           id: "jobs",
           label: "Jobs",
           perm: "settings.manage",
           keywords: "job checklist campo ticket lista exibir desativar",
+        },
+        {
+          id: "folha",
+          label: "Folha de pagamento",
+          perm: "settings.manage",
+          keywords: "folha pagamento funcionario zelle dinheiro cheque ach transferencia pix forma",
         },
       ],
     },
@@ -166,6 +172,7 @@
     ["Automações de Leads", "automacoes-leads", "la_auto_stage"],
     ["Dias Quote Sent → Follow-up", "automacoes-leads", "la_days"],
     ["Exibir checklist", "jobs", "jobs_checklist_enabled"],
+    ["Formas de pagamento da folha", "folha", "cfgPayMethodsBody"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
     ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
     ["Cargos", "cargos", "cfgRolesBody"],
@@ -557,6 +564,7 @@
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Automações de Leads", desc: "Mover Quote Sent → Follow-up automaticamente", href: "#automacoes-leads", perm: "settings.manage" },
     { title: "Jobs", desc: "Checklist e opções do Campo", href: "#jobs", perm: "settings.manage" },
+    { title: "Folha de pagamento", desc: "Formas de pagar funcionários", href: "#folha", perm: "settings.manage" },
     { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
     { title: "Tipos de cliente", desc: "Particular, Builder, Loja e tipos personalizados", href: "#tipos-cliente", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
@@ -2507,6 +2515,7 @@
     service_category: null,
     unit: null,
     customer_type: null,
+    payroll_payment_method: null,
   };
 
   function openCfgModal(id) {
@@ -2720,6 +2729,7 @@
       service_category: item ? "Editar categoria" : "Nova categoria",
       unit: item ? "Editar unidade" : "Nova unidade",
       customer_type: item ? "Editar tipo de cliente" : "Novo tipo de cliente",
+      payroll_payment_method: item ? "Editar forma de pagamento" : "Nova forma de pagamento",
     };
     $("cfgCatalogModalTitle").textContent = titles[kind] || (item ? "Editar" : "Novo");
     $("cfgCatalogFormSubmit").textContent = "Guardar";
@@ -2757,6 +2767,7 @@
       closeCfgModal("cfgCatalogModal");
       if (kind === "service_category") await loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
       else if (kind === "customer_type") await loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
+      else if (kind === "payroll_payment_method") await loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");
       else await loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     } catch (ex) {
       err.textContent = ex.message || "Erro ao guardar.";
@@ -2779,6 +2790,7 @@
       notify(item.is_system ? "Item desativado" : "Item removido", "success");
       if (kind === "service_category") await loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
       else if (kind === "customer_type") await loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
+      else if (kind === "payroll_payment_method") await loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");
       else await loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     } catch (ex) {
       notify(ex.message || "Não foi possível remover", "error");
@@ -2791,6 +2803,7 @@
     $("cfgCatAddBtn")?.addEventListener("click", () => openCatalogEditor("service_category", null));
     $("cfgUnitAddBtn")?.addEventListener("click", () => openCatalogEditor("unit", null));
     $("cfgCustTypeAddBtn")?.addEventListener("click", () => openCatalogEditor("customer_type", null));
+    $("cfgPayMethodAddBtn")?.addEventListener("click", () => openCatalogEditor("payroll_payment_method", null));
     $("cfgCatalogForm")?.addEventListener("submit", submitCatalogForm);
 
     document.addEventListener("click", (e) => {
@@ -2838,6 +2851,7 @@
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
     if (id === "unidades") return loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     if (id === "tipos-cliente") return loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
+    if (id === "folha") return loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");
     if (id === "app") return syncInstalledNote();
     if (id === "suporte" && !loaded.has("suporte")) {
       loaded.add("suporte");

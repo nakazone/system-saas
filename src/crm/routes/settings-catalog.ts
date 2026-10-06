@@ -7,17 +7,21 @@
  *   PUT    /api/settings/catalog/:kind/:id      settings.manage
  *   DELETE /api/settings/catalog/:kind/:id      settings.manage
  *
- * kind = service_category | unit | customer_type
+ * kind = service_category | unit | customer_type | payroll_payment_method
  */
 import { Router } from "express";
 import { z } from "zod";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
+import {
+  DEFAULT_PAYROLL_PAYMENT_METHODS,
+  PAYROLL_PAYMENT_METHOD_KIND,
+} from "../../lib/settings/payroll-payment-methods.js";
 
 export const settingsCatalogRouter = Router();
 
-const KINDS = new Set(["service_category", "unit", "customer_type"]);
+const KINDS = new Set(["service_category", "unit", "customer_type", PAYROLL_PAYMENT_METHOD_KIND]);
 
 const DEFAULTS: Record<string, Array<{ key: string; label: string; description?: string; sortOrder: number }>> = {
   service_category: [
@@ -39,6 +43,12 @@ const DEFAULTS: Record<string, Array<{ key: string; label: string; description?:
     { key: "builder", label: "Builder", description: "Builders e contractors (cadastro unificado)", sortOrder: 20 },
     { key: "loja", label: "Loja", description: "Loja / retail partner", sortOrder: 30 },
   ],
+  [PAYROLL_PAYMENT_METHOD_KIND]: DEFAULT_PAYROLL_PAYMENT_METHODS.map((m) => ({
+    key: m.key,
+    label: m.label,
+    description: m.description,
+    sortOrder: m.sortOrder,
+  })),
 };
 
 function slugify(raw: string): string {
@@ -126,7 +136,7 @@ settingsCatalogRouter.get(
     try {
       const kind = parseKind(req.params.kind);
       if (!kind) {
-        res.status(400).json({ success: false, error: "Tipo inválido (use service_category, unit ou customer_type)" });
+        res.status(400).json({ success: false, error: "Tipo inválido" });
         return;
       }
       const isAdmin = req.user?.roleKey === "admin";
@@ -136,7 +146,9 @@ settingsCatalogRouter.get(
         perms.includes("settings.manage") ||
         perms.includes("quotes.view") ||
         perms.includes("quotes.edit") ||
-        perms.includes("customers.view");
+        perms.includes("customers.view") ||
+        perms.includes("payroll.view") ||
+        perms.includes("payroll.manage");
       if (!allowed) {
         res.status(403).json({ success: false, error: "Sem permissão" });
         return;
@@ -164,7 +176,7 @@ settingsCatalogRouter.post(
     try {
       const kind = parseKind(req.params.kind);
       if (!kind) {
-        res.status(400).json({ success: false, error: "Tipo inválido (use service_category, unit ou customer_type)" });
+        res.status(400).json({ success: false, error: "Tipo inválido" });
         return;
       }
       const parsed = itemSchema.safeParse(req.body || {});

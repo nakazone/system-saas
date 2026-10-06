@@ -7,7 +7,7 @@
   "use strict";
   const $ = (id) => document.getElementById(id);
   const SECTORS = { installation: "Instalação", sand_finish: "Lixa" };
-  const METHODS = [
+  let METHODS = [
     ["zelle", "Zelle"],
     ["cash", "Dinheiro"],
     ["check", "Cheque"],
@@ -15,7 +15,19 @@
     ["transfer", "Transferência"],
     ["other", "Outro"],
   ];
-  const METHOD_LABEL = Object.fromEntries(METHODS);
+  let METHOD_LABEL = Object.fromEntries(METHODS);
+
+  async function loadPayMethods() {
+    try {
+      const j = await api("/api/folha/formas-pagamento");
+      const rows = Array.isArray(j?.data) ? j.data : [];
+      if (!rows.length) return;
+      METHODS = rows.map((r) => [r.key, r.label || r.key]);
+      METHOD_LABEL = Object.fromEntries(METHODS);
+    } catch (_) {
+      /* keep built-in fallback */
+    }
+  }
   const TABS = ["semana", "conferir", "pagamentos", "relatorios", "funcionarios"];
 
   const st = {
@@ -1454,6 +1466,7 @@
     } catch (_) {
       /* the shell redirects to login */
     }
+    await loadPayMethods();
     if (!st.manage) document.querySelectorAll("[data-manage]").forEach((el) => (el.hidden = true));
     // Overlays live on <body>: inside the main column they sit under the app's bottom nav.
     ["foScrim", "foSheet", "foPayBar"].forEach((id) => document.body.appendChild($(id)));
