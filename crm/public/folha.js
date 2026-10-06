@@ -42,13 +42,9 @@
     pendSel: new Set(),
     emps: null,
     empSearch: "",
-    entryDate: null,
-    calMonth: null,
-    calOpen: false,
-    entry: {
-      installation: { empId: "", days: 1, ot: "" },
-      sand_finish: { empId: "", days: 1, ot: "" },
-    },
+    q: "",
+    quick: { empId: "", dates: new Set(), days: 1, ot: 0, open: false, touched: false },
+    quickSheet: false,
     report: null,
     rep: { preset: "year", from: null, to: null, employee: "", sector: "" },
     pays: null,
@@ -146,6 +142,7 @@
     document.querySelectorAll("#foRoot [data-panel]").forEach((p) => (p.hidden = p.getAttribute("data-panel") !== tab));
     renderPayBar();
     writeHash();
+    if ($("foHdWeek")) $("foHdWeek").hidden = tab !== "semana" || !st.week;
     if (tab === "semana") loadWeek();
     else if (tab === "conferir") loadPend();
     else if (tab === "pagamentos") loadPays();
@@ -154,28 +151,22 @@
   }
 
   // ------------------------------------------------------------ semana
-  function defaultEntryDate(w) {
-    const today = w.week.today;
-    if (today >= w.week.start && today <= w.week.end) return today;
-    return w.week.end < today ? w.week.end : w.week.start;
-  }
   async function loadWeek() {
     const box = $("foSemana");
     if (!st.week) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
     try {
       const j = await api(`/api/folha/semana${st.weekRef ? `?week=${st.weekRef}` : ""}`);
+      const changed = !st.week || st.week.week.start !== j.data.week.start;
       st.week = j.data;
       st.weekRef = j.data.week.start;
-      if (!st.entryDate || st.entryDate < j.data.week.start || st.entryDate > j.data.week.end) {
-        st.entryDate = defaultEntryDate(j.data);
-      }
-      if (!st.calMonth) st.calMonth = st.entryDate.slice(0, 7);
+      if (changed) st.quick.dates = new Set();
       // Drop selections that are no longer payable.
       for (const id of [...st.selected]) {
         const e = j.data.employees.find((x) => x.id === id);
         if (!e || e.payment || e.totals.net <= 0) st.selected.delete(id);
       }
       await ensureEmps().catch(() => null);
+      quickDefaults();
       renderWeek();
       writeHash();
       refreshPendCount(j.data);
@@ -198,7 +189,8 @@
   }
   function weekRows() {
     const rows = st.week ? st.week.employees : [];
-    return st.sector === "all" ? rows : rows.filter((r) => r.sector === st.sector);
+    const q = st.q.trim().toLowerCase();
+    return rows.filter((r) => (st.sector === "all" || r.sector === st.sector) && (!q || r.name.toLowerCase().includes(q)));
   }
   function empStatus(r) {
     if (r.payment) return `<span class="fo-pill fo-pill--paid">Pago ${esc(brShort(r.payment.paid_on))}${r.payment.method_label ? ` · ${esc(r.payment.method_label)}` : ""}</span>`;
@@ -211,22 +203,24 @@
     return st.manage && !r.payment && r.totals.net > 0 && st.week && st.week.period;
   }
   function dayRows(r) {
-    if (!r.days.length) return '<div class="fo-empty" style="padding:10px">Nenhum dia nesta semana.</div>';
+    if (!r.days.length) return '<div class="fo-empty" style="padding:10px">Nenhum dia neste ciclo.</div>';
     return r.days
       .map((d) => {
         const time = d.kind === "line" ? "Escritório" : d.clock_in_label ? `${d.clock_in_label}–${d.clock_out_label || "…"}` : "—";
         const ot = d.overtime_minutes ? ` <span class="fo-tag">+${hm(d.overtime_minutes)} extra</span>` : "";
-        // Alerts matter while the day waits for review; once approved only "lançado pelo escritório" stays visible.
+        const dw = Number(d.days_worked);
+        const dwTag = dw && dw !== 1 ? ` <span class="fo-tag">${dw === 0.5 ? "½ diária" : `${qty(dw)} diárias`}</span>` : "";
+        // Alerts matter while the day waits for review; once approved only "lançado à mão" stays visible.
         const flags =
           d.status !== "approved" && (d.flags || []).length
             ? `<span class="fo-flag" title="${esc(d.flags.map((f) => f.label).join(" · "))}">${d.flags.length} alerta${d.flags.length > 1 ? "s" : ""}</span>`
             : d.source === "manual"
-              ? '<span class="fo-tag">Lançado à mão</span>'
+              ? '<span class="fo-tag">Lançado pelo escritório</span>'
               : "";
         return `<div class="fo-day" data-day="${esc(d.id)}" data-kind="${d.kind}" role="button" tabindex="0">
           <span class="fo-day__d">${esc(d.date_label)}</span>
           <span class="fo-day__t">${esc(time)}${d.worked_minutes ? ` · ${hm(d.worked_minutes)}` : ""}</span>
-          <span class="fo-day__j">${d.kind === "line" ? `<span>${esc(d.note || "Lançado na grade")}</span>` : jobsShort(d.jobs)}${ot}${flags}</span>
+          <span class="fo-day__j">${d.kind === "line" ? `<span>${esc(d.note || "Lançado na grade")}</span>` : jobsShort(d.jobs)}${dwTag}${ot}${flags}</span>
           <span class="fo-day__p">${d.kind === "line" ? '<span class="fo-pill fo-pill--muted">Grade</span>' : statusPill(d)}</span>
           <span class="fo-day__v">${money(d.amount)}</span>
         </div>`;
@@ -238,115 +232,199 @@
     if (n === 2) return "2 diárias (Double)";
     return "1 diária";
   }
-  function entryPreview(sector) {
-    const slot = st.entry[sector] || { empId: "", days: 1, ot: "" };
-    const days = Number(slot.days) === 0.5 || Number(slot.days) === 2 ? Number(slot.days) : 1;
-    const otMin = slot.ot === "" || slot.ot == null ? 0 : Math.max(0, Math.round(Number(slot.ot) || 0));
-    const emp = ((st.emps && st.emps.employees) || []).find((e) => e.id === slot.empId);
-    const parts = [daysLabel(days)];
-    if (otMin) parts.push(`+${hm(otMin)} extra`);
-    let estimate = "";
-    if (emp && emp.pay_type !== "production") {
-      const daily = Number(emp.daily_rate) || 0;
-      const otRate = Number(emp.overtime_rate) || 0;
-      const amt = daily * days + otRate * (otMin / 60);
-      estimate = money(amt);
-    }
-    return { days, otMin, parts: parts.join(" · "), estimate };
+  const WD = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  const WD1 = ["D", "S", "T", "Q", "Q", "S", "S"];
+  const wdOf = (ymd) => new Date(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10))).getDay();
+  /** Every date of the current cycle (weekly, biweekly, semi-monthly or monthly). */
+  function cycleDays() {
+    const w = st.week && st.week.week;
+    if (!w) return [];
+    const out = [];
+    for (let d = w.start; d <= w.end && out.length < 31; d = addDays(d, 1)) out.push(d);
+    return out;
   }
-  function renderCycleCal(w) {
-    const mk = st.calMonth || w.week.start.slice(0, 7);
-    const [cy, cm] = mk.split("-").map(Number);
-    const first = new Date(cy, cm - 1, 1);
-    const startPad = first.getDay();
-    const daysInMonth = new Date(cy, cm, 0).getDate();
-    const monthLabel = first.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-    const dow = ["D", "S", "T", "Q", "Q", "S", "S"].map((x) => `<span>${x}</span>`).join("");
-    const cells = [];
-    for (let i = 0; i < startPad; i++) cells.push('<span class="fo-cal__blank"></span>');
-    for (let d = 1; d <= daysInMonth; d++) {
-      const y = `${cy}-${pad(cm)}-${pad(d)}`;
-      const inPeriod = y >= w.week.start && y <= w.week.end;
-      const isPay = y === w.week.pay_on;
-      const isSel = y === st.entryDate;
-      const isToday = y === w.week.today;
-      const future = y > w.week.today;
-      cells.push(
-        `<button type="button" class="fo-cal__d${inPeriod ? " is-period" : ""}${isSel ? " is-sel" : ""}${isToday ? " is-today" : ""}${isPay ? " is-pay" : ""}" data-cal-day="${y}"${future ? " disabled" : ""} aria-label="${brDate(y)}"${isSel ? ' aria-current="date"' : ""}>${d}</button>`,
-      );
-    }
-    return `<div class="fo-cal" aria-label="Calendário do ciclo">
-      <div class="fo-cal__hd">
-        <button type="button" class="fo-ic" data-cal-month="-1" aria-label="Mês anterior">‹</button>
-        <b>${esc(monthLabel)}</b>
-        <button type="button" class="fo-ic" data-cal-month="1" aria-label="Próximo mês">›</button>
-      </div>
-      <div class="fo-cal__dow">${dow}</div>
-      <div class="fo-cal__grid">${cells.join("")}</div>
-      <p class="fo-cal__leg"><span class="fo-cal__swatch is-period"></span> Ciclo${w.week.pay_on_label ? ` · <span class="fo-cal__swatch is-pay"></span> Paga ${esc(w.week.pay_on_label)}` : ""}</p>
-    </div>`;
+  const dayFrac = (n) => (Number(n) === 0.5 ? "½" : qty(n));
+
+  // ---------- quick launch (one bar on desktop, a sheet on the phone)
+  function launchEmps() {
+    return ((st.emps && st.emps.employees) || []).filter((e) => e.status === "active" && e.pay_type !== "production");
   }
-  function renderCalPopover(w) {
-    const date = st.entryDate || defaultEntryDate(w);
-    return `<div class="fo-calwrap">
-      <button type="button" class="fo-cal-trigger" data-cal-toggle aria-expanded="${st.calOpen}" aria-controls="foCalPop">
-        <span class="fo-cal-trigger__ico" aria-hidden="true">▦</span>
-        <span><b>${esc(brDate(date))}</b><small>Data do lançamento</small></span>
-        <span class="fo-cal-trigger__chev" aria-hidden="true">${st.calOpen ? "▴" : "▾"}</span>
-      </button>
-      <div class="fo-cal-pop" id="foCalPop" ${st.calOpen ? "" : "hidden"}>${renderCycleCal(w)}</div>
-    </div>`;
+  function quickEmp() {
+    return launchEmps().find((e) => e.id === st.quick.empId) || null;
   }
-  function renderEntryBar(sector) {
-    const label = SECTORS[sector];
-    const slot = st.entry[sector] || { empId: "", days: 1, ot: "" };
-    const emps = ((st.emps && st.emps.employees) || [])
-      .filter((e) => e.status === "active" && (e.sector || "installation") === sector && e.pay_type !== "production")
-      .sort((a, b) => a.name.localeCompare(b.name, "pt"));
-    const date = st.entryDate || ymdOf(new Date());
-    const prev = entryPreview(sector);
-    const ot = slot.ot === "" || slot.ot == null ? "" : String(slot.ot);
-    return `<div class="fo-entry__bar" data-entry-sector="${sector}">
-      <div class="fo-entry__hd"><b>${esc(label)}</b><small>Lançar diária</small></div>
-      <label class="fo-field fo-entry__emp"><span>Nome</span><select class="fo-sel" data-entry-emp aria-label="Funcionário ${esc(label)}"><option value="">Escolha…</option>${emps
-        .map((e) => `<option value="${esc(e.id)}"${slot.empId === e.id ? " selected" : ""}>${esc(e.name)}</option>`)
-        .join("")}</select></label>
-      <label class="fo-field fo-entry__date"><span>Data</span><input type="date" class="fo-in" data-entry-date value="${esc(date)}" max="${ymdOf(new Date())}" aria-label="Data" /></label>
-      <div class="fo-entry__group">
-        <div class="fo-entry__lab"><span>Diária</span><strong data-entry-days-lab>${esc(daysLabel(prev.days))}</strong></div>
-        <div class="fo-entry__chips" role="group" aria-label="Diária">
-          <button type="button" class="fo-chip" data-entry-days="0.5" aria-pressed="${prev.days === 0.5}">½ dia</button>
-          <button type="button" class="fo-chip" data-entry-days="1" aria-pressed="${prev.days === 1}">1 diária</button>
-          <button type="button" class="fo-chip" data-entry-days="2" aria-pressed="${prev.days === 2}" title="Duas diárias no mesmo dia">Double</button>
-        </div>
-      </div>
-      <div class="fo-entry__group">
-        <div class="fo-entry__lab"><span>Horas extras</span><strong data-entry-ot-lab>${prev.otMin ? `+${hm(prev.otMin)}` : "Nenhuma"}</strong></div>
-        <div class="fo-entry__chips" role="group" aria-label="Horas extras">
-          <button type="button" class="fo-chip" data-entry-ot="30">+½ h</button>
-          <button type="button" class="fo-chip" data-entry-ot="60">+1 h</button>
-          <button type="button" class="fo-chip" data-entry-ot-clear${ot === "" ? " hidden" : ""}>Limpar</button>
-        </div>
-      </div>
-      <div class="fo-entry__sum" data-entry-sum>
-        <small>Resumo</small>
-        <b>${esc(prev.parts)}</b>
-        ${prev.estimate ? `<span>${esc(prev.estimate)}</span>` : '<span class="fo-muted">escolha o nome</span>'}
-      </div>
-      ${st.manage ? '<button type="button" class="fo-btn fo-btn--pri fo-entry__go" data-entry-go>Lançar</button>' : ""}
-    </div>`;
+  /** Dates the chosen employee already has in this cycle (can't launch twice). */
+  function takenDates(empId) {
+    const r = st.week && st.week.employees.find((x) => x.id === empId);
+    return new Set(r ? r.days.map((d) => d.date) : []);
   }
-  function renderEntryBars() {
+  function quickDefaults() {
+    const q = st.quick;
+    const taken = takenDates(q.empId);
+    for (const d of [...q.dates]) if (taken.has(d)) q.dates.delete(d);
+    const w = st.week && st.week.week;
+    if (w && !q.dates.size && !q.touched && w.today >= w.start && w.today <= w.end && !taken.has(w.today)) q.dates.add(w.today);
+  }
+  function quickDatesLabel() {
+    const ds = [...st.quick.dates].sort();
+    if (!ds.length) return "Escolha os dias";
+    const one = (d) => `${WD[wdOf(d)].replace(/^./, (c) => c.toUpperCase())} ${d.slice(8, 10)}`;
+    if (ds.length === 1) return one(ds[0]) + (st.week && ds[0] === st.week.week.today ? " · hoje" : "");
+    if (ds.length === 2) return `${one(ds[0])} e ${one(ds[1])}`;
+    return `${ds.length} dias`;
+  }
+  function quickTotal() {
+    const e = quickEmp();
+    const q = st.quick;
+    const n = q.dates.size;
+    if (!e || !n) return null;
+    return n * ((Number(e.daily_rate) || 0) * q.days + (Number(e.overtime_rate) || 0) * (q.ot / 60));
+  }
+  function quickGoLabel() {
+    const n = st.quick.dates.size;
+    const tot = quickTotal();
+    const what = n > 1 ? `Lançar ${n} dias` : "Lançar";
+    return tot != null ? `${what} · ${money(tot)}` : what;
+  }
+  function quickHint() {
+    const e = quickEmp();
+    if (!e) return "entra aprovada, no horário padrão do funcionário";
+    const s = e.schedule || {};
+    const hours = s.start_time && s.end_time ? ` · ${s.start_time}–${s.end_time}` : "";
+    return `${SECTORS[e.sector] || "Instalação"} · diária ${money0(e.daily_rate)}${e.overtime_rate ? ` · extra ${money0(e.overtime_rate)}/h` : ""}${hours}`;
+  }
+  function quickDaysGrid() {
+    const days = cycleDays();
+    const w = st.week.week;
+    const taken = takenDates(st.quick.empId);
+    // Leading blanks so columns line up by weekday when the cycle doesn't start on Monday.
+    const lead = (wdOf(days[0] || w.start) + 6) % 7;
+    const blanks = Array.from({ length: lead }, () => '<span class="fo-qd__blank"></span>').join("");
+    const head = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"].map((x) => `<span>${x}</span>`).join("");
+    return `<div class="fo-qd__dow">${head}</div><div class="fo-qd">${blanks}${days
+      .map((d) => {
+        const fut = d > w.today;
+        const has = taken.has(d);
+        const on = st.quick.dates.has(d);
+        return `<button type="button" class="fo-qd__d${on ? " is-on" : ""}${has ? " is-has" : ""}${d === w.today ? " is-today" : ""}" data-q-date="${d}" ${fut || has ? "disabled" : ""} aria-pressed="${on}" title="${esc(brDate(d))}${has ? " · já lançado" : fut ? " · data futura" : ""}"><small>${WD[wdOf(d)]}</small>${Number(d.slice(8, 10))}</button>`;
+      })
+      .join("")}</div>`;
+  }
+  function quickEmpOptions() {
+    const emps = launchEmps();
+    const grp = (sec) => {
+      const list = emps.filter((e) => (e.sector || "installation") === sec).sort((a, b) => a.name.localeCompare(b.name, "pt"));
+      return list.length
+        ? `<optgroup label="${esc(SECTORS[sec])}">${list.map((e) => `<option value="${esc(e.id)}"${st.quick.empId === e.id ? " selected" : ""}>${esc(e.name)} · ${money0(e.daily_rate)}</option>`).join("")}</optgroup>`
+        : "";
+    };
+    return `<option value="">Escolha o funcionário…</option>${grp("installation")}${grp("sand_finish")}`;
+  }
+  function quickSeg() {
+    const d = st.quick.days;
+    const b = (v, l) => `<button type="button" data-q-days="${v}" aria-pressed="${d === v}">${l}</button>`;
+    return `<div class="fo-qseg" role="group" aria-label="Diária">${b(0.5, "½ dia")}${b(1, "1 diária")}${b(2, "Double")}</div>`;
+  }
+  function quickStepper() {
+    const ot = st.quick.ot;
+    return `<div class="fo-qstep" role="group" aria-label="Hora extra"><button type="button" data-q-ot="-30" aria-label="Menos meia hora" ${ot ? "" : "disabled"}>−</button><b>${ot ? `+${hm(ot)}` : "0h"}</b><button type="button" data-q-ot="30" aria-label="Mais meia hora">+</button></div>`;
+  }
+  function renderQuickBar() {
     if (!st.manage) return "";
-    return `<div class="fo-entry" id="foEntryBars">
-      ${renderEntryBar("installation")}
-      ${renderEntryBar("sand_finish")}
+    const ready = st.quick.empId && st.quick.dates.size;
+    return `<div class="fo-quick" id="foQuick">
+      <div class="fo-quick__hd"><b>Lançar diária</b><span data-q-hint>${esc(quickHint())}</span></div>
+      <div class="fo-quick__row">
+        <label class="fo-qf fo-qf--emp"><small>Funcionário</small><select class="fo-sel" data-q-emp>${quickEmpOptions()}</select></label>
+        <div class="fo-qf fo-qf--days"><small>Dias</small>
+          <button type="button" class="fo-qdates" data-q-dates aria-expanded="${st.quick.open}"><span>${esc(quickDatesLabel())}</span><i aria-hidden="true">▾</i></button>
+          <div class="fo-qpop" ${st.quick.open ? "" : "hidden"}>${quickDaysGrid()}<p>Marque vários dias para lançar de uma vez. Dias já lançados ficam bloqueados.</p></div>
+        </div>
+        <div class="fo-qf"><small>Diária</small>${quickSeg()}</div>
+        <div class="fo-qf"><small>Hora extra</small>${quickStepper()}</div>
+        <button type="button" class="fo-btn fo-btn--pri fo-quick__go" data-q-go ${ready ? "" : "disabled"}>${esc(quickGoLabel())}</button>
+      </div>
     </div>`;
   }
+  function quickSheetBody() {
+    const emps = launchEmps();
+    const chips = (sec) => {
+      const list = emps.filter((e) => (e.sector || "installation") === sec).sort((a, b) => a.name.localeCompare(b.name, "pt"));
+      return list.length
+        ? `<div class="fo-qchips"><span>${esc(SECTORS[sec])}</span>${list.map((e) => `<button type="button" class="fo-chip" data-q-pick="${esc(e.id)}" aria-pressed="${st.quick.empId === e.id}">${esc(e.name.split(" ")[0])}${list.filter((x) => x.name.split(" ")[0] === e.name.split(" ")[0]).length > 1 ? " " + esc((e.name.split(" ")[1] || "").slice(0, 1)) + "." : ""}</button>`).join("")}</div>`
+        : "";
+    };
+    return `<div class="fo-box"><h3>Funcionário</h3>${chips("installation")}${chips("sand_finish")}${emps.length ? `<p class="fo-qhint" data-q-hint>${esc(quickHint())}</p>` : '<p class="fo-muted">Nenhum funcionário de diária ativo. Cadastre em Funcionários.</p>'}</div>
+      <div class="fo-box"><h3>Dias do ciclo <small>${esc(st.week.week.label)}</small></h3>${quickDaysGrid()}</div>
+      <div class="fo-box"><h3>Diária</h3>${quickSeg()}<div class="fo-qot"><b>Hora extra</b>${quickStepper()}</div></div>`;
+  }
+  function openQuickSheet() {
+    openSheet(
+      `${sheetHead("Lançar diária", "Entra aprovada, no horário padrão do funcionário")}
+      <div class="fo-sheet__bd" id="foQuickSheet">${quickSheetBody()}</div>
+      <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--pri fo-quick__go" data-q-go ${st.quick.empId && st.quick.dates.size ? "" : "disabled"}>${esc(quickGoLabel())}</button></footer>`,
+      () => {
+        st.quickSheet = false;
+      },
+    );
+    st.quickSheet = true;
+  }
+  /** Re-render only the launch controls (keeps the table and focus as they are). */
+  function refreshQuick() {
+    quickDefaults();
+    const bar = $("foQuick");
+    if (bar) {
+      const keepOpen = st.quick.open;
+      bar.outerHTML = renderQuickBar();
+      if (keepOpen) $("foQuick")?.querySelector("[data-q-dates]")?.focus({ preventScroll: true });
+    }
+    if (st.quickSheet && !$("foSheet").hidden) {
+      const bd = $("foQuickSheet");
+      if (bd) bd.innerHTML = quickSheetBody();
+      const go = $("foSheet").querySelector("[data-q-go]");
+      if (go) {
+        go.disabled = !(st.quick.empId && st.quick.dates.size);
+        go.textContent = quickGoLabel();
+      }
+    }
+  }
+  async function quickGo(btn) {
+    const q = st.quick;
+    const dates = [...q.dates].sort();
+    if (!q.empId || !dates.length) return notify("Escolha o funcionário e os dias.", "error");
+    const base = { employee_id: q.empId, days_worked: q.days };
+    if (q.ot) base.overtime_minutes = q.ot;
+    btn.disabled = true;
+    btn.textContent = "Lançando…";
+    try {
+      const name = (quickEmp() || {}).name || "";
+      if (dates.length === 1) {
+        await api("/api/folha/dias", { method: "POST", body: JSON.stringify({ ...base, date: dates[0] }) });
+        notify(`${name}: diária lançada.`, "success");
+      } else {
+        const j = await api("/api/folha/dias/lote", { method: "POST", body: JSON.stringify({ ...base, dates }) });
+        const r = j.data || {};
+        const bad = (r.results || []).filter((x) => !x.ok);
+        notify(bad.length ? `${r.created} de ${r.total} dias lançados. ${bad.map((x) => `${brShort(x.date)}: ${x.error}`).join(" · ")}` : `${name}: ${r.created} dias lançados.`, bad.length ? "info" : "success");
+      }
+      st.quick = { empId: "", dates: new Set(), days: 1, ot: 0, open: false, touched: false };
+      if (st.quickSheet) {
+        st.quickSheet = false;
+        closeSheet();
+      }
+      loadWeek();
+    } catch (e) {
+      notify(e.message, "error");
+      btn.disabled = false;
+      btn.textContent = quickGoLabel();
+    }
+  }
+
+  // ---------- list
   function sumRows(rows) {
     return {
       days: rows.reduce((s, r) => s + (Number(r.totals.days) || 0), 0),
       overtime_minutes: rows.reduce((s, r) => s + (Number(r.totals.overtime_minutes) || 0), 0),
+      overtime_amount: rows.reduce((s, r) => s + ((Number(r.totals.overtime_minutes) || 0) / 60) * (Number(r.overtime_rate) || 0), 0),
       sqft: rows.reduce((s, r) => s + (Number(r.totals.sqft) || 0), 0),
       gross: rows.reduce((s, r) => s + (Number(r.totals.gross) || 0), 0),
       net: rows.reduce((s, r) => s + (Number(r.totals.net) || 0), 0),
@@ -356,92 +434,137 @@
       employees: rows.length,
     };
   }
+  function weekStrip(r) {
+    const days = cycleDays();
+    const by = new Map(r.days.map((d) => [d.date, d]));
+    const today = st.week.week.today;
+    const small = days.length > 8;
+    return `<span class="fo-strip${small ? " fo-strip--sm" : ""}">${days
+      .map((d) => {
+        const x = by.get(d);
+        const n = x ? Number(x.days_worked) || (x.kind === "line" ? 1 : 0) : 0;
+        const cls = !x ? "" : x.status === "pending" || x.status === "returned" ? " is-pend" : n === 0.5 ? " is-half" : n >= 2 ? " is-dbl" : x.status === "in_progress" ? " is-open" : " is-full";
+        const tip = `${WD[wdOf(d)]} ${brShort(d)}${x ? ` · ${n === 0.5 ? "½ diária" : `${qty(n)} diária${n === 1 ? "" : "s"}`}${x.overtime_minutes ? ` · +${hm(x.overtime_minutes)}` : ""} · ${x.status_label || ""}` : ""}`;
+        return `<i class="${cls.trim()}${d === today ? " is-today" : ""}" title="${esc(tip)}">${small ? "" : n >= 2 ? "2" : n === 0.5 ? "½" : WD1[wdOf(d)]}</i>`;
+      })
+      .join("")}</span>`;
+  }
+  function rowSub(r) {
+    if (r.pay_type === "production") return `produção ${money(r.production_rate)}/sq ft`;
+    return `diária ${money0(r.daily_rate)}${r.payment_method ? ` · ${esc(METHOD_LABEL[r.payment_method] || r.payment_method)}` : ""}`;
+  }
+  function renderWeekHead() {
+    const w = st.week;
+    const cur = w.week.today >= w.week.start && w.week.today <= w.week.end;
+    const status = cur ? "Ciclo atual" : w.period ? (w.period.status === "closed" ? "Ciclo fechado" : "Ciclo aberto") : "Sem lançamentos";
+    return `<div class="fo-week">
+      <button type="button" class="fo-ic" data-week="prev" aria-label="Ciclo anterior">‹</button>
+      <div><b>${esc(w.week.label)}</b><small>${status}${w.week.pay_on_label ? ` · paga ${esc(WD[wdOf(w.week.pay_on)])} ${esc(brShort(w.week.pay_on))}` : ""}</small></div>
+      <button type="button" class="fo-ic" data-week="next" aria-label="Próximo ciclo">›</button>
+      ${cur ? "" : '<button type="button" class="fo-btn fo-btn--ghost fo-btn--sm" data-week="today">Hoje</button>'}
+    </div>`;
+  }
   function renderWeek() {
     const w = st.week;
     const box = $("foSemana");
+    const hdw = $("foHdWeek");
+    if (hdw) {
+      hdw.innerHTML = renderWeekHead();
+      hdw.hidden = false;
+    }
+    const all = st.week.employees;
     const rows = weekRows();
     const t = sumRows(rows);
-    const apiT = w.totals[st.sector] || w.totals.all;
+    const payable = rows.filter(canPay);
+    const toPayAll = payable.reduce((s, r) => s + r.totals.net, 0);
     const segBtn = (k, l) => `<button type="button" data-sector="${k}" aria-pressed="${st.sector === k}">${l} <small>${w.totals[k].employees}</small></button>`;
-    const head = `<div class="fo-tool">
-        <div class="fo-week">
-          <button type="button" class="fo-ic" data-week="prev" aria-label="Período anterior">‹</button>
-          <div><b>${esc(w.week.label)}</b><small>${
-            (w.week.today >= w.week.start && w.week.today <= w.week.end ? "Período atual" : esc(w.period ? (w.period.status === "closed" ? "Período fechado" : "Período aberto") : "Sem lançamentos")) +
-            (w.week.pay_on_label ? ` · Paga ${esc(w.week.pay_on_label)}` : "")
-          }</small></div>
-          <button type="button" class="fo-ic" data-week="next" aria-label="Próximo período">›</button>
-          ${w.week.today >= w.week.start && w.week.today <= w.week.end ? "" : '<button type="button" class="fo-btn fo-btn--ghost fo-btn--sm" data-week="today">Hoje</button>'}
-        </div>
-        ${renderCalPopover(w)}
-        <div class="fo-seg" role="group" aria-label="Setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}</div>
-      </div>
-      ${renderEntryBars()}
-      <div class="fo-stats">
-        <div class="fo-stat fo-stat--ink"><small>A pagar</small><b>${money(t.to_pay)}</b><span>${t.paid ? `${money(t.paid)} já pago` : "nada pago ainda"}</span></div>
-        <div class="fo-stat"><small>Total do ciclo</small><b>${money(t.net)}</b><span>${t.employees} funcionário${t.employees === 1 ? "" : "s"} · ${qty(t.days)} diária${t.days === 1 ? "" : "s"}</span></div>
-        <div class="fo-stat${t.pending_days ? " fo-stat--warn" : ""}"><small>Para conferir</small><b>${t.pending_days} dia${t.pending_days === 1 ? "" : "s"}</b><span>${t.pending_days ? '<button type="button" class="fo-link" data-goto="conferir">Conferir agora</button>' : "tudo conferido"}</span></div>
-        <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_minutes)}</b><span>${t.sqft ? `${qty(t.sqft)} sq ft de produção` : apiT.sqft ? `${qty(apiT.sqft)} sq ft` : "depois do horário padrão"}</span></div>
+    const topNames = rows
+      .filter((r) => r.totals.days)
+      .slice(0, 3)
+      .map((r) => `${esc(r.name.split(" ")[0])} ${dayFrac(r.totals.days)}`)
+      .join(" · ");
+    const stats = `<div class="fo-stats">
+        <div class="fo-stat fo-stat--ink"><small>A pagar neste ciclo</small><b>${money(t.to_pay)}</b><span>${payable.length ? `${payable.length} funcionário${payable.length === 1 ? "" : "s"}` : "ninguém a pagar"}${t.paid ? ` · ${money(t.paid)} já pago` : ""}</span>${
+          payable.length > 1 ? `<button type="button" class="fo-btn fo-btn--sm fo-stat__go" data-payall>Pagar todos</button>` : ""
+        }</div>
+        <div class="fo-stat"><small>Diárias</small><b>${dayFrac(t.days)}</b><span>${topNames || "nenhuma lançada"}</span></div>
+        <div class="fo-stat${t.pending_days ? " fo-stat--warn" : ""}"><small>A conferir</small><b>${t.pending_days} dia${t.pending_days === 1 ? "" : "s"}</b><span>${t.pending_days ? '<button type="button" class="fo-link" data-goto="conferir">Conferir agora</button>' : "tudo conferido"}</span></div>
+        <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_minutes)}</b><span>${t.overtime_amount ? `${money(t.overtime_amount)} em extras` : t.sqft ? `${qty(t.sqft)} sq ft de produção` : "depois do horário padrão"}</span></div>
       </div>`;
+    const filters = `<div class="fo-flt">
+        <div class="fo-seg" role="group" aria-label="Setor">${segBtn("all", "Todos")}${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}</div>
+        ${all.length > 4 ? `<input type="search" class="fo-in fo-flt__q" id="foWeekQ" placeholder="Buscar funcionário" value="${esc(st.q)}" />` : ""}
+      </div>`;
+    const fab = "";
+    const pweek = `<div class="fo-pweek">${renderWeekHead()}${st.manage ? '<button type="button" class="fo-btn fo-btn--pri fo-qfab" data-q-sheet>+ Lançar diária</button>' : ""}</div>`;
     if (!rows.length) {
-      box.innerHTML = `${head}<div class="fo-card"><div class="fo-empty"><b>Nenhum lançamento neste ciclo${st.sector !== "all" ? ` em ${SECTORS[st.sector]}` : ""}.</b>Use a barra acima para lançar uma diária, ou aguarde a equipe finalizar o dia no celular.</div></div>`;
+      box.innerHTML = `${pweek}${renderQuickBar()}${stats}${filters}<div class="fo-card"><div class="fo-empty"><b>${st.q ? "Ninguém com esse nome neste ciclo." : `Nenhum lançamento neste ciclo${st.sector !== "all" ? ` em ${SECTORS[st.sector]}` : ""}.`}</b>${st.manage ? "Lance uma diária acima, ou espere a equipe finalizar o dia no celular." : "A equipe finaliza o dia no celular."}</div></div>${fab}`;
       renderPayBar();
       return;
     }
-    const payable = rows.filter(canPay);
+    const showSq = rows.some((r) => r.totals.sqft);
     const allSel = payable.length && payable.every((r) => st.selected.has(r.id));
-    const table = `<div class="fo-card fo-tbl-wrap--week"><table class="fo-tbl">
+    const cols = 8 + (showSq ? 1 : 0);
+    const groups = st.sector === "all" ? ["installation", "sand_finish"].map((k) => [k, rows.filter((r) => r.sector === k)]).filter((g) => g[1].length) : [[st.sector, rows]];
+    const rowHtml = (r) => {
+      const open = st.open.has(r.id);
+      const adj = r.totals.reimbursement - r.totals.discount;
+      return `<tr class="is-row${open ? " is-open" : ""}" data-emp="${esc(r.id)}">
+        <td class="c">${canPay(r) ? `<input type="checkbox" data-sel="${esc(r.id)}" ${st.selected.has(r.id) ? "checked" : ""} aria-label="Selecionar ${esc(r.name)}" />` : ""}</td>
+        <td><div class="fo-name"><span class="fo-chev" aria-hidden="true">›</span><span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b><small>${rowSub(r)}</small></span></div></td>
+        <td>${weekStrip(r)}</td>
+        <td class="r">${dayFrac(r.totals.days)}</td>
+        <td class="r">${r.totals.overtime_minutes ? `<span class="fo-ot">${hm(r.totals.overtime_minutes)}</span>` : '<span class="fo-muted">—</span>'}</td>
+        ${showSq ? `<td class="r">${r.totals.sqft ? qty(r.totals.sqft) : '<span class="fo-muted">—</span>'}</td>` : ""}
+        <td class="r"><b>${money(r.totals.net)}</b>${adj ? `<small class="fo-sub" title="Reembolso ${money(r.totals.reimbursement)} · Desconto ${money(r.totals.discount)}">${adj > 0 ? "+" : "−"}${money(Math.abs(adj))} ajustes</small>` : ""}${r.totals.pending_amount ? `<small class="fo-sub">+${money(r.totals.pending_amount)} em conferência</small>` : ""}</td>
+        <td>${empStatus(r)}</td>
+        <td class="r fo-acts">${rowActions(r)}</td>
+      </tr>${open ? `<tr class="is-open is-days"><td colspan="${cols}"><div class="fo-days">${dayRows(r)}</div></td></tr>` : ""}`;
+    };
+    const table = `<div class="fo-card fo-tbl-wrap--week"><table class="fo-tbl fo-tbl--week">
       <thead><tr>
         <th class="c">${st.manage ? `<input type="checkbox" data-selall ${allSel ? "checked" : ""} ${payable.length ? "" : "disabled"} aria-label="Selecionar todos a pagar" />` : ""}</th>
-        <th>Funcionário</th><th class="r">Dias</th><th class="r">Extra</th><th class="r">Sq ft</th><th class="r">Ganho</th><th class="r">Ajustes</th><th class="r">Líquido</th><th>Status</th><th></th>
+        <th>Funcionário</th><th>${cycleDays().length > 8 ? "Ciclo" : "Semana"}</th><th class="r">Diárias</th><th class="r">Extra</th>${showSq ? '<th class="r">Sq ft</th>' : ""}<th class="r">Líquido</th><th>Status</th><th></th>
       </tr></thead>
-      <tbody>${rows
-        .map((r) => {
-          const open = st.open.has(r.id);
-          const adj = r.totals.reimbursement - r.totals.discount;
-          return `<tr class="is-row${open ? " is-open" : ""}" data-emp="${esc(r.id)}">
-            <td class="c">${canPay(r) ? `<input type="checkbox" data-sel="${esc(r.id)}" ${st.selected.has(r.id) ? "checked" : ""} aria-label="Selecionar ${esc(r.name)}" />` : ""}</td>
-            <td><div class="fo-name"><span class="fo-chev" aria-hidden="true">›</span><span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b><small>${esc(SECTORS[r.sector])} · ${r.pay_type === "production" ? `produção ${money(r.production_rate)}/sq ft` : `diária ${money0(r.daily_rate)}`}</small></span></div></td>
-            <td class="r">${qty(r.totals.days)}</td>
-            <td class="r">${r.totals.overtime_minutes ? hm(r.totals.overtime_minutes) : '<span class="fo-muted">—</span>'}</td>
-            <td class="r">${r.totals.sqft ? qty(r.totals.sqft) : '<span class="fo-muted">—</span>'}</td>
-            <td class="r">${money(r.totals.gross)}</td>
-            <td class="r">${adj ? `<span title="Reembolso ${money(r.totals.reimbursement)} · Desconto ${money(r.totals.discount)}">${adj > 0 ? "+" : "−"}${money(Math.abs(adj))}</span>` : '<span class="fo-muted">—</span>'}</td>
-            <td class="r fo-strong">${money(r.totals.net)}${r.totals.pending_amount ? `<div class="fo-muted" style="font-size:12px;font-weight:600">+${money(r.totals.pending_amount)} em conferência</div>` : ""}</td>
-            <td>${empStatus(r)}</td>
-            <td class="r">${rowActions(r)}</td>
-          </tr>${open ? `<tr class="is-open"><td colspan="10" style="padding:0 12px 8px"><div class="fo-days">${dayRows(r)}</div></td></tr>` : ""}`;
+      <tbody>${groups
+        .map(([k, list]) => {
+          const g = sumRows(list);
+          return `${groups.length > 1 ? `<tr class="fo-grp"><td></td><td colspan="${cols - 1}">${esc(SECTORS[k])} <span>· ${list.length} · ${money(g.net)}</span></td></tr>` : ""}${list.map(rowHtml).join("")}`;
         })
         .join("")}</tbody>
-      <tfoot><tr><td></td><td>Total ${st.sector === "all" ? "" : esc(SECTORS[st.sector])}</td><td class="r">${qty(t.days)}</td><td class="r">${hm(t.overtime_minutes)}</td><td class="r">${t.sqft ? qty(t.sqft) : "—"}</td><td class="r">${money(t.gross)}</td><td class="r"></td><td class="r">${money(t.net)}</td><td colspan="2"></td></tr></tfoot>
+      <tfoot><tr><td></td><td>Total${st.sector === "all" ? "" : ` ${esc(SECTORS[st.sector])}`}</td><td></td><td class="r">${dayFrac(t.days)}</td><td class="r">${t.overtime_minutes ? hm(t.overtime_minutes) : "—"}</td>${showSq ? `<td class="r">${t.sqft ? qty(t.sqft) : "—"}</td>` : ""}<td class="r">${money(t.net)}</td><td colspan="2"></td></tr></tfoot>
     </table></div>`;
     const cards = `<div class="fo-mlist">${rows
       .map((r) => {
         const open = st.open.has(r.id);
-        return `<div class="fo-mcard" data-emp-card="${esc(r.id)}">
-          <div class="fo-mcard__top">
-            ${canPay(r) ? `<input type="checkbox" class="fo-mcheck" data-sel="${esc(r.id)}" ${st.selected.has(r.id) ? "checked" : ""} aria-label="Selecionar ${esc(r.name)}" style="width:20px;height:20px;accent-color:#211d1a" />` : ""}
-            <div class="fo-name"><span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b><small>${esc(SECTORS[r.sector])}</small></span></div>
+        const bits = [`${dayFrac(r.totals.days)} diária${r.totals.days === 1 || r.totals.days === 0.5 ? "" : "s"}`];
+        if (r.totals.overtime_minutes) bits.push(`<span class="fo-ot">${hm(r.totals.overtime_minutes)} extra</span>`);
+        if (r.totals.sqft) bits.push(`${qty(r.totals.sqft)} sq ft`);
+        if (st.sector === "all") bits.push(esc(SECTORS[r.sector]));
+        return `<div class="fo-mcard${open ? " is-open" : ""}" data-emp-card="${esc(r.id)}">
+          <div class="fo-mcard__top" data-toggle="${esc(r.id)}">
+            <span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span>
+            <div class="fo-name"><span><b>${esc(r.name)}</b><small>${bits.join(" · ")}</small></span></div>
             <div class="fo-mcard__v"><b>${money(r.totals.net)}</b>${empStatus(r)}</div>
           </div>
-          <div class="fo-mcard__nums"><span><b>${qty(r.totals.days)}</b> dia${r.totals.days === 1 ? "" : "s"}</span>${r.totals.overtime_minutes ? `<span><b>${hm(r.totals.overtime_minutes)}</b> extra</span>` : ""}${r.totals.sqft ? `<span><b>${qty(r.totals.sqft)}</b> sq ft</span>` : ""}${r.totals.pending_amount ? `<span>+${money(r.totals.pending_amount)} em conferência</span>` : ""}</div>
           <div class="fo-mcard__act">
-            <button type="button" class="fo-btn fo-btn--sm" data-toggle="${esc(r.id)}">${open ? "Esconder dias" : `Ver ${r.days.length} dia${r.days.length === 1 ? "" : "s"}`}</button>
-            ${rowActions(r, true)}
+            ${canPay(r) ? `<input type="checkbox" class="fo-mcheck" data-sel="${esc(r.id)}" ${st.selected.has(r.id) ? "checked" : ""} aria-label="Selecionar ${esc(r.name)}" />` : ""}
+            ${weekStrip(r)}
+            <span class="fo-mcard__btns">${rowActions(r, true)}</span>
           </div>
           ${open ? `<div class="fo-days">${dayRows(r)}</div>` : ""}
         </div>`;
       })
       .join("")}</div>`;
-    box.innerHTML = head + table + cards;
+    box.innerHTML = pweek + renderQuickBar() + stats + filters + table + cards + fab;
     renderPayBar();
   }
   function rowActions(r, mobile) {
     if (!st.manage) return "";
     if (r.payment) return `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-receipt="${esc(r.id)}">Recibo</button>`;
     const parts = [];
-    if (st.week.period) parts.push(`<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-adjust="${esc(r.id)}">Ajustes</button>`);
-    if (canPay(r)) parts.push(`<button type="button" class="fo-btn fo-btn--sm ${mobile ? "fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
+    if (st.week.period) parts.push(`<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-adjust="${esc(r.id)}" title="Reembolso ou desconto">${mobile ? "±" : "Ajustes"}</button>`);
+    if (canPay(r)) parts.push(`<button type="button" class="fo-btn fo-btn--sm${mobile ? " fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
     return parts.join(" ");
   }
   function renderPayBar() {
@@ -1172,85 +1295,16 @@
     }
   }
 
-  // ------------------------------------------------------------ lançar diária (barra na Semana)
-  function focusEntryBar(sector) {
-    if (st.tab !== "semana") setTab("semana");
-    else if (!st.week) loadWeek();
-    setTimeout(() => {
-      const bar = document.querySelector(sector ? `[data-entry-sector="${sector}"]` : "#foEntryBars .fo-entry__bar");
-      bar?.scrollIntoView({ behavior: "smooth", block: "center" });
-      bar?.querySelector("[data-entry-emp]")?.focus();
-    }, 280);
-  }
-  function entrySlotFromBar(bar) {
-    const sector = bar.getAttribute("data-entry-sector");
-    if (!st.entry[sector]) st.entry[sector] = { empId: "", days: 1, ot: "" };
-    return st.entry[sector];
-  }
-  function syncEntryBarUI(bar) {
-    const sector = bar.getAttribute("data-entry-sector");
-    const prev = entryPreview(sector);
-    const daysLab = bar.querySelector("[data-entry-days-lab]");
-    const otLab = bar.querySelector("[data-entry-ot-lab]");
-    const clear = bar.querySelector("[data-entry-ot-clear]");
-    const sum = bar.querySelector("[data-entry-sum]");
-    if (daysLab) daysLab.textContent = daysLabel(prev.days);
-    if (otLab) otLab.textContent = prev.otMin ? `+${hm(prev.otMin)}` : "Nenhuma";
-    if (clear) clear.hidden = !prev.otMin;
-    bar.querySelectorAll("[data-entry-days]").forEach((x) => {
-      x.setAttribute("aria-pressed", String(Number(x.getAttribute("data-entry-days")) === prev.days));
-    });
-    if (sum) {
-      sum.innerHTML = `<small>Resumo</small><b>${esc(prev.parts)}</b>${
-        prev.estimate ? `<span>${esc(prev.estimate)}</span>` : '<span class="fo-muted">escolha o nome</span>'
-      }`;
-    }
-  }
-  async function entryGo(bar, btn) {
-    const slot = entrySlotFromBar(bar);
-    const empId = bar.querySelector("[data-entry-emp]")?.value || slot.empId;
-    const date = bar.querySelector("[data-entry-date]")?.value || st.entryDate;
-    if (!empId || !date) {
-      notify("Escolha o funcionário e a data.", "error");
-      return;
-    }
-    const body = {
-      employee_id: empId,
-      date,
-      days_worked: Number(slot.days) === 0.5 || Number(slot.days) === 2 ? Number(slot.days) : 1,
-    };
-    if (slot.ot !== "" && slot.ot != null) body.overtime_minutes = Math.max(0, Math.round(Number(slot.ot) || 0));
-    btn.disabled = true;
-    try {
-      await api("/api/folha/dias", { method: "POST", body: JSON.stringify(body) });
-      notify("Diária lançada e aprovada.", "success");
-      slot.empId = "";
-      slot.ot = "";
-      st.entryDate = date;
-      st.weekRef = date;
-      if (st.tab !== "semana") setTab("semana");
-      else loadWeek();
-    } catch (e) {
-      btn.disabled = false;
-      notify(e.message, "error");
-    }
-  }
-
   // ------------------------------------------------------------ events
   function onClick(e) {
     const t = e.target;
     const el = (sel) => t.closest(sel);
     let b;
-    if (st.calOpen && !el(".fo-calwrap")) {
-      st.calOpen = false;
-      const pop = $("foCalPop");
+    if (st.quick.open && !el(".fo-qf--days")) {
+      st.quick.open = false;
+      const pop = document.querySelector(".fo-qpop");
       if (pop) pop.hidden = true;
-      const trg = document.querySelector("[data-cal-toggle]");
-      if (trg) {
-        trg.setAttribute("aria-expanded", "false");
-        const chev = trg.querySelector(".fo-cal-trigger__chev");
-        if (chev) chev.textContent = "▾";
-      }
+      document.querySelector("[data-q-dates]")?.setAttribute("aria-expanded", "false");
     }
     if ((b = el("#foTabs [data-tab]"))) return setTab(b.getAttribute("data-tab"));
     if (el("[data-close]") || t.id === "foScrim") return closeSheet();
@@ -1263,72 +1317,40 @@
       else st.weekRef = addDays(st.week.week.start, Number(v));
       st.open.clear();
       st.selected.clear();
-      st.calMonth = null;
       return loadWeek();
     }
-    if ((b = el("[data-cal-toggle]"))) {
-      st.calOpen = !st.calOpen;
-      return renderWeek();
-    }
-    if ((b = el("[data-cal-month]"))) {
-      const delta = Number(b.getAttribute("data-cal-month"));
-      const mk = st.calMonth || (st.week && st.week.week.start.slice(0, 7)) || ymdOf(new Date()).slice(0, 7);
-      const [y, m] = mk.split("-").map(Number);
-      const d = new Date(y, m - 1 + delta, 1);
-      st.calMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-      st.calOpen = true;
-      return renderWeek();
-    }
-    if ((b = el("[data-cal-day]"))) {
-      const day = b.getAttribute("data-cal-day");
-      st.entryDate = day;
-      st.calMonth = day.slice(0, 7);
-      st.calOpen = false;
-      if (st.week && (day < st.week.week.start || day > st.week.week.end)) {
-        st.weekRef = day;
-        st.open.clear();
-        st.selected.clear();
-        return loadWeek();
-      }
-      return renderWeek();
-    }
     if ((b = el("[data-sector]"))) {
-      const next = b.getAttribute("data-sector");
-      st.sector = st.sector === next ? "all" : next;
+      st.sector = b.getAttribute("data-sector");
       st.selected.clear();
       renderWeek();
       return writeHash();
     }
-    if ((b = el("[data-entry-days]"))) {
-      const bar = b.closest("[data-entry-sector]");
-      if (!bar) return;
-      const slot = entrySlotFromBar(bar);
-      const n = Number(b.getAttribute("data-entry-days"));
-      slot.days = n === 0.5 || n === 2 ? n : 1;
-      syncEntryBarUI(bar);
-      return;
+    if (el("[data-q-dates]")) {
+      st.quick.open = !st.quick.open;
+      return refreshQuick();
     }
-    if ((b = el("[data-entry-ot]"))) {
-      const bar = b.closest("[data-entry-sector]");
-      if (!bar) return;
-      const slot = entrySlotFromBar(bar);
-      const add = Math.max(0, Math.round(Number(b.getAttribute("data-entry-ot")) || 0));
-      const cur = slot.ot === "" || slot.ot == null ? 0 : Math.max(0, Math.round(Number(slot.ot) || 0));
-      slot.ot = String(Math.min(16 * 60, cur + add));
-      syncEntryBarUI(bar);
-      return;
+    if ((b = el("[data-q-date]"))) {
+      const d = b.getAttribute("data-q-date");
+      st.quick.touched = true;
+      st.quick.dates.has(d) ? st.quick.dates.delete(d) : st.quick.dates.add(d);
+      return refreshQuick();
     }
-    if ((b = el("[data-entry-ot-clear]"))) {
-      const bar = b.closest("[data-entry-sector]");
-      if (!bar) return;
-      entrySlotFromBar(bar).ot = "";
-      syncEntryBarUI(bar);
-      return;
+    if ((b = el("[data-q-days]"))) {
+      const n = Number(b.getAttribute("data-q-days"));
+      st.quick.days = n === 0.5 || n === 2 ? n : 1;
+      return refreshQuick();
     }
-    if ((b = el("[data-entry-go]"))) {
-      const bar = b.closest("[data-entry-sector]");
-      if (bar) return entryGo(bar, b);
+    if ((b = el("[data-q-ot]"))) {
+      st.quick.ot = Math.max(0, Math.min(16 * 60, st.quick.ot + Number(b.getAttribute("data-q-ot"))));
+      return refreshQuick();
     }
+    if ((b = el("[data-q-pick]"))) {
+      st.quick.empId = b.getAttribute("data-q-pick");
+      return refreshQuick();
+    }
+    if ((b = el("[data-q-go]"))) return quickGo(b);
+    if (el("[data-q-sheet]")) return openQuickSheet();
+    if (el("[data-payall]")) return openPay(weekRows().filter(canPay).map((r) => r.id));
     if ((b = el("[data-day]"))) {
       if (b.getAttribute("data-kind") === "line") return notify("Lançado direto na grade da semana (sem dia de trabalho). Ajuste na grade antiga ou lance o dia de novo.", "info");
       return openDay(b.getAttribute("data-day"));
@@ -1431,7 +1453,6 @@
     if (el("[data-emp-new]")) return openEmp(null);
     if ((b = el("[data-emp-edit]"))) return openEmp(b.getAttribute("data-emp-edit"));
     if ((b = el("[data-emp-save]"))) return saveEmp(b.getAttribute("data-emp-save") || null);
-    if (el("#foLogDay")) return focusEntryBar();
     if ((b = el("[data-ed-ot]"))) {
       const elOt = $("foEdOt");
       if (!elOt) return;
@@ -1457,29 +1478,9 @@
   }
   function onChange(e) {
     const t = e.target;
-    if (t.matches && t.matches("[data-entry-emp]")) {
-      const bar = t.closest("[data-entry-sector]");
-      if (bar) {
-        entrySlotFromBar(bar).empId = t.value;
-        syncEntryBarUI(bar);
-      }
-      return;
-    }
-    if (t.matches && t.matches("[data-entry-date]")) {
-      const day = t.value;
-      if (!day) return;
-      st.entryDate = day;
-      st.calMonth = day.slice(0, 7);
-      document.querySelectorAll("[data-entry-date]").forEach((inp) => {
-        if (inp !== t) inp.value = day;
-      });
-      if (st.week && (day < st.week.week.start || day > st.week.week.end)) {
-        st.weekRef = day;
-        st.open.clear();
-        st.selected.clear();
-        return loadWeek();
-      }
-      return;
+    if (t.matches && t.matches("[data-q-emp]")) {
+      st.quick.empId = t.value;
+      return refreshQuick();
     }
     if (t.id === "foEmpSearch") {
       st.empSearch = t.value || "";
@@ -1516,6 +1517,10 @@
     }
   }
   function onKey(e) {
+    if (e.key === "Escape" && st.quick.open) {
+      st.quick.open = false;
+      return refreshQuick();
+    }
     if (e.key === "Escape" && !$("foSheet").hidden) return closeSheet();
     if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("[data-day][role=button]")) {
       e.preventDefault();
@@ -1545,6 +1550,7 @@
     } catch (_) {
       /* the shell redirects to login */
     }
+    document.body.classList.add("fo-page");
     await loadPayMethods();
     if (!st.manage) document.querySelectorAll("[data-manage]").forEach((el) => (el.hidden = true));
     // Overlays live on <body>: inside the main column they sit under the app's bottom nav.
@@ -1554,6 +1560,20 @@
     document.addEventListener("change", onChange);
     document.addEventListener("input", (e) => {
       if (e.target && e.target.id === "foEmpSearch") onChange(e);
+      if (e.target && e.target.id === "foWeekQ") {
+        st.q = e.target.value || "";
+        const pos = e.target.selectionStart;
+        renderWeek();
+        const inp = $("foWeekQ");
+        if (inp) {
+          inp.focus();
+          try {
+            inp.setSelectionRange(pos, pos);
+          } catch (_) {
+            /* ignore */
+          }
+        }
+      }
     });
     document.addEventListener("keydown", onKey);
     window.addEventListener("hashchange", () => {
