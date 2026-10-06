@@ -96,20 +96,27 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
 .jm-check {
   display: flex; align-items: flex-start; gap: 0.55rem;
   margin: 0.65rem 0 0.35rem; padding: 0.65rem 0.75rem;
-  border: 1px solid var(--jm-line, #e7e1d8); border-radius: 10px;
-  background: var(--jm-surface-soft, #faf8f5); cursor: pointer;
+  border: 1px solid var(--jm-line, #e7e1d8); border-radius: 12px;
+  background: var(--jm-cream, #f7f4ee); cursor: pointer;
   font-size: 0.9rem; color: var(--jm-ink-2, #3f3a34); line-height: 1.35;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
-.jm-check input { margin-top: 0.15rem; accent-color: #1d4ed8; }
-.jm-check strong { font-weight: 800; }
+.jm-check:hover { border-color: #d6c9b8; }
+.jm-check:has(input:checked) {
+  border-color: var(--jm-terra);
+  background: var(--jm-terra-soft);
+  box-shadow: 0 0 0 3px rgba(232, 121, 44, 0.12);
+}
+.jm-check input { margin-top: 0.15rem; accent-color: var(--jm-terra); }
+.jm-check strong { font-weight: 800; color: var(--jm-ink); }
 .jm-delivery {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.7rem;
   margin: 0.15rem 0 0.75rem;
-  padding: 0.85rem 0.95rem;
+  padding: 0.9rem 1rem;
   border-radius: 14px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--jm-cream);
+  border: 1px solid var(--jm-line);
 }
 .jm-delivery[hidden] { display: none !important; }
 .jm-delivery__file {
@@ -121,10 +128,10 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
 .jm-delivery__file-name {
   font-size: 0.85rem;
   font-weight: 650;
-  color: #1e3a8a;
+  color: var(--jm-ink-2);
   min-width: 0;
 }
-.jm-delivery__file-name a { color: #1d4ed8; font-weight: 750; }
+.jm-delivery__file-name a { color: var(--jm-terra-d); font-weight: 750; }
 .jm-empty { margin: 0; padding: 10px 2px; color: var(--jm-muted); font-size: 13px; }
 .jm-link { border: 0; background: none; padding: 0; font: inherit; font-size: 13px; font-weight: 800; color: var(--jm-terra-d); cursor: pointer; }
 .jm-link:hover { text-decoration: underline; }
