@@ -2,7 +2,7 @@
  * Campo · Ticket — status, checklist, job media (photo proof)
  */
 (function () {
-  const VER = "20260928-media5";
+  const VER = "20261006-photoview1";
   const $ = (id) => document.getElementById(id);
   const STAGE_LABEL = { before: "Antes", during: "Durante", after: "Depois" };
 
@@ -20,6 +20,7 @@
   let inspectChunks = [];
   let inspectStartedAt = null;
   let inspectMarks = [];
+  let lightboxIndex = -1;
 
   function escapeHtml(s) {
     return String(s || "")
@@ -319,29 +320,46 @@
     $("cmReportSummary").textContent = latestReport.summary || "Rascunho gerado.";
   }
 
+  function photoList() {
+    return (ticket?.photos || []).filter((p) => p && (p.url || p.thumb_url));
+  }
+
+  function photoMetaLabel(p) {
+    const stage = p.stage && STAGE_LABEL[p.stage] ? STAGE_LABEL[p.stage] : "";
+    const cap = (p.caption || "").trim();
+    return [cap, stage].filter(Boolean).join(" · ") || "Foto da obra";
+  }
+
   function renderPhotos() {
     const t = ticket;
-    const total = (t.photos_count || 0) + pendingCount;
+    const photos = photoList();
+    const total = photos.length + pendingCount;
     $("cmTabPhotos").textContent = `Fotos · ${total}`;
     const grid = $("cmPhotosGrid");
-    const photos = t.photos || [];
     renderReportCard();
+    if (lightboxIndex >= 0) {
+      if (!photos.length) closeLightbox();
+      else {
+        if (lightboxIndex >= photos.length) lightboxIndex = photos.length - 1;
+        renderLightbox();
+      }
+    }
     if (!photos.length) {
       grid.innerHTML =
         '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto ainda.</p>';
       return;
     }
     grid.innerHTML = photos
-      .map((p) => {
+      .map((p, idx) => {
         const stage = p.stage && STAGE_LABEL[p.stage] ? STAGE_LABEL[p.stage] : "";
-        const cap = p.caption ? escapeHtml(p.caption) : "";
         const gps = p.location_available ? " · GPS" : "";
         const pub = p.is_public ? " · público" : "";
-        const meta = [cap, stage].filter(Boolean).join(" · ") || "Foto da obra";
+        const meta = photoMetaLabel(p);
+        const src = p.thumb_url || p.url || "";
         return `
-      <button type="button" class="cm-photo" data-media-id="${escapeHtml(p.id || "")}" ${p.legacy ? "data-legacy=1" : ""}>
+      <button type="button" class="cm-photo" data-media-id="${escapeHtml(p.id || "")}" data-photo-idx="${idx}" ${p.legacy ? "data-legacy=1" : ""}>
         ${stage ? `<span class="cm-photo__badge">${escapeHtml(stage)}</span>` : ""}
-        <img src="${escapeHtml(p.thumb_url || p.url)}" alt="${escapeHtml(meta)}" loading="lazy" />
+        <img src="${escapeHtml(src)}" alt="${escapeHtml(meta)}" loading="lazy" onerror="this.classList.add('is-broken');this.parentElement&&this.parentElement.classList.add('is-broken')" />
         <span class="cm-photo__meta">${escapeHtml(meta)}${gps}${pub}</span>
       </button>`;
       })
@@ -513,29 +531,85 @@
     });
   }
 
-  async function onPhotoActions(mediaId) {
-    if (!mediaId || !ticket) return;
-    const photo = (ticket.photos || []).find((p) => p.id === mediaId);
-    if (!photo || photo.legacy) {
-      if (photo?.url) window.open(photo.url, "_blank", "noopener");
-      return;
+  function currentLightboxPhoto() {
+    const photos = photoList();
+    if (lightboxIndex < 0 || lightboxIndex >= photos.length) return null;
+    return photos[lightboxIndex];
+  }
+
+  function renderLightbox() {
+    const photo = currentLightboxPhoto();
+    const box = $("cmLightbox");
+    if (!box || !photo) return;
+    const photos = photoList();
+    const src = photo.url || photo.thumb_url || "";
+    const img = $("cmLightboxImg");
+    if (img) {
+      img.alt = photoMetaLabel(photo);
+      img.src = src;
+      img.classList.toggle("is-broken", !src);
+      img.onerror = () => img.classList.add("is-broken");
+      img.onload = () => img.classList.remove("is-broken");
     }
-    const choice = window.prompt(
-      "Ações: abrir | anotar | ocr | legenda | voz | público | privado | apagar\nEscreva a ação:",
-      "abrir",
-    );
-    if (!choice) return;
-    const action = choice.trim().toLowerCase();
+    const count = $("cmLightboxCount");
+    if (count) count.textContent = `${lightboxIndex + 1} / ${photos.length}`;
+    const cap = $("cmLightboxCap");
+    if (cap) {
+      const stage = photo.stage && STAGE_LABEL[photo.stage] ? STAGE_LABEL[photo.stage] : "";
+      const bits = [photo.caption || "", stage, photo.is_public ? "público" : ""]
+        .map((s) => String(s || "").trim())
+        .filter(Boolean);
+      cap.textContent = bits.join(" · ") || "Foto da obra";
+    }
+    const prev = $("cmLightboxPrev");
+    const next = $("cmLightboxNext");
+    if (prev) prev.hidden = photos.length < 2;
+    if (next) next.hidden = photos.length < 2;
+    const actions = $("cmLightboxActions");
+    if (actions) actions.hidden = Boolean(photo.legacy);
+  }
+
+  function openLightbox(index) {
+    const photos = photoList();
+    if (!photos.length) return;
+    lightboxIndex = Math.max(0, Math.min(index, photos.length - 1));
+    const box = $("cmLightbox");
+    if (!box) return;
+    box.hidden = false;
+    document.body.classList.add("cm-lightbox-open");
+    renderLightbox();
+  }
+
+  function closeLightbox() {
+    lightboxIndex = -1;
+    const box = $("cmLightbox");
+    if (box) box.hidden = true;
+    document.body.classList.remove("cm-lightbox-open");
+    const img = $("cmLightboxImg");
+    if (img) {
+      img.removeAttribute("src");
+      img.classList.remove("is-broken");
+    }
+  }
+
+  function stepLightbox(delta) {
+    const photos = photoList();
+    if (photos.length < 2 || lightboxIndex < 0) return;
+    lightboxIndex = (lightboxIndex + delta + photos.length) % photos.length;
+    renderLightbox();
+  }
+
+  async function runPhotoAction(action) {
+    const photo = currentLightboxPhoto();
+    if (!photo || photo.legacy || !jobId) return;
+    const mediaId = photo.id;
     try {
-      if (action === "abrir" || action === "open") {
-        window.open(photo.url, "_blank", "noopener");
-        return;
-      }
-      if (action === "anotar" || action === "annotate" || action === "draw") {
+      if (action === "anotar") {
+        closeLightbox();
         openAnnotator(photo);
         return;
       }
-      if (action === "ocr" || action === "serial" || action === "etiqueta") {
+      if (action === "ocr") {
         toast("A ler etiqueta…", "success");
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}/ocr`, {
           method: "POST",
@@ -543,13 +617,10 @@
         });
         apply(json.data);
         const o = json.meta?.ocr;
-        toast(
-          o?.serial_number || o?.label_text || "OCR concluído",
-          "success",
-        );
+        toast(o?.serial_number || o?.label_text || "OCR concluído", "success");
         return;
       }
-      if (action === "voz" || action === "voice" || action === "speak") {
+      if (action === "voz") {
         const text = await voiceCaptionOnDevice();
         if (!text) {
           toast("Nada reconhecido");
@@ -563,7 +634,7 @@
         toast("Legenda por voz aplicada", "success");
         return;
       }
-      if (action === "apagar" || action === "delete" || action === "remover") {
+      if (action === "apagar") {
         if (!confirm("Apagar esta foto?")) return;
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
           method: "DELETE",
@@ -572,7 +643,7 @@
         toast("Foto apagada", "success");
         return;
       }
-      if (action === "público" || action === "publico" || action === "public") {
+      if (action === "publico") {
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
           method: "PATCH",
           body: JSON.stringify({ is_public: true }),
@@ -581,7 +652,7 @@
         toast("Visível no link público", "success");
         return;
       }
-      if (action === "privado" || action === "private") {
+      if (action === "privado") {
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
           method: "PATCH",
           body: JSON.stringify({ is_public: false }),
@@ -590,7 +661,7 @@
         toast("Removida do link público", "success");
         return;
       }
-      if (action === "legenda" || action === "caption") {
+      if (action === "legenda") {
         const next = window.prompt("Legenda", photo.caption || "");
         if (next == null) return;
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
@@ -599,9 +670,7 @@
         });
         apply(json.data);
         toast("Legenda atualizada", "success");
-        return;
       }
-      toast("Ação desconhecida");
     } catch (err) {
       toast(err.message || "Falha na ação");
     }
@@ -1211,9 +1280,26 @@
     });
 
     $("cmPhotosGrid")?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-media-id]");
+      const btn = e.target.closest("[data-photo-idx]");
       if (!btn) return;
-      onPhotoActions(btn.getAttribute("data-media-id"));
+      const idx = Number(btn.getAttribute("data-photo-idx"));
+      if (!Number.isFinite(idx)) return;
+      openLightbox(idx);
+    });
+
+    $("cmLightboxClose")?.addEventListener("click", closeLightbox);
+    $("cmLightboxPrev")?.addEventListener("click", () => stepLightbox(-1));
+    $("cmLightboxNext")?.addEventListener("click", () => stepLightbox(1));
+    $("cmLightboxActions")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-lb-action]");
+      if (!btn) return;
+      runPhotoAction(btn.getAttribute("data-lb-action")).catch(() => {});
+    });
+    document.addEventListener("keydown", (e) => {
+      if (lightboxIndex < 0) return;
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowLeft") stepLightbox(-1);
+      if (e.key === "ArrowRight") stepLightbox(1);
     });
 
     $("cmPhotoReportBtn")?.addEventListener("click", () => {

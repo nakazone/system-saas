@@ -1690,6 +1690,170 @@ body.cm-sheet-open {
   display: block;
 }
 
+.cm-photo img.is-broken {
+  opacity: 0;
+}
+
+.cm-photo.is-broken::after {
+  content: "Foto indisponível";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b6a66;
+  background: #e8e4de;
+}
+
+.cm-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  flex-direction: column;
+  background: rgba(12, 11, 9, 0.96);
+  color: #f5f2ec;
+  padding: calc(0.65rem + env(safe-area-inset-top, 0px)) 0.75rem
+    calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.cm-lightbox[hidden] {
+  display: none !important;
+}
+
+.cm-lightbox__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  flex-shrink: 0;
+}
+
+.cm-lightbox__count {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(245, 242, 236, 0.72);
+}
+
+.cm-lightbox__close {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cm-lightbox__close svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.cm-lightbox__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cm-lightbox__img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #1a1814;
+}
+
+.cm-lightbox__img.is-broken {
+  width: min(280px, 80vw);
+  height: min(280px, 50vh);
+  object-fit: none;
+  background:
+    linear-gradient(135deg, #2a2620 25%, transparent 25%) -10px 0 / 20px 20px,
+    linear-gradient(225deg, #2a2620 25%, transparent 25%) -10px 0 / 20px 20px,
+    #1a1814;
+}
+
+.cm-lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.cm-lightbox__nav--prev {
+  left: 0.15rem;
+}
+
+.cm-lightbox__nav--next {
+  right: 0.15rem;
+}
+
+.cm-lightbox__cap {
+  margin: 0.65rem 0 0.45rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgba(245, 242, 236, 0.82);
+  line-height: 1.35;
+  flex-shrink: 0;
+}
+
+.cm-lightbox__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cm-lightbox__actions .cm-chip {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f5f2ec;
+  border-color: transparent;
+}
+
+.cm-lightbox__actions .cm-chip--danger {
+  background: rgba(180, 55, 45, 0.35);
+  color: #ffd7d2;
+}
+
+body.cm-lightbox-open {
+  overflow: hidden;
+}
+
+body.cm-lightbox-open .cm-ticket-cta,
+body.cm-lightbox-open .cm-tabbar {
+  visibility: hidden;
+}
+
 .cm-photo__meta {
   position: absolute;
   left: 0;

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="campo.css?v=20261001-lockbox2" />
+  <link rel="stylesheet" href="campo.css?v=20261006-photoview1" />
   <script src="/om-device.js?v=20261001-tablet2"></script>
 </head>
 <body class="cm-app cm-ticket">
@@ -174,8 +174,32 @@
     <button type="button" class="cm-btn cm-btn--accent" id="cmAnnotSave" style="margin-top:0.85rem">Guardar anotações</button>
   </div>
 
+  <div class="cm-lightbox" id="cmLightbox" role="dialog" aria-modal="true" aria-label="Foto da obra" hidden>
+    <div class="cm-lightbox__top">
+      <p class="cm-lightbox__count" id="cmLightboxCount"></p>
+      <button type="button" class="cm-lightbox__close" id="cmLightboxClose" aria-label="Fechar">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="cm-lightbox__stage">
+      <button type="button" class="cm-lightbox__nav cm-lightbox__nav--prev" id="cmLightboxPrev" aria-label="Foto anterior">‹</button>
+      <img class="cm-lightbox__img" id="cmLightboxImg" alt="" />
+      <button type="button" class="cm-lightbox__nav cm-lightbox__nav--next" id="cmLightboxNext" aria-label="Próxima foto">›</button>
+    </div>
+    <p class="cm-lightbox__cap" id="cmLightboxCap"></p>
+    <div class="cm-lightbox__actions" id="cmLightboxActions" hidden>
+      <button type="button" class="cm-chip" data-lb-action="anotar">Anotar</button>
+      <button type="button" class="cm-chip" data-lb-action="legenda">Legenda</button>
+      <button type="button" class="cm-chip" data-lb-action="voz">Voz</button>
+      <button type="button" class="cm-chip" data-lb-action="ocr">OCR</button>
+      <button type="button" class="cm-chip" data-lb-action="publico">Público</button>
+      <button type="button" class="cm-chip" data-lb-action="privado">Privado</button>
+      <button type="button" class="cm-chip cm-chip--danger" data-lb-action="apagar">Apagar</button>
+    </div>
+  </div>
+
   <script src="campo-nav.js?v=20260929-obranames1"></script>
   <script src="campo-media-queue.js?v=20260928-media1"></script>
-  <script src="ticket.js?v=20261006-jobsck1"></script>
+  <script src="ticket.js?v=20261006-photoview1"></script>
 </body>
 </html>
