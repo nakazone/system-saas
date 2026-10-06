@@ -114,7 +114,6 @@
         items: [
           { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
           { href: 'quotes.html', label: 'Orçamentos', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
-          { href: 'field-quote.html', label: 'Field Quote', perm: 'quotes.view', page: '', iconKey: 'fieldquote' },
           {
             href: isMobileDevice() ? 'customers.html' : 'dashboard.html?page=customers',
             label: 'Clientes',
@@ -182,7 +181,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261006-fq2';
+  const NAV_STRUCTURE_VERSION = '20261006-hidefq';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';

@@ -462,13 +462,6 @@
             <p class="om-mod-card__sub">Nova cobrança</p>
           </span>
         </a>
-        <a class="om-mod-card" href="field-quote.html?novo=1" style="grid-column:1/-1">
-          <span class="om-mod-card__icon" aria-hidden="true">${ICONS.fieldQuote}</span>
-          <span>
-            <p class="om-mod-card__title">Field Quote</p>
-            <p class="om-mod-card__sub">Medir e orçar na casa do cliente</p>
-          </span>
-        </a>
       </div>`;
 
     document.body.appendChild(backdrop);
