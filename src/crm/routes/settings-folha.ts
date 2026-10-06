@@ -13,7 +13,6 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { fieldErrors } from "../../lib/settings/organization.js";
 import {
-  PAY_CYCLE_PRESETS,
   WEEKDAY_LABELS_PT,
   WEEKDAY_SHORT_PT,
   applyPayCyclePatch,
@@ -48,13 +47,6 @@ function serialize(featureFlags: unknown, refYmd?: string) {
     period_end_weekday: endWeekdayFromLength(cycle.period_start_weekday, cycle.period_length_days),
     weekday_labels: WEEKDAY_LABELS_PT,
     weekday_short: WEEKDAY_SHORT_PT,
-    presets: PAY_CYCLE_PRESETS.map((p) => ({
-      id: p.id,
-      title: p.title,
-      desc: p.desc,
-      summary: describePayCycle(p.cycle),
-      cycle: p.cycle,
-    })),
     preview: {
       ref,
       current,

@@ -246,7 +246,7 @@
     leadMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "new_lead" },
     leadAuto: { loaded: false, snapshot: null },
     jobs: { loaded: false, snapshot: null },
-    folha: { loaded: false, snapshot: null, draft: null, presets: [], labels: [] },
+    folha: { loaded: false, snapshot: null, draft: null },
     sig: { loaded: false, snapshot: null, drawn: false, removed: false, data: null },
     rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
@@ -2214,21 +2214,6 @@
     });
   }
 
-  function renderFolhaPresets(presets, activeCycle) {
-    const box = $("folhaPresetGrid");
-    if (!box) return;
-    const activeJson = JSON.stringify(activeCycle || {});
-    box.innerHTML = (presets || [])
-      .map((p) => {
-        const on = JSON.stringify(p.cycle || {}) === activeJson;
-        return `<button type="button" class="cfg-cycle-card${on ? " is-active" : ""}" data-folha-preset="${esc(p.id)}" role="listitem">
-          <span class="cfg-cycle-card__title">${esc(p.title)}</span>
-          <span class="cfg-cycle-card__desc">${esc(p.desc)}</span>
-        </button>`;
-      })
-      .join("");
-  }
-
   function renderFolhaPreview(preview) {
     const box = $("folhaCyclePreview");
     if (!box) return;
@@ -2275,7 +2260,6 @@
     if ($("folha_pay_dom")) $("folha_pay_dom").value = String(cycle.pay_day_of_month ?? 15);
     if ($("folha_biweekly_anchor")) $("folha_biweekly_anchor").value = cycle.biweekly_anchor_ymd || "";
     if ($("folhaCycleSummary")) $("folhaCycleSummary").textContent = data?.summary || "—";
-    renderFolhaPresets(state.folha.presets || data?.presets || [], cycle);
     renderFolhaPreview(data?.preview);
     syncFolhaFieldVisibility();
   }
@@ -2297,7 +2281,6 @@
       return;
     }
     const j = await api("/api/settings/folha");
-    state.folha.presets = j.data?.presets || [];
     state.folha.snapshot = j.data;
     state.folha.loaded = true;
     fillFolhaSettings(j.data);
@@ -2313,7 +2296,6 @@
         body: JSON.stringify(body),
       });
       state.folha.snapshot = j.data;
-      state.folha.presets = j.data?.presets || state.folha.presets;
       fillFolhaSettings(j.data);
       notify("Ciclo da Folha salvo.", "success");
       updateSavebar();
@@ -2339,35 +2321,9 @@
           body: JSON.stringify(readFolhaCycle()),
         });
         if ($("folhaCycleSummary")) $("folhaCycleSummary").textContent = j.data?.summary || "—";
-        renderFolhaPresets(state.folha.presets || j.data?.presets || [], readFolhaCycle());
         renderFolhaPreview(j.data?.preview);
       } catch (_) {
         /* keep last preview */
-      }
-    });
-    $("folhaPresetGrid")?.addEventListener("click", async (e) => {
-      const btn = e.target.closest?.("[data-folha-preset]");
-      if (!btn) return;
-      const id = btn.getAttribute("data-folha-preset");
-      const preset = (state.folha.presets || []).find((p) => p.id === id);
-      if (!preset?.cycle) return;
-      fillFolhaSettings({
-        cycle: preset.cycle,
-        summary: preset.summary || state.folha.snapshot?.summary,
-        presets: state.folha.presets,
-        preview: state.folha.snapshot?.preview,
-      });
-      updateSavebar();
-      try {
-        const j = await api("/api/settings/folha/preview", {
-          method: "POST",
-          body: JSON.stringify({ ...preset.cycle, preset: id }),
-        });
-        if ($("folhaCycleSummary")) $("folhaCycleSummary").textContent = j.data?.summary || "—";
-        renderFolhaPresets(state.folha.presets || [], readFolhaCycle());
-        renderFolhaPreview(j.data?.preview);
-      } catch (_) {
-        /* keep draft */
       }
     });
   }
@@ -2917,10 +2873,11 @@
       body.innerHTML = catalogState[kind]
         .map((it) => {
           const status = it.active ? '<span class="cfg-badge cfg-badge--ok">Ativo</span>' : '<span class="cfg-badge">Inativo</span>';
-          const sys = it.is_system ? ' <span class="cfg-badge">Padrão</span>' : "";
+          const sys = it.is_system && kind !== "payroll_payment_method" ? ' <span class="cfg-badge">Padrão</span>' : "";
+          const canHardDelete = !it.is_system || kind === "payroll_payment_method";
           const actions = manage
             ? `<button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-cat-edit="${esc(it.id)}" data-cat-kind="${esc(kind)}">Editar</button>
-               <button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-cat-del="${esc(it.id)}" data-cat-kind="${esc(kind)}">${it.is_system ? "Desativar" : "Remover"}</button>`
+               <button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-cat-del="${esc(it.id)}" data-cat-kind="${esc(kind)}">${canHardDelete ? "Remover" : "Desativar"}</button>`
             : "—";
           return `<tr>
             <td><strong>${esc(it.label)}</strong>${sys}</td>
@@ -2947,7 +2904,7 @@
     $("cfgCatalogId").value = item ? item.id : "";
     $("cfgCatalogLabel").value = item ? item.label : "";
     $("cfgCatalogKey").value = item ? item.key : "";
-    $("cfgCatalogKey").disabled = !!(item && item.is_system);
+    $("cfgCatalogKey").disabled = !!(item && item.is_system && kind !== "payroll_payment_method");
     $("cfgCatalogDescription").value = item ? item.description || "" : "";
     $("cfgCatalogActive").checked = item ? !!item.active : true;
     const titles = {
@@ -3006,13 +2963,14 @@
     if (!canManageCatalogLocal()) return;
     const item = (catalogState[kind] || []).find((x) => x.id === id);
     if (!item) return;
-    const msg = item.is_system
-      ? `Desativar “${item.label}”? (itens padrão não são apagados)`
-      : `Remover “${item.label}”?`;
+    const hardDelete = !item.is_system || kind === "payroll_payment_method";
+    const msg = hardDelete
+      ? `Remover “${item.label}”?`
+      : `Desativar “${item.label}”? (itens padrão não são apagados)`;
     if (!window.confirm(msg)) return;
     try {
       await api(`/api/settings/catalog/${kind}/${id}`, { method: "DELETE" });
-      notify(item.is_system ? "Item desativado" : "Item removido", "success");
+      notify(hardDelete ? "Item removido" : "Item desativado", "success");
       if (kind === "service_category") await loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
       else if (kind === "customer_type") await loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
       else if (kind === "payroll_payment_method") await loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");

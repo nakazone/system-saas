@@ -253,7 +253,7 @@ settingsCatalogRouter.put(
 
         let key = current.key;
         if (parsed.data.key && parsed.data.key !== current.key) {
-          if (current.isSystem) throw new Error("SYSTEM_KEY");
+          if (current.isSystem && kind !== "payroll_payment_method") throw new Error("SYSTEM_KEY");
           key = parsed.data.key;
           const clash = await tx.orgCatalogItem.findFirst({
             where: { kind, key, NOT: { id: current.id } },
@@ -305,7 +305,7 @@ settingsCatalogRouter.delete(
       await withTenantTransaction(req.organizationId!, async (tx) => {
         const current = await tx.orgCatalogItem.findFirst({ where: { id: paramStr(req.params.id), kind } });
         if (!current) throw new Error("NOT_FOUND");
-        if (current.isSystem) {
+        if (current.isSystem && kind !== "payroll_payment_method") {
           // Soft-deactivate system defaults instead of hard delete
           await tx.orgCatalogItem.update({
             where: { id: current.id },

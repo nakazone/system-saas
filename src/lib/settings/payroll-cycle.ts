@@ -53,88 +53,6 @@ export const DEFAULT_PAY_CYCLE: PayCycleSettings = {
   biweekly_anchor_ymd: null,
 };
 
-export const PAY_CYCLE_PRESETS: Array<{
-  id: string;
-  title: string;
-  desc: string;
-  cycle: PayCycleSettings;
-}> = [
-  {
-    id: "mon_sun",
-    title: "Segunda a domingo",
-    desc: "Semana clássica. Pagamento no domingo (fim do período).",
-    cycle: { ...DEFAULT_PAY_CYCLE },
-  },
-  {
-    id: "sun_fri_same_sat",
-    title: "Domingo a sexta · paga no sábado",
-    desc: "Fecha sexta; paga no sábado da mesma semana.",
-    cycle: {
-      ...DEFAULT_PAY_CYCLE,
-      period_start_weekday: 0,
-      period_length_days: 6,
-      pay_timing: "same_week",
-      pay_weekday: 6,
-    },
-  },
-  {
-    id: "sun_sat_next_sat",
-    title: "Domingo a sábado · paga no sábado seguinte",
-    desc: "Semana completa; pagamento no sábado da semana seguinte.",
-    cycle: {
-      ...DEFAULT_PAY_CYCLE,
-      period_start_weekday: 0,
-      period_length_days: 7,
-      pay_timing: "next_weekday",
-      pay_weekday: 6,
-    },
-  },
-  {
-    id: "semi_1_15",
-    title: "Quinzena 1–15 · paga no dia 15",
-    desc: "Primeira quinzena do mês; pagamento no último dia dela.",
-    cycle: {
-      ...DEFAULT_PAY_CYCLE,
-      frequency: "semi_monthly",
-      pay_timing: "on_period_end",
-      pay_day_of_month: 15,
-    },
-  },
-  {
-    id: "semi_16_end",
-    title: "Quinzena 16–fim · paga no último dia",
-    desc: "Segunda quinzena; pagamento no fim do mês.",
-    cycle: {
-      ...DEFAULT_PAY_CYCLE,
-      frequency: "semi_monthly",
-      pay_timing: "on_period_end",
-      pay_day_of_month: 31,
-    },
-  },
-  {
-    id: "monthly_end",
-    title: "Mês inteiro · paga no último dia",
-    desc: "Do dia 1 ao último dia do mês.",
-    cycle: {
-      ...DEFAULT_PAY_CYCLE,
-      frequency: "monthly",
-      pay_timing: "on_period_end",
-      pay_day_of_month: 31,
-    },
-  },
-  {
-    id: "monthly_day5",
-    title: "Mês inteiro · paga no dia 5",
-    desc: "Período do mês; pagamento no dia 5 do mês seguinte.",
-    cycle: {
-      ...DEFAULT_PAY_CYCLE,
-      frequency: "monthly",
-      pay_timing: "day_of_month",
-      pay_day_of_month: 5,
-    },
-  },
-];
-
 const weekdaySchema = z.number().int().min(0).max(6);
 
 export const payCyclePatchSchema = z.object({
@@ -150,7 +68,6 @@ export const payCyclePatchSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .nullable()
     .optional(),
-  preset: z.string().max(40).optional(),
 });
 
 export type PayCyclePatch = z.infer<typeof payCyclePatchSchema>;
@@ -211,10 +128,6 @@ export function applyPayCyclePatch(
       ? { ...(root.payroll as Record<string, unknown>) }
       : {};
   let next = parsePayCycle(root);
-  if (patch.preset) {
-    const preset = PAY_CYCLE_PRESETS.find((p) => p.id === patch.preset);
-    if (preset) next = { ...preset.cycle };
-  }
   next = {
     ...next,
     ...(patch.frequency !== undefined ? { frequency: patch.frequency } : {}),
@@ -229,8 +142,7 @@ export function applyPayCyclePatch(
     ...(patch.biweekly_anchor_ymd !== undefined ? { biweekly_anchor_ymd: patch.biweekly_anchor_ymd } : {}),
   };
   payroll.cycle = next;
-  if (patch.preset) payroll.preset = patch.preset;
-  else if (payroll.preset && patch.frequency !== undefined) delete payroll.preset;
+  delete payroll.preset;
   root.payroll = payroll;
   return root;
 }
