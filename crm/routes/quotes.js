@@ -30,7 +30,7 @@ async function getQuoteListSelectParts(pool) {
       ? ', (q.`invoice_pdf` IS NOT NULL AND LENGTH(q.`invoice_pdf`) > 0) AS `has_invoice_pdf`'
       : ''
   }`;
-  return { hasBlob, simple, joined };
+  return { hasBlob, simple, joined, colNames };
 }
 
 async function quotesTableHasInvoicePdf(pool) {
@@ -77,6 +77,8 @@ async function listQuotesQuery_(pool, req) {
   const plainParts = ['1=1'];
   const joinParts = ['1=1'];
 
+  const { simple: quoteSelectSimple, joined: quoteSelectJoined, colNames } = await getQuoteListSelectParts(pool);
+
   if (status) {
     if (String(status).toLowerCase() === 'rejected') {
       plainParts.push("(status = 'rejected' OR status = 'declined')");
@@ -109,9 +111,14 @@ async function listQuotesQuery_(pool, req) {
   if (searchQ) {
     const like = `%${escapeLikePattern(searchQ)}%`;
     joinParts.push(
-      "(q.quote_number LIKE ? OR CAST(q.id AS CHAR) LIKE ? OR COALESCE(c.name, '') LIKE ? OR COALESCE(l.name, '') LIKE ? OR COALESCE(c.email, '') LIKE ? OR COALESCE(l.email, '') LIKE ?)"
+      "(q.quote_number LIKE ? OR CAST(q.id AS CHAR) LIKE ? OR COALESCE(c.name, '') LIKE ? OR COALESCE(l.name, '') LIKE ? OR COALESCE(c.email, '') LIKE ? OR COALESCE(l.email, '') LIKE ?" +
+        (colNames.includes('job_name') ? " OR COALESCE(q.job_name, '') LIKE ?" : '') +
+        (colNames.includes('internal_notes') ? " OR COALESCE(q.internal_notes, '') LIKE ?" : '') +
+        ')'
     );
     params.push(like, like, like, like, like, like);
+    if (colNames.includes('job_name')) params.push(like);
+    if (colNames.includes('internal_notes')) params.push(like);
   }
 
   const whereClausePlain = plainParts.join(' AND ');
@@ -120,8 +127,6 @@ async function listQuotesQuery_(pool, req) {
   /** Página do lead só precisa de colunas de `quotes` — evita JOINs quando não há busca nem filtros extra. */
   let simpleLeadList =
     leadId != null && !status && !customerId && expiringWithin == null && !searchQ;
-
-  const { simple: quoteSelectSimple, joined: quoteSelectJoined } = await getQuoteListSelectParts(pool);
 
   let rows;
   if (simpleLeadList) {

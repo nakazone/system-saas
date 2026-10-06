@@ -517,10 +517,43 @@
         padding: 0.55rem 0.75rem;
       }
     }
-    .qb-party-tab.is-active {
-      background: var(--plab-accent, #e8792c);
+    .qb-party-tabs.is-solo {
+      display: none;
+    }
+    .qb-quote-note {
+      margin: 0.85rem 0 0;
+      padding: 0.85rem 0 0;
+      border-top: 1px solid #e2e8f0;
+      display: grid;
+      gap: 0.35rem;
+    }
+    .qb-quote-note label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .qb-quote-note input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      box-sizing: border-box;
+      background: #fff;
+    }
+    .qb-quote-note input:focus {
+      outline: 0;
       border-color: var(--plab-accent, #e8792c);
-      color: #fff;
+      box-shadow: 0 0 0 3px rgba(232, 121, 44, 0.18);
+    }
+    .qb-quote-note__hint {
+      margin: 0;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      font-weight: 500;
     }
     .qb-builder-select {
       width: 100%;
@@ -1886,7 +1919,7 @@
             <section class="qb-sheet__section" id="qbClientSection">
               <h2 class="qb-sheet__title">Cliente</h2>
               <div class="qb-sheet__body">
-                <div class="qb-party-tabs" role="tablist" aria-label="Tipo de cliente">
+                <div class="qb-party-tabs" id="qbPartyTabs" role="tablist" aria-label="Tipo de cliente">
                   <button type="button" class="qb-party-tab is-active" id="qbPartyLead" data-party="lead">Leads / Particular</button>
                   <button type="button" class="qb-party-tab" id="qbPartyBuilder" data-party="builder">Builder</button>
                   <button type="button" class="qb-party-tab" id="qbPartyContractor" data-party="contractor">Contractor</button>
@@ -2038,13 +2071,14 @@
                 <div id="qbJobFields" class="qb-job-fields hidden">
                   <p class="qb-job-fields__title">Projeto deste orçamento</p>
                   <div>
-                    <label for="quoteJobName">Nome do projeto</label>
-                    <input type="text" id="quoteJobName" autocomplete="off" placeholder="Ex.: Residência Smith — living room" />
-                  </div>
-                  <div>
                     <label for="quoteJobAddress">Endereço do projeto</label>
                     <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Digite o endereço (Google Maps)..." />
                   </div>
+                </div>
+                <div class="qb-quote-note" id="qbQuoteNote">
+                  <label for="quoteJobName">Nota / referência</label>
+                  <input type="text" id="quoteJobName" autocomplete="off" maxlength="120" placeholder="Ex.: Main floor, Second floor…" />
+                  <p class="qb-quote-note__hint">Aparece na lista de orçamentos para distinguir quotes do mesmo cliente.</p>
                 </div>
                 <div class="qb-client-meta">
                   <div class="qb-client-meta__grid">
@@ -2639,7 +2673,7 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261002-qbfix2"></script>
+  <script src="quote-builder.js?v=20261006-note1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

@@ -244,3 +244,21 @@
     overflow: visible !important;
   }
 }
+
+/* Quote list — note / referência chip */
+.customers-ref--note {
+  max-width: min(220px, 55vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: inherit;
+  font-weight: 700;
+  color: #7a5340;
+  background: #f7ebe3;
+  border-color: rgba(232, 121, 44, 0.28);
+  cursor: default;
+}
+.customers-ref--note:hover {
+  border-color: rgba(232, 121, 44, 0.45);
+  color: #8f4622;
+}

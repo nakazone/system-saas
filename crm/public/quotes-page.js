@@ -133,6 +133,8 @@
       .map((q, i) => {
         const client = escapeHtml(q.customer_name || q.lead_name || "—");
         const qnum = escapeHtml(q.quote_number != null ? String(q.quote_number) : "—");
+        const noteRaw = String(q.job_name || q.internal_notes || "").trim();
+        const note = noteRaw ? escapeHtml(noteRaw.length > 80 ? noteRaw.slice(0, 77) + "…" : noteRaw) : "";
         const amt = Number(q.total_amount || 0).toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
@@ -161,7 +163,10 @@
               <span class="customers-row__av" aria-hidden="true">${av}</span>
               <div class="customers-row__who">
                 <div class="customers-row__name" title="${client}">${client}</div>
-                <div class="customers-row__refs"><span class="customers-ref">#${qnum}</span></div>
+                <div class="customers-row__refs">
+                  <span class="customers-ref">#${qnum}</span>
+                  ${note ? `<span class="customers-ref customers-ref--note" title="${note}">${note}</span>` : ""}
+                </div>
               </div>
             </div>
             <div class="customers-row__amt tabular-nums">$${amt}</div>

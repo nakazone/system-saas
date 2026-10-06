@@ -1338,6 +1338,47 @@
     return 'lead';
   }
 
+  function isParticularLikeClient() {
+    if (getQuoteParty() !== 'lead') return false;
+    if (selectedQuoteLead) return true;
+    const c = getQuoteCustomerRecord();
+    if (!c) return false;
+    const t = String(c.customer_type || 'particular').toLowerCase();
+    return !t || t === 'particular' || t === 'lead' || t === 'customer';
+  }
+
+  function syncPartyTabsVisibility() {
+    const solo = isParticularLikeClient();
+    const tabs = $('qbPartyTabs');
+    if (tabs) {
+      tabs.classList.toggle('is-solo', solo);
+      tabs.hidden = solo;
+    }
+    document.querySelectorAll('.qb-party-tab').forEach((btn) => {
+      const p = btn.getAttribute('data-party');
+      if (p === 'lead') {
+        btn.hidden = false;
+        btn.textContent = solo ? 'Cliente' : 'Leads / Particular';
+      } else {
+        btn.hidden = solo;
+      }
+    });
+  }
+
+  function syncQuoteNoteLabel() {
+    const label = document.querySelector('#qbQuoteNote label[for="quoteJobName"]');
+    const hint = document.querySelector('#qbQuoteNote .qb-quote-note__hint');
+    const party = getQuoteParty();
+    if (!label) return;
+    if (party === 'builder' || party === 'contractor' || party === 'loja') {
+      label.textContent = 'Nota / nome do projeto';
+      if (hint) hint.textContent = 'Aparece na lista e no PDF deste orçamento.';
+    } else {
+      label.textContent = 'Nota / referência';
+      if (hint) hint.textContent = 'Aparece na lista de orçamentos para distinguir quotes do mesmo cliente.';
+    }
+  }
+
   function syncQuotePartyUi() {
     const party = getQuoteParty();
     document.querySelectorAll('.qb-party-tab').forEach((btn) => {
@@ -1364,6 +1405,8 @@
           ? 'Pesquisar contract por nome, empresa, e-mail…'
           : 'Pesquisar loja por nome, empresa, e-mail…';
     }
+    syncPartyTabsVisibility();
+    syncQuoteNoteLabel();
   }
 
   function setQuoteParty(party, { applyPrices = true } = {}) {
@@ -2059,6 +2102,7 @@
       renderClientDetails();
       qbToast(e.message || 'Lead sem email válido para criar cliente.', 'error');
     }
+    syncPartyTabsVisibility();
   }
 
   async function ensureCustomerForQuote() {
@@ -3000,6 +3044,7 @@
       $('customerId').value = '';
       selectedQuoteLead = null;
       renderClientDetails();
+      syncPartyTabsVisibility();
       scheduleClientLeadSearch();
     });
     search.addEventListener('keydown', (e) => {
@@ -3026,6 +3071,7 @@
           applyPricingFromCustomer(c);
           refreshRatesForCatalogLines();
           renderItems();
+          syncPartyTabsVisibility();
         };
         if (cached) {
           applyParticular(cached);
@@ -4847,10 +4893,7 @@
     else if (loadedQuoteLeadId != null && loadedQuoteLeadId !== '') lead_id = String(loadedQuoteLeadId);
     else if (pendingLeadId != null && pendingLeadId !== '') lead_id = String(pendingLeadId);
     const builderRaw = party === 'builder' ? String($('quoteBuilderSelect')?.value || '').trim() : '';
-    const jobName =
-      party === 'builder' || party === 'contractor' || party === 'loja'
-        ? String($('quoteJobName')?.value || '').trim()
-        : '';
+    const jobName = String($('quoteJobName')?.value || '').trim().slice(0, 120);
     const jobAddr =
       party === 'builder' || party === 'contractor' || party === 'loja'
         ? String($('quoteJobAddress')?.value || '').trim()
