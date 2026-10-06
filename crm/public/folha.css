@@ -213,6 +213,49 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-jobpick { display: grid; gap: 6px; }
 .fo-jobpick__row { display: grid; grid-template-columns: 1fr 110px 34px; gap: 6px; align-items: center; }
 
+.fo-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Cycle calendar + classic daily entry bars */
+.fo-week-top { display: grid; grid-template-columns: minmax(240px, 280px) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; align-items: start; }
+.fo-cal { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 12px 10px; }
+.fo-cal__hd { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
+.fo-cal__hd b { font-size: 13.5px; font-weight: 800; text-transform: capitalize; text-align: center; flex: 1; }
+.fo-cal__dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; text-align: center; font-size: 11px; font-weight: 800; color: var(--muted); }
+.fo-cal__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.fo-cal__blank { min-height: 32px; }
+.fo-cal__d { appearance: none; border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink-2); height: 32px; border-radius: 9px; cursor: pointer; }
+.fo-cal__d:hover:not(:disabled) { background: var(--line-2); }
+.fo-cal__d:disabled { opacity: 0.35; cursor: default; }
+.fo-cal__d.is-period { background: #f0ebe3; color: var(--ink); }
+.fo-cal__d.is-today { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.fo-cal__d.is-sel { background: var(--ink); color: #fff; }
+.fo-cal__d.is-pay:not(.is-sel) { color: var(--terra-d); font-weight: 800; }
+.fo-cal__leg { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 2px 0; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.fo-cal__swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: middle; }
+.fo-cal__swatch.is-period { background: #f0ebe3; border: 1px solid var(--line); }
+.fo-cal__swatch.is-pay { background: var(--terra-soft); border: 1px solid #f6d3b8; }
+
+.fo-entry { display: grid; gap: 10px; }
+.fo-entry__bar { display: grid; grid-template-columns: auto minmax(140px, 1.2fr) 132px auto auto auto; gap: 8px 10px; align-items: end; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+.fo-entry__hd { display: flex; flex-direction: column; gap: 2px; min-width: 88px; padding-bottom: 6px; }
+.fo-entry__hd b { font-size: 14px; font-weight: 800; }
+.fo-entry__hd small { font-size: 11px; font-weight: 700; color: var(--muted); }
+.fo-entry__chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-bottom: 2px; }
+.fo-entry__chips .fo-chip { min-width: 44px; height: 34px; padding: 0 10px; }
+.fo-entry__otlab { font-size: 12px; font-weight: 700; color: var(--muted); margin-left: 2px; }
+.fo-entry__go { height: 40px; white-space: nowrap; }
+.fo-entry__emp, .fo-entry__date { margin: 0; }
+.fo-entry__emp .fo-sel, .fo-entry__date .fo-in { width: 100%; }
+
+.fo-emps-search { flex: 1; min-width: 200px; max-width: 360px; margin: 0; }
+.fo-emps-blocks { display: grid; gap: 14px; }
+.fo-emps-block { background: #fff; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.fo-emps-block__hd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 14px 8px; border-bottom: 1px solid var(--line-2); }
+.fo-emps-block__hd h2 { margin: 0; font-size: 15px; font-weight: 800; }
+.fo-emps-block__hd span { font-size: 12.5px; font-weight: 800; color: var(--muted); }
+.fo-emps-block .fo-tbl { margin: 0; }
+.fo-emps-block .fo-empty { border: 0; }
+
 /* Mobile cards (week) */
 .fo-mlist { display: none; }
 .fo-mcard { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 13px 14px; }
@@ -237,6 +280,11 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
   .fo-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fo-filters { grid-template-columns: 1fr 1fr; }
   .fo-filters .fo-field:first-child { grid-column: 1 / -1; }
+  .fo-week-top { grid-template-columns: 1fr; }
+  .fo-entry__bar { grid-template-columns: 1fr 1fr; }
+  .fo-entry__hd { grid-column: 1 / -1; padding-bottom: 0; }
+  .fo-entry__emp { grid-column: 1 / -1; }
+  .fo-entry__go { grid-column: 1 / -1; width: 100%; }
 }
 @media (max-width: 720px) {
   .fo-tbl-wrap--week { display: none; }

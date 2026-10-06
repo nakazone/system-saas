@@ -41,6 +41,13 @@
     pend: null,
     pendSel: new Set(),
     emps: null,
+    empSearch: "",
+    entryDate: null,
+    calMonth: null,
+    entry: {
+      installation: { empId: "", days: 1, ot: "" },
+      sand_finish: { empId: "", days: 1, ot: "" },
+    },
     report: null,
     rep: { preset: "year", from: null, to: null, employee: "", sector: "" },
     pays: null,
@@ -146,6 +153,11 @@
   }
 
   // ------------------------------------------------------------ semana
+  function defaultEntryDate(w) {
+    const today = w.week.today;
+    if (today >= w.week.start && today <= w.week.end) return today;
+    return w.week.end < today ? w.week.end : w.week.start;
+  }
   async function loadWeek() {
     const box = $("foSemana");
     if (!st.week) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
@@ -153,11 +165,16 @@
       const j = await api(`/api/folha/semana${st.weekRef ? `?week=${st.weekRef}` : ""}`);
       st.week = j.data;
       st.weekRef = j.data.week.start;
+      if (!st.entryDate || st.entryDate < j.data.week.start || st.entryDate > j.data.week.end) {
+        st.entryDate = defaultEntryDate(j.data);
+      }
+      if (!st.calMonth) st.calMonth = st.entryDate.slice(0, 7);
       // Drop selections that are no longer payable.
       for (const id of [...st.selected]) {
         const e = j.data.employees.find((x) => x.id === id);
         if (!e || e.payment || e.totals.net <= 0) st.selected.delete(id);
       }
+      await ensureEmps().catch(() => null);
       renderWeek();
       writeHash();
       refreshPendCount(j.data);
@@ -215,6 +232,75 @@
       })
       .join("");
   }
+  function renderCycleCal(w) {
+    const mk = st.calMonth || w.week.start.slice(0, 7);
+    const [cy, cm] = mk.split("-").map(Number);
+    const first = new Date(cy, cm - 1, 1);
+    const startPad = first.getDay();
+    const daysInMonth = new Date(cy, cm, 0).getDate();
+    const monthLabel = first.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const dow = ["D", "S", "T", "Q", "Q", "S", "S"].map((x) => `<span>${x}</span>`).join("");
+    const cells = [];
+    for (let i = 0; i < startPad; i++) cells.push('<span class="fo-cal__blank"></span>');
+    for (let d = 1; d <= daysInMonth; d++) {
+      const y = `${cy}-${pad(cm)}-${pad(d)}`;
+      const inPeriod = y >= w.week.start && y <= w.week.end;
+      const isPay = y === w.week.pay_on;
+      const isSel = y === st.entryDate;
+      const isToday = y === w.week.today;
+      const future = y > w.week.today;
+      cells.push(
+        `<button type="button" class="fo-cal__d${inPeriod ? " is-period" : ""}${isSel ? " is-sel" : ""}${isToday ? " is-today" : ""}${isPay ? " is-pay" : ""}" data-cal-day="${y}"${future ? " disabled" : ""} aria-label="${brDate(y)}"${isSel ? ' aria-current="date"' : ""}>${d}</button>`,
+      );
+    }
+    return `<div class="fo-cal" aria-label="Calendário do ciclo">
+      <div class="fo-cal__hd">
+        <button type="button" class="fo-ic" data-cal-month="-1" aria-label="Mês anterior">‹</button>
+        <b>${esc(monthLabel)}</b>
+        <button type="button" class="fo-ic" data-cal-month="1" aria-label="Próximo mês">›</button>
+      </div>
+      <div class="fo-cal__dow">${dow}</div>
+      <div class="fo-cal__grid">${cells.join("")}</div>
+      <p class="fo-cal__leg"><span class="fo-cal__swatch is-period"></span> Ciclo${w.week.pay_on_label ? ` · <span class="fo-cal__swatch is-pay"></span> Paga ${esc(w.week.pay_on_label)}` : ""}</p>
+    </div>`;
+  }
+  function renderEntryBar(sector) {
+    const label = SECTORS[sector];
+    const slot = st.entry[sector] || { empId: "", days: 1, ot: "" };
+    const emps = ((st.emps && st.emps.employees) || [])
+      .filter((e) => e.status === "active" && (e.sector || "installation") === sector && e.pay_type !== "production")
+      .sort((a, b) => a.name.localeCompare(b.name, "pt"));
+    const date = st.entryDate || ymdOf(new Date());
+    const days = Number(slot.days) === 0.5 || Number(slot.days) === 2 ? Number(slot.days) : 1;
+    const ot = slot.ot === "" || slot.ot == null ? "" : String(slot.ot);
+    const otLab = ot === "" ? "Nenhuma" : `+${hm(Number(ot) || 0)}`;
+    return `<div class="fo-entry__bar" data-entry-sector="${sector}">
+      <div class="fo-entry__hd"><b>${esc(label)}</b><small>Diária · um dia</small></div>
+      <label class="fo-field fo-entry__emp"><span class="fo-sr">Nome</span><select class="fo-sel" data-entry-emp aria-label="Funcionário ${esc(label)}"><option value="">Nome…</option>${emps
+        .map((e) => `<option value="${esc(e.id)}"${slot.empId === e.id ? " selected" : ""}>${esc(e.name)}</option>`)
+        .join("")}</select></label>
+      <label class="fo-field fo-entry__date"><span class="fo-sr">Data</span><input type="date" class="fo-in" data-entry-date value="${esc(date)}" max="${ymdOf(new Date())}" aria-label="Data" /></label>
+      <div class="fo-entry__chips" role="group" aria-label="Diária">
+        <button type="button" class="fo-chip" data-entry-days="0.5" aria-pressed="${days === 0.5}">½</button>
+        <button type="button" class="fo-chip" data-entry-days="1" aria-pressed="${days === 1}">1</button>
+        <button type="button" class="fo-chip" data-entry-days="2" aria-pressed="${days === 2}" title="Double">2×</button>
+      </div>
+      <div class="fo-entry__chips" role="group" aria-label="Horas extras">
+        <button type="button" class="fo-chip" data-entry-ot="30">+½ h</button>
+        <button type="button" class="fo-chip" data-entry-ot="60">+1 h</button>
+        <button type="button" class="fo-chip" data-entry-ot-clear${ot === "" ? " hidden" : ""}>Limpar</button>
+        <span class="fo-entry__otlab" data-entry-ot-lab>${esc(otLab)}</span>
+      </div>
+      ${st.manage ? '<button type="button" class="fo-btn fo-btn--pri fo-entry__go" data-entry-go>Lançar</button>' : ""}
+    </div>`;
+  }
+  function renderEntryBars() {
+    if (!st.manage) return "";
+    return `<div class="fo-entry" id="foEntryBars">
+      ${renderEntryBar("installation")}
+      ${renderEntryBar("sand_finish")}
+    </div>`;
+  }
   function renderWeek() {
     const w = st.week;
     const box = $("foSemana");
@@ -231,16 +317,20 @@
           <button type="button" class="fo-ic" data-week="next" aria-label="Próximo período">›</button>
           ${w.week.today >= w.week.start && w.week.today <= w.week.end ? "" : '<button type="button" class="fo-btn fo-btn--ghost fo-btn--sm" data-week="today">Hoje</button>'}
         </div>
-        <div class="fo-seg" role="group" aria-label="Setor">${segBtn("all", "Todos")}${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}</div>
+        <div class="fo-seg" role="group" aria-label="Setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}</div>
+      </div>
+      <div class="fo-week-top">
+        ${renderCycleCal(w)}
+        ${renderEntryBars()}
       </div>
       <div class="fo-stats">
         <div class="fo-stat fo-stat--ink"><small>A pagar</small><b>${money(t.to_pay)}</b><span>${t.paid ? `${money(t.paid)} já pago` : "nada pago ainda"}</span></div>
-        <div class="fo-stat"><small>Total da semana</small><b>${money(t.net)}</b><span>${t.employees} funcionário${t.employees === 1 ? "" : "s"}</span></div>
+        <div class="fo-stat"><small>Total do ciclo</small><b>${money(t.net)}</b><span>${t.employees} funcionário${t.employees === 1 ? "" : "s"}</span></div>
         <div class="fo-stat${t.pending_days ? " fo-stat--warn" : ""}"><small>Para conferir</small><b>${t.pending_days} dia${t.pending_days === 1 ? "" : "s"}</b><span>${t.pending_days ? '<button type="button" class="fo-link" data-goto="conferir">Conferir agora</button>' : "tudo conferido"}</span></div>
         <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_minutes)}</b><span>${t.sqft ? `${qty(t.sqft)} sq ft de produção` : "depois do horário padrão"}</span></div>
       </div>`;
     if (!rows.length) {
-      box.innerHTML = `${head}<div class="fo-card"><div class="fo-empty"><b>Ninguém nesta semana${st.sector !== "all" ? ` em ${SECTORS[st.sector]}` : ""}.</b>Os dias aparecem aqui quando a equipe começa e finaliza o dia no celular.</div></div>`;
+      box.innerHTML = `${head}<div class="fo-card"><div class="fo-empty"><b>Nenhum lançamento neste ciclo${st.sector !== "all" ? ` em ${SECTORS[st.sector]}` : ""}.</b>Use a barra acima para lançar uma diária, ou aguarde a equipe finalizar o dia no celular.</div></div>`;
       renderPayBar();
       return;
     }
@@ -909,27 +999,40 @@
     return `${start} → ${s.end_time}${s.lunch_minutes ? ` · almoço ${s.lunch_minutes}min` : ""}`;
   }
   function renderEmps() {
-    const list = st.emps.employees;
-    const by = (k) => list.filter((e) => e.status === "active" && (e.sector || "installation") === k).length;
-    $("foFuncionarios").innerHTML = `<div class="fo-tool"><div class="fo-muted" style="font-weight:700;font-size:14px">${list.filter((e) => e.status === "active").length} ativos · ${by("installation")} Instalação · ${by("sand_finish")} Lixa</div>${
-      st.manage ? '<button type="button" class="fo-btn fo-btn--pri" data-emp-new>+ Novo funcionário</button>' : ""
-    }</div>
-      <div class="fo-card">${
-        list.length
-          ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th><th>Setor</th><th>Pagamento</th><th>Horário padrão</th><th>Login no app</th><th>Status</th></tr></thead><tbody>${list
-              .map((e) => {
-                const ph = e.phone && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(e.phone) || e.phone : e.phone;
-                return `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || ph || e.email || "")}</small></span></div></td>
-                <td>${e.sector ? sectorTag(e.sector) : '<span class="fo-pill fo-pill--due">Definir</span>'}</td>
+    const q = (st.empSearch || "").trim().toLowerCase();
+    const active = (st.emps.employees || []).filter((e) => e.status === "active");
+    const match = (e) => !q || String(e.name || "").toLowerCase().includes(q);
+    const block = (sector, title) => {
+      const list = active.filter((e) => (e.sector || "installation") === sector && match(e));
+      return `<div class="fo-emps-block">
+        <div class="fo-emps-block__hd"><h2>${esc(title)}</h2><span>${list.length}</span></div>
+        ${
+          list.length
+            ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th><th>Pagamento</th><th>Horário padrão</th><th>Login no app</th></tr></thead><tbody>${list
+                .map((e) => {
+                  const ph = e.phone && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(e.phone) || e.phone : e.phone;
+                  return `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || ph || e.email || "")}</small></span></div></td>
                 <td>${e.pay_type === "production" ? `Produção · ${money(e.production_rate)}/sq ft` : `Diária · ${money0(e.daily_rate)}`}<div class="fo-muted" style="font-size:12px">extra ${money(e.overtime_rate)}/h${e.payment_method ? ` · ${esc(METHOD_LABEL[e.payment_method] || e.payment_method)}` : ""}</div></td>
                 <td>${esc(schedLabel(e))}<div class="fo-muted" style="font-size:12px">${[e.require_photos ? "fotos obrigatórias" : "", e.require_gps ? "GPS" : ""].filter(Boolean).join(" · ") || "sem exigências"}</div></td>
-                <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td>
-                <td>${e.status === "active" ? '<span class="fo-pill fo-pill--muted">Ativo</span>' : '<span class="fo-pill fo-pill--red">Inativo</span>'}</td></tr>`;
-              })
-              .join("")}</tbody></table>`
-          : '<div class="fo-empty"><b>Nenhum funcionário ainda.</b>Cadastre a equipe com setor, diária e horário padrão.</div>'
-      }</div>
-      <p class="fo-muted" style="font-size:13px;font-weight:600;margin:10px 2px 0">Sem login no app, o funcionário não bate o ponto pelo celular — o escritório lança os dias em "+ Lançar dia".</p>`;
+                <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td></tr>`;
+                })
+                .join("")}</tbody></table>`
+            : `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário ativo neste setor."}</div>`
+        }
+      </div>`;
+    };
+    const nInst = active.filter((e) => (e.sector || "installation") === "installation").length;
+    const nLixa = active.filter((e) => e.sector === "sand_finish").length;
+    $("foFuncionarios").innerHTML = `<div class="fo-tool">
+        <label class="fo-field fo-emps-search"><span class="fo-sr">Buscar</span><input type="search" class="fo-in" id="foEmpSearch" value="${esc(st.empSearch)}" placeholder="Buscar por nome…" autocomplete="off" /></label>
+        <div class="fo-muted" style="font-weight:700;font-size:14px">${active.length} ativos · ${nInst} Instalação · ${nLixa} Lixa</div>
+        ${st.manage ? '<button type="button" class="fo-btn fo-btn--pri" data-emp-new>+ Novo funcionário</button>' : ""}
+      </div>
+      <div class="fo-emps-blocks">
+        ${block("installation", "Instalação")}
+        ${block("sand_finish", "Lixa")}
+      </div>
+      <p class="fo-muted" style="font-size:13px;font-weight:600;margin:10px 2px 0">Sem login no app, o funcionário não bate o ponto pelo celular — o escritório lança as diárias na aba Semana.</p>`;
   }
   function openEmp(id) {
     const e = id ? st.emps.employees.find((x) => x.id === id) : null;
@@ -1015,244 +1118,50 @@
     }
   }
 
-  // ------------------------------------------------------------ lançar dia
-  async function jobsAround(date) {
-    if (st.jobsCache[date]) return st.jobsCache[date];
-    const from = `${addDays(date, -10)}T00:00:00`;
-    const to = `${addDays(date, 10)}T23:59:59`;
-    const j = await api(`/api/work-orders?from=${encodeURIComponent(new Date(from).toISOString())}&to=${encodeURIComponent(new Date(to).toISOString())}`).catch(() => ({ data: [] }));
-    const list = (j.data || []).filter((w) => w.status !== "canceled").map((w) => ({ id: w.id, label: `${w.number != null ? `#${w.number} ` : ""}${w.title}` }));
-    st.jobsCache[date] = list;
-    return list;
+  // ------------------------------------------------------------ lançar diária (barra na Semana)
+  function focusEntryBar(sector) {
+    if (st.tab !== "semana") setTab("semana");
+    else if (!st.week) loadWeek();
+    setTimeout(() => {
+      const bar = document.querySelector(sector ? `[data-entry-sector="${sector}"]` : "#foEntryBars .fo-entry__bar");
+      bar?.scrollIntoView({ behavior: "smooth", block: "center" });
+      bar?.querySelector("[data-entry-emp]")?.focus();
+    }, 280);
   }
-  async function openLogDay(prefill) {
-    await ensureEmps().catch(() => null);
-    const emps = (st.emps ? st.emps.employees : []).filter((e) => e.status === "active");
-    const date = (prefill && prefill.date) || ymdOf(new Date());
-    const fromDef = date;
-    const toDef = date;
-    openSheet(
-      `${sheetHead("Lançar diárias", "Um dia ou vários de uma vez — mesmo horário para todos")}<div class="fo-sheet__bd">
-        <div class="fo-box">
-          <div class="fo-seg" id="ldMode" role="group" aria-label="Modo de lançamento" style="margin-bottom:12px">
-            <button type="button" data-ld-mode="one" aria-pressed="true">Um dia</button>
-            <button type="button" data-ld-mode="multi" aria-pressed="false">Vários dias</button>
-          </div>
-          <label class="fo-field">Funcionário<select class="fo-sel" id="ldEmp" autofocus><option value="">Escolha…</option>${emps.map((e) => `<option value="${esc(e.id)}">${esc(e.name)} · ${esc(SECTORS[e.sector || "installation"])}</option>`).join("")}</select></label>
-          <div class="fo-grid3" id="ldSingleRow" style="margin-top:10px">
-            <label class="fo-field">Data<input type="date" class="fo-in" id="ldDate" value="${esc(date)}" max="${ymdOf(new Date())}" /></label>
-            <label class="fo-field">Entrada<input type="time" class="fo-in" id="ldIn" value="07:00" /></label>
-            <label class="fo-field">Saída<input type="time" class="fo-in" id="ldOut" value="17:00" /></label>
-          </div>
-          <div id="ldMultiRow" hidden style="margin-top:10px">
-            <div class="fo-grid3">
-              <label class="fo-field">De<input type="date" class="fo-in" id="ldFrom" value="${esc(fromDef)}" max="${ymdOf(new Date())}" /></label>
-              <label class="fo-field">Até<input type="date" class="fo-in" id="ldTo" value="${esc(toDef)}" max="${ymdOf(new Date())}" /></label>
-              <label class="fo-field">Entrada<input type="time" class="fo-in" id="ldInMulti" value="07:00" /></label>
-            </div>
-            <div class="fo-grid3" style="margin-top:8px">
-              <label class="fo-field">Saída<input type="time" class="fo-in" id="ldOutMulti" value="17:00" /></label>
-              <label class="fo-check" style="align-self:end;padding-bottom:8px"><input type="checkbox" id="ldSkipWe" checked /> <span>Só dias úteis</span></label>
-              <p class="fo-muted" id="ldMultiHint" style="margin:0;align-self:end;padding-bottom:10px;font-size:13px;font-weight:700">1 dia</p>
-            </div>
-          </div>
-          <div style="margin-top:12px">
-            <div class="fo-field"><span>Diária (por dia)</span></div>
-            <div class="fo-chiprow" id="ldDaysRow" role="group" aria-label="Quantidade de diárias">
-              <button type="button" class="fo-chip" data-ld-days="0.5" aria-pressed="false">½ dia</button>
-              <button type="button" class="fo-chip" data-ld-days="1" aria-pressed="true">1 diária</button>
-              <button type="button" class="fo-chip" data-ld-days="2" aria-pressed="false" title="Duas diárias no mesmo dia">Double</button>
-            </div>
-            <input type="hidden" id="ldDays" value="1" />
-          </div>
-          <div style="margin-top:12px">
-            <div class="fo-field"><span>Hora extra</span><small id="ldOtLabel">Nenhuma — ou calcula pelo horário</small></div>
-            <div class="fo-chiprow" role="group" aria-label="Adicionar hora extra">
-              <button type="button" class="fo-chip" data-ld-ot="30">+½ h</button>
-              <button type="button" class="fo-chip" data-ld-ot="60">+1 h</button>
-              <button type="button" class="fo-chip" data-ld-ot-clear hidden>Limpar</button>
-            </div>
-            <input type="hidden" id="ldOt" value="" />
-          </div>
-        </div>
-        <div class="fo-box"><h3>Jobs do dia <small>opcional · igual em todos os dias</small></h3><div class="fo-jobpick" id="ldJobs"></div><button type="button" class="fo-btn fo-btn--sm" data-ld-addjob style="margin-top:8px">+ Job</button></div>
-        <div class="fo-box"><label class="fo-field">Nota<textarea class="fo-ta" id="ldNote" maxlength="500" placeholder="Ex.: esqueceu o celular; confirmado com o líder."></textarea></label></div>
-        <p class="fo-muted" style="margin:0;font-size:13px;font-weight:600">Entra aprovado na folha, marcado como lançado pelo escritório. Sem hora extra manual, o sistema calcula pelo horário padrão do funcionário.</p>
-      </div>
-      <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-ld-go id="ldGoBtn">Lançar</button></footer>`,
-    );
-    if (prefill && prefill.employee) $("ldEmp").value = prefill.employee;
-    ldSyncMultiHint();
+  function entrySlotFromBar(bar) {
+    const sector = bar.getAttribute("data-entry-sector");
+    if (!st.entry[sector]) st.entry[sector] = { empId: "", days: 1, ot: "" };
+    return st.entry[sector];
   }
-
-  function ldMode() {
-    const btn = document.querySelector("#ldMode [aria-pressed='true']");
-    return btn?.getAttribute("data-ld-mode") === "multi" ? "multi" : "one";
+  function syncEntryOtLab(bar) {
+    const slot = entrySlotFromBar(bar);
+    const lab = bar.querySelector("[data-entry-ot-lab]");
+    const clear = bar.querySelector("[data-entry-ot-clear]");
+    if (lab) lab.textContent = slot.ot === "" || slot.ot == null ? "Nenhuma" : `+${hm(Number(slot.ot) || 0)}`;
+    if (clear) clear.hidden = slot.ot === "" || slot.ot == null;
   }
-
-  function ldSetMode(mode) {
-    const multi = mode === "multi";
-    document.querySelectorAll("#ldMode [data-ld-mode]").forEach((b) => {
-      b.setAttribute("aria-pressed", String(b.getAttribute("data-ld-mode") === (multi ? "multi" : "one")));
-    });
-    const single = $("ldSingleRow");
-    const multiRow = $("ldMultiRow");
-    if (single) single.hidden = multi;
-    if (multiRow) multiRow.hidden = !multi;
-    if (multi) {
-      // Keep times in sync when switching
-      if ($("ldInMulti") && $("ldIn")) $("ldInMulti").value = $("ldIn").value || "07:00";
-      if ($("ldOutMulti") && $("ldOut")) $("ldOutMulti").value = $("ldOut").value || "17:00";
-      if ($("ldFrom") && $("ldDate")) $("ldFrom").value = $("ldDate").value;
-      if ($("ldTo") && !$("ldTo").value) $("ldTo").value = $("ldFrom")?.value || ymdOf(new Date());
-    } else if ($("ldDate") && $("ldFrom")) {
-      $("ldDate").value = $("ldFrom").value || $("ldDate").value;
-      if ($("ldIn") && $("ldInMulti")) $("ldIn").value = $("ldInMulti").value || $("ldIn").value;
-      if ($("ldOut") && $("ldOutMulti")) $("ldOut").value = $("ldOutMulti").value || $("ldOut").value;
-    }
-    ldSyncMultiHint();
-  }
-
-  function ldExpandDates(fromYmd, toYmd, skipWeekends) {
-    const out = [];
-    if (!fromYmd || !toYmd) return out;
-    let a = fromYmd;
-    let b = toYmd;
-    if (a > b) {
-      const t = a;
-      a = b;
-      b = t;
-    }
-    const cur = new Date(`${a}T12:00:00`);
-    const end = new Date(`${b}T12:00:00`);
-    const today = ymdOf(new Date());
-    while (cur.getTime() <= end.getTime()) {
-      const y = ymdOf(cur);
-      if (y > today) break;
-      const dow = cur.getDay();
-      if (!(skipWeekends && (dow === 0 || dow === 6))) out.push(y);
-      cur.setDate(cur.getDate() + 1);
-      if (out.length >= 31) break;
-    }
-    return out;
-  }
-
-  function ldSyncMultiHint() {
-    const hint = $("ldMultiHint");
-    const go = $("ldGoBtn");
-    if (ldMode() !== "multi") {
-      if (go) go.textContent = "Lançar";
+  async function entryGo(bar, btn) {
+    const slot = entrySlotFromBar(bar);
+    const empId = bar.querySelector("[data-entry-emp]")?.value || slot.empId;
+    const date = bar.querySelector("[data-entry-date]")?.value || st.entryDate;
+    if (!empId || !date) {
+      notify("Escolha o funcionário e a data.", "error");
       return;
     }
-    const dates = ldExpandDates($("ldFrom")?.value, $("ldTo")?.value, !!$("ldSkipWe")?.checked);
-    if (hint) {
-      hint.textContent =
-        dates.length === 0
-          ? "Nenhuma data"
-          : dates.length === 1
-            ? "1 dia"
-            : `${dates.length} dias`;
-    }
-    if (go) go.textContent = dates.length > 1 ? `Lançar ${dates.length} dias` : "Lançar";
-  }
-  function ldSyncOtLabel() {
-    const raw = $("ldOt")?.value;
-    const lab = $("ldOtLabel");
-    const clear = document.querySelector("[data-ld-ot-clear]");
-    if (!lab) return;
-    if (raw === "" || raw == null) {
-      lab.textContent = "Nenhuma — ou calcula pelo horário";
-      if (clear) clear.hidden = true;
-      return;
-    }
-    const min = Math.max(0, Math.round(Number(raw) || 0));
-    lab.textContent = min ? `+${hm(min)}` : "0 min";
-    if (clear) clear.hidden = false;
-  }
-  function ldSetDays(v) {
-    const n = Number(v);
-    const days = n === 0.5 || n === 2 ? n : 1;
-    if ($("ldDays")) $("ldDays").value = String(days);
-    document.querySelectorAll("[data-ld-days]").forEach((b) => {
-      b.setAttribute("aria-pressed", String(Number(b.getAttribute("data-ld-days")) === days));
-    });
-  }
-  function ldAddOt(addMin) {
-    const el = $("ldOt");
-    if (!el) return;
-    const cur = el.value === "" ? 0 : Math.max(0, Math.round(Number(el.value) || 0));
-    el.value = String(Math.min(16 * 60, cur + Math.max(0, Math.round(Number(addMin) || 0))));
-    ldSyncOtLabel();
-  }
-  function ldClearOt() {
-    if ($("ldOt")) $("ldOt").value = "";
-    ldSyncOtLabel();
-  }
-  async function ldAddJob() {
-    const date =
-      (ldMode() === "multi" ? $("ldFrom")?.value : $("ldDate")?.value) || ymdOf(new Date());
-    const jobs = await jobsAround(date);
-    const row = document.createElement("div");
-    row.className = "fo-jobpick__row";
-    row.innerHTML = `<select class="fo-sel" data-ld-job><option value="">Job…</option>${jobs.map((j) => `<option value="${esc(j.id)}">${esc(j.label)}</option>`).join("")}</select><input type="number" class="fo-in" data-ld-sqft min="0" step="1" placeholder="sq ft" /><button type="button" class="fo-ic" data-ld-rm aria-label="Remover">×</button>`;
-    $("ldJobs").appendChild(row);
-  }
-  async function ldGo(btn) {
-    const multi = ldMode() === "multi";
-    const otRaw = $("ldOt")?.value;
-    const start = multi ? $("ldInMulti")?.value : $("ldIn")?.value;
-    const end = multi ? $("ldOutMulti")?.value : $("ldOut")?.value;
     const body = {
-      employee_id: $("ldEmp").value,
-      start,
-      end,
-      days_worked: Number($("ldDays").value),
-      jobs: [...document.querySelectorAll("#ldJobs .fo-jobpick__row")]
-        .map((r) => ({ work_order_id: r.querySelector("[data-ld-job]").value, sqft: Number(r.querySelector("[data-ld-sqft]").value) || 0 }))
-        .filter((j) => j.work_order_id),
-      note: $("ldNote").value.trim() || null,
+      employee_id: empId,
+      date,
+      days_worked: Number(slot.days) === 0.5 || Number(slot.days) === 2 ? Number(slot.days) : 1,
     };
-    if (otRaw !== "" && otRaw != null) body.overtime_minutes = Math.max(0, Math.round(Number(otRaw) || 0));
-    if (!body.employee_id || !body.start || !body.end) {
-      notify("Escolha o funcionário, a data, a entrada e a saída.", "error");
-      return;
-    }
+    if (slot.ot !== "" && slot.ot != null) body.overtime_minutes = Math.max(0, Math.round(Number(slot.ot) || 0));
     btn.disabled = true;
     try {
-      if (multi) {
-        const dates = ldExpandDates($("ldFrom")?.value, $("ldTo")?.value, !!$("ldSkipWe")?.checked);
-        if (!dates.length) {
-          btn.disabled = false;
-          notify("Escolha um período com pelo menos um dia válido.", "error");
-          return;
-        }
-        const j = await api("/api/folha/dias/lote", { method: "POST", body: JSON.stringify({ ...body, dates }) });
-        const created = j.data?.created || 0;
-        const skipped = (j.data?.results || []).filter((r) => !r.ok);
-        const exists = skipped.filter((r) => r.code === "DAY_EXISTS").length;
-        const other = skipped.length - exists;
-        let msg = created === 1 ? "1 dia lançado e aprovado." : `${created} dias lançados e aprovados.`;
-        if (exists) msg += ` ${exists} já existiam.`;
-        if (other) msg += ` ${other} falharam.`;
-        notify(msg, created ? "success" : "error");
-        if (!created) {
-          btn.disabled = false;
-          return;
-        }
-        closeSheet();
-        st.weekRef = dates[0];
-      } else {
-        body.date = $("ldDate").value;
-        if (!body.date) {
-          btn.disabled = false;
-          notify("Escolha o funcionário, a data, a entrada e a saída.", "error");
-          return;
-        }
-        await api("/api/folha/dias", { method: "POST", body: JSON.stringify(body) });
-        notify("Dia lançado e aprovado.", "success");
-        closeSheet();
-        st.weekRef = body.date;
-      }
+      await api("/api/folha/dias", { method: "POST", body: JSON.stringify(body) });
+      notify("Diária lançada e aprovada.", "success");
+      slot.empId = "";
+      slot.ot = "";
+      st.entryDate = date;
+      st.weekRef = date;
       if (st.tab !== "semana") setTab("semana");
       else loadWeek();
     } catch (e) {
@@ -1277,13 +1186,67 @@
       else st.weekRef = addDays(st.week.week.start, Number(v));
       st.open.clear();
       st.selected.clear();
+      st.calMonth = null;
       return loadWeek();
     }
+    if ((b = el("[data-cal-month]"))) {
+      const delta = Number(b.getAttribute("data-cal-month"));
+      const mk = st.calMonth || (st.week && st.week.week.start.slice(0, 7)) || ymdOf(new Date()).slice(0, 7);
+      const [y, m] = mk.split("-").map(Number);
+      const d = new Date(y, m - 1 + delta, 1);
+      st.calMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+      return renderWeek();
+    }
+    if ((b = el("[data-cal-day]"))) {
+      const day = b.getAttribute("data-cal-day");
+      st.entryDate = day;
+      st.calMonth = day.slice(0, 7);
+      if (st.week && (day < st.week.week.start || day > st.week.week.end)) {
+        st.weekRef = day;
+        st.open.clear();
+        st.selected.clear();
+        return loadWeek();
+      }
+      return renderWeek();
+    }
     if ((b = el("[data-sector]"))) {
-      st.sector = b.getAttribute("data-sector");
+      const next = b.getAttribute("data-sector");
+      st.sector = st.sector === next ? "all" : next;
       st.selected.clear();
       renderWeek();
       return writeHash();
+    }
+    if ((b = el("[data-entry-days]"))) {
+      const bar = b.closest("[data-entry-sector]");
+      if (!bar) return;
+      const slot = entrySlotFromBar(bar);
+      const n = Number(b.getAttribute("data-entry-days"));
+      slot.days = n === 0.5 || n === 2 ? n : 1;
+      bar.querySelectorAll("[data-entry-days]").forEach((x) => {
+        x.setAttribute("aria-pressed", String(Number(x.getAttribute("data-entry-days")) === slot.days));
+      });
+      return;
+    }
+    if ((b = el("[data-entry-ot]"))) {
+      const bar = b.closest("[data-entry-sector]");
+      if (!bar) return;
+      const slot = entrySlotFromBar(bar);
+      const add = Math.max(0, Math.round(Number(b.getAttribute("data-entry-ot")) || 0));
+      const cur = slot.ot === "" || slot.ot == null ? 0 : Math.max(0, Math.round(Number(slot.ot) || 0));
+      slot.ot = String(Math.min(16 * 60, cur + add));
+      syncEntryOtLab(bar);
+      return;
+    }
+    if ((b = el("[data-entry-ot-clear]"))) {
+      const bar = b.closest("[data-entry-sector]");
+      if (!bar) return;
+      entrySlotFromBar(bar).ot = "";
+      syncEntryOtLab(bar);
+      return;
+    }
+    if ((b = el("[data-entry-go]"))) {
+      const bar = b.closest("[data-entry-sector]");
+      if (bar) return entryGo(bar, b);
     }
     if ((b = el("[data-day]"))) {
       if (b.getAttribute("data-kind") === "line") return notify("Lançado direto na grade da semana (sem dia de trabalho). Ajuste na grade antiga ou lance o dia de novo.", "info");
@@ -1387,11 +1350,7 @@
     if (el("[data-emp-new]")) return openEmp(null);
     if ((b = el("[data-emp-edit]"))) return openEmp(b.getAttribute("data-emp-edit"));
     if ((b = el("[data-emp-save]"))) return saveEmp(b.getAttribute("data-emp-save") || null);
-    if (el("#foLogDay")) return openLogDay();
-    if ((b = el("[data-ld-mode]"))) return ldSetMode(b.getAttribute("data-ld-mode"));
-    if ((b = el("[data-ld-days]"))) return ldSetDays(b.getAttribute("data-ld-days"));
-    if ((b = el("[data-ld-ot]"))) return ldAddOt(b.getAttribute("data-ld-ot"));
-    if (el("[data-ld-ot-clear]")) return ldClearOt();
+    if (el("#foLogDay")) return focusEntryBar();
     if ((b = el("[data-ed-ot]"))) {
       const elOt = $("foEdOt");
       if (!elOt) return;
@@ -1408,9 +1367,6 @@
       });
       return;
     }
-    if (el("[data-ld-addjob]")) return ldAddJob();
-    if ((b = el("[data-ld-rm]"))) return b.closest(".fo-jobpick__row").remove();
-    if ((b = el("[data-ld-go]"))) return ldGo(b);
     // Clicking the employee row (not a control) opens / closes its days.
     if ((b = el("tr[data-emp]")) && !el("button, input, a, select")) {
       const id = b.getAttribute("data-emp");
@@ -1420,7 +1376,42 @@
   }
   function onChange(e) {
     const t = e.target;
-    if (t.id === "ldFrom" || t.id === "ldTo" || t.id === "ldSkipWe") return ldSyncMultiHint();
+    if (t.matches && t.matches("[data-entry-emp]")) {
+      const bar = t.closest("[data-entry-sector]");
+      if (bar) entrySlotFromBar(bar).empId = t.value;
+      return;
+    }
+    if (t.matches && t.matches("[data-entry-date]")) {
+      const day = t.value;
+      if (!day) return;
+      st.entryDate = day;
+      st.calMonth = day.slice(0, 7);
+      document.querySelectorAll("[data-entry-date]").forEach((inp) => {
+        if (inp !== t) inp.value = day;
+      });
+      if (st.week && (day < st.week.week.start || day > st.week.week.end)) {
+        st.weekRef = day;
+        st.open.clear();
+        st.selected.clear();
+        return loadWeek();
+      }
+      return;
+    }
+    if (t.id === "foEmpSearch") {
+      st.empSearch = t.value || "";
+      const pos = typeof t.selectionStart === "number" ? t.selectionStart : (t.value || "").length;
+      renderEmps();
+      const inp = $("foEmpSearch");
+      if (inp) {
+        inp.focus();
+        try {
+          inp.setSelectionRange(pos, pos);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      return;
+    }
     if (t.id === "foRepEmp") {
       st.rep.employee = t.value;
       return loadReport();
@@ -1439,7 +1430,6 @@
       const lbl = $("feStart").closest("label");
       lbl.firstChild.textContent = t.value === "job" ? "Se não tiver job agendado" : "Começa às";
     }
-    if (t.id === "ldDate") document.querySelectorAll("#ldJobs .fo-jobpick__row").forEach((r) => r.remove());
   }
   function onKey(e) {
     if (e.key === "Escape" && !$("foSheet").hidden) return closeSheet();
@@ -1478,6 +1468,9 @@
     readHash();
     document.addEventListener("click", onClick);
     document.addEventListener("change", onChange);
+    document.addEventListener("input", (e) => {
+      if (e.target && e.target.id === "foEmpSearch") onChange(e);
+    });
     document.addEventListener("keydown", onKey);
     window.addEventListener("hashchange", () => {
       const before = `${st.tab}|${st.weekRef}|${st.sector}`;

@@ -201,9 +201,10 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
     .map((e) => {
       const myShifts = shifts.filter((s) => s.employeeId === e.id);
       const myLines = lines.filter((l) => l.employeeId === e.id);
-      if (e.status !== "active" && !myShifts.length && !myLines.length) return null;
       const adj = adjustments.find((a) => a.employeeId === e.id);
       const pay = payments.find((p) => p.employeeId === e.id);
+      // Semana lists only people with activity in this period (not the full active roster).
+      if (!myShifts.length && !myLines.length && !adj && !pay) return null;
       const days = [
         ...myShifts.map((s) => mapShift(s, tz)),
         // Lines typed by the office (no Dia de trabalho behind them)
@@ -554,8 +555,9 @@ folhaAdminRouter.put("/api/folha/dias/:id", requireCrmAuth, requireCrmPermission
 const officeDayBody = z.object({
   employee_id: z.string().uuid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  start: z.string(),
-  end: z.string(),
+  /** Optional — defaults to the employee's schedule (or 07:00–17:00). */
+  start: z.string().optional().nullable(),
+  end: z.string().optional().nullable(),
   days_worked: z.number().min(0).max(2).optional(),
   /** When set, overrides schedule-based overtime after close (office quick-add HE). */
   overtime_minutes: z.number().int().min(0).max(16 * 60).optional(),
@@ -566,8 +568,8 @@ const officeDayBody = z.object({
 const officeDayLoteBody = z.object({
   employee_id: z.string().uuid(),
   dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(31),
-  start: z.string(),
-  end: z.string(),
+  start: z.string().optional().nullable(),
+  end: z.string().optional().nullable(),
   days_worked: z.number().min(0).max(2).optional(),
   overtime_minutes: z.number().int().min(0).max(16 * 60).optional(),
   jobs: z.array(z.object({ work_order_id: z.string().uuid(), sqft: z.number().min(0).max(100000).optional().nullable() })).max(10).default([]),
@@ -575,6 +577,12 @@ const officeDayLoteBody = z.object({
 });
 
 type OfficeDayInput = z.infer<typeof officeDayBody>;
+
+function resolveOfficeClocks(emp: { scheduleStartTime?: string | null; scheduleEndTime?: string | null }, input: { start?: string | null; end?: string | null }) {
+  const start = input.start && isHHMM(input.start) ? input.start : emp.scheduleStartTime && isHHMM(emp.scheduleStartTime) ? emp.scheduleStartTime : "07:00";
+  const end = input.end && isHHMM(input.end) ? input.end : emp.scheduleEndTime && isHHMM(emp.scheduleEndTime) ? emp.scheduleEndTime : "17:00";
+  return { start, end };
+}
 
 async function createApprovedOfficeDay(
   tx: PayrollTx,
@@ -585,6 +593,7 @@ async function createApprovedOfficeDay(
 ) {
   const emp = await tx.payrollEmployee.findFirst({ where: { id: input.employee_id } });
   if (!emp) throw httpErr(404, "Funcionário não encontrado");
+  const { start: startHH, end: endHH } = resolveOfficeClocks(emp, input);
   const ownerId = emp.userId || null;
   const workDate = parseYmd(input.date)!;
   await assertNotPaid(tx, emp.id, workDate);
@@ -594,8 +603,8 @@ async function createApprovedOfficeDay(
     const mine = await tx.campoShift.findFirst({ where: { userId: ownerId, workDate } });
     if (mine) throw httpErr(409, "Já existe um dia desse funcionário nessa data.", "DAY_EXISTS");
   }
-  const clockIn = wallTimeOn(workDate, input.start, tz);
-  const clockOut = wallTimeOn(workDate, input.end, tz);
+  const clockIn = wallTimeOn(workDate, startHH, tz);
+  const clockOut = wallTimeOn(workDate, endHH, tz);
   if (clockOut.getTime() <= clockIn.getTime()) throw httpErr(400, "A saída precisa ser depois da entrada.");
   const daysWorked = input.days_worked ?? 1;
   const s = await tx.campoShift.create({
@@ -636,8 +645,8 @@ async function createApprovedOfficeDay(
 folhaAdminRouter.post("/api/folha/dias", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
   try {
     const b = officeDayBody.safeParse(req.body || {});
-    if (!b.success || !isHHMM(b.data.start) || !isHHMM(b.data.end)) {
-      res.status(400).json({ success: false, error: "Informe funcionário, data, entrada e saída." });
+    if (!b.success) {
+      res.status(400).json({ success: false, error: "Informe funcionário e data." });
       return;
     }
     const today = ymd(new Date());
@@ -659,8 +668,8 @@ folhaAdminRouter.post("/api/folha/dias", requireCrmAuth, requireCrmPermission("p
 folhaAdminRouter.post("/api/folha/dias/lote", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
   try {
     const b = officeDayLoteBody.safeParse(req.body || {});
-    if (!b.success || !isHHMM(b.data.start) || !isHHMM(b.data.end)) {
-      res.status(400).json({ success: false, error: "Informe funcionário, datas, entrada e saída." });
+    if (!b.success) {
+      res.status(400).json({ success: false, error: "Informe funcionário e datas." });
       return;
     }
     const today = ymd(new Date());
