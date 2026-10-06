@@ -1272,8 +1272,19 @@ input.score-auto {
 
     .kanban-board-grid,
     .kanban-board-grid.kanban-board-grid--with-lost {
-        grid-template-columns: repeat(3, minmax(200px, 1fr));
-        min-width: 640px;
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 10px;
+        width: max-content;
+        min-width: max-content;
+        grid-template-columns: none;
+    }
+
+    .kanban-board-grid .kanban-column {
+        flex: 0 0 240px;
+        width: 240px;
+        min-width: 240px;
+        max-width: 240px;
     }
 
     .notification-bell-wrap {
@@ -2316,7 +2327,7 @@ input.score-auto {
 
 .kanban-board-wrap {
     width: 100%;
-    overflow-x: visible;
+    overflow-x: auto;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     padding-bottom: var(--spacing-xs);
@@ -2360,35 +2371,23 @@ input.score-auto {
     color: #fff;
 }
 
-/* Duas linhas: 3 colunas em cima + 3 em baixo (6 estágios; Lost oculto por defeito) */
-.kanban-board-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    align-items: start;
-    width: 100%;
-    min-width: 0;
-}
-
-/* Com Lost visível: 4 + 3 (7 colunas) */
+/* Single horizontal row of columns with scroll when they overflow. */
+.kanban-board-grid,
 .kanban-board-grid.kanban-board-grid--with-lost {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-@media (max-width: 900px) {
-    .kanban-board-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 520px) {
-    .kanban-board-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 10px;
+    width: max-content;
+    min-width: 100%;
+    grid-template-columns: none;
 }
 
 .kanban-board-grid .kanban-column {
-    min-width: 0;
+    flex: 0 0 260px;
+    width: 260px;
+    min-width: 260px;
+    max-width: 260px;
     min-height: 260px;
     padding: 6px;
 }
