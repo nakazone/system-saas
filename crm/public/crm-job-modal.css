@@ -111,6 +111,7 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
   background: #eff6ff;
   border: 1px solid #bfdbfe;
 }
+.jm-delivery[hidden] { display: none !important; }
 .jm-delivery__file {
   display: flex;
   flex-wrap: wrap;

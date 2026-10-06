@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261005-rate3";
+  const CSS_HREF = "crm-job-modal.css?v=20261006-deliv2";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -1079,7 +1079,12 @@
   function renderDeliveryBox() {
     const box = $("jmDeliveryBox");
     if (!box) return;
-    box.hidden = !st.needsDelivery;
+    const on = Boolean(st.needsDelivery);
+    box.hidden = !on;
+    ["jmDeliveryPickup", "jmDeliveryNotes", "jmDeliveryFile"].forEach((id) => {
+      const el = $(id);
+      if (el) el.disabled = !on;
+    });
     if ($("jmDeliveryPickup")) $("jmDeliveryPickup").value = st.deliveryPickupAddress || "";
     if ($("jmDeliveryNotes")) $("jmDeliveryNotes").value = st.deliveryNotes || "";
     const nameEl = $("jmDeliveryFileName");
@@ -1088,12 +1093,12 @@
     const existing = st.deliveryAttachment;
     if (pending) {
       if (nameEl) nameEl.textContent = pending.name || "Arquivo selecionado";
-      if (clearBtn) clearBtn.hidden = false;
+      if (clearBtn) clearBtn.hidden = !on;
     } else if (existing && existing.url && !st.clearDeliveryAttachment) {
       if (nameEl) {
         nameEl.innerHTML = `<a href="${esc(existing.url)}" target="_blank" rel="noopener">${esc(existing.name || "Anexo")}</a>`;
       }
-      if (clearBtn) clearBtn.hidden = false;
+      if (clearBtn) clearBtn.hidden = !on;
     } else {
       if (nameEl) nameEl.textContent = "Nenhum arquivo";
       if (clearBtn) clearBtn.hidden = true;
