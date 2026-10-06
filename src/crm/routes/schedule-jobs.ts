@@ -14,6 +14,7 @@ import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
 import { randomUUID } from "node:crypto";
 import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
 import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
+import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import {
   parseScheduleSettings,
   resolveJobCalendar,
@@ -812,6 +813,13 @@ scheduleJobsRouter.post(
         return;
       }
       const d = parsed.data;
+      if (d.campo_checklist !== undefined) {
+        const org = await prisma.organization.findUnique({
+          where: { id: req.organizationId! },
+          select: { featureFlags: true },
+        });
+        if (!isJobChecklistEnabled(org?.featureFlags)) delete d.campo_checklist;
+      }
       const start = d.scheduled_start ? new Date(d.scheduled_start) : null;
       const end = d.scheduled_end ? new Date(d.scheduled_end) : null;
       // Start-only is allowed (open-ended jobs); end without start is not.
@@ -918,6 +926,13 @@ scheduleJobsRouter.put(
         return;
       }
       const d = parsed.data;
+      if (d.campo_checklist !== undefined) {
+        const org = await prisma.organization.findUnique({
+          where: { id: req.organizationId! },
+          select: { featureFlags: true },
+        });
+        if (!isJobChecklistEnabled(org?.featureFlags)) delete d.campo_checklist;
+      }
       const start =
         d.scheduled_start === undefined
           ? existing.scheduledStart

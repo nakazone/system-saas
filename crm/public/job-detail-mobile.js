@@ -13,6 +13,7 @@
   let mediaList = [];
   let mediaLoaded = false;
   let commsCtl = null;
+  let checklistEnabled = true;
 
   const $ = (id) => document.getElementById(id);
 
@@ -461,7 +462,12 @@
     foot.classList.add("is-visible", "jcm-foot--single");
 
     document.querySelectorAll("[data-jd-tab]").forEach((btn) => {
-      btn.classList.toggle("is-active", btn.getAttribute("data-jd-tab") === detTab);
+      const key = btn.getAttribute("data-jd-tab");
+      if (key === "checklist") {
+        btn.hidden = !checklistEnabled;
+        if (!checklistEnabled && detTab === "checklist") detTab = "visitas";
+      }
+      btn.classList.toggle("is-active", key === detTab);
     });
     $("jobMobVisitas").hidden = detTab !== "visitas";
     $("jobMobExtra").hidden = detTab === "visitas";
@@ -494,6 +500,11 @@
         renderFotos();
       }
     } else if (detTab === "checklist") {
+      if (!checklistEnabled) {
+        detTab = "visitas";
+        render();
+        return;
+      }
       $("jobMobExtra").innerHTML = `<p class="jcm-empty">A carregar checklist…</p>`;
       restoreVisitCta();
       fetch(`/api/work-orders/${encodeURIComponent(wo.id)}/field`, { credentials: "include" })
@@ -502,6 +513,12 @@
           if (detTab !== "checklist") return;
           const f = j && j.data;
           if (!f) throw new Error(j?.error || "Erro");
+          checklistEnabled = f.checklist_enabled !== false;
+          if (!checklistEnabled) {
+            detTab = "visitas";
+            render();
+            return;
+          }
           const c = f.checklist;
           const hours = f.hours && f.hours.total ? ` · ${f.hours.total} h registradas` : "";
           $("jobMobExtra").innerHTML = `<div class="jcm-card">

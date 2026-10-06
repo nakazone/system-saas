@@ -922,9 +922,29 @@
     </div>`;
   }
 
+  let checklistEnabled = true;
+  let jobsSettingsLoaded = false;
+
+  async function ensureJobsSettings() {
+    if (jobsSettingsLoaded) return;
+    try {
+      const j = await api("/api/settings/jobs");
+      checklistEnabled = j?.data?.checklist_enabled !== false;
+    } catch (_) {
+      checklistEnabled = true;
+    }
+    jobsSettingsLoaded = true;
+  }
+
   function renderChecklist() {
     const box = $("jmCk");
     if (!box) return;
+    if (!checklistEnabled) {
+      box.hidden = true;
+      box.innerHTML = "";
+      return;
+    }
+    box.hidden = false;
     const items = st.checklist;
     const done = items.filter((c) => c.done).length;
     box.innerHTML = `
@@ -1213,7 +1233,7 @@
       notify("Sem permissão para criar jobs.", "error");
       return;
     }
-    await loadLookups();
+    await Promise.all([loadLookups(), ensureJobsSettings()]);
     st = blankState();
     const o = opts || {};
     let start = o.start ? new Date(o.start) : null;
@@ -1294,7 +1314,7 @@
   }
 
   async function openEdit(id, opts) {
-    await loadLookups();
+    await Promise.all([loadLookups(), ensureJobsSettings()]);
     const j = await api(`/api/work-orders/${id}`);
     const wo = j.data;
     // The job's own client may be older than the first page of the lists.
@@ -1369,9 +1389,6 @@
       address: st.address.trim() || null,
       notes: st.notes.trim() || null,
       campo_attention: st.attention.trim() || null,
-      campo_checklist: st.checklist
-        .filter((c) => String(c.text || "").trim())
-        .map((c) => ({ id: c.id || null, text: String(c.text).trim().slice(0, 200), photo_required: Boolean(c.photo) })),
       assigned_user_id: st.assigneeId || null,
       member_user_ids: members,
       line_items: st.lines
@@ -1392,6 +1409,11 @@
       sector: st.sector || null,
       related_work_order_id: st.sector === "sand_finish" ? st.relatedWorkOrderId || null : null,
     };
+    if (checklistEnabled) {
+      body.campo_checklist = st.checklist
+        .filter((c) => String(c.text || "").trim())
+        .map((c) => ({ id: c.id || null, text: String(c.text).trim().slice(0, 200), photo_required: Boolean(c.photo) }));
+    }
     return body;
   }
 
@@ -1402,12 +1424,12 @@
       schedule: ["scheduled_start", "scheduled_end", "sector", "related_work_order_id"],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
-      campo: ["campo_attention", "campo_checklist"],
+      campo: checklistEnabled ? ["campo_attention", "campo_checklist"] : ["campo_attention"],
       notes: ["notes"],
     }[st.section];
     const out = {};
     pick.forEach((k) => {
-      out[k] = full[k];
+      if (full[k] !== undefined) out[k] = full[k];
     });
     // Scheduling a draft from the agenda section moves it to "scheduled".
     if (st.section === "schedule" && full.scheduled_start && st.status === "draft") out.status = "scheduled";

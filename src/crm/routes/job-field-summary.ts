@@ -12,6 +12,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { prisma } from "../../lib/prisma.js";
 import { fieldStatusLabel, myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
 import { isFieldMeasureEnabled } from "../../lib/job-media/ocr.js";
+import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 
 export const jobFieldSummaryRouter = Router();
 
@@ -141,6 +142,7 @@ jobFieldSummaryRouter.get(
         ]);
         const checklist = parseChecklist(wo.campoChecklist);
         const hasCustomChecklist = Array.isArray(wo.campoChecklist) && (wo.campoChecklist as unknown[]).length > 0;
+        const checklistOn = isJobChecklistEnabled(org?.featureFlags);
         const hours = summarizeHours(
           segments.filter((s): s is typeof s & { shift: { userId: string } } => Boolean(s.shift.userId)).map((s) => ({
             startedAt: s.startedAt,
@@ -166,22 +168,25 @@ jobFieldSummaryRouter.get(
           field_status_label: fieldStatusLabel(field),
           attention: wo.campoAttention || null,
           problem_note: wo.campoProblemNote || null,
-          checklist: {
-            items: checklist.map((c) => ({
-              id: c.id,
-              text: c.text,
-              done: c.done,
-              photo_required: Boolean(c.photo_required),
-              photos: (c.photo_media_ids || []).length,
-              done_at: c.done_at || null,
-              done_by: c.done_by || null,
-              note: c.note || null,
-            })),
-            done: checklist.filter((c) => c.done).length,
-            total: checklist.length,
-            /** false = still the default template; the crew has not set it up for this job. */
-            customized: hasCustomChecklist,
-          },
+          checklist_enabled: checklistOn,
+          checklist: checklistOn
+            ? {
+                items: checklist.map((c) => ({
+                  id: c.id,
+                  text: c.text,
+                  done: c.done,
+                  photo_required: Boolean(c.photo_required),
+                  photos: (c.photo_media_ids || []).length,
+                  done_at: c.done_at || null,
+                  done_by: c.done_by || null,
+                  note: c.note || null,
+                })),
+                done: checklist.filter((c) => c.done).length,
+                total: checklist.length,
+                /** false = still the default template; the crew has not set it up for this job. */
+                customized: hasCustomChecklist,
+              }
+            : { items: [], done: 0, total: 0, customized: false },
           hours: {
             people: hours,
             total: Math.round(hours.reduce((s, r) => s + r.hours, 0) * 100) / 100,

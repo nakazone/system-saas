@@ -6,6 +6,7 @@ import { prisma } from "../../lib/prisma.js";
 
 import { randomUUID } from "node:crypto";
 import { parseChecklist } from "../../crm/lib/campo-shared.js";
+import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import {
   TEMP_DEVICE_PREFIX,
   isJobMediaEnabled,
@@ -163,7 +164,8 @@ publicJobsRouter.get("/:token", async (req, res, next) => {
     }));
 
     // Only a checklist set up for this job; the default template is office boilerplate.
-    const hasChecklist = Array.isArray(wo.campoChecklist) && (wo.campoChecklist as unknown[]).length > 0;
+    const checklistOn = isJobChecklistEnabled(org.featureFlags);
+    const hasChecklist = checklistOn && Array.isArray(wo.campoChecklist) && (wo.campoChecklist as unknown[]).length > 0;
     const checklist = hasChecklist
       ? parseChecklist(wo.campoChecklist).map((c) => ({ text: c.text, done: c.done, photo: Boolean(c.photo_required) }))
       : [];

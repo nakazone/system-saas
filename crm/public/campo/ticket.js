@@ -230,12 +230,31 @@
 
   function renderChecklist() {
     const t = ticket;
+    const tabBtn = $("cmTabChecklist");
+    const panel = $("cmPanelChecklist");
+    const enabled = t.checklist_enabled !== false;
+    if (tabBtn) tabBtn.hidden = !enabled;
+    if (!enabled) {
+      if (tab === "checklist") {
+        tab = "details";
+        document.querySelectorAll(".cm-ticket-tabs__btn").forEach((b) => {
+          const on = b.getAttribute("data-tab") === "details";
+          b.classList.toggle("is-active", on);
+          b.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        document.querySelectorAll(".cm-ticket-panel").forEach((p) => {
+          p.hidden = p.getAttribute("data-panel") !== "details";
+        });
+      }
+      if (panel) panel.hidden = true;
+      return;
+    }
     const done = t.checklist_done || 0;
     const total = t.checklist_total || 0;
-    $("cmCheckCount").textContent = `${done} de ${total}`;
-    $("cmTabChecklist").textContent = `Checklist ${done}/${total}`;
+    if ($("cmCheckCount")) $("cmCheckCount").textContent = `${done} de ${total}`;
+    if (tabBtn) tabBtn.textContent = `Checklist ${done}/${total}`;
     const pct = total ? Math.round((done / total) * 100) : 0;
-    $("cmCheckBarFill").style.width = `${pct}%`;
+    if ($("cmCheckBarFill")) $("cmCheckBarFill").style.width = `${pct}%`;
 
     $("cmCheckList").innerHTML = (t.checklist || [])
       .map((item) => {

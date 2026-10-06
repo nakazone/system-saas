@@ -32,6 +32,7 @@ import { settingsQuotesRouter } from "./routes/settings-quotes.js";
 import { settingsLeadMessagesRouter } from "./routes/settings-lead-messages.js";
 import { settingsLeadAutomationsRouter } from "./routes/settings-lead-automations.js";
 import { settingsScheduleRouter } from "./routes/settings-schedule.js";
+import { settingsJobsRouter } from "./routes/settings-jobs.js";
 import { settingsCatalogRouter } from "./routes/settings-catalog.js";
 import { reportsHubRouter } from "./routes/reports-hub.js";
 
@@ -43,6 +44,7 @@ crmApiRouter.use(settingsQuotesRouter);
 crmApiRouter.use(settingsLeadMessagesRouter);
 crmApiRouter.use(settingsLeadAutomationsRouter);
 crmApiRouter.use(settingsScheduleRouter);
+crmApiRouter.use(settingsJobsRouter);
 crmApiRouter.use(settingsCatalogRouter);
 crmApiRouter.use(supportRouter);
 crmApiRouter.use(pushRouter);

@@ -537,6 +537,27 @@
               </form>
             </section>
 
+            <!-- ---------- Jobs ---------- -->
+            <section class="cfg-section" data-section="jobs" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Jobs</h2>
+                <p class="cfg-lead">Opções do job no escritório e no Campo.</p>
+              </header>
+              <form id="jobsSettingsForm" class="cfg-form" novalidate autocomplete="off">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Checklist</h3>
+                  <p class="cfg-card__desc">Lista de tarefas que a equipe marca no Campo e que o escritório define no job.</p>
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:0.75rem">
+                    <input type="checkbox" id="jobs_checklist_enabled" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Exibir checklist</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Quando desativado, a checklist some do detalhe do job, do editor e do ticket no Campo.</span>
+                    </span>
+                  </label>
+                </article>
+              </form>
+            </section>
+
             <!-- ---------- Regras de estimativa ---------- -->
             <section class="cfg-section" data-section="regras-estimativa" hidden>
               <header class="cfg-head">
@@ -816,6 +837,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261005-leadauto1"></script>
+  <script src="configuracoes.js?v=20261006-jobsck1"></script>
 </body>
 </html>

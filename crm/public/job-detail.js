@@ -666,7 +666,8 @@
       field = null;
     }
     const c = field?.checklist;
-    $("jdTabCampo").textContent = c && c.customized ? `${c.done}/${c.total}` : "";
+    const checklistOn = field?.checklist_enabled !== false;
+    $("jdTabCampo").textContent = checklistOn && c && c.customized ? `${c.done}/${c.total}` : "";
   }
   function renderField() {
     const box = $("jdField");
@@ -675,16 +676,15 @@
       return;
     }
     const c = field.checklist;
+    const checklistOn = field.checklist_enabled !== false;
     const h = field.hours;
     const att = job.campo_attention || "";
     // The office can close a job without the crew stepping through Campo — show the real state.
     const fs = job.status === "completed" ? "completed" : job.status === "canceled" ? "canceled" : field.field_status;
     const fsLabel = fs === "completed" ? "Concluída" : fs === "canceled" ? "Cancelada" : field.field_status_label;
     const fsCls = fs === "completed" ? "done" : fs === "canceled" ? "canceled" : fs === "scheduled" ? "scheduled" : "progress";
-    box.innerHTML = `<div class="jd-grid">
-      <div class="jd-col">
-        ${field.problem_note ? `<div class="jd-card jd-alert jd-alert--problem"><div><b>Problema relatado</b><p>${esc(field.problem_note)}</p></div></div>` : ""}
-        <div class="jd-card">
+    const checklistCard = checklistOn
+      ? `<div class="jd-card">
           <div class="jd-ch"><h2>Checklist</h2>${c.customized ? `<span class="jd-ch__n">${c.done}/${c.total}</span>` : ""}${
             canManage ? `<button type="button" class="jd-link" data-edit-campo>${c.customized ? "Editar" : "Criar checklist"}</button>` : ""
           }</div>
@@ -700,7 +700,12 @@
             )
             .join("")}</ul>`
           }
-        </div>
+        </div>`
+      : "";
+    box.innerHTML = `<div class="jd-grid">
+      <div class="jd-col">
+        ${field.problem_note ? `<div class="jd-card jd-alert jd-alert--problem"><div><b>Problema relatado</b><p>${esc(field.problem_note)}</p></div></div>` : ""}
+        ${checklistCard}
         ${
           field.measurements.length
             ? `<div class="jd-card"><div class="jd-ch"><h2>Medições do campo</h2><span class="jd-ch__n">${field.measurements.length}</span></div>

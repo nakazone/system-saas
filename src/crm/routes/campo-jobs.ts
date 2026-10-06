@@ -36,6 +36,7 @@ import {
   parsePhotoUploadMeta,
   sha256Buffer,
 } from "../../lib/job-media/index.js";
+import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import {
   JOB_REPORT_TEMPLATES,
   generateJobReportDraft,
@@ -57,6 +58,16 @@ import { recordActivity } from "../../lib/activity/record.js";
 import { prisma } from "../../lib/prisma.js";
 
 export const campoJobsRouter = Router();
+
+async function assertChecklistFeature(organizationId: string) {
+  const org = await prisma.organization.findFirst({
+    where: { id: organizationId },
+    select: { featureFlags: true },
+  });
+  if (!isJobChecklistEnabled(org?.featureFlags)) {
+    throw Object.assign(new Error("Checklist desativado"), { status: 403 });
+  }
+}
 
 function ymdLocal(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -220,6 +231,7 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     })),
     job_media_enabled: true,
     job_media_ai_enabled: false,
+    checklist_enabled: true,
   };
 }
 
@@ -338,7 +350,12 @@ campoJobsRouter.get(
       }
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         let wo = await assertMyJobTicket(tx, req.user!.id, String(req.params.id));
-        if (!wo.campoChecklist) {
+        const org = await tx.organization.findFirst({
+          where: { id: req.organizationId! },
+          select: { featureFlags: true },
+        });
+        const checklistOn = isJobChecklistEnabled(org?.featureFlags);
+        if (checklistOn && !wo.campoChecklist) {
           const seeded = parseChecklist(null);
           wo = await tx.workOrder.update({
             where: { id: wo.id },
@@ -346,13 +363,15 @@ campoJobsRouter.get(
             include: woTicketInclude,
           });
         }
-        const org = await tx.organization.findFirst({
-          where: { id: req.organizationId! },
-          select: { featureFlags: true },
-        });
         const ticket = mapTicket(wo);
         ticket.job_media_enabled = isJobMediaEnabled(org?.featureFlags);
         ticket.job_media_ai_enabled = isJobReportAiEnabled(org?.featureFlags);
+        ticket.checklist_enabled = checklistOn;
+        if (!checklistOn) {
+          ticket.checklist = [];
+          ticket.checklist_done = 0;
+          ticket.checklist_total = 0;
+        }
         return ticket;
       });
       res.json({ success: true, data });
@@ -450,6 +469,7 @@ campoJobsRouter.patch(
         res.status(403).json({ success: false, error: "Permission denied" });
         return;
       }
+      await assertChecklistFeature(req.organizationId!);
       const body = z
         .object({
           item_id: z.string().min(1),
@@ -1087,6 +1107,7 @@ campoJobsRouter.post(
         res.status(403).json({ success: false, error: "Permission denied" });
         return;
       }
+      await assertChecklistFeature(req.organizationId!);
       const body = z.object({ template_key: z.string().min(1) }).safeParse(req.body || {});
       if (!body.success) {
         res.status(400).json({ success: false, error: "template_key required" });
@@ -1127,6 +1148,7 @@ campoJobsRouter.post(
         res.status(403).json({ success: false, error: "Permission denied" });
         return;
       }
+      await assertChecklistFeature(req.organizationId!);
       const raw = (req.body || {}) as Record<string, unknown>;
       let transcript = String(raw.transcript || raw.text || "").trim();
       const dataUrl = String(raw.audio_data_url || raw.data_url || "");
@@ -1188,6 +1210,7 @@ campoJobsRouter.post(
         res.status(403).json({ success: false, error: "Permission denied" });
         return;
       }
+      await assertChecklistFeature(req.organizationId!);
       const body = z
         .object({
           replace: z.boolean().optional(),

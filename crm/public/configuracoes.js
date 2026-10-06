@@ -98,6 +98,18 @@
       ],
     },
     {
+      group: "Operações",
+      desc: "Jobs e Campo",
+      items: [
+        {
+          id: "jobs",
+          label: "Jobs",
+          perm: "settings.manage",
+          keywords: "job checklist campo ticket lista exibir desativar",
+        },
+      ],
+    },
+    {
       group: "Equipe e acesso",
       desc: "Usuários, cargos e permissões",
       items: [
@@ -153,6 +165,7 @@
     ["Cupom / oferta", "mensagens-fase", "lm_coupon_code"],
     ["Automações de Leads", "automacoes-leads", "la_auto_stage"],
     ["Dias Quote Sent → Follow-up", "automacoes-leads", "la_days"],
+    ["Exibir checklist", "jobs", "jobs_checklist_enabled"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
     ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
     ["Cargos", "cargos", "cfgRolesBody"],
@@ -224,6 +237,7 @@
     quotes: { loaded: false, snapshot: null, data: null },
     leadMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "new_lead" },
     leadAuto: { loaded: false, snapshot: null },
+    jobs: { loaded: false, snapshot: null },
     sig: { loaded: false, snapshot: null, drawn: false, removed: false, data: null },
     rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
@@ -318,6 +332,7 @@
     if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
     if (id === "mensagens-fase") return leadMsgDirty() ? 1 : 0;
     if (id === "automacoes-leads") return leadAutoDirty() ? 1 : 0;
+    if (id === "jobs") return jobsDirty() ? 1 : 0;
     if (id === "regras-estimativa") return rulesDirtyTypes().length;
     return 0;
   }
@@ -511,6 +526,7 @@
     if (state.current === "mensagens-orcamento") return saveQuoteShareMessages();
     if (state.current === "mensagens-fase") return saveLeadMessages();
     if (state.current === "automacoes-leads") return saveLeadAutomations();
+    if (state.current === "jobs") return saveJobsSettings();
     if (state.current === "regras-estimativa") return saveRules();
     return true;
   }
@@ -523,6 +539,7 @@
     if (state.current === "mensagens-orcamento") discardQuoteShareMessages();
     if (state.current === "mensagens-fase") discardLeadMessages();
     if (state.current === "automacoes-leads") discardLeadAutomations();
+    if (state.current === "jobs") discardJobsSettings();
     if (state.current === "regras-estimativa") renderRules(state.rules.snapshot);
     clearErrors();
     clearFormErrors("quotesForm");
@@ -539,6 +556,7 @@
     { title: "Mensagens do Orçamento", desc: "SMS e WhatsApp ao enviar o orçamento", href: "#mensagens-orcamento", perm: "settings.manage" },
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Automações de Leads", desc: "Mover Quote Sent → Follow-up automaticamente", href: "#automacoes-leads", perm: "settings.manage" },
+    { title: "Jobs", desc: "Checklist e opções do Campo", href: "#jobs", perm: "settings.manage" },
     { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
     { title: "Tipos de cliente", desc: "Particular, Builder, Loja e tipos personalizados", href: "#tipos-cliente", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
@@ -2060,6 +2078,67 @@
     form.addEventListener("change", () => updateSavebar());
   }
 
+  // ---------------------------------------------------------------- jobs settings
+  function fillJobsSettings(d) {
+    const el = $("jobs_checklist_enabled");
+    if (el) el.checked = d?.checklist_enabled !== false;
+  }
+
+  function readJobsSettings() {
+    return { checklist_enabled: !!$("jobs_checklist_enabled")?.checked };
+  }
+
+  function jobsDirty() {
+    if (!state.jobs.snapshot) return false;
+    return (
+      !!readJobsSettings().checklist_enabled !== !!state.jobs.snapshot.checklist_enabled
+    );
+  }
+
+  function discardJobsSettings() {
+    if (!state.jobs.snapshot) return;
+    fillJobsSettings(state.jobs.snapshot);
+  }
+
+  async function loadJobsSettings(force) {
+    if (state.jobs.loaded && !force) {
+      fillJobsSettings(state.jobs.snapshot);
+      return;
+    }
+    const j = await api("/api/settings/jobs");
+    state.jobs.snapshot = { checklist_enabled: j.data?.checklist_enabled !== false };
+    state.jobs.loaded = true;
+    fillJobsSettings(state.jobs.snapshot);
+  }
+
+  async function saveJobsSettings() {
+    const body = readJobsSettings();
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/jobs", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      state.jobs.snapshot = { checklist_enabled: j.data?.checklist_enabled !== false };
+      fillJobsSettings(state.jobs.snapshot);
+      notify("Configurações de Jobs salvas.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindJobsSettingsUi() {
+    const form = $("jobsSettingsForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("change", () => updateSavebar());
+  }
+
   function validateQuotes() {
     const d = readQuotes();
     const checks = [
@@ -2753,6 +2832,7 @@
     if (id === "mensagens-orcamento") return loadQuotes();
     if (id === "mensagens-fase") return loadLeadMessages();
     if (id === "automacoes-leads") return loadLeadAutomations();
+    if (id === "jobs") return loadJobsSettings();
     if (id === "regras-estimativa") return loadRules();
     if (id === "cargos") return loadRolesSection();
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
@@ -2787,6 +2867,7 @@
     $("cfgDiscard").addEventListener("click", () => discardCurrent());
     bindLeadMessagesUi();
     bindLeadAutomationsUi();
+    bindJobsSettingsUi();
     $("cfgLeaveModal").addEventListener("click", (e) => {
       if (e.target.closest("[data-close]")) closeLeaveModal();
     });
