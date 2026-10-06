@@ -883,12 +883,13 @@
 
   const DEFAULT_STAGES = [
     { id: 1, name: 'New Lead', slug: 'new_lead' },
-    { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled' },
-    { id: 3, name: 'Quote Sent', slug: 'quote_sent' },
-    { id: 4, name: 'Follow Up', slug: 'follow_up_1' },
-    { id: 5, name: 'Stand By', slug: 'stand_by' },
-    { id: 6, name: 'Won', slug: 'won' },
-    { id: 7, name: 'Lost', slug: 'lost' },
+    { id: 2, name: 'Contacted', slug: 'contacted' },
+    { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled' },
+    { id: 4, name: 'Quote Sent', slug: 'quote_sent' },
+    { id: 5, name: 'Follow Up', slug: 'follow_up_1' },
+    { id: 6, name: 'Stand By', slug: 'stand_by' },
+    { id: 7, name: 'Won', slug: 'won' },
+    { id: 8, name: 'Lost', slug: 'lost' },
   ];
 
   function normalizeStages(stagesRes) {

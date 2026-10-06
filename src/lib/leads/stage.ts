@@ -16,6 +16,7 @@ type StageRecord = Awaited<ReturnType<TenantPrisma["pipelineStage"]["findFirst"]
 /** Canonical Kanban column → default tenant slug used when creating a missing stage. */
 const CANONICAL_TO_DEFAULT_SLUG: Record<CanonicalStage, string> = {
   new_lead: "new",
+  contacted: "contacted",
   meeting_scheduled: "assessment_scheduled",
   quote_sent: "quote_sent",
   follow_up_1: "follow_up_1",
@@ -110,7 +111,7 @@ export async function ensureCanonicalPipelineStages(tx: TenantPrisma): Promise<S
   return out;
 }
 
-/** Position in the sales funnel (new_lead = 0 … won = 5, lost = 6); -1 when unknown. */
+/** Position in the sales funnel (new_lead = 0 … lost = last); -1 when unknown. */
 export function stageRank(slugOrName: string | null | undefined): number {
   const canon = canonicalStageSlug(slugOrName);
   return canon ? CANONICAL_STAGE_ORDER.indexOf(canon) : -1;

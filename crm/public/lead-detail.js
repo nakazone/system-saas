@@ -478,12 +478,13 @@ async function loadPipelineStages() {
     if (stages.length === 0) {
         stages = [
             { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db' },
-            { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#22c55e' },
-            { id: 3, name: 'Quote Sent', slug: 'quote_sent', color: '#7c3aed' },
-            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#e8792c' },
-            { id: 5, name: 'Stand By', slug: 'stand_by', color: '#a8a29e' },
-            { id: 6, name: 'Won', slug: 'won', color: '#059669' },
-            { id: 7, name: 'Lost', slug: 'lost', color: '#dc2626' },
+            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12' },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#22c55e' },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#7c3aed' },
+            { id: 5, name: 'Follow Up', slug: 'follow_up_1', color: '#e8792c' },
+            { id: 6, name: 'Stand By', slug: 'stand_by', color: '#a8a29e' },
+            { id: 7, name: 'Won', slug: 'won', color: '#059669' },
+            { id: 8, name: 'Lost', slug: 'lost', color: '#dc2626' },
         ];
     }
     if (typeof window.mergePipelineStagesForKanban === 'function') {

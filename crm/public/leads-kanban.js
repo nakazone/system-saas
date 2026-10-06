@@ -132,27 +132,29 @@ async function loadPipelineStages() {
             }
         }
         
-        // Fallback: Kanban v4
+        // Fallback: Kanban columns
         pipelineStages = [
             { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
-            { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#90EE90', order_num: 2 },
-            { id: 3, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 3 },
-            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#F1C40F', order_num: 4 },
-            { id: 5, name: 'Stand By', slug: 'stand_by', color: '#f39c12', order_num: 5 },
-            { id: 6, name: 'Won', slug: 'won', color: '#27ae60', order_num: 6 },
-            { id: 7, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 7 },
+            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12', order_num: 2 },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#90EE90', order_num: 3 },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
+            { id: 5, name: 'Follow Up', slug: 'follow_up_1', color: '#F1C40F', order_num: 5 },
+            { id: 6, name: 'Stand By', slug: 'stand_by', color: '#a8a29e', order_num: 6 },
+            { id: 7, name: 'Won', slug: 'won', color: '#27ae60', order_num: 7 },
+            { id: 8, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 8 },
         ];
     } catch (error) {
         console.error('Error loading pipeline stages:', error);
         // Use fallback
         pipelineStages = [
             { id: 1, name: 'New Lead', slug: 'new_lead', color: '#3498db', order_num: 1 },
-            { id: 2, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#90EE90', order_num: 2 },
-            { id: 3, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 3 },
-            { id: 4, name: 'Follow Up', slug: 'follow_up_1', color: '#F1C40F', order_num: 4 },
-            { id: 5, name: 'Stand By', slug: 'stand_by', color: '#f39c12', order_num: 5 },
-            { id: 6, name: 'Won', slug: 'won', color: '#27ae60', order_num: 6 },
-            { id: 7, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 7 },
+            { id: 2, name: 'Contacted', slug: 'contacted', color: '#f39c12', order_num: 2 },
+            { id: 3, name: 'Meeting Scheduled', slug: 'meeting_scheduled', color: '#90EE90', order_num: 3 },
+            { id: 4, name: 'Quote Sent', slug: 'quote_sent', color: '#9b59b6', order_num: 4 },
+            { id: 5, name: 'Follow Up', slug: 'follow_up_1', color: '#F1C40F', order_num: 5 },
+            { id: 6, name: 'Stand By', slug: 'stand_by', color: '#a8a29e', order_num: 6 },
+            { id: 7, name: 'Won', slug: 'won', color: '#27ae60', order_num: 7 },
+            { id: 8, name: 'Lost', slug: 'lost', color: '#c0392b', order_num: 8 },
         ];
     }
 }
@@ -187,9 +189,8 @@ function normalizeLeadPipelineSlug(raw) {
     const legacy = {
         lead_received: 'new_lead',
         new: 'new_lead',
-        contacted: 'stand_by',
-        contact_made: 'stand_by',
-        qualified: 'stand_by',
+        contact_made: 'contacted',
+        qualified: 'contacted',
         visit_scheduled: 'meeting_scheduled',
         assessment_scheduled: 'meeting_scheduled',
         measurement_done: 'follow_up_1',
@@ -942,12 +943,13 @@ async function populateNewLeadPipelineSelect() {
     if (stages.length === 0) {
         stages = [
             { id: 1, slug: 'new_lead', name: 'New Lead' },
-            { id: 2, slug: 'meeting_scheduled', name: 'Meeting Scheduled' },
-            { id: 3, slug: 'quote_sent', name: 'Quote Sent' },
-            { id: 4, slug: 'follow_up_1', name: 'Follow Up' },
-            { id: 5, slug: 'stand_by', name: 'Stand By' },
-            { id: 6, slug: 'won', name: 'Won' },
-            { id: 7, slug: 'lost', name: 'Lost' },
+            { id: 2, slug: 'contacted', name: 'Contacted' },
+            { id: 3, slug: 'meeting_scheduled', name: 'Meeting Scheduled' },
+            { id: 4, slug: 'quote_sent', name: 'Quote Sent' },
+            { id: 5, slug: 'follow_up_1', name: 'Follow Up' },
+            { id: 6, slug: 'stand_by', name: 'Stand By' },
+            { id: 7, slug: 'won', name: 'Won' },
+            { id: 8, slug: 'lost', name: 'Lost' },
         ];
     }
     const prev = select.value || 'new_lead';

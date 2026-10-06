@@ -35,6 +35,7 @@ export type LeadMessageSettings = {
 
 export const LEAD_STAGE_LABELS_PT: Record<CanonicalStage, string> = {
   new_lead: "Novo lead",
+  contacted: "Contactado",
   meeting_scheduled: "Visita agendada",
   quote_sent: "Orçamento enviado",
   follow_up_1: "Follow-up",
@@ -222,6 +223,7 @@ const stageSchema = z.object({
 
 const stagesObjectSchema = z.object({
   new_lead: stageSchema,
+  contacted: stageSchema,
   meeting_scheduled: stageSchema,
   quote_sent: stageSchema,
   follow_up_1: stageSchema,

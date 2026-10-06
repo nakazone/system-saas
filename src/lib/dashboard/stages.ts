@@ -6,6 +6,7 @@
 
 export const CANONICAL_STAGE_ORDER = [
   "new_lead",
+  "contacted",
   "meeting_scheduled",
   "quote_sent",
   "follow_up_1",
@@ -21,9 +22,8 @@ const CANONICAL_SET = new Set<string>(CANONICAL_STAGE_ORDER);
 const LEGACY_SLUG_TO_CANONICAL: Record<string, CanonicalStage> = {
   lead_received: "new_lead",
   new: "new_lead",
-  contacted: "stand_by",
-  contact_made: "stand_by",
-  qualified: "stand_by",
+  contact_made: "contacted",
+  qualified: "contacted",
   visit_scheduled: "meeting_scheduled",
   assessment_scheduled: "meeting_scheduled",
   measurement_done: "follow_up_1",
@@ -46,10 +46,11 @@ const LEGACY_SLUG_TO_CANONICAL: Record<string, CanonicalStage> = {
 /** Same default colors as the Kanban (`PIPELINE_V9_KANBAN_DEFAULTS`). */
 export const CANONICAL_STAGE_COLORS: Record<CanonicalStage, string> = {
   new_lead: "#3498db",
+  contacted: "#f39c12",
   meeting_scheduled: "#90EE90",
   quote_sent: "#9b59b6",
   follow_up_1: "#F1C40F",
-  stand_by: "#f39c12",
+  stand_by: "#a8a29e",
   won: "#27ae60",
   lost: "#c0392b",
 };

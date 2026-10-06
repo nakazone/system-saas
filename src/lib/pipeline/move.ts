@@ -10,7 +10,7 @@ import { canonicalStageSlug } from "../dashboard/stages.js";
 export { SYSTEM_PIPELINE_SLUGS, type SystemPipelineSlug };
 
 /** System milestones plus common Kanban columns used by automations. */
-export type MoveablePipelineSlug = SystemPipelineSlug | "follow_up_1" | "stand_by";
+export type MoveablePipelineSlug = SystemPipelineSlug | "contacted" | "follow_up_1" | "stand_by";
 
 export async function findSystemStage(
   tx: TenantPrisma,

@@ -29,12 +29,13 @@ const ago = (ms: number) => new Date(NOW.getTime() - ms);
 
 const STAGES: StageRow[] = [
   { id: "s-new", name: "New", slug: "new", order: 1, color: null, isClosed: false },
-  { id: "s-assess", name: "Assessment scheduled", slug: "assessment_scheduled", order: 2, color: null, isClosed: false },
-  { id: "s-quote", name: "Quote sent", slug: "quote_sent", order: 3, color: null, isClosed: false },
-  { id: "s-fu", name: "Follow Up", slug: "follow_up_1", order: 4, color: null, isClosed: false },
-  { id: "s-sb", name: "Stand By", slug: "stand_by", order: 5, color: null, isClosed: false },
-  { id: "s-won", name: "Won", slug: "won", order: 6, color: null, isClosed: true },
-  { id: "s-lost", name: "Lost", slug: "lost", order: 7, color: null, isClosed: true },
+  { id: "s-contacted", name: "Contacted", slug: "contacted", order: 2, color: null, isClosed: false },
+  { id: "s-assess", name: "Assessment scheduled", slug: "assessment_scheduled", order: 3, color: null, isClosed: false },
+  { id: "s-quote", name: "Quote sent", slug: "quote_sent", order: 4, color: null, isClosed: false },
+  { id: "s-fu", name: "Follow Up", slug: "follow_up_1", order: 5, color: null, isClosed: false },
+  { id: "s-sb", name: "Stand By", slug: "stand_by", order: 6, color: null, isClosed: false },
+  { id: "s-won", name: "Won", slug: "won", order: 7, color: null, isClosed: true },
+  { id: "s-lost", name: "Lost", slug: "lost", order: 8, color: null, isClosed: true },
 ];
 
 function lead(partial: Partial<LeadRow> & { id: string }): LeadRow {
@@ -131,6 +132,7 @@ describe("dashboard lead section", () => {
   it("builds a board preview per Kanban column (lost hidden)", () => {
     expect(section.board.map((c) => c.slug)).toEqual([
       "new_lead",
+      "contacted",
       "meeting_scheduled",
       "quote_sent",
       "follow_up_1",

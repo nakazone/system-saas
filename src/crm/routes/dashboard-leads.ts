@@ -137,12 +137,11 @@ const leadInclude = {
   lossReason: { select: { id: true, name: true } },
 } as const;
 
-/** Stage for a scheduled lead visit — Meeting Scheduled column (never Stand By). */
+/** Stage for a scheduled lead visit — Meeting Scheduled column. */
 async function resolveVisitScheduledStage(
   tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
 ) {
-  // Prefer / create the canonical meeting column. Do NOT fall back to "2nd stage by order"
-  // — on legacy tenants that picks contacted → Stand By in the Kanban.
+  // Prefer / create the canonical meeting column. Do NOT fall back to "2nd stage by order".
   return (
     (await ensureStageForSlug(tx, "meeting_scheduled")) ||
     (await ensureStageForSlug(tx, "assessment_scheduled"))

@@ -346,6 +346,7 @@ router.get('/metrics', async (req, res) => {
 
     const funnelSlugs = [
       'new_lead',
+      'contacted',
       'meeting_scheduled',
       'quote_sent',
       'follow_up_1',

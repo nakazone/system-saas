@@ -85,6 +85,7 @@
   // ------------------------------------------------------------------ labels
   const STAGES = [
     { slug: 'new_lead', label: 'Novo lead' },
+    { slug: 'contacted', label: 'Contactado' },
     { slug: 'meeting_scheduled', label: 'Visita agendada' },
     { slug: 'quote_sent', label: 'Orçamento enviado' },
     { slug: 'follow_up_1', label: 'Follow-up' },

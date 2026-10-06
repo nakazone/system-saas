@@ -36,7 +36,9 @@ type IdMap = Map<number, string>;
 const STAGE_SLUG_MAP: Record<string, string> = {
   lead_received: "new",
   new_lead: "new",
-  qualified: "new",
+  qualified: "contacted",
+  contacted: "contacted",
+  contact_made: "contacted",
   meeting_scheduled: "assessment_scheduled",
   proposal_sent: "quote_sent",
   quote_sent: "quote_sent",
