@@ -64,6 +64,31 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-side__sec { margin-top: 18px; }
 .ag-side__sec h3 { margin: 0 0 6px; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--mut); font-weight: 800; display: flex; justify-content: space-between; align-items: center; }
 .ag-link { appearance: none; border: 0; background: none; padding: 0; color: var(--terrad) !important; font-size: 12px; font-weight: 800; text-transform: none; letter-spacing: 0; text-decoration: none; cursor: pointer; }
+.ag-side__add { appearance: none; border: 0; background: none; width: 100%; text-align: left; margin-top: 6px; padding: 8px 4px; color: var(--terrad); font-size: 13px; font-weight: 800; cursor: pointer; border-radius: 8px; }
+.ag-side__add:hover { background: var(--cream); }
+.ag-cal-manage { padding: 12px 14px 14px; display: grid; gap: 10px; }
+.ag-cal-manage__hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ag-cal-manage__hd h3 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--mut); }
+.ag-cal-manage__list { display: grid; gap: 8px; }
+.ag-cal-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto 34px 28px; align-items: center; gap: 6px; }
+.ag-cal-row__sw { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.ag-cal-row__name, .ag-cal-row select { border: 0; background: #f3f1ee; border-radius: 8px; padding: 7px 8px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); min-width: 0; }
+.ag-cal-row select { max-width: 96px; }
+.ag-cal-row__color { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: #f3f1ee; cursor: pointer; overflow: hidden; }
+.ag-cal-row__color input { border: 0; padding: 0; width: 40px; height: 40px; cursor: pointer; background: none; }
+.ag-cal-row__del { appearance: none; border: 0; background: none; width: 28px; height: 28px; border-radius: 8px; font-size: 20px; line-height: 1; color: var(--mut); font-weight: 600; }
+.ag-cal-row__del:hover { background: #fdecea; color: var(--red); }
+.ag-cal-manage__save { width: 100%; margin-top: 2px; }
+.ag-sheet__card--cals { width: min(560px, calc(100% - 32px)); }
+@media (max-width: 560px) {
+  .ag-cal-row { grid-template-columns: 14px minmax(0, 1fr) 34px 28px; grid-template-areas: "sw name color del" "sw kind kind kind" "sw sector sector sector"; }
+  .ag-cal-row__sw { grid-area: sw; }
+  .ag-cal-row__name { grid-area: name; }
+  .ag-cal-row select[data-ag-cal-kind] { grid-area: kind; max-width: none; }
+  .ag-cal-row select[data-ag-cal-sector] { grid-area: sector; max-width: none; }
+  .ag-cal-row__color { grid-area: color; }
+  .ag-cal-row__del { grid-area: del; }
+}
 .ag-dtl__kv b a.ag-link { font-size: 14px; font-weight: 700; }
 .ag-check { display: flex; align-items: center; gap: 10px; padding: 6px 4px; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 8px; }
 .ag-check:hover { background: var(--cream); }

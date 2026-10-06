@@ -3,7 +3,7 @@
  * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20261002-gest1";
+  const VER = "20261005-sched1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
@@ -439,11 +439,11 @@
             <p class="om-mod-card__sub">Adicionar ao pipeline</p>
           </span>
         </button>
-        <a class="om-mod-card" href="schedule.html">
+        <a class="om-mod-card" href="schedule.html?new=1" id="omCreateSchedule">
           <span class="om-mod-card__icon" aria-hidden="true">${ICONS.agendaAdd}</span>
           <span>
             <p class="om-mod-card__title">Agendar</p>
-            <p class="om-mod-card__sub">Visita ou instalação</p>
+            <p class="om-mod-card__sub">Visita, job ou compromisso</p>
           </span>
         </a>
         <a class="om-mod-card" href="quote-builder.html">
@@ -575,7 +575,16 @@
     hideLegacyBottomNav();
     bindTabNativeNav(nav);
 
-    document.getElementById("omTabbarFab")?.addEventListener("click", () => openSheet("omCreateSheet"));
+    document.getElementById("omTabbarFab")?.addEventListener("click", () => {
+      // On Schedule, + opens the add-to-agenda menu directly.
+      if (fileName() === "schedule.html" && typeof window.__agendaOpenNew === "function") {
+        closeSheets();
+        haptic(8);
+        window.__agendaOpenNew();
+        return;
+      }
+      openSheet("omCreateSheet");
+    });
   }
 
   /** Field worker nav — mirrors Campo tabs on Jobs / Schedule / Chat pages. */

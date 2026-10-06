@@ -109,6 +109,53 @@
   }
   const calOf = (e) => calList().find((c) => c.id === e.calendar) || { name: TYPES[e.type].one, color: e.color };
   const SECTOR_LBL = { installation: 'Instalação', sand_finish: 'Lixa' };
+  const CAL_KINDS = [
+    { id: 'jobs', label: 'Jobs' },
+    { id: 'visits', label: 'Visitas' },
+    { id: 'meetings', label: 'Meetings' },
+    { id: 'custom', label: 'Extra' },
+  ];
+  const CAL_SECTORS = [
+    { id: 'all', label: 'Todos' },
+    { id: 'installation', label: 'Instalação' },
+    { id: 'sand_finish', label: 'Lixa' },
+  ];
+  let calDraft = null;
+
+  function canEditCals() {
+    const perms = (S.me && S.me.permissions) || [];
+    const role = String((S.me && (S.me.role || S.me.roleKey)) || '').toLowerCase();
+    return perms.includes('settings.manage') || perms.includes('*') || role === 'admin';
+  }
+
+  function newCalId() {
+    return typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`.replace(/[xy]/g, (ch) => {
+          const r = (Math.random() * 16) | 0;
+          const v = ch === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+  }
+
+  function cloneCalDraft(list) {
+    return (list || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      color: c.color,
+      kind: c.kind || 'custom',
+      sector: c.kind === 'jobs' ? c.sector || 'all' : undefined,
+    }));
+  }
+
+  function ensureCalDraft() {
+    if (!canEditCals()) {
+      calDraft = null;
+      return null;
+    }
+    if (!calDraft) calDraft = cloneCalDraft(calList());
+    return calDraft;
+  }
 
   // ---------------------------------------------------------------- state
   const S = {
@@ -509,7 +556,6 @@
   function renderSide() {
     const counts = {};
     S.events.forEach((e) => (counts[e.calendar] = (counts[e.calendar] || 0) + 1));
-    const canSettings = S.me && (((S.me.permissions || []).includes('settings.manage')) || String(S.me.role || S.me.roleKey || '').toLowerCase() === 'admin');
     const people = new Map();
     S.users.forEach((u) => people.set(String(u.id), u.name || u.email));
     S.events.forEach((e) => {
@@ -519,13 +565,20 @@
     });
     const sel = S.filters.users;
     $('#agSide').innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true })}
-      <div class="ag-side__sec"><h3>Calendários ${canSettings ? '<a class="ag-link" href="configuracoes.html#agenda">Gerenciar</a>' : ''}</h3>${calList()
+      <div class="ag-side__sec"><h3>Calendários ${
+        canEditCals() ? '<button type="button" class="ag-link" data-ag-act="mcal">Editar</button>' : ''
+      }</h3>${calList()
         .map(
           (c) => `<label class="ag-check" style="--c:${esc(c.color)}"><input type="checkbox" data-ag-cal="${esc(c.id)}" ${S.filters.cals[c.id] !== false ? 'checked' : ''}/><span class="ag-check__box"></span>${esc(c.name)}<small>${counts[c.id] || ''}</small></label>`
         )
-        .join('')}</div>
+        .join('')}${
+        canEditCals()
+          ? `<button type="button" class="ag-side__add" data-ag-act="mcal">+ Adicionar calendário</button>`
+          : ''
+      }</div>
       <div class="ag-side__sec"><h3>Pessoas <button type="button" class="ag-link" data-ag-users-all ${!sel || !sel.size ? 'hidden' : ''}>Todas</button></h3>
-        ${S.me ? `<label class="ag-check" style="--c:#211d1a"><input type="checkbox" data-ag-mine ${S.filters.mine ? 'checked' : ''}/><span class="ag-check__box"></span>Só os meus</label>` : ''}
+        ${S.me ? `<label class="ag-check" style="--c:#211d1a"><input type="checkbox" data-ag-mine ${S.filters.mine ? 'checked' : ''}/><span class="ag-check__box"></span>Só os meus</label>` : ''
+        }
         ${Array.from(people.entries())
           .sort((a, b) => String(a[1]).localeCompare(String(b[1])))
           .map(
@@ -1919,7 +1972,27 @@
       if (menuOpen && !t.closest('#agMenu')) closeMenu();
       if (!$('#agResults').hidden && !t.closest('#agResults') && !t.closest('.ag-search')) $('#agResults').hidden = true;
       let el;
-      if ((el = t.closest('[data-ag-close]'))) return closeSheet();
+      if ((el = t.closest('[data-ag-close]'))) {
+        if (document.querySelector('#agSheet [data-ag-cal-sheet]')) calDraft = null;
+        return closeSheet();
+      }
+      if ((el = t.closest('[data-ag-cal-add]'))) {
+        const draft = ensureCalDraft();
+        if (!draft) return toast('Sem permissão para editar agendas.', 'error');
+        if (draft.length >= 24) return toast('Limite de agendas atingido.', 'error');
+        draft.push({ id: newCalId(), name: 'Nova agenda', color: '#16a34a', kind: 'custom' });
+        return refreshCalSheetManage();
+      }
+      if ((el = t.closest('[data-ag-cal-del]'))) {
+        const draft = ensureCalDraft();
+        if (!draft) return;
+        const i = Number(el.getAttribute('data-ag-cal-del'));
+        if (!draft[i]) return;
+        if (draft.length <= 1) return toast('Mantenha ao menos uma agenda.', 'error');
+        draft.splice(i, 1);
+        return refreshCalSheetManage();
+      }
+      if ((el = t.closest('[data-ag-cal-save]'))) return void saveCalDraft();
       if ((el = t.closest('[data-ag-menu]'))) {
         const act = el.dataset.agMenu;
         const when = el.dataset.agWhen || '';
@@ -2062,17 +2135,9 @@
           }
           return go();
         }
-        if (a === 'sidebar') {
-          S.sidebar = !S.sidebar;
-          savePrefs();
-          return render();
-        }
+        if (a === 'sidebar') return openCalSheet();
         if (a === 'list') return setView(S.view === 'list' ? 'month' : 'list');
-        if (a === 'new') {
-          const r = el.getBoundingClientRect();
-          const base = isPhone() && S.mmode === 'day' ? new Date(S.selected) : S.view === 'day' ? new Date(S.cursor) : null;
-          return newMenu(r.left, r.bottom + 8, base);
-        }
+        if (a === 'new') return openNewMenu(el);
         if (a === 'mback') {
           if (S.view === 'year') {
             S.view = 'month';
@@ -2179,6 +2244,34 @@
         void applyInlinePatch(t);
         return;
       }
+      const kindI = t.getAttribute('data-ag-cal-kind');
+      if (kindI != null && calDraft) {
+        const i = Number(kindI);
+        const row = calDraft[i];
+        if (!row) return;
+        row.kind = String(t.value || 'custom');
+        if (row.kind === 'jobs') {
+          if (!row.sector) row.sector = 'all';
+        } else delete row.sector;
+        return refreshCalSheetManage();
+      }
+      const secI = t.getAttribute('data-ag-cal-sector');
+      if (secI != null && calDraft) {
+        const i = Number(secI);
+        if (calDraft[i]) calDraft[i].sector = String(t.value || 'all');
+        return;
+      }
+      const colI = t.getAttribute('data-ag-cal-color');
+      if (colI != null && calDraft) {
+        const i = Number(colI);
+        const v = String(t.value || '').toLowerCase();
+        if (calDraft[i] && /^#[0-9a-f]{6}$/.test(v)) {
+          calDraft[i].color = v;
+          const sw = t.closest('.ag-cal-row')?.querySelector('.ag-cal-row__sw');
+          if (sw) sw.style.background = v;
+        }
+        return;
+      }
       if (t.matches('[data-ag-cal]')) {
         S.filters.cals[t.dataset.agCal] = t.checked;
       } else if (t.matches('[data-ag-mine]')) {
@@ -2191,6 +2284,15 @@
       } else return;
       savePrefs();
       render();
+    });
+
+    document.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (!(t instanceof HTMLElement) || !calDraft) return;
+      const ni = t.getAttribute('data-ag-cal-name');
+      if (ni == null) return;
+      const i = Number(ni);
+      if (calDraft[i]) calDraft[i].name = t.value;
     });
 
     document.addEventListener('focusout', (ev) => {
@@ -2279,16 +2381,121 @@
     });
   }
 
+  function calManageRowsHtml() {
+    const draft = ensureCalDraft();
+    if (!draft) return '';
+    return `<div class="ag-card ag-cal-manage" data-ag-cal-manage>
+      <div class="ag-cal-manage__hd"><h3>Editar agendas</h3>
+        <button type="button" class="ag-link" data-ag-cal-add>+ Nova</button></div>
+      <div class="ag-cal-manage__list">${draft
+        .map((c, i) => {
+          const kind = c.kind || 'custom';
+          const sector = c.sector || 'all';
+          return `<div class="ag-cal-row" data-ag-cal-i="${i}">
+            <span class="ag-cal-row__sw" style="background:${esc(c.color)}"></span>
+            <input type="text" class="ag-cal-row__name" data-ag-cal-name="${i}" maxlength="80" value="${esc(c.name)}" aria-label="Nome" />
+            <select data-ag-cal-kind="${i}" aria-label="Tipo">${CAL_KINDS.map(
+              (k) => `<option value="${k.id}" ${k.id === kind ? 'selected' : ''}>${esc(k.label)}</option>`,
+            ).join('')}</select>
+            ${
+              kind === 'jobs'
+                ? `<select data-ag-cal-sector="${i}" aria-label="Setor">${CAL_SECTORS.map(
+                    (s) => `<option value="${s.id}" ${s.id === sector ? 'selected' : ''}>${esc(s.label)}</option>`,
+                  ).join('')}</select>`
+                : ''
+            }
+            <label class="ag-cal-row__color"><input type="color" data-ag-cal-color="${i}" value="${esc(c.color)}" aria-label="Cor" /></label>
+            <button type="button" class="ag-cal-row__del" data-ag-cal-del="${i}" aria-label="Remover">×</button>
+          </div>`;
+        })
+        .join('')}</div>
+      <button type="button" class="ag-btn ag-btn--pri ag-cal-manage__save" data-ag-cal-save>Salvar agendas</button>
+    </div>`;
+  }
+
   function openCalSheet() {
+    ensureCalDraft();
     openSheet(
-      `<header class="ag-sheet__bar"><span></span><h2>Calendários</h2><button type="button" class="ag-pillbtn ag-pillbtn--pri" data-ag-close>OK</button></header><div class="ag-sheet__body"><div class="ag-card ag-form__grp">${calList()
-        .map((c) => `<label class="ag-check ag-check--big" style="--c:${esc(c.color)}"><input type="checkbox" data-ag-cal="${esc(c.id)}" ${S.filters.cals[c.id] !== false ? 'checked' : ''}/><span class="ag-check__box"></span>${esc(c.name)}</label>`)
-        .join('')}</div>${
-        S.me ? `<div class="ag-card ag-form__grp"><label class="ag-check ag-check--big" style="--c:#211d1a"><input type="checkbox" data-ag-mine ${S.filters.mine ? 'checked' : ''}/><span class="ag-check__box"></span>Só os meus</label></div>` : ''
-      }</div>`,
-      'ag-sheet__card--form'
+      `<header class="ag-sheet__bar"><button type="button" class="ag-pillbtn ag-pillbtn--ghost" data-ag-close>Fechar</button><h2>Calendários</h2><button type="button" class="ag-pillbtn ag-pillbtn--pri" data-ag-close>OK</button></header>
+       <div class="ag-sheet__body" data-ag-cal-sheet>
+         <div class="ag-card ag-form__grp">${calList()
+           .map(
+             (c) =>
+               `<label class="ag-check ag-check--big" style="--c:${esc(c.color)}"><input type="checkbox" data-ag-cal="${esc(c.id)}" ${
+                 S.filters.cals[c.id] !== false ? 'checked' : ''
+               }/><span class="ag-check__box"></span>${esc(c.name)}</label>`,
+           )
+           .join('')}</div>
+         ${
+           S.me
+             ? `<div class="ag-card ag-form__grp"><label class="ag-check ag-check--big" style="--c:#211d1a"><input type="checkbox" data-ag-mine ${
+                 S.filters.mine ? 'checked' : ''
+               }/><span class="ag-check__box"></span>Só os meus</label></div>`
+             : ''
+         }
+         ${calManageRowsHtml()}
+       </div>`,
+      'ag-sheet__card--form ag-sheet__card--cals',
     );
   }
+
+  function refreshCalSheetManage() {
+    const host = document.querySelector('#agSheet [data-ag-cal-sheet]');
+    if (!host) return openCalSheet();
+    const prev = host.querySelector('[data-ag-cal-manage]');
+    const html = calManageRowsHtml();
+    if (!html) {
+      if (prev) prev.remove();
+      return;
+    }
+    if (prev) prev.outerHTML = html;
+    else host.insertAdjacentHTML('beforeend', html);
+  }
+
+  async function saveCalDraft() {
+    const draft = ensureCalDraft();
+    if (!draft) return;
+    if (!draft.length) return toast('Mantenha ao menos uma agenda.', 'error');
+    if (draft.length > 24) return toast('Limite de agendas atingido.', 'error');
+    for (const c of draft) {
+      if (!String(c.name || '').trim()) return toast('Cada agenda precisa de um nome.', 'error');
+      if (!/^#[0-9A-Fa-f]{6}$/.test(String(c.color || ''))) return toast('Use cores no formato #RRGGBB.', 'error');
+    }
+    try {
+      const j = await api('/api/settings/schedule', {
+        method: 'PUT',
+        body: {
+          calendars: draft.map((c) => ({
+            id: c.id,
+            name: String(c.name).trim(),
+            color: String(c.color).toLowerCase(),
+            kind: c.kind || 'custom',
+            ...(c.kind === 'jobs' ? { sector: c.sector || 'all' } : {}),
+          })),
+        },
+      });
+      S.calendars = (j.data && j.data.calendars) || draft;
+      calDraft = cloneCalDraft(S.calendars);
+      toast('Agendas salvas', 'success');
+      if (!isPhone() && S.sidebar) renderSide();
+      render();
+      openCalSheet();
+    } catch (err) {
+      toast(err.message || 'Não foi possível salvar as agendas.', 'error');
+    }
+  }
+
+  function openNewMenu(anchorEl) {
+    if (!S.canManage) return toast('Sem permissão para agendar.', 'error');
+    const base = isPhone() && S.mmode === 'day' ? new Date(S.selected) : S.view === 'day' ? new Date(S.cursor) : null;
+    if (anchorEl && anchorEl.getBoundingClientRect) {
+      const r = anchorEl.getBoundingClientRect();
+      return newMenu(r.left, r.bottom + 8, base);
+    }
+    return newMenu(window.innerWidth / 2, window.innerHeight * 0.42, base);
+  }
+
+  window.__agendaOpenNew = () => openNewMenu(null);
 
   // ---------------------------------------------------------------- boot
   async function boot() {
@@ -2342,7 +2549,22 @@
       .catch(() => {});
     await go();
     const nw = p.get('new');
-    if (nw && S.canManage) openEditor(nw === 'job' ? 'job' : nw === 'meeting' ? 'meeting' : 'visit', null, focus || null);
+    if (nw && S.canManage) {
+      const clearNew = () => {
+        try {
+          const u = new URL(location.href);
+          u.searchParams.delete('new');
+          history.replaceState(null, '', u.pathname + u.search + u.hash);
+        } catch (_) {}
+      };
+      if (nw === '1' || nw === 'menu' || nw === 'add') {
+        clearNew();
+        setTimeout(() => openNewMenu(null), 80);
+      } else {
+        openEditor(nw === 'job' ? 'job' : nw === 'meeting' ? 'meeting' : 'visit', null, focus || null);
+        clearNew();
+      }
+    }
     if (S.pendingEvent) setTimeout(() => openDetail(S.pendingEvent, $(`[data-ag-ev="${CSS.escape(S.pendingEvent)}"]`)), 80);
     const lo = $('#logoutBtn');
     if (lo)
