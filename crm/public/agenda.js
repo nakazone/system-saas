@@ -121,6 +121,7 @@
     { id: 'sand_finish', label: 'Lixa' },
   ];
   let calDraft = null;
+  let calSheetMode = 'filter'; // 'filter' | 'edit'
 
   function canEditCals() {
     const perms = (S.me && S.me.permissions) || [];
@@ -566,19 +567,18 @@
     const sel = S.filters.users;
     $('#agSide').innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true })}
       <div class="ag-side__sec"><h3>Calendários ${
-        canEditCals() ? '<button type="button" class="ag-link" data-ag-act="mcal">Editar</button>' : ''
+        canEditCals() ? '<button type="button" class="ag-link" data-ag-act="mcal" data-ag-cal-open="edit">Editar</button>' : ''
       }</h3>${calList()
         .map(
           (c) => `<label class="ag-check" style="--c:${esc(c.color)}"><input type="checkbox" data-ag-cal="${esc(c.id)}" ${S.filters.cals[c.id] !== false ? 'checked' : ''}/><span class="ag-check__box"></span>${esc(c.name)}<small>${counts[c.id] || ''}</small></label>`
         )
         .join('')}${
         canEditCals()
-          ? `<button type="button" class="ag-side__add" data-ag-act="mcal">+ Adicionar calendário</button>`
+          ? `<button type="button" class="ag-side__add" data-ag-act="mcal" data-ag-cal-open="add">+ Adicionar calendário</button>`
           : ''
       }</div>
       <div class="ag-side__sec"><h3>Pessoas <button type="button" class="ag-link" data-ag-users-all ${!sel || !sel.size ? 'hidden' : ''}>Todas</button></h3>
-        ${S.me ? `<label class="ag-check" style="--c:#211d1a"><input type="checkbox" data-ag-mine ${S.filters.mine ? 'checked' : ''}/><span class="ag-check__box"></span>Só os meus</label>` : ''
-        }
+        ${S.me ? `<label class="ag-check" style="--c:#211d1a"><input type="checkbox" data-ag-mine ${S.filters.mine ? 'checked' : ''}/><span class="ag-check__box"></span>Só os meus</label>` : ''}
         ${Array.from(people.entries())
           .sort((a, b) => String(a[1]).localeCompare(String(b[1])))
           .map(
@@ -1981,7 +1981,8 @@
         if (!draft) return toast('Sem permissão para editar agendas.', 'error');
         if (draft.length >= 24) return toast('Limite de agendas atingido.', 'error');
         draft.push({ id: newCalId(), name: 'Nova agenda', color: '#16a34a', kind: 'custom' });
-        return refreshCalSheetManage();
+        calSheetMode = 'edit';
+        return openCalSheet('edit');
       }
       if ((el = t.closest('[data-ag-cal-del]'))) {
         const draft = ensureCalDraft();
@@ -1990,9 +1991,14 @@
         if (!draft[i]) return;
         if (draft.length <= 1) return toast('Mantenha ao menos uma agenda.', 'error');
         draft.splice(i, 1);
-        return refreshCalSheetManage();
+        return openCalSheet('edit');
       }
       if ((el = t.closest('[data-ag-cal-save]'))) return void saveCalDraft();
+      if ((el = t.closest('[data-ag-cal-mode]'))) {
+        const mode = el.getAttribute('data-ag-cal-mode') === 'edit' ? 'edit' : 'filter';
+        if (mode === 'edit' && !canEditCals()) return toast('Sem permissão para editar agendas.', 'error');
+        return openCalSheet(mode);
+      }
       if ((el = t.closest('[data-ag-menu]'))) {
         const act = el.dataset.agMenu;
         const when = el.dataset.agWhen || '';
@@ -2173,7 +2179,18 @@
           });
           return;
         }
-        if (a === 'mcal') return openCalSheet();
+        if (a === 'mcal') {
+          const open = el.getAttribute('data-ag-cal-open') || 'filter';
+          if (open === 'add' && canEditCals()) {
+            const draft = ensureCalDraft();
+            if (draft) {
+              if (draft.length >= 24) return toast('Limite de agendas atingido.', 'error');
+              draft.push({ id: newCalId(), name: 'Nova agenda', color: '#16a34a', kind: 'custom' });
+            }
+            return openCalSheet('edit');
+          }
+          return openCalSheet(open === 'edit' ? 'edit' : 'filter');
+        }
         return;
       }
       if ((el = t.closest('[data-ag-goday]'))) {
@@ -2253,7 +2270,7 @@
         if (row.kind === 'jobs') {
           if (!row.sector) row.sector = 'all';
         } else delete row.sector;
-        return refreshCalSheetManage();
+        return openCalSheet('edit');
       }
       const secI = t.getAttribute('data-ag-cal-sector');
       if (secI != null && calDraft) {
@@ -2267,8 +2284,8 @@
         const v = String(t.value || '').toLowerCase();
         if (calDraft[i] && /^#[0-9a-f]{6}$/.test(v)) {
           calDraft[i].color = v;
-          const sw = t.closest('.ag-cal-row')?.querySelector('.ag-cal-row__sw');
-          if (sw) sw.style.background = v;
+          const sw = t.closest('.ag-cal-card')?.querySelector('.ag-cal-card__sw');
+          if (sw) sw.style.setProperty('--c', v);
         }
         return;
       }
@@ -2381,75 +2398,95 @@
     });
   }
 
-  function calManageRowsHtml() {
+  function calFilterHtml() {
+    return `<p class="ag-cal-sec__lbl">Mostrar na agenda</p>
+      <div class="ag-card ag-cal-toggles">${calList()
+        .map(
+          (c) =>
+            `<label class="ag-cal-toggle" style="--c:${esc(c.color)}"><input type="checkbox" data-ag-cal="${esc(c.id)}" ${
+              S.filters.cals[c.id] !== false ? 'checked' : ''
+            }/><span class="ag-cal-toggle__sw"></span><span class="ag-cal-toggle__name">${esc(c.name)}</span></label>`,
+        )
+        .join('')}</div>
+      ${
+        S.me
+          ? `<div class="ag-card ag-cal-toggles"><label class="ag-cal-toggle" style="--c:#211d1a"><input type="checkbox" data-ag-mine ${
+              S.filters.mine ? 'checked' : ''
+            }/><span class="ag-cal-toggle__sw"></span><span class="ag-cal-toggle__name">Só os meus eventos</span></label></div>`
+          : ''
+      }
+      ${
+        canEditCals()
+          ? `<button type="button" class="ag-btn ag-btn--block" data-ag-cal-mode="edit">Editar agendas</button>`
+          : ''
+      }`;
+  }
+
+  function calEditHtml() {
     const draft = ensureCalDraft();
     if (!draft) return '';
-    return `<div class="ag-card ag-cal-manage" data-ag-cal-manage>
-      <div class="ag-cal-manage__hd"><h3>Editar agendas</h3>
-        <button type="button" class="ag-link" data-ag-cal-add>+ Nova</button></div>
-      <div class="ag-cal-manage__list">${draft
+    return `<p class="ag-cal-sec__lbl">Nome, tipo e cor de cada agenda</p>
+      <div class="ag-cal-cards" data-ag-cal-manage>${draft
         .map((c, i) => {
           const kind = c.kind || 'custom';
           const sector = c.sector || 'all';
-          return `<div class="ag-cal-row" data-ag-cal-i="${i}">
-            <span class="ag-cal-row__sw" style="background:${esc(c.color)}"></span>
-            <input type="text" class="ag-cal-row__name" data-ag-cal-name="${i}" maxlength="80" value="${esc(c.name)}" aria-label="Nome" />
-            <select data-ag-cal-kind="${i}" aria-label="Tipo">${CAL_KINDS.map(
-              (k) => `<option value="${k.id}" ${k.id === kind ? 'selected' : ''}>${esc(k.label)}</option>`,
-            ).join('')}</select>
-            ${
-              kind === 'jobs'
-                ? `<select data-ag-cal-sector="${i}" aria-label="Setor">${CAL_SECTORS.map(
-                    (s) => `<option value="${s.id}" ${s.id === sector ? 'selected' : ''}>${esc(s.label)}</option>`,
-                  ).join('')}</select>`
-                : ''
-            }
-            <label class="ag-cal-row__color"><input type="color" data-ag-cal-color="${i}" value="${esc(c.color)}" aria-label="Cor" /></label>
-            <button type="button" class="ag-cal-row__del" data-ag-cal-del="${i}" aria-label="Remover">×</button>
-          </div>`;
+          return `<article class="ag-cal-card" data-ag-cal-i="${i}">
+            <div class="ag-cal-card__top">
+              <label class="ag-cal-card__sw" style="--c:${esc(c.color)}" title="Cor">
+                <input type="color" data-ag-cal-color="${i}" value="${esc(c.color)}" aria-label="Cor" />
+              </label>
+              <input type="text" class="ag-cal-card__title" data-ag-cal-name="${i}" maxlength="80" value="${esc(c.name)}" placeholder="Nome da agenda" aria-label="Nome" />
+              <button type="button" class="ag-cal-card__del" data-ag-cal-del="${i}" aria-label="Remover agenda" title="Remover">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>
+              </button>
+            </div>
+            <div class="ag-cal-card__grid">
+              <label class="ag-cal-field"><span>Tipo</span>
+                <select data-ag-cal-kind="${i}">${CAL_KINDS.map(
+                  (k) => `<option value="${k.id}" ${k.id === kind ? 'selected' : ''}>${esc(k.label)}</option>`,
+                ).join('')}</select>
+              </label>
+              ${
+                kind === 'jobs'
+                  ? `<label class="ag-cal-field"><span>Setor</span>
+                      <select data-ag-cal-sector="${i}">${CAL_SECTORS.map(
+                        (s) => `<option value="${s.id}" ${s.id === sector ? 'selected' : ''}>${esc(s.label)}</option>`,
+                      ).join('')}</select>
+                    </label>`
+                  : `<div class="ag-cal-field ag-cal-field--spacer" aria-hidden="true"></div>`
+              }
+            </div>
+          </article>`;
         })
         .join('')}</div>
-      <button type="button" class="ag-btn ag-btn--pri ag-cal-manage__save" data-ag-cal-save>Salvar agendas</button>
-    </div>`;
+      <button type="button" class="ag-cal-add" data-ag-cal-add>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Nova agenda
+      </button>`;
   }
 
-  function openCalSheet() {
-    ensureCalDraft();
+  function openCalSheet(mode) {
+    const wantsEdit = mode === 'edit' && canEditCals();
+    calSheetMode = wantsEdit ? 'edit' : 'filter';
+    if (calSheetMode === 'edit') ensureCalDraft();
+    else if (!calDraft) ensureCalDraft();
+
+    const editing = calSheetMode === 'edit';
+    const title = editing ? 'Editar agendas' : 'Calendários';
+    const left = editing
+      ? `<button type="button" class="ag-pillbtn ag-pillbtn--ghost" data-ag-cal-mode="filter">Voltar</button>`
+      : `<button type="button" class="ag-pillbtn ag-pillbtn--ghost" data-ag-close>Fechar</button>`;
+    const right = editing
+      ? `<button type="button" class="ag-pillbtn ag-pillbtn--pri" data-ag-cal-save>Salvar</button>`
+      : `<button type="button" class="ag-pillbtn ag-pillbtn--pri" data-ag-close>OK</button>`;
+
     openSheet(
-      `<header class="ag-sheet__bar"><button type="button" class="ag-pillbtn ag-pillbtn--ghost" data-ag-close>Fechar</button><h2>Calendários</h2><button type="button" class="ag-pillbtn ag-pillbtn--pri" data-ag-close>OK</button></header>
-       <div class="ag-sheet__body" data-ag-cal-sheet>
-         <div class="ag-card ag-form__grp">${calList()
-           .map(
-             (c) =>
-               `<label class="ag-check ag-check--big" style="--c:${esc(c.color)}"><input type="checkbox" data-ag-cal="${esc(c.id)}" ${
-                 S.filters.cals[c.id] !== false ? 'checked' : ''
-               }/><span class="ag-check__box"></span>${esc(c.name)}</label>`,
-           )
-           .join('')}</div>
-         ${
-           S.me
-             ? `<div class="ag-card ag-form__grp"><label class="ag-check ag-check--big" style="--c:#211d1a"><input type="checkbox" data-ag-mine ${
-                 S.filters.mine ? 'checked' : ''
-               }/><span class="ag-check__box"></span>Só os meus</label></div>`
-             : ''
-         }
-         ${calManageRowsHtml()}
+      `<header class="ag-sheet__bar">${left}<h2>${esc(title)}</h2>${right}</header>
+       <div class="ag-sheet__body ag-cal-sheet" data-ag-cal-sheet data-ag-cal-view="${calSheetMode}">
+         ${editing ? calEditHtml() : calFilterHtml()}
        </div>`,
       'ag-sheet__card--form ag-sheet__card--cals',
     );
-  }
-
-  function refreshCalSheetManage() {
-    const host = document.querySelector('#agSheet [data-ag-cal-sheet]');
-    if (!host) return openCalSheet();
-    const prev = host.querySelector('[data-ag-cal-manage]');
-    const html = calManageRowsHtml();
-    if (!html) {
-      if (prev) prev.remove();
-      return;
-    }
-    if (prev) prev.outerHTML = html;
-    else host.insertAdjacentHTML('beforeend', html);
   }
 
   async function saveCalDraft() {
@@ -2479,7 +2516,7 @@
       toast('Agendas salvas', 'success');
       if (!isPhone() && S.sidebar) renderSide();
       render();
-      openCalSheet();
+      openCalSheet('filter');
     } catch (err) {
       toast(err.message || 'Não foi possível salvar as agendas.', 'error');
     }
