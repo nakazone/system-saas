@@ -44,6 +44,7 @@
     empSearch: "",
     entryDate: null,
     calMonth: null,
+    calOpen: false,
     entry: {
       installation: { empId: "", days: 1, ot: "" },
       sand_finish: { empId: "", days: 1, ot: "" },
@@ -232,6 +233,27 @@
       })
       .join("");
   }
+  function daysLabel(n) {
+    if (n === 0.5) return "½ diária";
+    if (n === 2) return "2 diárias (Double)";
+    return "1 diária";
+  }
+  function entryPreview(sector) {
+    const slot = st.entry[sector] || { empId: "", days: 1, ot: "" };
+    const days = Number(slot.days) === 0.5 || Number(slot.days) === 2 ? Number(slot.days) : 1;
+    const otMin = slot.ot === "" || slot.ot == null ? 0 : Math.max(0, Math.round(Number(slot.ot) || 0));
+    const emp = ((st.emps && st.emps.employees) || []).find((e) => e.id === slot.empId);
+    const parts = [daysLabel(days)];
+    if (otMin) parts.push(`+${hm(otMin)} extra`);
+    let estimate = "";
+    if (emp && emp.pay_type !== "production") {
+      const daily = Number(emp.daily_rate) || 0;
+      const otRate = Number(emp.overtime_rate) || 0;
+      const amt = daily * days + otRate * (otMin / 60);
+      estimate = money(amt);
+    }
+    return { days, otMin, parts: parts.join(" · "), estimate };
+  }
   function renderCycleCal(w) {
     const mk = st.calMonth || w.week.start.slice(0, 7);
     const [cy, cm] = mk.split("-").map(Number);
@@ -264,6 +286,17 @@
       <p class="fo-cal__leg"><span class="fo-cal__swatch is-period"></span> Ciclo${w.week.pay_on_label ? ` · <span class="fo-cal__swatch is-pay"></span> Paga ${esc(w.week.pay_on_label)}` : ""}</p>
     </div>`;
   }
+  function renderCalPopover(w) {
+    const date = st.entryDate || defaultEntryDate(w);
+    return `<div class="fo-calwrap">
+      <button type="button" class="fo-cal-trigger" data-cal-toggle aria-expanded="${st.calOpen}" aria-controls="foCalPop">
+        <span class="fo-cal-trigger__ico" aria-hidden="true">▦</span>
+        <span><b>${esc(brDate(date))}</b><small>Data do lançamento</small></span>
+        <span class="fo-cal-trigger__chev" aria-hidden="true">${st.calOpen ? "▴" : "▾"}</span>
+      </button>
+      <div class="fo-cal-pop" id="foCalPop" ${st.calOpen ? "" : "hidden"}>${renderCycleCal(w)}</div>
+    </div>`;
+  }
   function renderEntryBar(sector) {
     const label = SECTORS[sector];
     const slot = st.entry[sector] || { empId: "", days: 1, ot: "" };
@@ -271,25 +304,34 @@
       .filter((e) => e.status === "active" && (e.sector || "installation") === sector && e.pay_type !== "production")
       .sort((a, b) => a.name.localeCompare(b.name, "pt"));
     const date = st.entryDate || ymdOf(new Date());
-    const days = Number(slot.days) === 0.5 || Number(slot.days) === 2 ? Number(slot.days) : 1;
+    const prev = entryPreview(sector);
     const ot = slot.ot === "" || slot.ot == null ? "" : String(slot.ot);
-    const otLab = ot === "" ? "Nenhuma" : `+${hm(Number(ot) || 0)}`;
     return `<div class="fo-entry__bar" data-entry-sector="${sector}">
-      <div class="fo-entry__hd"><b>${esc(label)}</b><small>Diária · um dia</small></div>
-      <label class="fo-field fo-entry__emp"><span class="fo-sr">Nome</span><select class="fo-sel" data-entry-emp aria-label="Funcionário ${esc(label)}"><option value="">Nome…</option>${emps
+      <div class="fo-entry__hd"><b>${esc(label)}</b><small>Lançar diária</small></div>
+      <label class="fo-field fo-entry__emp"><span>Nome</span><select class="fo-sel" data-entry-emp aria-label="Funcionário ${esc(label)}"><option value="">Escolha…</option>${emps
         .map((e) => `<option value="${esc(e.id)}"${slot.empId === e.id ? " selected" : ""}>${esc(e.name)}</option>`)
         .join("")}</select></label>
-      <label class="fo-field fo-entry__date"><span class="fo-sr">Data</span><input type="date" class="fo-in" data-entry-date value="${esc(date)}" max="${ymdOf(new Date())}" aria-label="Data" /></label>
-      <div class="fo-entry__chips" role="group" aria-label="Diária">
-        <button type="button" class="fo-chip" data-entry-days="0.5" aria-pressed="${days === 0.5}">½</button>
-        <button type="button" class="fo-chip" data-entry-days="1" aria-pressed="${days === 1}">1</button>
-        <button type="button" class="fo-chip" data-entry-days="2" aria-pressed="${days === 2}" title="Double">2×</button>
+      <label class="fo-field fo-entry__date"><span>Data</span><input type="date" class="fo-in" data-entry-date value="${esc(date)}" max="${ymdOf(new Date())}" aria-label="Data" /></label>
+      <div class="fo-entry__group">
+        <div class="fo-entry__lab"><span>Diária</span><strong data-entry-days-lab>${esc(daysLabel(prev.days))}</strong></div>
+        <div class="fo-entry__chips" role="group" aria-label="Diária">
+          <button type="button" class="fo-chip" data-entry-days="0.5" aria-pressed="${prev.days === 0.5}">½ dia</button>
+          <button type="button" class="fo-chip" data-entry-days="1" aria-pressed="${prev.days === 1}">1 diária</button>
+          <button type="button" class="fo-chip" data-entry-days="2" aria-pressed="${prev.days === 2}" title="Duas diárias no mesmo dia">Double</button>
+        </div>
       </div>
-      <div class="fo-entry__chips" role="group" aria-label="Horas extras">
-        <button type="button" class="fo-chip" data-entry-ot="30">+½ h</button>
-        <button type="button" class="fo-chip" data-entry-ot="60">+1 h</button>
-        <button type="button" class="fo-chip" data-entry-ot-clear${ot === "" ? " hidden" : ""}>Limpar</button>
-        <span class="fo-entry__otlab" data-entry-ot-lab>${esc(otLab)}</span>
+      <div class="fo-entry__group">
+        <div class="fo-entry__lab"><span>Horas extras</span><strong data-entry-ot-lab>${prev.otMin ? `+${hm(prev.otMin)}` : "Nenhuma"}</strong></div>
+        <div class="fo-entry__chips" role="group" aria-label="Horas extras">
+          <button type="button" class="fo-chip" data-entry-ot="30">+½ h</button>
+          <button type="button" class="fo-chip" data-entry-ot="60">+1 h</button>
+          <button type="button" class="fo-chip" data-entry-ot-clear${ot === "" ? " hidden" : ""}>Limpar</button>
+        </div>
+      </div>
+      <div class="fo-entry__sum" data-entry-sum>
+        <small>Resumo</small>
+        <b>${esc(prev.parts)}</b>
+        ${prev.estimate ? `<span>${esc(prev.estimate)}</span>` : '<span class="fo-muted">escolha o nome</span>'}
       </div>
       ${st.manage ? '<button type="button" class="fo-btn fo-btn--pri fo-entry__go" data-entry-go>Lançar</button>' : ""}
     </div>`;
@@ -301,11 +343,25 @@
       ${renderEntryBar("sand_finish")}
     </div>`;
   }
+  function sumRows(rows) {
+    return {
+      days: rows.reduce((s, r) => s + (Number(r.totals.days) || 0), 0),
+      overtime_minutes: rows.reduce((s, r) => s + (Number(r.totals.overtime_minutes) || 0), 0),
+      sqft: rows.reduce((s, r) => s + (Number(r.totals.sqft) || 0), 0),
+      gross: rows.reduce((s, r) => s + (Number(r.totals.gross) || 0), 0),
+      net: rows.reduce((s, r) => s + (Number(r.totals.net) || 0), 0),
+      to_pay: rows.filter((r) => !r.payment).reduce((s, r) => s + Math.max(0, Number(r.totals.net) || 0), 0),
+      paid: rows.reduce((s, r) => s + (r.payment ? Number(r.payment.amount) || 0 : 0), 0),
+      pending_days: rows.reduce((s, r) => s + (Number(r.totals.pending_days) || 0), 0),
+      employees: rows.length,
+    };
+  }
   function renderWeek() {
     const w = st.week;
     const box = $("foSemana");
-    const t = w.totals[st.sector] || w.totals.all;
     const rows = weekRows();
+    const t = sumRows(rows);
+    const apiT = w.totals[st.sector] || w.totals.all;
     const segBtn = (k, l) => `<button type="button" data-sector="${k}" aria-pressed="${st.sector === k}">${l} <small>${w.totals[k].employees}</small></button>`;
     const head = `<div class="fo-tool">
         <div class="fo-week">
@@ -317,17 +373,15 @@
           <button type="button" class="fo-ic" data-week="next" aria-label="Próximo período">›</button>
           ${w.week.today >= w.week.start && w.week.today <= w.week.end ? "" : '<button type="button" class="fo-btn fo-btn--ghost fo-btn--sm" data-week="today">Hoje</button>'}
         </div>
+        ${renderCalPopover(w)}
         <div class="fo-seg" role="group" aria-label="Setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}</div>
       </div>
-      <div class="fo-week-top">
-        ${renderCycleCal(w)}
-        ${renderEntryBars()}
-      </div>
+      ${renderEntryBars()}
       <div class="fo-stats">
         <div class="fo-stat fo-stat--ink"><small>A pagar</small><b>${money(t.to_pay)}</b><span>${t.paid ? `${money(t.paid)} já pago` : "nada pago ainda"}</span></div>
-        <div class="fo-stat"><small>Total do ciclo</small><b>${money(t.net)}</b><span>${t.employees} funcionário${t.employees === 1 ? "" : "s"}</span></div>
+        <div class="fo-stat"><small>Total do ciclo</small><b>${money(t.net)}</b><span>${t.employees} funcionário${t.employees === 1 ? "" : "s"} · ${qty(t.days)} diária${t.days === 1 ? "" : "s"}</span></div>
         <div class="fo-stat${t.pending_days ? " fo-stat--warn" : ""}"><small>Para conferir</small><b>${t.pending_days} dia${t.pending_days === 1 ? "" : "s"}</b><span>${t.pending_days ? '<button type="button" class="fo-link" data-goto="conferir">Conferir agora</button>' : "tudo conferido"}</span></div>
-        <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_minutes)}</b><span>${t.sqft ? `${qty(t.sqft)} sq ft de produção` : "depois do horário padrão"}</span></div>
+        <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_minutes)}</b><span>${t.sqft ? `${qty(t.sqft)} sq ft de produção` : apiT.sqft ? `${qty(apiT.sqft)} sq ft` : "depois do horário padrão"}</span></div>
       </div>`;
     if (!rows.length) {
       box.innerHTML = `${head}<div class="fo-card"><div class="fo-empty"><b>Nenhum lançamento neste ciclo${st.sector !== "all" ? ` em ${SECTORS[st.sector]}` : ""}.</b>Use a barra acima para lançar uma diária, ou aguarde a equipe finalizar o dia no celular.</div></div>`;
@@ -359,7 +413,7 @@
           </tr>${open ? `<tr class="is-open"><td colspan="10" style="padding:0 12px 8px"><div class="fo-days">${dayRows(r)}</div></td></tr>` : ""}`;
         })
         .join("")}</tbody>
-      <tfoot><tr><td></td><td>Total ${st.sector === "all" ? "" : esc(SECTORS[st.sector])}</td><td class="r">${qty(rows.reduce((s, r) => s + r.totals.days, 0))}</td><td class="r">${hm(t.overtime_minutes)}</td><td class="r">${t.sqft ? qty(t.sqft) : "—"}</td><td class="r">${money(t.gross)}</td><td class="r"></td><td class="r">${money(t.net)}</td><td colspan="2"></td></tr></tfoot>
+      <tfoot><tr><td></td><td>Total ${st.sector === "all" ? "" : esc(SECTORS[st.sector])}</td><td class="r">${qty(t.days)}</td><td class="r">${hm(t.overtime_minutes)}</td><td class="r">${t.sqft ? qty(t.sqft) : "—"}</td><td class="r">${money(t.gross)}</td><td class="r"></td><td class="r">${money(t.net)}</td><td colspan="2"></td></tr></tfoot>
     </table></div>`;
     const cards = `<div class="fo-mlist">${rows
       .map((r) => {
@@ -1133,12 +1187,24 @@
     if (!st.entry[sector]) st.entry[sector] = { empId: "", days: 1, ot: "" };
     return st.entry[sector];
   }
-  function syncEntryOtLab(bar) {
-    const slot = entrySlotFromBar(bar);
-    const lab = bar.querySelector("[data-entry-ot-lab]");
+  function syncEntryBarUI(bar) {
+    const sector = bar.getAttribute("data-entry-sector");
+    const prev = entryPreview(sector);
+    const daysLab = bar.querySelector("[data-entry-days-lab]");
+    const otLab = bar.querySelector("[data-entry-ot-lab]");
     const clear = bar.querySelector("[data-entry-ot-clear]");
-    if (lab) lab.textContent = slot.ot === "" || slot.ot == null ? "Nenhuma" : `+${hm(Number(slot.ot) || 0)}`;
-    if (clear) clear.hidden = slot.ot === "" || slot.ot == null;
+    const sum = bar.querySelector("[data-entry-sum]");
+    if (daysLab) daysLab.textContent = daysLabel(prev.days);
+    if (otLab) otLab.textContent = prev.otMin ? `+${hm(prev.otMin)}` : "Nenhuma";
+    if (clear) clear.hidden = !prev.otMin;
+    bar.querySelectorAll("[data-entry-days]").forEach((x) => {
+      x.setAttribute("aria-pressed", String(Number(x.getAttribute("data-entry-days")) === prev.days));
+    });
+    if (sum) {
+      sum.innerHTML = `<small>Resumo</small><b>${esc(prev.parts)}</b>${
+        prev.estimate ? `<span>${esc(prev.estimate)}</span>` : '<span class="fo-muted">escolha o nome</span>'
+      }`;
+    }
   }
   async function entryGo(bar, btn) {
     const slot = entrySlotFromBar(bar);
@@ -1175,6 +1241,17 @@
     const t = e.target;
     const el = (sel) => t.closest(sel);
     let b;
+    if (st.calOpen && !el(".fo-calwrap")) {
+      st.calOpen = false;
+      const pop = $("foCalPop");
+      if (pop) pop.hidden = true;
+      const trg = document.querySelector("[data-cal-toggle]");
+      if (trg) {
+        trg.setAttribute("aria-expanded", "false");
+        const chev = trg.querySelector(".fo-cal-trigger__chev");
+        if (chev) chev.textContent = "▾";
+      }
+    }
     if ((b = el("#foTabs [data-tab]"))) return setTab(b.getAttribute("data-tab"));
     if (el("[data-close]") || t.id === "foScrim") return closeSheet();
     if ((b = el("[data-goto]"))) return setTab(b.getAttribute("data-goto"));
@@ -1189,18 +1266,24 @@
       st.calMonth = null;
       return loadWeek();
     }
+    if ((b = el("[data-cal-toggle]"))) {
+      st.calOpen = !st.calOpen;
+      return renderWeek();
+    }
     if ((b = el("[data-cal-month]"))) {
       const delta = Number(b.getAttribute("data-cal-month"));
       const mk = st.calMonth || (st.week && st.week.week.start.slice(0, 7)) || ymdOf(new Date()).slice(0, 7);
       const [y, m] = mk.split("-").map(Number);
       const d = new Date(y, m - 1 + delta, 1);
       st.calMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+      st.calOpen = true;
       return renderWeek();
     }
     if ((b = el("[data-cal-day]"))) {
       const day = b.getAttribute("data-cal-day");
       st.entryDate = day;
       st.calMonth = day.slice(0, 7);
+      st.calOpen = false;
       if (st.week && (day < st.week.week.start || day > st.week.week.end)) {
         st.weekRef = day;
         st.open.clear();
@@ -1222,9 +1305,7 @@
       const slot = entrySlotFromBar(bar);
       const n = Number(b.getAttribute("data-entry-days"));
       slot.days = n === 0.5 || n === 2 ? n : 1;
-      bar.querySelectorAll("[data-entry-days]").forEach((x) => {
-        x.setAttribute("aria-pressed", String(Number(x.getAttribute("data-entry-days")) === slot.days));
-      });
+      syncEntryBarUI(bar);
       return;
     }
     if ((b = el("[data-entry-ot]"))) {
@@ -1234,14 +1315,14 @@
       const add = Math.max(0, Math.round(Number(b.getAttribute("data-entry-ot")) || 0));
       const cur = slot.ot === "" || slot.ot == null ? 0 : Math.max(0, Math.round(Number(slot.ot) || 0));
       slot.ot = String(Math.min(16 * 60, cur + add));
-      syncEntryOtLab(bar);
+      syncEntryBarUI(bar);
       return;
     }
     if ((b = el("[data-entry-ot-clear]"))) {
       const bar = b.closest("[data-entry-sector]");
       if (!bar) return;
       entrySlotFromBar(bar).ot = "";
-      syncEntryOtLab(bar);
+      syncEntryBarUI(bar);
       return;
     }
     if ((b = el("[data-entry-go]"))) {
@@ -1378,7 +1459,10 @@
     const t = e.target;
     if (t.matches && t.matches("[data-entry-emp]")) {
       const bar = t.closest("[data-entry-sector]");
-      if (bar) entrySlotFromBar(bar).empId = t.value;
+      if (bar) {
+        entrySlotFromBar(bar).empId = t.value;
+        syncEntryBarUI(bar);
+      }
       return;
     }
     if (t.matches && t.matches("[data-entry-date]")) {

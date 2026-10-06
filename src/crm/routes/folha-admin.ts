@@ -193,7 +193,8 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
   const [employees, shifts, lines, adjustments, payments] = await Promise.all([
     tx.payrollEmployee.findMany({ orderBy: { name: "asc" }, include: { user: { select: { id: true, email: true } } } }),
     tx.campoShift.findMany({ where: { workDate: { gte: start, lte: end }, employeeId: { not: null } }, include: shiftInclude, orderBy: { workDate: "asc" } }),
-    period ? tx.payrollTimesheet.findMany({ where: { periodId: period.id, workDate: { gte: start, lte: end } }, orderBy: { workDate: "asc" } }) : Promise.resolve([]),
+    // By work date (not only periodId) so totals stay correct if the period row is missing/mismatched.
+    tx.payrollTimesheet.findMany({ where: { workDate: { gte: start, lte: end } }, orderBy: { workDate: "asc" } }),
     period ? tx.payrollPeriodAdjustment.findMany({ where: { periodId: period.id } }) : Promise.resolve([]),
     period ? tx.payrollPayment.findMany({ where: { periodId: period.id, status: "paid" } }) : Promise.resolve([]),
   ]);
@@ -228,7 +229,32 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
             jobs: [] as unknown[],
           })),
       ].sort((a, b) => a.date.localeCompare(b.date));
-      const gross = myLines.reduce((s, l) => s + num(l.calculatedAmount), 0);
+      // Sum approved work once: prefer timesheet line when present, else shift amount.
+      const lineByShift = new Map(myLines.filter((l) => l.shiftId).map((l) => [l.shiftId as string, l]));
+      let gross = 0;
+      let daysTotal = 0;
+      let overtimeMinutes = 0;
+      let sqftTotal = 0;
+      for (const s of myShifts.filter((x) => x.reviewStatus === "approved")) {
+        const line = lineByShift.get(s.id);
+        if (line) {
+          gross += num(line.calculatedAmount);
+          daysTotal += num(line.daysWorked) > 0 ? num(line.daysWorked) : num(line.sqft) > 0 ? 1 : 0;
+          overtimeMinutes += Math.round(num(line.overtimeHours) * 60);
+          sqftTotal += num(line.sqft);
+        } else {
+          gross += num(s.amount);
+          daysTotal += num(s.daysWorked) > 0 ? num(s.daysWorked) : num(s.sqft) > 0 ? 1 : 0;
+          overtimeMinutes += s.overtimeMinutes || 0;
+          sqftTotal += num(s.sqft);
+        }
+      }
+      for (const l of myLines.filter((x) => !x.shiftId)) {
+        gross += num(l.calculatedAmount);
+        daysTotal += num(l.daysWorked) > 0 ? num(l.daysWorked) : num(l.sqft) > 0 ? 1 : 0;
+        overtimeMinutes += Math.round(num(l.overtimeHours) * 60);
+        sqftTotal += num(l.sqft);
+      }
       const reimbursement = num(adj?.reimbursement);
       const discount = num(adj?.discount);
       const waiting = myShifts.filter((s) => s.reviewStatus === "pending" || s.reviewStatus === "returned");
@@ -241,16 +267,16 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
         pay_type: e.payType === "production" ? "production" : "daily",
         daily_rate: num(e.dailyRate),
         production_rate: num(e.productionRate),
+        overtime_rate: num(e.overtimeRate),
         status: e.status,
         linked: Boolean(e.userId),
         payment_method: e.paymentMethod,
         days,
         totals: {
-          // Production lines carry sq ft, not days: each one still is a day worked.
-          days: myLines.reduce((s, l) => s + (num(l.daysWorked) > 0 ? num(l.daysWorked) : num(l.sqft) > 0 ? 1 : 0), 0),
+          days: daysTotal,
           worked_minutes: counted.reduce((s, d) => s + d.workedMinutes, 0),
-          overtime_minutes: myLines.reduce((s, l) => s + Math.round(num(l.overtimeHours) * 60), 0),
-          sqft: myLines.reduce((s, l) => s + num(l.sqft), 0),
+          overtime_minutes: overtimeMinutes,
+          sqft: sqftTotal,
           gross: money(gross),
           reimbursement,
           discount,
