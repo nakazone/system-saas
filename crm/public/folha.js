@@ -32,6 +32,7 @@
 
   const st = {
     manage: false,
+    admin: false,
     tab: "semana",
     sector: "all",
     weekRef: null,
@@ -679,7 +680,13 @@
     if (mode === "edit") foot = `<button type="button" class="fo-btn fo-btn--ghost" data-day-mode="view">Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-day-save>Salvar e aprovar</button>`;
     else if (mode === "return") foot = `<button type="button" class="fo-btn fo-btn--ghost" data-day-mode="view">Cancelar</button><button type="button" class="fo-btn fo-btn--ink" data-day-return-go>Devolver</button>`;
     else if (canAct && d.status !== "in_progress") {
-      foot = `${d.status !== "returned" ? '<button type="button" class="fo-btn fo-btn--ghost fo-btn--danger" data-day-mode="return">Devolver</button>' : ""}<button type="button" class="fo-btn" data-day-mode="edit">Editar</button>${
+      const leftBtn =
+        st.admin && d.source === "manual"
+          ? '<button type="button" class="fo-btn fo-btn--ghost fo-btn--danger" data-day-revert title="Remove o lançamento e libera a data">Reverter</button>'
+          : d.status !== "returned"
+            ? '<button type="button" class="fo-btn fo-btn--ghost fo-btn--danger" data-day-mode="return">Devolver</button>'
+            : "";
+      foot = `${leftBtn}<button type="button" class="fo-btn" data-day-mode="edit">Editar</button>${
         d.status !== "approved" ? '<button type="button" class="fo-btn fo-btn--pri" data-day-approve>Aprovar</button>' : ""
       }`;
     } else if (d.status === "in_progress") foot = '<span class="fo-muted" style="font-weight:600;font-size:13px;margin-right:auto">O funcionário ainda não finalizou este dia.</span><button type="button" class="fo-btn" data-close>Fechar</button>';
@@ -740,6 +747,19 @@
     try {
       await api(`/api/folha/dias/${d.id}/devolver`, { method: "POST", body: JSON.stringify({ reason }) });
       notify("Dia devolvido — o funcionário foi avisado.", "success");
+      closeSheet();
+      refreshAfterChange();
+    } catch (e) {
+      notify(e.message, "error");
+    }
+  }
+  async function dayRevert() {
+    const d = $("foSheet")._day;
+    if (!d || !st.admin || d.source !== "manual") return;
+    if (!confirm(`Reverter a diária de ${d.date_label}?\n\nO lançamento some da folha e a data fica livre para um novo lançamento.`)) return;
+    try {
+      await api(`/api/folha/dias/${d.id}/reverter`, { method: "POST", body: "{}" });
+      notify("Diária revertida — data liberada.", "success");
       closeSheet();
       refreshAfterChange();
     } catch (e) {
@@ -1421,6 +1441,7 @@
     if ((b = el("[data-day-mode]"))) return renderDay($("foSheet")._day, b.getAttribute("data-day-mode") === "view" ? undefined : b.getAttribute("data-day-mode"));
     if (el("[data-day-approve]")) return dayApprove();
     if (el("[data-day-return-go]")) return dayReturn();
+    if (el("[data-day-revert]")) return dayRevert();
     if (el("[data-day-save]")) return daySave();
     if ((b = el("[data-psel]"))) {
       const id = b.getAttribute("data-psel");
@@ -1543,6 +1564,7 @@
         return;
       }
       st.manage = role === "admin" || perms.includes("payroll.manage");
+      st.admin = role === "admin";
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
       const sn = $("sidebarUserName");

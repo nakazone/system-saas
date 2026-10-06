@@ -7,6 +7,7 @@
  * POST /api/folha/dias/:id/aprovar                  aprova (com ajuste opcional de dias/extra)
  * POST /api/folha/dias/aprovar-lote                 aprova vários
  * POST /api/folha/dias/:id/devolver                 devolve ao funcionário com motivo
+ * POST /api/folha/dias/:id/reverter                 admin: remove diária lançada à mão (libera a data)
  * PUT  /api/folha/dias/:id                          corrige horários / dias / extra / sqft
  * POST /api/folha/dias                              lança um dia pelo funcionário (sem app)
  * POST /api/folha/dias/lote                         lança vários dias de uma vez (mesmo horário)
@@ -517,6 +518,43 @@ folhaAdminRouter.post("/api/folha/dias/:id/devolver", requireCrmAuth, requireCrm
       tag: `dia-${out.day.id}`,
     }).catch(() => {});
     res.json({ success: true, data: out.day });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
+/**
+ * Admin-only: undo an office-launched daily (remove from payroll + delete the shift).
+ * Frees the date so a new launch can be created.
+ */
+folhaAdminRouter.post("/api/folha/dias/:id/reverter", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    if (req.user?.roleKey !== "admin") {
+      res.status(403).json({ success: false, error: "Só o admin pode reverter uma diária lançada." });
+      return;
+    }
+    await withTenantTransaction(req.organizationId!, async (tx) => {
+      const s = await tx.campoShift.findFirst({ where: { id: String(req.params.id) } });
+      if (!s) throw httpErr(404, "Dia não encontrado");
+      if (s.source !== "manual") {
+        throw httpErr(409, "Só dá para reverter diárias lançadas pelo escritório. Use Devolver para dias do celular.");
+      }
+      if (s.reviewStatus === "in_progress") throw httpErr(409, "O dia ainda está em andamento.");
+      await assertNotPaid(tx, s.employeeId, s.workDate);
+      if (!(await removeDayFromPayroll(tx, s.id))) {
+        throw httpErr(409, "A semana desse dia está fechada. Reabra a semana para reverter.", "PERIOD_CLOSED");
+      }
+      // Roll back approved expenses that were applied to period adjustments.
+      const applied = await tx.campoShiftExpense.findMany({
+        where: { shiftId: s.id, status: "approved", appliedAt: { not: null } },
+        select: { id: true },
+      });
+      for (const row of applied) {
+        await syncExpenseIntoAdjustment(tx, row.id, "rejected", req.user!.id, "Diária revertida pelo admin");
+      }
+      await tx.campoShift.delete({ where: { id: s.id } });
+    });
+    res.json({ success: true, data: { id: String(req.params.id), reverted: true } });
   } catch (error) {
     fail(res, error, next);
   }
