@@ -212,6 +212,23 @@
 .jd-photo figcaption span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jd-photo__port { border: 0; background: none; font-size: 17px; line-height: 1; color: var(--jd-terra); cursor: pointer; padding: 2px 4px; border-radius: 6px; }
 .jd-photo__port:hover { background: var(--jd-terra-soft); }
+.jd-photo__loc {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  padding: 0 10px 8px; font-size: 11.5px; color: var(--jd-ink-2);
+}
+.jd-photo__gps {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-weight: 700; color: #065f46; text-decoration: none;
+}
+.jd-photo__gps:hover { text-decoration: underline; }
+.jd-photo__gps.is-far { color: #c2410c; }
+.jd-photo__gps.is-off { color: #8a8074; font-weight: 600; }
+.jd-photo__dist { color: #6b645c; }
+.jd-photo__dist.is-far { color: #c2410c; font-weight: 700; }
+.jd-gps-summary {
+  margin: 0 0 10px; font-size: 13px; color: var(--jd-ink-2);
+}
+.jd-gps-far { color: #c2410c; font-weight: 700; }
 
 /* reports & inspections */
 .jd-reports { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }

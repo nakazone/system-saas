@@ -9,6 +9,7 @@ import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { storage } from "../../lib/storage/index.js";
 import { mapJobMedia, sha256Buffer } from "../../lib/job-media/index.js";
+import { photoDistanceFields, resolveJobSiteGeo } from "../../lib/job-media/geo.js";
 import { extractLabelFromImageUrl, isFieldMeasureEnabled } from "../../lib/job-media/ocr.js";
 import { aiTranscribeAudio, aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
 import {
@@ -84,10 +85,12 @@ jobFieldExtrasRouter.get(
             address: true,
             fieldStatus: true,
             scheduledStart: true,
+            geoLat: true,
+            geoLng: true,
             media: {
               where: { deletedAt: null },
               orderBy: [{ createdAt: "desc" }],
-              take: 1,
+              take: 12,
               select: {
                 id: true,
                 url: true,
@@ -96,38 +99,59 @@ jobFieldExtrasRouter.get(
                 lat: true,
                 lng: true,
                 stage: true,
+                caption: true,
               },
             },
           },
           orderBy: [{ scheduledStart: "desc" }],
           take: 120,
         });
-        return rows.map((wo) => {
-          const last = wo.media[0] || null;
-          const lat = last?.lat != null ? Number(last.lat) : null;
-          const lng = last?.lng != null ? Number(last.lng) : null;
-          return {
-            id: wo.id,
-            number: wo.number,
-            title: wo.title,
-            status: wo.status,
-            field_status: wo.fieldStatus,
-            address: wo.address,
-            scheduled_start: wo.scheduledStart?.toISOString() ?? null,
-            last_photo: last
-              ? {
-                  id: last.id,
-                  url: last.thumbUrl || last.url,
-                  created_at: last.createdAt.toISOString(),
-                  stage: last.stage,
-                  lat: Number.isFinite(lat) ? lat : null,
-                  lng: Number.isFinite(lng) ? lng : null,
-                }
-              : null,
-            stale: !last || last.createdAt < since,
-            detail_url: `job-detail.html?id=${wo.id}`,
-          };
-        });
+        return Promise.all(
+          rows.map(async (wo) => {
+            const last = wo.media[0] || null;
+            let jobLat = wo.geoLat != null ? Number(wo.geoLat) : null;
+            let jobLng = wo.geoLng != null ? Number(wo.geoLng) : null;
+            if ((!Number.isFinite(jobLat) || !Number.isFinite(jobLng)) && wo.media.some((m) => m.lat != null && m.lng != null)) {
+              const site = await resolveJobSiteGeo(tx, wo.id);
+              jobLat = site?.lat ?? null;
+              jobLng = site?.lng ?? null;
+            }
+            const jobGeo =
+              jobLat != null && jobLng != null && Number.isFinite(jobLat) && Number.isFinite(jobLng)
+                ? { lat: jobLat, lng: jobLng }
+                : null;
+            const photos = wo.media.map((m) => {
+              const lat = m.lat != null ? Number(m.lat) : null;
+              const lng = m.lng != null ? Number(m.lng) : null;
+              const mapped = {
+                id: m.id,
+                url: m.thumbUrl || m.url,
+                created_at: m.createdAt.toISOString(),
+                stage: m.stage,
+                caption: m.caption || null,
+                lat: Number.isFinite(lat) ? lat : null,
+                lng: Number.isFinite(lng) ? lng : null,
+              };
+              return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
+            });
+            const lastMapped = photos[0] || null;
+            return {
+              id: wo.id,
+              number: wo.number,
+              title: wo.title,
+              status: wo.status,
+              field_status: wo.fieldStatus,
+              address: wo.address,
+              scheduled_start: wo.scheduledStart?.toISOString() ?? null,
+              geo_lat: jobGeo?.lat ?? null,
+              geo_lng: jobGeo?.lng ?? null,
+              last_photo: lastMapped,
+              photos,
+              stale: !last || last.createdAt < since,
+              detail_url: `job-detail.html?id=${wo.id}`,
+            };
+          }),
+        );
       });
 
       const feed = await withTenantTransaction(req.organizationId!, async (tx) => {
@@ -141,15 +165,27 @@ jobFieldExtrasRouter.get(
           take: 40,
           include: {
             author: { select: { name: true } },
-            workOrder: { select: { id: true, number: true, title: true } },
+            workOrder: { select: { id: true, number: true, title: true, geoLat: true, geoLng: true } },
           },
         });
-        return photos.map((p) => ({
-          ...mapJobMedia(p),
-          job_id: p.workOrderId,
-          job_number: p.workOrder?.number ?? null,
-          job_title: p.workOrder?.title ?? null,
-        }));
+        return photos.map((p) => {
+          const mapped = mapJobMedia(p);
+          const jobLat = p.workOrder?.geoLat != null ? Number(p.workOrder.geoLat) : null;
+          const jobLng = p.workOrder?.geoLng != null ? Number(p.workOrder.geoLng) : null;
+          const jobGeo =
+            jobLat != null && jobLng != null && Number.isFinite(jobLat) && Number.isFinite(jobLng)
+              ? { lat: jobLat, lng: jobLng }
+              : null;
+          return {
+            ...mapped,
+            ...photoDistanceFields(mapped, jobGeo),
+            job_id: p.workOrderId,
+            job_number: p.workOrder?.number ?? null,
+            job_title: p.workOrder?.title ?? null,
+            job_geo_lat: jobGeo?.lat ?? null,
+            job_geo_lng: jobGeo?.lng ?? null,
+          };
+        });
       });
 
       res.json({ success: true, data: { jobs: data, feed }, meta: { days } });

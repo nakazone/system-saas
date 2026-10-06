@@ -96,6 +96,13 @@
     if (count) count.textContent = `(${total})`;
   }
 
+  function fmtDistance(m) {
+    if (m == null || !Number.isFinite(Number(m))) return "";
+    const n = Number(m);
+    if (n < 1000) return `${Math.round(n)} m`;
+    return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)} km`;
+  }
+
   function renderFeed(feed) {
     const feedEl = document.getElementById("jmbFeed");
     if (!feedEl) return;
@@ -104,16 +111,27 @@
       return;
     }
     feedEl.innerHTML = feed
-      .map(
-        (p) => `<a class="jmb-feed__item" href="job-detail.html?id=${encodeURIComponent(p.job_id)}">
-          <img src="${escapeHtml(p.thumb_url || p.url)}" alt="" loading="lazy" />
+      .map((p) => {
+        const hasGps = p.location_available && p.lat != null && p.lng != null;
+        const maps = hasGps ? `https://maps.google.com/?q=${encodeURIComponent(`${p.lat},${p.lng}`)}` : "";
+        const dist = fmtDistance(p.distance_m);
+        const loc = hasGps
+          ? `<a class="jmb-feed__gps${p.far_from_job ? " is-far" : ""}" href="${escapeHtml(maps)}" target="_blank" rel="noopener">${
+              p.far_from_job ? `Longe · ${escapeHtml(dist)}` : dist ? `${escapeHtml(dist)} do job` : "Ver no mapa"
+            }</a>`
+          : `<span class="jmb-feed__gps is-off">Sem GPS</span>`;
+        return `<div class="jmb-feed__item">
+          <a class="jmb-feed__thumb" href="job-detail.html?id=${encodeURIComponent(p.job_id)}">
+            <img src="${escapeHtml(p.thumb_url || p.url)}" alt="" loading="lazy" />
+          </a>
           <span>
-            <strong class="jobs-table__client">#${escapeHtml(String(p.job_number ?? "—"))}</strong>
+            <a class="jobs-table__client" href="job-detail.html?id=${encodeURIComponent(p.job_id)}">#${escapeHtml(String(p.job_number ?? "—"))}</a>
             ${escapeHtml(p.job_title || "")}<br/>
-            <span class="jobs-table__muted">${escapeHtml(stageLabel(p.stage))} · ${escapeHtml(fmtWhen(p.created_at))}</span>
+            <span class="jobs-table__muted">${escapeHtml(stageLabel(p.stage))} · ${escapeHtml(fmtWhen(p.created_at))}</span><br/>
+            ${loc}
           </span>
-        </a>`,
-      )
+        </div>`;
+      })
       .join("");
   }
 
@@ -131,10 +149,16 @@
           : j.last_photo
             ? '<span class="jmb-badge jmb-badge--ok">OK</span>'
             : '<span class="jmb-badge">Sem foto</span>';
+        const gpsCount = (j.photos || []).filter((p) => p.lat != null && p.lng != null).length;
+        const far = (j.photos || []).some((p) => p.far_from_job);
+        const gpsHint = gpsCount
+          ? `<div class="jobs-table__muted">${gpsCount} foto(s) com GPS${far ? " · longe do job" : ""}</div>`
+          : "";
         return `<tr>
           <td>
             <a class="jobs-table__client" href="${escapeHtml(j.detail_url)}">#${escapeHtml(String(j.number ?? "—"))}</a>
             <div class="jobs-table__muted">${escapeHtml(j.title || "")}</div>
+            ${gpsHint}
           </td>
           <td class="jobs-table__muted">${escapeHtml(j.address || "—")}</td>
           <td><span class="job-status is-${escapeHtml(j.status || "draft")}">${escapeHtml(statusLabel(j.status))}</span></td>
@@ -185,20 +209,47 @@
 
   function addJobMarker(j, lat, lng, source) {
     if (!map || lat == null || lng == null) return null;
-    const color = markerColor(j);
+    const color = source === "site" ? "#1d4ed8" : markerColor(j);
+    const size = source === "photo" ? 14 : 18;
     const icon = L.divIcon({
       className: "jmb-marker",
-      html: `<span class="jmb-marker__pin" style="background:${color}"></span>`,
-      iconSize: [18, 18],
-      iconAnchor: [9, 9],
+      html: `<span class="jmb-marker__pin" style="background:${color};width:${size}px;height:${size}px"></span>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
     });
     const m = L.marker([lat, lng], { icon }).addTo(map);
+    const sourceLabel =
+      source === "photo" ? "GPS da foto" : source === "site" ? "Local do job (GPS/fotos)" : "Endereço do job";
     m.bindPopup(
       `<strong>#${escapeHtml(String(j.number ?? ""))}</strong> · ${escapeHtml(proofLabel(j))}<br/>` +
         `${escapeHtml(j.title || "")}<br/>` +
         `<span style="color:#6b645c;font-size:12px">${escapeHtml(j.address || "")}</span><br/>` +
-        `<span style="color:#8a8074;font-size:11px">${source === "photo" ? "GPS da foto" : "Endereço do job"}</span><br/>` +
+        `<span style="color:#8a8074;font-size:11px">${sourceLabel}</span><br/>` +
         `<a href="${escapeHtml(j.detail_url)}">Abrir job</a>`,
+    );
+    mapMarkers.push(m);
+    return m;
+  }
+
+  function addPhotoMarker(j, photo) {
+    if (!map || photo?.lat == null || photo?.lng == null) return null;
+    const far = Boolean(photo.far_from_job);
+    const color = far ? "#c2410c" : "#065f46";
+    const icon = L.divIcon({
+      className: "jmb-marker",
+      html: `<span class="jmb-marker__pin jmb-marker__pin--photo" style="background:${color}"></span>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
+    });
+    const m = L.marker([Number(photo.lat), Number(photo.lng)], { icon }).addTo(map);
+    const dist = fmtDistance(photo.distance_m);
+    const maps = `https://maps.google.com/?q=${encodeURIComponent(`${photo.lat},${photo.lng}`)}`;
+    m.bindPopup(
+      `<strong>#${escapeHtml(String(j.number ?? ""))}</strong> · foto<br/>` +
+        `${escapeHtml(stageLabel(photo.stage))} · ${escapeHtml(fmtWhen(photo.created_at))}<br/>` +
+        (dist ? `<span style="color:${far ? "#c2410c" : "#065f46"};font-size:12px">${far ? "Longe" : "No local"} · ${escapeHtml(dist)}</span><br/>` : "") +
+        `<a href="${escapeHtml(maps)}" target="_blank" rel="noopener">Abrir no Maps</a> · ` +
+        `<a href="${escapeHtml(j.detail_url)}">Job</a>`,
     );
     mapMarkers.push(m);
     return m;
@@ -227,39 +278,43 @@
     }).addTo(map);
     setTimeout(() => map && map.invalidateSize(), 80);
 
-    const withPhotoGps = [];
+    let photoPins = 0;
+    let sitePins = 0;
     const needGeocode = [];
+
     for (const j of jobs) {
-      const plat = j.last_photo?.lat;
-      const plng = j.last_photo?.lng;
-      if (plat != null && plng != null && Number.isFinite(Number(plat)) && Number.isFinite(Number(plng))) {
-        withPhotoGps.push(j);
-      } else if (j.address && String(j.address).trim()) {
+      const photosWithGps = (j.photos || []).filter((p) => p.lat != null && p.lng != null);
+      for (const p of photosWithGps) {
+        addPhotoMarker(j, p);
+        photoPins += 1;
+      }
+      if (j.geo_lat != null && j.geo_lng != null && Number.isFinite(Number(j.geo_lat)) && Number.isFinite(Number(j.geo_lng))) {
+        addJobMarker(j, Number(j.geo_lat), Number(j.geo_lng), "site");
+        sitePins += 1;
+      } else if (!photosWithGps.length && j.address && String(j.address).trim()) {
         needGeocode.push(j);
       }
     }
-
-    for (const j of withPhotoGps) {
-      addJobMarker(j, Number(j.last_photo.lat), Number(j.last_photo.lng), "photo");
-    }
     fitMap();
 
-    if (!needGeocode.length && !withPhotoGps.length) {
-      setMapStatus("Sem coordenadas — adicione endereço nos jobs ou fotos com GPS.");
+    if (!photoPins && !sitePins && !needGeocode.length) {
+      setMapStatus("Sem coordenadas — tire fotos com GPS no Campo ou adicione endereço nos jobs.");
       return;
     }
 
     if (!needGeocode.length) {
-      setMapStatus(`${withPhotoGps.length} job(s) no mapa (GPS das fotos)`);
+      setMapStatus(
+        `${photoPins} foto(s) com GPS` + (sitePins ? ` · ${sitePins} local(is) de job` : ""),
+      );
       return;
     }
 
     setMapStatus(
       `A localizar ${needGeocode.length} job(s) pelo endereço…` +
-        (withPhotoGps.length ? ` (${withPhotoGps.length} já no mapa)` : ""),
+        (photoPins ? ` (${photoPins} fotos já no mapa)` : ""),
     );
 
-    let placed = withPhotoGps.length;
+    let placed = sitePins;
     let failed = 0;
     for (let i = 0; i < needGeocode.length; i++) {
       const j = needGeocode[i];
@@ -272,14 +327,17 @@
         failed += 1;
       }
       setMapStatus(
-        `Mapa: ${placed} job(s)` +
+        `Mapa: ${photoPins} foto(s)` +
+          (placed ? ` · ${placed} job(s)` : "") +
           (failed ? ` · ${failed} sem localização` : "") +
           (i + 1 < needGeocode.length ? ` · a processar ${i + 2}/${needGeocode.length}` : ""),
       );
     }
     setMapStatus(
-      placed
-        ? `${placed} job(s) no mapa` + (failed ? ` · ${failed} sem localização` : "")
+      photoPins || placed
+        ? `${photoPins} foto(s) com GPS` +
+            (placed ? ` · ${placed} job(s)` : "") +
+            (failed ? ` · ${failed} sem localização` : "")
         : "Não foi possível localizar os jobs. Verifique os endereços.",
     );
   }

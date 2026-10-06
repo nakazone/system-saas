@@ -14,6 +14,7 @@ import {
   parsePhotoUploadMeta,
   sha256Buffer,
 } from "../../lib/job-media/index.js";
+import { photoDistanceFields, resolveJobSiteGeo } from "../../lib/job-media/geo.js";
 import {
   JOB_REPORT_TEMPLATES,
   generateJobReportDraft,
@@ -126,10 +127,10 @@ jobReportsRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const jobId = String(req.params.id);
-      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const { data, meta } = await withTenantTransaction(req.organizationId!, async (tx) => {
         const wo = await tx.workOrder.findFirst({
           where: { id: jobId },
-          select: { id: true },
+          select: { id: true, address: true },
         });
         if (!wo) throw Object.assign(new Error("Job not found"), { status: 404 });
         const rows = await tx.jobMedia.findMany({
@@ -138,9 +139,21 @@ jobReportsRouter.get(
           take: 200,
           include: { author: { select: { id: true, name: true } } },
         });
-        return rows.map(mapJobMedia);
+        const jobGeo = await resolveJobSiteGeo(tx, jobId);
+        const data = rows.map((row) => {
+          const mapped = mapJobMedia(row);
+          return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
+        });
+        return {
+          data,
+          meta: {
+            ai_configured: isAiConfigured(),
+            job_geo: jobGeo,
+            far_threshold_m: 500,
+          },
+        };
       });
-      res.json({ success: true, data, meta: { ai_configured: isAiConfigured() } });
+      res.json({ success: true, data, meta });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
       if (err?.status) {

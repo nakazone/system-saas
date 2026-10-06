@@ -24,6 +24,7 @@
   let orgSlug = null;
   let billing = null; // { billing, data: invoices }
   let media = null;
+  let mediaMeta = null;
   let mediaFilter = "all";
   let reports = [];
   let aiEnabled = false;
@@ -523,10 +524,24 @@
       api(`/api/work-orders/${jobId}/reports`).catch(() => ({ data: [], meta: {} })),
     ]);
     media = m.data || [];
+    mediaMeta = m.meta || null;
     reports = r.data || [];
     aiEnabled = Boolean(r.meta?.ai_enabled);
     $("jdTabFotos").textContent = media.length ? String(media.length) : "";
   }
+
+  function mapsCoordsUrl(lat, lng) {
+    if (lat == null || lng == null) return "";
+    return `https://maps.google.com/?q=${encodeURIComponent(`${lat},${lng}`)}`;
+  }
+
+  function fmtDistance(m) {
+    if (m == null || !Number.isFinite(Number(m))) return "";
+    const n = Number(m);
+    if (n < 1000) return `${Math.round(n)} m`;
+    return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)} km`;
+  }
+
   function renderPhotos() {
     if (!media) {
       $("jobMediaBody").innerHTML = '<p class="jd-empty">A carregar fotos…</p>';
@@ -552,16 +567,34 @@
     const last = media[0];
     const age = last?.created_at ? Math.floor((Date.now() - new Date(last.created_at).getTime()) / 86400000) : null;
     const stale = job.status === "in_progress" && age != null && age >= 3 ? `<p class="jd-warn">Última foto há ${age} dias.</p>` : "";
+    const withGps = media.filter((p) => p.location_available).length;
+    const far = media.filter((p) => p.far_from_job).length;
+    const jobGeo = mediaMeta?.job_geo;
+    const gpsSummary =
+      media.length
+        ? `<p class="jd-gps-summary">${withGps ? `${withGps} com GPS` : "Nenhuma foto com GPS"}${
+            jobGeo ? ` · local do job definido` : ""
+          }${far ? ` · <span class="jd-gps-far">${far} longe do endereço (&gt;500&nbsp;m)</span>` : ""}</p>`
+        : "";
     $("jobMediaBody").innerHTML = list.length
-      ? `${stale}<div class="jd-photos">${list
+      ? `${stale}${gpsSummary}<div class="jd-photos">${list
           .map((p) => {
             const st = STAGE[p.stage] || "";
+            const hasGps = p.location_available && p.lat != null && p.lng != null;
+            const maps = hasGps ? mapsCoordsUrl(p.lat, p.lng) : "";
+            const dist = fmtDistance(p.distance_m);
+            const locBits = [];
+            if (hasGps) locBits.push(`<a class="jd-photo__gps${p.far_from_job ? " is-far" : ""}" href="${esc(maps)}" target="_blank" rel="noopener" title="${esc(`${p.lat}, ${p.lng}`)}">📍 ${p.far_from_job ? "Longe" : dist || "GPS"}</a>`);
+            else locBits.push(`<span class="jd-photo__gps is-off">Sem GPS</span>`);
+            if (dist && !p.far_from_job) locBits.push(`<span class="jd-photo__dist">${esc(dist)} do job</span>`);
+            else if (p.far_from_job && dist) locBits.push(`<span class="jd-photo__dist is-far">${esc(dist)} do job</span>`);
             return `<figure class="jd-photo">
               <a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.thumb_url || p.url)}" alt="${esc(p.caption || st || "Foto")}" loading="lazy" /></a>
               ${st ? `<span class="jd-photo__stage">${esc(st)}</span>` : ""}
               ${p.in_portfolio ? '<span class="jd-photo__flag">Portfólio</span>' : ""}
               <figcaption><span>${esc(p.caption || "")}</span>
               ${canManage && !p.legacy ? `<button type="button" class="jd-photo__port" data-port="${esc(p.id)}" data-on="${p.in_portfolio ? "1" : "0"}" title="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${p.in_portfolio ? "★" : "☆"}</button>` : ""}</figcaption>
+              <div class="jd-photo__loc">${locBits.join("")}</div>
             </figure>`;
           })
           .join("")}</div>`
