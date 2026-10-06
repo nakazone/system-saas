@@ -86,6 +86,8 @@
 .dy-sec__hd { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 8px; }
 .dy-sec__hd h3 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .dy-sec__hd button, .dy-sec__hd a { font-size: 13.5px; font-weight: 800; color: var(--terra-d); padding: 4px 2px; }
+.dy-sec__acts { display: inline-flex; align-items: center; gap: 10px; }
+.dy-link { border: 0; background: none; font: inherit; font-size: 13.5px; font-weight: 800; color: var(--terra-d); cursor: pointer; padding: 4px 2px; }
 .dy-empty { background: #fff; border: 1px dashed var(--line); border-radius: 16px; padding: 16px; color: var(--muted); font-size: 14px; font-weight: 600; text-align: center; }
 
 .dy-job { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 13px 14px; margin-bottom: 8px; }

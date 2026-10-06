@@ -5,6 +5,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   let S = null; // server state
+  let routeStart = "";
   let busy = false;
   let tick = null;
   let sheet = null; // { kind, ... }
@@ -73,6 +74,12 @@
   // ------------------------------------------------------------ load
   async function load() {
     try {
+      try {
+        const sess = await fetch("/api/auth/session", { credentials: "include" }).then((r) => r.json());
+        routeStart = (sess && sess.user && sess.user.route_start_address) || "";
+      } catch (_) {
+        /* ignore */
+      }
       S = await api("/api/campo/dia");
       await refreshQueue();
       render();
@@ -222,7 +229,11 @@
     const here = inDay ? d.jobs[d.jobs.length - 1] : null;
     const title = inDay ? "Jobs do seu dia" : d ? "Jobs do dia" : "Agenda de hoje";
     box.className = "dy-sec";
-    box.innerHTML = `<div class="dy-sec__hd"><h3>${title}</h3>${inDay ? `<button type="button" data-act="addjob">+ Outro job</button>` : `<a href="agenda.html">Semana</a>`}</div>
+    box.innerHTML = `<div class="dy-sec__hd"><h3>${title}</h3><span class="dy-sec__acts">${
+      window.__crmDayRoute && (list || []).some((j) => j.address || j.delivery_pickup_address)
+        ? `<button type="button" class="dy-link" data-act="day-route">Ver rota</button>`
+        : ""
+    }${inDay ? `<button type="button" data-act="addjob">+ Outro job</button>` : `<a href="agenda.html">Semana</a>`}</span></div>
       ${
         list.length
           ? list
@@ -230,7 +241,7 @@
                 (j) => `<div class="dy-job${here && here.id === j.id ? " dy-job--here" : ""}">
             <div class="dy-job__top">
               <span class="dy-job__time">${esc(j.arrived_label || j.start_label || (j.continuing ? "Cont." : "—"))}</span>
-              <div class="dy-job__main"><b>${esc(jobLine(j))}</b><small>${esc([j.client, j.address].filter(Boolean).join(" · "))}</small></div>
+              <div class="dy-job__main"><b>${esc(jobLine(j))}</b><small>${esc([j.client, j.needs_delivery ? "Delivery" : null, j.address].filter(Boolean).join(" · "))}</small></div>
               ${inDay ? photoTag(j) : ""}
             </div>
             <div class="dy-job__act">
@@ -797,6 +808,23 @@
         return gotoJob(job);
       case "addjob":
         return openPickJob("add");
+      case "day-route": {
+        if (!window.__crmDayRoute) return;
+        const d = S.day;
+        const inDay = d && d.status === "in_progress";
+        const list = inDay ? d.jobs : d ? d.jobs : S.jobs_today;
+        const stops = window.__crmDayRoute.stopsFromCampoJobs(list || []);
+        window.__crmDayRoute.open({
+          title: "Rota do dia",
+          subtitle: $("dyDate")?.textContent || "",
+          origin: routeStart || "",
+          stops,
+          onSaveOrigin: (addr) => {
+            routeStart = addr || "";
+          },
+        });
+        return;
+      }
       case "finish":
         return openFinish();
       case "photo":

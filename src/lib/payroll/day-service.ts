@@ -77,6 +77,8 @@ export const jobSelect = {
   scheduledEnd: true,
   geoLat: true,
   geoLng: true,
+  needsDelivery: true,
+  deliveryPickupAddress: true,
   customer: { select: { name: true } },
   builder: { select: { company: true, firstName: true, lastName: true } },
 } satisfies Prisma.WorkOrderSelect;

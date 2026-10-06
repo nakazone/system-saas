@@ -229,6 +229,8 @@
       meta: m,
       assignees,
       address: m.address || m.location || (m.lead && m.lead.address) || '',
+      needs_delivery: Boolean(m.needs_delivery),
+      delivery_pickup_address: m.delivery_pickup_address || null,
     };
   }
 
@@ -503,8 +505,8 @@
 
   function dayAsideHtml(d) {
     const list = eventsOnDay(d);
-    const stops = list.filter((e) => e.address);
-    const maps = stops.length ? 'https://www.google.com/maps/dir/' + stops.map((e) => encodeURIComponent(e.address)).join('/') : '';
+    const routeStops = window.__crmDayRoute ? window.__crmDayRoute.stopsFromAgendaEvents(list) : list.filter((e) => e.address);
+    const hasRoute = routeStops.length > 0;
     return `<aside class="ag-dayside">${miniMonthHtml(d, { dots: true, year: true })}
       <div class="ag-dayside__list"><h3>${esc(fmtDateLong(d))}</h3>${
         list.length
@@ -512,11 +514,11 @@
               .map(
                 (e) => `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><div><b>${esc(e.title)}</b><small>${esc(
                   e.allDay ? 'Dia inteiro' : `${fmtTime(e.start)} – ${fmtTime(e.end)}`
-                )}${e.address ? ' · ' + esc(e.address) : ''}</small></div></button>`
+                )}${e.needs_delivery ? ' · Delivery' : ''}${e.address ? ' · ' + esc(e.address) : ''}</small></div></button>`
               )
               .join('')
           : '<p class="ag-empty">Nada agendado.</p>'
-      }${maps ? `<a class="ag-btn ag-btn--block" href="${esc(maps)}" target="_blank" rel="noopener">Rota do dia no Google Maps</a>` : ''}</div></aside>`;
+      }${hasRoute ? `<button type="button" class="ag-btn ag-btn--block" data-ag-day-route="${esc(ymd(d))}">Ver rota do dia</button>` : ''}</div></aside>`;
   }
 
   // ---------- year
@@ -732,7 +734,9 @@
         }</button>`;
       })
       .join('')}${sameDay(d, today) ? `<div class="ag-now" style="top:${((Date.now() - d) / 3600e3) * HOUR_PX}px"></div>` : ''}</div></div></div>
-      ${!list.length ? '<p class="ag-empty ag-empty--float">Nada agendado neste dia.</p>' : ''}</div>`;
+      ${!list.length ? '<p class="ag-empty ag-empty--float">Nada agendado neste dia.</p>' : ''}
+      ${window.__crmDayRoute && window.__crmDayRoute.stopsFromAgendaEvents(list).length ? `<div class="ag-mday__route"><button type="button" class="ag-btn ag-btn--block" data-ag-day-route="${esc(ymd(d))}">Ver rota do dia</button></div>` : ''}
+      </div>`;
     $('#agStage').innerHTML = html;
     const sc = $('#agScroll');
     const firsts = packed.map((p) => p.top);
@@ -2114,6 +2118,23 @@
           el.disabled = false;
           toast(err.message, 'error');
         }
+        return;
+      }
+      if ((el = t.closest('[data-ag-day-route]'))) {
+        ev.stopPropagation();
+        const day = parseYmd(el.dataset.agDayRoute);
+        if (!day || !window.__crmDayRoute) return;
+        const list = eventsOnDay(day);
+        const stops = window.__crmDayRoute.stopsFromAgendaEvents(list);
+        window.__crmDayRoute.open({
+          title: 'Rota do dia',
+          subtitle: fmtDateLong(day),
+          origin: (S.me && S.me.route_start_address) || '',
+          stops,
+          onSaveOrigin: (addr) => {
+            if (S.me) S.me.route_start_address = addr || null;
+          },
+        });
         return;
       }
       if ((el = t.closest('[data-ag-ev]'))) {

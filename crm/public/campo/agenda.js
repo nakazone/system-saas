@@ -88,23 +88,29 @@
 
     const jobs = data.jobs || [];
     const list = $("cmAgendaList");
+    const canRoute =
+      window.__crmDayRoute && jobs.some((j) => j.address || j.delivery_pickup_address);
     if (!jobs.length) {
       list.innerHTML =
         '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma visita neste dia.</p>';
       return;
     }
-    list.innerHTML = jobs
-      .map((j) => {
-        const st = statusLabel(j.status);
-        const cls = statusBadgeClass(j.status);
-        return `
+    list.innerHTML =
+      (canRoute
+        ? `<button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmDayRoute" style="width:100%;margin:0 0 0.75rem">Ver rota do dia</button>`
+        : "") +
+      jobs
+        .map((j) => {
+          const st = statusLabel(j.status);
+          const cls = statusBadgeClass(j.status);
+          return `
         <a class="cm-job-card" href="ticket.html?id=${encodeURIComponent(j.id)}">
           <div class="cm-job-card__top">
             <p class="cm-job-card__time">${escapeHtml(j.start || "—")}${j.end ? ` – ${escapeHtml(j.end)}` : ""}</p>
             <span class="cm-badge ${cls}">${st}</span>
           </div>
           <p class="cm-job-card__title">${escapeHtml(j.title)}</p>
-          <p class="cm-job-card__sub">#${j.number ?? "—"} · ${escapeHtml(j.client)}${j.address ? ` · ${escapeHtml(j.address)}` : ""}</p>
+          <p class="cm-job-card__sub">#${j.number ?? "—"} · ${escapeHtml(j.client)}${j.needs_delivery ? " · Delivery" : ""}${j.address ? ` · ${escapeHtml(j.address)}` : ""}</p>
           ${
             j.team
               ? `<p class="cm-job-card__team">
@@ -114,8 +120,19 @@
               : ""
           }
         </a>`;
-      })
-      .join("");
+        })
+        .join("");
+    $("cmDayRoute")?.addEventListener("click", () => {
+      window.__crmDayRoute.open({
+        title: "Rota do dia",
+        subtitle: $("cmDayHeading")?.textContent || "",
+        origin: window.__campoRouteStart || "",
+        stops: window.__crmDayRoute.stopsFromCampoJobs(jobs),
+        onSaveOrigin: (addr) => {
+          window.__campoRouteStart = addr || "";
+        },
+      });
+    });
   }
 
   async function load() {
@@ -148,6 +165,12 @@
 
   async function init() {
     bind();
+    try {
+      const sess = await fetch("/api/auth/session", { credentials: "include" }).then((r) => r.json());
+      window.__campoRouteStart = (sess && sess.user && sess.user.route_start_address) || "";
+    } catch (_) {
+      window.__campoRouteStart = "";
+    }
     try {
       await load();
     } catch (err) {

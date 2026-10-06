@@ -119,6 +119,8 @@ function mapJob(wo: JobRow, tz: string, photos: number, dayStart?: Date) {
     client: clientLabel(wo),
     address: wo.address,
     maps_url: wo.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(wo.address)}` : null,
+    needs_delivery: Boolean(wo.needsDelivery),
+    delivery_pickup_address: wo.deliveryPickupAddress || null,
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
     /** Multi-day job that started on an earlier day: no start time today. */
     start_label: continuing ? null : timeLabel(wo.scheduledStart, tz),

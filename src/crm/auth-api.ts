@@ -101,6 +101,7 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
         role: user.role?.key ?? "staff",
         name: user.name,
         must_change_password: user.mustChangePassword,
+        route_start_address: user.routeStartAddress || null,
         permissions,
       },
     });
@@ -320,6 +321,39 @@ crmAuthRouter.post("/api/auth/change-password", async (req: AuthedRequest, res, 
       }
       res.json({ success: true, message: "Senha alterada com sucesso." });
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Save the usual start address used on day route maps. */
+crmAuthRouter.put("/api/auth/route-start", async (req: AuthedRequest, res, next) => {
+  try {
+    if (!req.session?.userId || !req.organizationId) {
+      res.status(401).json({ success: false, error: "Não autenticado" });
+      return;
+    }
+    const raw = req.body?.address;
+    const address =
+      raw == null || raw === ""
+        ? null
+        : String(raw)
+            .trim()
+            .slice(0, 500) || null;
+    const existing = await prisma.user.findFirst({
+      where: { id: req.session.userId, organizationId: req.organizationId },
+      select: { id: true },
+    });
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Usuário não encontrado" });
+      return;
+    }
+    const user = await prisma.user.update({
+      where: { id: existing.id },
+      data: { routeStartAddress: address },
+      select: { routeStartAddress: true },
+    });
+    res.json({ success: true, data: { route_start_address: user.routeStartAddress || null } });
   } catch (error) {
     next(error);
   }
