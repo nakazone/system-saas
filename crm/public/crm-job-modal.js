@@ -78,6 +78,11 @@
       notes: "",
       attention: "",
       needsDelivery: false,
+      deliveryPickupAddress: "",
+      deliveryNotes: "",
+      deliveryAttachment: null,
+      deliveryAttachmentPending: null,
+      clearDeliveryAttachment: false,
       /** [{ id|null, text, photo, done }] — done is read-only here (the crew ticks it in Campo). */
       checklist: [],
       temps: [],
@@ -532,6 +537,21 @@
             <input type="checkbox" id="jmNeedsDelivery" />
             <span><strong>Delivery</strong> — retirar material da obra</span>
           </label>
+          <div class="jm-delivery" id="jmDeliveryBox" hidden>
+            <label class="jm-field">Endereço da retirada
+              <input type="text" id="jmDeliveryPickup" class="jm-in" maxlength="500" placeholder="Onde pegar o material (pode ser diferente do job)" />
+            </label>
+            <label class="jm-field">Notas / nº do PO
+              <textarea id="jmDeliveryNotes" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="4000" placeholder="Ex.: PO 45821 — retirar sobras de madeira"></textarea>
+            </label>
+            <div class="jm-delivery__file">
+              <label class="jm-btn jm-btn--sm" for="jmDeliveryFile">Anexar arquivo</label>
+              <input type="file" id="jmDeliveryFile" class="jm-sr" accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp" />
+              <span class="jm-delivery__file-name" id="jmDeliveryFileName">Nenhum arquivo</span>
+              <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear" hidden>Remover</button>
+            </div>
+            <p class="jm-hint">PDF ou foto do PO / packing list. Aparece no ticket do Campo.</p>
+          </div>
           <div class="jm-ck" id="jmCk"></div>
         </section>
 
@@ -1009,7 +1029,7 @@
         <div><dt>Preços</dt><dd>${esc(customRates() ? "Personalizada" : TYPE_LABEL[st.sourceType] || "Particular")}</dd></div>
         <div><dt>Quando</dt><dd>${esc(whenLabel())}</dd></div>
         <div><dt>Setor</dt><dd>${esc(sectorLabel(st.sector))}</dd></div>
-        <div><dt>Delivery</dt><dd>${st.needsDelivery ? "Retirar material" : "—"}</dd></div>
+        <div><dt>Delivery</dt><dd>${st.needsDelivery ? esc(st.deliveryPickupAddress || "Retirar material") : "—"}</dd></div>
         <div><dt>Equipe</dt><dd>${esc(assignee ? `${assignee.name || assignee.email}${others ? ` +${others}` : ""}` : "—")}</dd></div>
         <div><dt>Status</dt><dd>${esc(statusLbl)}</dd></div>
       </dl>
@@ -1056,6 +1076,39 @@
     }
   }
 
+  function renderDeliveryBox() {
+    const box = $("jmDeliveryBox");
+    if (!box) return;
+    box.hidden = !st.needsDelivery;
+    if ($("jmDeliveryPickup")) $("jmDeliveryPickup").value = st.deliveryPickupAddress || "";
+    if ($("jmDeliveryNotes")) $("jmDeliveryNotes").value = st.deliveryNotes || "";
+    const nameEl = $("jmDeliveryFileName");
+    const clearBtn = $("jmDeliveryFileClear");
+    const pending = st.deliveryAttachmentPending;
+    const existing = st.deliveryAttachment;
+    if (pending) {
+      if (nameEl) nameEl.textContent = pending.name || "Arquivo selecionado";
+      if (clearBtn) clearBtn.hidden = false;
+    } else if (existing && existing.url && !st.clearDeliveryAttachment) {
+      if (nameEl) {
+        nameEl.innerHTML = `<a href="${esc(existing.url)}" target="_blank" rel="noopener">${esc(existing.name || "Anexo")}</a>`;
+      }
+      if (clearBtn) clearBtn.hidden = false;
+    } else {
+      if (nameEl) nameEl.textContent = "Nenhum arquivo";
+      if (clearBtn) clearBtn.hidden = true;
+    }
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function renderAll() {
     renderClient();
     $("jobAddress").value = st.address;
@@ -1068,6 +1121,7 @@
     $("jobNotes").value = st.notes;
     $("jmAttention").value = st.attention;
     if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = Boolean(st.needsDelivery);
+    renderDeliveryBox();
     renderChecklist();
     renderLockbox();
     renderSide();
@@ -1369,6 +1423,11 @@
     st.notes = wo.notes || "";
     st.attention = wo.campo_attention || "";
     st.needsDelivery = Boolean(wo.needs_delivery);
+    st.deliveryPickupAddress = wo.delivery_pickup_address || "";
+    st.deliveryNotes = wo.delivery_notes || "";
+    st.deliveryAttachment = wo.delivery_attachment || null;
+    st.deliveryAttachmentPending = null;
+    st.clearDeliveryAttachment = false;
     st.checklist = Array.isArray(wo.campo_checklist)
       ? wo.campo_checklist.map((c) => ({ id: c.id, text: c.text, photo: Boolean(c.photo_required), done: Boolean(c.done) }))
       : [];
@@ -1398,6 +1457,9 @@
       notes: st.notes.trim() || null,
       campo_attention: st.attention.trim() || null,
       needs_delivery: Boolean(st.needsDelivery),
+      delivery_pickup_address: st.needsDelivery ? st.deliveryPickupAddress.trim() || null : null,
+      delivery_notes: st.needsDelivery ? st.deliveryNotes.trim() || null : null,
+      clear_delivery_attachment: Boolean(st.clearDeliveryAttachment),
       assigned_user_id: st.assigneeId || null,
       member_user_ids: members,
       line_items: st.lines
@@ -1434,8 +1496,8 @@
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
       campo: checklistEnabled
-        ? ["campo_attention", "campo_checklist", "needs_delivery"]
-        : ["campo_attention", "needs_delivery"],
+        ? ["campo_attention", "campo_checklist", "needs_delivery", "delivery_pickup_address", "delivery_notes", "clear_delivery_attachment"]
+        : ["campo_attention", "needs_delivery", "delivery_pickup_address", "delivery_notes", "clear_delivery_attachment"],
       notes: ["notes"],
     }[st.section];
     const out = {};
@@ -1494,6 +1556,21 @@
           } catch (_) {
             tempsFail += 1;
           }
+        }
+      }
+      const jobId = createdId || st.id;
+      if (jobId && st.needsDelivery && st.deliveryAttachmentPending?.data_url) {
+        try {
+          const up = await api(`/api/work-orders/${jobId}/delivery-attachment`, {
+            method: "POST",
+            body: JSON.stringify({
+              data_url: st.deliveryAttachmentPending.data_url,
+              file_name: st.deliveryAttachmentPending.name || "anexo",
+            }),
+          });
+          if (up.data) j.data = up.data;
+        } catch (upErr) {
+          notify(upErr.message || "Job salvo, mas o anexo do Delivery falhou.", "warning");
         }
       }
       const n = j.data?.number != null ? `#${j.data.number}` : "";
@@ -1615,6 +1692,14 @@
 
   function onClick(e) {
     if (!st) return;
+    if (e.target.id === "jmDeliveryFileClear" || e.target.closest("#jmDeliveryFileClear")) {
+      e.preventDefault();
+      st.deliveryAttachmentPending = null;
+      st.clearDeliveryAttachment = true;
+      if ($("jmDeliveryFile")) $("jmDeliveryFile").value = "";
+      renderDeliveryBox();
+      return;
+    }
     const btn = e.target.closest("[data-act]");
     if (!btn) return;
     const act = btn.getAttribute("data-act");
@@ -1825,6 +1910,19 @@
         return;
       case "jmNeedsDelivery":
         st.needsDelivery = Boolean(t.checked);
+        if (!st.needsDelivery) {
+          st.clearDeliveryAttachment = true;
+          st.deliveryAttachmentPending = null;
+        }
+        renderDeliveryBox();
+        renderSide();
+        return;
+      case "jmDeliveryPickup":
+        st.deliveryPickupAddress = t.value;
+        renderSide();
+        return;
+      case "jmDeliveryNotes":
+        st.deliveryNotes = t.value;
         return;
       case "jmClientQ":
         st.pickerQuery = t.value;
@@ -1930,8 +2028,33 @@
         return;
       case "jmNeedsDelivery":
         st.needsDelivery = Boolean(t.checked);
+        if (!st.needsDelivery) {
+          st.clearDeliveryAttachment = true;
+          st.deliveryAttachmentPending = null;
+        }
+        renderDeliveryBox();
         renderSide();
         return;
+      case "jmDeliveryFile": {
+        const file = t.files && t.files[0];
+        if (!file) return;
+        if (file.size > 12 * 1024 * 1024) {
+          notify("Arquivo grande demais (máx. 12MB).", "error");
+          t.value = "";
+          return;
+        }
+        readFileAsDataUrl(file)
+          .then((data_url) => {
+            st.deliveryAttachmentPending = { name: file.name, data_url };
+            st.clearDeliveryAttachment = false;
+            st.needsDelivery = true;
+            if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = true;
+            renderDeliveryBox();
+            renderSide();
+          })
+          .catch((err) => notify(err.message || "Falha ao ler arquivo.", "error"));
+        return;
+      }
       case "jmSector":
         st.sector = t.value === "installation" || t.value === "sand_finish" ? t.value : null;
         if (st.sector !== "sand_finish") st.relatedWorkOrderId = null;

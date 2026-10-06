@@ -129,7 +129,13 @@
     $("jdChips").innerHTML = `
       <span class="jd-pill jd-pill--${cls}">${esc(label)}</span>
       ${sectorLbl ? `<span class="jd-pill">${esc(sectorLbl)}</span>` : ""}
-      ${job.needs_delivery ? `<span class="jd-pill jd-pill--delivery" title="Retirar material da obra">Delivery</span>` : ""}
+      ${
+        job.needs_delivery
+          ? `<span class="jd-pill jd-pill--delivery" title="${esc(
+              [job.delivery_pickup_address, job.delivery_notes].filter(Boolean).join(" · ") || "Retirar material da obra",
+            )}">Delivery</span>`
+          : ""
+      }
       ${canBill && b && b.billing_status !== "no_value" && window.JobBilling ? window.JobBilling.chip(b) : ""}
       ${job.number != null ? `<span class="jd-num">Job #${esc(job.number)}</span>` : ""}`;
     $("jobDetailTitle").textContent = job.title || `Job para ${clientName()}`;
@@ -293,11 +299,32 @@
     const card = $("jdAttentionCard");
     const att = (job.campo_attention || "").trim();
     const problem = (field?.problem_note || "").trim();
-    card.hidden = !att && !problem;
+    const delivery = Boolean(job.needs_delivery);
+    card.hidden = !att && !problem && !delivery;
     if (card.hidden) return;
     card.className = `jd-card jd-alert${problem ? " jd-alert--problem" : ""}`;
+    const delBits = [];
+    if (delivery) {
+      delBits.push(`<div class="jd-delivery"><b>Delivery</b>`);
+      if (job.delivery_pickup_address) {
+        delBits.push(
+          `<p><small>Retirada</small><a href="https://maps.google.com/?q=${encodeURIComponent(job.delivery_pickup_address)}" target="_blank" rel="noopener">${esc(job.delivery_pickup_address)}</a></p>`,
+        );
+      }
+      if (job.delivery_notes) delBits.push(`<p><small>Notas / PO</small>${esc(job.delivery_notes)}</p>`);
+      if (job.delivery_attachment?.url) {
+        delBits.push(
+          `<p><small>Arquivo</small><a href="${esc(job.delivery_attachment.url)}" target="_blank" rel="noopener">${esc(job.delivery_attachment.name || "Anexo")}</a></p>`,
+        );
+      }
+      if (!job.delivery_pickup_address && !job.delivery_notes && !job.delivery_attachment?.url) {
+        delBits.push(`<p>Retirar material da obra</p>`);
+      }
+      delBits.push(`</div>`);
+    }
     card.innerHTML = `${problem ? `<div><b>Problema relatado pelo campo</b><p>${esc(problem)}</p></div>` : ""}
       ${att ? `<div><b>Atenção para o campo</b><p>${esc(att)}</p></div>` : ""}
+      ${delBits.join("")}
       <button type="button" class="jd-link" data-goto="campo">Ver no Campo</button>`;
   }
 
@@ -585,8 +612,16 @@
             const maps = hasGps ? mapsCoordsUrl(p.lat, p.lng) : "";
             const dist = fmtDistance(p.distance_m);
             const jobAddr = (job && job.address) || "";
+            const when = p.taken_at_device || p.created_at
+              ? new Date(p.taken_at_device || p.created_at).toLocaleString("pt-BR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "";
             const gpsTitle = hasGps
-              ? [jobAddr, p.address, `${p.lat}, ${p.lng}`, dist ? `${dist} do job` : ""]
+              ? [when, jobAddr, p.address, `${p.lat}, ${p.lng}`, dist ? `${dist} do job` : ""]
                   .filter(Boolean)
                   .join(" · ")
               : "";
@@ -598,6 +633,8 @@
             } else {
               locBits.push(`<span class="jd-photo__gps is-off">Sem GPS</span>`);
             }
+            if (when) locBits.push(`<span class="jd-photo__when" title="${esc(gpsTitle || when)}">${esc(when)}</span>`);
+            if (p.address || jobAddr) locBits.push(`<span class="jd-photo__addr" title="${esc(p.address || jobAddr)}">${esc(p.address || jobAddr)}</span>`);
             if (dist && !p.far_from_job) locBits.push(`<span class="jd-photo__dist">${esc(dist)} do job</span>`);
             else if (p.far_from_job && dist) locBits.push(`<span class="jd-photo__dist is-far">${esc(dist)} do job</span>`);
             const portBtn =

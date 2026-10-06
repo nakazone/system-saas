@@ -201,6 +201,11 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     address: wo.address || "",
     notes: wo.notes,
     needs_delivery: Boolean(wo.needsDelivery),
+    delivery_pickup_address: wo.deliveryPickupAddress || null,
+    delivery_notes: wo.deliveryNotes || null,
+    delivery_attachment: wo.deliveryAttachmentUrl
+      ? { url: wo.deliveryAttachmentUrl, name: wo.deliveryAttachmentName || "Anexo" }
+      : null,
     attention,
     field_status: field,
     field_status_label: fieldStatusLabel(field),

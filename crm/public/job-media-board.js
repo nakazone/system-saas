@@ -246,11 +246,14 @@
     const m = L.marker([Number(photo.lat), Number(photo.lng)], { icon }).addTo(map);
     const dist = fmtDistance(photo.distance_m);
     const maps = `https://maps.google.com/?q=${encodeURIComponent(`${photo.lat},${photo.lng}`)}`;
-    const tip = j.address || `#${j.number ?? ""}`.trim() || "Foto";
-    m.bindTooltip(escapeHtml(tip), { direction: "top", opacity: 0.95 });
+    const when = fmtWhen(photo.taken_at_device || photo.created_at);
+    const addr = photo.address || j.address || `${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`;
+    const tip = [when, addr].filter(Boolean).join(" · ");
+    m.bindTooltip(escapeHtml(tip), { direction: "top", opacity: 0.95, sticky: true });
     m.bindPopup(
       `<strong>#${escapeHtml(String(j.number ?? ""))}</strong> · foto<br/>` +
-        `${escapeHtml(stageLabel(photo.stage))} · ${escapeHtml(fmtWhen(photo.created_at))}<br/>` +
+        `${escapeHtml(stageLabel(photo.stage))} · ${escapeHtml(when)}<br/>` +
+        `<span style="color:#6b645c;font-size:12px">${escapeHtml(addr)}</span><br/>` +
         (dist ? `<span style="color:${far ? "#c2410c" : "#065f46"};font-size:12px">${far ? "Longe" : "No local"} · ${escapeHtml(dist)}</span><br/>` : "") +
         `<a href="${escapeHtml(maps)}" target="_blank" rel="noopener">Abrir no Maps</a> · ` +
         `<a href="${escapeHtml(j.detail_url)}">Job</a>`,

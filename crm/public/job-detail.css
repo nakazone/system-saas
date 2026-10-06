@@ -128,6 +128,21 @@
 .jd-alert p { margin: 4px 0 0; line-height: 1.5; white-space: pre-wrap; }
 .jd-alert--problem { background: #fdf0ee; border-color: #f2cdc6; }
 .jd-alert--problem b { color: #9b2c1f; }
+.jd-delivery {
+  flex: 1 1 100%;
+  min-width: 220px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.jd-delivery b { color: #1d4ed8; }
+.jd-delivery p { margin: 0.35rem 0 0; }
+.jd-delivery small {
+  display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.04em;
+  text-transform: uppercase; color: #3b82f6; margin-bottom: 0.1rem;
+}
+.jd-delivery a { color: #1d4ed8; font-weight: 700; }
 
 /* tables */
 .jd-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -232,6 +247,11 @@
 .jd-photo__gps:hover { text-decoration: underline; }
 .jd-photo__gps.is-far { color: #c2410c; }
 .jd-photo__gps.is-off { color: #8a8074; font-weight: 600; }
+.jd-photo__when { color: var(--jd-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.jd-photo__addr {
+  color: #6b645c; font-weight: 600; max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .jd-photo__dist { color: #6b645c; }
 .jd-photo__dist.is-far { color: #c2410c; font-weight: 700; }
 .jd-gps-summary {

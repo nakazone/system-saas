@@ -1640,6 +1640,13 @@ model WorkOrder {
   campoAttention String?   @db.Text
   /// Pickup / delivery of leftover material from the job site
   needsDelivery  Boolean   @default(false)
+  /// Where to pick up leftover material (may differ from the job site)
+  deliveryPickupAddress String?
+  /// Delivery notes (PO number, instructions, etc.)
+  deliveryNotes  String?   @db.Text
+  deliveryAttachmentUrl  String?
+  deliveryAttachmentKey  String?
+  deliveryAttachmentName String?
   /// [{ id, text, done }]
   campoChecklist Json?
   /// [{ id, url, createdAt }]

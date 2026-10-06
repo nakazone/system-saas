@@ -24,6 +24,7 @@ import {
   resolveVisitColor,
 } from "../../lib/settings/schedule.js";
 import { formatUsPhone } from "../../lib/phone.js";
+import { storage } from "../../lib/storage/index.js";
 
 const WO_SECTORS = ["installation", "sand_finish"] as const;
 
@@ -159,6 +160,11 @@ function mapWorkOrder(wo: {
   notes: string | null;
   campoAttention?: string | null;
   needsDelivery?: boolean;
+  deliveryPickupAddress?: string | null;
+  deliveryNotes?: string | null;
+  deliveryAttachmentUrl?: string | null;
+  deliveryAttachmentKey?: string | null;
+  deliveryAttachmentName?: string | null;
   campoChecklist?: unknown;
   assignedUserId: string | null;
   crewId: string | null;
@@ -225,6 +231,15 @@ function mapWorkOrder(wo: {
     campo_attention: wo.campoAttention ?? null,
     /** Pickup leftover material from the job site. */
     needs_delivery: Boolean(wo.needsDelivery),
+    delivery_pickup_address: wo.deliveryPickupAddress || null,
+    delivery_notes: wo.deliveryNotes || null,
+    delivery_attachment: wo.deliveryAttachmentUrl
+      ? {
+          url: wo.deliveryAttachmentUrl,
+          name: wo.deliveryAttachmentName || "Anexo",
+          key: wo.deliveryAttachmentKey || null,
+        }
+      : null,
     /** null = no checklist set for this job (Campo falls back to the default template). */
     campo_checklist:
       Array.isArray(wo.campoChecklist) && (wo.campoChecklist as unknown[]).length
@@ -783,6 +798,9 @@ const workOrderBody = z.object({
   notes: z.string().max(8000).optional().nullable(),
   campo_attention: z.string().max(2000).optional().nullable(),
   needs_delivery: z.boolean().optional(),
+  delivery_pickup_address: z.string().max(500).optional().nullable(),
+  delivery_notes: z.string().max(4000).optional().nullable(),
+  clear_delivery_attachment: z.boolean().optional(),
   /** Checklist set by the office; done/photos already recorded by the crew are kept by id. */
   campo_checklist: z
     .array(
@@ -863,6 +881,8 @@ scheduleJobsRouter.post(
           notes: d.notes?.trim() || null,
           campoAttention: d.campo_attention?.trim() || null,
           needsDelivery: d.needs_delivery === true,
+          deliveryPickupAddress: d.needs_delivery === true ? d.delivery_pickup_address?.trim() || null : null,
+          deliveryNotes: d.needs_delivery === true ? d.delivery_notes?.trim() || null : null,
           ...(d.campo_checklist?.length ? { campoChecklist: mergeOfficeChecklist(null, d.campo_checklist) } : {}),
           assignedUserId: d.assigned_user_id || null,
           crewId: d.crew_id || null,
@@ -1021,6 +1041,23 @@ scheduleJobsRouter.put(
           ...(d.notes !== undefined ? { notes: d.notes?.trim() || null } : {}),
           ...(d.campo_attention !== undefined ? { campoAttention: d.campo_attention?.trim() || null } : {}),
           ...(d.needs_delivery !== undefined ? { needsDelivery: d.needs_delivery === true } : {}),
+          ...(d.needs_delivery === false
+            ? {
+                deliveryPickupAddress: null,
+                deliveryNotes: null,
+                deliveryAttachmentUrl: null,
+                deliveryAttachmentKey: null,
+                deliveryAttachmentName: null,
+              }
+            : {
+                ...(d.delivery_pickup_address !== undefined
+                  ? { deliveryPickupAddress: d.delivery_pickup_address?.trim() || null }
+                  : {}),
+                ...(d.delivery_notes !== undefined ? { deliveryNotes: d.delivery_notes?.trim() || null } : {}),
+                ...(d.clear_delivery_attachment
+                  ? { deliveryAttachmentUrl: null, deliveryAttachmentKey: null, deliveryAttachmentName: null }
+                  : {}),
+              }),
           ...(d.campo_checklist !== undefined
             ? {
                 campoChecklist: d.campo_checklist?.length
@@ -1085,6 +1122,77 @@ scheduleJobsRouter.put(
       }
 
       res.json({ success: true, data: mapWorkOrder(full!), conflicts });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+function parseDataUrl(dataUrl: string): { contentType: string; body: Buffer } | null {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) return null;
+  return { contentType: match[1]!, body: Buffer.from(match[2]!, "base64") };
+}
+
+/** Office upload for Delivery attachment (PO / PDF / photo). */
+scheduleJobsRouter.post(
+  "/api/work-orders/:id/delivery-attachment",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = String(req.params.id);
+      const raw = (req.body || {}) as Record<string, unknown>;
+      const dataUrl = String(raw.data_url || raw.dataUrl || "");
+      const fileName = String(raw.file_name || raw.fileName || "anexo").slice(0, 180);
+      if (!dataUrl.startsWith("data:")) {
+        res.status(400).json({ success: false, error: "data_url obrigatório" });
+        return;
+      }
+      const parsed = parseDataUrl(dataUrl);
+      if (!parsed) {
+        res.status(400).json({ success: false, error: "Arquivo inválido" });
+        return;
+      }
+      if (parsed.body.length > 12 * 1024 * 1024) {
+        res.status(400).json({ success: false, error: "Arquivo grande demais (máx. 12MB)" });
+        return;
+      }
+      const existing = await prisma.workOrder.findFirst({
+        where: { id: jobId, organizationId: req.organizationId!, status: { not: "canceled" } },
+        select: { id: true },
+      });
+      if (!existing) {
+        res.status(404).json({ success: false, error: "Job não encontrado" });
+        return;
+      }
+      const ct = String(parsed.contentType || "").toLowerCase();
+      const ext = ct.includes("pdf")
+        ? "pdf"
+        : ct.includes("png")
+          ? "png"
+          : ct.includes("jpeg") || ct.includes("jpg")
+            ? "jpg"
+            : ct.includes("webp")
+              ? "webp"
+              : "bin";
+      const key = `orgs/${req.organizationId}/jobs/${jobId}/delivery/${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
+      const stored = await storage.upload({
+        key,
+        body: parsed.body,
+        contentType: parsed.contentType || "application/octet-stream",
+      });
+      const row = await prisma.workOrder.update({
+        where: { id: existing.id },
+        data: {
+          needsDelivery: true,
+          deliveryAttachmentUrl: stored.url,
+          deliveryAttachmentKey: stored.key,
+          deliveryAttachmentName: fileName || `anexo.${ext}`,
+        },
+        include: woIncludeFor(req.user),
+      });
+      res.status(201).json({ success: true, data: mapWorkOrder(row) });
     } catch (error) {
       next(error);
     }

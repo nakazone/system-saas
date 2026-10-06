@@ -102,6 +102,28 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
 }
 .jm-check input { margin-top: 0.15rem; accent-color: #1d4ed8; }
 .jm-check strong { font-weight: 800; }
+.jm-delivery {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.15rem 0 0.75rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.jm-delivery__file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+}
+.jm-delivery__file-name {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: #1e3a8a;
+  min-width: 0;
+}
+.jm-delivery__file-name a { color: #1d4ed8; font-weight: 750; }
 .jm-empty { margin: 0; padding: 10px 2px; color: var(--jm-muted); font-size: 13px; }
 .jm-link { border: 0; background: none; padding: 0; font: inherit; font-size: 13px; font-weight: 800; color: var(--jm-terra-d); cursor: pointer; }
 .jm-link:hover { text-decoration: underline; }

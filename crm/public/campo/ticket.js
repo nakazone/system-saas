@@ -142,7 +142,27 @@
   function lockboxBadgeHtml(notes) {
     const code = parseLockbox(notes);
     if (!code) return "";
-    return `<span class="job-lockbox-badge" title="Lockbox ${escapeHtml(code)}" aria-label="Lockbox ${escapeHtml(code)}"><span class="job-lockbox-badge__icon" aria-hidden="true">🔐</span></span>`;
+    return `<span class="job-lockbox-badge" title="Lockbox ${escapeHtml(code)}" aria-label="Lockbox ${escapeHtml(code)}"><span class="job-lockbox-badge__icon" aria-hidden="true">🔐</span><span class="job-lockbox-badge__code">${escapeHtml(code)}</span></span>`;
+  }
+
+  function deliveryBlockHtml(t) {
+    if (!t.needs_delivery) return "";
+    const bits = [];
+    bits.push(`<span class="job-delivery-badge">Delivery</span>`);
+    if (t.delivery_pickup_address) {
+      bits.push(
+        `<div class="cm-delivery__row"><small>Retirada</small><a href="${escapeHtml(mapsUrl(t.delivery_pickup_address))}" target="_blank" rel="noopener">${escapeHtml(t.delivery_pickup_address)}</a></div>`,
+      );
+    }
+    if (t.delivery_notes) {
+      bits.push(`<div class="cm-delivery__row"><small>Notas / PO</small><span>${escapeHtml(t.delivery_notes)}</span></div>`);
+    }
+    if (t.delivery_attachment && t.delivery_attachment.url) {
+      bits.push(
+        `<div class="cm-delivery__row"><small>Arquivo</small><a href="${escapeHtml(t.delivery_attachment.url)}" target="_blank" rel="noopener">${escapeHtml(t.delivery_attachment.name || "Anexo")}</a></div>`,
+      );
+    }
+    return `<div class="cm-delivery">${bits.join("")}</div>`;
   }
 
   function stripLockboxText(notes) {
@@ -224,22 +244,12 @@
     }
 
     const notes = $("cmNotes");
-    if (t.notes && !t.attention) {
-      const code = parseLockbox(t.notes);
-      const text = stripLockboxText(t.notes);
-      if (!code && !text) {
-        notes.hidden = true;
-      } else {
-        notes.hidden = false;
-        const badge = code ? lockboxBadgeHtml(t.notes) : "";
-        const delivery = t.needs_delivery
-          ? `<span class="job-delivery-badge" title="Retirar material da obra">Delivery</span>`
-          : "";
-        notes.innerHTML = `${badge}${delivery}${text ? ` <span>${escapeHtml(text)}</span>` : ""}`;
-      }
-    } else if (t.needs_delivery && !t.attention) {
+    const lockbox = t.notes ? lockboxBadgeHtml(t.notes) : "";
+    const delivery = deliveryBlockHtml(t);
+    const text = t.notes && !t.attention ? stripLockboxText(t.notes) : "";
+    if (lockbox || delivery || text) {
       notes.hidden = false;
-      notes.innerHTML = `<span class="job-delivery-badge" title="Retirar material da obra">Delivery</span>`;
+      notes.innerHTML = `${lockbox}${delivery}${text ? `<div class="cm-notes__text">${escapeHtml(text)}</div>` : ""}`;
     } else {
       notes.hidden = true;
     }
