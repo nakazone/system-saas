@@ -30,11 +30,29 @@
   }
   const TABS = ["semana", "conferir", "pagamentos", "relatorios", "funcionarios"];
 
+  const SECTOR_KEYS = ["installation", "sand_finish"];
+  function readSectorPref() {
+    try {
+      const s = localStorage.getItem("folha_setor");
+      if (s && ["all", "installation", "sand_finish"].includes(s)) return s;
+    } catch (_) {
+      /* ignore */
+    }
+    return "installation";
+  }
+  function saveSectorPref(s) {
+    try {
+      localStorage.setItem("folha_setor", s);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   const st = {
     manage: false,
     admin: false,
     tab: "semana",
-    sector: "all",
+    sector: readSectorPref(),
     weekRef: null,
     week: null,
     open: new Set(),
@@ -126,7 +144,10 @@
       if (!tab) st.tab = "semana";
     }
     const s = h.get("setor");
-    if (s && ["all", "installation", "sand_finish"].includes(s)) st.sector = s;
+    if (s && ["all", "installation", "sand_finish"].includes(s)) {
+      st.sector = s;
+      saveSectorPref(s);
+    }
   }
   function writeHash() {
     const h = new URLSearchParams();
@@ -188,10 +209,63 @@
     b.hidden = !n;
     b.textContent = n;
   }
+  function emptyWeekRow(e) {
+    return {
+      id: e.id,
+      name: e.name,
+      sector: e.sector === "sand_finish" ? "sand_finish" : "installation",
+      pay_type: e.pay_type === "production" ? "production" : "daily",
+      daily_rate: Number(e.daily_rate) || 0,
+      production_rate: Number(e.production_rate) || 0,
+      overtime_rate: Number(e.overtime_rate) || 0,
+      status: e.status,
+      linked: Boolean(e.user),
+      payment_method: e.payment_method,
+      days: [],
+      totals: {
+        days: 0,
+        worked_minutes: 0,
+        overtime_minutes: 0,
+        sqft: 0,
+        gross: 0,
+        reimbursement: 0,
+        discount: 0,
+        net: 0,
+        pending_days: 0,
+        pending_amount: 0,
+        open_days: 0,
+      },
+      adjustment: { reimbursement: 0, discount: 0, notes: "" },
+      payment: null,
+    };
+  }
   function weekRows() {
     const rows = st.week ? st.week.employees : [];
     const q = st.q.trim().toLowerCase();
-    return rows.filter((r) => (st.sector === "all" || r.sector === st.sector) && (!q || r.name.toLowerCase().includes(q)));
+    let list = rows.filter((r) => (st.sector === "all" || r.sector === st.sector) && (!q || r.name.toLowerCase().includes(q)));
+    // Em uma folha de setor, mostra o time inteiro (mesmo sem diária ainda) para facilitar o lançamento.
+    if (st.sector !== "all" && st.emps) {
+      const have = new Set(list.map((r) => r.id));
+      for (const e of st.emps.employees || []) {
+        if (e.status !== "active") continue;
+        if ((e.sector || "installation") !== st.sector) continue;
+        if (have.has(e.id)) continue;
+        if (q && !e.name.toLowerCase().includes(q)) continue;
+        list.push(emptyWeekRow(e));
+      }
+      list.sort((a, b) => a.name.localeCompare(b.name, "pt"));
+    }
+    return list;
+  }
+  function sectorLabel() {
+    return st.sector === "all" ? null : SECTORS[st.sector];
+  }
+  function sectorRosterCount(k) {
+    if (k === "all") return st.week ? st.week.totals.all.employees : 0;
+    if (st.emps) {
+      return (st.emps.employees || []).filter((e) => e.status === "active" && (e.sector || "installation") === k).length;
+    }
+    return st.week ? st.week.totals[k]?.employees || 0 : 0;
   }
   function empStatus(r) {
     if (r.payment) return `<span class="fo-pill fo-pill--paid">Pago ${esc(brShort(r.payment.paid_on))}${r.payment.method_label ? ` · ${esc(r.payment.method_label)}` : ""}</span>`;
@@ -248,7 +322,18 @@
 
   // ---------- quick launch (one bar on desktop, a sheet on the phone)
   function launchEmps() {
-    return ((st.emps && st.emps.employees) || []).filter((e) => e.status === "active" && e.pay_type !== "production");
+    return ((st.emps && st.emps.employees) || []).filter((e) => {
+      if (e.status !== "active" || e.pay_type === "production") return false;
+      if (st.sector !== "all" && (e.sector || "installation") !== st.sector) return false;
+      return true;
+    });
+  }
+  function clearQuickIfWrongSector() {
+    if (!st.quick.empId) return;
+    if (launchEmps().some((e) => e.id === st.quick.empId)) return;
+    st.quick.empId = "";
+    st.quick.dates = new Set();
+    st.quick.touched = false;
   }
   function quickEmp() {
     return launchEmps().find((e) => e.id === st.quick.empId) || null;
@@ -311,9 +396,14 @@
       .join("")}</div>`;
   }
   function quickEmpOptions() {
-    const emps = launchEmps();
+    const emps = launchEmps().sort((a, b) => a.name.localeCompare(b.name, "pt"));
+    if (st.sector !== "all") {
+      return `<option value="">Escolha o funcionário…</option>${emps
+        .map((e) => `<option value="${esc(e.id)}"${st.quick.empId === e.id ? " selected" : ""}>${esc(e.name)} · ${money0(e.daily_rate)}</option>`)
+        .join("")}`;
+    }
     const grp = (sec) => {
-      const list = emps.filter((e) => (e.sector || "installation") === sec).sort((a, b) => a.name.localeCompare(b.name, "pt"));
+      const list = emps.filter((e) => (e.sector || "installation") === sec);
       return list.length
         ? `<optgroup label="${esc(SECTORS[sec])}">${list.map((e) => `<option value="${esc(e.id)}"${st.quick.empId === e.id ? " selected" : ""}>${esc(e.name)} · ${money0(e.daily_rate)}</option>`).join("")}</optgroup>`
         : "";
@@ -332,8 +422,9 @@
   function renderQuickBar() {
     if (!st.manage) return "";
     const ready = st.quick.empId && st.quick.dates.size;
+    const sec = sectorLabel();
     return `<div class="fo-quick" id="foQuick">
-      <div class="fo-quick__hd"><b>Lançar diária</b><span data-q-hint>${esc(quickHint())}</span></div>
+      <div class="fo-quick__hd"><b>Lançar diária${sec ? ` · ${esc(sec)}` : ""}</b><span data-q-hint>${esc(quickHint())}</span></div>
       <div class="fo-quick__row">
         <label class="fo-qf fo-qf--emp"><small>Funcionário</small><select class="fo-sel" data-q-emp>${quickEmpOptions()}</select></label>
         <div class="fo-qf fo-qf--days"><small>Dias</small>
@@ -348,19 +439,24 @@
   }
   function quickSheetBody() {
     const emps = launchEmps();
+    const secs = st.sector === "all" ? SECTOR_KEYS : [st.sector];
     const chips = (sec) => {
       const list = emps.filter((e) => (e.sector || "installation") === sec).sort((a, b) => a.name.localeCompare(b.name, "pt"));
       return list.length
-        ? `<div class="fo-qchips"><span>${esc(SECTORS[sec])}</span>${list.map((e) => `<button type="button" class="fo-chip" data-q-pick="${esc(e.id)}" aria-pressed="${st.quick.empId === e.id}">${esc(e.name.split(" ")[0])}${list.filter((x) => x.name.split(" ")[0] === e.name.split(" ")[0]).length > 1 ? " " + esc((e.name.split(" ")[1] || "").slice(0, 1)) + "." : ""}</button>`).join("")}</div>`
+        ? `<div class="fo-qchips">${st.sector === "all" ? `<span>${esc(SECTORS[sec])}</span>` : ""}${list.map((e) => `<button type="button" class="fo-chip" data-q-pick="${esc(e.id)}" aria-pressed="${st.quick.empId === e.id}">${esc(e.name.split(" ")[0])}${list.filter((x) => x.name.split(" ")[0] === e.name.split(" ")[0]).length > 1 ? " " + esc((e.name.split(" ")[1] || "").slice(0, 1)) + "." : ""}</button>`).join("")}</div>`
         : "";
     };
-    return `<div class="fo-box"><h3>Funcionário</h3>${chips("installation")}${chips("sand_finish")}${emps.length ? `<p class="fo-qhint" data-q-hint>${esc(quickHint())}</p>` : '<p class="fo-muted">Nenhum funcionário de diária ativo. Cadastre em Funcionários.</p>'}</div>
+    const emptyMsg = st.sector !== "all"
+      ? `Nenhum funcionário de diária ativo em ${SECTORS[st.sector]}. Cadastre em Funcionários.`
+      : "Nenhum funcionário de diária ativo. Cadastre em Funcionários.";
+    return `<div class="fo-box"><h3>Funcionário</h3>${secs.map(chips).join("")}${emps.length ? `<p class="fo-qhint" data-q-hint>${esc(quickHint())}</p>` : `<p class="fo-muted">${esc(emptyMsg)}</p>`}</div>
       <div class="fo-box"><h3>Dias do ciclo <small>${esc(st.week.week.label)}</small></h3>${quickDaysGrid()}</div>
       <div class="fo-box"><h3>Diária</h3>${quickSeg()}<div class="fo-qot"><b>Hora extra</b>${quickStepper()}</div></div>`;
   }
   function openQuickSheet() {
+    const sec = sectorLabel();
     openSheet(
-      `${sheetHead("Lançar diária", "Entra aprovada, no horário padrão do funcionário")}
+      `${sheetHead(sec ? `Lançar diária · ${esc(sec)}` : "Lançar diária", "Entra aprovada, no horário padrão do funcionário")}
       <div class="fo-sheet__bd" id="foQuickSheet">${quickSheetBody()}</div>
       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--pri fo-quick__go" data-q-go ${st.quick.empId && st.quick.dates.size ? "" : "disabled"}>${esc(quickGoLabel())}</button></footer>`,
       () => {
@@ -478,28 +574,33 @@
     const t = sumRows(rows);
     const payable = rows.filter(canPay);
     const toPayAll = payable.reduce((s, r) => s + r.totals.net, 0);
-    const segBtn = (k, l) => `<button type="button" data-sector="${k}" aria-pressed="${st.sector === k}">${l} <small>${w.totals[k].employees}</small></button>`;
+    const sec = sectorLabel();
+    const segBtn = (k, l) => `<button type="button" data-sector="${k}" aria-pressed="${st.sector === k}">${l} <small>${sectorRosterCount(k)}</small></button>`;
     const topNames = rows
       .filter((r) => r.totals.days)
       .slice(0, 3)
       .map((r) => `${esc(r.name.split(" ")[0])} ${dayFrac(r.totals.days)}`)
       .join(" · ");
+    const payAllLbl = sec ? `Pagar ${esc(sec)}` : "Pagar todos";
     const stats = `<div class="fo-stats">
-        <div class="fo-stat fo-stat--ink"><small>A pagar neste ciclo</small><b>${money(t.to_pay)}</b><span>${payable.length ? `${payable.length} funcionário${payable.length === 1 ? "" : "s"}` : "ninguém a pagar"}${t.paid ? ` · ${money(t.paid)} já pago` : ""}</span>${
-          payable.length > 1 ? `<button type="button" class="fo-btn fo-btn--sm fo-stat__go" data-payall>Pagar todos</button>` : ""
+        <div class="fo-stat fo-stat--ink"><small>A pagar${sec ? ` · ${esc(sec)}` : " neste ciclo"}</small><b>${money(t.to_pay)}</b><span>${payable.length ? `${payable.length} funcionário${payable.length === 1 ? "" : "s"}` : "ninguém a pagar"}${t.paid ? ` · ${money(t.paid)} já pago` : ""}</span>${
+          payable.length > 1 ? `<button type="button" class="fo-btn fo-btn--sm fo-stat__go" data-payall>${payAllLbl}</button>` : ""
         }</div>
         <div class="fo-stat"><small>Diárias</small><b>${dayFrac(t.days)}</b><span>${topNames || "nenhuma lançada"}</span></div>
         <div class="fo-stat${t.pending_days ? " fo-stat--warn" : ""}"><small>A conferir</small><b>${t.pending_days} dia${t.pending_days === 1 ? "" : "s"}</b><span>${t.pending_days ? '<button type="button" class="fo-link" data-goto="conferir">Conferir agora</button>' : "tudo conferido"}</span></div>
         <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_minutes)}</b><span>${t.overtime_amount ? `${money(t.overtime_amount)} em extras` : t.sqft ? `${qty(t.sqft)} sq ft de produção` : "depois do horário padrão"}</span></div>
       </div>`;
-    const filters = `<div class="fo-flt">
-        <div class="fo-seg" role="group" aria-label="Setor">${segBtn("all", "Todos")}${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}</div>
-        ${all.length > 4 ? `<input type="search" class="fo-in fo-flt__q" id="foWeekQ" placeholder="Buscar funcionário" value="${esc(st.q)}" />` : ""}
+    const filters = `<div class="fo-flt fo-flt--folha">
+        <div class="fo-folha-tabs">
+          <span class="fo-folha-tabs__lbl">Folha</span>
+          <div class="fo-seg fo-seg--folha" role="group" aria-label="Folha por setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}${segBtn("all", "Todas")}</div>
+        </div>
+        ${all.length > 4 || (st.emps && (st.emps.employees || []).length > 4) ? `<input type="search" class="fo-in fo-flt__q" id="foWeekQ" placeholder="Buscar funcionário" value="${esc(st.q)}" />` : ""}
       </div>`;
     const fab = "";
-    const pweek = `<div class="fo-pweek">${renderWeekHead()}${st.manage ? '<button type="button" class="fo-btn fo-btn--pri fo-qfab" data-q-sheet>+ Lançar diária</button>' : ""}</div>`;
+    const pweek = `<div class="fo-pweek">${renderWeekHead()}${st.manage ? `<button type="button" class="fo-btn fo-btn--pri fo-qfab" data-q-sheet>+ Lançar${sec ? ` · ${esc(sec)}` : ""}</button>` : ""}</div>`;
     if (!rows.length) {
-      box.innerHTML = `${pweek}${renderQuickBar()}${stats}${filters}<div class="fo-card"><div class="fo-empty"><b>${st.q ? "Ninguém com esse nome neste ciclo." : `Nenhum lançamento neste ciclo${st.sector !== "all" ? ` em ${SECTORS[st.sector]}` : ""}.`}</b>${st.manage ? "Lance uma diária acima, ou espere a equipe finalizar o dia no celular." : "A equipe finaliza o dia no celular."}</div></div>${fab}`;
+      box.innerHTML = `${pweek}${renderQuickBar()}${stats}${filters}<div class="fo-card"><div class="fo-empty"><b>${st.q ? "Ninguém com esse nome nesta folha." : sec ? `Nenhum funcionário em ${esc(sec)}.` : "Nenhum lançamento neste ciclo."}</b>${st.manage ? (sec ? " Cadastre o time em Funcionários, ou lance uma diária acima." : " Lance uma diária acima, ou espere a equipe finalizar o dia no celular.") : "A equipe finaliza o dia no celular."}</div></div>${fab}`;
       renderPayBar();
       return;
     }
@@ -819,9 +920,15 @@
         <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Referência<input type="text" class="fo-in" id="foPayRef" maxlength="120" placeholder="Nº do cheque, Zelle…" /></label>
         <label class="fo-field">Observação<input type="text" class="fo-in" id="foPayNote" maxlength="500" /></label></div>
       </div>
-      <p class="fo-muted" style="margin:0;font-size:13px;font-weight:600">Cada funcionário vira uma saída no Financeiro (categoria Folha · ${rows.length === 1 ? esc(SECTORS[rows[0].sector]) : "Instalação/Lixa"}). Quando todos estiverem pagos, a semana fecha.</p>`;
+      <p class="fo-muted" style="margin:0;font-size:13px;font-weight:600">Cada funcionário vira uma saída no Financeiro (categoria Folha · ${rows.length === 1 || sectorLabel() ? esc(SECTORS[rows[0].sector]) : "Instalação/Lixa"}). Quando todos estiverem pagos, a semana fecha.</p>`;
+    const payTitle =
+      rows.length === 1
+        ? `Pagar ${esc(rows[0].name)}`
+        : sectorLabel()
+          ? `Pagar ${esc(sectorLabel())} · ${rows.length}`
+          : `Pagar ${rows.length} funcionários`;
     openSheet(
-      `${sheetHead(rows.length === 1 ? `Pagar ${esc(rows[0].name)}` : `Pagar ${rows.length} funcionários`, money(total))}<div class="fo-sheet__bd">${body}</div>
+      `${sheetHead(payTitle, money(total))}<div class="fo-sheet__bd">${body}</div>
        <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-pay-go>Confirmar pagamento · ${money(total)}</button></footer>`,
     );
     $("foSheet")._payIds = rows.map((r) => r.id);
@@ -1342,6 +1449,8 @@
     if ((b = el("[data-sector]"))) {
       st.sector = b.getAttribute("data-sector");
       st.selected.clear();
+      saveSectorPref(st.sector);
+      clearQuickIfWrongSector();
       renderWeek();
       return writeHash();
     }
