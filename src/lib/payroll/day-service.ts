@@ -8,7 +8,8 @@
 import { Prisma } from "@prisma/client";
 import type { PayrollTx } from "../../crm/lib/payroll-employee-link.js";
 import { myJobAccessWhere } from "../../crm/lib/campo-shared.js";
-import { calcTimesheetHoursTotal, mondayYmdFromCalendarYmd, parseYmd, sundayYmdAfterMonday, ymdToBrShort } from "../../crm/lib/payroll-calc.js";
+import { calcTimesheetHoursTotal, parseYmd } from "../../crm/lib/payroll-calc.js";
+import { parsePayCycle, periodBoundsFor } from "../settings/payroll-cycle.js";
 import { safeTimeZone, startOfZonedDay } from "../time/zoned.js";
 import {
   computeDayMinutes,
@@ -142,21 +143,25 @@ export async function photoCounts(
   return out;
 }
 
-/** Weekly period (Mon–Sun) covering the date; created when missing. */
+/** Period covering the date per org pay cycle; created when missing. */
 export async function periodFor(tx: PayrollTx, organizationId: string, workDate: Date) {
   const covering = await tx.payrollPeriod.findFirst({
     where: { startDate: { lte: workDate }, endDate: { gte: workDate } },
     orderBy: [{ status: "asc" }, { startDate: "desc" }],
   });
   if (covering) return covering;
-  const mon = mondayYmdFromCalendarYmd(ymd(workDate))!;
-  const sun = sundayYmdAfterMonday(mon)!;
+  const org = await tx.organization.findUnique({
+    where: { id: organizationId },
+    select: { featureFlags: true },
+  });
+  const cycle = parsePayCycle(org?.featureFlags);
+  const bounds = periodBoundsFor(ymd(workDate), cycle);
   return tx.payrollPeriod.create({
     data: {
       organizationId,
-      label: `Semana ${ymdToBrShort(mon)} – ${ymdToBrShort(sun)}`,
-      startDate: parseYmd(mon)!,
-      endDate: parseYmd(sun)!,
+      label: bounds.label,
+      startDate: parseYmd(bounds.start)!,
+      endDate: parseYmd(bounds.end)!,
       status: "open",
     },
   });

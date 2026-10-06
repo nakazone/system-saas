@@ -574,3 +574,70 @@ body.cfg-has-savebar #omDock { display: none !important; }
 .cfg-sched-row__lock{min-height:1px}
 .cfg-sched-row select{width:100%;height:40px;border:1px solid var(--cfg-line);border-radius:10px;padding:0 10px;background:#fff;font:inherit;font-size:0.9rem;color:var(--cfg-ink)}
 @media (max-width:720px){.cfg-sched-row{grid-template-columns:1fr 1fr}}
+
+/* Folha pay cycle */
+.cfg-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.cfg-cycle-card {
+  text-align: left;
+  border: 1px solid var(--cfg-field);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px 14px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--cfg-ink);
+}
+.cfg-cycle-card:hover { border-color: #c8b69f; }
+.cfg-cycle-card.is-active {
+  border-color: var(--cfg-accent-ink);
+  box-shadow: 0 0 0 2px rgba(193, 101, 47, 0.18);
+}
+.cfg-cycle-card__title { display: block; font-weight: 700; font-size: 0.92rem; margin-bottom: 4px; }
+.cfg-cycle-card__desc { display: block; font-size: 0.8rem; color: var(--cfg-muted); line-height: 1.35; }
+.cfg-cycle-preview { display: grid; gap: 10px; margin-top: 10px; }
+.cfg-cycle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--cfg-line);
+  border-radius: 12px;
+  background: var(--cfg-soft-2);
+}
+.cfg-cycle-row__label { font-weight: 700; font-size: 0.92rem; }
+.cfg-cycle-row__range { display: block; font-size: 0.8rem; color: var(--cfg-muted); margin-top: 2px; }
+.cfg-cycle-row__pay {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--cfg-accent-ink);
+  background: #fff;
+  border: 1px solid #efd9c7;
+  border-radius: 999px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+.cfg-cycle-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.cfg-cycle-day {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #efe8dc;
+  color: var(--cfg-muted);
+}
+.cfg-cycle-day.is-work { background: #211d1a; color: #fff; }
+.cfg-cycle-day.is-pay { background: var(--cfg-accent); color: #fff; }

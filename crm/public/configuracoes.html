@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20260923-pwa" />
   <link rel="stylesheet" href="crm-push.css?v=20260923-push" />
-  <link rel="stylesheet" href="configuracoes.css?v=20261002-incl1" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261006-folha2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -560,10 +560,79 @@
 
             <!-- ---------- Folha de pagamento ---------- -->
             <section class="cfg-section" data-section="folha" hidden>
-              <header class="cfg-head cfg-head--row">
+              <header class="cfg-head">
+                <h2 class="cfg-title">Folha de pagamento</h2>
+                <p class="cfg-lead">Defina quando o período fecha e em que dia a empresa paga. Os cartões abaixo são atalhos; dá para ajustar à mão.</p>
+              </header>
+
+              <form id="folhaCycleForm" class="cfg-form" novalidate autocomplete="off">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Modelos prontos</h3>
+                  <p class="cfg-card__desc">Escolha o que mais se parece com a sua empresa. Depois refine se precisar.</p>
+                  <div id="folhaPresetGrid" class="cfg-preset-grid" role="list"></div>
+                </article>
+
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Seu ciclo</h3>
+                  <p class="cfg-card__desc" id="folhaCycleSummary">—</p>
+                  <div class="cfg-grid2" style="margin-top:0.75rem">
+                    <div class="cfg-field">
+                      <label for="folha_frequency">Tipo de período</label>
+                      <select id="folha_frequency">
+                        <option value="weekly">Semanal</option>
+                        <option value="biweekly">Quinzenal (14 dias)</option>
+                        <option value="semi_monthly">Quinzena do mês (1–15 / 16–fim)</option>
+                        <option value="monthly">Mensal</option>
+                      </select>
+                    </div>
+                    <div class="cfg-field" data-folha-weekly>
+                      <label for="folha_start_weekday">Começa em</label>
+                      <select id="folha_start_weekday"></select>
+                    </div>
+                    <div class="cfg-field" data-folha-weekly data-folha-weekly-end>
+                      <label for="folha_end_weekday">Termina em</label>
+                      <select id="folha_end_weekday"></select>
+                    </div>
+                    <div class="cfg-field">
+                      <label for="folha_pay_timing">Quando paga</label>
+                      <select id="folha_pay_timing">
+                        <option value="on_period_end">No último dia do período</option>
+                        <option value="same_week">Num dia da mesma semana</option>
+                        <option value="next_weekday">No próximo dia da semana</option>
+                        <option value="days_after">Alguns dias depois do fim</option>
+                        <option value="day_of_month">Num dia do mês</option>
+                      </select>
+                    </div>
+                    <div class="cfg-field" data-folha-pay-weekday hidden>
+                      <label for="folha_pay_weekday">Dia do pagamento</label>
+                      <select id="folha_pay_weekday"></select>
+                    </div>
+                    <div class="cfg-field" data-folha-pay-offset hidden>
+                      <label for="folha_pay_offset">Dias após o fim</label>
+                      <input type="number" id="folha_pay_offset" min="0" max="60" step="1" />
+                    </div>
+                    <div class="cfg-field" data-folha-pay-dom hidden>
+                      <label for="folha_pay_dom">Dia do mês (1–31)</label>
+                      <input type="number" id="folha_pay_dom" min="1" max="31" step="1" />
+                    </div>
+                    <div class="cfg-field" data-folha-biweekly hidden>
+                      <label for="folha_biweekly_anchor">Âncora da quinzena</label>
+                      <input type="date" id="folha_biweekly_anchor" />
+                    </div>
+                  </div>
+                </article>
+
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Calendário ilustrativo</h3>
+                  <p class="cfg-card__desc">Próximos períodos com o dia de pagamento destacado.</p>
+                  <div id="folhaCyclePreview" class="cfg-cycle-preview" aria-live="polite"></div>
+                </article>
+              </form>
+
+              <header class="cfg-head cfg-head--row" style="margin-top:1.5rem">
                 <div>
-                  <h2 class="cfg-title">Folha de pagamento</h2>
-                  <p class="cfg-lead">Formas de pagar os funcionários (Zelle, dinheiro, PIX…). Aparecem no cadastro e na hora de pagar.</p>
+                  <h3 class="cfg-title" style="font-size:1.05rem">Formas de receber (Zelle, PIX…)</h3>
+                  <p class="cfg-lead" style="margin:0">Como o dinheiro chega ao funcionário — separado do ciclo de fechamento.</p>
                 </div>
                 <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgPayMethodAddBtn">+ Nova forma</button>
               </header>
@@ -583,7 +652,6 @@
                   </table>
                 </div>
               </article>
-              <p class="cfg-hint">Desative o que a empresa não usa. Para criar uma nova (ex.: PIX), use “Nova forma” — só o nome basta.</p>
             </section>
 
             <!-- ---------- Regras de estimativa ---------- -->
@@ -865,6 +933,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261006-folha1"></script>
+  <script src="configuracoes.js?v=20261006-folha2"></script>
 </body>
 </html>

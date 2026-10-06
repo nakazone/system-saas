@@ -111,7 +111,7 @@
           id: "folha",
           label: "Folha de pagamento",
           perm: "settings.manage",
-          keywords: "folha pagamento funcionario zelle dinheiro cheque ach transferencia pix forma",
+          keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento zelle pix forma",
         },
       ],
     },
@@ -172,6 +172,7 @@
     ["Automações de Leads", "automacoes-leads", "la_auto_stage"],
     ["Dias Quote Sent → Follow-up", "automacoes-leads", "la_days"],
     ["Exibir checklist", "jobs", "jobs_checklist_enabled"],
+    ["Ciclo da folha", "folha", "folhaCycleForm"],
     ["Formas de pagamento da folha", "folha", "cfgPayMethodsBody"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
     ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
@@ -245,6 +246,7 @@
     leadMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "new_lead" },
     leadAuto: { loaded: false, snapshot: null },
     jobs: { loaded: false, snapshot: null },
+    folha: { loaded: false, snapshot: null, draft: null, presets: [], labels: [] },
     sig: { loaded: false, snapshot: null, drawn: false, removed: false, data: null },
     rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
@@ -340,6 +342,7 @@
     if (id === "mensagens-fase") return leadMsgDirty() ? 1 : 0;
     if (id === "automacoes-leads") return leadAutoDirty() ? 1 : 0;
     if (id === "jobs") return jobsDirty() ? 1 : 0;
+    if (id === "folha") return folhaDirty() ? 1 : 0;
     if (id === "regras-estimativa") return rulesDirtyTypes().length;
     return 0;
   }
@@ -534,6 +537,7 @@
     if (state.current === "mensagens-fase") return saveLeadMessages();
     if (state.current === "automacoes-leads") return saveLeadAutomations();
     if (state.current === "jobs") return saveJobsSettings();
+    if (state.current === "folha") return saveFolhaSettings();
     if (state.current === "regras-estimativa") return saveRules();
     return true;
   }
@@ -547,6 +551,7 @@
     if (state.current === "mensagens-fase") discardLeadMessages();
     if (state.current === "automacoes-leads") discardLeadAutomations();
     if (state.current === "jobs") discardJobsSettings();
+    if (state.current === "folha") discardFolhaSettings();
     if (state.current === "regras-estimativa") renderRules(state.rules.snapshot);
     clearErrors();
     clearFormErrors("quotesForm");
@@ -564,7 +569,7 @@
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Automações de Leads", desc: "Mover Quote Sent → Follow-up automaticamente", href: "#automacoes-leads", perm: "settings.manage" },
     { title: "Jobs", desc: "Checklist e opções do Campo", href: "#jobs", perm: "settings.manage" },
-    { title: "Folha de pagamento", desc: "Formas de pagar funcionários", href: "#folha", perm: "settings.manage" },
+    { title: "Folha de pagamento", desc: "Ciclo de fechamento e formas de pagar", href: "#folha", perm: "settings.manage" },
     { title: "Categorias e unidades", desc: "Tipos de serviço e medidas do catálogo", href: "#categorias-servico", perm: "settings.manage" },
     { title: "Tipos de cliente", desc: "Particular, Builder, Loja e tipos personalizados", href: "#tipos-cliente", perm: "settings.manage" },
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
@@ -2147,6 +2152,226 @@
     form.addEventListener("change", () => updateSavebar());
   }
 
+  // ---------------------------------------------------------------- folha cycle
+  const FOLHA_WD = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+
+  function lengthFromWeekdays(start, end) {
+    return ((Number(end) - Number(start) + 7) % 7) + 1;
+  }
+
+  function endFromLength(start, len) {
+    return (Number(start) + Math.max(1, Number(len)) - 1) % 7;
+  }
+
+  function fillWeekdaySelect(sel, value) {
+    if (!sel) return;
+    sel.innerHTML = FOLHA_WD.map((label, i) => `<option value="${i}">${label}</option>`).join("");
+    sel.value = String(value ?? 0);
+  }
+
+  function readFolhaCycle() {
+    const frequency = $("folha_frequency")?.value || "weekly";
+    const start = Number($("folha_start_weekday")?.value || 1);
+    const end = Number($("folha_end_weekday")?.value || 0);
+    const pay_timing = $("folha_pay_timing")?.value || "on_period_end";
+    let period_length_days = 7;
+    if (frequency === "biweekly") period_length_days = 14;
+    else if (frequency === "weekly") period_length_days = lengthFromWeekdays(start, end);
+    return {
+      frequency,
+      period_start_weekday: start,
+      period_length_days,
+      pay_timing,
+      pay_weekday: Number($("folha_pay_weekday")?.value || 5),
+      pay_offset_days: Number($("folha_pay_offset")?.value || 0),
+      pay_day_of_month: Number($("folha_pay_dom")?.value || 15),
+      biweekly_anchor_ymd: $("folha_biweekly_anchor")?.value || null,
+    };
+  }
+
+  function syncFolhaFieldVisibility() {
+    const frequency = $("folha_frequency")?.value || "weekly";
+    const timing = $("folha_pay_timing")?.value || "on_period_end";
+    const showStart = frequency === "weekly" || frequency === "biweekly";
+    const showEnd = frequency === "weekly";
+    document.querySelectorAll("[data-folha-weekly]").forEach((el) => {
+      el.hidden = !showStart;
+    });
+    document.querySelectorAll("[data-folha-weekly-end]").forEach((el) => {
+      el.hidden = !showEnd;
+    });
+    document.querySelectorAll("[data-folha-biweekly]").forEach((el) => {
+      el.hidden = frequency !== "biweekly";
+    });
+    document.querySelectorAll("[data-folha-pay-weekday]").forEach((el) => {
+      el.hidden = !(timing === "same_week" || timing === "next_weekday");
+    });
+    document.querySelectorAll("[data-folha-pay-offset]").forEach((el) => {
+      el.hidden = timing !== "days_after";
+    });
+    document.querySelectorAll("[data-folha-pay-dom]").forEach((el) => {
+      el.hidden = timing !== "day_of_month";
+    });
+  }
+
+  function renderFolhaPresets(presets, activeCycle) {
+    const box = $("folhaPresetGrid");
+    if (!box) return;
+    const activeJson = JSON.stringify(activeCycle || {});
+    box.innerHTML = (presets || [])
+      .map((p) => {
+        const on = JSON.stringify(p.cycle || {}) === activeJson;
+        return `<button type="button" class="cfg-cycle-card${on ? " is-active" : ""}" data-folha-preset="${esc(p.id)}" role="listitem">
+          <span class="cfg-cycle-card__title">${esc(p.title)}</span>
+          <span class="cfg-cycle-card__desc">${esc(p.desc)}</span>
+        </button>`;
+      })
+      .join("");
+  }
+
+  function renderFolhaPreview(preview) {
+    const box = $("folhaCyclePreview");
+    if (!box) return;
+    const rows = preview?.upcoming || [];
+    if (!rows.length) {
+      box.innerHTML = '<p class="cfg-hint">Sem pré-visualização.</p>';
+      return;
+    }
+    const short = ["D", "S", "T", "Q", "Q", "S", "S"];
+    box.innerHTML = rows
+      .map((p) => {
+        const start = new Date(`${p.start}T12:00:00Z`);
+        const end = new Date(`${p.end}T12:00:00Z`);
+        const days = [];
+        for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+          const ymd = d.toISOString().slice(0, 10);
+          const cls = ymd === p.pay_on ? "is-pay" : "is-work";
+          days.push(`<span class="cfg-cycle-day ${cls}" title="${ymd}">${short[d.getUTCDay()]}</span>`);
+        }
+        if (p.pay_on > p.end || p.pay_on < p.start) {
+          const pay = new Date(`${p.pay_on}T12:00:00Z`);
+          days.push(`<span class="cfg-cycle-day is-pay" title="Paga ${p.pay_on}">${short[pay.getUTCDay()]}</span>`);
+        }
+        return `<div class="cfg-cycle-row">
+          <div>
+            <span class="cfg-cycle-row__label">${esc(p.label)}</span>
+            <span class="cfg-cycle-row__range">${esc(p.start)} → ${esc(p.end)}</span>
+            <div class="cfg-cycle-strip">${days.join("")}</div>
+          </div>
+          <span class="cfg-cycle-row__pay">Paga ${esc(p.pay_on.slice(8, 10))}/${esc(p.pay_on.slice(5, 7))}</span>
+        </div>`;
+      })
+      .join("");
+  }
+
+  function fillFolhaSettings(data) {
+    const cycle = data?.cycle || {};
+    fillWeekdaySelect($("folha_start_weekday"), cycle.period_start_weekday ?? 1);
+    fillWeekdaySelect($("folha_end_weekday"), endFromLength(cycle.period_start_weekday ?? 1, cycle.period_length_days ?? 7));
+    fillWeekdaySelect($("folha_pay_weekday"), cycle.pay_weekday ?? 5);
+    if ($("folha_frequency")) $("folha_frequency").value = cycle.frequency || "weekly";
+    if ($("folha_pay_timing")) $("folha_pay_timing").value = cycle.pay_timing || "on_period_end";
+    if ($("folha_pay_offset")) $("folha_pay_offset").value = String(cycle.pay_offset_days ?? 0);
+    if ($("folha_pay_dom")) $("folha_pay_dom").value = String(cycle.pay_day_of_month ?? 15);
+    if ($("folha_biweekly_anchor")) $("folha_biweekly_anchor").value = cycle.biweekly_anchor_ymd || "";
+    if ($("folhaCycleSummary")) $("folhaCycleSummary").textContent = data?.summary || "—";
+    renderFolhaPresets(state.folha.presets || data?.presets || [], cycle);
+    renderFolhaPreview(data?.preview);
+    syncFolhaFieldVisibility();
+  }
+
+  function folhaDirty() {
+    if (!state.folha.snapshot?.cycle) return false;
+    return JSON.stringify(readFolhaCycle()) !== JSON.stringify(state.folha.snapshot.cycle);
+  }
+
+  function discardFolhaSettings() {
+    if (!state.folha.snapshot) return;
+    fillFolhaSettings(state.folha.snapshot);
+  }
+
+  async function loadFolhaSettings(force) {
+    if (state.folha.loaded && !force) {
+      fillFolhaSettings(state.folha.snapshot);
+      await loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");
+      return;
+    }
+    const j = await api("/api/settings/folha");
+    state.folha.presets = j.data?.presets || [];
+    state.folha.snapshot = j.data;
+    state.folha.loaded = true;
+    fillFolhaSettings(j.data);
+    await loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");
+  }
+
+  async function saveFolhaSettings() {
+    const body = readFolhaCycle();
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/folha", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      state.folha.snapshot = j.data;
+      state.folha.presets = j.data?.presets || state.folha.presets;
+      fillFolhaSettings(j.data);
+      notify("Ciclo da Folha salvo.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindFolhaSettingsUi() {
+    const form = $("folhaCycleForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("change", async () => {
+      syncFolhaFieldVisibility();
+      updateSavebar();
+      try {
+        const j = await api("/api/settings/folha/preview", {
+          method: "POST",
+          body: JSON.stringify(readFolhaCycle()),
+        });
+        if ($("folhaCycleSummary")) $("folhaCycleSummary").textContent = j.data?.summary || "—";
+        renderFolhaPresets(state.folha.presets || j.data?.presets || [], readFolhaCycle());
+        renderFolhaPreview(j.data?.preview);
+      } catch (_) {
+        /* keep last preview */
+      }
+    });
+    $("folhaPresetGrid")?.addEventListener("click", async (e) => {
+      const btn = e.target.closest?.("[data-folha-preset]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-folha-preset");
+      const preset = (state.folha.presets || []).find((p) => p.id === id);
+      if (!preset?.cycle) return;
+      fillFolhaSettings({
+        cycle: preset.cycle,
+        summary: preset.summary || state.folha.snapshot?.summary,
+        presets: state.folha.presets,
+        preview: state.folha.snapshot?.preview,
+      });
+      updateSavebar();
+      try {
+        const j = await api("/api/settings/folha/preview", {
+          method: "POST",
+          body: JSON.stringify({ ...preset.cycle, preset: id }),
+        });
+        if ($("folhaCycleSummary")) $("folhaCycleSummary").textContent = j.data?.summary || "—";
+        renderFolhaPresets(state.folha.presets || [], readFolhaCycle());
+        renderFolhaPreview(j.data?.preview);
+      } catch (_) {
+        /* keep draft */
+      }
+    });
+  }
+
   function validateQuotes() {
     const d = readQuotes();
     const checks = [
@@ -2851,7 +3076,7 @@
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
     if (id === "unidades") return loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     if (id === "tipos-cliente") return loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
-    if (id === "folha") return loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");
+    if (id === "folha") return loadFolhaSettings();
     if (id === "app") return syncInstalledNote();
     if (id === "suporte" && !loaded.has("suporte")) {
       loaded.add("suporte");
@@ -2882,6 +3107,7 @@
     bindLeadMessagesUi();
     bindLeadAutomationsUi();
     bindJobsSettingsUi();
+    bindFolhaSettingsUi();
     $("cfgLeaveModal").addEventListener("click", (e) => {
       if (e.target.closest("[data-close]")) closeLeaveModal();
     });

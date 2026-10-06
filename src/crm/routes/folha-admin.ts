@@ -29,9 +29,10 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import type { PayrollTx } from "../lib/payroll-employee-link.js";
 import { safeTimeZone } from "../../lib/time/zoned.js";
 import { formatUsPhone } from "../../lib/phone.js";
-import { mondayYmdFromCalendarYmd, overtimeFromDaily, parseYmd, sundayYmdAfterMonday, ymdToBrShort } from "../lib/payroll-calc.js";
+import { overtimeFromDaily, parseYmd, ymdToBrShort } from "../lib/payroll-calc.js";
 import { DAY_FLAG_LABELS, dayAmount, isHHMM, minutesLabel, wallTimeOn, workDateFor, ymd } from "../../lib/payroll/day.js";
 import { closeDay, dayBounds, periodFor, postDayToPayroll, removeDayFromPayroll } from "../../lib/payroll/day-service.js";
+import { adjacentPeriodRefs, describePayCycle, parsePayCycle, periodBoundsFor } from "../../lib/settings/payroll-cycle.js";
 import {
   approveShiftExpenses,
   attachExpensesToShift,
@@ -172,14 +173,23 @@ async function assertNotPaid(tx: PayrollTx, employeeId: string | null, workDate:
 }
 
 // ------------------------------------------------------------------ semana
-async function weekData(tx: PayrollTx, _organizationId: string, refYmd: string, tz: string) {
-  const mon = mondayYmdFromCalendarYmd(refYmd)!;
-  const sun = sundayYmdAfterMonday(mon)!;
-  const start = parseYmd(mon)!;
-  const end = parseYmd(sun)!;
+async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, tz: string) {
+  const org = await tx.organization.findUnique({
+    where: { id: organizationId },
+    select: { featureFlags: true },
+  });
+  const cycle = parsePayCycle(org?.featureFlags);
+  const bounds = periodBoundsFor(refYmd, cycle);
+  const startYmd = bounds.start;
+  const endYmd = bounds.end;
+  const start = parseYmd(startYmd)!;
+  const end = parseYmd(endYmd)!;
   await autoCloseOrg(tx, tz);
-  const period = await tx.payrollPeriod.findFirst({ where: { startDate: { lte: start }, endDate: { gte: end } }, orderBy: { startDate: "desc" } })
-    ?? (await tx.payrollPeriod.findFirst({ where: { startDate: start, endDate: end } }));
+  const period =
+    (await tx.payrollPeriod.findFirst({
+      where: { startDate: { lte: start }, endDate: { gte: end } },
+      orderBy: { startDate: "desc" },
+    })) ?? (await tx.payrollPeriod.findFirst({ where: { startDate: start, endDate: end } }));
   const [employees, shifts, lines, adjustments, payments] = await Promise.all([
     tx.payrollEmployee.findMany({ orderBy: { name: "asc" }, include: { user: { select: { id: true, email: true } } } }),
     tx.campoShift.findMany({ where: { workDate: { gte: start, lte: end }, employeeId: { not: null } }, include: shiftInclude, orderBy: { workDate: "asc" } }),
@@ -266,8 +276,22 @@ async function weekData(tx: PayrollTx, _organizationId: string, refYmd: string, 
     overtime_minutes: list.reduce((s, r) => s + r.totals.overtime_minutes, 0),
     sqft: list.reduce((s, r) => s + r.totals.sqft, 0),
   });
+  const today = ymd(workDateFor(new Date(), tz));
+  const isCurrent = today >= startYmd && today <= endYmd;
+  const neighbors = adjacentPeriodRefs(bounds, cycle);
   return {
-    week: { start: mon, end: sun, label: `${ymdToBrShort(mon).slice(0, 5)} – ${ymdToBrShort(sun).slice(0, 5)}`, today: ymd(workDateFor(new Date(), tz)) },
+    week: {
+      start: startYmd,
+      end: endYmd,
+      label: `${ymdToBrShort(startYmd).slice(0, 5)} – ${ymdToBrShort(endYmd).slice(0, 5)}`,
+      full_label: bounds.label,
+      today,
+      pay_on: bounds.pay_on,
+      pay_on_label: ymdToBrShort(bounds.pay_on),
+      prev: neighbors.prev,
+      next: neighbors.next,
+      frequency: bounds.frequency,
+    },
     period: period ? { id: period.id, label: period.label, status: period.status } : null,
     totals: {
       all: sum(rows),
@@ -275,6 +299,8 @@ async function weekData(tx: PayrollTx, _organizationId: string, refYmd: string, 
       sand_finish: sum(rows.filter((r) => r.sector === "sand_finish")),
     },
     employees: rows,
+    cycle_summary: describePayCycle(cycle),
+    is_current: isCurrent,
   };
 }
 

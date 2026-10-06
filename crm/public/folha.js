@@ -221,13 +221,15 @@
     const t = w.totals[st.sector] || w.totals.all;
     const rows = weekRows();
     const segBtn = (k, l) => `<button type="button" data-sector="${k}" aria-pressed="${st.sector === k}">${l} <small>${w.totals[k].employees}</small></button>`;
-    const isThisWeek = w.week.today >= w.week.start && w.week.today <= w.week.end;
     const head = `<div class="fo-tool">
         <div class="fo-week">
-          <button type="button" class="fo-ic" data-week="-7" aria-label="Semana anterior">‹</button>
-          <div><b>${esc(w.week.label)}</b><small>${isThisWeek ? "Esta semana" : esc(w.period ? (w.period.status === "closed" ? "Semana fechada" : "Semana aberta") : "Sem lançamentos")}</small></div>
-          <button type="button" class="fo-ic" data-week="7" aria-label="Próxima semana">›</button>
-          ${isThisWeek ? "" : '<button type="button" class="fo-btn fo-btn--ghost fo-btn--sm" data-week="today">Hoje</button>'}
+          <button type="button" class="fo-ic" data-week="prev" aria-label="Período anterior">‹</button>
+          <div><b>${esc(w.week.label)}</b><small>${
+            (w.week.today >= w.week.start && w.week.today <= w.week.end ? "Período atual" : esc(w.period ? (w.period.status === "closed" ? "Período fechado" : "Período aberto") : "Sem lançamentos")) +
+            (w.week.pay_on_label ? ` · Paga ${esc(w.week.pay_on_label)}` : "")
+          }</small></div>
+          <button type="button" class="fo-ic" data-week="next" aria-label="Próximo período">›</button>
+          ${w.week.today >= w.week.start && w.week.today <= w.week.end ? "" : '<button type="button" class="fo-btn fo-btn--ghost fo-btn--sm" data-week="today">Hoje</button>'}
         </div>
         <div class="fo-seg" role="group" aria-label="Setor">${segBtn("all", "Todos")}${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}</div>
       </div>
@@ -524,7 +526,7 @@
           : ""
       }
       <div class="fo-box"><h3>Pagamento</h3>
-        <label class="fo-field">Data do pagamento<input type="date" class="fo-in" id="foPayDate" value="${ymdOf(new Date())}" /></label>
+        <label class="fo-field">Data do pagamento<input type="date" class="fo-in" id="foPayDate" value="${esc(w.week.pay_on || ymdOf(new Date()))}" /></label>
         <div class="fo-field" style="margin-top:10px">Forma${rows.length > 1 && methods.length > 1 ? " <small>(vazio = a forma de cada funcionário)</small>" : ""}
           <div class="fo-methods" id="foPayMethods">${METHODS.map(([k, l]) => `<button type="button" class="fo-chip" data-method="${k}" aria-pressed="${k === defMethod}">${l}</button>`).join("")}</div></div>
         <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Referência<input type="text" class="fo-in" id="foPayRef" maxlength="120" placeholder="Nº do cheque, Zelle…" /></label>
@@ -1269,7 +1271,10 @@
     if ((b = el("[data-goto]"))) return setTab(b.getAttribute("data-goto"));
     if ((b = el("[data-week]"))) {
       const v = b.getAttribute("data-week");
-      st.weekRef = v === "today" ? null : addDays(st.week.week.start, Number(v));
+      if (v === "today") st.weekRef = null;
+      else if (v === "prev") st.weekRef = st.week?.week?.prev || addDays(st.week.week.start, -1);
+      else if (v === "next") st.weekRef = st.week?.week?.next || addDays(st.week.week.end, 1);
+      else st.weekRef = addDays(st.week.week.start, Number(v));
       st.open.clear();
       st.selected.clear();
       return loadWeek();
