@@ -35,6 +35,7 @@ import { settingsScheduleRouter } from "./routes/settings-schedule.js";
 import { settingsJobsRouter } from "./routes/settings-jobs.js";
 import { settingsCatalogRouter } from "./routes/settings-catalog.js";
 import { reportsHubRouter } from "./routes/reports-hub.js";
+import { fieldQuotesRouter } from "./routes/field-quotes.js";
 
 export const crmApiRouter = Router();
 
@@ -54,6 +55,7 @@ crmApiRouter.use(dashboardOverviewRouter);
 crmApiRouter.use(dashboardLeadsRouter);
 crmApiRouter.use(invoicesCrmRouter);
 crmApiRouter.use(customersQuotesRouter);
+crmApiRouter.use(fieldQuotesRouter);
 crmApiRouter.use(buildersPricingRouter);
 crmApiRouter.use(constructionPayrollRouter);
 crmApiRouter.use(cadastroPayrollUsersRouter);

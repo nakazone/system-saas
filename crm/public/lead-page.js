@@ -388,6 +388,9 @@
     if (fu && fu.due_date && new Date(fu.due_date).getTime() < Date.now()) {
       return { title: fu.title || 'Follow-up', sub: 'Atrasado · era para ' + fmtDate(fu.due_date, true), btn: { label: 'Marcar como feito', attr: `data-lp-fu-done="${esc(fu.id)}"` }, warn: true };
     }
+    if (visit && new Date(visit.scheduled_at).toDateString() === new Date().toDateString()) {
+      return { title: 'Visita hoje · ' + fmtWeekday(visit.scheduled_at), sub: 'Meça os cômodos e monte o orçamento na casa do cliente.', btn: { label: 'Começar Field Quote', href: fieldQuoteHref() } };
+    }
     if (visit) {
       return {
         title: 'Visita ' + fmtWeekday(visit.scheduled_at),
@@ -714,7 +717,7 @@
           .join('')}</ul>`
       : '<p class="lp-empty">Nenhuma visita agendada.</p>';
     $('#lpPanelOrcamentos').innerHTML = `
-      <div class="lp-card"><h3 class="lp-h3">Orçamentos <a class="lp-link" href="${esc(newQuoteHref())}">+ Novo orçamento</a></h3>${quotes}</div>
+      <div class="lp-card"><h3 class="lp-h3">Orçamentos <span class="lp-h3__acts"><a class="lp-link" href="${esc(fieldQuoteHref())}">Field Quote</a><a class="lp-link" href="${esc(newQuoteHref())}">+ Novo orçamento</a></span></h3>${quotes}</div>
       <div class="lp-card"><h3 class="lp-h3">Visitas <button type="button" class="lp-link" data-lp-visit-new>+ Agendar visita</button></h3>${visits}</div>`;
     if (S.visits.some((v) => v.seller_id) && !S.users.length) ensureUsers().then(() => S.tab === 'orcamentos' && renderOrcamentos());
   }
@@ -735,6 +738,7 @@
 
   // ------------------------------------------------------------------ links
   const newQuoteHref = () => 'quote-builder.html?lead_id=' + encodeURIComponent(S.id);
+  const fieldQuoteHref = () => 'field-quote.html?lead_id=' + encodeURIComponent(S.id);
   const quoteHref = (q) => 'quote-builder.html?id=' + encodeURIComponent(q.id) + '&lead_id=' + encodeURIComponent(S.id);
 
   // ------------------------------------------------------------------ actions
@@ -799,6 +803,7 @@
     const items = [
       { label: 'Agendar visita', attr: 'data-lp-visit-new' },
       { label: 'Agendar follow-up', attr: 'data-lp-fu-new' },
+      { label: 'Medir no local (Field Quote)', href: fieldQuoteHref() },
     ];
     if (L.email) items.push({ label: 'Enviar e-mail', attr: 'data-lp-email', mobOnly: true });
     if (wa) items.push({ label: 'WhatsApp', href: wa, target: true });

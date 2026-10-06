@@ -988,7 +988,7 @@
         ${e.type === 'job' && e.meta.services_total ? `<div><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
       </div>
       ${notesBlock}
-      <div class="ag-dtl__acts">${ct.href ? `<a class="ag-btn ag-btn--pri" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
+      <div class="ag-dtl__acts">${e.type === 'visit' && e.status !== 'canceled' ? `<a class="ag-btn ag-btn--pri" href="field-quote.html?meeting_id=${encodeURIComponent(e.id)}">Começar Field Quote</a>` : ''}${ct.href ? `<a class="ag-btn${e.type === 'visit' ? '' : ' ag-btn--pri'}" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
         canEdit && e.type === 'job'
           ? `<a class="ag-btn" href="campo/ticket.html?id=${encodeURIComponent(e.id)}">Editar ticket</a>`
           : ''

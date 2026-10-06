@@ -8,6 +8,8 @@
   if (window.__crmSharedNav) return;
 
   const ICONS = {
+    fieldquote:
+      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17.5 17.5 3l3.5 3.5L6.5 21z"/><path d="m7.5 13 1.8 1.8M10.5 10l1.8 1.8M13.5 7l1.8 1.8"/></svg>',
     dashboard:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>',
     leads:
@@ -112,6 +114,7 @@
         items: [
           { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
           { href: 'quotes.html', label: 'Orçamentos', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+          { href: 'field-quote.html', label: 'Field Quote', perm: 'quotes.view', page: '', iconKey: 'fieldquote' },
           {
             href: isMobileDevice() ? 'customers.html' : 'dashboard.html?page=customers',
             label: 'Clientes',
@@ -293,6 +296,7 @@
     if (base === 'schedule.html') return file === 'schedule.html';
     if (base === 'jobs.html') return file === 'jobs.html' || file === 'job-detail.html';
     if (base === 'chat.html') return file === 'chat.html';
+    if (base === 'field-quote.html') return file === 'field-quote.html';
     if (base === 'job-media-board.html') return file === 'job-media-board.html';
     if (base === 'relatorios.html') return file === 'relatorios.html';
     if (base === 'configuracoes.html') return file === 'configuracoes.html';

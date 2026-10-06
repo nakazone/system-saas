@@ -169,6 +169,7 @@ model Organization {
   chatAttachments    ChatAttachment[]
   chatAuditLogs      ChatAuditLog[]
   chatMessageFlags   ChatMessageFlag[]
+  fieldQuotes      FieldQuote[]
 }
 
 // ---------------------------------------------------------------------------
@@ -2432,4 +2433,35 @@ model ChatMessageFlag {
   @@index([messageId])
   @@index([assigneeId])
   @@index([organizationId, type, status])
+}
+
+
+/// Field Quote (módulo extra): medição e orçamento na casa do cliente, feito no celular.
+/// `data` guarda serviços, cômodos, extras, respostas e fotos; vira um Quote de verdade ao gerar.
+model FieldQuote {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leadId         String?  @db.Uuid
+  meetingId      String?  @db.Uuid
+  quoteId        String?  @db.Uuid
+  createdById    String?  @db.Uuid
+  /// draft | quoted
+  status         String   @default("draft")
+  clientName     String
+  clientPhone    String?
+  clientEmail    String?
+  address        String?
+  /// particular | builder | contractor | loja (picks the Tabela de Valores column)
+  customerType   String   @default("particular")
+  data           Json?
+  totalSqft      Decimal  @default(0) @db.Decimal(12, 2)
+  total          Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([organizationId, updatedAt])
+  @@index([leadId])
+  @@index([quoteId])
 }

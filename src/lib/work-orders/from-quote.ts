@@ -2,6 +2,7 @@
  * When a quote is approved, ensure a Job (WorkOrder) exists and is linked via Quote.workOrderId.
  * Idempotent: re-approving / re-saving approved quotes returns the existing job.
  */
+import { copyFieldQuoteToJob } from "../field-quote/job.js";
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
@@ -166,6 +167,17 @@ export async function ensureWorkOrderOnApprove(
     where: { id: quote.id },
     data: { workOrderId: wo.id },
   });
+
+  try {
+    // Photos and "Atenção" notes from the on-site visit (Field Quote) follow the job.
+    await copyFieldQuoteToJob(tx, {
+      organizationId: params.organizationId,
+      quoteId: quote.id,
+      workOrderId: wo.id,
+    });
+  } catch {
+    /* best-effort */
+  }
 
   try {
     await ensureJobChatChannel(tx, params.organizationId, wo.id);

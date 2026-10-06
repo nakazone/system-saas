@@ -19,6 +19,8 @@
     more: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
     plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
     lead: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>',
+    fieldQuote:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.5 17.5 3l3.5 3.5L6.5 21z"/><path d="m7.5 13 1.8 1.8M10.5 10l1.8 1.8M13.5 7l1.8 1.8"/></svg>',
     quote:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>',
     invoice:
@@ -458,6 +460,13 @@
           <span>
             <p class="om-mod-card__title">Invoice</p>
             <p class="om-mod-card__sub">Nova cobrança</p>
+          </span>
+        </a>
+        <a class="om-mod-card" href="field-quote.html?novo=1" style="grid-column:1/-1">
+          <span class="om-mod-card__icon" aria-hidden="true">${ICONS.fieldQuote}</span>
+          <span>
+            <p class="om-mod-card__title">Field Quote</p>
+            <p class="om-mod-card__sub">Medir e orçar na casa do cliente</p>
           </span>
         </a>
       </div>`;

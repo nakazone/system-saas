@@ -113,6 +113,7 @@ body.om-app .dashboard-main.lp-main { background: #f7f4ee; }
 /* ---------- cards */
 .lp-card { background: #fff; border: 1px solid var(--lp-line); border-radius: 16px; padding: 16px 18px; min-width: 0; }
 .lp-h3 { margin: 0 0 12px; font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--lp-mut); font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.lp-h3__acts { display: inline-flex; gap: 14px; }
 .lp-kv { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 9px 12px; margin: 0; font-size: 14px; }
 .lp-kv dt { color: var(--lp-mut); font-weight: 700; }
 .lp-kv dd { margin: 0; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }

@@ -98,6 +98,7 @@ type QuoteLineBody = {
   catalog_customer_notes?: unknown;
   service_catalog_id?: unknown;
   product_id?: unknown;
+  pricing_item_id?: unknown;
   cost_price?: unknown;
   markup_percentage?: unknown;
 };
@@ -124,6 +125,9 @@ function lineItemMetaJson(it: QuoteLineBody): Prisma.InputJsonValue | undefined 
   }
   if (it.product_id != null && String(it.product_id).trim()) {
     meta.product_id = String(it.product_id).trim();
+  }
+  if (it.pricing_item_id != null && /^[0-9a-f-]{36}$/i.test(String(it.pricing_item_id))) {
+    meta.pricing_item_id = String(it.pricing_item_id);
   }
   if (it.cost_price != null && Number.isFinite(Number(it.cost_price))) {
     meta.cost_price = Number(it.cost_price);
