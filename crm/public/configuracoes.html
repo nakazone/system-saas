@@ -242,6 +242,25 @@
                 <div class="cfg-sched-cals" id="schedCalList"></div>
                 <p class="cfg-hint">No Schedule, use a lista à esquerda para mostrar ou ocultar cada agenda. Meetings novos podem escolher a agenda no formulário. Jobs sem setor caem na agenda Jobs com setor “Todos”.</p>
               </article>
+              <article class="cfg-card" id="cfgCalFeedCard">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Calendário no iPhone / Apple Calendar</h3>
+                    <p class="cfg-card__desc">Gere um link de assinatura (ICS). No Calendário da Apple: Adicionar → Assinar calendário. Também funciona no Google Calendar e Outlook. Só leitura — alterações continuam no ObraMate.</p>
+                  </div>
+                </div>
+                <p class="cfg-hint" id="cfgCalFeedStatus">Carregando…</p>
+                <div class="cfg-row" style="flex-wrap:wrap;gap:8px">
+                  <button type="button" class="btn btn-primary cfg-btn-sm" id="btnCalFeedCreate">Gerar link de assinatura</button>
+                  <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnCalFeedCopy" hidden>Copiar link</button>
+                  <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" id="btnCalFeedRevoke" hidden>Revogar link</button>
+                </div>
+                <label class="cfg-field" id="cfgCalFeedUrlWrap" hidden style="margin-top:12px">
+                  <span>Link HTTPS (cole no calendário ou use o botão Copiar)</span>
+                  <input type="text" id="cfgCalFeedUrl" readonly />
+                </label>
+                <p class="cfg-hint" id="cfgCalFeedWebcalHint" hidden style="margin-top:8px"></p>
+              </article>
             </section>
 
             <!-- ---------- Marca e aparência ---------- -->
@@ -927,6 +946,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261006-folha3"></script>
+  <script src="configuracoes.js?v=20261007-calfeed1"></script>
 </body>
 </html>

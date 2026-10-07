@@ -315,17 +315,32 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   padding: 8px 12px; border-radius: 999px; white-space: nowrap;
 }
 .ag-dtl__addr {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   width: 100%; min-width: 0; overflow: hidden;
 }
+.ag-dtl__addr-main {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px;
+  overflow: hidden; appearance: none; border: 0; background: transparent;
+  padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; text-align: left;
+}
 .ag-dtl__map {
-  flex: 0 0 auto; display: grid; justify-items: center; align-content: center; gap: 2px;
-  width: 56px; height: 52px; border-radius: 11px;
+  appearance: none; flex: 0 0 auto; display: grid; justify-items: center; align-content: center; gap: 2px;
+  width: 56px; height: 52px; border-radius: 11px; padding: 0; margin: 0;
   border: 1px solid rgba(33, 29, 26, .1);
   background: repeating-linear-gradient(45deg, #f5f1ea 0 6px, #efe9df 6px 12px);
-  color: var(--terrad); font-size: 10.5px; font-weight: 800; line-height: 1;
+  color: var(--terrad); font-size: 10.5px; font-weight: 800; line-height: 1; cursor: pointer;
+}
+.ag-dtl__map--edit {
+  background: #fff;
+  background-image: none;
+  color: var(--ink2, #4a433d);
 }
 .ag-dtl__map svg { width: 18px; height: 18px; }
+.ag-menu__hint {
+  margin: 0 12px 6px; font-size: 12px; font-weight: 700; color: var(--mut, #8a8074);
+  letter-spacing: .02em; text-transform: uppercase;
+}
+.ag-menu a.ag-menu__i { text-decoration: none; color: inherit; box-sizing: border-box; }
 .ag-dtl__kv { display: grid; gap: 0; padding: 2px 14px; min-width: 0; }
 .ag-dtl__kv > div {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
@@ -354,6 +369,8 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-dtl__tap--block h2 { margin: 0; }
 .ag-dtl__tap--block p { margin: 0; }
 .ag-dtl__tap--addr { width: 100%; text-align: left; cursor: pointer; overflow: hidden; }
+.ag-dtl__addr > .ag-dtl__tap--addr,
+.ag-dtl__addr > .ag-dtl__addr-main { width: auto; flex: 1 1 auto; }
 .ag-dtl__kv-ctl { flex: 1; min-width: 0; display: flex; justify-content: flex-end; }
 .ag-dtl__editing { width: 100%; min-width: 0; }
 .ag-dtl__editing--block { display: block; margin: 4px 0; }

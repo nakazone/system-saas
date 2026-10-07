@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="campo.css?v=20261006-deliv4" />
+  <link rel="stylesheet" href="campo.css?v=20261007-maps1" />
   <script src="/om-device.js?v=20261001-tablet2"></script>
 </head>
 <body class="cm-app cm-ticket">
@@ -33,15 +33,15 @@
       </div>
       <h2 class="cm-ticket-hero__title" id="cmTicketJob">—</h2>
       <p class="cm-ticket-hero__sub" id="cmTicketSub">—</p>
-      <a class="cm-ticket-nav" id="cmTicketNav" href="#" target="_blank" rel="noopener">
+      <button type="button" class="cm-ticket-nav" id="cmTicketNav" hidden>
         <span class="cm-ticket-nav__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M12 2l3 8 8 3-8 3-3 8-3-8-8-3 8-3 3-8z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
         </span>
-        <span>
+        <span class="cm-ticket-nav__txt">
           <strong id="cmTicketAddr">—</strong>
-          <small>Toque para navegar</small>
+          <small>Abrir no mapa</small>
         </span>
-      </a>
+      </button>
       <div class="cm-stepper" id="cmStepper" aria-label="Status da visita"></div>
     </section>
 
@@ -129,6 +129,24 @@
     </div>
   </main>
 
+  <button type="button" class="cm-sheet-backdrop" id="cmMapsBackdrop" hidden aria-label="Fechar"></button>
+  <div class="cm-sheet" id="cmMapsSheet" role="dialog" aria-modal="true" aria-labelledby="cmMapsTitle" hidden>
+    <div class="cm-sheet__grab" aria-hidden="true"></div>
+    <div class="cm-sheet__head">
+      <div>
+        <h2 class="cm-sheet__title" id="cmMapsTitle">Abrir no mapa</h2>
+        <p class="cm-sheet__sub" id="cmMapsAddr">Escolha o app</p>
+      </div>
+      <button type="button" class="cm-sheet__close" id="cmMapsClose" aria-label="Fechar">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="cm-maps-actions">
+      <a class="cm-btn cm-btn--accent" id="cmMapsApple" href="#" target="_blank" rel="noopener">Apple Maps</a>
+      <a class="cm-btn cm-btn--line" id="cmMapsGoogle" href="#" target="_blank" rel="noopener">Google Maps</a>
+    </div>
+  </div>
+
   <button type="button" class="cm-sheet-backdrop" id="cmProblemBackdrop" hidden aria-label="Fechar"></button>
   <div class="cm-sheet" id="cmProblemSheet" role="dialog" aria-modal="true" hidden>
     <div class="cm-sheet__grab" aria-hidden="true"></div>
@@ -200,6 +218,6 @@
 
   <script src="campo-nav.js?v=20260929-obranames1"></script>
   <script src="campo-media-queue.js?v=20260928-media1"></script>
-  <script src="ticket.js?v=20261006-deliv1"></script>
+  <script src="ticket.js?v=20261007-maps1"></script>
 </body>
 </html>

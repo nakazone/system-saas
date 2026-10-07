@@ -30,8 +30,30 @@
       .replace(/"/g, "&quot;");
   }
 
-  function mapsUrl(address) {
+  function appleMapsUrl(address) {
     return `https://maps.apple.com/?q=${encodeURIComponent(address || "")}`;
+  }
+  function googleMapsUrl(address) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address || "")}`;
+  }
+  function mapsUrl(address) {
+    return appleMapsUrl(address);
+  }
+
+  function openMapsChooser(address) {
+    const addr = String(address || "").trim();
+    if (!addr) return;
+    $("cmMapsAddr").textContent = addr;
+    $("cmMapsApple").href = appleMapsUrl(addr);
+    $("cmMapsGoogle").href = googleMapsUrl(addr);
+    $("cmMapsBackdrop").hidden = false;
+    $("cmMapsSheet").hidden = false;
+    document.body.classList.add("cm-sheet-open");
+  }
+  function closeMapsChooser() {
+    $("cmMapsBackdrop").hidden = true;
+    $("cmMapsSheet").hidden = true;
+    document.body.classList.remove("cm-sheet-open");
   }
 
   async function api(path, opts) {
@@ -151,7 +173,7 @@
     bits.push(`<span class="job-delivery-badge">Delivery</span>`);
     if (t.delivery_pickup_address) {
       bits.push(
-        `<div class="cm-delivery__row"><small>Retirada</small><a href="${escapeHtml(mapsUrl(t.delivery_pickup_address))}" target="_blank" rel="noopener">${escapeHtml(t.delivery_pickup_address)}</a></div>`,
+        `<div class="cm-delivery__row"><small>Retirada</small><button type="button" class="cm-linkish" data-maps-addr="${escapeHtml(t.delivery_pickup_address)}">${escapeHtml(t.delivery_pickup_address)}</button></div>`,
       );
     }
     if (t.delivery_notes) {
@@ -185,11 +207,13 @@
     $("cmTicketAddr").textContent = t.address || "Sem endereço";
     const nav = $("cmTicketNav");
     if (t.address) {
-      nav.href = mapsUrl(t.address);
-      nav.style.pointerEvents = "";
+      nav.hidden = false;
+      nav.disabled = false;
+      nav.dataset.address = t.address;
     } else {
-      nav.removeAttribute("href");
-      nav.style.pointerEvents = "none";
+      nav.hidden = true;
+      nav.disabled = true;
+      delete nav.dataset.address;
     }
 
     $("cmStepper").innerHTML = (t.stepper || [])
@@ -1336,6 +1360,20 @@
     });
     $("cmMeasureBtn")?.addEventListener("click", () => {
       addMeasurement().catch(() => {});
+    });
+
+    $("cmTicketNav")?.addEventListener("click", () => {
+      openMapsChooser($("cmTicketNav").dataset.address || ticket?.address);
+    });
+    $("cmMapsClose")?.addEventListener("click", closeMapsChooser);
+    $("cmMapsBackdrop")?.addEventListener("click", closeMapsChooser);
+    $("cmMapsApple")?.addEventListener("click", () => setTimeout(closeMapsChooser, 200));
+    $("cmMapsGoogle")?.addEventListener("click", () => setTimeout(closeMapsChooser, 200));
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest?.("[data-maps-addr]");
+      if (!btn) return;
+      e.preventDefault();
+      openMapsChooser(btn.getAttribute("data-maps-addr"));
     });
 
     $("cmProblemBtn")?.addEventListener("click", openProblem);

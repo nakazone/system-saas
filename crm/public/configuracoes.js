@@ -34,7 +34,7 @@
           id: "agenda",
           label: "Agenda e calendários",
           perm: "settings.manage",
-          keywords: "agenda calendário schedule meeting job cor cores visita",
+          keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync",
         },
         { id: "marca", label: "Marca e aparência", perm: "settings.manage", keywords: "logo cores cor principal destaque tema" },
       ],
@@ -1182,6 +1182,8 @@
     if (state.schedule.loaded && !force) {
       renderScheduleCals();
       bindScheduleCalsOnce();
+      bindCalFeedOnce();
+      void loadCalFeed();
       return;
     }
     try {
@@ -1192,10 +1194,132 @@
       state.schedule.loaded = true;
       renderScheduleCals();
       bindScheduleCalsOnce();
+      bindCalFeedOnce();
+      void loadCalFeed();
       updateSavebar();
     } catch (err) {
       notify(err.status === 403 ? "Sem permissão para gerir agendas." : "Não foi possível carregar as agendas.", "error");
     }
+  }
+
+  // ---------------------------------------------------------------- calendar feed (ICS / Apple Calendar)
+  const calFeedState = { bound: false, active: false, url: null, webcal: null };
+
+  function renderCalFeed() {
+    const status = $("cfgCalFeedStatus");
+    const createBtn = $("btnCalFeedCreate");
+    const copyBtn = $("btnCalFeedCopy");
+    const revokeBtn = $("btnCalFeedRevoke");
+    const urlWrap = $("cfgCalFeedUrlWrap");
+    const urlInput = $("cfgCalFeedUrl");
+    const webcalHint = $("cfgCalFeedWebcalHint");
+    if (!status) return;
+
+    if (calFeedState.url) {
+      status.textContent = "Link ativo. Cole no Calendário da Apple (Assinar calendário) ou no Google/Outlook.";
+      if (createBtn) createBtn.textContent = "Gerar novo link";
+      if (copyBtn) copyBtn.hidden = false;
+      if (revokeBtn) revokeBtn.hidden = false;
+      if (urlWrap) urlWrap.hidden = false;
+      if (urlInput) urlInput.value = calFeedState.url;
+      if (webcalHint) {
+        webcalHint.hidden = !calFeedState.webcal;
+        webcalHint.textContent = calFeedState.webcal
+          ? "Atalho webcal (iPhone): " + calFeedState.webcal
+          : "";
+      }
+    } else if (calFeedState.active) {
+      status.textContent =
+        "Já existe um link ativo, mas o token só é mostrado na criação. Gere um novo link para copiar (o anterior deixa de funcionar).";
+      if (createBtn) createBtn.textContent = "Gerar novo link";
+      if (copyBtn) copyBtn.hidden = true;
+      if (revokeBtn) revokeBtn.hidden = false;
+      if (urlWrap) urlWrap.hidden = true;
+      if (webcalHint) webcalHint.hidden = true;
+    } else {
+      status.textContent = "Nenhum link de assinatura. Gere um para sincronizar a Agenda no iPhone.";
+      if (createBtn) createBtn.textContent = "Gerar link de assinatura";
+      if (copyBtn) copyBtn.hidden = true;
+      if (revokeBtn) revokeBtn.hidden = true;
+      if (urlWrap) urlWrap.hidden = true;
+      if (webcalHint) webcalHint.hidden = true;
+    }
+  }
+
+  async function loadCalFeed() {
+    const status = $("cfgCalFeedStatus");
+    if (!status) return;
+    try {
+      const j = await api("/api/settings/schedule/calendar-feed");
+      const d = j.data || {};
+      calFeedState.active = !!d.active;
+      if (!calFeedState.url) {
+        calFeedState.url = d.url || null;
+        calFeedState.webcal = d.webcal_url || null;
+      }
+      renderCalFeed();
+    } catch (err) {
+      status.textContent =
+        err.status === 403
+          ? "Sem permissão para ver o link de calendário."
+          : "Não foi possível carregar o status do calendário.";
+    }
+  }
+
+  function bindCalFeedOnce() {
+    if (calFeedState.bound) return;
+    calFeedState.bound = true;
+    $("btnCalFeedCreate")?.addEventListener("click", async () => {
+      const btn = $("btnCalFeedCreate");
+      if (btn) btn.disabled = true;
+      try {
+        if (calFeedState.active || calFeedState.url) {
+          const ok = window.confirm(
+            "Gerar um novo link invalida o anterior. Calendários já assinados param de atualizar. Continuar?",
+          );
+          if (!ok) return;
+        }
+        const j = await api("/api/settings/schedule/calendar-feed", { method: "POST", body: "{}" });
+        const d = j.data || {};
+        calFeedState.active = true;
+        calFeedState.url = d.url || null;
+        calFeedState.webcal = d.webcal_url || null;
+        renderCalFeed();
+        notify("Link gerado. Copie e assine no calendário do iPhone.", "success");
+      } catch (err) {
+        notify(err.message || "Não foi possível gerar o link.", "error");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    });
+    $("btnCalFeedCopy")?.addEventListener("click", async () => {
+      const url = calFeedState.webcal || calFeedState.url;
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        notify("Link copiado.", "success");
+      } catch (_) {
+        const input = $("cfgCalFeedUrl");
+        if (input) {
+          input.focus();
+          input.select();
+        }
+        notify("Selecione o link e copie manualmente.", "info");
+      }
+    });
+    $("btnCalFeedRevoke")?.addEventListener("click", async () => {
+      if (!window.confirm("Revogar o link? A assinatura no iPhone/Google deixa de atualizar.")) return;
+      try {
+        await api("/api/settings/schedule/calendar-feed", { method: "DELETE" });
+        calFeedState.active = false;
+        calFeedState.url = null;
+        calFeedState.webcal = null;
+        renderCalFeed();
+        notify("Link revogado.", "success");
+      } catch (err) {
+        notify(err.message || "Não foi possível revogar.", "error");
+      }
+    });
   }
 
   function discardSchedule() {

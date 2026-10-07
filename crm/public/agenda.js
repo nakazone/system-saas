@@ -916,7 +916,6 @@
         ? window.sfBuildSmsHref(ct.phone)
         : 'sms:' + phoneDigits
       : '';
-    const maps = e.address ? 'https://maps.google.com/?q=' + encodeURIComponent(e.address) : '';
     const canEdit = S.canManage;
     const leadId = e.meta.lead_id || (e.meta.lead && e.meta.lead.id) || '';
     const notesTarget =
@@ -990,13 +989,15 @@
       }
       ${
         e.address
-          ? canEdit
-            ? `<button type="button" class="ag-card ag-dtl__addr ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Clique para editar"><span class="ag-dtl__addr-txt"><b>${esc(e.address.split(',')[0])}</b><small>${esc(
-                e.address.split(',').slice(1).join(',').trim() || 'Toque para alterar',
-              )}</small></span><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Editar</span></button>`
-            : `<a class="ag-card ag-dtl__addr" href="${esc(maps)}" target="_blank" rel="noopener"><span class="ag-dtl__addr-txt"><b>${esc(e.address.split(',')[0])}</b><small>${esc(
-                e.address.split(',').slice(1).join(',').trim(),
-              )}</small></span><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Mapa</span></a>`
+          ? `<div class="ag-card ag-dtl__addr">${
+              canEdit
+                ? `<button type="button" class="ag-dtl__addr-main ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Clique para editar"><span class="ag-dtl__addr-txt"><b>${esc(e.address.split(',')[0])}</b><small>${esc(
+                    e.address.split(',').slice(1).join(',').trim() || 'Toque para alterar',
+                  )}</small></span><span class="ag-dtl__map ag-dtl__map--edit"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Editar</span></button>`
+                : `<span class="ag-dtl__addr-main"><span class="ag-dtl__addr-txt"><b>${esc(e.address.split(',')[0])}</b><small>${esc(
+                    e.address.split(',').slice(1).join(',').trim(),
+                  )}</small></span></span>`
+            }<button type="button" class="ag-dtl__map" data-ag-maps="${esc(e.address)}" title="Abrir no mapa"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Mapa</button></div>`
           : canEdit
             ? `<button type="button" class="ag-card ag-dtl__addr ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Adicionar endereço"><span class="ag-dtl__addr-txt"><b>Sem endereço</b><small>Toque para adicionar</small></span></button>`
             : ''
@@ -1152,7 +1153,8 @@
       tapEl.replaceWith(wrap);
       wrap.classList.add('ag-dtl__editing--block');
     } else if (field === 'address') {
-      tapEl.replaceWith(wrap);
+      const card = tapEl.closest('.ag-dtl__addr') || tapEl;
+      card.replaceWith(wrap);
       wrap.classList.add('ag-card', 'ag-dtl__editing--addr');
     } else {
       const cell = tapEl.closest('.ag-dtl__kv > div') || tapEl.parentNode;
@@ -1469,6 +1471,39 @@
     m.hidden = true;
     m.innerHTML = '';
   };
+
+  function appleMapsUrl(address) {
+    return 'https://maps.apple.com/?q=' + encodeURIComponent(address || '');
+  }
+  function googleMapsUrl(address) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address || '');
+  }
+
+  function openMapsChooser(address, x, y) {
+    const addr = String(address || '').trim();
+    if (!addr) return;
+    const m = $('#agMenu');
+    m.innerHTML =
+      `<button type="button" class="ag-menu__x" data-ag-menu="close" aria-label="Fechar">×</button>` +
+      `<p class="ag-menu__hint">Abrir no mapa</p>` +
+      `<a class="ag-menu__i" href="${esc(appleMapsUrl(addr))}" target="_blank" rel="noopener" data-ag-maps-open><span class="ag-dot" style="--ev:#0a84ff"></span>Apple Maps</a>` +
+      `<a class="ag-menu__i" href="${esc(googleMapsUrl(addr))}" target="_blank" rel="noopener" data-ag-maps-open><span class="ag-dot" style="--ev:#34a853"></span>Google Maps</a>`;
+    m.hidden = false;
+    if (isPhone()) {
+      m.classList.add('is-sheet');
+      m.style.left = m.style.top = '';
+    } else {
+      m.classList.remove('is-sheet');
+      m.style.left = '0px';
+      m.style.top = '0px';
+      const w = m.offsetWidth || 260;
+      const h = m.offsetHeight || 160;
+      const cx = typeof x === 'number' ? x : window.innerWidth / 2;
+      const cy = typeof y === 'number' ? y : window.innerHeight / 2;
+      m.style.left = Math.max(10, Math.min(cx, window.innerWidth - w - 10)) + 'px';
+      m.style.top = Math.max(10, Math.min(cy, window.innerHeight - h - 10)) + 'px';
+    }
+  }
 
   function newMenu(x, y, when) {
     if (!S.canManage) return toast('Sem permissão para agendar.', 'error');
@@ -2133,6 +2168,16 @@
           el.disabled = false;
           toast(err.message, 'error');
         }
+        return;
+      }
+      if ((el = t.closest('[data-ag-maps]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openMapsChooser(el.getAttribute('data-ag-maps'), ev.clientX, ev.clientY);
+        return;
+      }
+      if ((el = t.closest('[data-ag-maps-open]'))) {
+        setTimeout(closeMenu, 200);
         return;
       }
       if ((el = t.closest('[data-ag-tap]'))) {

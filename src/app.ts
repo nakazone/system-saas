@@ -26,6 +26,7 @@ import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { invoicesRouter } from "./modules/invoices/routes.js";
 import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
 import { publicJobsRouter } from "./modules/work-orders/public-routes.js";
+import { scheduleCalendarFeedPublicRouter } from "./crm/routes/schedule-calendar-feed.js";
 import { publicPortfolioRouter } from "./modules/portfolio/public-routes.js";
 import { paymentSchedulesRouter } from "./modules/invoices/schedule-routes.js";
 import { paymentTemplatesRouter } from "./modules/invoices/templates-routes.js";
@@ -207,6 +208,8 @@ export function createApp() {
   app.use("/public/jobs", publicJobsRouter);
   // Short worker ticket links (sent by WhatsApp/SMS): /t/<token>
   app.use("/t", publicJobsRouter);
+  // Schedule ICS subscription (Apple Calendar / Google / Outlook): /feeds/schedule/<token>.ics
+  app.use("/feeds/schedule", scheduleCalendarFeedPublicRouter);
   app.use("/public/portfolio", publicPortfolioRouter);
 
   // Public LP / Meta lead intake (tenant via slug header/query/subdomain — no session)

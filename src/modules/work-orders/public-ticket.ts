@@ -168,6 +168,20 @@ export function ticketStatus(status: string, fieldStatus: string | null | undefi
 export const STAGE_PT: Record<string, string> = { before: "Antes", during: "Durante", after: "Depois" };
 
 /** Google Maps search URL (opens the app on iOS/Android when installed). */
+export function googleMapsUrl(address: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address || "")}`;
+}
+
+/** Apple Maps search URL. */
+export function appleMapsUrl(address: string): string {
+  return `https://maps.apple.com/?q=${encodeURIComponent(address || "")}`;
+}
+
+/** @deprecated Prefer googleMapsUrl / appleMapsUrl. */
 export function mapsUrl(address: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  return googleMapsUrl(address);
+}
+
+export function mapsChoiceUrls(address: string): { apple: string; google: string } {
+  return { apple: appleMapsUrl(address), google: googleMapsUrl(address) };
 }
