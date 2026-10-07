@@ -287,7 +287,10 @@ function rightText(doc: Doc, text: string, rightX: number, y: number) {
   doc.text(text, rightX - doc.widthOfString(text), y, { lineBreak: false });
 }
 
-/** PDF — ticket: faixa accent, header ink, hero com total, tabela Dia/Detalhe/Valor, barra final. */
+/**
+ * PDF em blocos empilhados (sem overlap):
+ * accent → header completo (logo livre) → gap → hero → detalhe → rodapé.
+ */
 export async function buildConferencePdf(input: ConferenceReportInput): Promise<Buffer> {
   const PAL = palette(input.org.primaryColor, input.org.accentColor);
   const logo = await loadLogoBuffer(input.org.logoUrl);
@@ -295,125 +298,148 @@ export async function buildConferencePdf(input: ConferenceReportInput): Promise<
   const { doc, done } = newDoc(`Folha conferencia · ${pdfText(input.employeeName)}`, orgName);
   const pageW = doc.page.width;
   const pageH = doc.page.height;
-  const m = 36;
+  const m = 40;
   const contentW = pageW - 2 * m;
   const pad = 16;
   const colDate = m + pad;
-  const colDetail = m + pad + 118;
+  const colDetail = m + pad + 120;
   const colAmtRight = pageW - m - pad;
-  const detailW = contentW - pad * 2 - 118 - 72;
+  const detailW = Math.max(80, contentW - pad * 2 - 120 - 78);
+  const footerReserve = 56;
 
   fillCream(doc, PAL);
-  doc.rect(0, 0, pageW, 5).fill(PAL.accent);
 
-  // Header
-  const headerTop = 5;
-  const headerH = 72;
+  // 1) Accent strip
+  const accentH = 5;
+  doc.rect(0, 0, pageW, accentH).fill(PAL.accent);
+
+  // 2) Header band — logo + org fully inside; nothing overlaps this zone
+  const headerTop = accentH;
+  const headerPadY = 18;
+  const logoSize = 40;
+  const headerH = headerPadY * 2 + logoSize; // 76
   doc.rect(0, headerTop, pageW, headerH).fill(PAL.primary);
 
+  const logoY = headerTop + headerPadY;
   let drewLogo = false;
   if (logo?.length) {
     try {
-      doc.image(logo, m, headerTop + 16, { fit: [36, 36], align: "center", valign: "center" });
+      doc.image(logo, m, logoY, { fit: [logoSize, logoSize], align: "center", valign: "center" });
       drewLogo = true;
     } catch {
       drewLogo = false;
     }
   }
   if (!drewLogo) {
-    doc.roundedRect(m, headerTop + 16, 36, 36, 8).fill(PAL.accent);
+    doc.roundedRect(m, logoY, logoSize, logoSize, 9).fill(PAL.accent);
     const ini = initials(orgName);
-    doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(14);
-    doc.text(ini, m + (36 - doc.widthOfString(ini)) / 2, headerTop + 26, { lineBreak: false });
+    doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(15);
+    doc.text(ini, m + (logoSize - doc.widthOfString(ini)) / 2, logoY + 12, { lineBreak: false });
   }
-  doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(13).text(pdfText(orgName), m + 48, headerTop + 18, { width: 260 });
-  doc.fillColor("#cfc8c0").font("Helvetica").fontSize(9).text("Folha para conferencia", m + 48, headerTop + 36);
 
+  const textX = m + logoSize + 12;
   const period = pdfText(input.periodLabel);
   doc.font("Helvetica-Bold").fontSize(9);
-  const periodW = doc.widthOfString(period) + 16;
-  doc.roundedRect(pageW - m - periodW, headerTop + 26, periodW, 22, 6).fill("#3a342f");
-  doc.fillColor(PAL.white).text(period, pageW - m - periodW + 8, headerTop + 32, { lineBreak: false });
+  const periodW = Math.min(doc.widthOfString(period) + 16, 160);
+  const periodX = pageW - m - periodW;
+  doc.roundedRect(periodX, logoY + 9, periodW, 22, 6).fill("#3a342f");
+  doc.fillColor(PAL.white).text(period, periodX + 8, logoY + 15, { lineBreak: false, width: periodW - 16 });
 
-  // Hero card
-  let y = headerTop + headerH - 22;
-  const heroH = 118;
-  doc.roundedRect(m, y, contentW, heroH, 14).fill(PAL.white);
-  doc.roundedRect(m, y, contentW, heroH, 14).lineWidth(0.7).strokeColor(PAL.rule).stroke();
+  const nameMaxW = Math.max(120, periodX - textX - 12);
+  doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(14).text(pdfText(orgName), textX, logoY + 4, {
+    width: nameMaxW,
+    lineBreak: false,
+  });
+  doc.fillColor("#cfc8c0").font("Helvetica").fontSize(9.5).text("Folha para conferencia", textX, logoY + 24, {
+    width: nameMaxW,
+    lineBreak: false,
+  });
 
+  // 3) Hero — starts BELOW header with clear gap (no pull-up overlap)
+  let y = headerTop + headerH + 16;
+  const heroInnerW = contentW - pad * 2;
   const greet = pdfText(
     `Ola${firstName(input.employeeName) ? `, ${firstName(input.employeeName)}` : ""} — confira os valores abaixo.`,
   );
-  doc.fillColor(PAL.muted).font("Helvetica").fontSize(9.5).text(greet, m + pad, y + 14, { width: contentW - pad * 2 });
+  const empName = pdfText(input.employeeName);
+  doc.font("Helvetica").fontSize(9.5);
+  const greetH = doc.heightOfString(greet, { width: heroInnerW });
+  doc.font("Helvetica-Bold").fontSize(17);
+  const nameH = doc.heightOfString(empName, { width: heroInnerW });
+  const heroH = pad + greetH + 10 + 16 + 8 + nameH + 12 + 36 + pad;
+  y = needPage(doc, y, heroH + 12, PAL, m);
 
-  // pills
-  let py = y + 32;
+  const heroY = y;
+  doc.roundedRect(m, heroY, contentW, heroH, 14).fill(PAL.white);
+  doc.roundedRect(m, heroY, contentW, heroH, 14).lineWidth(0.8).strokeColor(PAL.rule).stroke();
+
+  let cy = heroY + pad;
+  doc.fillColor(PAL.muted).font("Helvetica").fontSize(9.5).text(greet, m + pad, cy, { width: heroInnerW });
+  cy += greetH + 10;
+
   const pill = pdfText(input.sectorLabel);
   doc.font("Helvetica-Bold").fontSize(8.5);
   const pw = doc.widthOfString(pill) + 14;
-  doc.roundedRect(m + pad, py, pw, 15, 7).fill(PAL.pillBg);
-  doc.fillColor(PAL.pillInk).text(pill, m + pad + 7, py + 3.5, { lineBreak: false });
+  doc.roundedRect(m + pad, cy, pw, 16, 8).fill(PAL.pillBg);
+  doc.fillColor(PAL.pillInk).text(pill, m + pad + 7, cy + 4, { lineBreak: false });
   doc
     .fillColor(PAL.ink2)
     .font("Helvetica")
     .fontSize(9.5)
-    .text(pdfText(input.payTypeLabel), m + pad + pw + 8, py + 3, { lineBreak: false });
+    .text(pdfText(input.payTypeLabel), m + pad + pw + 8, cy + 3.5, { lineBreak: false });
+  cy += 16 + 8;
 
-  doc
-    .fillColor(PAL.primary)
-    .font("Helvetica-Bold")
-    .fontSize(18)
-    .text(pdfText(input.employeeName), m + pad, py + 20, { width: contentW - pad * 2 });
+  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(17).text(empName, m + pad, cy, { width: heroInnerW });
+  cy += nameH + 12;
 
-  // total strip inside hero
-  const stripY = y + heroH - 44;
-  doc.roundedRect(m + pad, stripY, contentW - pad * 2, 32, 8).fill(PAL.cream);
-  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(8).text("TOTAL A RECEBER", m + pad + 12, stripY + 6);
-  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(16).text(usd(input.net), m + pad + 12, stripY + 15);
+  const stripH = 36;
+  doc.roundedRect(m + pad, cy, heroInnerW, stripH, 9).fill(PAL.cream);
+  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(8).text("TOTAL A RECEBER", m + pad + 12, cy + 7);
+  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(15).text(usd(input.net), m + pad + 12, cy + 17);
   doc.font("Helvetica-Bold").fontSize(8.5);
   const badge = "Conferencia";
   const bw = doc.widthOfString(badge) + 14;
-  doc.roundedRect(pageW - m - pad - 12 - bw, stripY + 7, bw, 18, 5).fill(PAL.accent);
-  doc.fillColor(PAL.white).text(badge, pageW - m - pad - 12 - bw + 7, stripY + 11.5, { lineBreak: false });
+  doc.roundedRect(m + pad + heroInnerW - 12 - bw, cy + 9, bw, 18, 5).fill(PAL.accent);
+  doc.fillColor(PAL.white).text(badge, m + pad + heroInnerW - 12 - bw + 7, cy + 13.5, { lineBreak: false });
 
-  y += heroH + 14;
+  y = heroY + heroH + 14;
 
-  // Detail card
-  const nDays = Math.max(input.days.length, 1);
-  const headH = 28;
-  const rowH = 28;
+  // 4) Detail card — height from content; draw border after measuring if needed
+  const rowH = 26;
   const adjN = (input.reimbursement ? 1 : 0) + (input.discount ? 1 : 0);
-  const footH = 22 + 18 + adjN * 18 + 40;
-  const detailH = headH + 22 + nDays * rowH + footH;
-  y = needPage(doc, y, detailH, PAL, m);
+  const nDays = Math.max(input.days.length, 1);
+  // title 28 + col hdr 24 + rows + gap 8 + sums + bar 38 + pads
+  const detailH = 28 + 24 + nDays * rowH + 8 + 18 * (1 + adjN) + 8 + 38 + 14;
+  y = needPage(doc, y, Math.min(detailH, pageH - footerReserve - m), PAL, m);
 
-  doc.roundedRect(m, y, contentW, detailH, 12).fill(PAL.white);
-  doc.roundedRect(m, y, contentW, detailH, 12).lineWidth(0.7).strokeColor(PAL.rule).stroke();
+  const detailY = y;
+  doc.roundedRect(m, detailY, contentW, detailH, 12).fill(PAL.white);
+  doc.roundedRect(m, detailY, contentW, detailH, 12).lineWidth(0.8).strokeColor(PAL.rule).stroke();
 
-  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(8.5).text("DETALHAMENTO", m + pad, y + 12, {
+  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(8.5).text("DETALHAMENTO", m + pad, detailY + 12, {
     characterSpacing: 0.5,
   });
 
-  let dy = y + headH;
+  let dy = detailY + 28;
   doc
     .moveTo(m + pad, dy)
     .lineTo(pageW - m - pad, dy)
     .strokeColor(PAL.rule)
     .lineWidth(0.6)
     .stroke();
-  dy += 6;
+  dy += 8;
   doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(8);
   doc.text("DIA", colDate, dy);
   doc.text("DETALHE", colDetail, dy);
   rightText(doc, "VALOR", colAmtRight, dy);
-  dy += 14;
+  dy += 12;
   doc
     .moveTo(m + pad, dy)
     .lineTo(pageW - m - pad, dy)
     .strokeColor(PAL.rule)
     .lineWidth(0.6)
     .stroke();
-  dy += 6;
+  dy += 4;
 
   if (!input.days.length) {
     doc.fillColor(PAL.muted).font("Helvetica").fontSize(10).text("Nenhum dia aprovado nesta semana.", colDate, dy + 6);
@@ -428,22 +454,22 @@ export async function buildConferencePdf(input: ConferenceReportInput): Promise<
           .lineWidth(0.45)
           .stroke();
       }
-      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10).text(pdfText(d.dateLabel), colDate, dy + 7, {
-        width: 110,
+      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10).text(pdfText(d.dateLabel), colDate, dy + 6, {
+        width: 112,
         lineBreak: false,
       });
       doc
         .fillColor(PAL.muted)
         .font("Helvetica")
         .fontSize(8.5)
-        .text(pdfText(d.detail || "-"), colDetail, dy + 8, { width: detailW, lineBreak: false });
+        .text(pdfText(d.detail || "-"), colDetail, dy + 7, { width: detailW, lineBreak: false });
       doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10);
-      rightText(doc, usd(d.amount), colAmtRight, dy + 7);
+      rightText(doc, usd(d.amount), colAmtRight, dy + 6);
       dy += rowH;
     });
   }
 
-  dy += 4;
+  dy += 6;
   doc
     .moveTo(m + pad, dy)
     .lineTo(pageW - m - pad, dy)
@@ -462,27 +488,30 @@ export async function buildConferencePdf(input: ConferenceReportInput): Promise<
   if (input.reimbursement) sumRow("Reembolso", `+${usd(input.reimbursement)}`, PAL.green);
   if (input.discount) sumRow("Desconto", `-${usd(input.discount)}`, PAL.red);
 
-  dy += 4;
+  dy += 6;
   const barH = 34;
   doc.roundedRect(m + pad, dy, contentW - pad * 2, barH, 8).fill(PAL.primary);
   doc.fillColor("#cfc8c0").font("Helvetica-Bold").fontSize(8).text("TOTAL A RECEBER", m + pad + 12, dy + 12);
   doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(14);
   rightText(doc, usd(input.net), pageW - m - pad - 12, dy + 10);
+  dy += barH + 12;
 
-  y += detailH + 12;
+  y = Math.max(detailY + detailH, dy) + 10;
 
   if (input.waitingNote) {
-    y = needPage(doc, y, 48, PAL, m);
     const note = pdfText(input.waitingNote);
     doc.font("Helvetica").fontSize(9);
     const noteH = Math.max(40, doc.heightOfString(note, { width: contentW - 28 }) + 20);
+    y = needPage(doc, y, noteH + 8, PAL, m);
     doc.roundedRect(m, y, contentW, noteH, 10).fill(PAL.warnBg);
     doc.roundedRect(m, y, contentW, noteH, 10).lineWidth(0.7).strokeColor(PAL.warnLine).stroke();
     doc.fillColor(PAL.primary).text(note, m + 14, y + 12, { width: contentW - 28 });
-    y += noteH + 10;
   }
 
-  const contact = [input.org.contactPhone, input.org.contactEmail].filter(Boolean).map((s) => pdfText(String(s))).join("  ·  ");
+  const contact = [input.org.contactPhone, input.org.contactEmail]
+    .filter(Boolean)
+    .map((s) => pdfText(String(s)))
+    .join("  ·  ");
   doc
     .fillColor(PAL.muted)
     .font("Helvetica")
