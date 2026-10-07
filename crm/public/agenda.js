@@ -2141,6 +2141,18 @@
         void beginFieldEdit(el);
         return;
       }
+      // Click anywhere else on the detail card closes an open field selection/editor.
+      {
+        const detail = t.closest('[data-ag-detail]');
+        if (detail) {
+          const editing = detail.querySelector('[data-ag-editing]');
+          if (editing && !t.closest('[data-ag-editing]')) {
+            ev.preventDefault();
+            dismissFieldEdit(detail);
+            return;
+          }
+        }
+      }
       if ((el = t.closest('[data-ag-notes-tog]'))) {
         const box = el.closest('.ag-dtl__notes');
         const panel = box && box.querySelector('.ag-dtl__notes-panel');
