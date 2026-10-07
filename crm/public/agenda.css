@@ -159,24 +159,32 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   line-height: 1;
 }
 .ag-day__rbtn:hover { background: #fce8d6; }
-.ag-day__list { display: grid; gap: 1px; }
-.ag-row { appearance: none; border: 0; background: transparent; display: flex; align-items: center; gap: 6px; width: 100%; height: 20px; padding: 0 4px; border-radius: 5px; font-size: 12.5px; font-weight: 600; text-align: left; min-width: 0; }
-.ag-row i { width: 3px; height: 13px; border-radius: 2px; background: var(--ev); flex: none; }
+.ag-day__list { display: grid; gap: 2px; }
+.ag-row {
+  appearance: none; border: 0; background: transparent;
+  display: flex; align-items: center; gap: 5px; width: 100%;
+  height: 18px; padding: 0 5px; border-radius: 5px;
+  font-size: 11.5px; font-weight: 650; line-height: 1; text-align: left; min-width: 0;
+  box-sizing: border-box;
+}
+.ag-row i { width: 3px; height: 11px; border-radius: 2px; background: var(--ev); flex: none; }
 .ag-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ag-row time { font-size: 11.5px; color: var(--mut); font-weight: 600; flex: none; }
+.ag-row time { font-size: 10.5px; color: var(--mut); font-weight: 650; flex: none; letter-spacing: 0.01em; }
 .ag-row:hover, .ag-row.is-active-ev { background: var(--ev-bg); }
-.ag-more { appearance: none; border: 0; background: none; text-align: left; font-size: 12px; font-weight: 800; color: var(--mut); padding: 0 6px; height: 18px; }
+.ag-more { appearance: none; border: 0; background: none; text-align: left; font-size: 11px; font-weight: 800; color: var(--mut); padding: 0 5px; height: 16px; line-height: 16px; }
 .ag-more:hover { color: var(--ink); }
 .ag-bars { position: absolute; left: 0; right: 0; top: 30px; pointer-events: none; }
 .ag-bar {
-  pointer-events: auto; position: absolute; height: 19px; top: calc(var(--lane) * 21px);
+  pointer-events: auto; position: absolute; height: 18px; top: calc(var(--lane) * 21px);
   left: calc(var(--s) * 100% / 7 + 3px); width: calc(var(--n) * 100% / 7 - 6px);
   appearance: none; border: 0; border-radius: 5px; background: var(--ev-bg2); color: var(--ev-ink);
-  font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 5px; padding: 0 7px 0 4px; text-align: left; overflow: hidden; white-space: nowrap;
+  font-size: 11.5px; font-weight: 700; line-height: 1;
+  display: flex; align-items: center; gap: 4px; padding: 0 6px 0 3px;
+  text-align: left; overflow: hidden; white-space: nowrap; box-sizing: border-box;
 }
-.ag-bar > span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.ag-bar__ic { width: 14px; height: 14px; border-radius: 4px; background: var(--ev); color: #fff; display: grid; place-items: center; flex: none; }
-.ag-bar__ic svg { width: 10px; height: 10px; stroke-width: 2.4; }
+.ag-bar > span:last-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ag-bar__ic { width: 13px; height: 13px; border-radius: 3px; background: var(--ev); color: #fff; display: grid; place-items: center; flex: none; }
+.ag-bar__ic svg { width: 9px; height: 9px; stroke-width: 2.5; }
 .ag-bar.cont-l { border-top-left-radius: 0; border-bottom-left-radius: 0; left: calc(var(--s) * 100% / 7); width: calc(var(--n) * 100% / 7 - 3px); }
 .ag-bar.cont-r { border-top-right-radius: 0; border-bottom-right-radius: 0; width: calc(var(--n) * 100% / 7 - 3px); }
 .ag-bar.cont-l.cont-r { width: calc(var(--n) * 100% / 7); }
@@ -204,12 +212,33 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-tg__col { position: relative; border-left: 1px solid var(--line2); cursor: cell; }
 .ag-tg__col.is-we { background: rgba(250, 248, 244, .7); }
 .ag-blk {
-  position: absolute; appearance: none; border: 0; border-left: 3px solid var(--ev); border-radius: 6px;
-  background: var(--ev-bg); color: var(--ev-ink); padding: 3px 6px; text-align: left; overflow: hidden; display: flex; flex-direction: column; gap: 1px; cursor: pointer;
+  position: absolute; appearance: none; border: 0; border-left: 3px solid var(--ev); border-radius: 7px;
+  background: var(--ev-bg); color: var(--ev-ink);
+  padding: 4px 8px 4px 7px; text-align: left; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch;
+  gap: 2px; cursor: pointer; box-sizing: border-box; min-width: 0; min-height: 0;
 }
-.ag-blk b { font-size: 12.5px; font-weight: 800; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ag-blk small { font-size: 11.5px; font-weight: 600; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ag-blk.is-short { flex-direction: row; align-items: center; padding-top: 0; padding-bottom: 0; }
+.ag-blk b {
+  margin: 0; font-size: 12px; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em;
+  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  white-space: normal; word-break: break-word; overflow-wrap: anywhere;
+}
+.ag-blk small {
+  margin: 0; font-size: 10.5px; font-weight: 650; line-height: 1.2; opacity: .82;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none;
+}
+.ag-blk.is-short {
+  flex-direction: row; align-items: center; justify-content: flex-start;
+  gap: 6px; padding: 0 7px;
+}
+.ag-blk.is-short b {
+  display: block; -webkit-line-clamp: unset; white-space: nowrap;
+  text-overflow: ellipsis; font-size: 11.5px; line-height: 1; letter-spacing: 0;
+}
+.ag-blk.is-short small { display: none; }
+.ag-blk.is-compact b {
+  -webkit-line-clamp: 1; white-space: nowrap; display: block; text-overflow: ellipsis;
+}
 .ag-blk.is-done { opacity: .55; }
 .ag-blk:hover, .ag-blk.is-active-ev { background: var(--ev-bg2); box-shadow: 0 2px 8px rgba(33, 29, 26, .12); z-index: 2; }
 .ag-now { position: absolute; left: -4px; right: 0; height: 2px; background: var(--terra); z-index: 3; pointer-events: none; }
@@ -509,12 +538,23 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   }
   .ag-md__list { display: grid; gap: 2px; }
   .ag-pill > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .ag-pill { appearance: none; border: 0; display: flex; align-items: center; gap: 3px; height: 17px; padding: 0 3px; border-radius: 5px; background: var(--ev-bg); color: var(--ev-ink); font-size: 10.5px; font-weight: 700; overflow: hidden; white-space: nowrap; text-align: left; width: 100%; cursor: pointer; }
-  .ag-pill i { width: 11px; height: 11px; border-radius: 3px; background: var(--ev); color: #fff; flex: none; display: grid; place-items: center; }
-  .ag-pill i svg { width: 8px; height: 8px; stroke-width: 2.6; }
-  .ag-pill--more { background: transparent; color: var(--mut); padding-left: 4px; }
+  .ag-pill {
+    appearance: none; border: 0; display: flex; align-items: center; gap: 3px;
+    height: 16px; padding: 0 4px; border-radius: 4px;
+    background: var(--ev-bg); color: var(--ev-ink);
+    font-size: 10px; font-weight: 700; line-height: 1;
+    overflow: hidden; white-space: nowrap; text-align: left; width: 100%;
+    cursor: pointer; box-sizing: border-box;
+  }
+  .ag-pill i { width: 10px; height: 10px; border-radius: 3px; background: var(--ev); color: #fff; flex: none; display: grid; place-items: center; }
+  .ag-pill i svg { width: 7px; height: 7px; stroke-width: 2.6; }
+  .ag-pill--more { background: transparent; color: var(--mut); padding-left: 4px; font-size: 10px; }
   .ag-bars--m { top: 44px; }
-  .ag-bars--m .ag-bar { height: 17px; top: calc(var(--lane) * 19px); font-size: 10.5px; left: calc(var(--s) * 100% / 7 + 1px); width: calc(var(--n) * 100% / 7 - 2px); border-radius: 5px; padding: 0 4px 0 3px; gap: 3px; pointer-events: auto; }
+  .ag-bars--m .ag-bar {
+    height: 16px; top: calc(var(--lane) * 18px); font-size: 10px; line-height: 1;
+    left: calc(var(--s) * 100% / 7 + 1px); width: calc(var(--n) * 100% / 7 - 2px);
+    border-radius: 4px; padding: 0 4px 0 2px; gap: 3px; pointer-events: auto;
+  }
   .ag-bars--m .ag-bar.cont-l { left: calc(var(--s) * 100% / 7); }
   .ag-bars--m .ag-bar__ic { width: 11px; height: 11px; border-radius: 3px; }
   .ag-bars--m .ag-bar__ic svg { width: 8px; height: 8px; }

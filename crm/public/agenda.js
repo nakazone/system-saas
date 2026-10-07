@@ -472,8 +472,10 @@
         .map((p) => {
           const e = p.e;
           const h = (p.bottom - p.top) * HOUR_PX;
-          return `<button type="button" class="ag-blk${h < 34 ? ' is-short' : ''}${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${h - 2}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)">
-            <b>${esc(e.title)}</b>${h >= 34 ? `<small>${esc(fmtTime(e.start))}${e.address ? ' · ' + esc(e.address) : ''}</small>` : ''}</button>`;
+          const sizeCls = h < 30 ? ' is-short' : h < 48 ? ' is-compact' : '';
+          const meta = h >= 30 ? `<small>${esc(fmtTime(e.start))}${e.address ? ' · ' + esc(e.address) : ''}</small>` : '';
+          return `<button type="button" class="ag-blk${sizeCls}${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${Math.max(16, h - 2)}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)">
+            <b>${esc(e.title)}</b>${meta}</button>`;
         })
         .join('')}${sameDay(d, today) ? `<div class="ag-now" style="top:${((Date.now() - d) / 3600e3) * HOUR_PX}px"></div>` : ''}</div>`;
     });
@@ -769,9 +771,9 @@
       .map((p) => {
         const e = p.e;
         const h = (p.bottom - p.top) * HOUR_PX;
-        return `<button type="button" class="ag-blk${h < 34 ? ' is-short' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${h - 2}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)"><b>${esc(e.title)}</b>${
-          h >= 34 ? `<small>${esc(fmtTime(e.start))}${e.address ? ' · ' + esc(e.address) : ''}</small>` : ''
-        }</button>`;
+        const sizeCls = h < 30 ? ' is-short' : h < 48 ? ' is-compact' : '';
+        const meta = h >= 30 ? `<small>${esc(fmtTime(e.start))}${e.address ? ' · ' + esc(e.address) : ''}</small>` : '';
+        return `<button type="button" class="ag-blk${sizeCls}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${Math.max(16, h - 2)}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)"><b>${esc(e.title)}</b>${meta}</button>`;
       })
       .join('')}${sameDay(d, today) ? `<div class="ag-now" style="top:${((Date.now() - d) / 3600e3) * HOUR_PX}px"></div>` : ''}</div></div></div>
       ${!list.length ? '<p class="ag-empty ag-empty--float">Nada agendado neste dia.</p>' : ''}
