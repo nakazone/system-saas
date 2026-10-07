@@ -414,9 +414,41 @@ body.fo-page #omDock, body.fo-page .om-dock { display: none !important; }
 .fo-qf { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0; }
 .fo-qf > small { font-size: 11.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-left: 2px; }
 .fo-qf .fo-sel { height: 44px; font-weight: 700; }
-.fo-qf--money .fo-qin { position: relative; display: block; }
-.fo-qf--money .fo-qin i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-style: normal; font-weight: 800; color: var(--muted); font-size: 13px; pointer-events: none; }
-.fo-qf--money .fo-qin .fo-in { height: 44px; padding-left: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fo-qf--money .fo-qin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-sizing: border-box;
+}
+.fo-qf--money .fo-qin:focus-within {
+  border-color: var(--terra);
+  box-shadow: 0 0 0 3px rgba(232, 121, 44, 0.16);
+}
+.fo-qf--money .fo-qin__cur {
+  flex: none;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--muted);
+  line-height: 1;
+}
+.fo-qf--money .fo-qin .fo-in {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fo-qf--money .fo-qin .fo-in:focus { outline: none; border: 0; box-shadow: none; }
 .fo-qf--days { position: relative; }
 .fo-qdates { appearance: none; height: 44px; width: 100%; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; font-size: 14px; font-weight: 700; color: var(--ink); padding: 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; }
 .fo-qdates span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -426,8 +426,8 @@
     return `<div class="fo-qstep" role="group" aria-label="Hora extra"><button type="button" data-q-ot="-30" aria-label="Menos meia hora" ${ot ? "" : "disabled"}>−</button><b>${ot ? `+${hm(ot)}` : "0h"}</b><button type="button" data-q-ot="30" aria-label="Mais meia hora">+</button></div>`;
   }
   function quickMoneyInputs() {
-    return `<label class="fo-qf fo-qf--money"><small>Reembolso</small><span class="fo-qin"><i>$</i><input type="number" class="fo-in" data-q-reimb min="0" step="0.01" inputmode="decimal" placeholder="0" value="${esc(st.quick.reimb || "")}" /></span></label>
-      <label class="fo-qf fo-qf--money"><small>Desconto</small><span class="fo-qin"><i>$</i><input type="number" class="fo-in" data-q-disc min="0" step="0.01" inputmode="decimal" placeholder="0" value="${esc(st.quick.disc || "")}" /></span></label>`;
+    return `<label class="fo-qf fo-qf--money"><small>Reembolso</small><span class="fo-qin"><span class="fo-qin__cur" aria-hidden="true">$</span><input type="number" class="fo-in" data-q-reimb min="0" step="0.01" inputmode="decimal" placeholder="0" value="${esc(st.quick.reimb || "")}" /></span></label>
+      <label class="fo-qf fo-qf--money"><small>Desconto</small><span class="fo-qin"><span class="fo-qin__cur" aria-hidden="true">$</span><input type="number" class="fo-in" data-q-disc min="0" step="0.01" inputmode="decimal" placeholder="0" value="${esc(st.quick.disc || "")}" /></span></label>`;
   }
   function renderQuickBar() {
     if (!st.manage) return "";
