@@ -314,13 +314,30 @@
     renderPanel();
   }
 
+  function stageNeighbors() {
+    const slug = currentSlug();
+    if (isLost()) return { prev: null, next: null, idx: -1 };
+    const idx = STAGES.findIndex((s) => s.slug === slug);
+    if (idx < 0) return { prev: null, next: null, idx: -1 };
+    return {
+      idx,
+      prev: idx > 0 ? STAGES[idx - 1] : null,
+      next: idx < STAGES.length - 1 ? STAGES[idx + 1] : null,
+    };
+  }
+
   function renderHead() {
     const L = S.lead;
     $('#lpName').textContent = L.name || 'Sem nome';
     const pri = String(L.priority || 'medium');
     const slug = currentSlug();
+    const neigh = stageNeighbors();
     const bits = [];
-    bits.push(`<span class="lp-pill lp-pill--stage" data-stage="${esc(slug)}">${esc(stageLabel(slug))}</span>`);
+    bits.push(`<span class="lp-stage-nav" role="group" aria-label="Etapa do funil">
+      <button type="button" class="lp-stage-nav__btn" data-lp-stage-dir="-1" aria-label="Etapa anterior"${neigh.prev ? ` title="Voltar para ${esc(neigh.prev.label)}"` : ' disabled'}>‹</button>
+      <span class="lp-pill lp-pill--stage" data-stage="${esc(slug)}">${esc(stageLabel(slug))}</span>
+      <button type="button" class="lp-stage-nav__btn" data-lp-stage-dir="1" aria-label="Próxima etapa"${neigh.next ? ` title="Avançar para ${esc(neigh.next.label)}"` : ' disabled'}>›</button>
+    </span>`);
     if (pri === 'high') bits.push('<span class="lp-pill lp-pill--hot">Alta prioridade</span>');
     if (pri === 'low') bits.push('<span class="lp-pill lp-pill--low">Baixa prioridade</span>');
     const meta = [L.source || 'Sem origem', 'criado ' + relTime(L.created_at)];
@@ -364,13 +381,25 @@
 
   function renderFunnel() {
     const slug = currentSlug();
-    const idx = STAGES.findIndex((s) => s.slug === slug);
-    $('#lpFunnel').innerHTML = STAGES.map((s, i) => {
+    const neigh = stageNeighbors();
+    const idx = neigh.idx;
+    const steps = STAGES.map((s, i) => {
       const cls = isLost() ? '' : i < idx ? 'is-done' : i === idx ? 'is-now' : '';
       return `<button type="button" class="lp-step ${cls}" data-lp-stage="${s.slug}" aria-current="${i === idx ? 'step' : 'false'}" title="Mover para ${esc(s.label)}"><span>${esc(s.label)}</span></button>`;
     }).join('');
-    const now = $('#lpFunnel .is-now');
+    const funnel = $('#lpFunnel');
+    funnel.innerHTML = `<button type="button" class="lp-funnel-nav" data-lp-stage-dir="-1" aria-label="Etapa anterior"${neigh.prev ? ` title="Voltar para ${esc(neigh.prev.label)}"` : ' disabled'}>‹</button>
+      <div class="lp-funnel__track">${steps}</div>
+      <button type="button" class="lp-funnel-nav" data-lp-stage-dir="1" aria-label="Próxima etapa"${neigh.next ? ` title="Avançar para ${esc(neigh.next.label)}"` : ' disabled'}>›</button>`;
+    const now = funnel.querySelector('.is-now');
     if (now && now.scrollIntoView && window.innerWidth < 760) now.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+
+  function moveStageByDir(dir) {
+    const neigh = stageNeighbors();
+    const target = Number(dir) < 0 ? neigh.prev : neigh.next;
+    if (!target) return;
+    return moveStage(target.slug);
   }
 
   function nextStep() {
@@ -1017,6 +1046,7 @@
       if (menuOpen) return closeMenu();
       return moreMenu(el);
     }
+    if ((el = t.closest('[data-lp-stage-dir]'))) return moveStageByDir(el.getAttribute('data-lp-stage-dir'));
     if ((el = t.closest('[data-lp-stage]'))) return moveStage(el.getAttribute('data-lp-stage'));
     if (t.closest('[data-lp-reopen]')) {
       const prev = S.interactions.find((i) => i.type === 'stage' && (i.to_stage === 'lost' || i.to_stage === 'closed_lost'));
