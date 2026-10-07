@@ -113,7 +113,7 @@
       <table>
         <thead><tr><th>Description</th><th class="r hide-sm">Qty</th><th class="r">Amount</th></tr></thead>
         <tbody>
-          <% invoice.lineItems.forEach(li => {
+          <% (typeof lineItems !== 'undefined' && lineItems.length ? lineItems : invoice.lineItems).forEach(li => {
             const raw = String(li.description || '');
             const nl = raw.indexOf('\n');
             const dash = nl < 0 ? raw.search(/\s+—\s+/) : -1;

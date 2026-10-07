@@ -5,7 +5,14 @@ import { lookupPublicAccessToken } from "../../lib/quotes/public-token.js";
 import { prisma } from "../../lib/prisma.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { computeInvoiceMoney, paymentMethodLabel } from "../../lib/invoices/core.js";
-import { clientOf, invoiceDetailInclude, invoicePdfInput, jobNumberOf, quoteNumberOf } from "../../lib/invoices/service.js";
+import {
+  clientOf,
+  invoiceDetailInclude,
+  invoicePdfInput,
+  jobNumberOf,
+  quoteNumberOf,
+  resolvedInvoiceLines,
+} from "../../lib/invoices/service.js";
 import { buildInvoicePdf } from "../../lib/invoices/pdf.js";
 
 export const publicInvoicesRouter = Router();
@@ -52,6 +59,7 @@ publicInvoicesRouter.get("/:token", async (req, res, next) => {
       client: clientOf(invoice),
       quoteNumber: quoteNumberOf(invoice.quote),
       jobNumber: jobNumberOf(invoice.workOrder),
+      lineItems: resolvedInvoiceLines(invoice),
       money: m,
       paid: m.paid,
       balance: m.balance,

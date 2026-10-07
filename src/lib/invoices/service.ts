@@ -5,6 +5,7 @@ import { recordActivity } from "../activity/record.js";
 import { issuePublicAccessToken } from "../quotes/public-token.js";
 import { documentAddressLine, documentLicenseLine } from "../settings/organization.js";
 import { computeInvoiceMoney, invoiceKindLabel, storedStatusAfterPayments } from "./core.js";
+import { quoteInvoiceLines, selectedQuoteServiceLines } from "./job.js";
 import type { DocClient, DocOrg, InvoicePdfInput, ReceiptPdfInput } from "./pdf.js";
 
 const LINK_TTL_DAYS = 365;
@@ -14,6 +15,17 @@ const siblingInvoiceSelect = {
   amount: true,
   status: true,
   receipts: { select: { amount: true } },
+} as const;
+
+const quoteServiceLineSelect = {
+  name: true,
+  description: true,
+  quantity: true,
+  unitPrice: true,
+  amount: true,
+  isOptional: true,
+  isSelected: true,
+  sortOrder: true,
 } as const;
 
 export const invoiceDetailInclude = {
@@ -30,6 +42,7 @@ export const invoiceDetailInclude = {
       property: { select: { line1: true, line2: true, city: true, state: true, postalCode: true, label: true } },
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
       invoices: { select: siblingInvoiceSelect },
+      lineItems: { select: quoteServiceLineSelect, orderBy: { sortOrder: "asc" as const } },
     },
   },
   workOrder: {
@@ -179,6 +192,42 @@ export function contractSummaryOf(inv: InvoiceDetail): {
   };
 }
 
+/**
+ * Prefer stored invoice lines when they already itemize services. Older quote invoices
+ * only stored a single summary row — expand from the quote's contracted services so the
+ * PDF and UI match the Quote.
+ */
+export function resolvedInvoiceLines(inv: InvoiceDetail): {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  id?: string;
+}[] {
+  const stored = inv.lineItems.map((l) => ({
+    id: l.id,
+    description: l.description,
+    quantity: Number(l.quantity),
+    unitPrice: Number(l.unitPrice),
+    amount: Number(l.amount),
+  }));
+  const quote = inv.quote;
+  if (!quote) return stored;
+  const selected = selectedQuoteServiceLines(quote.lineItems || []);
+  if (selected.length === 0 || stored.length > 1) return stored;
+
+  const kind = String(inv.invoiceType || "other");
+  const siblings = (quote.invoices || []).filter((i) => i.status !== "void" && i.id !== inv.id);
+  const invoicedBefore = siblings.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  return quoteInvoiceLines({
+    kind,
+    label: invoiceKindLabel(kind),
+    amount: Number(inv.amount) || 0,
+    quote,
+    invoicedBefore,
+  });
+}
+
 export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: string | null): InvoicePdfInput {
   const m = computeInvoiceMoney(inv);
   const summary = contractSummaryOf(inv);
@@ -192,11 +241,11 @@ export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: str
     projectName: projectNameOf(inv),
     issueDate: inv.issuedAt || inv.createdAt,
     dueDate: inv.dueDate,
-    lines: inv.lineItems.map((l) => ({
+    lines: resolvedInvoiceLines(inv).map((l) => ({
       description: l.description,
-      quantity: Number(l.quantity),
-      unitPrice: Number(l.unitPrice),
-      amount: Number(l.amount),
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      amount: l.amount,
     })),
     total: m.amount,
     payments: inv.receipts.map((r) => ({

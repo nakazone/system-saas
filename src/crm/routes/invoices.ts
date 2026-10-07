@@ -34,11 +34,12 @@ import {
   quoteNumberOf,
   receiptPdfInput,
   removeInvoicePayment,
+  resolvedInvoiceLines,
   syncInvoiceStatus,
   type InvoiceDetail,
 } from "../../lib/invoices/service.js";
 import { buildInvoicePdf, buildReceiptPdf } from "../../lib/invoices/pdf.js";
-import { invoicedTotalForJob, jobBilling } from "../../lib/invoices/job.js";
+import { invoicedTotalForJob, jobBilling, quoteInvoiceLines } from "../../lib/invoices/job.js";
 import { invoiceEmail, receiptEmail } from "../../lib/invoices/email.js";
 
 export const invoicesCrmRouter = Router();
@@ -250,12 +251,12 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
         amount: dec(s.amount),
         status: s.status,
       })),
-    line_items: inv.lineItems.map((l) => ({
-      id: l.id,
+    line_items: resolvedInvoiceLines(inv).map((l) => ({
+      id: l.id ?? null,
       description: l.description,
-      quantity: dec(l.quantity),
-      unit_price: dec(l.unitPrice),
-      amount: dec(l.amount),
+      quantity: l.quantity,
+      unit_price: l.unitPrice,
+      amount: l.amount,
     })),
     payments: inv.receipts.map((r) => ({
       id: r.id,
@@ -621,7 +622,10 @@ invoicesCrmRouter.post(
       const result = await withTenantTransaction(req.organizationId!, async (tx) => {
         const quote = await tx.quote.findFirst({
           where: { id: quoteId },
-          include: { organization: true },
+          include: {
+            organization: true,
+            lineItems: { orderBy: { sortOrder: "asc" } },
+          },
         });
         if (!quote) return { error: "Orçamento não encontrado", status: 404 } as const;
         if (!isApprovedQuoteStatus(quote.status)) {
@@ -657,16 +661,23 @@ invoicesCrmRouter.post(
           },
         });
         const quoteNo = quoteNumberOf(quote);
-        await tx.invoiceLineItem.create({
-          data: {
+        const lines = quoteInvoiceLines({
+          kind: calc.kind,
+          label: calc.label,
+          amount: calc.amount,
+          quote,
+          invoicedBefore: invoicedTotal,
+        });
+        await tx.invoiceLineItem.createMany({
+          data: lines.map((l, i) => ({
             organizationId: req.organizationId!,
             invoiceId: inv.id,
-            description: `${calc.label} — ${quote.title}${quoteNo ? ` (Quote ${quoteNo})` : ""}`,
-            quantity: new Prisma.Decimal(1),
-            unitPrice: amount,
-            amount,
-            sortOrder: 1,
-          },
+            description: l.description.slice(0, 500),
+            quantity: new Prisma.Decimal(l.quantity.toFixed(2)),
+            unitPrice: new Prisma.Decimal(l.unitPrice.toFixed(2)),
+            amount: new Prisma.Decimal(l.amount.toFixed(2)),
+            sortOrder: i + 1,
+          })),
         });
         await recordActivity(tx, {
           organizationId: req.organizationId!,

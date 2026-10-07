@@ -1,10 +1,30 @@
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
+import { quoteInvoiceLines } from "../invoices/job.js";
 import {
   DEFAULT_PAYMENT_TEMPLATES,
   type PaymentTemplateItemInput,
 } from "./defaults.js";
+
+async function persistInvoiceLines(
+  tx: TenantPrisma,
+  organizationId: string,
+  invoiceId: string,
+  lines: { description: string; quantity: number; unitPrice: number; amount: number }[],
+) {
+  await tx.invoiceLineItem.createMany({
+    data: lines.map((l, i) => ({
+      organizationId,
+      invoiceId,
+      description: l.description.slice(0, 500),
+      quantity: new Prisma.Decimal(Number(l.quantity).toFixed(2)),
+      unitPrice: new Prisma.Decimal(Number(l.unitPrice).toFixed(2)),
+      amount: new Prisma.Decimal(Number(l.amount).toFixed(2)),
+      sortOrder: i + 1,
+    })),
+  });
+}
 
 const MONEY = 100; // cents
 
@@ -175,7 +195,10 @@ export async function createInvoiceFromScheduleItem(
 ) {
   const quote = await tx.quote.findFirst({
     where: { id: params.quoteId },
-    include: { organization: true },
+    include: {
+      organization: true,
+      lineItems: { orderBy: { sortOrder: "asc" } },
+    },
   });
   if (!quote) throw new Error("Quote not found");
 
@@ -206,6 +229,12 @@ export async function createInvoiceFromScheduleItem(
           ? "full"
           : "progress");
 
+  const prior = await tx.quoteInvoice.aggregate({
+    where: { quoteId: params.quoteId, status: { not: "void" } },
+    _sum: { amount: true },
+  });
+  const invoicedBefore = Number(prior._sum.amount ?? 0);
+
   const invoice = await tx.quoteInvoice.create({
     data: {
       organizationId: params.organizationId,
@@ -222,17 +251,18 @@ export async function createInvoiceFromScheduleItem(
     },
   });
 
-  await tx.invoiceLineItem.create({
-    data: {
-      organizationId: params.organizationId,
-      invoiceId: invoice.id,
-      description: item.label,
-      quantity: new Prisma.Decimal(1),
-      unitPrice: new Prisma.Decimal(amount.toFixed(2)),
-      amount: new Prisma.Decimal(amount.toFixed(2)),
-      sortOrder: 1,
-    },
-  });
+  await persistInvoiceLines(
+    tx,
+    params.organizationId,
+    invoice.id,
+    quoteInvoiceLines({
+      kind: type,
+      label: item.label,
+      amount,
+      quote,
+      invoicedBefore,
+    }),
+  );
 
   await recordActivity(tx, {
     organizationId: params.organizationId,
@@ -419,8 +449,13 @@ async function createFullDraftInvoice(
     notes?: string;
   },
 ): Promise<string> {
+  const quote = await tx.quote.findFirst({
+    where: { id: params.quoteId },
+    include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+  });
   const invoiceNumber = await nextInvoiceNumber(tx, params.organizationId);
-  const amount = new Prisma.Decimal(params.quoteTotal.toFixed(2));
+  const amountNum = params.quoteTotal;
+  const amount = new Prisma.Decimal(amountNum.toFixed(2));
   const inv = await tx.quoteInvoice.create({
     data: {
       organizationId: params.organizationId,
@@ -434,17 +469,16 @@ async function createFullDraftInvoice(
       notes: params.notes || "Full payment",
     },
   });
-  await tx.invoiceLineItem.create({
-    data: {
-      organizationId: params.organizationId,
-      invoiceId: inv.id,
-      description: params.notes || "Full payment",
-      quantity: new Prisma.Decimal(1),
-      unitPrice: amount,
-      amount,
-      sortOrder: 1,
-    },
-  });
+  const lines = quote
+    ? quoteInvoiceLines({
+        kind: "full",
+        label: params.notes || "Full payment",
+        amount: amountNum,
+        quote,
+        invoicedBefore: 0,
+      })
+    : [{ description: params.notes || "Full payment", quantity: 1, unitPrice: amountNum, amount: amountNum }];
+  await persistInvoiceLines(tx, params.organizationId, inv.id, lines);
   return inv.id;
 }
 

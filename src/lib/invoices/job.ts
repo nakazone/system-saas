@@ -101,6 +101,30 @@ function invoiceLineDescription(li: JobLine): string {
  * sees every service with quantity and table price; a final after earlier invoices subtracts
  * what was already billed. Deposits and custom amounts are a single line pointing at the job.
  */
+function balanceInvoiceLines(
+  lines: InvoiceLineDraft[],
+  amount: number,
+  invoicedBefore: number,
+): InvoiceLineDraft[] {
+  const out = [...lines];
+  if (cents(invoicedBefore) > 0) {
+    const less = -money(cents(invoicedBefore));
+    out.push({ description: "Less: previously invoiced", quantity: 1, unitPrice: less, amount: less });
+  }
+  // Rounding / partial-billing guard: lines must add up to the invoice amount.
+  const sumC = out.reduce((s, l) => s + cents(l.amount), 0);
+  const diffC = cents(amount) - sumC;
+  if (diffC !== 0) {
+    const adj = money(diffC);
+    const description =
+      diffC < 0 && cents(invoicedBefore) === 0
+        ? "Less: not due on this invoice"
+        : "Adjustment";
+    out.push({ description, quantity: 1, unitPrice: adj, amount: adj });
+  }
+  return out;
+}
+
 export function jobInvoiceLines(params: {
   kind: string;
   label: string;
@@ -120,17 +144,70 @@ export function jobInvoiceLines(params: {
     unitPrice: Number(li.unitPrice) || 0,
     amount: money(cents(li.lineTotal)),
   }));
-  if (cents(invoicedBefore) > 0) {
-    const less = -money(cents(invoicedBefore));
-    lines.push({ description: "Less: previously invoiced", quantity: 1, unitPrice: less, amount: less });
+  return balanceInvoiceLines(lines, amount, invoicedBefore);
+}
+
+type QuoteServiceLine = {
+  name?: string | null;
+  description: string;
+  quantity: unknown;
+  unitPrice: unknown;
+  amount: unknown;
+  isOptional?: boolean;
+  isSelected?: boolean;
+};
+
+function quoteServiceDescription(li: QuoteServiceLine): string {
+  const name = String(li.name || "").trim();
+  let body = String(li.description || "").trim();
+  if (name && body) {
+    if (body === name) body = "";
+    else if (body.toLowerCase().startsWith(name.toLowerCase())) {
+      body = body.slice(name.length).replace(/^[\s\n\u2014\u2013:·.\-]+/, "").trim();
+    }
   }
-  // Rounding guard: the lines must add up to the invoice amount.
-  const sumC = lines.reduce((s, l) => s + cents(l.amount), 0);
-  const diffC = cents(amount) - sumC;
-  if (diffC !== 0) {
-    lines.push({ description: "Adjustment", quantity: 1, unitPrice: money(diffC), amount: money(diffC) });
+  const headline = name || body || "Serviço";
+  if (!name || !body || body === name) return headline.slice(0, 500);
+  const combined = `${name}\n${body}`;
+  return combined.length > 500 ? combined.slice(0, 497) + "…" : combined;
+}
+
+/** Selected quote services that belong on a client-facing invoice (mirrors Quote PDF). */
+export function selectedQuoteServiceLines(lineItems: QuoteServiceLine[]): QuoteServiceLine[] {
+  return (lineItems || []).filter((li) => !li.isOptional || li.isSelected);
+}
+
+/**
+ * Invoice lines for a quote invoice. Always list every contracted service (same selection
+ * the Quote PDF shows). Deposits / progress amounts are reconciled with "Less: …" lines so
+ * the table still totals to this invoice's amount.
+ */
+export function quoteInvoiceLines(params: {
+  kind: string;
+  label: string;
+  amount: number;
+  quote: {
+    title: string;
+    quoteNumber?: string | null;
+    number?: number | null;
+    lineItems: QuoteServiceLine[];
+  };
+  invoicedBefore: number;
+}): InvoiceLineDraft[] {
+  const { label, amount, quote, invoicedBefore } = params;
+  const quoteNo = quote.quoteNumber || (quote.number != null ? `Q-${quote.number}` : null);
+  const ref = `${quote.title}${quoteNo ? ` (Quote ${quoteNo})` : ""}`;
+  const selected = selectedQuoteServiceLines(quote.lineItems);
+  if (selected.length === 0) {
+    return [{ description: `${label} — ${ref}`, quantity: 1, unitPrice: amount, amount }];
   }
-  return lines;
+  const lines: InvoiceLineDraft[] = selected.map((li) => ({
+    description: quoteServiceDescription(li),
+    quantity: Number(li.quantity) || 0,
+    unitPrice: Number(li.unitPrice) || 0,
+    amount: money(cents(li.amount)),
+  }));
+  return balanceInvoiceLines(lines, amount, invoicedBefore);
 }
 
 export type CreateJobInvoiceInput = {
