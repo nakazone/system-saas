@@ -14,6 +14,7 @@
  * PUT  /api/folha/semana/:periodId/ajustes/:empId   reembolso / desconto
  * POST /api/folha/pagamentos                        paga um ou vários funcionários → Financeiro
  * POST /api/folha/pagamentos/:id/estornar           estorna (anula no Financeiro)
+ * POST /api/folha/conferencia                       envia relatório da semana ao funcionário (e-mail) antes do pagamento
  * GET  /api/folha/formas-pagamento                  formas de pagamento ativas (Configurações › Folha)
  * GET/POST/PUT /api/folha/funcionarios              cadastro com horário padrão
  * GET  /api/folha/relatorio?from&to&employee_id&sector[&format=csv&kind=]  totais por funcionário, pagamentos, custo por job
@@ -44,6 +45,7 @@ import {
 import { storage } from "../../lib/storage/index.js";
 import { randomUUID } from "node:crypto";
 import { notifyUsersPush } from "../../lib/push/notify.js";
+import { sendCustomerEmail } from "../../lib/email/index.js";
 import {
   DEFAULT_PAYROLL_PAYMENT_METHODS,
   PAYROLL_PAYMENT_METHOD_KIND,
@@ -272,6 +274,8 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
         status: e.status,
         linked: Boolean(e.userId),
         payment_method: e.paymentMethod,
+        email: e.email || e.user?.email || null,
+        phone: formatUsPhone(e.phone),
         days,
         totals: {
           days: daysTotal,
@@ -908,16 +912,169 @@ folhaAdminRouter.post("/api/folha/despesas/:id/recusar", requireCrmAuth, require
   }
 });
 
-// ------------------------------------------------------------------ pagamentos
-const payBody = z.object({
-  period_id: z.string().uuid(),
-  employee_ids: z.array(z.string().uuid()).min(1).max(200),
-  paid_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  method: payMethodField,
-  reference: z.string().max(120).optional().nullable(),
-  notes: z.string().max(500).optional().nullable(),
-  /** Pay even when some days are still waiting for review. */
-  force: z.boolean().optional(),
+// ------------------------------------------------------------------ conferência (antes do pagamento)
+const confBody = z.object({
+  week: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  employee_id: z.string().uuid(),
+  to: z.string().max(200).optional().nullable(),
+});
+
+function usd(n: number) {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+function buildConferenceReport(
+  orgName: string,
+  week: { label: string; full_label?: string; start: string; end: string },
+  row: {
+    name: string;
+    sector: string;
+    pay_type: string;
+    days: Array<{
+      date_label: string;
+      kind?: string;
+      status?: string;
+      clock_in_label?: string | null;
+      clock_out_label?: string | null;
+      overtime_minutes?: number;
+      days_worked?: number;
+      sqft?: number;
+      amount: number;
+    }>;
+    totals: { gross: number; reimbursement: number; discount: number; net: number; pending_days: number; open_days: number };
+  },
+) {
+  const sector = SECTOR_LABEL[row.sector] || row.sector;
+  const periodLabel = week.full_label || week.label;
+  const dayLines = row.days
+    .filter((d) => d.kind === "line" || d.status === "approved")
+    .map((d) => {
+      const bits: string[] = [d.date_label];
+      if (d.kind === "line") bits.push("lançado pelo escritório");
+      else if (d.clock_in_label || d.clock_out_label) bits.push(`${d.clock_in_label || "—"}–${d.clock_out_label || "—"}`);
+      if (d.overtime_minutes) bits.push(`+${Math.floor(d.overtime_minutes / 60)}h${String(d.overtime_minutes % 60).padStart(2, "0")}m extra`);
+      if (d.sqft) bits.push(`${d.sqft} sq ft`);
+      else if (d.days_worked) bits.push(`${d.days_worked} dia${d.days_worked === 1 ? "" : "s"}`);
+      bits.push(usd(d.amount));
+      return `• ${bits.join(" · ")}`;
+    });
+  const waiting =
+    row.totals.pending_days || row.totals.open_days
+      ? `\nAtenção: ainda há ${row.totals.pending_days ? `${row.totals.pending_days} dia(s) em conferência` : ""}${row.totals.pending_days && row.totals.open_days ? " e " : ""}${row.totals.open_days ? `${row.totals.open_days} em andamento` : ""} — esses valores não entram no total abaixo.\n`
+      : "";
+  const text = [
+    `${orgName} — Relatório de folha para conferência`,
+    "",
+    `Funcionário: ${row.name}`,
+    `Setor: ${sector}`,
+    `Período: ${periodLabel}`,
+    `Tipo: ${row.pay_type === "production" ? "Produção" : "Diária"}`,
+    "",
+    "Dias aprovados:",
+    dayLines.length ? dayLines.join("\n") : "• Nenhum dia aprovado nesta semana",
+    "",
+    `Subtotal: ${usd(row.totals.gross)}`,
+    row.totals.reimbursement ? `Reembolso: +${usd(row.totals.reimbursement)}` : null,
+    row.totals.discount ? `Desconto: −${usd(row.totals.discount)}` : null,
+    `Total a receber: ${usd(row.totals.net)}`,
+    waiting.trim() || null,
+    "",
+    "Por favor confira os valores e confirme com o escritório antes do pagamento.",
+  ]
+    .filter((x) => x != null)
+    .join("\n");
+
+  const htmlDays = dayLines.length
+    ? `<ul style="margin:0;padding-left:18px">${dayLines.map((l) => `<li style="margin:4px 0">${l.replace(/^• /, "")}</li>`).join("")}</ul>`
+    : `<p style="margin:0;color:#666">Nenhum dia aprovado nesta semana.</p>`;
+
+  const html = `<!DOCTYPE html><html><body style="font-family:system-ui,-apple-system,sans-serif;color:#211d1a;line-height:1.45;max-width:560px;margin:0 auto;padding:24px">
+  <h1 style="font-size:18px;margin:0 0 4px">${escapeHtml(orgName)}</h1>
+  <p style="margin:0 0 18px;color:#666;font-size:14px">Relatório de folha para conferência</p>
+  <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">
+    <tr><td style="padding:4px 0;color:#666">Funcionário</td><td style="padding:4px 0;text-align:right;font-weight:700">${escapeHtml(row.name)}</td></tr>
+    <tr><td style="padding:4px 0;color:#666">Setor</td><td style="padding:4px 0;text-align:right">${escapeHtml(sector)}</td></tr>
+    <tr><td style="padding:4px 0;color:#666">Período</td><td style="padding:4px 0;text-align:right">${escapeHtml(periodLabel)}</td></tr>
+  </table>
+  <h2 style="font-size:15px;margin:0 0 8px">Dias aprovados</h2>
+  ${htmlDays}
+  <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:18px">
+    <tr><td style="padding:6px 0">Subtotal</td><td style="padding:6px 0;text-align:right">${usd(row.totals.gross)}</td></tr>
+    ${row.totals.reimbursement ? `<tr><td style="padding:6px 0">Reembolso</td><td style="padding:6px 0;text-align:right;color:#1a7a3a">+${usd(row.totals.reimbursement)}</td></tr>` : ""}
+    ${row.totals.discount ? `<tr><td style="padding:6px 0">Desconto</td><td style="padding:6px 0;text-align:right;color:#b33">−${usd(row.totals.discount)}</td></tr>` : ""}
+    <tr><td style="padding:10px 0 0;font-weight:800;border-top:1px solid #ddd">Total a receber</td><td style="padding:10px 0 0;text-align:right;font-weight:800;border-top:1px solid #ddd">${usd(row.totals.net)}</td></tr>
+  </table>
+  ${waiting ? `<p style="margin:16px 0 0;padding:10px 12px;background:#fff6e8;border-radius:8px;font-size:13px">${escapeHtml(waiting.trim())}</p>` : ""}
+  <p style="margin:20px 0 0;font-size:13px;color:#666">Por favor confira os valores e confirme com o escritório antes do pagamento.</p>
+</body></html>`;
+
+  return {
+    subject: `Folha para conferência · ${row.name} · ${periodLabel}`,
+    text,
+    html,
+  };
+}
+
+function escapeHtml(s: string) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Envia o relatório da semana ao funcionário (e-mail) para conferência antes do pagamento. */
+folhaAdminRouter.post("/api/folha/conferencia", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const b = confBody.safeParse(req.body || {});
+    if (!b.success) {
+      res.status(400).json({ success: false, error: "Informe a semana e o funcionário." });
+      return;
+    }
+    const tz = await orgTz(req.organizationId!);
+    const org = await prisma.organization.findUnique({
+      where: { id: req.organizationId! },
+      select: { name: true, contactEmail: true },
+    });
+    const payload = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const data = await weekData(tx, req.organizationId!, b.data.week, tz);
+      const row = data.employees.find((e) => e.id === b.data.employee_id);
+      if (!row) throw httpErr(404, "Funcionário sem lançamentos nesta semana.");
+      const emp = await tx.payrollEmployee.findFirst({
+        where: { id: row.id },
+        include: { user: { select: { email: true } } },
+      });
+      const to = (b.data.to || emp?.email || emp?.user?.email || row.email || "").trim().toLowerCase();
+      if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+        throw httpErr(400, "Cadastre o e-mail do funcionário ou informe um destinatário.", "NO_EMAIL");
+      }
+      const msg = buildConferenceReport(org?.name || "ObraMate", data.week, row);
+      return { to, msg, name: row.name, net: row.totals.net, week_label: data.week.full_label || data.week.label };
+    });
+    const sent = await sendCustomerEmail({
+      to: payload.to,
+      subject: payload.msg.subject,
+      text: payload.msg.text,
+      html: payload.msg.html,
+      replyTo: org?.contactEmail || undefined,
+    });
+    if (!sent.ok) {
+      res.status(502).json({ success: false, error: sent.error || "Falha ao enviar e-mail." });
+      return;
+    }
+    res.json({
+      success: true,
+      data: {
+        to: payload.to,
+        name: payload.name,
+        net: payload.net,
+        week_label: payload.week_label,
+        transport: sent.transport,
+      },
+    });
+  } catch (error) {
+    fail(res, error, next);
+  }
 });
 
 folhaAdminRouter.post("/api/folha/pagamentos", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {

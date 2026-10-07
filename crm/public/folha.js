@@ -666,6 +666,11 @@
     if (r.payment) return `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-receipt="${esc(r.id)}">Recibo</button>`;
     const parts = [];
     if (st.week.period) parts.push(`<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-adjust="${esc(r.id)}" title="Reembolso ou desconto">${mobile ? "±" : "Ajustes"}</button>`);
+    if (canPay(r) || r.totals.net > 0) {
+      parts.push(
+        `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-conf="${esc(r.id)}" title="Enviar relatório para o funcionário conferir">${mobile ? "Enviar" : "Relatório"}</button>`,
+      );
+    }
     if (canPay(r)) parts.push(`<button type="button" class="fo-btn fo-btn--sm${mobile ? " fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
     return parts.join(" ");
   }
@@ -927,11 +932,159 @@
         : sectorLabel()
           ? `Pagar ${esc(sectorLabel())} · ${rows.length}`
           : `Pagar ${rows.length} funcionários`;
+    const confBtn =
+      rows.length === 1
+        ? `<button type="button" class="fo-btn fo-btn--ghost" data-conf="${esc(rows[0].id)}">Enviar relatório</button>`
+        : "";
     openSheet(
       `${sheetHead(payTitle, money(total))}<div class="fo-sheet__bd">${body}</div>
-       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-pay-go>Confirmar pagamento · ${money(total)}</button></footer>`,
+       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button>${confBtn}<button type="button" class="fo-btn fo-btn--pri" data-pay-go>Confirmar pagamento · ${money(total)}</button></footer>`,
     );
     $("foSheet")._payIds = rows.map((r) => r.id);
+  }
+
+  function confDayLine(d) {
+    const bits = [d.date_label];
+    if (d.kind === "line") bits.push("lançado pelo escritório");
+    else if (d.clock_in_label || d.clock_out_label) bits.push(`${d.clock_in_label || "—"}–${d.clock_out_label || "—"}`);
+    if (d.overtime_minutes) bits.push(`+${hm(d.overtime_minutes)} extra`);
+    if (d.sqft) bits.push(`${qty(d.sqft)} sq ft`);
+    else if (d.days_worked) bits.push(`${qty(d.days_worked)} dia${Number(d.days_worked) === 1 ? "" : "s"}`);
+    return bits.join(" · ");
+  }
+  function confApprovedDays(r) {
+    return (r.days || []).filter((d) => d.kind === "line" || d.status === "approved");
+  }
+  function buildConferenceText(r) {
+    const w = st.week;
+    const period = w.week.full_label || w.week.label;
+    const days = confApprovedDays(r);
+    const lines = days.map((d) => `• ${confDayLine(d)} · ${money(d.amount)}`);
+    const parts = [
+      `Relatório de folha para conferência`,
+      `Funcionário: ${r.name}`,
+      `Setor: ${SECTORS[r.sector] || r.sector}`,
+      `Período: ${period}`,
+      "",
+      "Dias aprovados:",
+      lines.length ? lines.join("\n") : "• Nenhum dia aprovado nesta semana",
+      "",
+      `Subtotal: ${money(r.totals.gross)}`,
+    ];
+    if (r.totals.reimbursement) parts.push(`Reembolso: +${money(r.totals.reimbursement)}`);
+    if (r.totals.discount) parts.push(`Desconto: −${money(r.totals.discount)}`);
+    parts.push(`Total a receber: ${money(r.totals.net)}`);
+    parts.push("", "Por favor confira os valores e confirme com o escritório antes do pagamento.");
+    return parts.join("\n");
+  }
+  function phoneDigits(p) {
+    let d = String(p || "").replace(/\D/g, "");
+    if (d.length === 11 && d.startsWith("1")) d = d.slice(1);
+    return d;
+  }
+  function openConference(id) {
+    const r = st.week?.employees?.find((x) => x.id === id);
+    if (!r) return;
+    const days = confApprovedDays(r);
+    const text = buildConferenceText(r);
+    const email = r.email || "";
+    const phone = r.phone || "";
+    const digits = phoneDigits(phone);
+    const waiting = r.totals.pending_days || r.totals.open_days;
+    const body = `<div class="fo-box fo-conf-preview">
+        <h3>Resumo · ${esc(st.week.week.full_label || st.week.week.label)}</h3>
+        <ul class="fo-paylist">${
+          days.length
+            ? days.map((d) => `<li><span>${esc(confDayLine(d))}</span><b>${money(d.amount)}</b></li>`).join("")
+            : `<li class="fo-muted">Nenhum dia aprovado</li>`
+        }
+          ${r.totals.reimbursement ? `<li><span>Reembolso</span><b>+${money(r.totals.reimbursement)}</b></li>` : ""}
+          ${r.totals.discount ? `<li><span>Desconto</span><b>−${money(r.totals.discount)}</b></li>` : ""}
+          <li class="tot"><span>Total a receber</span><b>${money(r.totals.net)}</b></li></ul>
+        ${
+          waiting
+            ? `<div class="fo-alert" style="margin-top:10px"><b>Atenção:</b> ainda há dias em conferência ou em andamento — eles não entram neste total.</div>`
+            : ""
+        }
+      </div>
+      <div class="fo-box">
+        <h3>Enviar para conferência</h3>
+        <p class="fo-muted" style="margin:0 0 12px;font-size:13px;font-weight:600">O funcionário confere os valores antes do pagamento final.</p>
+        <label class="fo-field">E-mail do funcionário<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" ${email ? "" : "autofocus"} /></label>
+        ${phone ? `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Telefone cadastrado: ${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) || phone : phone)}</p>` : `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Sem telefone no cadastro — WhatsApp/SMS ficam indisponíveis.</p>`}
+        <div class="fo-conf-channels" style="margin-top:12px">
+          <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar por e-mail</button>
+          <button type="button" class="fo-btn" data-conf-wa ${digits.length >= 10 ? "" : "disabled"}>Abrir WhatsApp</button>
+          <button type="button" class="fo-btn" data-conf-sms ${digits.length >= 10 ? "" : "disabled"}>Abrir SMS</button>
+          <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar texto</button>
+          <button type="button" class="fo-btn fo-btn--ghost" data-print>Imprimir</button>
+        </div>
+      </div>`;
+    openSheet(
+      `${sheetHead(`Conferência · ${esc(r.name)}`, money(r.totals.net))}<div class="fo-sheet__bd">${body}</div>
+       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Fechar</button>${
+         canPay(r) ? `<button type="button" class="fo-btn fo-btn--pri" data-pay="${esc(r.id)}">Ir para pagamento</button>` : ""
+       }</footer>`,
+    );
+    $("foSheet")._confId = r.id;
+    $("foSheet")._confText = text;
+    $("foSheet")._confPhone = digits;
+  }
+  async function confSendEmail(btn) {
+    const id = $("foSheet")._confId;
+    const to = ($("foConfEmail")?.value || "").trim();
+    if (!id || !st.week) return;
+    btn.disabled = true;
+    try {
+      const j = await api("/api/folha/conferencia", {
+        method: "POST",
+        body: JSON.stringify({ week: st.week.week.start, employee_id: id, to: to || null }),
+      });
+      notify(`Relatório enviado para ${j.data.to}.`, "success");
+      if (j.data.to && $("foConfEmail")) $("foConfEmail").value = j.data.to;
+    } catch (e) {
+      notify(e.message, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  function confShare(channel) {
+    const text = $("foSheet")._confText || "";
+    const digits = $("foSheet")._confPhone || "";
+    if (!text) return;
+    if (channel === "copy") {
+      const done = () => notify("Texto copiado.", "success");
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+      else fallbackCopy(text, done);
+      return;
+    }
+    if (digits.length < 10) {
+      notify("Cadastre o telefone do funcionário para usar este canal.", "error");
+      return;
+    }
+    const e164 = digits.length === 10 ? `1${digits}` : digits;
+    if (channel === "wa") {
+      window.open(`https://wa.me/${e164}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+      return;
+    }
+    if (channel === "sms") {
+      window.open(`sms:+${e164}?&body=${encodeURIComponent(text)}`, "_blank");
+    }
+  }
+  function fallbackCopy(text, done) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      done();
+    } catch (_) {
+      notify("Não foi possível copiar.", "error");
+    }
+    ta.remove();
   }
   async function payGo(btn) {
     const ids = $("foSheet")._payIds;
@@ -1501,6 +1654,11 @@
       return renderWeek();
     }
     if (el("[data-paysel]")) return openPay([...st.selected]);
+    if ((b = el("[data-conf]"))) return openConference(b.getAttribute("data-conf"));
+    if ((b = el("[data-conf-email]"))) return confSendEmail(b);
+    if (el("[data-conf-wa]")) return confShare("wa");
+    if (el("[data-conf-sms]")) return confShare("sms");
+    if (el("[data-conf-copy]")) return confShare("copy");
     if ((b = el("[data-pay]"))) return openPay([b.getAttribute("data-pay")]);
     if ((b = el("[data-pay-go]"))) return payGo(b);
     if ((b = el("#foPayMethods [data-method]"))) {
