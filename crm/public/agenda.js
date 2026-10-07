@@ -1191,6 +1191,27 @@
     /* editors attach on click via beginFieldEdit */
   }
 
+  /** Leave inline edit mode and restore the static detail card. */
+  function dismissFieldEdit(detail) {
+    if (!detail) return;
+    const editing = detail.querySelector('[data-ag-editing]');
+    if (!editing) return;
+    const id =
+      detail.getAttribute('data-ag-detail') || editing.getAttribute('data-ag-id') || '';
+    if (!id) return;
+    const focus = editing.querySelector('input, select, textarea');
+    // Text fields: save on dismiss (same as blur). Selects already save on change.
+    if (focus && focus.matches('[data-ag-inline="title"], [data-ag-inline="address"]')) {
+      void applyInlinePatch(focus);
+      return;
+    }
+    if (isPhone() && !$('#agSheet').hidden) openDetail(id);
+    else {
+      const anchor = $(`[data-ag-ev="${CSS.escape(id)}"]`);
+      openDetail(id, anchor || null);
+    }
+  }
+
   let inlineBusy = false;
   async function applyInlinePatch(el) {
     if (!el || !S.canManage || inlineBusy) return;
