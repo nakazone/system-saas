@@ -42,6 +42,7 @@ import {
   flagShiftForExpenses,
   mapExpense,
   syncExpenseIntoAdjustment,
+  updateShiftExpense,
 } from "../../lib/payroll/shift-expenses.js";
 import { storage } from "../../lib/storage/index.js";
 import { randomUUID } from "node:crypto";
@@ -635,6 +636,9 @@ const officeDayBody = z.object({
   overtime_minutes: z.number().int().min(0).max(16 * 60).optional(),
   jobs: z.array(z.object({ work_order_id: z.string().uuid(), sqft: z.number().min(0).max(100000).optional().nullable() })).max(10).default([]),
   note: z.string().max(500).optional().nullable(),
+  /** Optional week adjustments applied with the launch (approved day expenses). */
+  reimbursement: z.number().min(0).max(100000).optional(),
+  discount: z.number().min(0).max(100000).optional(),
 });
 
 const officeDayLoteBody = z.object({
@@ -646,6 +650,9 @@ const officeDayLoteBody = z.object({
   overtime_minutes: z.number().int().min(0).max(16 * 60).optional(),
   jobs: z.array(z.object({ work_order_id: z.string().uuid(), sqft: z.number().min(0).max(100000).optional().nullable() })).max(10).default([]),
   note: z.string().max(500).optional().nullable(),
+  /** Applied once on the first successfully created day. */
+  reimbursement: z.number().min(0).max(100000).optional(),
+  discount: z.number().min(0).max(100000).optional(),
 });
 
 type OfficeDayInput = z.infer<typeof officeDayBody>;
@@ -710,6 +717,24 @@ async function createApprovedOfficeDay(
     await recompute(tx, s.id, { daysWorked, overtimeMinutes: input.overtime_minutes });
   }
   await approveDay(tx, s.id, reviewerId);
+  const items = [
+    ...(num(input.reimbursement) > 0 ? [{ kind: "reimbursement" as const, amount: num(input.reimbursement) }] : []),
+    ...(num(input.discount) > 0 ? [{ kind: "discount" as const, amount: num(input.discount) }] : []),
+  ];
+  if (items.length) {
+    const rows = await attachExpensesToShift(tx, {
+      organizationId: orgId,
+      shiftId: s.id,
+      employeeId: emp.id,
+      createdById: reviewerId,
+      source: "office",
+      status: "pending",
+      items,
+    });
+    for (const row of rows) {
+      await syncExpenseIntoAdjustment(tx, row.id, "approved", reviewerId);
+    }
+  }
   return mapShift(await tx.campoShift.findFirstOrThrow({ where: { id: s.id }, include: shiftInclude }), tz);
 }
 
@@ -752,8 +777,10 @@ folhaAdminRouter.post("/api/folha/dias/lote", requireCrmAuth, requireCrmPermissi
     }
     const tz = await orgTz(req.organizationId!);
     const results: { date: string; ok: boolean; id?: string; error?: string; code?: string }[] = [];
+    let adjApplied = false;
     for (const date of dates) {
       try {
+        const withAdj = !adjApplied && (num(b.data.reimbursement) > 0 || num(b.data.discount) > 0);
         const data = await withTenantTransaction(req.organizationId!, async (tx) =>
           createApprovedOfficeDay(tx, req.organizationId!, req.user!.id, tz, {
             employee_id: b.data.employee_id,
@@ -764,8 +791,11 @@ folhaAdminRouter.post("/api/folha/dias/lote", requireCrmAuth, requireCrmPermissi
             overtime_minutes: b.data.overtime_minutes,
             jobs: b.data.jobs,
             note: b.data.note,
+            reimbursement: withAdj ? b.data.reimbursement : undefined,
+            discount: withAdj ? b.data.discount : undefined,
           }),
         );
+        if (withAdj) adjApplied = true;
         results.push({ date, ok: true, id: data.id });
       } catch (e) {
         const err = e as Error & { status?: number; code?: string };
@@ -881,6 +911,33 @@ folhaAdminRouter.post("/api/folha/dias/:id/despesas", requireCrmAuth, requireCrm
       return mapShift(await tx.campoShift.findFirstOrThrow({ where: { id: s.id }, include: shiftInclude }), tz);
     });
     res.status(201).json({ success: true, data });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
+folhaAdminRouter.put("/api/folha/despesas/:id", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const b = z
+      .object({
+        kind: z.enum(["reimbursement", "discount"]).optional(),
+        amount: z.number().positive().max(100000).optional(),
+        description: z.string().max(300).optional().nullable(),
+      })
+      .safeParse(req.body || {});
+    if (!b.success) {
+      res.status(400).json({ success: false, error: "Dados inválidos." });
+      return;
+    }
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const e = await tx.campoShiftExpense.findFirst({ where: { id: String(req.params.id) }, include: { shift: true } });
+      if (!e) throw httpErr(404, "Lançamento não encontrado");
+      await assertNotPaid(tx, e.employeeId, e.shift.workDate);
+      if (e.status === "rejected") throw httpErr(409, "Lançamento recusado. Crie um novo.");
+      const updated = await updateShiftExpense(tx, e.id, b.data, req.user!.id);
+      return mapExpense(updated);
+    });
+    res.json({ success: true, data });
   } catch (error) {
     fail(res, error, next);
   }

@@ -62,7 +62,7 @@
     emps: null,
     empSearch: "",
     q: "",
-    quick: { empId: "", dates: new Set(), days: 1, ot: 0, open: false, touched: false },
+    quick: { empId: "", dates: new Set(), days: 1, ot: 0, reimb: "", disc: "", open: false, touched: false },
     quickSheet: false,
     report: null,
     rep: { preset: "year", from: null, to: null, employee: "", sector: "" },
@@ -425,6 +425,10 @@
     const ot = st.quick.ot;
     return `<div class="fo-qstep" role="group" aria-label="Hora extra"><button type="button" data-q-ot="-30" aria-label="Menos meia hora" ${ot ? "" : "disabled"}>−</button><b>${ot ? `+${hm(ot)}` : "0h"}</b><button type="button" data-q-ot="30" aria-label="Mais meia hora">+</button></div>`;
   }
+  function quickMoneyInputs() {
+    return `<label class="fo-qf fo-qf--money"><small>Reembolso</small><span class="fo-qin"><i>$</i><input type="number" class="fo-in" data-q-reimb min="0" step="0.01" inputmode="decimal" placeholder="0" value="${esc(st.quick.reimb || "")}" /></span></label>
+      <label class="fo-qf fo-qf--money"><small>Desconto</small><span class="fo-qin"><i>$</i><input type="number" class="fo-in" data-q-disc min="0" step="0.01" inputmode="decimal" placeholder="0" value="${esc(st.quick.disc || "")}" /></span></label>`;
+  }
   function renderQuickBar() {
     if (!st.manage) return "";
     const ready = st.quick.empId && st.quick.dates.size;
@@ -439,6 +443,7 @@
         </div>
         <div class="fo-qf"><small>Diária</small>${quickSeg()}</div>
         <div class="fo-qf"><small>Hora extra</small>${quickStepper()}</div>
+        ${quickMoneyInputs()}
         <button type="button" class="fo-btn fo-btn--pri fo-quick__go" data-q-go ${ready ? "" : "disabled"}>${esc(quickGoLabel())}</button>
       </div>
     </div>`;
@@ -457,7 +462,8 @@
       : "Nenhum funcionário de diária ativo. Cadastre em Funcionários.";
     return `<div class="fo-box"><h3>Funcionário</h3>${secs.map(chips).join("")}${emps.length ? `<p class="fo-qhint" data-q-hint>${esc(quickHint())}</p>` : `<p class="fo-muted">${esc(emptyMsg)}</p>`}</div>
       <div class="fo-box"><h3>Dias do ciclo <small>${esc(st.week.week.label)}</small></h3>${quickDaysGrid()}</div>
-      <div class="fo-box"><h3>Diária</h3>${quickSeg()}<div class="fo-qot"><b>Hora extra</b>${quickStepper()}</div></div>`;
+      <div class="fo-box"><h3>Diária</h3>${quickSeg()}<div class="fo-qot"><b>Hora extra</b>${quickStepper()}</div></div>
+      <div class="fo-box"><h3>Ajustes (opcional)</h3><div class="fo-grid2">${quickMoneyInputs()}</div><p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Entram aprovados no líquido da semana.</p></div>`;
   }
   function openQuickSheet() {
     const sec = sectorLabel();
@@ -494,22 +500,27 @@
     const q = st.quick;
     const dates = [...q.dates].sort();
     if (!q.empId || !dates.length) return notify("Escolha o funcionário e os dias.", "error");
+    const reimb = Math.max(0, Number(q.reimb) || 0);
+    const disc = Math.max(0, Number(q.disc) || 0);
     const base = { employee_id: q.empId, days_worked: q.days };
     if (q.ot) base.overtime_minutes = q.ot;
+    if (reimb > 0) base.reimbursement = reimb;
+    if (disc > 0) base.discount = disc;
     btn.disabled = true;
     btn.textContent = "Lançando…";
     try {
       const name = (quickEmp() || {}).name || "";
+      const adjBit = reimb || disc ? " · ajustes incluídos" : "";
       if (dates.length === 1) {
         await api("/api/folha/dias", { method: "POST", body: JSON.stringify({ ...base, date: dates[0] }) });
-        notify(`${name}: diária lançada.`, "success");
+        notify(`${name}: diária lançada${adjBit}.`, "success");
       } else {
         const j = await api("/api/folha/dias/lote", { method: "POST", body: JSON.stringify({ ...base, dates }) });
         const r = j.data || {};
         const bad = (r.results || []).filter((x) => !x.ok);
-        notify(bad.length ? `${r.created} de ${r.total} dias lançados. ${bad.map((x) => `${brShort(x.date)}: ${x.error}`).join(" · ")}` : `${name}: ${r.created} dias lançados.`, bad.length ? "info" : "success");
+        notify(bad.length ? `${r.created} de ${r.total} dias lançados. ${bad.map((x) => `${brShort(x.date)}: ${x.error}`).join(" · ")}` : `${name}: ${r.created} dias lançados${adjBit}.`, bad.length ? "info" : "success");
       }
-      st.quick = { empId: "", dates: new Set(), days: 1, ot: 0, open: false, touched: false };
+      st.quick = { empId: "", dates: new Set(), days: 1, ot: 0, reimb: "", disc: "", open: false, touched: false };
       if (st.quickSheet) {
         st.quickSheet = false;
         closeSheet();
@@ -667,18 +678,24 @@
     box.innerHTML = pweek + renderQuickBar() + stats + filters + table + cards + fab;
     renderPayBar();
   }
-  function rowActions(r, mobile) {
+  function rowActions(r, compact) {
     if (!st.manage) return "";
     if (r.payment) return `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-receipt="${esc(r.id)}">Recibo</button>`;
     const parts = [];
-    if (st.week.period) parts.push(`<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-adjust="${esc(r.id)}" title="Reembolso ou desconto">${mobile ? "±" : "Ajustes"}</button>`);
-    if (canPay(r) || r.totals.net > 0) {
+    if (st.week.period) {
       parts.push(
-        `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-conf="${esc(r.id)}" title="Enviar relatório para o funcionário conferir">${mobile ? "Enviar" : "Relatório"}</button>`,
+        `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-adjust="${esc(r.id)}" title="Reembolso ou desconto">Ajustes</button>`,
       );
     }
-    if (canPay(r)) parts.push(`<button type="button" class="fo-btn fo-btn--sm${mobile ? " fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
-    return parts.join(" ");
+    if (canPay(r) || r.totals.net > 0) {
+      parts.push(
+        `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-conf="${esc(r.id)}" title="Enviar relatório para o funcionário conferir">Relatório</button>`,
+      );
+    }
+    if (canPay(r)) {
+      parts.push(`<button type="button" class="fo-btn fo-btn--sm${compact ? " fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
+    }
+    return parts.join("");
   }
   function renderPayBar() {
     const bar = $("foPayBar");
@@ -768,17 +785,21 @@
       if ((d.expenses || []).length) {
         body += `<div class="fo-box"><h3>Reembolsos e descontos <small>${d.expenses.length}</small></h3>
           <ul class="fo-exp">${d.expenses
-            .map(
-              (x) => `<li>
+            .map((x) => {
+              const acts = [];
+              if (canAct && x.status !== "rejected") {
+                acts.push(`<button type="button" class="fo-btn fo-btn--sm" data-exp-edit="${esc(x.id)}">Editar</button>`);
+              }
+              if (canAct && x.status === "pending") {
+                acts.push(`<button type="button" class="fo-btn fo-btn--sm fo-btn--pri" data-exp-ok="${esc(x.id)}">Aprovar</button>`);
+                acts.push(`<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost fo-btn--danger" data-exp-no="${esc(x.id)}">Recusar</button>`);
+              }
+              return `<li>
               ${x.receipt_url ? `<a class="fo-exp__img" href="${esc(x.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(x.receipt_url)}" alt="" /></a>` : `<span class="fo-exp__ph">Sem recibo</span>`}
               <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.kind_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(x.description)}` : ""}</small></div>
-              ${
-                canAct && x.status === "pending"
-                  ? `<span class="fo-exp__act"><button type="button" class="fo-btn fo-btn--sm fo-btn--pri" data-exp-ok="${esc(x.id)}">Aprovar</button><button type="button" class="fo-btn fo-btn--sm fo-btn--ghost fo-btn--danger" data-exp-no="${esc(x.id)}">Recusar</button></span>`
-                  : ""
-              }
-            </li>`,
-            )
+              ${acts.length ? `<span class="fo-exp__act">${acts.join("")}</span>` : ""}
+            </li>`;
+            })
             .join("")}</ul>
           ${canAct ? `<button type="button" class="fo-btn fo-btn--sm" data-exp-add="${esc(d.id)}" style="margin-top:10px">+ Lançar reembolso ou desconto</button>` : ""}
         </div>`;
@@ -908,7 +929,7 @@
   function refreshAfterChange() {
     st.pend = null;
     if (st.tab === "conferir") loadPend();
-    loadWeek();
+    return loadWeek();
   }
 
   // ------------------------------------------------------------ pagar
@@ -1188,6 +1209,29 @@
       notify(e.message, "error");
     }
   }
+  function adjPreviewHtml(gross, reimb, disc) {
+    const net = Math.round((Number(gross) + Number(reimb) - Number(disc)) * 100) / 100;
+    return `<div class="fo-adj-live" id="foAdjLive" data-gross="${esc(gross)}">
+      <div><small>Diárias</small><b>${money(gross)}</b></div>
+      <div><small>Reembolso</small><b class="fo-ok" data-adj-r>+${money(reimb)}</b></div>
+      <div><small>Desconto</small><b class="fo-warn" data-adj-d>−${money(disc)}</b></div>
+      <div><small>Líquido</small><b data-adj-net>${money(net)}</b></div>
+    </div>`;
+  }
+  function refreshAdjPreview() {
+    const box = $("foAdjLive");
+    if (!box) return;
+    const gross = Number(box.getAttribute("data-gross")) || 0;
+    const reimb = Math.max(0, Number($("foAdjR")?.value) || 0);
+    const disc = Math.max(0, Number($("foAdjD")?.value) || 0);
+    const net = Math.round((gross + reimb - disc) * 100) / 100;
+    const rEl = box.querySelector("[data-adj-r]");
+    const dEl = box.querySelector("[data-adj-d]");
+    const nEl = box.querySelector("[data-adj-net]");
+    if (rEl) rEl.textContent = `+${money(reimb)}`;
+    if (dEl) dEl.textContent = `−${money(disc)}`;
+    if (nEl) nEl.textContent = money(net);
+  }
   function openAdjust(id) {
     const r = st.week.employees.find((x) => x.id === id);
     if (!r) return;
@@ -1200,6 +1244,9 @@
           day_id: d.id,
         })),
       );
+    const reimb = Number(r.adjustment.reimbursement) || 0;
+    const disc = Number(r.adjustment.discount) || 0;
+    const gross = Number(r.totals.gross) || 0;
     openSheet(
       `${sheetHead(`Ajustes · ${esc(r.name)}`, `Semana ${esc(st.week.week.label)}`)}<div class="fo-sheet__bd">
         ${
@@ -1209,18 +1256,29 @@
                   (x) => `<li>
                   ${x.receipt_url ? `<a class="fo-exp__img" href="${esc(x.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(x.receipt_url)}" alt="" /></a>` : `<span class="fo-exp__ph">—</span>`}
                   <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.date_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(x.description)}` : ""}</small></div>
+                  ${st.manage && !r.payment && x.status !== "rejected" ? `<span class="fo-exp__act"><button type="button" class="fo-btn fo-btn--sm" data-exp-edit="${esc(x.id)}">Editar</button></span>` : ""}
                 </li>`,
                 )
                 .join("")}</ul><p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Aprovar o dia (ou o lançamento) inclui o valor no pagamento. Abaixo você ajusta o total da semana.</p></div>`
             : ""
         }
         <div class="fo-box">
-        <div class="fo-grid2"><label class="fo-field">Reembolso<input type="number" class="fo-in" id="foAdjR" min="0" step="0.01" value="${r.adjustment.reimbursement || ""}" placeholder="0.00" /><small>Material, gasolina, ferramenta…</small></label>
-        <label class="fo-field">Desconto<input type="number" class="fo-in" id="foAdjD" min="0" step="0.01" value="${r.adjustment.discount || ""}" placeholder="0.00" /><small>Adiantamento, dano…</small></label></div>
+        ${adjPreviewHtml(gross, reimb, disc)}
+        <div class="fo-grid2" style="margin-top:12px"><label class="fo-field">Reembolso<input type="number" class="fo-in" id="foAdjR" min="0" step="0.01" value="${reimb || ""}" placeholder="0.00" /><small>Material, gasolina, ferramenta…</small></label>
+        <label class="fo-field">Desconto<input type="number" class="fo-in" id="foAdjD" min="0" step="0.01" value="${disc || ""}" placeholder="0.00" /><small>Adiantamento, dano…</small></label></div>
         <label class="fo-field" style="margin-top:10px">Motivo<input type="text" class="fo-in" id="foAdjN" maxlength="500" value="${esc(r.adjustment.notes || "")}" /></label>
       </div></div>
       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-adj-go="${esc(r.id)}">Salvar</button></footer>`,
     );
+  }
+  function findExpense(expId) {
+    for (const r of st.week?.employees || []) {
+      for (const d of r.days || []) {
+        const x = (d.expenses || []).find((e) => e.id === expId);
+        if (x) return { expense: x, day: d, row: r };
+      }
+    }
+    return null;
   }
   function openAddExpense(dayId) {
     openSheet(
@@ -1236,6 +1294,26 @@
         <label class="fo-check" style="margin-top:12px"><input type="checkbox" id="foExpApprove" checked /> Aprovar e incluir no pagamento agora</label>
       </div></div>
       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-exp-go="${esc(dayId)}">Salvar</button></footer>`,
+    );
+  }
+  function openEditExpense(expId) {
+    const found = findExpense(expId);
+    if (!found) return notify("Lançamento não encontrado.", "error");
+    const { expense: x, day: d } = found;
+    const kind = x.kind === "discount" ? "discount" : "reimbursement";
+    openSheet(
+      `${sheetHead("Editar lançamento", `${esc(d.date_label)} · ${esc(x.status_label)}`)}<div class="fo-sheet__bd"><div class="fo-box">
+        <div class="fo-chiprow" role="group" aria-label="Tipo">
+          <button type="button" class="fo-chip" data-exp-kind="reimbursement" aria-pressed="${kind === "reimbursement"}">Reembolso</button>
+          <button type="button" class="fo-chip" data-exp-kind="discount" aria-pressed="${kind === "discount"}">Desconto</button>
+        </div>
+        <input type="hidden" id="foExpKind" value="${esc(kind)}" />
+        <div class="fo-grid2" style="margin-top:12px"><label class="fo-field">Valor ($)<input type="number" class="fo-in" id="foExpAmt" min="0" step="0.01" autofocus value="${x.amount || ""}" placeholder="0.00" /></label>
+        <label class="fo-field">Descrição<input type="text" class="fo-in" id="foExpDesc" maxlength="300" value="${esc(x.description || "")}" placeholder="Ex.: gasolina, adiantamento…" /></label></div>
+        ${x.receipt_url ? `<p class="fo-muted" style="margin:10px 0 0;font-size:12.5px;font-weight:600">Recibo já anexado — <a href="${esc(x.receipt_url)}" target="_blank" rel="noopener">abrir</a>.</p>` : ""}
+        <p class="fo-muted" style="margin:10px 0 0;font-size:12.5px;font-weight:600">O líquido da semana atualiza automaticamente ao salvar.</p>
+      </div></div>
+      <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-exp-save="${esc(x.id)}" data-exp-day="${esc(d.id)}">Salvar</button></footer>`,
     );
   }
   function fileToDataUrl(file) {
@@ -1267,6 +1345,31 @@
       closeSheet();
       refreshAfterChange();
       openDay(dayId);
+    } catch (e) {
+      btn.disabled = false;
+      notify(e.message, "error");
+    }
+  }
+  async function expSave(expId, dayId, btn) {
+    const amount = Number($("foExpAmt")?.value || 0);
+    if (!(amount > 0)) {
+      notify("Informe o valor.", "error");
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await api(`/api/folha/despesas/${expId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          kind: $("foExpKind")?.value || "reimbursement",
+          amount,
+          description: ($("foExpDesc")?.value || "").trim() || null,
+        }),
+      });
+      notify("Lançamento atualizado. Líquido recalculado.", "success");
+      closeSheet();
+      await refreshAfterChange();
+      if (dayId) openDay(dayId);
     } catch (e) {
       btn.disabled = false;
       notify(e.message, "error");
@@ -1752,6 +1855,7 @@
     if ((b = el("[data-adjust]"))) return openAdjust(b.getAttribute("data-adjust"));
     if ((b = el("[data-adj-go]"))) return adjustGo(b.getAttribute("data-adj-go"));
     if ((b = el("[data-exp-add]"))) return openAddExpense(b.getAttribute("data-exp-add"));
+    if ((b = el("[data-exp-edit]"))) return openEditExpense(b.getAttribute("data-exp-edit"));
     if ((b = el("[data-exp-kind]"))) {
       const kind = b.getAttribute("data-exp-kind");
       if ($("foExpKind")) $("foExpKind").value = kind;
@@ -1759,6 +1863,7 @@
       return;
     }
     if ((b = el("[data-exp-go]"))) return expGo(b.getAttribute("data-exp-go"), b);
+    if ((b = el("[data-exp-save]"))) return expSave(b.getAttribute("data-exp-save"), b.getAttribute("data-exp-day"), b);
     if ((b = el("[data-exp-ok]"))) {
       return api(`/api/folha/despesas/${b.getAttribute("data-exp-ok")}/aprovar`, { method: "POST", body: "{}" })
         .then(() => {
@@ -1852,6 +1957,14 @@
       st.quick.empId = t.value;
       return refreshQuick();
     }
+    if (t.matches && t.matches("[data-q-reimb]")) {
+      st.quick.reimb = t.value;
+      return;
+    }
+    if (t.matches && t.matches("[data-q-disc]")) {
+      st.quick.disc = t.value;
+      return;
+    }
     if (t.id === "foEmpSearch") {
       st.empSearch = t.value || "";
       const pos = typeof t.selectionStart === "number" ? t.selectionStart : (t.value || "").length;
@@ -1933,10 +2046,21 @@
     document.addEventListener("click", onClick);
     document.addEventListener("change", onChange);
     document.addEventListener("input", (e) => {
-      if (e.target && e.target.id === "foEmpSearch") onChange(e);
-      if (e.target && e.target.id === "foWeekQ") {
-        st.q = e.target.value || "";
-        const pos = e.target.selectionStart;
+      const t = e.target;
+      if (!t) return;
+      if (t.id === "foEmpSearch") return onChange(e);
+      if (t.matches && t.matches("[data-q-reimb]")) {
+        st.quick.reimb = t.value;
+        return;
+      }
+      if (t.matches && t.matches("[data-q-disc]")) {
+        st.quick.disc = t.value;
+        return;
+      }
+      if (t.id === "foAdjR" || t.id === "foAdjD") return refreshAdjPreview();
+      if (t.id === "foWeekQ") {
+        st.q = t.value || "";
+        const pos = t.selectionStart;
         renderWeek();
         const inp = $("foWeekQ");
         if (inp) {
