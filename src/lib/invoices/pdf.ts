@@ -224,12 +224,13 @@ function drawStamp(
   return h;
 }
 
-/** Bottom of every invoice page: "{Company} - Invoice - Thank You!" + Made with ObraMate logo. */
+/** Bottom of every page: "{Company} - Invoice|Receipt - Thank You!" + Made with ObraMate logo. */
 function footer(
   doc: Doc,
   PAL: ReturnType<typeof palette>,
   orgName: string,
   systemLogo: Buffer | null,
+  docKind: "Invoice" | "Receipt" = "Invoice",
 ) {
   const pageW = doc.page.width;
   const pageH = doc.page.height;
@@ -242,7 +243,7 @@ function footer(
     .lineWidth(0.5)
     .stroke();
 
-  const line1 = `${orgName} - Invoice - Thank You!`;
+  const line1 = `${orgName} - ${docKind} - Thank You!`;
   doc.font("Helvetica").fontSize(8).fillColor(PAL.muted);
   doc.text(line1, m, lineY + 8, { width: pageW - 2 * m, align: "center", lineBreak: false });
 
@@ -489,6 +490,9 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
 export async function buildReceiptPdf(input: ReceiptPdfInput): Promise<Buffer> {
   const PAL = palette(input.org.brandPrimary, input.org.brandAccent);
   const logo = await loadLogoBuffer(input.org.logoUrl);
+  const systemLogo =
+    (await loadLogoBuffer("/assets/obramate-logo.png")) ||
+    (await loadLogoBuffer("/assets/favicon-192.png"));
   const { doc, done } = newDoc(`Receipt ${input.receiptNumber}`, input.org.name);
   const pageW = doc.page.width;
   const m = 48;
@@ -549,7 +553,7 @@ export async function buildReceiptPdf(input: ReceiptPdfInput): Promise<Buffer> {
   y += 24;
   doc.font("Helvetica-Oblique").fontSize(10).fillColor(PAL.muted).text("Thank you for your payment.", m, y, { width: W, align: "center" });
 
-  footer(doc, PAL, `${input.org.name} · Receipt ${input.receiptNumber}`);
+  footer(doc, PAL, input.org.name, systemLogo, "Receipt");
   doc.end();
   return done;
 }
