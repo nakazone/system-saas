@@ -716,6 +716,7 @@
   let sheetOnClose = null;
   function openSheet(html, onClose) {
     const sh = $("foSheet");
+    sh.classList.remove("fo-sheet--report");
     sh.innerHTML = html;
     sh.hidden = false;
     $("foScrim").hidden = false;
@@ -724,7 +725,10 @@
     setTimeout(() => sh.querySelector("[autofocus]")?.focus(), 30);
   }
   function closeSheet() {
-    $("foSheet").hidden = true;
+    closeConfSendPop();
+    const sh = $("foSheet");
+    sh.classList.remove("fo-sheet--report");
+    sh.hidden = true;
     $("foScrim").hidden = true;
     document.body.style.overflow = "";
     const fn = sheetOnClose;
@@ -1109,31 +1113,63 @@
             ? `<div class="fo-alert fo-ticket__warn"><b>Atenção:</b> ainda há dias em conferência ou em andamento — eles não entram neste total.</div>`
             : ""
         }
-      </div>
-      <div class="fo-box">
-        <h3>Enviar ao funcionário</h3>
-        <label class="fo-field">E-mail<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" ${email ? "" : "autofocus"} /></label>
-        ${phone ? `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Tel.: ${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) || phone : phone)}</p>` : `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Sem telefone — WhatsApp/SMS indisponíveis.</p>`}
-        <div class="fo-conf-channels">
-          <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar e-mail com PDF</button>
-          <div class="fo-conf-grid">
-            <button type="button" class="fo-btn" data-conf-pdf>Abrir PDF</button>
-            <button type="button" class="fo-btn" data-conf-wa ${digits.length >= 10 ? "" : "disabled"}>WhatsApp</button>
-            <button type="button" class="fo-btn" data-conf-sms ${digits.length >= 10 ? "" : "disabled"}>SMS</button>
-            <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar texto</button>
+      </div>`;
+    openSheet(
+      `${sheetHead(`Conferência · ${esc(r.name)}`, esc(period))}<div class="fo-sheet__bd fo-sheet__bd--scroll">${body}</div>
+       <footer class="fo-sheet__ft fo-sheet__ft--pay">
+         <button type="button" class="fo-btn fo-btn--ghost" data-close>Fechar</button>
+         <button type="button" class="fo-btn fo-btn--pri fo-sheet__ft-main" data-conf-send>Enviar relatório</button>
+         ${canPay(r) ? `<button type="button" class="fo-btn" data-pay="${esc(r.id)}">Ir para pagamento</button>` : ""}
+       </footer>`,
+    );
+    const sheet = $("foSheet");
+    sheet.classList.add("fo-sheet--report");
+    sheet._confId = r.id;
+    sheet._confText = text;
+    sheet._confPhone = digits;
+    sheet._confEmail = email;
+    sheet._confPhoneLabel = phone;
+  }
+  function closeConfSendPop() {
+    const pop = $("foConfSendPop");
+    if (pop) pop.hidden = true;
+  }
+  function openConfSendPop() {
+    const sh = $("foSheet");
+    const email = sh._confEmail || "";
+    const phone = sh._confPhoneLabel || "";
+    const digits = sh._confPhone || "";
+    const pop = $("foConfSendPop");
+    if (!pop) return;
+    pop.innerHTML = `
+      <button type="button" class="fo-pop__scrim" data-conf-send-close aria-label="Fechar"></button>
+      <div class="fo-pop__card" role="dialog" aria-labelledby="foConfSendTitle">
+        <header class="fo-pop__hd">
+          <h3 id="foConfSendTitle">Enviar relatório</h3>
+          <button type="button" class="fo-x" data-conf-send-close aria-label="Fechar">×</button>
+        </header>
+        <div class="fo-pop__bd">
+          <div class="fo-box fo-box--flush">
+            <label class="fo-field">E-mail<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" ${email ? "" : "autofocus"} /></label>
+            ${
+              phone
+                ? `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Tel.: ${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) || phone : phone)}</p>`
+                : `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Sem telefone — WhatsApp/SMS indisponíveis.</p>`
+            }
+            <div class="fo-conf-channels">
+              <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar e-mail com PDF</button>
+              <div class="fo-conf-grid">
+                <button type="button" class="fo-btn" data-conf-pdf>Abrir PDF</button>
+                <button type="button" class="fo-btn" data-conf-wa ${digits.length >= 10 ? "" : "disabled"}>WhatsApp</button>
+                <button type="button" class="fo-btn" data-conf-sms ${digits.length >= 10 ? "" : "disabled"}>SMS</button>
+                <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar texto</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>`;
-    openSheet(
-      `${sheetHead(`Conferência · ${esc(r.name)}`, esc(period))}<div class="fo-sheet__bd">${body}</div>
-       <footer class="fo-sheet__ft fo-sheet__ft--pay">
-         <button type="button" class="fo-btn fo-btn--ghost" data-close>Fechar</button>
-         ${canPay(r) ? `<button type="button" class="fo-btn fo-btn--pri fo-sheet__ft-main" data-pay="${esc(r.id)}">Ir para pagamento</button>` : ""}
-       </footer>`,
-    );
-    $("foSheet")._confId = r.id;
-    $("foSheet")._confText = text;
-    $("foSheet")._confPhone = digits;
+    pop.hidden = false;
+    setTimeout(() => pop.querySelector("[autofocus], #foConfEmail")?.focus(), 40);
   }
   async function confSendEmail(btn) {
     const id = $("foSheet")._confId;
@@ -1919,6 +1955,8 @@
     }
     if (el("[data-paysel]")) return openPay([...st.selected]);
     if ((b = el("[data-conf]"))) return openConference(b.getAttribute("data-conf"));
+    if (el("[data-conf-send]")) return openConfSendPop();
+    if (el("[data-conf-send-close]")) return closeConfSendPop();
     if ((b = el("[data-conf-email]"))) return confSendEmail(b);
     if (el("[data-conf-pdf]")) {
       const url = confPdfUrl($("foSheet")._confId);
@@ -2101,6 +2139,7 @@
       st.quick.open = false;
       return refreshQuick();
     }
+    if (e.key === "Escape" && $("foConfSendPop") && !$("foConfSendPop").hidden) return closeConfSendPop();
     if (e.key === "Escape" && !$("foSheet").hidden) return closeSheet();
     if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("[data-day][role=button]")) {
       e.preventDefault();
@@ -2135,7 +2174,10 @@
     await loadPayMethods();
     if (!st.manage) document.querySelectorAll("[data-manage]").forEach((el) => (el.hidden = true));
     // Overlays live on <body>: inside the main column they sit under the app's bottom nav.
-    ["foScrim", "foSheet", "foPayBar"].forEach((id) => document.body.appendChild($(id)));
+    ["foScrim", "foSheet", "foConfSendPop", "foPayBar"].forEach((id) => {
+      const node = $(id);
+      if (node) document.body.appendChild(node);
+    });
     if (window.OmGestures && typeof window.OmGestures.bindSwipeRow === "function") {
       window.OmGestures.bindSwipeRow($("foSemana"), { openX: -148 });
     }
