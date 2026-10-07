@@ -9,6 +9,13 @@ import type { DocClient, DocOrg, InvoicePdfInput, ReceiptPdfInput } from "./pdf.
 
 const LINK_TTL_DAYS = 365;
 
+const siblingInvoiceSelect = {
+  id: true,
+  amount: true,
+  status: true,
+  receipts: { select: { amount: true } },
+} as const;
+
 export const invoiceDetailInclude = {
   quote: {
     select: {
@@ -22,6 +29,7 @@ export const invoiceDetailInclude = {
       leadId: true,
       property: { select: { line1: true, line2: true, city: true, state: true, postalCode: true, label: true } },
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
+      invoices: { select: siblingInvoiceSelect },
     },
   },
   workOrder: {
@@ -35,6 +43,7 @@ export const invoiceDetailInclude = {
       builderId: true,
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
       lineItems: { select: { lineTotal: true } },
+      invoices: { select: siblingInvoiceSelect },
     },
   },
   customer: { select: { id: true, name: true, email: true, phone: true } },
@@ -123,8 +132,55 @@ export function docOrgOf(org: OrgRow): DocOrg {
   };
 }
 
+/** Job/contract money position for the client-facing invoice PDF summary. */
+export function contractSummaryOf(inv: InvoiceDetail): {
+  label: string;
+  contractTotal: number;
+  thisInvoice: number;
+  paidOnContract: number;
+  remainingOnContract: number;
+} | null {
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const thisInvoice = round(Number(inv.amount) || 0);
+  const siblings =
+    (inv.workOrder?.invoices as { id: string; amount: unknown; status: string; receipts?: { amount: unknown }[] }[] | undefined) ||
+    (inv.quote?.invoices as { id: string; amount: unknown; status: string; receipts?: { amount: unknown }[] }[] | undefined) ||
+    [];
+  const live = siblings.filter((i) => i.status !== "void");
+  // Always include the current invoice if sibling list is missing it (fresh create).
+  const list = live.some((i) => i.id === inv.id)
+    ? live
+    : [...live, { id: inv.id, amount: inv.amount, status: inv.status, receipts: inv.receipts }];
+  const paidOnContract = round(
+    list.reduce((s, i) => s + (i.receipts || []).reduce((a, r) => a + (Number(r.amount) || 0), 0), 0),
+  );
+
+  let contractTotal = 0;
+  let label = "Contract total";
+  if (inv.workOrder) {
+    label = "Job total";
+    contractTotal = round((inv.workOrder.lineItems || []).reduce((s, li) => s + (Number(li.lineTotal) || 0), 0));
+  } else if (inv.quote) {
+    label = "Contract total";
+    contractTotal = round(Number(inv.quote.total) || 0);
+  }
+  if (!(contractTotal > 0)) {
+    // Fallback: treat the sum of non-void invoices as the contract when no job/quote total exists.
+    contractTotal = round(list.reduce((s, i) => s + (Number(i.amount) || 0), 0));
+    if (!(contractTotal > 0)) contractTotal = thisInvoice;
+  }
+  return {
+    label,
+    contractTotal,
+    thisInvoice,
+    paidOnContract,
+    remainingOnContract: round(Math.max(0, contractTotal - paidOnContract)),
+  };
+}
+
 export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: string | null): InvoicePdfInput {
   const m = computeInvoiceMoney(inv);
+  const summary = contractSummaryOf(inv);
   return {
     org: docOrgOf(org),
     client: clientOf(inv),
@@ -156,6 +212,11 @@ export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: str
     paymentInstructions: inv.paymentInstructions || org.paymentInstructions,
     notes: inv.notes,
     publicUrl: publicUrl ?? null,
+    contractTotal: summary?.contractTotal ?? null,
+    contractTotalLabel: summary?.label ?? null,
+    thisInvoiceAmount: summary?.thisInvoice ?? m.amount,
+    paidOnContract: summary?.paidOnContract ?? m.paid,
+    remainingOnContract: summary?.remainingOnContract ?? m.balance,
   };
 }
 

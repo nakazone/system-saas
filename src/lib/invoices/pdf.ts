@@ -87,6 +87,16 @@ export type InvoicePdfInput = {
   paymentInstructions?: string | null;
   notes?: string | null;
   publicUrl?: string | null;
+  /** Full job/contract value (progress billing). */
+  contractTotal?: number | null;
+  /** Label for the contract total column ("Job total" / "Contract total"). */
+  contractTotalLabel?: string | null;
+  /** Amount due on this invoice. */
+  thisInvoiceAmount?: number | null;
+  /** Payments received across all invoices for this job/contract. */
+  paidOnContract?: number | null;
+  /** Remaining to pay on the job/contract after payments to date. */
+  remainingOnContract?: number | null;
 };
 
 export type ReceiptPdfInput = {
@@ -258,21 +268,78 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     my = Math.max(doc.y, my + 13) + 2;
   }
 
-  // Balance due box
+  // Client money summary: job/contract total · this invoice · remaining balance
   y = Math.max(by, my) + 16;
-  doc.roundedRect(m, y, W, 46, 6).fill(PAL.panel);
-  doc.fillColor(PAL.muted).font("Helvetica").fontSize(9).text("Balance due", m + 16, y + 10, { lineBreak: false });
-  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(18).text(money(input.balance), m + 16, y + 21, { lineBreak: false });
-  doc.fillColor(PAL.muted).font("Helvetica").fontSize(9);
-  const dueTxt =
-    input.displayStatus === "paid"
-      ? `Paid in full${input.paidAt ? ` on ${fmtDate(input.paidAt)}` : ""}`
-      : input.displayStatus === "void"
-        ? "This invoice has been voided"
-        : `Due ${fmtDate(input.dueDate)}`;
-  const dtw = doc.widthOfString(dueTxt);
-  doc.text(dueTxt, m + W - 16 - dtw, y + 18, { lineBreak: false });
-  y += 64;
+  const contractTotal = Number(input.contractTotal);
+  const thisInvoiceAmt = Number(input.thisInvoiceAmount ?? input.total);
+  const remainingOnContract = Number(
+    input.remainingOnContract != null ? input.remainingOnContract : input.balance,
+  );
+  const showContractSummary = Number.isFinite(contractTotal) && contractTotal > 0;
+  const panelH = showContractSummary ? 62 : 46;
+  doc.roundedRect(m, y, W, panelH, 8).fill(PAL.panel);
+
+  if (showContractSummary) {
+    const colW = W / 3;
+    const cols: { label: string; value: string; emphasize?: boolean }[] = [
+      { label: input.contractTotalLabel || "Job total", value: money(contractTotal) },
+      { label: "This invoice", value: money(thisInvoiceAmt), emphasize: true },
+      { label: "Remaining balance", value: money(remainingOnContract), emphasize: true },
+    ];
+    cols.forEach((col, i) => {
+      const cx = m + i * colW;
+      if (i > 0) {
+        doc
+          .moveTo(cx, y + 10)
+          .lineTo(cx, y + panelH - 10)
+          .strokeColor(PAL.rule)
+          .lineWidth(0.7)
+          .stroke();
+      }
+      doc
+        .fillColor(PAL.muted)
+        .font("Helvetica-Bold")
+        .fontSize(7.5)
+        .text(col.label.toUpperCase(), cx + 12, y + 12, {
+          width: colW - 24,
+          characterSpacing: 0.6,
+          lineBreak: false,
+        });
+      doc
+        .fillColor(PAL.primary)
+        .font("Helvetica-Bold")
+        .fontSize(col.emphasize ? 17 : 15)
+        .text(col.value, cx + 12, y + 30, { width: colW - 24, lineBreak: false });
+    });
+    y += panelH + 8;
+    const dueTxt =
+      input.displayStatus === "paid"
+        ? `This invoice paid in full${input.paidAt ? ` on ${fmtDate(input.paidAt)}` : ""}`
+        : input.displayStatus === "void"
+          ? "This invoice has been voided"
+          : input.balance > 0.004
+            ? `Amount due on this invoice: ${money(input.balance)} · Due ${fmtDate(input.dueDate)}`
+            : `Due ${fmtDate(input.dueDate)}`;
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(8.5).text(dueTxt, m, y, {
+      width: W,
+      lineBreak: false,
+      ellipsis: true,
+    });
+    y += 18;
+  } else {
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(9).text("Balance due", m + 16, y + 10, { lineBreak: false });
+    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(18).text(money(input.balance), m + 16, y + 21, { lineBreak: false });
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(9);
+    const dueTxt =
+      input.displayStatus === "paid"
+        ? `Paid in full${input.paidAt ? ` on ${fmtDate(input.paidAt)}` : ""}`
+        : input.displayStatus === "void"
+          ? "This invoice has been voided"
+          : `Due ${fmtDate(input.dueDate)}`;
+    const dtw = doc.widthOfString(dueTxt);
+    doc.text(dueTxt, m + W - 16 - dtw, y + 18, { lineBreak: false });
+    y += panelH + 18;
+  }
 
   // Line items
   const cDesc = m;
