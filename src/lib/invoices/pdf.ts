@@ -95,8 +95,8 @@ export type InvoicePdfInput = {
   thisInvoiceAmount?: number | null;
   /** Payments received across all invoices for this job/contract. */
   paidOnContract?: number | null;
-  /** Remaining to pay on the job/contract after payments to date. */
-  remainingOnContract?: number | null;
+  /** Job/contract total minus this invoice amount. */
+  remainingAfterThisInvoice?: number | null;
 };
 
 export type ReceiptPdfInput = {
@@ -224,16 +224,64 @@ function drawStamp(
   return h;
 }
 
-function footer(doc: Doc, PAL: ReturnType<typeof palette>, text: string) {
+/** Bottom of every invoice page: "{Company} - Invoice - Thank You!" + Made with ObraMate logo. */
+function footer(
+  doc: Doc,
+  PAL: ReturnType<typeof palette>,
+  orgName: string,
+  systemLogo: Buffer | null,
+) {
   const pageW = doc.page.width;
   const pageH = doc.page.height;
+  const m = 48;
+  const lineY = pageH - 48;
+  doc
+    .moveTo(m, lineY)
+    .lineTo(pageW - m, lineY)
+    .strokeColor(PAL.rule)
+    .lineWidth(0.5)
+    .stroke();
+
+  const line1 = `${orgName} - Invoice - Thank You!`;
+  doc.font("Helvetica").fontSize(8).fillColor(PAL.muted);
+  doc.text(line1, m, lineY + 8, { width: pageW - 2 * m, align: "center", lineBreak: false });
+
+  const made = "Made with";
   doc.font("Helvetica").fontSize(7.5).fillColor(PAL.mutedLight);
-  doc.text(text, 48, pageH - 36, { width: pageW - 96, align: "center", lineBreak: false });
+  const madeW = doc.widthOfString(made);
+  const logoH = 12;
+  const brandY = lineY + 22;
+  let logoDrawW = 0;
+  let drewLogo = false;
+  if (systemLogo?.length) {
+    try {
+      // Prefer wordmark width; PDFKit scales by height.
+      logoDrawW = Math.min(78, logoH * 4.2);
+      drewLogo = true;
+    } catch {
+      drewLogo = false;
+    }
+  }
+  const brandBlockW = drewLogo ? madeW + 5 + logoDrawW : madeW + 5 + doc.widthOfString("ObraMate");
+  const brandX = (pageW - brandBlockW) / 2;
+  doc.text(made, brandX, brandY, { lineBreak: false });
+  if (drewLogo && systemLogo) {
+    try {
+      doc.image(systemLogo, brandX + madeW + 5, brandY - 1, { height: logoH });
+    } catch {
+      doc.font("Helvetica-Bold").fillColor(PAL.mutedLight).text("ObraMate", brandX + madeW + 5, brandY, { lineBreak: false });
+    }
+  } else {
+    doc.font("Helvetica-Bold").fillColor(PAL.mutedLight).text("ObraMate", brandX + madeW + 5, brandY, { lineBreak: false });
+  }
 }
 
 export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   const PAL = palette(input.org.brandPrimary, input.org.brandAccent);
   const logo = await loadLogoBuffer(input.org.logoUrl);
+  const systemLogo =
+    (await loadLogoBuffer("/assets/obramate-logo.png")) ||
+    (await loadLogoBuffer("/assets/favicon-192.png"));
   const { doc, done } = newDoc(`Invoice ${input.invoiceNumber}`, input.org.name);
   const pageW = doc.page.width;
   const pageH = doc.page.height;
@@ -272,11 +320,13 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   y = Math.max(by, my) + 16;
   const contractTotal = Number(input.contractTotal);
   const thisInvoiceAmt = Number(input.thisInvoiceAmount ?? input.total);
-  const remainingOnContract = Number(
-    input.remainingOnContract != null ? input.remainingOnContract : input.balance,
+  const remainingAfter = Number(
+    input.remainingAfterThisInvoice != null
+      ? input.remainingAfterThisInvoice
+      : Math.max(0, (Number.isFinite(contractTotal) ? contractTotal : thisInvoiceAmt) - thisInvoiceAmt),
   );
   const showContractSummary = Number.isFinite(contractTotal) && contractTotal > 0;
-  const panelH = showContractSummary ? 62 : 46;
+  const panelH = showContractSummary ? 68 : 46;
   doc.roundedRect(m, y, W, panelH, 8).fill(PAL.panel);
 
   if (showContractSummary) {
@@ -284,7 +334,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     const cols: { label: string; value: string; emphasize?: boolean }[] = [
       { label: input.contractTotalLabel || "Job total", value: money(contractTotal) },
       { label: "This invoice", value: money(thisInvoiceAmt), emphasize: true },
-      { label: "Remaining balance", value: money(remainingOnContract), emphasize: true },
+      { label: "Remaining balance\nafter this invoice", value: money(remainingAfter), emphasize: true },
     ];
     cols.forEach((col, i) => {
       const cx = m + i * colW;
@@ -299,17 +349,17 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
       doc
         .fillColor(PAL.muted)
         .font("Helvetica-Bold")
-        .fontSize(7.5)
-        .text(col.label.toUpperCase(), cx + 12, y + 12, {
-          width: colW - 24,
-          characterSpacing: 0.6,
-          lineBreak: false,
+        .fontSize(7)
+        .text(col.label.toUpperCase(), cx + 10, y + 10, {
+          width: colW - 20,
+          characterSpacing: 0.35,
+          lineGap: 1,
         });
       doc
         .fillColor(PAL.primary)
         .font("Helvetica-Bold")
-        .fontSize(col.emphasize ? 17 : 15)
-        .text(col.value, cx + 12, y + 30, { width: colW - 24, lineBreak: false });
+        .fontSize(col.emphasize ? 16 : 15)
+        .text(col.value, cx + 10, y + 38, { width: colW - 20, lineBreak: false });
     });
     y += panelH + 8;
     const dueTxt =
@@ -359,7 +409,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     : [{ description: input.kindLabel, quantity: 1, unitPrice: input.total, amount: input.total }];
   for (const ln of lines) {
     if (y > pageH - 220) {
-      footer(doc, PAL, `${input.org.name} · Invoice ${input.invoiceNumber}`);
+      footer(doc, PAL, input.org.name, systemLogo);
       doc.addPage({ size: "LETTER", margin: 0 });
       y = 48;
     }
@@ -421,8 +471,8 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   if (input.notes?.trim()) blocks.push(["Notes", input.notes.trim()]);
   if (input.publicUrl && input.balance > 0) blocks.push(["View online", input.publicUrl]);
   for (const [k, v] of blocks) {
-    if (y > pageH - 100) {
-      footer(doc, PAL, `${input.org.name} · Invoice ${input.invoiceNumber}`);
+    if (y > pageH - 110) {
+      footer(doc, PAL, input.org.name, systemLogo);
       doc.addPage({ size: "LETTER", margin: 0 });
       y = 48;
     }
@@ -431,7 +481,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     y = doc.y + 12;
   }
 
-  footer(doc, PAL, `${input.org.name} · Invoice ${input.invoiceNumber} · Thank you for your business`);
+  footer(doc, PAL, input.org.name, systemLogo);
   doc.end();
   return done;
 }

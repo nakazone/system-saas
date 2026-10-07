@@ -138,7 +138,8 @@ export function contractSummaryOf(inv: InvoiceDetail): {
   contractTotal: number;
   thisInvoice: number;
   paidOnContract: number;
-  remainingOnContract: number;
+  /** Job/contract total minus this invoice amount (balance left after paying this invoice). */
+  remainingAfterThisInvoice: number;
 } | null {
   const round = (n: number) => Math.round(n * 100) / 100;
   const thisInvoice = round(Number(inv.amount) || 0);
@@ -174,7 +175,7 @@ export function contractSummaryOf(inv: InvoiceDetail): {
     contractTotal,
     thisInvoice,
     paidOnContract,
-    remainingOnContract: round(Math.max(0, contractTotal - paidOnContract)),
+    remainingAfterThisInvoice: round(Math.max(0, contractTotal - thisInvoice)),
   };
 }
 
@@ -216,7 +217,7 @@ export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: str
     contractTotalLabel: summary?.label ?? null,
     thisInvoiceAmount: summary?.thisInvoice ?? m.amount,
     paidOnContract: summary?.paidOnContract ?? m.paid,
-    remainingOnContract: summary?.remainingOnContract ?? m.balance,
+    remainingAfterThisInvoice: summary?.remainingAfterThisInvoice ?? Math.max(0, Math.round(((summary?.contractTotal ?? m.amount) - m.amount) * 100) / 100),
   };
 }
 
