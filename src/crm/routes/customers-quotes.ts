@@ -451,7 +451,18 @@ function mapQuote(q: {
   payload: unknown;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { name: string } | null;
+  customer?: { name: string; company?: string | null } | null;
+  builder?: {
+    company?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+  property?: {
+    line1?: string | null;
+    city?: string | null;
+    state?: string | null;
+    label?: string | null;
+  } | null;
   lineItems?: Array<{
     id: string;
     name: string | null;
@@ -479,6 +490,16 @@ function mapQuote(q: {
     return x || "sq_ft";
   };
   const payloadItems = payloadLineItems(q.payload);
+  const builderCompany = q.builder?.company != null ? String(q.builder.company).trim() : "";
+  const builderPerson = [q.builder?.firstName, q.builder?.lastName]
+    .map((x) => (x != null ? String(x).trim() : ""))
+    .filter(Boolean)
+    .join(" ");
+  const builderName = builderCompany || builderPerson || null;
+  const propertyLabel =
+    (q.property?.label && String(q.property.label).trim()) ||
+    [q.property?.line1, q.property?.city, q.property?.state].filter(Boolean).join(", ") ||
+    null;
   return {
     id: q.id,
     number: q.number,
@@ -505,15 +526,20 @@ function mapQuote(q: {
     service_type: q.serviceType,
     customer_id: q.customerId,
     customer_name: q.customer?.name ?? null,
+    customer_company: q.customer?.company ?? null,
     lead_id: q.leadId,
     builder_id: q.builderId,
+    builder_name: builderName,
+    builder_company: builderCompany || null,
+    property_label: propertyLabel,
     work_order_id: q.workOrderId ?? null,
     signed_at: q.signedAt ?? null,
     public_token: q.publicToken,
     has_invoice_pdf: Boolean(q.invoicePdfPath),
     invoice_pdf_url: q.invoicePdfPath ? `/api/quotes/${q.id}/invoice-pdf` : null,
     job_name: payload.job_name != null ? String(payload.job_name) : q.title,
-    job_address: payload.job_address != null ? String(payload.job_address) : null,
+    job_address:
+      (payload.job_address != null ? String(payload.job_address) : null) || propertyLabel,
     quote_party: payload.quote_party != null ? String(payload.quote_party) : null,
     expiration_date: q.validUntil,
     viewed_at: q.viewedAt,
@@ -1133,6 +1159,53 @@ customersQuotesRouter.delete(
   },
 );
 
+function quoteListInclude() {
+  return {
+    customer: { select: { name: true, company: true } },
+    builder: { select: { company: true, firstName: true, lastName: true } },
+    property: { select: { line1: true, city: true, state: true, label: true } },
+    lineItems: { orderBy: { sortOrder: "asc" as const } },
+  };
+}
+
+/** Broad quote list search: number, title, client/builder names, address, job fields. */
+function quoteSearchWhere(search: string): Prisma.QuoteWhereInput[] {
+  const q = search.trim();
+  if (!q) return [];
+  const contains = { contains: q, mode: "insensitive" as const };
+  const or: Prisma.QuoteWhereInput[] = [
+    { title: contains },
+    { quoteNumber: contains },
+    { notes: contains },
+    { customer: { is: { OR: [{ name: contains }, { company: contains }, { email: contains }, { phone: contains }, { address: contains }] } } },
+    {
+      builder: {
+        is: {
+          OR: [{ company: contains }, { firstName: contains }, { lastName: contains }, { email: contains }, { phone: contains }, { address: contains }],
+        },
+      },
+    },
+    {
+      property: {
+        is: {
+          OR: [{ label: contains }, { line1: contains }, { line2: contains }, { city: contains }, { state: contains }, { postalCode: contains }],
+        },
+      },
+    },
+    { payload: { path: ["job_name"], string_contains: q } },
+    { payload: { path: ["job_address"], string_contains: q } },
+  ];
+  const digits = q.replace(/\D/g, "");
+  if (digits) {
+    const asNum = Number(digits);
+    if (Number.isFinite(asNum) && asNum > 0 && String(asNum) === digits) {
+      or.push({ number: asNum });
+    }
+    or.push({ quoteNumber: { contains: digits, mode: "insensitive" } });
+  }
+  return or;
+}
+
 customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -1149,10 +1222,7 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
       if (leadId) where.leadId = leadId;
       if (customerId) where.customerId = customerId;
       if (search) {
-        where.OR = [
-          { title: { contains: search, mode: "insensitive" } },
-          { quoteNumber: { contains: search, mode: "insensitive" } },
-        ];
+        where.OR = quoteSearchWhere(search);
       }
       return [
         await tx.quote.count({ where }),
@@ -1161,7 +1231,7 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
           orderBy: { createdAt: "desc" },
           skip,
           take: limit,
-          include: { customer: { select: { name: true } }, lineItems: { orderBy: { sortOrder: "asc" } } },
+          include: quoteListInclude(),
         }),
       ] as const;
     });
@@ -1196,7 +1266,7 @@ customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedR
     let row = await withTenantTransaction(req.organizationId!, async (tx) =>
       tx.quote.findFirst({
         where: { id: String(req.params.id) },
-        include: { customer: { select: { name: true } }, lineItems: { orderBy: { sortOrder: "asc" } } },
+        include: quoteListInclude(),
       }),
     );
     if (!row) {

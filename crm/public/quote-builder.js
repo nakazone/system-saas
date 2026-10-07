@@ -2319,6 +2319,8 @@
   let loadedQuotePdfViewedAt = null;
   /** Status persistido no servidor (pode diferir do dropdown até guardar). */
   let loadedQuoteStatus = null;
+  /** Preserved when the client-notes field is removed from the editor UI. */
+  let loadedQuoteNotes = null;
   let quoteViewPollTimer = null;
   let quoteViewPollQuickTimer = null;
   let quoteViewNotifyShown = false;
@@ -3119,6 +3121,8 @@
     if (!list || list.dataset.bound) return;
     list.dataset.bound = '1';
     list.addEventListener('focusin', (e) => {
+      const field = e.target.closest('[data-qty],[data-rate]');
+      if (field) ensureFocusedFieldVisibleForKeyboard();
       const q = e.target.closest('[data-rate]');
       if (!q) return;
       const idx = parseInt(q.getAttribute('data-rate'), 10);
@@ -3246,8 +3250,22 @@
     }
   }
 
-  /** Margem extra acima do teclado / barra de ações (px). */
-  const QB_SERVICE_KEYBOARD_GAP = 88;
+  /** Margem extra acima do teclado (px). A barra inferior some com o teclado aberto. */
+  const QB_SERVICE_KEYBOARD_GAP = 24;
+  const QB_KEYBOARD_HIDE_BAR_PX = 72;
+
+  function isEditableFocusTarget(el) {
+    if (!el || el === document.body || el === document.documentElement) return false;
+    const tag = String(el.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      const type = String(el.type || '').toLowerCase();
+      if (type === 'button' || type === 'submit' || type === 'checkbox' || type === 'radio' || type === 'file') {
+        return false;
+      }
+      return true;
+    }
+    return Boolean(el.isContentEditable);
+  }
 
   function getServiceFieldViewportMetrics() {
     const vv = window.visualViewport;
@@ -3255,13 +3273,35 @@
     const vvTop = vv ? vv.offsetTop : 0;
     const vvH = vv ? vv.height : layoutH;
     const actionBar = $('qbActionBar');
+    const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
+    const barHidden =
+      keyboardOverlap >= QB_KEYBOARD_HIDE_BAR_PX ||
+      (actionBar && actionBar.getAttribute('data-kb-hidden') === '1');
     const actionBarH =
-      actionBar && !actionBar.classList.contains('hidden')
+      !barHidden && actionBar && !actionBar.classList.contains('hidden')
         ? actionBar.getBoundingClientRect().height
         : 0;
-    const keyboardOverlap = Math.max(0, layoutH - (vvTop + vvH));
     const bottomReserve = Math.max(keyboardOverlap, actionBarH, 0) + QB_SERVICE_KEYBOARD_GAP;
-    return { vvTop, vvH, layoutH, bottomReserve, keyboardOverlap, actionBarH };
+    return { vvTop, vvH, layoutH, bottomReserve, keyboardOverlap, actionBarH, barHidden };
+  }
+
+  function syncActionBarForKeyboard() {
+    const bar = $('qbActionBar');
+    if (!bar) return;
+    const { keyboardOverlap } = getServiceFieldViewportMetrics();
+    const editing = isEditableFocusTarget(document.activeElement);
+    const hide = editing && keyboardOverlap >= QB_KEYBOARD_HIDE_BAR_PX;
+    if (hide) {
+      bar.setAttribute('data-kb-hidden', '1');
+      bar.style.visibility = 'hidden';
+      bar.style.pointerEvents = 'none';
+      bar.setAttribute('aria-hidden', 'true');
+    } else {
+      bar.removeAttribute('data-kb-hidden');
+      bar.style.visibility = '';
+      bar.style.pointerEvents = '';
+      bar.removeAttribute('aria-hidden');
+    }
   }
 
   /** Ajusta a altura do dropdown ao espaço livre abaixo do campo (acima do teclado). */
@@ -3434,7 +3474,18 @@
       itemName,
       it.description != null ? String(it.description) : '',
     );
-    $('modalServiceType').value = normalizeServiceType(it.service_type);
+    const typeEl = $('modalServiceType');
+    const normalizedType = normalizeServiceType(it.service_type);
+    if (typeEl) {
+      typeEl.value = normalizedType;
+      // If the option didn't stick (legacy value), force Sand & Finish / category match.
+      if (typeEl.value !== normalizedType) {
+        const opt = Array.from(typeEl.options || []).find(
+          (o) => normalizeServiceType(o.value) === normalizedType,
+        );
+        if (opt) typeEl.value = opt.value;
+      }
+    }
     $('modalServiceUnit').value = it.unit_type || 'sq_ft';
     $('modalServiceQty').value = String(it.quantity ?? 1);
     const cost = it.cost_price != null ? Number(it.cost_price) : null;
@@ -3467,41 +3518,44 @@
     qbServiceFieldScrollTimers = [];
   }
 
-  function getBuilderMainScroller() {
-    const nameEl = $('modalServiceName');
-    if (nameEl) {
-      const main = nameEl.closest('.builder-main');
+  function getBuilderMainScroller(fromEl) {
+    const seed = fromEl || $('modalServiceName') || document.activeElement;
+    if (seed && seed.closest) {
+      const main = seed.closest('.builder-main');
       if (main) return main;
     }
     return document.querySelector('.builder-main');
   }
 
-  /** Fixa o campo Nome do serviço no topo da área visível (acima do teclado). */
-  function scrollServiceNameIntoView(opts) {
+  /** Mantém o campo focado visível acima do teclado (nome, qtd, preço, termos, etc.). */
+  function scrollFocusedFieldIntoView(opts) {
     const force = opts && opts.force;
-    const el = $('modalServiceName');
-    const wrap = $('modalServiceSearchWrap') || el;
-    if (!el || document.activeElement !== el) return;
-    const scroller = getBuilderMainScroller();
+    const el = document.activeElement;
+    if (!isEditableFocusTarget(el)) return;
+    syncActionBarForKeyboard();
+    const wrap =
+      (el.id === 'modalServiceName' && ($('modalServiceSearchWrap') || el)) ||
+      el.closest('.qb-row__qty, .qb-row__rate, .qb-item-editor__field, .qb-notes__box, label') ||
+      el;
+    const scroller = getBuilderMainScroller(el);
     if (!scroller) {
-      el.scrollIntoView({ behavior: force ? 'auto' : 'smooth', block: 'start', inline: 'nearest' });
+      el.scrollIntoView({ behavior: force ? 'auto' : 'smooth', block: 'center', inline: 'nearest' });
       return;
     }
 
     const { vvTop, vvH, bottomReserve } = getServiceFieldViewportMetrics();
-    const targetTop = vvTop + 12;
-    const anchor = wrap.getBoundingClientRect();
-    let delta = anchor.top - targetTop;
-
-    // Mantém folga clara entre o campo e o teclado
+    const targetTop = vvTop + 16;
     const safeBottom = vvTop + vvH - bottomReserve;
-    const fieldBottom = el.getBoundingClientRect().bottom;
-    if (fieldBottom > safeBottom) {
-      delta += fieldBottom - safeBottom;
+    const rect = wrap.getBoundingClientRect();
+    let delta = 0;
+    if (rect.top < targetTop) {
+      delta = rect.top - targetTop;
+    } else if (rect.bottom > safeBottom) {
+      delta = rect.bottom - safeBottom;
     }
 
     if (!force && Math.abs(delta) < 6) {
-      fitModalServiceResultsHeight();
+      if (el.id === 'modalServiceName') fitModalServiceResultsHeight();
       return;
     }
 
@@ -3511,28 +3565,36 @@
     });
 
     requestAnimationFrame(() => {
-      fitModalServiceResultsHeight();
+      if (el.id === 'modalServiceName') fitModalServiceResultsHeight();
       const after = wrap.getBoundingClientRect();
-      const drift = after.top - targetTop;
-      if (Math.abs(drift) > 8) {
-        scroller.scrollTop = Math.max(0, scroller.scrollTop + drift);
-        fitModalServiceResultsHeight();
+      let fix = 0;
+      if (after.top < targetTop) fix = after.top - targetTop;
+      else if (after.bottom > safeBottom) fix = after.bottom - safeBottom;
+      if (Math.abs(fix) > 6) {
+        scroller.scrollTop = Math.max(0, scroller.scrollTop + fix);
+        if (el.id === 'modalServiceName') fitModalServiceResultsHeight();
       }
       const box = $('modalServiceResults');
-      if (box && !box.classList.contains('hidden')) {
+      if (el.id === 'modalServiceName' && box && !box.classList.contains('hidden')) {
         const blockBottom = Math.max(after.bottom, box.getBoundingClientRect().bottom);
-        const visibleBottom = vvTop + vvH - bottomReserve;
-        if (blockBottom > visibleBottom + 4) {
-          scroller.scrollTop = Math.max(0, scroller.scrollTop + (blockBottom - visibleBottom));
+        if (blockBottom > safeBottom + 4) {
+          scroller.scrollTop = Math.max(0, scroller.scrollTop + (blockBottom - safeBottom));
           fitModalServiceResultsHeight();
         }
       }
     });
   }
 
-  function ensureServiceNameVisibleForKeyboard() {
+  function scrollServiceNameIntoView(opts) {
+    scrollFocusedFieldIntoView(opts);
+  }
+
+  function ensureFocusedFieldVisibleForKeyboard() {
     clearServiceFieldScrollTimers();
-    const run = () => scrollServiceNameIntoView({ force: true });
+    const run = () => {
+      syncActionBarForKeyboard();
+      scrollFocusedFieldIntoView({ force: true });
+    };
     requestAnimationFrame(run);
     // iOS/iPadOS abre o teclado com atraso — repetir após animação
     [80, 200, 360, 560, 800].forEach((ms) => {
@@ -3540,21 +3602,45 @@
     });
   }
 
-  function onServiceNameVisualViewportChange() {
-    if (document.activeElement !== $('modalServiceName')) return;
-    scrollServiceNameIntoView();
+  function ensureServiceNameVisibleForKeyboard() {
+    ensureFocusedFieldVisibleForKeyboard();
+  }
+
+  function onQuoteEditorVisualViewportChange() {
+    syncActionBarForKeyboard();
+    if (!isEditableFocusTarget(document.activeElement)) return;
+    scrollFocusedFieldIntoView();
   }
 
   function wireServiceNameKeyboardScroll() {
     if (qbServiceViewportWired) return;
     qbServiceViewportWired = true;
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', onServiceNameVisualViewportChange);
-      window.visualViewport.addEventListener('scroll', onServiceNameVisualViewportChange);
+      window.visualViewport.addEventListener('resize', onQuoteEditorVisualViewportChange);
+      window.visualViewport.addEventListener('scroll', onQuoteEditorVisualViewportChange);
     }
     window.addEventListener('orientationchange', () => {
-      if (document.activeElement === $('modalServiceName')) ensureServiceNameVisibleForKeyboard();
+      if (isEditableFocusTarget(document.activeElement)) ensureFocusedFieldVisibleForKeyboard();
     });
+    document.addEventListener(
+      'focusin',
+      (e) => {
+        if (!isEditableFocusTarget(e.target)) return;
+        if (!e.target.closest || !e.target.closest('.qb-page, .builder-main, #addItemPanel, #itemsList, .qb-notes')) {
+          return;
+        }
+        ensureFocusedFieldVisibleForKeyboard();
+      },
+      true,
+    );
+    document.addEventListener(
+      'focusout',
+      () => {
+        clearServiceFieldScrollTimers();
+        setTimeout(() => syncActionBarForKeyboard(), 120);
+      },
+      true,
+    );
   }
 
   function ensureServiceDescRichText() {
@@ -3586,6 +3672,13 @@
     const confirmBtn = $('modalConfirmService');
     if (confirmBtn) confirmBtn.textContent = inlineEditIdx >= 0 ? 'Salvar' : 'Adicionar';
     scheduleModalServiceSearch();
+    requestAnimationFrame(() => {
+      try {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      } catch (_) {
+        /* ignore */
+      }
+    });
     const nameEl = $('modalServiceName');
     if (nameEl) {
       nameEl.focus({ preventScroll: true });
@@ -4810,7 +4903,8 @@
     $('status').value = qStatus;
     loadedQuoteStatus = qStatus;
     $('expirationDate').value = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
-    $('notes').value = q.notes || '';
+    loadedQuoteNotes = q.notes || null;
+    if ($('notes')) $('notes').value = loadedQuoteNotes || '';
     $('terms').value = q.terms_conditions || q.terms || '';
     $('discountType').value = q.discount_type || 'percentage';
     $('discountValue').value = q.discount_value ?? 0;
@@ -4907,7 +5001,7 @@
       job_address: jobAddr || null,
       status: $('status').value,
       expiration_date: $('expirationDate').value || null,
-      notes: $('notes').value || null,
+      notes: $('notes') ? ($('notes').value || null) : loadedQuoteNotes,
       terms_conditions: $('terms').value || null,
       discount_type: dt,
       discount_value: dv,

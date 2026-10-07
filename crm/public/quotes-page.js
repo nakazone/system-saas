@@ -131,10 +131,21 @@
     }
     list.innerHTML = rows
       .map((q, i) => {
-        const client = escapeHtml(q.customer_name || q.lead_name || "—");
+        const clientName =
+          q.builder_name ||
+          q.builder_company ||
+          q.customer_name ||
+          q.customer_company ||
+          q.lead_name ||
+          "";
+        const client = escapeHtml(clientName || "—");
         const qnum = escapeHtml(q.quote_number != null ? String(q.quote_number) : "—");
+        const addrRaw = String(q.job_address || q.property_label || "").trim();
         const noteRaw = String(q.job_name || q.internal_notes || "").trim();
-        const note = noteRaw ? escapeHtml(noteRaw.length > 80 ? noteRaw.slice(0, 77) + "…" : noteRaw) : "";
+        const secondaryRaw = addrRaw || noteRaw;
+        const secondary = secondaryRaw
+          ? escapeHtml(secondaryRaw.length > 80 ? secondaryRaw.slice(0, 77) + "…" : secondaryRaw)
+          : "";
         const amt = Number(q.total_amount || 0).toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
@@ -147,7 +158,7 @@
               year: "numeric",
             })
           : "—";
-        const av = escapeHtml(initials(q.customer_name || q.lead_name || "OR"));
+        const av = escapeHtml(initials(clientName || "OR"));
         return `
         <article class="om-swipe quote-swipe customers-row customers-row--quote" role="listitem" tabindex="0" data-id="${escapeHtml(String(q.id))}" style="--av-hue:${(i * 47) % 360}">
           <div class="om-swipe__actions" aria-hidden="true">
@@ -165,7 +176,7 @@
                 <div class="customers-row__name" title="${client}">${client}</div>
                 <div class="customers-row__refs">
                   <span class="customers-ref">#${qnum}</span>
-                  ${note ? `<span class="customers-ref customers-ref--note" title="${note}">${note}</span>` : ""}
+                  ${secondary ? `<span class="customers-ref customers-ref--note" title="${secondary}">${secondary}</span>` : ""}
                 </div>
               </div>
             </div>

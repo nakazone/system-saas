@@ -392,7 +392,6 @@
     const discVal = Number(q.discount_value) || 0;
     const discDisplay = discType === '$' ? money(discVal) : `${discVal}%`;
     const terms = formatRichHtml((q.terms_conditions && String(q.terms_conditions).trim()) || defaultTerms());
-    const notes = q.notes ? formatRichHtml(String(q.notes)) : '';
 
     const panelMeta = [
       issue ? `<p>Issue: ${escapeHtml(issue)}</p>` : '',
@@ -456,15 +455,6 @@
         <h3 class="qp-block-title">Terms &amp; conditions</h3>
         <p class="qp-block-text">${terms}</p>
       </section>
-
-      ${
-        notes
-          ? `<section class="qp-notes">
-        <h3 class="qp-block-title">Notes</h3>
-        <p class="qp-block-text">${notes}</p>
-      </section>`
-          : ''
-      }
 
       ${renderSignaturesBlock(q, ownerSig)}
     `;

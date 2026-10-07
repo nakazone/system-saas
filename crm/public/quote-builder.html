@@ -1780,7 +1780,7 @@
   </style>
   <link rel="stylesheet" href="crm-toast.css" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261002-pdfclose" />
-  <link rel="stylesheet" href="quote-builder-v2.css?v=20261002-incl1" />
+  <link rel="stylesheet" href="quote-builder-v2.css?v=20261007-qb1" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
 <body class="qb-dashboard-inner dashboard-app-body om-app qb-sidebar-page om-no-dock sidebar-collapsed">
@@ -2161,28 +2161,30 @@
                     </div>
                   </div>
                 </div>
+                <div class="qb-item-editor__more-grid qb-item-editor__type-row">
+                  <div class="qb-item-editor__field">
+                    <label for="modalServiceType">Tipo de trabalho</label>
+                    <select id="modalServiceType" class="qb-item-editor__select">
+                      <option value="Supply">Supply</option>
+                      <option value="Installation">Installation</option>
+                      <option value="Sand & Finishing">Sand &amp; Finish</option>
+                    </select>
+                  </div>
+                  <div class="qb-item-editor__field">
+                    <label for="modalServiceUnit">Unidade</label>
+                    <select id="modalServiceUnit" class="qb-item-editor__select">
+                      <option value="sq_ft">Sq Ft</option>
+                      <option value="linear_ft">Linear Ft</option>
+                      <option value="inches">Inches</option>
+                      <option value="fixed">Fixed</option>
+                      <option value="box">Box</option>
+                      <option value="piece">Piece</option>
+                    </select>
+                  </div>
+                </div>
                 <details class="qb-item-editor__more">
-                  <summary>Mais opções (tipo, unidade, nota)</summary>
+                  <summary>Mais opções (nota na linha)</summary>
                   <div class="qb-item-editor__more-grid">
-                    <div class="qb-item-editor__field">
-                      <label for="modalServiceType">Tipo de trabalho</label>
-                      <select id="modalServiceType" class="qb-item-editor__select">
-                        <option value="Supply">Supply</option>
-                        <option value="Installation">Installation</option>
-                        <option value="Sand & Finishing">Sand &amp; Finish</option>
-                      </select>
-                    </div>
-                    <div class="qb-item-editor__field">
-                      <label for="modalServiceUnit">Unidade</label>
-                      <select id="modalServiceUnit" class="qb-item-editor__select">
-                        <option value="sq_ft">Sq Ft</option>
-                        <option value="linear_ft">Linear Ft</option>
-                        <option value="inches">Inches</option>
-                        <option value="fixed">Fixed</option>
-                        <option value="box">Box</option>
-                        <option value="piece">Piece</option>
-                      </select>
-                    </div>
                     <div class="qb-item-editor__field" style="grid-column: 1 / -1">
                       <label for="inlineItemNote">Nota na linha (PDF)</label>
                       <input type="text" id="inlineItemNote" class="qb-item-editor__input" placeholder="Opcional" />
@@ -2201,11 +2203,7 @@
             </section>
           </div>
 
-          <section class="qb-notes" aria-label="Notas e termos">
-            <div class="qb-notes__box">
-              <h3 class="qb-notes__t">Notas para o cliente</h3>
-              <textarea id="notes" rows="8" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Ex.: preço inclui mover os móveis do andar principal"></textarea>
-            </div>
+          <section class="qb-notes" aria-label="Termos e condições">
             <div class="qb-notes__box">
               <h3 class="qb-notes__t">Termos e condições</h3>
               <textarea id="terms" rows="8" class="w-full text-sm border border-slate-200 rounded-lg p-2" placeholder="Termos e condições"></textarea>
@@ -2674,7 +2672,7 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261006-note1"></script>
+  <script src="quote-builder.js?v=20261007-qb1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

@@ -549,17 +549,6 @@ export async function buildQuotePdfBuffer(opts) {
     y -= lineH - 1;
   }
 
-  if (quote.notes) {
-    y -= 10;
-    page.drawText('Notes', { x: margin, y, size: 9, font: fontBold, color: PAL.secondaryDark });
-    y -= lineH + 2;
-    for (const line of wrap(quote.notes, contentW, 7.5)) {
-      ensureSpace(50);
-      page.drawText(line, { x: margin, y, size: 7.5, font, color: textColor });
-      y -= lineH - 1;
-    }
-  }
-
   const embedSigPng = async (buf) => {
     if (!buf || !buf.length) return null;
     try {
