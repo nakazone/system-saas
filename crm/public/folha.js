@@ -270,6 +270,7 @@
   }
   function dayRows(r) {
     if (!r.days.length) return '<div class="fo-empty" style="padding:10px">Nenhum dia neste ciclo.</div>';
+    const paid = Boolean(r.payment);
     return r.days
       .map((d) => {
         const time = d.kind === "line" ? "Escritório" : d.clock_in_label ? `${d.clock_in_label}–${d.clock_out_label || "…"}` : "—";
@@ -283,13 +284,27 @@
             : d.source === "manual"
               ? '<span class="fo-tag">Lançado pelo escritório</span>'
               : "";
-        return `<div class="fo-day" data-day="${esc(d.id)}" data-kind="${d.kind}" role="button" tabindex="0">
+        const body = `<div class="fo-day${st.manage && !paid && d.kind !== "line" ? " om-swipe__body" : ""}" data-day="${esc(d.id)}" data-kind="${d.kind}" role="button" tabindex="0">
           <span class="fo-day__d">${esc(d.date_label)}</span>
           <span class="fo-day__t">${esc(time)}${d.worked_minutes ? ` · ${hm(d.worked_minutes)}` : ""}</span>
           <span class="fo-day__j">${d.kind === "line" ? `<span>${esc(d.note || "Lançado na grade")}</span>` : jobsShort(d.jobs)}${dwTag}${ot}${flags}</span>
           <span class="fo-day__p">${d.kind === "line" ? '<span class="fo-pill fo-pill--muted">Grade</span>' : statusPill(d)}</span>
           <span class="fo-day__v">${money(d.amount)}</span>
         </div>`;
+        // Mobile: swipe left → Editar / Excluir (office-launched diárias).
+        if (!(st.manage && !paid && d.kind !== "line")) return body;
+        const canDel = d.source === "manual";
+        return `<article class="om-swipe fo-day-swipe">
+          <div class="om-swipe__actions" aria-hidden="true">
+            <button type="button" class="om-swipe__act--edit" data-day-edit="${esc(d.id)}">Editar</button>
+            ${
+              canDel
+                ? `<button type="button" class="om-swipe__act--delete" data-day-del="${esc(d.id)}" data-day-label="${esc(d.date_label)}">Excluir</button>`
+                : ""
+            }
+          </div>
+          ${body}
+        </article>`;
       })
       .join("");
   }
@@ -702,11 +717,11 @@
     `<header class="fo-sheet__hd"><div><h2 id="foSheetTitle">${title}</h2>${sub ? `<p>${sub}</p>` : ""}</div><button type="button" class="fo-x" data-close aria-label="Fechar">×</button></header>`;
 
   // ------------------------------------------------------------ dia
-  async function openDay(id) {
+  async function openDay(id, mode) {
     openSheet(`${sheetHead("Dia de trabalho", "Carregando…")}<div class="fo-sheet__bd"></div>`);
     try {
       const j = await api(`/api/folha/dias/${id}`);
-      renderDay(j.data);
+      renderDay(j.data, mode === "edit" || mode === "return" ? mode : undefined);
     } catch (e) {
       openSheet(`${sheetHead("Dia de trabalho")}<div class="fo-sheet__bd"><div class="fo-alert fo-alert--red">${esc(e.message)}</div></div>`);
     }
@@ -778,8 +793,8 @@
     else if (mode === "return") foot = `<button type="button" class="fo-btn fo-btn--ghost" data-day-mode="view">Cancelar</button><button type="button" class="fo-btn fo-btn--ink" data-day-return-go>Devolver</button>`;
     else if (canAct && d.status !== "in_progress") {
       const leftBtn =
-        st.admin && d.source === "manual"
-          ? '<button type="button" class="fo-btn fo-btn--ghost fo-btn--danger" data-day-revert title="Remove o lançamento e libera a data">Reverter</button>'
+        d.source === "manual"
+          ? '<button type="button" class="fo-btn fo-btn--ghost fo-btn--danger" data-day-revert title="Remove o lançamento e libera a data">Excluir</button>'
           : d.status !== "returned"
             ? '<button type="button" class="fo-btn fo-btn--ghost fo-btn--danger" data-day-mode="return">Devolver</button>'
             : "";
@@ -850,18 +865,23 @@
       notify(e.message, "error");
     }
   }
-  async function dayRevert() {
-    const d = $("foSheet")._day;
-    if (!d || !st.admin || d.source !== "manual") return;
-    if (!confirm(`Reverter a diária de ${d.date_label}?\n\nO lançamento some da folha e a data fica livre para um novo lançamento.`)) return;
+  async function dayDelete(id, dateLabel) {
+    if (!st.manage || !id) return;
+    const label = dateLabel || "este dia";
+    if (!confirm(`Excluir a diária de ${label}?\n\nO lançamento some da folha e a data fica livre para um novo lançamento.`)) return;
     try {
-      await api(`/api/folha/dias/${d.id}/reverter`, { method: "POST", body: "{}" });
-      notify("Diária revertida — data liberada.", "success");
+      await api(`/api/folha/dias/${id}/reverter`, { method: "POST", body: "{}" });
+      notify("Diária excluída — data liberada.", "success");
       closeSheet();
       refreshAfterChange();
     } catch (e) {
       notify(e.message, "error");
     }
+  }
+  async function dayRevert() {
+    const d = $("foSheet")._day;
+    if (!d || !st.manage || d.source !== "manual") return;
+    return dayDelete(d.id, d.date_label);
   }
   async function daySave() {
     const d = $("foSheet")._day;
@@ -1684,6 +1704,12 @@
     if ((b = el("[data-q-go]"))) return quickGo(b);
     if (el("[data-q-sheet]")) return openQuickSheet();
     if (el("[data-payall]")) return openPay(weekRows().filter(canPay).map((r) => r.id));
+    if ((b = el("[data-day-edit]"))) {
+      return openDay(b.getAttribute("data-day-edit"), "edit");
+    }
+    if ((b = el("[data-day-del]"))) {
+      return dayDelete(b.getAttribute("data-day-del"), b.getAttribute("data-day-label"));
+    }
     if ((b = el("[data-day]"))) {
       if (b.getAttribute("data-kind") === "line") return notify("Lançado direto na grade da semana (sem dia de trabalho). Ajuste na grade antiga ou lance o dia de novo.", "info");
       return openDay(b.getAttribute("data-day"));
@@ -1900,6 +1926,9 @@
     if (!st.manage) document.querySelectorAll("[data-manage]").forEach((el) => (el.hidden = true));
     // Overlays live on <body>: inside the main column they sit under the app's bottom nav.
     ["foScrim", "foSheet", "foPayBar"].forEach((id) => document.body.appendChild($(id)));
+    if (window.OmGestures && typeof window.OmGestures.bindSwipeRow === "function") {
+      window.OmGestures.bindSwipeRow($("foSemana"), { openX: -148 });
+    }
     readHash();
     document.addEventListener("click", onClick);
     document.addEventListener("change", onChange);

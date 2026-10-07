@@ -121,7 +121,10 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-flag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 800; background: var(--red-soft); color: var(--red); white-space: nowrap; }
 
 /* Expanded days */
-.fo-days { padding: 4px 0 6px 54px; }
+.fo-days { padding: 4px 0 6px 54px; display: grid; gap: 4px; }
+.fo-day-swipe { border-radius: 10px; background: #fff; }
+.fo-day-swipe .fo-day { border-radius: 10px; background: var(--cream, #f7f4ee); }
+.fo-day-swipe.om-swipe--open .fo-day { background: #fff; }
 .fo-day { display: grid; grid-template-columns: 84px 150px 1fr auto auto; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; cursor: pointer; font-size: 13.5px; }
 .fo-day:hover { background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
 .fo-day__d { font-weight: 800; }
@@ -376,6 +379,11 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-mcard .fo-days { padding: 8px 0 0; }
 .fo-mcard .fo-day { grid-template-columns: 62px 1fr auto; padding: 8px 6px; }
 .fo-mcard .fo-day__j, .fo-mcard .fo-day__p { display: none; }
+.fo-mcard .fo-day-swipe .fo-day { background: #fff; }
+@media (max-width: 900px) {
+  .fo-days { padding-left: 0; }
+  .fo-day-swipe .om-swipe__actions { min-width: 148px; }
+}
 
 /* Semana: período no topo, barra única de lançamento, lista */
 body.fo-page #omDock, body.fo-page .om-dock { display: none !important; }
