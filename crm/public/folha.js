@@ -1130,8 +1130,21 @@
     sheet._confEmail = email;
     sheet._confPhoneLabel = phone;
   }
+  function confSendPopEl() {
+    const sh = $("foSheet");
+    if (!sh) return null;
+    let pop = sh.querySelector("#foConfSendPop");
+    if (!pop) {
+      pop = document.createElement("div");
+      pop.id = "foConfSendPop";
+      pop.className = "fo-pop";
+      pop.hidden = true;
+      sh.appendChild(pop);
+    }
+    return pop;
+  }
   function closeConfSendPop() {
-    const pop = $("foConfSendPop");
+    const pop = confSendPopEl() || $("foConfSendPop");
     if (!pop || pop.hidden) return;
     pop.classList.remove("is-open");
     setTimeout(() => {
@@ -1142,11 +1155,14 @@
   }
   function openConfSendPop() {
     const sh = $("foSheet");
+    if (!sh || sh.hidden) return;
     const email = sh._confEmail || "";
     const phone = sh._confPhoneLabel || "";
     const digits = sh._confPhone || "";
-    const pop = $("foConfSendPop");
+    const pop = confSendPopEl();
     if (!pop) return;
+    // Drawer vive dentro do card de conferência e sobe da base dele.
+    if (pop.parentElement !== sh) sh.appendChild(pop);
     pop.classList.remove("is-open");
     pop.innerHTML = `
       <button type="button" class="fo-pop__backdrop" data-conf-send-close aria-label="Fechar"></button>
@@ -2185,10 +2201,13 @@
     await loadPayMethods();
     if (!st.manage) document.querySelectorAll("[data-manage]").forEach((el) => (el.hidden = true));
     // Overlays live on <body>: inside the main column they sit under the app's bottom nav.
-    ["foScrim", "foSheet", "foConfSendPop", "foPayBar"].forEach((id) => {
+    ["foScrim", "foSheet", "foPayBar"].forEach((id) => {
       const node = $(id);
       if (node) document.body.appendChild(node);
     });
+    // foConfSendPop vive dentro do foSheet (sobe do card de conferência).
+    const orphanPop = document.getElementById("foConfSendPop");
+    if (orphanPop && orphanPop.parentElement !== $("foSheet")) orphanPop.remove();
     if (window.OmGestures && typeof window.OmGestures.bindSwipeRow === "function") {
       window.OmGestures.bindSwipeRow($("foSemana"), { openX: -148 });
     }
