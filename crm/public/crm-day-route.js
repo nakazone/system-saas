@@ -12,7 +12,7 @@
 (function () {
   if (window.__crmDayRoute) return;
 
-  const CSS_HREF = "crm-day-route.css?v=20261006-route4";
+  const CSS_HREF = "crm-day-route.css?v=20261006-route5";
   let root = null;
   let map = null;
   let routePolylines = [];
@@ -21,6 +21,7 @@
   let mapsReady = null;
   let originAcAttached = false;
   let RouteClass = null;
+  let routeTimer = null;
 
   function $(sel, el) {
     return (el || document).querySelector(sel);
@@ -46,12 +47,12 @@
     const base = document.querySelector('script[src*="crm-day-route"]');
     if (base && base.src) {
       try {
-        link.href = new URL("../crm-day-route.css?v=20261006-route4", base.src).href;
+        link.href = new URL("../crm-day-route.css?v=20261006-route5", base.src).href;
       } catch (_) {
-        link.href = "/crm-day-route.css?v=20261006-route4";
+        link.href = "/crm-day-route.css?v=20261006-route5";
       }
     } else {
-      link.href = "/crm-day-route.css?v=20261006-route4";
+      link.href = "/crm-day-route.css?v=20261006-route5";
     }
     document.head.appendChild(link);
   }
@@ -198,15 +199,26 @@
         if (addr) window.open(nativePlaceUrl(addr), "_blank", "noopener");
       }
     });
-    $("#drGo", root).addEventListener("click", () => drawRoute().catch((err) => notify(err.message || "Falha na rota", "error")));
+    $("#drGo", root).addEventListener("click", () => {
+      drawRoute({ notifyError: true }).catch(() => {});
+    });
     $("#drSaveOrigin", root).addEventListener("click", () => saveOrigin().catch((err) => notify(err.message || "Não salvou", "error")));
     $("#drOrigin", root).addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        drawRoute().catch((err) => notify(err.message || "Falha na rota", "error"));
+        drawRoute({ notifyError: true }).catch(() => {});
       }
     });
     return root;
+  }
+
+  function setHint(text, kind) {
+    const el = $("#drHint", root);
+    if (!el) return;
+    el.textContent = text || "";
+    el.hidden = !text;
+    el.classList.remove("dr-hint--ok", "dr-hint--err", "dr-hint--busy");
+    if (kind) el.classList.add("dr-hint--" + kind);
   }
 
   function mapsLoaded() {
@@ -330,16 +342,20 @@
   function routeErrorMessage(err) {
     const raw = String((err && (err.message || err.status || err)) || "");
     const lower = raw.toLowerCase();
-    if (/zero_results|not_found|no route|não|nenhuma rota/i.test(raw) || lower.includes("zero_results")) {
+    if (/zero_results|not_found|no route|nenhuma rota|não achamos/i.test(raw) || lower.includes("zero_results")) {
       return "Não achamos rota de carro entre esses pontos.";
     }
-    if (/request_denied|permission|not enabled|has not been used|api.*disabled|billing/i.test(raw)) {
-      return "Ative a Routes API no Google Cloud e permita-a na chave Maps (não use Directions API — ela foi descontinuada).";
+    if (/request_denied|permission|not enabled|has not been used|api.*disabled|billing|routes api/i.test(raw)) {
+      return "Ative a Routes API no Google Cloud e permita-a na chave Maps.";
     }
     if (/over_query|quota|rate/i.test(raw)) return "Limite da API de rotas atingido. Tente de novo em instantes.";
-    if (/invalid/i.test(raw)) return "Endereço de partida ou paradas inválidos.";
+    if (/invalid_request|invalid argument/i.test(raw)) return "Endereço de partida ou paradas inválidos.";
     if (/tempo esgotado/i.test(raw)) return raw;
-    return raw || "Falha ao calcular a rota.";
+    // Avoid dumping opaque Google objects / stacking our own tip text as "Erro".
+    if (!raw || raw === "[object Object]" || /toque num endereço/i.test(raw)) {
+      return "Falha ao calcular a rota.";
+    }
+    return raw.length > 180 ? "Falha ao calcular a rota." : raw;
   }
 
   function clearMarkers() {
@@ -365,6 +381,20 @@
     const bounds = new google.maps.LatLngBounds();
     path.forEach((pt) => bounds.extend(pt));
     if (!bounds.isEmpty()) map.fitBounds(bounds, 48);
+  }
+
+  function drawPathPolyline(path) {
+    if (!map || !path || !path.length) return null;
+    const poly = new google.maps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: "#c1652f",
+      strokeOpacity: 0.9,
+      strokeWeight: 5,
+      map,
+    });
+    routePolylines.push(poly);
+    return poly;
   }
 
   function renderList() {
@@ -417,13 +447,13 @@
   function ensureMapCanvas() {
     const canvas = $("#drMap", root);
     if (!map) {
+      // No mapId — keeps classic Marker + Polyline working without Advanced Markers.
       map = new google.maps.Map(canvas, {
         zoom: 11,
         center: { lat: 30.27, lng: -97.74 },
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-        mapId: "DEMO_MAP_ID",
       });
     } else {
       try {
@@ -432,22 +462,23 @@
     }
   }
 
-  async function drawRoute() {
+  async function drawRoute(opts) {
+    opts = opts || {};
     const origin = ($("#drOrigin", root).value || "").trim();
     const stops = (state.stops || []).filter((s) => s.address);
     state.origin = origin;
     renderList();
     updateNativeLink(origin, stops);
-    $("#drHint", root).textContent = "Calculando rota…";
+    setHint("Calculando rota…", "busy");
     $("#drSum", root).textContent = "";
 
     if (!stops.length) {
-      $("#drHint", root).textContent = "Sem endereços para traçar.";
+      setHint("Sem endereços para traçar.", "err");
       return;
     }
     if (!origin) {
-      $("#drHint", root).textContent = "Informe o ponto de partida para a rota de carro.";
-      notify("Informe o ponto de partida.", "error");
+      setHint("Informe o ponto de partida para a rota de carro.", "err");
+      if (opts.notifyError) notify("Informe o ponto de partida.", "error");
       return;
     }
 
@@ -458,7 +489,7 @@
       clearRoutePolylines();
 
       const dest = stops[stops.length - 1].address;
-      const intermediates = stops.slice(0, -1).map((s) => s.address);
+      const intermediates = stops.slice(0, -1).map((s) => ({ location: s.address }));
       const request = {
         origin,
         destination: dest,
@@ -467,36 +498,61 @@
       };
       if (intermediates.length) request.intermediates = intermediates;
 
+      if (routeTimer) clearTimeout(routeTimer);
       const result = await Promise.race([
         RouteClass.computeRoutes(request),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo esgotado ao calcular a rota.")), 20000)),
+        new Promise((_, reject) => {
+          routeTimer = setTimeout(() => reject(new Error("Tempo esgotado ao calcular a rota.")), 20000);
+        }),
       ]);
+      if (routeTimer) {
+        clearTimeout(routeTimer);
+        routeTimer = null;
+      }
+
       const route = result && result.routes && result.routes[0];
       if (!route) throw new Error("Não achamos rota de carro entre esses pontos.");
 
-      const polys =
-        (route.createPolylines &&
-          route.createPolylines({
-            polylineOptions: { strokeColor: "#c1652f", strokeWeight: 5, strokeOpacity: 0.9 },
-          })) ||
-        [];
-      polys.forEach((p) => {
-        p.setMap(map);
-        routePolylines.push(p);
-      });
+      let drew = false;
+      try {
+        const polys =
+          (route.createPolylines &&
+            route.createPolylines({
+              polylineOptions: { strokeColor: "#c1652f", strokeWeight: 5, strokeOpacity: 0.9 },
+            })) ||
+          [];
+        polys.forEach((p) => {
+          p.setMap(map);
+          routePolylines.push(p);
+          drew = true;
+        });
+      } catch (_) {
+        drew = false;
+      }
+      if (!drew && route.path && route.path.length) {
+        drawPathPolyline(route.path);
+        drew = true;
+      }
+      if (!drew) throw new Error("Rota calculada, mas o mapa não desenhou o trajeto.");
 
       if (route.path && route.path.length) fitMapToPath(route.path);
-      plotStopMarkers(origin, stops);
+      try {
+        plotStopMarkers(origin, stops);
+      } catch (_) {}
 
       const meters = route.distanceMeters || 0;
       const mins = Math.round((route.durationMillis || 0) / 60000);
       const km = meters / 1000;
-      const hm = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins || 1} min`;
+      const hm = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${Math.max(1, mins)} min`;
       $("#drSum", root).textContent = `Rota · ${km < 10 ? km.toFixed(1) : Math.round(km)} km · ${hm}`;
-      $("#drHint", root).textContent = "Toque num endereço da lista para abrir no Maps do celular.";
+      setHint("Rota pronta. Toque num endereço para abrir no Maps.", "ok");
     } catch (err) {
+      if (routeTimer) {
+        clearTimeout(routeTimer);
+        routeTimer = null;
+      }
       const msg = routeErrorMessage(err);
-      $("#drHint", root).textContent = msg + " Use Abrir no Maps.";
+      setHint(msg + " Use Abrir no Maps.", "err");
       $("#drSum", root).textContent = "";
       updateNativeLink(origin, stops);
       try {
@@ -504,7 +560,7 @@
         clearRoutePolylines();
         plotStopMarkers(origin, stops);
       } catch (_) {}
-      notify(msg, "error");
+      if (opts.notifyError) notify(msg, "error");
     }
   }
 
@@ -524,11 +580,10 @@
     $("#drSub", root).textContent = state.subtitle || "";
     $("#drOrigin", root).value = state.origin || "";
     $("#drSum", root).textContent = "";
-    $("#drHint", root).textContent = "Informe a partida e toque em Traçar rota.";
+    setHint("Informe a partida e toque em Traçar rota.", "busy");
     renderList();
     updateNativeLink(state.origin, state.stops);
 
-    // Autocomplete + map in parallel; autocomplete must await so Photon/Places attach.
     const acPromise = attachOriginAutocomplete();
 
     try {
@@ -540,10 +595,10 @@
         } catch (_) {}
       }, 80);
       await acPromise;
-      if (state.origin && state.stops.length) await drawRoute();
+      if (state.origin && state.stops.length) await drawRoute({ notifyError: false });
       else if (state.stops.length) plotStopMarkers("", state.stops);
     } catch (err) {
-      $("#drHint", root).textContent = (err && err.message) || "Mapa indisponível — use Abrir no Maps.";
+      setHint(routeErrorMessage(err) || "Mapa indisponível — use Abrir no Maps.", "err");
       updateNativeLink(state.origin, state.stops);
       await acPromise.catch(() => {});
     }
