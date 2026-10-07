@@ -190,6 +190,16 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 /* Relatório de conferência: altura fixa para o corpo rolar de forma confiável */
 .fo-sheet--report {
   height: min(820px, calc(100dvh - 32px));
+  contain: layout paint;
+}
+.fo-sheet--report.is-send-open {
+  /* Geometria travada via inline style em JS — evita saltos com teclado/dvh */
+  transition: none !important;
+}
+.fo-sheet--report.is-send-open .fo-sheet__bd {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 .fo-sheet__hd { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 12px; background: #fff; border-bottom: 1px solid var(--line); border-radius: 18px 18px 0 0; flex: none; }
 .fo-sheet__hd h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; }

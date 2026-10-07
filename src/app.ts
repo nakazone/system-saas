@@ -26,6 +26,7 @@ import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { invoicesRouter } from "./modules/invoices/routes.js";
 import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
 import { publicJobsRouter } from "./modules/work-orders/public-routes.js";
+import { publicFolhaRouter } from "./modules/folha/public-routes.js";
 import { scheduleCalendarFeedPublicRouter } from "./crm/routes/schedule-calendar-feed.js";
 import { publicPortfolioRouter } from "./modules/portfolio/public-routes.js";
 import { paymentSchedulesRouter } from "./modules/invoices/schedule-routes.js";
@@ -208,6 +209,8 @@ export function createApp() {
   app.use("/public/jobs", publicJobsRouter);
   // Short worker ticket links (sent by WhatsApp/SMS): /t/<token>
   app.use("/t", publicJobsRouter);
+  // Folha conference ticket (WhatsApp/SMS): /f/<token>?w=YYYY-MM-DD
+  app.use("/f", publicFolhaRouter);
   // Schedule ICS subscription (Apple Calendar / Google / Outlook): /feeds/schedule/<token>.ics
   app.use("/feeds/schedule", scheduleCalendarFeedPublicRouter);
   app.use("/public/portfolio", publicPortfolioRouter);

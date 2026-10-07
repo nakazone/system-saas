@@ -15,6 +15,7 @@
  * POST /api/folha/pagamentos                        paga um ou vários funcionários → Financeiro
  * POST /api/folha/pagamentos/:id/estornar           estorna (anula no Financeiro)
  * POST /api/folha/conferencia                       envia relatório (e-mail + PDF) ao funcionário antes do pagamento
+ * POST /api/folha/conferencia/link                  gera link público do ticket (/f/<token>?w=)
  * GET  /api/folha/conferencia.pdf?week=&employee_id=  PDF da conferência (visual ticket ObraMate)
  * GET  /api/folha/formas-pagamento                  formas de pagamento ativas (Configurações › Folha)
  * GET/POST/PUT /api/folha/funcionarios              cadastro com horário padrão
@@ -32,6 +33,8 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import type { PayrollTx } from "../lib/payroll-employee-link.js";
 import { safeTimeZone } from "../../lib/time/zoned.js";
 import { formatUsPhone } from "../../lib/phone.js";
+import { publicBaseUrl } from "../../lib/http/public-url.js";
+import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { overtimeFromDaily, parseYmd, ymdToBrShort } from "../lib/payroll-calc.js";
 import { DAY_FLAG_LABELS, dayAmount, isHHMM, minutesLabel, wallTimeOn, workDateFor, ymd } from "../../lib/payroll/day.js";
 import { closeDay, dayBounds, ensurePeriodForBounds, periodFor, postDayToPayroll, removeDayFromPayroll } from "../../lib/payroll/day-service.js";
@@ -1183,7 +1186,7 @@ async function loadConferenceOrg(organizationId: string) {
   });
 }
 
-async function resolveConference(
+export async function resolveConference(
   organizationId: string,
   weekRef: string,
   employeeId: string,
@@ -1240,6 +1243,48 @@ folhaAdminRouter.get("/api/folha/conferencia.pdf", requireCrmAuth, requireCrmPer
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
     res.send(pdf);
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
+/** Gera link público do ticket de conferência (WhatsApp / SMS). */
+folhaAdminRouter.post("/api/folha/conferencia/link", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const b = confBody.safeParse(req.body || {});
+    if (!b.success) {
+      res.status(400).json({ success: false, error: "Informe a semana e o funcionário." });
+      return;
+    }
+    const { input } = await resolveConference(req.organizationId!, b.data.week, b.data.employee_id);
+    const issued = await withTenantTransaction(req.organizationId!, async (tx) =>
+      issuePublicAccessToken(tx, {
+        organizationId: req.organizationId!,
+        entityType: "folha_conference",
+        entityId: b.data.employee_id,
+        ttlDays: 30,
+        tokenBytes: 16,
+      }),
+    );
+    const url = `${publicBaseUrl(req)}/f/${issued.rawToken}?w=${encodeURIComponent(b.data.week)}`;
+    const first = String(input.employeeName || "").trim().split(/\s+/)[0] || "";
+    const shareText = [
+      `Olá${first ? `, ${first}` : ""}! Confira seu relatório de folha (${input.periodLabel}):`,
+      url,
+      "",
+      `Total a receber: ${Number(input.net || 0).toLocaleString("en-US", { style: "currency", currency: "USD" })}`,
+    ].join("\n");
+    res.json({
+      success: true,
+      data: {
+        url,
+        share_text: shareText,
+        expires_at: issued.expiresAt,
+        employee_name: input.employeeName,
+        net: input.net,
+        week_label: input.periodLabel,
+      },
+    });
   } catch (error) {
     fail(res, error, next);
   }

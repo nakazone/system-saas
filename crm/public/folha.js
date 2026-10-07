@@ -714,20 +714,49 @@
 
   // ------------------------------------------------------------ sheet
   let sheetOnClose = null;
+  function unlockSheetGeometry(sh) {
+    if (!sh || !sh.dataset.geomLocked) return;
+    sh.style.width = "";
+    sh.style.height = "";
+    sh.style.left = "";
+    sh.style.top = "";
+    sh.style.right = "";
+    sh.style.bottom = "";
+    sh.style.transform = "";
+    sh.style.maxHeight = "";
+    delete sh.dataset.geomLocked;
+  }
+  /** Congela posição/tamanho do card (evita saltos com teclado / dvh). */
+  function lockSheetGeometry(sh) {
+    if (!sh || sh.hidden) return;
+    const r = sh.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return;
+    sh.style.width = `${Math.round(r.width)}px`;
+    sh.style.height = `${Math.round(r.height)}px`;
+    sh.style.left = `${Math.round(r.left)}px`;
+    sh.style.top = `${Math.round(r.top)}px`;
+    sh.style.right = "auto";
+    sh.style.bottom = "auto";
+    sh.style.transform = "none";
+    sh.style.maxHeight = "none";
+    sh.dataset.geomLocked = "1";
+  }
   function openSheet(html, onClose) {
     const sh = $("foSheet");
-    sh.classList.remove("fo-sheet--report");
+    unlockSheetGeometry(sh);
+    sh.classList.remove("fo-sheet--report", "is-send-open");
     sh.innerHTML = html;
     sh.hidden = false;
     $("foScrim").hidden = false;
     document.body.style.overflow = "hidden";
     sheetOnClose = onClose || null;
-    setTimeout(() => sh.querySelector("[autofocus]")?.focus(), 30);
+    setTimeout(() => sh.querySelector("[autofocus]")?.focus({ preventScroll: true }), 30);
   }
   function closeSheet() {
     closeConfSendPop();
     const sh = $("foSheet");
-    sh.classList.remove("fo-sheet--report");
+    unlockSheetGeometry(sh);
+    sh.classList.remove("fo-sheet--report", "is-send-open");
     sh.hidden = true;
     $("foScrim").hidden = true;
     document.body.style.overflow = "";
@@ -1129,6 +1158,8 @@
     sheet._confPhone = digits;
     sheet._confEmail = email;
     sheet._confPhoneLabel = phone;
+    // Trava o card assim que o layout estabiliza — não reajusta ao abrir o envio.
+    requestAnimationFrame(() => lockSheetGeometry(sheet));
   }
   function confSendPopEl() {
     const sh = $("foSheet");
@@ -1144,9 +1175,11 @@
     return pop;
   }
   function closeConfSendPop() {
+    const sh = $("foSheet");
     const pop = confSendPopEl() || $("foConfSendPop");
     if (!pop || pop.hidden) return;
     pop.classList.remove("is-open");
+    sh?.classList.remove("is-send-open");
     setTimeout(() => {
       if (pop.classList.contains("is-open")) return;
       pop.hidden = true;
@@ -1161,7 +1194,10 @@
     const digits = sh._confPhone || "";
     const pop = confSendPopEl();
     if (!pop) return;
-    // Drawer vive dentro do card de conferência e sobe da base dele.
+    // Congela o card antes do drawer / teclado mexerem no layout.
+    lockSheetGeometry(sh);
+    const bd = sh.querySelector(".fo-sheet__bd");
+    const scrollTop = bd ? bd.scrollTop : 0;
     if (pop.parentElement !== sh) sh.appendChild(pop);
     pop.classList.remove("is-open");
     pop.innerHTML = `
@@ -1174,29 +1210,90 @@
         </header>
         <div class="fo-pop__body">
           <div class="fo-box fo-box--flush">
-            <label class="fo-field">E-mail<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" ${email ? "" : "autofocus"} /></label>
-            ${
-              phone
-                ? `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Tel.: ${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) || phone : phone)}</p>`
-                : `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Sem telefone — WhatsApp/SMS indisponíveis.</p>`
-            }
+            <label class="fo-field">E-mail<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" inputmode="email" autocomplete="email" /></label>
+            <label class="fo-field" style="margin-top:10px">Telefone
+              <input type="tel" class="fo-in" id="foConfPhone" value="${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) || phone || "" : phone || "")}" placeholder="(555) 123-4567" inputmode="tel" autocomplete="tel" />
+            </label>
+            <button type="button" class="fo-btn fo-btn--sm" data-conf-save-phone style="margin-top:8px;width:100%;justify-content:center">Salvar telefone no cadastro</button>
             <div class="fo-conf-channels">
               <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar e-mail com PDF</button>
               <div class="fo-conf-grid">
                 <button type="button" class="fo-btn" data-conf-pdf>Abrir PDF</button>
-                <button type="button" class="fo-btn" data-conf-wa ${digits.length >= 10 ? "" : "disabled"}>WhatsApp</button>
-                <button type="button" class="fo-btn" data-conf-sms ${digits.length >= 10 ? "" : "disabled"}>SMS</button>
-                <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar texto</button>
+                <button type="button" class="fo-btn" data-conf-wa>WhatsApp</button>
+                <button type="button" class="fo-btn" data-conf-sms>SMS</button>
+                <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar link</button>
               </div>
             </div>
           </div>
         </div>
       </div>`;
     pop.hidden = false;
+    sh.classList.add("is-send-open");
+    if (bd) bd.scrollTop = scrollTop;
     requestAnimationFrame(() => {
+      lockSheetGeometry(sh);
+      if (bd) bd.scrollTop = scrollTop;
       pop.classList.add("is-open");
-      setTimeout(() => pop.querySelector("[autofocus], #foConfEmail")?.focus(), 40);
     });
+  }
+  function confPhoneDigitsFromInput() {
+    return phoneDigits($("foConfPhone")?.value || $("foSheet")._confPhone || "");
+  }
+  async function confSavePhone(btn) {
+    const id = $("foSheet")._confId;
+    const raw = ($("foConfPhone")?.value || "").trim();
+    const digits = phoneDigits(raw);
+    if (!id) return;
+    if (digits.length < 10) {
+      notify("Informe um telefone válido com DDD.", "error");
+      return;
+    }
+    if (btn) btn.disabled = true;
+    try {
+      const j = await api(`/api/folha/funcionarios/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify({ phone: raw }),
+      });
+      const saved = j.data?.phone || raw;
+      const savedDigits = phoneDigits(saved);
+      $("foSheet")._confPhone = savedDigits;
+      $("foSheet")._confPhoneLabel = saved;
+      if ($("foConfPhone")) $("foConfPhone").value = typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(saved) || saved : saved;
+      const emp = st.week?.employees?.find((x) => x.id === id);
+      if (emp) emp.phone = saved;
+      if (Array.isArray(st.employees)) {
+        const row = st.employees.find((x) => x.id === id);
+        if (row) row.phone = saved;
+      }
+      notify("Telefone salvo no cadastro do funcionário.", "success");
+      return savedDigits;
+    } catch (e) {
+      notify(e.message, "error");
+      return null;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+  async function confEnsurePhoneSaved() {
+    const id = $("foSheet")._confId;
+    const digits = confPhoneDigitsFromInput();
+    if (digits.length < 10) {
+      notify("Informe o telefone do funcionário.", "error");
+      return null;
+    }
+    if (digits !== ($("foSheet")._confPhone || "")) {
+      return confSavePhone(null);
+    }
+    return digits;
+  }
+  async function confIssueShareLink() {
+    const id = $("foSheet")._confId;
+    if (!id || !st.week) return null;
+    const j = await api("/api/folha/conferencia/link", {
+      method: "POST",
+      body: JSON.stringify({ week: st.week.week.start, employee_id: id }),
+    });
+    return j.data;
   }
   async function confSendEmail(btn) {
     const id = $("foSheet")._confId;
@@ -1216,27 +1313,35 @@
       btn.disabled = false;
     }
   }
-  function confShare(channel) {
-    const text = $("foSheet")._confText || "";
-    const digits = $("foSheet")._confPhone || "";
-    if (!text) return;
-    if (channel === "copy") {
-      const done = () => notify("Texto copiado.", "success");
-      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
-      else fallbackCopy(text, done);
-      return;
-    }
-    if (digits.length < 10) {
-      notify("Cadastre o telefone do funcionário para usar este canal.", "error");
-      return;
-    }
-    const e164 = digits.length === 10 ? `1${digits}` : digits;
-    if (channel === "wa") {
-      window.open(`https://wa.me/${e164}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
-      return;
-    }
-    if (channel === "sms") {
-      window.open(`sms:+${e164}?&body=${encodeURIComponent(text)}`, "_blank");
+  async function confShare(channel, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      if (channel === "copy") {
+        const link = await confIssueShareLink();
+        if (!link?.url) throw new Error("Não foi possível gerar o link.");
+        const text = link.share_text || link.url;
+        const done = () => notify("Link do ticket copiado.", "success");
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+        else fallbackCopy(text, done);
+        return;
+      }
+      const digits = await confEnsurePhoneSaved();
+      if (!digits) return;
+      const link = await confIssueShareLink();
+      if (!link?.share_text) throw new Error("Não foi possível gerar o link do ticket.");
+      const e164 = digits.length === 10 ? `1${digits}` : digits;
+      const text = link.share_text;
+      if (channel === "wa") {
+        window.open(`https://wa.me/${e164}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+        return;
+      }
+      if (channel === "sms") {
+        window.open(`sms:+${e164}?&body=${encodeURIComponent(text)}`, "_blank");
+      }
+    } catch (e) {
+      notify(e.message || "Falha ao preparar o envio.", "error");
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
   function fallbackCopy(text, done) {
@@ -1984,15 +2089,16 @@
     if ((b = el("[data-conf]"))) return openConference(b.getAttribute("data-conf"));
     if (el("[data-conf-send]")) return openConfSendPop();
     if (el("[data-conf-send-close]")) return closeConfSendPop();
+    if ((b = el("[data-conf-save-phone]"))) return confSavePhone(b);
     if ((b = el("[data-conf-email]"))) return confSendEmail(b);
     if (el("[data-conf-pdf]")) {
       const url = confPdfUrl($("foSheet")._confId);
       if (url) window.open(url, "_blank", "noopener");
       return;
     }
-    if (el("[data-conf-wa]")) return confShare("wa");
-    if (el("[data-conf-sms]")) return confShare("sms");
-    if (el("[data-conf-copy]")) return confShare("copy");
+    if ((b = el("[data-conf-wa]"))) return confShare("wa", b);
+    if ((b = el("[data-conf-sms]"))) return confShare("sms", b);
+    if ((b = el("[data-conf-copy]"))) return confShare("copy", b);
     if ((b = el("[data-pay]"))) return openPay([b.getAttribute("data-pay")]);
     if ((b = el("[data-pay-go]"))) return payGo(b);
     if ((b = el("#foPayMethods [data-method]"))) {
