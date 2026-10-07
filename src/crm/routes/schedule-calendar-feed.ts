@@ -182,7 +182,7 @@ async function loadFeedEvents(organizationId: string): Promise<{ orgName: string
         scheduledStart: true,
         scheduledEnd: true,
         leadId: true,
-        lead: { select: { name: true, address: true } },
+        lead: { select: { name: true } },
       },
       orderBy: { scheduledStart: "asc" },
       take: 2000,
@@ -207,14 +207,14 @@ async function loadFeedEvents(organizationId: string): Promise<{ orgName: string
       description: descParts.join("\n") || undefined,
       start,
       end,
-      status: wo.status === "completed" ? "CONFIRMED" : "CONFIRMED",
+      status: "CONFIRMED",
     });
   }
 
   for (const m of meetings) {
     const isVisit = Boolean(m.leadId);
     const title = isVisit && m.lead?.name ? `Visita: ${m.lead.name}` : m.title;
-    const location = m.location || m.lead?.address || null;
+    const location = m.location || null;
     const descParts = [
       isVisit ? "Tipo: visita" : "Tipo: reunião",
       m.status ? `Status: ${m.status}` : "",
