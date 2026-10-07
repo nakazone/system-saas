@@ -594,17 +594,12 @@
     const toPayAll = payable.reduce((s, r) => s + r.totals.net, 0);
     const sec = sectorLabel();
     const segBtn = (k, l) => `<button type="button" data-sector="${k}" aria-pressed="${st.sector === k}">${l} <small>${sectorRosterCount(k)}</small></button>`;
-    const topNames = rows
-      .filter((r) => r.totals.days)
-      .slice(0, 3)
-      .map((r) => `${esc(r.name.split(" ")[0])} ${dayFrac(r.totals.days)}`)
-      .join(" · ");
     const payAllLbl = sec ? `Pagar ${esc(sec)}` : "Pagar todos";
     const stats = `<div class="fo-stats">
         <div class="fo-stat fo-stat--ink"><small>A pagar${sec ? ` · ${esc(sec)}` : " neste ciclo"}</small><b>${money(t.to_pay)}</b><span>${payable.length ? `${payable.length} funcionário${payable.length === 1 ? "" : "s"}` : "ninguém a pagar"}${t.paid ? ` · ${money(t.paid)} já pago` : ""}</span>${
           payable.length > 1 ? `<button type="button" class="fo-btn fo-btn--sm fo-stat__go" data-payall>${payAllLbl}</button>` : ""
         }</div>
-        <div class="fo-stat"><small>Diárias</small><b>${dayFrac(t.days)}</b><span>${topNames || "nenhuma lançada"}</span></div>
+        <div class="fo-stat"><small>Diárias</small><b>${dayFrac(t.days)}</b></div>
         <div class="fo-stat${t.pending_days ? " fo-stat--warn" : ""}"><small>A conferir</small><b>${t.pending_days} dia${t.pending_days === 1 ? "" : "s"}</b><span>${t.pending_days ? '<button type="button" class="fo-link" data-goto="conferir">Conferir agora</button>' : "tudo conferido"}</span></div>
         <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_minutes)}</b><span>${t.overtime_amount ? `${money(t.overtime_amount)} em extras` : t.sqft ? `${qty(t.sqft)} sq ft de produção` : "depois do horário padrão"}</span></div>
       </div>`;
