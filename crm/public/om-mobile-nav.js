@@ -1,6 +1,6 @@
 /**
- * Mobile bottom nav — Início / Leads / + / Agenda / Mais
- * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
+ * Mobile bottom nav — Início / Leads / + / Calendar / Mais
+ * Field staff: Hoje / Calendar / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
   const VER = "20261005-sched1";
@@ -563,7 +563,7 @@
         tab === "agenda" ? ' aria-current="page"' : ""
       }>
         ${ICONS.agenda}
-        <span>Agenda</span>
+        <span>Calendar</span>
       </a>
       <a class="om-tabbar__item${tab === "more" ? " is-active" : ""}" href="mais.html" data-om-tab="more"${
         tab === "more" ? ' aria-current="page"' : ""
@@ -614,7 +614,7 @@
         tab === "agenda" ? ' aria-current="page"' : ""
       }>
         ${ICONS.agenda}
-        <span>Agenda</span>
+        <span>Calendar</span>
       </a>
       <a class="om-tabbar__item${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-om-tab="jobs"${
         tab === "jobs" ? ' aria-current="page"' : ""

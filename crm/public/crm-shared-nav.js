@@ -76,7 +76,7 @@
       {
         label: 'Campo',
         items: [
-          { href: 'schedule.html', label: 'Agenda', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+          { href: 'schedule.html', label: 'Calendar', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
           { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
           {
@@ -106,14 +106,14 @@
       {
         label: 'Relatórios',
         items: [
-          { href: 'relatorios.html', label: 'Painel', perm: 'reports.view', page: '', iconKey: 'reports' },
+          { href: 'relatorios.html', label: 'Relatórios', perm: 'reports.view', page: '', iconKey: 'reports' },
         ],
       },
       {
         label: 'Vendas',
         items: [
           { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
-          { href: 'quotes.html', label: 'Orçamentos', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+          { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
           {
             href: isMobileDevice() ? 'customers.html' : 'dashboard.html?page=customers',
             label: 'Clientes',
@@ -126,7 +126,7 @@
       {
         label: 'Operação',
         items: [
-          { href: 'schedule.html', label: 'Agenda', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+          { href: 'schedule.html', label: 'Calendar', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
           {
             href: 'job-media-board.html',
@@ -140,11 +140,11 @@
       {
         label: 'Financeiro',
         items: [
-          { href: 'invoices.html', label: 'Faturas', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
+          { href: 'invoices.html', label: 'Invoices', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
           { href: 'finance.html', label: 'Fluxo de caixa', perm: 'finance.view', page: '', iconKey: 'finance' },
           {
             href: 'folha.html',
-            label: 'Folha',
+            label: 'Folha de Pagamento',
             perm: 'payroll.view',
             permAny: ['payroll.view'],
             page: '',

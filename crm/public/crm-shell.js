@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261005-sched1";
+  const SHELL_VER = "20261007-nav1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -52,9 +52,9 @@
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
   <a class="om-dock__primary" href="leads.html" id="omDockNew">+ Novo lead</a>
-  <a class="om-dock__btn" href="schedule.html" title="Agenda">
+  <a class="om-dock__btn" href="schedule.html" title="Calendar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-    <span>Agendar</span>
+    <span>Calendar</span>
   </a>
   <a class="om-dock__btn" href="pipeline-lab.html" title="Pipeline">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 12h6M9 16h4"/></svg>
