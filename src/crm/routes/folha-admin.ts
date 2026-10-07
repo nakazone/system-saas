@@ -34,11 +34,13 @@ import { safeTimeZone } from "../../lib/time/zoned.js";
 import { formatUsPhone } from "../../lib/phone.js";
 import { overtimeFromDaily, parseYmd, ymdToBrShort } from "../lib/payroll-calc.js";
 import { DAY_FLAG_LABELS, dayAmount, isHHMM, minutesLabel, wallTimeOn, workDateFor, ymd } from "../../lib/payroll/day.js";
-import { closeDay, dayBounds, periodFor, postDayToPayroll, removeDayFromPayroll } from "../../lib/payroll/day-service.js";
+import { closeDay, dayBounds, ensurePeriodForBounds, periodFor, postDayToPayroll, removeDayFromPayroll } from "../../lib/payroll/day-service.js";
 import { adjacentPeriodRefs, describePayCycle, parsePayCycle, periodBoundsFor } from "../../lib/settings/payroll-cycle.js";
 import {
+  addPeriodAdjustmentAmount,
   approveShiftExpenses,
   attachExpensesToShift,
+  deleteShiftExpense,
   flagShiftForExpenses,
   mapExpense,
   syncExpenseIntoAdjustment,
@@ -197,18 +199,15 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
   const start = parseYmd(startYmd)!;
   const end = parseYmd(endYmd)!;
   await autoCloseOrg(tx, tz);
-  const period =
-    (await tx.payrollPeriod.findFirst({
-      where: { startDate: { lte: start }, endDate: { gte: end } },
-      orderBy: { startDate: "desc" },
-    })) ?? (await tx.payrollPeriod.findFirst({ where: { startDate: start, endDate: end } }));
+  // Always materialize the cycle period (even before pay day) so Ajustes / Pagar / reembolsos work.
+  const period = await ensurePeriodForBounds(tx, organizationId, bounds);
   const [employees, shifts, lines, adjustments, payments] = await Promise.all([
     tx.payrollEmployee.findMany({ orderBy: { name: "asc" }, include: { user: { select: { id: true, email: true } } } }),
     tx.campoShift.findMany({ where: { workDate: { gte: start, lte: end }, employeeId: { not: null } }, include: shiftInclude, orderBy: { workDate: "asc" } }),
     // By work date (not only periodId) so totals stay correct if the period row is missing/mismatched.
     tx.payrollTimesheet.findMany({ where: { workDate: { gte: start, lte: end } }, orderBy: { workDate: "asc" } }),
-    period ? tx.payrollPeriodAdjustment.findMany({ where: { periodId: period.id } }) : Promise.resolve([]),
-    period ? tx.payrollPayment.findMany({ where: { periodId: period.id, status: "paid" } }) : Promise.resolve([]),
+    tx.payrollPeriodAdjustment.findMany({ where: { periodId: period.id } }),
+    tx.payrollPayment.findMany({ where: { periodId: period.id, status: "paid" } }),
   ]);
   const rows = employees
     .map((e) => {
@@ -267,8 +266,28 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
         overtimeMinutes += Math.round(num(l.overtimeHours) * 60);
         sqftTotal += num(l.sqft);
       }
-      const reimbursement = num(adj?.reimbursement);
-      const discount = num(adj?.discount);
+      // Prefer period adjustment; heal from approved day expenses if adj row is empty/out of sync.
+      let reimbursement = num(adj?.reimbursement);
+      let discount = num(adj?.discount);
+      let expReimb = 0;
+      let expDisc = 0;
+      for (const s of myShifts) {
+        for (const x of s.expenses || []) {
+          if (x.status !== "approved") continue;
+          if (x.kind === "reimbursement") expReimb += num(x.amount);
+          else if (x.kind === "discount") expDisc += num(x.amount);
+        }
+      }
+      expReimb = money(expReimb);
+      expDisc = money(expDisc);
+      if (!adj && (expReimb || expDisc)) {
+        reimbursement = expReimb;
+        discount = expDisc;
+      } else if (adj && (expReimb > reimbursement || expDisc > discount)) {
+        // Day expenses were approved but not fully rolled into the period total.
+        reimbursement = money(Math.max(reimbursement, expReimb));
+        discount = money(Math.max(discount, expDisc));
+      }
       const waiting = myShifts.filter((s) => s.reviewStatus === "pending" || s.reviewStatus === "returned");
       const counted = myShifts.filter((s) => s.reviewStatus === "approved");
       return {
@@ -333,7 +352,7 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
       next: neighbors.next,
       frequency: bounds.frequency,
     },
-    period: period ? { id: period.id, label: period.label, status: period.status } : null,
+    period: { id: period.id, label: period.label, status: period.status },
     totals: {
       all: sum(rows),
       installation: sum(rows.filter((r) => r.sector === "installation")),
@@ -826,18 +845,108 @@ folhaAdminRouter.put(
         res.status(400).json({ success: false, error: "Valores inválidos" });
         return;
       }
-      await withTenantTransaction(req.organizationId!, async (tx) => {
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const period = await tx.payrollPeriod.findFirst({ where: { id: String(req.params.periodId) } });
         if (!period) throw httpErr(404, "Semana não encontrada");
+        if (period.status !== "open") throw httpErr(409, "Ciclo fechado. Não dá para alterar.");
         const paid = await tx.payrollPayment.findFirst({ where: { periodId: period.id, employeeId: String(req.params.employeeId), status: "paid" } });
         if (paid) throw httpErr(409, "Já pago nessa semana. Estorne para alterar.", "PAID");
-        await tx.payrollPeriodAdjustment.upsert({
+        const adj = await tx.payrollPeriodAdjustment.upsert({
           where: { periodId_employeeId: { periodId: period.id, employeeId: String(req.params.employeeId) } },
           create: { organizationId: req.organizationId!, periodId: period.id, employeeId: String(req.params.employeeId), reimbursement: b.data.reimbursement, discount: b.data.discount, notes: b.data.notes || null },
           update: { reimbursement: b.data.reimbursement, discount: b.data.discount, notes: b.data.notes || null },
         });
+        return { reimbursement: num(adj.reimbursement), discount: num(adj.discount), notes: adj.notes };
       });
-      res.json({ success: true });
+      res.json({ success: true, data });
+    } catch (error) {
+      fail(res, error, next);
+    }
+  },
+);
+
+/** Add a week-level reimbursement/discount (increments the cycle total; optional link to a day). */
+folhaAdminRouter.post(
+  "/api/folha/semana/:periodId/ajustes/:employeeId/lancar",
+  requireCrmAuth,
+  requireCrmPermission("payroll.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const b = z
+        .object({
+          kind: z.enum(["reimbursement", "discount"]),
+          amount: z.number().positive().max(100000),
+          description: z.string().max(300).optional().nullable(),
+          /** When set, also creates a day expense line (editable/deletable). */
+          day_id: z.string().uuid().optional().nullable(),
+        })
+        .safeParse(req.body || {});
+      if (!b.success) {
+        res.status(400).json({ success: false, error: "Informe tipo e valor." });
+        return;
+      }
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const period = await tx.payrollPeriod.findFirst({ where: { id: String(req.params.periodId) } });
+        if (!period) throw httpErr(404, "Semana não encontrada");
+        if (period.status !== "open") throw httpErr(409, "Ciclo fechado. Não dá para alterar.");
+        const employeeId = String(req.params.employeeId);
+        const paid = await tx.payrollPayment.findFirst({ where: { periodId: period.id, employeeId, status: "paid" } });
+        if (paid) throw httpErr(409, "Já pago nessa semana. Estorne para alterar.", "PAID");
+
+        let shiftId = b.data.day_id || null;
+        if (!shiftId) {
+          const latest = await tx.campoShift.findFirst({
+            where: {
+              employeeId,
+              workDate: { gte: period.startDate, lte: period.endDate },
+              reviewStatus: { in: ["approved", "pending"] },
+            },
+            orderBy: { workDate: "desc" },
+            select: { id: true },
+          });
+          shiftId = latest?.id || null;
+        }
+
+        if (shiftId) {
+          const s = await tx.campoShift.findFirst({ where: { id: shiftId, employeeId } });
+          if (!s) throw httpErr(404, "Dia não encontrado");
+          await assertNotPaid(tx, employeeId, s.workDate);
+          const [row] = await attachExpensesToShift(tx, {
+            organizationId: req.organizationId!,
+            shiftId: s.id,
+            employeeId,
+            createdById: req.user!.id,
+            source: "office",
+            status: "pending",
+            items: [{ kind: b.data.kind, amount: b.data.amount, description: b.data.description }],
+          });
+          if (!row) throw httpErr(400, "Valor inválido");
+          await syncExpenseIntoAdjustment(tx, row.id, "approved", req.user!.id);
+          const adj = await tx.payrollPeriodAdjustment.findFirst({ where: { periodId: period.id, employeeId } });
+          return {
+            expense: mapExpense(await tx.campoShiftExpense.findFirstOrThrow({ where: { id: row.id } })),
+            day_id: s.id,
+            adjustment: adj
+              ? { reimbursement: num(adj.reimbursement), discount: num(adj.discount), notes: adj.notes }
+              : { reimbursement: 0, discount: 0, notes: null },
+          };
+        }
+
+        const adj = await addPeriodAdjustmentAmount(tx, {
+          organizationId: req.organizationId!,
+          periodId: period.id,
+          employeeId,
+          kind: b.data.kind,
+          amount: b.data.amount,
+          description: b.data.description,
+        });
+        return {
+          expense: null,
+          day_id: null,
+          adjustment: { reimbursement: num(adj.reimbursement), discount: num(adj.discount), notes: adj.notes },
+        };
+      });
+      res.status(201).json({ success: true, data });
     } catch (error) {
       fail(res, error, next);
     }
@@ -936,6 +1045,20 @@ folhaAdminRouter.put("/api/folha/despesas/:id", requireCrmAuth, requireCrmPermis
       if (e.status === "rejected") throw httpErr(409, "Lançamento recusado. Crie um novo.");
       const updated = await updateShiftExpense(tx, e.id, b.data, req.user!.id);
       return mapExpense(updated);
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
+folhaAdminRouter.delete("/api/folha/despesas/:id", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const e = await tx.campoShiftExpense.findFirst({ where: { id: String(req.params.id) }, include: { shift: true } });
+      if (!e) throw httpErr(404, "Lançamento não encontrado");
+      await assertNotPaid(tx, e.employeeId, e.shift.workDate);
+      return deleteShiftExpense(tx, e.id, req.user!.id);
     });
     res.json({ success: true, data });
   } catch (error) {

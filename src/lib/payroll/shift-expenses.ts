@@ -71,8 +71,12 @@ export async function syncExpenseIntoAdjustment(
   const period = await periodFor(tx, e.organizationId, e.shift.workDate);
   const amount = money(num(e.amount));
   const isReimb = e.kind === "reimbursement";
+  let appliedAt = e.appliedAt;
 
-  if (nextStatus === "approved" && !e.appliedAt && period) {
+  if (nextStatus === "approved" && !e.appliedAt) {
+    if (period.status !== "open") {
+      throw Object.assign(new Error("Ciclo fechado. Não dá para incluir no pagamento."), { status: 409 });
+    }
     const adj = await tx.payrollPeriodAdjustment.findFirst({
       where: { periodId: period.id, employeeId: e.employeeId },
     });
@@ -90,9 +94,10 @@ export async function syncExpenseIntoAdjustment(
       },
       update: { reimbursement, discount },
     });
+    appliedAt = new Date();
   }
 
-  if (nextStatus === "rejected" && e.appliedAt && period) {
+  if (nextStatus === "rejected" && e.appliedAt) {
     const adj = await tx.payrollPeriodAdjustment.findFirst({
       where: { periodId: period.id, employeeId: e.employeeId },
     });
@@ -104,6 +109,7 @@ export async function syncExpenseIntoAdjustment(
         data: { reimbursement, discount },
       });
     }
+    appliedAt = null;
   }
 
   return tx.campoShiftExpense.update({
@@ -113,12 +119,7 @@ export async function syncExpenseIntoAdjustment(
       reviewedById: reviewerId,
       reviewedAt: new Date(),
       reviewNote: reviewNote?.trim() || null,
-      appliedAt:
-        nextStatus === "approved"
-          ? e.appliedAt || new Date()
-          : nextStatus === "rejected"
-            ? null
-            : e.appliedAt,
+      appliedAt,
     },
   });
 }
@@ -256,6 +257,65 @@ export async function updateShiftExpense(
   }
 
   return updated;
+}
+
+/** Remove a day expense and reverse it from the week adjustment when it was applied. */
+export async function deleteShiftExpense(tx: PayrollTx, expenseId: string, reviewerId: string | null) {
+  const e = await tx.campoShiftExpense.findFirst({
+    where: { id: expenseId },
+    include: { shift: { select: { workDate: true } } },
+  });
+  if (!e) throw Object.assign(new Error("Lançamento não encontrado"), { status: 404 });
+
+  if (e.appliedAt || e.status === "approved") {
+    await syncExpenseIntoAdjustment(tx, e.id, "rejected", reviewerId, "Excluído pelo escritório");
+  }
+
+  await tx.campoShiftExpense.delete({ where: { id: e.id } });
+  return { id: e.id };
+}
+
+/** Increment week reimbursement/discount (office week-level launch). */
+export async function addPeriodAdjustmentAmount(
+  tx: PayrollTx,
+  input: {
+    organizationId: string;
+    periodId: string;
+    employeeId: string;
+    kind: ExpenseKind;
+    amount: number;
+    description?: string | null;
+  },
+) {
+  const amount = money(input.amount);
+  if (!(amount > 0)) throw Object.assign(new Error("Informe o valor."), { status: 400 });
+  const period = await tx.payrollPeriod.findFirst({ where: { id: input.periodId } });
+  if (!period) throw Object.assign(new Error("Semana não encontrada"), { status: 404 });
+  if (period.status !== "open") {
+    throw Object.assign(new Error("Ciclo fechado. Não dá para alterar."), { status: 409 });
+  }
+  const adj = await tx.payrollPeriodAdjustment.findFirst({
+    where: { periodId: period.id, employeeId: input.employeeId },
+  });
+  const isReimb = input.kind === "reimbursement";
+  const reimbursement = money(num(adj?.reimbursement) + (isReimb ? amount : 0));
+  const discount = money(num(adj?.discount) + (!isReimb ? amount : 0));
+  const noteBit = input.description?.trim();
+  const notes = noteBit
+    ? [adj?.notes, `${isReimb ? "Reembolso" : "Desconto"} ${amount.toFixed(2)}: ${noteBit}`].filter(Boolean).join(" · ").slice(0, 500)
+    : adj?.notes || null;
+  return tx.payrollPeriodAdjustment.upsert({
+    where: { periodId_employeeId: { periodId: period.id, employeeId: input.employeeId } },
+    create: {
+      organizationId: input.organizationId,
+      periodId: period.id,
+      employeeId: input.employeeId,
+      reimbursement,
+      discount,
+      notes,
+    },
+    update: { reimbursement, discount, notes },
+  });
 }
 
 /** After finish: keep day in review when there are receipts to check. */

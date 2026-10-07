@@ -386,8 +386,20 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-mcard__v b { display: block; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .fo-mcard__nums { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 9px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
 .fo-mcard__nums b { color: var(--ink); }
-.fo-mcard__act { display: flex; gap: 8px; margin-top: 11px; }
-.fo-mcard__act .fo-btn { flex: 1; }
+.fo-mcard__act { display: flex; gap: 8px; margin-top: 11px; align-items: center; }
+.fo-mcard__btns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+.fo-mcard__btns .fo-btn {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  padding: 0 8px;
+}
+.fo-mcard__btns .fo-btn--ghost { border: 1px solid var(--line); }
 .fo-mcard .fo-days { padding: 8px 0 0; }
 .fo-mcard .fo-day { grid-template-columns: 62px 1fr auto; padding: 8px 6px; }
 .fo-mcard .fo-day__j, .fo-mcard .fo-day__p { display: none; }
@@ -493,6 +505,22 @@ body.fo-page .crm-toast--success * { color: inherit; }
 .fo-ot { color: var(--terra-d); font-weight: 800; }
 .fo-sub { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); }
 .fo-acts { white-space: nowrap; }
+.fo-acts .fo-btn + .fo-btn { margin-left: 6px; }
+.fo-tbl-wrap--week { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.fo-tbl--week .fo-acts {
+  position: sticky;
+  right: 0;
+  background: #fff;
+  z-index: 2;
+  box-shadow: -10px 0 12px -12px rgba(33, 29, 26, 0.35);
+}
+.fo-tbl--week thead .fo-acts,
+.fo-tbl--week th:last-child {
+  position: sticky;
+  right: 0;
+  background: var(--cream);
+  z-index: 3;
+}
 .fo-mcheck { width: 20px; height: 20px; accent-color: var(--ink); flex: none; margin: 0; }
 
 @media (max-width: 1280px) {
@@ -510,6 +538,14 @@ body.fo-page .crm-toast--success * { color: inherit; }
   .fo-quick__row .fo-qf--money { min-width: 120px; }
   .fo-quick__go { grid-column: 1 / -1; min-width: 0; height: 46px; }
 }
+/* iPad / tablets (incl. landscape ~1180–1366): cards so Ajustes + Pagar stay visible */
+@media (max-width: 1400px) {
+  .fo-tbl-wrap--week { display: none; }
+  .fo-mlist { display: block; }
+  .fo-mcard__top { cursor: pointer; }
+  .fo-mcard__act .fo-strip { flex: 1; min-width: 0; }
+  .fo-mcard__btns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 1024px) {
   .fo { padding: 14px 14px 110px; }
   .fo-hd { align-items: center; }
@@ -518,35 +554,6 @@ body.fo-page .crm-toast--success * { color: inherit; }
   .fo-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fo-filters { grid-template-columns: 1fr 1fr; }
   .fo-filters .fo-field:first-child { grid-column: 1 / -1; }
-  /* Tablets: card list with Ajustes / Relatório / Pagar all visible */
-  .fo-tbl-wrap--week { display: none; }
-  .fo-mlist { display: block; }
-  .fo-mcard__top { cursor: pointer; }
-  .fo-mcard__act {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-  }
-  .fo-mcard__act .fo-strip { flex: 1 1 auto; min-width: 120px; }
-  .fo-mcard__btns {
-    flex: 1 1 100%;
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 6px;
-    width: 100%;
-  }
-  .fo-mcard__btns .fo-btn {
-    flex: 1;
-    min-width: 0;
-    justify-content: center;
-    white-space: nowrap;
-    padding: 0 8px;
-  }
-  .fo-mcard__btns .fo-btn--ghost {
-    width: auto;
-    border: 1px solid var(--line);
-  }
   .fo-adj-live { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
@@ -579,7 +586,7 @@ body.fo-page .crm-toast--success * { color: inherit; }
 }
 
 /* Semana no tablet / celular */
-@media (max-width: 1024px) {
+@media (max-width: 1400px) {
   .fo-hd { flex-wrap: wrap; }
   #foHdWeek { display: none !important; }
   .fo-pweek { display: block; }

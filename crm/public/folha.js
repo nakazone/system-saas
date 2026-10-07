@@ -266,7 +266,8 @@
     return '<span class="fo-muted">—</span>';
   }
   function canPay(r) {
-    return st.manage && !r.payment && r.totals.net > 0 && st.week && st.week.period;
+    // Available any time in the cycle — not gated on pay day.
+    return st.manage && !r.payment && Number(r.totals.net) > 0 && Boolean(st.week?.period);
   }
   function dayRows(r) {
     if (!r.days.length) return '<div class="fo-empty" style="padding:10px">Nenhum dia neste ciclo.</div>';
@@ -570,7 +571,7 @@
   function renderWeekHead() {
     const w = st.week;
     const cur = w.week.today >= w.week.start && w.week.today <= w.week.end;
-    const status = cur ? "Ciclo atual" : w.period ? (w.period.status === "closed" ? "Ciclo fechado" : "Ciclo aberto") : "Sem lançamentos";
+    const status = cur ? "Ciclo atual" : w.period?.status === "closed" ? "Ciclo fechado" : "Ciclo aberto";
     return `<div class="fo-week">
       <button type="button" class="fo-ic" data-week="prev" aria-label="Ciclo anterior">‹</button>
       <div><b>${esc(w.week.label)}</b><small>${status}${w.week.pay_on_label ? ` · paga ${esc(WD[wdOf(w.week.pay_on)])} ${esc(brShort(w.week.pay_on))}` : ""}</small></div>
@@ -659,7 +660,10 @@
         const bits = [`${dayFrac(r.totals.days)} diária${r.totals.days === 1 || r.totals.days === 0.5 ? "" : "s"}`];
         if (r.totals.overtime_minutes) bits.push(`<span class="fo-ot">${hm(r.totals.overtime_minutes)} extra</span>`);
         if (r.totals.sqft) bits.push(`${qty(r.totals.sqft)} sq ft`);
+        if (r.totals.reimbursement) bits.push(`<span class="fo-ok">+${money(r.totals.reimbursement)} reemb.</span>`);
+        if (r.totals.discount) bits.push(`<span class="fo-warn">−${money(r.totals.discount)} desc.</span>`);
         if (st.sector === "all") bits.push(esc(SECTORS[r.sector]));
+        const acts = rowActions(r, true);
         return `<div class="fo-mcard${open ? " is-open" : ""}" data-emp-card="${esc(r.id)}">
           <div class="fo-mcard__top" data-toggle="${esc(r.id)}">
             <span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span>
@@ -669,8 +673,8 @@
           <div class="fo-mcard__act">
             ${canPay(r) ? `<input type="checkbox" class="fo-mcheck" data-sel="${esc(r.id)}" ${st.selected.has(r.id) ? "checked" : ""} aria-label="Selecionar ${esc(r.name)}" />` : ""}
             ${weekStrip(r)}
-            <span class="fo-mcard__btns">${rowActions(r, true)}</span>
           </div>
+          ${acts ? `<div class="fo-mcard__btns">${acts}</div>` : ""}
           ${open ? `<div class="fo-days">${dayRows(r)}</div>` : ""}
         </div>`;
       })
@@ -682,17 +686,14 @@
     if (!st.manage) return "";
     if (r.payment) return `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-receipt="${esc(r.id)}">Recibo</button>`;
     const parts = [];
-    if (st.week.period) {
-      parts.push(
-        `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-adjust="${esc(r.id)}" title="Reembolso ou desconto">Ajustes</button>`,
-      );
-    }
-    if (canPay(r) || r.totals.net > 0) {
-      parts.push(
-        `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-conf="${esc(r.id)}" title="Enviar relatório para o funcionário conferir">Relatório</button>`,
-      );
-    }
-    if (canPay(r)) {
+    // Always available during the cycle (before or after pay day), as long as not paid.
+    parts.push(
+      `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-adjust="${esc(r.id)}" title="Reembolso ou desconto">Ajustes</button>`,
+    );
+    parts.push(
+      `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-conf="${esc(r.id)}" title="Enviar relatório para o funcionário conferir">Relatório</button>`,
+    );
+    if (!r.payment && (canPay(r) || Number(r.totals.gross) > 0 || Number(r.totals.reimbursement) > 0 || Number(r.totals.net) > 0)) {
       parts.push(`<button type="button" class="fo-btn fo-btn--sm${compact ? " fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
     }
     return parts.join("");
@@ -764,9 +765,19 @@
     if (mode === "edit") body += editForm(d);
     else if (mode === "return") body += `<div class="fo-box"><h3>Devolver para ajuste</h3><label class="fo-field">O que o funcionário precisa corrigir?<textarea class="fo-ta" id="foReturnReason" maxlength="500" autofocus placeholder="Ex.: faltou a foto do job #101; confira a hora de saída."></textarea></label><p class="fo-muted" style="margin:8px 0 0;font-size:13px">Ele recebe uma notificação e o dia sai da folha até ele reenviar.</p></div>`;
     else {
-      body += `<div class="fo-box"><div class="fo-times">${timeBox("Entrada", d.clock_in_label, d.gps_in)}${timeBox("Saída", d.clock_out_label, d.gps_out)}</div>
-        <div class="fo-kv"><div><small>Trabalhado</small><b>${hm(d.worked_minutes)}</b></div><div><small>Extra</small><b>${d.overtime_minutes ? hm(d.overtime_minutes) : "—"}</b></div><div><small>${d.sqft ? "Sq ft" : "Dias"}</small><b>${d.sqft ? qty(d.sqft) : qty(d.days_worked)}</b></div><div><small>Valor</small><b>${money(d.amount)}</b></div></div>
+      {
+        const exps = d.expenses || [];
+        const reimb = exps.filter((x) => x.kind === "reimbursement" && x.status === "approved").reduce((s, x) => s + (Number(x.amount) || 0), 0);
+        const disc = exps.filter((x) => x.kind === "discount" && x.status === "approved").reduce((s, x) => s + (Number(x.amount) || 0), 0);
+        const dayNet = Math.round((Number(d.amount) + reimb - disc) * 100) / 100;
+        body += `<div class="fo-box"><div class="fo-times">${timeBox("Entrada", d.clock_in_label, d.gps_in)}${timeBox("Saída", d.clock_out_label, d.gps_out)}</div>
+        <div class="fo-kv"><div><small>Trabalhado</small><b>${hm(d.worked_minutes)}</b></div><div><small>Extra</small><b>${d.overtime_minutes ? hm(d.overtime_minutes) : "—"}</b></div><div><small>${d.sqft ? "Sq ft" : "Dias"}</small><b>${d.sqft ? qty(d.sqft) : qty(d.days_worked)}</b></div><div><small>Diária</small><b>${money(d.amount)}</b></div>${
+          reimb || disc
+            ? `<div><small>Ajustes</small><b>${reimb ? `<span class="fo-ok">+${money(reimb)}</span>` : ""}${reimb && disc ? " " : ""}${disc ? `<span class="fo-warn">−${money(disc)}</span>` : ""}</b></div><div><small>Líquido do dia</small><b>${money(dayNet)}</b></div>`
+            : ""
+        }</div>
         ${d.expected_end_label ? `<p class="fo-muted" style="margin:10px 0 0;font-size:12.5px;font-weight:600">Horário padrão até ${esc(d.expected_end_label)} — extra conta depois disso.</p>` : ""}</div>`;
+      }
       body += `<div class="fo-box"><h3>Jobs do dia <small>${d.jobs.length}</small></h3>${
         d.jobs.length
           ? `<ul class="fo-jobs">${d.jobs
@@ -789,6 +800,7 @@
               const acts = [];
               if (canAct && x.status !== "rejected") {
                 acts.push(`<button type="button" class="fo-btn fo-btn--sm" data-exp-edit="${esc(x.id)}">Editar</button>`);
+                acts.push(`<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost fo-btn--danger" data-exp-del="${esc(x.id)}" data-exp-day="${esc(d.id)}">Excluir</button>`);
               }
               if (canAct && x.status === "pending") {
                 acts.push(`<button type="button" class="fo-btn fo-btn--sm fo-btn--pri" data-exp-ok="${esc(x.id)}">Aprovar</button>`);
@@ -935,8 +947,9 @@
   // ------------------------------------------------------------ pagar
   function openPay(ids) {
     const w = st.week;
+    if (!w?.period) return notify("Ainda não há período de folha nesta semana.", "error");
     const rows = w.employees.filter((r) => ids.includes(r.id) && canPay(r));
-    if (!rows.length) return;
+    if (!rows.length) return notify("Nada a pagar neste funcionário (verifique se há líquido aprovado).", "info");
     const total = rows.reduce((s, r) => s + r.totals.net, 0);
     const waiting = rows.filter((r) => r.totals.pending_days || r.totals.open_days);
     const methods = [...new Set(rows.map((r) => r.payment_method).filter(Boolean))];
@@ -1235,6 +1248,7 @@
   function openAdjust(id) {
     const r = st.week.employees.find((x) => x.id === id);
     if (!r) return;
+    if (!st.week.period) return notify("Ainda não há período de folha nesta semana. Lance ou aprove uma diária primeiro.", "error");
     const dayExps = r.days
       .filter((d) => d.kind !== "line" && (d.expenses || []).length)
       .flatMap((d) =>
@@ -1247,28 +1261,61 @@
     const reimb = Number(r.adjustment.reimbursement) || 0;
     const disc = Number(r.adjustment.discount) || 0;
     const gross = Number(r.totals.gross) || 0;
+    const canEdit = st.manage && !r.payment;
+    const dayOpts = r.days
+      .filter((d) => d.kind !== "line")
+      .map((d) => `<option value="${esc(d.id)}">${esc(d.date_label)}</option>`)
+      .join("");
     openSheet(
       `${sheetHead(`Ajustes · ${esc(r.name)}`, `Semana ${esc(st.week.week.label)}`)}<div class="fo-sheet__bd">
+        <div class="fo-box">
+          ${adjPreviewHtml(gross, reimb, disc)}
+          <p class="fo-muted" style="margin:10px 0 0;font-size:12.5px;font-weight:600">Líquido da semana = diárias + reembolso − desconto.</p>
+        </div>
+        ${
+          canEdit
+            ? `<div class="fo-box"><h3>Lançar na semana</h3>
+          <div class="fo-chiprow" role="group" aria-label="Tipo">
+            <button type="button" class="fo-chip" data-adj-kind="reimbursement" aria-pressed="true">Reembolso</button>
+            <button type="button" class="fo-chip" data-adj-kind="discount" aria-pressed="false">Desconto</button>
+          </div>
+          <input type="hidden" id="foAdjKind" value="reimbursement" />
+          <div class="fo-grid2" style="margin-top:12px">
+            <label class="fo-field">Valor ($)<input type="number" class="fo-in" id="foAdjAddAmt" min="0" step="0.01" autofocus placeholder="0.00" /></label>
+            <label class="fo-field">Descrição<input type="text" class="fo-in" id="foAdjAddDesc" maxlength="300" placeholder="Ex.: gasolina, material…" /></label>
+          </div>
+          ${
+            dayOpts
+              ? `<label class="fo-field" style="margin-top:10px">Vincular a um dia (opcional)<select class="fo-sel" id="foAdjAddDay"><option value="">Automático (último dia da semana)</option>${dayOpts}</select><small>Com vínculo, o lançamento fica editável e pode ser excluído.</small></label>`
+              : `<p class="fo-muted" style="margin:10px 0 0;font-size:12.5px;font-weight:600">Sem diária nesta semana — o valor entra só no total do ciclo.</p>`
+          }
+          <button type="button" class="fo-btn fo-btn--pri" style="margin-top:12px" data-adj-add="${esc(r.id)}">Adicionar ao líquido</button>
+        </div>`
+            : ""
+        }
         ${
           dayExps.length
-            ? `<div class="fo-box"><h3>Recibos dos dias</h3><ul class="fo-exp">${dayExps
+            ? `<div class="fo-box"><h3>Lançamentos <small>${dayExps.length}</small></h3><ul class="fo-exp">${dayExps
                 .map(
                   (x) => `<li>
                   ${x.receipt_url ? `<a class="fo-exp__img" href="${esc(x.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(x.receipt_url)}" alt="" /></a>` : `<span class="fo-exp__ph">—</span>`}
                   <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.date_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(x.description)}` : ""}</small></div>
-                  ${st.manage && !r.payment && x.status !== "rejected" ? `<span class="fo-exp__act"><button type="button" class="fo-btn fo-btn--sm" data-exp-edit="${esc(x.id)}">Editar</button></span>` : ""}
+                  ${
+                    canEdit && x.status !== "rejected"
+                      ? `<span class="fo-exp__act"><button type="button" class="fo-btn fo-btn--sm" data-exp-edit="${esc(x.id)}">Editar</button><button type="button" class="fo-btn fo-btn--sm fo-btn--ghost fo-btn--danger" data-exp-del="${esc(x.id)}" data-exp-emp="${esc(r.id)}">Excluir</button></span>`
+                      : ""
+                  }
                 </li>`,
                 )
-                .join("")}</ul><p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Aprovar o dia (ou o lançamento) inclui o valor no pagamento. Abaixo você ajusta o total da semana.</p></div>`
+                .join("")}</ul></div>`
             : ""
         }
-        <div class="fo-box">
-        ${adjPreviewHtml(gross, reimb, disc)}
-        <div class="fo-grid2" style="margin-top:12px"><label class="fo-field">Reembolso<input type="number" class="fo-in" id="foAdjR" min="0" step="0.01" value="${reimb || ""}" placeholder="0.00" /><small>Material, gasolina, ferramenta…</small></label>
-        <label class="fo-field">Desconto<input type="number" class="fo-in" id="foAdjD" min="0" step="0.01" value="${disc || ""}" placeholder="0.00" /><small>Adiantamento, dano…</small></label></div>
-        <label class="fo-field" style="margin-top:10px">Motivo<input type="text" class="fo-in" id="foAdjN" maxlength="500" value="${esc(r.adjustment.notes || "")}" /></label>
+        <div class="fo-box"><h3>Totais da semana</h3>
+        <div class="fo-grid2"><label class="fo-field">Reembolso total<input type="number" class="fo-in" id="foAdjR" min="0" step="0.01" value="${reimb || ""}" placeholder="0.00" ${canEdit ? "" : "disabled"} /><small>Total no líquido (pode editar)</small></label>
+        <label class="fo-field">Desconto total<input type="number" class="fo-in" id="foAdjD" min="0" step="0.01" value="${disc || ""}" placeholder="0.00" ${canEdit ? "" : "disabled"} /><small>Total no líquido (pode editar)</small></label></div>
+        <label class="fo-field" style="margin-top:10px">Motivo / notas<input type="text" class="fo-in" id="foAdjN" maxlength="500" value="${esc(r.adjustment.notes || "")}" ${canEdit ? "" : "disabled"} /></label>
       </div></div>
-      <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button><button type="button" class="fo-btn fo-btn--pri" data-adj-go="${esc(r.id)}">Salvar</button></footer>`,
+      <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Fechar</button>${canEdit ? `<button type="button" class="fo-btn fo-btn--pri" data-adj-go="${esc(r.id)}">Salvar totais</button>` : ""}</footer>`,
     );
   }
   function findExpense(expId) {
@@ -1341,9 +1388,9 @@
     try {
       if (file) body.receipt_data_url = await fileToDataUrl(file);
       await api(`/api/folha/dias/${dayId}/despesas`, { method: "POST", body: JSON.stringify(body) });
-      notify(body.approve ? "Lançamento aprovado e incluído no pagamento." : "Lançamento salvo para conferir.", "success");
+      notify(body.approve ? "Lançamento aprovado e incluído no líquido." : "Lançamento salvo para conferir.", "success");
       closeSheet();
-      refreshAfterChange();
+      await refreshAfterChange();
       openDay(dayId);
     } catch (e) {
       btn.disabled = false;
@@ -1375,15 +1422,52 @@
       notify(e.message, "error");
     }
   }
+  async function expDelete(expId, reopen) {
+    if (!confirm("Excluir este lançamento? O valor sai do líquido da semana.")) return;
+    try {
+      await api(`/api/folha/despesas/${expId}`, { method: "DELETE" });
+      notify("Lançamento excluído. Líquido atualizado.", "success");
+      closeSheet();
+      await refreshAfterChange();
+      if (reopen?.dayId) openDay(reopen.dayId);
+      else if (reopen?.empId) openAdjust(reopen.empId);
+    } catch (e) {
+      notify(e.message, "error");
+    }
+  }
+  async function adjustAdd(id, btn) {
+    const amount = Number($("foAdjAddAmt")?.value || 0);
+    if (!(amount > 0)) return notify("Informe o valor.", "error");
+    if (!st.week?.period) return notify("Sem período nesta semana.", "error");
+    const body = {
+      kind: $("foAdjKind")?.value || "reimbursement",
+      amount,
+      description: ($("foAdjAddDesc")?.value || "").trim() || null,
+      day_id: ($("foAdjAddDay")?.value || "").trim() || null,
+    };
+    btn.disabled = true;
+    try {
+      await api(`/api/folha/semana/${st.week.period.id}/ajustes/${id}/lancar`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      notify("Lançamento incluído no líquido da semana.", "success");
+      await refreshAfterChange();
+      openAdjust(id);
+    } catch (e) {
+      btn.disabled = false;
+      notify(e.message, "error");
+    }
+  }
   async function adjustGo(id) {
     try {
       await api(`/api/folha/semana/${st.week.period.id}/ajustes/${id}`, {
         method: "PUT",
         body: JSON.stringify({ reimbursement: Number($("foAdjR").value) || 0, discount: Number($("foAdjD").value) || 0, notes: $("foAdjN").value.trim() || null }),
       });
-      notify("Ajuste salvo.", "success");
+      notify("Totais salvos. Líquido atualizado.", "success");
       closeSheet();
-      loadWeek();
+      await loadWeek();
     } catch (e) {
       notify(e.message, "error");
     }
@@ -1854,8 +1938,21 @@
     }
     if ((b = el("[data-adjust]"))) return openAdjust(b.getAttribute("data-adjust"));
     if ((b = el("[data-adj-go]"))) return adjustGo(b.getAttribute("data-adj-go"));
+    if ((b = el("[data-adj-add]"))) return adjustAdd(b.getAttribute("data-adj-add"), b);
+    if ((b = el("[data-adj-kind]"))) {
+      const kind = b.getAttribute("data-adj-kind");
+      if ($("foAdjKind")) $("foAdjKind").value = kind;
+      document.querySelectorAll("[data-adj-kind]").forEach((x) => x.setAttribute("aria-pressed", String(x.getAttribute("data-adj-kind") === kind)));
+      return;
+    }
     if ((b = el("[data-exp-add]"))) return openAddExpense(b.getAttribute("data-exp-add"));
     if ((b = el("[data-exp-edit]"))) return openEditExpense(b.getAttribute("data-exp-edit"));
+    if ((b = el("[data-exp-del]"))) {
+      return expDelete(b.getAttribute("data-exp-del"), {
+        dayId: b.getAttribute("data-exp-day") || null,
+        empId: b.getAttribute("data-exp-emp") || null,
+      });
+    }
     if ((b = el("[data-exp-kind]"))) {
       const kind = b.getAttribute("data-exp-kind");
       if ($("foExpKind")) $("foExpKind").value = kind;
@@ -1866,20 +1963,20 @@
     if ((b = el("[data-exp-save]"))) return expSave(b.getAttribute("data-exp-save"), b.getAttribute("data-exp-day"), b);
     if ((b = el("[data-exp-ok]"))) {
       return api(`/api/folha/despesas/${b.getAttribute("data-exp-ok")}/aprovar`, { method: "POST", body: "{}" })
-        .then(() => {
-          notify("Reembolso/desconto aprovado.", "success");
+        .then(async () => {
+          notify("Reembolso/desconto aprovado e incluído no líquido.", "success");
           const id = $("foSheet").dataset.dayId;
-          refreshAfterChange();
+          await refreshAfterChange();
           if (id) return openDay(id);
         })
         .catch((e) => notify(e.message, "error"));
     }
     if ((b = el("[data-exp-no]"))) {
       return api(`/api/folha/despesas/${b.getAttribute("data-exp-no")}/recusar`, { method: "POST", body: JSON.stringify({ reason: "Recusado pelo escritório" }) })
-        .then(() => {
-          notify("Lançamento recusado.", "success");
+        .then(async () => {
+          notify("Lançamento recusado. Valor removido do líquido.", "success");
           const id = $("foSheet").dataset.dayId;
-          refreshAfterChange();
+          await refreshAfterChange();
           if (id) return openDay(id);
         })
         .catch((e) => notify(e.message, "error"));

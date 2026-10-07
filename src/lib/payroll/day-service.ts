@@ -145,25 +145,39 @@ export async function photoCounts(
   return out;
 }
 
-/** Period covering the date per org pay cycle; created when missing. */
+/**
+ * Period for the org pay-cycle bounds containing `workDate`.
+ * Always uses the exact cycle start/end (not a loose covering range) so week
+ * view, adjustments and pay share the same row — even before pay day.
+ */
 export async function periodFor(tx: PayrollTx, organizationId: string, workDate: Date) {
-  const covering = await tx.payrollPeriod.findFirst({
-    where: { startDate: { lte: workDate }, endDate: { gte: workDate } },
-    orderBy: [{ status: "asc" }, { startDate: "desc" }],
-  });
-  if (covering) return covering;
   const org = await tx.organization.findUnique({
     where: { id: organizationId },
     select: { featureFlags: true },
   });
   const cycle = parsePayCycle(org?.featureFlags);
   const bounds = periodBoundsFor(ymd(workDate), cycle);
+  return ensurePeriodForBounds(tx, organizationId, bounds);
+}
+
+/** Find or create the PayrollPeriod for these exact cycle bounds. */
+export async function ensurePeriodForBounds(
+  tx: PayrollTx,
+  organizationId: string,
+  bounds: { start: string; end: string; label: string },
+) {
+  const startDate = parseYmd(bounds.start)!;
+  const endDate = parseYmd(bounds.end)!;
+  const existing = await tx.payrollPeriod.findFirst({
+    where: { startDate, endDate },
+  });
+  if (existing) return existing;
   return tx.payrollPeriod.create({
     data: {
       organizationId,
       label: bounds.label,
-      startDate: parseYmd(bounds.start)!,
-      endDate: parseYmd(bounds.end)!,
+      startDate,
+      endDate,
       status: "open",
     },
   });
