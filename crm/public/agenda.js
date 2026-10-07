@@ -447,7 +447,10 @@
     let head = `<div class="ag-tg__head" style="--n:${n}"><div class="ag-tg__gutter"></div>${days
       .map((d) => {
         const isT = sameDay(d, today);
-        return `<button type="button" class="ag-tg__dh${isT ? ' is-today' : ''}${d.getDay() === 0 || d.getDay() === 6 ? ' is-we' : ''}" data-ag-goday="${ymd(d)}"><span>${WD[d.getDay()]}</span><b>${d.getDate()}</b></button>`;
+        const route = n > 1 && dayHasRoute(d)
+          ? `<button type="button" class="ag-tg__rbtn" data-ag-day-route="${esc(ymd(d))}" title="Ver rota do dia">Rota</button>`
+          : '';
+        return `<div class="ag-tg__dhwrap"><button type="button" class="ag-tg__dh${isT ? ' is-today' : ''}${d.getDay() === 0 || d.getDay() === 6 ? ' is-we' : ''}" data-ag-goday="${ymd(d)}"><span>${WD[d.getDay()]}</span><b>${d.getDate()}</b></button>${route}</div>`;
       })
       .join('')}</div>
       <div class="ag-tg__all" style="--n:${n};height:${allH}px"><div class="ag-tg__gutter"><small>dia inteiro</small></div><div class="ag-tg__allin">${bars
@@ -474,7 +477,11 @@
     grid += '</div></div>';
     let aside = '';
     if (n === 1) aside = dayAsideHtml(start);
-    $('#agStage').innerHTML = `<div class="ag-tg${n === 1 ? ' ag-tg--day' : ''}"><div class="ag-tg__main">${head}${grid}</div>${aside}</div>`;
+    const routeBar =
+      n === 1 && dayHasRoute(start)
+        ? `<div class="ag-routebar">${dayRouteBtnHtml(start, 'ag-btn ag-btn--pri')}</div>`
+        : '';
+    $('#agStage').innerHTML = `<div class="ag-tg${n === 1 ? ' ag-tg--day' : ''}"><div class="ag-tg__main">${routeBar}${head}${grid}</div>${aside}</div>`;
     const sc = $('#agScroll');
     if (sc) {
       const firsts = days.flatMap((d) => eventsOnDay(d).filter((e) => !e.allDay && sameDay(e.start, d)).map((e) => e.start.getHours()));
@@ -503,10 +510,37 @@
     return html + '</div></div>';
   }
 
+  function dayHasRoute(d) {
+    if (!window.__crmDayRoute || !d) return false;
+    return window.__crmDayRoute.stopsFromAgendaEvents(eventsOnDay(d)).length > 0;
+  }
+  function openDayRoute(d) {
+    if (!window.__crmDayRoute || !d) {
+      toast('Mapa de rota ainda a carregar. Atualize a página.', 'error');
+      return;
+    }
+    const stops = window.__crmDayRoute.stopsFromAgendaEvents(eventsOnDay(d));
+    if (!stops.length) {
+      toast('Nenhum endereço neste dia para traçar rota.', 'error');
+      return;
+    }
+    window.__crmDayRoute.open({
+      title: 'Rota do dia',
+      subtitle: fmtDateLong(d),
+      origin: (S.me && S.me.route_start_address) || '',
+      stops,
+      onSaveOrigin: (addr) => {
+        if (S.me) S.me.route_start_address = addr || null;
+      },
+    });
+  }
+  function dayRouteBtnHtml(d, cls) {
+    if (!dayHasRoute(d)) return '';
+    return `<button type="button" class="${cls || 'ag-btn ag-btn--pri ag-btn--block'}" data-ag-day-route="${esc(ymd(d))}">Ver rota do dia</button>`;
+  }
+
   function dayAsideHtml(d) {
     const list = eventsOnDay(d);
-    const routeStops = window.__crmDayRoute ? window.__crmDayRoute.stopsFromAgendaEvents(list) : list.filter((e) => e.address);
-    const hasRoute = routeStops.length > 0;
     return `<aside class="ag-dayside">${miniMonthHtml(d, { dots: true, year: true })}
       <div class="ag-dayside__list"><h3>${esc(fmtDateLong(d))}</h3>${
         list.length
@@ -518,7 +552,7 @@
               )
               .join('')
           : '<p class="ag-empty">Nada agendado.</p>'
-      }${hasRoute ? `<button type="button" class="ag-btn ag-btn--block" data-ag-day-route="${esc(ymd(d))}">Ver rota do dia</button>` : ''}</div></aside>`;
+      }${dayRouteBtnHtml(d)}</div></aside>`;
   }
 
   // ---------- year
@@ -542,10 +576,10 @@
       groups.length
         ? groups
             .map(
-              ([d, l]) => `<section><h3 class="${sameDay(d, from) ? 'is-today' : ''}">${esc(fmtDateLong(d))}</h3>${l
+              ([d, l]) => `<section><div class="ag-list__hd"><h3 class="${sameDay(d, from) ? 'is-today' : ''}">${esc(fmtDateLong(d))}</h3>${dayRouteBtnHtml(d, 'ag-btn ag-btn--sm')}</div>${l
                 .map(
                   (e) => `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(e.title)}</b><small>${esc(
-                    [TYPES[e.type].one, e.address].filter(Boolean).join(' · ')
+                    [TYPES[e.type].one, e.needs_delivery ? 'Delivery' : null, e.address].filter(Boolean).join(' · ')
                   )}</small></div></button>`
                 )
                 .join('')}</section>`
@@ -735,7 +769,7 @@
       })
       .join('')}${sameDay(d, today) ? `<div class="ag-now" style="top:${((Date.now() - d) / 3600e3) * HOUR_PX}px"></div>` : ''}</div></div></div>
       ${!list.length ? '<p class="ag-empty ag-empty--float">Nada agendado neste dia.</p>' : ''}
-      ${window.__crmDayRoute && window.__crmDayRoute.stopsFromAgendaEvents(list).length ? `<div class="ag-mday__route"><button type="button" class="ag-btn ag-btn--block" data-ag-day-route="${esc(ymd(d))}">Ver rota do dia</button></div>` : ''}
+      ${dayHasRoute(d) ? `<div class="ag-mday__route">${dayRouteBtnHtml(d)}</div>` : ''}
       </div>`;
     $('#agStage').innerHTML = html;
     const sc = $('#agScroll');
@@ -2121,20 +2155,10 @@
         return;
       }
       if ((el = t.closest('[data-ag-day-route]'))) {
+        ev.preventDefault();
         ev.stopPropagation();
         const day = parseYmd(el.dataset.agDayRoute);
-        if (!day || !window.__crmDayRoute) return;
-        const list = eventsOnDay(day);
-        const stops = window.__crmDayRoute.stopsFromAgendaEvents(list);
-        window.__crmDayRoute.open({
-          title: 'Rota do dia',
-          subtitle: fmtDateLong(day),
-          origin: (S.me && S.me.route_start_address) || '',
-          stops,
-          onSaveOrigin: (addr) => {
-            if (S.me) S.me.route_start_address = addr || null;
-          },
-        });
+        if (day) openDayRoute(day);
         return;
       }
       if ((el = t.closest('[data-ag-ev]'))) {

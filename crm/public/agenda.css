@@ -315,7 +315,50 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-btn--danger { color: var(--red) !important; border-color: transparent; background: #fff; }
 .ag-pop .ag-btn--danger { background: transparent; }
 .ag-btn--block { width: 100%; }
+.ag-btn--sm { height: 34px; padding: 0 12px; font-size: 13px; border-radius: 10px; }
 .ag-mday__route { padding: 10px 12px 16px; }
+.ag-routebar {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+.ag-tg__dhwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 0 6px;
+}
+.ag-tg__rbtn {
+  appearance: none;
+  border: 1px solid #f3cfb1;
+  background: #fdf1e7;
+  color: #c1652f;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.ag-tg__rbtn:hover { background: #fce8d6; }
+.ag-list__hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 8px;
+}
+.ag-list__hd h3 { margin: 0; }
+.ag-list section > h3 { margin: 0 0 8px; }
 .ag-btn:disabled { opacity: .5; }
 
 /* ---------- menu & search results */
@@ -492,6 +535,7 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   .ag-search { width: 200px; }
   .ag-year { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ag-dayside { display: none; }
+  .ag-routebar { display: flex; }
   .ag-side { position: absolute; z-index: 20; top: 0; bottom: 0; left: 0; box-shadow: 8px 0 30px rgba(33, 29, 26, .12); }
   .ag-body { position: relative; }
 }
