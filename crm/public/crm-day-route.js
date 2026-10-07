@@ -12,14 +12,15 @@
 (function () {
   if (window.__crmDayRoute) return;
 
-  const CSS_HREF = "crm-day-route.css?v=20261006-route3";
+  const CSS_HREF = "crm-day-route.css?v=20261006-route4";
   let root = null;
   let map = null;
-  let directionsRenderer = null;
+  let routePolylines = [];
   let markers = [];
   let state = null;
   let mapsReady = null;
   let originAcAttached = false;
+  let RouteClass = null;
 
   function $(sel, el) {
     return (el || document).querySelector(sel);
@@ -45,12 +46,12 @@
     const base = document.querySelector('script[src*="crm-day-route"]');
     if (base && base.src) {
       try {
-        link.href = new URL("../crm-day-route.css?v=20261006-route3", base.src).href;
+        link.href = new URL("../crm-day-route.css?v=20261006-route4", base.src).href;
       } catch (_) {
-        link.href = "/crm-day-route.css?v=20261006-route3";
+        link.href = "/crm-day-route.css?v=20261006-route4";
       }
     } else {
-      link.href = "/crm-day-route.css?v=20261006-route3";
+      link.href = "/crm-day-route.css?v=20261006-route4";
     }
     document.head.appendChild(link);
   }
@@ -209,62 +210,77 @@
   }
 
   function mapsLoaded() {
-    return !!(window.google && window.google.maps && window.google.maps.Map && window.google.maps.DirectionsService);
+    return !!(window.google && window.google.maps && window.google.maps.Map && typeof window.google.maps.importLibrary === "function");
   }
 
   async function loadMaps() {
     if (mapsReady) return mapsReady;
     mapsReady = (async () => {
-      if (mapsLoaded()) return true;
-      // Prefer shared loader (Places + auth hook) when available.
-      if (typeof window.sfEnsureCrmAddressAutocomplete === "function") {
-        const ok = await window.sfEnsureCrmAddressAutocomplete(false);
-        if (ok && mapsLoaded()) return true;
-      }
-      let key = null;
-      try {
-        const r = await fetch("/api/config/ui", { credentials: "include" });
-        const j = await r.json();
-        key = (j.data && j.data.googleMapsJsKey && String(j.data.googleMapsJsKey).trim()) || null;
-      } catch (_) {
-        key = null;
-      }
-      if (!key) throw new Error("Google Maps não configurado neste ambiente.");
-      await new Promise((resolve, reject) => {
-        if (mapsLoaded()) {
-          resolve();
-          return;
+      if (!mapsLoaded()) {
+        // Prefer shared loader (Places + auth hook) when available.
+        if (typeof window.sfEnsureCrmAddressAutocomplete === "function") {
+          await window.sfEnsureCrmAddressAutocomplete(false);
         }
-        const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
-        if (existing) {
-          let n = 0;
-          const t = setInterval(() => {
-            n += 1;
-            if (mapsLoaded()) {
-              clearInterval(t);
-              resolve();
-            } else if (n > 100) {
-              clearInterval(t);
-              reject(new Error("Timeout Google Maps"));
-            }
-          }, 100);
-          return;
+      }
+      if (!mapsLoaded()) {
+        let key = null;
+        try {
+          const r = await fetch("/api/config/ui", { credentials: "include" });
+          const j = await r.json();
+          key = (j.data && j.data.googleMapsJsKey && String(j.data.googleMapsJsKey).trim()) || null;
+        } catch (_) {
+          key = null;
         }
-        const cb = "__drMapsInit_" + Date.now();
-        window[cb] = () => {
-          try {
-            delete window[cb];
-          } catch (_) {}
-          if (window.__crmGoogleMapsAuthFailed) reject(new Error("Google Maps: chave inválida ou sem billing."));
-          else resolve();
-        };
-        const s = document.createElement("script");
-        s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&libraries=places&callback=" + cb;
-        s.async = true;
-        s.onerror = () => reject(new Error("Falha ao carregar Google Maps"));
-        document.head.appendChild(s);
-      });
+        if (!key) throw new Error("Google Maps não configurado neste ambiente.");
+        await new Promise((resolve, reject) => {
+          if (mapsLoaded()) {
+            resolve();
+            return;
+          }
+          const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+          if (existing) {
+            let n = 0;
+            const t = setInterval(() => {
+              n += 1;
+              if (mapsLoaded()) {
+                clearInterval(t);
+                resolve();
+              } else if (n > 100) {
+                clearInterval(t);
+                reject(new Error("Timeout Google Maps"));
+              }
+            }, 100);
+            return;
+          }
+          const cb = "__drMapsInit_" + Date.now();
+          window[cb] = () => {
+            try {
+              delete window[cb];
+            } catch (_) {}
+            if (window.__crmGoogleMapsAuthFailed) reject(new Error("Google Maps: chave inválida ou sem billing."));
+            else resolve();
+          };
+          const s = document.createElement("script");
+          s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&libraries=places&callback=" + cb;
+          s.async = true;
+          s.onerror = () => reject(new Error("Falha ao carregar Google Maps"));
+          document.head.appendChild(s);
+        });
+      }
       if (!mapsLoaded()) throw new Error("Google Maps não ficou pronto.");
+      // Routes library (replaces legacy DirectionsService / Directions API).
+      if (!RouteClass) {
+        try {
+          const lib = await google.maps.importLibrary("routes");
+          RouteClass = lib && lib.Route;
+        } catch (err) {
+          throw new Error(
+            "Ative a Routes API no Google Cloud (não a Directions antiga). " +
+              ((err && err.message) || ""),
+          );
+        }
+      }
+      if (!RouteClass) throw new Error("Routes API indisponível — ative Routes API no Google Cloud.");
       return true;
     })().catch((err) => {
       mapsReady = null;
@@ -311,12 +327,19 @@
     });
   }
 
-  function statusMessage(status) {
-    if (status === "ZERO_RESULTS" || status === "NOT_FOUND") return "Não achamos rota de carro entre esses pontos.";
-    if (status === "REQUEST_DENIED") return "Directions API não habilitada nesta chave Google Maps.";
-    if (status === "OVER_QUERY_LIMIT") return "Limite da API de rotas atingido. Tente de novo em instantes.";
-    if (status === "INVALID_REQUEST") return "Endereço de partida ou paradas inválidos.";
-    return "Falha ao calcular a rota (" + status + ").";
+  function routeErrorMessage(err) {
+    const raw = String((err && (err.message || err.status || err)) || "");
+    const lower = raw.toLowerCase();
+    if (/zero_results|not_found|no route|não|nenhuma rota/i.test(raw) || lower.includes("zero_results")) {
+      return "Não achamos rota de carro entre esses pontos.";
+    }
+    if (/request_denied|permission|not enabled|has not been used|api.*disabled|billing/i.test(raw)) {
+      return "Ative a Routes API no Google Cloud e permita-a na chave Maps (não use Directions API — ela foi descontinuada).";
+    }
+    if (/over_query|quota|rate/i.test(raw)) return "Limite da API de rotas atingido. Tente de novo em instantes.";
+    if (/invalid/i.test(raw)) return "Endereço de partida ou paradas inválidos.";
+    if (/tempo esgotado/i.test(raw)) return raw;
+    return raw || "Falha ao calcular a rota.";
   }
 
   function clearMarkers() {
@@ -326,6 +349,22 @@
       } catch (_) {}
     });
     markers = [];
+  }
+
+  function clearRoutePolylines() {
+    routePolylines.forEach((p) => {
+      try {
+        p.setMap(null);
+      } catch (_) {}
+    });
+    routePolylines = [];
+  }
+
+  function fitMapToPath(path) {
+    if (!map || !path || !path.length) return;
+    const bounds = new google.maps.LatLngBounds();
+    path.forEach((pt) => bounds.extend(pt));
+    if (!bounds.isEmpty()) map.fitBounds(bounds, 48);
   }
 
   function renderList() {
@@ -384,11 +423,7 @@
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-      });
-      directionsRenderer = new google.maps.DirectionsRenderer({
-        map,
-        suppressMarkers: false,
-        polylineOptions: { strokeColor: "#c1652f", strokeWeight: 5, strokeOpacity: 0.9 },
+        mapId: "DEMO_MAP_ID",
       });
     } else {
       try {
@@ -420,52 +455,53 @@
       await loadMaps();
       ensureMapCanvas();
       clearMarkers();
-      if (directionsRenderer) {
-        try {
-          directionsRenderer.setDirections({ routes: [] });
-        } catch (_) {}
-      }
+      clearRoutePolylines();
 
       const dest = stops[stops.length - 1].address;
-      const mid = stops.slice(0, -1).map((s) => ({ location: s.address, stopover: true }));
-      const svc = new google.maps.DirectionsService();
-      const result = await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("Tempo esgotado ao calcular a rota.")), 20000);
-        svc.route(
-          {
-            origin,
-            destination: dest,
-            waypoints: mid,
-            travelMode: google.maps.TravelMode.DRIVING,
-            optimizeWaypoints: false,
-          },
-          (res, status) => {
-            clearTimeout(timer);
-            if (status === "OK" && res) resolve(res);
-            else reject(new Error(statusMessage(status)));
-          },
-        );
+      const intermediates = stops.slice(0, -1).map((s) => s.address);
+      const request = {
+        origin,
+        destination: dest,
+        travelMode: "DRIVING",
+        fields: ["path", "legs", "distanceMeters", "durationMillis"],
+      };
+      if (intermediates.length) request.intermediates = intermediates;
+
+      const result = await Promise.race([
+        RouteClass.computeRoutes(request),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo esgotado ao calcular a rota.")), 20000)),
+      ]);
+      const route = result && result.routes && result.routes[0];
+      if (!route) throw new Error("Não achamos rota de carro entre esses pontos.");
+
+      const polys =
+        (route.createPolylines &&
+          route.createPolylines({
+            polylineOptions: { strokeColor: "#c1652f", strokeWeight: 5, strokeOpacity: 0.9 },
+          })) ||
+        [];
+      polys.forEach((p) => {
+        p.setMap(map);
+        routePolylines.push(p);
       });
 
-      directionsRenderer.setDirections(result);
-      let meters = 0;
-      let seconds = 0;
-      (result.routes[0].legs || []).forEach((leg) => {
-        meters += (leg.distance && leg.distance.value) || 0;
-        seconds += (leg.duration && leg.duration.value) || 0;
-      });
+      if (route.path && route.path.length) fitMapToPath(route.path);
+      plotStopMarkers(origin, stops);
+
+      const meters = route.distanceMeters || 0;
+      const mins = Math.round((route.durationMillis || 0) / 60000);
       const km = meters / 1000;
-      const mins = Math.round(seconds / 60);
-      const hm = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`;
+      const hm = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins || 1} min`;
       $("#drSum", root).textContent = `Rota · ${km < 10 ? km.toFixed(1) : Math.round(km)} km · ${hm}`;
       $("#drHint", root).textContent = "Toque num endereço da lista para abrir no Maps do celular.";
     } catch (err) {
-      const msg = (err && err.message) || "Falha ao calcular a rota.";
+      const msg = routeErrorMessage(err);
       $("#drHint", root).textContent = msg + " Use Abrir no Maps.";
       $("#drSum", root).textContent = "";
       updateNativeLink(origin, stops);
       try {
         ensureMapCanvas();
+        clearRoutePolylines();
         plotStopMarkers(origin, stops);
       } catch (_) {}
       notify(msg, "error");
