@@ -20,8 +20,15 @@
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261001-tablet1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261002-gest1" />
-  <link rel="stylesheet" href="folha.css?v=20261007-folha25" />
+  <link rel="stylesheet" href="folha.css?v=20261007-folha26" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
+  <script>
+    if (typeof pdfjsLib !== "undefined") {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+  </script>
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -111,6 +118,6 @@
   <script src="crm-shell.js?v=20261002-phone1"></script>
   <script src="om-mobile-nav.js?v=20261006-hidefq"></script>
   <script src="om-gestures.js?v=20261002-gest1"></script>
-  <script src="folha.js?v=20261007-folha25"></script>
+  <script src="folha.js?v=20261007-folha26"></script>
 </body>
 </html>

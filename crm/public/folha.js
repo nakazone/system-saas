@@ -1216,11 +1216,11 @@
             </label>
             <button type="button" class="fo-btn fo-btn--sm" data-conf-save-phone style="margin-top:8px;width:100%;justify-content:center">Salvar telefone no cadastro</button>
             <div class="fo-conf-channels">
-              <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar e-mail com PDF</button>
+              <button type="button" class="fo-btn fo-btn--pri" data-conf-share-img>Compartilhar imagem</button>
+              <p class="fo-muted" style="margin:6px 0 0;font-size:12.5px;line-height:1.35">Gera o ticket em PNG e abre o menu nativo (WhatsApp, Mensagens, etc.).</p>
+              <button type="button" class="fo-btn" data-conf-email style="margin-top:10px">Enviar e-mail com PDF</button>
               <div class="fo-conf-grid">
                 <button type="button" class="fo-btn" data-conf-pdf>Abrir PDF</button>
-                <button type="button" class="fo-btn" data-conf-wa>WhatsApp</button>
-                <button type="button" class="fo-btn" data-conf-sms>SMS</button>
                 <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar link</button>
               </div>
             </div>
@@ -1235,9 +1235,6 @@
       if (bd) bd.scrollTop = scrollTop;
       pop.classList.add("is-open");
     });
-  }
-  function confPhoneDigitsFromInput() {
-    return phoneDigits($("foConfPhone")?.value || $("foSheet")._confPhone || "");
   }
   async function confSavePhone(btn) {
     const id = $("foSheet")._confId;
@@ -1274,18 +1271,6 @@
       if (btn) btn.disabled = false;
     }
   }
-  async function confEnsurePhoneSaved() {
-    const id = $("foSheet")._confId;
-    const digits = confPhoneDigitsFromInput();
-    if (digits.length < 10) {
-      notify("Informe o telefone do funcionário.", "error");
-      return null;
-    }
-    if (digits !== ($("foSheet")._confPhone || "")) {
-      return confSavePhone(null);
-    }
-    return digits;
-  }
   async function confIssueShareLink() {
     const id = $("foSheet")._confId;
     if (!id || !st.week) return null;
@@ -1313,6 +1298,98 @@
       btn.disabled = false;
     }
   }
+  function confSafeFilePart(s) {
+    return String(s || "funcionario").replace(/[^\w.\-]+/g, "_").slice(0, 42);
+  }
+  function confDownloadBlob(blob, filename) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2500);
+  }
+  async function confFetchPdfBlob(employeeId) {
+    const url = confPdfUrl(employeeId);
+    if (!url) throw new Error("Semana ou funcionário inválido.");
+    const r = await fetch(url, { credentials: "include" });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.error || `PDF (${r.status})`);
+    }
+    return r.blob();
+  }
+  /** PDF → PNG (mesmo fluxo dos recibos: pdf.js + canvas). */
+  async function confPdfBlobToPngBlob(pdfBlob, scale = 2) {
+    if (typeof pdfjsLib === "undefined") {
+      throw new Error("pdf.js não carregou (rede ou bloqueador de anúncios).");
+    }
+    const buf = await pdfBlob.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Falha ao gerar PNG"))), "image/png");
+    });
+  }
+  /**
+   * Compartilha o relatório como PNG via Web Share (arquivo na mensagem),
+   * igual aos recibos — fallback: baixa o PNG para anexar manualmente.
+   */
+  async function confShareAsImage(btn) {
+    const id = $("foSheet")._confId;
+    if (!id || !st.week) return;
+    const emp = st.week?.employees?.find((x) => x.id === id);
+    const name = emp?.name || "Funcionário";
+    if (btn) btn.disabled = true;
+    try {
+      notify("Preparando imagem do relatório…", "info");
+      const pdfBlob = await confFetchPdfBlob(id);
+      const pngBlob = await confPdfBlobToPngBlob(pdfBlob);
+      const filename = `Folha-${confSafeFilePart(name)}-${st.week.week.start || "semana"}.png`;
+      let usedShare = false;
+      if (typeof navigator.share === "function") {
+        let file = null;
+        try {
+          file = new File([pngBlob], filename, { type: "image/png" });
+        } catch (_) {
+          file = null;
+        }
+        if (file) {
+          try {
+            if (typeof navigator.canShare === "function" && !navigator.canShare({ files: [file] })) {
+              confDownloadBlob(pngBlob, filename);
+              notify("Este navegador não compartilha arquivos daqui. PNG baixado — anexe no WhatsApp ou nas mensagens.", "success");
+              return;
+            }
+            await navigator.share({
+              files: [file],
+              title: "Relatório de folha",
+              text: `Relatório de folha — ${name}`,
+            });
+            usedShare = true;
+          } catch (e) {
+            if (e && e.name === "AbortError") return;
+          }
+        }
+      }
+      if (!usedShare) {
+        confDownloadBlob(pngBlob, filename);
+        notify("PNG baixado — envie como anexo no app.", "success");
+      }
+    } catch (e) {
+      notify(e.message || "Falha ao preparar a imagem.", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
   async function confShare(channel, btn) {
     if (btn) btn.disabled = true;
     try {
@@ -1323,20 +1400,6 @@
         const done = () => notify("Link do ticket copiado.", "success");
         if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
         else fallbackCopy(text, done);
-        return;
-      }
-      const digits = await confEnsurePhoneSaved();
-      if (!digits) return;
-      const link = await confIssueShareLink();
-      if (!link?.share_text) throw new Error("Não foi possível gerar o link do ticket.");
-      const e164 = digits.length === 10 ? `1${digits}` : digits;
-      const text = link.share_text;
-      if (channel === "wa") {
-        window.open(`https://wa.me/${e164}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
-        return;
-      }
-      if (channel === "sms") {
-        window.open(`sms:+${e164}?&body=${encodeURIComponent(text)}`, "_blank");
       }
     } catch (e) {
       notify(e.message || "Falha ao preparar o envio.", "error");
@@ -2091,13 +2154,12 @@
     if (el("[data-conf-send-close]")) return closeConfSendPop();
     if ((b = el("[data-conf-save-phone]"))) return confSavePhone(b);
     if ((b = el("[data-conf-email]"))) return confSendEmail(b);
+    if ((b = el("[data-conf-share-img]"))) return confShareAsImage(b);
     if (el("[data-conf-pdf]")) {
       const url = confPdfUrl($("foSheet")._confId);
       if (url) window.open(url, "_blank", "noopener");
       return;
     }
-    if ((b = el("[data-conf-wa]"))) return confShare("wa", b);
-    if ((b = el("[data-conf-sms]"))) return confShare("sms", b);
     if ((b = el("[data-conf-copy]"))) return confShare("copy", b);
     if ((b = el("[data-pay]"))) return openPay([b.getAttribute("data-pay")]);
     if ((b = el("[data-pay-go]"))) return payGo(b);
