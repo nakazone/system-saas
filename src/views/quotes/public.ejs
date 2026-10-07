@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title><%= (quote.quoteNumber || ('#' + quote.number)) %> — <%= organization.name %></title>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png" />
   <style>
@@ -338,6 +338,7 @@
       .qp-actions, .qp-changes, .no-print { display: none !important; }
     }
   </style>
+  <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
 <body class="qp-page">
   <div class="qp-wrap">

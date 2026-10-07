@@ -109,6 +109,35 @@
     // Ignore visualViewport / resize — those fire when the keyboard or URL bar moves.
   }
 
+  /**
+   * Prevent iOS/Android focus-zoom from rescaling the whole CRM UI.
+   * Caps pinch-zoom and loads shared form font-size rules (≥16px on touch widths).
+   */
+  function lockStableViewport() {
+    if (typeof document === "undefined") return;
+    try {
+      let meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) {
+        meta = document.createElement("meta");
+        meta.setAttribute("name", "viewport");
+        (document.head || document.documentElement).appendChild(meta);
+      }
+      meta.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover",
+      );
+      if (!document.getElementById("om-stable-viewport-css")) {
+        const link = document.createElement("link");
+        link.id = "om-stable-viewport-css";
+        link.rel = "stylesheet";
+        link.href = "/om-stable-viewport.css?v=20261007-stable1";
+        (document.head || document.documentElement).appendChild(link);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   /** Redirect desktop/tablet away from the mobile-only Home. */
   function guardMobileOnlyPage(desktopHref) {
     if (isMobile()) return false;
@@ -134,11 +163,13 @@
     applyBodyClass,
     guardMobileOnlyPage,
     lockMobileAppHeight,
+    lockStableViewport,
   };
 
   global.__omDevice = api;
 
   if (typeof document !== "undefined") {
+    lockStableViewport();
     if (document.body) applyBodyClass();
     else document.addEventListener("DOMContentLoaded", applyBodyClass);
     wireMobileAppHeightLock();

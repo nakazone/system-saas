@@ -4,7 +4,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title><%= typeof title !== 'undefined' ? title : 'App' %><% if (typeof organization !== 'undefined' && organization) { %> · <%= organization.name %><% } else { %> · <%= displayProductName %><% } %></title>
   <link rel="icon" type="image/png" href="/assets/obramateLogoSmallTransp.png" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="/assets/css/app.css" />
   <style>:root { --brand: #e8792c; --brand-dark: #c1652f; --brand-ink: #211d1a; --brand-surface: #f7f4ee; }</style>
   <% } %>
+  <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
 <body class="<%= isLandingPage ? 'landing-shell' : (typeof organization !== 'undefined' && organization ? 'app-shell' : 'marketing-shell') %>">
   <% if (isLandingPage) { %>
