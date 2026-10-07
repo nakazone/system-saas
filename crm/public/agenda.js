@@ -1156,6 +1156,10 @@
       const card = tapEl.closest('.ag-dtl__addr') || tapEl;
       card.replaceWith(wrap);
       wrap.classList.add('ag-card', 'ag-dtl__editing--addr');
+      wrap.insertAdjacentHTML(
+        'beforeend',
+        `<div class="ag-dtl__edit-ft"><button type="button" class="ag-btn ag-btn--sm" data-ag-edit-done>Pronto</button></div>`,
+      );
     } else {
       const cell = tapEl.closest('.ag-dtl__kv > div') || tapEl.parentNode;
       if (cell && cell !== tapEl) {
@@ -1202,11 +1206,23 @@
       detail.getAttribute('data-ag-detail') || editing.getAttribute('data-ag-id') || '';
     if (!id) return;
     const focus = editing.querySelector('input, select, textarea');
-    // Text fields: save on dismiss (same as blur). Selects already save on change.
+    // Text fields: save if changed (applyInlinePatch refreshes detail on success).
     if (focus && focus.matches('[data-ag-inline="title"], [data-ag-inline="address"]')) {
-      void applyInlinePatch(focus);
-      return;
+      const field = focus.getAttribute('data-ag-inline');
+      const ev = findEv(id);
+      const cur =
+        field === 'address' ? String(ev?.address || '').trim() : String(ev?.title || '').trim();
+      const next = String(focus.value || '').trim();
+      if (next !== cur) {
+        void applyInlinePatch(focus);
+        return;
+      }
     }
+    if (focus) focus.blur();
+    // Reset accidental iOS input zoom before restoring the card.
+    try {
+      window.scrollTo(0, 0);
+    } catch (_) {}
     if (isPhone() && !$('#agSheet').hidden) openDetail(id);
     else {
       const anchor = $(`[data-ag-ev="${CSS.escape(id)}"]`);
@@ -1468,6 +1484,10 @@
   }
   const closeMenu = () => {
     const m = $('#agMenu');
+    if (m && m.classList.contains('is-maps')) {
+      closeMapsChooser();
+      return;
+    }
     m.hidden = true;
     m.innerHTML = '';
   };
@@ -1479,30 +1499,52 @@
     return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address || '');
   }
 
+  function ensureMapsBackdrop() {
+    let bd = document.getElementById('agMapsBackdrop');
+    if (bd) return bd;
+    bd = document.createElement('button');
+    bd.id = 'agMapsBackdrop';
+    bd.type = 'button';
+    bd.className = 'ag-maps-backdrop';
+    bd.setAttribute('aria-label', 'Fechar');
+    bd.hidden = true;
+    bd.addEventListener('click', () => closeMapsChooser());
+    document.body.appendChild(bd);
+    return bd;
+  }
+
+  function closeMapsChooser() {
+    const m = $('#agMenu');
+    if (m) {
+      m.hidden = true;
+      m.classList.remove('is-maps', 'is-sheet');
+      m.style.zIndex = '';
+      m.innerHTML = '';
+    }
+    const bd = document.getElementById('agMapsBackdrop');
+    if (bd) bd.hidden = true;
+  }
+
   function openMapsChooser(address, x, y) {
     const addr = String(address || '').trim();
     if (!addr) return;
+    const apple = appleMapsUrl(addr);
+    const google = googleMapsUrl(addr);
     const m = $('#agMenu');
+    const bd = ensureMapsBackdrop();
+    // Sit above the detail sheet (sheet z-index is 10080; menu was 10070).
+    m.classList.add('is-maps', 'is-sheet');
+    m.style.zIndex = '10120';
     m.innerHTML =
-      `<button type="button" class="ag-menu__x" data-ag-menu="close" aria-label="Fechar">×</button>` +
+      `<button type="button" class="ag-menu__x" data-ag-maps-close aria-label="Fechar">×</button>` +
       `<p class="ag-menu__hint">Abrir no mapa</p>` +
-      `<a class="ag-menu__i" href="${esc(appleMapsUrl(addr))}" target="_blank" rel="noopener" data-ag-maps-open><span class="ag-dot" style="--ev:#0a84ff"></span>Apple Maps</a>` +
-      `<a class="ag-menu__i" href="${esc(googleMapsUrl(addr))}" target="_blank" rel="noopener" data-ag-maps-open><span class="ag-dot" style="--ev:#34a853"></span>Google Maps</a>`;
+      `<p class="ag-menu__addr">${esc(addr)}</p>` +
+      `<a class="ag-menu__i" href="${esc(apple)}" data-ag-maps-go="${esc(apple)}"><span class="ag-dot" style="--ev:#0a84ff"></span>Apple Maps</a>` +
+      `<a class="ag-menu__i" href="${esc(google)}" data-ag-maps-go="${esc(google)}"><span class="ag-dot" style="--ev:#34a853"></span>Google Maps</a>`;
     m.hidden = false;
-    if (isPhone()) {
-      m.classList.add('is-sheet');
-      m.style.left = m.style.top = '';
-    } else {
-      m.classList.remove('is-sheet');
-      m.style.left = '0px';
-      m.style.top = '0px';
-      const w = m.offsetWidth || 260;
-      const h = m.offsetHeight || 160;
-      const cx = typeof x === 'number' ? x : window.innerWidth / 2;
-      const cy = typeof y === 'number' ? y : window.innerHeight / 2;
-      m.style.left = Math.max(10, Math.min(cx, window.innerWidth - w - 10)) + 'px';
-      m.style.top = Math.max(10, Math.min(cy, window.innerHeight - h - 10)) + 'px';
-    }
+    bd.hidden = false;
+    void x;
+    void y;
   }
 
   function newMenu(x, y, when) {
@@ -2170,14 +2212,31 @@
         }
         return;
       }
+      if ((el = t.closest('[data-ag-maps-close]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeMapsChooser();
+        return;
+      }
       if ((el = t.closest('[data-ag-maps]'))) {
         ev.preventDefault();
         ev.stopPropagation();
         openMapsChooser(el.getAttribute('data-ag-maps'), ev.clientX, ev.clientY);
         return;
       }
-      if ((el = t.closest('[data-ag-maps-open]'))) {
-        setTimeout(closeMenu, 200);
+      if ((el = t.closest('[data-ag-maps-go]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const url = el.getAttribute('data-ag-maps-go') || el.getAttribute('href');
+        closeMapsChooser();
+        if (url) setTimeout(() => { window.location.href = url; }, 60);
+        return;
+      }
+      if ((el = t.closest('[data-ag-edit-done]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const detail = el.closest('[data-ag-detail]');
+        if (detail) dismissFieldEdit(detail);
         return;
       }
       if ((el = t.closest('[data-ag-tap]'))) {
@@ -2447,11 +2506,13 @@
       const t = ev.target;
       if (!(t instanceof HTMLElement)) return;
       if (!t.matches('[data-ag-inline="title"], [data-ag-inline="address"]')) return;
-      // Delay so a click on another control can take over first.
+      // Delay so a click on another control (Pronto, Maps) can take over first.
       setTimeout(() => {
         if (!t.isConnected) return;
         if (document.activeElement && t.closest('[data-ag-editing]')?.contains(document.activeElement)) return;
-        void applyInlinePatch(t);
+        const detail = t.closest('[data-ag-detail]');
+        if (detail) dismissFieldEdit(detail);
+        else void applyInlinePatch(t);
       }, 120);
     });
 
@@ -2494,7 +2555,14 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        const mapsBd = document.getElementById('agMapsBackdrop');
+        if (mapsBd && !mapsBd.hidden) return closeMapsChooser();
         if (!$('#agMenu').hidden) return closeMenu();
+        const editing = document.querySelector('[data-ag-detail] [data-ag-editing]');
+        if (editing) {
+          const detail = editing.closest('[data-ag-detail]');
+          if (detail) return dismissFieldEdit(detail);
+        }
         if (!$('#agSheet').hidden) return closeSheet();
         if (!$('#agPop').hidden) return closePop();
         if (!$('#agResults').hidden) return ($('#agResults').hidden = true);

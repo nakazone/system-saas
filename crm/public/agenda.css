@@ -385,11 +385,45 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   border-radius: 10px;
   padding: 7px 10px;
   font: inherit;
-  font-size: 13.5px;
+  /* ≥16px avoids iOS Safari zooming the page on focus */
+  font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   text-align: right;
   box-sizing: border-box;
+}
+.ag-dtl__edit-ft {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.ag-maps-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10110;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(33, 29, 26, .35);
+  cursor: pointer;
+}
+.ag-maps-backdrop[hidden] { display: none; }
+.ag-menu.is-maps {
+  z-index: 10120 !important;
+  left: 8px !important;
+  right: 8px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  top: auto !important;
+  width: auto;
+  max-width: none;
+}
+.ag-menu__addr {
+  margin: 0 12px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink2, #4a433d);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 .ag-dtl__in--wide { max-width: 100%; text-align: left; }
 .ag-dtl__when { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; width: 100%; }
