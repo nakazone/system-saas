@@ -193,9 +193,8 @@ export function contractSummaryOf(inv: InvoiceDetail): {
 }
 
 /**
- * Prefer stored invoice lines when they already itemize services. Older quote invoices
- * only stored a single summary row — expand from the quote's contracted services so the
- * PDF and UI match the Quote.
+ * Quote invoices always show contracted services from the quote (never "Less: not due…"
+ * balancing rows). Job invoices and invoices without quote services keep stored lines.
  */
 export function resolvedInvoiceLines(inv: InvoiceDetail): {
   description: string;
@@ -214,23 +213,30 @@ export function resolvedInvoiceLines(inv: InvoiceDetail): {
   const quote = inv.quote;
   if (!quote) return stored;
   const selected = selectedQuoteServiceLines(quote.lineItems || []);
-  if (selected.length === 0 || stored.length > 1) return stored;
+  if (selected.length === 0) return stored;
 
   const kind = String(inv.invoiceType || "other");
-  const siblings = (quote.invoices || []).filter((i) => i.status !== "void" && i.id !== inv.id);
-  const invoicedBefore = siblings.reduce((s, i) => s + (Number(i.amount) || 0), 0);
   return quoteInvoiceLines({
     kind,
     label: invoiceKindLabel(kind),
     amount: Number(inv.amount) || 0,
     quote,
-    invoicedBefore,
+    invoicedBefore: 0,
   });
+}
+
+/** Sum of contracted service amounts shown on the invoice (Total Services). */
+export function servicesTotalOf(inv: InvoiceDetail): number {
+  const lines = resolvedInvoiceLines(inv);
+  const sum = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+  if (sum > 0) return Math.round(sum * 100) / 100;
+  return Math.round((Number(inv.quote?.total) || Number(inv.amount) || 0) * 100) / 100;
 }
 
 export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: string | null): InvoicePdfInput {
   const m = computeInvoiceMoney(inv);
   const summary = contractSummaryOf(inv);
+  const servicesTotal = servicesTotalOf(inv);
   return {
     org: docOrgOf(org),
     client: clientOf(inv),
@@ -248,6 +254,7 @@ export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: str
       amount: l.amount,
     })),
     total: m.amount,
+    servicesTotal,
     payments: inv.receipts.map((r) => ({
       receiptNumber: r.receiptNumber,
       paidAt: r.paidAt,

@@ -35,6 +35,7 @@ import {
   receiptPdfInput,
   removeInvoicePayment,
   resolvedInvoiceLines,
+  servicesTotalOf,
   syncInvoiceStatus,
   type InvoiceDetail,
 } from "../../lib/invoices/service.js";
@@ -194,6 +195,7 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
     status: inv.status,
     display_status: m.displayStatus,
     amount: m.amount,
+    services_total: servicesTotalOf(inv),
     paid_amount: m.paid,
     remaining_amount: m.balance,
     percent_paid: m.percentPaid,

@@ -12,6 +12,7 @@ import {
   jobNumberOf,
   quoteNumberOf,
   resolvedInvoiceLines,
+  servicesTotalOf,
 } from "../../lib/invoices/service.js";
 import { buildInvoicePdf } from "../../lib/invoices/pdf.js";
 
@@ -60,6 +61,7 @@ publicInvoicesRouter.get("/:token", async (req, res, next) => {
       quoteNumber: quoteNumberOf(invoice.quote),
       jobNumber: jobNumberOf(invoice.workOrder),
       lineItems: resolvedInvoiceLines(invoice),
+      servicesTotal: servicesTotalOf(invoice),
       money: m,
       paid: m.paid,
       balance: m.balance,

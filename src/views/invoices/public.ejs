@@ -142,11 +142,11 @@
         <% } else { %><span></span><% } %>
 
       <div class="totals">
-        <div><span>Total</span><span><%= fmt(money.amount) %></span></div>
+        <div><span>Total Services</span><span><%= fmt(typeof servicesTotal !== 'undefined' ? servicesTotal : money.amount) %></span></div>
         <% payments.forEach(p => { %>
           <div><span>Payment <%= fdate(p.paidAt) %> · <%= p.method %></span><span>–<%= fmt(p.amount) %></span></div>
         <% }) %>
-        <div class="grand"><span>Balance due</span><span><%= fmt(balance) %></span></div>
+        <div class="grand"><span>Balance Due on this invoice</span><span><%= fmt(balance) %></span></div>
       </div>
       </div>
 

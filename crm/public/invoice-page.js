@@ -256,13 +256,13 @@
       <div class="inv-totals-row">
       ${stampHtml() || '<span></span>'}
       <div class="inv-totals">
-        <div><span>Total</span><span>${money(inv.amount)}</span></div>
+        <div><span>Total Services</span><span>${money(inv.services_total != null ? inv.services_total : lines.reduce((s, l) => s + Number(l.amount || 0), 0))}</span></div>
         ${inv.payments
           .map(
             (p) => `<div class="inv-totals__pay"><span>Pagamento ${esc(fdate(p.paid_at, { year: undefined }))} · ${esc(p.method_label)}</span><span>–${money(p.amount)}</span></div>`,
           )
           .join('')}
-        <div class="inv-totals__due"><span>Saldo devedor</span><span>${money(inv.remaining_amount)}</span></div>
+        <div class="inv-totals__due"><span>Balance Due on this invoice</span><span>${money(inv.remaining_amount)}</span></div>
       </div>
       </div>
       ${inv.payment_instructions && inv.remaining_amount > 0 ? `<div class="inv-paper__block"><p class="inv-label">Como pagar</p><p>${esc(inv.payment_instructions)}</p></div>` : ''}

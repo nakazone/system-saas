@@ -78,6 +78,8 @@ export type InvoicePdfInput = {
   dueDate?: Date | null;
   lines: { description: string; quantity: number; unitPrice: number; amount: number }[];
   total: number;
+  /** Sum of contracted service lines (Total Services). */
+  servicesTotal?: number | null;
   payments: { receiptNumber?: string | null; paidAt: Date; method?: string | null; reference?: string | null; amount: number }[];
   paid: number;
   balance: number;
@@ -369,7 +371,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
         : input.displayStatus === "void"
           ? "This invoice has been voided"
           : input.balance > 0.004
-            ? `Amount due on this invoice: ${money(input.balance)} · Due ${fmtDate(input.dueDate)}`
+            ? `Balance Due on this invoice: ${money(input.balance)} · Due ${fmtDate(input.dueDate)}`
             : `Due ${fmtDate(input.dueDate)}`;
     doc.fillColor(PAL.muted).font("Helvetica").fontSize(8.5).text(dueTxt, m, y, {
       width: W,
@@ -378,7 +380,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     });
     y += 18;
   } else {
-    doc.fillColor(PAL.muted).font("Helvetica").fontSize(9).text("Balance due", m + 16, y + 10, { lineBreak: false });
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(9).text("Balance Due on this invoice", m + 16, y + 10, { lineBreak: false });
     doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(18).text(money(input.balance), m + 16, y + 21, { lineBreak: false });
     doc.fillColor(PAL.muted).font("Helvetica").fontSize(9);
     const dueTxt =
@@ -429,18 +431,22 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     doc.moveTo(m, y - 4).lineTo(m + W, y - 4).strokeColor(PAL.rule).lineWidth(0.4).stroke();
   }
 
-  // Totals
+  // Totals: Total Services (contracted work) · payments · Balance Due on this invoice
   y += 6;
   const totalsTop = y;
-  const tW = 290;
+  const tW = 320;
   const tX = m + W - tW;
+  const servicesTotal =
+    input.servicesTotal != null && Number.isFinite(Number(input.servicesTotal))
+      ? Number(input.servicesTotal)
+      : input.lines.reduce((s, l) => s + (Number(l.amount) || 0), 0) || input.total;
   const totalRow = (k: string, v: string, bold = false, color = PAL.primary) => {
-    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(bold ? 11 : 9.5).fillColor(bold ? color : PAL.muted);
-    doc.text(k, tX, y, { width: tW - 90, lineBreak: false, ellipsis: true });
-    doc.fillColor(color).text(v, tX + tW - 90, y, { width: 90, align: "right", lineBreak: false });
+    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(bold ? 10.5 : 9.5).fillColor(bold ? color : PAL.muted);
+    doc.text(k, tX, y, { width: tW - 95, lineBreak: false, ellipsis: true });
+    doc.fillColor(color).text(v, tX + tW - 95, y, { width: 95, align: "right", lineBreak: false });
     y += bold ? 18 : 15;
   };
-  totalRow("Total", money(input.total));
+  totalRow("Total Services", money(servicesTotal));
   for (const p of input.payments) {
     totalRow(
       `Payment ${fmtDate(p.paidAt)}${p.method ? ` · ${paymentMethodLabel(p.method)}` : ""}`,
@@ -449,7 +455,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   }
   doc.moveTo(tX, y).lineTo(m + W, y).strokeColor(PAL.primary).lineWidth(0.8).stroke();
   y += 6;
-  totalRow("Balance due", money(input.balance), true);
+  totalRow("Balance Due on this invoice", money(input.balance), true);
 
   // Stamp in the empty space left of the totals (first page when totals fit there).
   const stampX = m + (W - tW) / 2 - 6;

@@ -178,9 +178,9 @@ export function selectedQuoteServiceLines(lineItems: QuoteServiceLine[]): QuoteS
 }
 
 /**
- * Invoice lines for a quote invoice. Always list every contracted service (same selection
- * the Quote PDF shows). Deposits / progress amounts are reconciled with "Less: …" lines so
- * the table still totals to this invoice's amount.
+ * Invoice lines for a quote invoice: every contracted service (same selection as the Quote PDF).
+ * Partial invoices do not add "Less: …" rows — Total Services vs Balance Due on this invoice
+ * is shown in the totals block instead.
  */
 export function quoteInvoiceLines(params: {
   kind: string;
@@ -194,20 +194,19 @@ export function quoteInvoiceLines(params: {
   };
   invoicedBefore: number;
 }): InvoiceLineDraft[] {
-  const { label, amount, quote, invoicedBefore } = params;
+  const { label, amount, quote } = params;
   const quoteNo = quote.quoteNumber || (quote.number != null ? `Q-${quote.number}` : null);
   const ref = `${quote.title}${quoteNo ? ` (Quote ${quoteNo})` : ""}`;
   const selected = selectedQuoteServiceLines(quote.lineItems);
   if (selected.length === 0) {
     return [{ description: `${label} — ${ref}`, quantity: 1, unitPrice: amount, amount }];
   }
-  const lines: InvoiceLineDraft[] = selected.map((li) => ({
+  return selected.map((li) => ({
     description: quoteServiceDescription(li),
     quantity: Number(li.quantity) || 0,
     unitPrice: Number(li.unitPrice) || 0,
     amount: money(cents(li.amount)),
   }));
-  return balanceInvoiceLines(lines, amount, invoicedBefore);
 }
 
 export type CreateJobInvoiceInput = {
