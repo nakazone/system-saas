@@ -27,21 +27,22 @@ import {
   docOrgOf,
   ensureInvoicePublicToken,
   invoiceDetailInclude,
-  invoicePdfInput,
   invoicedTotalForQuote,
   isApprovedQuoteStatus,
   publicInvoiceUrl,
   quoteNumberOf,
   receiptPdfInput,
   removeInvoicePayment,
+  renderInvoicePdf,
   resolvedInvoiceLines,
   servicesTotalOf,
   syncInvoiceStatus,
   type InvoiceDetail,
 } from "../../lib/invoices/service.js";
-import { buildInvoicePdf, buildReceiptPdf } from "../../lib/invoices/pdf.js";
+import { buildReceiptPdf } from "../../lib/invoices/pdf.js";
 import { invoicedTotalForJob, jobBilling, quoteInvoiceLines } from "../../lib/invoices/job.js";
 import { invoiceEmail, receiptEmail } from "../../lib/invoices/email.js";
+import { parseInvoiceSettings } from "../../lib/settings/invoices.js";
 
 export const invoicesCrmRouter = Router();
 
@@ -175,6 +176,9 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
   ];
   const org = await prisma.organization.findUnique({ where: { id: inv.organizationId } });
   const docOrg = org ? docOrgOf(org) : null;
+  const invoiceShare = parseInvoiceSettings(
+    org && "invoiceSettings" in org ? (org as { invoiceSettings?: unknown }).invoiceSettings : null,
+  ).share_messages;
   const users = userIds.length
     ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } })
     : [];
@@ -215,6 +219,7 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
     organization: docOrg
       ? { name: docOrg.name, logo_url: docOrg.logoUrl, contact: docOrg.contact, address: docOrg.address, license: docOrg.license }
       : null,
+    share_sms_body: invoiceShare.sms_body,
     customer_id: inv.customerId,
     quote: inv.quote
       ? {
@@ -937,7 +942,7 @@ invoicesCrmRouter.post(
           message: parsed.data.message,
           paymentInstructions: prep.inv.paymentInstructions || org.paymentInstructions,
         });
-        const pdf = await buildInvoicePdf(invoicePdfInput(prep.inv, org, publicUrl));
+        const pdf = await renderInvoicePdf(prep.inv, org);
         const sent = await sendCustomerEmail({
           to: prep.to,
           subject: msg.subject,
@@ -1362,8 +1367,7 @@ invoicesCrmRouter.get(
       const inv = await withTenantTransaction(req.organizationId!, (tx) => loadDetail(tx, id));
       if (!inv) return fail(res, 404, "Fatura não encontrada");
       const org = await prisma.organization.findUniqueOrThrow({ where: { id: req.organizationId! } });
-      const url = inv.publicToken ? publicInvoiceUrl(baseUrl(req), inv.publicToken) : null;
-      const buf = await buildInvoicePdf(invoicePdfInput(inv, org, url));
+      const buf = await renderInvoicePdf(inv, org);
       const name = String(inv.invoiceNumber || "invoice").replace(/[^\w.-]+/g, "-");
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader(

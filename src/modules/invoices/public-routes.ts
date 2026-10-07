@@ -7,14 +7,16 @@ import { recordActivity } from "../../lib/activity/record.js";
 import { computeInvoiceMoney, paymentMethodLabel } from "../../lib/invoices/core.js";
 import {
   clientOf,
+  contractSummaryOf,
+  docOrgOf,
   invoiceDetailInclude,
-  invoicePdfInput,
   jobNumberOf,
+  projectNameOf,
   quoteNumberOf,
+  renderInvoicePdf,
   resolvedInvoiceLines,
   servicesTotalOf,
 } from "../../lib/invoices/service.js";
-import { buildInvoicePdf } from "../../lib/invoices/pdf.js";
 
 export const publicInvoicesRouter = Router();
 
@@ -38,7 +40,7 @@ publicInvoicesRouter.get("/:token", async (req, res, next) => {
     }
     const { invoice, organization, ref } = data;
 
-    // First client view → "Viewed" in the CRM (like Invoice2go's read tracking).
+    // First client view → "Viewed" in the CRM.
     if (!invoice.viewedAt) {
       await withTenantTransaction(ref.organizationId, async (tx) => {
         await tx.quoteInvoice.update({ where: { id: invoice.id }, data: { viewedAt: new Date() } });
@@ -53,15 +55,19 @@ publicInvoicesRouter.get("/:token", async (req, res, next) => {
     }
 
     const m = computeInvoiceMoney(invoice);
+    const summary = contractSummaryOf(invoice);
     res.render("invoices/public", {
       title: invoice.invoiceNumber || "Invoice",
       organization,
+      docOrg: docOrgOf(organization),
       invoice,
       client: clientOf(invoice),
       quoteNumber: quoteNumberOf(invoice.quote),
       jobNumber: jobNumberOf(invoice.workOrder),
+      projectName: projectNameOf(invoice),
       lineItems: resolvedInvoiceLines(invoice),
       servicesTotal: servicesTotalOf(invoice),
+      contractSummary: summary,
       money: m,
       paid: m.paid,
       balance: m.balance,
@@ -85,7 +91,7 @@ publicInvoicesRouter.get("/:token/pdf", async (req, res, next) => {
       res.status(404).send("Invoice link not found or expired");
       return;
     }
-    const buf = await buildInvoicePdf(invoicePdfInput(data.invoice, data.organization));
+    const buf = await renderInvoicePdf(data.invoice, data.organization);
     const name = String(data.invoice.invoiceNumber || "invoice").replace(/[^\w.-]+/g, "-");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${name}.pdf"`);

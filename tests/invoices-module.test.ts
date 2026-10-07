@@ -172,12 +172,13 @@ describe("invoices — payments, receipts and documents (tenant DB)", () => {
       tx.quoteInvoice.findFirstOrThrow({ where: { id: invoiceId }, include: invoiceDetailInclude }),
     );
     const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
-    const input = invoicePdfInput(inv, org, "https://example.com/public/invoices/x");
+    const input = invoicePdfInput(inv, org);
     expect(input).toMatchObject({
       displayStatus: "partially_paid",
       paid: 400,
       balance: 600,
       thisInvoiceAmount: 1000,
+      publicUrl: null,
     });
     expect(input.contractTotal).toBeGreaterThan(0);
     expect(input.remainingAfterThisInvoice).toBe(

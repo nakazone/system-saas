@@ -5,6 +5,9 @@
   const fdate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—';
   const st = money.displayStatus;
   const instructions = invoice.paymentInstructions || organization.paymentInstructions;
+  const orgBlock = typeof docOrg !== 'undefined' && docOrg ? docOrg : null;
+  const summary = typeof contractSummary !== 'undefined' && contractSummary ? contractSummary : null;
+  const lines = (typeof lineItems !== 'undefined' && lineItems.length ? lineItems : invoice.lineItems) || [];
 %><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,52 +16,74 @@
   <meta name="robots" content="noindex" />
   <title><%= title %> · <%= organization.name %></title>
   <style>
-    :root { --accent: <%= accent %>; --ink: <%= ink %>; --muted: #6b645c; --rule: #e2d9cc; --panel: #f7f4ee; --stamp: #c1652f; }
+    :root { --accent: <%= accent %>; --ink: <%= ink %>; --muted: #6b645c; --rule: #e2d9cc; --panel: #f7f4ee; --stamp: #c1652f; --muted-light: #8a8074; }
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; margin: 0; background: #f3f0ea; color: var(--ink); }
+    body { font-family: Helvetica, Arial, sans-serif; margin: 0; background: #f3f0ea; color: var(--ink); }
     .bar { height: 5px; background: var(--accent); }
-    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
-    .paper { position: relative; background: #fff; border: 1px solid var(--rule); border-radius: 14px; padding: 32px; overflow: hidden; }
-    .top { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-    .org { display: flex; gap: 12px; align-items: center; }
-    .org img { width: 48px; height: 48px; object-fit: contain; border-radius: 8px; }
-    .org b { font-size: 17px; display: block; }
-    .org span { color: var(--muted); font-size: 13px; }
+    main { max-width: 816px; margin: 0 auto; padding: 24px 16px 48px; }
+    .paper { position: relative; background: #fff; border: 1px solid var(--rule); border-radius: 4px; padding: 48px; overflow: hidden; }
+    .top { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid var(--rule); }
+    .org { display: flex; gap: 12px; align-items: flex-start; max-width: 340px; }
+    .org img, .org .ini { width: 44px; height: 44px; object-fit: contain; border-radius: 6px; flex-shrink: 0; }
+    .org .ini { display: flex; align-items: center; justify-content: center; background: var(--ink); color: #fff; font-weight: 700; font-size: 15px; }
+    .org b { font-size: 14px; display: block; margin-bottom: 2px; }
+    .org span { color: var(--muted); font-size: 12px; display: block; line-height: 1.35; }
     .doc-title { text-align: right; }
-    .doc-title h1 { margin: 0; font-size: 26px; letter-spacing: .04em; }
-    .doc-title p { margin: 4px 0 0; color: var(--muted); }
+    .doc-title h1 { margin: 0; font-size: 24px; letter-spacing: .02em; }
+    .doc-title p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
     .label { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 4px; }
     .grid { display: grid; grid-template-columns: 1fr auto; gap: 24px; margin-top: 28px; }
-    .meta { display: grid; grid-template-columns: auto auto; gap: 4px 20px; font-size: 14px; }
-    .meta dt { color: var(--muted); } .meta dd { margin: 0; text-align: right; font-weight: 600; }
-    .due { margin-top: 24px; display: flex; justify-content: space-between; align-items: center; background: var(--panel); border-radius: 10px; padding: 16px 20px; gap: 12px; flex-wrap: wrap; }
-    .due strong { font-size: 28px; }
+    .meta { display: grid; grid-template-columns: auto auto; gap: 6px 16px; font-size: 13px; align-content: start; }
+    .meta dt { color: var(--muted-light); } .meta dd { margin: 0; text-align: right; font-weight: 700; max-width: 180px; }
+    .bill strong { font-size: 15px; }
+    .bill .sub { color: var(--muted); font-size: 13px; margin-top: 2px; line-height: 1.35; }
+    .summary { margin-top: 24px; display: grid; grid-template-columns: repeat(3, 1fr); background: var(--panel); border-radius: 8px; overflow: hidden; }
+    .summary > div { padding: 12px 14px; }
+    .summary > div + div { border-left: 1px solid var(--rule); }
+    .summary small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.25; min-height: 2.4em; }
+    .summary strong { display: block; margin-top: 8px; font-size: 18px; }
+    .due-note { margin-top: 10px; color: var(--muted); font-size: 13px; }
+    .due { margin-top: 24px; display: flex; justify-content: space-between; align-items: center; background: var(--panel); border-radius: 8px; padding: 14px 18px; gap: 12px; flex-wrap: wrap; }
+    .due strong { font-size: 22px; }
     .due small { color: var(--muted); display: block; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 14px; }
-    th { text-align: left; color: #8a8074; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--rule); padding: 8px 0; }
-    td { padding: 12px 0; border-bottom: 1px solid #f0ebe3; vertical-align: top; white-space: pre-line; }
+    table { width: 100%; border-collapse: collapse; margin-top: 22px; font-size: 14px; }
+    th { text-align: left; color: var(--muted-light); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--rule); padding: 8px 0; }
+    td { padding: 12px 0; border-bottom: 1px solid #f0ebe3; vertical-align: top; }
     .r { text-align: right; }
     .totals { margin-left: auto; width: min(320px, 100%); margin-top: 16px; font-size: 14px; }
-    .totals div { display: flex; justify-content: space-between; padding: 5px 0; color: var(--muted); }
-    .totals .grand { color: var(--ink); font-weight: 700; font-size: 17px; border-top: 2px solid var(--ink); margin-top: 6px; padding-top: 10px; }
+    .totals div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; color: var(--muted); }
+    .totals .grand { color: var(--ink); font-weight: 700; font-size: 15px; border-top: 2px solid var(--ink); margin-top: 6px; padding-top: 10px; }
     .box { margin-top: 24px; }
-    .box p { margin: 0; white-space: pre-line; line-height: 1.5; }
+    .box p { margin: 0; white-space: pre-line; line-height: 1.5; font-size: 14px; }
     .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
     .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 9px; font-weight: 600; text-decoration: none; font-size: 14px; border: 1px solid var(--rule); color: var(--ink); background: #fff; cursor: pointer; }
     .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
     .totals-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
     .totals-row .totals { margin-top: 0; }
-    .stamp { position: relative; margin-left: 12px; flex-shrink: 0; transform: rotate(-14deg); border: 4px solid var(--stamp); color: var(--stamp); border-radius: 10px; padding: 8px 22px; text-align: center; font-weight: 800; letter-spacing: .12em; opacity: .85; pointer-events: none; box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3px var(--stamp); }
-    .stamp b { display: block; font-size: 40px; line-height: 1; }
+    .stamp { position: relative; margin-left: 12px; flex-shrink: 0; transform: rotate(-12deg); border: 3px solid var(--stamp); color: var(--stamp); border-radius: 7px; padding: 8px 18px; text-align: center; font-weight: 800; letter-spacing: .1em; opacity: .85; pointer-events: none; box-shadow: inset 0 0 0 1px #fff, inset 0 0 0 2px var(--stamp); }
+    .stamp b { display: block; font-size: 34px; line-height: 1; }
     .stamp small { display: block; font-size: 11px; margin-top: 4px; }
-    .stamp.partial b { font-size: 22px; }
-    .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 20px; }
-    @media (max-width: 600px) {
-      .paper { padding: 20px; } .grid { grid-template-columns: 1fr; } .meta dd { text-align: left; }
-      .doc-title { text-align: left; } .totals-row { flex-direction: column-reverse; align-items: stretch; } .stamp { align-self: center; margin: 10px 0 0; } .stamp b { font-size: 30px; }
+    .stamp.partial b { font-size: 16px; }
+    .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px; line-height: 1.5; }
+    .foot .made { color: var(--muted-light); font-size: 11px; margin-top: 4px; }
+    @media (max-width: 640px) {
+      .paper { padding: 22px 18px; }
+      .grid { grid-template-columns: 1fr; }
+      .meta dd { text-align: left; max-width: none; }
+      .doc-title { text-align: left; }
+      .summary { grid-template-columns: 1fr; }
+      .summary > div + div { border-left: 0; border-top: 1px solid var(--rule); }
+      .totals-row { flex-direction: column-reverse; align-items: stretch; }
+      .stamp { align-self: center; margin: 10px 0 0; }
+      .stamp b { font-size: 28px; }
       .hide-sm { display: none; }
     }
-    @media print { body { background: #fff; } main { padding: 0; } .actions, .foot { display: none; } .paper { border: 0; } }
+    @media print {
+      body { background: #fff; }
+      main { padding: 0; max-width: none; }
+      .actions, .foot .made { display: none; }
+      .paper { border: 0; border-radius: 0; padding: 36px; }
+    }
   </style>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
@@ -68,10 +93,22 @@
     <article class="paper">
       <div class="top">
         <div class="org">
-          <% if (organization.logoUrl) { %><img src="<%= organization.logoUrl %>" alt="" /><% } %>
+          <% if (organization.logoUrl) { %>
+            <img src="<%= organization.logoUrl %>" alt="" />
+          <% } else {
+            const parts = String(organization.name || '').trim().split(/\s+/).filter(Boolean);
+            const ini = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : (organization.name || 'OM').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || 'OM';
+          %>
+            <div class="ini" aria-hidden="true"><%= ini %></div>
+          <% } %>
           <div>
             <b><%= organization.name %></b>
-            <span><%= [organization.contactPhone, organization.contactEmail].filter(Boolean).join(' · ') %></span>
+            <% if (orgBlock && orgBlock.address) { %><span><%= orgBlock.address %></span><% } %>
+            <% if (orgBlock && orgBlock.contact) { %><span><%= orgBlock.contact %></span><% }
+               else if (organization.contactPhone || organization.contactEmail) { %>
+              <span><%= [organization.contactPhone, organization.contactEmail].filter(Boolean).join(' · ') %></span>
+            <% } %>
+            <% if (orgBlock && orgBlock.license) { %><span><%= orgBlock.license %></span><% } %>
           </div>
         </div>
         <div class="doc-title">
@@ -81,39 +118,80 @@
       </div>
 
       <div class="grid">
-        <div>
+        <div class="bill">
           <p class="label">Bill to</p>
           <strong><%= client.name || 'Client' %></strong>
-          <% if (client.address) { %><div style="color:var(--muted);font-size:14px;margin-top:2px"><%= client.address %></div><% } %>
+          <% if (client.address) { %><div class="sub"><%= client.address %></div><% } %>
+          <% if (client.email) { %><div class="sub"><%= client.email %></div><% } %>
+          <% if (client.phone) { %><div class="sub"><%= client.phone %></div><% } %>
         </div>
         <dl class="meta">
-          <dt>Issued</dt><dd><%= fdate(invoice.issuedAt || invoice.createdAt) %></dd>
-          <dt>Due</dt><dd><%= fdate(invoice.dueDate) %></dd>
-          <% if (quoteNumber) { %><dt>Quote</dt><dd><%= quoteNumber %></dd><% } %>
+          <dt>Invoice #</dt><dd><%= invoice.invoiceNumber %></dd>
+          <dt>Issue date</dt><dd><%= fdate(invoice.issuedAt || invoice.createdAt) %></dd>
+          <dt>Due date</dt><dd><%= fdate(invoice.dueDate) %></dd>
+          <% if (quoteNumber) { %><dt>Quote #</dt><dd><%= quoteNumber %></dd><% } %>
           <% if (typeof jobNumber !== 'undefined' && jobNumber) { %><dt>Job</dt><dd><%= jobNumber %></dd><% } %>
+          <% if (typeof projectName !== 'undefined' && projectName) { %><dt>Project</dt><dd><%= projectName %></dd><% } %>
         </dl>
       </div>
 
-      <div class="due">
-        <div>
-          <small><%= st === 'paid' ? 'Balance' : 'Balance due' %></small>
-          <strong><%= fmt(balance) %></strong>
+      <% if (summary && Number(summary.contractTotal) > 0) { %>
+        <div class="summary" aria-label="Invoice summary">
+          <div>
+            <small><%= summary.label || 'Job total' %></small>
+            <strong><%= fmt(summary.contractTotal) %></strong>
+          </div>
+          <div>
+            <small>This invoice</small>
+            <strong><%= fmt(summary.thisInvoice) %></strong>
+          </div>
+          <div>
+            <small>Remaining balance after this invoice</small>
+            <strong><%= fmt(summary.remainingAfterThisInvoice) %></strong>
+          </div>
         </div>
-        <div style="text-align:right">
+        <p class="due-note">
           <% if (st === 'paid') { %>
-            <small>Paid in full<%= invoice.paidAt ? ' on ' + fdate(invoice.paidAt) : '' %> — thank you!</small>
-          <% } else if (money.isOverdue) { %>
-            <small style="color:var(--stamp);font-weight:600">Past due since <%= fdate(invoice.dueDate) %></small>
+            This invoice paid in full<%= invoice.paidAt ? ' on ' + fdate(invoice.paidAt) : '' %>
+          <% } else if (st === 'void') { %>
+            This invoice has been voided
+          <% } else if (balance > 0.004) { %>
+            Balance Due on this invoice: <%= fmt(balance) %> · Due <%= fdate(invoice.dueDate) %>
           <% } else { %>
-            <small>Due <%= fdate(invoice.dueDate) %></small>
+            Due <%= fdate(invoice.dueDate) %>
           <% } %>
+        </p>
+      <% } else { %>
+        <div class="due">
+          <div>
+            <small>Balance Due on this invoice</small>
+            <strong><%= fmt(balance) %></strong>
+          </div>
+          <div style="text-align:right">
+            <% if (st === 'paid') { %>
+              <small>Paid in full<%= invoice.paidAt ? ' on ' + fdate(invoice.paidAt) : '' %></small>
+            <% } else if (st === 'void') { %>
+              <small>This invoice has been voided</small>
+            <% } else if (money.isOverdue) { %>
+              <small style="color:var(--stamp);font-weight:600">Past due since <%= fdate(invoice.dueDate) %></small>
+            <% } else { %>
+              <small>Due <%= fdate(invoice.dueDate) %></small>
+            <% } %>
+          </div>
         </div>
-      </div>
+      <% } %>
 
       <table>
-        <thead><tr><th>Description</th><th class="r hide-sm">Qty</th><th class="r">Amount</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="r hide-sm">Qty</th>
+            <th class="r hide-sm">Rate</th>
+            <th class="r">Amount</th>
+          </tr>
+        </thead>
         <tbody>
-          <% (typeof lineItems !== 'undefined' && lineItems.length ? lineItems : invoice.lineItems).forEach(li => {
+          <% lines.forEach(li => {
             const raw = String(li.description || '');
             const nl = raw.indexOf('\n');
             const dash = nl < 0 ? raw.search(/\s+—\s+/) : -1;
@@ -121,14 +199,17 @@
             let note = '';
             if (nl >= 0) { name = raw.slice(0, nl).trim(); note = raw.slice(nl + 1).trim(); }
             else if (dash >= 0) { name = raw.slice(0, dash).trim(); note = raw.slice(dash).replace(/^\s+—\s+/, '').trim(); }
+            const qty = Number(li.quantity);
+            const rate = li.unitPrice != null ? Number(li.unitPrice) : (qty ? Number(li.amount) / qty : Number(li.amount));
           %>
             <tr>
               <td>
-                <span style="display:block;font-weight:700"><%= name %></span>
-                <% if (note) { %><span style="display:block;margin-top:3px;font-size:13px;color:var(--muted);font-weight:500;white-space:pre-line"><%= note %></span><% } %>
+                <span style="display:block;font-weight:700"><%= name || 'Item' %></span>
+                <% if (note) { %><span style="display:block;margin-top:3px;font-size:12px;color:var(--muted);font-weight:500;white-space:pre-line"><%= note %></span><% } %>
               </td>
-              <td class="r hide-sm"><%= Number(li.quantity) %></td>
-              <td class="r"><%= fmt(li.amount) %></td>
+              <td class="r hide-sm"><%= qty.toLocaleString('en-US', { maximumFractionDigits: 2 }) %></td>
+              <td class="r hide-sm"><%= fmt(rate) %></td>
+              <td class="r"><strong><%= fmt(li.amount) %></strong></td>
             </tr>
           <% }) %>
         </tbody>
@@ -137,9 +218,11 @@
       <div class="totals-row">
       <% if (st === 'paid') { %>
         <div class="stamp" aria-label="Paid"><b>PAID</b><% if (invoice.paidAt) { %><small><%= fdate(invoice.paidAt).toUpperCase() %></small><% } %></div>
-      <% } else if (money.paid > 0) { %>
+      <% } else if (money.paid > 0 && st !== 'void') { %>
         <div class="stamp partial" aria-label="Partially paid"><b>PARTIALLY PAID</b><small><%= fmt(money.paid) %> RECEIVED</small></div>
-        <% } else { %><span></span><% } %>
+      <% } else if (st === 'void') { %>
+        <div class="stamp" aria-label="Void" style="border-color:#8a8074;color:#8a8074;box-shadow:inset 0 0 0 1px #fff, inset 0 0 0 2px #8a8074"><b>VOID</b></div>
+      <% } else { %><span></span><% } %>
 
       <div class="totals">
         <div><span>Total Services</span><span><%= fmt(typeof servicesTotal !== 'undefined' ? servicesTotal : money.amount) %></span></div>
@@ -162,7 +245,10 @@
         <button class="btn" type="button" onclick="window.print()">Print</button>
       </div>
     </article>
-    <p class="foot"><%= organization.name %> · Powered by ObraMate</p>
+    <p class="foot">
+      <%= organization.name %> - Invoice - Thank You!
+      <span class="made">Made with ObraMate</span>
+    </p>
   </main>
 </body>
 </html>

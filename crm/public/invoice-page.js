@@ -812,10 +812,58 @@
     updateSms();
     openModal('sendModal');
   }
+  const INV_SMS_DEFAULT =
+    'Hi [name], your invoice [invoice_number] is ready.\n\nBalance due: [balance]\nDue: [due_date]\n\nView & pay here:\n[link]\n\nThank you!';
+
+  function applyInvoiceShareTemplate(tpl, vars) {
+    let out = String(tpl || '');
+    const map = {
+      name: String(vars.name || '').trim() || 'there',
+      company: String(vars.company || '').trim(),
+      invoice_number: String(vars.invoice_number || '').trim(),
+      amount: String(vars.amount || '').trim(),
+      balance: String(vars.balance || '').trim(),
+      due_date: String(vars.due_date || '').trim(),
+      link: String(vars.link || '').trim(),
+    };
+    out = out.replace(/\[name\]/gi, map.name);
+    out = out.replace(/\[company\]/gi, map.company);
+    out = out.replace(/\[invoice_number\]/gi, map.invoice_number);
+    out = out.replace(/\[amount\]/gi, map.amount);
+    out = out.replace(/\[balance\]/gi, map.balance);
+    out = out.replace(/\[due_date\]/gi, map.due_date);
+    out = out.replace(/\[link\]/gi, map.link);
+    out = out.replace(/\(\s*\)/g, '');
+    out = out.replace(/[ \t]{2,}/g, ' ');
+    out = out.replace(/[ \t]+\n/g, '\n');
+    out = out.replace(/\n{3,}/g, '\n\n');
+    return out.trim();
+  }
+
+  function clientFirstName() {
+    const full = (inv.client && inv.client.name) || '';
+    const first = String(full).trim().split(/\s+/)[0];
+    return first || '';
+  }
+
+  function buildInvoiceSmsBody(link) {
+    const tpl = (inv && inv.share_sms_body) || INV_SMS_DEFAULT;
+    const org = (inv && inv.organization) || {};
+    return applyInvoiceShareTemplate(tpl, {
+      name: clientFirstName(),
+      company: org.name || '',
+      invoice_number: inv.invoice_number || '',
+      amount: money(inv.amount),
+      balance: money(inv.remaining_amount),
+      due_date: fdate(inv.due_date),
+      link: link || '',
+    });
+  }
+
   function updateSms() {
     const link = $('sendLink').value;
     const phone = (inv.client && inv.client.phone) || '';
-    const body = `${inv.invoice_number}: ${money(inv.remaining_amount)} due ${fdate(inv.due_date)}. ${link}`;
+    const body = buildInvoiceSmsBody(link);
     $('btnSms').href = link ? `sms:${phone.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(body)}` : '#';
     $('btnSms').classList.toggle('is-disabled', !link);
   }

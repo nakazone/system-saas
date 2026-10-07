@@ -475,6 +475,32 @@
               </form>
             </section>
 
+            <!-- ---------- Mensagens das Faturas (SMS) ---------- -->
+            <section class="cfg-section" data-section="mensagens-faturas" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Mensagens das Faturas</h2>
+                <p class="cfg-lead">
+                  Texto do SMS ao enviar o link da fatura ao cliente.
+                  Placeholders: <code>[name]</code>, <code>[company]</code>, <code>[invoice_number]</code>,
+                  <code>[amount]</code>, <code>[balance]</code>, <code>[due_date]</code>, <code>[link]</code>.
+                </p>
+              </header>
+              <form id="invoiceShareForm" class="cfg-form" novalidate autocomplete="off">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">SMS ao enviar a fatura</h3>
+                  <p class="cfg-card__desc">Abre a app de mensagens do telefone com este texto e o link público da fatura.</p>
+                  <div class="cfg-field">
+                    <label for="inv_sms_body">Texto da mensagem</label>
+                    <textarea id="inv_sms_body" data-invshare="sms_body" rows="8" maxlength="2000" spellcheck="true"></textarea>
+                    <p class="cfg-hint"><span id="invSmsBodyCount">0</span> caracteres</p>
+                  </div>
+                </article>
+                <div class="cfg-row">
+                  <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnInvShareMsgDefaults">Restaurar texto padrão (EN)</button>
+                </div>
+              </form>
+            </section>
+
             <!-- ---------- Mensagens para Leads ---------- -->
             <section class="cfg-section" data-section="mensagens-fase" hidden>
               <header class="cfg-head">
@@ -942,6 +968,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261007-calfeed2"></script>
+  <script src="configuracoes.js?v=20261007-invsms1"></script>
 </body>
 </html>

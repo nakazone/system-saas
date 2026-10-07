@@ -52,6 +52,8 @@ model Organization {
   quoteNextNumber  Int?
   /// { client_view: {…}, owner_signature: {…}, share_messages: { sms_body, followup_body } }
   quoteSettings    Json?
+  /// { share_messages: { sms_body } } — SMS template when sharing an invoice
+  invoiceSettings  Json?
   /// Automation toggles/delays: quoteFollowUpEnabled, quoteFollowUpDays, visitReminderEnabled, visitReminderHours
   automationSettings Json?
   /// Default lead email/SMS templates per pipeline stage (Configurações › Mensagens por fase)

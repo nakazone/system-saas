@@ -56,6 +56,12 @@
           keywords: "sms mensagem whatsapp follow-up quote orçamento enviar link template share",
         },
         {
+          id: "mensagens-faturas",
+          label: "Mensagens das Faturas",
+          perm: "settings.manage",
+          keywords: "sms mensagem invoice fatura enviar link template share whatsapp",
+        },
+        {
           id: "mensagens-fase",
           label: "Mensagens para Leads",
           perm: "settings.manage",
@@ -166,6 +172,7 @@
     ["Assinatura do responsável", "orcamentos", "s_name"],
     ["SMS ao enviar o orçamento", "mensagens-orcamento", "q_sms_body"],
     ["Follow-up WhatsApp do orçamento", "mensagens-orcamento", "q_followup_body"],
+    ["SMS ao enviar a fatura", "mensagens-faturas", "inv_sms_body"],
     ["Mensagens para Leads", "mensagens-fase", "lm_company"],
     ["Assunto padrão do e-mail", "mensagens-fase", "lm_subject"],
     ["Cupom / oferta", "mensagens-fase", "lm_coupon_code"],
@@ -243,6 +250,7 @@
     pendingHash: null,
     company: { loaded: false, snapshot: null, data: null },
     quotes: { loaded: false, snapshot: null, data: null },
+    invoices: { loaded: false, snapshot: null, data: null },
     leadMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "new_lead" },
     leadAuto: { loaded: false, snapshot: null },
     jobs: { loaded: false, snapshot: null },
@@ -339,6 +347,7 @@
     if (id === "marca") return brandDirty() ? 1 : 0;
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
     if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
+    if (id === "mensagens-faturas") return invoiceShareMessagesDirty() ? 1 : 0;
     if (id === "mensagens-fase") return leadMsgDirty() ? 1 : 0;
     if (id === "automacoes-leads") return leadAutoDirty() ? 1 : 0;
     if (id === "jobs") return jobsDirty() ? 1 : 0;
@@ -534,6 +543,7 @@
     if (state.current === "marca") return saveBrand();
     if (state.current === "orcamentos") return saveQuotes();
     if (state.current === "mensagens-orcamento") return saveQuoteShareMessages();
+    if (state.current === "mensagens-faturas") return saveInvoiceShareMessages();
     if (state.current === "mensagens-fase") return saveLeadMessages();
     if (state.current === "automacoes-leads") return saveLeadAutomations();
     if (state.current === "jobs") return saveJobsSettings();
@@ -548,6 +558,7 @@
     if (state.current === "marca") resetBrandToSnapshot();
     if (state.current === "orcamentos") discardQuotes();
     if (state.current === "mensagens-orcamento") discardQuoteShareMessages();
+    if (state.current === "mensagens-faturas") discardInvoiceShareMessages();
     if (state.current === "mensagens-fase") discardLeadMessages();
     if (state.current === "automacoes-leads") discardLeadAutomations();
     if (state.current === "jobs") discardJobsSettings();
@@ -566,6 +577,7 @@
     { title: "Marca e aparência", desc: "Logo e cores", href: "#marca", perm: "settings.manage" },
     { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
     { title: "Mensagens do Orçamento", desc: "SMS e WhatsApp ao enviar o orçamento", href: "#mensagens-orcamento", perm: "settings.manage" },
+    { title: "Mensagens das Faturas", desc: "SMS ao enviar o link da fatura", href: "#mensagens-faturas", perm: "settings.manage" },
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Automações de Leads", desc: "Mover Quote Sent → Follow-up automaticamente", href: "#automacoes-leads", perm: "settings.manage" },
     { title: "Jobs", desc: "Checklist e opções do Campo", href: "#jobs", perm: "settings.manage" },
@@ -1677,6 +1689,106 @@
   function discardQuoteShareMessages() {
     if (state.quotes.data) fillShareMessages(state.quotes.data);
     else if (state.quotes.snapshot) fillShareMessages({ share_messages: state.quotes.snapshot.share_messages });
+  }
+
+  const INV_SHARE_MSG_DEFAULTS = {
+    sms_body:
+      "Hi [name], your invoice [invoice_number] is ready.\n\nBalance due: [balance]\nDue: [due_date]\n\nView & pay here:\n[link]\n\nThank you!",
+  };
+
+  function readInvoiceShareMessages() {
+    return { sms_body: String($("inv_sms_body")?.value || "").trim() };
+  }
+
+  function fillInvoiceShareMessages(d) {
+    const sm = (d && d.share_messages) || {};
+    if ($("inv_sms_body")) $("inv_sms_body").value = sm.sms_body || INV_SHARE_MSG_DEFAULTS.sms_body;
+    syncInvoiceShareMsgCounts();
+  }
+
+  function syncInvoiceShareMsgCounts() {
+    const sms = $("invSmsBodyCount");
+    if (sms) sms.textContent = String(($("inv_sms_body")?.value || "").length);
+  }
+
+  function invoiceShareMessagesDirty() {
+    if (!state.invoices.loaded || !state.invoices.snapshot) return false;
+    return comparable(readInvoiceShareMessages()) !== comparable(state.invoices.snapshot.share_messages || {});
+  }
+
+  async function loadInvoiceShareMessages(force) {
+    if (state.invoices.loaded && !force) {
+      fillInvoiceShareMessages(state.invoices.data);
+      return;
+    }
+    try {
+      const j = await api("/api/settings/invoices");
+      state.invoices.data = j.data;
+      fillInvoiceShareMessages(j.data);
+      state.invoices.snapshot = { share_messages: readInvoiceShareMessages() };
+      state.invoices.loaded = true;
+      updateSavebar();
+    } catch (err) {
+      notify(err.message || "Não foi possível carregar as mensagens das faturas.", "error");
+    }
+  }
+
+  async function saveInvoiceShareMessages() {
+    const sms = String($("inv_sms_body")?.value || "").trim();
+    setErrorOn($("inv_sms_body"), sms ? "" : "Indique o texto do SMS");
+    if (!sms) {
+      $("inv_sms_body")?.focus();
+      notify("Revise os campos destacados.", "error");
+      return false;
+    }
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/invoices", {
+        method: "PATCH",
+        body: JSON.stringify({ share_messages: { sms_body: sms } }),
+      });
+      state.invoices.data = j.data;
+      fillInvoiceShareMessages(j.data);
+      state.invoices.snapshot = { share_messages: readInvoiceShareMessages() };
+      state.invoices.loaded = true;
+      notify("Mensagem de SMS das faturas salva.", "success");
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+      updateSavebar();
+    }
+  }
+
+  function discardInvoiceShareMessages() {
+    if (state.invoices.data) fillInvoiceShareMessages(state.invoices.data);
+    else if (state.invoices.snapshot) {
+      fillInvoiceShareMessages({ share_messages: state.invoices.snapshot.share_messages });
+    }
+  }
+
+  function bindInvoiceShareMessagesUi() {
+    const form = $("invoiceShareForm");
+    if (!form) return;
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      saveInvoiceShareMessages();
+    });
+    form.addEventListener("input", (e) => {
+      if (e.target.closest(".has-error")) setErrorOn(e.target, "");
+      syncInvoiceShareMsgCounts();
+      updateSavebar();
+    });
+    $("btnInvShareMsgDefaults")?.addEventListener("click", () => {
+      const sms = $("inv_sms_body");
+      const hasCustom = sms && sms.value.trim() && sms.value.trim() !== INV_SHARE_MSG_DEFAULTS.sms_body;
+      if (hasCustom && !window.confirm("Restaurar o texto padrão em inglês?")) return;
+      if (sms) sms.value = INV_SHARE_MSG_DEFAULTS.sms_body;
+      syncInvoiceShareMsgCounts();
+      updateSavebar();
+    });
   }
 
   function readQuotes() {
@@ -3159,6 +3271,7 @@
     if (id === "marca") return loadBrand();
     if (id === "orcamentos") return loadQuotes();
     if (id === "mensagens-orcamento") return loadQuotes();
+    if (id === "mensagens-faturas") return loadInvoiceShareMessages();
     if (id === "mensagens-fase") return loadLeadMessages();
     if (id === "automacoes-leads") return loadLeadAutomations();
     if (id === "jobs") return loadJobsSettings();
@@ -3199,6 +3312,7 @@
     bindLeadAutomationsUi();
     bindJobsSettingsUi();
     bindFolhaSettingsUi();
+    bindInvoiceShareMessagesUi();
     $("cfgLeaveModal").addEventListener("click", (e) => {
       if (e.target.closest("[data-close]")) closeLeaveModal();
     });

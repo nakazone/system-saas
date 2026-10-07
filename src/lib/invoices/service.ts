@@ -6,7 +6,7 @@ import { issuePublicAccessToken } from "../quotes/public-token.js";
 import { documentAddressLine, documentLicenseLine } from "../settings/organization.js";
 import { computeInvoiceMoney, invoiceKindLabel, storedStatusAfterPayments } from "./core.js";
 import { quoteInvoiceLines, selectedQuoteServiceLines } from "./job.js";
-import type { DocClient, DocOrg, InvoicePdfInput, ReceiptPdfInput } from "./pdf.js";
+import { buildInvoicePdf, type DocClient, type DocOrg, type InvoicePdfInput, type ReceiptPdfInput } from "./pdf.js";
 
 const LINK_TTL_DAYS = 365;
 
@@ -233,7 +233,11 @@ export function servicesTotalOf(inv: InvoiceDetail): number {
   return Math.round((Number(inv.quote?.total) || Number(inv.amount) || 0) * 100) / 100;
 }
 
-export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: string | null): InvoicePdfInput {
+/**
+ * Canonical invoice PDF payload — shared by CRM download, e-mail attachment, and public link.
+ * `publicUrl` is intentionally omitted so all three surfaces render identical bytes.
+ */
+export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, _publicUrl?: string | null): InvoicePdfInput {
   const m = computeInvoiceMoney(inv);
   const summary = contractSummaryOf(inv);
   const servicesTotal = servicesTotalOf(inv);
@@ -268,13 +272,18 @@ export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, publicUrl?: str
     paidAt: inv.paidAt,
     paymentInstructions: inv.paymentInstructions || org.paymentInstructions,
     notes: inv.notes,
-    publicUrl: publicUrl ?? null,
+    publicUrl: null,
     contractTotal: summary?.contractTotal ?? null,
     contractTotalLabel: summary?.label ?? null,
     thisInvoiceAmount: summary?.thisInvoice ?? m.amount,
     paidOnContract: summary?.paidOnContract ?? m.paid,
     remainingAfterThisInvoice: summary?.remainingAfterThisInvoice ?? Math.max(0, Math.round(((summary?.contractTotal ?? m.amount) - m.amount) * 100) / 100),
   };
+}
+
+/** Same PDF buffer for CRM, e-mail, and `/public/invoices/:token/pdf`. */
+export async function renderInvoicePdf(inv: InvoiceDetail, org: OrgRow): Promise<Buffer> {
+  return buildInvoicePdf(invoicePdfInput(inv, org));
 }
 
 export function receiptPdfInput(
