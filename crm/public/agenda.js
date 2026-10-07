@@ -1109,7 +1109,7 @@
       </select>`;
     }
     if (field === 'address') {
-      return `<input type="text" class="ag-dtl__in ag-dtl__in--wide" ${common} data-ag-address value="${esc(e.address || '')}" placeholder="Endereço" autocomplete="off" />`;
+      return `<input type="text" class="ag-dtl__in ag-dtl__in--wide ag-dtl__in--addr" ${common} data-ag-address value="${esc(e.address || '')}" placeholder="Endereço" autocomplete="off" />`;
     }
     if (field === 'assigned_user_id') {
       return `<select class="ag-dtl__sel" ${common}><option value="">—</option>${users
@@ -1158,7 +1158,7 @@
       wrap.classList.add('ag-card', 'ag-dtl__editing--addr');
       wrap.insertAdjacentHTML(
         'beforeend',
-        `<div class="ag-dtl__edit-ft"><button type="button" class="ag-btn ag-btn--sm" data-ag-edit-done>Pronto</button></div>`,
+        `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`,
       );
     } else {
       const cell = tapEl.closest('.ag-dtl__kv > div') || tapEl.parentNode;
@@ -1173,7 +1173,7 @@
       }
     }
 
-    const focusEl = wrap.querySelector('input, select');
+    const focusEl = wrap.querySelector('input, select, textarea');
     if (focusEl) {
       focusEl.focus();
       if (focusEl.tagName === 'SELECT' && typeof focusEl.showPicker === 'function') {

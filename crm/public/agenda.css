@@ -293,17 +293,23 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   text-decoration: none; color: inherit;
   width: 100%; min-width: 0; overflow: hidden;
 }
-.ag-dtl__row > div,
-.ag-dtl__addr-txt { flex: 1 1 auto; min-width: 0; overflow: hidden; }
-.ag-dtl__row b,
-.ag-dtl__addr-txt b {
+.ag-dtl__row > div { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.ag-dtl__addr-txt { flex: 1 1 auto; min-width: 0; }
+.ag-dtl__row b {
   display: block; font-size: 14.5px; font-weight: 700; line-height: 1.3;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ag-dtl__row small,
-.ag-dtl__addr-txt small {
+.ag-dtl__addr-txt b {
+  display: block; font-size: 15px; font-weight: 700; line-height: 1.35;
+  overflow-wrap: anywhere; word-break: break-word; white-space: normal;
+}
+.ag-dtl__row small {
   display: block; font-size: 12.5px; color: var(--mut); font-weight: 600; margin-top: 2px; line-height: 1.3;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-dtl__addr-txt small {
+  display: block; font-size: 13px; color: var(--mut); font-weight: 600; margin-top: 2px; line-height: 1.35;
+  overflow-wrap: anywhere; word-break: break-word; white-space: normal;
 }
 .ag-dtl__ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; }
 .ag-dtl__ic--phone { background: #211d1a; color: #fff; }
@@ -374,7 +380,52 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-dtl__kv-ctl { flex: 1; min-width: 0; display: flex; justify-content: flex-end; }
 .ag-dtl__editing { width: 100%; min-width: 0; }
 .ag-dtl__editing--block { display: block; margin: 4px 0; }
-.ag-dtl__editing--addr { padding: 12px 14px; }
+.ag-dtl__editing--addr {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ag-dtl__editing--addr .ag-dtl__in--addr {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+  height: 44px;
+  padding: 10px 12px;
+  text-align: left;
+  /* 16px keeps iOS from zooming; full-width so the address stays readable */
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.ag-dtl__done {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--terra);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(232, 121, 44, .35);
+}
+.ag-dtl__done:hover { background: var(--terrad); }
+.ag-dtl__done:active { transform: scale(.96); }
+.ag-dtl__done svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .ag-dtl__sel,
 .ag-dtl__in {
   width: 100%;
@@ -385,17 +436,12 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   border-radius: 10px;
   padding: 7px 10px;
   font: inherit;
-  /* ≥16px avoids iOS Safari zooming the page on focus */
+  /* ≥16px on phone via media query; desktop can be slightly tighter */
   font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   text-align: right;
   box-sizing: border-box;
-}
-.ag-dtl__edit-ft {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 10px;
 }
 .ag-maps-backdrop {
   position: fixed;
