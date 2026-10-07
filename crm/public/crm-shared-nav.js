@@ -181,7 +181,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261006-hidefq';
+  const NAV_STRUCTURE_VERSION = '20261007-nav2';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
