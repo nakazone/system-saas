@@ -1203,46 +1203,55 @@
   }
 
   // ---------------------------------------------------------------- calendar feed (ICS / Apple Calendar)
-  const calFeedState = { bound: false, active: false, url: null, webcal: null };
+  const calFeedState = { bound: false, active: false, feeds: null, all: null };
 
   function renderCalFeed() {
     const status = $("cfgCalFeedStatus");
     const createBtn = $("btnCalFeedCreate");
-    const copyBtn = $("btnCalFeedCopy");
     const revokeBtn = $("btnCalFeedRevoke");
-    const urlWrap = $("cfgCalFeedUrlWrap");
-    const urlInput = $("cfgCalFeedUrl");
-    const webcalHint = $("cfgCalFeedWebcalHint");
+    const list = $("cfgCalFeedList");
     if (!status) return;
 
-    if (calFeedState.url) {
-      status.textContent = "Link ativo. Cole no Calendário da Apple (Assinar calendário) ou no Google/Outlook.";
-      if (createBtn) createBtn.textContent = "Gerar novo link";
-      if (copyBtn) copyBtn.hidden = false;
+    const feeds = Array.isArray(calFeedState.feeds) ? calFeedState.feeds : [];
+    if (feeds.length) {
+      status.textContent =
+        "Links prontos — assine cada agenda no Calendário da Apple (Adicionar → Assinar calendário). Guarde-os agora; ao sair desta tela só reaparecem se gerar de novo.";
+      if (createBtn) createBtn.textContent = "Gerar novos links";
       if (revokeBtn) revokeBtn.hidden = false;
-      if (urlWrap) urlWrap.hidden = false;
-      if (urlInput) urlInput.value = calFeedState.url;
-      if (webcalHint) {
-        webcalHint.hidden = !calFeedState.webcal;
-        webcalHint.textContent = calFeedState.webcal
-          ? "Atalho webcal (iPhone): " + calFeedState.webcal
-          : "";
+      if (list) {
+        list.hidden = false;
+        list.innerHTML = feeds
+          .map((f) => {
+            const url = f.webcal_url || f.url || "";
+            return (
+              `<div class="cfg-calfeed-row">` +
+              `<span class="cfg-calfeed-dot" style="background:${esc(f.color || "#8a8074")}"></span>` +
+              `<div class="cfg-calfeed-meta"><b>${esc(f.name || "Agenda")}</b>` +
+              `<small>${esc(f.label || f.name || "")}</small></div>` +
+              `<button type="button" class="btn btn-secondary cfg-btn-sm" data-calfeed-copy="${esc(url)}">Copiar</button>` +
+              `</div>`
+            );
+          })
+          .join("");
       }
     } else if (calFeedState.active) {
       status.textContent =
-        "Já existe um link ativo, mas o token só é mostrado na criação. Gere um novo link para copiar (o anterior deixa de funcionar).";
-      if (createBtn) createBtn.textContent = "Gerar novo link";
-      if (copyBtn) copyBtn.hidden = true;
+        "Assinatura ativa, mas os links só aparecem na geração. Gere de novo para copiar (os anteriores deixam de funcionar).";
+      if (createBtn) createBtn.textContent = "Gerar novos links";
       if (revokeBtn) revokeBtn.hidden = false;
-      if (urlWrap) urlWrap.hidden = true;
-      if (webcalHint) webcalHint.hidden = true;
+      if (list) {
+        list.hidden = true;
+        list.innerHTML = "";
+      }
     } else {
-      status.textContent = "Nenhum link de assinatura. Gere um para sincronizar a Agenda no iPhone.";
-      if (createBtn) createBtn.textContent = "Gerar link de assinatura";
-      if (copyBtn) copyBtn.hidden = true;
+      status.textContent =
+        "Nenhuma assinatura. Gere um link por agenda do Schedule (Jobs, Visitas, Meetings…) para o iPhone.";
+      if (createBtn) createBtn.textContent = "Gerar links de assinatura";
       if (revokeBtn) revokeBtn.hidden = true;
-      if (urlWrap) urlWrap.hidden = true;
-      if (webcalHint) webcalHint.hidden = true;
+      if (list) {
+        list.hidden = true;
+        list.innerHTML = "";
+      }
     }
   }
 
@@ -1253,9 +1262,9 @@
       const j = await api("/api/settings/schedule/calendar-feed");
       const d = j.data || {};
       calFeedState.active = !!d.active;
-      if (!calFeedState.url) {
-        calFeedState.url = d.url || null;
-        calFeedState.webcal = d.webcal_url || null;
+      if (!calFeedState.feeds) {
+        calFeedState.feeds = d.feeds || null;
+        calFeedState.all = d.all || null;
       }
       renderCalFeed();
     } catch (err) {
@@ -1266,6 +1275,16 @@
     }
   }
 
+  async function copyCalFeedUrl(url) {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      notify("Link copiado.", "success");
+    } catch (_) {
+      notify("Não foi possível copiar. Segure o botão e copie manualmente.", "info");
+    }
+  }
+
   function bindCalFeedOnce() {
     if (calFeedState.bound) return;
     calFeedState.bound = true;
@@ -1273,49 +1292,39 @@
       const btn = $("btnCalFeedCreate");
       if (btn) btn.disabled = true;
       try {
-        if (calFeedState.active || calFeedState.url) {
+        if (calFeedState.active || (calFeedState.feeds && calFeedState.feeds.length)) {
           const ok = window.confirm(
-            "Gerar um novo link invalida o anterior. Calendários já assinados param de atualizar. Continuar?",
+            "Gerar novos links invalida os anteriores. Calendários já assinados no iPhone param de atualizar. Continuar?",
           );
           if (!ok) return;
         }
         const j = await api("/api/settings/schedule/calendar-feed", { method: "POST", body: "{}" });
         const d = j.data || {};
         calFeedState.active = true;
-        calFeedState.url = d.url || null;
-        calFeedState.webcal = d.webcal_url || null;
+        calFeedState.feeds = Array.isArray(d.feeds) ? d.feeds : [];
+        calFeedState.all = d.all || null;
         renderCalFeed();
-        notify("Link gerado. Copie e assine no calendário do iPhone.", "success");
+        notify("Links gerados. Copie e assine cada agenda no iPhone.", "success");
       } catch (err) {
-        notify(err.message || "Não foi possível gerar o link.", "error");
+        notify(err.message || "Não foi possível gerar os links.", "error");
       } finally {
         if (btn) btn.disabled = false;
       }
     });
-    $("btnCalFeedCopy")?.addEventListener("click", async () => {
-      const url = calFeedState.webcal || calFeedState.url;
-      if (!url) return;
-      try {
-        await navigator.clipboard.writeText(url);
-        notify("Link copiado.", "success");
-      } catch (_) {
-        const input = $("cfgCalFeedUrl");
-        if (input) {
-          input.focus();
-          input.select();
-        }
-        notify("Selecione o link e copie manualmente.", "info");
-      }
+    $("cfgCalFeedList")?.addEventListener("click", (e) => {
+      const btn = e.target.closest?.("[data-calfeed-copy]");
+      if (!btn) return;
+      void copyCalFeedUrl(btn.getAttribute("data-calfeed-copy"));
     });
     $("btnCalFeedRevoke")?.addEventListener("click", async () => {
-      if (!window.confirm("Revogar o link? A assinatura no iPhone/Google deixa de atualizar.")) return;
+      if (!window.confirm("Revogar todos os links? As assinaturas no iPhone/Google deixam de atualizar.")) return;
       try {
         await api("/api/settings/schedule/calendar-feed", { method: "DELETE" });
         calFeedState.active = false;
-        calFeedState.url = null;
-        calFeedState.webcal = null;
+        calFeedState.feeds = null;
+        calFeedState.all = null;
         renderCalFeed();
-        notify("Link revogado.", "success");
+        notify("Links revogados.", "success");
       } catch (err) {
         notify(err.message || "Não foi possível revogar.", "error");
       }
