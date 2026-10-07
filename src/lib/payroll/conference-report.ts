@@ -121,7 +121,7 @@ export function buildConferenceText(input: ConferenceReportInput): string {
   return parts.join("\n");
 }
 
-/** E-mail table-based (clients strip most CSS) — ticket de serviço look. */
+/** E-mail table-based — ticket de serviço (ink header + hero + detalhe). */
 export function buildConferenceEmailHtml(input: ConferenceReportInput): string {
   const PAL = palette(input.org.primaryColor, input.org.accentColor);
   const org = escapeHtml(input.org.name || "ObraMate");
@@ -130,32 +130,31 @@ export function buildConferenceEmailHtml(input: ConferenceReportInput): string {
   const sector = escapeHtml(input.sectorLabel);
   const payType = escapeHtml(input.payTypeLabel);
   const name = escapeHtml(input.employeeName);
+  const contact = [input.org.contactPhone, input.org.contactEmail].filter(Boolean).map(String).join(" · ");
 
   const dayRows = input.days.length
     ? input.days
         .map(
           (d, i) => `<tr>
-  <td style="padding:12px 0;${i ? `border-top:1px solid ${PAL.rule};` : ""}vertical-align:top;">
-    <div style="font-weight:800;font-size:14px;color:${PAL.primary};">${escapeHtml(d.dateLabel)}</div>
-    ${d.detail ? `<div style="margin-top:2px;font-size:12.5px;color:${PAL.muted};font-weight:600;">${escapeHtml(d.detail)}</div>` : ""}
-  </td>
-  <td style="padding:12px 0;${i ? `border-top:1px solid ${PAL.rule};` : ""}text-align:right;vertical-align:top;font-weight:800;font-size:14px;color:${PAL.primary};white-space:nowrap;">${usd(d.amount)}</td>
+  <td style="padding:11px 0;${i ? `border-top:1px solid ${PAL.rule};` : ""}width:34%;vertical-align:top;font-weight:800;font-size:13.5px;color:${PAL.primary};">${escapeHtml(d.dateLabel)}</td>
+  <td style="padding:11px 8px;${i ? `border-top:1px solid ${PAL.rule};` : ""}vertical-align:top;font-size:12.5px;color:${PAL.muted};font-weight:600;">${escapeHtml(d.detail || "—")}</td>
+  <td style="padding:11px 0;${i ? `border-top:1px solid ${PAL.rule};` : ""}text-align:right;vertical-align:top;font-weight:800;font-size:13.5px;color:${PAL.primary};white-space:nowrap;">${usd(d.amount)}</td>
 </tr>`,
         )
         .join("")
-    : `<tr><td colspan="2" style="padding:8px 0;color:${PAL.muted};font-weight:600;font-size:14px;">Nenhum dia aprovado nesta semana.</td></tr>`;
+    : `<tr><td colspan="3" style="padding:10px 0;color:${PAL.muted};font-weight:600;font-size:14px;">Nenhum dia aprovado nesta semana.</td></tr>`;
 
   const adjRows = [
     input.reimbursement
-      ? `<tr><td style="padding:8px 0;color:${PAL.ink2};font-size:14px;">Reembolso</td><td style="padding:8px 0;text-align:right;font-weight:800;color:${PAL.green};">+${usd(input.reimbursement)}</td></tr>`
+      ? `<tr><td colspan="2" style="padding:8px 0;color:${PAL.ink2};font-size:14px;">Reembolso</td><td style="padding:8px 0;text-align:right;font-weight:800;color:${PAL.green};">+${usd(input.reimbursement)}</td></tr>`
       : "",
     input.discount
-      ? `<tr><td style="padding:8px 0;color:${PAL.ink2};font-size:14px;">Desconto</td><td style="padding:8px 0;text-align:right;font-weight:800;color:${PAL.red};">−${usd(input.discount)}</td></tr>`
+      ? `<tr><td colspan="2" style="padding:8px 0;color:${PAL.ink2};font-size:14px;">Desconto</td><td style="padding:8px 0;text-align:right;font-weight:800;color:${PAL.red};">−${usd(input.discount)}</td></tr>`
       : "",
   ].join("");
 
   const waitingBlock = input.waitingNote
-    ? `<tr><td style="padding:14px 16px 0;">
+    ? `<tr><td style="padding:12px 16px 0;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;background:${PAL.warnBg};border:1px solid ${PAL.warnLine};border-radius:12px;">
   <tr><td style="padding:12px 14px;font-size:13px;color:${PAL.primary};font-weight:600;line-height:1.45;">${escapeHtml(input.waitingNote)}</td></tr>
   </table>
@@ -163,74 +162,87 @@ export function buildConferenceEmailHtml(input: ConferenceReportInput): string {
     : "";
 
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background-color:${PAL.cream};">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${PAL.cream};padding:0 0 32px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${PAL.cream};padding:0 0 28px;">
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;border-collapse:collapse;font-family:'Plus Jakarta Sans',Segoe UI,Arial,sans-serif;color:${PAL.primary};">
 
-<tr><td style="background-color:${PAL.primary};padding:18px 20px 56px;">
-<table role="presentation" cellpadding="0" cellspacing="0"><tr>
-<td style="width:40px;height:40px;border-radius:10px;background-color:${PAL.accent};color:#fff;font-weight:800;font-size:18px;text-align:center;vertical-align:middle;line-height:40px;">${escapeHtml(initials(input.org.name || "O"))}</td>
+<tr><td style="height:5px;background-color:${PAL.accent};line-height:5px;font-size:0;">&nbsp;</td></tr>
+<tr><td style="background-color:${PAL.primary};padding:16px 20px 52px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+<td style="width:40px;vertical-align:middle;">
+<div style="width:40px;height:40px;border-radius:10px;background-color:${PAL.accent};color:#fff;font-weight:800;font-size:16px;text-align:center;line-height:40px;">${escapeHtml(initials(input.org.name || "O"))}</div>
+</td>
 <td style="padding-left:12px;vertical-align:middle;">
-<div style="font-weight:800;font-size:16px;color:#fff;line-height:1.2;">${org}</div>
-<div style="font-size:12.5px;color:rgba(255,255,255,0.7);font-weight:600;">Folha para conferência</div>
+<div style="font-weight:800;font-size:15px;color:#fff;line-height:1.2;">${org}</div>
+<div style="font-size:12px;color:rgba(255,255,255,0.68);font-weight:600;">Folha para conferência</div>
+</td>
+<td style="text-align:right;vertical-align:middle;">
+<span style="display:inline-block;background:rgba(255,255,255,0.12);color:#fff;font-size:11.5px;font-weight:800;padding:5px 10px;border-radius:8px;">${period}</span>
 </td>
 </tr></table>
 </td></tr>
 
 <tr><td style="padding:0 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:-40px;background-color:${PAL.white};border-radius:18px;border-collapse:separate;box-shadow:0 6px 24px rgba(33,29,26,0.10);">
-<tr><td style="padding:18px 18px 16px;">
-<p style="margin:0 0 10px;font-size:14px;color:${PAL.muted};font-weight:600;">Olá${greet ? `, ${greet}` : ""}! Confira sua folha antes do pagamento.</p>
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>
-<td style="font-size:12px;font-weight:800;color:${PAL.muted};letter-spacing:0.02em;padding-right:8px;">${period}</td>
-<td style="background:${PAL.pillBg};color:${PAL.pillInk};font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;">${sector}</td>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:-36px;background-color:${PAL.white};border-radius:16px;border-collapse:separate;box-shadow:0 8px 28px rgba(33,29,26,0.12);">
+<tr><td style="padding:18px 18px 0;">
+<p style="margin:0 0 8px;font-size:13.5px;color:${PAL.muted};font-weight:600;">Olá${greet ? `, ${greet}` : ""} — confira os valores abaixo.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:6px;"><tr>
+<td style="background:${PAL.pillBg};color:${PAL.pillInk};font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:999px;">${sector}</td>
+<td style="padding-left:8px;font-size:12.5px;color:${PAL.ink2};font-weight:600;">${payType}</td>
 </tr></table>
-<h1 style="margin:0;font-size:22px;line-height:1.25;font-weight:800;letter-spacing:-0.01em;color:${PAL.primary};">${name}</h1>
-<p style="margin:4px 0 0;color:${PAL.ink2};font-size:14.5px;font-weight:600;">${payType}</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-top:1px solid ${PAL.rule};">
-<tr>
-<td style="padding-top:14px;">
-<div style="font-size:12px;font-weight:700;color:${PAL.muted};">Total a receber</div>
-<div style="font-size:34px;font-weight:800;letter-spacing:-0.02em;color:${PAL.primary};line-height:1.1;">${usd(input.net)}</div>
+<h1 style="margin:0;font-size:21px;line-height:1.25;font-weight:800;letter-spacing:-0.01em;">${name}</h1>
+</td></tr>
+<tr><td style="padding:14px 18px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAL.cream};border-radius:12px;border-collapse:separate;">
+<tr><td style="padding:12px 14px;">
+<div style="font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:${PAL.muted};">Total a receber</div>
+<div style="font-size:30px;font-weight:800;letter-spacing:-0.02em;line-height:1.15;margin-top:2px;">${usd(input.net)}</div>
 </td>
-<td style="padding-top:14px;text-align:right;vertical-align:top;">
-<span style="display:inline-block;background-color:${PAL.accent};color:#fff;font-weight:800;font-size:12.5px;padding:5px 10px;border-radius:8px;">Conferência</span>
-</td>
-</tr></table>
+<td style="padding:12px 14px;text-align:right;vertical-align:middle;">
+<span style="display:inline-block;background:${PAL.accent};color:#fff;font-weight:800;font-size:11.5px;padding:5px 10px;border-radius:8px;">Conferência</span>
+</td></tr></table>
 </td></tr>
 </table>
 </td></tr>
 
-<tr><td style="padding:14px 16px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${PAL.white};border:1px solid ${PAL.rule};border-radius:16px;border-collapse:separate;">
-<tr><td style="padding:16px 18px;">
-<div style="margin:0 0 10px;font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PAL.muted};">Dias aprovados</div>
+<tr><td style="padding:12px 16px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${PAL.white};border:1px solid ${PAL.rule};border-radius:14px;border-collapse:separate;">
+<tr><td style="padding:14px 16px 6px;">
+<div style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PAL.muted};">Detalhamento</div>
+</td></tr>
+<tr><td style="padding:0 16px 4px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+<tr>
+<td style="padding:6px 0;font-size:11px;font-weight:800;color:${PAL.muted};text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid ${PAL.rule};width:34%;">Dia</td>
+<td style="padding:6px 8px;font-size:11px;font-weight:800;color:${PAL.muted};text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid ${PAL.rule};">Detalhe</td>
+<td style="padding:6px 0;font-size:11px;font-weight:800;color:${PAL.muted};text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid ${PAL.rule};text-align:right;">Valor</td>
+</tr>
 ${dayRows}
 </table>
 </td></tr>
+<tr><td style="padding:4px 16px 14px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-top:1px solid ${PAL.rule};margin-top:4px;">
+<tr><td colspan="2" style="padding:10px 0 6px;color:${PAL.ink2};font-size:13.5px;">Subtotal</td><td style="padding:10px 0 6px;text-align:right;font-weight:700;font-size:13.5px;">${usd(input.gross)}</td></tr>
+${adjRows}
 </table>
 </td></tr>
-
-<tr><td style="padding:14px 16px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${PAL.white};border:1px solid ${PAL.rule};border-radius:16px;border-collapse:separate;">
-<tr><td style="padding:16px 18px;">
-<div style="margin:0 0 10px;font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${PAL.muted};">Resumo</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
-<tr><td style="padding:8px 0;color:${PAL.ink2};">Subtotal</td><td style="padding:8px 0;text-align:right;font-weight:700;">${usd(input.gross)}</td></tr>
-${adjRows}
-<tr><td style="padding:12px 0 0;border-top:1px solid ${PAL.rule};font-weight:800;font-size:15px;">Total a receber</td><td style="padding:12px 0 0;border-top:1px solid ${PAL.rule};text-align:right;font-weight:800;font-size:15px;">${usd(input.net)}</td></tr>
-</table>
+<tr><td style="padding:0 10px 10px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAL.primary};border-radius:10px;border-collapse:separate;">
+<tr>
+<td style="padding:12px 14px;color:rgba(255,255,255,0.75);font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;">Total a receber</td>
+<td style="padding:12px 14px;text-align:right;color:#fff;font-size:18px;font-weight:800;">${usd(input.net)}</td>
+</tr></table>
 </td></tr>
 </table>
 </td></tr>
 
 ${waitingBlock}
 
-<tr><td style="padding:18px 24px 8px;text-align:center;">
-<p style="margin:0;font-size:13px;color:${PAL.muted};font-weight:600;line-height:1.5;">Por favor confira os valores e confirme com o escritório antes do pagamento.</p>
-<p style="margin:10px 0 0;font-size:12.5px;color:${PAL.muted};">— <b style="color:${PAL.ink2};">${org}</b></p>
-<p style="margin:8px 0 0;font-size:11px;color:#a89f94;">Enviado via ObraMate · PDF em anexo</p>
+<tr><td style="padding:18px 22px 6px;text-align:center;">
+<p style="margin:0;font-size:13px;color:${PAL.muted};font-weight:600;line-height:1.5;">Confira os valores e confirme com o escritório antes do pagamento.</p>
+${contact ? `<p style="margin:8px 0 0;font-size:12px;color:${PAL.ink2};font-weight:600;">${escapeHtml(contact)}</p>` : ""}
+<p style="margin:8px 0 0;font-size:12.5px;color:${PAL.muted};">— <b style="color:${PAL.ink2};">${org}</b></p>
+<p style="margin:6px 0 0;font-size:11px;color:#a89f94;">Enviado via ObraMate · PDF em anexo</p>
 </td></tr>
 
 </table>
@@ -265,13 +277,17 @@ function fillCream(doc: Doc, PAL: Pal) {
 }
 
 function needPage(doc: Doc, y: number, need: number, PAL: Pal, m: number): number {
-  if (y + need <= doc.page.height - 56) return y;
+  if (y + need <= doc.page.height - 52) return y;
   doc.addPage();
   fillCream(doc, PAL);
   return m;
 }
 
-/** PDF letter — cabeçalho escuro + cartão branco (ticket) + linhas + total. */
+function rightText(doc: Doc, text: string, rightX: number, y: number) {
+  doc.text(text, rightX - doc.widthOfString(text), y, { lineBreak: false });
+}
+
+/** PDF — ticket: faixa accent, header ink, hero com total, tabela Dia/Detalhe/Valor, barra final. */
 export async function buildConferencePdf(input: ConferenceReportInput): Promise<Buffer> {
   const PAL = palette(input.org.primaryColor, input.org.accentColor);
   const logo = await loadLogoBuffer(input.org.logoUrl);
@@ -279,96 +295,129 @@ export async function buildConferencePdf(input: ConferenceReportInput): Promise<
   const { doc, done } = newDoc(`Folha conferencia · ${pdfText(input.employeeName)}`, orgName);
   const pageW = doc.page.width;
   const pageH = doc.page.height;
-  const m = 40;
+  const m = 36;
   const contentW = pageW - 2 * m;
-  const pad = 18;
+  const pad = 16;
+  const colDate = m + pad;
+  const colDetail = m + pad + 118;
+  const colAmtRight = pageW - m - pad;
+  const detailW = contentW - pad * 2 - 118 - 72;
 
   fillCream(doc, PAL);
+  doc.rect(0, 0, pageW, 5).fill(PAL.accent);
 
-  const headerH = 88;
-  doc.rect(0, 0, pageW, headerH).fill(PAL.primary);
+  // Header
+  const headerTop = 5;
+  const headerH = 72;
+  doc.rect(0, headerTop, pageW, headerH).fill(PAL.primary);
 
   let drewLogo = false;
   if (logo?.length) {
     try {
-      doc.image(logo, m, 22, { fit: [40, 40], align: "center", valign: "center" });
+      doc.image(logo, m, headerTop + 16, { fit: [36, 36], align: "center", valign: "center" });
       drewLogo = true;
     } catch {
       drewLogo = false;
     }
   }
   if (!drewLogo) {
-    doc.roundedRect(m, 22, 40, 40, 8).fill(PAL.accent);
+    doc.roundedRect(m, headerTop + 16, 36, 36, 8).fill(PAL.accent);
     const ini = initials(orgName);
-    doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(16);
-    doc.text(ini, m + (40 - doc.widthOfString(ini)) / 2, 33, { lineBreak: false });
+    doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(14);
+    doc.text(ini, m + (36 - doc.widthOfString(ini)) / 2, headerTop + 26, { lineBreak: false });
   }
-  doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(15).text(pdfText(orgName), m + 52, 26, { width: 320 });
-  doc.fillColor("#cfc8c0").font("Helvetica").fontSize(10).text("Folha para conferencia", m + 52, 46, { width: 320 });
+  doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(13).text(pdfText(orgName), m + 48, headerTop + 18, { width: 260 });
+  doc.fillColor("#cfc8c0").font("Helvetica").fontSize(9).text("Folha para conferencia", m + 48, headerTop + 36);
 
-  // Hero
-  const heroY = headerH - 28;
-  const heroH = 142;
-  doc.roundedRect(m, heroY, contentW, heroH, 14).fill(PAL.white);
-  doc.roundedRect(m, heroY, contentW, heroH, 14).lineWidth(0.8).strokeColor(PAL.rule).stroke();
+  const period = pdfText(input.periodLabel);
+  doc.font("Helvetica-Bold").fontSize(9);
+  const periodW = doc.widthOfString(period) + 16;
+  doc.roundedRect(pageW - m - periodW, headerTop + 26, periodW, 22, 6).fill("#3a342f");
+  doc.fillColor(PAL.white).text(period, pageW - m - periodW + 8, headerTop + 32, { lineBreak: false });
+
+  // Hero card
+  let y = headerTop + headerH - 22;
+  const heroH = 118;
+  doc.roundedRect(m, y, contentW, heroH, 14).fill(PAL.white);
+  doc.roundedRect(m, y, contentW, heroH, 14).lineWidth(0.7).strokeColor(PAL.rule).stroke();
 
   const greet = pdfText(
-    `Ola${firstName(input.employeeName) ? `, ${firstName(input.employeeName)}` : ""}! Confira sua folha antes do pagamento.`,
+    `Ola${firstName(input.employeeName) ? `, ${firstName(input.employeeName)}` : ""} — confira os valores abaixo.`,
   );
-  doc.fillColor(PAL.muted).font("Helvetica").fontSize(10).text(greet, m + pad, heroY + pad, {
-    width: contentW - pad * 2,
-  });
+  doc.fillColor(PAL.muted).font("Helvetica").fontSize(9.5).text(greet, m + pad, y + 14, { width: contentW - pad * 2 });
 
-  let hy = heroY + pad + 18;
-  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(9).text(pdfText(input.periodLabel).toUpperCase(), m + pad, hy, {
-    width: contentW - 140,
-    lineBreak: false,
-  });
+  // pills
+  let py = y + 32;
   const pill = pdfText(input.sectorLabel);
-  doc.font("Helvetica-Bold").fontSize(9);
-  const pw = doc.widthOfString(pill) + 16;
-  doc.roundedRect(pageW - m - pad - pw, hy - 3, pw, 16, 8).fill(PAL.pillBg);
-  doc.fillColor(PAL.pillInk).text(pill, pageW - m - pad - pw + 8, hy, { lineBreak: false });
-
-  hy += 20;
-  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(20).text(pdfText(input.employeeName), m + pad, hy, {
-    width: contentW - pad * 2,
-  });
-  hy = doc.y + 2;
-  doc.fillColor(PAL.ink2).font("Helvetica").fontSize(11).text(pdfText(input.payTypeLabel), m + pad, hy);
-
-  hy = Math.max(hy + 16, heroY + 92);
+  doc.font("Helvetica-Bold").fontSize(8.5);
+  const pw = doc.widthOfString(pill) + 14;
+  doc.roundedRect(m + pad, py, pw, 15, 7).fill(PAL.pillBg);
+  doc.fillColor(PAL.pillInk).text(pill, m + pad + 7, py + 3.5, { lineBreak: false });
   doc
-    .moveTo(m + pad, hy)
-    .lineTo(pageW - m - pad, hy)
-    .strokeColor(PAL.rule)
-    .lineWidth(0.8)
-    .stroke();
-  hy += 10;
-  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(9).text("TOTAL A RECEBER", m + pad, hy);
-  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(24).text(usd(input.net), m + pad, hy + 12);
+    .fillColor(PAL.ink2)
+    .font("Helvetica")
+    .fontSize(9.5)
+    .text(pdfText(input.payTypeLabel), m + pad + pw + 8, py + 3, { lineBreak: false });
 
+  doc
+    .fillColor(PAL.primary)
+    .font("Helvetica-Bold")
+    .fontSize(18)
+    .text(pdfText(input.employeeName), m + pad, py + 20, { width: contentW - pad * 2 });
+
+  // total strip inside hero
+  const stripY = y + heroH - 44;
+  doc.roundedRect(m + pad, stripY, contentW - pad * 2, 32, 8).fill(PAL.cream);
+  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(8).text("TOTAL A RECEBER", m + pad + 12, stripY + 6);
+  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(16).text(usd(input.net), m + pad + 12, stripY + 15);
+  doc.font("Helvetica-Bold").fontSize(8.5);
   const badge = "Conferencia";
-  doc.font("Helvetica-Bold").fontSize(10);
-  const bw = doc.widthOfString(badge) + 18;
-  doc.roundedRect(pageW - m - pad - bw, hy + 12, bw, 22, 6).fill(PAL.accent);
-  doc.fillColor(PAL.white).text(badge, pageW - m - pad - bw + 9, hy + 17, { lineBreak: false });
+  const bw = doc.widthOfString(badge) + 14;
+  doc.roundedRect(pageW - m - pad - 12 - bw, stripY + 7, bw, 18, 5).fill(PAL.accent);
+  doc.fillColor(PAL.white).text(badge, pageW - m - pad - 12 - bw + 7, stripY + 11.5, { lineBreak: false });
 
-  let y = heroY + heroH + 16;
+  y += heroH + 14;
 
-  // Days
-  const rowH = 34;
-  const daysH = 28 + Math.max(input.days.length, 1) * rowH + 16;
-  y = needPage(doc, y, daysH, PAL, m);
-  doc.roundedRect(m, y, contentW, daysH, 12).fill(PAL.white);
-  doc.roundedRect(m, y, contentW, daysH, 12).lineWidth(0.8).strokeColor(PAL.rule).stroke();
-  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(9).text("DIAS APROVADOS", m + pad, y + 14, {
+  // Detail card
+  const nDays = Math.max(input.days.length, 1);
+  const headH = 28;
+  const rowH = 28;
+  const adjN = (input.reimbursement ? 1 : 0) + (input.discount ? 1 : 0);
+  const footH = 22 + 18 + adjN * 18 + 40;
+  const detailH = headH + 22 + nDays * rowH + footH;
+  y = needPage(doc, y, detailH, PAL, m);
+
+  doc.roundedRect(m, y, contentW, detailH, 12).fill(PAL.white);
+  doc.roundedRect(m, y, contentW, detailH, 12).lineWidth(0.7).strokeColor(PAL.rule).stroke();
+
+  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(8.5).text("DETALHAMENTO", m + pad, y + 12, {
     characterSpacing: 0.5,
   });
 
-  let dy = y + 32;
+  let dy = y + headH;
+  doc
+    .moveTo(m + pad, dy)
+    .lineTo(pageW - m - pad, dy)
+    .strokeColor(PAL.rule)
+    .lineWidth(0.6)
+    .stroke();
+  dy += 6;
+  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(8);
+  doc.text("DIA", colDate, dy);
+  doc.text("DETALHE", colDetail, dy);
+  rightText(doc, "VALOR", colAmtRight, dy);
+  dy += 14;
+  doc
+    .moveTo(m + pad, dy)
+    .lineTo(pageW - m - pad, dy)
+    .strokeColor(PAL.rule)
+    .lineWidth(0.6)
+    .stroke();
+  dy += 6;
+
   if (!input.days.length) {
-    doc.fillColor(PAL.muted).font("Helvetica").fontSize(11).text("Nenhum dia aprovado nesta semana.", m + pad, dy + 6);
+    doc.fillColor(PAL.muted).font("Helvetica").fontSize(10).text("Nenhum dia aprovado nesta semana.", colDate, dy + 6);
+    dy += rowH;
   } else {
     input.days.forEach((d, i) => {
       if (i > 0) {
@@ -376,84 +425,80 @@ export async function buildConferencePdf(input: ConferenceReportInput): Promise<
           .moveTo(m + pad, dy)
           .lineTo(pageW - m - pad, dy)
           .strokeColor(PAL.rule)
-          .lineWidth(0.6)
+          .lineWidth(0.45)
           .stroke();
       }
+      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10).text(pdfText(d.dateLabel), colDate, dy + 7, {
+        width: 110,
+        lineBreak: false,
+      });
       doc
-        .fillColor(PAL.primary)
-        .font("Helvetica-Bold")
-        .fontSize(11)
-        .text(pdfText(d.dateLabel), m + pad, dy + 6, { width: contentW - 110 });
-      if (d.detail) {
-        doc
-          .fillColor(PAL.muted)
-          .font("Helvetica")
-          .fontSize(9)
-          .text(pdfText(d.detail), m + pad, dy + 20, { width: contentW - 110, lineBreak: false });
-      }
-      const amt = usd(d.amount);
-      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(11);
-      doc.text(amt, pageW - m - pad - doc.widthOfString(amt), dy + 10, { lineBreak: false });
+        .fillColor(PAL.muted)
+        .font("Helvetica")
+        .fontSize(8.5)
+        .text(pdfText(d.detail || "-"), colDetail, dy + 8, { width: detailW, lineBreak: false });
+      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(10);
+      rightText(doc, usd(d.amount), colAmtRight, dy + 7);
       dy += rowH;
     });
   }
-  y += daysH + 12;
 
-  // Summary
-  const nAdj = (input.reimbursement ? 1 : 0) + (input.discount ? 1 : 0);
-  const sumH = 36 + (2 + nAdj) * 20 + 16;
-  y = needPage(doc, y, sumH + (input.waitingNote ? 56 : 0), PAL, m);
-  doc.roundedRect(m, y, contentW, sumH, 12).fill(PAL.white);
-  doc.roundedRect(m, y, contentW, sumH, 12).lineWidth(0.8).strokeColor(PAL.rule).stroke();
-  doc.fillColor(PAL.muted).font("Helvetica-Bold").fontSize(9).text("RESUMO", m + pad, y + 14, { characterSpacing: 0.5 });
-
-  let sy = y + 34;
-  const row = (label: string, value: string, color: string) => {
-    doc.fillColor(PAL.ink2).font("Helvetica").fontSize(11).text(pdfText(label), m + pad, sy);
-    doc.fillColor(color).font("Helvetica-Bold").fontSize(11);
-    doc.text(value, pageW - m - pad - doc.widthOfString(value), sy, { lineBreak: false });
-    sy += 20;
-  };
-  row("Subtotal", usd(input.gross), PAL.primary);
-  if (input.reimbursement) row("Reembolso", `+${usd(input.reimbursement)}`, PAL.green);
-  if (input.discount) row("Desconto", `-${usd(input.discount)}`, PAL.red);
+  dy += 4;
   doc
-    .moveTo(m + pad, sy - 2)
-    .lineTo(pageW - m - pad, sy - 2)
+    .moveTo(m + pad, dy)
+    .lineTo(pageW - m - pad, dy)
     .strokeColor(PAL.rule)
-    .lineWidth(0.8)
+    .lineWidth(0.7)
     .stroke();
-  sy += 6;
-  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(12).text("Total a receber", m + pad, sy);
-  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(12);
-  const tot = usd(input.net);
-  doc.text(tot, pageW - m - pad - doc.widthOfString(tot), sy, { lineBreak: false });
-  y += sumH + 12;
+  dy += 10;
+
+  const sumRow = (label: string, value: string, color: string) => {
+    doc.fillColor(PAL.ink2).font("Helvetica").fontSize(10).text(pdfText(label), colDate, dy);
+    doc.fillColor(color).font("Helvetica-Bold").fontSize(10);
+    rightText(doc, value, colAmtRight, dy);
+    dy += 18;
+  };
+  sumRow("Subtotal", usd(input.gross), PAL.primary);
+  if (input.reimbursement) sumRow("Reembolso", `+${usd(input.reimbursement)}`, PAL.green);
+  if (input.discount) sumRow("Desconto", `-${usd(input.discount)}`, PAL.red);
+
+  dy += 4;
+  const barH = 34;
+  doc.roundedRect(m + pad, dy, contentW - pad * 2, barH, 8).fill(PAL.primary);
+  doc.fillColor("#cfc8c0").font("Helvetica-Bold").fontSize(8).text("TOTAL A RECEBER", m + pad + 12, dy + 12);
+  doc.fillColor(PAL.white).font("Helvetica-Bold").fontSize(14);
+  rightText(doc, usd(input.net), pageW - m - pad - 12, dy + 10);
+
+  y += detailH + 12;
 
   if (input.waitingNote) {
-    y = needPage(doc, y, 52, PAL, m);
-    doc.roundedRect(m, y, contentW, 48, 10).fill(PAL.warnBg);
-    doc.roundedRect(m, y, contentW, 48, 10).lineWidth(0.8).strokeColor(PAL.warnLine).stroke();
-    doc
-      .fillColor(PAL.primary)
-      .font("Helvetica")
-      .fontSize(10)
-      .text(pdfText(input.waitingNote), m + 14, y + 12, { width: contentW - 28 });
+    y = needPage(doc, y, 48, PAL, m);
+    const note = pdfText(input.waitingNote);
+    doc.font("Helvetica").fontSize(9);
+    const noteH = Math.max(40, doc.heightOfString(note, { width: contentW - 28 }) + 20);
+    doc.roundedRect(m, y, contentW, noteH, 10).fill(PAL.warnBg);
+    doc.roundedRect(m, y, contentW, noteH, 10).lineWidth(0.7).strokeColor(PAL.warnLine).stroke();
+    doc.fillColor(PAL.primary).text(note, m + 14, y + 12, { width: contentW - 28 });
+    y += noteH + 10;
   }
 
+  const contact = [input.org.contactPhone, input.org.contactEmail].filter(Boolean).map((s) => pdfText(String(s))).join("  ·  ");
   doc
     .fillColor(PAL.muted)
     .font("Helvetica")
-    .fontSize(9)
-    .text("Confira os valores e confirme com o escritorio antes do pagamento.", m, pageH - 48, {
+    .fontSize(8.5)
+    .text("Confira os valores e confirme com o escritorio antes do pagamento.", m, pageH - 46, {
       width: contentW,
       align: "center",
     });
+  if (contact) {
+    doc.fillColor(PAL.ink2).font("Helvetica").fontSize(8).text(contact, m, pageH - 34, { width: contentW, align: "center" });
+  }
   doc
     .fillColor(PAL.ink2)
     .font("Helvetica-Bold")
-    .fontSize(9)
-    .text(pdfText(orgName), m, pageH - 34, { width: contentW, align: "center" });
+    .fontSize(8.5)
+    .text(pdfText(orgName), m, pageH - 22, { width: contentW, align: "center" });
 
   doc.end();
   return done;

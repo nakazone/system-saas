@@ -909,36 +909,58 @@
     const waiting = rows.filter((r) => r.totals.pending_days || r.totals.open_days);
     const methods = [...new Set(rows.map((r) => r.payment_method).filter(Boolean))];
     const defMethod = methods.length === 1 ? methods[0] : rows.length === 1 ? rows[0].payment_method || "" : "";
-    const body = `<div class="fo-box"><h3>Quem recebe <small>Semana ${esc(w.week.label)}</small></h3>
-        <ul class="fo-paylist">${rows.map((r) => `<li><span>${esc(r.name)} <span class="fo-muted" style="font-size:12.5px">· ${esc(SECTORS[r.sector])}</span></span><b>${money(r.totals.net)}</b></li>`).join("")}
-        ${rows.length > 1 ? `<li class="tot"><span>Total</span><b>${money(total)}</b></li>` : ""}</ul></div>
-      ${
-        waiting.length
-          ? `<div class="fo-alert"><b>${waiting.map((r) => esc(r.name)).join(", ")}</b> ainda ${waiting.length > 1 ? "têm" : "tem"} dias em conferência ou em andamento — sem marcar abaixo, ${waiting.length > 1 ? "ficam" : "fica"} de fora deste pagamento.
-             <label class="fo-check" style="margin-top:8px"><input type="checkbox" id="foPayForce" /> Pagar mesmo assim só o que já está aprovado</label></div>`
-          : ""
-      }
-      <div class="fo-box"><h3>Pagamento</h3>
-        <label class="fo-field">Data do pagamento<input type="date" class="fo-in" id="foPayDate" value="${esc(w.week.pay_on || ymdOf(new Date()))}" /></label>
-        <div class="fo-field" style="margin-top:10px">Forma${rows.length > 1 && methods.length > 1 ? " <small>(vazio = a forma de cada funcionário)</small>" : ""}
-          <div class="fo-methods" id="foPayMethods">${METHODS.map(([k, l]) => `<button type="button" class="fo-chip" data-method="${k}" aria-pressed="${k === defMethod}">${l}</button>`).join("")}</div></div>
-        <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Referência<input type="text" class="fo-in" id="foPayRef" maxlength="120" placeholder="Nº do cheque, Zelle…" /></label>
-        <label class="fo-field">Observação<input type="text" class="fo-in" id="foPayNote" maxlength="500" /></label></div>
-      </div>
-      <p class="fo-muted" style="margin:0;font-size:13px;font-weight:600">Cada funcionário vira uma saída no Financeiro (categoria Folha · ${rows.length === 1 || sectorLabel() ? esc(SECTORS[rows[0].sector]) : "Instalação/Lixa"}). Quando todos estiverem pagos, a semana fecha.</p>`;
+    const period = w.week.full_label || w.week.label;
     const payTitle =
       rows.length === 1
         ? `Pagar ${esc(rows[0].name)}`
         : sectorLabel()
           ? `Pagar ${esc(sectorLabel())} · ${rows.length}`
           : `Pagar ${rows.length} funcionários`;
-    const confBtn =
-      rows.length === 1
-        ? `<button type="button" class="fo-btn fo-btn--ghost" data-conf="${esc(rows[0].id)}">Enviar relatório</button>`
-        : "";
+    const whoList = rows
+      .map(
+        (r) => `<li class="fo-paywho">
+        <span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span>
+        <span class="fo-paywho__txt"><b>${esc(r.name)}</b><small>${esc(SECTORS[r.sector])}${r.payment_method ? ` · ${esc(METHOD_LABEL[r.payment_method] || r.payment_method)}` : ""}</small></span>
+        <b class="fo-paywho__amt">${money(r.totals.net)}</b>
+      </li>`,
+      )
+      .join("");
+    const body = `<div class="fo-pay-hero">
+        <div class="fo-pay-hero__meta"><span>${esc(period)}</span><span>${rows.length} ${rows.length === 1 ? "pessoa" : "pessoas"}</span></div>
+        <div class="fo-pay-hero__total"><small>Total a pagar</small><b>${money(total)}</b></div>
+      </div>
+      <div class="fo-box fo-box--flush">
+        <h3>Quem recebe</h3>
+        <ul class="fo-paywho-list">${whoList}</ul>
+      </div>
+      ${
+        waiting.length
+          ? `<div class="fo-alert"><b>${waiting.map((r) => esc(r.name)).join(", ")}</b> ainda ${waiting.length > 1 ? "têm" : "tem"} dias em conferência ou em andamento — sem marcar abaixo, ${waiting.length > 1 ? "ficam" : "fica"} de fora deste pagamento.
+             <label class="fo-check" style="margin-top:8px"><input type="checkbox" id="foPayForce" /> Pagar só o que já está aprovado</label></div>`
+          : ""
+      }
+      ${
+        rows.length === 1
+          ? `<div class="fo-pay-conf"><button type="button" class="fo-btn fo-btn--ghost fo-pay-conf__btn" data-conf="${esc(rows[0].id)}">Enviar relatório para conferência</button><span>Antes de confirmar, o funcionário pode revisar o PDF.</span></div>`
+          : ""
+      }
+      <div class="fo-box">
+        <h3>Dados do pagamento</h3>
+        <label class="fo-field">Data<input type="date" class="fo-in" id="foPayDate" value="${esc(w.week.pay_on || ymdOf(new Date()))}" /></label>
+        <div class="fo-field" style="margin-top:12px">Forma${rows.length > 1 && methods.length > 1 ? " <small>(vazio = a de cada um)</small>" : ""}
+          <div class="fo-methods" id="foPayMethods">${METHODS.map(([k, l]) => `<button type="button" class="fo-chip" data-method="${k}" aria-pressed="${k === defMethod}">${l}</button>`).join("")}</div></div>
+        <div class="fo-grid2" style="margin-top:12px">
+          <label class="fo-field">Referência<input type="text" class="fo-in" id="foPayRef" maxlength="120" placeholder="Nº do cheque, Zelle…" /></label>
+          <label class="fo-field">Observação<input type="text" class="fo-in" id="foPayNote" maxlength="500" placeholder="Opcional" /></label>
+        </div>
+      </div>
+      <p class="fo-pay-hint">Cada pessoa vira uma saída no Financeiro (Folha · ${rows.length === 1 || sectorLabel() ? esc(SECTORS[rows[0].sector]) : "Instalação/Lixa"}). Com todos pagos, a semana fecha.</p>`;
     openSheet(
-      `${sheetHead(payTitle, money(total))}<div class="fo-sheet__bd">${body}</div>
-       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button>${confBtn}<button type="button" class="fo-btn fo-btn--pri" data-pay-go>Confirmar pagamento · ${money(total)}</button></footer>`,
+      `${sheetHead(payTitle, esc(period))}<div class="fo-sheet__bd">${body}</div>
+       <footer class="fo-sheet__ft fo-sheet__ft--pay">
+         <button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button>
+         <button type="button" class="fo-btn fo-btn--pri fo-sheet__ft-main" data-pay-go>Confirmar · ${money(total)}</button>
+       </footer>`,
     );
     $("foSheet")._payIds = rows.map((r) => r.id);
   }
@@ -998,47 +1020,44 @@
     const waiting = r.totals.pending_days || r.totals.open_days;
     const period = st.week.week.full_label || st.week.week.label;
     const first = String(r.name || "").trim().split(/\s+/)[0] || "";
+    const dayRows = days.length
+      ? days
+          .map((d) => {
+            const bits = confDayLine(d).split(" · ");
+            const label = bits.shift() || "";
+            const detail = bits.join(" · ");
+            return `<div class="fo-ticket__row"><span class="fo-ticket__day">${esc(label)}</span><span class="fo-ticket__det">${esc(detail || "—")}</span><b>${money(d.amount)}</b></div>`;
+          })
+          .join("")
+      : `<p class="fo-muted" style="margin:0;font-size:13.5px;font-weight:600">Nenhum dia aprovado</p>`;
     const body = `<div class="fo-ticket" id="foConfTicket">
         <div class="fo-ticket__top">
           <div class="fo-ticket__mark" aria-hidden="true">F</div>
-          <div>
+          <div class="fo-ticket__top-txt">
             <div class="fo-ticket__org">Folha de pagamento</div>
             <div class="fo-ticket__sub">Relatório para conferência</div>
           </div>
+          <span class="fo-ticket__period">${esc(period)}</span>
         </div>
         <div class="fo-ticket__hero">
-          <p class="fo-ticket__hello">Olá${first ? `, ${esc(first)}` : ""}! Confira sua folha antes do pagamento.</p>
-          <div class="fo-ticket__meta"><span class="fo-ticket__num">${esc(period)}</span><span class="fo-ticket__pill">${esc(SECTORS[r.sector] || r.sector)}</span></div>
+          <p class="fo-ticket__hello">Olá${first ? `, ${esc(first)}` : ""} — confira os valores abaixo.</p>
+          <div class="fo-ticket__meta"><span class="fo-ticket__pill">${esc(SECTORS[r.sector] || r.sector)}</span><span class="fo-ticket__type">${r.pay_type === "production" ? "Produção" : "Diária"}</span></div>
           <h3 class="fo-ticket__name">${esc(r.name)}</h3>
-          <p class="fo-ticket__type">${r.pay_type === "production" ? "Produção" : "Diária"}</p>
-          <div class="fo-ticket__total">
+          <div class="fo-ticket__strip">
             <div><small>Total a receber</small><b>${money(r.totals.net)}</b></div>
             <span class="fo-ticket__badge">Conferência</span>
           </div>
         </div>
         <div class="fo-ticket__sec">
-          <h4>Dias aprovados</h4>
-          <ul class="fo-paylist">${
-            days.length
-              ? days
-                  .map((d) => {
-                    const bits = confDayLine(d).split(" · ");
-                    const label = bits.shift() || "";
-                    const detail = bits.join(" · ");
-                    return `<li><span><b>${esc(label)}</b>${detail ? `<small>${esc(detail)}</small>` : ""}</span><b>${money(d.amount)}</b></li>`;
-                  })
-                  .join("")
-              : `<li class="fo-muted">Nenhum dia aprovado</li>`
-          }</ul>
-        </div>
-        <div class="fo-ticket__sec">
-          <h4>Resumo</h4>
-          <ul class="fo-paylist">
+          <h4>Detalhamento</h4>
+          <div class="fo-ticket__cols"><span>Dia</span><span>Detalhe</span><span>Valor</span></div>
+          <div class="fo-ticket__rows">${dayRows}</div>
+          <ul class="fo-paylist fo-ticket__sum">
             <li><span>Subtotal</span><b>${money(r.totals.gross)}</b></li>
             ${r.totals.reimbursement ? `<li><span>Reembolso</span><b class="fo-ok">+${money(r.totals.reimbursement)}</b></li>` : ""}
             ${r.totals.discount ? `<li><span>Desconto</span><b class="fo-bad">−${money(r.totals.discount)}</b></li>` : ""}
-            <li class="tot"><span>Total a receber</span><b>${money(r.totals.net)}</b></li>
           </ul>
+          <div class="fo-ticket__bar"><span>Total a receber</span><b>${money(r.totals.net)}</b></div>
         </div>
         ${
           waiting
@@ -1047,23 +1066,25 @@
         }
       </div>
       <div class="fo-box">
-        <h3>Enviar para conferência</h3>
-        <p class="fo-muted" style="margin:0 0 12px;font-size:13px;font-weight:600">O PDF segue o visual do ticket de serviço. O funcionário confere antes do pagamento final.</p>
-        <label class="fo-field">E-mail do funcionário<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" ${email ? "" : "autofocus"} /></label>
-        ${phone ? `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Telefone cadastrado: ${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) || phone : phone)}</p>` : `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Sem telefone no cadastro — WhatsApp/SMS ficam indisponíveis.</p>`}
-        <div class="fo-conf-channels" style="margin-top:12px">
-          <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar por e-mail (PDF)</button>
-          <button type="button" class="fo-btn" data-conf-pdf>Abrir PDF</button>
-          <button type="button" class="fo-btn" data-conf-wa ${digits.length >= 10 ? "" : "disabled"}>Abrir WhatsApp</button>
-          <button type="button" class="fo-btn" data-conf-sms ${digits.length >= 10 ? "" : "disabled"}>Abrir SMS</button>
-          <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar texto</button>
+        <h3>Enviar ao funcionário</h3>
+        <label class="fo-field">E-mail<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" ${email ? "" : "autofocus"} /></label>
+        ${phone ? `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Tel.: ${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) || phone : phone)}</p>` : `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Sem telefone — WhatsApp/SMS indisponíveis.</p>`}
+        <div class="fo-conf-channels">
+          <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar e-mail com PDF</button>
+          <div class="fo-conf-grid">
+            <button type="button" class="fo-btn" data-conf-pdf>Abrir PDF</button>
+            <button type="button" class="fo-btn" data-conf-wa ${digits.length >= 10 ? "" : "disabled"}>WhatsApp</button>
+            <button type="button" class="fo-btn" data-conf-sms ${digits.length >= 10 ? "" : "disabled"}>SMS</button>
+            <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar texto</button>
+          </div>
         </div>
       </div>`;
     openSheet(
-      `${sheetHead(`Conferência · ${esc(r.name)}`, money(r.totals.net))}<div class="fo-sheet__bd">${body}</div>
-       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Fechar</button>${
-         canPay(r) ? `<button type="button" class="fo-btn fo-btn--pri" data-pay="${esc(r.id)}">Ir para pagamento</button>` : ""
-       }</footer>`,
+      `${sheetHead(`Conferência · ${esc(r.name)}`, esc(period))}<div class="fo-sheet__bd">${body}</div>
+       <footer class="fo-sheet__ft fo-sheet__ft--pay">
+         <button type="button" class="fo-btn fo-btn--ghost" data-close>Fechar</button>
+         ${canPay(r) ? `<button type="button" class="fo-btn fo-btn--pri fo-sheet__ft-main" data-pay="${esc(r.id)}">Ir para pagamento</button>` : ""}
+       </footer>`,
     );
     $("foSheet")._confId = r.id;
     $("foSheet")._confText = text;
