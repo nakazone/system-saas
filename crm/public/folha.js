@@ -242,30 +242,21 @@
   function weekRows() {
     const rows = st.week ? st.week.employees : [];
     const q = st.q.trim().toLowerCase();
-    let list = rows.filter((r) => (st.sector === "all" || r.sector === st.sector) && (!q || r.name.toLowerCase().includes(q)));
-    // Em uma folha de setor, mostra o time inteiro (mesmo sem diária ainda) para facilitar o lançamento.
-    if (st.sector !== "all" && st.emps) {
-      const have = new Set(list.map((r) => r.id));
-      for (const e of st.emps.employees || []) {
-        if (e.status !== "active") continue;
-        if ((e.sector || "installation") !== st.sector) continue;
-        if (have.has(e.id)) continue;
-        if (q && !e.name.toLowerCase().includes(q)) continue;
-        list.push(emptyWeekRow(e));
-      }
-      list.sort((a, b) => a.name.localeCompare(b.name, "pt"));
-    }
-    return list;
+    // Só quem tem diária / lançamento nesta semana (não o roster inteiro do setor).
+    return rows.filter(
+      (r) =>
+        (r.days || []).length > 0 &&
+        (st.sector === "all" || r.sector === st.sector) &&
+        (!q || r.name.toLowerCase().includes(q)),
+    );
   }
   function sectorLabel() {
     return st.sector === "all" ? null : SECTORS[st.sector];
   }
   function sectorRosterCount(k) {
-    if (k === "all") return st.week ? st.week.totals.all.employees : 0;
-    if (st.emps) {
-      return (st.emps.employees || []).filter((e) => e.status === "active" && (e.sector || "installation") === k).length;
-    }
-    return st.week ? st.week.totals[k]?.employees || 0 : 0;
+    if (!st.week) return 0;
+    if (k === "all") return st.week.totals.all.employees || 0;
+    return st.week.totals[k]?.employees || 0;
   }
   function empStatus(r) {
     if (r.payment) return `<span class="fo-pill fo-pill--paid">Pago ${esc(brShort(r.payment.paid_on))}${r.payment.method_label ? ` · ${esc(r.payment.method_label)}` : ""}</span>`;

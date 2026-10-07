@@ -215,8 +215,8 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
       const myLines = lines.filter((l) => l.employeeId === e.id);
       const adj = adjustments.find((a) => a.employeeId === e.id);
       const pay = payments.find((p) => p.employeeId === e.id);
-      // Semana lists only people with activity in this period (not the full active roster).
-      if (!myShifts.length && !myLines.length && !adj && !pay) return null;
+      // Semana: só quem tem diária / lançamento nesta semana (não roster, nem só ajuste/pagamento).
+      if (!myShifts.length && !myLines.length) return null;
       const days = [
         ...myShifts.map((s) => mapShift(s, tz)),
         // Lines typed by the office (no Dia de trabalho behind them)
