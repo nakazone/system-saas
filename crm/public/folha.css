@@ -210,52 +210,69 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 }
 .fo-sheet__bd--scroll { max-height: 100%; }
 
-/* Popup Enviar relatório (sobre o sheet de conferência) */
+/* Popup Enviar relatório — mesmo padrão do sheet mobile da Agenda (.ag-sheet) */
 .fo-pop {
   position: fixed; inset: 0; z-index: 2200;
-  display: grid; place-items: end center;
-  pointer-events: none;
-}
-.fo-pop[hidden] { display: none !important; }
-.fo-pop:not([hidden]) { pointer-events: auto; }
-.fo-pop__scrim {
-  position: absolute; inset: 0;
-  border: 0; padding: 0; margin: 0;
-  background: rgba(33, 29, 26, 0.4);
-  cursor: pointer;
-}
-.fo-pop__card {
-  position: relative; z-index: 1;
-  width: min(420px, calc(100vw - 24px));
-  max-height: min(70dvh, 560px);
-  margin: 0 12px calc(12px + env(safe-area-inset-bottom));
-  background: var(--cream);
-  border-radius: 18px;
-  box-shadow: 0 24px 60px rgba(33, 29, 26, 0.35);
-  display: flex; flex-direction: column;
-  overflow: hidden;
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   color: var(--ink);
-  animation: fo-pop-up 0.22s ease-out;
 }
-@keyframes fo-pop-up {
-  from { transform: translateY(18px); opacity: 0.6; }
-  to { transform: translateY(0); opacity: 1; }
+.fo-pop[hidden] { display: none !important; }
+.fo-pop__backdrop {
+  position: absolute; inset: 0;
+  border: 0; padding: 0; margin: 0;
+  background: rgba(33, 29, 26, 0.32);
+  opacity: 0;
+  transition: opacity 0.2s;
+  cursor: pointer;
 }
-.fo-pop__hd {
-  display: flex; align-items: center; gap: 10px;
-  padding: 14px 16px 12px;
-  background: #fff;
-  border-bottom: 1px solid var(--line);
+.fo-pop.is-open .fo-pop__backdrop { opacity: 1; }
+.fo-pop__card {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100dvh - 60px);
+  transform: translate(-50%, -46%) scale(0.98);
+  opacity: 0;
+  transition: transform 0.2s, opacity 0.2s;
+  background: #f3f1ee;
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(33, 29, 26, 0.3);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.fo-pop.is-open .fo-pop__card {
+  transform: translate(-50%, -50%);
+  opacity: 1;
+}
+.fo-pop__bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 14px 8px;
   flex: none;
 }
-.fo-pop__hd h3 { margin: 0; flex: 1; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
-.fo-pop__bd {
+.fo-pop__bar h2 {
+  margin: 0; flex: 1;
+  font-size: 16px; font-weight: 800;
+  text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fo-pop__round {
+  appearance: none; border: 0;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(33, 29, 26, 0.1);
+  display: grid; place-items: center;
+  font-size: 22px; line-height: 1; color: var(--ink-2);
+  cursor: pointer; flex: none;
+}
+.fo-pop__body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 14px 16px 18px;
+  padding: 6px 16px 22px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
 }
 .fo-sheet__ft { display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); flex-wrap: wrap; flex: none; }
 .fo-sheet__ft .fo-btn { flex: 0 0 auto; min-width: 0; }
@@ -620,6 +637,19 @@ body.fo-page .crm-toast--success * { color: inherit; }
   .fo-filters .fo-field:first-child { grid-column: 1 / -1; }
   .fo-adj-live { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* Bottom sheet do Enviar relatório — mesmo breakpoint da Agenda */
+@media (max-width: 767px) {
+  .fo-pop__card {
+    left: 0; right: 0; top: auto; bottom: 0;
+    width: 100%;
+    max-height: calc(100dvh - 44px);
+    transform: translateY(100%);
+    opacity: 1;
+    border-radius: 26px 26px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .fo-pop.is-open .fo-pop__card { transform: translateY(0); }
+}
 @media (max-width: 720px) {
   .fo-tool { flex-direction: column; align-items: stretch; }
   .fo-week { justify-content: space-between; }
@@ -636,14 +666,6 @@ body.fo-page .crm-toast--success * { color: inherit; }
   .fo-sheet--report {
     height: 92dvh;
     max-height: 92dvh;
-  }
-  .fo-pop { place-items: end stretch; }
-  .fo-pop__card {
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    border-radius: 20px 20px 0 0;
-    max-height: min(78dvh, 620px);
   }
   .fo-sheet__hd { border-radius: 20px 20px 0 0; }
   .fo-sheet__ft .fo-btn { flex: 1; min-height: 46px; height: auto; }

@@ -1132,7 +1132,13 @@
   }
   function closeConfSendPop() {
     const pop = $("foConfSendPop");
-    if (pop) pop.hidden = true;
+    if (!pop || pop.hidden) return;
+    pop.classList.remove("is-open");
+    setTimeout(() => {
+      if (pop.classList.contains("is-open")) return;
+      pop.hidden = true;
+      pop.innerHTML = "";
+    }, 220);
   }
   function openConfSendPop() {
     const sh = $("foSheet");
@@ -1141,14 +1147,16 @@
     const digits = sh._confPhone || "";
     const pop = $("foConfSendPop");
     if (!pop) return;
+    pop.classList.remove("is-open");
     pop.innerHTML = `
-      <button type="button" class="fo-pop__scrim" data-conf-send-close aria-label="Fechar"></button>
-      <div class="fo-pop__card" role="dialog" aria-labelledby="foConfSendTitle">
-        <header class="fo-pop__hd">
-          <h3 id="foConfSendTitle">Enviar relatório</h3>
-          <button type="button" class="fo-x" data-conf-send-close aria-label="Fechar">×</button>
+      <button type="button" class="fo-pop__backdrop" data-conf-send-close aria-label="Fechar"></button>
+      <div class="fo-pop__card" role="dialog" aria-modal="true" aria-labelledby="foConfSendTitle">
+        <header class="fo-pop__bar">
+          <button type="button" class="fo-pop__round" data-conf-send-close aria-label="Fechar">×</button>
+          <h2 id="foConfSendTitle">Enviar relatório</h2>
+          <span aria-hidden="true" style="width:44px;flex:none"></span>
         </header>
-        <div class="fo-pop__bd">
+        <div class="fo-pop__body">
           <div class="fo-box fo-box--flush">
             <label class="fo-field">E-mail<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" ${email ? "" : "autofocus"} /></label>
             ${
@@ -1169,7 +1177,10 @@
         </div>
       </div>`;
     pop.hidden = false;
-    setTimeout(() => pop.querySelector("[autofocus], #foConfEmail")?.focus(), 40);
+    requestAnimationFrame(() => {
+      pop.classList.add("is-open");
+      setTimeout(() => pop.querySelector("[autofocus], #foConfEmail")?.focus(), 40);
+    });
   }
   async function confSendEmail(btn) {
     const id = $("foSheet")._confId;
