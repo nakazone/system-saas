@@ -12,13 +12,14 @@
 (function () {
   if (window.__crmDayRoute) return;
 
-  const CSS_HREF = "crm-day-route.css?v=20261006-route1";
+  const CSS_HREF = "crm-day-route.css?v=20261006-route3";
   let root = null;
   let map = null;
   let directionsRenderer = null;
   let markers = [];
   let state = null;
   let mapsReady = null;
+  let originAcAttached = false;
 
   function $(sel, el) {
     return (el || document).querySelector(sel);
@@ -44,12 +45,12 @@
     const base = document.querySelector('script[src*="crm-day-route"]');
     if (base && base.src) {
       try {
-        link.href = new URL("../crm-day-route.css?v=20261006-route1", base.src).href;
+        link.href = new URL("../crm-day-route.css?v=20261006-route3", base.src).href;
       } catch (_) {
-        link.href = "/crm-day-route.css?v=20261006-route1";
+        link.href = "/crm-day-route.css?v=20261006-route3";
       }
     } else {
-      link.href = "/crm-day-route.css?v=20261006-route1";
+      link.href = "/crm-day-route.css?v=20261006-route3";
     }
     document.head.appendChild(link);
   }
@@ -207,10 +208,19 @@
     return root;
   }
 
+  function mapsLoaded() {
+    return !!(window.google && window.google.maps && window.google.maps.Map && window.google.maps.DirectionsService);
+  }
+
   async function loadMaps() {
     if (mapsReady) return mapsReady;
     mapsReady = (async () => {
-      if (window.google && window.google.maps && window.google.maps.Map) return true;
+      if (mapsLoaded()) return true;
+      // Prefer shared loader (Places + auth hook) when available.
+      if (typeof window.sfEnsureCrmAddressAutocomplete === "function") {
+        const ok = await window.sfEnsureCrmAddressAutocomplete(false);
+        if (ok && mapsLoaded()) return true;
+      }
       let key = null;
       try {
         const r = await fetch("/api/config/ui", { credentials: "include" });
@@ -221,7 +231,7 @@
       }
       if (!key) throw new Error("Google Maps não configurado neste ambiente.");
       await new Promise((resolve, reject) => {
-        if (window.google && window.google.maps && window.google.maps.Map) {
+        if (mapsLoaded()) {
           resolve();
           return;
         }
@@ -230,10 +240,10 @@
           let n = 0;
           const t = setInterval(() => {
             n += 1;
-            if (window.google && window.google.maps && window.google.maps.Map) {
+            if (mapsLoaded()) {
               clearInterval(t);
               resolve();
-            } else if (n > 80) {
+            } else if (n > 100) {
               clearInterval(t);
               reject(new Error("Timeout Google Maps"));
             }
@@ -245,7 +255,8 @@
           try {
             delete window[cb];
           } catch (_) {}
-          resolve();
+          if (window.__crmGoogleMapsAuthFailed) reject(new Error("Google Maps: chave inválida ou sem billing."));
+          else resolve();
         };
         const s = document.createElement("script");
         s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&libraries=places&callback=" + cb;
@@ -253,9 +264,59 @@
         s.onerror = () => reject(new Error("Falha ao carregar Google Maps"));
         document.head.appendChild(s);
       });
+      if (!mapsLoaded()) throw new Error("Google Maps não ficou pronto.");
       return true;
-    })();
+    })().catch((err) => {
+      mapsReady = null;
+      throw err;
+    });
     return mapsReady;
+  }
+
+  async function attachOriginAutocomplete() {
+    const input = $("#drOrigin", root);
+    if (!input || originAcAttached) return;
+    if (typeof window.sfAttachAddressAutocomplete !== "function") return;
+    try {
+      const ok = await window.sfAttachAddressAutocomplete(input, {
+        types: ["geocode"],
+        map: { combined: input },
+      });
+      if (ok) originAcAttached = true;
+    } catch (_) {}
+  }
+
+  function plotStopMarkers(origin, stops) {
+    clearMarkers();
+    if (!map || !window.google || !google.maps.Geocoder) return;
+    const geocoder = new google.maps.Geocoder();
+    const bounds = new google.maps.LatLngBounds();
+    const addrs = [];
+    if (origin) addrs.push({ label: "Partida", address: origin, origin: true });
+    (stops || []).forEach((s, i) => addrs.push({ label: String(i + 1), address: s.address, origin: false }));
+    addrs.forEach((item) => {
+      geocoder.geocode({ address: item.address }, (results, status) => {
+        if (status !== "OK" || !results || !results[0]) return;
+        const loc = results[0].geometry.location;
+        const m = new google.maps.Marker({
+          map,
+          position: loc,
+          label: item.origin ? "P" : item.label,
+          title: item.address,
+        });
+        markers.push(m);
+        bounds.extend(loc);
+        if (!bounds.isEmpty()) map.fitBounds(bounds, 48);
+      });
+    });
+  }
+
+  function statusMessage(status) {
+    if (status === "ZERO_RESULTS" || status === "NOT_FOUND") return "Não achamos rota de carro entre esses pontos.";
+    if (status === "REQUEST_DENIED") return "Directions API não habilitada nesta chave Google Maps.";
+    if (status === "OVER_QUERY_LIMIT") return "Limite da API de rotas atingido. Tente de novo em instantes.";
+    if (status === "INVALID_REQUEST") return "Endereço de partida ou paradas inválidos.";
+    return "Falha ao calcular a rota (" + status + ").";
   }
 
   function clearMarkers() {
@@ -314,6 +375,28 @@
     notify(address ? "Ponto de partida salvo no cadastro." : "Ponto de partida removido.", "success");
   }
 
+  function ensureMapCanvas() {
+    const canvas = $("#drMap", root);
+    if (!map) {
+      map = new google.maps.Map(canvas, {
+        zoom: 11,
+        center: { lat: 30.27, lng: -97.74 },
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+      });
+      directionsRenderer = new google.maps.DirectionsRenderer({
+        map,
+        suppressMarkers: false,
+        polylineOptions: { strokeColor: "#c1652f", strokeWeight: 5, strokeOpacity: 0.9 },
+      });
+    } else {
+      try {
+        google.maps.event.trigger(map, "resize");
+      } catch (_) {}
+    }
+  }
+
   async function drawRoute() {
     const origin = ($("#drOrigin", root).value || "").trim();
     const stops = (state.stops || []).filter((s) => s.address);
@@ -333,57 +416,60 @@
       return;
     }
 
-    await loadMaps();
-    const canvas = $("#drMap", root);
-    if (!map) {
-      map = new google.maps.Map(canvas, {
-        zoom: 11,
-        center: { lat: 30.27, lng: -97.74 },
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
+    try {
+      await loadMaps();
+      ensureMapCanvas();
+      clearMarkers();
+      if (directionsRenderer) {
+        try {
+          directionsRenderer.setDirections({ routes: [] });
+        } catch (_) {}
+      }
+
+      const dest = stops[stops.length - 1].address;
+      const mid = stops.slice(0, -1).map((s) => ({ location: s.address, stopover: true }));
+      const svc = new google.maps.DirectionsService();
+      const result = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("Tempo esgotado ao calcular a rota.")), 20000);
+        svc.route(
+          {
+            origin,
+            destination: dest,
+            waypoints: mid,
+            travelMode: google.maps.TravelMode.DRIVING,
+            optimizeWaypoints: false,
+          },
+          (res, status) => {
+            clearTimeout(timer);
+            if (status === "OK" && res) resolve(res);
+            else reject(new Error(statusMessage(status)));
+          },
+        );
       });
-      directionsRenderer = new google.maps.DirectionsRenderer({
-        map,
-        suppressMarkers: false,
-        polylineOptions: { strokeColor: "#c1652f", strokeWeight: 5, strokeOpacity: 0.9 },
+
+      directionsRenderer.setDirections(result);
+      let meters = 0;
+      let seconds = 0;
+      (result.routes[0].legs || []).forEach((leg) => {
+        meters += (leg.distance && leg.distance.value) || 0;
+        seconds += (leg.duration && leg.duration.value) || 0;
       });
-    } else {
-      google.maps.event.trigger(map, "resize");
+      const km = meters / 1000;
+      const mins = Math.round(seconds / 60);
+      const hm = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`;
+      $("#drSum", root).textContent = `Rota · ${km < 10 ? km.toFixed(1) : Math.round(km)} km · ${hm}`;
+      $("#drHint", root).textContent = "Toque num endereço da lista para abrir no Maps do celular.";
+    } catch (err) {
+      const msg = (err && err.message) || "Falha ao calcular a rota.";
+      $("#drHint", root).textContent = msg + " Use Abrir no Maps.";
+      $("#drSum", root).textContent = "";
+      updateNativeLink(origin, stops);
+      try {
+        ensureMapCanvas();
+        plotStopMarkers(origin, stops);
+      } catch (_) {}
+      notify(msg, "error");
     }
-
-    clearMarkers();
-    const dest = stops[stops.length - 1].address;
-    const mid = stops.slice(0, -1).map((s) => ({ location: s.address, stopover: true }));
-    const svc = new google.maps.DirectionsService();
-    const result = await new Promise((resolve, reject) => {
-      svc.route(
-        {
-          origin,
-          destination: dest,
-          waypoints: mid,
-          travelMode: google.maps.TravelMode.DRIVING,
-          optimizeWaypoints: false,
-        },
-        (res, status) => {
-          if (status === "OK" && res) resolve(res);
-          else reject(new Error(status === "ZERO_RESULTS" ? "Não achamos rota de carro entre esses pontos." : "Falha ao calcular a rota (" + status + ")."));
-        },
-      );
-    });
-
-    directionsRenderer.setDirections(result);
-    let meters = 0;
-    let seconds = 0;
-    (result.routes[0].legs || []).forEach((leg) => {
-      meters += leg.distance?.value || 0;
-      seconds += leg.duration?.value || 0;
-    });
-    const km = meters / 1000;
-    const mins = Math.round(seconds / 60);
-    const hm = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`;
-    $("#drSum", root).textContent = `Rota · ${km < 10 ? km.toFixed(1) : Math.round(km)} km · ${hm}`;
-    $("#drHint", root).textContent = "Toque num endereço da lista para abrir no Maps do celular.";
   }
 
   async function open(opts) {
@@ -406,34 +492,24 @@
     renderList();
     updateNativeLink(state.origin, state.stops);
 
-    if (typeof window.sfAttachAddressAutocomplete === "function") {
-      try {
-        window.sfAttachAddressAutocomplete($("#drOrigin", root), { map: { combined: $("#drOrigin", root) } });
-      } catch (_) {}
-    }
+    // Autocomplete + map in parallel; autocomplete must await so Photon/Places attach.
+    const acPromise = attachOriginAutocomplete();
 
     try {
       await loadMaps();
-      const canvas = $("#drMap", root);
-      if (!map) {
-        map = new google.maps.Map(canvas, {
-          zoom: 10,
-          center: { lat: 30.27, lng: -97.74 },
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-        });
-        directionsRenderer = new google.maps.DirectionsRenderer({
-          map,
-          polylineOptions: { strokeColor: "#c1652f", strokeWeight: 5, strokeOpacity: 0.9 },
-        });
-      } else {
-        setTimeout(() => google.maps.event.trigger(map, "resize"), 80);
-      }
+      ensureMapCanvas();
+      setTimeout(() => {
+        try {
+          google.maps.event.trigger(map, "resize");
+        } catch (_) {}
+      }, 80);
+      await acPromise;
       if (state.origin && state.stops.length) await drawRoute();
+      else if (state.stops.length) plotStopMarkers("", state.stops);
     } catch (err) {
-      $("#drHint", root).textContent = err.message || "Mapa indisponível — use Abrir no Maps.";
+      $("#drHint", root).textContent = (err && err.message) || "Mapa indisponível — use Abrir no Maps.";
       updateNativeLink(state.origin, state.stops);
+      await acPromise.catch(() => {});
     }
   }
 

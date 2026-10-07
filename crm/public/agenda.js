@@ -415,8 +415,11 @@
         const room = Math.max(0, slots - Math.min(lanes, slots));
         const show = timed.length > room ? timed.slice(0, Math.max(0, room - 1)) : timed;
         const hidden = timed.length - show.length + bars.filter((b) => b.lane >= slots && b.s <= i && b.en >= i).length;
+        const routeBtn = !out && dayHasRoute(d)
+          ? `<button type="button" class="ag-day__rbtn" data-ag-day-route="${esc(ymd(d))}" title="Ver rota do dia">Rota</button>`
+          : '';
         html += `<div class="ag-day${out ? ' is-out' : ''}${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-day="${ymd(d)}">
-          <div class="ag-day__n"><span class="${isT ? 'is-today' : ''}">${d.getDate() === 1 && !isT ? `${MON3[d.getMonth()]} ${d.getDate()}` : d.getDate()}</span></div>
+          <div class="ag-day__n">${routeBtn}<span class="${isT ? 'is-today' : ''}">${d.getDate() === 1 && !isT ? `${MON3[d.getMonth()]} ${d.getDate()}` : d.getDate()}</span></div>
           <div class="ag-day__list" style="margin-top:${Math.min(lanes, slots) * 21}px">${show
             .map(
               (e) => `<button type="button" class="ag-row" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><span>${esc(e.title)}</span><time>${esc(fmtTime(e.start))}</time></button>`
@@ -667,7 +670,10 @@
         const show = timed.slice(0, room);
         const more = timed.length - show.length + bars.filter((b) => b.lane >= maxLanes && b.s <= i && b.en >= i).length;
         void laneCount;
-        html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-mday="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>
+        const routeBtn = dayHasRoute(d)
+          ? `<button type="button" class="ag-md__rbtn" data-ag-day-route="${esc(ymd(d))}" title="Ver rota do dia">Rota</button>`
+          : '';
+        html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-mday="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__top"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>${routeBtn}</span>
           <span class="ag-md__list" style="margin-top:${Math.min(lanesAll, maxLanes) * 19}px">${show
             .map((e) => `<button type="button" class="ag-pill" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(e.title)}</span></button>`)
             .join('')}${more > 0 ? `<button type="button" class="ag-pill ag-pill--more" data-ag-daylist="${ymd(d)}">+${more}</button>` : ''}</span></div>`;
@@ -1767,7 +1773,7 @@
 
     const dayFromTarget = (t) => {
       if (!t || !t.closest) return { day: null, cell: null };
-      if (t.closest('[data-ag-ev], [data-ag-daylist], .ag-bar, .ag-blk, .ag-row, .ag-li, a, input, textarea, select')) {
+      if (t.closest('[data-ag-ev], [data-ag-daylist], [data-ag-day-route], .ag-bar, .ag-blk, .ag-row, .ag-li, a, input, textarea, select')) {
         return { day: null, cell: null };
       }
       const chromeBtn = t.closest('button');
@@ -2262,7 +2268,7 @@
       }
       if ((el = t.closest('[data-ag-mday]'))) {
         // Month phone: open event card / day list — never enter day view.
-        if (t.closest('[data-ag-ev]')) return;
+        if (t.closest('[data-ag-ev], [data-ag-day-route]')) return;
         return openDayEventsSheet(el.dataset.agMday);
       }
       if ((el = t.closest('[data-ag-strip]'))) return goDay(parseYmd(el.dataset.agStrip));
@@ -2285,7 +2291,7 @@
 
     document.addEventListener('dblclick', (ev) => {
       const el = ev.target.closest('[data-ag-day]');
-      if (el && !ev.target.closest('[data-ag-ev]')) newMenu(ev.clientX, ev.clientY, parseYmd(el.dataset.agDay));
+      if (el && !ev.target.closest('[data-ag-ev], [data-ag-day-route]')) newMenu(ev.clientX, ev.clientY, parseYmd(el.dataset.agDay));
     });
 
     document.addEventListener('input', (ev) => {

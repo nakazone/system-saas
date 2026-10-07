@@ -97,6 +97,9 @@
 .dr-btn--ghost { border-color: transparent; background: transparent; color: var(--dr-ink-2); }
 .dr-empty { margin: 8px 4px; font-size: 13px; font-weight: 650; color: var(--dr-muted); }
 .dr-inwrap { position: relative; display: block; flex: 1; min-width: 180px; }
+/* Places dropdown is appended to body — must sit above this panel (z 2410). */
+.pac-container { z-index: 2600 !important; }
+.dr-root .crm-photon-ac { z-index: 20; }
 
 @media (max-width: 720px) {
   .dr-panel {

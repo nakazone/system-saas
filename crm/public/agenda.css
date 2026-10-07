@@ -137,9 +137,28 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-day:last-child { border-right: 0; }
 .ag-day.is-we { background: var(--we); }
 .ag-day.is-out .ag-day__n { color: var(--mut2); }
-.ag-day__n { display: flex; justify-content: flex-end; font-size: 14px; font-weight: 600; height: 26px; padding-right: 4px; }
+.ag-day__n { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 14px; font-weight: 600; height: 26px; padding: 0 4px; }
+.ag-day__n:has(.ag-day__rbtn) { justify-content: space-between; }
 .ag-day__n span { min-width: 26px; height: 26px; padding: 0 6px; border-radius: 13px; display: inline-grid; place-items: center; }
 .ag-day__n .is-today { background: var(--terra); color: #fff; font-weight: 800; }
+.ag-day__rbtn {
+  appearance: none;
+  border: 1px solid #f3cfb1;
+  background: #fdf1e7;
+  color: #c1652f;
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  flex: none;
+  line-height: 1;
+}
+.ag-day__rbtn:hover { background: #fce8d6; }
 .ag-day__list { display: grid; gap: 1px; }
 .ag-row { appearance: none; border: 0; background: transparent; display: flex; align-items: center; gap: 6px; width: 100%; height: 20px; padding: 0 4px; border-radius: 5px; font-size: 12.5px; font-weight: 600; text-align: left; min-width: 0; }
 .ag-row i { width: 3px; height: 13px; border-radius: 2px; background: var(--ev); flex: none; }
@@ -468,9 +487,26 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   .ag-mw { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--line); position: relative; min-height: 104px; }
   .ag-md { appearance: none; border: 0; background: transparent; display: flex; flex-direction: column; align-items: stretch; padding: 6px 1px 4px; min-width: 0; text-align: center; cursor: pointer; }
   .ag-md.is-blank { pointer-events: none; }
-  .ag-md__n { font-size: 17px; font-weight: 600; width: 32px; height: 32px; line-height: 32px; border-radius: 50%; margin: 0 auto 4px; }
+  .ag-md__top { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 2px; }
+  .ag-md__n { font-size: 17px; font-weight: 600; width: 32px; height: 32px; line-height: 32px; border-radius: 50%; margin: 0; }
   .ag-md.is-we .ag-md__n { color: var(--mut); }
   .ag-md__n.is-today { background: var(--terra); color: #fff !important; font-weight: 800; }
+  .ag-md__rbtn {
+    appearance: none;
+    border: 1px solid #f3cfb1;
+    background: #fdf1e7;
+    color: #c1652f;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 999px;
+    cursor: pointer;
+    line-height: 1;
+  }
   .ag-md__list { display: grid; gap: 2px; }
   .ag-pill > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .ag-pill { appearance: none; border: 0; display: flex; align-items: center; gap: 3px; height: 17px; padding: 0 3px; border-radius: 5px; background: var(--ev-bg); color: var(--ev-ink); font-size: 10.5px; font-weight: 700; overflow: hidden; white-space: nowrap; text-align: left; width: 100%; cursor: pointer; }
