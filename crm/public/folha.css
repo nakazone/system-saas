@@ -192,10 +192,70 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-sheet__bd { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; display: grid; gap: 14px; align-content: start; }
 .fo-sheet__ft { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); flex-wrap: wrap; flex: none; }
 .fo-sheet__ft .fo-btn { flex: 0 0 auto; min-width: 0; }
-.fo-conf-preview { display: grid; gap: 10px; }
-.fo-conf-preview .fo-paylist li { align-items: flex-start; }
 .fo-conf-channels { display: grid; gap: 8px; }
 .fo-conf-channels .fo-btn { width: 100%; justify-content: center; }
+.fo-ok { color: #1a7a3a; }
+.fo-bad { color: #b42318; }
+
+/* Preview estilo ticket de serviço */
+.fo-ticket {
+  background: var(--cream);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.fo-ticket__top {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px 48px;
+  background: var(--ink); color: #fff;
+}
+.fo-ticket__mark {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: var(--terra); color: #fff;
+  display: grid; place-items: center;
+  font-weight: 800; font-size: 18px; flex: none;
+}
+.fo-ticket__org { font-weight: 800; font-size: 15px; line-height: 1.2; }
+.fo-ticket__sub { font-size: 12.5px; opacity: 0.72; font-weight: 600; }
+.fo-ticket__hero {
+  margin: -36px 12px 0; padding: 16px;
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(33, 29, 26, 0.1);
+}
+.fo-ticket__hello { margin: 0 0 10px; font-size: 13.5px; color: var(--muted); font-weight: 600; }
+.fo-ticket__meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.fo-ticket__num { font-weight: 800; font-size: 12px; color: var(--muted); letter-spacing: 0.02em; }
+.fo-ticket__pill {
+  display: inline-flex; font-size: 12px; font-weight: 800;
+  padding: 3px 10px; border-radius: 999px;
+  background: #eef1f6; color: #3d4b63;
+}
+.fo-ticket__name { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; }
+.fo-ticket__type { margin: 4px 0 0; color: var(--ink-2); font-size: 14px; font-weight: 600; }
+.fo-ticket__total {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.fo-ticket__total small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+.fo-ticket__total b { display: block; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.fo-ticket__badge {
+  background: var(--terra); color: #fff; font-weight: 800; font-size: 12px;
+  padding: 5px 10px; border-radius: 8px; white-space: nowrap; flex: none;
+}
+.fo-ticket__sec {
+  margin: 12px; padding: 14px 16px;
+  background: #fff; border: 1px solid var(--line); border-radius: 14px;
+}
+.fo-ticket__sec h4 {
+  margin: 0 0 8px; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.fo-ticket .fo-paylist li { align-items: flex-start; }
+.fo-ticket .fo-paylist li span { display: grid; gap: 2px; min-width: 0; }
+.fo-ticket .fo-paylist li span b { font-weight: 800; }
+.fo-ticket .fo-paylist li small { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.fo-ticket + .fo-box { margin-top: 4px; }
+.fo-ticket__warn { margin: 0 12px 12px; }
 .fo-box { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
 .fo-box h3 { margin: 0 0 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .fo-box h3 small { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--ink-2); }
@@ -426,17 +486,3 @@ body.fo-page .crm-toast--success * { color: inherit; }
   .fo-sheet .fo-qd__d { min-height: 52px; }
 }
 
-@media print {
-  body * { visibility: hidden !important; }
-  .fo-sheet, .fo-sheet * { visibility: visible !important; }
-  .fo-scrim, .fo-sheet .fo-x, .fo-sheet__ft, .fo-conf-channels { display: none !important; }
-  .fo-sheet {
-    position: static !important;
-    transform: none !important;
-    left: auto !important; top: auto !important;
-    width: 100% !important; height: auto !important; max-height: none !important;
-    box-shadow: none !important; border-radius: 0 !important;
-    overflow: visible !important;
-  }
-  .fo-sheet__bd { overflow: visible !important; }
-}

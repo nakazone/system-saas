@@ -982,6 +982,11 @@
     if (d.length === 11 && d.startsWith("1")) d = d.slice(1);
     return d;
   }
+  function confPdfUrl(id) {
+    const week = st.week?.week?.start;
+    if (!week || !id) return "";
+    return `/api/folha/conferencia.pdf?week=${encodeURIComponent(week)}&employee_id=${encodeURIComponent(id)}`;
+  }
   function openConference(id) {
     const r = st.week?.employees?.find((x) => x.id === id);
     if (!r) return;
@@ -991,33 +996,67 @@
     const phone = r.phone || "";
     const digits = phoneDigits(phone);
     const waiting = r.totals.pending_days || r.totals.open_days;
-    const body = `<div class="fo-box fo-conf-preview">
-        <h3>Resumo · ${esc(st.week.week.full_label || st.week.week.label)}</h3>
-        <ul class="fo-paylist">${
-          days.length
-            ? days.map((d) => `<li><span>${esc(confDayLine(d))}</span><b>${money(d.amount)}</b></li>`).join("")
-            : `<li class="fo-muted">Nenhum dia aprovado</li>`
-        }
-          ${r.totals.reimbursement ? `<li><span>Reembolso</span><b>+${money(r.totals.reimbursement)}</b></li>` : ""}
-          ${r.totals.discount ? `<li><span>Desconto</span><b>−${money(r.totals.discount)}</b></li>` : ""}
-          <li class="tot"><span>Total a receber</span><b>${money(r.totals.net)}</b></li></ul>
+    const period = st.week.week.full_label || st.week.week.label;
+    const first = String(r.name || "").trim().split(/\s+/)[0] || "";
+    const body = `<div class="fo-ticket" id="foConfTicket">
+        <div class="fo-ticket__top">
+          <div class="fo-ticket__mark" aria-hidden="true">F</div>
+          <div>
+            <div class="fo-ticket__org">Folha de pagamento</div>
+            <div class="fo-ticket__sub">Relatório para conferência</div>
+          </div>
+        </div>
+        <div class="fo-ticket__hero">
+          <p class="fo-ticket__hello">Olá${first ? `, ${esc(first)}` : ""}! Confira sua folha antes do pagamento.</p>
+          <div class="fo-ticket__meta"><span class="fo-ticket__num">${esc(period)}</span><span class="fo-ticket__pill">${esc(SECTORS[r.sector] || r.sector)}</span></div>
+          <h3 class="fo-ticket__name">${esc(r.name)}</h3>
+          <p class="fo-ticket__type">${r.pay_type === "production" ? "Produção" : "Diária"}</p>
+          <div class="fo-ticket__total">
+            <div><small>Total a receber</small><b>${money(r.totals.net)}</b></div>
+            <span class="fo-ticket__badge">Conferência</span>
+          </div>
+        </div>
+        <div class="fo-ticket__sec">
+          <h4>Dias aprovados</h4>
+          <ul class="fo-paylist">${
+            days.length
+              ? days
+                  .map((d) => {
+                    const bits = confDayLine(d).split(" · ");
+                    const label = bits.shift() || "";
+                    const detail = bits.join(" · ");
+                    return `<li><span><b>${esc(label)}</b>${detail ? `<small>${esc(detail)}</small>` : ""}</span><b>${money(d.amount)}</b></li>`;
+                  })
+                  .join("")
+              : `<li class="fo-muted">Nenhum dia aprovado</li>`
+          }</ul>
+        </div>
+        <div class="fo-ticket__sec">
+          <h4>Resumo</h4>
+          <ul class="fo-paylist">
+            <li><span>Subtotal</span><b>${money(r.totals.gross)}</b></li>
+            ${r.totals.reimbursement ? `<li><span>Reembolso</span><b class="fo-ok">+${money(r.totals.reimbursement)}</b></li>` : ""}
+            ${r.totals.discount ? `<li><span>Desconto</span><b class="fo-bad">−${money(r.totals.discount)}</b></li>` : ""}
+            <li class="tot"><span>Total a receber</span><b>${money(r.totals.net)}</b></li>
+          </ul>
+        </div>
         ${
           waiting
-            ? `<div class="fo-alert" style="margin-top:10px"><b>Atenção:</b> ainda há dias em conferência ou em andamento — eles não entram neste total.</div>`
+            ? `<div class="fo-alert fo-ticket__warn"><b>Atenção:</b> ainda há dias em conferência ou em andamento — eles não entram neste total.</div>`
             : ""
         }
       </div>
       <div class="fo-box">
         <h3>Enviar para conferência</h3>
-        <p class="fo-muted" style="margin:0 0 12px;font-size:13px;font-weight:600">O funcionário confere os valores antes do pagamento final.</p>
+        <p class="fo-muted" style="margin:0 0 12px;font-size:13px;font-weight:600">O PDF segue o visual do ticket de serviço. O funcionário confere antes do pagamento final.</p>
         <label class="fo-field">E-mail do funcionário<input type="email" class="fo-in" id="foConfEmail" value="${esc(email)}" placeholder="nome@email.com" ${email ? "" : "autofocus"} /></label>
         ${phone ? `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Telefone cadastrado: ${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(phone) || phone : phone)}</p>` : `<p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Sem telefone no cadastro — WhatsApp/SMS ficam indisponíveis.</p>`}
         <div class="fo-conf-channels" style="margin-top:12px">
-          <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar por e-mail</button>
+          <button type="button" class="fo-btn fo-btn--pri" data-conf-email>Enviar por e-mail (PDF)</button>
+          <button type="button" class="fo-btn" data-conf-pdf>Abrir PDF</button>
           <button type="button" class="fo-btn" data-conf-wa ${digits.length >= 10 ? "" : "disabled"}>Abrir WhatsApp</button>
           <button type="button" class="fo-btn" data-conf-sms ${digits.length >= 10 ? "" : "disabled"}>Abrir SMS</button>
           <button type="button" class="fo-btn fo-btn--ghost" data-conf-copy>Copiar texto</button>
-          <button type="button" class="fo-btn fo-btn--ghost" data-print>Imprimir</button>
         </div>
       </div>`;
     openSheet(
@@ -1040,7 +1079,7 @@
         method: "POST",
         body: JSON.stringify({ week: st.week.week.start, employee_id: id, to: to || null }),
       });
-      notify(`Relatório enviado para ${j.data.to}.`, "success");
+      notify(`Relatório PDF enviado para ${j.data.to}.`, "success");
       if (j.data.to && $("foConfEmail")) $("foConfEmail").value = j.data.to;
     } catch (e) {
       notify(e.message, "error");
@@ -1656,6 +1695,11 @@
     if (el("[data-paysel]")) return openPay([...st.selected]);
     if ((b = el("[data-conf]"))) return openConference(b.getAttribute("data-conf"));
     if ((b = el("[data-conf-email]"))) return confSendEmail(b);
+    if (el("[data-conf-pdf]")) {
+      const url = confPdfUrl($("foSheet")._confId);
+      if (url) window.open(url, "_blank", "noopener");
+      return;
+    }
     if (el("[data-conf-wa]")) return confShare("wa");
     if (el("[data-conf-sms]")) return confShare("sms");
     if (el("[data-conf-copy]")) return confShare("copy");
