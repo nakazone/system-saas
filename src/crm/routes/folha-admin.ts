@@ -1077,6 +1077,18 @@ folhaAdminRouter.post("/api/folha/conferencia", requireCrmAuth, requireCrmPermis
   }
 });
 
+// ------------------------------------------------------------------ pagamentos
+const payBody = z.object({
+  period_id: z.string().uuid(),
+  employee_ids: z.array(z.string().uuid()).min(1).max(200),
+  paid_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  method: payMethodField,
+  reference: z.string().max(120).optional().nullable(),
+  notes: z.string().max(500).optional().nullable(),
+  /** Pay even when some days are still waiting for review. */
+  force: z.boolean().optional(),
+});
+
 folhaAdminRouter.post("/api/folha/pagamentos", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
   try {
     const b = payBody.safeParse(req.body || {});
