@@ -991,14 +991,14 @@
       ${
         e.address
           ? canEdit
-            ? `<button type="button" class="ag-card ag-dtl__row ag-dtl__addr ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Clique para editar"><div><b>${esc(e.address.split(',')[0])}</b><small>${esc(
+            ? `<button type="button" class="ag-card ag-dtl__addr ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Clique para editar"><span class="ag-dtl__addr-txt"><b>${esc(e.address.split(',')[0])}</b><small>${esc(
                 e.address.split(',').slice(1).join(',').trim() || 'Toque para alterar',
-              )}</small></div><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Editar</span></button>`
-            : `<a class="ag-card ag-dtl__row ag-dtl__addr" href="${esc(maps)}" target="_blank" rel="noopener"><div><b>${esc(e.address.split(',')[0])}</b><small>${esc(
+              )}</small></span><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Editar</span></button>`
+            : `<a class="ag-card ag-dtl__addr" href="${esc(maps)}" target="_blank" rel="noopener"><span class="ag-dtl__addr-txt"><b>${esc(e.address.split(',')[0])}</b><small>${esc(
                 e.address.split(',').slice(1).join(',').trim(),
-              )}</small></div><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Mapa</span></a>`
+              )}</small></span><span class="ag-dtl__map"><svg viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Mapa</span></a>`
           : canEdit
-            ? `<button type="button" class="ag-card ag-dtl__row ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Adicionar endereço"><div><b>Sem endereço</b><small>Toque para adicionar</small></div></button>`
+            ? `<button type="button" class="ag-card ag-dtl__addr ag-dtl__tap ag-dtl__tap--addr" data-ag-tap="address" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Adicionar endereço"><span class="ag-dtl__addr-txt"><b>Sem endereço</b><small>Toque para adicionar</small></span></button>`
             : ''
       }
       ${mini}
