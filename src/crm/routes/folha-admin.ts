@@ -65,6 +65,7 @@ import {
   PAYROLL_PAYMENT_METHOD_KIND,
   payrollMethodLabel,
 } from "../../lib/settings/payroll-payment-methods.js";
+import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 
 export const folhaAdminRouter = Router();
 
@@ -1128,6 +1129,9 @@ function conferenceInputFromWeek(
     logoUrl?: string | null;
     contactPhone?: string | null;
     contactEmail?: string | null;
+    contact?: string | null;
+    address?: string | null;
+    license?: string | null;
     primaryColor?: string | null;
     accentColor?: string | null;
   },
@@ -1156,6 +1160,9 @@ function conferenceInputFromWeek(
       logoUrl: org.logoUrl,
       contactPhone: org.contactPhone,
       contactEmail: org.contactEmail,
+      contact: org.contact || [org.contactPhone, org.contactEmail].filter(Boolean).join(" · ") || null,
+      address: org.address,
+      license: org.license,
       primaryColor: org.primaryColor,
       accentColor: org.accentColor,
     },
@@ -1173,7 +1180,7 @@ function conferenceInputFromWeek(
 }
 
 async function loadConferenceOrg(organizationId: string) {
-  return prisma.organization.findUnique({
+  const org = await prisma.organization.findUnique({
     where: { id: organizationId },
     select: {
       name: true,
@@ -1182,8 +1189,29 @@ async function loadConferenceOrg(organizationId: string) {
       contactPhone: true,
       primaryColor: true,
       accentColor: true,
+      addressPrivate: true,
+      addressLine1: true,
+      addressLine2: true,
+      city: true,
+      state: true,
+      postalCode: true,
+      showLicenseOnDocuments: true,
+      licenseNumber: true,
+      licenseState: true,
     },
   });
+  if (!org) return null;
+  return {
+    name: org.name,
+    logoUrl: org.logoUrl,
+    contactEmail: org.contactEmail,
+    contactPhone: org.contactPhone,
+    contact: [org.contactPhone, org.contactEmail].filter(Boolean).join(" · ") || null,
+    address: documentAddressLine(org),
+    license: documentLicenseLine(org),
+    primaryColor: org.primaryColor,
+    accentColor: org.accentColor,
+  };
 }
 
 export async function resolveConference(
@@ -1208,6 +1236,9 @@ export async function resolveConference(
         logoUrl: org?.logoUrl,
         contactEmail: org?.contactEmail,
         contactPhone: org?.contactPhone,
+        contact: org?.contact,
+        address: org?.address,
+        license: org?.license,
         primaryColor: org?.primaryColor,
         accentColor: org?.accentColor,
       },

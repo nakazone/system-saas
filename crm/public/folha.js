@@ -872,10 +872,31 @@
     openSheet(`${sheetHead(`${esc(d.date_label)} · ${statusPill(d)}`, sub)}<div class="fo-sheet__bd">${body}</div><footer class="fo-sheet__ft">${foot}</footer>`);
     $("foSheet").dataset.dayId = d.id;
     $("foSheet")._day = d;
+    if (mode === "edit") syncEdOtLabel();
+  }
+  function roundOtHalf(min) {
+    const n = Math.max(0, Math.round(Number(min) || 0));
+    return Math.round(n / 30) * 30;
+  }
+  function syncEdOtLabel() {
+    const elOt = $("foEdOt");
+    const lab = $("foEdOtLabel");
+    if (!elOt || !lab) return;
+    const v = elOt.value === "" ? null : roundOtHalf(elOt.value);
+    lab.textContent = v == null ? "auto" : v ? `+${hm(v)}` : "0h";
+    document.querySelectorAll("[data-ed-ot]").forEach((btn) => {
+      const delta = Number(btn.getAttribute("data-ed-ot")) || 0;
+      if (delta >= 0) {
+        btn.disabled = false;
+        return;
+      }
+      const cur = elOt.value === "" ? 0 : Math.max(0, roundOtHalf(elOt.value));
+      btn.disabled = cur <= 0;
+    });
   }
   function editForm(d) {
     const days = Number(d.days_worked) === 0.5 ? 0.5 : Number(d.days_worked) >= 2 ? 2 : 1;
-    const ot = d.overtime_minutes != null ? String(d.overtime_minutes) : "";
+    const otMin = d.overtime_minutes != null ? roundOtHalf(d.overtime_minutes) : "";
     return `<div class="fo-box"><h3>Corrigir o dia</h3>
       <div class="fo-grid2"><label class="fo-field">Entrada<input type="time" class="fo-in" id="foEdIn" value="${esc(d.clock_in_label || "")}" /></label><label class="fo-field">Saída<input type="time" class="fo-in" id="foEdOut" value="${esc(d.clock_out_label || "")}" /></label></div>
       <div style="margin-top:12px">
@@ -888,11 +909,16 @@
         <input type="hidden" id="foEdDays" value="${days}" />
       </div>
       <div style="margin-top:12px">
-        <label class="fo-field">Extra (minutos)<input type="number" class="fo-in" id="foEdOt" min="0" step="15" value="${esc(ot)}" placeholder="calcular pelo horário" /><small>Vazio = calcula pela saída</small></label>
-        <div class="fo-chiprow" style="margin-top:8px" role="group" aria-label="Adicionar hora extra">
-          <button type="button" class="fo-chip" data-ed-ot="30">+½ h</button>
-          <button type="button" class="fo-chip" data-ed-ot="60">+1 h</button>
+        <div class="fo-field"><span>Extra</span><small>Em horas, passos de ½ h</small></div>
+        <div class="fo-ed-ot" role="group" aria-label="Hora extra">
+          <button type="button" class="fo-chip" data-ed-ot="-60" aria-label="Menos 1 hora">−1 h</button>
+          <button type="button" class="fo-chip" data-ed-ot="-30" aria-label="Menos meia hora">−½ h</button>
+          <b id="foEdOtLabel">${otMin === "" ? "auto" : otMin ? `+${hm(otMin)}` : "0h"}</b>
+          <button type="button" class="fo-chip" data-ed-ot="30" aria-label="Mais meia hora">+½ h</button>
+          <button type="button" class="fo-chip" data-ed-ot="60" aria-label="Mais 1 hora">+1 h</button>
         </div>
+        <input type="hidden" id="foEdOt" value="${otMin === "" ? "" : esc(String(otMin))}" />
+        <p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Use −½ h / −1 h para tirar extra já lançado. Sem ajuste = calcula pela saída.</p>
       </div>
       ${
         d.jobs.length
@@ -958,7 +984,7 @@
     if (co && co !== d.clock_out_label) body.clock_out = co;
     body.days_worked = Number($("foEdDays").value);
     const ot = $("foEdOt").value;
-    if (ot !== "") body.overtime_minutes = Math.max(0, Math.round(Number(ot)));
+    if (ot !== "") body.overtime_minutes = Math.max(0, roundOtHalf(ot));
     const sq = [...document.querySelectorAll("[data-ed-sqft]")];
     if (sq.length) body.jobs = sq.map((el) => ({ work_order_id: el.getAttribute("data-ed-sqft"), sqft: Number(el.value) || 0 }));
     body.note = $("foEdNote").value.trim() || null;
@@ -1104,31 +1130,29 @@
             const bits = confDayLine(d).split(" · ");
             const label = bits.shift() || "";
             const detail = bits.join(" · ");
-            return `<div class="fo-ticket__row"><span class="fo-ticket__day">${esc(label)}</span><span class="fo-ticket__det">${esc(detail || "—")}</span><b>${money(d.amount)}</b></div>`;
+            return `<div class="fo-ticket__row"><div class="fo-ticket__row-top"><span class="fo-ticket__day">${esc(label)}</span><b>${money(d.amount)}</b></div><span class="fo-ticket__det">${esc(detail || "—")}</span></div>`;
           })
           .join("")
-      : `<p class="fo-muted" style="margin:0;font-size:13.5px;font-weight:600">Nenhum dia aprovado</p>`;
+      : `<p class="fo-muted" style="margin:0;font-size:14px;font-weight:600">Nenhum dia aprovado</p>`;
     const body = `<div class="fo-ticket" id="foConfTicket">
         <div class="fo-ticket__top">
           <div class="fo-ticket__mark" aria-hidden="true">F</div>
           <div class="fo-ticket__top-txt">
             <div class="fo-ticket__org">Folha de pagamento</div>
             <div class="fo-ticket__sub">Relatório para conferência</div>
+            <span class="fo-ticket__period">${esc(period)}</span>
           </div>
-          <span class="fo-ticket__period">${esc(period)}</span>
         </div>
         <div class="fo-ticket__hero">
-          <p class="fo-ticket__hello">Olá${first ? `, ${esc(first)}` : ""} — confira os valores abaixo.</p>
-          <div class="fo-ticket__meta"><span class="fo-ticket__pill">${esc(SECTORS[r.sector] || r.sector)}</span><span class="fo-ticket__type">${r.pay_type === "production" ? "Produção" : "Diária"}</span></div>
+          <p class="fo-ticket__hello">Olá${first ? `, ${esc(first)}` : ""} — confira os valores.</p>
+          <div class="fo-ticket__meta"><span class="fo-ticket__pill">${esc(SECTORS[r.sector] || r.sector)}</span><span class="fo-ticket__type">${r.pay_type === "production" ? "Produção" : "Diária"}</span><span class="fo-ticket__badge">Conferência</span></div>
           <h3 class="fo-ticket__name">${esc(r.name)}</h3>
           <div class="fo-ticket__strip">
             <div><small>Total a receber</small><b>${money(r.totals.net)}</b></div>
-            <span class="fo-ticket__badge">Conferência</span>
           </div>
         </div>
         <div class="fo-ticket__sec">
           <h4>Detalhamento</h4>
-          <div class="fo-ticket__cols"><span>Dia</span><span>Detalhe</span><span>Valor</span></div>
           <div class="fo-ticket__rows">${dayRows}</div>
           <ul class="fo-paylist fo-ticket__sum">
             <li><span>Subtotal</span><b>${money(r.totals.gross)}</b></li>
@@ -1322,7 +1346,7 @@
     return r.blob();
   }
   /** PDF → PNG (mesmo fluxo dos recibos: pdf.js + canvas). */
-  async function confPdfBlobToPngBlob(pdfBlob, scale = 2) {
+  async function confPdfBlobToPngBlob(pdfBlob, scale = 2.75) {
     if (typeof pdfjsLib === "undefined") {
       throw new Error("pdf.js não carregou (rede ou bloqueador de anúncios).");
     }
@@ -2261,8 +2285,10 @@
     if ((b = el("[data-ed-ot]"))) {
       const elOt = $("foEdOt");
       if (!elOt) return;
-      const cur = elOt.value === "" ? 0 : Math.max(0, Math.round(Number(elOt.value) || 0));
-      elOt.value = String(Math.min(16 * 60, cur + Math.max(0, Math.round(Number(b.getAttribute("data-ed-ot")) || 0))));
+      const delta = Math.round(Number(b.getAttribute("data-ed-ot")) || 0);
+      const cur = elOt.value === "" ? 0 : Math.max(0, roundOtHalf(elOt.value));
+      elOt.value = String(Math.max(0, Math.min(16 * 60, cur + delta)));
+      syncEdOtLabel();
       return;
     }
     if ((b = el("[data-ed-days]"))) {
