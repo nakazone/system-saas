@@ -87,6 +87,18 @@ type JobLine = {
 
 export type InvoiceLineDraft = { description: string; quantity: number; unitPrice: number; amount: number };
 
+/** Quote "Nota / referência" stored in payload.job_name (also mirrored to quote.title). */
+export function quoteReferenceNoteOf(quote: { payload?: unknown } | null | undefined): string | null {
+  if (!quote) return null;
+  const payload =
+    quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
+      ? (quote.payload as Record<string, unknown>)
+      : null;
+  const fromPayload = payload?.job_name != null ? String(payload.job_name).trim() : "";
+  if (fromPayload) return fromPayload.slice(0, 4000);
+  return null;
+}
+
 function invoiceLineDescription(li: JobLine): string {
   const name = String(li.serviceName || "Serviço").trim() || "Serviço";
   const note = String(li.notes || "").trim();
@@ -155,7 +167,16 @@ type QuoteServiceLine = {
   amount: unknown;
   isOptional?: boolean;
   isSelected?: boolean;
+  meta?: unknown;
 };
+
+function quoteLineNote(li: QuoteServiceLine): string {
+  const meta =
+    li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
+      ? (li.meta as Record<string, unknown>)
+      : {};
+  return meta.notes != null ? String(meta.notes).trim() : "";
+}
 
 function quoteServiceDescription(li: QuoteServiceLine): string {
   const name = String(li.name || "").trim();
@@ -166,9 +187,14 @@ function quoteServiceDescription(li: QuoteServiceLine): string {
       body = body.slice(name.length).replace(/^[\s\n\u2014\u2013:·.\-]+/, "").trim();
     }
   }
+  const note = quoteLineNote(li);
+  // Service name is always the headline; description + line note sit underneath.
   const headline = name || body || "Serviço";
-  if (!name || !body || body === name) return headline.slice(0, 500);
-  const combined = `${name}\n${body}`;
+  const under: string[] = [];
+  if (name && body && body !== name) under.push(body);
+  if (note && note !== headline && note !== body) under.push(note);
+  if (!under.length) return headline.slice(0, 500);
+  const combined = `${headline}\n${under.join("\n")}`;
   return combined.length > 500 ? combined.slice(0, 497) + "…" : combined;
 }
 
@@ -196,7 +222,8 @@ export function quoteInvoiceLines(params: {
 }): InvoiceLineDraft[] {
   const { label, amount, quote } = params;
   const quoteNo = quote.quoteNumber || (quote.number != null ? `Q-${quote.number}` : null);
-  const ref = `${quote.title}${quoteNo ? ` (Quote ${quoteNo})` : ""}`;
+  // Do not embed quote.title / job_name in the line — that reference belongs in invoice notes.
+  const ref = quoteNo ? `Quote ${quoteNo}` : "Quote";
   const selected = selectedQuoteServiceLines(quote.lineItems);
   if (selected.length === 0) {
     return [{ description: `${label} — ${ref}`, quantity: 1, unitPrice: amount, amount }];

@@ -1371,11 +1371,11 @@
     const party = getQuoteParty();
     if (!label) return;
     if (party === 'builder' || party === 'contractor' || party === 'loja') {
-      label.textContent = 'Nota / nome do projeto';
-      if (hint) hint.textContent = 'Aparece na lista e no PDF deste orçamento.';
+      label.textContent = 'Nota / referência';
+      if (hint) hint.textContent = 'Aparece na lista do orçamento e só como nota na fatura (não como nome do cliente).';
     } else {
       label.textContent = 'Nota / referência';
-      if (hint) hint.textContent = 'Aparece na lista de orçamentos para distinguir quotes do mesmo cliente.';
+      if (hint) hint.textContent = 'Aparece na lista de orçamentos e só como nota na fatura (não como nome do cliente).';
     }
   }
 
@@ -3948,6 +3948,7 @@
     else items.push(line);
     closeAddItemPanel();
     renderItems();
+    qbMarkDirty();
     const pid = line.pricing_item_id;
     const tableDesc = row ? catalogDescriptionForRow(row) : '';
     const descChanged =
@@ -4284,40 +4285,112 @@
     };
   }
 
-  function renderInvoiceBalanceSummary() {
-    const bal = quoteInvoiceBalance || computeLocalInvoiceBalance();
-    const panel = $('quoteInvoiceBalance');
-    const hint = $('invBalanceHint');
-    if (!bal || !(bal.quote_total > 0)) {
-      if (panel) panel.classList.add('hidden');
-      if (hint) hint.classList.add('hidden');
-      return bal;
-    }
+  function invoiceBalanceCardsHtml(bal, { includePreview } = {}) {
+    if (!bal || !(bal.quote_total > 0)) return '';
     const paid = Number(bal.paid_total) || 0;
     const due =
       bal.remaining_due != null
         ? Number(bal.remaining_due)
         : Math.max(0, Number(bal.quote_total) - paid);
-    const text = `Total ${money(bal.quote_total)} · Faturado ${money(bal.invoiced_total)} · Pago ${money(paid)} · Em aberto ${money(due)}`;
+    const invoiced = Number(bal.invoiced_total) || 0;
+    const left = Number(bal.remaining_to_invoice) || Math.max(0, Number(bal.quote_total) - invoiced);
+    const cards = [
+      { k: 'Total', v: money(bal.quote_total), tone: '' },
+      { k: 'Faturado', v: money(invoiced), tone: invoiced > 0.009 ? 'is-warn' : '' },
+      { k: 'Pago', v: money(paid), tone: paid > 0.009 ? 'is-ok' : '' },
+      { k: 'Em aberto', v: money(due), tone: due > 0.009 ? 'is-due' : 'is-ok' },
+      { k: 'A faturar', v: money(left), tone: left > 0.009 ? 'is-warn' : 'is-ok' },
+    ];
+    let err = '';
+    if (includePreview) {
+      const preview = computeInvoiceDraftAmount(bal);
+      cards.push({
+        k: 'Esta fatura',
+        v: preview.ok ? money(preview.amount) : '—',
+        tone: preview.ok ? 'is-accent' : 'is-muted',
+      });
+      if (!preview.ok) err = preview.error || '';
+    }
+    return `<div class="qb-inv-kpis">${cards
+      .map(
+        (c) =>
+          `<div class="qb-inv-kpi ${c.tone}"><span class="qb-inv-kpi__k">${c.k}</span><strong class="qb-inv-kpi__v">${c.v}</strong></div>`,
+      )
+      .join('')}</div>${err ? `<p class="qb-inv-kpi__err">${escapeHtmlText(err)}</p>` : ''}`;
+  }
+
+  /** Live amount for the Emitir fatura form (keeps math in sync with type / % / custom $). */
+  function computeInvoiceDraftAmount(balIn) {
+    const bal = balIn || quoteInvoiceBalance || computeLocalInvoiceBalance();
+    const quoteTotal = Number(bal?.quote_total) || Number(recalc().total) || 0;
+    const invoiced = Number(bal?.invoiced_total) || 0;
+    const remaining = Math.max(0, Math.round((quoteTotal - invoiced) * 100) / 100);
+    if (!(quoteTotal > 0)) return { ok: false, amount: 0, error: 'O orçamento não tem valor total.' };
+    if (!(remaining > 0)) return { ok: false, amount: 0, error: 'Todo o valor deste orçamento já foi faturado.' };
+    const type = $('invType')?.value || 'full';
+    if (type === 'deposit') {
+      const pct = parseInt($('invDepositPct')?.value, 10) || 50;
+      if (pct <= 0 || pct > 100) return { ok: false, amount: 0, error: 'Percentual do depósito deve estar entre 1 e 100.' };
+      const amount = Math.min(remaining, Math.round((quoteTotal * pct) / 100 * 100) / 100);
+      if (!(amount > 0)) return { ok: false, amount: 0, error: 'Valor do depósito inválido.' };
+      return { ok: true, amount, label: `Depósito (${pct}%)` };
+    }
+    if (type === 'final') return { ok: true, amount: remaining, label: 'Saldo restante' };
+    if (type === 'full') {
+      if (invoiced > 0.009) {
+        return { ok: false, amount: 0, error: 'Já existem faturas — use “Saldo restante” ou um valor personalizado.' };
+      }
+      return { ok: true, amount: quoteTotal, label: 'Valor total' };
+    }
+    if (type === 'progress' || type === 'custom') {
+      const amount = Math.round((parseFloat($('invCustomAmount')?.value) || 0) * 100) / 100;
+      if (!(amount > 0)) return { ok: false, amount: 0, error: 'Informe o valor da fatura.' };
+      if (amount > remaining + 0.009) {
+        return { ok: false, amount, error: `Máximo a faturar agora: ${money(remaining)}.` };
+      }
+      return { ok: true, amount, label: type === 'progress' ? 'Parcela' : 'Personalizado' };
+    }
+    return { ok: true, amount: remaining, label: 'Fatura' };
+  }
+
+  function renderInvoiceBalanceSummary() {
+    const bal = quoteInvoiceBalance || computeLocalInvoiceBalance();
+    const panel = $('quoteInvoiceBalance');
+    const hint = $('invBalanceHint');
+    if (!bal || !(bal.quote_total > 0)) {
+      if (panel) {
+        panel.innerHTML = '';
+        panel.classList.add('hidden');
+      }
+      if (hint) {
+        hint.innerHTML = '';
+        hint.classList.add('hidden');
+      }
+      return bal;
+    }
     if (panel) {
-      panel.textContent = text;
-      panel.classList.toggle('hidden', bal.invoiced_total <= 0 && quoteInvoices.length === 0);
+      panel.innerHTML = invoiceBalanceCardsHtml(bal, { includePreview: false });
+      panel.classList.remove('hidden');
     }
     if (hint) {
-      hint.textContent = text;
+      hint.innerHTML = invoiceBalanceCardsHtml(bal, { includePreview: true });
       hint.classList.remove('hidden');
+    }
+    const submit = $('btnInvoiceModalSubmit');
+    if (submit && !$('qbInvoiceModal')?.classList.contains('hidden')) {
+      const draft = computeInvoiceDraftAmount(bal);
+      submit.disabled = !draft.ok;
     }
     return bal;
   }
 
   function syncInvoiceUiVisibility() {
-    const approved = isQuoteApprovedStatus($('status')?.value);
     const panel = $('quoteInvoicesPanel');
     const btnInv = $('btnInvoice');
-    if (panel) panel.classList.toggle('hidden', !approved || !quoteId);
+    if (panel) panel.classList.toggle('hidden', !quoteId);
     if (btnInv) {
-      btnInv.classList.toggle('hidden', !approved);
-      btnInv.disabled = !quoteId || !approved;
+      btnInv.classList.remove('hidden');
+      btnInv.disabled = !quoteId;
     }
   }
 
@@ -4424,17 +4497,25 @@
     const modal = $('qbInvoiceModal');
     if (!modal) return;
     const due = $('invDueDate');
-    if (due && !due.value) due.value = defaultInvoiceDueDate();
-    const bal = renderInvoiceBalanceSummary() || computeLocalInvoiceBalance();
+    if (due) due.value = due.value || defaultInvoiceDueDate();
+    const bal = quoteInvoiceBalance || computeLocalInvoiceBalance();
     const typeEl = $('invType');
     const customEl = $('invCustomAmount');
-    if (bal && bal.invoiced_total > 0.009 && bal.remaining_to_invoice > 0.009) {
-      if (typeEl) typeEl.value = 'final';
-      if (customEl) customEl.value = String(bal.remaining_to_invoice);
-    } else if (bal && bal.remaining_to_invoice > 0 && customEl && !customEl.value) {
+    // Default: Valor total. If something was already invoiced, fall back to saldo restante.
+    if (typeEl) {
+      typeEl.value = bal && Number(bal.invoiced_total) > 0.009 ? 'final' : 'full';
+    }
+    if (customEl && bal && Number(bal.remaining_to_invoice) > 0) {
       customEl.value = String(bal.remaining_to_invoice);
     }
+    // Prefill invoice notes from Quote "Nota / referência" — Bill-to stays builder/cliente.
+    const notesEl = $('invNotes');
+    if (notesEl && !String(notesEl.value || '').trim()) {
+      const ref = String($('quoteJobName')?.value || '').trim();
+      if (ref) notesEl.value = ref;
+    }
     syncInvoiceTypeFields();
+    renderInvoiceBalanceSummary();
     modal.classList.remove('hidden');
   }
 
@@ -4443,31 +4524,37 @@
   }
 
   function syncInvoiceTypeFields() {
-    const type = $('invType')?.value || 'deposit';
+    const type = $('invType')?.value || 'full';
     $('invDepositWrap')?.classList.toggle('hidden', type !== 'deposit');
     $('invFinalHint')?.classList.toggle('hidden', type !== 'final');
     $('invCustomWrap')?.classList.toggle('hidden', type !== 'progress' && type !== 'custom');
     if (type === 'progress' || type === 'custom') {
       const bal = quoteInvoiceBalance || computeLocalInvoiceBalance();
       const customEl = $('invCustomAmount');
-      if (customEl && bal?.remaining_to_invoice > 0 && !customEl.value) {
+      if (customEl && bal?.remaining_to_invoice > 0 && !String(customEl.value || '').trim()) {
         customEl.value = String(bal.remaining_to_invoice);
       }
     }
+    renderInvoiceBalanceSummary();
   }
 
   async function ensureApprovedQuoteSaved() {
-    const desired = $('status')?.value;
+    const statusEl = $('status');
+    let desired = statusEl?.value;
+    // Emitir fatura can run before the quote is marked approved — promote automatically.
     if (!isQuoteApprovedStatus(desired)) {
-      throw new Error('Só é possível emitir fatura quando o orçamento está aprovado.');
+      if (statusEl) statusEl.value = 'approved';
+      desired = 'approved';
+      qbToast('Status do orçamento atualizado para Aprovado ao emitir a fatura.', 'info');
     }
-    if (isQuoteApprovedStatus(loadedQuoteStatus)) return;
+    if (isQuoteApprovedStatus(loadedQuoteStatus) && !qbDirtyFlag) return;
     await ensureCustomerForQuote();
     const body = payload();
     body.status = desired;
     const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
     const q = quoteFromApiResponse(r);
     loadedQuoteStatus = q?.status || desired;
+    qbSetDirty(false);
     if (q) {
       loadedQuoteNumber =
         q.quote_number != null ? String(q.quote_number).trim() : loadedQuoteNumber;
@@ -4480,7 +4567,7 @@
   async function submitInvoiceForm(e) {
     e?.preventDefault();
     if (!quoteId) return;
-    const type = $('invType')?.value || 'deposit';
+    const type = $('invType')?.value || 'full';
     const body = {
       invoice_type: type,
       due_date: $('invDueDate')?.value || null,
@@ -4970,6 +5057,8 @@
     $('btnInvoiceModalCancel')?.addEventListener('click', closeInvoiceModal);
     $('qbInvoiceForm')?.addEventListener('submit', submitInvoiceForm);
     $('invType')?.addEventListener('change', syncInvoiceTypeFields);
+    $('invDepositPct')?.addEventListener('input', () => renderInvoiceBalanceSummary());
+    $('invCustomAmount')?.addEventListener('input', () => renderInvoiceBalanceSummary());
     $('qbInvoiceModal')?.addEventListener('click', (e) => {
       if (e.target === $('qbInvoiceModal')) closeInvoiceModal();
     });
@@ -5160,9 +5249,9 @@
     enableActions();
     qbRenderProgress();
     qbSetDirty(false);
+    // Keep saved line rates — do not overwrite with catalog on reopen.
     if (getQuoteParty() === 'builder') {
       setCatalogPricingMode('builder');
-      refreshRatesForCatalogLines();
     } else {
       applyPricingFromCustomerId($('customerId').value);
     }

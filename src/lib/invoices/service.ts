@@ -26,6 +26,7 @@ const quoteServiceLineSelect = {
   isOptional: true,
   isSelected: true,
   sortOrder: true,
+  meta: true,
 } as const;
 
 export const invoiceDetailInclude = {
@@ -39,8 +40,10 @@ export const invoiceDetailInclude = {
       status: true,
       builderId: true,
       leadId: true,
+      payload: true,
       property: { select: { line1: true, line2: true, city: true, state: true, postalCode: true, label: true } },
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
+      lead: { select: { name: true, email: true, phone: true } },
       invoices: { select: siblingInvoiceSelect },
       lineItems: { select: quoteServiceLineSelect, orderBy: { sortOrder: "asc" as const } },
     },
@@ -77,14 +80,20 @@ export function jobNumberOf(wo: { number: number | null } | null | undefined): s
   return wo.number != null ? `#${wo.number}` : null;
 }
 
-/** Project line on documents: quote property/title, or the job title + address. */
+/**
+ * Project line on documents: property address label for quotes, or job title + address.
+ * Quote "Nota / referência" (payload.job_name → quote.title) must NOT appear here —
+ * that text belongs only in invoice notes; Bill-to stays builder/customer.
+ */
 export function projectNameOf(inv: Pick<InvoiceDetail, "quote" | "workOrder">): string | null {
-  if (inv.quote) return inv.quote.property?.label || inv.quote.title || null;
+  if (inv.quote) return inv.quote.property?.label || null;
   if (inv.workOrder) {
     return [inv.workOrder.title, inv.workOrder.address].filter(Boolean).join(" · ") || null;
   }
   return null;
 }
+
+export { quoteReferenceNoteOf } from "./job.js";
 
 export function clientOf(inv: InvoiceDetail): DocClient {
   if (!inv.quote && inv.workOrder) {
@@ -111,10 +120,12 @@ export function clientOf(inv: InvoiceDetail): DocClient {
         .filter(Boolean)
         .join(" · ")
     : null;
+  // Never use quote.title / job_name as Bill-to — only builder, customer, or lead.
+  const leadName = q?.lead?.name?.trim() || null;
   return {
-    name: (isBuilder ? builderName : inv.customer?.name) || inv.customer?.name || builderName || null,
-    email: (isBuilder ? q?.builder?.email : null) || inv.customer?.email || null,
-    phone: (isBuilder ? q?.builder?.phone : null) || inv.customer?.phone || null,
+    name: (isBuilder ? builderName : inv.customer?.name) || inv.customer?.name || builderName || leadName || null,
+    email: (isBuilder ? q?.builder?.email : null) || inv.customer?.email || q?.lead?.email || null,
+    phone: (isBuilder ? q?.builder?.phone : null) || inv.customer?.phone || q?.lead?.phone || null,
     address: address || null,
   };
 }

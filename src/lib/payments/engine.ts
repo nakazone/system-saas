@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
-import { quoteInvoiceLines } from "../invoices/job.js";
+import { quoteInvoiceLines, quoteReferenceNoteOf } from "../invoices/job.js";
 import {
   DEFAULT_PAYMENT_TEMPLATES,
   type PaymentTemplateItemInput,
@@ -247,7 +247,8 @@ export async function createInvoiceFromScheduleItem(
       dueDate,
       scheduleItemId: item.id,
       paymentInstructions: quote.organization.paymentInstructions,
-      notes: item.label,
+      // Quote "Nota / referência" → invoice notes only (not Bill-to / line name).
+      notes: quoteReferenceNoteOf(quote) || item.label,
     },
   });
 
@@ -456,6 +457,8 @@ async function createFullDraftInvoice(
   const invoiceNumber = await nextInvoiceNumber(tx, params.organizationId);
   const amountNum = params.quoteTotal;
   const amount = new Prisma.Decimal(amountNum.toFixed(2));
+  const kindLabel = "Full payment";
+  const noteText = params.notes || quoteReferenceNoteOf(quote) || kindLabel;
   const inv = await tx.quoteInvoice.create({
     data: {
       organizationId: params.organizationId,
@@ -466,18 +469,18 @@ async function createFullDraftInvoice(
       status: "draft",
       amount,
       dueDate: new Date(Date.now() + 1 * 86400000),
-      notes: params.notes || "Full payment",
+      notes: noteText,
     },
   });
   const lines = quote
     ? quoteInvoiceLines({
         kind: "full",
-        label: params.notes || "Full payment",
+        label: kindLabel,
         amount: amountNum,
         quote,
         invoicedBefore: 0,
       })
-    : [{ description: params.notes || "Full payment", quantity: 1, unitPrice: amountNum, amount: amountNum }];
+    : [{ description: kindLabel, quantity: 1, unitPrice: amountNum, amount: amountNum }];
   await persistInvoiceLines(tx, params.organizationId, inv.id, lines);
   return inv.id;
 }

@@ -1700,6 +1700,54 @@
       margin-top: 0.15rem;
     }
     .qb-invoices-panel.hidden { display: none; }
+    .qb-inv-balance { margin: 0; }
+    .qb-inv-kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    @media (min-width: 520px) {
+      .qb-inv-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    .qb-inv-kpi {
+      border: 1px solid #e7e5e4;
+      border-radius: 10px;
+      background: #fafaf9;
+      padding: 10px 12px;
+      min-width: 0;
+    }
+    .qb-inv-kpi__k {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #78716c;
+      margin-bottom: 4px;
+    }
+    .qb-inv-kpi__v {
+      display: block;
+      font-size: 1.05rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: #1c1917;
+      line-height: 1.15;
+    }
+    .qb-inv-kpi.is-ok .qb-inv-kpi__v { color: #166534; }
+    .qb-inv-kpi.is-warn .qb-inv-kpi__v { color: #9a3412; }
+    .qb-inv-kpi.is-due .qb-inv-kpi__v { color: #b45309; }
+    .qb-inv-kpi.is-accent {
+      border-color: color-mix(in srgb, var(--plab-accent, #e8792c) 40%, #e7e5e4);
+      background: color-mix(in srgb, var(--plab-accent, #e8792c) 10%, #fff);
+    }
+    .qb-inv-kpi.is-accent .qb-inv-kpi__v { color: #9a3412; }
+    .qb-inv-kpi.is-muted .qb-inv-kpi__v { color: #a8a29e; }
+    .qb-inv-kpi__err {
+      margin: 8px 0 0;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #b91c1c;
+    }
     .qb-invoices-list { display: flex; flex-direction: column; gap: 8px; }
     .qb-invoice-card {
       border: 1px solid #e2e8f0;
@@ -2408,7 +2456,7 @@
                 <button type="button" id="btnOpenInvoiceModal" class="btn btn-sm btn-secondary">Emitir</button>
               </div>
               <p class="text-xs text-slate-500 mb-2">Emitir leva você à fatura, onde ficam pagamentos, recibos e envio. <a href="invoices.html" class="underline">Ver todas</a></p>
-              <p id="quoteInvoiceBalance" class="text-xs text-slate-600 mb-2 hidden"></p>
+              <div id="quoteInvoiceBalance" class="qb-inv-balance mb-2 hidden"></div>
               <div id="quoteInvoicesList" class="qb-invoices-list"></div>
             </div>
 
@@ -2514,14 +2562,14 @@
   <div id="qbInvoiceModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbInvoiceModalTitle">
     <div class="qb-modal__panel">
       <h2 id="qbInvoiceModalTitle" class="qb-modal__title">Emitir fatura</h2>
-      <p class="qb-modal__sub text-sm text-slate-500">Fatura de pagamento ao cliente com base no orçamento aprovado.</p>
-      <p id="invBalanceHint" class="text-sm text-slate-600 mb-3 hidden"></p>
+      <p class="qb-modal__sub text-sm text-slate-500">Fatura de pagamento ao cliente. Se o orçamento ainda não estiver aprovado, ele será aprovado ao emitir.</p>
+      <div id="invBalanceHint" class="qb-inv-balance mb-3 hidden" aria-live="polite"></div>
       <form id="qbInvoiceForm" class="qb-invoice-form">
         <label class="qb-invoice-form__label">Tipo de cobrança
           <select id="invType" class="qb-invoice-form__input">
-            <option value="deposit" selected>Depósito (%)</option>
+            <option value="full" selected>Valor total</option>
+            <option value="deposit">Depósito (%)</option>
             <option value="final">Saldo restante</option>
-            <option value="full">Valor total</option>
             <option value="progress">Parcela / progresso</option>
             <option value="custom">Valor personalizado</option>
           </select>
@@ -2686,7 +2734,7 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261008-invdue1"></script>
+  <script src="quote-builder.js?v=20261008-qbnote1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

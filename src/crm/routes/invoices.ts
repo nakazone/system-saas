@@ -41,7 +41,7 @@ import {
   type InvoiceDetail,
 } from "../../lib/invoices/service.js";
 import { buildReceiptPdf } from "../../lib/invoices/pdf.js";
-import { invoicedTotalForJob, jobBilling, quoteInvoiceLines } from "../../lib/invoices/job.js";
+import { invoicedTotalForJob, jobBilling, quoteInvoiceLines, quoteReferenceNoteOf } from "../../lib/invoices/job.js";
 import { invoiceEmail, receiptEmail } from "../../lib/invoices/email.js";
 import { parseInvoiceSettings } from "../../lib/settings/invoices.js";
 
@@ -655,6 +655,8 @@ invoicesCrmRouter.post(
         const amount = new Prisma.Decimal(calc.amount.toFixed(2));
         const due =
           parseDate(b.due_date) || new Date(Date.now() + 1 * 86400000);
+        // Bill-to = builder/customer; quote "Nota / referência" only goes into invoice notes.
+        const notes = b.notes?.trim() || quoteReferenceNoteOf(quote) || null;
         const inv = await tx.quoteInvoice.create({
           data: {
             organizationId: req.organizationId!,
@@ -665,7 +667,7 @@ invoicesCrmRouter.post(
             status: "draft",
             amount,
             dueDate: due,
-            notes: b.notes?.trim() || null,
+            notes,
             paymentInstructions: b.payment_instructions?.trim() || quote.organization.paymentInstructions || null,
           },
         });
