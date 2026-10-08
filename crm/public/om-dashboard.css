@@ -329,12 +329,12 @@ a.omd-kpi:hover {
 
 /* —— Main grid: Atenção (½) | Hoje+Jobs+Mapa (½) —— */
 .omd-grid {
-  --omd-mid-h: 320px;
+  --omd-mid-h: 300px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
   margin-bottom: 1rem;
-  align-items: stretch;
+  align-items: start;
 }
 
 .omd-side {
@@ -370,12 +370,13 @@ a.omd-kpi:hover {
   flex-shrink: 0;
 }
 
-/* Atenção stretches to match the right column (hoje+jobs + mapa) */
+/* Atenção: same height as Hoje/Jobs — scroll inside, leave room for the pipeline */
 .omd-attn {
   display: flex;
   flex-direction: column;
-  min-height: calc(var(--omd-mid-h) + 1rem + 260px);
-  height: 100%;
+  height: var(--omd-mid-h);
+  min-height: var(--omd-mid-h);
+  max-height: var(--omd-mid-h);
   overflow: hidden;
 }
 
@@ -393,7 +394,7 @@ a.omd-kpi:hover {
 .omd-map {
   display: flex;
   flex-direction: column;
-  min-height: 260px;
+  min-height: 200px;
   overflow: hidden;
 }
 
@@ -548,8 +549,8 @@ a.omd-kpi:hover {
 /* —— Day map —— */
 .omd-map__canvas {
   flex: 1 1 auto;
-  min-height: 200px;
-  height: 220px;
+  min-height: 160px;
+  height: 180px;
   border-radius: 12px;
   overflow: hidden;
   background:
@@ -581,7 +582,7 @@ a.omd-kpi:hover {
 
 .omd-map__empty {
   margin: 0;
-  min-height: 200px;
+  min-height: 160px;
   display: grid;
   place-items: center;
   text-align: center;
@@ -1321,9 +1322,9 @@ body.plab .plab-dock button.plab-dock__btn {
   }
 
   .omd-attn {
+    height: var(--omd-mid-h);
     min-height: var(--omd-mid-h);
-    max-height: 420px;
-    height: auto;
+    max-height: var(--omd-mid-h);
   }
 }
 
