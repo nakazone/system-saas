@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261001-tabletnav3" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
   <link rel="stylesheet" href="obramate-app.css?v=20261001-tabletnav2" />
-  <link rel="stylesheet" href="relatorios.css?v=20261001-reports1" />
+  <link rel="stylesheet" href="relatorios.css?v=20261008-reports2" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
   <script src="om-device.js?v=20261007-stable1"></script>
@@ -95,20 +95,23 @@
           </div>
         </header>
 
-        <nav class="rpt-toc" aria-label="Seções">
-          <a href="#sec-resumo">Resumo</a>
-          <a href="#sec-vendas">Vendas</a>
-          <a href="#sec-jobs">Jobs</a>
-          <a href="#sec-receber">Recebíveis</a>
-          <a href="#sec-caixa">Fluxo</a>
-          <a href="#sec-folha">Folha</a>
-          <a href="#sec-lucro">Lucratividade</a>
+        <nav class="rpt-tabs" id="rptTabs" role="tablist" aria-label="Relatórios">
+          <button type="button" class="rpt-tab is-active" role="tab" data-tab="resumo" aria-selected="true">Resumo</button>
+          <button type="button" class="rpt-tab" role="tab" data-tab="vendas" aria-selected="false">Vendas</button>
+          <button type="button" class="rpt-tab" role="tab" data-tab="jobs" aria-selected="false">Jobs</button>
+          <button type="button" class="rpt-tab" role="tab" data-tab="receber" aria-selected="false">Recebíveis</button>
+          <button type="button" class="rpt-tab" role="tab" data-tab="caixa" aria-selected="false">Fluxo</button>
+          <button type="button" class="rpt-tab" role="tab" data-tab="folha" aria-selected="false">Folha</button>
+          <button type="button" class="rpt-tab" role="tab" data-tab="lucro" aria-selected="false">Lucratividade</button>
+          <button type="button" class="rpt-tab rpt-tab--extra" role="tab" data-tab="irss" aria-selected="false" hidden>
+            IRSS <span class="rpt-tab__badge">Extra</span>
+          </button>
         </nav>
 
         <p class="rpt-status" id="rptStatus" hidden>A carregar…</p>
         <p class="rpt-error" id="rptError" hidden></p>
 
-        <div id="rptRoot"></div>
+        <div id="rptRoot" role="tabpanel"></div>
       </div>
     </main>
   </div>
@@ -119,6 +122,6 @@
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-shared-nav.js?v=20261007-nav2"></script>
   <script src="crm-shell.js?v=20261008-name1"></script>
-  <script src="relatorios.js?v=20261001-reports1"></script>
+  <script src="relatorios.js?v=20261008-reports2"></script>
 </body>
 </html>

@@ -229,6 +229,222 @@ async function buildFolha(tx: TenantPrisma, period: PeriodFilter) {
   };
 }
 
+/** Extra module: advanced payroll / tax-prep earnings report (IRSS). */
+function isIrssModuleEnabled(featureFlags: unknown): boolean {
+  if (featureFlags == null) return true;
+  if (typeof featureFlags !== "object" || Array.isArray(featureFlags)) return true;
+  const flags = featureFlags as Record<string, unknown>;
+  if (!("irss_module" in flags)) return true;
+  const v = flags.irss_module;
+  return v !== false && v !== 0 && v !== "0" && v !== "false";
+}
+
+function monthKey(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+async function buildIrss(
+  tx: TenantPrisma,
+  period: PeriodFilter,
+  filters: { employeeId: string | null; sector: string | null },
+) {
+  const sectorFilter =
+    filters.sector === "installation" || filters.sector === "sand_finish" ? filters.sector : null;
+  const base = await folhaReportData(tx as Parameters<typeof folhaReportData>[0], {
+    from: period.from,
+    to: period.to,
+    employeeId: filters.employeeId,
+    sector: sectorFilter,
+  });
+
+  const [timesheets, payments, employees] = await Promise.all([
+    tx.payrollTimesheet.findMany({
+      where: {
+        workDate: { gte: period.from, lte: period.to },
+        ...(filters.employeeId ? { employeeId: filters.employeeId } : {}),
+      },
+      select: {
+        employeeId: true,
+        workDate: true,
+        calculatedAmount: true,
+        sector: true,
+        daysWorked: true,
+        overtimeHours: true,
+      },
+    }),
+    tx.payrollPayment.findMany({
+      where: {
+        status: "paid",
+        paidOn: { gte: period.from, lte: period.to },
+        ...(filters.employeeId ? { employeeId: filters.employeeId } : {}),
+      },
+      select: {
+        employeeId: true,
+        amount: true,
+        paidOn: true,
+        method: true,
+        reference: true,
+        sector: true,
+        notes: true,
+      },
+      orderBy: { paidOn: "desc" },
+    }),
+    tx.payrollEmployee.findMany({
+      select: { id: true, name: true, sector: true, paymentMethod: true, status: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  const empSector = new Map(employees.map((e) => [e.id, e.sector || ""]));
+  const sectorOk = (empId: string, snap?: string | null) => {
+    if (!filters.sector) return true;
+    const s = (snap || empSector.get(empId) || "").toLowerCase();
+    return s === filters.sector.toLowerCase();
+  };
+
+  const byMonth = new Map<string, { month: string; earned: number; paid: number; days: number }>();
+  const touchMonth = (key: string) => {
+    let m = byMonth.get(key);
+    if (!m) {
+      m = { month: key, earned: 0, paid: 0, days: 0 };
+      byMonth.set(key, m);
+    }
+    return m;
+  };
+
+  for (const t of timesheets) {
+    if (!sectorOk(t.employeeId, t.sector)) continue;
+    const m = touchMonth(monthKey(t.workDate));
+    m.earned += dec(t.calculatedAmount);
+    m.days += dec(t.daysWorked);
+  }
+  for (const p of payments) {
+    if (!sectorOk(p.employeeId, p.sector)) continue;
+    const m = touchMonth(monthKey(p.paidOn));
+    m.paid += dec(p.amount);
+  }
+
+  const bySector = new Map<string, { sector: string; employees: Set<string>; earned: number; paid: number; net: number }>();
+  for (const e of base.employees) {
+    const key = e.sector || "—";
+    let s = bySector.get(key);
+    if (!s) {
+      s = { sector: key, employees: new Set(), earned: 0, paid: 0, net: 0 };
+      bySector.set(key, s);
+    }
+    s.employees.add(e.id);
+    s.earned += e.earned;
+    s.paid += e.paid;
+    s.net += e.net;
+  }
+
+  const byMethod = new Map<string, { method: string; amount: number; count: number }>();
+  for (const p of payments) {
+    if (!sectorOk(p.employeeId, p.sector)) continue;
+    const method = (p.method || "other").toLowerCase();
+    let m = byMethod.get(method);
+    if (!m) {
+      m = { method, amount: 0, count: 0 };
+      byMethod.set(method, m);
+    }
+    m.amount += dec(p.amount);
+    m.count += 1;
+  }
+
+  const empMeta = new Map(employees.map((e) => [e.id, e]));
+  const paymentRows = payments
+    .filter((p) => sectorOk(p.employeeId, p.sector))
+    .slice(0, 200)
+    .map((p) => ({
+      employee_id: p.employeeId,
+      name: empMeta.get(p.employeeId)?.name || "—",
+      paid_on: ymd(p.paidOn),
+      amount: money(dec(p.amount)),
+      method: p.method || "other",
+      reference: p.reference || null,
+      sector: p.sector || empMeta.get(p.employeeId)?.sector || null,
+    }));
+
+  const unpaid = money(Math.max(0, (base.totals.net || 0) - (base.totals.paid || 0)));
+
+  return {
+    period: { from: ymd(period.from), to: ymd(period.to) },
+    filter: {
+      employee_id: filters.employeeId,
+      sector: filters.sector,
+    },
+    summary: {
+      employees: base.totals.employees,
+      earned: base.totals.earned,
+      reimbursement: base.totals.reimbursement,
+      discount: base.totals.discount,
+      net: base.totals.net,
+      paid: base.totals.paid,
+      unpaid,
+      days: base.totals.days,
+      overtime_hours: base.totals.overtime_hours,
+      payments_count: paymentRows.length,
+      jobs_cost: money(base.jobs.reduce((s, j) => s + j.cost, 0)),
+    },
+    by_month: [...byMonth.values()]
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .map((m) => ({
+        month: m.month,
+        earned: money(m.earned),
+        paid: money(m.paid),
+        days: money(m.days),
+        balance: money(m.earned - m.paid),
+      })),
+    by_sector: [...bySector.values()]
+      .map((s) => ({
+        sector: s.sector,
+        employees: s.employees.size,
+        earned: money(s.earned),
+        paid: money(s.paid),
+        net: money(s.net),
+        unpaid: money(Math.max(0, s.net - s.paid)),
+      }))
+      .sort((a, b) => b.paid - a.paid),
+    by_method: [...byMethod.values()]
+      .map((m) => ({ method: m.method, amount: money(m.amount), count: m.count }))
+      .sort((a, b) => b.amount - a.amount),
+    employees: base.employees.map((e) => {
+      const meta = empMeta.get(e.id);
+      return {
+        id: e.id,
+        name: e.name,
+        sector: e.sector,
+        pay_type: e.pay_type,
+        status: meta?.status || "active",
+        payment_method: meta?.paymentMethod || null,
+        days: e.days,
+        overtime_hours: e.overtime_hours,
+        earned: e.earned,
+        reimbursement: e.reimbursement,
+        discount: e.discount,
+        net: e.net,
+        paid: e.paid,
+        unpaid: money(Math.max(0, e.net - e.paid)),
+        email: e.email,
+        phone: e.phone,
+      };
+    }),
+    payments: paymentRows,
+    jobs: base.jobs.slice(0, 40).map((j) => ({
+      id: j.id,
+      number: j.number,
+      title: j.title,
+      days: j.days,
+      sqft: j.sqft,
+      cost: j.cost,
+      people: j.people,
+    })),
+    employee_options: employees
+      .filter((e) => e.status === "active" || base.employees.some((r) => r.id === e.id))
+      .map((e) => ({ id: e.id, name: e.name, sector: e.sector })),
+  };
+}
+
 async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: AuthedRequest) {
   const showPricing = canViewPricing(req.user);
   const canFinance = hasPerm(req, "finance.view");
@@ -261,6 +477,12 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
     canPayroll ? buildFolha(tx, period).catch(() => null) : null,
   ]);
 
+  const org = await tx.organization.findFirst({
+    where: { id: req.organizationId! },
+    select: { featureFlags: true },
+  });
+  const irssOn = canPayroll && isIrssModuleEnabled(org?.featureFlags);
+
   return {
     period: { from: ymd(period.from), to: ymd(period.to) },
     access: {
@@ -271,6 +493,9 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
       jobs: canJobs,
       leads: canLeads,
       quotes: canQuotes,
+    },
+    modules: {
+      irss: irssOn,
     },
     executive,
     sales: {
@@ -423,6 +648,57 @@ async function buildKind(tx: TenantPrisma, kind: string, period: PeriodFilter, r
         csv: {
           headers: ["name", "sector", "days", "earned", "net", "paid"],
           rows: data.employees.map((e) => [e.name, e.sector, e.days, e.earned, e.net, e.paid]),
+        },
+      };
+    }
+    case "irss": {
+      if (!hasPerm(req, "payroll.view")) return null;
+      const org = await tx.organization.findFirst({
+        where: { id: req.organizationId! },
+        select: { featureFlags: true },
+      });
+      if (!isIrssModuleEnabled(org?.featureFlags)) return null;
+      const q = req.query as Record<string, unknown>;
+      const employeeId =
+        typeof q.employee_id === "string" && q.employee_id.trim() ? q.employee_id.trim() : null;
+      const sector = typeof q.sector === "string" && q.sector.trim() ? q.sector.trim() : null;
+      const data = await buildIrss(tx, period, { employeeId, sector });
+      return {
+        title: "IRSS — relatório avançado",
+        data,
+        csv: {
+          headers: [
+            "name",
+            "sector",
+            "pay_type",
+            "days",
+            "overtime_hours",
+            "earned",
+            "reimbursement",
+            "discount",
+            "net",
+            "paid",
+            "unpaid",
+            "payment_method",
+            "email",
+            "phone",
+          ],
+          rows: data.employees.map((e) => [
+            e.name,
+            e.sector,
+            e.pay_type,
+            e.days,
+            e.overtime_hours,
+            e.earned,
+            e.reimbursement,
+            e.discount,
+            e.net,
+            e.paid,
+            e.unpaid,
+            e.payment_method,
+            e.email,
+            e.phone,
+          ]),
         },
       };
     }
