@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../http.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export const buildersPricingRouter = Router();
 
@@ -201,8 +202,8 @@ buildersPricingRouter.post(
         tx.builder.create({
           data: {
             organizationId: req.organizationId!,
-            firstName: String(b.first_name || b.firstName || b.name || "Builder"),
-            lastName: String(b.last_name || b.lastName || ""),
+            firstName: formatPersonName(String(b.first_name || b.firstName || b.name || "Builder")),
+            lastName: formatPersonName(String(b.last_name || b.lastName || "")),
             email: b.email || null,
             phone: b.phone || null,
             company: b.company || null,
@@ -234,8 +235,8 @@ buildersPricingRouter.put(
         return tx.builder.update({
           where: { id },
           data: {
-            firstName: b.first_name !== undefined ? String(b.first_name) : undefined,
-            lastName: b.last_name !== undefined ? String(b.last_name) : undefined,
+            firstName: b.first_name !== undefined ? formatPersonName(String(b.first_name)) : undefined,
+            lastName: b.last_name !== undefined ? formatPersonName(String(b.last_name)) : undefined,
             email: b.email !== undefined ? b.email || null : undefined,
             phone: b.phone !== undefined ? b.phone || null : undefined,
             company: b.company !== undefined ? b.company || null : undefined,

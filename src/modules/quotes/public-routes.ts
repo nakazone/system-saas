@@ -27,6 +27,7 @@ import { ensureInvoicesOnApprove } from "../../lib/payments/engine.js";
 import { ensureWorkOrderOnApprove } from "../../lib/work-orders/from-quote.js";
 import { cancelPendingMessages } from "../../lib/automations/schedule.js";
 import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export const publicQuotesRouter = Router();
 
@@ -365,7 +366,7 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
         note: "Approved via public link",
         extraData: {
           signatureUrl: stored.url,
-          signedByName: parsed.data.signedByName,
+          signedByName: formatPersonName(parsed.data.signedByName),
           signedAt: new Date(),
           approvedIp: req.ip || null,
           approvedUserAgent: req.get("user-agent") || null,

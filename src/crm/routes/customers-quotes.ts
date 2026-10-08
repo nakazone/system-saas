@@ -29,6 +29,7 @@ import {
 } from "../../lib/email/quote-access.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { formatUsPhone } from "../../lib/phone.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export const customersQuotesRouter = Router();
 
@@ -380,6 +381,13 @@ function normalizeCustomerType(raw: unknown): string {
   // Org-defined types from Configurações › Tipos de cliente.
   if (/^[a-z][a-z0-9_]{0,39}$/.test(v)) return v;
   return "particular";
+}
+
+/** Person clients get title-case; company/builder names keep the typed casing (trimmed). */
+function formatCustomerName(name: string, customerType: unknown): string {
+  const t = normalizeCustomerType(customerType);
+  if (t === "builder" || t === "loja") return String(name || "").trim().replace(/\s+/g, " ");
+  return formatPersonName(name);
 }
 
 function digitsOnlyPhone(raw: unknown): string {
@@ -975,14 +983,15 @@ customersQuotesRouter.post(
           ? normalizeCustomPricingRates(parsed.data.custom_pricing_rates)
           : {};
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const customerType = normalizeCustomerType(parsed.data.customer_type);
         const created = await tx.customer.create({
           data: {
             organizationId: req.organizationId!,
-            name: parsed.data.name,
+            name: formatCustomerName(parsed.data.name, customerType),
             email: parsed.data.email || null,
             phone: formatUsPhone(parsed.data.phone ?? null),
             address: parsed.data.address || null,
-            customerType: normalizeCustomerType(parsed.data.customer_type),
+            customerType,
             pricingMode,
             customPricingRates: customRates,
             company: parsed.data.company || null,
@@ -1041,7 +1050,7 @@ customersQuotesRouter.post(
           data: {
             organizationId: req.organizationId!,
             leadId: lead.id,
-            name: lead.name,
+            name: formatCustomerName(lead.name, req.body?.customer_type || "particular"),
             email: lead.email,
             phone: lead.phone,
             notes: lead.notes,
@@ -1072,10 +1081,12 @@ customersQuotesRouter.put(
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const existing = await tx.customer.findFirst({ where: { id } });
         if (!existing) return null;
+        const nextType =
+          body.customer_type !== undefined ? normalizeCustomerType(body.customer_type) : existing.customerType;
         return tx.customer.update({
           where: { id },
           data: {
-            name: body.name !== undefined ? String(body.name) : undefined,
+            name: body.name !== undefined ? formatCustomerName(String(body.name), nextType) : undefined,
             email: body.email !== undefined ? String(body.email || "") || null : undefined,
             phone: body.phone !== undefined ? formatUsPhone(String(body.phone || "") || null) : undefined,
             address: body.address !== undefined ? String(body.address || "") || null : undefined,

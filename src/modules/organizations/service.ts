@@ -14,6 +14,7 @@ import { hashPassword } from "../../lib/auth/password.js";
 import { prisma } from "../../lib/prisma.js";
 import { Prisma } from "@prisma/client";
 import { isReservedTenantSlug } from "../../lib/tenant/reserved-slugs.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export type SignupInput = {
   organizationName: string;
@@ -105,7 +106,7 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
       data: {
         organizationId: organization.id,
         email: input.adminEmail.toLowerCase(),
-        name: input.adminName,
+        name: formatPersonName(input.adminName),
         passwordHash,
         roleId: roleRecords.admin,
         status: "active",

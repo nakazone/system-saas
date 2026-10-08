@@ -7,6 +7,7 @@ import { hashPassword } from "../../lib/auth/password.js";
 import { prisma } from "../../lib/prisma.js";
 import { buildBrandPalette } from "../../lib/branding/palette.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export const cadastroPayrollUsersRouter = Router();
 
@@ -497,7 +498,7 @@ cadastroPayrollUsersRouter.post(
         return tx.user.create({
           data: {
             organizationId: req.organizationId!,
-            name: parsed.data.name,
+            name: formatPersonName(parsed.data.name),
             email: parsed.data.email.toLowerCase(),
             passwordHash,
             roleId,
@@ -553,7 +554,7 @@ cadastroPayrollUsersRouter.put(
           status = b.is_active === false || b.is_active === 0 || b.is_active === "0" ? "disabled" : "active";
         }
         const data: Prisma.UserUpdateInput = {
-          name: b.name !== undefined ? String(b.name) : undefined,
+          name: b.name !== undefined ? formatPersonName(String(b.name)) : undefined,
           email: b.email !== undefined ? String(b.email).toLowerCase() : undefined,
           status,
         };

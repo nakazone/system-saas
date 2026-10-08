@@ -10,6 +10,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { env } from "../../config/env.js";
 import { ensureDefaultRoles } from "../../lib/tenant/ensure-default-roles.js";
 import { DEFAULT_ROLE_PERMISSIONS } from "../../lib/tenant/defaults.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export const usersRouter = Router();
 
@@ -260,7 +261,7 @@ invitationsRouter.post("/:token", async (req, res, next) => {
         data: {
           organizationId: invitation.organizationId,
           email: invitation.email,
-          name: parsed.data.name,
+          name: formatPersonName(parsed.data.name),
           passwordHash,
           roleId: invitation.roleId,
           status: "active",

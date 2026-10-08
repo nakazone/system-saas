@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { DEFAULT_CLIENT_VIEW, DEFAULT_ESTIMATE_RULES } from "../tenant/defaults.js";
 import { resolveQuoteInclusions } from "../quotes/client-document.js";
+import { formatPersonName } from "../name.js";
 
 export type ClientView = {
   showQuantities: boolean;
@@ -151,7 +152,12 @@ export const quoteSettingsPatchSchema = z
   .strict();
 
 export const ownerSignaturePutSchema = z.object({
-  name: z.string().trim().min(2, "Indique o nome").max(120),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Indique o nome")
+    .max(120)
+    .transform((s) => formatPersonName(s)),
   title: z.string().trim().min(2, "Indique o cargo").max(120),
   use_auto_signature: z.boolean().optional(),
   signature_png: z

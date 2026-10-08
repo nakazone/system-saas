@@ -24,6 +24,7 @@ import {
   resolveVisitColor,
 } from "../../lib/settings/schedule.js";
 import { formatUsPhone } from "../../lib/phone.js";
+import { formatPersonName } from "../../lib/name.js";
 import { storage } from "../../lib/storage/index.js";
 
 const WO_SECTORS = ["installation", "sand_finish"] as const;
@@ -1273,7 +1274,7 @@ scheduleJobsRouter.post(
           data: {
             organizationId: req.organizationId!,
             workOrderId: wo.id,
-            name: d.name.trim(),
+            name: formatPersonName(d.name),
             phone: d.phone?.trim() || null,
             email: d.email?.trim() || null,
             notes: d.notes?.trim() || null,

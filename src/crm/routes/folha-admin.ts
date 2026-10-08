@@ -33,6 +33,7 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import type { PayrollTx } from "../lib/payroll-employee-link.js";
 import { safeTimeZone } from "../../lib/time/zoned.js";
 import { formatUsPhone } from "../../lib/phone.js";
+import { formatPersonName } from "../../lib/name.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { overtimeFromDaily, parseYmd, ymdToBrShort } from "../lib/payroll-calc.js";
@@ -1543,7 +1544,7 @@ function employeeData(d: z.infer<typeof employeeBody>) {
   const sch = d.schedule || {};
   if ((sch.start_time && !isHHMM(sch.start_time)) || (sch.end_time && !isHHMM(sch.end_time))) throw httpErr(400, "Horário inválido (use HH:MM).");
   return {
-    name: d.name,
+    name: formatPersonName(d.name),
     ...(d.email !== undefined ? { email: d.email || null } : {}),
     ...(d.phone !== undefined ? { phone: formatUsPhone(d.phone || null) } : {}),
     ...(d.role_title !== undefined ? { roleTitle: d.role_title || null } : {}),

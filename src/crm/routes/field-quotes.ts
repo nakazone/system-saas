@@ -20,6 +20,7 @@ import { requireCrmAuth } from "../http.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { orgScoped } from "../../lib/tenant/org-scoped.js";
 import { storage } from "../../lib/storage/index.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export const fieldQuotesRouter = Router();
 
@@ -147,7 +148,7 @@ fieldQuotesRouter.post("/api/field-quotes", requireCrmAuth, async (req: AuthedRe
           address = address || m.location;
         }
       }
-      let clientName = str(b.client_name, 200);
+      let clientName = formatPersonName(str(b.client_name, 200));
       let clientPhone = str(b.client_phone, 60);
       let clientEmail = str(b.client_email, 200);
       if (leadId) {
@@ -174,7 +175,7 @@ fieldQuotesRouter.post("/api/field-quotes", requireCrmAuth, async (req: AuthedRe
           leadId,
           meetingId,
           createdById: req.user?.id ?? null,
-          clientName: clientName || "Novo cliente",
+          clientName: formatPersonName(clientName) || "Novo Cliente",
           clientPhone,
           clientEmail,
           address,
@@ -248,7 +249,9 @@ fieldQuotesRouter.put("/api/field-quotes/:id", requireCrmAuth, async (req: Authe
       const updated = await tx.fieldQuote.update({
         where: { id: row.id },
         data: {
-          ...(b.client_name !== undefined ? { clientName: str(b.client_name, 200) || row.clientName } : {}),
+          ...(b.client_name !== undefined
+            ? { clientName: formatPersonName(str(b.client_name, 200)) || row.clientName }
+            : {}),
           ...(b.client_phone !== undefined ? { clientPhone: str(b.client_phone, 60) } : {}),
           ...(b.client_email !== undefined ? { clientEmail: str(b.client_email, 200) } : {}),
           ...(b.address !== undefined ? { address: str(b.address) } : {}),

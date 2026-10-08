@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261007-nav2";
+  const SHELL_VER = "20261008-name1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1010,6 +1010,9 @@
     const jobs = [];
     if (!window.sfFormatPhone && !document.querySelector('script[src*="crm-phone.js"]')) {
       jobs.push(ensureScript(`crm-phone.js?v=${SHELL_VER}`).catch(() => {}));
+    }
+    if (!window.sfFormatPersonName && !document.querySelector('script[src*="crm-name.js"]')) {
+      jobs.push(ensureScript(`crm-name.js?v=${SHELL_VER}`).catch(() => {}));
     }
     if (!window.CrmI18n) jobs.push(ensureScript(`crm-i18n.js?v=${SHELL_VER}`).catch(() => {}));
     if (!window.__crmSharedNav && !document.querySelector('script[src*="crm-shared-nav.js"]')) {

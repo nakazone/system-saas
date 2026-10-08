@@ -12,6 +12,7 @@ import {
   moveLeadToSystemStage,
 } from "../../lib/pipeline/move.js";
 import { formatUsPhone } from "../../lib/phone.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export const leadsRouter = Router();
 
@@ -274,7 +275,7 @@ leadsRouter.post(
         const created = await tx.lead.create({
           data: {
             organizationId: req.organizationId!,
-            name: parsed.data.name,
+            name: formatPersonName(parsed.data.name),
             email: parsed.data.email || null,
             phone: formatUsPhone(parsed.data.phone || null),
             source: parsed.data.source || null,
@@ -408,7 +409,7 @@ leadsRouter.post(
         const after = await tx.lead.update({
           where: { id: param(req, "id") },
           data: {
-            name: parsed.data.name,
+            name: formatPersonName(parsed.data.name),
             email: parsed.data.email || null,
             phone: formatUsPhone(parsed.data.phone || null),
             source: parsed.data.source || null,

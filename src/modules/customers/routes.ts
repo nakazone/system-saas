@@ -5,6 +5,7 @@ import { requireAuth, requirePermission, type AuthedRequest } from "../../middle
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { diffFields, recordActivity } from "../../lib/activity/record.js";
 import { canViewPricing } from "../../lib/pricing/visibility.js";
+import { formatPersonName } from "../../lib/name.js";
 
 export const customersRouter = Router();
 
@@ -77,7 +78,7 @@ customersRouter.post(
         const created = await tx.customer.create({
           data: {
             organizationId: req.organizationId!,
-            name: parsed.data.name,
+            name: formatPersonName(parsed.data.name),
             email: parsed.data.email || null,
             phone: parsed.data.phone || null,
             address: parsed.data.address || null,
@@ -362,7 +363,7 @@ customersRouter.post(
         const after = await tx.customer.update({
           where: { id: param(req, "id") },
           data: {
-            name: parsed.data.name,
+            name: formatPersonName(parsed.data.name),
             email: parsed.data.email || null,
             phone: parsed.data.phone || null,
             address: parsed.data.address || null,
