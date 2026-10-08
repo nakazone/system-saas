@@ -14,7 +14,7 @@ function roundMoney(n) {
   return Math.round(Number(n) * 100) / 100;
 }
 
-function defaultDueDate(days = 14) {
+function defaultDueDate(days = 1) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
@@ -294,7 +294,7 @@ export async function createQuoteInvoice(pool, quoteId, body, userId) {
     return { ok: false, error: e.message || 'Não foi possível gerar o número do invoice.' };
   }
 
-  const dueDate = body.due_date ? String(body.due_date).slice(0, 10) : defaultDueDate(14);
+  const dueDate = body.due_date ? String(body.due_date).slice(0, 10) : defaultDueDate(1);
   const paymentInstructions =
     body.payment_instructions != null && String(body.payment_instructions).trim()
       ? String(body.payment_instructions).trim()

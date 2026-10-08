@@ -168,6 +168,8 @@ export function contractSummaryOf(inv: InvoiceDetail): {
   const paidOnContract = round(
     list.reduce((s, i) => s + (i.receipts || []).reduce((a, r) => a + (Number(r.amount) || 0), 0), 0),
   );
+  const thisPaid = round((inv.receipts || []).reduce((a, r) => a + (Number(r.amount) || 0), 0));
+  const thisBalance = round(Math.max(0, thisInvoice - thisPaid));
 
   let contractTotal = 0;
   let label = "Contract total";
@@ -183,12 +185,14 @@ export function contractSummaryOf(inv: InvoiceDetail): {
     contractTotal = round(list.reduce((s, i) => s + (Number(i.amount) || 0), 0));
     if (!(contractTotal > 0)) contractTotal = thisInvoice;
   }
+  // Left on the job/contract after the client pays what is still due on this invoice.
+  const remainingAfterThisInvoice = round(Math.max(0, contractTotal - paidOnContract - thisBalance));
   return {
     label,
     contractTotal,
     thisInvoice,
     paidOnContract,
-    remainingAfterThisInvoice: round(Math.max(0, contractTotal - thisInvoice)),
+    remainingAfterThisInvoice,
   };
 }
 

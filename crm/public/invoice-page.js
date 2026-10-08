@@ -263,6 +263,9 @@
           )
           .join('')}
         <div class="inv-totals__due"><span>Balance Due on this invoice</span><span>${money(inv.remaining_amount)}</span></div>
+        ${Number(inv.remaining_after_this_invoice) > 0.004
+          ? `<div class="inv-totals__after"><span>Balance Due after this invoice</span><span>${money(inv.remaining_after_this_invoice)}</span></div>`
+          : ""}
       </div>
       </div>
       ${inv.payment_instructions && inv.remaining_amount > 0 ? `<div class="inv-paper__block"><p class="inv-label">Como pagar</p><p>${esc(inv.payment_instructions)}</p></div>` : ''}

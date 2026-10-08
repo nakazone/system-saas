@@ -157,7 +157,7 @@
     $('newKindBox').hidden = true;
     $('newSubmit').disabled = true;
     $('newError').hidden = true;
-    const d = new Date(Date.now() + 14 * 86400000);
+    const d = new Date(Date.now() + 1 * 86400000);
     $('newDue').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const m = $('newModal');
     m.hidden = false;

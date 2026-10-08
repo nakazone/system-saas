@@ -217,7 +217,7 @@ export async function createInvoiceFromScheduleItem(
   const dueDate =
     params.dueDays != null
       ? new Date(Date.now() + params.dueDays * 86400000)
-      : new Date(Date.now() + 14 * 86400000);
+      : new Date(Date.now() + 1 * 86400000);
 
   const type =
     params.invoiceType ||
@@ -465,7 +465,7 @@ async function createFullDraftInvoice(
       invoiceType: "full",
       status: "draft",
       amount,
-      dueDate: new Date(Date.now() + 14 * 86400000),
+      dueDate: new Date(Date.now() + 1 * 86400000),
       notes: params.notes || "Full payment",
     },
   });

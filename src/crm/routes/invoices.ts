@@ -36,6 +36,7 @@ import {
   renderInvoicePdf,
   resolvedInvoiceLines,
   servicesTotalOf,
+  contractSummaryOf,
   syncInvoiceStatus,
   type InvoiceDetail,
 } from "../../lib/invoices/service.js";
@@ -202,6 +203,7 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
     services_total: servicesTotalOf(inv),
     paid_amount: m.paid,
     remaining_amount: m.balance,
+    remaining_after_this_invoice: contractSummaryOf(inv)?.remainingAfterThisInvoice ?? 0,
     percent_paid: m.percentPaid,
     is_overdue: m.isOverdue,
     days_overdue: m.daysOverdue,
@@ -652,7 +654,7 @@ invoicesCrmRouter.post(
         const invoiceNumber = await nextInvoiceNumber(tx, req.organizationId!);
         const amount = new Prisma.Decimal(calc.amount.toFixed(2));
         const due =
-          parseDate(b.due_date) || new Date(Date.now() + 14 * 86400000);
+          parseDate(b.due_date) || new Date(Date.now() + 1 * 86400000);
         const inv = await tx.quoteInvoice.create({
           data: {
             organizationId: req.organizationId!,

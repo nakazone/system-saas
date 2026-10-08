@@ -139,6 +139,7 @@
 .inv-totals > div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; }
 .inv-totals__pay { color: var(--inv-muted); font-size: 0.84rem; }
 .inv-totals__due { border-top: 2px solid var(--inv-ink); margin-top: 6px; padding-top: 10px !important; font-weight: 800; font-size: 1.05rem; }
+.inv-totals__after { color: var(--inv-muted); font-size: 0.78rem; font-weight: 650; padding-top: 2px !important; }
 .inv-paper__block { margin-top: 22px; }
 .inv-paper__block p:last-child { margin: 0; white-space: pre-line; font-size: 0.88rem; line-height: 1.5; }
 

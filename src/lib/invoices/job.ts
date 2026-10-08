@@ -266,7 +266,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
       invoiceType: calc.kind,
       status: "draft",
       amount,
-      dueDate: input.dueDate || new Date(Date.now() + 14 * 86400000),
+      dueDate: input.dueDate || new Date(Date.now() + 1 * 86400000),
       notes: input.notes?.trim() || jobNotesForInvoice,
       paymentInstructions: input.paymentInstructions?.trim() || job.organization.paymentInstructions || null,
     },

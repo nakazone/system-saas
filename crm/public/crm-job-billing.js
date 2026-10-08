@@ -217,7 +217,7 @@
       <label class="jb-opt"><input type="radio" name="jbKind" value="custom" />
         <span class="jb-opt__t">Outro valor<span class="jb-opt__d">Parcela livre (até ${esc(money(remaining))})</span></span>
         <span>$ <input class="jb-opt__inp" type="number" id="jbAmt" min="0.01" step="0.01" max="${remaining.toFixed(2)}" placeholder="0.00" aria-label="Valor" /></span></label>`;
-    const due = new Date(Date.now() + 14 * 86400000);
+    const due = new Date(Date.now() + 1 * 86400000);
     document.getElementById("jbDue").value = due.toISOString().slice(0, 10);
     const err = document.getElementById("jbErr");
     err.hidden = true;

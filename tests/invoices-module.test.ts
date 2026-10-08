@@ -182,7 +182,9 @@ describe("invoices — payments, receipts and documents (tenant DB)", () => {
     });
     expect(input.contractTotal).toBeGreaterThan(0);
     expect(input.remainingAfterThisInvoice).toBe(
-      Math.round((Number(input.contractTotal) - Number(input.thisInvoiceAmount)) * 100) / 100,
+      Math.round(
+        (Number(input.contractTotal) - Number(input.paidOnContract) - Number(input.balance)) * 100,
+      ) / 100,
     );
     const pdf = await buildInvoicePdf(input);
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF");

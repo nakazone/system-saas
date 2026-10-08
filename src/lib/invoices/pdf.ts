@@ -319,90 +319,16 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     my = Math.max(doc.y, my + 13) + 2;
   }
 
-  // Client money summary: job/contract total · this invoice · remaining balance
-  y = Math.max(by, my) + 16;
-  const contractTotal = Number(input.contractTotal);
-  const thisInvoiceAmt = Number(input.thisInvoiceAmount ?? input.total);
-  const remainingAfter = Number(
-    input.remainingAfterThisInvoice != null
-      ? input.remainingAfterThisInvoice
-      : Math.max(0, (Number.isFinite(contractTotal) ? contractTotal : thisInvoiceAmt) - thisInvoiceAmt),
-  );
-  const showContractSummary = Number.isFinite(contractTotal) && contractTotal > 0;
-  const panelH = showContractSummary ? 68 : 46;
-  doc.roundedRect(m, y, W, panelH, 8).fill(PAL.panel);
+  // Match CRM invoice preview: no top money panel — go straight to line items.
+  y = Math.max(by, my) + 22;
 
-  if (showContractSummary) {
-    const colW = W / 3;
-    const cols: { label: string; value: string; emphasize?: boolean }[] = [
-      { label: input.contractTotalLabel || "Job total", value: money(contractTotal) },
-      { label: "This invoice", value: money(thisInvoiceAmt), emphasize: true },
-      { label: "Remaining balance\nafter this invoice", value: money(remainingAfter), emphasize: true },
-    ];
-    cols.forEach((col, i) => {
-      const cx = m + i * colW;
-      if (i > 0) {
-        doc
-          .moveTo(cx, y + 10)
-          .lineTo(cx, y + panelH - 10)
-          .strokeColor(PAL.rule)
-          .lineWidth(0.7)
-          .stroke();
-      }
-      doc
-        .fillColor(PAL.muted)
-        .font("Helvetica-Bold")
-        .fontSize(7)
-        .text(col.label.toUpperCase(), cx + 10, y + 10, {
-          width: colW - 20,
-          characterSpacing: 0.35,
-          lineGap: 1,
-        });
-      doc
-        .fillColor(PAL.primary)
-        .font("Helvetica-Bold")
-        .fontSize(col.emphasize ? 16 : 15)
-        .text(col.value, cx + 10, y + 38, { width: colW - 20, lineBreak: false });
-    });
-    y += panelH + 8;
-    const dueTxt =
-      input.displayStatus === "paid"
-        ? `This invoice paid in full${input.paidAt ? ` on ${fmtDate(input.paidAt)}` : ""}`
-        : input.displayStatus === "void"
-          ? "This invoice has been voided"
-          : input.balance > 0.004
-            ? `Balance Due on this invoice: ${money(input.balance)} · Due ${fmtDate(input.dueDate)}`
-            : `Due ${fmtDate(input.dueDate)}`;
-    doc.fillColor(PAL.muted).font("Helvetica").fontSize(8.5).text(dueTxt, m, y, {
-      width: W,
-      lineBreak: false,
-      ellipsis: true,
-    });
-    y += 18;
-  } else {
-    doc.fillColor(PAL.muted).font("Helvetica").fontSize(9).text("Balance Due on this invoice", m + 16, y + 10, { lineBreak: false });
-    doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(18).text(money(input.balance), m + 16, y + 21, { lineBreak: false });
-    doc.fillColor(PAL.muted).font("Helvetica").fontSize(9);
-    const dueTxt =
-      input.displayStatus === "paid"
-        ? `Paid in full${input.paidAt ? ` on ${fmtDate(input.paidAt)}` : ""}`
-        : input.displayStatus === "void"
-          ? "This invoice has been voided"
-          : `Due ${fmtDate(input.dueDate)}`;
-    const dtw = doc.widthOfString(dueTxt);
-    doc.text(dueTxt, m + W - 16 - dtw, y + 18, { lineBreak: false });
-    y += panelH + 18;
-  }
-
-  // Line items
+  // Line items (preview columns: Description · Qty · Amount)
   const cDesc = m;
-  const cQty = m + W - 230;
-  const cRate = m + W - 160;
+  const cQty = m + W - 160;
   const cAmt = m + W - 80;
   doc.fillColor(PAL.mutedLight).font("Helvetica-Bold").fontSize(7.5);
   doc.text("DESCRIPTION", cDesc, y, { lineBreak: false, characterSpacing: 0.6 });
-  doc.text("QTY", cQty, y, { width: 50, align: "right", characterSpacing: 0.6 });
-  doc.text("RATE", cRate, y, { width: 70, align: "right", characterSpacing: 0.6 });
+  doc.text("QTY", cQty, y, { width: 60, align: "right", characterSpacing: 0.6 });
   doc.text("AMOUNT", cAmt, y, { width: 80, align: "right", characterSpacing: 0.6 });
   y += 14;
   doc.moveTo(m, y).lineTo(m + W, y).strokeColor(PAL.rule).lineWidth(0.6).stroke();
@@ -424,14 +350,14 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
       ly = doc.y;
     }
     doc.font("Helvetica").fontSize(10).fillColor(PAL.primary);
-    doc.text(Number(ln.quantity).toLocaleString("en-US", { maximumFractionDigits: 2 }), cQty, y, { width: 50, align: "right" });
-    doc.text(money(ln.unitPrice), cRate, y, { width: 70, align: "right" });
+    doc.text(Number(ln.quantity).toLocaleString("en-US", { maximumFractionDigits: 2 }), cQty, y, { width: 60, align: "right" });
     doc.font("Helvetica-Bold").text(money(ln.amount), cAmt, y, { width: 80, align: "right" });
     y = Math.max(ly, y + 14) + 8;
     doc.moveTo(m, y - 4).lineTo(m + W, y - 4).strokeColor(PAL.rule).lineWidth(0.4).stroke();
   }
 
-  // Totals: Total Services (contracted work) · payments · Balance Due on this invoice
+  // Totals: Total Services · payments · Balance Due on this invoice
+  // (+ smaller “Balance Due after this invoice” when contract remainder exists)
   y += 6;
   const totalsTop = y;
   const tW = 320;
@@ -440,11 +366,17 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
     input.servicesTotal != null && Number.isFinite(Number(input.servicesTotal))
       ? Number(input.servicesTotal)
       : input.lines.reduce((s, l) => s + (Number(l.amount) || 0), 0) || input.total;
-  const totalRow = (k: string, v: string, bold = false, color = PAL.primary) => {
-    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(bold ? 10.5 : 9.5).fillColor(bold ? color : PAL.muted);
+  const remainingAfter = Number(
+    input.remainingAfterThisInvoice != null
+      ? input.remainingAfterThisInvoice
+      : Math.max(0, (Number(input.contractTotal) || 0) - (Number(input.thisInvoiceAmount) || input.total)),
+  );
+  const totalRow = (k: string, v: string, bold = false, color = PAL.primary, size?: number) => {
+    const fs = size != null ? size : bold ? 10.5 : 9.5;
+    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(fs).fillColor(bold ? color : PAL.muted);
     doc.text(k, tX, y, { width: tW - 95, lineBreak: false, ellipsis: true });
     doc.fillColor(color).text(v, tX + tW - 95, y, { width: 95, align: "right", lineBreak: false });
-    y += bold ? 18 : 15;
+    y += bold ? 18 : size != null && size < 9.5 ? 13 : 15;
   };
   totalRow("Total Services", money(servicesTotal));
   for (const p of input.payments) {
@@ -456,6 +388,9 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   doc.moveTo(tX, y).lineTo(m + W, y).strokeColor(PAL.primary).lineWidth(0.8).stroke();
   y += 6;
   totalRow("Balance Due on this invoice", money(input.balance), true);
+  if (Number.isFinite(remainingAfter) && remainingAfter > 0.004) {
+    totalRow("Balance Due after this invoice", money(remainingAfter), false, PAL.muted, 8.5);
+  }
 
   // Stamp in the empty space left of the totals (first page when totals fit there).
   const stampX = m + (W - tW) / 2 - 6;
