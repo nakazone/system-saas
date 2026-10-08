@@ -327,13 +327,28 @@ a.omd-kpi:hover {
   color: color-mix(in srgb, var(--omd-accent) 70%, #fff);
 }
 
-/* —— Main grid: Atenção | Hoje | Jobs (equal), mapa full-width —— */
+/* —— Main grid: Atenção (½) | Hoje+Jobs+Mapa (½) —— */
 .omd-grid {
-  --omd-mid-h: 440px;
+  --omd-mid-h: 320px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
   margin-bottom: 1rem;
+  align-items: stretch;
+}
+
+.omd-side {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  align-content: start;
+}
+
+.omd-side__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  min-width: 0;
   align-items: stretch;
 }
 
@@ -355,8 +370,16 @@ a.omd-kpi:hover {
   flex-shrink: 0;
 }
 
-/* Fixed shell: same size when sparse; scroll lists when dense */
-.omd-attn,
+/* Atenção stretches to match the right column (hoje+jobs + mapa) */
+.omd-attn {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(var(--omd-mid-h) + 1rem + 260px);
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Hoje / Jobs: fixed height + internal scroll */
 .omd-today,
 .omd-jobs {
   display: flex;
@@ -368,7 +391,17 @@ a.omd-kpi:hover {
 }
 
 .omd-map {
-  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+  overflow: hidden;
+}
+
+.omd-map__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .omd-card__head h2 {
@@ -514,24 +547,64 @@ a.omd-kpi:hover {
 
 /* —— Day map —— */
 .omd-map__canvas {
-  height: 240px;
+  flex: 1 1 auto;
+  min-height: 200px;
+  height: 220px;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--omd-soft);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--omd-soft) 70%, #fff), var(--omd-soft));
   border: 1px solid var(--omd-line);
+  position: relative;
 }
 
 .omd-map__canvas .leaflet-container {
   height: 100%;
   width: 100%;
   font: inherit;
+  background: transparent;
+}
+
+.omd-map__canvas.is-loading::after {
+  content: "Localizando…";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 500;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--omd-muted);
+  background: color-mix(in srgb, #fff 55%, transparent);
+  pointer-events: none;
 }
 
 .omd-map__empty {
-  margin: 0.65rem 0 0;
-  font-size: 0.82rem;
+  margin: 0;
+  min-height: 200px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 1.25rem 1rem;
+  font-size: 0.86rem;
   font-weight: 600;
   color: var(--omd-muted);
+  border-radius: 12px;
+  background: var(--omd-soft);
+  border: 1px dashed color-mix(in srgb, var(--omd-line) 80%, transparent);
+}
+
+.omd-map__empty[hidden] {
+  display: none !important;
+}
+
+.omd-map__canvas[hidden] {
+  display: none !important;
+}
+
+.omd-map-icon {
+  background: transparent !important;
+  border: none !important;
 }
 
 .omd-map-pin {
@@ -1237,22 +1310,20 @@ body.plab .plab-dock button.plab-dock__btn {
 }
 
 /* —— Responsive —— */
-@media (max-width: 1240px) {
+@media (max-width: 1100px) {
   .omd-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .omd-grid {
-    --omd-mid-h: 400px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    --omd-mid-h: 300px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .omd-attn {
-    grid-column: 1 / -1;
-  }
-
-  .omd-map {
-    grid-column: 1 / -1;
+    min-height: var(--omd-mid-h);
+    max-height: 420px;
+    height: auto;
   }
 }
 
@@ -1270,26 +1341,21 @@ body.plab .plab-dock button.plab-dock__btn {
     justify-content: flex-start;
   }
 
-  .omd-grid {
-    --omd-mid-h: 360px;
+  .omd-side__row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .omd-attn,
   .omd-today,
-  .omd-jobs,
-  .omd-map {
-    grid-column: auto;
+  .omd-jobs {
+    max-height: none;
+    height: auto;
+    min-height: 280px;
   }
 }
 
 @media (max-width: 560px) {
   .omd-kpis {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .omd-grid {
-    --omd-mid-h: 320px;
   }
 
   .omd-row {
@@ -1306,6 +1372,7 @@ body.plab .plab-dock button.plab-dock__btn {
 
   .omd-map__canvas {
     height: 200px;
+    min-height: 180px;
   }
 }
 

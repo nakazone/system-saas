@@ -225,21 +225,31 @@
 
   let dayMap = null;
   let dayMapMarkers = [];
+  let dayMapToken = 0;
 
   function loadStylesheet(href) {
     if ([...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => (l.getAttribute("href") || "").includes(href.split("?")[0]))) {
-      return;
+      return Promise.resolve();
     }
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = href;
-    document.head.appendChild(link);
+    return new Promise((resolve) => {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      link.onload = () => resolve();
+      link.onerror = () => resolve();
+      document.head.appendChild(link);
+    });
   }
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
-      if ([...document.querySelectorAll("script[src]")].some((s) => s.src === src || (s.getAttribute("src") || "") === src)) {
+      if (window.L) {
         resolve();
+        return;
+      }
+      if ([...document.querySelectorAll("script[src]")].some((s) => s.src === src || (s.getAttribute("src") || "") === src)) {
+        const wait = () => (window.L ? resolve() : setTimeout(wait, 40));
+        wait();
         return;
       }
       const el = document.createElement("script");
@@ -252,9 +262,118 @@
   }
 
   async function ensureLeaflet() {
-    loadStylesheet("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
+    await loadStylesheet("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
     if (!window.L) await loadScript("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js");
     return window.L;
+  }
+
+  async function geocodeClient(address) {
+    const q = String(address || "").trim();
+    if (!q) return null;
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,
+        { headers: { Accept: "application/json" } },
+      );
+      const j = await r.json().catch(() => []);
+      if (!Array.isArray(j) || !j[0]) return null;
+      const lat = Number(j[0].lat);
+      const lng = Number(j[0].lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { lat, lng };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function mapsUrl(ev) {
+    if (Number.isFinite(Number(ev.lat)) && Number.isFinite(Number(ev.lng))) {
+      return `https://www.google.com/maps?q=${Number(ev.lat)},${Number(ev.lng)}`;
+    }
+    if (ev.address) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.address)}`;
+    return null;
+  }
+
+  function destroyDayMap() {
+    if (!dayMap) return;
+    try {
+      dayMap.remove();
+    } catch (_) {}
+    dayMap = null;
+    dayMapMarkers = [];
+  }
+
+  async function resolveMapPoints(events) {
+    const points = [];
+    const pending = [];
+    for (const ev of events || []) {
+      const lat = Number(ev.lat);
+      const lng = Number(ev.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        points.push({ ...ev, lat, lng });
+      } else if (ev.address) {
+        pending.push(ev);
+      }
+    }
+    for (let i = 0; i < Math.min(pending.length, 6); i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, 1100));
+      const ev = pending[i];
+      const geo = await geocodeClient(ev.address);
+      if (geo) points.push({ ...ev, lat: geo.lat, lng: geo.lng });
+    }
+    return points;
+  }
+
+  async function paintDayMap(canvas, points) {
+    const L = await ensureLeaflet();
+    // Leaflet needs a visible, sized container — force reflow before init.
+    canvas.hidden = false;
+    canvas.getBoundingClientRect();
+    if (!dayMap || dayMap.getContainer() !== canvas) {
+      destroyDayMap();
+      dayMap = L.map(canvas, {
+        zoomControl: false,
+        attributionControl: false,
+        scrollWheelZoom: false,
+      });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        crossOrigin: true,
+      }).addTo(dayMap);
+      L.control.zoom({ position: "topright" }).addTo(dayMap);
+    }
+    dayMapMarkers.forEach((m) => {
+      try {
+        dayMap.removeLayer(m);
+      } catch (_) {}
+    });
+    dayMapMarkers = [];
+    const bounds = [];
+    points.forEach((p, i) => {
+      const icon = L.divIcon({
+        className: "omd-map-icon",
+        html: `<div class="omd-map-pin is-${p.type === "job" ? "job" : "visit"}"><span>${i + 1}</span></div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -24],
+      });
+      const marker = L.marker([p.lat, p.lng], { icon }).addTo(dayMap);
+      const link = mapsUrl(p);
+      marker.bindPopup(
+        `<strong>${esc(p.title)}</strong><br>${esc(D.timeOf(p.start, overview))}${
+          p.address ? `<br>${esc(p.address)}` : ""
+        }${link ? `<br><a href="${esc(link)}" target="_blank" rel="noopener">Abrir no Maps</a>` : ""}`,
+      );
+      dayMapMarkers.push(marker);
+      bounds.push([p.lat, p.lng]);
+    });
+    if (bounds.length === 1) dayMap.setView(bounds[0], 13);
+    else dayMap.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
+    requestAnimationFrame(() => {
+      dayMap && dayMap.invalidateSize(true);
+      setTimeout(() => dayMap && dayMap.invalidateSize(true), 120);
+      setTimeout(() => dayMap && dayMap.invalidateSize(true), 400);
+    });
   }
 
   async function renderDayMap() {
@@ -266,80 +385,88 @@
     const events = overview.today_events;
     if (events == null) {
       card.hidden = true;
+      destroyDayMap();
       return;
     }
     card.hidden = false;
-    const points = (events || []).filter(
-      (e) => Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng)),
-    );
-    const missing = (events || []).filter(
-      (e) => e.address && !(Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng))),
-    ).length;
+    const token = ++dayMapToken;
 
-    if (!points.length) {
-      if (dayMap) {
-        try {
-          dayMap.remove();
-        } catch (_) {}
-        dayMap = null;
-        dayMapMarkers = [];
-      }
+    const withCoords = (events || []).filter((e) => Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng)));
+    const needClient = (events || []).filter(
+      (e) => e.address && !(Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng))),
+    );
+
+    if (!events.length) {
+      destroyDayMap();
       canvas.hidden = true;
+      canvas.classList.remove("is-loading");
       if (empty) {
         empty.hidden = false;
-        empty.textContent = events.length
-          ? "Jobs de hoje ainda sem coordenadas no mapa."
-          : "Nenhum job ou visita na agenda de hoje.";
+        empty.innerHTML = "<span>Agenda livre hoje — nada para mapear.</span>";
       }
-      if (meta) meta.textContent = missing ? `${missing} sem localização` : "";
+      if (meta) meta.textContent = "";
       return;
     }
 
     canvas.hidden = false;
+    canvas.classList.add("is-loading");
     if (empty) empty.hidden = true;
-    if (meta) {
-      meta.textContent =
-        D.plural(points.length, "ponto", "pontos") + (missing ? ` · ${missing} sem localização` : "");
+    if (meta) meta.textContent = withCoords.length ? D.plural(withCoords.length, "ponto", "pontos") : "localizando…";
+
+    let points = withCoords.map((e) => ({ ...e, lat: Number(e.lat), lng: Number(e.lng) }));
+    if (!points.length && needClient.length) {
+      points = await resolveMapPoints(events);
+    } else if (needClient.length && points.length < 3) {
+      const extra = await resolveMapPoints(needClient.slice(0, 4));
+      const seen = new Set(points.map((p) => p.id));
+      for (const p of extra) if (!seen.has(p.id)) points.push(p);
+    }
+
+    if (token !== dayMapToken) return;
+
+    if (!points.length) {
+      destroyDayMap();
+      canvas.hidden = true;
+      canvas.classList.remove("is-loading");
+      if (empty) {
+        empty.hidden = false;
+        const links = (events || [])
+          .filter((e) => e.address)
+          .slice(0, 4)
+          .map((e) => {
+            const href = mapsUrl(e);
+            return href
+              ? `<a class="omd-link" href="${esc(href)}" target="_blank" rel="noopener">${esc(e.title || e.address)}</a>`
+              : "";
+          })
+          .filter(Boolean)
+          .join("<br>");
+        empty.innerHTML = links
+          ? `<span>Sem coordenadas no mapa ainda.</span><div style="margin-top:.65rem;line-height:1.6">${links}</div>`
+          : "<span>Eventos de hoje sem endereço para mapear.</span>";
+      }
+      if (meta) meta.textContent = needClient.length ? `${needClient.length} sem localização` : "";
+      return;
     }
 
     try {
-      const L = await ensureLeaflet();
-      if (!dayMap) {
-        dayMap = L.map(canvas, { zoomControl: false, attributionControl: false });
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 19,
-        }).addTo(dayMap);
-        L.control.zoom({ position: "topright" }).addTo(dayMap);
+      await paintDayMap(canvas, points);
+      if (token !== dayMapToken) return;
+      canvas.classList.remove("is-loading");
+      if (empty) empty.hidden = true;
+      const unresolved = Math.max(0, (events || []).filter((e) => e.address).length - points.length);
+      if (meta) {
+        meta.textContent =
+          D.plural(points.length, "ponto", "pontos") + (unresolved ? ` · ${unresolved} sem localização` : "");
       }
-      dayMapMarkers.forEach((m) => dayMap.removeLayer(m));
-      dayMapMarkers = [];
-      const bounds = [];
-      points.forEach((p, i) => {
-        const lat = Number(p.lat);
-        const lng = Number(p.lng);
-        const icon = L.divIcon({
-          className: "",
-          html: `<div class="omd-map-pin is-${p.type === "job" ? "job" : "visit"}"><span>${i + 1}</span></div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 28],
-        });
-        const marker = L.marker([lat, lng], { icon }).addTo(dayMap);
-        marker.bindPopup(
-          `<strong>${esc(p.title)}</strong><br>${esc(D.timeOf(p.start, overview))}${
-            p.address ? `<br>${esc(p.address)}` : ""
-          }`,
-        );
-        dayMapMarkers.push(marker);
-        bounds.push([lat, lng]);
-      });
-      if (bounds.length === 1) dayMap.setView(bounds[0], 12);
-      else dayMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 13 });
-      setTimeout(() => dayMap && dayMap.invalidateSize(), 80);
     } catch (_) {
+      if (token !== dayMapToken) return;
+      destroyDayMap();
       canvas.hidden = true;
+      canvas.classList.remove("is-loading");
       if (empty) {
         empty.hidden = false;
-        empty.textContent = "Mapa indisponível no momento.";
+        empty.innerHTML = "<span>Mapa indisponível no momento.</span>";
       }
       if (meta) meta.textContent = "";
     }

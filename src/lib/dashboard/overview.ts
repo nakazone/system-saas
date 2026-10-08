@@ -8,6 +8,7 @@
  *  - "needs attention" rules aligned with the Phase 2 action home (`lib/home/actions.ts`)
  *  - sections gated by the viewer's permissions
  */
+import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import {
   canonicalStagesFor,
@@ -18,6 +19,7 @@ import {
   type StageRow,
 } from "./stages.js";
 import { startOfZonedDay, startOfZonedMonth, zonedDateKey, zonedDayDiff } from "../time/zoned.js";
+import { geocodeAddress } from "../payroll/geocode.js";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -1017,6 +1019,46 @@ export async function loadDashboardOverview(
       for (const r of rows) meetingLead.set(r.meeting_id, r.id);
     }
 
+    // Fast path: Google geocode in parallel when keyed. Client Nominatim covers the rest.
+    const needGeo = workOrdersToday.filter((wo) => wo.address && (wo.geoLat == null || wo.geoLng == null)).slice(0, 8);
+    const geoHits = await Promise.all(
+      needGeo.map(async (wo) => ({
+        wo,
+        loc: await geocodeAddress(wo.address!, { allowNominatim: false, timeoutMs: 2500 }),
+      })),
+    );
+    for (const { wo, loc } of geoHits) {
+      if (!loc) continue;
+      try {
+        await tx.workOrder.update({
+          where: { id: wo.id },
+          data: {
+            geoLat: new Prisma.Decimal(loc.lat),
+            geoLng: new Prisma.Decimal(loc.lng),
+            geoCheckedAt: new Date(),
+          },
+        });
+      } catch {
+        /* persist is optional */
+      }
+      (wo as { geoLat: unknown; geoLng: unknown }).geoLat = loc.lat;
+      (wo as { geoLat: unknown; geoLng: unknown }).geoLng = loc.lng;
+    }
+
+    const meetingGeo = new Map<string, { lat: number; lng: number }>();
+    const meetingHits = await Promise.all(
+      meetings
+        .filter((x) => x.location)
+        .slice(0, 6)
+        .map(async (m) => ({
+          id: m.id,
+          loc: await geocodeAddress(m.location!, { allowNominatim: false, timeoutMs: 2500 }),
+        })),
+    );
+    for (const { id, loc } of meetingHits) {
+      if (loc) meetingGeo.set(id, loc);
+    }
+
     const mapWo = (wo: (typeof workOrdersToday)[number]): WorkOrderRow => ({
       id: wo.id,
       number: wo.number,
@@ -1034,7 +1076,7 @@ export async function loadDashboardOverview(
       geoLng: wo.geoLng != null ? Number(wo.geoLng) : null,
     });
 
-    overview.today_events = buildTodayEvents(
+    const todayEvents = buildTodayEvents(
       meetings.map((m) => ({
         id: m.id,
         title: m.title,
@@ -1048,6 +1090,15 @@ export async function loadDashboardOverview(
       })),
       workOrdersToday.map(mapWo),
     );
+    for (const ev of todayEvents) {
+      if (ev.type !== "visit") continue;
+      const g = meetingGeo.get(ev.id);
+      if (g) {
+        ev.lat = g.lat;
+        ev.lng = g.lng;
+      }
+    }
+    overview.today_events = todayEvents;
     overview.jobs_forecast = buildJobsForecast(workOrdersForecast.map(mapWo), now, tz);
   }
 
