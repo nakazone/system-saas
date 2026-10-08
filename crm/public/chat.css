@@ -1,10 +1,15 @@
 /* Internal chat — ObraMate CRM (messenger-style shell) */
 
+/* Desktop: fill viewport under the CRM topbar — no dock/tabbar padding */
+body.om-app.chat-app .dashboard-main.chat-main,
+body.om-app.chat-app.om-has-dock .dashboard-main.chat-main,
 .chat-app .dashboard-main.chat-main {
   padding: 0 !important;
   max-width: none;
-  height: calc(100vh - var(--crm-topbar-height, 56px));
-  overflow: hidden;
+  height: calc(100dvh - var(--crm-topbar-height, 56px)) !important;
+  max-height: calc(100dvh - var(--crm-topbar-height, 56px)) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 .chat-shell {
@@ -916,8 +921,18 @@
   border: 0;
 }
 
-/* Mobile: list OR thread — full-bleed shell above bottom tabbar */
+/* Mobile: list OR thread — full-bleed shell; tabbar reserves space on list only */
 @media (max-width: 900px) {
+  /* Lock body so the chat shell owns the viewport (no page scroll under tabbar) */
+  body.om-app.chat-app,
+  body.om-app.chat-app.om-has-tabbar,
+  body.om-device-mobile.chat-app,
+  body.om-device-mobile.chat-app.om-has-tabbar {
+    height: var(--om-app-height, 100dvh) !important;
+    max-height: var(--om-app-height, 100dvh) !important;
+    overflow: hidden !important;
+  }
+
   /* Own title lives in .chat-list-head / .chat-thread-head */
   body.chat-app .mobile-app-header,
   body.om-device-mobile.chat-app .mobile-app-header {
@@ -930,36 +945,62 @@
     padding: 0 !important;
     width: 100% !important;
     max-width: none !important;
+    height: 100% !important;
   }
 
-  body.chat-app .dashboard-main.chat-main,
+  body.om-app.chat-app .dashboard-main.chat-main,
   body.om-device-mobile.chat-app .dashboard-main.chat-main,
-  body.chat-app.om-has-tabbar .dashboard-main.chat-main,
+  body.om-app.chat-app.om-has-tabbar .dashboard-main.chat-main,
   body.om-device-mobile.chat-app.om-has-tabbar .dashboard-main.chat-main {
     box-sizing: border-box !important;
     margin: 0 !important;
-    padding: env(safe-area-inset-top, 0px) 0 0 !important;
-    height: 100dvh;
-    max-height: 100dvh;
-    min-height: 0;
-    overflow: hidden;
+    padding: 0 !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    height: var(--om-app-height, 100dvh) !important;
+    max-height: var(--om-app-height, 100dvh) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
     background: var(--mod-chrome, #f7f4ee) !important;
   }
 
-  /* Leave room for Campo / Mais tabbar */
-  body.chat-app.om-has-tabbar .dashboard-main.chat-main,
-  body.om-device-mobile.chat-app.om-has-tabbar .dashboard-main.chat-main {
-    height: calc(100dvh - var(--om-tabbar-h, 64px) - env(safe-area-inset-bottom, 0px));
-    max-height: calc(100dvh - var(--om-tabbar-h, 64px) - env(safe-area-inset-bottom, 0px));
+  /* List view: leave room for Campo / office tabbar (bar includes safe-area) */
+  body.om-app.chat-app.om-has-tabbar:not(.chat-show-thread) .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.om-has-tabbar:not(.chat-show-thread) .dashboard-main.chat-main {
+    height: calc(var(--om-app-height, 100dvh) - var(--om-tabbar-h, 64px) - env(safe-area-inset-bottom, 0px)) !important;
+    max-height: calc(var(--om-app-height, 100dvh) - var(--om-tabbar-h, 64px) - env(safe-area-inset-bottom, 0px)) !important;
     padding-bottom: 0 !important;
   }
 
-  /* Office mobile: shared app top bar */
-  body.chat-app.om-has-apptop .dashboard-main.chat-main,
-  body.om-device-mobile.chat-app.om-has-apptop .dashboard-main.chat-main,
-  body.chat-app.om-has-apptop.om-has-tabbar .dashboard-main.chat-main,
-  body.om-device-mobile.chat-app.om-has-apptop.om-has-tabbar .dashboard-main.chat-main {
+  /* Office mobile: shared app top bar on conversation list */
+  body.om-app.chat-app.om-has-apptop:not(.chat-show-thread) .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.om-has-apptop:not(.chat-show-thread) .dashboard-main.chat-main {
     padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  /*
+   * Thread open: true fullscreen messenger.
+   * Hide bottom tabbar (and app top) so they never cover the composer.
+   */
+  body.chat-app.chat-show-thread.om-has-tabbar .om-tabbar,
+  body.om-device-mobile.chat-app.chat-show-thread.om-has-tabbar .om-tabbar {
+    display: none !important;
+  }
+
+  body.chat-app.chat-show-thread.om-has-apptop .om-app-top,
+  body.om-device-mobile.chat-app.chat-show-thread.om-has-apptop .om-app-top {
+    display: none !important;
+  }
+
+  body.om-app.chat-app.chat-show-thread .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.chat-show-thread .dashboard-main.chat-main,
+  body.om-app.chat-app.chat-show-thread.om-has-tabbar .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.chat-show-thread.om-has-tabbar .dashboard-main.chat-main,
+  body.om-app.chat-app.chat-show-thread.om-has-apptop .dashboard-main.chat-main,
+  body.om-device-mobile.chat-app.chat-show-thread.om-has-apptop .dashboard-main.chat-main {
+    height: var(--om-app-height, 100dvh) !important;
+    max-height: var(--om-app-height, 100dvh) !important;
+    padding: 0 !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
   }
 
   .chat-shell {
@@ -998,8 +1039,9 @@
     padding-top: 0.7rem;
   }
 
+  /* Composer safe-area only when tabbar is hidden (thread) or absent */
   .chat-composer {
-    padding-bottom: 0.65rem;
+    padding-bottom: calc(0.65rem + env(safe-area-inset-bottom, 0px));
   }
 
   .chat-composer__row .chat-camera-btn {
