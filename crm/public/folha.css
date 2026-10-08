@@ -214,20 +214,25 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   overflow: hidden;
 }
-/* Relatório de conferência: altura fixa para o corpo rolar de forma confiável */
+/* Relatório de conferência: altura fixa; o corpo (.fo-sheet__bd) precisa rolar */
 .fo-sheet--report {
   height: min(820px, calc(100dvh - 32px));
-  contain: layout paint;
+  max-height: min(820px, calc(100dvh - 32px));
 }
 .fo-sheet--report.is-send-open {
   /* Geometria travada via inline style em JS — evita saltos com teclado/dvh */
   transition: none !important;
 }
 .fo-sheet--report.is-send-open .fo-sheet__bd {
-  overflow: hidden;
+  overflow: hidden !important;
   overscroll-behavior: none;
-  /* Keep pan-y so the send drawer (.fo-pop__body) can still scroll on iOS */
+  touch-action: none;
+}
+.fo-sheet--report.is-send-open .fo-pop__body {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 .fo-sheet__hd { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 12px; background: #fff; border-bottom: 1px solid var(--line); border-radius: 18px 18px 0 0; flex: none; }
 .fo-sheet__hd h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; }
@@ -241,12 +246,19 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 14px 16px 20px;
-  display: grid;
-  gap: 12px;
-  align-content: start;
+  display: block;
 }
-.fo-sheet__bd--scroll { max-height: 100%; }
+.fo-sheet__bd--scroll {
+  min-height: 0;
+}
+.fo-sheet--report .fo-sheet__bd {
+  /* Explicit scroll container for the ticket */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
 
 /* Enviar relatório: sobe de dentro do card de conferência (não do ecrã inteiro) */
 .fo-pop {
@@ -667,18 +679,15 @@ body.fo-page .crm-toast--success * { color: inherit; }
 }
 .fo-mcheck { width: 20px; height: 20px; accent-color: var(--ink); flex: none; margin: 0; }
 
-@media (max-width: 1280px) {
-  .fo-quick__row { grid-template-columns: minmax(140px, 1.1fr) minmax(120px, 0.9fr) auto auto minmax(120px, 0.7fr) minmax(120px, 0.7fr) auto; gap: 8px; }
-  .fo-qseg button { padding: 0 10px; font-size: 12.5px; }
-  .fo-quick__go { min-width: 120px; padding: 0 12px; }
-}
-@media (max-width: 1100px) {
+/* Tablet / narrow desktop: Diária (½ / 1 / Double) always on its own full row */
+@media (max-width: 1400px) {
   .fo-quick__row {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
+    align-items: end;
   }
-  .fo-quick__row .fo-qf--emp { grid-column: 1; }
-  .fo-quick__row .fo-qf--days { grid-column: 2 / -1; }
+  .fo-quick__row .fo-qf--emp { grid-column: 1 / 3; }
+  .fo-quick__row .fo-qf--days { grid-column: 3 / 5; }
   .fo-quick__row .fo-qf--dia {
     grid-column: 1 / -1;
   }
@@ -687,13 +696,18 @@ body.fo-page .crm-toast--success * { color: inherit; }
     width: 100%;
   }
   .fo-quick__row .fo-qf--dia .fo-qseg button {
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
-    padding: 0 8px;
-    font-size: 13px;
+    padding: 0 10px;
+    font-size: 13.5px;
   }
-  .fo-quick__row .fo-qf--money { min-width: 0; }
-  .fo-quick__go { grid-column: 1 / -1; min-width: 0; height: 46px; }
+  .fo-quick__row .fo-qf--ot { grid-column: 1 / 2; }
+  .fo-quick__row .fo-qf--money { grid-column: span 1; min-width: 0; }
+  .fo-quick__go {
+    grid-column: 1 / -1;
+    min-width: 0;
+    height: 46px;
+  }
 }
 /* Phones only: card list. Tablets keep the desktop week table + launch bar. */
 @media (max-width: 720px) {

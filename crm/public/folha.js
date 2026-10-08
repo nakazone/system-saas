@@ -443,7 +443,7 @@
           <div class="fo-qpop" ${st.quick.open ? "" : "hidden"}>${quickDaysGrid()}<p>Marque vários dias para lançar de uma vez. Dias já lançados ficam bloqueados.</p></div>
         </div>
         <div class="fo-qf fo-qf--dia"><small>Diária</small>${quickSeg()}</div>
-        <div class="fo-qf"><small>Hora extra</small>${quickStepper()}</div>
+        <div class="fo-qf fo-qf--ot"><small>Hora extra</small>${quickStepper()}</div>
         ${quickMoneyInputs()}
         <button type="button" class="fo-btn fo-btn--pri fo-quick__go" data-q-go ${ready ? "" : "disabled"}>${esc(quickGoLabel())}</button>
       </div>
@@ -1209,7 +1209,7 @@
        <footer class="fo-sheet__ft fo-sheet__ft--pay">
          <button type="button" class="fo-btn fo-btn--ghost" data-close>Fechar</button>
          <button type="button" class="fo-btn fo-btn--pri fo-sheet__ft-main" data-conf-send>Enviar relatório</button>
-         ${canPay(r) ? `<button type="button" class="fo-btn" data-pay="${esc(r.id)}">Ir para pagamento</button>` : ""}
+         ${canPay(r) ? `<button type="button" class="fo-btn" data-pay="${esc(r.id)}">Pagamento</button>` : ""}
        </footer>`,
     );
     const sheet = $("foSheet");
@@ -1219,8 +1219,7 @@
     sheet._confPhone = digits;
     sheet._confEmail = email;
     sheet._confPhoneLabel = phone;
-    // Trava o card assim que o layout estabiliza — não reajusta ao abrir o envio.
-    requestAnimationFrame(() => lockSheetGeometry(sheet));
+    // Do not freeze geometry here — locking height broke ticket scroll on mobile/tablet.
   }
   function confSendPopEl() {
     const sh = $("foSheet");
@@ -1241,6 +1240,8 @@
     if (!pop || pop.hidden) return;
     pop.classList.remove("is-open");
     sh?.classList.remove("is-send-open");
+    // Restore fluid sheet height so the conference ticket can scroll again.
+    unlockSheetGeometry(sh);
     setTimeout(() => {
       if (pop.classList.contains("is-open")) return;
       pop.hidden = true;
