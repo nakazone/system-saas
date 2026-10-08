@@ -1,8 +1,17 @@
 /* Internal chat — ObraMate CRM (messenger-style shell) */
 
-/* Desktop: fill viewport under the CRM topbar — no dock/tabbar padding */
+/* Desktop / tablet: fill viewport under the CRM topbar — no floating dock */
+body.om-app.chat-app .om-dock,
+body.om-app.chat-app #omDock,
+body.om-device-tablet.chat-app .om-dock,
+body.om-device-tablet.chat-app #omDock {
+  display: none !important;
+}
+
 body.om-app.chat-app .dashboard-main.chat-main,
 body.om-app.chat-app.om-has-dock .dashboard-main.chat-main,
+body.om-device-tablet.chat-app .dashboard-main.chat-main,
+body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 .chat-app .dashboard-main.chat-main {
   padding: 0 !important;
   max-width: none;

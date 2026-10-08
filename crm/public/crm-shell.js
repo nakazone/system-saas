@@ -250,12 +250,14 @@
     if (document.getElementById("omDock")) return;
     // Home pipeline page has its own dock
     if (document.body.classList.contains("plab") && document.querySelector(".plab-dock")) return;
-    // Quote builder has its own action bar — never stack a second bottom chrome
+    // Quote builder / ObraChat own the bottom of the viewport — no floating dock
     const file = (location.pathname || "").split("/").pop() || "";
     if (
       document.body.classList.contains("qb-sidebar-page") ||
+      document.body.classList.contains("chat-app") ||
       document.getElementById("qbActionBar") ||
-      /^quote-builder\.html$/i.test(file)
+      /^quote-builder\.html$/i.test(file) ||
+      /^chat\.html$/i.test(file)
     ) {
       document.body.classList.add("om-no-dock");
       return;
