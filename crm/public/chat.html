@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261001-tablet1" />
-  <link rel="stylesheet" href="chat.css?v=20260928-chat6" />
+  <link rel="stylesheet" href="chat.css?v=20261008-chat7" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
@@ -95,41 +95,15 @@
             </div>
             <label class="chat-search">
               <span class="visually-hidden">Buscar</span>
+              <svg class="chat-search__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
               <input type="search" id="chatListSearch" placeholder="Buscar conversas…" autocomplete="off" />
             </label>
             <div class="chat-list-tabs" role="tablist">
               <button type="button" class="chat-list-tab is-active" data-filter="all" role="tab">Todas</button>
+              <button type="button" class="chat-list-tab" data-filter="unread" role="tab">Não lidas</button>
               <button type="button" class="chat-list-tab" data-filter="job" role="tab">Jobs</button>
               <button type="button" class="chat-list-tab" data-filter="group" role="tab">Grupos</button>
               <button type="button" class="chat-list-tab" data-filter="dm" role="tab">Diretas</button>
-            </div>
-            <div class="chat-job-filters" id="chatJobFilters" hidden>
-              <label class="chat-job-filters__field">
-                <span class="visually-hidden">Status</span>
-                <select id="chatJobStatus" aria-label="Status do job">
-                  <option value="active">Ativos</option>
-                  <option value="all">Todos</option>
-                  <option value="draft">Rascunho</option>
-                  <option value="scheduled">Agendado</option>
-                  <option value="in_progress">Em andamento</option>
-                  <option value="completed">Concluído</option>
-                  <option value="canceled">Cancelado</option>
-                </select>
-              </label>
-              <label class="chat-job-filters__field">
-                <span class="visually-hidden">De</span>
-                <input type="date" id="chatJobFrom" aria-label="Data inicial" />
-              </label>
-              <label class="chat-job-filters__field">
-                <span class="visually-hidden">Até</span>
-                <input type="date" id="chatJobTo" aria-label="Data final" />
-              </label>
-              <div class="chat-job-filters__presets" role="group" aria-label="Período rápido">
-                <button type="button" class="chat-job-preset" data-preset="today">Hoje</button>
-                <button type="button" class="chat-job-preset" data-preset="week">Semana</button>
-                <button type="button" class="chat-job-preset" data-preset="month">Mês</button>
-                <button type="button" class="chat-job-preset" data-preset="clear">Limpar</button>
-              </div>
             </div>
           </header>
           <div class="chat-list-scroll" id="chatListScroll">
@@ -141,7 +115,13 @@
         <!-- Right: thread -->
         <section class="chat-thread-pane" id="chatThreadPane" aria-label="Conversa">
           <div class="chat-thread-empty" id="chatThreadEmpty">
-            <p>Selecione uma conversa ou inicie uma nova.</p>
+            <div class="chat-thread-empty__card">
+              <span class="chat-thread-empty__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="1.75"/></svg>
+              </span>
+              <p class="chat-thread-empty__title">ObraChat</p>
+              <p>Escolha uma conversa à esquerda ou inicie uma nova.</p>
+            </div>
           </div>
 
           <div class="chat-thread" id="chatThread" hidden>
@@ -255,6 +235,6 @@
   <script src="saas-branding.js?v=20260929-navia1"></script>
   <script src="om-mobile-nav.js?v=20261007-nav2"></script>
   <script src="chat-realtime.js?v=20260928-chat1"></script>
-  <script src="chat.js?v=20260929-obranames1"></script>
+  <script src="chat.js?v=20261008-chat7"></script>
 </body>
 </html>
