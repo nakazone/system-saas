@@ -447,6 +447,76 @@
 }
 
 /* —— Field photos board (ObraCam) —— */
+.jmb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin: 0 0 0.85rem;
+}
+
+.jmb-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 280px;
+  max-width: 420px;
+  min-width: 0;
+}
+
+.jmb-search__icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--jobs-muted, #78716c);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.jmb-search input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--jobs-border, #e7e5e4);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 2.4rem 0 2.45rem;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--jobs-ink, #1c1917);
+}
+
+.jmb-search input:focus {
+  outline: none;
+  border-color: var(--brand, #e8792c);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #e8792c) 18%, transparent);
+}
+
+.jmb-search__clear {
+  position: absolute;
+  right: 0.4rem;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--jobs-muted, #78716c);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jmb-search__clear:hover {
+  background: var(--jobs-surface-soft, #f5f4f2);
+  color: var(--jobs-ink, #1c1917);
+}
+
+.jmb-search__meta {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--jobs-muted, #78716c);
+}
+
 .jmb-panels {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
@@ -525,11 +595,117 @@
 .jmb-feed__gps.is-far { color: #c2410c; }
 .jmb-feed__gps.is-off { color: #8a8074; font-weight: 600; }
 
+.jmb-marker {
+  background: transparent;
+  border: none;
+}
+
+.jmb-marker__pin {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(33, 29, 26, 0.35);
+}
+
 .jmb-marker__pin--photo {
   width: 12px !important;
   height: 12px !important;
   border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+/* Job pin with photo thumbnails */
+.jmb-marker__stack {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 44px;
+  filter: drop-shadow(0 2px 6px rgba(28, 25, 23, 0.35));
+}
+
+.jmb-marker__stack.is-stale {
+  outline: 2px solid #c2410c;
+  outline-offset: 1px;
+  border-radius: 12px;
+}
+
+.jmb-marker__stack.is-ok {
+  outline: 2px solid #065f46;
+  outline-offset: 1px;
+  border-radius: 12px;
+}
+
+.jmb-marker__thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid #fff;
+  background: #ebe7e0;
+}
+
+.jmb-marker__thumb:nth-child(1) { z-index: 3; transform: translate(0, 0); }
+.jmb-marker__thumb:nth-child(2) { z-index: 2; transform: translate(7px, 4px); }
+.jmb-marker__thumb:nth-child(3) { z-index: 1; transform: translate(14px, 8px); }
+
+.jmb-marker__n {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  z-index: 4;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: #1c1917;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  display: inline-grid;
+  place-items: center;
+  border: 2px solid #fff;
+  line-height: 1;
+}
+
+.jmb-marker__photo-thumb {
+  display: block;
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2.5px solid #fff;
+  box-shadow: 0 2px 8px rgba(28, 25, 23, 0.35);
+  background: #ebe7e0;
+}
+
+.jmb-marker__photo-thumb.is-far {
+  border-color: #c2410c;
+}
+
+.jmb-popup-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0.45rem 0 0.35rem;
+}
+
+.jmb-popup-thumbs a {
+  display: block;
+  line-height: 0;
+}
+
+.jmb-popup-thumbs img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  background: #ebe7e0;
 }
 
 .jmb-badge {
@@ -551,20 +727,6 @@
 .jmb-badge--warn {
   background: #ffedd5;
   color: #c2410c;
-}
-
-.jmb-marker {
-  background: transparent;
-  border: none;
-}
-
-.jmb-marker__pin {
-  display: block;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(33, 29, 26, 0.35);
 }
 
 .job-media-upload {

@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20260924-omapp" />
   <link rel="stylesheet" href="obramate-app.css?v=20260930-maismob2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261001-tablet1" />
-  <link rel="stylesheet" href="jobs.css?v=20261006-ui2" />
+  <link rel="stylesheet" href="jobs.css?v=20261008-obracam1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261007-stable1"></script>
@@ -105,6 +105,17 @@
           </div>
         </div>
 
+        <div class="jmb-toolbar">
+          <label class="jmb-search">
+            <span class="jmb-search__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            </span>
+            <input type="search" id="jmbSearch" placeholder="Buscar job, título ou morada…" autocomplete="off" enterkeyhint="search" />
+            <button type="button" class="jmb-search__clear" id="jmbSearchClear" hidden aria-label="Limpar busca">×</button>
+          </label>
+          <span class="jmb-search__meta" id="jmbSearchMeta"></span>
+        </div>
+
         <div class="jmb-panels">
           <section class="job-card jmb-panel">
             <div class="job-card__head">
@@ -154,6 +165,6 @@
   <script src="crm-shared-nav.js?v=20261007-nav2"></script>
   <script src="crm-shell.js?v=20261008-name1"></script>
   <script src="om-mobile-nav.js?v=20261007-nav2"></script>
-  <script src="job-media-board.js?v=20261006-deliv1"></script>
+  <script src="job-media-board.js?v=20261008-obracam1"></script>
 </body>
 </html>

@@ -1,6 +1,11 @@
 (function () {
   let map = null;
   let mapMarkers = [];
+  let allJobs = [];
+  let allFeed = [];
+  let searchQ = "";
+  let searchTimer = null;
+  let mapGen = 0;
   const GEO_CACHE_KEY = "om_jmb_geocode_v1";
   const geoCache = loadGeoCache();
 
@@ -82,6 +87,52 @@
     if (el) el.textContent = text || "";
   }
 
+  function photoSrc(p) {
+    return (p && (p.url || p.thumb_url)) || "";
+  }
+
+  function normalizeQuery(q) {
+    return String(q || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function jobMatches(j, q) {
+    if (!q) return true;
+    const hay = normalizeQuery(
+      [j.number, j.title, j.address, j.status, j.field_status, proofLabel(j)].filter(Boolean).join(" "),
+    );
+    return hay.includes(q);
+  }
+
+  function feedMatches(p, q) {
+    if (!q) return true;
+    const hay = normalizeQuery(
+      [p.job_number, p.job_title, p.stage, p.caption, p.address, p.author_name].filter(Boolean).join(" "),
+    );
+    return hay.includes(q);
+  }
+
+  function filteredJobs() {
+    return allJobs.filter((j) => jobMatches(j, searchQ));
+  }
+
+  function filteredFeed() {
+    return allFeed.filter((p) => feedMatches(p, searchQ));
+  }
+
+  function setSearchMeta(jobs, feed) {
+    const meta = document.getElementById("jmbSearchMeta");
+    if (!meta) return;
+    if (!searchQ) {
+      meta.textContent = "";
+      return;
+    }
+    meta.textContent = `${jobs.length} job(s) · ${feed.length} foto(s)`;
+  }
+
   function renderOverview(jobs) {
     const total = jobs.length;
     const ok = jobs.filter((j) => j.last_photo && !j.stale).length;
@@ -107,7 +158,9 @@
     const feedEl = document.getElementById("jmbFeed");
     if (!feedEl) return;
     if (!feed.length) {
-      feedEl.innerHTML = '<p class="jobs-empty" style="padding:1rem 0">Ainda sem fotos recentes.</p>';
+      feedEl.innerHTML = searchQ
+        ? '<p class="jobs-empty" style="padding:1rem 0">Nenhuma foto corresponde à busca.</p>'
+        : '<p class="jobs-empty" style="padding:1rem 0">Ainda sem fotos recentes.</p>';
       return;
     }
     feedEl.innerHTML = feed
@@ -139,7 +192,9 @@
     const body = document.getElementById("jmbJobsBody");
     if (!body) return;
     if (!jobs.length) {
-      body.innerHTML = '<tr><td colspan="5" class="jobs-empty">Nenhum job aberto no período.</td></tr>';
+      body.innerHTML = searchQ
+        ? '<tr><td colspan="5" class="jobs-empty">Nenhum job corresponde à busca.</td></tr>'
+        : '<tr><td colspan="5" class="jobs-empty">Nenhum job aberto no período.</td></tr>';
       return;
     }
     body.innerHTML = jobs
@@ -154,10 +209,19 @@
         const gpsHint = gpsCount
           ? `<div class="jobs-table__muted">${gpsCount} foto(s) com GPS${far ? " · longe do job" : ""}</div>`
           : "";
+        const thumbs = (j.photos || [])
+          .slice(0, 4)
+          .map(
+            (p) =>
+              `<img src="${escapeHtml(photoSrc(p))}" alt="" loading="lazy" style="width:28px;height:28px;object-fit:cover;border-radius:6px;border:1px solid #e7e5e4;margin-right:2px;vertical-align:middle;background:#ebe7e0" />`,
+          )
+          .join("");
+        const more = (j.photos || []).length > 4 ? `<span class="jobs-table__muted">+${j.photos.length - 4}</span>` : "";
         return `<tr>
           <td>
             <a class="jobs-table__client" href="${escapeHtml(j.detail_url)}">#${escapeHtml(String(j.number ?? "—"))}</a>
             <div class="jobs-table__muted">${escapeHtml(j.title || "")}</div>
+            ${thumbs ? `<div style="margin-top:0.35rem;line-height:0">${thumbs}${more}</div>` : ""}
             ${gpsHint}
           </td>
           <td class="jobs-table__muted">${escapeHtml(j.address || "—")}</td>
@@ -207,17 +271,48 @@
     return "#065f46";
   }
 
+  function jobPinHtml(j) {
+    const photos = (j.photos || []).filter((p) => photoSrc(p)).slice(0, 3);
+    if (!photos.length) {
+      const color = markerColor(j);
+      return `<span class="jmb-marker__pin" style="background:${color};width:18px;height:18px"></span>`;
+    }
+    const tone = j.stale || !j.last_photo ? "is-stale" : "is-ok";
+    const imgs = photos
+      .map((p) => `<img class="jmb-marker__thumb" src="${escapeHtml(photoSrc(p))}" alt="" />`)
+      .join("");
+    const total = (j.photos || []).length;
+    const badge = total > 1 ? `<span class="jmb-marker__n">${total > 9 ? "9+" : total}</span>` : "";
+    return `<span class="jmb-marker__stack ${tone}">${imgs}${badge}</span>`;
+  }
+
+  function popupThumbsHtml(j) {
+    const photos = (j.photos || []).filter((p) => photoSrc(p)).slice(0, 6);
+    if (!photos.length) return "";
+    const imgs = photos
+      .map(
+        (p) =>
+          `<a href="${escapeHtml(j.detail_url)}"><img src="${escapeHtml(photoSrc(p))}" alt="" loading="lazy" /></a>`,
+      )
+      .join("");
+    const extra =
+      (j.photos || []).length > 6
+        ? `<span style="font-size:11px;color:#8a8074;align-self:center">+${j.photos.length - 6}</span>`
+        : "";
+    return `<div class="jmb-popup-thumbs">${imgs}${extra}</div>`;
+  }
+
   function addJobMarker(j, lat, lng, source) {
     if (!map || lat == null || lng == null) return null;
-    const color = source === "site" ? "#1d4ed8" : markerColor(j);
-    const size = source === "photo" ? 14 : 18;
+    const hasThumbs = (j.photos || []).some((p) => photoSrc(p));
+    const size = hasThumbs ? 44 : 18;
     const icon = L.divIcon({
       className: "jmb-marker",
-      html: `<span class="jmb-marker__pin" style="background:${color};width:${size}px;height:${size}px"></span>`,
+      html: jobPinHtml(j),
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     });
-    const m = L.marker([lat, lng], { icon }).addTo(map);
+    const m = L.marker([lat, lng], { icon, zIndexOffset: hasThumbs ? 200 : 100 }).addTo(map);
     const sourceLabel =
       source === "photo" ? "GPS da foto" : source === "site" ? "Local do job (GPS/fotos)" : "Endereço do job";
     const tip = j.address || `#${j.number ?? ""} ${j.title || ""}`.trim() || sourceLabel;
@@ -225,7 +320,8 @@
     m.bindPopup(
       `<strong>#${escapeHtml(String(j.number ?? ""))}</strong> · ${escapeHtml(proofLabel(j))}<br/>` +
         `${escapeHtml(j.title || "")}<br/>` +
-        `<span style="color:#6b645c;font-size:12px">${escapeHtml(j.address || "")}</span><br/>` +
+        `<span style="color:#6b645c;font-size:12px">${escapeHtml(j.address || "")}</span>` +
+        popupThumbsHtml(j) +
         `<span style="color:#8a8074;font-size:11px">${sourceLabel}</span><br/>` +
         `<a href="${escapeHtml(j.detail_url)}">Abrir job</a>`,
     );
@@ -236,25 +332,35 @@
   function addPhotoMarker(j, photo) {
     if (!map || photo?.lat == null || photo?.lng == null) return null;
     const far = Boolean(photo.far_from_job);
-    const color = far ? "#c2410c" : "#065f46";
+    const src = photoSrc(photo);
+    const html = src
+      ? `<img class="jmb-marker__photo-thumb${far ? " is-far" : ""}" src="${escapeHtml(src)}" alt="" />`
+      : `<span class="jmb-marker__pin jmb-marker__pin--photo" style="background:${far ? "#c2410c" : "#065f46"}"></span>`;
+    const size = src ? 34 : 12;
     const icon = L.divIcon({
       className: "jmb-marker",
-      html: `<span class="jmb-marker__pin jmb-marker__pin--photo" style="background:${color}"></span>`,
-      iconSize: [12, 12],
-      iconAnchor: [6, 6],
+      html,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
     });
-    const m = L.marker([Number(photo.lat), Number(photo.lng)], { icon }).addTo(map);
+    const m = L.marker([Number(photo.lat), Number(photo.lng)], { icon, zIndexOffset: 50 }).addTo(map);
     const dist = fmtDistance(photo.distance_m);
     const maps = `https://maps.google.com/?q=${encodeURIComponent(`${photo.lat},${photo.lng}`)}`;
     const when = fmtWhen(photo.taken_at_device || photo.created_at);
     const addr = photo.address || j.address || `${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`;
     const tip = [when, addr].filter(Boolean).join(" · ");
     m.bindTooltip(escapeHtml(tip), { direction: "top", opacity: 0.95, sticky: true });
+    const preview = src
+      ? `<a href="${escapeHtml(j.detail_url)}"><img src="${escapeHtml(src)}" alt="" style="width:100%;max-width:160px;height:100px;object-fit:cover;border-radius:8px;display:block;margin:0.4rem 0;background:#ebe7e0" /></a>`
+      : "";
     m.bindPopup(
       `<strong>#${escapeHtml(String(j.number ?? ""))}</strong> · foto<br/>` +
         `${escapeHtml(stageLabel(photo.stage))} · ${escapeHtml(when)}<br/>` +
+        preview +
         `<span style="color:#6b645c;font-size:12px">${escapeHtml(addr)}</span><br/>` +
-        (dist ? `<span style="color:${far ? "#c2410c" : "#065f46"};font-size:12px">${far ? "Longe" : "No local"} · ${escapeHtml(dist)}</span><br/>` : "") +
+        (dist
+          ? `<span style="color:${far ? "#c2410c" : "#065f46"};font-size:12px">${far ? "Longe" : "No local"} · ${escapeHtml(dist)}</span><br/>`
+          : "") +
         `<a href="${escapeHtml(maps)}" target="_blank" rel="noopener">Abrir no Maps</a> · ` +
         `<a href="${escapeHtml(j.detail_url)}">Job</a>`,
     );
@@ -272,6 +378,7 @@
   async function renderMap(jobs) {
     const el = document.getElementById("jmbMap");
     if (!el || typeof L === "undefined") return;
+    const gen = ++mapGen;
 
     mapMarkers = [];
     if (map) {
@@ -302,10 +409,15 @@
         needGeocode.push(j);
       }
     }
+    if (gen !== mapGen) return;
     fitMap();
 
     if (!photoPins && !sitePins && !needGeocode.length) {
-      setMapStatus("Sem coordenadas — tire fotos com GPS no Campo ou adicione endereço nos jobs.");
+      setMapStatus(
+        searchQ
+          ? "Nenhum resultado com coordenadas na busca."
+          : "Sem coordenadas — tire fotos com GPS no Campo ou adicione endereço nos jobs.",
+      );
       return;
     }
 
@@ -324,8 +436,10 @@
     let placed = sitePins;
     let failed = 0;
     for (let i = 0; i < needGeocode.length; i++) {
+      if (gen !== mapGen) return;
       const j = needGeocode[i];
       const geo = await geocodeAddress(j.address);
+      if (gen !== mapGen) return;
       if (geo) {
         addJobMarker(j, geo.lat, geo.lng, "address");
         placed += 1;
@@ -340,6 +454,7 @@
           (i + 1 < needGeocode.length ? ` · a processar ${i + 2}/${needGeocode.length}` : ""),
       );
     }
+    if (gen !== mapGen) return;
     setMapStatus(
       photoPins || placed
         ? `${photoPins} foto(s) com GPS` +
@@ -349,15 +464,49 @@
     );
   }
 
-  async function load() {
-    setMapStatus("A carregar…");
-    const json = await api("/api/job-media/board?days=3");
-    const jobs = json.data?.jobs || [];
-    const feed = json.data?.feed || [];
+  function applyFilters() {
+    const jobs = filteredJobs();
+    const feed = filteredFeed();
+    setSearchMeta(jobs, feed);
     renderOverview(jobs);
     renderFeed(feed);
     renderJobs(jobs);
-    await renderMap(jobs);
+    renderMap(jobs).catch(() => {});
+  }
+
+  function wireSearch() {
+    const input = document.getElementById("jmbSearch");
+    const clearBtn = document.getElementById("jmbSearchClear");
+    if (!input) return;
+
+    const syncClear = () => {
+      if (clearBtn) clearBtn.hidden = !String(input.value || "").trim();
+    };
+
+    input.addEventListener("input", () => {
+      syncClear();
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        searchQ = normalizeQuery(input.value);
+        applyFilters();
+      }, 180);
+    });
+
+    clearBtn?.addEventListener("click", () => {
+      input.value = "";
+      searchQ = "";
+      syncClear();
+      applyFilters();
+      input.focus();
+    });
+  }
+
+  async function load() {
+    setMapStatus("A carregar…");
+    const json = await api("/api/job-media/board?days=3");
+    allJobs = json.data?.jobs || [];
+    allFeed = json.data?.feed || [];
+    applyFilters();
   }
 
   document.getElementById("jmbReload")?.addEventListener("click", () => {
@@ -365,6 +514,8 @@
       if (window.crmToast?.show) window.crmToast.show(e.message || "Falha ao atualizar", { type: "error" });
     });
   });
+
+  wireSearch();
 
   load().catch((e) => {
     const feedEl = document.getElementById("jmbFeed");
