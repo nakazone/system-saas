@@ -26,7 +26,17 @@
 .fo-hd h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
 .fo-hd p { margin: 4px 0 0; color: var(--muted); font-weight: 600; font-size: 14px; }
 .fo-hd__act { display: flex; gap: 8px; flex: none; }
-.fo-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 18px; overflow-x: auto; scrollbar-width: none; }
+.fo-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
 .fo-tabs::-webkit-scrollbar { display: none; }
 .fo-tabs button { appearance: none; border: 0; background: none; font: inherit; font-size: 14.5px; font-weight: 700; color: var(--muted); padding: 11px 14px 12px; border-bottom: 2.5px solid transparent; margin-bottom: -1px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 .fo-tabs button:hover { color: var(--ink); }
@@ -125,6 +135,12 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-day-swipe { border-radius: 10px; background: #fff; }
 .fo-day-swipe .fo-day { border-radius: 10px; background: var(--cream, #f7f4ee); }
 .fo-day-swipe.om-swipe--open .fo-day { background: #fff; }
+.fo-emp-swipe { border-radius: 16px; background: #fff; margin-bottom: 0; }
+.fo-emp-swipe + .fo-emp-swipe,
+.fo-emp-swipe + .fo-mcard,
+.fo-mcard + .fo-emp-swipe { margin-top: 10px; }
+.fo-emp-swipe .fo-mcard { border: 0; margin: 0; }
+.fo-emp-swipe.om-swipe--open .fo-mcard { box-shadow: inset 0 0 0 1px var(--line); }
 .fo-day { display: grid; grid-template-columns: 84px 150px 1fr auto auto; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; cursor: pointer; font-size: 13.5px; }
 .fo-day:hover { background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
 .fo-day__d { font-weight: 800; }
@@ -210,7 +226,8 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-sheet--report.is-send-open .fo-sheet__bd {
   overflow: hidden;
   overscroll-behavior: none;
-  touch-action: none;
+  /* Keep pan-y so the send drawer (.fo-pop__body) can still scroll on iOS */
+  touch-action: pan-y;
 }
 .fo-sheet__hd { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 12px; background: #fff; border-bottom: 1px solid var(--line); border-radius: 18px 18px 0 0; flex: none; }
 .fo-sheet__hd h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; }
@@ -288,8 +305,11 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-pop__body {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 6px 16px calc(18px + env(safe-area-inset-bottom));
   display: grid;
   gap: 12px;
@@ -654,16 +674,29 @@ body.fo-page .crm-toast--success * { color: inherit; }
 }
 @media (max-width: 1100px) {
   .fo-quick__row {
-    grid-template-columns: 1fr 1fr minmax(120px, 0.75fr) minmax(120px, 0.75fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
   }
   .fo-quick__row .fo-qf--emp { grid-column: 1; }
   .fo-quick__row .fo-qf--days { grid-column: 2 / -1; }
-  .fo-quick__row .fo-qf--money { min-width: 120px; }
+  .fo-quick__row .fo-qf--dia {
+    grid-column: 1 / -1;
+  }
+  .fo-quick__row .fo-qf--dia .fo-qseg {
+    display: flex;
+    width: 100%;
+  }
+  .fo-quick__row .fo-qf--dia .fo-qseg button {
+    flex: 1;
+    min-width: 0;
+    padding: 0 8px;
+    font-size: 13px;
+  }
+  .fo-quick__row .fo-qf--money { min-width: 0; }
   .fo-quick__go { grid-column: 1 / -1; min-width: 0; height: 46px; }
 }
-/* iPad / tablets (incl. landscape ~1180–1366): cards so Ajustes + Pagar stay visible */
-@media (max-width: 1400px) {
+/* Phones only: card list. Tablets keep the desktop week table + launch bar. */
+@media (max-width: 720px) {
   .fo-tbl-wrap--week { display: none; }
   .fo-mlist { display: block; }
   .fo-mcard__top { cursor: pointer; }

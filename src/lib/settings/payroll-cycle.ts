@@ -68,6 +68,8 @@ export const payCyclePatchSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .nullable()
     .optional(),
+  /** with_day = follow the diária's cycle; open_period = always current open payroll period */
+  reimbursement_timing: z.enum(["with_day", "open_period"]).optional(),
 });
 
 export type PayCyclePatch = z.infer<typeof payCyclePatchSchema>;
@@ -143,8 +145,24 @@ export function applyPayCyclePatch(
   };
   payroll.cycle = next;
   delete payroll.preset;
+  if (patch.reimbursement_timing !== undefined) {
+    payroll.reimbursement_timing = patch.reimbursement_timing;
+  }
   root.payroll = payroll;
   return root;
+}
+
+/** When reimbursement is approved, which payroll period receives it. */
+export type ReimbursementTiming = "with_day" | "open_period";
+
+export function parseReimbursementTiming(featureFlags: unknown): ReimbursementTiming {
+  if (!featureFlags || typeof featureFlags !== "object" || Array.isArray(featureFlags)) {
+    return "with_day";
+  }
+  const payroll = (featureFlags as Record<string, unknown>).payroll;
+  if (!payroll || typeof payroll !== "object" || Array.isArray(payroll)) return "with_day";
+  const v = String((payroll as Record<string, unknown>).reimbursement_timing || "with_day");
+  return v === "open_period" ? "open_period" : "with_day";
 }
 
 export function addUtcDays(ymd: string, days: number): string {

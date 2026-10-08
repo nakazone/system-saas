@@ -4,6 +4,7 @@
  */
 import { Prisma } from "@prisma/client";
 import type { PayrollTx } from "../../crm/lib/payroll-employee-link.js";
+import { parseReimbursementTiming } from "../settings/payroll-cycle.js";
 import { periodFor } from "./day-service.js";
 
 export type ExpenseKind = "reimbursement" | "discount";
@@ -68,7 +69,15 @@ export async function syncExpenseIntoAdjustment(
   });
   if (!e) throw Object.assign(new Error("Lançamento não encontrado"), { status: 404 });
 
-  const period = await periodFor(tx, e.organizationId, e.shift.workDate);
+  const org = await tx.organization.findUnique({
+    where: { id: e.organizationId },
+    select: { featureFlags: true },
+  });
+  const timing = parseReimbursementTiming(org?.featureFlags);
+  // open_period: reembolso/desconto entra na folha aberta de hoje, mesmo se a diária for de outro ciclo.
+  const periodAnchor =
+    timing === "open_period" && e.kind === "reimbursement" ? new Date() : e.shift.workDate;
+  const period = await periodFor(tx, e.organizationId, periodAnchor);
   const amount = money(num(e.amount));
   const isReimb = e.kind === "reimbursement";
   let appliedAt = e.appliedAt;

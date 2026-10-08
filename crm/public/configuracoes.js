@@ -2431,6 +2431,7 @@
       pay_offset_days: Number($("folha_pay_offset")?.value || 0),
       pay_day_of_month: Number($("folha_pay_dom")?.value || 15),
       biweekly_anchor_ymd: $("folha_biweekly_anchor")?.value || null,
+      reimbursement_timing: $("folha_reimbursement_timing")?.value === "open_period" ? "open_period" : "with_day",
     };
   }
 
@@ -2504,6 +2505,8 @@
     if ($("folha_pay_offset")) $("folha_pay_offset").value = String(cycle.pay_offset_days ?? 0);
     if ($("folha_pay_dom")) $("folha_pay_dom").value = String(cycle.pay_day_of_month ?? 15);
     if ($("folha_biweekly_anchor")) $("folha_biweekly_anchor").value = cycle.biweekly_anchor_ymd || "";
+    const reimbTiming = data?.reimbursement_timing || cycle.reimbursement_timing || "with_day";
+    if ($("folha_reimbursement_timing")) $("folha_reimbursement_timing").value = reimbTiming;
     if ($("folhaCycleSummary")) $("folhaCycleSummary").textContent = data?.summary || "—";
     renderFolhaPreview(data?.preview);
     syncFolhaFieldVisibility();

@@ -658,6 +658,21 @@
                 </article>
 
                 <article class="cfg-card">
+                  <h3 class="cfg-card__title">Reembolso no lançamento</h3>
+                  <p class="cfg-card__desc">Quando a diária e o reembolso não devem cair na mesma folha.</p>
+                  <div class="cfg-field" style="margin-top:0.75rem">
+                    <label for="folha_reimbursement_timing">Reembolso entra em</label>
+                    <select id="folha_reimbursement_timing">
+                      <option value="with_day">Mesma folha da diária (padrão)</option>
+                      <option value="open_period">Folha aberta atual — mesmo se a diária for de outro ciclo</option>
+                    </select>
+                    <p class="cfg-hint" style="margin-top:0.55rem">
+                      Ex.: diária só será paga na semana que vem, mas o reembolso já entra no pagamento desta semana.
+                    </p>
+                  </div>
+                </article>
+
+                <article class="cfg-card">
                   <h3 class="cfg-card__title">Calendário ilustrativo</h3>
                   <p class="cfg-card__desc">Próximos períodos com o dia de pagamento destacado.</p>
                   <div id="folhaCyclePreview" class="cfg-cycle-preview" aria-live="polite"></div>
@@ -968,6 +983,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261007-invsms1"></script>
+  <script src="configuracoes.js?v=20261008-folha30"></script>
 </body>
 </html>

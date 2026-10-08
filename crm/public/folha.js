@@ -442,7 +442,7 @@
           <button type="button" class="fo-qdates" data-q-dates aria-expanded="${st.quick.open}"><span>${esc(quickDatesLabel())}</span><i aria-hidden="true">▾</i></button>
           <div class="fo-qpop" ${st.quick.open ? "" : "hidden"}>${quickDaysGrid()}<p>Marque vários dias para lançar de uma vez. Dias já lançados ficam bloqueados.</p></div>
         </div>
-        <div class="fo-qf"><small>Diária</small>${quickSeg()}</div>
+        <div class="fo-qf fo-qf--dia"><small>Diária</small>${quickSeg()}</div>
         <div class="fo-qf"><small>Hora extra</small>${quickStepper()}</div>
         ${quickMoneyInputs()}
         <button type="button" class="fo-btn fo-btn--pri fo-quick__go" data-q-go ${ready ? "" : "disabled"}>${esc(quickGoLabel())}</button>
@@ -464,7 +464,7 @@
     return `<div class="fo-box"><h3>Funcionário</h3>${secs.map(chips).join("")}${emps.length ? `<p class="fo-qhint" data-q-hint>${esc(quickHint())}</p>` : `<p class="fo-muted">${esc(emptyMsg)}</p>`}</div>
       <div class="fo-box"><h3>Dias do ciclo <small>${esc(st.week.week.label)}</small></h3>${quickDaysGrid()}</div>
       <div class="fo-box"><h3>Diária</h3>${quickSeg()}<div class="fo-qot"><b>Hora extra</b>${quickStepper()}</div></div>
-      <div class="fo-box"><h3>Ajustes (opcional)</h3><div class="fo-grid2">${quickMoneyInputs()}</div><p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Entram aprovados no líquido da semana.</p></div>`;
+      <div class="fo-box"><h3>Ajustes (opcional)</h3><div class="fo-grid2">${quickMoneyInputs()}</div><p class="fo-muted" style="margin:8px 0 0;font-size:12.5px;font-weight:600">Reembolso/desconto entram aprovados. Em Configurações › Folha dá para mandar o reembolso para a folha aberta atual, mesmo se a diária for de outro ciclo.</p></div>`;
   }
   function openQuickSheet() {
     const sec = sectorLabel();
@@ -659,7 +659,9 @@
         if (r.totals.discount) bits.push(`<span class="fo-warn">−${money(r.totals.discount)} desc.</span>`);
         if (st.sector === "all") bits.push(esc(SECTORS[r.sector]));
         const acts = rowActions(r, true);
-        return `<div class="fo-mcard${open ? " is-open" : ""}" data-emp-card="${esc(r.id)}">
+        const manualDays = (r.days || []).filter((d) => d.kind !== "line" && d.source === "manual");
+        const canSwipeDel = st.manage && !r.payment && manualDays.length > 0;
+        const card = `<div class="fo-mcard${open ? " is-open" : ""}${canSwipeDel ? " om-swipe__body" : ""}" data-emp-card="${esc(r.id)}">
           <div class="fo-mcard__top" data-toggle="${esc(r.id)}">
             <span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span>
             <div class="fo-name"><span><b>${esc(r.name)}</b><small>${bits.join(" · ")}</small></span></div>
@@ -672,6 +674,13 @@
           ${acts ? `<div class="fo-mcard__btns">${acts}</div>` : ""}
           ${open ? `<div class="fo-days">${dayRows(r)}</div>` : ""}
         </div>`;
+        if (!canSwipeDel) return card;
+        return `<article class="om-swipe fo-emp-swipe">
+          <div class="om-swipe__actions" aria-hidden="true">
+            <button type="button" class="om-swipe__act--delete" data-emp-days-del="${esc(r.id)}" data-emp-label="${esc(r.name)}" data-emp-days-n="${manualDays.length}">Excluir</button>
+          </div>
+          ${card}
+        </article>`;
       })
       .join("")}</div>`;
     box.innerHTML = pweek + renderQuickBar() + stats + filters + table + cards + fab;
@@ -964,6 +973,39 @@
     } catch (e) {
       notify(e.message, "error");
     }
+  }
+  /** Swipe on employee total card → remove all office-launched diárias in this cycle. */
+  async function empDaysDelete(empId, empLabel, countHint) {
+    if (!st.manage || !empId) return;
+    const r = (st.week?.employees || []).find((x) => x.id === empId);
+    if (!r || r.payment) return;
+    const manual = (r.days || []).filter((d) => d.kind !== "line" && d.source === "manual");
+    if (!manual.length) {
+      notify("Não há diárias lançadas pelo escritório para excluir.", "info");
+      return;
+    }
+    const n = countHint || manual.length;
+    const name = empLabel || r.name || "funcionário";
+    if (
+      !confirm(
+        `Excluir ${n} diária${n > 1 ? "s" : ""} de ${name} neste ciclo?\n\nSó remove lançamentos do escritório. Datas ficam livres.`,
+      )
+    ) {
+      return;
+    }
+    let ok = 0;
+    let fail = 0;
+    for (const d of manual) {
+      try {
+        await api(`/api/folha/dias/${d.id}/reverter`, { method: "POST", body: "{}" });
+        ok += 1;
+      } catch (_) {
+        fail += 1;
+      }
+    }
+    if (ok) notify(ok === 1 ? "Diária excluída." : `${ok} diárias excluídas.`, "success");
+    if (fail) notify(`${fail} não puderam ser excluídas.`, "error");
+    refreshAfterChange();
   }
   async function dayRevert() {
     const d = $("foSheet")._day;
@@ -1261,7 +1303,7 @@
     const digits = phoneDigits(raw);
     if (!id) return;
     if (digits.length < 10) {
-      notify("Informe um telefone válido com DDD.", "error");
+      notify("Informe um telefone válido (mín. 10 dígitos).", "error");
       return;
     }
     if (btn) btn.disabled = true;
@@ -2146,6 +2188,13 @@
     }
     if ((b = el("[data-day-del]"))) {
       return dayDelete(b.getAttribute("data-day-del"), b.getAttribute("data-day-label"));
+    }
+    if ((b = el("[data-emp-days-del]"))) {
+      return empDaysDelete(
+        b.getAttribute("data-emp-days-del"),
+        b.getAttribute("data-emp-label"),
+        Number(b.getAttribute("data-emp-days-n") || 0) || undefined,
+      );
     }
     if ((b = el("[data-day]"))) {
       if (b.getAttribute("data-kind") === "line") return notify("Lançado direto na grade da semana (sem dia de trabalho). Ajuste na grade antiga ou lance o dia de novo.", "info");

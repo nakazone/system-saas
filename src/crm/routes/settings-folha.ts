@@ -19,6 +19,7 @@ import {
   describePayCycle,
   endWeekdayFromLength,
   parsePayCycle,
+  parseReimbursementTiming,
   payCyclePatchSchema,
   periodBoundsFor,
   previewPeriods,
@@ -39,10 +40,12 @@ function canRead(req: AuthedRequest): boolean {
 
 function serialize(featureFlags: unknown, refYmd?: string) {
   const cycle = parsePayCycle(featureFlags);
+  const reimbursement_timing = parseReimbursementTiming(featureFlags);
   const ref = refYmd && /^\d{4}-\d{2}-\d{2}$/.test(refYmd) ? refYmd : ymdFromDate(new Date());
   const current = periodBoundsFor(ref, cycle);
   return {
-    cycle,
+    cycle: { ...cycle, reimbursement_timing },
+    reimbursement_timing,
     summary: describePayCycle(cycle),
     period_end_weekday: endWeekdayFromLength(cycle.period_start_weekday, cycle.period_length_days),
     weekday_labels: WEEKDAY_LABELS_PT,
