@@ -419,8 +419,9 @@
   }
   function quickSeg() {
     const d = st.quick.days;
-    const b = (v, l) => `<button type="button" data-q-days="${v}" aria-pressed="${d === v}">${l}</button>`;
-    return `<div class="fo-qseg" role="group" aria-label="Diária">${b(0.5, "½ dia")}${b(1, "1 diária")}${b(2, "Double")}</div>`;
+    const b = (v, l, title) =>
+      `<button type="button" data-q-days="${v}" aria-pressed="${d === v}" aria-label="${esc(title)}" title="${esc(title)}">${l}</button>`;
+    return `<div class="fo-qseg" role="group" aria-label="Diária">${b(0.5, "1/2", "Meia diária")}${b(1, "1", "1 diária")}${b(2, "2", "2 diárias (Double)")}</div>`;
   }
   function quickStepper() {
     const ot = st.quick.ot;
