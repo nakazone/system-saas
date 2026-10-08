@@ -3121,8 +3121,6 @@
     if (!list || list.dataset.bound) return;
     list.dataset.bound = '1';
     list.addEventListener('focusin', (e) => {
-      const field = e.target.closest('[data-qty],[data-rate]');
-      if (field) ensureFocusedFieldVisibleForKeyboard();
       const q = e.target.closest('[data-rate]');
       if (!q) return;
       const idx = parseInt(q.getAttribute('data-rate'), 10);
@@ -3185,6 +3183,21 @@
       if (q && e.key === 'Enter') {
         e.preventDefault();
         q.blur();
+        return;
+      }
+      if (q && e.key === 'Tab') {
+        const fields = Array.from(list.querySelectorAll('[data-qty],[data-rate]'));
+        const i = fields.indexOf(e.target);
+        if (i < 0) return;
+        const next = e.shiftKey ? fields[i - 1] : fields[i + 1];
+        if (!next) return; // leave list / native Tab
+        e.preventDefault();
+        next.focus();
+        try {
+          next.select();
+        } catch (_) {
+          /* ignore */
+        }
         return;
       }
       const nm = e.target.closest('.qb-row__name');
@@ -3265,6 +3278,30 @@
       return true;
     }
     return Boolean(el.isContentEditable);
+  }
+
+  /** Qty / price fields — auto-scroll while typing is disruptive; only assist when a soft keyboard is open. */
+  function isQtyOrRateField(el) {
+    if (!el || !el.getAttribute) return false;
+    if (el.hasAttribute('data-qty') || el.hasAttribute('data-rate')) return true;
+    const id = el.id || '';
+    return (
+      id === 'modalServiceQty' ||
+      id === 'modalServiceRate' ||
+      id === 'modalServiceMarkup' ||
+      id === 'discountValue' ||
+      id === 'taxTotal'
+    );
+  }
+
+  function softKeyboardLikelyOpen() {
+    return getServiceFieldViewportMetrics().keyboardOverlap >= QB_KEYBOARD_HIDE_BAR_PX;
+  }
+
+  function shouldAssistScrollForField(el) {
+    if (!isEditableFocusTarget(el)) return false;
+    if (isQtyOrRateField(el) && !softKeyboardLikelyOpen()) return false;
+    return true;
   }
 
   function getServiceFieldViewportMetrics() {
@@ -3527,11 +3564,16 @@
     return document.querySelector('.builder-main');
   }
 
-  /** Mantém o campo focado visível acima do teclado (nome, qtd, preço, termos, etc.). */
+  /** Mantém o campo focado visível acima do teclado (nome, termos, busca de serviço, etc.). */
   function scrollFocusedFieldIntoView(opts) {
     const force = opts && opts.force;
     const el = document.activeElement;
     if (!isEditableFocusTarget(el)) return;
+    // Avoid jump-scroll when typing qty/price on desktop (or whenever soft keyboard is closed).
+    if (!shouldAssistScrollForField(el)) {
+      syncActionBarForKeyboard();
+      return;
+    }
     syncActionBarForKeyboard();
     const wrap =
       (el.id === 'modalServiceName' && ($('modalServiceSearchWrap') || el)) ||
@@ -3539,7 +3581,8 @@
       el;
     const scroller = getBuilderMainScroller(el);
     if (!scroller) {
-      el.scrollIntoView({ behavior: force ? 'auto' : 'smooth', block: 'center', inline: 'nearest' });
+      // Prefer nearest — centering the field causes the “page jumps while I type” bug.
+      el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
       return;
     }
 
@@ -3554,7 +3597,8 @@
       delta = rect.bottom - safeBottom;
     }
 
-    if (!force && Math.abs(delta) < 6) {
+    // Even with force, skip tiny adjustments — they feel like random scroll while typing.
+    if (Math.abs(delta) < (force ? 12 : 6)) {
       if (el.id === 'modalServiceName') fitModalServiceResultsHeight();
       return;
     }
@@ -3590,14 +3634,20 @@
   }
 
   function ensureFocusedFieldVisibleForKeyboard() {
+    const el = document.activeElement;
+    if (!shouldAssistScrollForField(el)) {
+      syncActionBarForKeyboard();
+      clearServiceFieldScrollTimers();
+      return;
+    }
     clearServiceFieldScrollTimers();
     const run = () => {
       syncActionBarForKeyboard();
       scrollFocusedFieldIntoView({ force: true });
     };
     requestAnimationFrame(run);
-    // iOS/iPadOS abre o teclado com atraso — repetir após animação
-    [80, 200, 360, 560, 800].forEach((ms) => {
+    // iOS/iPadOS abre o teclado com atraso — repetir após animação (só com teclado virtual)
+    [80, 200, 360, 560].forEach((ms) => {
       qbServiceFieldScrollTimers.push(setTimeout(run, ms));
     });
   }
@@ -3608,7 +3658,10 @@
 
   function onQuoteEditorVisualViewportChange() {
     syncActionBarForKeyboard();
-    if (!isEditableFocusTarget(document.activeElement)) return;
+    const el = document.activeElement;
+    if (!shouldAssistScrollForField(el)) return;
+    // Ignore viewport jitter while typing qty/price unless the soft keyboard is open.
+    if (!softKeyboardLikelyOpen()) return;
     scrollFocusedFieldIntoView();
   }
 
@@ -3620,13 +3673,18 @@
       window.visualViewport.addEventListener('scroll', onQuoteEditorVisualViewportChange);
     }
     window.addEventListener('orientationchange', () => {
-      if (isEditableFocusTarget(document.activeElement)) ensureFocusedFieldVisibleForKeyboard();
+      if (shouldAssistScrollForField(document.activeElement)) ensureFocusedFieldVisibleForKeyboard();
     });
     document.addEventListener(
       'focusin',
       (e) => {
         if (!isEditableFocusTarget(e.target)) return;
         if (!e.target.closest || !e.target.closest('.qb-page, .builder-main, #addItemPanel, #itemsList, .qb-notes')) {
+          return;
+        }
+        // Qty/price: do not kick off multi-timeout scroll storms on focus.
+        if (isQtyOrRateField(e.target) && !softKeyboardLikelyOpen()) {
+          syncActionBarForKeyboard();
           return;
         }
         ensureFocusedFieldVisibleForKeyboard();
@@ -3653,6 +3711,135 @@
     }
   }
 
+  /** Home slot for the add/edit panel (just before the “Adicionar serviço” foot). */
+  function restoreAddItemPanelHome() {
+    const panel = $('addItemPanel');
+    if (!panel) return;
+    panel.classList.remove('qb-item-editor--docked');
+    document.querySelectorAll('.qb-item-card.is-editing').forEach((el) => el.classList.remove('is-editing'));
+    const foot = document.querySelector('#qbItemsSection .qb-items-foot');
+    if (foot && foot.parentNode && panel.nextElementSibling !== foot) {
+      foot.parentNode.insertBefore(panel, foot);
+    }
+  }
+
+  /**
+   * While editing an existing line, dock the editor directly under that row.
+   * For “add new”, keep it at the foot of the items section.
+   */
+  function dockAddItemPanel() {
+    const panel = $('addItemPanel');
+    if (!panel || panel.classList.contains('hidden')) {
+      restoreAddItemPanelHome();
+      return;
+    }
+    document.querySelectorAll('.qb-item-card.is-editing').forEach((el) => el.classList.remove('is-editing'));
+    if (inlineEditIdx != null && inlineEditIdx >= 0) {
+      const card = document.querySelector(`#itemsList [data-item-idx="${inlineEditIdx}"]`);
+      if (card && card.parentNode) {
+        card.classList.add('is-editing');
+        panel.classList.add('qb-item-editor--docked');
+        if (card.nextElementSibling !== panel) {
+          card.insertAdjacentElement('afterend', panel);
+        }
+        return;
+      }
+    }
+    restoreAddItemPanelHome();
+    panel.classList.remove('qb-item-editor--docked');
+  }
+
+  function openLineNoteDetailsIfNeeded() {
+    const noteEl = $('inlineItemNote');
+    const details = noteEl && noteEl.closest ? noteEl.closest('details') : null;
+    if (!details) return;
+    const hasNote = noteEl && String(noteEl.value || '').trim();
+    if (hasNote) details.open = true;
+  }
+
+  /** Focusable fields inside the service/note editor, in Tab order. */
+  function serviceEditorTabFields() {
+    const ids = [
+      'modalServiceName',
+      'modalServiceDesc',
+      'modalServiceQty',
+      'modalServiceRate',
+      'modalServiceMarkup',
+      'modalServiceType',
+      'modalServiceUnit',
+      'inlineItemNote',
+      'modalCancel',
+      'modalConfirmService',
+    ];
+    const out = [];
+    for (const id of ids) {
+      const el = $(id);
+      if (!el || el.disabled) continue;
+      if (id === 'inlineItemNote') {
+        const details = el.closest && el.closest('details');
+        if (details && !details.open) {
+          // Still include so Tab can open + focus the note field.
+          out.push(el);
+          continue;
+        }
+      }
+      out.push(el);
+    }
+    return out;
+  }
+
+  function focusServiceEditorField(el) {
+    if (!el) return;
+    if (el.id === 'inlineItemNote') {
+      const details = el.closest && el.closest('details');
+      if (details) details.open = true;
+    }
+    try {
+      el.focus({ preventScroll: true });
+    } catch (_) {
+      el.focus();
+    }
+    if (typeof el.select === 'function' && /^(text|search|tel|url|password)$/i.test(el.type || 'text')) {
+      try {
+        el.select();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    if (shouldAssistScrollForField(el)) scrollFocusedFieldIntoView({ force: true });
+  }
+
+  function handleServiceEditorTab(e) {
+    if (e.key !== 'Tab') return;
+    const panel = $('addItemPanel');
+    if (!panel || panel.classList.contains('hidden')) return;
+    if (!panel.contains(e.target)) return;
+    // Let browser handle Tab inside the catalog dropdown listbox.
+    const results = $('modalServiceResults');
+    if (results && !results.classList.contains('hidden') && results.contains(e.target)) return;
+
+    const fields = serviceEditorTabFields();
+    if (fields.length < 2) return;
+    let idx = fields.indexOf(e.target);
+    if (idx < 0) {
+      // Rich-text toolbar buttons / wrappers: find nearest field.
+      idx = fields.findIndex((f) => f === e.target || (f.contains && f.contains(e.target)));
+      if (idx < 0) {
+        const wrap = e.target.closest && e.target.closest('.qb-item-editor__field, .qb-pricing-cell, .qb-item-editor__actions');
+        if (wrap) {
+          idx = fields.findIndex((f) => wrap.contains(f));
+        }
+      }
+    }
+    if (idx < 0) return;
+    e.preventDefault();
+    if (e.target === $('modalServiceName')) hideModalServiceResults();
+    const nextIdx = e.shiftKey
+      ? (idx - 1 + fields.length) % fields.length
+      : (idx + 1) % fields.length;
+    focusServiceEditorField(fields[nextIdx]);
+  }
+
   function openAddItemPanel(idx) {
     const panel = $('addItemPanel');
     const modalError = $('modalError');
@@ -3667,6 +3854,8 @@
     }
     panel.classList.remove('hidden');
     ensureServiceDescRichText();
+    openLineNoteDetailsIfNeeded();
+    dockAddItemPanel();
     const btnAdd = $('btnAddLine');
     if (btnAdd) btnAdd.classList.add('hidden');
     const confirmBtn = $('modalConfirmService');
@@ -3691,6 +3880,7 @@
     const panel = $('addItemPanel');
     if (panel) panel.classList.add('hidden');
     inlineEditIdx = null;
+    restoreAddItemPanelHome();
     const btnAdd = $('btnAddLine');
     if (btnAdd) btnAdd.classList.remove('hidden');
     hideModalServiceResults();
@@ -3860,6 +4050,8 @@
           handle: '.qb-item-card__grip',
           animation: 150,
           draggable: '.qb-item-card',
+          filter: '.qb-item-editor',
+          preventOnFilter: false,
           group: 'qb-quote-lines',
           ghostClass: 'sortable-ghost',
           onEnd: () => {
@@ -3917,13 +4109,14 @@
   function renderItems() {
     const list = $('itemsList');
     if (!list) return;
+    // Panel may be docked inside the list — move it out before wiping DOM.
+    restoreAddItemPanelHome();
     destroyItemSortables();
     list.innerHTML = '';
     updateItemsCountLabel();
 
     const buckets = { Supply: [], Installation: [], 'Sand & Finishing': [], products: [] };
     items.forEach((it, idx) => {
-      if (inlineEditIdx === idx) return;
       if (it.item_type === 'product') buckets.products.push(idx);
       else buckets[normalizeServiceType(it.service_type)].push(idx);
     });
@@ -3971,6 +4164,7 @@
 
     recalc();
     initItemsSortable();
+    dockAddItemPanel();
   }
 
   async function api(path, opt) {
@@ -5274,6 +5468,8 @@
     }
     const baseRateEl = $('modalServiceRate');
     if (baseRateEl) baseRateEl.addEventListener('keydown', handleServiceFormEnter);
+    $('modalServiceMarkup')?.addEventListener('keydown', handleServiceFormEnter);
+    $('inlineItemNote')?.addEventListener('keydown', handleServiceFormEnter);
     $('modalServiceDesc')?.addEventListener('keydown', (e) => {
       // Enter = nova linha (deixar o browser inserir \n). Ctrl/⌘+Enter = salvar.
       if (e.key !== 'Enter') return;
@@ -5326,6 +5522,7 @@
     $('modalConfirmService').addEventListener('click', confirmAddServiceLine);
     $('modalCancel').addEventListener('click', closeAddItemPanel);
     $('btnAddLine').addEventListener('click', () => openAddItemPanel(-1));
+    addItemPanel?.addEventListener('keydown', handleServiceEditorTab);
     const btnSqft = $('btnApplySqftToLines');
     if (btnSqft) btnSqft.addEventListener('click', () => applyProjectSqftToAllSqFtLines());
     const sqftIn = $('quoteProjectSqft');

@@ -1201,6 +1201,20 @@
     .qb-item-editor.hidden {
       display: none !important;
     }
+    .qb-item-editor--docked {
+      margin: 0.35rem 0 0.85rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      border-top: 1px solid #e2e8f0;
+      box-shadow: 0 4px 14px rgba(28, 25, 23, 0.06);
+      background: #fafaf9;
+    }
+    .qb-item-card.is-editing {
+      outline: 2px solid color-mix(in srgb, var(--plab-accent, #e8792c) 55%, #fff);
+      outline-offset: 1px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--plab-accent, #e8792c) 6%, #fff);
+    }
     .qb-item-editor__field {
       margin-bottom: 0.75rem;
     }
@@ -2672,7 +2686,7 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261007-qb1"></script>
+  <script src="quote-builder.js?v=20261008-qb-noscroll1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');
