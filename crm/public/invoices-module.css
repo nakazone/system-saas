@@ -130,7 +130,18 @@
 .inv-lines th:nth-child(2), .inv-lines td:nth-child(2) { width: 56px; }
 .inv-lines th:nth-child(3), .inv-lines td:nth-child(3) { width: 120px; }
 .inv-lines td:first-child { overflow-wrap: anywhere; }
-.inv-lines th { background: transparent !important; text-align: left; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--inv-muted-2); border-bottom: 1px solid var(--inv-line); padding: 8px 0; }
+.inv-lines th {
+  background: #e8eaee !important;
+  text-align: left;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--inv-ink);
+  border-bottom: none;
+  padding: 8px 10px;
+}
+.inv-lines th:first-child { border-radius: 6px 0 0 6px; }
+.inv-lines th:last-child { border-radius: 0 6px 6px 0; }
 .inv-lines td { padding: 12px 0; border-bottom: 1px solid var(--inv-line-2); white-space: pre-line; vertical-align: top; }
 .inv-line__name { display: block; font-weight: 700; }
 .inv-line__note { display: block; margin-top: 3px; font-size: 0.82rem; font-weight: 500; color: var(--inv-muted); line-height: 1.35; white-space: pre-line; }

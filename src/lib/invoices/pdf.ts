@@ -15,6 +15,8 @@ const BASE = {
   mutedLight: "#8a8074",
   rule: "#e2d9cc",
   panel: "#f7f4ee",
+  /** Same DESCRIPTION header band as the quote PDF / public quote table. */
+  tableHeaderBg: "#e8eaee",
   white: "#ffffff",
   voidGray: "#8a8074",
 };
@@ -326,13 +328,16 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   const cDesc = m;
   const cQty = m + W - 160;
   const cAmt = m + W - 80;
-  doc.fillColor(PAL.mutedLight).font("Helvetica-Bold").fontSize(7.5);
-  doc.text("DESCRIPTION", cDesc, y, { lineBreak: false, characterSpacing: 0.6 });
-  doc.text("QTY", cQty, y, { width: 60, align: "right", characterSpacing: 0.6 });
-  doc.text("AMOUNT", cAmt, y, { width: 80, align: "right", characterSpacing: 0.6 });
-  y += 14;
-  doc.moveTo(m, y).lineTo(m + W, y).strokeColor(PAL.rule).lineWidth(0.6).stroke();
-  y += 8;
+  const headH = 18;
+  doc.save();
+  doc.rect(m, y, W, headH).fill(PAL.tableHeaderBg);
+  doc.restore();
+  const headTitleY = y + (headH - 8) / 2;
+  doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(8);
+  doc.text("DESCRIPTION", cDesc + 8, headTitleY, { lineBreak: false, characterSpacing: 0.4 });
+  doc.text("QTY", cQty, headTitleY, { width: 60, align: "right", characterSpacing: 0.4 });
+  doc.text("AMOUNT", cAmt, headTitleY, { width: 80, align: "right", characterSpacing: 0.4 });
+  y += headH + 8;
   const lines = input.lines.length
     ? input.lines
     : [{ description: input.kindLabel, quantity: 1, unitPrice: input.total, amount: input.total }];

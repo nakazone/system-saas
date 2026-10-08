@@ -82,6 +82,34 @@ function dataUrlToBuffer(url: string | null | undefined): Buffer | null {
 }
 
 /** Resolve tenant logo from absolute URL, /api/local-files, /assets, or data URL. */
+function publicOriginCandidates(): string[] {
+  const out: string[] = [];
+  for (const raw of [
+    process.env.PUBLIC_LINK_BASE_URL,
+    process.env.APP_BASE_URL,
+    process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${String(process.env.RAILWAY_PUBLIC_DOMAIN).replace(/^https?:\/\//, "")}`
+      : "",
+  ]) {
+    const v = String(raw || "")
+      .trim()
+      .replace(/\/+$/, "");
+    if (v && !out.includes(v)) out.push(v.startsWith("http") ? v : `https://${v}`);
+  }
+  return out;
+}
+
+async function fetchLogoUrl(url: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(url, { redirect: "follow" });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return buf.length ? buf : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadLogoBuffer(url: string | null | undefined): Promise<Buffer | null> {
   if (!url || !String(url).trim()) return null;
   const src = String(url).trim();
@@ -101,7 +129,14 @@ export async function loadLogoBuffer(url: string | null | undefined): Promise<Bu
       if (entry?.body?.length) return entry.body;
     }
     const disk = path.resolve(process.cwd(), "data", "uploads", key);
-    return loadFileBuffer(fs.existsSync(disk) ? disk : null);
+    const fromDisk = loadFileBuffer(fs.existsSync(disk) ? disk : null);
+    if (fromDisk) return fromDisk;
+    // Cross-instance / after redeploy: try the public HTTP URL for the same path.
+    for (const origin of publicOriginCandidates()) {
+      const remote = await fetchLogoUrl(`${origin}${src.startsWith("/") ? src : `/${src}`}`);
+      if (remote) return remote;
+    }
+    return null;
   }
 
   if (src.startsWith("/assets/")) {
@@ -119,18 +154,32 @@ export async function loadLogoBuffer(url: string | null | undefined): Promise<Bu
   }
 
   if (src.startsWith("http://") || src.startsWith("https://")) {
-    try {
-      const res = await fetch(src);
-      if (!res.ok) return null;
-      return Buffer.from(await res.arrayBuffer());
-    } catch {
-      return null;
-    }
+    return fetchLogoUrl(src);
   }
 
-  // Absolute or cwd-relative path
-  if (src.startsWith("/") || src.includes(path.sep)) {
-    return loadFileBuffer(src.startsWith("/") ? src : path.resolve(process.cwd(), src));
+  // Root-relative path (e.g. /crm/assets/logo.png) — try disk, then public origin.
+  if (src.startsWith("/")) {
+    const fromDisk = loadFileBuffer(
+      findAssetPath([
+        src.replace(/^\//, ""),
+        `crm${src}`,
+        `crm/public${src}`,
+        `dist${src}`,
+        `dist/crm${src}`,
+        `dist/crm/public${src}`,
+      ]),
+    );
+    if (fromDisk) return fromDisk;
+    for (const origin of publicOriginCandidates()) {
+      const remote = await fetchLogoUrl(`${origin}${src}`);
+      if (remote) return remote;
+    }
+    return null;
+  }
+
+  // cwd-relative path
+  if (src.includes(path.sep)) {
+    return loadFileBuffer(path.resolve(process.cwd(), src));
   }
 
   return null;
