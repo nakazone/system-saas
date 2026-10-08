@@ -5,8 +5,10 @@ import { recordActivity } from "../activity/record.js";
 import { issuePublicAccessToken } from "../quotes/public-token.js";
 import { documentAddressLine, documentLicenseLine } from "../settings/organization.js";
 import { computeInvoiceMoney, invoiceKindLabel, storedStatusAfterPayments } from "./core.js";
-import { quoteInvoiceLines, selectedQuoteServiceLines } from "./job.js";
+import { quoteInvoiceLines, quoteReferenceNoteOf, selectedQuoteServiceLines } from "./job.js";
 import { buildInvoicePdf, type DocClient, type DocOrg, type InvoicePdfInput, type ReceiptPdfInput } from "./pdf.js";
+
+export { quoteReferenceNoteOf };
 
 const LINK_TTL_DAYS = 365;
 
@@ -92,8 +94,6 @@ export function projectNameOf(inv: Pick<InvoiceDetail, "quote" | "workOrder">): 
   return null;
 }
 
-export { quoteReferenceNoteOf } from "./job.js";
-
 export function clientOf(inv: InvoiceDetail): DocClient {
   if (!inv.quote && inv.workOrder) {
     const wo = inv.workOrder;
@@ -120,8 +120,15 @@ export function clientOf(inv: InvoiceDetail): DocClient {
         .join(" · ")
     : null;
   // Never use quote.title / job_name as Bill-to — only builder or customer.
+  // If customer.name was polluted with the old reference note, ignore it.
+  const refNote = quoteReferenceNoteOf(q);
+  const rawCustomerName = inv.customer?.name?.trim() || null;
+  const customerName =
+    rawCustomerName && refNote && rawCustomerName.toLowerCase() === refNote.toLowerCase()
+      ? null
+      : rawCustomerName;
   return {
-    name: (isBuilder ? builderName : inv.customer?.name) || inv.customer?.name || builderName || null,
+    name: (isBuilder ? builderName : customerName) || customerName || builderName || null,
     email: (isBuilder ? q?.builder?.email : null) || inv.customer?.email || null,
     phone: (isBuilder ? q?.builder?.phone : null) || inv.customer?.phone || null,
     address: address || null,

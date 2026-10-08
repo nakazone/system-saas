@@ -1374,7 +1374,8 @@ customersQuotesRouter.post(
             organizationId: req.organizationId!,
             number,
             quoteNumber: body.quote_number || formatQuoteNumber(defaults.quoteNumberPrefix, number),
-            title: String(body.title || body.job_name || body.service_type || `Quote ${number}`),
+            // job_name is a reference note only — never use it as the quote/client title.
+            title: String(body.title || body.service_type || `Quote ${number}`),
             validUntil: bodyValidUntil ?? defaultValidUntil(defaults.quoteValidityDays),
             clientView: defaults.clientView as Prisma.InputJsonValue,
             taxRate: defaults.quoteTaxRate,
@@ -1482,7 +1483,8 @@ customersQuotesRouter.put(
         let updated = await tx.quote.update({
           where: { id },
           data: {
-            title: body.title !== undefined ? String(body.title) : body.job_name !== undefined ? String(body.job_name || existing.title) : undefined,
+            // Keep title as the party/client label. job_name lives only in payload as a note.
+            title: body.title !== undefined ? String(body.title) : undefined,
             status: body.status !== undefined ? String(body.status) : undefined,
             flooringType: body.flooring_type !== undefined ? String(body.flooring_type) : undefined,
             notes: body.notes !== undefined ? body.notes : undefined,

@@ -5260,6 +5260,31 @@
     await loadQuoteInvoices();
   }
 
+  /** Party/client label for quote.title — never the Nota / referência field. */
+  function resolveQuoteDisplayTitle() {
+    const party = getQuoteParty();
+    if (party === 'builder') {
+      const b =
+        selectedQuoteBuilder ||
+        quoteBuilders.find((x) => sameId(x.id, String($('quoteBuilderSelect')?.value || '').trim()));
+      if (b) {
+        return String(b.company || b.label || b.full_name || b.name || '').trim();
+      }
+    }
+    if (selectedOrgCustomer) {
+      return String(selectedOrgCustomer.name || selectedOrgCustomer.company || '').trim();
+    }
+    if (selectedQuoteLead) {
+      return String(selectedQuoteLead.name || '').trim();
+    }
+    const cid = String($('customerId')?.value || '').trim();
+    if (cid) {
+      const c = clients.find((x) => sameId(x.id, cid));
+      if (c) return String(c.name || c.company || '').trim();
+    }
+    return '';
+  }
+
   function payload() {
     const { sub, tax, total } = recalc();
     const dt = $('discountType').value;
@@ -5271,6 +5296,7 @@
     else if (pendingLeadId != null && pendingLeadId !== '') lead_id = String(pendingLeadId);
     const builderRaw = party === 'builder' ? String($('quoteBuilderSelect')?.value || '').trim() : '';
     const jobName = String($('quoteJobName')?.value || '').trim().slice(0, 120);
+    const displayTitle = resolveQuoteDisplayTitle();
     const jobAddr =
       party === 'builder' || party === 'contractor' || party === 'loja'
         ? String($('quoteJobAddress')?.value || '').trim()
@@ -5280,6 +5306,8 @@
       customer_id: customerRaw || null,
       quote_party: party,
       builder_id: builderRaw || null,
+      // Explicit title = builder/cliente. job_name is only the reference note.
+      title: displayTitle || undefined,
       job_name: jobName || null,
       job_address: jobAddr || null,
       status: $('status').value,

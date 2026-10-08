@@ -372,9 +372,10 @@
       : inv.quote;
     const href = isJob ? q.url : `quote-builder.html?id=${encodeURIComponent(q.id)}`;
     const pct = q.total > 0 ? Math.min(100, Math.round((q.invoiced_total / q.total) * 100)) : 0;
+    const quoteNote = !isJob ? String(q.reference_note || '').trim() : '';
     $('invQuote').innerHTML = `
       <a class="inv-quote-link" href="${esc(href)}">
-        <span><b>${esc(q.number || 'Orçamento')}</b><small>${esc(q.title || '')}</small></span>
+        <span><b>${esc(q.number || 'Orçamento')}</b><small>${esc(quoteNote || (isJob ? q.title || '' : ''))}</small></span>
         <span>${money(q.total)}</span>
       </a>
       <div class="inv-progress inv-progress--thin"><span style="width:${pct}%"></span></div>

@@ -107,7 +107,7 @@
         const open = inv.display_status !== 'paid' && inv.display_status !== 'void';
         const href = `invoice.html?id=${encodeURIComponent(inv.id)}`;
         const cells = `
-          <span class="inv-trow__who" role="cell"><b>${esc(inv.customer_name || inv.quote_title || inv.job_title || '—')}</b><small>${esc(inv.quote_title || inv.job_title || '')}</small></span>
+          <span class="inv-trow__who" role="cell"><b>${esc(inv.customer_name || '—')}</b><small>${esc(inv.reference_note || inv.source_ref || '')}</small></span>
           <span class="inv-trow__num" role="cell">${esc(inv.invoice_number || '—')}<small>${esc(inv.invoice_type_label)}${inv.source_ref ? ` · ${esc(inv.source_ref)}` : ''}</small></span>
           <span class="inv-trow__pay" role="cell">${money(inv.paid_amount)} de ${money(inv.amount)}<div class="inv-progress"><span style="width:${inv.percent_paid}%"></span></div></span>
           ${dueCell(inv)}

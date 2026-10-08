@@ -69,24 +69,18 @@ function parseDate(v: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-type ListRow = Prisma.QuoteInvoiceGetPayload<{
-  include: {
-    quote: { select: { id: true; title: true; quoteNumber: true; number: true } };
-    workOrder: {
-      select: {
-        id: true;
-        number: true;
-        title: true;
-        builder: { select: { company: true; firstName: true; lastName: true; email: true } };
-      };
-    };
-    customer: { select: { name: true; email: true } };
-    receipts: { select: { amount: true; paidAt: true } };
-  };
-}>;
-
 const listInclude = {
-  quote: { select: { id: true, title: true, quoteNumber: true, number: true } },
+  quote: {
+    select: {
+      id: true,
+      title: true,
+      quoteNumber: true,
+      number: true,
+      builderId: true,
+      payload: true,
+      builder: { select: { company: true, firstName: true, lastName: true, email: true } },
+    },
+  },
   workOrder: {
     select: {
       id: true,
@@ -99,8 +93,34 @@ const listInclude = {
   receipts: { select: { amount: true, paidAt: true } },
 } as const;
 
+type ListRow = Prisma.QuoteInvoiceGetPayload<{ include: typeof listInclude }>;
+
+function builderDisplayName(b: {
+  company: string | null;
+  firstName: string;
+  lastName: string;
+} | null | undefined): string | null {
+  if (!b) return null;
+  return b.company || [b.firstName, b.lastName].filter(Boolean).join(" ").trim() || null;
+}
+
 function listItem(inv: ListRow, now: Date) {
   const m = computeInvoiceMoney(inv, now);
+  const quoteBuilderName = builderDisplayName(inv.quote?.builder);
+  const jobBuilderName = builderDisplayName(inv.workOrder?.builder);
+  const isBuilderQuote = Boolean(inv.quote?.builderId);
+  // Bill-to name: builder/customer — never quote.title (that used to be the reference note).
+  const customerName = isBuilderQuote
+    ? quoteBuilderName || inv.customer?.name || null
+    : inv.customer?.name || quoteBuilderName || jobBuilderName || null;
+  const payload =
+    inv.quote?.payload && typeof inv.quote.payload === "object" && !Array.isArray(inv.quote.payload)
+      ? (inv.quote.payload as Record<string, unknown>)
+      : null;
+  const referenceNote =
+    payload?.job_name != null && String(payload.job_name).trim()
+      ? String(payload.job_name).trim()
+      : null;
   return {
     id: inv.id,
     invoice_number: inv.invoiceNumber,
@@ -124,6 +144,7 @@ function listItem(inv: ListRow, now: Date) {
     quote_id: inv.quoteId,
     quote_title: inv.quote?.title ?? null,
     quote_number: quoteNumberOf(inv.quote),
+    reference_note: referenceNote,
     work_order_id: inv.workOrderId,
     job_number: inv.workOrder?.number ?? null,
     job_title: inv.workOrder?.title ?? null,
@@ -135,15 +156,8 @@ function listItem(inv: ListRow, now: Date) {
           ? `Job #${inv.workOrder.number}`
           : "Job"
         : null,
-    // Builder jobs are billed to the builder when the job has no customer.
-    customer_name:
-      inv.customer?.name ||
-      (inv.workOrder?.builder
-        ? inv.workOrder.builder.company ||
-          [inv.workOrder.builder.firstName, inv.workOrder.builder.lastName].filter(Boolean).join(" ").trim() ||
-          null
-        : null),
-    customer_email: inv.customer?.email || inv.workOrder?.builder?.email || null,
+    customer_name: customerName,
+    customer_email: inv.customer?.email || inv.quote?.builder?.email || inv.workOrder?.builder?.email || null,
   };
 }
 
@@ -232,6 +246,7 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
           invoiced_total: Math.round(invoicedTotal * 100) / 100,
           remaining_to_invoice: Math.max(0, Math.round((quoteTotal - invoicedTotal) * 100) / 100),
           lead_id: inv.quote.leadId,
+          reference_note: quoteReferenceNoteOf(inv.quote),
         }
       : null,
     job: inv.workOrder
