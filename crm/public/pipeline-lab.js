@@ -11,12 +11,10 @@
 
   const REFRESH_EVERY_MS = 5 * 60 * 1000;
   const STALE_AFTER_MS = 60 * 1000;
-  const ATTENTION_COLLAPSED = 6;
 
   let session = null;
   let overview = null;
   let loadedAt = 0;
-  let attentionExpanded = false;
   let tickTimer = null;
 
   function isMobileShell() {
@@ -121,25 +119,18 @@
       count.hidden = true;
     }
 
+    if (more) more.hidden = true;
+
     if (!items.length) {
       list.innerHTML = `<li class="omd-empty">
         <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></span>
         <div><strong>Tudo em dia</strong><p>Nenhum lead esperando contato, follow-up atrasado, quote parado ou invoice vencida.</p></div>
       </li>`;
-      more.hidden = true;
       return;
     }
 
-    const visible = attentionExpanded ? items : items.slice(0, ATTENTION_COLLAPSED);
-    list.innerHTML = visible.map(attentionRow).join("");
-    const hiddenCount = items.length - visible.length;
-    if (items.length > ATTENTION_COLLAPSED) {
-      more.hidden = false;
-      more.textContent = attentionExpanded ? "Mostrar menos" : `Mostrar mais ${hiddenCount}`;
-      more.setAttribute("aria-expanded", attentionExpanded ? "true" : "false");
-    } else {
-      more.hidden = true;
-    }
+    // Fixed card height + list scroll — show everything, no expand toggle.
+    list.innerHTML = items.map(attentionRow).join("");
   }
 
   function renderToday() {
@@ -660,10 +651,6 @@
     $("plabDockSearch").addEventListener("click", () => openSearch());
     $("omdRefresh").addEventListener("click", () => refresh(true));
     $("omdRetry").addEventListener("click", () => refresh(true));
-    $("omdAttnMore").addEventListener("click", () => {
-      attentionExpanded = !attentionExpanded;
-      renderAttention();
-    });
     const wrap = $("omdBoardWrap");
     wrap.addEventListener("scroll", updateBoardOverflow, { passive: true });
     window.addEventListener("resize", updateBoardOverflow);
