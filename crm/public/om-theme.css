@@ -1,0 +1,652 @@
+/**
+ * ObraMate — tema neutro 2026 (base #F7F8FA, cartões brancos, laranja só em ações).
+ * Injetado por último em todas as telas do CRM (src/crm/mount.ts).
+ * - Tokens: sobrepõe --plab-*, --color-*, --crm-chrome-bg no body do app.
+ * - Desktop ≥1180px: menu lateral vira a doca inferior com ícones padronizados + nomes.
+ * - iPhone: barra de abas em vidro (Início, Leads, Calendar, Invoices, Mais) + busca + "+" no topo.
+ */
+
+body.dashboard-app-body {
+  --om-bg: #F7F8FA;
+  --om-card: #FFFFFF;
+  --om-surface: #F1F3F5;
+  --om-line: #E5E7EB;
+  --om-ink: #221E1A;
+  --om-ink2: #667085;
+  --om-ink3: #98A2B3;
+  --om-accent: #E7792C;
+  --om-accent-soft: #FDF0E6;
+  --om-accent-deep: #B4561A;
+  --om-olive: #536249;
+  --om-olive-soft: #EEF1EC;
+  --om-font: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --om-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+
+  --brand: var(--om-accent);
+  --plab-ink: var(--om-ink);
+  --plab-muted: var(--om-ink2);
+  --plab-faint: var(--om-ink3);
+  --plab-line: var(--om-line);
+  --plab-soft: var(--om-surface);
+  --plab-bg: var(--om-bg);
+  --plab-surface: var(--om-card);
+  --plab-accent: var(--om-accent);
+  --plab-accent-soft: var(--om-accent-soft);
+  --plab-accent-deep: var(--om-accent-deep);
+  --plab-ok: var(--om-olive);
+  --plab-font: var(--om-font);
+  --plab-shadow: 0 0 0 1px var(--om-line), var(--om-shadow);
+
+  --color-primary: var(--om-ink);
+  --color-accent: var(--om-accent);
+  --color-accent-hover: #D96B20;
+  --color-surface: var(--om-card);
+  --color-surface-secondary: var(--om-surface);
+  --color-surface-tertiary: #EEF0F3;
+  --color-border: var(--om-line);
+  --color-text-primary: var(--om-ink);
+  --color-text-secondary: var(--om-ink2);
+  --color-text-muted: var(--om-ink3);
+  --crm-chrome-bg: var(--om-bg);
+  --primary-color: var(--om-ink);
+  --secondary-color: var(--om-accent);
+  --text-dark: var(--om-ink);
+  --text-light: var(--om-ink2);
+  --text-muted: var(--om-ink3);
+  --bg-light: var(--om-bg);
+  --border-color: var(--om-line);
+  --font-sans: var(--om-font);
+  --font-family: var(--om-font);
+
+  --om-tab-accent: var(--om-accent);
+  --om-tab-ink: var(--om-ink);
+  --om-tab-muted: var(--om-ink2);
+  --om-tab-line: var(--om-line);
+
+  background: var(--om-bg) !important;
+  color: var(--om-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Geist em toda a interface (sem tocar em código / monoespaçado). */
+body.dashboard-app-body,
+body.dashboard-app-body :where(*:not(code, pre, kbd, samp, svg, svg *)) {
+  font-family: var(--om-font) !important;
+}
+
+/* Sem degradês de fundo: base lisa. */
+body.dashboard-app-body.plab,
+body.dashboard-app-body .dashboard-container,
+body.dashboard-app-body .dashboard-main {
+  background-image: none !important;
+}
+body.dashboard-app-body .dashboard-container,
+body.dashboard-app-body .dashboard-main {
+  background-color: var(--om-bg) !important;
+}
+
+/* Laranja da marca: sempre com texto escuro. */
+body.dashboard-app-body .crm-topbar__create-btn,
+body.dashboard-app-body .omd-btn--primary,
+body.dashboard-app-body .btn-primary,
+body.dashboard-app-body .home-action__icon--primary,
+body.dashboard-app-body .plab-dock__primary,
+body.dashboard-app-body .om-dock__primary,
+body.dashboard-app-body .om-sheet__icon--primary {
+  background: var(--om-accent) !important;
+  color: var(--om-ink) !important;
+  border-color: transparent !important;
+}
+body.dashboard-app-body .crm-topbar__create-btn:hover,
+body.dashboard-app-body .omd-btn--primary:hover {
+  background: #D96B20 !important;
+}
+
+/* Barra superior (desktop) */
+@media (min-width: 1025px) {
+  body.dashboard-app-body .crm-topbar,
+  body.dashboard-app-body #crmTopbar.crm-topbar {
+    background: rgba(247, 248, 250, 0.9) !important;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--om-line) !important;
+  }
+  body.dashboard-app-body .crm-topbar__search,
+  body.dashboard-app-body #crmTopbar .crm-topbar__search {
+    background: var(--om-card) !important;
+    border: 1px solid var(--om-line) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--om-shadow) !important;
+  }
+}
+
+/* ===================== Desktop: doca inferior ===================== */
+@media (min-width: 1180px) {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar.dashboard-sidebar,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-sidebar {
+    position: fixed !important;
+    inset: auto auto 14px 50% !important;
+    top: auto !important;
+    left: 50% !important;
+    bottom: 14px !important;
+    transform: translateX(-50%) !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 32px) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 8px 10px 8px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-end !important;
+    gap: 0 !important;
+    background: rgba(255, 255, 255, 0.86) !important;
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 0 !important;
+    border-radius: 24px !important;
+    box-shadow: 0 0 0 1px var(--om-line), 0 18px 40px -18px rgba(16, 24, 40, 0.3) !important;
+    z-index: 1150 !important;
+    overflow: visible !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-header,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item.sidebar-collapse-btn,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar button.sidebar-collapse-btn,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav-group-label,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-user-bar {
+    display: none !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav {
+    display: flex !important;
+    flex: none !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar #crmSharedNavRoot {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-end !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav-group,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-footer {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-end !important;
+    gap: 2px !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    flex-shrink: 0 !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav-group + .sidebar-nav-group,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-footer {
+    margin-left: 13px !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav-group + .sidebar-nav-group::before,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-footer::before {
+    content: "";
+    position: absolute;
+    left: -7px;
+    bottom: 16px;
+    width: 1px;
+    height: 40px;
+    background: var(--om-line);
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar a.nav-item.sidebar-footer-link {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 4px !important;
+    width: auto !important;
+    min-width: 58px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 2px 3px 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #475467 !important;
+    text-decoration: none !important;
+    transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item::before {
+    content: none !important;
+    display: none !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item > svg {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    padding: 11px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    border-radius: 14px !important;
+    color: var(--om-ink) !important;
+    stroke: currentColor !important;
+    fill: none !important;
+    opacity: 1 !important;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item .nav-item__label {
+    display: block !important;
+    position: static !important;
+    font-size: 11px !important;
+    font-weight: 550 !important;
+    line-height: 1.15 !important;
+    letter-spacing: -0.005em !important;
+    white-space: nowrap !important;
+    color: #475467 !important;
+    opacity: 1 !important;
+    max-width: none !important;
+    width: auto !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover {
+    transform: translateY(-6px) !important;
+    background: transparent !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover > svg {
+    background: #fff !important;
+    color: var(--om-accent) !important;
+    box-shadow: 0 10px 20px -8px rgba(16, 24, 40, 0.28), 0 0 0 1px var(--om-line) !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover .nav-item__label {
+    color: var(--om-ink) !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item.active > svg {
+    background: var(--om-ink) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 14px -6px rgba(16, 24, 40, 0.45) !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item.active .nav-item__label {
+    color: var(--om-ink) !important;
+    font-weight: 650 !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item.active::after {
+    content: "" !important;
+    position: absolute !important;
+    left: 50% !important;
+    bottom: -5px !important;
+    width: 16px !important;
+    height: 3px !important;
+    margin-left: -8px !important;
+    border-radius: 2px !important;
+    background: var(--om-accent) !important;
+    display: block !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item__badge {
+    position: absolute !important;
+    top: -3px !important;
+    left: calc(50% + 9px) !important;
+    right: auto !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: 9px !important;
+    background: var(--om-accent) !important;
+    color: var(--om-ink) !important;
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    line-height: 18px !important;
+    text-align: center !important;
+    box-shadow: 0 0 0 2px #fff !important;
+    transform: none !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item__badge:empty,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item__badge[hidden] {
+    display: none !important;
+  }
+
+  /* Conteúdo ocupa a largura toda; espaço para a doca embaixo. */
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app).sidebar-collapsed .dashboard-main {
+    margin-left: 0 !important;
+    padding-bottom: 124px !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-container {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #crmTopbar.crm-topbar,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .crm-topbar {
+    left: 0 !important;
+    padding-left: 20px !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #crmTopbar .crm-topbar__brand {
+    display: flex !important;
+    order: -1;
+    margin-right: 10px !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #crmTopbar .crm-topbar__brand img {
+    /* PNG tem respiro transparente: 52px de altura = logotipo com ~24px visíveis. */
+    height: 52px !important;
+    margin: -14px -8px !important;
+    width: auto !important;
+    max-width: none !important;
+    display: block !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .om-dock,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .plab-dock,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .mobile-overlay {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item {
+    transition: none !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover {
+    transform: none !important;
+  }
+}
+
+/* ===================== iPhone ===================== */
+html body.dashboard-app-body.om-device-mobile {
+  --om-tabbar-h: 74px;
+}
+html body.dashboard-app-body.om-device-mobile .om-app-top {
+  background: rgba(247, 248, 250, 0.92) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 1px 0 rgba(229, 231, 235, 0.7);
+}
+html body.dashboard-app-body.om-device-mobile .om-app-top__bell,
+html body.dashboard-app-body.om-device-mobile .om-app-top__plus {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  border: 0 !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 0 0 1px var(--om-line), 0 4px 12px -6px rgba(16, 24, 40, 0.25) !important;
+  color: var(--om-ink) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+html body.dashboard-app-body.om-device-mobile .om-app-top__plus svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+}
+html body.dashboard-app-body.om-device-mobile .om-app-top__avatar {
+  width: 40px !important;
+  height: 40px !important;
+  background: var(--om-ink) !important;
+}
+html body.dashboard-app-body.om-device-mobile .om-app-top__bell-dot,
+html body.dashboard-app-body.om-device-mobile .om-app-top__bell .home-bell__dot {
+  background: var(--om-accent) !important;
+}
+
+/* Barra de abas flutuante em vidro + círculo de busca */
+html body.dashboard-app-body.om-device-mobile .om-tabbar.om-tabbar--ios {
+  position: fixed !important;
+  left: 16px !important;
+  right: 82px !important;
+  bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) - 8px)) !important;
+  height: 62px !important;
+  padding: 0 4px !important;
+  display: grid !important;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: center !important;
+  border: 0 !important;
+  border-radius: 31px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(22px) saturate(1.8);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: 0 0 0 1px var(--om-line), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -12px rgba(16, 24, 40, 0.3) !important;
+  z-index: 60 !important;
+}
+html body.dashboard-app-body.om-device-mobile .om-tabbar--ios .om-tabbar__item {
+  position: relative;
+  height: 54px !important;
+  min-height: 0 !important;
+  border-radius: 27px !important;
+  gap: 2px !important;
+  padding: 0 !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  color: #3c3c43 !important;
+}
+html body.dashboard-app-body.om-device-mobile .om-tabbar--ios .om-tabbar__item svg {
+  width: 23px !important;
+  height: 23px !important;
+}
+html body.dashboard-app-body.om-device-mobile .om-tabbar--ios .om-tabbar__item.is-active {
+  background: var(--om-surface) !important;
+  color: var(--om-ink) !important;
+}
+html body.dashboard-app-body.om-device-mobile .om-tabbar--ios .om-tabbar__item.is-active svg {
+  color: var(--om-accent);
+  stroke-width: 2.2 !important;
+}
+html body.dashboard-app-body.om-device-mobile .om-tabbar-search {
+  position: fixed;
+  right: 16px;
+  bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) - 8px));
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--om-ink);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(22px) saturate(1.8);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: 0 0 0 1px var(--om-line), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -12px rgba(16, 24, 40, 0.3);
+  z-index: 60;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+html body.dashboard-app-body.om-device-mobile .om-tabbar-search svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.om-tabbar-search {
+  display: none;
+}
+html body.dashboard-app-body.om-device-mobile.om-has-tabbar .om-tabbar-search {
+  display: grid;
+}
+html body.dashboard-app-body.om-device-mobile.om-sheet-open .om-tabbar-search,
+html body.dashboard-app-body.om-device-mobile.om-menu-open .om-tabbar-search {
+  z-index: 59;
+}
+
+/* Menu "+" (pull-down nativo do iOS) */
+.om-pulldown-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(16, 24, 40, 0.12);
+  border: 0;
+  padding: 0;
+}
+.om-pulldown-scrim[hidden],
+.om-pulldown[hidden] {
+  display: none !important;
+}
+.om-pulldown {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 58px);
+  right: 12px;
+  width: 250px;
+  z-index: 81;
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(250, 250, 251, 0.9);
+  backdrop-filter: blur(30px) saturate(1.8);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.06), 0 20px 50px -12px rgba(16, 24, 40, 0.35);
+  transform-origin: top right;
+  animation: om-pulldown-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  font-family: var(--om-font);
+}
+@keyframes om-pulldown-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+.om-pulldown a,
+.om-pulldown button {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 46px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  color: #000;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.om-pulldown a + a::before,
+.om-pulldown button + a::before,
+.om-pulldown a + button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  border-top: 0.5px solid rgba(60, 60, 67, 0.22);
+}
+.om-pulldown a:active,
+.om-pulldown button:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+.om-pulldown svg {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.om-pulldown__sep {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .om-pulldown { animation: none; }
+}
+
+/* Tela "Mais": lista agrupada como nos Ajustes do iPhone */
+html body.dashboard-app-body.om-device-mobile.mais-app .mais-title {
+  font-size: 34px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .mais-section-label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  color: #6C6C70 !important;
+  padding: 0 16px !important;
+  margin: 18px 0 6px !important;
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .om-mod-grid {
+  display: block !important;
+  background: #fff !important;
+  border-radius: 22px !important;
+  overflow: hidden !important;
+  box-shadow: 0 0 0 1px var(--om-line) !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .om-mod-card {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 12px !important;
+  min-height: 48px !important;
+  height: auto !important;
+  padding: 8px 34px 8px 14px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #000 !important;
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .om-mod-card:not([hidden]) ~ .om-mod-card:not([hidden])::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 56px;
+  right: 0;
+  border-top: 0.5px solid rgba(60, 60, 67, 0.22);
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .om-mod-card::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-right: 2px solid #C4C4C7;
+  border-top: 2px solid #C4C4C7;
+  transform: rotate(45deg);
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .om-mod-card__icon {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  border-radius: 8px !important;
+  background: var(--om-surface) !important;
+  color: #3c3c43 !important;
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .om-mod-card__icon svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .om-mod-card__title {
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  color: #000 !important;
+  margin: 0 !important;
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .om-mod-card__sub {
+  font-size: 12.5px !important;
+  color: var(--om-ink2) !important;
+  margin: 1px 0 0 !important;
+}
+html body.dashboard-app-body.om-device-mobile.mais-app .mais-user {
+  background: #fff !important;
+  border-radius: 22px !important;
+  box-shadow: 0 0 0 1px var(--om-line) !important;
+  border: 0 !important;
+}

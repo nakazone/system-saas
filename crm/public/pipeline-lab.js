@@ -63,6 +63,31 @@
     el.textContent = mins < 1 ? "Atualizado agora" : `Atualizado há ${mins} min`;
   }
 
+  /** Extra detail shown only in the desktop bento tiles (values the overview already returns). */
+  function kpiExtra(key, k) {
+    if (key === "gross_profit" && k.gross_profit && k.gross_profit.value != null) {
+      const g = k.gross_profit;
+      const revenue = Number(g.revenue) || 0;
+      const cost = Number(g.cost) || 0;
+      const margin = revenue > 0 ? Math.round((Number(g.value) / revenue) * 100) : null;
+      const bar = margin != null ? Math.max(0, Math.min(100, margin)) : 0;
+      return `<div class="omd-kpi__split" aria-hidden="true">
+        ${margin != null ? `<span class="omd-kpi__bar"><i style="width:${bar}%"></i></span>` : ""}
+        ${margin != null ? `<span class="omd-kpi__line"><span>Margem</span><b>${margin}%</b></span>` : ""}
+        <span class="omd-kpi__line"><span>Receita</span><b>${esc(D.moneyCompact(revenue))}</b></span>
+        <span class="omd-kpi__line"><span>Custo</span><b>${esc(D.moneyCompact(cost))}</b></span>
+      </div>`;
+    }
+    if (key === "receivables" && k.receivables && Number(k.receivables.open_value) > 0) {
+      const open = Number(k.receivables.open_value) || 0;
+      const overdue = Math.max(0, Math.min(open, Number(k.receivables.overdue_value) || 0));
+      return `<span class="omd-kpi__seg" aria-hidden="true"><i class="is-overdue" style="flex:${overdue}"></i><i style="flex:${
+        open - overdue
+      }"></i></span>`;
+    }
+    return "";
+  }
+
   function renderKpis() {
     const host = $("omdKpis");
     const cards = D.kpiCards(overview);
@@ -72,15 +97,20 @@
     }
     host.hidden = false;
     host.style.gridTemplateColumns = cards.length < 4 ? `repeat(${cards.length}, minmax(0, 1fr))` : "";
+    // Bento layout (desktop) places each KPI by key; with fewer than 4 it falls back to the row layout.
+    const root = $("omdRoot");
+    if (root) root.classList.toggle("omd--kpi-partial", cards.length < 4);
+    const k = (overview && overview.kpis) || {};
     host.innerHTML = cards
       .map((c) => {
         const delta = c.delta ? `<span class="omd-delta is-${esc(c.delta.tone)}">${esc(c.delta.text)}</span>` : "";
-        return `<a class="omd-kpi${c.tone === "dark" ? " omd-kpi--dark" : ""}" href="${esc(c.href)}"${
+        return `<a class="omd-kpi${c.tone === "dark" ? " omd-kpi--dark" : ""}" data-kpi="${esc(c.key)}" href="${esc(c.href)}"${
           c.title ? ` title="${esc(c.title)}"` : ""
         }>
           <p class="omd-kpi__label">${esc(c.label)}</p>
           <p class="omd-kpi__value">${esc(c.value)}</p>
           <p class="omd-kpi__meta${c.metaTone ? ` is-${esc(c.metaTone)}` : ""}"><span>${esc(c.meta)}</span>${delta}</p>
+          ${kpiExtra(c.key, k)}
         </a>`;
       })
       .join("");

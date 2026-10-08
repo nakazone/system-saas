@@ -645,3 +645,168 @@ body.home-app .mobile-app-header {
 #homeAttnCard {
   scroll-margin-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 12px);
 }
+
+/* =====================================================================
+ * Tema neutro 2026 — Início no iPhone (título grande, mosaico de números, listas agrupadas)
+ * ===================================================================== */
+body.home-app.dashboard-app-body {
+  --home-bg: #F7F8FA;
+  --home-ink: #221E1A;
+  --home-muted: #667085;
+  --home-faint: #98A2B3;
+  --home-accent: #E7792C;
+  --home-accent-soft: #FDF0E6;
+  --home-accent-deep: #B4561A;
+  --home-card: #FFFFFF;
+  --home-line: #E5E7EB;
+  --home-ok: #536249;
+  --home-ok-soft: #EEF1EC;
+  --home-radius: 22px;
+}
+body.home-app.om-device-mobile .home-date {
+  font-size: 13.5px;
+  font-weight: 550;
+}
+body.home-app.om-device-mobile .home-greeting {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  margin-bottom: 12px;
+}
+body.home-app.om-device-mobile .home-search {
+  min-height: 40px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 12px;
+  background: #EEF0F3;
+  font-size: 15.5px;
+  font-weight: 450;
+  margin-bottom: 12px;
+}
+body.home-app.om-device-mobile .home-kpis {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+body.home-app.om-device-mobile .home-kpi {
+  min-height: 104px;
+  padding: 12px 12px 11px;
+  border-radius: 22px;
+  border: 0;
+  box-shadow: 0 0 0 1px #E5E7EB;
+  background: #fff;
+  color: #221E1A;
+  justify-content: flex-start;
+}
+body.home-app.om-device-mobile .home-kpi:first-child {
+  grid-column: 1 / -1;
+  min-height: 150px;
+  padding: 14px;
+  background: #221E1A;
+  box-shadow: none;
+  color: #fff;
+}
+body.home-app.om-device-mobile .home-kpi__label {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #667085;
+}
+body.home-app.om-device-mobile .home-kpi:first-child .home-kpi__label {
+  font-size: 14px;
+  color: #C8CDD5;
+}
+body.home-app.om-device-mobile .home-kpi__value {
+  margin: auto 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+body.home-app.om-device-mobile .home-kpi:first-child .home-kpi__value {
+  font-size: 44px;
+  letter-spacing: -0.045em;
+}
+body.home-app.om-device-mobile .home-kpi__meta {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #667085;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+body.home-app.om-device-mobile .home-kpi:first-child .home-kpi__meta {
+  font-size: 13.5px;
+  color: #C8CDD5;
+}
+body.home-app.om-device-mobile .home-kpi__meta.is-danger {
+  color: #B4561A;
+  font-weight: 600;
+}
+body.home-app.om-device-mobile .home-actions {
+  gap: 8px;
+  margin-bottom: 18px;
+}
+body.home-app.om-device-mobile .home-action {
+  height: 74px;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #E5E7EB;
+  font-size: 12px;
+  font-weight: 600;
+}
+body.home-app.om-device-mobile .home-action:has(.home-action__icon--primary) {
+  background: #E7792C;
+  box-shadow: none;
+  color: #221E1A;
+}
+body.home-app.om-device-mobile .home-action__icon,
+body.home-app.om-device-mobile .home-action__icon--primary {
+  width: auto;
+  height: auto;
+  background: transparent !important;
+  color: inherit !important;
+}
+body.home-app.om-device-mobile .home-action__icon svg {
+  width: 20px;
+  height: 20px;
+}
+body.home-app.om-device-mobile .home-card {
+  border: 0;
+  border-radius: 22px;
+  box-shadow: 0 0 0 1px #E5E7EB;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+body.home-app.om-device-mobile .home-card__title {
+  font-size: 20px;
+  font-weight: 700;
+}
+body.home-app.om-device-mobile .home-card__link {
+  font-size: 15px;
+  font-weight: 550;
+  color: #221E1A;
+  text-decoration: underline;
+  text-decoration-color: #E7792C;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+body.home-app.om-device-mobile .home-card__badge {
+  color: #221E1A;
+}
+body.home-app.om-device-mobile .home-attn__call {
+  background: #221E1A !important;
+  color: #fff !important;
+}
+body.home-app.om-app.dashboard-app-body.om-device-mobile.om-has-apptop .dashboard-main.home-main {
+  padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 10px) !important;
+}
+body.home-app.om-device-mobile .home-kpi:not(:first-child) .home-kpi__label {
+  font-size: 10.5px;
+  letter-spacing: -0.01em;
+}

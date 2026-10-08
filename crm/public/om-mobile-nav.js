@@ -3,17 +3,19 @@
  * Field staff: Hoje / Calendar / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20261005-sched1";
+  const VER = "20261008-neutro1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
-  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "mais.html"];
+  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "invoices.html", "mais.html"];
   let edgeSwipeBound = false;
 
   const ICONS = {
     home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
     pipeline:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4.5h17l-6.5 8v6l-4 2v-8z"/></svg>',
+    search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+    job: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9.5 21v-6h5v6"/></svg>',
     agenda:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
     more: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
@@ -62,14 +64,13 @@
       return "pipeline";
     }
     if (f === "schedule.html") return "agenda";
+    if (f === "invoices.html" || f === "invoice.html") return "invoices";
     if (
       f === "mais.html" ||
       f === "chat.html" ||
       f === "quotes.html" ||
       f === "quote-builder.html" ||
       f === "quote-catalog.html" ||
-      f === "invoices.html" ||
-      f === "invoice.html" ||
       f === "customers.html" ||
       f === "jobs.html" ||
       f === "job-detail.html" ||
@@ -508,6 +509,9 @@
         <img class="om-app-top__logo" src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" width="36" height="36" onerror="this.style.display='none'" />
       </a>
       <div class="om-app-top__actions">
+        <button type="button" class="om-app-top__plus" id="omTopPlus" aria-label="Criar" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        </button>
         <button type="button" class="om-app-top__bell home-bell" id="homeBell" aria-label="Atenção">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           <span class="om-app-top__bell-dot home-bell__dot" aria-hidden="true"></span>
@@ -516,6 +520,7 @@
       </div>`;
     document.body.insertBefore(top, document.body.firstChild);
     document.body.classList.add("om-has-apptop");
+    top.querySelector("#omTopPlus")?.addEventListener("click", openCreateMenu);
 
     // On Home, home.js owns the bell. Elsewhere: go to Início attention.
     if (fileName() !== "home.html") {
@@ -549,52 +554,118 @@
     nav.setAttribute("aria-label", "Navegação principal");
 
     const tab = activeTab(false);
-    nav.innerHTML = `
-      <a class="om-tabbar__item${tab === "home" ? " is-active" : ""}" href="home.html" data-om-tab="home"${
-        tab === "home" ? ' aria-current="page"' : ""
-      }>
-        ${ICONS.home}
-        <span>Início</span>
-      </a>
-      <a class="om-tabbar__item${tab === "pipeline" ? " is-active" : ""}" href="/dashboard" data-om-tab="pipeline"${
-        tab === "pipeline" ? ' aria-current="page"' : ""
-      }>
-        ${ICONS.pipeline}
-        <span>Leads</span>
-      </a>
-      <div class="om-tabbar__fab-slot">
-        <button type="button" class="om-tabbar__fab" id="omTabbarFab" aria-label="Criar" aria-haspopup="dialog">
-          ${ICONS.plus}
-        </button>
-      </div>
-      <a class="om-tabbar__item${tab === "agenda" ? " is-active" : ""}" href="schedule.html" data-om-tab="agenda"${
-        tab === "agenda" ? ' aria-current="page"' : ""
-      }>
-        ${ICONS.agenda}
-        <span>Calendar</span>
-      </a>
-      <a class="om-tabbar__item${tab === "more" ? " is-active" : ""}" href="mais.html" data-om-tab="more"${
-        tab === "more" ? ' aria-current="page"' : ""
-      }>
-        ${ICONS.more}
-        <span>Mais</span>
+    nav.className = "om-tabbar om-tabbar--ios";
+    const item = (key, href, icon, label, perm) =>
+      `<a class="om-tabbar__item${tab === key ? " is-active" : ""}" href="${href}" data-om-tab="${key}"${
+        tab === key ? ' aria-current="page"' : ""
+      }${perm ? ` data-crm-permission="${perm}"` : ""}>
+        ${icon}
+        <span>${label}</span>
       </a>`;
+    nav.innerHTML = [
+      item("home", "home.html", ICONS.home, "Início"),
+      item("pipeline", "/dashboard", ICONS.pipeline, "Leads"),
+      item("agenda", "schedule.html", ICONS.agenda, "Calendar"),
+      item("invoices", "invoices.html", ICONS.invoice, "Invoices", "invoices.view"),
+      item("more", "mais.html", ICONS.more, "Mais"),
+    ].join("");
 
     document.body.appendChild(nav);
     document.body.classList.add("om-has-tabbar");
     hideLegacyBottomNav();
     bindTabNativeNav(nav);
 
-    document.getElementById("omTabbarFab")?.addEventListener("click", () => {
-      // On Schedule, + opens the add-to-agenda menu directly.
-      if (fileName() === "schedule.html" && typeof window.__agendaOpenNew === "function") {
-        closeSheets();
+    // Busca: círculo de vidro separado, à direita da barra (iOS 26).
+    if (!document.getElementById("omTabbarSearch")) {
+      const search = document.createElement("button");
+      search.type = "button";
+      search.id = "omTabbarSearch";
+      search.className = "om-tabbar-search";
+      search.setAttribute("aria-label", "Buscar");
+      search.innerHTML = ICONS.search;
+      search.addEventListener("click", () => {
         haptic(8);
-        window.__agendaOpenNew();
-        return;
-      }
-      openSheet("omCreateSheet");
+        openSearch();
+      });
+      document.body.appendChild(search);
+    }
+  }
+
+  function openSearch() {
+    if (window.__crmCommandPalette && typeof window.__crmCommandPalette.open === "function") {
+      window.__crmCommandPalette.open("");
+      return;
+    }
+    if (window.__crmShell && typeof window.__crmShell.openSearch === "function") {
+      window.__crmShell.openSearch();
+      return;
+    }
+    location.href = "customers.html";
+  }
+
+  /** "+" no topo: menu suspenso nativo do iOS com as ações de criar. */
+  function ensureCreateMenu() {
+    if (document.getElementById("omPulldown")) return;
+    const scrim = document.createElement("button");
+    scrim.type = "button";
+    scrim.id = "omPulldownScrim";
+    scrim.className = "om-pulldown-scrim";
+    scrim.setAttribute("aria-label", "Fechar");
+    scrim.hidden = true;
+    const menu = document.createElement("div");
+    menu.id = "omPulldown";
+    menu.className = "om-pulldown";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", "Criar");
+    menu.hidden = true;
+    menu.innerHTML = `
+      <button type="button" role="menuitem" id="omPdNewLead">Novo lead${ICONS.lead}</button>
+      <a role="menuitem" href="schedule.html?new=1">Agendar${ICONS.agenda}</a>
+      <div class="om-pulldown__sep" aria-hidden="true"></div>
+      <a role="menuitem" href="quote-builder.html">Novo quote${ICONS.quote}</a>
+      <a role="menuitem" href="invoices.html?new=1">Nova invoice${ICONS.invoice}</a>
+      <div class="om-pulldown__sep" aria-hidden="true"></div>
+      <a role="menuitem" href="jobs.html?new=1">Novo job${ICONS.job}</a>`;
+    document.body.appendChild(scrim);
+    document.body.appendChild(menu);
+    scrim.addEventListener("click", closeCreateMenu);
+    menu.querySelectorAll("a").forEach((a) => a.addEventListener("click", closeCreateMenu));
+    menu.querySelector("#omPdNewLead")?.addEventListener("click", () => {
+      closeCreateMenu();
+      haptic(8);
+      if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead()) return;
+      try {
+        sessionStorage.setItem("obramate_open_new_lead", "1");
+      } catch (_) {}
+      location.href = "/dashboard";
     });
+  }
+
+  function openCreateMenu() {
+    // Na Calendar, "+" abre direto o "adicionar à agenda".
+    if (fileName() === "schedule.html" && typeof window.__agendaOpenNew === "function") {
+      haptic(8);
+      window.__agendaOpenNew();
+      return;
+    }
+    ensureCreateMenu();
+    const menu = document.getElementById("omPulldown");
+    const scrim = document.getElementById("omPulldownScrim");
+    if (!menu || !scrim) return;
+    haptic(8);
+    scrim.hidden = false;
+    menu.hidden = false;
+    document.body.classList.add("om-menu-open");
+    document.getElementById("omTopPlus")?.setAttribute("aria-expanded", "true");
+  }
+
+  function closeCreateMenu() {
+    const menu = document.getElementById("omPulldown");
+    const scrim = document.getElementById("omPulldownScrim");
+    if (menu) menu.hidden = true;
+    if (scrim) scrim.hidden = true;
+    document.body.classList.remove("om-menu-open");
+    document.getElementById("omTopPlus")?.setAttribute("aria-expanded", "false");
   }
 
   /** Field worker nav — mirrors Campo tabs on Jobs / Schedule / Chat pages. */
@@ -710,7 +781,10 @@
     prefetchTabs();
 
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeSheets();
+      if (e.key === "Escape") {
+        closeSheets();
+        closeCreateMenu();
+      }
     });
 
     MQ.addEventListener("change", () => {
@@ -726,7 +800,7 @@
 
   window.__omMobileNav = {
     boot,
-    openCreate: () => openSheet("omCreateSheet"),
+    openCreate: openCreateMenu,
     openMore: () => {
       navigateNative("mais.html");
     },

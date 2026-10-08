@@ -278,6 +278,8 @@
     }
     if (base === 'dashboard' || base === '/dashboard' || base === 'dashboard.html') {
       // Início: bare /dashboard (no ?page=). Legacy SPA pages keep their own items.
+      // Items with ?page= (e.g. Clientes) belong to the legacy SPA, not Início.
+      if (item.page) return file === 'dashboard.html' && (page || '') === item.page;
       return (file === 'dashboard.html' || file === 'pipeline-lab.html' || file === 'dashboard') && !(page || '');
     }
     if (base === 'home.html') {
