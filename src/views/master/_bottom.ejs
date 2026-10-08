@@ -1,0 +1,57 @@
+    </main>
+  </div>
+</div>
+
+<div class="drawer-wrap" id="drawer" hidden>
+  <button class="drawer-scrim" type="button" data-drawer-close aria-label="Fechar painel" tabindex="-1"></button>
+  <aside class="drawer" id="drawer-panel" role="dialog" aria-modal="true" aria-label="Ficha"></aside>
+</div>
+
+<dialog id="stepup" aria-labelledby="stepup-title">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h2 id="stepup-title">Confirme que é você</h2><p>Ações sensíveis pedem o código do autenticador, mesmo com a sessão aberta.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="preview-line" style="justify-content:flex-start;gap:12px">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--danger)"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>
+      <b id="stepup-what" style="font-weight:700">Ação sensível</b>
+    </div>
+    <form id="stepup-form">
+      <input id="stepup-code" class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="Código de 6 dígitos" placeholder="000000">
+      <span id="stepup-error" class="alert alert-error" hidden></span>
+      <span class="muted" style="font-size:13px;font-weight:600">Vale por 5 minutos. Fica registrado na auditoria com seu IP.</span>
+      <button id="stepup-confirm" class="btn btn-dark btn-block" type="submit" disabled>Confirmar</button>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="reveal" aria-labelledby="reveal-title">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="reveal-title"></h2><p id="reveal-note"></p></div></div>
+    <div class="reveal-value" id="reveal-value"></div>
+    <div class="row-actions"><button class="btn" id="reveal-copy" type="button">Copiar</button><button class="btn btn-dark" type="button" data-close style="flex:1">Pronto, já guardei</button></div>
+  </div>
+</dialog>
+
+<dialog id="cmdk" class="cmdk-dialog" aria-label="Busca global">
+  <div class="cmdk">
+    <label>
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg>
+      <input id="cmdk-input" type="search" placeholder="Empresa, usuário, e-mail ou telefone" autocomplete="off" aria-controls="cmdk-list">
+      <span class="kbd">ESC</span>
+    </label>
+    <div class="cmdk-list" id="cmdk-list" role="listbox">
+      <div class="cmdk-group">IR PARA</div>
+      <a class="cmdk-item" href="/master/vencimentos"><span class="ic"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg></span><span class="grow"><b>Vencimentos</b><small>Trials, renovações e atrasos</small></span><em>Ir</em></a>
+      <a class="cmdk-item" href="/master/clientes?filtro=atraso"><span class="ic"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16M9 21v-4h6v4"/></svg></span><span class="grow"><b>Clientes em atraso</b><small>Quem precisa pagar</small></span><em>Ir</em></a>
+      <a class="cmdk-item" href="/master/usuarios?filtro=bloqueados"><span class="ic"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/></svg></span><span class="grow"><b>Usuários bloqueados</b><small>Todas as empresas</small></span><em>Ir</em></a>
+      <a class="cmdk-item" href="/master/auditoria"><span class="ic"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></span><span class="grow"><b>Auditoria</b><small>Tudo que foi feito no Master</small></span><em>Ir</em></a>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden><i><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true" style="stroke:#fff;stroke-width:3"><path d="M5 12l5 5 9-10"/></svg></i><span id="toast-text"></span></div>
+<script src="/assets/master/master.js?v=1"></script>
+</body>
+</html>

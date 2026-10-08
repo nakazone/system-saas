@@ -18,7 +18,8 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:domain": "node scripts/check-obramate-domain.mjs"
+    "check:domain": "node scripts/check-obramate-domain.mjs",
+    "master:link": "tsx scripts/master-link.ts"
   },
   "engines": {
     "node": ">=18"
@@ -52,6 +53,7 @@
     "pdfkit": "^0.20.2",
     "pg": "^8.23.0",
     "prisma": "^6.19.3",
+    "qrcode": "^1.5.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "uuid": "^14.0.2",
@@ -60,6 +62,7 @@
   },
   "devDependencies": {
     "@types/ejs": "^3.1.5",
+    "@types/qrcode": "^1.5.5",
     "vitest": "^4.0.17"
   }
 }

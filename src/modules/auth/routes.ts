@@ -50,7 +50,7 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
         include: { organization: { select: { slug: true, status: true } } },
       });
       for (const candidate of candidates) {
-        if (candidate.organization?.status === "canceled") continue;
+        if (candidate.organization?.status === "canceled" || candidate.organization?.status === "suspended") continue;
         const ok = await verifyPassword(parsed.data.password, candidate.passwordHash);
         if (ok) {
           user = candidate;

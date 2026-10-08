@@ -1,0 +1,31 @@
+<%- include('_top', { pageTitle: 'Pagamentos' }) %>
+<div class="page-head">
+  <div><h1>Pagamentos</h1><div class="page-sub">Assinaturas das empresas · registro manual até a cobrança automática (Stripe) entrar</div></div>
+  <% if (locals.can && can('export')) { %><form data-action action="/master/exportar/pagamentos" data-stepup="Exportar todos os pagamentos"><button class="btn" type="submit">Exportar CSV</button></form><% } %>
+</div>
+<div class="kpis k4">
+  <% kpis.forEach(function (k) { %><div class="kpi <%= k.danger ? 'danger' : '' %>"><span class="kpi-label"><%= k.label %></span><span class="kpi-value"><%= k.value %></span><span class="kpi-note"><%= k.note %></span></div><% }) %>
+</div>
+<div class="chips" style="flex:none">
+  <% tabs.forEach(function (t) { %><a class="chip" href="?aba=<%= t.key %>" aria-current="<%= t.key === tab %>"><%= t.label %><span class="n"><%= t.count %></span></a><% }) %>
+</div>
+<section class="table">
+  <div class="tr head cols-pagamentos"><span>DATA</span><span>EMPRESA</span><span>PERÍODO</span><span>MÉTODO</span><span class="right">VALOR</span><span>STATUS</span><span></span></div>
+  <% rows.forEach(function (p) { %>
+    <div class="tr cols-pagamentos">
+      <span class="muted strong hide-m" style="font-size:13px"><%= p.paidLabel %></span>
+      <a href="/master/clientes/<%= p.organizationId %>" data-ficha="<%= p.organizationId %>" class="stack" style="text-decoration:none"><b style="font-size:14px"><%= p.orgName %></b><small><%= p.note || p.paidLabel %></small></a>
+      <span class="hide-m" style="font-size:13px;font-weight:600;color:var(--ink-2)"><%= p.periodText %></span>
+      <span class="hide-m" style="font-size:13px;font-weight:600"><%= p.methodText %></span>
+      <span class="right strong num"><%= p.amountText %></span>
+      <span class="hide-m"><span class="pill pill-sm tone-<%= p.pill.tone %>"><%= p.pill.label %></span></span>
+      <span class="right hide-m">
+        <% if (canRefund && p.status === 'paid') { %>
+          <form data-action action="/master/pagamentos/<%= p.id %>/estornar" data-stepup="Estornar <%= p.amountText %> de <%= p.orgName %>" data-confirm="Marcar <%= p.amountText %> de <%= p.orgName %> como estornado?"><button class="btn btn-soft btn-sm" type="submit">Estornar</button></form>
+        <% } %>
+      </span>
+    </div>
+  <% }) %>
+  <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:28px">Nenhum pagamento ainda. Registre pela ficha da empresa (Clientes → empresa → Registrar pagamento).</div><% } %>
+</section>
+<%- include('_bottom') %>

@@ -1,0 +1,43 @@
+<%- include('_top', { pageTitle: 'Usuários' }) %>
+<div class="page-head">
+  <div><h1>Usuários</h1><div class="page-sub"><%= sub %></div></div>
+  <% if (locals.can && can('export')) { %><form data-action action="/master/exportar/usuarios" data-stepup="Exportar todos os usuários com e-mail"><button class="btn" type="submit">Exportar CSV</button></form><% } %>
+</div>
+<form class="toolbar" method="get" action="/master/usuarios" data-autosubmit role="search">
+  <div class="chips">
+    <% filters.forEach(function (f) { %><a class="chip" href="?filtro=<%= f.key %><%= q ? '&q=' + encodeURIComponent(q) : '' %>" aria-current="<%= f.key === filter %>"><%= f.label %><span class="n"><%= f.count %></span></a><% }) %>
+  </div>
+  <input type="hidden" name="filtro" value="<%= filter %>">
+  <label class="search"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg><input type="search" name="q" value="<%= q %>" placeholder="Nome, e-mail ou empresa" aria-label="Filtrar usuários"></label>
+</form>
+<% if (canManage) { %>
+<div class="bulkbar" id="bulkbar" role="toolbar" aria-label="Ações em massa" hidden>
+  <b id="bulk-count">0 selecionado(s)</b>
+  <form data-action action="/master/usuarios/lote" style="display:contents" data-stepup="Bloquear os usuários selecionados">
+    <input type="hidden" name="ids" id="bulk-ids">
+    <button class="btn" type="submit" name="action" value="sessions">Encerrar sessões</button>
+    <button class="btn" type="submit" name="action" value="unblock">Desbloquear</button>
+    <button class="btn danger" type="submit" name="action" value="block">Bloquear</button>
+  </form>
+  <button class="btn" type="button" id="bulk-clear" style="background:transparent">Limpar</button>
+</div>
+<% } %>
+<section class="table">
+  <div class="tr head cols-usuarios">
+    <% if (canManage) { %><input class="cbx" type="checkbox" id="sel-all" aria-label="Selecionar todos os visíveis"><% } else { %><span></span><% } %>
+    <span>USUÁRIO</span><span>EMPRESA</span><span>PAPEL</span><span>STATUS</span><span>SESSÕES</span><span>CRIADO</span>
+  </div>
+  <% rows.forEach(function (u) { %>
+    <div class="tr cols-usuarios">
+      <% if (canManage) { %><input class="cbx js-sel" type="checkbox" value="<%= u.id %>" aria-label="Selecionar <%= u.name %>"><% } else { %><span></span><% } %>
+      <a class="t-main" href="/master/usuarios/<%= u.id %>" data-usuario="<%= u.id %>" style="text-decoration:none"><span class="av round" style="width:34px;height:34px;background:<%= u.avatarBg %>"><%= u.initials %></span><span class="col"><b><%= u.name %></b><small><%= u.email %></small></span></a>
+      <a class="hide-m" href="/master/clientes/<%= u.organizationId %>" data-ficha="<%= u.organizationId %>" style="font-size:13px;font-weight:600;color:var(--ink-2);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= u.orgName %></a>
+      <span class="hide-m" style="font-size:13px;font-weight:700"><%= u.roleName %></span>
+      <span><span class="pill pill-sm tone-<%= u.pill.tone %>"><%= u.pill.label %></span></span>
+      <span class="hide-m" style="font-size:13px;font-weight:700"><%= u.sessions ? u.sessions + ' aberta(s)' : '—' %></span>
+      <span class="hide-m muted" style="font-size:13px;font-weight:600"><%= u.created %></span>
+    </div>
+  <% }) %>
+  <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:28px">Nenhum usuário com esse filtro.</div><% } %>
+</section>
+<%- include('_bottom') %>

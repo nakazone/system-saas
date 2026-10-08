@@ -18,9 +18,96 @@ model PlatformAdmin {
   email        String   @unique
   passwordHash String
   name         String
-  status       String   @default("active") // active | disabled
+  status       String   @default("active") // active | invited | disabled
+  /// MASTER (exactly one, enforced by a partial unique index) | ADMIN | FINANCE | SUPPORT | READONLY
+  role         String   @default("ADMIN")
+  /// TOTP secret, AES-256-GCM encrypted with a key derived from SESSION_SECRET
+  totpSecretEnc String?
+  totpEnabledAt DateTime?
+  /// bcrypt hashes of one-time recovery codes; used codes are removed
+  recoveryCodeHashes Json?
+  /// sha256 of the activation / password-reset token (one use)
+  activationTokenHash String? @unique
+  activationExpiresAt DateTime?
+  invitedById  String?  @db.Uuid
+  lastLoginAt  DateTime?
+  lastLoginIp  String?
+  failedLoginCount Int  @default(0)
+  lockedUntil  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+/// Append-only log of everything done in the Master area (UPDATE/DELETE blocked by trigger).
+model PlatformAuditLog {
+  id          BigInt   @id @default(autoincrement())
+  at          DateTime @default(now())
+  actorId     String?  @db.Uuid
+  actorName   String
+  /// e.g. auth.login, tenant.extend, tenant.suspend, payment.record
+  action      String
+  targetType  String?
+  targetId    String?
+  targetLabel String?
+  meta        Json?
+  ip          String?
+  userAgent   String?
+  stepUp      Boolean  @default(false)
+
+  @@index([at])
+  @@index([targetType, targetId])
+}
+
+/// Subscription payments recorded by the platform team (manual until Stripe billing ships).
+model PlatformPayment {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  amountCents    Int
+  paidAt         DateTime
+  /// card | ach | zelle | check | cash | other
+  method         String    @default("card")
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  /// paid | refunded
+  status         String    @default("paid")
+  note           String?
+  recordedById   String?   @db.Uuid
+  refundedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, paidAt])
+  @@index([paidAt])
+}
+
+model PlatformNote {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  body           String   @db.Text
+  authorId       String?  @db.Uuid
+  authorName     String
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+/// Conversations with a company's owner / billing contact (calls, e-mails, meetings).
+model PlatformContactLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// owner | billing
+  contactRole    String   @default("owner")
+  contactName    String
+  /// call | email | whatsapp | meeting
+  kind           String
+  summary        String   @db.Text
+  authorId       String?  @db.Uuid
+  authorName     String
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -31,7 +118,7 @@ model Organization {
   id               String    @id @default(uuid()) @db.Uuid
   slug             String    @unique
   name             String
-  status           String    @default("trial") // trial | active | past_due | canceled
+  status           String    @default("trial") // trial | active | past_due | suspended | canceled
   plan             String    @default("starter")
   logoUrl          String?
   primaryColor     String?
@@ -62,6 +149,19 @@ model Organization {
   scheduleSettings Json?
   stripeCustomerId String?
   trialEndsAt      DateTime?
+  // --- Platform billing (managed in the Master area) ---
+  /// monthly | annual
+  billingCycle     String    @default("monthly")
+  /// Overrides the list price of the plan (cents per cycle)
+  planPriceCents   Int?
+  /// When the current paid period ends (next renewal)
+  currentPeriodEnd DateTime?
+  billingContactName  String?
+  billingContactEmail String?
+  billingContactPhone String?
+  suspendedAt      DateTime?
+  canceledAt       DateTime?
+  cancelReason     String?
   /// Feature flags per org, e.g. { "job_media": true }
   featureFlags     Json?
   // --- Company details (Configurações › Dados da empresa) ---
@@ -144,6 +244,9 @@ model Organization {
   financeCosts       FinanceCost[]
   financePayrollAbatements FinancePayrollAbatement[]
   supportTickets     SupportTicket[]
+  platformPayments   PlatformPayment[]
+  platformNotes      PlatformNote[]
+  platformContactLogs PlatformContactLog[]
   pushSubscriptions  PushSubscription[]
   workOrders         WorkOrder[]
   workOrderMembers   WorkOrderMember[]

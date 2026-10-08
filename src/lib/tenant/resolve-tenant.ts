@@ -102,7 +102,8 @@ function attachOrganization(
   req: TenantRequest,
   organization: NonNullable<Awaited<ReturnType<typeof loadOrganizationBySlug>>>,
 ): boolean {
-  if (organization.status === "canceled") {
+  // Canceled and suspended (by the platform Master) organizations lose access.
+  if (organization.status === "canceled" || organization.status === "suspended") {
     return false;
   }
   req.organizationId = organization.id;

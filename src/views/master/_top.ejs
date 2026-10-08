@@ -1,0 +1,38 @@
+<%- include('_head', { pageTitle: typeof pageTitle !== 'undefined' ? pageTitle : null }) %>
+<body>
+<div class="shell">
+  <aside class="side" aria-label="Menu do Master">
+    <a class="brand" href="/master">
+      <span class="brand-mark"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width:2.3"><path d="M4 12l5 5L20 6M4 5v14h16"/></svg></span>
+      <span class="brand-text"><b>ObraMate</b><small>PLATAFORMA</small></span>
+      <span class="badge-master"><%= me.role === 'MASTER' ? 'MASTER' : meRole.toUpperCase() %></span>
+    </a>
+    <nav class="nav" aria-label="Seções">
+      <% nav.forEach(function (n) { %>
+        <% if (n.group) { %><span class="nav-group"><%= n.group %></span><% } %>
+        <a href="<%= n.href %>" <% if (n.key === active) { %>aria-current="page"<% } %>>
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="<%= n.icon %>"/></svg>
+          <span><%= n.label %></span>
+          <% if (n.badge) { %><span class="count" aria-label="<%= n.badge %> vencidos"><%= n.badge %></span><% } %>
+        </a>
+      <% }) %>
+    </nav>
+    <div class="me">
+      <span class="me-av"><%= meInitials %></span>
+      <span class="me-text"><b><%= me.name %></b><small><%= meRole %> · 2FA ativo</small></span>
+      <form method="post" action="/master/sair"><button class="icon-btn-dark" type="submit" aria-label="Sair" title="Sair"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button></form>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-btn" type="button" data-menu aria-label="Abrir menu"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <button class="search-btn" type="button" data-cmdk>
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg>
+        <span class="sb-text">Buscar empresa, usuário, e-mail, telefone…</span>
+        <span class="kbd">⌘K</span>
+      </button>
+      <span class="top-spacer"></span>
+      <span class="tag"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4"/></svg>Sessão segura · sai após 30 min parado</span>
+      <span class="tag tag-dark"><span class="dot"></span><%= env %></span>
+    </header>
+    <main class="page" id="conteudo">

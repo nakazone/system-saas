@@ -44,6 +44,7 @@ import { importRouter } from "./modules/imports/routes.js";
 import { checklistsRouter } from "./modules/checklists/routes.js";
 import { assessmentsRouter } from "./modules/assessments/routes.js";
 import { platformAdminRouter } from "./platform-admin/routes.js";
+import { masterRouter } from "./master/routes.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
 import { CRM_ASSETS_DIR, CRM_PUBLIC_DIR } from "./crm/mount.js";
@@ -217,6 +218,9 @@ export function createApp() {
 
   // Public LP / Meta lead intake (tenant via slug header/query/subdomain — no session)
   app.use(publicReceiveLeadRouter);
+
+  // Master area of the platform owner (path-based so it works on any host).
+  app.use("/master", masterRouter);
 
   app.use(resolveTenant);
 

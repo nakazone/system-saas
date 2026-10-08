@@ -154,6 +154,15 @@ platformAdminRouter.post("/login", async (req, res, next) => {
       });
       return;
     }
+    // Accounts protected by 2FA (and the Master) only sign in through /master.
+    if (admin.role === "MASTER" || admin.totpEnabledAt) {
+      res.status(401).render("platform-admin/login", {
+        title: "Platform admin login",
+        organization: null,
+        error: "Esta conta entra pelo painel Master: /master",
+      });
+      return;
+    }
     const ok = await verifyPassword(parsed.data.password, admin.passwordHash);
     if (!ok) {
       res.status(401).render("platform-admin/login", {
@@ -176,7 +185,7 @@ platformAdminRouter.post(
     try {
       if (!requirePlatformAdmin(req, res)) return;
       const schema = z.object({
-        status: z.enum(["trial", "active", "past_due", "canceled"]),
+        status: z.enum(["trial", "active", "past_due", "suspended", "canceled"]),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {

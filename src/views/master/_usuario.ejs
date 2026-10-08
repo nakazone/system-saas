@@ -1,0 +1,44 @@
+<div class="d-head">
+  <div class="d-title">
+    <span class="av av-lg round" style="background:<%= u.avatarBg %>"><%= u.initials %></span>
+    <div class="grow">
+      <h2><%= u.name %></h2>
+      <small><%= u.email %></small>
+      <div class="pills"><span class="pill tone-<%= u.pill.tone %>"><%= u.pill.label %></span><span class="pill tone-soft"><%= u.roleName %></span><% if (u.mustChangePassword) { %><span class="pill tone-warn">Senha temporária</span><% } %></div>
+    </div>
+    <% if (partial) { %><button class="close-btn" type="button" data-drawer-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button><% } %>
+  </div>
+</div>
+<div class="d-body">
+  <section class="kv">
+    <div><span>Empresa</span><b><%= u.orgName %></b></div>
+    <div><span>Papel</span><b><%= u.roleName %></b></div>
+    <div><span>Status</span><b><%= u.pill.label %></b></div>
+    <div><span>Sessões abertas agora</span><b><%= u.sessions %></b></div>
+    <div><span>Criado em</span><b><%= u.created %></b></div>
+  </section>
+  <% if (org) { %>
+  <a class="d-sec" href="/master/clientes/<%= org.id %>" data-ficha="<%= org.id %>" style="display:flex;align-items:center;gap:12px;text-decoration:none">
+    <span class="av" style="background:<%= org.avatarBg %>"><%= org.initials %></span>
+    <span style="flex:1;display:flex;flex-direction:column"><b><%= org.name %></b><small class="muted" style="font-weight:600"><%= org.planText %> · <%= org.pill.label %></small></span>
+    <span style="font-size:12px;font-weight:800;color:var(--accent-ink)">Abrir empresa</span>
+  </a>
+  <% } %>
+  <% if (canManage) { %>
+  <div class="act-grid">
+    <form data-action action="/master/usuarios/<%= u.id %>/encerrar-sessoes"><button class="act" type="submit"><b>Encerrar sessões</b><small>Sai de todos os aparelhos</small></button></form>
+    <form data-action action="/master/usuarios/<%= u.id %>/senha-temporaria" data-stepup="Criar senha temporária para <%= u.name %>"><button class="act" type="submit"><b>Senha temporária</b><small>Troca obrigatória no 1º acesso</small></button></form>
+    <% if (u.status === 'suspended') { %>
+      <form data-action action="/master/usuarios/<%= u.id %>/desbloquear"><button class="act" type="submit"><b>Desbloquear</b><small>Volta a entrar normalmente</small></button></form>
+    <% } else { %>
+      <form data-action action="/master/usuarios/<%= u.id %>/bloquear" data-stepup="Bloquear <%= u.name %> (<%= u.orgName %>)"><button class="act danger" type="submit"><b>Bloquear acesso</b><small>Encerra as sessões na hora</small></button></form>
+    <% } %>
+    <a class="act" href="mailto:<%= u.email %>" style="text-decoration:none"><b>Mandar e-mail</b><small><%= u.email %></small></a>
+  </div>
+  <% } %>
+  <section class="d-sec">
+    <h3>Histórico no Master</h3>
+    <% lastAudit.forEach(function (a) { %><div class="d-line"><span class="muted" style="width:110px"><%= dateTimeLabel(a.at) %></span><span style="flex:1"><%= a.action.replace('user.', '').replace('_', ' ') %></span><span class="muted"><%= a.actorName %></span></div><% }) %>
+    <% if (!lastAudit.length) { %><p class="muted" style="margin:4px 0">Nenhuma ação feita pelo Master neste usuário.</p><% } %>
+  </section>
+</div>

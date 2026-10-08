@@ -1,0 +1,42 @@
+<%- include('_top', { pageTitle: 'Vencimentos' }) %>
+<div class="page-head"><div><h1>Vencimentos</h1><div class="page-sub">Fim de trial, renovações e atrasos · próximos 90 dias</div></div></div>
+<% if (noDate.length) { %>
+  <div class="note-box note-warn" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="flex:1"><b><%= noDate.length %> empresa(s) sem data de vencimento:</b> <%= noDate.slice(0, 5).map(function (o) { return o.name; }).join(', ') %><%= noDate.length > 5 ? '…' : '' %>. Sem data, elas não aparecem aqui nem recebem lembrete.</span>
+    <a class="btn btn-sm btn-dark" href="/master/vencimentos?ficha=<%= noDate[0].id %>&abrir=prorrogar">Definir agora</a>
+  </div>
+<% } %>
+<div class="board">
+  <% buckets.forEach(function (b, bi) { %>
+    <div class="lane">
+      <div class="lane-head">
+        <div class="lane-title"><i class="b-<%= b.tone === 'soft' ? 'muted' : b.tone %>"></i><span class="lt-name"><%= b.title %></span><span class="lane-count"><%= b.list.length %></span></div>
+        <small><%= showMoney ? b.total : (b.list.length ? b.list.length + ' empresa(s)' : 'nada previsto') %></small>
+        <% if (canBilling && b.list.length > 1) { %>
+          <form data-action action="/master/vencimentos/lembrar" data-confirm="Enviar lembrete por e-mail para <%= b.list.length %> empresa(s)?"><input type="hidden" name="ids" value="<%= b.list.map(function (o) { return o.id; }).join(',') %>"><button class="btn btn-sm" type="submit" style="width:100%">Lembrar todos por e-mail</button></form>
+        <% } %>
+      </div>
+      <% b.list.forEach(function (o) { %>
+        <div class="due-card">
+          <a class="top" href="/master/clientes/<%= o.id %>" data-ficha="<%= o.id %>">
+            <span class="av" style="width:32px;height:32px;font-size:11px;background:<%= o.avatarBg %>"><%= o.initials %></span>
+            <span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= o.name %></b><small style="font-size:12px;font-weight:700;color:<%= o.status === 'trial' ? 'var(--info)' : (o.overdue ? 'var(--danger)' : 'var(--ink-2)') %>"><%= o.status === 'trial' ? (o.overdue ? 'Trial expirou' : 'Fim do trial') : (o.overdue ? (o.status === 'suspended' ? 'Suspensa · não pagou' : 'Não pagou') : (o.billingCycle === 'annual' ? 'Renovação anual' : 'Renovação mensal')) %></small></span>
+          </a>
+          <div class="meta"><span class="pill pill-sm tone-<%= o.chip.tone %>"><%= o.chip.label %> · <%= o.dueLabel %></span><b class="num" style="font-size:14px"><%= showMoney && o.status !== 'trial' ? o.priceText : (o.status === 'trial' ? 'trial' : '') %></b></div>
+          <% if (canBilling) { %>
+          <div class="acts">
+            <% if (o.overdue && o.status !== 'trial') { %>
+              <a class="btn btn-dark btn-sm" href="?ficha=<%= o.id %>&abrir=pagamento">Registrar pagamento</a>
+            <% } else { %>
+              <a class="btn btn-dark btn-sm" href="?ficha=<%= o.id %>&abrir=prorrogar">Prorrogar</a>
+            <% } %>
+            <form data-action action="/master/clientes/<%= o.id %>/lembrete" style="display:flex"><button class="btn btn-soft btn-sm" type="submit" style="width:100%">Lembrar</button></form>
+          </div>
+          <% } %>
+        </div>
+      <% }) %>
+      <% if (!b.list.length) { %><span class="muted" style="font-size:13px;font-weight:600;padding:8px 4px">Nada aqui.</span><% } %>
+    </div>
+  <% }) %>
+</div>
+<%- include('_bottom') %>

@@ -204,7 +204,7 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
         include: userAuthInclude,
       });
 
-      if (!user || user.status !== "active" || user.organization.status === "canceled") {
+      if (!user || user.status !== "active" || ["canceled", "suspended"].includes(user.organization.status)) {
         res.status(401).json({ success: false, error: "Invalid email or password." });
         return;
       }
@@ -227,7 +227,7 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
 
     const matches: NonNullable<AuthUser>[] = [];
     for (const candidate of candidates) {
-      if (!candidate.organization || candidate.organization.status === "canceled") {
+      if (!candidate.organization || ["canceled", "suspended"].includes(candidate.organization.status)) {
         continue;
       }
       const ok = await verifyPassword(password, candidate.passwordHash);

@@ -1,0 +1,36 @@
+<%- include('_auth-top') %>
+<% if (codes) { %>
+  <div>
+    <div class="step">2FA ATIVADO</div>
+    <h2>Guarde seus códigos de recuperação</h2>
+    <p class="lead">Se perder o celular, cada código abaixo deixa você entrar uma vez. Eles não aparecem de novo.</p>
+  </div>
+  <div class="codes" id="codes"><% codes.forEach(function (c) { %><span><%= c %></span><% }) %></div>
+  <div class="row-actions">
+    <button class="btn" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText(<%= JSON.stringify(codes.join('\n')) %>).then(function(){event.target.textContent='Copiado'})">Copiar</button>
+    <button class="btn" type="button" onclick="window.print()">Imprimir</button>
+    <a class="btn btn-dark" href="/master" style="flex:1">Já guardei, entrar</a>
+  </div>
+<% } else { %>
+  <div>
+    <div class="step">PRIMEIRO ACESSO</div>
+    <h2>Configure o 2FA</h2>
+    <p class="lead">Obrigatório para entrar no Master. Use Google Authenticator, 1Password, Authy ou o app Senhas do iPhone.</p>
+  </div>
+  <% if (error) { %><div class="alert alert-error" role="alert"><%= error %></div><% } %>
+  <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+    <div class="qr" role="img" aria-label="QR code para o app autenticador"><%- qrSvg %></div>
+    <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:8px">
+      <b style="font-size:14px">1. Escaneie o QR code</b>
+      <span class="muted" style="font-size:13px;font-weight:600">Não dá para escanear? Digite esta chave no app:</span>
+      <span class="secret"><%= secret %></span>
+    </div>
+  </div>
+  <form method="post" action="/master/2fa/configurar">
+    <label class="field">2. Digite o código que aparece no app
+      <input class="code-input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="000000" required autofocus>
+    </label>
+    <button class="btn btn-dark btn-block" type="submit">Ativar 2FA</button>
+  </form>
+<% } %>
+<%- include('_auth-bottom') %>

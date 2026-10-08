@@ -1,0 +1,19 @@
+<%- include('_top', { pageTitle: 'Auditoria' }) %>
+<div class="page-head"><div><h1>Auditoria</h1><div class="page-sub">Registro permanente · não pode ser editado nem apagado, nem pelo Master · últimos 300</div></div></div>
+<div class="chips" style="flex:none">
+  <% filters.forEach(function (f) { %><a class="chip no-count" href="?filtro=<%= f.key %>" aria-current="<%= f.key === filter %>"><%= f.label %></a><% }) %>
+</div>
+<section class="table">
+  <div class="tr head cols-auditoria"><span>QUANDO</span><span>QUEM</span><span>AÇÃO</span><span>ALVO</span><span>IP</span></div>
+  <% rows.forEach(function (a) { %>
+    <div class="tr cols-auditoria" style="font-size:13px">
+      <span class="muted strong hide-m"><%= a.when %></span>
+      <span class="strong"><%= a.who %></span>
+      <span style="display:flex;align-items:center;gap:10px;font-weight:600;min-width:0"><span class="bullet b-<%= a.tone %>"></span><span><%= a.text %><%= a.detail ? ' · ' + a.detail : '' %></span><% if (a.stepUp) { %><span class="pill pill-sm tone-soft" title="Confirmado com código 2FA">2FA</span><% } %></span>
+      <span class="hide-m" style="color:var(--ink-2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= a.target %></span>
+      <span class="hide-m muted num" style="font-weight:600"><%= a.ip %></span>
+    </div>
+  <% }) %>
+  <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:28px">Nada registrado ainda.</div><% } %>
+</section>
+<%- include('_bottom') %>

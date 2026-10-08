@@ -1,0 +1,15 @@
+<%- include('_auth-top') %>
+<div>
+  <div class="step">PASSO 1 DE 2</div>
+  <h2>Entrar no Master</h2>
+  <p class="lead">Acesso do dono e da equipe da plataforma.</p>
+</div>
+<% if (info) { %><div class="alert alert-info"><%= info %></div><% } %>
+<% if (error) { %><div class="alert alert-error" role="alert"><%= error %></div><% } %>
+<form method="post" action="/master/entrar">
+  <label class="field">E-mail<input class="input" type="email" name="email" autocomplete="username" required value="<%= email %>" <% if (!email) { %>autofocus<% } %>></label>
+  <label class="field">Senha<input class="input" type="password" name="password" autocomplete="current-password" required <% if (email) { %>autofocus<% } %>></label>
+  <button class="btn btn-dark btn-block" type="submit">Continuar</button>
+</form>
+<p class="muted" style="margin:0;font-size:13px;font-weight:600;line-height:1.5">Esqueceu a senha ou perdeu o celular do 2FA? Use um código de recuperação no próximo passo ou peça um novo link de acesso ao Master.</p>
+<%- include('_auth-bottom') %>

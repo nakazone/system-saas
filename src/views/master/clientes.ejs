@@ -1,0 +1,35 @@
+<%- include('_top', { pageTitle: 'Clientes' }) %>
+<div class="page-head">
+  <div><h1>Clientes</h1><div class="page-sub"><%= sub %></div></div>
+  <% if (locals.can && can('export')) { %>
+  <div class="row-actions">
+    <form data-action action="/master/exportar/clientes" data-stepup="Exportar a base de clientes com contatos"><button class="btn" type="submit">Exportar CSV</button></form>
+  </div>
+  <% } %>
+</div>
+<form class="toolbar" method="get" action="/master/clientes" data-autosubmit role="search">
+  <div class="chips">
+    <% filters.forEach(function (f) { %><a class="chip" href="?filtro=<%= f.key %><%= q ? '&q=' + encodeURIComponent(q) : '' %>&ordem=<%= sort %>" aria-current="<%= f.key === filter %>"><%= f.label %><span class="n"><%= f.count %></span></a><% }) %>
+  </div>
+  <input type="hidden" name="filtro" value="<%= filter %>"><input type="hidden" name="ordem" value="<%= sort %>">
+  <label class="search"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg><input type="search" name="q" value="<%= q %>" placeholder="Empresa, dono, e-mail ou telefone" aria-label="Filtrar clientes"></label>
+</form>
+<div class="seg">Ordenar por
+  <% [['venc','Vencimento'],['nome','Nome'],['valor','Valor']].forEach(function (s) { %><a href="?filtro=<%= filter %>&ordem=<%= s[0] %><%= q ? '&q=' + encodeURIComponent(q) : '' %>" aria-current="<%= sort === s[0] %>"><%= s[1] %></a><% }) %>
+</div>
+<section class="table">
+  <div class="tr head cols-clientes"><span>EMPRESA</span><span>PLANO</span><span>STATUS</span><span>VENCIMENTO</span><span class="right">VALOR</span><span>DONO</span><span class="right">USUÁRIOS</span></div>
+  <% rows.forEach(function (o) { %>
+    <a class="tr cols-clientes" href="/master/clientes/<%= o.id %>" data-ficha="<%= o.id %>">
+      <span class="t-main"><span class="av" style="background:<%= o.avatarBg %>"><%= o.initials %></span><span class="col"><b><%= o.name %></b><small><%= o.slug %></small></span></span>
+      <span class="stack"><b style="font-size:13px"><%= o.planText %></b><small><%= o.cycleText %></small></span>
+      <span class="hide-m"><span class="pill tone-<%= o.pill.tone %>"><%= o.pill.label %></span></span>
+      <span class="stack"><span class="pill pill-sm tone-<%= o.chip.tone %>"><%= o.chip.label %></span><small><%= o.due ? (o.status === 'trial' ? (o.overdue ? 'trial acabou ' : 'fim do trial ') : (o.overdue ? 'venceu ' : 'renova ')) + o.dueLabel : (o.status === 'canceled' ? (o.cancelReason || '—') : 'definir data') %></small></span>
+      <span class="right strong num hide-m"><%= showMoney ? o.priceText : '—' %></span>
+      <span class="stack"><b style="font-size:13px"><%= o.ownerName %></b><small><%= o.ownerPhone || o.ownerEmail %></small></span>
+      <span class="right strong"><%= o.users %></span>
+    </a>
+  <% }) %>
+  <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:28px">Nenhum cliente com esse filtro.</div><% } %>
+</section>
+<%- include('_bottom') %>

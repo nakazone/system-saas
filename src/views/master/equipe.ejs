@@ -1,0 +1,72 @@
+<%- include('_top', { pageTitle: 'Equipe e segurança' }) %>
+<div class="page-head">
+  <div><h1>Equipe e segurança</h1><div class="page-sub">Só existe um Master. Os outros papéis fazem só o que está marcado abaixo.</div></div>
+  <% if (canTeam) { %><button class="btn btn-primary" type="button" data-open="dlg-convidar">+ Convidar membro</button><% } %>
+</div>
+<section class="table">
+  <div class="tr head cols-equipe"><span>MEMBRO</span><span>PAPEL</span><span>2FA</span><span>ÚLTIMO ACESSO</span><span></span></div>
+  <% members.forEach(function (m) { %>
+    <div class="tr cols-equipe">
+      <span class="t-main"><span class="av round" style="width:34px;height:34px;background:<%= m.avatarBg %>"><%= m.initials %></span><span class="col"><b><%= m.name %><%= m.you ? ' (você)' : '' %></b><small><%= m.email %></small></span></span>
+      <span><span class="pill <%= m.role === 'MASTER' ? '' : 'tone-soft' %>" style="<%= m.role === 'MASTER' ? 'background:var(--ink);color:var(--accent-soft)' : '' %>"><%= m.roleLabel %></span></span>
+      <span class="hide-m" style="font-size:13px;font-weight:600;color:<%= m.status === 'invited' ? 'var(--warn)' : 'var(--ink)' %>"><%= m.twofa %></span>
+      <span class="hide-m" style="font-size:13px;font-weight:600;color:var(--ink-2)"><%= m.last %></span>
+      <span class="right" style="display:flex;gap:6px;justify-content:flex-end">
+        <% if (canTeam && !m.you && m.role !== 'MASTER') { %>
+          <% if (m.status === 'invited') { %><form data-action action="/master/equipe/<%= m.id %>/reenviar"><button class="btn btn-soft btn-sm" type="submit">Reenviar convite</button></form><% } %>
+          <form data-action action="/master/equipe/<%= m.id %>/remover" data-stepup="Remover <%= m.name %> da equipe" data-confirm="Remover <%= m.name %> da equipe?"><button class="btn btn-soft btn-sm" type="submit" style="color:var(--danger)">Remover</button></form>
+        <% } %>
+      </span>
+    </div>
+  <% }) %>
+</section>
+
+<div class="grid-2" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
+  <section class="table matrix">
+    <div style="padding:16px 20px 10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px">O que cada papel pode fazer</h2></div>
+    <div class="tr head"><span>AÇÃO</span><% roles.forEach(function (r) { %><span><%= r.label %></span><% }) %></div>
+    <% matrix.forEach(function (row) { %>
+      <div class="tr"><span style="font-size:13px;font-weight:600"><%= row.label %></span>
+        <% row.cells.forEach(function (yes, i) { %><span class="mcell" title="<%= roles[i].label %>: <%= yes ? 'pode' : 'não pode' %>"><i class="<%= yes ? 'yes' : 'no' %>" aria-label="<%= roles[i].label %>: <%= yes ? 'pode' : 'não pode' %>"><% if (yes) { %><svg class="ico" viewBox="0 0 24 24" style="width:12px;height:12px;stroke-width:3.2" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg><% } %></i></span><% }) %>
+      </div>
+    <% }) %>
+  </section>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <section class="card card-pad">
+      <h2 style="margin-bottom:6px">Regras de segurança em vigor</h2>
+      <div class="rule"><span class="grow"><b>2FA obrigatório para todos</b><small>Ninguém entra no Master só com senha</small></span><span class="on-tag">SEMPRE</span></div>
+      <div class="rule"><span class="grow"><b>Código de novo em ações sensíveis</b><small>Suspender, cancelar, bloquear, estornar, senha temporária, exportar, remover da equipe</small></span><span class="on-tag">SEMPRE</span></div>
+      <div class="rule"><span class="grow"><b>Sai sozinho após 30 min parado</b><small>E depois de 12 h mesmo em uso</small></span><span class="on-tag">SEMPRE</span></div>
+      <div class="rule"><span class="grow"><b>Bloqueio por tentativas erradas</b><small>5 erros em 15 min travam o IP e o e-mail</small></span><span class="on-tag">SEMPRE</span></div>
+      <div class="rule"><span class="grow"><b>Auditoria que não se apaga</b><small>Nem o Master edita ou remove registros</small></span><span class="on-tag">SEMPRE</span></div>
+    </section>
+    <section class="card card-pad" style="display:flex;flex-direction:column;gap:10px">
+      <h2>Seus códigos de recuperação</h2>
+      <span class="muted" style="font-size:13px;font-weight:600;line-height:1.5">Restam <b style="color:<%= myRecovery <= 3 ? 'var(--danger)' : 'var(--ink)' %>"><%= myRecovery %> de 10</b>. Servem para entrar se você perder o celular.</span>
+      <form data-action action="/master/equipe/codigos-recuperacao" data-stepup="Gerar novos códigos de recuperação" data-confirm="Gerar novos códigos? Os atuais param de funcionar."><button class="btn" type="submit">Gerar novos códigos</button></form>
+    </section>
+  </div>
+</div>
+
+<% if (canTeam) { %>
+<dialog id="dlg-convidar" aria-labelledby="t-cv">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-cv">Convidar para a equipe</h2><p>A pessoa recebe um link por e-mail, cria a senha e configura o 2FA.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/equipe/convidar">
+      <div class="form-row">
+        <label class="field">E-mail<input class="input" type="email" name="email" required autofocus></label>
+        <label class="field">Nome (opcional)<input class="input" name="name" maxlength="80"></label>
+      </div>
+      <div class="field">Papel
+        <div class="seg-pick cards">
+          <% inviteRoles.forEach(function (r, i) { %><label><input type="radio" name="role" value="<%= r.key %>" <%= r.key === 'SUPPORT' ? 'checked' : '' %>><span><b><%= r.label %></b><small><%= r.hint %></small></span></label><% }) %>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Enviar convite</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
+<%- include('_bottom') %>

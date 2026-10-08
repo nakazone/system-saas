@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { startQuoteExpiryJob } from "./lib/quotes/expire-job.js";
 import { startAutomationWorker } from "./lib/automations/worker.js";
 import { startJobStartReminderJob } from "./lib/work-orders/start-reminder-job.js";
+import { ensureMaster } from "./master/auth.js";
 
 const app = createApp();
 const host = "0.0.0.0";
@@ -14,4 +15,5 @@ app.listen(env.PORT, host, () => {
   startQuoteExpiryJob();
   startAutomationWorker();
   startJobStartReminderJob();
+  void ensureMaster();
 });

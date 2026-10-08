@@ -1,0 +1,24 @@
+<%- include('_auth-top') %>
+<div>
+  <div class="step">PASSO 2 DE 2</div>
+  <h2><%= mode === 'recovery' ? 'Código de recuperação' : 'Código de verificação' %></h2>
+  <p class="lead"><%= mode === 'recovery' ? 'Digite um dos códigos que você guardou quando configurou o 2FA. Cada um vale uma vez.' : 'Abra o app autenticador e digite os 6 dígitos de “ObraMate Master”.' %></p>
+</div>
+<% if (error) { %><div class="alert alert-error" role="alert"><%= error %></div><% } %>
+<form method="post" action="/master/2fa" id="f2fa">
+  <input type="hidden" name="mode" value="<%= mode %>">
+  <% if (mode === 'recovery') { %>
+    <input class="code-input" style="letter-spacing:.2em;font-size:26px" name="code" autocomplete="off" placeholder="XXXX-XXXX" aria-label="Código de recuperação" required autofocus>
+  <% } else { %>
+    <input class="code-input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}" placeholder="000000" aria-label="Código de 6 dígitos" required autofocus>
+  <% } %>
+  <button class="btn btn-dark btn-block" type="submit">Verificar e entrar</button>
+</form>
+<div class="row-actions">
+  <% if (mode === 'recovery') { %><a class="btn" href="/master/2fa" style="flex:1">Usar o app autenticador</a><% } else { %><a class="btn" href="/master/2fa?modo=recuperacao" style="flex:1">Usar código de recuperação</a><% } %>
+  <a class="btn" href="/master/entrar" style="flex:1">Trocar de conta</a>
+</div>
+<script>
+  (function(){var i=document.querySelector('#f2fa input[name=code][inputmode]');if(!i)return;i.addEventListener('input',function(){i.value=i.value.replace(/\D/g,'').slice(0,6);if(i.value.length===6)i.form.submit();});})();
+</script>
+<%- include('_auth-bottom') %>

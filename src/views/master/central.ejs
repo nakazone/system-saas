@@ -1,0 +1,70 @@
+<%- include('_top', { pageTitle: 'Central' }) %>
+<div class="page-head">
+  <div><h1><%= greet %></h1><div class="page-sub"><%= dateLine %><%= lastLogin ? ' · login anterior ' + lastLogin : '' %></div></div>
+</div>
+
+<% if (showMoney) { %>
+<div class="kpis">
+  <% kpis.forEach(function (k) { %>
+    <a class="kpi <%= k.dark ? 'dark' : '' %> <%= k.warn ? 'warn' : '' %>" href="<%= k.href %>">
+      <span class="kpi-label"><%= k.label %></span>
+      <span class="kpi-value"><%= k.value %></span>
+      <span class="kpi-note"><%= k.note %></span>
+    </a>
+  <% }) %>
+</div>
+<% } %>
+
+<section class="card card-pad" style="display:flex;flex-direction:column;gap:14px">
+  <div class="card-head" style="margin:0;flex-wrap:wrap">
+    <h2>Vencimentos · próximas 2 semanas</h2>
+    <div class="legend">
+      <span><i class="k-trial"></i>Fim de trial</span><span><i class="k-renew"></i>Renovação</span><span><i class="k-late"></i>Em atraso</span>
+      <a class="btn btn-soft btn-sm" href="/master/vencimentos">Ver todos</a>
+    </div>
+  </div>
+  <div class="strip">
+    <a class="strip-over" href="/master/vencimentos"><small>VENCIDOS</small><b><%= overdueCount %></b><span style="font-size:12px;font-weight:700"><%= showMoney ? overdueTotal + ' parados' : 'ver lista' %></span></a>
+    <% strip.forEach(function (d) { %>
+      <div class="strip-day <%= d.d === 0 ? 'today' : '' %> <%= d.weekend ? 'weekend' : '' %>">
+        <small><%= d.wd %></small><b><%= d.n %></b>
+        <% d.items.forEach(function (o) { %>
+          <a class="strip-chip <%= o.status === 'trial' ? 'k-trial' : (o.status === 'past_due' ? 'k-late' : 'k-renew') %>" href="/master/clientes/<%= o.id %>" data-ficha="<%= o.id %>" title="<%= o.name %> · <%= o.dueKind %>" aria-label="<%= o.name %> · <%= o.dueKind %>"><%= o.initials %></a>
+        <% }) %>
+      </div>
+    <% }) %>
+  </div>
+</section>
+
+<div class="grid-3">
+  <section class="card card-pad" style="padding-bottom:8px">
+    <div class="card-head"><h2>Precisa de você</h2><span class="pill" style="background:var(--accent);color:#fff"><%= queueCount %></span></div>
+    <% queue.forEach(function (q) { %>
+      <div class="list-row">
+        <span class="bullet b-<%= q.tone %>"></span>
+        <span class="grow"><span class="t"><%= q.title %></span><span class="s"><%= q.sub %></span></span>
+        <a class="btn btn-sm <%= q.primary ? 'btn-dark' : 'btn-soft' %>" href="<%= q.href %>"><%= q.cta %></a>
+      </div>
+    <% }) %>
+    <% if (!queue.length) { %><div class="empty">Tudo em dia. Nada esperando por você.</div><% } %>
+  </section>
+
+  <section class="card card-pad" style="padding-bottom:8px">
+    <div class="card-head"><h2>Pagamentos recentes</h2><% if (showMoney) { %><a class="btn btn-soft btn-sm" href="/master/pagamentos">Ver todos</a><% } %></div>
+    <% if (showMoney) { recent.forEach(function (p) { %>
+      <a class="list-row" href="/master/clientes/<%= p.organizationId %>" data-ficha="<%= p.organizationId %>">
+        <span class="grow"><span class="t"><%= p.orgName %></span><span class="s"><%= p.paidLabel %> · <%= p.methodText %></span></span>
+        <span class="stack" style="align-items:flex-end"><b class="num"><%= p.amountText %></b><span class="pill pill-sm tone-<%= p.pill.tone %>"><%= p.pill.label %></span></span>
+      </a>
+    <% }) } %>
+    <% if (!showMoney || !recent.length) { %><div class="empty"><%= showMoney ? 'Nenhum pagamento registrado ainda. Registre pela ficha da empresa.' : 'Seu papel não vê valores.' %></div><% } %>
+  </section>
+
+  <section class="card card-pad" style="display:flex;flex-direction:column;gap:10px">
+    <h2>Usuários</h2>
+    <% userStats.forEach(function (s) { %>
+      <a class="stat-btn <%= s.danger && s.v ? 'danger' : '' %>" href="<%= s.href %>"><span style="font-size:13px;font-weight:600"><%= s.label %></span><b class="num"><%= s.v %></b></a>
+    <% }) %>
+  </section>
+</div>
+<%- include('_bottom') %>
