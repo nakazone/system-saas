@@ -94,12 +94,11 @@
 
   function getSidebarGroups(role) {
     if (isFieldRole(role)) return getFieldSidebarGroups();
-    const homeHref = isMobileDevice() ? 'home.html' : 'pipeline-lab.html';
     return [
       {
         label: 'Visão geral',
         items: [
-          { href: homeHref, label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
+          { href: '/dashboard', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
           { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
         ],
       },
@@ -181,7 +180,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261007-nav2';
+  const NAV_STRUCTURE_VERSION = '20261008-dash1';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
@@ -277,11 +276,15 @@
       if ((item.page || '') === 'quotes') return true;
       if (base === 'quote-builder.html' || base === 'quotes.html') return true;
     }
+    if (base === 'dashboard' || base === '/dashboard' || base === 'dashboard.html') {
+      // Início: bare /dashboard (no ?page=). Legacy SPA pages keep their own items.
+      return (file === 'dashboard.html' || file === 'pipeline-lab.html' || file === 'dashboard') && !(page || '');
+    }
     if (base === 'home.html') {
       return file === 'home.html';
     }
     if (base === 'pipeline-lab.html') {
-      return file === 'pipeline-lab.html' || (file === 'dashboard.html' && !(page || '') && !isMobileDevice());
+      return file === 'pipeline-lab.html' || (file === 'dashboard.html' && !(page || ''));
     }
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
@@ -301,6 +304,7 @@
     if (base === 'configuracoes.html') return file === 'configuracoes.html';
     if (pathAndQuery.indexOf('dashboard.html') >= 0 || base === 'dashboard.html') {
       if (file === 'home.html' && !(item.page || '')) return true;
+      if ((file === 'pipeline-lab.html' || file === 'dashboard.html') && !(item.page || '') && !(page || '')) return true;
       if (file === 'pipeline-lab.html' && item.page === 'pipeline') return true;
       if (file === 'customers.html' && (item.page || '') === 'customers') return true;
       if (file !== 'dashboard.html') return false;
@@ -533,7 +537,7 @@
     brand.className = 'crm-shared-nav__brand crm-shared-nav__brand--logo-only';
     brand.href = isFieldRole(role)
       ? 'funcionario.html'
-      : (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || 'pipeline-lab.html';
+      : (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || '/dashboard';
     brand.setAttribute('aria-label', 'ObraMate — início');
     brand.innerHTML =
       '<img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-shared-nav__brand-logo crm-system-logo" width="64" height="64" onerror="this.style.display=\'none\'" />';

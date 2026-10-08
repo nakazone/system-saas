@@ -13,7 +13,7 @@
   <script>
     (async function () {
       // Desktop → Dashboard right away (sync), before waiting on the session round-trip.
-      if (window.__omDevice && window.__omDevice.guardMobileOnlyPage("pipeline-lab.html")) return;
+      if (window.__omDevice && window.__omDevice.guardMobileOnlyPage("/dashboard")) return;
       if (window.__crmFieldGate) await window.__crmFieldGate.bounceFieldWorker();
     })();
   </script>

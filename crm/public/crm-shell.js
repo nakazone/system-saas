@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261008-name1";
+  const SHELL_VER = "20261008-dash1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -56,7 +56,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
     <span>Calendar</span>
   </a>
-  <a class="om-dock__btn" href="pipeline-lab.html" title="Pipeline">
+  <a class="om-dock__btn" href="/dashboard" title="Pipeline">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 12h6M9 16h4"/></svg>
     <span>Pipeline</span>
   </a>
@@ -289,7 +289,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-2.6-6.2"/><path d="M21 3v6h-6"/></svg>
       <span data-crm-refresh-label>Atualizar</span>
     </button>
-    <a href="pipeline-lab.html" class="crm-topbar__brand" id="crmTopbarBrand" aria-label="ObraMate — início">
+    <a href="/dashboard" class="crm-topbar__brand" id="crmTopbarBrand" aria-label="ObraMate — início">
       <img src="/assets/obramate-logo.png" alt="ObraMate" class="crm-system-logo" width="160" height="36" onerror="this.style.display='none'" />
     </a>
   </div>
@@ -425,7 +425,7 @@
       (window.__omDevice && typeof window.__omDevice.entryHref === "function" && window.__omDevice.entryHref()) ||
       (document.body.classList.contains("func-app") || document.body.classList.contains("om-field-desktop")
         ? "funcionario.html"
-        : "pipeline-lab.html");
+        : "/dashboard");
     location.href = fallback;
   }
 

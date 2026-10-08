@@ -120,7 +120,7 @@
   function renderExecutive(ex) {
     if (!ex) return "";
     return `<section class="rpt-sec" id="sec-resumo">
-      ${secHead("Resumo executivo", `${exportBtn("executive")}${link("pipeline-lab.html", "Início")}${link("leads.html", "Leads")}`)}
+      ${secHead("Resumo executivo", `${exportBtn("executive")}${link("/dashboard", "Início")}${link("leads.html", "Leads")}`)}
       <div class="rpt-kpis">
         ${kpi("Leads no período", num(ex.leads_created))}
         ${kpi("Orçamentos ganhos", num(ex.quotes_won_count))}

@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import express, { type Router } from "express";
+import express, { type Response, type Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { crmAuthRouter } from "./auth-api.js";
 import { crmApiRouter } from "./api.js";
@@ -73,6 +73,13 @@ function injectBranding(html: string): string {
   return `${BRANDING_INJECT}\n${html}`;
 }
 
+function sendCrmHtml(res: Response, filename: string) {
+  const full = path.join(CRM_PUBLIC_DIR, filename);
+  const html = injectBranding(fs.readFileSync(full, "utf8"));
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.type("html").send(html);
+}
+
 export function createCrmRouter(): Router {
   const router = express.Router();
 
@@ -85,15 +92,29 @@ export function createCrmRouter(): Router {
   router.get("/", requireAuth, (req, res) => {
     const role = String(req.session?.userRole || "").toLowerCase();
     const isField = role === "installer" || role === "crew_lead" || role === "subcontractor";
-    const ua = String(req.headers["user-agent"] || "");
-    const mobile =
-      /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|iPad/i.test(ua);
     if (isField) {
       // One employee app (Meu dia) on phone and desktop.
       res.redirect("/campo/hoje.html");
       return;
     }
-    res.redirect(mobile ? "/home.html" : "/pipeline-lab.html");
+    res.redirect("/dashboard");
+  });
+
+  // Início = /dashboard (pipeline board). Legacy SPA only when ?page= is set.
+  router.get(["/dashboard", "/dashboard.html"], requireAuth, (req, res, next) => {
+    try {
+      if (req.query.page) {
+        sendCrmHtml(res, "dashboard.html");
+        return;
+      }
+      sendCrmHtml(res, "pipeline-lab.html");
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/pipeline-lab.html", requireAuth, (_req, res) => {
+    res.redirect(302, "/dashboard");
   });
 
   // Block excluded SF modules in SaaS (deep links / bookmarks)

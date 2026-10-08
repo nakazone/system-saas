@@ -176,33 +176,182 @@
       .join("");
   }
 
-  function renderSources() {
-    const card = $("omdSourcesCard");
-    const list = $("omdSourcesList");
-    const rows = overview.sources_30d;
-    if (!rows) {
+  const WD_PT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  function renderJobsForecast() {
+    const card = $("omdJobsCard");
+    const daysEl = $("omdJobsDays");
+    const list = $("omdJobsList");
+    if (!card || !daysEl || !list) return;
+    const days = overview.jobs_forecast;
+    if (days == null) {
       card.hidden = true;
       return;
     }
     card.hidden = false;
-    if (!rows.length) {
-      list.innerHTML = '<li class="omd-muted">Nenhum lead nos últimos 30 dias.</li>';
+    const todayKey = overview.today || "";
+    daysEl.innerHTML = days
+      .map((d) => {
+        const dt = new Date(`${d.date}T12:00:00Z`);
+        const wd = WD_PT[dt.getUTCDay()] || "";
+        const n = Number(String(d.date).slice(-2));
+        const isToday = d.date === todayKey;
+        const busy = d.count > 0;
+        return `<div class="omd-jobs__day${isToday ? " is-today" : ""}${busy ? " is-busy" : ""}" title="${esc(d.date)}: ${d.count}">
+          <span class="omd-jobs__day-wd">${esc(wd)}</span>
+          <span class="omd-jobs__day-n">${n}</span>
+          <span class="omd-jobs__day-c">${d.count || "·"}</span>
+        </div>`;
+      })
+      .join("");
+
+    const upcoming = [];
+    for (const d of days) {
+      for (const j of d.jobs || []) upcoming.push({ ...j, date: d.date });
+    }
+    const show = upcoming.slice(0, 6);
+    if (!show.length) {
+      list.innerHTML = `<li class="omd-empty">
+        <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+        <div><strong>Sem jobs nos próximos dias</strong><p>Nenhuma instalação agendada nesta semana. <a class="omd-link" href="schedule.html">Abrir agenda</a></p></div>
+      </li>`;
       return;
     }
-    const max = Math.max(...rows.map((r) => r.count), 1);
-    const total = rows.reduce((s, r) => s + r.count, 0);
-    list.innerHTML = rows
-      .map((r, i) => {
-        const w = Math.max(4, Math.round((r.count / max) * 100));
-        const share = Math.round((r.count / total) * 100);
-        const opacity = Math.max(0.35, 1 - i * 0.13);
-        return `<li class="omd-src" title="${esc(r.source)}: ${r.count} (${share}%)">
-          <span class="omd-src__name">${esc(r.source)}</span>
-          <span class="omd-src__bar"><i style="width:${w}%;opacity:${opacity}"></i></span>
-          <span class="omd-src__count">${r.count}</span>
+    list.innerHTML = show
+      .map((j) => {
+        const when = j.date === todayKey ? D.timeOf(j.start, overview) : String(j.date).slice(5).replace("-", "/");
+        const sub = [j.person, j.address].filter(Boolean).join(" · ");
+        return `<li class="omd-row omd-ev">
+          <span class="omd-ev__time"><strong>${esc(when)}</strong><span>${j.date === todayKey ? "hoje" : esc(D.timeOf(j.start, overview))}</span></span>
+          <div class="omd-row__body">
+            <p class="omd-row__title"><a href="${esc(j.href)}">${esc(j.title)}</a></p>
+            ${sub ? `<p class="omd-row__detail">${esc(sub)}</p>` : ""}
+          </div>
         </li>`;
       })
       .join("");
+  }
+
+  let dayMap = null;
+  let dayMapMarkers = [];
+
+  function loadStylesheet(href) {
+    if ([...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => (l.getAttribute("href") || "").includes(href.split("?")[0]))) {
+      return;
+    }
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    document.head.appendChild(link);
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if ([...document.querySelectorAll("script[src]")].some((s) => s.src === src || (s.getAttribute("src") || "") === src)) {
+        resolve();
+        return;
+      }
+      const el = document.createElement("script");
+      el.src = src;
+      el.async = true;
+      el.onload = () => resolve();
+      el.onerror = () => reject(new Error(`Falha ao carregar ${src}`));
+      document.head.appendChild(el);
+    });
+  }
+
+  async function ensureLeaflet() {
+    loadStylesheet("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
+    if (!window.L) await loadScript("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js");
+    return window.L;
+  }
+
+  async function renderDayMap() {
+    const card = $("omdMapCard");
+    const canvas = $("omdMapCanvas");
+    const empty = $("omdMapEmpty");
+    const meta = $("omdMapMeta");
+    if (!card || !canvas) return;
+    const events = overview.today_events;
+    if (events == null) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const points = (events || []).filter(
+      (e) => Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng)),
+    );
+    const missing = (events || []).filter(
+      (e) => e.address && !(Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng))),
+    ).length;
+
+    if (!points.length) {
+      if (dayMap) {
+        try {
+          dayMap.remove();
+        } catch (_) {}
+        dayMap = null;
+        dayMapMarkers = [];
+      }
+      canvas.hidden = true;
+      if (empty) {
+        empty.hidden = false;
+        empty.textContent = events.length
+          ? "Jobs de hoje ainda sem coordenadas no mapa."
+          : "Nenhum job ou visita na agenda de hoje.";
+      }
+      if (meta) meta.textContent = missing ? `${missing} sem localização` : "";
+      return;
+    }
+
+    canvas.hidden = false;
+    if (empty) empty.hidden = true;
+    if (meta) {
+      meta.textContent =
+        D.plural(points.length, "ponto", "pontos") + (missing ? ` · ${missing} sem localização` : "");
+    }
+
+    try {
+      const L = await ensureLeaflet();
+      if (!dayMap) {
+        dayMap = L.map(canvas, { zoomControl: false, attributionControl: false });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+        }).addTo(dayMap);
+        L.control.zoom({ position: "topright" }).addTo(dayMap);
+      }
+      dayMapMarkers.forEach((m) => dayMap.removeLayer(m));
+      dayMapMarkers = [];
+      const bounds = [];
+      points.forEach((p, i) => {
+        const lat = Number(p.lat);
+        const lng = Number(p.lng);
+        const icon = L.divIcon({
+          className: "",
+          html: `<div class="omd-map-pin is-${p.type === "job" ? "job" : "visit"}"><span>${i + 1}</span></div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 28],
+        });
+        const marker = L.marker([lat, lng], { icon }).addTo(dayMap);
+        marker.bindPopup(
+          `<strong>${esc(p.title)}</strong><br>${esc(D.timeOf(p.start, overview))}${
+            p.address ? `<br>${esc(p.address)}` : ""
+          }`,
+        );
+        dayMapMarkers.push(marker);
+        bounds.push([lat, lng]);
+      });
+      if (bounds.length === 1) dayMap.setView(bounds[0], 12);
+      else dayMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 13 });
+      setTimeout(() => dayMap && dayMap.invalidateSize(), 80);
+    } catch (_) {
+      canvas.hidden = true;
+      if (empty) {
+        empty.hidden = false;
+        empty.textContent = "Mapa indisponível no momento.";
+      }
+      if (meta) meta.textContent = "";
+    }
   }
 
   function leadCard(lead, ov) {
@@ -214,12 +363,137 @@
       lead.value != null && lead.value > 0
         ? `<span class="omd-lead__value">${esc(D.moneyCompact(lead.value))}</span>`
         : '<span class="omd-lead__value is-empty">Sem valor</span>';
-    return `<a class="omd-lead" href="lead-detail.html?id=${encodeURIComponent(lead.id)}">
+    const canEdit = can("leads.edit") || can("pipeline.manage") || (session && session.user && session.user.role === "admin");
+    return `<article class="omd-lead${canEdit ? " omd-lead--draggable" : ""}" data-lead-id="${esc(lead.id)}" data-href="lead-detail.html?id=${encodeURIComponent(lead.id)}" tabindex="0" role="link">
       ${flag}
       <p class="omd-lead__name">${esc(lead.name)}</p>
       ${summary ? `<p class="omd-lead__sum">${esc(summary)}</p>` : ""}
       <div class="omd-lead__foot">${value}<span class="omd-lead__ago">${esc(D.ago(lead.created_at))}</span></div>
-    </a>`;
+    </article>`;
+  }
+
+  let omdSortables = [];
+  let omdSuppressLeadClick = false;
+
+  function destroyOmdSortables() {
+    omdSortables.forEach((s) => {
+      try {
+        s.destroy();
+      } catch (_) {}
+    });
+    omdSortables = [];
+  }
+
+  async function moveLeadToStage(leadId, stageSlug) {
+    if (typeof window.updateLeadPipelineStage === "function") {
+      return window.updateLeadPipelineStage(leadId, stageSlug);
+    }
+    const id = String(leadId || "").trim();
+    const slug = normalizeSlug(stageSlug);
+    if (!id || !slug) return false;
+    try {
+      const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: slug }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.success === false) {
+        notify(j.error || "Não foi possível mover o lead.", "error");
+        return false;
+      }
+      return true;
+    } catch (e) {
+      notify(e.message || "Não foi possível mover o lead.", "error");
+      return false;
+    }
+  }
+
+  function initOmdSortables() {
+    destroyOmdSortables();
+    if (typeof Sortable === "undefined") return;
+    const board = $("omdBoard");
+    if (!board) return;
+    if (!can("leads.edit") && !can("pipeline.manage") && !(session && session.user && session.user.role === "admin")) {
+      return;
+    }
+
+    if (!board.dataset.dndClickGuard) {
+      board.dataset.dndClickGuard = "1";
+      board.addEventListener(
+        "click",
+        (e) => {
+          if (omdSuppressLeadClick) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          const card = e.target.closest(".omd-lead[data-href]");
+          if (!card || e.target.closest("button,a")) return;
+          const href = card.getAttribute("data-href");
+          if (href) location.href = href;
+        },
+        true,
+      );
+      board.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        const card = e.target.closest(".omd-lead[data-href]");
+        if (!card) return;
+        e.preventDefault();
+        const href = card.getAttribute("data-href");
+        if (href) location.href = href;
+      });
+    }
+
+    board.querySelectorAll(".omd-col__cards").forEach((el) => {
+      omdSortables.push(
+        Sortable.create(el, {
+          group: "omd-pipeline",
+          animation: 160,
+          draggable: ".omd-lead[data-lead-id]",
+          filter: "button, a, .omd-col__empty, .omd-col__more, .omd-col__add",
+          preventOnFilter: false,
+          forceFallback: true,
+          fallbackOnBody: true,
+          fallbackTolerance: 4,
+          emptyInsertThreshold: 40,
+          delay: 120,
+          delayOnTouchOnly: true,
+          touchStartThreshold: 6,
+          ghostClass: "omd-lead--ghost",
+          chosenClass: "omd-lead--chosen",
+          dragClass: "omd-lead--drag",
+          onStart() {
+            omdSuppressLeadClick = true;
+          },
+          async onAdd(evt) {
+            const card = evt.item;
+            const leadId = card && card.getAttribute("data-lead-id");
+            const toCol = evt.to && evt.to.closest(".omd-col");
+            const fromCol = evt.from && evt.from.closest(".omd-col");
+            const toSlug = toCol && toCol.dataset.stageSlug ? String(toCol.dataset.stageSlug) : "";
+            const fromSlug = fromCol && fromCol.dataset.stageSlug ? String(fromCol.dataset.stageSlug) : "";
+            if (!leadId || !toSlug || toSlug === fromSlug) {
+              await refresh(true);
+              return;
+            }
+            const ok = await moveLeadToStage(leadId, toSlug);
+            if (!ok) {
+              await refresh(true);
+              return;
+            }
+            notify("Lead atualizado no pipeline.", "success");
+            await refresh(true);
+          },
+          onEnd() {
+            setTimeout(() => {
+              omdSuppressLeadClick = false;
+            }, 50);
+          },
+        }),
+      );
+    });
   }
 
   function renderPipeline() {
@@ -258,6 +532,7 @@
     }
 
     const canCreate = can("leads.create");
+    destroyOmdSortables();
     $("omdBoard").innerHTML = board
       .map((col) => {
         const label = D.stageLabel(col.slug, col.name);
@@ -267,14 +542,16 @@
             ? `<a class="omd-col__more" href="leads.html">Ver todos os ${col.count} →</a>`
             : "";
         const add = col.slug === "new_lead" && canCreate ? '<button type="button" class="omd-col__add" data-omd-new>+ Adicionar lead</button>' : "";
-        return `<section class="omd-col${col.slug === "won" ? " is-closed" : ""}" aria-label="${esc(label)}">
+        return `<section class="omd-col${col.slug === "won" ? " is-closed" : ""}" data-stage-slug="${esc(col.slug)}" aria-label="${esc(label)}">
           <header class="omd-col__head">
             <span class="omd-col__dot" style="background:${esc(col.color)}"></span>
             <h3 class="omd-col__name">${esc(label)}</h3>
             <span class="omd-col__count">${col.count}</span>
           </header>
           <p class="omd-col__value">${esc(D.moneyCompact(col.value))}</p>
-          ${cards || '<p class="omd-col__empty">Nenhum lead</p>'}
+          <div class="omd-col__cards" data-stage-slug="${esc(col.slug)}">
+            ${cards || '<p class="omd-col__empty">Nenhum lead</p>'}
+          </div>
           ${more}${add}
         </section>`;
       })
@@ -282,6 +559,7 @@
     $("omdBoard")
       .querySelectorAll("[data-omd-new]")
       .forEach((btn) => btn.addEventListener("click", () => openNewLead(() => refresh(true))));
+    initOmdSortables();
     updateBoardOverflow();
   }
 
@@ -311,7 +589,8 @@
     renderKpis();
     renderAttention();
     renderToday();
-    renderSources();
+    renderJobsForecast();
+    renderDayMap();
     renderPipeline();
     renderUpdated();
     $("omdRoot").setAttribute("aria-busy", "false");
@@ -825,15 +1104,22 @@
   }
 
   function renderMobileKpis(ov) {
-    const k = (ov && ov.kpis) || {};
-    const p = k.pipeline_open;
-    const c = k.conversion;
-    if (p) {
-      $("mleadsKpiPipeline").textContent = D.money(p.value);
-      $("mleadsKpiPipelineMeta").innerHTML =
+    const board = (ov && ov.board) || [];
+    const openCols = board.filter((c) => {
+      const s = normalizeSlug(c.slug);
+      return s !== "won" && s !== "lost";
+    });
+    const openValue = openCols.reduce((s, c) => s + (Number(c.value) || 0), 0);
+    const openCount = openCols.reduce((s, c) => s + (Number(c.count) || 0), 0);
+    const pipeEl = $("mleadsKpiPipeline");
+    const pipeMeta = $("mleadsKpiPipelineMeta");
+    if (pipeEl) pipeEl.textContent = D.money(openValue);
+    if (pipeMeta) {
+      pipeMeta.innerHTML =
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17l5-5 5 5"/><path d="M7 10l5-5 5 5"/></svg>' +
-        esc(D.plural(p.count, "lead aberto", "leads abertos"));
+        esc(D.plural(openCount, "lead aberto", "leads abertos"));
     }
+    const c = ov && ov.kpis && ov.kpis.conversion;
     if (c) {
       $("mleadsKpiConversion").textContent = c.rate == null ? "—" : `${String(c.rate).replace(".", ",")}%`;
       $("mleadsKpiConversionMeta").textContent = `${c.won} ganhos · ${c.lost} perdidos`;

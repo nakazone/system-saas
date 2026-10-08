@@ -87,6 +87,8 @@ export type QuoteRow = {
   title: string;
   status: string;
   total: number;
+  materialCost: number;
+  laborCost: number;
   leadId: string | null;
   customerName: string | null;
   signedAt: Date | null;
@@ -132,6 +134,8 @@ export type WorkOrderRow = {
   assigneeName: string | null;
   crewName: string | null;
   crewColor: string | null;
+  geoLat: number | null;
+  geoLng: number | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -198,6 +202,22 @@ export type TodayEvent = {
   color: string | null;
   href: string;
   lead_id: string | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+export type JobsForecastDay = {
+  date: string;
+  count: number;
+  jobs: {
+    id: string;
+    title: string;
+    start: string;
+    end: string;
+    person: string | null;
+    address: string | null;
+    href: string;
+  }[];
 };
 
 export type DashboardOverview = {
@@ -207,17 +227,34 @@ export type DashboardOverview = {
   period: { month_start: string; previous_month_start: string; today_start: string; tomorrow_start: string };
   access: ViewerAccess;
   kpis: {
-    pipeline_open: { value: number; count: number; without_value: number } | null;
+    /** Open sent quotes (sent / changes_requested) — excludes won and lost. */
+    pipeline_open: { value: number | null; count: number; without_value: number } | null;
     conversion: { rate: number | null; won: number; lost: number } | null;
     leads_month: { count: number; previous_count: number } | null;
     won_month: { value: number | null; count: number; previous_value: number | null; previous_count: number } | null;
     receivables: { open_value: number; open_count: number; overdue_value: number; overdue_count: number } | null;
+    /** Quoted margin on won deals this month: total − material − labor. */
+    gross_profit: {
+      value: number | null;
+      count: number;
+      previous_value: number | null;
+      previous_count: number;
+      revenue: number | null;
+      cost: number | null;
+    } | null;
   };
   board: BoardColumn[] | null;
   sources_30d: { source: string; count: number }[] | null;
   attention: { total: number; high: number; items: AttentionItem[] };
   today_events: TodayEvent[] | null;
+  /** Upcoming installations for the next 7 days (org timezone). */
+  jobs_forecast: JobsForecastDay[] | null;
 };
+
+/** Quote statuses that still count as open pipeline (sent, waiting on client). */
+export const OPEN_QUOTE_STATUSES = ["sent", "changes_requested"] as const;
+const OPEN_QUOTE_SET = new Set<string>(OPEN_QUOTE_STATUSES);
+export const JOBS_FORECAST_DAYS = 7;
 
 // ---------------------------------------------------------------------------
 // Pure builders
@@ -430,18 +467,36 @@ function quoteClosedAt(q: QuoteRow): Date {
   return q.signedAt ?? q.updatedAt;
 }
 
+function quoteGross(q: QuoteRow): number {
+  return round2(q.total - (q.materialCost || 0) - (q.laborCost || 0));
+}
+
 export function buildQuoteSection(
   quotes: QuoteRow[],
   now: Date,
   tz: string,
   showMoney: boolean,
-): { won_month: NonNullable<DashboardOverview["kpis"]["won_month"]>; attention: AttentionItem[] } {
+): {
+  pipeline_open: NonNullable<DashboardOverview["kpis"]["pipeline_open"]>;
+  won_month: NonNullable<DashboardOverview["kpis"]["won_month"]>;
+  gross_profit: NonNullable<DashboardOverview["kpis"]["gross_profit"]>;
+  attention: AttentionItem[];
+} {
   const monthStart = startOfZonedMonth(now, tz).getTime();
   const prevMonthStart = startOfZonedMonth(now, tz, -1).getTime();
   let value = 0;
   let count = 0;
   let prevValue = 0;
   let prevCount = 0;
+  let openValue = 0;
+  let openCount = 0;
+  let withoutValue = 0;
+  let gpValue = 0;
+  let gpCount = 0;
+  let gpPrevValue = 0;
+  let gpPrevCount = 0;
+  let gpRevenue = 0;
+  let gpCost = 0;
   const attention: AttentionItem[] = [];
 
   for (const q of quotes) {
@@ -454,14 +509,28 @@ export function buildQuoteSection(
 
     if (WON_QUOTE_SET.has(status)) {
       const t = quoteClosedAt(q).getTime();
+      const cost = round2((q.materialCost || 0) + (q.laborCost || 0));
+      const gross = quoteGross(q);
       if (t >= monthStart) {
         value += q.total;
         count += 1;
+        gpValue += gross;
+        gpCount += 1;
+        gpRevenue += q.total;
+        gpCost += cost;
       } else if (t >= prevMonthStart) {
         prevValue += q.total;
         prevCount += 1;
+        gpPrevValue += gross;
+        gpPrevCount += 1;
       }
       continue;
+    }
+
+    if (OPEN_QUOTE_SET.has(status)) {
+      openCount += 1;
+      if (q.total <= 0) withoutValue += 1;
+      else openValue += q.total;
     }
 
     if (status === "changes_requested") {
@@ -513,11 +582,24 @@ export function buildQuoteSection(
   }
 
   return {
+    pipeline_open: {
+      value: showMoney ? round2(openValue) : null,
+      count: openCount,
+      without_value: withoutValue,
+    },
     won_month: {
       value: showMoney ? round2(value) : null,
       count,
       previous_value: showMoney ? round2(prevValue) : null,
       previous_count: prevCount,
+    },
+    gross_profit: {
+      value: showMoney ? round2(gpValue) : null,
+      count: gpCount,
+      previous_value: showMoney ? round2(gpPrevValue) : null,
+      previous_count: gpPrevCount,
+      revenue: showMoney ? round2(gpRevenue) : null,
+      cost: showMoney ? round2(gpCost) : null,
     },
     attention,
   };
@@ -628,6 +710,8 @@ export function buildTodayEvents(meetings: MeetingRow[], workOrders: WorkOrderRo
       color: wo.crewColor,
       href: `job-detail.html?id=${encodeURIComponent(wo.id)}`,
       lead_id: null,
+      lat: wo.geoLat,
+      lng: wo.geoLng,
     })),
     ...meetings.map((m) => ({
       id: m.id,
@@ -641,9 +725,43 @@ export function buildTodayEvents(meetings: MeetingRow[], workOrders: WorkOrderRo
       color: null,
       href: m.leadId ? `lead-detail.html?id=${encodeURIComponent(m.leadId)}` : "schedule.html",
       lead_id: m.leadId,
+      lat: null as number | null,
+      lng: null as number | null,
     })),
   ];
   return events.sort((a, b) => a.start.localeCompare(b.start));
+}
+
+/** Bucket scheduled jobs into the next N org-local days (including today). */
+export function buildJobsForecast(
+  workOrders: WorkOrderRow[],
+  now: Date,
+  tz: string,
+  days: number = JOBS_FORECAST_DAYS,
+): JobsForecastDay[] {
+  const buckets: JobsForecastDay[] = [];
+  for (let i = 0; i < days; i++) {
+    const dayStart = startOfZonedDay(now, tz, i);
+    buckets.push({ date: zonedDateKey(dayStart, tz), count: 0, jobs: [] });
+  }
+  const byDate = new Map(buckets.map((b) => [b.date, b]));
+  const sorted = [...workOrders].sort((a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime());
+  for (const wo of sorted) {
+    const key = zonedDateKey(wo.scheduledStart, tz);
+    const bucket = byDate.get(key);
+    if (!bucket) continue;
+    bucket.count += 1;
+    bucket.jobs.push({
+      id: wo.id,
+      title: wo.title,
+      start: wo.scheduledStart.toISOString(),
+      end: wo.scheduledEnd.toISOString(),
+      person: wo.crewName || wo.assigneeName || null,
+      address: wo.address,
+      href: `job-detail.html?id=${encodeURIComponent(wo.id)}`,
+    });
+  }
+  return buckets;
 }
 
 // ---------------------------------------------------------------------------
@@ -688,11 +806,19 @@ export async function loadDashboardOverview(
       tomorrow_start: tomorrowStart.toISOString(),
     },
     access,
-    kpis: { pipeline_open: null, conversion: null, leads_month: null, won_month: null, receivables: null },
+    kpis: {
+      pipeline_open: null,
+      conversion: null,
+      leads_month: null,
+      won_month: null,
+      receivables: null,
+      gross_profit: null,
+    },
     board: null,
     sources_30d: null,
     attention: { total: 0, high: 0, items: [] },
     today_events: null,
+    jobs_forecast: null,
   };
   const attention: AttentionItem[] = [];
 
@@ -717,7 +843,6 @@ export async function loadDashboardOverview(
     const section = buildLeadSection(leads, stageRows, now, tz);
     overview.board = section.board;
     overview.sources_30d = section.sources_30d;
-    overview.kpis.pipeline_open = section.pipeline_open;
     overview.kpis.conversion = section.conversion;
     overview.kpis.leads_month = section.leads_month;
     attention.push(...section.attention);
@@ -727,7 +852,7 @@ export async function loadDashboardOverview(
     const quotes = await tx.quote.findMany({
       where: {
         OR: [
-          { status: { in: ["sent", "changes_requested"] } },
+          { status: { in: [...OPEN_QUOTE_STATUSES] } },
           {
             status: { in: [...WON_QUOTE_STATUSES] },
             OR: [{ signedAt: { gte: prevMonthStart } }, { signedAt: null, updatedAt: { gte: prevMonthStart } }],
@@ -741,6 +866,8 @@ export async function loadDashboardOverview(
         title: true,
         status: true,
         total: true,
+        materialCost: true,
+        laborCost: true,
         leadId: true,
         signedAt: true,
         viewedAt: true,
@@ -751,12 +878,20 @@ export async function loadDashboardOverview(
       },
     });
     const section = buildQuoteSection(
-      quotes.map((q) => ({ ...q, total: Number(q.total), customerName: q.customer?.name ?? null })),
+      quotes.map((q) => ({
+        ...q,
+        total: Number(q.total),
+        materialCost: Number(q.materialCost),
+        laborCost: Number(q.laborCost),
+        customerName: q.customer?.name ?? null,
+      })),
       now,
       tz,
       access.pricing,
     );
+    overview.kpis.pipeline_open = section.pipeline_open;
     overview.kpis.won_month = section.won_month;
+    overview.kpis.gross_profit = section.gross_profit;
     attention.push(...section.attention);
   }
 
@@ -802,7 +937,8 @@ export async function loadDashboardOverview(
   }
 
   if (access.schedule) {
-    const [meetings, workOrders] = await Promise.all([
+    const forecastEnd = startOfZonedDay(now, tz, JOBS_FORECAST_DAYS);
+    const [meetings, workOrdersToday, workOrdersForecast] = await Promise.all([
       tx.meeting.findMany({
         where: {
           status: { not: "canceled" },
@@ -837,6 +973,30 @@ export async function loadDashboardOverview(
           scheduledStart: true,
           scheduledEnd: true,
           address: true,
+          geoLat: true,
+          geoLng: true,
+          customer: { select: { name: true } },
+          assignedUser: { select: { name: true } },
+          crew: { select: { name: true, color: true } },
+        },
+      }),
+      tx.workOrder.findMany({
+        where: {
+          status: { not: "canceled" },
+          scheduledStart: { not: null, gte: todayStart, lt: forecastEnd },
+        },
+        orderBy: { scheduledStart: "asc" },
+        select: {
+          id: true,
+          number: true,
+          title: true,
+          status: true,
+          fieldStatus: true,
+          scheduledStart: true,
+          scheduledEnd: true,
+          address: true,
+          geoLat: true,
+          geoLng: true,
           customer: { select: { name: true } },
           assignedUser: { select: { name: true } },
           crew: { select: { name: true, color: true } },
@@ -857,6 +1017,23 @@ export async function loadDashboardOverview(
       for (const r of rows) meetingLead.set(r.meeting_id, r.id);
     }
 
+    const mapWo = (wo: (typeof workOrdersToday)[number]): WorkOrderRow => ({
+      id: wo.id,
+      number: wo.number,
+      title: wo.title,
+      status: wo.status,
+      fieldStatus: wo.fieldStatus,
+      scheduledStart: wo.scheduledStart!,
+      scheduledEnd: wo.scheduledEnd ?? wo.scheduledStart!,
+      address: wo.address,
+      customerName: wo.customer?.name ?? null,
+      assigneeName: wo.assignedUser?.name ?? null,
+      crewName: wo.crew?.name ?? null,
+      crewColor: wo.crew?.color ?? null,
+      geoLat: wo.geoLat != null ? Number(wo.geoLat) : null,
+      geoLng: wo.geoLng != null ? Number(wo.geoLng) : null,
+    });
+
     overview.today_events = buildTodayEvents(
       meetings.map((m) => ({
         id: m.id,
@@ -869,21 +1046,9 @@ export async function loadDashboardOverview(
         assigneeName: m.assignedUser?.name ?? null,
         leadId: meetingLead.get(m.id) ?? null,
       })),
-      workOrders.map((wo) => ({
-        id: wo.id,
-        number: wo.number,
-        title: wo.title,
-        status: wo.status,
-        fieldStatus: wo.fieldStatus,
-        scheduledStart: wo.scheduledStart!,
-        scheduledEnd: wo.scheduledEnd!,
-        address: wo.address,
-        customerName: wo.customer?.name ?? null,
-        assigneeName: wo.assignedUser?.name ?? null,
-        crewName: wo.crew?.name ?? null,
-        crewColor: wo.crew?.color ?? null,
-      })),
+      workOrdersToday.map(mapWo),
     );
+    overview.jobs_forecast = buildJobsForecast(workOrdersForecast.map(mapWo), now, tz);
   }
 
   const ranked = rankAttention(attention);

@@ -1850,7 +1850,7 @@ function wireMobileLeadDetail_() {
   document.getElementById('mldRoot').dataset.bound = '1';
 
   const back = document.getElementById('mldBack');
-  if (back && window.__omDevice?.isMobile?.()) back.href = 'pipeline-lab.html';
+  if (back && window.__omDevice?.isMobile?.()) back.href = '/dashboard';
 
   const moreBtn = document.getElementById('mldMoreBtn');
   const menu = document.getElementById('mldMoreMenu');
@@ -1864,7 +1864,7 @@ function wireMobileLeadDetail_() {
     if (menu) menu.hidden = true;
   });
   document.getElementById('mldOpenLeads')?.addEventListener('click', () => {
-    location.href = 'pipeline-lab.html';
+    location.href = '/dashboard';
   });
   document.getElementById('mldNextBtn')?.addEventListener('click', () => {
     const next = mldNextStage_();

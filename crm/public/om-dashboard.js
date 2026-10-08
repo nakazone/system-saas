@@ -152,7 +152,7 @@
     return { text: `${change > 0 ? "▲" : "▼"} ${Math.abs(change)}% vs ${prevMonth}`, tone: change > 0 ? "up" : "down" };
   }
 
-  /** Up to four KPI cards, in priority order, for what this viewer may see. */
+  /** Four KPI cards: open quote pipeline, won this month, receivables, gross profit. */
   function kpiCards(ov) {
     const k = (ov && ov.kpis) || {};
     const tz = tzOf(ov);
@@ -162,14 +162,17 @@
 
     if (k.pipeline_open) {
       const p = k.pipeline_open;
+      const hasMoney = p.value != null;
       cards.push({
         key: "pipeline",
         label: "Pipeline aberto",
-        value: moneyCompact(p.value),
-        title: money(p.value),
-        meta: plural(p.count, "lead aberto", "leads abertos") + (p.without_value ? ` · ${p.without_value} sem valor` : ""),
-        short: plural(p.count, "lead aberto", "leads abertos"),
-        href: "leads.html",
+        value: hasMoney ? moneyCompact(p.value) : plural(p.count, "quote", "quotes"),
+        title: hasMoney ? money(p.value) : "Quotes enviados em aberto",
+        meta:
+          plural(p.count, "quote enviado", "quotes enviados") +
+          (p.without_value ? ` · ${p.without_value} sem valor` : ""),
+        short: plural(p.count, "quote aberto", "quotes abertos"),
+        href: "quotes.html?status=sent",
         tone: "dark",
       });
     }
@@ -178,10 +181,12 @@
       const hasMoney = w.value != null;
       cards.push({
         key: "won",
-        label: `Fechado em ${month}`,
+        label: `Fechados no mês`,
         value: hasMoney ? moneyCompact(w.value) : plural(w.count, "quote", "quotes"),
         title: hasMoney ? money(w.value) : "",
-        meta: hasMoney ? plural(w.count, "quote aprovado", "quotes aprovados") : "aprovados no mês",
+        meta: hasMoney
+          ? plural(w.count, "quote aprovado", "quotes aprovados") + (month ? ` · ${month}` : "")
+          : "aprovados no mês",
         short: hasMoney ? plural(w.count, "aprovado", "aprovados") : "no mês",
         delta: hasMoney ? delta(w.value, w.previous_value, prevMonth) : delta(w.count, w.previous_count, prevMonth),
         href: "quotes.html",
@@ -204,26 +209,22 @@
         href: r.overdue_count ? "invoices.html?status=overdue" : "invoices.html?status=unpaid",
       });
     }
-    if (k.conversion) {
-      const c = k.conversion;
+    if (k.gross_profit) {
+      const g = k.gross_profit;
+      const hasMoney = g.value != null;
       cards.push({
-        key: "conversion",
-        label: "Taxa de conversão",
-        value: c.rate == null ? "—" : pct(c.rate),
-        title: "Leads ganhos ÷ (ganhos + perdidos), desde o início",
-        meta: c.won + c.lost ? `${plural(c.won, "ganho", "ganhos")} · ${plural(c.lost, "perdido", "perdidos")}` : "Nenhum lead fechado ainda",
-        href: "leads.html",
-      });
-    }
-    if (cards.length < 4 && k.leads_month) {
-      const l = k.leads_month;
-      cards.push({
-        key: "leads_month",
-        label: `Novos leads em ${month}`,
-        value: String(l.count),
-        meta: `${l.previous_count} em ${prevMonth}`,
-        delta: delta(l.count, l.previous_count, prevMonth),
-        href: "leads.html",
+        key: "gross_profit",
+        label: "Gross Profit",
+        value: hasMoney ? moneyCompact(g.value) : plural(g.count, "deal", "deals"),
+        title: hasMoney
+          ? `${money(g.value)} · receita ${money(g.revenue || 0)} − custo ${money(g.cost || 0)}`
+          : "Margem dos quotes fechados no mês",
+        meta: hasMoney
+          ? plural(g.count, "fechado no mês", "fechados no mês")
+          : "sem permissão de preço",
+        short: plural(g.count, "fechado", "fechados"),
+        delta: hasMoney ? delta(g.value, g.previous_value, prevMonth) : delta(g.count, g.previous_count, prevMonth),
+        href: "quotes.html",
       });
     }
     return cards.slice(0, 4);

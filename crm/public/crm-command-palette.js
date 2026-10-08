@@ -10,9 +10,9 @@
   if (window.__crmCommandPalette) return;
 
   const ACTIONS = [
-    { id: 'dash', label: 'Dashboard', sub: 'Pipeline e visão geral', href: 'pipeline-lab.html', perm: null, desktopOnly: true },
+    { id: 'dash', label: 'Início', sub: 'Pipeline e visão geral', href: '/dashboard', perm: null, desktopOnly: true },
     { id: 'home', label: 'Início', sub: 'Visão geral', href: 'home.html', perm: null, mobileOnly: true },
-    { id: 'pipeline', label: 'Leads', sub: 'Lista por estágio', href: 'pipeline-lab.html', perm: null, mobileOnly: true },
+    { id: 'pipeline', label: 'Leads', sub: 'Lista por estágio', href: '/dashboard', perm: null, mobileOnly: true },
     { id: 'leads', label: 'Leads', sub: 'Kanban / pipeline', href: 'leads.html', perm: 'leads.view' },
     { id: 'quotes', label: 'Quotes', sub: 'Orçamentos', href: 'quotes.html', perm: 'quotes.view' },
     { id: 'invoices', label: 'Invoices', sub: 'Faturas', href: 'invoices.html', perm: 'invoices.view' },

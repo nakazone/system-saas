@@ -68,7 +68,7 @@
   }
 
   function entryHref() {
-    return isMobile() ? "home.html" : "pipeline-lab.html";
+    return isMobile() ? "home.html" : "/dashboard";
   }
 
   function applyBodyClass() {
@@ -141,7 +141,7 @@
   /** Redirect desktop/tablet away from the mobile-only Home. */
   function guardMobileOnlyPage(desktopHref) {
     if (isMobile()) return false;
-    const target = desktopHref || "pipeline-lab.html";
+    const target = desktopHref || "/dashboard";
     try {
       location.replace(target);
     } catch (_) {

@@ -7,7 +7,7 @@
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
-  const TAB_HREFS = ["home.html", "pipeline-lab.html", "schedule.html", "mais.html"];
+  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "mais.html"];
   let edgeSwipeBound = false;
 
   const ICONS = {
@@ -51,8 +51,16 @@
       if (f === "horas.html" || f === "payroll-module.html") return "horas";
       return "";
     }
-    if (f === "home.html" || f === "" || f === "dashboard.html") return "home";
-    if (f === "pipeline-lab.html" || f === "leads.html" || f === "lead-detail.html") return "pipeline";
+    if (f === "home.html" || f === "") return "home";
+    if (
+      f === "dashboard" ||
+      f === "dashboard.html" ||
+      f === "pipeline-lab.html" ||
+      f === "leads.html" ||
+      f === "lead-detail.html"
+    ) {
+      return "pipeline";
+    }
     if (f === "schedule.html") return "agenda";
     if (
       f === "mais.html" ||
@@ -270,7 +278,7 @@
   function bindEdgeSwipeBack() {
     if (edgeSwipeBound) return;
     const f = fileName();
-    const primary = new Set(["home.html", "pipeline-lab.html", "schedule.html", "mais.html", "", "dashboard.html"]);
+    const primary = new Set(["home.html", "pipeline-lab.html", "schedule.html", "mais.html", "", "dashboard.html", "dashboard", "/dashboard"]);
     if (primary.has(f)) return;
     edgeSwipeBound = true;
 
@@ -475,7 +483,7 @@
       try {
         sessionStorage.setItem("obramate_open_new_lead", "1");
       } catch (_) {}
-      location.href = "pipeline-lab.html";
+      location.href = "/dashboard";
     });
   }
 
@@ -548,7 +556,7 @@
         ${ICONS.home}
         <span>Início</span>
       </a>
-      <a class="om-tabbar__item${tab === "pipeline" ? " is-active" : ""}" href="pipeline-lab.html" data-om-tab="pipeline"${
+      <a class="om-tabbar__item${tab === "pipeline" ? " is-active" : ""}" href="/dashboard" data-om-tab="pipeline"${
         tab === "pipeline" ? ' aria-current="page"' : ""
       }>
         ${ICONS.pipeline}

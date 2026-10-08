@@ -10,6 +10,7 @@ import {
 } from "../src/lib/dashboard/stages.js";
 import {
   buildInvoiceSection,
+  buildJobsForecast,
   buildLeadSection,
   buildQuoteSection,
   loadDashboardOverview,
@@ -18,6 +19,7 @@ import {
   type AttentionItem,
   type LeadRow,
   type QuoteRow,
+  type WorkOrderRow,
 } from "../src/lib/dashboard/overview.js";
 
 const TZ = "America/Denver";
@@ -156,6 +158,8 @@ describe("dashboard quote + invoice sections", () => {
     quoteNumber: null,
     title: "Quote",
     total: 1000,
+    materialCost: 0,
+    laborCost: 0,
     leadId: null,
     customerName: "Cliente",
     signedAt: null,
@@ -182,8 +186,68 @@ describe("dashboard quote + invoice sections", () => {
     expect(won_month).toEqual({ value: 23800, count: 3, previous_value: 19800, previous_count: 1 });
   });
 
+  it("sums open sent quotes for pipeline (excludes won/lost/draft)", () => {
+    const { pipeline_open } = buildQuoteSection(
+      [
+        q({ id: "s1", status: "sent", total: 12000 }),
+        q({ id: "s2", status: "changes_requested", total: 4500 }),
+        q({ id: "s3", status: "sent", total: 0 }),
+        q({ id: "w", status: "approved", total: 9000, signedAt: ago(DAY) }),
+        q({ id: "a", status: "archived", total: 3000 }),
+        q({ id: "d", status: "draft", total: 8000 }),
+      ],
+      NOW,
+      TZ,
+      true,
+    );
+    expect(pipeline_open).toEqual({ value: 16500, count: 3, without_value: 1 });
+  });
+
+  it("computes gross profit from won quotes this month (total − material − labor)", () => {
+    const { gross_profit } = buildQuoteSection(
+      [
+        q({
+          id: "a",
+          status: "approved",
+          total: 10000,
+          materialCost: 3000,
+          laborCost: 2000,
+          signedAt: ago(DAY),
+        }),
+        q({
+          id: "b",
+          status: "converted",
+          total: 5000,
+          materialCost: 1000,
+          laborCost: 500,
+          signedAt: ago(2 * DAY),
+        }),
+        q({
+          id: "prev",
+          status: "approved",
+          total: 8000,
+          materialCost: 2000,
+          laborCost: 1000,
+          signedAt: new Date("2026-08-20T12:00:00Z"),
+        }),
+        q({ id: "open", status: "sent", total: 20000, materialCost: 5000, laborCost: 1000 }),
+      ],
+      NOW,
+      TZ,
+      true,
+    );
+    expect(gross_profit).toEqual({
+      value: 8500,
+      count: 2,
+      previous_value: 5000,
+      previous_count: 1,
+      revenue: 15000,
+      cost: 6500,
+    });
+  });
+
   it("hides money without pricing permission", () => {
-    const { won_month, attention } = buildQuoteSection(
+    const { won_month, pipeline_open, gross_profit, attention } = buildQuoteSection(
       [q({ id: "a", status: "approved", signedAt: ago(DAY) }), q({ id: "b", status: "changes_requested" })],
       NOW,
       TZ,
@@ -191,6 +255,9 @@ describe("dashboard quote + invoice sections", () => {
     );
     expect(won_month.value).toBeNull();
     expect(won_month.count).toBe(1);
+    expect(pipeline_open.value).toBeNull();
+    expect(pipeline_open.count).toBe(1);
+    expect(gross_profit.value).toBeNull();
     expect(attention[0]!.amount).toBeNull();
   });
 
@@ -212,6 +279,41 @@ describe("dashboard quote + invoice sections", () => {
       ["stale", "quote_stale"],
     ]);
     expect(attention.find((a) => a.kind === "quote_stale")?.viewed).toBe(true);
+  });
+
+  it("buckets upcoming jobs into the next 7 org-local days", () => {
+    const wo = (partial: Partial<WorkOrderRow> & { id: string; scheduledStart: Date }): WorkOrderRow => ({
+      number: 1,
+      title: "Job",
+      status: "scheduled",
+      fieldStatus: "scheduled",
+      scheduledEnd: new Date(partial.scheduledStart.getTime() + 4 * HOUR),
+      address: null,
+      customerName: null,
+      assigneeName: null,
+      crewName: null,
+      crewColor: null,
+      geoLat: null,
+      geoLng: null,
+      ...partial,
+    });
+    const days = buildJobsForecast(
+      [
+        wo({ id: "t", title: "Hoje", scheduledStart: NOW }),
+        wo({ id: "t2", title: "Hoje 2", scheduledStart: new Date(NOW.getTime() + HOUR) }),
+        wo({ id: "tm", title: "Amanhã", scheduledStart: new Date(NOW.getTime() + DAY) }),
+        wo({ id: "far", title: "Longe", scheduledStart: new Date(NOW.getTime() + 10 * DAY) }),
+      ],
+      NOW,
+      TZ,
+      7,
+    );
+    expect(days).toHaveLength(7);
+    expect(days[0]!.date).toBe("2026-09-29");
+    expect(days[0]!.count).toBe(2);
+    expect(days[1]!.count).toBe(1);
+    expect(days[1]!.jobs[0]!.id).toBe("tm");
+    expect(days.every((d, i) => i < 2 || d.count === 0)).toBe(true);
   });
 
   it("uses the open balance (amount − receipts) and the org's today for overdue invoices", () => {
@@ -308,9 +410,40 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
         });
       });
     }
+    await withTenantTransaction(orgA, async (tx) => {
+      await tx.quote.create({
+        data: {
+          organizationId: orgA,
+          number: 1,
+          title: "A open",
+          status: "sent",
+          total: 3000,
+          materialCost: 800,
+          laborCost: 200,
+        },
+      });
+    });
     await withTenantTransaction(orgB, async (tx) => {
       await tx.quote.create({
-        data: { organizationId: orgB, number: 1, title: "B quote", status: "approved", total: 7777, signedAt: new Date() },
+        data: {
+          organizationId: orgB,
+          number: 1,
+          title: "B quote",
+          status: "approved",
+          total: 7777,
+          materialCost: 2000,
+          laborCost: 777,
+          signedAt: new Date(),
+        },
+      });
+      await tx.quote.create({
+        data: {
+          organizationId: orgB,
+          number: 2,
+          title: "B open",
+          status: "sent",
+          total: 50000,
+        },
       });
     });
   });
@@ -324,8 +457,9 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
     const ov = await withTenantTransaction(orgA, (tx) =>
       loadDashboardOverview(tx, { organizationId: orgA, timezone: TZ, access }),
     );
-    expect(ov.kpis.pipeline_open).toEqual({ value: 3000, count: 2, without_value: 0 });
+    expect(ov.kpis.pipeline_open).toEqual({ value: 3000, count: 1, without_value: 0 });
     expect(ov.kpis.won_month?.count).toBe(0);
+    expect(ov.kpis.gross_profit?.count).toBe(0);
     const names = ov.attention.items.map((i) => i.entity.name);
     expect(names).toContain("Lead A1");
     expect(names).not.toContain("Lead B1");
@@ -337,9 +471,12 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
     const ov = await withTenantTransaction(orgB, (tx) =>
       loadDashboardOverview(tx, { organizationId: orgB, timezone: TZ, access }),
     );
-    expect(ov.kpis.pipeline_open?.value).toBe(50000);
+    expect(ov.kpis.pipeline_open).toBeNull();
     expect(ov.kpis.won_month).toBeNull();
+    expect(ov.kpis.gross_profit).toBeNull();
     expect(ov.kpis.receivables).toBeNull();
     expect(ov.today_events).toBeNull();
+    expect(ov.jobs_forecast).toBeNull();
+    expect(ov.board).not.toBeNull();
   });
 });
