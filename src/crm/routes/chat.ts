@@ -347,8 +347,9 @@ chatRouter.get(
         for (const m of memberships) {
           const c = m.conversation;
           if (c.organizationId !== req.organizationId) continue;
+          // Ignore system-only channels (auto-created job rooms pollute the inbox).
           const last = await tx.chatMessage.findFirst({
-            where: { conversationId: c.id },
+            where: { conversationId: c.id, type: { not: "system" } },
             orderBy: { createdAt: "desc" },
             select: {
               id: true,
@@ -359,10 +360,13 @@ chatRouter.get(
               hiddenAt: true,
             },
           });
+          if (!last) continue;
+
           const unread = await tx.chatMessage.count({
             where: {
               conversationId: c.id,
               authorId: { not: req.user!.id },
+              type: { not: "system" },
               ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
               hiddenAt: null,
             },
@@ -406,15 +410,13 @@ chatRouter.get(
             archived_at: c.archivedAt?.toISOString() ?? null,
             muted: m.muted,
             unread_count: unread,
-            last_message: last
-              ? {
-                  id: last.id,
-                  body: last.hiddenAt ? "Mensagem removida" : last.body,
-                  created_at: last.createdAt.toISOString(),
-                  author_id: last.authorId,
-                  type: last.type,
-                }
-              : null,
+            last_message: {
+              id: last.id,
+              body: last.hiddenAt ? "Mensagem removida" : last.body,
+              created_at: last.createdAt.toISOString(),
+              author_id: last.authorId,
+              type: last.type,
+            },
             updated_at: c.updatedAt.toISOString(),
             members: c.members.map((x) => ({
               user_id: x.userId,

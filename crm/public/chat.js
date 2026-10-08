@@ -231,9 +231,11 @@
     return tones[h % tones.length];
   }
 
-  /** Only conversations that already have at least one message. */
+  /** Conversations with a real (non-system) message — skips empty auto job channels. */
   function realConversations() {
-    return (state.conversations || []).filter((c) => c && c.last_message);
+    return (state.conversations || []).filter(
+      (c) => c && c.last_message && c.last_message.type !== "system",
+    );
   }
 
   function filteredConversations() {
@@ -301,7 +303,7 @@
       const hasAny = realConversations().length > 0;
       empty.textContent = hasAny
         ? "Nenhuma conversa neste filtro."
-        : "Nenhuma conversa ainda. Inicie uma direta ou um grupo — canais de job aparecem quando houver mensagens.";
+        : "Nenhuma conversa ainda. Inicie uma direta ou um grupo — obras só entram na lista depois da primeira mensagem.";
       root.hidden = true;
       root.innerHTML = "";
       return;
