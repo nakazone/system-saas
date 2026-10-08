@@ -327,21 +327,25 @@ a.omd-kpi:hover {
   color: color-mix(in srgb, var(--omd-accent) 70%, #fff);
 }
 
-/* —— Main grid: Atenção (½) | Hoje+Jobs+Mapa (½) —— */
+/* —— Main grid: Atenção (½) = Hoje+Jobs+Mapa (½), mesma altura —— */
 .omd-grid {
-  --omd-mid-h: 300px;
+  --omd-mid-h: 420px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
   margin-bottom: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .omd-side {
   display: grid;
+  grid-template-rows: minmax(0, 1.2fr) minmax(140px, 0.8fr);
   gap: 1rem;
   min-width: 0;
-  align-content: start;
+  height: var(--omd-mid-h);
+  min-height: var(--omd-mid-h);
+  max-height: var(--omd-mid-h);
+  overflow: hidden;
 }
 
 .omd-side__row {
@@ -349,7 +353,9 @@ a.omd-kpi:hover {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   min-width: 0;
+  min-height: 0;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .omd-card {
@@ -370,7 +376,7 @@ a.omd-kpi:hover {
   flex-shrink: 0;
 }
 
-/* Atenção: same height as Hoje/Jobs — scroll inside, leave room for the pipeline */
+/* Atenção = coluna direita inteira (hoje + jobs + mapa) */
 .omd-attn {
   display: flex;
   flex-direction: column;
@@ -380,21 +386,22 @@ a.omd-kpi:hover {
   overflow: hidden;
 }
 
-/* Hoje / Jobs: fixed height + internal scroll */
+/* Hoje / Jobs preenchem a fileira superior da coluna direita */
 .omd-today,
 .omd-jobs {
   display: flex;
   flex-direction: column;
-  height: var(--omd-mid-h);
-  min-height: var(--omd-mid-h);
-  max-height: var(--omd-mid-h);
+  height: 100%;
+  min-height: 0;
+  max-height: none;
   overflow: hidden;
 }
 
 .omd-map {
   display: flex;
   flex-direction: column;
-  min-height: 200px;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -549,8 +556,8 @@ a.omd-kpi:hover {
 /* —— Day map —— */
 .omd-map__canvas {
   flex: 1 1 auto;
-  min-height: 160px;
-  height: 180px;
+  min-height: 0;
+  height: 100%;
   border-radius: 12px;
   overflow: hidden;
   background:
@@ -582,11 +589,12 @@ a.omd-kpi:hover {
 
 .omd-map__empty {
   margin: 0;
-  min-height: 160px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   place-items: center;
   text-align: center;
-  padding: 1.25rem 1rem;
+  padding: 1rem;
   font-size: 0.86rem;
   font-weight: 600;
   color: var(--omd-muted);
@@ -1317,14 +1325,33 @@ body.plab .plab-dock button.plab-dock__btn {
   }
 
   .omd-grid {
-    --omd-mid-h: 300px;
+    --omd-mid-h: 380px;
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .omd-side {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    grid-template-rows: auto auto;
   }
 
   .omd-attn {
     height: var(--omd-mid-h);
     min-height: var(--omd-mid-h);
     max-height: var(--omd-mid-h);
+  }
+
+  .omd-today,
+  .omd-jobs {
+    height: 240px;
+    min-height: 240px;
+    max-height: 240px;
+  }
+
+  .omd-map {
+    height: 200px;
+    min-height: 200px;
   }
 }
 
@@ -1345,13 +1372,6 @@ body.plab .plab-dock button.plab-dock__btn {
   .omd-side__row {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .omd-today,
-  .omd-jobs {
-    max-height: none;
-    height: auto;
-    min-height: 280px;
-  }
 }
 
 @media (max-width: 560px) {
@@ -1369,11 +1389,6 @@ body.plab .plab-dock button.plab-dock__btn {
 
   .omd-jobs__days {
     gap: 0.25rem;
-  }
-
-  .omd-map__canvas {
-    height: 200px;
-    min-height: 180px;
   }
 }
 
