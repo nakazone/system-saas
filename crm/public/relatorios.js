@@ -90,8 +90,20 @@
     charts[canvasId] = new window.Chart($(canvasId), config);
   }
 
-  function kpi(label, value, mod) {
-    return `<div class="rpt-kpi${mod ? ` rpt-kpi--${mod}` : ""}"><p class="rpt-kpi__label">${esc(label)}</p><p class="rpt-kpi__value">${value}</p></div>`;
+  function kpi(label, value, mod, size) {
+    const mods = [mod, size].filter(Boolean).map((m) => `rpt-kpi--${m}`).join(" ");
+    return `<div class="rpt-kpi${mods ? ` ${mods}` : ""}"><p class="rpt-kpi__label">${esc(label)}</p><p class="rpt-kpi__value">${value}</p></div>`;
+  }
+
+  function kpiGroup(title, hint, cardsHtml, tone) {
+    if (!cardsHtml) return "";
+    return `<div class="rpt-group${tone ? ` rpt-group--${tone}` : ""}">
+      <div class="rpt-group__head">
+        <h3 class="rpt-group__title">${esc(title)}</h3>
+        ${hint ? `<p class="rpt-group__hint">${esc(hint)}</p>` : ""}
+      </div>
+      <div class="rpt-kpis">${cardsHtml}</div>
+    </div>`;
   }
 
   function secHead(title, actionsHtml) {
@@ -136,7 +148,7 @@
     other: "Outro",
   };
 
-  /** Resumo: only KPI cards (no charts / tables). */
+  /** Resumo: KPI cards only, grouped by priority / area. */
   function renderExecutive(data) {
     const ex = data?.executive;
     const jobs = data?.jobs;
@@ -145,43 +157,77 @@
     if (!ex && !jobs && !cf && !folha) {
       return `<section class="rpt-sec">${secHead("Resumo", "")}<p class="rpt-empty">Sem dados neste período.</p></section>`;
     }
-    const cards = [];
+
+    const attn = Number(ex?.attention_count || 0);
+    const toInvoice = Number(jobs?.to_invoice || 0);
+    const awaiting = Number(jobs?.awaiting_payment || 0);
+    const recv = Number(ex?.receivables_open || cf?.receivables || 0);
+    const hasPriority = attn > 0 || toInvoice > 0 || awaiting > 0 || recv > 0;
+
+    const priorityCards = [];
     if (ex) {
-      cards.push(
-        kpi("Leads no período", num(ex.leads_created)),
-        kpi("Orçamentos ganhos", num(ex.quotes_won_count)),
-        kpi("Receita ganha", money(ex.quotes_won_revenue)),
-        kpi("A receber (aberto)", money(ex.receivables_open)),
-        kpi("Atenção", num(ex.attention_count), Number(ex.attention_count) > 0 ? "warn" : null),
-      );
+      priorityCards.push(kpi("Atenção", num(attn), attn > 0 ? "warn" : "quiet", "hero"));
+      priorityCards.push(kpi("A receber", money(ex.receivables_open), recv > 0 ? "warn" : "quiet", "hero"));
     }
     if (jobs) {
-      cards.push(
-        kpi("Jobs ativos", num(jobs.active)),
-        kpi("A faturar", num(jobs.to_invoice), Number(jobs.to_invoice) > 0 ? "warn" : null),
-        kpi("Aguardando pagamento", num(jobs.awaiting_payment)),
-        kpi("Concluídos no período", num(jobs.completed_in_period)),
-      );
+      priorityCards.push(kpi("A faturar", num(toInvoice), toInvoice > 0 ? "warn" : "quiet", "hero"));
+      priorityCards.push(kpi("Aguardando pgto", num(awaiting), awaiting > 0 ? "warn" : "quiet", "hero"));
     }
-    if (cf) {
-      cards.push(
-        kpi("Entradas", money(cf.inflow), "ok"),
-        kpi("Saídas", money(cf.outflow)),
-        kpi("Resultado", money(cf.net), Number(cf.net) >= 0 ? "ok" : "warn"),
-        kpi("Folha paga", money(cf.payroll_paid)),
-      );
-    }
-    if (folha?.totals) {
-      cards.push(
-        kpi("Funcionários (folha)", num(folha.employee_count || folha.totals.employees)),
-        kpi("Folha líquida", money(folha.totals.net)),
-        kpi("Folha paga (detalhe)", money(folha.totals.paid)),
-      );
-    }
-    return `<section class="rpt-sec" id="panel-resumo">
-      ${secHead("Resumo", `${exportBtn("executive")}${link("/dashboard", "Início")}`)}
-      <div class="rpt-kpis">${cards.join("")}</div>
-    </section>`;
+
+    const salesCards = ex
+      ? [
+          kpi("Receita ganha", money(ex.quotes_won_revenue), null, "featured"),
+          kpi("Orçamentos ganhos", num(ex.quotes_won_count)),
+          kpi("Leads no período", num(ex.leads_created)),
+        ].join("")
+      : "";
+
+    const opsCards = jobs
+      ? [
+          kpi("Jobs ativos", num(jobs.active), null, "featured"),
+          kpi("Concluídos no período", num(jobs.completed_in_period)),
+          kpi("Agendados no período", num(jobs.scheduled_in_period || 0)),
+        ].join("")
+      : "";
+
+    const cashCards = cf
+      ? [
+          kpi("Resultado", money(cf.net), Number(cf.net) >= 0 ? "ok" : "warn", "featured"),
+          kpi("Entradas", money(cf.inflow), "ok"),
+          kpi("Saídas", money(cf.outflow)),
+          kpi("Folha paga", money(cf.payroll_paid)),
+        ].join("")
+      : "";
+
+    const folhaCards = folha?.totals
+      ? [
+          kpi("Folha líquida", money(folha.totals.net), null, "featured"),
+          kpi("Folha paga", money(folha.totals.paid), "ok"),
+          kpi("Funcionários", num(folha.employee_count || folha.totals.employees)),
+        ].join("")
+      : "";
+
+    return `<div class="rpt-resumo" id="panel-resumo">
+      <header class="rpt-resumo__bar">
+        ${secHead("Resumo", `${exportBtn("executive")}${link("/dashboard", "Início")}`)}
+      </header>
+      ${
+        hasPriority || priorityCards.length
+          ? kpiGroup(
+              "Prioridade",
+              "O que precisa de ação agora",
+              priorityCards.join(""),
+              attn > 0 || toInvoice > 0 || awaiting > 0 ? "alert" : "focus",
+            )
+          : ""
+      }
+      <div class="rpt-resumo__grid">
+        ${kpiGroup("Vendas", "Pipeline e fechamentos no período", salesCards, "sales")}
+        ${kpiGroup("Operação", "Jobs em campo e concluídos", opsCards, "ops")}
+        ${kpiGroup("Financeiro", "Entradas, saídas e resultado", cashCards, "cash")}
+        ${kpiGroup("Folha", "Custo de equipe no período", folhaCards, "folha")}
+      </div>
+    </div>`;
   }
 
   function renderSales(sales) {
