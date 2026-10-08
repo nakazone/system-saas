@@ -43,7 +43,6 @@ export const invoiceDetailInclude = {
       payload: true,
       property: { select: { line1: true, line2: true, city: true, state: true, postalCode: true, label: true } },
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
-      lead: { select: { name: true, email: true, phone: true } },
       invoices: { select: siblingInvoiceSelect },
       lineItems: { select: quoteServiceLineSelect, orderBy: { sortOrder: "asc" as const } },
     },
@@ -120,12 +119,11 @@ export function clientOf(inv: InvoiceDetail): DocClient {
         .filter(Boolean)
         .join(" · ")
     : null;
-  // Never use quote.title / job_name as Bill-to — only builder, customer, or lead.
-  const leadName = q?.lead?.name?.trim() || null;
+  // Never use quote.title / job_name as Bill-to — only builder or customer.
   return {
-    name: (isBuilder ? builderName : inv.customer?.name) || inv.customer?.name || builderName || leadName || null,
-    email: (isBuilder ? q?.builder?.email : null) || inv.customer?.email || q?.lead?.email || null,
-    phone: (isBuilder ? q?.builder?.phone : null) || inv.customer?.phone || q?.lead?.phone || null,
+    name: (isBuilder ? builderName : inv.customer?.name) || inv.customer?.name || builderName || null,
+    email: (isBuilder ? q?.builder?.email : null) || inv.customer?.email || null,
+    phone: (isBuilder ? q?.builder?.phone : null) || inv.customer?.phone || null,
     address: address || null,
   };
 }
