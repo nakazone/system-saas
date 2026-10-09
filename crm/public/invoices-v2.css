@@ -27,7 +27,7 @@
 
 /* botões e links */
 .inv-btn { height: 38px; border: 0; box-shadow: 0 0 0 1px var(--inv-line); border-radius: 12px; font-weight: 600; font-size: 13.5px; }
-.inv-btn--primary, .inv-btn--primary:hover:not(:disabled) { background: #E7792C; color: #221E1A; box-shadow: none; }
+.inv-btn--primary, .inv-btn--primary:hover:not(:disabled) { background: #E7792C; color: #fff; box-shadow: none; }
 .inv-btn--primary:hover:not(:disabled) { background: #EF8A44; }
 .inv-btn--secondary:hover, .inv-btn--ghost:hover { background: #F7F8FA; border-color: transparent; }
 .inv-btn--ghost { box-shadow: none; }
