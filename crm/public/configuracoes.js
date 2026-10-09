@@ -18,131 +18,123 @@
    * perm: null = everyone; string = needs that key; array = needs any.
    * section = in-page; href = existing page elsewhere in the app.
    */
-  const NAV = [
+  /*
+   * 7 áreas › subgrupos. Cada subgrupo mostra uma seção antiga inteira ou só alguns cartões dela
+   * (cartões marcados com data-sub no HTML). section = seção antiga (carrega/salva como antes);
+   * href = página fora daqui.
+   */
+  const AREAS = [
     {
-      group: "Empresa",
-      desc: "Dados, marca e aparência",
-      items: [
-        { id: "visao-geral", label: "Visão geral", perm: null, keywords: "início resumo progresso" },
-        {
-          id: "empresa",
-          label: "Dados da empresa",
-          perm: "settings.manage",
-          keywords: "nome razão social telefone e-mail email site endereço rua cidade estado zip licença seguro apólice horário funcionamento fuso horário idioma unidade área semana avaliação google review",
-        },
-        {
-          id: "agenda",
-          label: "Agenda e calendários",
-          perm: "settings.manage",
-          keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync",
-        },
-        { id: "marca", label: "Marca e aparência", perm: "settings.manage", keywords: "logo cores cor principal destaque tema" },
+      id: "empresa",
+      label: "Empresa",
+      icon: "home",
+      desc: "Perfil, marca, licença e horário",
+      subs: [
+        { id: "perfil", label: "Perfil e endereço", section: "empresa", perm: "settings.manage", desc: "Aparecem nos orçamentos, faturas, PDFs e no link que o cliente abre.", keywords: "nome razão social telefone e-mail email site endereço rua cidade estado zip avaliação google review" },
+        { id: "marca", label: "Marca no documento", section: "marca", perm: "settings.manage", desc: "Logo e cores dos documentos do cliente (orçamento, fatura, PDF e e-mails). Os menus do ObraMate não mudam.", keywords: "logo cores cor principal destaque tema" },
+        { id: "licenca", label: "Licença e seguro", section: "empresa", perm: "settings.manage", desc: "Muitos clientes e builders pedem antes de fechar. Avisamos no Início 30 dias antes de vencer.", keywords: "licença seguro apólice certificado validade" },
+        { id: "horario", label: "Horário e região", section: "empresa", perm: "settings.manage", desc: "Horário de funcionamento, fuso, idioma e unidade de área.", keywords: "horário funcionamento fuso horário idioma unidade área semana" },
       ],
     },
     {
-      group: "Vendas",
-      desc: "Orçamentos, preços e produtos",
-      items: [
-        {
-          id: "orcamentos",
-          label: "Orçamentos",
-          perm: "settings.manage",
-          keywords: "numeração prefixo número validade imposto tax termos condições included inclusão what's included cliente vê preço unitário quantidade cômodo assinatura responsável",
-        },
-        {
-          id: "mensagens-orcamento",
-          label: "Mensagens do Orçamento",
-          perm: "settings.manage",
-          keywords: "sms mensagem whatsapp follow-up quote orçamento enviar link template share",
-        },
-        {
-          id: "mensagens-faturas",
-          label: "Mensagens das Faturas",
-          perm: "settings.manage",
-          keywords: "sms mensagem invoice fatura enviar link template share whatsapp",
-        },
-        {
-          id: "mensagens-fase",
-          label: "Mensagens para Leads",
-          perm: "settings.manage",
-          keywords: "mensagem email e-mail sms template fase pipeline lead novo visita orçamento follow-up cupom coupon gelo",
-        },
-        {
-          id: "automacoes-leads",
-          label: "Automações de Leads",
-          perm: "settings.manage",
-          keywords: "automação follow-up quote sent estágio dias pipeline lead",
-        },
-        {
-          id: "regras-estimativa",
-          label: "Regras de estimativa",
-          perm: "estimate_rules.manage",
-          keywords: "desperdício waste markup margem tipo de piso madeira hardwood lvp laminado cerâmica carpete",
-        },
-        {
-          id: "categorias-servico",
-          label: "Categorias de serviço",
-          perm: "settings.manage",
-          keywords: "categoria serviço supply installation sand finishing geral",
-        },
-        {
-          id: "unidades",
-          label: "Unidades",
-          perm: "settings.manage",
-          keywords: "unidade sq ft linear inches fixed box piece medida",
-        },
-        {
-          id: "tipos-cliente",
-          label: "Tipos de cliente",
-          perm: "settings.manage",
-          keywords: "tipo cliente builder particular loja contractor cadastro",
-        },
-        { href: "builder-pricing-admin.html", label: "Serviços e preços", perm: ["builders.view", "quotes.edit"], keywords: "tabela de valor preço serviço builder desconto volume" },
-        { href: "quote-catalog.html", label: "Catálogo de serviços", perm: ["quotes.edit"], keywords: "catálogo serviço orçamento" },
-        { href: "products-erp.html", label: "Produtos e margens", perm: ["quotes.view"], keywords: "produto sku custo margem categoria" },
-        { href: "suppliers.html", label: "Fornecedores", perm: ["quotes.view"], keywords: "fornecedor supplier distribuidor" },
+      id: "documentos",
+      label: "Orçamentos e faturas",
+      icon: "doc",
+      desc: "Numeração, documento do cliente e estimativa",
+      subs: [
+        { id: "numeracao", label: "Numeração e padrões", section: "orcamentos", perm: "settings.manage", desc: "Valores de cada orçamento novo e a assinatura da empresa. Dá para mudar em cada orçamento.", keywords: "numeração prefixo próximo número validade imposto assinatura" },
+        { id: "cliente", label: "O que o cliente vê", section: "orcamentos", perm: "settings.manage", desc: "What's Included, termos e as colunas que aparecem no PDF e no link do cliente.", keywords: "what's included inclusos termos condições colunas quantidade preço unitário cômodo prévia" },
+        { id: "regras", label: "Regras de estimativa", section: "regras-estimativa", perm: "estimate_rules.manage", desc: "Desperdício e margens por tipo de piso, usados na estimativa rápida e na medição.", keywords: "desperdício waste markup margem tipo de piso madeira hardwood lvp laminado cerâmica carpete" },
       ],
     },
     {
-      group: "Operações",
-      desc: "Jobs, Campo e Folha",
-      items: [
-        {
-          id: "jobs",
-          label: "Jobs",
-          perm: "settings.manage",
-          keywords: "job checklist campo ticket lista exibir desativar",
-        },
-        {
-          id: "folha",
-          label: "Folha de pagamento",
-          perm: "settings.manage",
-          keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento zelle pix forma",
-        },
+      id: "mensagens",
+      label: "Mensagens e automações",
+      icon: "chat",
+      desc: "Textos de SMS, e-mail e follow-up",
+      subs: [
+        { id: "msg-leads", label: "Leads por fase", section: "mensagens-fase", perm: "settings.manage", desc: "E-mails e SMS de cada fase do pipeline, com o cupom.", keywords: "mensagem email e-mail sms template fase pipeline lead novo visita follow-up cupom coupon gelo" },
+        { id: "msg-orcamento", label: "Envio do orçamento", section: "mensagens-orcamento", perm: "settings.manage", desc: "SMS e WhatsApp ao enviar o orçamento e o follow-up depois que o cliente abriu.", keywords: "sms whatsapp mensagem orçamento quote enviar link follow-up" },
+        { id: "msg-fatura", label: "Envio da fatura", section: "mensagens-faturas", perm: "settings.manage", desc: "SMS ao enviar o link da fatura.", keywords: "sms mensagem invoice fatura enviar link" },
+        { id: "automacoes", label: "Automações", section: "automacoes-leads", perm: "settings.manage", desc: "Mover leads automaticamente no pipeline.", keywords: "automação follow-up quote sent estágio dias pipeline lead" },
       ],
     },
     {
-      group: "Equipe e acesso",
+      id: "precos",
+      label: "Serviços e preços",
+      icon: "tag",
+      desc: "Tabela de Valor, catálogo e cadastros",
+      subs: [
+        { id: "tabela", label: "Tabela de Valor", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"], desc: "Preço por tipo de cliente", keywords: "tabela de valor preço serviço builder desconto volume" },
+        { id: "catalogo", label: "Catálogo de serviços", href: "quote-catalog.html", perm: ["quotes.edit"], desc: "Itens do orçamento", keywords: "catálogo serviço orçamento" },
+        { id: "produtos", label: "Produtos e margens", href: "products-erp.html", perm: ["quotes.view"], desc: "SKU, custo e margem", keywords: "produto sku custo margem" },
+        { id: "fornecedores", label: "Fornecedores", href: "suppliers.html", perm: ["quotes.view"], desc: "Distribuidores", keywords: "fornecedor supplier distribuidor" },
+        { id: "categorias", label: "Categorias de serviço", section: "categorias-servico", perm: "settings.manage", desc: "Usadas no catálogo, nos orçamentos e no Field Quote.", keywords: "categoria serviço supply installation sand finishing geral" },
+        { id: "unidades", label: "Unidades", section: "unidades", perm: "settings.manage", desc: "Medidas dos itens do orçamento e do catálogo.", keywords: "unidade sq ft linear inches fixed box piece medida" },
+        { id: "tipos-cliente", label: "Tipos de cliente", section: "tipos-cliente", perm: "settings.manage", desc: "Particular, Builder, Loja e os tipos que você criar.", keywords: "tipo cliente builder particular loja contractor cadastro" },
+      ],
+    },
+    {
+      id: "operacao",
+      label: "Operação",
+      icon: "job",
+      desc: "Agenda, Jobs e Folha",
+      subs: [
+        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários da agenda e o link para o Calendário do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync" },
+        { id: "jobs", label: "Jobs e Campo", section: "jobs", perm: "settings.manage", desc: "Opções do job no escritório e no Campo.", keywords: "job checklist campo ticket lista exibir desativar" },
+        { id: "folha", label: "Folha de pagamento", section: "folha", perm: "settings.manage", desc: "Quando o período fecha, em que dia a empresa paga e onde cai o reembolso.", keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento reembolso" },
+        { id: "formas", label: "Formas de pagamento", section: "folha", perm: "settings.manage", desc: "Como o dinheiro chega ao funcionário (Zelle, cheque, dinheiro…).", keywords: "zelle pix forma pagamento cheque dinheiro ach" },
+      ],
+    },
+    {
+      id: "equipe",
+      label: "Equipe e acesso",
+      icon: "users",
       desc: "Usuários, cargos e permissões",
-      items: [
-        {
-          id: "cargos",
-          label: "Cargos",
-          perm: ["roles.manage", "users.view"],
-          keywords: "cargo role permissão função acesso",
-        },
-        { href: "equipe.html", label: "Usuários", perm: ["users.view"], keywords: "usuário equipe convidar senha" },
+      subs: [
+        { id: "usuarios", label: "Usuários", href: "equipe.html", perm: ["users.view"], desc: "Quem acessa o workspace", keywords: "usuário equipe convidar senha" },
+        { id: "cargos", label: "Cargos e permissões", section: "cargos", perm: ["roles.manage", "users.view"], desc: "Cargos da equipe e as permissões padrão de cada um.", keywords: "cargo role permissão função acesso" },
       ],
     },
     {
-      group: "Sistema",
-      desc: "App, alertas e suporte",
-      items: [
-        { id: "app", label: "App e alertas", perm: null, keywords: "instalar app celular notificação push alerta dispositivo" },
-        { id: "suporte", label: "Ajuda e suporte", perm: null, keywords: "suporte ajuda dúvida problema bug sugestão contato" },
+      id: "sistema",
+      label: "App e suporte",
+      icon: "bell",
+      desc: "Instalar, alertas e ajuda",
+      subs: [
+        { id: "app", label: "App e alertas", section: "app", perm: null, desc: "Use o ObraMate como aplicativo e receba avisos neste dispositivo.", keywords: "instalar app celular notificação push alerta dispositivo" },
+        { id: "suporte", label: "Ajuda e suporte", section: "suporte", perm: null, desc: "Dúvidas, sugestões ou problemas direto para a equipe ObraMate.", keywords: "suporte ajuda dúvida problema bug sugestão contato" },
       ],
     },
   ];
+  /** Hashes antigos (links de outras telas, passos do Início, e-mails) → subgrupo novo. */
+  const LEGACY_HASH = {
+    "visao-geral": "inicio",
+    empresa: "perfil",
+    orcamentos: "numeracao",
+    "mensagens-orcamento": "msg-orcamento",
+    "mensagens-faturas": "msg-fatura",
+    "mensagens-fase": "msg-leads",
+    "automacoes-leads": "automacoes",
+    "regras-estimativa": "regras",
+    "categorias-servico": "categorias",
+    "instalar-app": "app",
+    "alertas-push": "app",
+  };
+  /** Passo do progresso (Início) → subgrupo. */
+  const STEP_SUB = { logo: "marca", contact: "perfil", address: "perfil", license: "licenca", terms: "cliente", pricing: "tabela", team: "usuarios", push: "app" };
+  const AREA_ICONS = {
+    home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h4"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.4A8 8 0 1121 12z"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8z"/><circle cx="8" cy="8" r="1.5"/></svg>',
+    job: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2M3 13h18"/></svg>',
+    users: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14.5a6.5 6.5 0 013.5 5.5"/></svg>',
+    bell: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>',
+    grid: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>',
+  };
+  /** Compatibilidade: lista plana (busca e permissões usam). */
+  const NAV = AREAS.map((a) => ({ group: a.label, desc: a.desc, items: a.subs.map((x) => ({ ...x, id: x.section ? x.id : undefined })) }));
 
   const FIELD_INDEX = [
     ["Nome da empresa", "empresa", "f_name"],
@@ -304,41 +296,101 @@
   }
 
   // ---------------------------------------------------------------- navigation
-  function sectionIds() {
-    return NAV.flatMap((g) => g.items.filter((i) => i.id).map((i) => i.id));
+  function allSubs() {
+    return AREAS.flatMap((a) => a.subs.map((x) => ({ ...x, area: a })));
   }
-
+  function findSub(id) {
+    return allSubs().find((x) => x.id === id) || null;
+  }
+  function findArea(id) {
+    return AREAS.find((a) => a.id === id) || null;
+  }
+  function sectionIds() {
+    return [...new Set(allSubs().filter((x) => x.section).map((x) => x.section))];
+  }
+  /** Permissão de uma seção antiga (usada pelo carregamento das seções). */
   function findItem(id) {
-    for (const g of NAV) for (const i of g.items) if (i.id === id) return i;
-    return null;
+    const x = allSubs().find((y) => y.section === id || y.id === id);
+    return x ? { ...x, id: x.section } : null;
+  }
+  function visibleSubs(area) {
+    return area.subs.filter((x) => can(x.perm));
+  }
+  /** Subgrupo onde um campo mora (busca): o cartão com data-sub, senão o primeiro subgrupo da seção. */
+  function subFor(section, fieldId) {
+    const el = fieldId ? $(fieldId) : null;
+    const tagged = el && el.closest("[data-sub]");
+    if (tagged) return tagged.getAttribute("data-sub");
+    const x = allSubs().find((y) => y.section === section);
+    return x ? x.id : "inicio";
   }
 
   function renderNav() {
     const host = $("cfgNavGroups");
-    host.innerHTML = NAV.map((g) => {
-      const items = g.items.filter((i) => can(i.perm));
-      if (!items.length) return "";
-      return (
-        `<div class="cfg-nav__group"><p class="cfg-nav__label">${esc(g.group)}</p>` +
-        items
-          .map((i) =>
-            i.id
-              ? `<a class="cfg-nav__item" href="#${i.id}" data-nav="${i.id}"><span>${esc(i.label)}</span><span class="cfg-nav__chev">${ICON.chev}</span></a>`
-              : `<a class="cfg-nav__item" href="${i.href}"><span>${esc(i.label)}</span><span class="cfg-nav__ext" title="Abre em outra página">${ICON.ext}</span></a>`,
-          )
-          .join("") +
-        `</div>`
-      );
-    }).join("");
+    const cur = state.sub ? findSub(state.sub) : null;
+    const openArea = state.areaView || (cur ? cur.area.id : null);
+    const home = `<a class="cfg-home${state.sub === "inicio" ? " is-active" : ""}" href="#inicio" data-nav="inicio"><span class="cfg-ico">${AREA_ICONS.grid}</span><span>Início</span><em id="cfgNavSetup"></em></a>`;
+    host.innerHTML =
+      home +
+      AREAS.map((a) => {
+        const subs = visibleSubs(a);
+        if (!subs.length) return "";
+        const open = a.id === openArea;
+        return `<div class="cfg-area${open ? " is-open" : ""}">
+          <a class="cfg-area__hd" href="#a-${a.id}" data-area="${a.id}"><span class="cfg-ico">${AREA_ICONS[a.icon] || ""}</span><span class="cfg-area__t"><b>${esc(a.label)}</b><small>${esc(a.desc)}</small></span><em>${subs.length}</em><span class="cfg-nav__chev">${ICON.chev}</span></a>
+          <div class="cfg-area__subs">${subs
+            .map((x) =>
+              x.section
+                ? `<a class="cfg-nav__item" href="#${x.id}" data-nav="${x.id}"><span>${esc(x.label)}</span><i class="cfg-dot" data-dot="${x.id}" hidden></i></a>`
+                : `<a class="cfg-nav__item is-ext" href="${x.href}"><span>${esc(x.label)}</span><span class="cfg-nav__ext" title="Abre em outra página">${ICON.ext}</span></a>`,
+            )
+            .join("")}</div></div>`;
+      }).join("");
+    paintDots();
+  }
+
+  /** Pontos laranja nos subgrupos que ainda faltam (vem do progresso do Início). */
+  function paintDots() {
+    const miss = state.missing || new Set();
+    document.querySelectorAll("[data-dot]").forEach((d) => (d.hidden = !miss.has(d.getAttribute("data-dot"))));
+    const el = $("cfgNavSetup");
+    if (el && state.setup) el.textContent = `${state.setup.done}/${state.setup.total}`;
   }
 
   function setActiveNav(id) {
-    document.querySelectorAll(".cfg-nav__item[data-nav]").forEach((a) => {
+    document.querySelectorAll("#cfgNavGroups [data-nav]").forEach((a) => {
       const on = a.getAttribute("data-nav") === id;
       a.classList.toggle("is-active", on);
       if (on) a.setAttribute("aria-current", "page");
       else a.removeAttribute("aria-current");
     });
+  }
+
+  function renderAreaHead(area, sub) {
+    const hd = $("cfgAreaHd");
+    if (!area) {
+      hd.hidden = true;
+      hd.innerHTML = "";
+      return;
+    }
+    const subs = visibleSubs(area);
+    const tabs = subs
+      .map((x) =>
+        x.section
+          ? `<a class="cfg-tab${sub && x.id === sub.id ? " is-on" : ""}" href="#${x.id}">${esc(x.label)}<i class="cfg-dot" data-dot="${x.id}" hidden></i></a>`
+          : `<a class="cfg-tab is-ext" href="${x.href}">${esc(x.label)}<span class="cfg-nav__ext">${ICON.ext}</span></a>`,
+      )
+      .join("");
+    const list = subs
+      .map(
+        (x) =>
+          `<a class="cfg-sublink" href="${x.section ? `#${x.id}` : x.href}"><span><b>${esc(x.label)}</b><small>${esc(x.desc || "")}</small></span><i class="cfg-dot" data-dot="${x.id}" hidden></i>${x.section ? ICON.chev : `<span class="cfg-nav__ext">${ICON.ext}</span>`}</a>`,
+      )
+      .join("");
+    hd.innerHTML = `<div class="cfg-areahd__t"><span class="cfg-ico cfg-ico--lg">${AREA_ICONS[area.icon] || ""}</span><div><p class="cfg-crumb">${esc(area.label)}</p><h2>${esc(sub ? sub.label : area.label)}</h2><p class="cfg-areahd__d">${esc(sub ? sub.desc || "" : area.desc)}</p></div></div>
+      ${sub ? `<nav class="cfg-tabs" aria-label="${esc(area.label)}">${tabs}</nav>` : `<div class="cfg-sublist">${list}</div>`}`;
+    hd.hidden = false;
+    paintDots();
   }
 
   function dirtyCount(id) {
@@ -361,46 +413,97 @@
   }
 
   function routeFromHash() {
-    const raw = (location.hash || "").replace(/^#/, "");
-    const legacy = { "instalar-app": "app", "alertas-push": "app" };
-    let id = legacy[raw] || raw;
-    const valid = sectionIds();
-    if (!id) id = isDesktop() ? "visao-geral" : "";
-    if (id && !valid.includes(id)) id = "visao-geral";
+    const raw = decodeURIComponent((location.hash || "").replace(/^#/, ""));
+    let id = LEGACY_HASH[raw] || raw;
+    if (!id) return isDesktop() ? "inicio" : "";
+    if (id === "inicio") return id;
+    if (id.startsWith("a-")) {
+      const area = findArea(id.slice(2));
+      if (!area) return "inicio";
+      if (isDesktop()) {
+        const first = visibleSubs(area).find((x) => x.section);
+        return first ? first.id : "inicio";
+      }
+      return id;
+    }
+    const sub = findSub(id);
+    if (!sub || !sub.section) return "inicio";
     return id;
   }
+  /** Seção antiga que um destino usa (para o aviso de alterações não salvas). */
+  function sectionOfRoute(route) {
+    if (!route || route === "inicio" || route.startsWith("a-")) return null;
+    const sub = findSub(route);
+    return sub ? sub.section : null;
+  }
 
-  function show(id) {
+  function show(route) {
     const cfg = $("cfg");
-    if (!id) {
+    const prevSection = state.current;
+    if (!route) {
       cfg.setAttribute("data-view", "index");
       state.current = null;
-      setActiveNav(null);
+      state.sub = null;
+      state.areaView = null;
+      renderNav();
+      renderAreaHead(null);
       document.title = "Configurações — ObraMate";
+      updateSavebar();
       return;
     }
-    const item = findItem(id);
-    const allowed = item && can(item.perm);
-    const target = allowed ? id : "sem-acesso";
+    if (route.startsWith("a-")) {
+      const area = findArea(route.slice(2));
+      cfg.setAttribute("data-view", "section");
+      state.current = null;
+      state.sub = null;
+      state.areaView = area.id;
+      document.querySelectorAll(".cfg-section").forEach((s) => (s.hidden = true));
+      renderNav();
+      renderAreaHead(area, null);
+      document.title = `${area.label} — Configurações`;
+      updateSavebar();
+      window.scrollTo(0, 0);
+      return;
+    }
+    let target;
+    let sub = null;
+    if (route === "inicio") {
+      target = "visao-geral";
+      state.sub = "inicio";
+      state.areaView = null;
+    } else {
+      sub = findSub(route);
+      const allowed = sub && can(sub.perm);
+      target = allowed ? sub.section : "sem-acesso";
+      state.sub = sub ? sub.id : null;
+      state.areaView = null;
+    }
     document.querySelectorAll(".cfg-section").forEach((s) => {
-      s.hidden = s.getAttribute("data-section") !== target;
+      const on = s.getAttribute("data-section") === target;
+      s.hidden = !on;
+      if (!on) return;
+      const tagged = s.querySelectorAll("[data-sub]");
+      tagged.forEach((el) => (el.hidden = Boolean(sub) && el.getAttribute("data-sub") !== sub.id));
     });
     cfg.setAttribute("data-view", "section");
-    state.current = allowed ? id : null;
-    setActiveNav(id);
-    document.title = `${item ? item.label : "Configurações"} — Configurações`;
+    cfg.setAttribute("data-sub", state.sub || "");
+    state.current = target === "visao-geral" || target === "sem-acesso" ? null : target;
+    renderNav();
+    setActiveNav(state.sub);
+    renderAreaHead(sub ? sub.area : null, sub);
+    document.title = `${sub ? sub.label : "Configurações"} — Configurações`;
     updateSavebar();
-    if (allowed) loadSection(id);
-    const main = $("cfgMain");
-    if (main && !isDesktop()) window.scrollTo(0, 0);
+    if (target === "visao-geral") loadOverview();
+    else if (state.current && state.current !== prevSection) loadSection(state.current);
+    if (!isDesktop()) window.scrollTo(0, 0);
   }
 
   function onHashChange() {
     const next = routeFromHash();
     const dirty = dirtySection();
-    if (dirty && next !== dirty) {
+    if (dirty && sectionOfRoute(next) !== dirty) {
       state.pendingHash = location.hash;
-      history.replaceState(null, "", `#${dirty}`);
+      history.replaceState(null, "", `#${state.sub || ""}`);
       openLeaveModal();
       return;
     }
@@ -420,16 +523,18 @@
   // ---------------------------------------------------------------- search
   function searchEntries() {
     const out = [];
-    for (const g of NAV) {
-      for (const i of g.items) {
-        if (!can(i.perm)) continue;
-        out.push({ label: i.label, where: g.group, hay: `${i.label} ${i.keywords || ""}`, go: i.id ? `#${i.id}` : i.href });
+    for (const area of AREAS) {
+      for (const x of area.subs) {
+        if (!can(x.perm)) continue;
+        out.push({ label: x.label, where: area.label, hay: `${x.label} ${area.label} ${x.keywords || ""}`, go: x.section ? `#${x.id}` : x.href });
       }
     }
     for (const [label, section, fieldId] of FIELD_INDEX) {
       const item = findItem(section);
       if (!item || !can(item.perm)) continue;
-      out.push({ label, where: item.label, hay: label, go: `#${section}`, field: fieldId });
+      const subId = subFor(section, fieldId);
+      const sub = findSub(subId);
+      out.push({ label, where: sub ? `${sub.area.label} › ${sub.label}` : item.label, hay: label, go: `#${subId}`, field: fieldId });
     }
     return out;
   }
@@ -591,19 +696,38 @@
     { title: "App e alertas", desc: "Instalar e receber avisos", href: "#app", perm: null },
   ];
 
+  function renderAreaCards() {
+    const miss = state.missing || new Set();
+    const notes = state.subNotes || {};
+    $("cfgGroupCards").innerHTML = AREAS.map((a) => {
+      const subs = visibleSubs(a);
+      if (!subs.length) return "";
+      const first = subs.find((x) => x.section) || subs[0];
+      return `<article class="cfg-card cfg-acard"><a class="cfg-acard__hd" href="${first.section ? `#${first.id}` : first.href}"><span class="cfg-ico">${AREA_ICONS[a.icon] || ""}</span><span><b>${esc(a.label)}</b><small>${esc(a.desc)}</small></span></a>
+        <ul>${subs
+          .map((x) => {
+            const note = notes[x.id] || (miss.has(x.id) ? "falta configurar" : "");
+            return `<li><a href="${x.section ? `#${x.id}` : x.href}"><span>${esc(x.label)}</span>${note ? `<em class="is-hot">${esc(note)}</em>` : x.section ? ICON.chev : `<span class="cfg-nav__ext">${ICON.ext}</span>`}</a></li>`;
+          })
+          .join("")}</ul></article>`;
+    }).join("");
+  }
+
   async function loadOverview() {
-    const cards = GROUP_LINKS.filter((g) => can(g.perm));
-    $("cfgGroupCards").innerHTML = cards
-      .map(
-        (g) =>
-          `<a class="cfg-card cfg-group" href="${g.href}"><span class="cfg-group__title">${esc(g.title)}<span class="cfg-group__chev">${ICON.chev}</span></span><span class="cfg-group__desc">${esc(g.desc)}</span></a>`,
-      )
-      .join("");
+    renderAreaCards();
     try {
       const j = await api("/api/settings/overview");
       const d = j.data;
       const steps = d.setup || [];
       const done = steps.filter((s) => s.done).length;
+      state.setup = { done, total: steps.length };
+      state.missing = new Set(
+        steps
+          .filter((s) => !s.done && s.href)
+          .map((s) => STEP_SUB[s.key] || (String(s.href).split("#")[1] || ""))
+          .filter(Boolean),
+      );
+      state.subNotes = {};
       $("cfgSetupDone").textContent = String(done);
       $("cfgSetupTotal").textContent = String(steps.length);
       const pct = steps.length ? Math.round((done / steps.length) * 100) : 0;
@@ -620,10 +744,16 @@
           if (s.done) return `<li class="cfg-step is-done">${mark}${label}</li>`;
           if (!s.can_open)
             return `<li class="cfg-step is-locked" title="Peça a um administrador">${mark}${label}<span class="cfg-step__lock">${ICON.lock}</span></li>`;
-          return `<li class="cfg-step"><a href="${esc(s.href)}">${mark}${label}<span class="cfg-step__cta">Configurar</span></a></li>`;
+          const go = STEP_SUB[s.key] && findSub(STEP_SUB[s.key]) && findSub(STEP_SUB[s.key]).section ? `#${STEP_SUB[s.key]}` : s.href;
+          return `<li class="cfg-step"><a href="${esc(go)}">${mark}${label}<span class="cfg-step__cta">Configurar</span></a></li>`;
         })
         .join("");
       const alerts = d.alerts || [];
+      alerts.forEach((a) => {
+        state.subNotes.licenca = a.days_left < 0 ? "vencida" : `vence em ${a.days_left} d`;
+      });
+      renderAreaCards();
+      paintDots();
       $("cfgAlerts").innerHTML = alerts
         .map((a) => {
           const when = new Date(`${a.expires_on}T12:00:00`).toLocaleDateString("pt-BR");
@@ -633,11 +763,11 @@
               : a.days_left === 0
                 ? `${a.label} vence hoje.`
                 : `${a.label} vence em ${a.days_left} ${a.days_left === 1 ? "dia" : "dias"} (${when}).`;
-          return `<div class="cfg-alert">${ICON.warn}<span>${esc(text)}</span><a href="#empresa" data-focus="f_${a.key === "license" ? "license_expires_on" : "insurance_expires_on"}">Atualizar</a></div>`;
+          return `<div class="cfg-alert">${ICON.warn}<span>${esc(text)}</span><a href="#licenca" data-focus="f_${a.key === "license" ? "license_expires_on" : "insurance_expires_on"}">Atualizar</a></div>`;
         })
         .join("");
     } catch (err) {
-      $("cfgSetupSteps").innerHTML = `<li class="cfg-step">Não foi possível carregar o progresso. <a href="#visao-geral" data-retry>Tentar de novo</a></li>`;
+      $("cfgSetupSteps").innerHTML = `<li class="cfg-step">Não foi possível carregar o progresso. <a href="#inicio" data-retry>Tentar de novo</a></li>`;
     }
   }
 
@@ -3345,13 +3475,18 @@
     });
     $("cfgBack").addEventListener("click", (e) => {
       e.preventDefault();
+      const sub = state.sub && state.sub !== "inicio" ? findSub(state.sub) : null;
+      const target = sub ? `#a-${sub.area.id}` : "";
       if (dirtySection()) {
-        state.pendingHash = "";
+        state.pendingHash = target;
         openLeaveModal();
         return;
       }
-      history.pushState(null, "", location.pathname + location.search);
-      show("");
+      if (target) location.hash = target;
+      else {
+        history.pushState(null, "", location.pathname + location.search);
+        show("");
+      }
     });
     $("cfgAlerts").addEventListener("click", (e) => {
       const a = e.target.closest("[data-focus]");
@@ -3365,7 +3500,7 @@
     });
     window.addEventListener("hashchange", onHashChange);
     window.matchMedia("(min-width: 1024px)").addEventListener("change", () => {
-      if (!state.current && isDesktop()) show("visao-geral");
+      if (!state.sub && isDesktop()) show("inicio");
     });
   }
 

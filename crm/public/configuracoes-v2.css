@@ -1,0 +1,161 @@
+/* Configurações — 7 áreas › subgrupos: lista lateral em 2 níveis (B) + Início com áreas e abas na área (A). Base neutra. */
+.cfg-body {
+  --cfg-ink: #221E1A;
+  --cfg-ink-2: #344054;
+  --cfg-muted: #667085;
+  --cfg-line: #E5E7EB;
+  --cfg-line-2: #EEF0F3;
+  --cfg-soft: #F1F3F5;
+  --cfg-soft-2: #F7F8FA;
+}
+.cfg {
+  background: linear-gradient(90deg, #FAFBFC 0, #FAFBFC 300px, #E5E7EB 300px, #E5E7EB 301px, #fff 301px) !important;
+  max-width: none; grid-template-columns: 300px minmax(0, 1fr); border: 0; border-radius: 22px; box-shadow: 0 0 0 1px #E5E7EB;
+  font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: #221E1A; min-height: calc(100vh - 150px);
+}
+.cfg svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* lista lateral (2 níveis) */
+.cfg-nav { background: transparent; border-right: 0; border-radius: 22px 0 0 22px; padding: 18px 12px 24px; top: calc(var(--crm-topbar-height, 56px) + 12px); max-height: calc(100vh - var(--crm-topbar-height, 56px) - 130px); }
+.cfg-nav__title { font-size: 24px; font-weight: 700; letter-spacing: -.03em; margin: 0 0 12px 6px; }
+.cfg-search { border: 0; border-radius: 11px; background: #EEF0F3; height: 36px; margin-bottom: 10px; }
+.cfg-search:focus-within { background: #fff; box-shadow: 0 0 0 4px rgba(231, 121, 44, .14); border: 0; }
+.cfg-search svg { stroke: #98A2B3; }
+.cfg-search-hit { border-radius: 10px; }
+.cfg-search-hit:hover, .cfg-search-hit.is-first { background: #F1F3F5; }
+.cfg-search-hit small { color: #667085; }
+.cfg-ico { width: 30px; height: 30px; border-radius: 10px; background: #F1F3F5; color: #221E1A; display: grid; place-items: center; flex: none; }
+.cfg-ico svg { width: 16px; height: 16px; }
+.cfg-ico--lg { width: 46px; height: 46px; border-radius: 14px; background: #221E1A; color: #fff; }
+.cfg-ico--lg svg { width: 22px; height: 22px; }
+.cfg-home, .cfg-area__hd { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 12px; color: #221E1A !important; text-decoration: none !important; font-size: 13.5px; font-weight: 600; }
+.cfg-home:hover, .cfg-area__hd:hover { background: #F1F3F5; }
+.cfg-home em, .cfg-area__hd em { margin-left: auto; font-style: normal; font-size: 11.5px; font-weight: 600; color: #98A2B3; }
+.cfg-home.is-active { background: #fff; box-shadow: 0 0 0 1px #E5E7EB; }
+.cfg-home.is-active .cfg-ico { background: #221E1A; color: #fff; }
+.cfg-area { margin-top: 2px; }
+.cfg-area__t { min-width: 0; }
+.cfg-area__t b { display: block; font-weight: 600; }
+.cfg-area__t small { display: none; }
+.cfg-area__hd .cfg-nav__chev { display: none; }
+.cfg-area.is-open .cfg-area__hd { background: #fff; box-shadow: 0 0 0 1px #E5E7EB; }
+.cfg-area.is-open .cfg-area__hd .cfg-ico { background: #221E1A; color: #fff; }
+.cfg-area.is-open .cfg-area__hd em { display: none; }
+.cfg-area__subs { display: none; padding: 4px 0 6px; }
+.cfg-area.is-open .cfg-area__subs { display: block; }
+.cfg-nav .cfg-nav__item { min-height: 32px; padding: 0 10px 0 48px; border-radius: 10px; font-size: 13px; color: #667085; font-weight: 550; }
+.cfg-nav .cfg-nav__item:hover { background: #F1F3F5; color: #221E1A; }
+.cfg-nav .cfg-nav__item.is-active { background: #F1F3F5; color: #221E1A; font-weight: 650; }
+.cfg-nav__ext svg { opacity: .55; }
+.cfg-dot { width: 7px; height: 7px; border-radius: 50%; background: #B4561A; display: inline-block; margin-left: 6px; flex: none; font-style: normal; }
+.cfg-dot[hidden] { display: none !important; }
+
+/* conteúdo */
+.cfg-main { padding: 24px 32px 120px; }
+.cfg-section { max-width: 960px; gap: 14px; }
+.cfg-areahd { max-width: 960px; margin-bottom: 16px; }
+.cfg-areahd__t { display: flex; align-items: center; gap: 14px; }
+.cfg-crumb { margin: 0; font-size: 12.5px; font-weight: 600; color: #667085; }
+.cfg-areahd h2 { margin: 1px 0 0; font-size: 26px; font-weight: 700; letter-spacing: -.035em; line-height: 1.1; color: #221E1A; }
+.cfg-areahd__d { margin: 3px 0 0; font-size: 13px; color: #667085; }
+.cfg-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
+.cfg-tab { height: 34px; padding: 0 13px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px #E5E7EB; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: #221E1A !important; text-decoration: none !important; white-space: nowrap; }
+.cfg-tab:hover { box-shadow: 0 0 0 1px #D0D5DD; }
+.cfg-tab.is-on { background: #221E1A; color: #fff !important; box-shadow: none; }
+.cfg-tab .cfg-nav__ext svg { width: 12px; height: 12px; }
+.cfg-tab.is-on .cfg-dot { background: #E7792C; }
+.cfg-sublist { margin-top: 14px; background: #fff; border-radius: 18px; box-shadow: 0 0 0 1px #E5E7EB; overflow: hidden; }
+.cfg-sublink { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid #EEF0F3; color: #221E1A !important; text-decoration: none !important; }
+.cfg-sublink:last-child { border-bottom: 0; }
+.cfg-sublink > span:first-child { flex: 1; min-width: 0; }
+.cfg-sublink b { display: block; font-size: 15px; font-weight: 600; }
+.cfg-sublink small { display: block; font-size: 12.5px; color: #667085; margin-top: 1px; }
+.cfg-sublink > svg { width: 15px; height: 15px; color: #98A2B3; }
+/* títulos antigos das seções: o cabeçalho da área já diz onde estamos */
+.cfg[data-view="section"]:not([data-sub="inicio"]) .cfg-section > header.cfg-head:first-of-type:not(.cfg-head--row) { display: none; }
+.cfg[data-view="section"]:not([data-sub="inicio"]) .cfg-section > header.cfg-head--row:first-of-type .cfg-title,
+.cfg[data-view="section"]:not([data-sub="inicio"]) .cfg-section > header.cfg-head--row:first-of-type .cfg-lead,
+.cfg header[data-sub="formas"] .cfg-title, .cfg header[data-sub="formas"] .cfg-lead { display: none; }
+.cfg header[data-sub="formas"] { margin-top: 0 !important; justify-content: flex-end; }
+.cfg-section > header.cfg-head--row:first-of-type { justify-content: flex-end; }
+.cfg [data-sub][hidden] { display: none !important; }
+
+/* cartões e campos na base neutra */
+.cfg-card { border: 0; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 20px; padding: 18px 20px; }
+.cfg-card--flush { padding: 0; overflow: hidden; }
+.cfg-card__title { font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: #221E1A; }
+.cfg-card__desc, .cfg-hint, .cfg-lead { color: #667085; }
+.cfg-field label { color: #667085; font-weight: 600; }
+.cfg-field input, .cfg-field select, .cfg-field textarea { border-color: #E5E7EB; border-radius: 11px; }
+.cfg-field input:focus, .cfg-field select:focus, .cfg-field textarea:focus { border-color: #D0D5DD; box-shadow: 0 0 0 4px rgba(231, 121, 44, .14); }
+.cfg-table th { background: #FAFBFC; color: #667085; font-weight: 650; }
+.cfg-switch[aria-checked="true"] { background: #221E1A; }
+.cfg-savebar { background: #221E1A; color: #fff; border: 0; border-radius: 16px; box-shadow: 0 14px 30px -10px rgba(0, 0, 0, .35); }
+.cfg-savebar .btn-primary, .cfg-savebar #cfgSave { background: #E7792C; border-color: #E7792C; color: #fff; }
+.cfg-savebar__discard { background: rgba(255, 255, 255, .1) !important; color: #fff !important; border: 0 !important; }
+
+/* Início: progresso + 7 áreas */
+.cfg .cfg-card.cfg-setup { background: #221E1A !important; color: #fff; box-shadow: none; border: 0; }
+.cfg-setup .cfg-card__title, .cfg-setup .cfg-setup__num { color: #fff; }
+.cfg-setup .cfg-hint, .cfg-setup small { color: rgba(255, 255, 255, .62); }
+.cfg-setup .cfg-progress { background: rgba(255, 255, 255, .16); }
+.cfg-setup .cfg-progress span { background: #E7792C; }
+.cfg-setup .cfg-step, .cfg-setup .cfg-step a { color: #fff; }
+.cfg-setup .cfg-step.is-done { color: rgba(255, 255, 255, .5); }
+.cfg-setup .cfg-step__cta { color: #fff; text-decoration: underline; text-decoration-color: #E7792C; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.cfg-setup .cfg-stepmark { border-color: rgba(255, 255, 255, .3); }
+.cfg-setup .cfg-stepmark.is-done { background: #E7792C; border-color: #E7792C; color: #fff; }
+.cfg-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.cfg-acard { padding: 16px 18px 8px; display: flex; flex-direction: column; }
+.cfg-acard__hd { display: flex; gap: 12px; align-items: flex-start; color: #221E1A !important; text-decoration: none !important; }
+.cfg-acard__hd .cfg-ico { width: 38px; height: 38px; border-radius: 12px; }
+.cfg-acard__hd b { display: block; font-size: 15px; font-weight: 700; }
+.cfg-acard__hd small { display: block; font-size: 12.5px; color: #667085; margin-top: 1px; }
+.cfg-acard ul { list-style: none; margin: 12px 0 0; padding: 0; border-top: 1px solid #EEF0F3; }
+.cfg-acard li a { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #F1F3F5; font-size: 13px; color: #221E1A !important; text-decoration: none !important; }
+.cfg-acard li:last-child a { border-bottom: 0; }
+.cfg-acard li a:hover span { text-decoration: underline; text-decoration-color: #E7792C; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.cfg-acard li svg { width: 13px; height: 13px; color: #98A2B3; }
+.cfg-acard li em { font-style: normal; font-size: 11.5px; font-weight: 600; color: #98A2B3; white-space: nowrap; }
+.cfg-acard li em.is-hot { color: #B4561A; }
+.cfg-alert { border-radius: 14px; }
+
+@media (max-width: 1279px) {
+  .cfg { grid-template-columns: 270px minmax(0, 1fr); background: linear-gradient(90deg, #FAFBFC 0, #FAFBFC 270px, #E5E7EB 270px, #E5E7EB 271px, #fff 271px) !important; }
+  .cfg-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* iPad em pé / iPhone: lista estilo Ajustes (áreas → subgrupos → tela) */
+@media (max-width: 1023px) {
+  .cfg { box-shadow: none; background: transparent !important; border-radius: 0; min-height: 0; }
+  .cfg-nav { background: transparent; border: 0; border-radius: 0; max-height: none; padding: 4px 0 24px; }
+  .cfg-nav__title { font-size: 30px; margin-left: 2px; }
+  .cfg-search { background: #fff; box-shadow: 0 0 0 1px #E5E7EB; height: 42px; }
+  .cfg-search input { font-size: 16px; }
+  .cfg-nav__groups { background: #fff; border-radius: 18px; box-shadow: 0 0 0 1px #E5E7EB; overflow: hidden; margin-top: 6px; }
+  .cfg-home, .cfg-area__hd { border-radius: 0; padding: 12px 14px; border-bottom: 1px solid #EEF0F3; }
+  .cfg-area:last-child .cfg-area__hd { border-bottom: 0; }
+  .cfg-area.is-open .cfg-area__hd, .cfg-home.is-active { background: transparent; box-shadow: none; }
+  .cfg-area.is-open .cfg-area__hd .cfg-ico, .cfg-home.is-active .cfg-ico { background: #F1F3F5; color: #221E1A; }
+  .cfg-area__t small { display: block; font-size: 12px; color: #667085; font-weight: 500; margin-top: 1px; }
+  .cfg-area__hd em { display: none !important; }
+  .cfg-area__hd .cfg-nav__chev { display: block; margin-left: auto; color: #98A2B3; }
+  .cfg-area__subs, .cfg-area.is-open .cfg-area__subs { display: none; }
+  .cfg-home { display: none; }
+  .cfg-main { padding: 4px 0 140px; }
+  .cfg-back { display: inline-flex; color: #667085 !important; font-weight: 600; }
+  .cfg-tabs { flex-wrap: nowrap; overflow-x: auto; margin: 14px -16px 0; padding: 0 16px; scrollbar-width: none; }
+  .cfg-tabs::-webkit-scrollbar { display: none; }
+  .cfg-groups { grid-template-columns: 1fr; }
+  .cfg-areahd h2 { font-size: 27px; }
+}
+@media (max-width: 720px) {
+  .cfg-nav__title { font-size: 34px; letter-spacing: -.04em; }
+  .cfg-card { padding: 16px; border-radius: 18px; }
+  .cfg-ico--lg { width: 42px; height: 42px; }
+}
+
+/* barra de salvar acima da doca (computador/iPad) */
+@media (min-width: 1024px) {
+  .cfg-savebar { bottom: 104px !important; z-index: 1200 !important; }
+}
+.cfg-savebar { z-index: 1200; font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif; }

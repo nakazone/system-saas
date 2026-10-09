@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-push.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="configuracoes.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="configuracoes-v2.css?v=20261009-cfg1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -67,12 +68,13 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
               Configurações
             </a>
+            <div class="cfg-areahd" id="cfgAreaHd" hidden></div>
 
             <!-- ---------- Visão geral ---------- -->
             <section class="cfg-section" data-section="visao-geral" hidden>
               <header class="cfg-head">
-                <h2 class="cfg-title">Visão geral</h2>
-                <p class="cfg-lead">Tudo o que a sua empresa pode ajustar no ObraMate, num lugar só.</p>
+                <h2 class="cfg-title">Configurações</h2>
+                <p class="cfg-lead">Tudo o que a sua empresa ajusta no ObraMate, em 7 áreas.</p>
               </header>
               <div id="cfgAlerts"></div>
               <article class="cfg-card cfg-setup" id="cfgSetup">
@@ -94,7 +96,7 @@
                 <p class="cfg-lead">Aparecem nos orçamentos, no link que o cliente abre e nos PDFs.</p>
               </header>
               <form id="companyForm" class="cfg-form" novalidate autocomplete="off" data-form="empresa">
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="perfil">
                   <h3 class="cfg-card__title">Identificação</h3>
                   <div class="cfg-grid2">
                     <div class="cfg-field"><label for="f_name">Nome da empresa</label><input id="f_name" data-key="name" maxlength="120" required /></div>
@@ -107,7 +109,7 @@
                   <div class="cfg-field"><label for="f_website">Site</label><input id="f_website" data-key="website" inputmode="url" maxlength="500" placeholder="suaempresa.com" /></div>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="perfil">
                   <div class="cfg-card__head">
                     <div>
                       <h3 class="cfg-card__title">Endereço</h3>
@@ -140,11 +142,11 @@
                   </label>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="licenca">
                   <div class="cfg-card__head">
                     <div>
                       <h3 class="cfg-card__title">Licença e seguro</h3>
-                      <p class="cfg-card__desc">Muitos clientes e builders pedem antes de fechar. Avisamos na Visão geral 30 dias antes de vencer.</p>
+                      <p class="cfg-card__desc">Muitos clientes e builders pedem antes de fechar. Avisamos no Início 30 dias antes de vencer.</p>
                     </div>
                   </div>
                   <div class="cfg-grid3">
@@ -175,7 +177,7 @@
                   </div>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="horario">
                   <div class="cfg-card__head">
                     <div>
                       <h3 class="cfg-card__title">Horário de funcionamento</h3>
@@ -186,7 +188,7 @@
                   <div class="cfg-hours" id="hoursRows"></div>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="horario">
                   <h3 class="cfg-card__title">Regional</h3>
                   <div class="cfg-grid2">
                     <div class="cfg-field"><label for="f_timezone">Fuso horário</label><select id="f_timezone" data-key="timezone"></select></div>
@@ -215,7 +217,7 @@
                   <p class="cfg-hint">O fuso define a hora das visitas e dos lembretes. Cada pessoa ainda pode escolher o próprio idioma no menu da conta.</p>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="perfil">
                   <h3 class="cfg-card__title">Avaliações</h3>
                   <p class="cfg-card__desc">Vai junto do pedido de avaliação quando um job é concluído.</p>
                   <div class="cfg-inline">
@@ -351,7 +353,7 @@
                 <p class="cfg-lead">Valores padrão de cada orçamento novo. Dá para mudar em cada orçamento.</p>
               </header>
               <form id="quotesForm" class="cfg-form" novalidate autocomplete="off">
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="numeracao">
                   <h3 class="cfg-card__title">Numeração</h3>
                   <div class="cfg-grid3">
                     <div class="cfg-field"><label for="q_number_prefix">Prefixo</label><input id="q_number_prefix" data-qkey="number_prefix" maxlength="8" spellcheck="false" /></div>
@@ -361,7 +363,7 @@
                   <p class="cfg-hint" id="qLastHint"></p>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="numeracao">
                   <h3 class="cfg-card__title">Padrões</h3>
                   <div class="cfg-grid2">
                     <div class="cfg-field"><label for="q_validity_days">Validade (dias)</label><input id="q_validity_days" data-qkey="validity_days" type="number" min="1" max="365" inputmode="numeric" /></div>
@@ -370,7 +372,7 @@
                   <p class="cfg-hint">O imposto é calculado sobre o subtotal (com desconto) enquanto ninguém digitar outro valor no orçamento. Use 0 se você não cobra imposto no orçamento.</p>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="cliente">
                   <div class="cfg-card__head">
                     <div>
                       <h3 class="cfg-card__title">What's Included</h3>
@@ -385,7 +387,7 @@
                   <p class="cfg-hint"><span id="qInclusionsCount">0</span> itens</p>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="cliente">
                   <div class="cfg-card__head">
                     <div>
                       <h3 class="cfg-card__title">Termos e condições</h3>
@@ -397,7 +399,7 @@
                   <p class="cfg-hint"><span id="qTermsCount">0</span> caracteres</p>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="cliente">
                   <h3 class="cfg-card__title">O que o cliente vê</h3>
                   <p class="cfg-card__desc">Padrão dos orçamentos novos. Ligue e desligue e veja a prévia.</p>
                   <div class="cfg-cv">
@@ -417,7 +419,7 @@
                   </div>
                 </article>
 
-                <article class="cfg-card" id="ownerSigCard">
+                <article class="cfg-card" id="ownerSigCard" data-sub="numeracao">
                   <h3 class="cfg-card__title">Assinatura do responsável</h3>
                   <p class="cfg-card__desc">Vai no orçamento como a assinatura da sua empresa. O construtor de orçamento usa esta mesma assinatura.</p>
                   <div class="cfg-grid2">
@@ -607,7 +609,7 @@
               </header>
 
               <form id="folhaCycleForm" class="cfg-form" novalidate autocomplete="off">
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="folha">
                   <h3 class="cfg-card__title">Seu ciclo</h3>
                   <p class="cfg-card__desc" id="folhaCycleSummary">—</p>
                   <div class="cfg-grid2" style="margin-top:0.75rem">
@@ -657,7 +659,7 @@
                   </div>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="folha">
                   <h3 class="cfg-card__title">Reembolso no lançamento</h3>
                   <p class="cfg-card__desc">Quando a diária e o reembolso não devem cair na mesma folha.</p>
                   <div class="cfg-field" style="margin-top:0.75rem">
@@ -672,21 +674,21 @@
                   </div>
                 </article>
 
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="folha">
                   <h3 class="cfg-card__title">Calendário ilustrativo</h3>
                   <p class="cfg-card__desc">Próximos períodos com o dia de pagamento destacado.</p>
                   <div id="folhaCyclePreview" class="cfg-cycle-preview" aria-live="polite"></div>
                 </article>
               </form>
 
-              <header class="cfg-head cfg-head--row" style="margin-top:1.5rem">
+              <header class="cfg-head cfg-head--row" style="margin-top:1.5rem" data-sub="formas">
                 <div>
                   <h3 class="cfg-title" style="font-size:1.05rem">Formas de receber (Zelle, PIX…)</h3>
                   <p class="cfg-lead" style="margin:0">Como o dinheiro chega ao funcionário — separado do ciclo de fechamento.</p>
                 </div>
                 <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgPayMethodAddBtn">+ Nova forma</button>
               </header>
-              <article class="cfg-card cfg-card--flush">
+              <article class="cfg-card cfg-card--flush" data-sub="formas">
                 <div class="cfg-table-wrap">
                   <table class="cfg-table">
                     <thead>
@@ -983,6 +985,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261008-folha30"></script>
+  <script src="configuracoes.js?v=20261009-cfg1"></script>
 </body>
 </html>
