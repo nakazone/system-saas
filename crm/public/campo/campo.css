@@ -3,17 +3,17 @@
  * Shell próprio (não Admin). Tokens alinhados aos mocks de ponto/agenda/horas.
  */
 :root {
-  --cm-bg: #f3f1ee;
+  --cm-bg: #F7F8FA;
   --cm-surface: #ffffff;
-  --cm-ink: #1c1917;
-  --cm-muted: #78716c;
-  --cm-line: #e7e5e4;
+  --cm-ink: #221E1A;
+  --cm-muted: #667085;
+  --cm-line: #E5E7EB;
   --cm-dark: #2a2522;
   --cm-dark-2: #1f1b19;
-  --cm-accent: #c1652f;
+  --cm-accent: #B4561A;
   --cm-accent-soft: #f3e4d6;
-  --cm-green: #16a34a;
-  --cm-green-soft: #dcfce7;
+  --cm-green: #536249;
+  --cm-green-soft: #EEF1EC;
   --cm-blue: #2563eb;
   --cm-orange: #ea580c;
   --cm-badge-site: #f5e6c8;
@@ -118,7 +118,7 @@ button {
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
   background: var(--cm-green-soft);
-  color: #15803d;
+  color: #536249;
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -192,7 +192,7 @@ button {
 /* —— Diária card (substitui relógio de ponto) —— */
 .cm-diaria {
   background: var(--cm-dark);
-  color: #fafaf9;
+  color: #F7F8FA;
   border-radius: var(--cm-radius);
   padding: 1.05rem 1.1rem 1.05rem;
   margin-bottom: 0.85rem;
@@ -288,7 +288,7 @@ button {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #fafaf9;
+  color: #F7F8FA;
   font-size: 0.9375rem;
   font-weight: 700;
 }
@@ -417,13 +417,13 @@ button {
 
 .cm-btn--ghost-dark {
   background: rgba(255, 255, 255, 0.08);
-  color: #fafaf9;
+  color: #F7F8FA;
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .cm-btn--outline-dark {
   background: transparent;
-  color: #fafaf9;
+  color: #F7F8FA;
   border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
@@ -777,7 +777,7 @@ button {
 /* —— Horas —— */
 .cm-week-card {
   background: var(--cm-dark);
-  color: #fafaf9;
+  color: #F7F8FA;
   border-radius: var(--cm-radius);
   padding: 1.1rem 1.15rem;
   margin-bottom: 1rem;
@@ -1171,7 +1171,7 @@ body.cm-sheet-open {
   padding: 0.4rem 0.65rem;
   border-radius: 999px;
   background: #fce8e6;
-  color: #b91c1c;
+  color: #B4561A;
   font-size: 0.75rem;
   font-weight: 600;
   flex-shrink: 0;
@@ -1189,7 +1189,7 @@ body.cm-sheet-open {
 
 .cm-ticket-hero {
   background: var(--cm-dark);
-  color: #fafaf9;
+  color: #F7F8FA;
   border-radius: var(--cm-radius);
   padding: 1.05rem 1.1rem 1rem;
   margin-bottom: 0.85rem;
@@ -1482,7 +1482,7 @@ body.cm-sheet-open {
 }
 
 .cm-check-item.is-done {
-  background: #ecfdf5;
+  background: #EEF1EC;
 }
 
 .cm-check-item__box {
@@ -2020,7 +2020,7 @@ body.cm-ticket .cm-tabbar {
 
 .cm-week-card .cm-badge--sched {
   background: rgba(255, 255, 255, 0.18);
-  color: #fafaf9;
+  color: #F7F8FA;
 }
 
 .job-lockbox-badge {
@@ -2039,19 +2039,19 @@ body.cm-ticket .cm-tabbar {
 .job-delivery-badge {
   display: inline-flex; align-items: center; margin-left: 0.35rem;
   padding: 0.15rem 0.55rem; border-radius: 999px;
-  background: #fdf1e7; border: 1px solid #f3cfb1; color: #c1652f;
+  background: #FDF0E6; border: 1px solid #f3cfb1; color: #B4561A;
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em;
   text-transform: uppercase; vertical-align: middle;
 }
 .cm-delivery {
   display: grid; gap: 0.4rem; margin: 0.55rem 0 0.25rem;
   padding: 0.65rem 0.75rem; border-radius: 12px;
-  background: #fdf1e7; border: 1px solid #f3cfb1;
+  background: #FDF0E6; border: 1px solid #f3cfb1;
 }
 .cm-delivery .job-delivery-badge { margin: 0 0 0.15rem; width: fit-content; }
-.cm-delivery__row { display: grid; gap: 0.1rem; font-size: 0.9rem; color: #4a433d; font-weight: 600; }
-.cm-delivery__row small { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #8a8074; }
-.cm-delivery__row a { color: #c1652f; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.cm-delivery__row { display: grid; gap: 0.1rem; font-size: 0.9rem; color: #475467; font-weight: 600; }
+.cm-delivery__row small { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #98A2B3; }
+.cm-delivery__row a { color: #B4561A; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .cm-notes__text { margin-top: 0.45rem; white-space: pre-wrap; }
 @keyframes job-lockbox-pulse {
   0% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.5); }

@@ -1,14 +1,14 @@
 /* Configurações — settings hub. Tokens fall back to the ObraMate palette. */
 .cfg-body {
-  --cfg-ink: #211d1a;
+  --cfg-ink: #221E1A;
   --cfg-ink-2: #3b332d;
   --cfg-muted: #6b6259;
   --cfg-line: #e4dccf;
-  --cfg-line-2: #efe8dc;
-  --cfg-field: #d9cfbf;
+  --cfg-line-2: #F1F3F5;
+  --cfg-field: #E5E7EB;
   --cfg-soft: #fbf3ec;
   --cfg-soft-2: #fbf8f3;
-  --cfg-accent: var(--color-accent-hover, #c1652f);
+  --cfg-accent: var(--color-accent-hover, #B4561A);
   --cfg-accent-ink: #a9521f;
   --cfg-danger: #b3261e;
   --cfg-radius: 12px;
@@ -110,14 +110,14 @@
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 600;
-  background: var(--cfg-soft-2, #f3eee6);
+  background: var(--cfg-soft-2, #F1F3F5);
   color: var(--cfg-muted);
   margin-left: 6px;
   vertical-align: middle;
 }
 .cfg-badge--ok { background: #e8f6ee; color: #176b3a; }
 .cfg-muted { color: var(--cfg-muted); font-weight: 400; }
-.cfg-err { color: var(--cfg-danger, #b42318); font-size: 0.85rem; margin: 0; }
+.cfg-err { color: var(--cfg-danger, #B4561A); font-size: 0.85rem; margin: 0; }
 .cfg-field--check { margin-top: 4px; }
 .cfg-field--check label { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
 .cfg-perm-groups {
@@ -228,7 +228,7 @@
 .cfg-progress { height: 8px; border-radius: 4px; background: var(--cfg-line-2); overflow: hidden; }
 .cfg-progress span { display: block; height: 100%; width: 0; background: var(--cfg-accent); transition: width 0.4s ease; }
 .cfg-setup__steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-content: start; }
-.cfg-step { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 0.9rem; border-bottom: 1px solid #f3eee6; }
+.cfg-step { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 0.9rem; border-bottom: 1px solid #F1F3F5; }
 .cfg-step a { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; color: var(--cfg-ink); text-decoration: none; font-weight: 600; }
 .cfg-step a:hover .cfg-step__cta { text-decoration: underline; }
 .cfg-step.is-done .cfg-step__label { color: var(--cfg-muted); text-decoration: line-through; }
@@ -239,7 +239,7 @@
 .cfg-stepmark { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid #b8ab99; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .cfg-stepmark.is-done { background: var(--cfg-ink); border-color: var(--cfg-ink); }
 .cfg-stepmark svg { width: 13px; height: 13px; fill: none; stroke: #fff; stroke-width: 3; }
-.cfg-skeleton { height: 40px; border-bottom: 1px solid #f3eee6; background: linear-gradient(90deg, #f6f1ea 0%, #fbf8f3 50%, #f6f1ea 100%); background-size: 200% 100%; animation: cfg-shimmer 1.2s infinite; border-radius: 6px; margin-bottom: 6px; }
+.cfg-skeleton { height: 40px; border-bottom: 1px solid #F1F3F5; background: linear-gradient(90deg, #f6f1ea 0%, #fbf8f3 50%, #f6f1ea 100%); background-size: 200% 100%; animation: cfg-shimmer 1.2s infinite; border-radius: 6px; margin-bottom: 6px; }
 @keyframes cfg-shimmer { to { background-position: -200% 0; } }
 .cfg-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .cfg-group { text-decoration: none; gap: 6px; padding: 16px 18px; color: var(--cfg-ink); transition: border-color 0.15s, transform 0.15s; }
@@ -259,7 +259,7 @@
   align-items: center;
   gap: 10px;
   min-height: 48px;
-  border-top: 1px solid #f3eee6;
+  border-top: 1px solid #F1F3F5;
 }
 .cfg-hours__row:first-child { border-top: 0; }
 .cfg-hours__day { font-weight: 600; font-size: 0.9rem; }
@@ -271,7 +271,7 @@
 .cfg-hours__row.has-error input[data-day-end] { border-color: var(--cfg-danger); }
 .cfg-hours__err { font-size: 0.75rem; color: var(--cfg-danger); }
 
-.cfg-switch { width: 40px; height: 24px; border-radius: 12px; border: 0; padding: 0; background: #d9cfbf; position: relative; cursor: pointer; transition: background 0.15s; }
+.cfg-switch { width: 40px; height: 24px; border-radius: 12px; border: 0; padding: 0; background: #E5E7EB; position: relative; cursor: pointer; transition: background 0.15s; }
 .cfg-switch span { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: left 0.15s; }
 .cfg-switch[aria-checked="true"] { background: var(--cfg-accent-ink); }
 .cfg-switch[aria-checked="true"] span { left: 19px; }
@@ -328,7 +328,7 @@
 .cfg-color__row input:not([type]) { font-family: ui-monospace, Menlo, monospace; text-transform: lowercase; }
 .cfg-warn { margin: 0; font-size: 0.82rem; color: #7f3c14; background: var(--cfg-soft); border: 1px solid #efd9c7; border-radius: 8px; padding: 8px 12px; }
 
-.cfg-preview { --pv-primary: #211d1a; --pv-accent: #e8792c; position: sticky; top: 84px; gap: 12px; }
+.cfg-preview { --pv-primary: #221E1A; --pv-accent: #E7792C; position: sticky; top: 84px; gap: 12px; }
 .cfg-pv-app { display: flex; height: 156px; border: 1px solid var(--cfg-line); border-radius: 10px; overflow: hidden; }
 .cfg-pv-app__side { width: 84px; background: var(--pv-primary); padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; }
 .cfg-pv-dot { width: 24px; height: 24px; border-radius: 6px; background: var(--pv-accent); }
@@ -476,7 +476,7 @@ body.cfg-has-savebar #omDock { display: none !important; }
 .cfg-field--static { background: var(--cfg-soft-2); }
 .cfg-field--static strong { font-size: 1rem; padding: 2px 0; }
 .cfg-cv { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
-.cfg-trow { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 11px 0; border-top: 1px solid #f3eee6; }
+.cfg-trow { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 11px 0; border-top: 1px solid #F1F3F5; }
 .cfg-trow:first-child { border-top: 0; padding-top: 2px; }
 .cfg-trow__t { margin: 0; font-weight: 600; font-size: 0.92rem; }
 .cfg-trow__d { margin: 2px 0 0; font-size: 0.8rem; color: var(--cfg-muted); }
@@ -491,7 +491,7 @@ body.cfg-has-savebar #omDock { display: none !important; }
 .cfg-sig canvas { width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
 .cfg-sig img { max-height: 130px; max-width: 90%; object-fit: contain; }
 .cfg-sig__empty { position: absolute; color: #a79c8e; font-size: 0.85rem; pointer-events: none; }
-.cfg-sig::after { content: ""; position: absolute; left: 24px; right: 24px; bottom: 34px; border-bottom: 1px dashed #d9cfbf; pointer-events: none; }
+.cfg-sig::after { content: ""; position: absolute; left: 24px; right: 24px; bottom: 34px; border-bottom: 1px dashed #E5E7EB; pointer-events: none; }
 
 /* ---------------- estimate rules table ---------------- */
 .cfg-card--flush { padding: 0; overflow: hidden; }
@@ -645,8 +645,8 @@ body.cfg-has-savebar #omDock { display: none !important; }
   place-items: center;
   font-size: 0.68rem;
   font-weight: 700;
-  background: #efe8dc;
+  background: #F1F3F5;
   color: var(--cfg-muted);
 }
-.cfg-cycle-day.is-work { background: #211d1a; color: #fff; }
+.cfg-cycle-day.is-work { background: #221E1A; color: #fff; }
 .cfg-cycle-day.is-pay { background: var(--cfg-accent); color: #fff; }

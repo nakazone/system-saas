@@ -28,7 +28,7 @@ html.crm-cmd-palette-lock body {
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 24px 80px rgba(28, 25, 23, 0.24);
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   overflow: hidden;
   animation: crmCmdIn 0.16s ease-out;
 }
@@ -52,7 +52,7 @@ html.crm-cmd-palette-lock body {
 
 .crm-cmd-palette__head {
   padding: 0.7rem 0.9rem;
-  border-bottom: 1px solid var(--plab-line, #e7e5e4);
+  border-bottom: 1px solid var(--plab-line, #E5E7EB);
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -63,7 +63,7 @@ html.crm-cmd-palette-lock body {
   height: 18px;
   flex-shrink: 0;
   fill: none;
-  stroke: var(--plab-muted, #78716c);
+  stroke: var(--plab-muted, #667085);
   stroke-width: 2;
   stroke-linecap: round;
 }
@@ -75,9 +75,9 @@ html.crm-cmd-palette-lock body {
   font-weight: 700;
   padding: 0.22rem 0.45rem;
   border-radius: 6px;
-  border: 1px solid var(--plab-line, #e7e5e4);
-  background: var(--plab-soft, #f5f4f2);
-  color: var(--plab-muted, #78716c);
+  border: 1px solid var(--plab-line, #E5E7EB);
+  background: var(--plab-soft, #F1F3F5);
+  color: var(--plab-muted, #667085);
   cursor: pointer;
 }
 
@@ -86,7 +86,7 @@ html.crm-cmd-palette-lock body {
   border: none;
   font: inherit;
   font-size: 1rem;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   background: transparent;
   outline: none;
   min-width: 0;
@@ -109,7 +109,7 @@ html.crm-cmd-palette-lock body {
   font-weight: 750;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--plab-faint, #a8a29e);
+  color: var(--plab-faint, #98A2B3);
 }
 
 .crm-cmd-palette__item {
@@ -125,7 +125,7 @@ html.crm-cmd-palette-lock body {
   background: transparent;
   font: inherit;
   font-size: 0.9rem;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   cursor: pointer;
 }
 
@@ -142,7 +142,7 @@ html.crm-cmd-palette-lock body {
   grid-column: 2;
   display: block;
   font-size: 0.74rem;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   margin-top: 0.1rem;
   min-width: 0;
   overflow: hidden;
@@ -157,7 +157,7 @@ html.crm-cmd-palette-lock body {
 
 .crm-cmd-palette__item.is-active,
 .crm-cmd-palette__item:focus-visible {
-  background: var(--plab-accent-soft, #fff4eb);
+  background: var(--plab-accent-soft, #FDF0E6);
   outline: none;
 }
 
@@ -172,8 +172,8 @@ html.crm-cmd-palette-lock body {
   border-radius: 6px;
   min-width: 3.9rem;
   text-align: center;
-  background: var(--plab-soft, #f5f4f2);
-  color: var(--plab-muted, #78716c);
+  background: var(--plab-soft, #F1F3F5);
+  color: var(--plab-muted, #667085);
 }
 
 .crm-cmd-palette__type.is-lead {
@@ -199,7 +199,7 @@ html.crm-cmd-palette-lock body {
 .crm-cmd-palette__hint,
 .crm-cmd-palette__empty {
   padding: 0.7rem 0.75rem 0.8rem;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-size: 0.82rem;
 }
 

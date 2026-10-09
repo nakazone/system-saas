@@ -1,13 +1,13 @@
 /* Desktop employee dashboard — PC CRM shell layout */
 body.func-app {
-  --func-bg: #f3f1ee;
-  --func-ink: #1c1917;
-  --func-muted: #78716c;
-  --func-line: #e7e5e4;
+  --func-bg: #F7F8FA;
+  --func-ink: #221E1A;
+  --func-muted: #667085;
+  --func-line: #E5E7EB;
   --func-surface: #ffffff;
   --func-dark: #2a2522;
-  --func-accent: #c1652f;
-  --func-ok: #16a34a;
+  --func-accent: #B4561A;
+  --func-ok: #536249;
   --func-radius: 16px;
   --func-font: "Plus Jakarta Sans", system-ui, sans-serif;
   background: var(--func-bg);
@@ -83,7 +83,7 @@ body.func-app #omDock {
 
 .func-panel--diaria {
   background: var(--func-dark);
-  color: #fafaf9;
+  color: #F7F8FA;
   border-color: transparent;
 }
 
@@ -197,7 +197,7 @@ body.func-app #omDock {
 
 .func-btn--ghost {
   background: rgba(255, 255, 255, 0.08);
-  color: #fafaf9;
+  color: #F7F8FA;
   border: 1px solid rgba(255, 255, 255, 0.14);
   flex: 1;
 }

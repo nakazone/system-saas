@@ -7,8 +7,8 @@
   padding: 0.7rem 0.85rem 0.5rem;
   box-sizing: border-box;
   font-family: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
-  color: var(--plab-ink, #1c1917);
-  background: var(--plab-bg, #f3f1ee);
+  color: var(--plab-ink, #221E1A);
+  background: var(--plab-bg, #F7F8FA);
 }
 
 /* Agenda mobile chrome — gate on device class (iPad often >900px). */
@@ -37,7 +37,7 @@ body.sched-body.om-device-mobile.acal-mode-week .acal-day-sheet {
 
 body.sched-body.om-device-mobile.acal-mode-week .acal {
   min-height: 100%;
-  background: var(--plab-bg, #f3f1ee);
+  background: var(--plab-bg, #F7F8FA);
 }
 
 .acal-mode-btn,
@@ -48,9 +48,9 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
   height: 40px;
   padding: 0 0.75rem;
   border-radius: 12px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   font: inherit;
   font-size: 0.8rem;
   font-weight: 750;
@@ -73,7 +73,7 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
 
 .acal-mode-btn:active,
 .aw-mode-btn:active {
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
 }
 
 .aw-head {
@@ -96,7 +96,7 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
   margin: 0.25rem 0 0;
   font-size: 0.9rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .aw-add {
@@ -104,7 +104,7 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
   height: 48px;
   border: none;
   border-radius: 14px;
-  background: var(--plab-accent, #e8792c);
+  background: var(--plab-accent, #E7792C);
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -133,9 +133,9 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -164,9 +164,9 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
   gap: 0.2rem;
   padding: 0.55rem 0.15rem 0.45rem;
   border-radius: 14px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   font: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -176,7 +176,7 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
 .aw-day__dow {
   font-size: 0.68rem;
   font-weight: 650;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .aw-day__num {
@@ -195,12 +195,12 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
 }
 
 .aw-day.has-events .aw-day__dot {
-  background: var(--plab-accent, #e8792c);
+  background: var(--plab-accent, #E7792C);
 }
 
 .aw-day.is-selected {
-  background: var(--plab-ink, #1c1917);
-  border-color: var(--plab-ink, #1c1917);
+  background: var(--plab-ink, #221E1A);
+  border-color: var(--plab-ink, #221E1A);
   color: #fff;
 }
 
@@ -247,7 +247,7 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
 .aw-item__time {
   font-size: 0.92rem;
   font-weight: 800;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   letter-spacing: -0.02em;
 }
 
@@ -256,12 +256,12 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
   margin-top: 0.15rem;
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--plab-faint, #a8a29e);
+  color: var(--plab-faint, #98A2B3);
 }
 
 .aw-card {
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 14px;
   padding: 0.85rem 0.95rem;
 }
@@ -277,42 +277,42 @@ body.sched-body.om-device-mobile.acal-mode-week .acal {
 }
 
 .aw-tag--visit {
-  background: var(--plab-accent-soft, #fff4eb);
-  color: var(--plab-accent-deep, #c2410c);
+  background: var(--plab-accent-soft, #FDF0E6);
+  color: var(--plab-accent-deep, #B4561A);
 }
 
 .aw-tag--job {
   background: rgba(5, 150, 105, 0.12);
-  color: var(--plab-ok, #059669);
+  color: var(--plab-ok, #536249);
 }
 
 .aw-card__title {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 750;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 .aw-card__sub {
   margin: 0.25rem 0 0;
   font-size: 0.8rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .aw-empty {
   margin: 1.5rem 0;
   text-align: center;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-size: 0.9rem;
   font-weight: 550;
 }
 
 /* —— Mais page —— */
 body.mais-app {
-  background: var(--plab-bg, #f3f1ee);
+  background: var(--plab-bg, #F7F8FA);
   font-family: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 body.mais-app .mobile-app-header {
@@ -324,7 +324,7 @@ body.mais-app.om-app .dashboard-main.mais-main {
   padding-top: env(safe-area-inset-top, 0px) !important;
   padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 0.75rem) !important;
   margin: 0 !important;
-  background: var(--plab-bg, #f3f1ee) !important;
+  background: var(--plab-bg, #F7F8FA) !important;
   min-height: 100dvh;
 }
 
@@ -348,7 +348,7 @@ body.mais-app.om-app .dashboard-main.mais-main {
   gap: 0.75rem;
   padding: 0.9rem 1rem;
   border-radius: 18px;
-  background: var(--plab-ink, #1c1917);
+  background: var(--plab-ink, #221E1A);
   color: #fff;
   margin-bottom: 1.15rem;
 }
@@ -357,8 +357,8 @@ body.mais-app.om-app .dashboard-main.mais-main {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--plab-accent-soft, #fff4eb);
-  color: var(--plab-ink, #1c1917);
+  background: var(--plab-accent-soft, #FDF0E6);
+  color: var(--plab-ink, #221E1A);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -407,7 +407,7 @@ body.mais-app.om-app .dashboard-main.mais-main {
   font-size: 0.72rem;
   font-weight: 750;
   letter-spacing: 0.06em;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   text-transform: uppercase;
 }
 
@@ -424,9 +424,9 @@ body.mais-app.om-app .dashboard-main.mais-main {
   gap: 0.65rem;
   padding: 0.95rem 0.9rem;
   border-radius: 16px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   text-decoration: none;
   font: inherit;
   text-align: left;
@@ -437,15 +437,15 @@ body.mais-app.om-app .dashboard-main.mais-main {
 }
 
 .om-mod-card:active {
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
 }
 
 .om-mod-card__icon {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: var(--plab-accent-soft, #fff4eb);
-  color: var(--plab-accent-deep, #c2410c);
+  background: var(--plab-accent-soft, #FDF0E6);
+  color: var(--plab-accent-deep, #B4561A);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -472,7 +472,7 @@ body.mais-app.om-app .dashboard-main.mais-main {
   margin: 0.2rem 0 0;
   font-size: 0.75rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   line-height: 1.3;
 }
 
@@ -490,7 +490,7 @@ body.mais-app.om-app .dashboard-main.mais-main {
 }
 
 .om-sheet--mods {
-  background: var(--plab-bg, #f3f1ee);
+  background: var(--plab-bg, #F7F8FA);
 }
 
 .om-sheet--mods .om-mod-card {

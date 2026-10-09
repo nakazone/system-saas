@@ -4,9 +4,9 @@
 :root {
   --color-primary: #1a1a2e;
   --color-accent: #c8a96e;
-  --color-success: #22c55e;
+  --color-success: #536249;
   --color-warning: #f59e0b;
-  --color-danger: #ef4444;
+  --color-danger: #B4561A;
   --color-info: #3b82f6;
   --color-bg: #f8f7f4;
   --color-card: #ffffff;
@@ -119,7 +119,7 @@
 
 .dash-alert--danger {
   border-left-color: var(--color-danger);
-  background: #fef2f2;
+  background: #FDF0E6;
 }
 
 .dash-alert--info {
@@ -399,8 +399,8 @@
 }
 
 .dash-insight-card--red {
-  background: #fef2f2;
-  border-color: #fecaca;
+  background: #FDF0E6;
+  border-color: #FDF0E6;
 }
 
 .dash-insight-card p {
@@ -436,8 +436,8 @@
 
 .dash-error-banner {
   padding: 0.75rem 1rem;
-  background: #fef2f2;
-  color: #991b1b;
+  background: #FDF0E6;
+  color: #B4561A;
   border-radius: var(--radius);
   margin-bottom: 1rem;
   font-size: 0.9rem;

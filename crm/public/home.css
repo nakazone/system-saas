@@ -1,16 +1,16 @@
 /* Home / Início — ObraMate palette (--plab-*) only */
 body.home-app {
-  --home-bg: var(--plab-bg, #f3f1ee);
-  --home-ink: var(--plab-ink, #1c1917);
-  --home-muted: var(--plab-muted, #78716c);
-  --home-faint: var(--plab-faint, #a8a29e);
+  --home-bg: var(--plab-bg, #F7F8FA);
+  --home-ink: var(--plab-ink, #221E1A);
+  --home-muted: var(--plab-muted, #667085);
+  --home-faint: var(--plab-faint, #98A2B3);
   /* Follow the tenant brand color (branding.css sets --brand). */
-  --home-accent: var(--brand, var(--plab-accent, #e8792c));
+  --home-accent: var(--brand, var(--plab-accent, #E7792C));
   --home-accent-soft: color-mix(in srgb, var(--home-accent) 12%, #fff);
   --home-accent-deep: color-mix(in srgb, var(--home-accent) 78%, #000);
   --home-card: var(--plab-surface, #ffffff);
-  --home-line: var(--plab-line, #e7e5e4);
-  --home-ok: var(--plab-ok, #059669);
+  --home-line: var(--plab-line, #E5E7EB);
+  --home-ok: var(--plab-ok, #536249);
   --home-ok-soft: rgba(5, 150, 105, 0.12);
   --home-radius: 14px;
   --home-font: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
@@ -202,7 +202,7 @@ body.home-app .mobile-app-header {
 }
 
 .home-search:active {
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
 }
 
 .home-search svg {
@@ -499,7 +499,7 @@ body.home-app .mobile-app-header {
 .home-attn__item.is-skeleton {
   min-height: 54px;
   border-radius: 12px;
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
   border-top: none;
   margin-top: 0.4rem;
 }
@@ -512,7 +512,7 @@ body.home-app .mobile-app-header {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
   color: var(--home-muted);
 }
 
@@ -528,8 +528,8 @@ body.home-app .mobile-app-header {
 }
 
 .home-attn__item.is-danger .home-attn__icon {
-  background: #fdeceb;
-  color: #b91c1c;
+  background: #FDF0E6;
+  color: #B4561A;
 }
 
 .home-attn__item.is-warn .home-attn__icon {
@@ -585,7 +585,7 @@ body.home-app .mobile-app-header {
   padding: 0.65rem;
   border: none;
   border-radius: 10px;
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
   font: inherit;
   font-size: 0.84rem;
   font-weight: 700;
@@ -600,8 +600,8 @@ body.home-app .mobile-app-header {
   margin-bottom: 0.7rem;
   padding: 0.7rem 0.85rem;
   border-radius: 12px;
-  background: #fdeceb;
-  color: #b91c1c;
+  background: #FDF0E6;
+  color: #B4561A;
   font-size: 0.84rem;
   font-weight: 650;
 }
@@ -614,11 +614,11 @@ body.home-app .mobile-app-header {
   font: inherit;
   font-size: 0.8rem;
   font-weight: 750;
-  color: #b91c1c;
+  color: #B4561A;
 }
 
 .home-card__badge.is-calm {
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
   color: var(--home-muted);
 }
 
@@ -628,7 +628,7 @@ body.home-app .mobile-app-header {
 }
 
 .home-kpi__meta.is-danger {
-  color: #b91c1c !important;
+  color: #B4561A !important;
 }
 
 .home [hidden],

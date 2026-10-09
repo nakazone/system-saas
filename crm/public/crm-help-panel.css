@@ -29,7 +29,7 @@
   box-shadow: -8px 0 32px rgba(33, 29, 26, 0.18);
   transform: translateX(104%);
   transition: transform 0.28s ease;
-  color: #211d1a;
+  color: #221E1A;
 }
 
 .crm-help-panel.is-open {
@@ -42,8 +42,8 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1.25rem 1.15rem 1rem;
-  border-bottom: 1px solid #ebe4da;
-  background: linear-gradient(180deg, #f7f4ee 0%, #fff 100%);
+  border-bottom: 1px solid #E5E7EB;
+  background: linear-gradient(180deg, #F7F8FA 0%, #fff 100%);
 }
 
 .crm-help-panel__intro h2 {
@@ -51,14 +51,14 @@
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #211d1a;
+  color: #221E1A;
 }
 
 .crm-help-panel__lead {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.45;
-  color: #6b645c;
+  color: #667085;
 }
 
 .crm-help-panel__close {
@@ -71,7 +71,7 @@
   border: none;
   border-radius: 10px;
   background: rgba(33, 29, 26, 0.06);
-  color: #211d1a;
+  color: #221E1A;
   cursor: pointer;
 }
 
@@ -102,7 +102,7 @@
   padding: 0.95rem 1rem;
   margin-bottom: 1.15rem;
   border-radius: 12px;
-  background: #211d1a;
+  background: #221E1A;
   color: #fff;
   text-decoration: none;
   transition: transform 0.15s ease, background 0.15s ease;
@@ -128,7 +128,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #8a8074;
+  color: #98A2B3;
 }
 
 .crm-help-panel__cards {
@@ -142,9 +142,9 @@
   flex-direction: column;
   gap: 0.3rem;
   padding: 0.85rem 0.9rem;
-  border: 1px solid #ebe4da;
+  border: 1px solid #E5E7EB;
   border-radius: 12px;
-  background: #faf8f5;
+  background: #F7F8FA;
   text-decoration: none;
   color: inherit;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -157,13 +157,13 @@
 
 .crm-help-panel__card strong {
   font-size: 0.95rem;
-  color: #211d1a;
+  color: #221E1A;
 }
 
 .crm-help-panel__card span {
   font-size: 0.82rem;
   line-height: 1.4;
-  color: #6b645c;
+  color: #667085;
 }
 
 .crm-help-panel__link-row {
@@ -173,8 +173,8 @@
   gap: 0.5rem;
   padding: 0.85rem 0.25rem;
   margin-bottom: 1rem;
-  border-bottom: 1px solid #ebe4da;
-  color: #211d1a;
+  border-bottom: 1px solid #E5E7EB;
+  color: #221E1A;
   font-weight: 600;
   font-size: 0.95rem;
   text-decoration: none;
@@ -192,8 +192,8 @@
   padding: 1rem;
   margin-bottom: 1rem;
   border-radius: 12px;
-  background: #f7f4ee;
-  border: 1px solid #ebe4da;
+  background: #F7F8FA;
+  border: 1px solid #E5E7EB;
 }
 
 .crm-help-panel__contact h3 {
@@ -205,11 +205,11 @@
   margin: 0 0 0.85rem;
   font-size: 0.88rem;
   line-height: 1.45;
-  color: #6b645c;
+  color: #667085;
 }
 
 .crm-help-panel__contact a {
-  color: #211d1a;
+  color: #221E1A;
 }
 
 .crm-help-panel__btn {
@@ -218,7 +218,7 @@
   justify-content: center;
   padding: 0.55rem 0.9rem;
   border-radius: 9px;
-  background: #e8792c;
+  background: #E7792C;
   color: #fff !important;
   font-weight: 600;
   font-size: 0.88rem;
@@ -238,7 +238,7 @@
 }
 
 .crm-help-panel__footer a {
-  color: #6b645c;
+  color: #667085;
   text-decoration: underline;
   text-underline-offset: 2px;
 }

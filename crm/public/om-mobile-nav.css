@@ -4,11 +4,11 @@
   --om-apptop-h: 56px;
   /* Stable phone viewport height (set by om-device.js; falls back to dvh). */
   --om-app-height: 100dvh;
-  --om-tab-accent: var(--plab-accent, #e8792c);
-  --om-tab-ink: var(--plab-ink, #1c1917);
-  --om-tab-muted: var(--plab-muted, #78716c);
+  --om-tab-accent: var(--plab-accent, #E7792C);
+  --om-tab-ink: var(--plab-ink, #221E1A);
+  --om-tab-muted: var(--plab-muted, #667085);
   --om-tab-bg: rgba(255, 255, 255, 0.96);
-  --om-tab-line: var(--plab-line, #e7e5e4);
+  --om-tab-line: var(--plab-line, #E5E7EB);
 }
 
 .om-tabbar,
@@ -52,7 +52,7 @@ body.om-device-mobile.om-has-apptop .om-app-top {
   gap: 0.65rem;
   min-height: calc(var(--om-apptop-h) + env(safe-area-inset-top, 0px));
   padding: calc(0.45rem + env(safe-area-inset-top, 0px)) 0.85rem 0.45rem;
-  background: var(--plab-bg, #f3f1ee);
+  background: var(--plab-bg, #F7F8FA);
   box-sizing: border-box;
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
 }
@@ -106,7 +106,7 @@ body.om-device-mobile.om-has-apptop.inv-app .dashboard-main {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
   color: var(--om-tab-ink);
   display: inline-flex;
@@ -342,7 +342,7 @@ body.om-device-mobile .om-tabbar {
   gap: 0.7rem;
   padding: 0.85rem 0.9rem;
   border-radius: 16px;
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
   color: var(--om-tab-ink);
   text-decoration: none;
   font-size: 0.9rem;
@@ -351,7 +351,7 @@ body.om-device-mobile .om-tabbar {
 }
 
 .om-sheet__link:active {
-  background: var(--plab-line, #e7e5e4);
+  background: var(--plab-line, #E5E7EB);
 }
 
 .om-sheet__link--full {
@@ -366,8 +366,8 @@ body.om-device-mobile .om-tabbar {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: var(--plab-accent-soft, #fff4eb);
-  color: var(--plab-accent-deep, #c2410c);
+  background: var(--plab-accent-soft, #FDF0E6);
+  color: var(--plab-accent-deep, #B4561A);
 }
 
 .om-sheet__icon--primary {
@@ -404,7 +404,7 @@ body.om-device-mobile .om-tabbar {
 }
 
 .om-sheet__row:active {
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
 }
 
 .om-sheet__row .om-sheet__icon {

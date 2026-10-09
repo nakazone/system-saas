@@ -270,6 +270,23 @@ function patchKanbanLeadCache(updatedLead) {
     renderLeadsMobilePipeline();
 }
 
+/** Neutral stage tones (same as Início); unknown stages keep their own color as a small dot. */
+function kanbanStageTone(stage) {
+    const slug = String((stage && stage.slug) || '');
+    const tones = {
+        new_lead: '#D0D5DD',
+        contacted: '#98A2B3',
+        meeting_scheduled: '#536249',
+        quote_sent: '#E7792C',
+        stand_by: '#EAECF0',
+        won: '#221E1A',
+        lost: '#98A2B3',
+    };
+    if (tones[slug]) return tones[slug];
+    if (/^follow_up/.test(slug)) return '#221E1A';
+    return (stage && stage.color) || '#98A2B3';
+}
+
 function kanbanStageDomId(stage) {
     if (stage.slug != null && stage.slug !== '') {
         return `kanban-stage-${stage.slug}`;
@@ -539,11 +556,11 @@ function renderKanbanBoard() {
         column.dataset.stageSlug = stage.slug || '';
 
         const stageCardsId = kanbanStageDomId(stage);
-        const headerLight = stage.slug === 'meeting_scheduled' || stage.slug === 'follow_up_1';
 
         column.innerHTML = `
-            <div class="kanban-column-header${headerLight ? ' kanban-column-header--light' : ''}" style="background: ${stage.color || '#3498db'}">
+            <div class="kanban-column-header kanban-column-header--neutral" style="--stage-color: ${kanbanStageTone(stage)}">
                 <div class="kanban-column-title">
+                    <span class="kanban-column-dot${stage.slug === 'stand_by' ? ' is-hollow' : ''}" aria-hidden="true"></span>
                     <span>${escapeKanbanHtml(kanbanColumnTitle(stage))}</span>
                     <span class="kanban-column-count">${total}</span>
                 </div>

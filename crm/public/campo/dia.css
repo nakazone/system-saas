@@ -1,15 +1,15 @@
 /* Campo · Meu dia — começar / finalizar o dia (mobile first). Marca: carvão + terracota, sem verde. */
 .dy, .dy-sheet {
-  --ink: #211d1a;
-  --ink-2: #4a433d;
-  --muted: #8a8074;
-  --line: #e8dfd2;
-  --cream: #f7f4ee;
-  --terra: #e8792c;
-  --terra-d: #c1652f;
-  --terra-soft: #fdf1e7;
-  --red: #b42318;
-  --red-soft: #fdf0ee;
+  --ink: #221E1A;
+  --ink-2: #475467;
+  --muted: #98A2B3;
+  --line: #E5E7EB;
+  --cream: #F7F8FA;
+  --terra: #E7792C;
+  --terra-d: #B4561A;
+  --terra-soft: #FDF0E6;
+  --red: #B4561A;
+  --red-soft: #FDF0E6;
 }
 .dy { padding-bottom: 1.5rem; }
 .dy-hd { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
@@ -179,7 +179,7 @@
 .dy-exp-prev img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; display: block; border: 1.5px solid var(--line); }
 .dy-exp-prev .dy-x { position: absolute; top: -6px; right: -6px; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: #fff; border: 0; font-size: 18px; line-height: 1; }
 
-.dy-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--cm-tabbar-h, 68px) + 16px + env(safe-area-inset-bottom, 0px)); z-index: 80; background: var(--ink, #211d1a); color: #fff; padding: 11px 16px; border-radius: 12px; font-weight: 700; font-size: 14px; max-width: calc(100% - 32px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); }
+.dy-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--cm-tabbar-h, 68px) + 16px + env(safe-area-inset-bottom, 0px)); z-index: 80; background: var(--ink, #221E1A); color: #fff; padding: 11px 16px; border-radius: 12px; font-weight: 700; font-size: 14px; max-width: calc(100% - 32px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); }
 body.dy-lock { overflow: hidden; }
 .dy-sheet[hidden], .dy-backdrop[hidden], .dy-toast[hidden], .dy-net[hidden] { display: none !important; }
 .dy-lock .dy-toast { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; }

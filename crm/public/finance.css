@@ -17,7 +17,7 @@
 }
 
 .fin-in { color: #0f7a4a !important; }
-.fin-out { color: #b42318 !important; }
+.fin-out { color: #B4561A !important; }
 
 .fin-tabs {
   display: flex;
@@ -63,9 +63,9 @@
 }
 
 .mod-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-.mod-table .is-overdue { color: #b42318; font-weight: 650; }
+.mod-table .is-overdue { color: #B4561A; font-weight: 650; }
 .mod-table .dir-in { color: #0f7a4a; font-weight: 650; }
-.mod-table .dir-out { color: #b42318; font-weight: 650; }
+.mod-table .dir-out { color: #B4561A; font-weight: 650; }
 
 .fin-badge {
   display: inline-block;
@@ -77,9 +77,9 @@
   color: var(--mod-muted);
 }
 
-.fin-badge.is-draft { background: #fff4eb; color: #c2410c; }
-.fin-badge.is-posted { background: #ecfdf5; color: #047857; }
-.fin-badge.is-paid { background: #ecfdf5; color: #047857; }
+.fin-badge.is-draft { background: #FDF0E6; color: #B4561A; }
+.fin-badge.is-posted { background: #EEF1EC; color: #536249; }
+.fin-badge.is-paid { background: #EEF1EC; color: #536249; }
 .fin-badge.is-pending { background: #eff6ff; color: #1d4ed8; }
 .fin-badge.is-scan { background: #f5f3ff; color: #6d28d9; }
 

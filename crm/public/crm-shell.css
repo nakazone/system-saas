@@ -5,7 +5,7 @@
 :root {
   --crm-topbar-height: 56px;
   --crm-sidebar-collapsed-width: 72px;
-  --crm-chrome-bg: #f7f4ee;
+  --crm-chrome-bg: #F7F8FA;
 
   /* Page frame — shared inset / width so modules feel continuous when switching menus */
   --crm-page-pad-x: 1.5rem;
@@ -78,8 +78,8 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     height: var(--crm-topbar-height);
     padding: 0 1rem 0 1.1rem;
     z-index: 1200;
-    background: var(--crm-chrome-bg, #f7f4ee);
-    border-bottom: 1px solid var(--color-border, #e2d9cc);
+    background: var(--crm-chrome-bg, #F7F8FA);
+    border-bottom: 1px solid var(--color-border, #E5E7EB);
     box-shadow: none;
   }
 
@@ -105,9 +105,9 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     height: 36px;
     padding: 0 0.7rem 0 0.45rem;
     border-radius: 10px;
-    border: 1px solid var(--color-border, #e2d9cc);
+    border: 1px solid var(--color-border, #E5E7EB);
     background: #fff;
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
     font: inherit;
     font-size: 0.8125rem;
     font-weight: 600;
@@ -128,8 +128,8 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
 
   .crm-topbar__back-btn:hover:not(:disabled),
   .crm-topbar__back-btn:focus-visible:not(:disabled) {
-    border-color: var(--color-accent, #e8792c);
-    color: var(--color-accent, #e8792c);
+    border-color: var(--color-accent, #E7792C);
+    color: var(--color-accent, #E7792C);
     outline: none;
     background: rgba(232, 121, 44, 0.06);
   }
@@ -165,9 +165,9 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     height: 38px;
     padding: 0 12px;
     border-radius: 10px;
-    border: 1px solid var(--color-border, #e2d9cc);
-    background: var(--color-surface-secondary, #f7f4ee);
-    color: var(--color-text-muted, #8a8074);
+    border: 1px solid var(--color-border, #E5E7EB);
+    background: var(--color-surface-secondary, #F7F8FA);
+    color: var(--color-text-muted, #98A2B3);
     cursor: pointer;
     font: inherit;
     font-size: 0.875rem;
@@ -177,7 +177,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
 
   .crm-topbar__search:hover,
   .crm-topbar__search:focus-visible {
-    border-color: var(--color-accent, #e8792c);
+    border-color: var(--color-accent, #E7792C);
     outline: none;
     box-shadow: 0 0 0 3px rgba(232, 121, 44, 0.15);
   }
@@ -205,9 +205,9 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     font-family: inherit;
     padding: 2px 6px;
     border-radius: 5px;
-    border: 1px solid var(--color-border, #e2d9cc);
+    border: 1px solid var(--color-border, #E5E7EB);
     background: #fff;
-    color: var(--color-text-muted, #8a8074);
+    color: var(--color-text-muted, #98A2B3);
   }
 
   .crm-topbar__search {
@@ -224,7 +224,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     padding: 0 0.95rem;
     border: none;
     border-radius: 10px;
-    background: var(--color-accent, #e8792c);
+    background: var(--color-accent, #E7792C);
     color: #fff;
     font: inherit;
     font-size: 0.9rem;
@@ -252,7 +252,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     min-width: 240px;
     padding: 0.45rem;
     background: #fff;
-    border: 1px solid var(--color-border, #e2d9cc);
+    border: 1px solid var(--color-border, #E5E7EB);
     border-radius: 12px;
     box-shadow: 0 12px 32px rgba(33, 29, 26, 0.14);
     z-index: 1300;
@@ -269,7 +269,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--color-text-muted, #8a8074);
+    color: var(--color-text-muted, #98A2B3);
   }
 
   .crm-create-menu__item {
@@ -279,7 +279,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     width: 100%;
     padding: 0.6rem 0.7rem;
     border-radius: 8px;
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
     text-decoration: none;
     font-size: 0.92rem;
     font-weight: 600;
@@ -287,7 +287,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
 
   .crm-create-menu__item:hover,
   .crm-create-menu__item:focus-visible {
-    background: var(--color-surface-secondary, #f7f4ee);
+    background: var(--color-surface-secondary, #F7F8FA);
     outline: none;
   }
 
@@ -295,7 +295,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     display: inline-flex;
     width: 18px;
     height: 18px;
-    color: var(--color-text-muted, #8a8074);
+    color: var(--color-text-muted, #98A2B3);
     flex-shrink: 0;
   }
 
@@ -313,9 +313,9 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     font: inherit;
     font-size: 0.72rem;
     font-weight: 600;
-    color: var(--color-text-muted, #8a8074);
-    background: var(--color-surface-secondary, #f7f4ee);
-    border: 1px solid var(--color-border, #e2d9cc);
+    color: var(--color-text-muted, #98A2B3);
+    background: var(--color-surface-secondary, #F7F8FA);
+    border: 1px solid var(--color-border, #E5E7EB);
     border-radius: 5px;
     padding: 1px 6px;
   }
@@ -330,7 +330,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     border: 1px solid transparent;
     border-radius: 999px;
     background: transparent;
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
     cursor: pointer;
     font: inherit;
     text-align: left;
@@ -341,7 +341,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
   .crm-topbar__user-chip:focus-visible,
   .crm-account-menu-wrap.is-open .crm-topbar__user-chip {
     background: rgba(255, 255, 255, 0.7);
-    border-color: var(--color-border, #e2d9cc);
+    border-color: var(--color-border, #E5E7EB);
     outline: none;
   }
 
@@ -352,7 +352,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     width: 30px;
     height: 30px;
     border-radius: 999px;
-    background: var(--color-accent, #e8792c);
+    background: var(--color-accent, #E7792C);
     color: #fff;
     font-size: 0.72rem;
     font-weight: 700;
@@ -377,7 +377,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
   .crm-topbar__user-role {
     font-size: 0.68rem;
     font-weight: 500;
-    color: var(--color-text-muted, #8a8074);
+    color: var(--color-text-muted, #98A2B3);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -390,7 +390,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
   .crm-account-menu__email {
     display: block;
     font-size: 0.78rem;
-    color: var(--color-text-muted, #8a8074);
+    color: var(--color-text-muted, #98A2B3);
     word-break: break-all;
   }
 
@@ -404,7 +404,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     border-radius: 10px;
     border: 1px solid transparent;
     background: transparent;
-    color: var(--color-text-secondary, #6b645c);
+    color: var(--color-text-secondary, #667085);
     cursor: pointer;
     text-decoration: none;
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -412,8 +412,8 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
 
   .crm-topbar__icon-btn:hover,
   .crm-topbar__icon-btn:focus-visible {
-    background: var(--color-surface-secondary, #f7f4ee);
-    color: var(--color-text-primary, #211d1a);
+    background: var(--color-surface-secondary, #F7F8FA);
+    color: var(--color-text-primary, #221E1A);
     outline: none;
   }
 
@@ -432,9 +432,9 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     height: 36px;
     padding: 0 0.7rem 0 0.5rem;
     border-radius: 10px;
-    border: 1px solid var(--color-border, #e2d9cc);
+    border: 1px solid var(--color-border, #E5E7EB);
     background: #fff;
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
     font: inherit;
     font-size: 0.8125rem;
     font-weight: 600;
@@ -447,8 +447,8 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
 
   .crm-topbar__refresh-btn:hover,
   .crm-topbar__refresh-btn:focus-visible {
-    border-color: var(--color-accent, #e8792c);
-    color: var(--color-accent, #e8792c);
+    border-color: var(--color-accent, #E7792C);
+    color: var(--color-accent, #E7792C);
     outline: none;
     background: rgba(232, 121, 44, 0.06);
   }
@@ -503,7 +503,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     min-width: 240px;
     padding: 0.4rem;
     background: #fff;
-    border: 1px solid var(--color-border, #e2d9cc);
+    border: 1px solid var(--color-border, #E5E7EB);
     border-radius: 12px;
     box-shadow: 0 12px 32px rgba(33, 29, 26, 0.14);
     z-index: 1300;
@@ -522,7 +522,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     border: none;
     border-radius: 8px;
     background: transparent;
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
     font: inherit;
     font-size: 0.92rem;
     text-align: left;
@@ -532,18 +532,18 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
 
   .crm-account-menu__item:hover,
   .crm-account-menu__item:focus-visible {
-    background: var(--color-surface-secondary, #f7f4ee);
+    background: var(--color-surface-secondary, #F7F8FA);
     outline: none;
   }
 
   .crm-account-menu__item--danger {
-    color: #b42318;
+    color: #B4561A;
   }
 
   .crm-account-menu__sep {
     height: 1px;
     margin: 0.35rem 0.4rem;
-    background: var(--color-border, #e2d9cc);
+    background: var(--color-border, #E5E7EB);
   }
 
   .crm-account-menu__section {
@@ -556,7 +556,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--color-text-muted, #8a8074);
+    color: var(--color-text-muted, #98A2B3);
   }
 
   .crm-account-menu__langs {
@@ -572,7 +572,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     border: 1px solid transparent;
     border-radius: 7px;
     background: transparent;
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
     font: inherit;
     font-size: 0.88rem;
     text-align: left;
@@ -580,12 +580,12 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
   }
 
   .crm-account-menu__lang:hover {
-    background: var(--color-surface-secondary, #f7f4ee);
+    background: var(--color-surface-secondary, #F7F8FA);
   }
 
   .crm-account-menu__lang.is-active {
-    border-color: var(--color-border, #e2d9cc);
-    background: var(--color-surface-secondary, #f7f4ee);
+    border-color: var(--color-border, #E5E7EB);
+    background: var(--color-surface-secondary, #F7F8FA);
     font-weight: 600;
   }
 
@@ -603,14 +603,14 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     border-radius: 10px;
     border: 1px solid transparent;
     background: transparent;
-    color: var(--color-text-secondary, #6b645c);
+    color: var(--color-text-secondary, #667085);
     box-shadow: none;
   }
 
   .crm-topbar .notification-bell-btn:hover {
     transform: none;
-    background: var(--color-surface-secondary, #f7f4ee);
-    color: var(--color-text-primary, #211d1a);
+    background: var(--color-surface-secondary, #F7F8FA);
+    color: var(--color-text-primary, #221E1A);
     box-shadow: none;
   }
 
@@ -654,12 +654,12 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
 
   body.dashboard-app-body .dashboard-sidebar .sidebar-header {
     padding: 0.75rem 0.65rem;
-    border-bottom: 1px solid var(--color-border, #e2d9cc);
+    border-bottom: 1px solid var(--color-border, #E5E7EB);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.5rem;
-    background: var(--crm-chrome-bg, #f7f4ee);
+    background: var(--crm-chrome-bg, #F7F8FA);
   }
 
   /* ---------- Collapse ---------- */
@@ -669,17 +669,17 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     justify-content: center;
     width: 100%;
     height: 40px;
-    border: 1px solid var(--color-border, #e2d9cc);
+    border: 1px solid var(--color-border, #E5E7EB);
     border-radius: 8px;
     background: #fff;
-    color: var(--color-text-secondary, #6b645c);
+    color: var(--color-text-secondary, #667085);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
   }
 
   .sidebar-collapse-btn:hover {
     background: rgba(33, 29, 26, 0.06);
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
   }
 
   .sidebar-collapse-btn svg {
@@ -790,7 +790,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     border-radius: 10px;
     box-shadow: none;
     background: rgba(33, 29, 26, 0.06);
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
   }
 
   .mobile-app-header .notification-bell-wrap--mobile .notification-bell-icon {
@@ -833,7 +833,7 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     border: 0;
     border-radius: 10px;
     background: rgba(33, 29, 26, 0.06);
-    color: var(--color-text-primary, #211d1a);
+    color: var(--color-text-primary, #221E1A);
     font: inherit;
     font-size: 0.8125rem;
     font-weight: 600;

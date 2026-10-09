@@ -82,7 +82,7 @@ html.om-soft-nav-suppress body.om-device-mobile.om-has-tabbar .dashboard-main {
   }
 
   body.om-device-mobile.om-app {
-    background: var(--plab-bg, #f3f1ee);
+    background: var(--plab-bg, #F7F8FA);
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     overscroll-behavior-y: contain;

@@ -1,16 +1,16 @@
 /* Financeiro + Folha mobile — ObraMate --plab-* */
 :root {
-  --fpm-bg: var(--plab-bg, #f3f1ee);
-  --fpm-ink: var(--plab-ink, #1c1917);
-  --fpm-muted: var(--plab-muted, #78716c);
-  --fpm-faint: var(--plab-faint, #a8a29e);
-  --fpm-line: var(--plab-line, #e7e5e4);
-  --fpm-accent: var(--plab-accent, #e8792c);
-  --fpm-accent-deep: var(--plab-accent-deep, #c2410c);
-  --fpm-accent-soft: var(--plab-accent-soft, #fff4eb);
-  --fpm-ok: var(--plab-ok, #059669);
+  --fpm-bg: var(--plab-bg, #F7F8FA);
+  --fpm-ink: var(--plab-ink, #221E1A);
+  --fpm-muted: var(--plab-muted, #667085);
+  --fpm-faint: var(--plab-faint, #98A2B3);
+  --fpm-line: var(--plab-line, #E5E7EB);
+  --fpm-accent: var(--plab-accent, #E7792C);
+  --fpm-accent-deep: var(--plab-accent-deep, #B4561A);
+  --fpm-accent-soft: var(--plab-accent-soft, #FDF0E6);
+  --fpm-ok: var(--plab-ok, #536249);
   --fpm-ok-soft: rgba(5, 150, 105, 0.14);
-  --fpm-danger: #dc2626;
+  --fpm-danger: #B4561A;
   --fpm-danger-soft: rgba(220, 38, 38, 0.1);
   --fpm-warn: #d97706;
   --fpm-warn-soft: #fef3c7;
@@ -850,7 +850,7 @@
 
 .fpm-status--pending {
   background: rgba(217, 119, 6, 0.14);
-  color: #b45309;
+  color: #B4561A;
 }
 
 .fpm-empty {

@@ -1,15 +1,15 @@
 /* Faturas — list (invoices.html) + detail (invoice.html). ObraMate palette, no green. */
 .inv-body {
-  --inv-ink: #211d1a;
+  --inv-ink: #221E1A;
   --inv-ink-2: #3b332d;
   --inv-muted: #6b6259;
-  --inv-muted-2: #8a8074;
+  --inv-muted-2: #98A2B3;
   --inv-line: #e4dccf;
-  --inv-line-2: #efe8dc;
-  --inv-cream: #f7f4ee;
+  --inv-line-2: #F1F3F5;
+  --inv-cream: #F7F8FA;
   --inv-soft: #fbf8f3;
-  --inv-accent: var(--color-accent-hover, #c1652f);
-  --inv-accent-2: #e8792c;
+  --inv-accent: var(--color-accent-hover, #B4561A);
+  --inv-accent-2: #E7792C;
   --inv-accent-soft: #fbeee4;
   --inv-danger: #b3261e;
   --inv-danger-soft: #fbe9e7;
@@ -63,13 +63,13 @@
 /* ---------- status chips ---------- */
 .inv-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; background: var(--inv-line-2); color: var(--inv-ink-2); white-space: nowrap; }
 .inv-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.8; }
-.inv-chip.is-draft { background: #f1ede6; color: var(--inv-muted); }
+.inv-chip.is-draft { background: #F1F3F5; color: var(--inv-muted); }
 .inv-chip.is-sent { background: var(--inv-slate-soft); color: var(--inv-slate); }
 .inv-chip.is-viewed { background: #efe9f7; color: #5b3f86; }
 .inv-chip.is-partial { background: var(--inv-amber-soft); color: var(--inv-amber); }
 .inv-chip.is-overdue { background: var(--inv-danger-soft); color: var(--inv-danger); }
 .inv-chip.is-paid { background: var(--inv-ink); color: #fff; }
-.inv-chip.is-void { background: #f1ede6; color: var(--inv-muted-2); text-decoration: line-through; }
+.inv-chip.is-void { background: #F1F3F5; color: var(--inv-muted-2); text-decoration: line-through; }
 .inv-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--inv-muted-2); }
 .inv-dot.is-sent { background: var(--inv-slate); } .inv-dot.is-partial { background: #d98a00; }
 .inv-dot.is-overdue { background: var(--inv-danger); } .inv-dot.is-paid { background: var(--inv-ink); }
@@ -106,7 +106,7 @@
 .inv-banner.is-draft { background: var(--inv-soft); border-color: var(--inv-line); color: var(--inv-ink-2); }
 .inv-banner.is-awaiting { background: var(--inv-amber-soft, #fff7ed); border-color: #f5d0a9; color: #9a3412; }
 .inv-banner.is-overdue { background: var(--inv-danger-soft); border-color: #f2c7c2; color: #7f1d17; }
-.inv-banner.is-void { background: #f1ede6; border-color: var(--inv-line); color: var(--inv-muted); }
+.inv-banner.is-void { background: #F1F3F5; border-color: var(--inv-line); color: var(--inv-muted); }
 .inv-hint { margin: 8px 0 0; font-size: 0.8rem; color: var(--inv-muted); line-height: 1.4; }
 
 /* ---------- paper (document preview) ---------- */
@@ -248,23 +248,23 @@
   gap: 4px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: var(--inv-soft, #f5f4f2);
+  background: var(--inv-soft, #F1F3F5);
   font-size: 0.86rem;
-  color: var(--inv-muted, #78716c);
+  color: var(--inv-muted, #667085);
 }
-.inv-email-meta strong { color: var(--inv-ink, #1c1917); font-weight: 700; }
+.inv-email-meta strong { color: var(--inv-ink, #221E1A); font-weight: 700; }
 .inv-email-frame {
   width: 100%;
   min-height: 320px;
   height: min(48vh, 420px);
-  border: 1px solid var(--inv-line-2, #e7e5e4);
+  border: 1px solid var(--inv-line-2, #E5E7EB);
   border-radius: 12px;
   background: #f3f0ea;
 }
 .inv-email-note {
   margin: 0;
   font-size: 0.78rem;
-  color: var(--inv-muted, #78716c);
+  color: var(--inv-muted, #667085);
 }
 .inv-modal__head { display: flex; justify-content: space-between; gap: 12px; padding: 20px 22px 6px; }
 .inv-modal__head h3 { margin: 0; font-size: 1.2rem; font-weight: 800; }
@@ -282,11 +282,11 @@ body.inv-modal-open { overflow: hidden; }
 .inv-field em { font-style: normal; font-weight: 500; color: var(--inv-muted-2); }
 .inv-field small { font-weight: 500; color: var(--inv-muted); }
 .inv-field input[type="text"], .inv-field input[type="email"], .inv-field input[type="date"], .inv-field input[type="number"], .inv-field textarea {
-  font: inherit; font-weight: 500; font-size: 0.92rem; border: 1px solid #d9cfbf; border-radius: 9px; padding: 9px 11px; color: var(--inv-ink); background: #fff; width: 100%; box-sizing: border-box;
+  font: inherit; font-weight: 500; font-size: 0.92rem; border: 1px solid #E5E7EB; border-radius: 9px; padding: 9px 11px; color: var(--inv-ink); background: #fff; width: 100%; box-sizing: border-box;
 }
 .inv-field textarea { resize: vertical; }
 .inv-field input:focus, .inv-field textarea:focus { outline: 0; border-color: var(--inv-accent); box-shadow: 0 0 0 3px rgba(193, 101, 47, 0.15); }
-.inv-money-input { display: flex; align-items: center; border: 1px solid #d9cfbf; border-radius: 9px; padding-left: 11px; background: #fff; }
+.inv-money-input { display: flex; align-items: center; border: 1px solid #E5E7EB; border-radius: 9px; padding-left: 11px; background: #fff; }
 .inv-money-input:focus-within { border-color: var(--inv-accent); box-shadow: 0 0 0 3px rgba(193, 101, 47, 0.15); }
 .inv-money-input span { color: var(--inv-muted); font-weight: 700; }
 .inv-money-input input { border: 0 !important; box-shadow: none !important; font-size: 1.15rem !important; font-weight: 700 !important; font-variant-numeric: tabular-nums; }
@@ -328,7 +328,7 @@ body.inv-modal-open { overflow: hidden; }
 .inv-share__row { display: flex; gap: 6px; }
 .inv-share__row input { flex: 1; min-width: 0; font: inherit; font-size: 0.82rem; border: 1px solid var(--inv-line); border-radius: 9px; padding: 0 10px; background: var(--inv-soft); color: var(--inv-ink-2); }
 
-.inv-skel { border-radius: 10px; background: linear-gradient(90deg, #f3eee6 0%, #faf7f2 50%, #f3eee6 100%); background-size: 200% 100%; animation: inv-sk 1.2s infinite linear; }
+.inv-skel { border-radius: 10px; background: linear-gradient(90deg, #F1F3F5 0%, #faf7f2 50%, #F1F3F5 100%); background-size: 200% 100%; animation: inv-sk 1.2s infinite linear; }
 @keyframes inv-sk { to { background-position: -200% 0; } }
 
 .inv-mobile-bar { display: none; }

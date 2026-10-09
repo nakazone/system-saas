@@ -1,14 +1,14 @@
 /* Mobile lead detail + Novo lead sheet — ObraMate palette */
 :root {
-  --mld-bg: var(--plab-bg, #f3f1ee);
-  --mld-ink: var(--plab-ink, #1c1917);
-  --mld-muted: var(--plab-muted, #78716c);
-  --mld-faint: var(--plab-faint, #a8a29e);
-  --mld-line: var(--plab-line, #e7e5e4);
+  --mld-bg: var(--plab-bg, #F7F8FA);
+  --mld-ink: var(--plab-ink, #221E1A);
+  --mld-muted: var(--plab-muted, #667085);
+  --mld-faint: var(--plab-faint, #98A2B3);
+  --mld-line: var(--plab-line, #E5E7EB);
   --mld-card: #fff;
-  --mld-accent: var(--plab-accent, #e8792c);
-  --mld-accent-deep: var(--plab-accent-deep, #c2410c);
-  --mld-soft: var(--plab-soft, #f5f4f2);
+  --mld-accent: var(--plab-accent, #E7792C);
+  --mld-accent-deep: var(--plab-accent-deep, #B4561A);
+  --mld-soft: var(--plab-soft, #F1F3F5);
   --mld-radius: 16px;
   --mld-font: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
 }
@@ -230,7 +230,7 @@ body.plab-leads-list .nls-root {
 .mld-card__link {
   border: 0;
   background: transparent;
-  color: var(--mld-accent, #e8792c);
+  color: var(--mld-accent, #E7792C);
   font: inherit;
   font-size: 0.8rem;
   font-weight: 700;
@@ -241,14 +241,14 @@ body.plab-leads-list .nls-root {
 .mld-notes {
   width: 100%;
   min-height: 88px;
-  border: 1px solid var(--mld-line, #e7e5e4);
+  border: 1px solid var(--mld-line, #E5E7EB);
   border-radius: 10px;
   padding: 0.65rem 0.75rem;
   font: inherit;
   font-size: 0.9rem;
   line-height: 1.4;
-  color: var(--mld-ink, #1c1917);
-  background: #fafaf9;
+  color: var(--mld-ink, #221E1A);
+  background: #F7F8FA;
   resize: vertical;
   box-sizing: border-box;
 }
@@ -389,7 +389,7 @@ body.plab-leads-list .nls-root {
   align-items: center;
   justify-content: center;
   padding: 0.2rem 0.4rem;
-  color: var(--mld-muted, #78716c);
+  color: var(--mld-muted, #667085);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 650;
@@ -661,7 +661,7 @@ body.plab-leads-list .nls-root {
   border-radius: 10px;
   border: 1px solid #e0d6c8;
   background: #fff;
-  color: #1c1917;
+  color: #221E1A;
   font: inherit;
   font-size: 0.84rem;
   font-weight: 700;
@@ -671,6 +671,6 @@ body.plab-leads-list .nls-root {
 
 .nls-dup-btn--primary {
   border-color: transparent;
-  background: var(--mld-accent, #e8792c);
+  background: var(--mld-accent, #E7792C);
   color: #fff;
 }

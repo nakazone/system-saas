@@ -2,21 +2,21 @@
 
 body.plab {
   /* Follow the tenant brand color (branding.css sets --brand); default stays ObraMate orange. */
-  --omd-accent: var(--brand, var(--plab-accent, #e8792c));
+  --omd-accent: var(--brand, var(--plab-accent, #E7792C));
   --omd-accent-soft: color-mix(in srgb, var(--omd-accent) 12%, #fff);
   --omd-accent-deep: color-mix(in srgb, var(--omd-accent) 78%, #000);
-  --omd-ink: var(--plab-ink, #1c1917);
-  --omd-muted: var(--plab-muted, #78716c);
-  --omd-faint: var(--plab-faint, #a8a29e);
-  --omd-line: var(--plab-line, #e7e5e4);
-  --omd-soft: var(--plab-soft, #f5f4f2);
-  --omd-danger: #c2410c;
-  --omd-danger-strong: #b91c1c;
-  --omd-danger-soft: #fdeceb;
+  --omd-ink: var(--plab-ink, #221E1A);
+  --omd-muted: var(--plab-muted, #667085);
+  --omd-faint: var(--plab-faint, #98A2B3);
+  --omd-line: var(--plab-line, #E5E7EB);
+  --omd-soft: var(--plab-soft, #F1F3F5);
+  --omd-danger: #B4561A;
+  --omd-danger-strong: #B4561A;
+  --omd-danger-soft: #FDF0E6;
   --omd-warn: #a16207;
   --omd-warn-soft: #fdf3dc;
-  --omd-ok: #15803d;
-  --omd-ok-soft: #e7f5ea;
+  --omd-ok: #536249;
+  --omd-ok-soft: #EEF1EC;
   --omd-radius: 18px;
   --omd-shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 6px 20px rgba(28, 25, 23, 0.05);
 }
@@ -1018,7 +1018,7 @@ a.omd-kpi:hover {
   min-width: 0;
   padding: 0.65rem;
   border-radius: 14px;
-  background: #faf8f5;
+  background: #F7F8FA;
   border: 1px solid #f0ece6;
   scroll-snap-align: start;
 }
@@ -1108,7 +1108,7 @@ a.omd-kpi:hover {
 
 .omd-lead--chosen {
   box-shadow: 0 10px 22px rgba(28, 25, 23, 0.14);
-  border-color: var(--omd-accent, #e8792c);
+  border-color: var(--omd-accent, #E7792C);
 }
 
 .omd-lead--drag {
@@ -1438,10 +1438,10 @@ body.plab.dashboard-app-body .omd-col {
 
 /* =====================================================================
  * Início desktop — mosaico (Bento) na disposição aprovada (M6).
- * Só em telas largas no desktop; tablets e janelas estreitas mantêm o layout em fileiras.
+ * Em telas a partir de 1180px (desktop e iPad deitado); menores mantêm o layout em fileiras.
  * ===================================================================== */
 @media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) {
     position: relative;
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -1453,14 +1453,14 @@ body.plab.dashboard-app-body .omd-col {
     padding: 1.4rem var(--om-shell-pad, 2rem) 2rem;
   }
 
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet)
+  body.plab.dashboard-app-body:not(.om-device-mobile)
     .omd:not(.omd--kpi-partial)
     :is(.omd-kpis, .omd-grid, .omd-side, .omd-side__row) {
     display: contents;
   }
 
   /* Saudação + ações */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-head {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-head {
     grid-column: 1 / 6;
     grid-row: 1 / 3;
     flex-direction: column;
@@ -1470,17 +1470,17 @@ body.plab.dashboard-app-body .omd-col {
     margin: 0;
     padding: 4px 0 0;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-title {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-title {
     font-size: 44px;
     font-weight: 700;
     letter-spacing: -0.045em;
     line-height: 1.05;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-head__actions {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-head__actions {
     justify-content: flex-start;
   }
 
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-alert {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-alert {
     position: absolute;
     top: 0.6rem;
     left: 50%;
@@ -1491,25 +1491,25 @@ body.plab.dashboard-app-body .omd-col {
   }
 
   /* Indicadores */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi {
     height: auto;
     min-height: 0;
     max-height: none;
     padding: 18px 20px;
     border-radius: 24px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi__label {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__label {
     font-size: 14px;
     font-weight: 600;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi__value {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__value {
     margin-top: auto;
     font-size: 40px;
     font-weight: 700;
     letter-spacing: -0.045em;
     line-height: 1;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi__meta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__meta {
     margin-top: 8px;
     max-height: none;
     font-size: 13.5px;
@@ -1517,61 +1517,61 @@ body.plab.dashboard-app-body .omd-col {
   }
 
   /* Pipeline aberto: bloco laranja alto, texto escuro */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] {
     grid-column: 6 / 10;
     grid-row: 1 / 4;
     background: #E7792C;
     border-color: #E7792C;
     color: #221E1A;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__label,
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__label,
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
     color: rgba(34, 30, 26, 0.78);
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__value {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__value {
     font-size: 64px;
   }
 
   /* Fechados no mês: bloco grafite */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] {
     grid-column: 10 / 13;
     grid-row: 1 / 3;
     background: #221E1A;
     border-color: #221E1A;
     color: #fff;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__label,
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__label,
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta {
     color: #C8CDD5;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-delta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-delta {
     background: rgba(255, 255, 255, 0.1);
     color: #C9D6BE;
   }
 
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] {
     grid-column: 10 / 13;
     grid-row: 3 / 5;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] .omd-kpi__value {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] .omd-kpi__value {
     margin-top: 10px;
     font-size: 34px;
   }
 
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] {
     grid-column: 4 / 6;
     grid-row: 3 / 8;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__value {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__value {
     margin-top: 10px;
     font-size: 34px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__meta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__meta {
     flex-wrap: wrap;
   }
 
   /* Cartões */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-card {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-card {
     height: auto;
     min-height: 0;
     max-height: none;
@@ -1581,38 +1581,38 @@ body.plab.dashboard-app-body .omd-col {
     display: flex;
     flex-direction: column;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-card__head h2 {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-card__head h2 {
     font-size: 17px;
     font-weight: 650;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today {
     grid-column: 1 / 4;
     grid-row: 3 / 8;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn {
     grid-column: 6 / 10;
     grid-row: 4 / 8;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs {
     grid-column: 10 / 13;
     grid-row: 5 / 8;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe {
     grid-column: 1 / 10;
     grid-row: 8;
     margin: 0;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map {
     grid-column: 10 / 13;
     grid-row: 8;
     min-height: 320px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) :is(.omd-today__list, .omd-jobs__list, .omd-attn__list) {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) :is(.omd-today__list, .omd-jobs__list, .omd-attn__list) {
     overflow-y: auto;
     min-height: 0;
     flex: 1 1 auto;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-board {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-board {
     grid-auto-columns: minmax(170px, 1fr);
   }
 }
@@ -1623,12 +1623,12 @@ body.plab.dashboard-app-body .omd-col {
   display: none;
 }
 @media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi__split {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__split {
     display: flex;
     flex-direction: column;
     margin-top: 22px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi__seg {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__seg {
     display: flex;
     gap: 3px;
     height: 6px;
@@ -1714,28 +1714,28 @@ body.plab.dashboard-app-body .omd-tag.is-job {
 }
 
 @media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-v-row {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-v-row {
     display: none;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-v-bento {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-v-bento {
     display: inline;
   }
 
   /* Saudação */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-date {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-date {
     font-size: 14px;
     font-weight: 550;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-summary {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-summary {
     font-size: 14.5px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-summary b {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-summary b {
     color: #221E1A;
     font-weight: 600;
   }
 
   /* Links dos cartões: grafite com sublinhado laranja */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-link {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-link {
     font-size: 13px;
     font-weight: 600;
     color: #221E1A !important;
@@ -1746,7 +1746,7 @@ body.plab.dashboard-app-body .omd-tag.is-job {
   }
 
   /* Pipeline aberto */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__go {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__go {
     display: inline;
     font-size: 13px;
     font-weight: 600;
@@ -1756,12 +1756,12 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     text-decoration-thickness: 2px;
     text-underline-offset: 4px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes {
     display: flex;
     gap: 10px;
     margin-top: 16px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes > span {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes > span {
     flex: 1;
     min-width: 0;
     padding: 10px 12px;
@@ -1771,41 +1771,41 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     font-weight: 550;
     color: rgba(34, 30, 26, 0.75);
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes b {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes b {
     display: block;
     font-size: 18px;
     font-weight: 700;
     letter-spacing: -0.02em;
     color: #221E1A;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
     margin-top: 10px;
   }
 
   /* Comparação com o mês anterior: pílula curta numa linha */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi .omd-delta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi .omd-delta {
     flex-shrink: 0;
     white-space: nowrap;
     padding: 2px 8px;
     font-size: 12px;
     font-weight: 650;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi .omd-kpi__meta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi .omd-kpi__meta {
     flex-wrap: nowrap;
     gap: 8px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] .omd-kpi__meta.is-danger {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] .omd-kpi__meta.is-danger {
     color: #B4561A;
     font-weight: 600;
   }
 
   /* Hoje: eventos em caixas, o atual em laranja claro */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-today__list {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-today__list {
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev {
     grid-template-columns: 58px minmax(0, 1fr);
     grid-template-areas: "time body" "time aside";
     align-items: start;
@@ -1816,41 +1816,41 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     border-radius: 16px;
     background: #F1F3F5;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev + .omd-ev {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev + .omd-ev {
     border-top: 0;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev:hover {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev:hover {
     background: #EAECF0;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev.is-now {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev.is-now {
     background: #FDF0E6;
     box-shadow: inset 3px 0 0 #E7792C;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time {
     grid-area: time;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time strong {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time strong {
     font-size: 14px;
     font-weight: 650;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time span {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time span {
     font-size: 12px;
     color: #667085;
     font-weight: 500;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-row__body {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-row__body {
     grid-area: body;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-row__title {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-row__title {
     font-size: 14px;
     font-weight: 600;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-row__aside {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-row__aside {
     grid-area: aside;
     justify-self: start;
     margin-top: 4px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-live {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-live {
     padding: 2px 8px;
     border-radius: 999px;
     background: #EEF1EC;
@@ -1858,68 +1858,68 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     font-size: 11.5px;
     font-weight: 650;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-live::before {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-live::before {
     width: 6px;
     height: 6px;
     background: #536249;
     box-shadow: 0 0 0 3px rgba(83, 98, 73, 0.18);
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-tag {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-tag {
     padding: 2px 8px;
     font-size: 11.5px;
     font-weight: 650;
   }
 
   /* Precisa da sua atenção */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-card__head {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-card__head {
     justify-content: flex-start;
     gap: 8px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-count {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-count {
     padding: 1px 8px;
     background: #E7792C;
     color: #221E1A;
     font-size: 12px;
     font-weight: 650;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row {
     grid-template-columns: 32px minmax(0, 1fr) auto;
     gap: 12px;
     padding: 8px 0;
     margin: 0;
     border-radius: 0;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row + .omd-row {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row + .omd-row {
     border-top: 1px solid #E5E7EB;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row:hover {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row:hover {
     background: transparent;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__icon {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__icon {
     width: 32px;
     height: 32px;
     border-radius: 10px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__icon svg {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__icon svg {
     width: 17px;
     height: 17px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row.is-danger .omd-row__icon {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row.is-danger .omd-row__icon {
     background: #FDF0E6;
     color: #B4561A;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row.is-warn .omd-row__icon {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row.is-warn .omd-row__icon {
     background: #F1F3F5;
     color: #667085;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__title {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__title {
     font-size: 14px;
     font-weight: 600;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__detail {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__detail {
     font-size: 12.5px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-btn--ghost {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-btn--ghost {
     height: 30px;
     padding: 0 12px;
     border: 0;
@@ -1929,15 +1929,15 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     font-weight: 600;
     gap: 5px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn a.omd-btn--ghost[href^="tel:"] {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn a.omd-btn--ghost[href^="tel:"] {
     background: #221E1A;
     color: #fff !important;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn a.omd-btn--ghost[href^="tel:"] svg {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn a.omd-btn--ghost[href^="tel:"] svg {
     width: 13px;
     height: 13px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-badge {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-badge {
     padding: 3px 8px;
     border-radius: 999px;
     background: #FDF0E6;
@@ -1947,113 +1947,113 @@ body.plab.dashboard-app-body .omd-tag.is-job {
   }
 
   /* Previsão de jobs: hoje em grafite */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__days {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__days {
     gap: 4px;
     margin: 10px 0 6px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day {
     padding: 6px 0 5px;
     border: 0;
     border-radius: 12px;
     background: #F1F3F5;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-n {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-n {
     font-size: 15px;
     font-weight: 650;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-wd {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-wd {
     font-size: 10.5px;
     font-weight: 650;
     color: #98A2B3;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-c {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-c {
     font-size: 11px;
     font-weight: 650;
     color: #98A2B3;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-busy .omd-jobs__day-c {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-busy .omd-jobs__day-c {
     color: #221E1A;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today {
     background: #221E1A;
     color: #fff;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today .omd-jobs__day-wd {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today .omd-jobs__day-wd {
     color: #C8CDD5;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today .omd-jobs__day-c {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today .omd-jobs__day-c {
     color: #E7792C;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row {
     grid-template-columns: 52px minmax(0, 1fr);
     gap: 12px;
     padding: 8px 0;
     margin: 0;
     border-radius: 0;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row + .omd-row {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row + .omd-row {
     border-top: 1px solid #E5E7EB;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row:hover {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row:hover {
     background: transparent;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-ev__time strong {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-ev__time strong {
     font-size: 13.5px;
     font-weight: 650;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-ev__time span {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-ev__time span {
     font-size: 12px;
     color: #667085;
   }
 
   /* Pipeline de vendas: título e resumo na mesma linha */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-pipe__head > div:first-child {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-pipe__head > div:first-child {
     display: flex;
     align-items: baseline;
     gap: 10px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-pipe__head h2 {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-pipe__head h2 {
     font-size: 17px;
     font-weight: 650;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe #omdPipeMeta {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe #omdPipeMeta {
     font-size: 13.5px;
     font-weight: 500;
     color: #667085;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-funnel {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-funnel {
     height: 8px;
     border-radius: 4px;
     gap: 2px;
     margin: 6px 0 12px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col {
     border-radius: 16px;
     padding: 10px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__name {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__name {
     font-size: 12.5px;
     font-weight: 600;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__count {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__count {
     border: 0;
     background: transparent;
     padding: 0;
     font-size: 12px;
     font-weight: 600;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__value {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__value {
     font-size: 12px;
     font-weight: 550;
     color: #98A2B3;
   }
 
   /* Mapa do dia: cabeçalho em vidro sobre o mapa */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map {
     position: relative;
     padding: 0;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head {
     position: absolute;
     top: 12px;
     left: 12px;
@@ -2067,14 +2067,14 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     -webkit-backdrop-filter: blur(14px);
     box-shadow: 0 0 0 1px #E5E7EB, 0 4px 14px -8px rgba(16, 24, 40, 0.25);
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head h2 {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head h2 {
     font-size: 15px;
     font-weight: 650;
     display: inline-flex;
     align-items: center;
     gap: 8px;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head h2::before {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head h2::before {
     content: "";
     width: 16px;
     height: 16px;
@@ -2083,15 +2083,15 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.5'/%3E%3C/svg%3E") center / contain no-repeat;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.5'/%3E%3C/svg%3E") center / contain no-repeat;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-map__body {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-map__body {
     position: absolute;
     inset: 0;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-map__canvas {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-map__canvas {
     border-radius: 24px;
     height: 100%;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-map__empty {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-map__empty {
     border-radius: 24px;
     height: 100%;
     margin: 0;
@@ -2101,20 +2101,20 @@ body.plab.dashboard-app-body .omd-tag.is-job {
 }
 
 @media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__detail .is-hot {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__detail .is-hot {
     color: #B4561A;
     font-weight: 600;
   }
   /* Previsão de jobs: a faixa da semana mostra a contagem; a lista mostra os próximos 2. */
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__list > li:nth-child(n + 3) {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__list > li:nth-child(n + 3) {
     display: none;
   }
 }
 @media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-board {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-board {
     grid-auto-columns: calc((100% - 5 * 0.75rem) / 6);
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__more {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__more {
     color: #221E1A !important;
     font-weight: 600;
     text-decoration: underline;

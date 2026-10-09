@@ -1,13 +1,13 @@
 /* Day route panel — ObraMate terracotta / cream / charcoal */
 .dr-root {
-  --dr-ink: #211d1a;
-  --dr-ink-2: #4a433d;
-  --dr-muted: #8a8074;
-  --dr-line: #e8dfd2;
-  --dr-cream: #f7f4ee;
-  --dr-terra: #e8792c;
-  --dr-terra-d: #c1652f;
-  --dr-terra-soft: #fdf1e7;
+  --dr-ink: #221E1A;
+  --dr-ink-2: #475467;
+  --dr-muted: #98A2B3;
+  --dr-line: #E5E7EB;
+  --dr-cream: #F7F8FA;
+  --dr-terra: #E7792C;
+  --dr-terra-d: #B4561A;
+  --dr-terra-soft: #FDF0E6;
 }
 .dr-backdrop {
   position: fixed; inset: 0; z-index: 2400;
@@ -59,7 +59,7 @@
   padding: 10px 12px; border-radius: 12px; border: 1px solid var(--dr-line);
   background: #fff; font: inherit; color: inherit; cursor: pointer;
 }
-.dr-stop:hover { border-color: #d6c9b8; background: var(--dr-cream); }
+.dr-stop:hover { border-color: #D0D5DD; background: var(--dr-cream); }
 .dr-stop--delivery { background: var(--dr-terra-soft); border-color: #f3cfb1; }
 .dr-stop--origin { border-style: dashed; }
 .dr-stop b { font-size: 13.5px; font-weight: 800; }
@@ -87,10 +87,10 @@
 }
 .dr-hint[hidden] { display: none !important; }
 .dr-hint--ok {
-  background: #ecfdf5; border-color: #a7f3d0; color: #065f46;
+  background: #EEF1EC; border-color: #a7f3d0; color: #536249;
 }
 .dr-hint--err {
-  background: #fef2f2; border-color: #fecaca; color: #991b1b;
+  background: #FDF0E6; border-color: #FDF0E6; color: #B4561A;
 }
 .dr-hint--busy {
   background: rgba(255, 255, 255, 0.96); color: var(--dr-ink-2);
@@ -106,7 +106,7 @@
   color: var(--dr-ink); cursor: pointer; text-decoration: none;
   display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
 }
-.dr-btn:hover { border-color: #d6c9b8; }
+.dr-btn:hover { border-color: #D0D5DD; }
 .dr-btn--pri { background: var(--dr-terra); border-color: var(--dr-terra); color: #fff; }
 .dr-btn--pri:hover { background: var(--dr-terra-d); border-color: var(--dr-terra-d); }
 .dr-btn--ghost { border-color: transparent; background: transparent; color: var(--dr-ink-2); }

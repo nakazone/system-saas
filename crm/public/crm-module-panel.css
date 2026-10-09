@@ -1,16 +1,16 @@
 /* Shared module panel (Jobs / Leads / Quotes / Invoices) — ObraMate */
 
 :root {
-  --mod-ink: #211d1a;
-  --mod-muted: #6b645c;
-  --mod-faint: #8a8074;
-  --mod-border: #e2d9cc;
-  --mod-border-soft: #ebe4da;
+  --mod-ink: #221E1A;
+  --mod-muted: #667085;
+  --mod-faint: #98A2B3;
+  --mod-border: #E5E7EB;
+  --mod-border-soft: #E5E7EB;
   --mod-surface: #ffffff;
-  --mod-surface-soft: #faf8f5;
-  --mod-chrome: #f7f4ee;
-  --mod-accent: #e8792c;
-  --mod-accent-soft: #fff4eb;
+  --mod-surface-soft: #F7F8FA;
+  --mod-chrome: #F7F8FA;
+  --mod-accent: #E7792C;
+  --mod-accent-soft: #FDF0E6;
   --mod-radius: 12px;
 }
 
@@ -75,7 +75,7 @@
 }
 
 .mod-kanban-wrap .kanban-card--visit {
-  border-left-color: #0d9488;
+  border-left-color: #536249;
 }
 
 .mod-ov-card__title,
@@ -137,27 +137,27 @@
 }
 
 .mod-ov-dot.is-late,
-.jobs-ov-dot.is-late { background: #e8792c; }
+.jobs-ov-dot.is-late { background: #E7792C; }
 .mod-ov-dot.is-unscheduled,
 .jobs-ov-dot.is-unscheduled { background: #c4bbb0; }
 .mod-ov-dot.is-scheduled,
 .jobs-ov-dot.is-scheduled { background: #3b82f6; }
 .mod-ov-dot.is-progress,
-.jobs-ov-dot.is-progress { background: #c2410c; }
+.jobs-ov-dot.is-progress { background: #B4561A; }
 .mod-ov-dot.is-done,
-.jobs-ov-dot.is-done { background: #059669; }
+.jobs-ov-dot.is-done { background: #536249; }
 
 .mod-ov-dot.is-new { background: #3498db; }
 .mod-ov-dot.is-meeting { background: #90ee90; }
 .mod-ov-dot.is-quote { background: #9b59b6; }
-.mod-ov-dot.is-won { background: #27ae60; }
+.mod-ov-dot.is-won { background: #536249; }
 .mod-ov-dot.is-draft { background: #c4bbb0; }
 .mod-ov-dot.is-sent { background: #3b82f6; }
 .mod-ov-dot.is-viewed { background: #8b5cf6; }
-.mod-ov-dot.is-accepted { background: #059669; }
-.mod-ov-dot.is-expired { background: #e8792c; }
-.mod-ov-dot.is-paid { background: #059669; }
-.mod-ov-dot.is-overdue { background: #dc2626; }
+.mod-ov-dot.is-accepted { background: #536249; }
+.mod-ov-dot.is-expired { background: #E7792C; }
+.mod-ov-dot.is-paid { background: #536249; }
+.mod-ov-dot.is-overdue { background: #B4561A; }
 
 .mod-ov-card--promo,
 .jobs-ov-card--promo {
@@ -327,7 +327,7 @@
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: capitalize;
-  background: #efe8dc;
+  background: #F1F3F5;
   color: var(--mod-ink);
 }
 
@@ -341,22 +341,22 @@
   opacity: 0.85;
 }
 
-.job-status.is-draft { background: #efe8dc; color: #6b645c; }
+.job-status.is-draft { background: #F1F3F5; color: #667085; }
 .job-status.is-scheduled { background: #dbeafe; color: #1d4ed8; }
-.job-status.is-in_progress { background: #ffedd5; color: #c2410c; }
-.job-status.is-completed { background: #d1fae5; color: #065f46; }
-.job-status.is-canceled { background: #fee2e2; color: #991b1b; }
+.job-status.is-in_progress { background: #FDF0E6; color: #B4561A; }
+.job-status.is-completed { background: #EEF1EC; color: #536249; }
+.job-status.is-canceled { background: #FDF0E6; color: #B4561A; }
 
-.mod-status.is-draft { background: #efe8dc; color: #6b645c; }
+.mod-status.is-draft { background: #F1F3F5; color: #667085; }
 .mod-status.is-sent { background: #dbeafe; color: #1d4ed8; }
 .mod-status.is-viewed { background: #ede9fe; color: #6d28d9; }
 .mod-status.is-approved,
-.mod-status.is-accepted { background: #d1fae5; color: #065f46; }
+.mod-status.is-accepted { background: #EEF1EC; color: #536249; }
 .mod-status.is-rejected,
-.mod-status.is-declined { background: #fee2e2; color: #991b1b; }
-.mod-status.is-expired { background: #ffedd5; color: #c2410c; }
-.mod-status.is-paid { background: #d1fae5; color: #065f46; }
-.mod-status.is-overdue { background: #fee2e2; color: #991b1b; }
+.mod-status.is-declined { background: #FDF0E6; color: #B4561A; }
+.mod-status.is-expired { background: #FDF0E6; color: #B4561A; }
+.mod-status.is-paid { background: #EEF1EC; color: #536249; }
+.mod-status.is-overdue { background: #FDF0E6; color: #B4561A; }
 .mod-status.is-issued { background: #e0e7ff; color: #3730a3; }
 
 .mod-empty,

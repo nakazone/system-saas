@@ -6,23 +6,23 @@
 
 :root {
   /* Palette — ObraMate defaults */
-  --color-primary: #211d1a;
+  --color-primary: #221E1A;
   --color-primary-hover: #2c2723;
-  --color-accent: #e8792c;
-  --color-accent-hover: #c1652f;
+  --color-accent: #E7792C;
+  --color-accent-hover: #B4561A;
   --color-surface: #ffffff;
-  --color-surface-secondary: #f7f4ee;
-  --color-surface-tertiary: #efe8dc;
-  --color-border: #e2d9cc;
-  --color-text-primary: #211d1a;
-  --color-text-secondary: #6b645c;
-  --color-text-muted: #8a8074;
+  --color-surface-secondary: #F7F8FA;
+  --color-surface-tertiary: #F1F3F5;
+  --color-border: #E5E7EB;
+  --color-text-primary: #221E1A;
+  --color-text-secondary: #667085;
+  --color-text-muted: #98A2B3;
   /* Shell chrome (sidebar / top bar / page backdrop) */
-  --crm-chrome-bg: #f7f4ee;
+  --crm-chrome-bg: #F7F8FA;
 
-  --color-success: #22c55e;
+  --color-success: #536249;
   --color-warning: #f59e0b;
-  --color-danger: #ef4444;
+  --color-danger: #B4561A;
   --color-info: #3b82f6;
 
   /* Quote / status badges (semantic) */
@@ -30,10 +30,10 @@
   --badge-viewed-text: #1d4ed8;
   --badge-draft-bg: #f3f4f6;
   --badge-draft-text: #6b7280;
-  --badge-sent-bg: #d1fae5;
-  --badge-sent-text: #065f46;
-  --badge-expired-bg: #fee2e2;
-  --badge-expired-text: #991b1b;
+  --badge-sent-bg: #EEF1EC;
+  --badge-sent-text: #536249;
+  --badge-expired-bg: #FDF0E6;
+  --badge-expired-text: #B4561A;
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -59,7 +59,7 @@
   /* Legacy aliases (existing styles.css) */
   --primary-color: var(--color-primary);
   --primary-hover: var(--color-primary-hover);
-  --primary-light: #3a332e;
+  --primary-light: #475467;
   --primary-dark: #161311;
   --secondary-color: var(--color-accent);
   --secondary-hover: var(--color-accent-hover);
@@ -101,21 +101,21 @@ html {
 body.dashboard-app-body {
   font-family: var(--font-sans);
   color: var(--color-text-primary);
-  background-color: var(--crm-chrome-bg, #f7f4ee);
+  background-color: var(--crm-chrome-bg, #F7F8FA);
   -webkit-font-smoothing: antialiased;
 }
 
 /* ---------- Sidebar ---------- */
 .dashboard-sidebar {
   width: var(--crm-sidebar-width);
-  background: var(--crm-chrome-bg, #f7f4ee);
+  background: var(--crm-chrome-bg, #F7F8FA);
   box-shadow: none;
-  border-right: 1px solid var(--color-border, #e2d9cc);
+  border-right: 1px solid var(--color-border, #E5E7EB);
 }
 
 .dashboard-main {
   margin-left: var(--crm-sidebar-width);
-  background-color: var(--crm-chrome-bg, #f7f4ee);
+  background-color: var(--crm-chrome-bg, #F7F8FA);
 }
 
 /* Tablets and iPads */
@@ -132,7 +132,7 @@ body.dashboard-app-body {
 
 .sidebar-header {
   padding: 1.2rem 0.75rem 1.05rem;
-  border-bottom: 1px solid var(--color-border, #e2d9cc);
+  border-bottom: 1px solid var(--color-border, #E5E7EB);
   align-items: center;
   justify-content: center;
   gap: 0;
@@ -243,8 +243,8 @@ body.dashboard-app-body {
 
 .sidebar-footer {
   padding: 0.75rem;
-  border-top: 1px solid var(--color-border, #e2d9cc);
-  background: var(--crm-chrome-bg, #f7f4ee);
+  border-top: 1px solid var(--color-border, #E5E7EB);
+  background: var(--crm-chrome-bg, #F7F8FA);
   margin-top: auto;
 }
 
@@ -299,7 +299,7 @@ body.dashboard-app-body {
   min-width: 40px;
   padding: 0;
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-border, #e2d9cc);
+  border: 1px solid var(--color-border, #E5E7EB);
   background: #fff;
   color: var(--color-text-secondary);
   display: inline-flex;
@@ -312,7 +312,7 @@ body.dashboard-app-body {
 #logoutBtn.sidebar-logout-btn:hover {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.35);
-  color: #b42318;
+  color: #B4561A;
 }
 
 /* Folha obra: rodapé com botão texto completo (sem barra de utilizador) */
@@ -321,7 +321,7 @@ body.dashboard-app-body {
   justify-content: center;
   background: #fff;
   color: var(--color-text-primary);
-  border: 1px solid var(--color-border, #e2d9cc);
+  border: 1px solid var(--color-border, #E5E7EB);
 }
 
 #payrollSidebar .sidebar-footer > .btn:hover {
@@ -623,8 +623,8 @@ body.dashboard-app-body {
 
 .badge-quote--approved,
 .badge-quote--accepted {
-  background: #d1fae5;
-  color: #065f46;
+  background: #EEF1EC;
+  color: #536249;
 }
 
 .badge-quote--rejected,

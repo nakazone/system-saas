@@ -4,24 +4,24 @@
  */
 
 :root {
-  --sf-bg-base: #f7f4ee;
+  --sf-bg-base: #F7F8FA;
   --sf-bg-card: #ffffff;
   --sf-bg-elevated: #ffffff;
   --sf-bg-overlay: rgba(33, 29, 26, 0.45);
 
-  --sf-accent: #e8792c;
+  --sf-accent: #E7792C;
   --sf-accent-dim: rgba(232, 121, 44, 0.14);
   --sf-accent-border: rgba(232, 121, 44, 0.35);
-  --sf-accent-hover: #c1652f;
+  --sf-accent-hover: #B4561A;
 
-  --sf-navy: #211d1a;
-  --sf-text-primary: #211d1a;
-  --sf-text-secondary: #6b645c;
-  --sf-text-muted: #8a8074;
-  --sf-text-accent: #c1652f;
+  --sf-navy: #221E1A;
+  --sf-text-primary: #221E1A;
+  --sf-text-secondary: #667085;
+  --sf-text-muted: #98A2B3;
+  --sf-text-accent: #B4561A;
 
-  --sf-border-subtle: #ebe4d8;
-  --sf-border-mid: #e2d9cc;
+  --sf-border-subtle: #F1F3F5;
+  --sf-border-mid: #E5E7EB;
   --sf-border-accent: rgba(193, 101, 47, 0.45);
 
   --sf-viewed-bg: rgba(37, 99, 235, 0.1);
@@ -29,9 +29,9 @@
   --sf-draft-bg: #f1f5f9;
   --sf-draft-text: #64748b;
   --sf-sent-bg: rgba(22, 163, 74, 0.12);
-  --sf-sent-text: #15803d;
+  --sf-sent-text: #536249;
   --sf-expired-bg: rgba(220, 38, 38, 0.1);
-  --sf-expired-text: #b91c1c;
+  --sf-expired-text: #B4561A;
 
   --sf-radius-sm: 8px;
   --sf-radius-md: 12px;
@@ -169,7 +169,7 @@
 
   /* Header topo */
   .dashboard-app-body.sf-mobile-shell .mobile-app-header {
-    background: #f7f4ee;
+    background: #F7F8FA;
     border-bottom: 1px solid var(--sf-border-subtle);
     box-shadow: none;
     min-height: calc(var(--sf-header-height) + var(--sf-safe-top));
@@ -501,7 +501,7 @@
 
   .sf-main-menu__btn--payroll .sf-main-menu__icon {
     background: rgba(22, 163, 74, 0.12);
-    color: #15803d;
+    color: #536249;
   }
 
   .sf-main-menu__btn--dashboard .sf-main-menu__icon {
@@ -798,7 +798,7 @@
   .sf-quote-badge--approved,
   .sf-quote-badge--accepted {
     background: rgba(22, 163, 74, 0.12);
-    color: #15803d;
+    color: #536249;
   }
   .sf-quote-badge--rejected,
   .sf-quote-badge--declined,
@@ -820,7 +820,7 @@
     background: var(--sf-accent-hover);
   }
   .sf-quote-card__action-btn--del {
-    background: #b91c1c;
+    background: #B4561A;
   }
 
   .sf-ptr-indicator {
@@ -1042,7 +1042,7 @@
   }
 
   .lcard__action-btn--call {
-    background: #15803d;
+    background: #536249;
   }
 
   .lcard__action-btn--sms {
@@ -1054,7 +1054,7 @@
   }
 
   .lcard__action-btn--delete {
-    background: #b91c1c;
+    background: #B4561A;
   }
 
   .lcard__action-btn--advance {
@@ -1097,7 +1097,7 @@
   }
 
   .lcard__pri--high {
-    background: #dc2626;
+    background: #B4561A;
   }
 
   .lcard__pri--medium {
@@ -1149,7 +1149,7 @@
     font-size: 11px;
     font-weight: 600;
     background: rgba(220, 38, 38, 0.1);
-    color: #b91c1c;
+    color: #B4561A;
   }
 
   .lcard__days {

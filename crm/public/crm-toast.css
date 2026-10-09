@@ -40,15 +40,15 @@
 }
 
 .crm-toast--success {
-  background: #ecfdf5;
-  color: #065f46;
+  background: #EEF1EC;
+  color: #536249;
   border-color: #a7f3d0;
 }
 
 .crm-toast--error {
-  background: #fef2f2;
-  color: #991b1b;
-  border-color: #fecaca;
+  background: #FDF0E6;
+  color: #B4561A;
+  border-color: #FDF0E6;
 }
 
 .crm-toast--info {

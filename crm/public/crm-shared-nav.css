@@ -204,7 +204,7 @@
 
 .crm-shared-nav__dropdown-toggle:focus-visible,
 .crm-shared-nav__dropdown-link:focus-visible {
-  outline: 2px solid #d6b598;
+  outline: 2px solid #D0D5DD;
   outline-offset: 2px;
 }
 
@@ -215,7 +215,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   color: #1a2036;
-  background: #d6b598;
+  background: #D0D5DD;
   border: none;
   cursor: pointer;
   flex-shrink: 0;
@@ -257,7 +257,7 @@ body.crm-standalone-page .dashboard-main {
 .crm-shared-nav__link:focus-visible,
 .crm-shared-nav__logout:focus-visible,
 .crm-shared-nav__brand:focus-visible {
-  outline: 2px solid #d6b598;
+  outline: 2px solid #D0D5DD;
   outline-offset: 2px;
 }
 

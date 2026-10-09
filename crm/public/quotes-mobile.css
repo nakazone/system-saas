@@ -25,7 +25,7 @@
     padding: 0.75rem 0.9rem !important;
     padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.45rem) !important;
     padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 1.25rem) !important;
-    background: var(--plab-bg, #f3f1ee) !important;
+    background: var(--plab-bg, #F7F8FA) !important;
   }
 
   body.quotes-app .mod-page.crm-page {
@@ -50,7 +50,7 @@
 
   body.quotes-app .crm-page-header__subtitle {
     font-size: 0.85rem;
-    color: var(--plab-muted, #78716c);
+    color: var(--plab-muted, #667085);
   }
 
   body.quotes-app .crm-page-header__actions {
@@ -150,7 +150,7 @@
     grid-template-columns: 1fr auto;
     gap: 0.35rem 0.75rem;
     padding: 0.9rem 1rem;
-    border: 1px solid var(--plab-line, #e7e5e4);
+    border: 1px solid var(--plab-line, #E5E7EB);
     border-radius: 14px;
     background: #fff;
     box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
@@ -159,7 +159,7 @@
   }
 
   body.quotes-app .customers-row.customers-row--quote:active {
-    background: #fafaf9;
+    background: #F7F8FA;
   }
 
   body.quotes-app .customers-row.customers-row--quote:hover {
@@ -189,7 +189,7 @@
   body.quotes-app .customers-row__created {
     grid-column: 1 / -1;
     font-size: 0.78rem;
-    color: var(--plab-muted, #78716c);
+    color: var(--plab-muted, #667085);
   }
 
   body.quotes-app .customers-row__actions {
@@ -206,14 +206,14 @@
   }
 
   body.quotes-app .customers-row__actions .quotes-row__delete {
-    color: #b91c1c;
-    border-color: #fecaca;
+    color: #B4561A;
+    border-color: #FDF0E6;
     flex: 0 0 auto;
   }
 
   body.quotes-app .customers-row__actions .quotes-row__delete:hover:not(:disabled) {
-    background: #fef2f2;
-    color: #991b1b;
+    background: #FDF0E6;
+    color: #B4561A;
   }
 
   body.quotes-app .customers-pagination {

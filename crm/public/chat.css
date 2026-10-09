@@ -22,18 +22,18 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 }
 
 .chat-shell {
-  --chat-accent: var(--brand, var(--mod-accent, #e8792c));
+  --chat-accent: var(--brand, var(--mod-accent, #E7792C));
   --chat-accent-soft: color-mix(in srgb, var(--chat-accent) 14%, #fff);
   --chat-accent-deep: color-mix(in srgb, var(--chat-accent) 72%, #000);
-  --chat-ink: var(--mod-ink, #1c1917);
-  --chat-muted: var(--mod-muted, #78716c);
-  --chat-faint: var(--mod-faint, #a8a29e);
-  --chat-line: var(--mod-border, #e7e5e4);
-  --chat-soft: var(--mod-surface-soft, #f5f4f2);
+  --chat-ink: var(--mod-ink, #221E1A);
+  --chat-muted: var(--mod-muted, #667085);
+  --chat-faint: var(--mod-faint, #98A2B3);
+  --chat-line: var(--mod-border, #E5E7EB);
+  --chat-soft: var(--mod-surface-soft, #F1F3F5);
   display: grid;
   grid-template-columns: minmax(300px, 380px) 1fr;
   height: 100%;
-  background: var(--mod-chrome, #f7f4ee);
+  background: var(--mod-chrome, #F7F8FA);
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   color: var(--chat-ink);
 }
@@ -236,7 +236,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   flex-shrink: 0;
 }
 .chat-conv__avatar.is-a { background: #0f766e; }
-.chat-conv__avatar.is-b { background: #b45309; }
+.chat-conv__avatar.is-b { background: #B4561A; }
 .chat-conv__avatar.is-c { background: #1d4ed8; }
 .chat-conv__avatar.is-d { background: #7c3aed; }
 .chat-conv__avatar.is-e { background: color-mix(in srgb, var(--chat-accent) 85%, #000); }
@@ -365,7 +365,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   align-items: center;
   gap: 0.5rem;
   padding: 0.7rem 1rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--chat-line, #e7e5e4) 70%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--chat-line, #E5E7EB) 70%, transparent);
   flex-shrink: 0;
   background: #fff;
   z-index: 2;
@@ -385,7 +385,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 .chat-thread-sub {
   margin: 0.1rem 0 0;
   font-size: 0.78rem;
-  color: var(--chat-muted, #78716c);
+  color: var(--chat-muted, #667085);
 }
 .chat-back-btn {
   display: none;
@@ -401,7 +401,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 .chat-typing {
   padding: 0.35rem 1rem;
   font-size: 0.8rem;
-  color: var(--mod-muted, #6b645c);
+  color: var(--mod-muted, #667085);
   font-style: italic;
 }
 
@@ -427,7 +427,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   font: inherit;
   font-size: 0.8rem;
   font-weight: 650;
-  color: var(--chat-muted, #78716c);
+  color: var(--chat-muted, #667085);
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(28, 25, 23, 0.06);
 }
@@ -456,7 +456,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   display: inline-block;
   background: color-mix(in srgb, #fff 70%, transparent);
   border: none;
-  color: var(--chat-faint, #a8a29e);
+  color: var(--chat-faint, #98A2B3);
   font-size: 0.78rem;
   padding: 0.3rem 0.7rem;
   box-shadow: none;
@@ -465,13 +465,13 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 .chat-msg__meta {
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--chat-muted, #78716c);
+  color: var(--chat-muted, #667085);
   margin-bottom: 0.18rem;
   padding: 0 0.4rem;
 }
 .chat-msg--mine .chat-msg__meta {
   text-align: right;
-  color: var(--chat-accent-deep, #b45309);
+  color: var(--chat-accent-deep, #B4561A);
 }
 .chat-msg.is-stacked .chat-msg__meta {
   display: none;
@@ -489,21 +489,21 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   font-size: 0.95rem;
 }
 .chat-msg--mine .chat-msg__bubble {
-  background: color-mix(in srgb, var(--chat-accent, #e8792c) 18%, #fff);
+  background: color-mix(in srgb, var(--chat-accent, #E7792C) 18%, #fff);
   border-radius: 16px 16px 4px 16px;
-  color: var(--chat-ink, #1c1917);
+  color: var(--chat-ink, #221E1A);
 }
 .chat-msg__time {
   display: block;
   margin-top: 0.25rem;
   font-size: 0.68rem;
   font-weight: 600;
-  color: var(--chat-faint, #a8a29e);
+  color: var(--chat-faint, #98A2B3);
   text-align: right;
   white-space: nowrap;
 }
 .chat-msg--mine .chat-msg__time {
-  color: color-mix(in srgb, var(--chat-accent-deep, #b45309) 55%, #78716c);
+  color: color-mix(in srgb, var(--chat-accent-deep, #B4561A) 55%, #667085);
 }
 .chat-msg.is-sending .chat-msg__bubble {
   opacity: 0.7;
@@ -512,7 +512,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   outline: 1px solid #c45c4a;
 }
 .chat-msg.is-highlight .chat-msg__bubble {
-  outline: 2px solid var(--chat-accent, #e8792c);
+  outline: 2px solid var(--chat-accent, #E7792C);
   outline-offset: 2px;
 }
 .chat-msg__edited {
@@ -529,7 +529,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 .chat-msg__status button {
   border: none;
   background: none;
-  color: var(--chat-accent, #e8792c);
+  color: var(--chat-accent, #E7792C);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -549,12 +549,12 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   vertical-align: baseline;
 }
 .chat-chip--user {
-  background: #ebe4da;
+  background: #E5E7EB;
   color: #3d3832;
 }
 .chat-chip--job {
-  background: var(--mod-accent-soft, #fff4eb);
-  color: #b45309;
+  background: var(--mod-accent-soft, #FDF0E6);
+  color: #B4561A;
 }
 .chat-chip--job:hover {
   text-decoration: underline;
@@ -580,7 +580,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 }
 .chat-msg__atts .chat-file-link {
   font-size: 0.85rem;
-  color: var(--mod-accent, #e8792c);
+  color: var(--mod-accent, #E7792C);
   word-break: break-all;
 }
 
@@ -591,7 +591,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   gap: 0.5rem;
   margin: 0 0.75rem 0.35rem;
   padding: 0.45rem 0.65rem;
-  background: var(--mod-accent-soft, #fff4eb);
+  background: var(--mod-accent-soft, #FDF0E6);
   border: 1px solid #f0d4bc;
   border-radius: 10px;
   font-size: 0.85rem;
@@ -602,7 +602,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   background: transparent;
   font-size: 1rem;
   cursor: pointer;
-  color: var(--mod-muted, #6b645c);
+  color: var(--mod-muted, #667085);
   padding: 0.25rem 0.4rem;
 }
 
@@ -610,14 +610,14 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   position: relative;
   flex-shrink: 0;
   padding: 0.55rem 0.75rem calc(0.7rem + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid color-mix(in srgb, var(--chat-line, #e7e5e4) 70%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--chat-line, #E5E7EB) 70%, transparent);
   background: #fff;
 }
 .chat-composer__row {
   display: flex;
   align-items: flex-end;
   gap: 0.2rem;
-  background: var(--chat-soft, #f5f4f2);
+  background: var(--chat-soft, #F1F3F5);
   border-radius: 26px;
   padding: 0.25rem 0.3rem 0.25rem 0.35rem;
 }
@@ -647,13 +647,13 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   height: 44px;
   border: none;
   border-radius: 50%;
-  background: var(--chat-accent, #e8792c);
+  background: var(--chat-accent, #E7792C);
   color: #fff;
   display: inline-grid;
   place-items: center;
   cursor: pointer;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--chat-accent, #e8792c) 35%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--chat-accent, #E7792C) 35%, transparent);
 }
 .chat-send-btn:disabled {
   opacity: 0.45;
@@ -669,7 +669,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   max-height: 220px;
   overflow-y: auto;
   background: #fff;
-  border: 1px solid var(--mod-border, #e2d9cc);
+  border: 1px solid var(--mod-border, #E5E7EB);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(33, 29, 26, 0.12);
   z-index: 5;
@@ -683,15 +683,15 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   padding: 0.7rem 0.85rem;
   font: inherit;
   cursor: pointer;
-  border-bottom: 1px solid var(--mod-border-soft, #ebe4da);
+  border-bottom: 1px solid var(--mod-border-soft, #E5E7EB);
 }
 .chat-ac__item.is-active,
 .chat-ac__item:hover {
-  background: var(--mod-accent-soft, #fff4eb);
+  background: var(--mod-accent-soft, #FDF0E6);
 }
 .chat-ac__item small {
   display: block;
-  color: var(--mod-muted, #6b645c);
+  color: var(--mod-muted, #667085);
   font-size: 0.78rem;
 }
 
@@ -707,7 +707,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   height: 64px;
   border-radius: 8px;
   overflow: hidden;
-  background: #ebe4da;
+  background: #E5E7EB;
 }
 .chat-pending-files__item img {
   width: 100%;
@@ -791,7 +791,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   flex: 1;
   overflow-y: auto;
   min-height: 120px;
-  border: 1px solid var(--mod-border-soft, #ebe4da);
+  border: 1px solid var(--mod-border-soft, #E5E7EB);
   border-radius: 10px;
 }
 .chat-modal__list button {
@@ -801,14 +801,14 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   width: 100%;
   text-align: left;
   border: none;
-  border-bottom: 1px solid var(--mod-border-soft, #ebe4da);
+  border-bottom: 1px solid var(--mod-border-soft, #E5E7EB);
   background: transparent;
   padding: 0.75rem 0.85rem;
   font: inherit;
   cursor: pointer;
 }
 .chat-modal__list button.is-selected {
-  background: var(--mod-accent-soft, #fff4eb);
+  background: var(--mod-accent-soft, #FDF0E6);
 }
 .chat-modal__foot {
   display: flex;
@@ -836,14 +836,14 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   width: 100%;
   text-align: left;
   border: none;
-  border-bottom: 1px solid var(--mod-border-soft, #ebe4da);
+  border-bottom: 1px solid var(--mod-border-soft, #E5E7EB);
   background: transparent;
   padding: 0.75rem 0.85rem;
   font: inherit;
   cursor: pointer;
 }
 .chat-mention-row.is-unread {
-  background: var(--mod-accent-soft, #fff4eb);
+  background: var(--mod-accent-soft, #FDF0E6);
 }
 .chat-mention-row__top {
   display: flex;
@@ -853,14 +853,14 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 }
 .chat-mention-row__body {
   font-size: 0.9rem;
-  color: var(--mod-ink, #211d1a);
+  color: var(--mod-ink, #221E1A);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .chat-mention-row__meta {
   font-size: 0.75rem;
-  color: var(--mod-faint, #8a8074);
+  color: var(--mod-faint, #98A2B3);
 }
 
 .chat-msg__actions {
@@ -875,7 +875,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 .chat-msg__actions button {
   border: none;
   background: transparent;
-  color: var(--mod-muted, #6b645c);
+  color: var(--mod-muted, #667085);
   font: inherit;
   font-size: 0.75rem;
   font-weight: 650;
@@ -883,7 +883,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   padding: 0.15rem 0.25rem;
 }
 .chat-msg__actions button:hover {
-  color: var(--mod-accent, #e8792c);
+  color: var(--mod-accent, #E7792C);
 }
 
 .chat-msg__edit {
@@ -894,7 +894,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 .chat-msg__edit textarea {
   width: 100%;
   min-height: 72px;
-  border: 1px solid var(--mod-border, #e2d9cc);
+  border: 1px solid var(--mod-border, #E5E7EB);
   border-radius: 10px;
   padding: 0.55rem;
   font: inherit;
@@ -910,10 +910,10 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
 .chat-msg__history {
   margin-top: 0.4rem;
   padding: 0.45rem 0.55rem;
-  background: var(--mod-surface-soft, #faf8f5);
+  background: var(--mod-surface-soft, #F7F8FA);
   border-radius: 8px;
   font-size: 0.78rem;
-  color: var(--mod-muted, #6b645c);
+  color: var(--mod-muted, #667085);
 }
 .chat-msg__history p {
   margin: 0.25rem 0;
@@ -969,7 +969,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
     max-height: var(--om-app-height, 100dvh) !important;
     min-height: 0 !important;
     overflow: hidden !important;
-    background: var(--mod-chrome, #f7f4ee) !important;
+    background: var(--mod-chrome, #F7F8FA) !important;
   }
 
   /* List view: leave room for Campo / office tabbar (bar includes safe-area) */
@@ -1071,7 +1071,7 @@ body.om-device-tablet.om-app.chat-app .dashboard-main.chat-main,
   height: 1.15rem;
   padding: 0 0.3rem;
   border-radius: 999px;
-  background: var(--mod-accent, #e8792c);
+  background: var(--mod-accent, #E7792C);
   color: #fff;
   font-size: 0.68rem;
   font-weight: 700;

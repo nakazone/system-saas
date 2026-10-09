@@ -1,7 +1,7 @@
 /* Relatórios hub — ObraMate */
 .rpt {
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 .rpt-header {
@@ -22,7 +22,7 @@
 
 .rpt-header__sub {
   margin: 0.25rem 0 0;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-size: 0.9rem;
   font-weight: 550;
 }
@@ -43,20 +43,20 @@
   height: 36px;
   padding: 0 0.75rem;
   border-radius: 10px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
   font: inherit;
   font-size: 0.8rem;
   font-weight: 650;
   cursor: pointer;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 .rpt-preset.is-active,
 .rpt-preset:hover {
-  border-color: var(--plab-accent, #e8792c);
-  color: var(--plab-accent-deep, #c2410c);
-  background: var(--plab-accent-soft, #fff4eb);
+  border-color: var(--plab-accent, #E7792C);
+  color: var(--plab-accent-deep, #B4561A);
+  background: var(--plab-accent-soft, #FDF0E6);
 }
 
 .rpt-date {
@@ -65,13 +65,13 @@
   gap: 0.2rem;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .rpt-date input {
   height: 36px;
   border-radius: 10px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   padding: 0 0.6rem;
   font: inherit;
   font-size: 0.85rem;
@@ -84,11 +84,11 @@
   gap: 0.4rem;
   margin: 0 0 1.25rem;
   padding: 0.55rem 0;
-  border-bottom: 1px solid var(--plab-line, #e7e5e4);
+  border-bottom: 1px solid var(--plab-line, #E5E7EB);
   position: sticky;
   top: calc(var(--crm-topbar-height, 56px) + 4px);
   z-index: 5;
-  background: linear-gradient(180deg, #f3f1ee 70%, rgba(243, 241, 238, 0.7));
+  background: linear-gradient(180deg, #F7F8FA 70%, rgba(243, 241, 238, 0.7));
 }
 
 .rpt-tab {
@@ -99,8 +99,8 @@
   padding: 0.45rem 0.85rem;
   border-radius: 999px;
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
-  color: var(--plab-muted, #78716c);
+  border: 1px solid var(--plab-line, #E5E7EB);
+  color: var(--plab-muted, #667085);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -108,14 +108,14 @@
 }
 
 .rpt-tab:hover {
-  color: var(--plab-accent-deep, #c2410c);
-  border-color: var(--plab-accent, #e8792c);
+  color: var(--plab-accent-deep, #B4561A);
+  border-color: var(--plab-accent, #E7792C);
 }
 
 .rpt-tab.is-active {
   color: #fff;
-  background: var(--plab-ink, #1c1917);
-  border-color: var(--plab-ink, #1c1917);
+  background: var(--plab-ink, #221E1A);
+  border-color: var(--plab-ink, #221E1A);
 }
 
 .rpt-tab__badge {
@@ -125,13 +125,13 @@
   text-transform: uppercase;
   padding: 0.12rem 0.4rem;
   border-radius: 999px;
-  background: var(--plab-accent, #e8792c);
+  background: var(--plab-accent, #E7792C);
   color: #fff;
 }
 
 .rpt-tab.is-active .rpt-tab__badge {
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 .rpt-irss-tools {
@@ -148,14 +148,14 @@
   gap: 0.2rem;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .rpt-irss-tools select {
   height: 36px;
   min-width: 140px;
   border-radius: 10px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   padding: 0 0.55rem;
   font: inherit;
   font-size: 0.85rem;
@@ -165,7 +165,7 @@
 .rpt-irss-note {
   margin: 0 0 1rem;
   font-size: 0.85rem;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-weight: 550;
 }
 
@@ -213,22 +213,22 @@
 .rpt-group {
   padding: 1rem 1.05rem 1.1rem;
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 16px;
-  border-top: 3px solid var(--plab-line, #e7e5e4);
+  border-top: 3px solid var(--plab-line, #E5E7EB);
 }
 
 .rpt-group--alert {
-  border-top-color: #e8792c;
+  border-top-color: #E7792C;
   background: linear-gradient(180deg, #fff8f1 0%, #fff 42%);
 }
 
 .rpt-group--focus {
-  border-top-color: var(--plab-ink, #1c1917);
+  border-top-color: var(--plab-ink, #221E1A);
 }
 
 .rpt-group--sales {
-  border-top-color: #e8792c;
+  border-top-color: #E7792C;
 }
 
 .rpt-group--ops {
@@ -236,11 +236,11 @@
 }
 
 .rpt-group--cash {
-  border-top-color: #15803d;
+  border-top-color: #536249;
 }
 
 .rpt-group--folha {
-  border-top-color: #78716c;
+  border-top-color: #667085;
 }
 
 .rpt-group__head {
@@ -256,14 +256,14 @@
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 .rpt-group__hint {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .rpt-group .rpt-kpis {
@@ -289,7 +289,7 @@
 .rpt-kpi--featured {
   grid-column: 1 / -1;
   padding: 1rem 1.05rem;
-  background: var(--plab-soft, #f5f4f2);
+  background: var(--plab-soft, #F1F3F5);
 }
 
 .rpt-kpi--featured .rpt-kpi__value {
@@ -297,22 +297,22 @@
 }
 
 .rpt-group--sales .rpt-kpi--featured {
-  background: color-mix(in srgb, #e8792c 10%, #fff);
-  border-color: color-mix(in srgb, #e8792c 28%, #e7e5e4);
+  background: color-mix(in srgb, #E7792C 10%, #fff);
+  border-color: color-mix(in srgb, #E7792C 28%, #E5E7EB);
 }
 
 .rpt-group--ops .rpt-kpi--featured {
   background: color-mix(in srgb, #3b82f6 8%, #fff);
-  border-color: color-mix(in srgb, #3b82f6 25%, #e7e5e4);
+  border-color: color-mix(in srgb, #3b82f6 25%, #E5E7EB);
 }
 
 .rpt-group--cash .rpt-kpi--featured {
-  background: color-mix(in srgb, #15803d 8%, #fff);
-  border-color: color-mix(in srgb, #15803d 22%, #e7e5e4);
+  background: color-mix(in srgb, #536249 8%, #fff);
+  border-color: color-mix(in srgb, #536249 22%, #E5E7EB);
 }
 
 .rpt-group--folha .rpt-kpi--featured {
-  background: #f5f4f2;
+  background: #F1F3F5;
 }
 
 .rpt-status,
@@ -322,14 +322,14 @@
 }
 
 .rpt-error {
-  color: #b91c1c;
+  color: #B4561A;
 }
 
 .rpt-sec {
   margin: 0 0 1.75rem;
   padding: 1.1rem 1.15rem 1.2rem;
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 16px;
 }
 
@@ -361,8 +361,8 @@
   font-size: 0.78rem;
   font-weight: 700;
   text-decoration: none;
-  color: var(--plab-accent-deep, #c2410c);
-  background: var(--plab-accent-soft, #fff4eb);
+  color: var(--plab-accent-deep, #B4561A);
+  background: var(--plab-accent-soft, #FDF0E6);
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 0.35rem 0.65rem;
@@ -371,7 +371,7 @@
 
 .rpt-sec__actions a:hover,
 .rpt-sec__actions button:hover {
-  border-color: var(--plab-accent, #e8792c);
+  border-color: var(--plab-accent, #E7792C);
 }
 
 .rpt-kpis {
@@ -383,15 +383,15 @@
 .rpt-kpi {
   padding: 0.85rem 0.9rem;
   border-radius: 12px;
-  background: var(--plab-soft, #f5f4f2);
-  border: 1px solid var(--plab-line, #e7e5e4);
+  background: var(--plab-soft, #F1F3F5);
+  border: 1px solid var(--plab-line, #E5E7EB);
 }
 
 .rpt-kpi__label {
   margin: 0;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -438,7 +438,7 @@
 .rpt-table td {
   text-align: left;
   padding: 0.55rem 0.45rem;
-  border-bottom: 1px solid var(--plab-line, #e7e5e4);
+  border-bottom: 1px solid var(--plab-line, #E5E7EB);
   white-space: nowrap;
 }
 
@@ -446,7 +446,7 @@
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-weight: 750;
 }
 
@@ -458,12 +458,12 @@
 
 .rpt-empty {
   margin: 0.5rem 0 0;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-size: 0.88rem;
   font-weight: 550;
 }
 
 .rpt-muted {
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-size: 0.82rem;
 }

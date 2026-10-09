@@ -23,7 +23,7 @@ const BRANDING_INJECT = [
   // App-wide neutral theme (desktop dock, iPhone tab bar, Geist). Loaded last so it wins the cascade.
   '<link rel="preconnect" href="https://fonts.googleapis.com" />',
   '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" />',
-  '<link rel="stylesheet" href="/om-theme.css?v=20261008-neutro2" data-om-theme />',
+  '<link rel="stylesheet" href="/om-theme.css?v=20261008-modulos1" data-om-theme />',
   '<script src="/saas-branding.js?v=20261002-branddoc1" defer data-saas-branding-js></script>',
 ].join("\n    ");
 

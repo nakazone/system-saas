@@ -1,19 +1,19 @@
 /* Pipeline Lab — experimental layout prototype for ObraMate */
 
 :root {
-  --plab-ink: #1c1917;
-  --plab-muted: #78716c;
-  --plab-faint: #a8a29e;
-  --plab-line: #e7e5e4;
-  --plab-soft: #f5f4f2;
-  --plab-bg: #f3f1ee;
+  --plab-ink: #221E1A;
+  --plab-muted: #667085;
+  --plab-faint: #98A2B3;
+  --plab-line: #E5E7EB;
+  --plab-soft: #F1F3F5;
+  --plab-bg: #F7F8FA;
   --plab-surface: #ffffff;
-  --plab-accent: #e8792c;
-  --plab-accent-soft: #fff4eb;
-  --plab-accent-deep: #c2410c;
-  --plab-ok: #059669;
+  --plab-accent: #E7792C;
+  --plab-accent-soft: #FDF0E6;
+  --plab-accent-deep: #B4561A;
+  --plab-ok: #536249;
   --plab-warn: #d97706;
-  --plab-danger: #dc2626;
+  --plab-danger: #B4561A;
   --plab-radius: 16px;
   --plab-radius-sm: 12px;
   --plab-shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 8px 24px rgba(28, 25, 23, 0.05);
@@ -911,7 +911,7 @@ body.om-app .om-dock__btn svg { width: 16px; height: 16px; }
     margin-top: auto !important;
     width: 100% !important;
     padding: 0.75rem 0 0 !important;
-    border-top: 1px solid var(--plab-line, #e2d9cc) !important;
+    border-top: 1px solid var(--plab-line, #E5E7EB) !important;
     background: #fff !important;
     display: flex !important;
     flex-direction: column !important;

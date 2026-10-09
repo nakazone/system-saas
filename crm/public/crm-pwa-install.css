@@ -7,9 +7,9 @@
   height: 40px;
   padding: 0 12px;
   border-radius: 10px;
-  border: 1px solid var(--color-border, #e2d9cc);
-  background: var(--color-surface-secondary, #f7f4ee);
-  color: var(--color-text-primary, #211d1a);
+  border: 1px solid var(--color-border, #E5E7EB);
+  background: var(--color-surface-secondary, #F7F8FA);
+  color: var(--color-text-primary, #221E1A);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
@@ -22,7 +22,7 @@
 .crm-topbar__install-btn:hover,
 .crm-topbar__install-btn:focus-visible {
   background: #fff;
-  border-color: var(--color-accent, #e8792c);
+  border-color: var(--color-accent, #E7792C);
   outline: none;
 }
 
@@ -45,7 +45,7 @@
   border: none;
   border-radius: 10px;
   background: rgba(33, 29, 26, 0.06);
-  color: var(--color-text-primary, #211d1a);
+  color: var(--color-text-primary, #221E1A);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -94,7 +94,7 @@
   border-radius: 16px;
   padding: 1.5rem 1.35rem 1.25rem;
   box-shadow: 0 20px 50px rgba(33, 29, 26, 0.22);
-  border: 1px solid var(--color-border, #e2d9cc);
+  border: 1px solid var(--color-border, #E5E7EB);
 }
 
 .crm-pwa-install__close {
@@ -108,13 +108,13 @@
   background: transparent;
   font-size: 1.5rem;
   line-height: 1;
-  color: var(--color-text-muted, #8a8074);
+  color: var(--color-text-muted, #98A2B3);
   cursor: pointer;
 }
 
 .crm-pwa-install__close:hover {
-  background: var(--color-surface-secondary, #f7f4ee);
-  color: var(--color-text-primary, #211d1a);
+  background: var(--color-surface-secondary, #F7F8FA);
+  color: var(--color-text-primary, #221E1A);
 }
 
 .crm-pwa-install__icon {
@@ -139,12 +139,12 @@
 .crm-pwa-install__title {
   margin: 0 0 0.35rem;
   font-size: 1.25rem;
-  color: var(--color-text-primary, #211d1a);
+  color: var(--color-text-primary, #221E1A);
 }
 
 .crm-pwa-install__lead {
   margin: 0 0 1rem;
-  color: var(--color-text-secondary, #6b645c);
+  color: var(--color-text-secondary, #667085);
   font-size: 0.925rem;
   line-height: 1.45;
 }
@@ -152,7 +152,7 @@
 .crm-pwa-install__steps {
   margin: 0 0 0.75rem;
   padding-left: 1.2rem;
-  color: var(--color-text-primary, #211d1a);
+  color: var(--color-text-primary, #221E1A);
   font-size: 0.925rem;
   line-height: 1.55;
 }
@@ -164,7 +164,7 @@
 .crm-pwa-install__hint {
   margin: 0;
   font-size: 0.8rem;
-  color: var(--color-text-muted, #8a8074);
+  color: var(--color-text-muted, #98A2B3);
 }
 
 .crm-pwa-install__actions {
@@ -191,7 +191,7 @@
 
   .dashboard-app-body.sf-mobile-shell .mobile-app-header__install:not([hidden]) {
     background: rgba(33, 29, 26, 0.06);
-    color: var(--sf-text-primary, #211d1a);
+    color: var(--sf-text-primary, #221E1A);
   }
 
   .mobile-app-header .notification-bell-wrap--mobile {

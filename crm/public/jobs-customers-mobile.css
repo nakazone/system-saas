@@ -2,7 +2,7 @@
 .jcm {
   display: none;
   font-family: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   box-sizing: border-box;
 }
 
@@ -32,7 +32,7 @@ body.om-device-mobile.cli-app .dashboard-main {
   padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.35rem) !important;
   padding-bottom: calc(var(--om-tabbar-h, 64px) + env(safe-area-inset-bottom, 0px) + 5.5rem) !important;
   margin: 0 !important;
-  background: var(--plab-bg, #f3f1ee) !important;
+  background: var(--plab-bg, #F7F8FA) !important;
   min-height: 100dvh;
   height: auto !important;
   max-height: none !important;
@@ -69,9 +69,9 @@ body.om-device-mobile.cli-app .jcm {
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -91,8 +91,8 @@ body.om-device-mobile.cli-app .jcm {
 }
 
 .jcm-icon-btn--accent {
-  background: var(--plab-accent, #e8792c);
-  border-color: var(--plab-accent, #e8792c);
+  background: var(--plab-accent, #E7792C);
+  border-color: var(--plab-accent, #E7792C);
   color: #fff;
   box-shadow: 0 6px 16px rgba(232, 121, 44, 0.28);
 }
@@ -108,7 +108,7 @@ body.om-device-mobile.cli-app .jcm {
 .jcm-role__btn {
   border: none;
   background: transparent;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font: inherit;
   font-size: 0.75rem;
   font-weight: 750;
@@ -119,7 +119,7 @@ body.om-device-mobile.cli-app .jcm {
 
 .jcm-role__btn.is-active {
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   box-shadow: 0 2px 8px rgba(28, 25, 23, 0.08);
 }
 
@@ -135,7 +135,7 @@ body.om-device-mobile.cli-app .jcm {
   margin: 0.3rem 0 0;
   font-size: 0.84rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .jcm-search {
@@ -146,13 +146,13 @@ body.om-device-mobile.cli-app .jcm {
   padding: 0.75rem 0.95rem;
   border-radius: 999px;
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
 }
 
 .jcm-search svg {
   width: 18px;
   height: 18px;
-  stroke: var(--plab-faint, #a8a29e);
+  stroke: var(--plab-faint, #98A2B3);
   fill: none;
   stroke-width: 1.85;
   flex-shrink: 0;
@@ -165,7 +165,7 @@ body.om-device-mobile.cli-app .jcm {
   font: inherit;
   font-size: 0.9rem;
   width: 100%;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 .jcm-chips {
@@ -185,9 +185,9 @@ body.om-device-mobile.cli-app .jcm {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   border-radius: 999px;
   padding: 0.45rem 0.75rem;
   font: inherit;
@@ -197,8 +197,8 @@ body.om-device-mobile.cli-app .jcm {
 }
 
 .jcm-chip.is-active {
-  background: var(--plab-ink, #1c1917);
-  border-color: var(--plab-ink, #1c1917);
+  background: var(--plab-ink, #221E1A);
+  border-color: var(--plab-ink, #221E1A);
   color: #fff;
 }
 
@@ -233,7 +233,7 @@ body.om-device-mobile.cli-app .jcm {
   flex: 1 0 auto;
   border: none;
   background: transparent;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font: inherit;
   font-size: 0.8rem;
   font-weight: 700;
@@ -245,7 +245,7 @@ body.om-device-mobile.cli-app .jcm {
 
 .jcm-seg__btn.is-active {
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   box-shadow: 0 2px 8px rgba(28, 25, 23, 0.08);
 }
 
@@ -262,7 +262,7 @@ body.om-device-mobile.cli-app .jcm {
   align-items: center;
   padding: 0.85rem 0.9rem;
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 16px;
   text-decoration: none;
   color: inherit;
@@ -294,7 +294,7 @@ body.om-device-mobile.cli-app .jcm {
   margin: 0.2rem 0 0;
   font-size: 0.72rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .jcm-cli__amt {
@@ -316,7 +316,7 @@ body.om-device-mobile.cli-app .jcm {
 
 .jcm-badge--overdue {
   background: rgba(220, 38, 38, 0.12);
-  color: #b91c1c;
+  color: #B4561A;
 }
 
 .jcm-badge--open {
@@ -326,12 +326,12 @@ body.om-device-mobile.cli-app .jcm {
 
 .jcm-badge--ok {
   background: rgba(5, 150, 105, 0.12);
-  color: #047857;
+  color: #536249;
 }
 
 .jcm-badge--progress {
   background: rgba(217, 119, 6, 0.14);
-  color: #b45309;
+  color: #B4561A;
 }
 
 .jcm-badge--sched {
@@ -341,17 +341,17 @@ body.om-device-mobile.cli-app .jcm {
 
 .jcm-badge--done {
   background: rgba(5, 150, 105, 0.12);
-  color: #047857;
+  color: #536249;
 }
 
 .jcm-badge--builder {
-  background: var(--plab-accent-soft, #fff4eb);
-  color: var(--plab-accent-deep, #c2410c);
+  background: var(--plab-accent-soft, #FDF0E6);
+  color: var(--plab-accent-deep, #B4561A);
 }
 
 .jcm-job {
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 18px;
   padding: 0.95rem 1rem;
   text-decoration: none;
@@ -371,7 +371,7 @@ body.om-device-mobile.cli-app .jcm {
   margin: 0;
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .jcm-job__title {
@@ -385,7 +385,7 @@ body.om-device-mobile.cli-app .jcm {
   margin: 0.3rem 0 0;
   font-size: 0.75rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .jcm-job__team {
@@ -395,14 +395,14 @@ body.om-device-mobile.cli-app .jcm {
   margin-top: 0.55rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 .jcm-job__team-dot {
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  background: #e8792c;
+  background: #E7792C;
   flex-shrink: 0;
 }
 
@@ -419,7 +419,7 @@ body.om-device-mobile.cli-app .jcm {
   border-radius: 12px;
   border: none;
   background: rgba(28, 25, 23, 0.06);
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -451,11 +451,11 @@ body.om-device-mobile.cli-app .jcm {
 }
 
 .jcm-job__cta--start {
-  background: var(--plab-accent, #e8792c);
+  background: var(--plab-accent, #E7792C);
 }
 
 .jcm-job__cta--done {
-  background: #1c1917;
+  background: #221E1A;
 }
 
 /* —— Field employee cards —— */
@@ -466,8 +466,8 @@ body.jcm-field .jcm-role {
 body.jcm-field .jcm-job--field {
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--plab-line, #e7e5e4);
-  border-left: 4px solid var(--job-accent, #e8792c);
+  border: 1px solid var(--plab-line, #E5E7EB);
+  border-left: 4px solid var(--job-accent, #E7792C);
   box-shadow: 0 10px 28px rgba(28, 25, 23, 0.06);
 }
 
@@ -490,17 +490,17 @@ body.jcm-field .jcm-job__day {
   font-weight: 750;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 body.jcm-field .jcm-job__day.is-today {
-  color: var(--plab-accent-deep, #c2410c);
+  color: var(--plab-accent-deep, #B4561A);
 }
 
 body.jcm-field .jcm-job__time {
   font-size: 0.95rem;
   font-weight: 800;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 body.jcm-field .jcm-job__title {
@@ -513,7 +513,7 @@ body.jcm-field .jcm-job__client {
   margin: 0.35rem 0 0;
   font-size: 0.9rem;
   font-weight: 650;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 body.jcm-field .jcm-job__addr {
@@ -524,7 +524,7 @@ body.jcm-field .jcm-job__addr {
   font-size: 0.82rem;
   font-weight: 550;
   line-height: 1.35;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 body.jcm-field .jcm-job__addr svg {
@@ -548,13 +548,13 @@ body.jcm-field .jcm-job__foot {
 body.jcm-field .jcm-job__num {
   font-size: 0.75rem;
   font-weight: 750;
-  color: var(--plab-faint, #a8a29e);
+  color: var(--plab-faint, #98A2B3);
 }
 
 body.jcm-field .jcm-job__team {
   margin-top: 0;
   font-size: 0.72rem;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 body.jcm-field .jcm-job__actions {
@@ -565,7 +565,7 @@ body.jcm-field .jcm-job__actions {
 .jcm-empty {
   margin: 1.5rem 0;
   text-align: center;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-size: 0.9rem;
   font-weight: 550;
 }
@@ -610,7 +610,7 @@ body.jcm-field .jcm-job__actions {
 .jcm-profile__since {
   font-size: 0.78rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .jcm-quick {
@@ -627,9 +627,9 @@ body.jcm-field .jcm-job__actions {
   gap: 0.35rem;
   padding: 0.75rem 0.35rem;
   border-radius: 14px;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   background: #fff;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
   font: inherit;
   font-size: 0.68rem;
   font-weight: 700;
@@ -654,15 +654,15 @@ body.jcm-field .jcm-job__actions {
 
 .jcm-kpi {
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 14px;
   padding: 0.75rem 0.55rem;
   text-align: center;
 }
 
 .jcm-kpi--accent {
-  background: var(--plab-accent, #e8792c);
-  border-color: var(--plab-accent, #e8792c);
+  background: var(--plab-accent, #E7792C);
+  border-color: var(--plab-accent, #E7792C);
   color: #fff;
 }
 
@@ -682,7 +682,7 @@ body.jcm-field .jcm-job__actions {
 
 .jcm-card {
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
+  border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 16px;
   padding: 0.85rem 1rem;
   margin-bottom: 0.75rem;
@@ -702,7 +702,7 @@ body.jcm-field .jcm-job__actions {
 }
 
 .jcm-dl__k {
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   font-weight: 550;
 }
 
@@ -724,7 +724,7 @@ body.jcm-field .jcm-job__actions {
   font-size: 0.68rem;
   font-weight: 750;
   letter-spacing: 0.06em;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   text-transform: uppercase;
 }
 
@@ -733,7 +733,7 @@ body.jcm-field .jcm-job__actions {
   font-size: 0.85rem;
   font-weight: 550;
   line-height: 1.45;
-  color: var(--plab-ink, #1c1917);
+  color: var(--plab-ink, #221E1A);
 }
 
 .jcm-foot {
@@ -768,18 +768,18 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
 
 .jcm-foot__btn--ghost {
   background: #fff;
-  border: 1px solid var(--plab-line, #e7e5e4);
-  color: var(--plab-ink, #1c1917);
+  border: 1px solid var(--plab-line, #E5E7EB);
+  color: var(--plab-ink, #221E1A);
 }
 
 .jcm-foot__btn--primary {
-  background: var(--plab-accent, #e8792c);
+  background: var(--plab-accent, #E7792C);
   color: #fff;
   box-shadow: 0 8px 22px rgba(232, 121, 44, 0.28);
 }
 
 .jcm-foot__btn--ink {
-  background: var(--plab-ink, #1c1917);
+  background: var(--plab-ink, #221E1A);
   color: #fff;
 }
 
@@ -792,7 +792,7 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
   margin: 0;
   font-size: 0.82rem;
   font-weight: 600;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .jcm-jd__name {
@@ -806,7 +806,7 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
   margin: 0.25rem 0 0.85rem;
   font-size: 0.85rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .jcm-jd__info {
@@ -828,8 +828,8 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--plab-accent-soft, #fff4eb);
-  color: var(--plab-accent-deep, #c2410c);
+  background: var(--plab-accent-soft, #FDF0E6);
+  color: var(--plab-accent-deep, #B4561A);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -872,30 +872,30 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 2px solid var(--plab-line, #e7e5e4);
+  border: 2px solid var(--plab-line, #E5E7EB);
   background: #fff;
   flex-shrink: 0;
 }
 
 .jcm-tl.is-done .jcm-tl__dot {
-  background: var(--plab-ok, #059669);
-  border-color: var(--plab-ok, #059669);
+  background: var(--plab-ok, #536249);
+  border-color: var(--plab-ok, #536249);
 }
 
 .jcm-tl.is-current .jcm-tl__dot {
-  border-color: var(--plab-accent, #e8792c);
+  border-color: var(--plab-accent, #E7792C);
 }
 
 .jcm-tl__line {
   flex: 1;
   width: 2px;
-  background: var(--plab-line, #e7e5e4);
+  background: var(--plab-line, #E5E7EB);
   margin-top: 0.25rem;
   min-height: 18px;
 }
 
 .jcm-tl.is-done .jcm-tl__line {
-  background: var(--plab-ok, #059669);
+  background: var(--plab-ok, #536249);
 }
 
 .jcm-tl:last-child .jcm-tl__line {
@@ -912,7 +912,7 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
   margin: 0.2rem 0 0;
   font-size: 0.75rem;
   font-weight: 550;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
 }
 
 .jcm-pane[hidden] {
@@ -936,7 +936,7 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
   gap: 0.25rem;
   font-size: 0.68rem;
   font-weight: 700;
-  color: var(--plab-muted, #78716c);
+  color: var(--plab-muted, #667085);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   flex: 0 0 auto;
@@ -953,8 +953,8 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
-  color: var(--plab-ink, #1c1917);
-  border: 1px solid var(--plab-line, #e7e5e4);
+  color: var(--plab-ink, #221E1A);
+  border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 10px;
   padding: 0.55rem 0.65rem;
   background: #fff;
@@ -988,7 +988,7 @@ body.om-device-mobile.job-detail-app .jcm-foot.is-visible {
   aspect-ratio: 1;
   border-radius: 14px;
   overflow: hidden;
-  background: #ebe7e0;
+  background: #E5E7EB;
   text-decoration: none;
   color: #fff;
 }

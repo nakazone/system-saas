@@ -1,16 +1,16 @@
 /* Job page — header, progress steps and tabs (desktop + tablet).
-   Brand: terracota #e8792c / #c1652f, carvão #211d1a, creme #f7f4ee. No green. */
+   Brand: terracota #E7792C / #B4561A, carvão #221E1A, creme #F7F8FA. No green. */
 
 .jd {
-  --jd-ink: #211d1a;
-  --jd-ink-2: #4a433d;
-  --jd-muted: #8a8074;
-  --jd-line: #e8dfd2;
-  --jd-line-2: #efe8dc;
-  --jd-cream: #f7f4ee;
-  --jd-terra: #e8792c;
-  --jd-terra-d: #c1652f;
-  --jd-terra-soft: #fdf1e7;
+  --jd-ink: #221E1A;
+  --jd-ink-2: #475467;
+  --jd-muted: #98A2B3;
+  --jd-line: #E5E7EB;
+  --jd-line-2: #F1F3F5;
+  --jd-cream: #F7F8FA;
+  --jd-terra: #E7792C;
+  --jd-terra-d: #B4561A;
+  --jd-terra-soft: #FDF0E6;
   color: var(--jd-ink);
   font-size: 14px;
   max-width: 1320px;
@@ -36,15 +36,15 @@
 
 .jd-pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
 .jd-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.jd-pill--draft { background: #f1ede6; color: var(--jd-ink-2); }
+.jd-pill--draft { background: #F1F3F5; color: var(--jd-ink-2); }
 .jd-pill--scheduled { background: #fff; color: var(--jd-ink); border: 1px solid var(--jd-line); }
 .jd-pill--progress { background: var(--jd-terra-soft); color: var(--jd-terra-d); border: 1px solid #f3cfb1; }
 .jd-pill--done { background: var(--jd-ink); color: #fff; }
-.jd-pill--canceled { background: #f6e3e0; color: #9b2c1f; }
+.jd-pill--canceled { background: #f6e3e0; color: #B4561A; }
 .jd-pill--delivery { background: var(--jd-terra-soft); color: var(--jd-terra-d); border: 1px solid #f3cfb1; }
 
 .jd-btn { height: 40px; padding: 0 15px; border-radius: 11px; border: 1px solid var(--jd-line); background: #fff; font: inherit; font-size: 13.5px; font-weight: 800; color: var(--jd-ink); display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; text-decoration: none; white-space: nowrap; }
-.jd-btn:hover { border-color: #d6c9b8; }
+.jd-btn:hover { border-color: #D0D5DD; }
 .jd-btn.is-on { background: var(--jd-ink); color: #fff; border-color: var(--jd-ink); }
 .jd-btn--pri { background: var(--jd-terra); border-color: var(--jd-terra); color: #fff; box-shadow: 0 8px 18px rgba(232, 121, 44, 0.26); }
 .jd-btn--pri:hover { background: var(--jd-terra-d); border-color: var(--jd-terra-d); }
@@ -63,7 +63,7 @@
 .jd-menu__list[hidden], .jd-menu__sub[hidden] { display: none; }
 .jd-menu__list > a, .jd-menu__list > button, .jd-menu__sub > button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border: 0; background: none; border-radius: 8px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--jd-ink); text-align: left; text-decoration: none; cursor: pointer; }
 .jd-menu__list > a:hover, .jd-menu__list > button:hover, .jd-menu__sub > button:hover { background: var(--jd-cream); }
-.jd-menu__list .is-danger { color: #b42318; }
+.jd-menu__list .is-danger { color: #B4561A; }
 .jd-menu__sub { display: grid; padding: 2px 0 6px 10px; border-bottom: 1px solid var(--jd-line-2); margin-bottom: 4px; }
 
 /* steps */
@@ -78,7 +78,7 @@
 .jd-step.is-cur { color: var(--jd-terra-d); }
 .jd-step.is-cur i { border-color: var(--jd-terra); color: var(--jd-terra-d); }
 .jd-step.is-cur small { color: var(--jd-terra-d); }
-.jd-step.is-canceled { color: #9b2c1f; }
+.jd-step.is-canceled { color: #B4561A; }
 .jd-step.is-canceled i { border-color: #e7b3aa; }
 
 /* tabs */
@@ -126,8 +126,8 @@
 .jd-alert > div { flex: 1; min-width: 220px; }
 .jd-alert b { font-size: 12px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--jd-terra-d); }
 .jd-alert p { margin: 4px 0 0; line-height: 1.5; white-space: pre-wrap; }
-.jd-alert--problem { background: #fdf0ee; border-color: #f2cdc6; }
-.jd-alert--problem b { color: #9b2c1f; }
+.jd-alert--problem { background: #FDF0E6; border-color: #f2cdc6; }
+.jd-alert--problem b { color: #B4561A; }
 .jd-delivery {
   flex: 1 1 100%;
   min-width: 220px;
@@ -201,9 +201,9 @@
 .jd-invs b { font-size: 13.5px; }
 .jd-invs small { color: var(--jd-muted); font-size: 12px; }
 .jd-invs__amt { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
-.jd-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 800; font-style: normal; background: #f1ede6; color: var(--jd-ink-2); white-space: nowrap; }
+.jd-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 800; font-style: normal; background: #F1F3F5; color: var(--jd-ink-2); white-space: nowrap; }
 .jd-tag--paid { background: var(--jd-ink); color: #fff; }
-.jd-tag--overdue { background: #fbe4df; color: #9b2c1f; }
+.jd-tag--overdue { background: #fbe4df; color: #B4561A; }
 .jd-tag--sent, .jd-tag--viewed, .jd-tag--partially_paid { background: var(--jd-terra-soft); color: var(--jd-terra-d); }
 
 /* after the job */
@@ -242,22 +242,22 @@
 }
 .jd-photo__gps {
   display: inline-flex; align-items: center; gap: 2px;
-  font-weight: 700; color: #065f46; text-decoration: none;
+  font-weight: 700; color: #536249; text-decoration: none;
 }
 .jd-photo__gps:hover { text-decoration: underline; }
-.jd-photo__gps.is-far { color: #c2410c; }
-.jd-photo__gps.is-off { color: #8a8074; font-weight: 600; }
+.jd-photo__gps.is-far { color: #B4561A; }
+.jd-photo__gps.is-off { color: #98A2B3; font-weight: 600; }
 .jd-photo__when { color: var(--jd-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
 .jd-photo__addr {
-  color: #6b645c; font-weight: 600; max-width: 220px;
+  color: #667085; font-weight: 600; max-width: 220px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.jd-photo__dist { color: #6b645c; }
-.jd-photo__dist.is-far { color: #c2410c; font-weight: 700; }
+.jd-photo__dist { color: #667085; }
+.jd-photo__dist.is-far { color: #B4561A; font-weight: 700; }
 .jd-gps-summary {
   margin: 0 0 10px; font-size: 13px; color: var(--jd-ink-2);
 }
-.jd-gps-far { color: #c2410c; font-weight: 700; }
+.jd-gps-far { color: #B4561A; font-weight: 700; }
 
 /* reports & inspections */
 .jd-reports { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
