@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="lead-page.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="lead-page.css?v=20261009-lpb1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261008-modulos1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -78,36 +78,27 @@
         <div class="lp-error" id="lpError" hidden></div>
 
         <div id="lpPage" hidden>
+          <a class="lp-crumb" href="leads.html"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Leads</a>
           <header class="lp-head">
-            <div class="lp-head__left">
-              <a class="lp-crumb" href="leads.html">← Funil de leads</a>
-              <h1 class="lp-title"><span id="lpName">—</span>
-                <button type="button" class="lp-icon-btn" data-lp-edit="contact" aria-label="Editar nome e contato" title="Editar">✎</button>
-              </h1>
-              <div class="lp-meta" id="lpMeta"></div>
+            <div class="lp-head__row">
+              <span class="lp-avatar" id="lpAvatar" aria-hidden="true">—</span>
+              <div class="lp-head__left">
+                <h1 class="lp-title"><span id="lpName">—</span>
+                  <button type="button" class="lp-icon-btn" data-lp-edit="contact" aria-label="Editar nome e contato" title="Editar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>
+                </h1>
+                <div class="lp-meta" id="lpMeta"></div>
+              </div>
+              <div class="lp-actions" id="lpActions"></div>
             </div>
-            <div class="lp-actions" id="lpActions"></div>
+            <nav class="lp-funnel" id="lpFunnel" aria-label="Etapa do funil"></nav>
           </header>
 
           <div class="lp-lost" id="lpLost" hidden></div>
-          <nav class="lp-funnel" id="lpFunnel" aria-label="Etapa do funil"></nav>
 
-          <div class="lp-next-mob" id="lpNextMob"></div>
-
-          <div class="lp-grid">
-            <div class="lp-main-col">
-              <div class="lp-tabs" role="tablist" id="lpTabs">
-                <button type="button" role="tab" class="lp-tab is-on" data-lp-tab="geral">Visão geral</button>
-                <button type="button" role="tab" class="lp-tab" data-lp-tab="atividade">Atividade <span class="lp-tab__n" id="lpTabNAtv"></span></button>
-                <button type="button" role="tab" class="lp-tab" data-lp-tab="orcamentos">Orçamentos e visitas <span class="lp-tab__n" id="lpTabNOrc"></span></button>
-                <button type="button" role="tab" class="lp-tab" data-lp-tab="qualificacao">Qualificação</button>
-              </div>
-              <section class="lp-panel" data-lp-panel="geral" id="lpPanelGeral"></section>
-              <section class="lp-panel" data-lp-panel="atividade" id="lpPanelAtividade" hidden></section>
-              <section class="lp-panel" data-lp-panel="orcamentos" id="lpPanelOrcamentos" hidden></section>
-              <section class="lp-panel" data-lp-panel="qualificacao" id="lpPanelQualificacao" hidden></section>
-            </div>
-            <aside class="lp-side" id="lpSide"></aside>
+          <div class="lp-grid3">
+            <aside class="lp-left" id="lpLeft" aria-label="Dados do lead"></aside>
+            <section class="lp-center" id="lpCenter" aria-label="Próximo passo e linha do tempo"></section>
+            <aside class="lp-right" id="lpRight" aria-label="Orçamentos e visitas"></aside>
           </div>
         </div>
       </div>
@@ -138,6 +129,6 @@
   <script src="crm-shell.js?v=20261008-name1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="om-gestures.js?v=20261002-gest1"></script>
-  <script src="lead-page.js?v=20261007-stage1"></script>
+  <script src="lead-page.js?v=20261009-lpb1"></script>
 </body>
 </html>

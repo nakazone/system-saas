@@ -931,7 +931,28 @@
   const SOFT_AVATARS = ["#e9d5ff", "#fce7f3", "#dbeafe", "#d1fae5", "#ffedd5", "#e0e7ff", "#fef3c7"];
   let stages = [];
   let leads = [];
-  let mobileStageSlug = "";
+  let mobileStageSlug = "all";
+  let quoteByLead = {};
+  const STAGE_PT = {
+    new_lead: "Novo lead",
+    contacted: "Contactado",
+    meeting_scheduled: "Visita agendada",
+    quote_sent: "Orçamento enviado",
+    follow_up_1: "Follow-up",
+    stand_by: "Stand-by",
+    won: "Ganho",
+    lost: "Perdido",
+  };
+  function leadAmount(lead) {
+    const sig = window.omLeadSignals;
+    if (!sig) return Number(lead.estimated_value) || 0;
+    return sig.value(lead, quoteByLead[lead.id] || null).amount || 0;
+  }
+  function daysInStage(lead) {
+    const raw = lead.pipeline_stage_entered_at || lead.updated_at || lead.created_at;
+    const sig = window.omLeadSignals;
+    return sig ? sig.daysSince(raw) : null;
+  }
   let mleadsSwipeBound = false;
   const MLEADS_BTN_W = 76;
 
@@ -959,6 +980,8 @@
   }
 
   function stageLabel(stage) {
+    const pt = stage && STAGE_PT[normalizeSlug(stage.slug)];
+    if (pt) return pt;
     if (typeof window.pipelineStageDisplayName === "function") return window.pipelineStageDisplayName(stage.slug, stage.name);
     return stage.name || stage.slug || "—";
   }
@@ -1333,35 +1356,38 @@
     );
   }
 
-  function renderMobileKpis(ov) {
-    const board = (ov && ov.board) || [];
-    const openCols = board.filter((c) => {
-      const s = normalizeSlug(c.slug);
-      return s !== "won" && s !== "lost";
+  function renderMobileKpis() {
+    const open = leads.filter((l) => {
+      const c = leadSlug(l);
+      return c !== "won" && c !== "lost";
     });
-    const openValue = openCols.reduce((s, c) => s + (Number(c.value) || 0), 0);
-    const openCount = openCols.reduce((s, c) => s + (Number(c.count) || 0), 0);
-    const pipeEl = $("mleadsKpiPipeline");
-    const pipeMeta = $("mleadsKpiPipelineMeta");
-    if (pipeEl) pipeEl.textContent = D.money(openValue);
-    if (pipeMeta) {
-      pipeMeta.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17l5-5 5 5"/><path d="M7 10l5-5 5 5"/></svg>' +
-        esc(D.plural(openCount, "lead aberto", "leads abertos"));
-    }
-    const c = ov && ov.kpis && ov.kpis.conversion;
-    if (c) {
-      $("mleadsKpiConversion").textContent = c.rate == null ? "—" : `${String(c.rate).replace(".", ",")}%`;
-      $("mleadsKpiConversionMeta").textContent = `${c.won} ganhos · ${c.lost} perdidos`;
-    }
+    const openValue = open.reduce((sum, l) => sum + leadAmount(l), 0);
+    const stale = open.filter((l) => {
+      const d = daysInStage(l);
+      return d != null && d >= 5;
+    }).length;
+    const set = (id, v) => {
+      const el = $(id);
+      if (el) el.textContent = v;
+    };
+    set("mleadsKpiPipeline", D.money(openValue));
+    set("mleadsKpiOpen", String(open.length));
+    set("mleadsKpiStale", String(stale));
+    const st = $("mleadsKpiStale");
+    if (st) st.classList.toggle("is-hot", stale > 0);
   }
 
   function renderMobileChips(rows) {
     const host = $("mleadsChips");
     if (!host) return;
     const cols = mobileBoardStages();
-    if (!mobileStageSlug && cols[0]) mobileStageSlug = normalizeSlug(cols[0].slug);
-    host.innerHTML = cols
+    if (!mobileStageSlug) mobileStageSlug = "all";
+    const openCount = rows.filter((l) => !["won", "lost"].includes(leadSlug(l))).length;
+    host.innerHTML =
+      `<button type="button" class="mleads-chip${mobileStageSlug === "all" ? " is-active" : ""}" data-stage="all" role="tab" aria-selected="${
+        mobileStageSlug === "all" ? "true" : "false"
+      }"><span>Todos</span><span class="mleads-chip__count">${openCount}</span></button>` +
+      cols
       .map((st) => {
         const slug = normalizeSlug(st.slug);
         const count = rows.filter((l) => leadSlug(l) === slug).length;
@@ -1389,12 +1415,18 @@
     const list = $("mleadsList");
     const empty = $("mleadsEmpty");
     const cols = mobileBoardStages();
-    const stage = cols.find((s) => normalizeSlug(s.slug) === mobileStageSlug) || cols[0];
+    const isAll = mobileStageSlug === "all";
+    const stage = isAll ? null : cols.find((s) => normalizeSlug(s.slug) === mobileStageSlug) || cols[0];
     const slug = stage ? normalizeSlug(stage.slug) : mobileStageSlug;
-    const stageRows = rows.filter((l) => leadSlug(l) === slug);
-    const stageValue = stageRows.reduce((s, l) => s + (Number(l.estimated_value) || 0), 0);
-    const stageColor = (stage && stage.color) || "#a8a29e";
-    const label = stage ? stageLabel(stage) : "Leads";
+    const order = cols.map((c) => normalizeSlug(c.slug));
+    const stageRows = isAll
+      ? rows
+          .filter((l) => !["won", "lost"].includes(leadSlug(l)))
+          .sort((a, b) => order.indexOf(leadSlug(a)) - order.indexOf(leadSlug(b)))
+      : rows.filter((l) => leadSlug(l) === slug);
+    const stageValue = stageRows.reduce((s, l) => s + leadAmount(l), 0);
+    const stageOf = (l) => cols.find((c) => normalizeSlug(c.slug) === leadSlug(l));
+    const label = stage ? stageLabel(stage) : "Leads abertos";
 
     $("mleadsSectionTitle").textContent = label;
     $("mleadsSectionMeta").textContent = `${D.plural(stageRows.length, "lead", "leads")} · ${D.money(stageValue)}`;
@@ -1423,7 +1455,13 @@
     list.innerHTML = stageRows
       .map((lead) => {
         const id = esc(lead.id);
-        const val = Number(lead.estimated_value) || 0;
+        const sig = window.omLeadSignals;
+        const q = quoteByLead[lead.id] || null;
+        const v = sig ? sig.value(lead, q) : { amount: Number(lead.estimated_value) || 0, sub: "" };
+        const amount = v.amount || 0;
+        const amountSub = v.sub === "estimado" ? "estimado" : v.sub;
+        const sigHtml = sig ? sig.html(sig.nextStep(lead, q, daysInStage(lead))) : "";
+        const val = amount;
         const src = lead.source ? String(lead.source) : "";
         const note = noteSnippet(lead);
         const sub = note || src || "Lead";
@@ -1455,18 +1493,21 @@
             </div>
           </div>
           <div class="mleads-swipe__body mleads-card" data-mleads-open="${id}" role="button" tabindex="0">
-            <span class="mleads-card__avatar" style="background:${softColorFor(lead.id)}">${esc(initials(lead.name))}</span>
-            <div>
-              <p class="mleads-card__name">${esc(lead.name || "Lead")}</p>
-              ${note ? `<p class="mleads-card__note">${esc(note)}</p>` : `<p class="mleads-card__sub">${esc(sub)}</p>`}
-              <div class="mleads-card__tags">
-                <span class="mleads-tag"><span class="mleads-tag__dot" style="background:${esc(stageColor)}"></span>${esc(label)}</span>
-                ${src && note ? `<span class="mleads-tag">${esc(src)}</span>` : ""}
-              </div>
+            <span class="mleads-card__avatar">${esc(initials(lead.name))}</span>
+            <div class="mleads-card__main">
+              <p class="mleads-card__name"><span>${esc(lead.name || "Lead")}</span>${
+                String(lead.priority || "") === "high" ? '<i class="mleads-card__pri" aria-label="Alta prioridade"></i>' : ""
+              }</p>
+              ${sigHtml ? `<p class="mleads-card__next">${sigHtml}</p>` : ""}
+              ${
+                isAll && stageOf(lead)
+                  ? `<p class="mleads-card__stage"><span class="mleads-tag__dot" style="background:${esc(stageOf(lead).color || "#98A2B3")}"></span>${esc(stageLabel(stageOf(lead)))}</p>`
+                  : ""
+              }
             </div>
             <div class="mleads-card__right">
-              <p class="mleads-card__value">${val > 0 ? esc(D.money(val)) : '<span class="mleads-card__novalue">Sem valor</span>'}</p>
-              <p class="mleads-card__ago">${esc(D.ago(lead.created_at))}</p>
+              <p class="mleads-card__value">${amount > 0 ? esc(D.money(amount)) : '<span class="mleads-card__novalue">Sem valor</span>'}</p>
+              ${amountSub ? `<p class="mleads-card__ago">${esc(amountSub)}</p>` : ""}
             </div>
           </div>
         </li>`;
@@ -1486,12 +1527,13 @@
       }
       return j;
     };
-    const [sess, stagesRes, leadsRes, ov] = await Promise.all([
+    const [sess, stagesRes, leadsRes, qRes] = await Promise.all([
       D.session(),
       api("/api/pipeline-stages").catch(() => ({ data: [] })),
       api("/api/leads?limit=5000&page=1"),
-      D.load().catch(() => null),
+      api("/api/leads/quote-engagement-summary").catch(() => ({ data: {} })),
     ]);
+    quoteByLead = (qRes && qRes.data) || {};
     if (!sess || !sess.authenticated) {
       location.href = "/login.html";
       return;
@@ -1501,7 +1543,7 @@
     if (typeof window.mergePipelineStagesForKanban === "function") merged = window.mergePipelineStagesForKanban(merged);
     stages = merged.sort((a, b) => (a.order_num || 0) - (b.order_num || 0));
     leads = Array.isArray(leadsRes.data) ? leadsRes.data : [];
-    renderMobileKpis(ov);
+    renderMobileKpis();
     renderMobileList();
   }
 

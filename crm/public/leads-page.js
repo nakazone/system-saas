@@ -51,59 +51,12 @@
     );
   }
 
-  function renderOverview(rows) {
-    let nNew = 0;
-    let meeting = 0;
-    let quote = 0;
-    let won = 0;
-    let new7 = 0;
-    let openValue = 0;
-    const now = Date.now();
-    const dayMs = 86400000;
-
-    rows.forEach((lead) => {
-      const slug = leadSlug(lead);
-      if (slug === "new_lead") nNew += 1;
-      else if (slug === "meeting_scheduled") meeting += 1;
-      else if (slug === "quote_sent" || slug === "follow_up_1") quote += 1;
-      else if (slug === "won") won += 1;
-
-      if (lead.created_at) {
-        const t = new Date(lead.created_at).getTime();
-        if (t >= now - 7 * dayMs && t <= now) new7 += 1;
-      }
-
-      if (slug && slug !== "won" && slug !== "lost") {
-        openValue += Number(lead.estimated_value || 0);
-      }
-    });
-
-    $("ovNew").textContent = String(nNew);
-    $("ovMeeting").textContent = String(meeting);
-    $("ovQuote").textContent = String(quote);
-    $("ovWon").textContent = String(won);
-    $("ovNew7").textContent = String(new7);
-    $("ovOpenValue").textContent = fmtMoney(openValue);
-    $("leadsResultCount").textContent = `(${rows.length})`;
-  }
-
-  async function loadOverview() {
-    const searchEl = $("leadsListSearchInput");
-    const q =
-      searchEl && searchEl.value && String(searchEl.value).trim()
-        ? "&q=" + encodeURIComponent(String(searchEl.value).trim())
-        : "";
-    const j = await api("/api/leads?limit=5000&page=1" + q);
-    renderOverview(j.data || []);
-  }
-
   async function refreshAll() {
     if (typeof window.loadCRMKanban === "function") {
       await window.loadCRMKanban();
     } else if (typeof window.loadKanbanBoard === "function") {
       await window.loadKanbanBoard();
     }
-    await loadOverview().catch(() => {});
   }
 
   async function boot() {
@@ -123,15 +76,17 @@
       $("btnNewLead").addEventListener("click", () => {
         if (typeof window.showNewLeadModal === "function") window.showNewLeadModal();
       });
-      $("btnReload").addEventListener("click", () => refreshAll().catch((e) => notify(e.message, "error")));
-      $("btnSearchLeads").addEventListener("click", () => refreshAll().catch((e) => notify(e.message, "error")));
-      $("btnClearSearch").addEventListener("click", () => {
-        $("leadsListSearchInput").value = "";
-        refreshAll().catch((e) => notify(e.message, "error"));
+      window.__crmUserId = s.user?.id || null;
+      // Busca enquanto digita (sem botões Buscar/Limpar/Atualizar).
+      let searchTimer = null;
+      $("leadsListSearchInput").addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => refreshAll().catch((e) => notify(e.message, "error")), 320);
       });
       $("leadsListSearchInput").addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
+          clearTimeout(searchTimer);
           refreshAll().catch((err) => notify(err.message, "error"));
         }
       });
@@ -188,16 +143,6 @@
             return;
           }
         } catch (_) {}
-      }
-
-      // Refresh overview when kanban reloads after create/drag
-      const origLoad = window.loadKanbanBoard;
-      if (typeof origLoad === "function") {
-        window.loadKanbanBoard = async function () {
-          const result = await origLoad.apply(this, arguments);
-          loadOverview().catch(() => {});
-          return result;
-        };
       }
 
       await refreshAll();

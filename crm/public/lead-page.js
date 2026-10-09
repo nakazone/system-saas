@@ -82,6 +82,33 @@
     return j;
   }
 
+  const ICO = {
+    phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.8.4 1.6.7 2.3a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.7-1.7a2 2 0 0 1 2.1-.5c.7.3 1.5.6 2.3.7a2 2 0 0 1 1.7 2z"/>',
+    sms: '<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1z"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/>',
+    more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+    doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    note: '<path d="M5 4h10l4 4v12H5z"/><path d="M9 12h6M9 16h4"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    send: '<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>',
+    star: '<path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/>',
+    pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+    pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  };
+  const ico = (n, size) =>
+    `<svg viewBox="0 0 24 24" width="${size || 16}" height="${size || 16}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[n] || ''}</svg>`;
+  const initials = (name) => {
+    const p = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!p.length) return '?';
+    return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
+  };
+
   // ------------------------------------------------------------------ labels
   const STAGES = [
     { slug: 'new_lead', label: 'Novo lead' },
@@ -154,7 +181,8 @@
     qual: null,
     users: [],
     lossReasons: [],
-    tab: 'geral',
+    tab: 'geral', // seção para rolar ao abrir (?tab=)
+    showAllTl: false,
     editing: null, // 'contact' | 'project' | null
     composer: 'note',
   };
@@ -309,9 +337,9 @@
   function renderAll() {
     renderHead();
     renderFunnel();
-    renderSide();
-    renderTabs();
-    renderPanel();
+    renderLeft();
+    renderCenter();
+    renderRight();
   }
 
   function stageNeighbors() {
@@ -329,19 +357,17 @@
   function renderHead() {
     const L = S.lead;
     $('#lpName').textContent = L.name || 'Sem nome';
+    const av = $('#lpAvatar');
+    if (av) av.textContent = initials(L.name);
     const pri = String(L.priority || 'medium');
     const slug = currentSlug();
-    const neigh = stageNeighbors();
     const bits = [];
-    bits.push(`<span class="lp-stage-nav" role="group" aria-label="Etapa do funil">
-      <button type="button" class="lp-stage-nav__btn" data-lp-stage-dir="-1" aria-label="Etapa anterior"${neigh.prev ? ` title="Voltar para ${esc(neigh.prev.label)}"` : ' disabled'}>‹</button>
-      <span class="lp-pill lp-pill--stage" data-stage="${esc(slug)}">${esc(stageLabel(slug))}</span>
-      <button type="button" class="lp-stage-nav__btn" data-lp-stage-dir="1" aria-label="Próxima etapa"${neigh.next ? ` title="Avançar para ${esc(neigh.next.label)}"` : ' disabled'}>›</button>
-    </span>`);
+    bits.push(`<span class="lp-pill lp-pill--stage" data-stage="${esc(slug)}">${esc(stageLabel(slug))}</span>`);
     if (pri === 'high') bits.push('<span class="lp-pill lp-pill--hot">Alta prioridade</span>');
     if (pri === 'low') bits.push('<span class="lp-pill lp-pill--low">Baixa prioridade</span>');
     const meta = [L.source || 'Sem origem', 'criado ' + relTime(L.created_at)];
     if (L.owner_name) meta.push('Dono: ' + L.owner_name);
+    if (L.last_contacted_at) meta.push('último contato ' + relTime(L.last_contacted_at));
     bits.push(`<span class="lp-meta__txt">${esc(meta.join(' · '))}</span>`);
     $('#lpMeta').innerHTML = bits.join('');
 
@@ -351,19 +377,16 @@
     const acts = [];
     acts.push(
       tel
-        ? `<a class="lp-btn" href="${esc(tel)}" data-lp-call><span aria-hidden="true">📞</span> Ligar</a>`
-        : '<button type="button" class="lp-btn" disabled title="Sem telefone">📞 Ligar</button>'
+        ? `<a class="lp-btn lp-act" href="${esc(tel)}" data-lp-call>${ico('phone')}<span>Ligar</span></a>`
+        : `<button type="button" class="lp-btn lp-act" disabled title="Sem telefone">${ico('phone')}<span>Ligar</span></button>`
     );
-    acts.push(`<button type="button" class="lp-btn" data-lp-sms ${phone ? '' : 'disabled title="Sem telefone"'}><span aria-hidden="true">💬</span> SMS</button>`);
-    acts.push(`<button type="button" class="lp-btn lp-hide-sm" data-lp-email ${L.email ? '' : 'disabled title="Sem e-mail"'}><span aria-hidden="true">✉️</span> E-mail</button>`);
-    acts.push('<button type="button" class="lp-btn lp-btn--ghost" data-lp-more aria-haspopup="menu" aria-label="Mais ações">⋯</button>');
-    if (q && q.has_invoice_pdf) {
-      acts.push(`<button type="button" class="lp-btn lp-hide-sm" data-lp-pdf="${esc(q.id)}" data-lp-pdf-label="${esc(quoteLabel(q))}">Ver PDF</button>`);
-    }
+    acts.push(`<button type="button" class="lp-btn lp-act" data-lp-sms ${phone ? '' : 'disabled title="Sem telefone"'}>${ico('sms')}<span>SMS</span></button>`);
+    acts.push(`<button type="button" class="lp-btn lp-act" data-lp-email ${L.email ? '' : 'disabled title="Sem e-mail"'}>${ico('mail')}<span>E-mail</span></button>`);
+    acts.push(`<button type="button" class="lp-btn lp-act lp-act--more" data-lp-more aria-haspopup="menu" aria-label="Mais ações">${ico('more', 18)}<span>Mais</span></button>`);
     if (q && !['approved', 'converted', 'accepted'].includes(String(q.status))) {
-      acts.push(`<a class="lp-btn lp-btn--pri" href="${esc(quoteHref(q))}">Editar orçamento</a>`);
+      acts.push(`<a class="lp-btn lp-btn--pri lp-act lp-act--pri" href="${esc(quoteHref(q))}">${ico('doc')}<span>Editar orçamento</span></a>`);
     } else {
-      acts.push(`<a class="lp-btn lp-btn--pri" href="${esc(newQuoteHref())}">Criar orçamento</a>`);
+      acts.push(`<a class="lp-btn lp-btn--pri lp-act lp-act--pri" href="${esc(newQuoteHref())}">${ico('doc')}<span>Criar orçamento</span></a>`);
     }
     $('#lpActions').innerHTML = acts.join('');
 
@@ -380,19 +403,18 @@
   }
 
   function renderFunnel() {
-    const slug = currentSlug();
-    const neigh = stageNeighbors();
-    const idx = neigh.idx;
-    const steps = STAGES.map((s, i) => {
+    const idx = stageNeighbors().idx;
+    const steps = STAGES.map((st, i) => {
       const cls = isLost() ? '' : i < idx ? 'is-done' : i === idx ? 'is-now' : '';
-      return `<button type="button" class="lp-step ${cls}" data-lp-stage="${s.slug}" aria-current="${i === idx ? 'step' : 'false'}" title="Mover para ${esc(s.label)}"><span>${esc(s.label)}</span></button>`;
+      return `<button type="button" class="lp-step ${cls}" data-lp-stage="${st.slug}" aria-current="${i === idx ? 'step' : 'false'}" title="Mover para ${esc(st.label)}"><i></i><span>${esc(st.label)}</span></button>`;
     }).join('');
     const funnel = $('#lpFunnel');
-    funnel.innerHTML = `<button type="button" class="lp-funnel-nav" data-lp-stage-dir="-1" aria-label="Etapa anterior"${neigh.prev ? ` title="Voltar para ${esc(neigh.prev.label)}"` : ' disabled'}>‹</button>
-      <div class="lp-funnel__track">${steps}</div>
-      <button type="button" class="lp-funnel-nav" data-lp-stage-dir="1" aria-label="Próxima etapa"${neigh.next ? ` title="Avançar para ${esc(neigh.next.label)}"` : ' disabled'}>›</button>`;
+    funnel.innerHTML = `<div class="lp-funnel__track">${steps}</div>`;
     const now = funnel.querySelector('.is-now');
-    if (now && now.scrollIntoView && window.innerWidth < 760) now.scrollIntoView({ inline: 'center', block: 'nearest' });
+    if (now && window.innerWidth < 760) {
+      const track = funnel.querySelector('.lp-funnel__track');
+      if (track) track.scrollLeft = Math.max(0, now.offsetLeft - 40);
+    }
   }
 
   function moveStageByDir(dir) {
@@ -454,30 +476,18 @@
     const btn = b.href
       ? `<a class="lp-btn lp-btn--pri lp-btn--block" href="${esc(b.href)}" ${b.attr || ''}>${esc(b.label)}</a>`
       : `<button type="button" class="lp-btn lp-btn--pri lp-btn--block" ${b.attr || ''}>${esc(b.label)}</button>`;
-    return `<div class="lp-card lp-next${n.warn ? ' lp-next--warn' : ''}"><h3 class="lp-h3">Próximo passo</h3><p class="lp-next__t">${esc(n.title)}</p><p class="lp-next__s">${esc(n.sub || '')}</p>${btn}</div>`;
+    return `<div class="lp-card lp-next${n.warn ? ' lp-next--warn' : ''}"><h3 class="lp-h3">Próximo passo</h3><p class="lp-next__t">${esc(n.title)}</p><p class="lp-next__s">${esc(n.sub || '')}</p><div class="lp-next__acts">${btn}</div></div>`;
   }
 
-  function renderSide() {
+  function detailsCardHtml() {
     const L = S.lead;
     const pri = String(L.priority || 'medium');
-    const quotes = S.quotes.slice(0, 4);
-    const quotesHtml = quotes.length
-      ? quotes
-          .map(
-            (q) => `<a class="lp-qrow" href="${esc(quoteHref(q))}"><div><b>${esc(quoteLabel(q))}</b><small>${esc(quoteTitle(q) || fmtDate(q.created_at))}</small></div>
-          <div class="lp-r"><b class="lp-num">${esc(money(q.total))}</b><span class="lp-qs" data-qs="${esc(quoteStatus(q))}">${esc(QUOTE_STATUS[quoteStatus(q)] || quoteStatus(q))}</span></div></a>`
-          )
-          .join('') + (S.quotes.length > 4 ? `<button type="button" class="lp-link" data-lp-tab-go="orcamentos">Ver todos (${S.quotes.length})</button>` : '')
-      : '<p class="lp-empty">Nenhum orçamento ainda.</p>';
     const tags = (L.tags || []).map((t) => `<span class="lp-chip">${esc(t)}<button type="button" data-lp-tag-del="${esc(t)}" aria-label="Remover ${esc(t)}">×</button></span>`).join('');
-    $('#lpSide').innerHTML = `
-      <div class="lp-only-desk">${nextCardHtml()}</div>
-      <div class="lp-card"><h3 class="lp-h3">Orçamentos <a class="lp-link" href="${esc(newQuoteHref())}">+ Novo</a></h3>${quotesHtml}</div>
-      <div class="lp-card"><h3 class="lp-h3">Detalhes</h3>
-        <dl class="lp-kv">
-          <dt>Prioridade</dt><dd><div class="lp-seg" role="group" aria-label="Prioridade">${['low', 'medium', 'high']
+    return `<div class="lp-card lp-card--details"><h3 class="lp-h3">Detalhes</h3>
+        <div class="lp-prio"><span>Prioridade</span><div class="lp-seg" role="group" aria-label="Prioridade">${['low', 'medium', 'high']
             .map((p) => `<button type="button" class="${p === pri ? 'is-on' : ''}" data-lp-priority="${p}">${PRIORITY[p]}</button>`)
-            .join('')}</div></dd>
+            .join('')}</div></div>
+        <dl class="lp-kv lp-kv--side">
           <dt>Dono</dt><dd><select class="lp-select" id="lpOwner" aria-label="Dono do lead"><option value="">${esc(L.owner_name || 'Ninguém')}</option></select></dd>
           <dt>Origem</dt><dd>${esc(L.source || '—')}</dd>
           <dt>Criado</dt><dd>${esc(fmtDate(L.created_at))}</dd>
@@ -485,8 +495,11 @@
         </dl>
         <div class="lp-tags">${tags}<form class="lp-tag-add" data-lp-tag-form><input type="text" maxlength="40" placeholder="+ Tag" aria-label="Nova tag" /></form></div>
       </div>`;
-    $('#lpNextMob').innerHTML = nextCardHtml();
-    fillOwnerSelect();
+  }
+
+  function renderSide() {
+    renderLeft();
+    renderRight();
   }
 
   async function fillOwnerSelect() {
@@ -502,28 +515,8 @@
     }
   }
 
-  function renderTabs() {
-    $$('#lpTabs .lp-tab').forEach((b) => {
-      const on = b.getAttribute('data-lp-tab') === S.tab;
-      b.classList.toggle('is-on', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    $$('.lp-panel').forEach((p) => (p.hidden = p.getAttribute('data-lp-panel') !== S.tab));
-    const nAtv = S.interactions.length + S.followups.length;
-    $('#lpTabNAtv').textContent = nAtv ? String(nAtv) : '';
-    const nOrc = S.quotes.length + S.visits.length;
-    $('#lpTabNOrc').textContent = nOrc ? String(nOrc) : '';
-  }
-
-  function renderPanel() {
-    if (S.tab === 'geral') renderGeral();
-    else if (S.tab === 'atividade') renderAtividade();
-    else if (S.tab === 'orcamentos') renderOrcamentos();
-    else renderQualificacao();
-  }
-
   // ---------- Visão geral
-  function renderGeral() {
+  function renderLeft() {
     const L = S.lead;
     const Q = S.qual || {};
     const contact =
@@ -561,22 +554,17 @@
           <dt>Valor est.</dt><dd>${esc(money(L.estimated_value))}</dd>
           <dt>Prazo</dt><dd>${esc(Q.decision_timeline || '—')}</dd>
         </dl>`;
-    const recent = timelineItems().slice(0, 3);
     const utmKeys = Object.keys(UTM_LABELS).filter((k) => L[k]);
-    $('#lpPanelGeral').innerHTML = `
-      <div class="lp-2col">
-        <div class="lp-card"><h3 class="lp-h3">Contato ${S.editing === 'contact' ? '' : '<button type="button" class="lp-link" data-lp-edit="contact">Editar</button>'}</h3>${contact}</div>
-        <div class="lp-card"><h3 class="lp-h3">Projeto ${S.editing === 'project' ? '' : '<button type="button" class="lp-link" data-lp-edit="project">Editar</button>'}</h3>${project}</div>
-      </div>
+    $('#lpLeft').innerHTML = `
+      <div class="lp-card" id="lpContactCard"><h3 class="lp-h3">Contato ${S.editing === 'contact' ? '' : '<button type="button" class="lp-link" data-lp-edit="contact">Editar</button>'}</h3>${contact}</div>
+      <div class="lp-card"><h3 class="lp-h3">Projeto ${S.editing === 'project' ? '' : '<button type="button" class="lp-link" data-lp-edit="project">Editar</button>'}</h3>${project}</div>
       ${L.message ? `<div class="lp-card"><h3 class="lp-h3">Mensagem do cliente</h3><p class="lp-quote">${esc(L.message)}</p></div>` : ''}
+      ${detailsCardHtml()}
       <div class="lp-card"><h3 class="lp-h3">Notas internas <span class="lp-saved" id="lpNotesSaved" hidden>Salvo</span></h3>
-        <textarea class="lp-textarea" id="lpNotes" rows="4" placeholder="Anote o que a equipe precisa saber sobre este lead…">${esc(L.notes || '')}</textarea>
+        <textarea class="lp-textarea" id="lpNotes" rows="3" placeholder="O que a equipe precisa saber sobre este lead…">${esc(L.notes || '')}</textarea>
         <div class="lp-form__acts lp-form__acts--end"><button type="button" class="lp-btn lp-btn--sm lp-btn--ink" data-lp-notes-save hidden>Salvar notas</button></div>
       </div>
-      <div class="lp-card"><h3 class="lp-h3">Última atividade <button type="button" class="lp-link" data-lp-tab-go="atividade">Ver tudo</button></h3>
-        ${recent.length ? `<ul class="lp-tl">${recent.map(tlItemHtml).join('')}</ul>` : '<p class="lp-empty">Nada registrado ainda.</p>'}
-        <button type="button" class="lp-btn lp-btn--sm" data-lp-tab-go="atividade" data-lp-composer="note">+ Registrar nota ou ligação</button>
-      </div>
+      ${qualHtml()}
       ${
         utmKeys.length
           ? `<details class="lp-card lp-details"><summary class="lp-h3">Origem e marketing</summary><dl class="lp-kv">${utmKeys
@@ -585,6 +573,7 @@
           : ''
       }`;
     if (S.editing === 'contact') attachAddress($('[data-lp-address]'));
+    fillOwnerSelect();
   }
 
   function selectHtml(name, map, val) {
@@ -664,25 +653,28 @@
     return out.filter((x) => x.at).sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }
 
+  const TL_ICON = { '↗': 'arrow', '📞': 'phone', '💬': 'sms', '✉️': 'mail', '📅': 'cal', '📝': 'note', '✓': 'check', '⏰': 'clock', '📄': 'doc', '📤': 'send', '👁': 'eye', '✍️': 'pen', '✨': 'star' };
+  const TL_HOT = new Set(['📅', '⏰', '✍️']);
   function tlItemHtml(it) {
     const title = it.href ? `<a href="${esc(it.href)}">${esc(it.title)}</a>` : esc(it.title);
     const del = it.del ? `<button type="button" class="lp-tl__del" data-lp-del-kind="${it.del.kind}" data-lp-del-id="${esc(it.del.id)}" aria-label="Excluir" title="Excluir">×</button>` : '';
-    return `<li><span class="lp-ic" aria-hidden="true">${it.icon}</span><div class="lp-tl__b"><b>${title}</b>${it.body ? `<p>${rich(it.body)}</p>` : ''}${
+    return `<li><span class="lp-ic${TL_HOT.has(it.icon) ? ' lp-ic--hot' : ''}" aria-hidden="true">${ico(TL_ICON[it.icon] || 'note', 15)}</span><div class="lp-tl__b"><b>${title}</b>${it.body ? `<p>${rich(it.body)}</p>` : ''}${
       it.who ? `<small>${esc(it.who)}</small>` : ''
     }</div><time title="${esc(fmtDate(it.at, true))}">${esc(relTime(it.at))}</time>${del}</li>`;
   }
 
   function composerHtml() {
     const c = S.composer;
-    const chips = [
-      ['note', '📝 Nota'],
-      ['call', '📞 Ligação'],
-      ['followup', '⏰ Follow-up'],
-    ]
-      .map(([k, l]) => `<button type="button" class="lp-chip-btn ${k === c ? 'is-on' : ''}" data-lp-composer="${k}">${l}</button>`)
-      .join('');
+    const chips =
+      [
+        ['note', 'note', 'Nota'],
+        ['call', 'phone', 'Registrar ligação'],
+        ['followup', 'flag', 'Follow-up'],
+      ]
+        .map(([k, i, l]) => `<button type="button" class="lp-chip-btn ${k === c ? 'is-on' : ''}" data-lp-composer="${k}">${ico(i, 14)}${l}</button>`)
+        .join('') + `<button type="button" class="lp-chip-btn" data-lp-visit-new>${ico('cal', 14)}Visita</button>`;
     let fields = '';
-    if (c === 'note') fields = '<textarea name="notes" class="lp-textarea" rows="3" required placeholder="Escreva uma nota sobre o lead…"></textarea>';
+    if (c === 'note') fields = '<textarea name="notes" class="lp-textarea" rows="2" required placeholder="Escreva uma nota para a equipe…"></textarea>';
     if (c === 'call')
       fields = `<div class="lp-seg lp-seg--wrap" role="radiogroup" aria-label="Resultado">${CALL_RESULTS.map(
         (r, i) => `<label class="lp-radio"><input type="radio" name="subject" value="${esc(r)}" ${i === 0 ? 'checked' : ''}/> <span>${esc(r)}</span></label>`
@@ -698,13 +690,16 @@
     return `<form class="lp-card lp-composer" data-lp-form="composer"><div class="lp-chips">${chips}</div>${fields}<div class="lp-form__acts lp-form__acts--end"><button type="submit" class="lp-btn lp-btn--ink">${btn}</button></div></form>`;
   }
 
-  function renderAtividade() {
+  function renderCenter() {
     const pend = pendingFollowups();
     const items = timelineItems();
-    $('#lpPanelAtividade').innerHTML = `${composerHtml()}
+    const LIMIT = 12;
+    const shown = S.showAllTl ? items : items.slice(0, LIMIT);
+    $('#lpCenter').innerHTML = `${nextCardHtml()}
+      ${composerHtml()}
       ${
         pend.length
-          ? `<div class="lp-card"><h3 class="lp-h3">Follow-ups pendentes</h3><ul class="lp-fu">${pend
+          ? `<div class="lp-card"><h3 class="lp-h3">Follow-ups pendentes · ${pend.length}</h3><ul class="lp-fu">${pend
               .map((f) => {
                 const late = f.due_date && new Date(f.due_date).getTime() < Date.now();
                 return `<li><button type="button" class="lp-check" data-lp-fu-done="${esc(f.id)}" aria-label="Marcar como feito"></button><div><b>${esc(f.title || 'Follow-up')}</b><small class="${late ? 'lp-late' : ''}">${
@@ -714,55 +709,61 @@
               .join('')}</ul></div>`
           : ''
       }
-      <div class="lp-card"><h3 class="lp-h3">Linha do tempo</h3><ul class="lp-tl">${items.map(tlItemHtml).join('')}</ul></div>`;
+      <div class="lp-card" id="lpTimeline"><h3 class="lp-h3">Linha do tempo <span class="lp-mut lp-small">${items.length} ${items.length === 1 ? 'registro' : 'registros'}</span></h3><ul class="lp-tl">${shown.map(tlItemHtml).join('')}</ul>${
+        items.length > LIMIT && !S.showAllTl ? `<button type="button" class="lp-btn lp-btn--sm lp-btn--block" data-lp-tl-all>Mostrar tudo (${items.length})</button>` : ''
+      }</div>`;
   }
 
   // ---------- Orçamentos e visitas
-  function renderOrcamentos() {
+  function renderRight() {
+    const QMAX = 4;
+    const VMAX = 3;
+    const qList = S.showAllQ ? S.quotes : S.quotes.slice(0, QMAX);
+    const vList = S.showAllV ? sortedVisits() : sortedVisits().slice(0, VMAX);
     const quotes = S.quotes.length
-      ? `<div class="lp-table-wrap"><table class="lp-table"><thead><tr><th>Orçamento</th><th>Status</th><th class="lp-r">Total</th><th class="lp-hide-sm">Criado</th><th></th></tr></thead><tbody>${S.quotes
+      ? qList
           .map((q) => {
             const st = quoteStatus(q);
-            return `<tr><td><a href="${esc(quoteHref(q))}"><b>${esc(quoteLabel(q))}</b></a><small>${esc(quoteTitle(q))}</small></td>
-            <td><span class="lp-qs" data-qs="${esc(st)}">${esc(QUOTE_STATUS[st] || st)}</span></td>
-            <td class="lp-r lp-num">${esc(money(q.total))}</td><td class="lp-hide-sm">${esc(fmtDate(q.created_at))}</td>
-            <td class="lp-r lp-row-acts"><button type="button" class="lp-btn lp-btn--sm lp-btn--ghost" data-lp-pdf="${esc(q.id)}" data-lp-pdf-label="${esc(quoteLabel(q))}">PDF</button><a class="lp-btn lp-btn--sm" href="${esc(quoteHref(q))}">Abrir</a>${
-              ['draft', 'archived', 'expired'].includes(String(q.status))
-                ? `<button type="button" class="lp-btn lp-btn--sm lp-btn--ghost lp-danger" data-lp-quote-del="${esc(q.id)}" aria-label="Excluir orçamento">Excluir</button>`
-                : ''
-            }</td></tr>`;
+            const del = ['draft', 'archived', 'expired'].includes(String(q.status))
+              ? `<button type="button" class="lp-mini lp-danger" data-lp-quote-del="${esc(q.id)}" aria-label="Excluir ${esc(quoteLabel(q))}" title="Excluir">${ico('x', 13)}</button>`
+              : '';
+            return `<div class="lp-qrow"><a class="lp-qrow__main" href="${esc(quoteHref(q))}"><b>${esc(quoteLabel(q))}</b><small>${esc(quoteTitle(q) || fmtDate(q.created_at))}</small></a>
+              <div class="lp-r"><b class="lp-num">${esc(money(q.total))}</b><span class="lp-qs" data-qs="${esc(st)}">${esc(QUOTE_STATUS[st] || st)}</span></div>
+              <div class="lp-qrow__acts"><button type="button" class="lp-mini" data-lp-pdf="${esc(q.id)}" data-lp-pdf-label="${esc(quoteLabel(q))}" title="Ver PDF">PDF</button>${del}</div></div>`;
           })
-          .join('')}</tbody></table></div>`
-      : '<p class="lp-empty">Nenhum orçamento para este lead.</p>';
+          .join('') +
+        (S.quotes.length > QMAX && !S.showAllQ ? `<button type="button" class="lp-link lp-more" data-lp-show="q">Ver todos (${S.quotes.length})</button>` : '')
+      : '<p class="lp-empty">Nenhum orçamento ainda.</p>';
     const visits = S.visits.length
-      ? `<ul class="lp-visits">${sortedVisits()
+      ? `<ul class="lp-visits">${vList
           .map((v) => {
             const st = v.status || 'scheduled';
             const who = v.seller_id ? (S.users.find((u) => String(u.id) === String(v.seller_id)) || {}).name : '';
             return `<li><div class="lp-visit__d"><b>${esc(fmtWeekday(v.scheduled_at))}</b><small>${esc([v.address, who].filter(Boolean).join(' · ') || 'Sem endereço')}</small>${
               v.notes ? `<p>${esc(v.notes)}</p>` : ''
-            }</div><span class="lp-vs" data-vs="${esc(st)}">${esc(VISIT_STATUS[st] || st)}</span><button type="button" class="lp-btn lp-btn--sm" data-lp-visit-edit="${esc(v.id)}">Editar</button></li>`;
+            }</div><div class="lp-visit__r"><span class="lp-vs" data-vs="${esc(st)}">${esc(VISIT_STATUS[st] || st)}</span><button type="button" class="lp-link" data-lp-visit-edit="${esc(v.id)}">Editar</button></div></li>`;
           })
-          .join('')}</ul>`
+          .join('')}</ul>${S.visits.length > VMAX && !S.showAllV ? `<button type="button" class="lp-link lp-more" data-lp-show="v">Ver todas (${S.visits.length})</button>` : ''}`
       : '<p class="lp-empty">Nenhuma visita agendada.</p>';
-    $('#lpPanelOrcamentos').innerHTML = `
-      <div class="lp-card"><h3 class="lp-h3">Orçamentos <span class="lp-h3__acts"><a class="lp-link" href="${esc(fieldQuoteHref())}">Field Quote</a><a class="lp-link" href="${esc(newQuoteHref())}">+ Novo orçamento</a></span></h3>${quotes}</div>
-      <div class="lp-card"><h3 class="lp-h3">Visitas <button type="button" class="lp-link" data-lp-visit-new>+ Agendar visita</button></h3>${visits}</div>`;
-    if (S.visits.some((v) => v.seller_id) && !S.users.length) ensureUsers().then(() => S.tab === 'orcamentos' && renderOrcamentos());
+    $('#lpRight').innerHTML = `
+      <div class="lp-card" id="lpQuotes"><h3 class="lp-h3">Orçamentos${S.quotes.length ? ' · ' + S.quotes.length : ''} <span class="lp-h3__acts"><a class="lp-link" href="${esc(fieldQuoteHref())}">Field Quote</a><a class="lp-link" href="${esc(newQuoteHref())}">+ Novo</a></span></h3>${quotes}</div>
+      <div class="lp-card" id="lpVisits"><h3 class="lp-h3">Visitas${S.visits.length ? ' · ' + S.visits.length : ''} <button type="button" class="lp-link" data-lp-visit-new>+ Agendar</button></h3>${visits}</div>`;
+    if (S.visits.some((v) => v.seller_id) && !S.users.length) ensureUsers().then(() => renderRight());
   }
 
   // ---------- Qualificação
-  function renderQualificacao() {
+  function qualHtml() {
     const Q = S.qual || {};
-    $('#lpPanelQualificacao').innerHTML = `<form class="lp-card lp-form" data-lp-form="qual">
-      <h3 class="lp-h3">Qualificação ${Q.updated_at ? `<span class="lp-mut lp-small">atualizada ${esc(relTime(Q.updated_at))}</span>` : ''}</h3>
+    const open = S.tab === 'qualificacao' ? ' open' : '';
+    return `<details class="lp-card lp-details" id="lpQual"${open}><summary class="lp-h3">Qualificação ${Q.updated_at ? `<span class="lp-mut lp-small">atualizada ${esc(relTime(Q.updated_at))}</span>` : ''}</summary>
+      <form class="lp-form" data-lp-form="qual">
       <div class="lp-form__2"><label>Tipo de imóvel${selectHtml('property_type', PROPERTY, Q.property_type)}</label><label>Serviço${selectHtml('service_type', SERVICE, Q.service_type)}</label></div>
       <div class="lp-form__2"><label>Área estimada<input name="estimated_area" placeholder="ex.: 850 sqft" value="${esc(Q.estimated_area || '')}" /></label><label>Orçamento do cliente<input name="estimated_budget" placeholder="ex.: $8–12 mil" value="${esc(Q.estimated_budget || '')}" /></label></div>
       <div class="lp-form__2"><label>Urgência${selectHtml('urgency', URGENCY, Q.urgency || 'medium')}</label><label>Pagamento${selectHtml('payment_type', PAYMENT, Q.payment_type)}</label></div>
       <div class="lp-form__2"><label>Quem decide<input name="decision_maker" placeholder="ex.: o casal, o síndico" value="${esc(Q.decision_maker || '')}" /></label><label>Prazo para decidir<input name="decision_timeline" placeholder="ex.: até novembro" value="${esc(Q.decision_timeline || '')}" /></label></div>
       <label>Observações<textarea name="qualification_notes" class="lp-textarea" rows="3" placeholder="Pets, móveis, acesso, piso atual…">${esc(Q.qualification_notes || '')}</textarea></label>
       <div class="lp-form__acts lp-form__acts--end"><button type="submit" class="lp-btn lp-btn--ink">Salvar qualificação</button></div>
-    </form>`;
+    </form></details>`;
   }
 
   // ------------------------------------------------------------------ links
@@ -1012,15 +1013,17 @@
     }
   }
 
+  /** Sem abas: cada "aba" antiga vira uma seção da página. */
   function setTab(tab) {
     S.tab = tab;
-    S.editing = null;
-    const u = new URL(location.href);
-    if (tab === 'geral') u.searchParams.delete('tab');
-    else u.searchParams.set('tab', tab);
-    history.replaceState(null, '', u.toString());
-    renderTabs();
-    renderPanel();
+    const target =
+      tab === 'atividade' ? $('[data-lp-form="composer"]') : tab === 'orcamentos' ? $('#lpRight') : tab === 'qualificacao' ? $('#lpQual') : null;
+    if (tab === 'qualificacao' && target) target.open = true;
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (tab === 'atividade') {
+      const f = $('[data-lp-form="composer"] textarea, [data-lp-form="composer"] input');
+      if (f && window.innerWidth >= 760) setTimeout(() => f.focus({ preventScroll: true }), 350);
+    }
   }
 
   async function onClick(e) {
@@ -1033,14 +1036,27 @@
     if ((el = t.closest('[data-lp-close]'))) return closeModal();
     if ((el = t.closest('[data-lp-tab]'))) return setTab(el.getAttribute('data-lp-tab'));
     if ((el = t.closest('[data-lp-tab-go]'))) {
-      if (el.hasAttribute('data-lp-composer')) S.composer = el.getAttribute('data-lp-composer');
-      setTab(el.getAttribute('data-lp-tab-go'));
-      $('#lpTabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
+      if (el.hasAttribute('data-lp-composer')) {
+        S.composer = el.getAttribute('data-lp-composer');
+        renderCenter();
+      }
+      return setTab(el.getAttribute('data-lp-tab-go'));
     }
     if ((el = t.closest('[data-lp-composer]'))) {
       S.composer = el.getAttribute('data-lp-composer');
-      return renderAtividade();
+      renderCenter();
+      const f = $('[data-lp-form="composer"] textarea, [data-lp-form="composer"] input[name="title"]');
+      if (f) f.focus({ preventScroll: true });
+      return;
+    }
+    if ((el = t.closest('[data-lp-show]'))) {
+      if (el.getAttribute('data-lp-show') === 'q') S.showAllQ = true;
+      else S.showAllV = true;
+      return renderRight();
+    }
+    if (t.closest('[data-lp-tl-all]')) {
+      S.showAllTl = true;
+      return renderCenter();
     }
     if ((el = t.closest('[data-lp-more]'))) {
       if (menuOpen) return closeMenu();
@@ -1070,16 +1086,16 @@
     }
     if ((el = t.closest('[data-lp-edit]'))) {
       S.editing = el.getAttribute('data-lp-edit');
-      if (S.tab !== 'geral') S.tab = 'geral';
-      renderTabs();
-      renderGeral();
+      renderLeft();
+      const card = $(`[data-lp-form="${S.editing}"]`);
+      if (card && card.getBoundingClientRect().top < 60) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
       const f = $(`[data-lp-form="${S.editing}"] input, [data-lp-form="${S.editing}"] select`);
       if (f) f.focus();
       return;
     }
     if (t.closest('[data-lp-cancel]')) {
       S.editing = null;
-      return renderGeral();
+      return renderLeft();
     }
     if (t.closest('[data-lp-notes-save]')) return saveNotes();
     if ((el = t.closest('[data-lp-priority]'))) {
@@ -1107,7 +1123,10 @@
     if (t.closest('[data-lp-call]')) {
       // The tel: link opens the dialer; the composer is ready to log how the call went.
       S.composer = 'call';
-      setTimeout(() => setTab('atividade'), 300);
+      setTimeout(() => {
+        renderCenter();
+        setTab('atividade');
+      }, 300);
       return;
     }
     if ((el = t.closest('[data-lp-sms]'))) {
@@ -1253,7 +1272,7 @@
         const qj = await api('/api/leads/' + encodeURIComponent(S.id) + '/qualification', { method: 'PUT', body: qual });
         S.qual = qj.data;
         toast('Qualificação salva', 'success');
-        renderQualificacao();
+        renderLeft();
       } else if (kind === 'composer') {
         if (S.composer === 'followup') {
           await createFollowup(fd);

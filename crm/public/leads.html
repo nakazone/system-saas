@@ -36,6 +36,7 @@
   </script>
   <link rel="stylesheet" href="lead-mobile.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="leads-mobile.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="leads-board.css?v=20261009-lb1" />
   <style>
     /* Tablet: keep Kanban usable with horizontal scroll and a Lista toggle. */
     body.om-device-tablet .kanban-board-wrap {
@@ -116,76 +117,54 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
-      <div class="mod-page crm-page">
-        <div class="mod-page-header">
+      <div class="lb crm-page" id="lbRoot">
+        <header class="lb-head">
           <h1>Leads</h1>
-          <div class="mod-page-header__actions">
-            <a class="btn btn-secondary" href="schedule.html">Agenda</a>
-            <button type="button" class="btn btn-primary" id="btnNewLead" data-crm-permission="leads.create">Novo lead</button>
+          <dl class="lb-sum" id="lbSummary" aria-label="Resumo do funil">
+            <div><dt>Pipeline aberto</dt><dd id="lbSumValue">—</dd></div>
+            <div><dt>Leads abertos</dt><dd id="lbSumOpen">—</dd></div>
+            <div><dt>Novos · 7 dias</dt><dd id="lbSumNew">—</dd></div>
+            <div><dt>Conversão · 90 dias</dt><dd id="lbSumConv">—</dd></div>
+            <div><dt>Parados +5 dias</dt><dd id="lbSumStale">—</dd></div>
+          </dl>
+          <div class="lb-head__acts">
+            <a class="lb-btn" href="schedule.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendar</a>
+            <button type="button" class="lb-btn lb-btn--pri" id="btnNewLead" data-crm-permission="leads.create"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo lead</button>
           </div>
-        </div>
+        </header>
 
-        <div class="mod-overview" id="leadsOverview" aria-label="Resumo">
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Pipeline</p>
-            <ul class="mod-ov-list">
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-new"></span> New</span><strong id="ovNew">0</strong></li>
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-meeting"></span> Meeting</span><strong id="ovMeeting">0</strong></li>
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-quote"></span> Quote</span><strong id="ovQuote">0</strong></li>
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-won"></span> Won</span><strong id="ovWon">0</strong></li>
-            </ul>
-          </div>
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Novos · 7 dias</p>
-            <div class="mod-ov-card__stat" id="ovNew7">0</div>
-            <div class="mod-ov-card__sub">Leads criados nesta semana</div>
-          </div>
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Valor estimado aberto</p>
-            <div class="mod-ov-card__stat" id="ovOpenValue">$0</div>
-            <div class="mod-ov-card__sub">Pipeline ativo (exceto Won/Lost)</div>
-          </div>
-          <div class="mod-ov-card mod-ov-card--promo">
-            <p>Agende visitas e avance o pipeline no Schedule.</p>
-            <a href="schedule.html">Abrir Schedule →</a>
-          </div>
-        </div>
+        <nav class="lb-stages" id="lbStages" aria-label="Etapas do funil"></nav>
 
-        <div class="mod-list-head">
-          <h2>Pipeline <span class="mod-list-head__count" id="leadsResultCount">(0)</span></h2>
-        </div>
-
-        <div class="mod-toolbar">
-          <label class="grow">Search
-            <input type="search" id="leadsListSearchInput" placeholder="Buscar nome, telefone, e-mail ou ID…" />
+        <div class="lb-tool" id="kanbanBoardToolbar">
+          <label class="lb-search">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span class="visually-hidden">Buscar</span>
+            <input type="search" id="leadsListSearchInput" placeholder="Buscar nome, telefone ou e-mail" autocomplete="off" />
           </label>
-          <button type="button" class="btn btn-secondary" id="btnSearchLeads">Buscar</button>
-          <button type="button" class="btn btn-secondary" id="btnClearSearch">Limpar</button>
-          <button type="button" class="btn btn-secondary" id="btnReload">Atualizar</button>
+          <select class="lb-filter" id="lbFilterSource" aria-label="Origem"><option value="">Origem</option></select>
+          <select class="lb-filter" id="lbFilterOwner" aria-label="Dono"><option value="">Dono</option></select>
+          <select class="lb-filter" id="lbFilterPriority" aria-label="Prioridade">
+            <option value="">Prioridade</option>
+            <option value="high">Alta</option>
+            <option value="medium">Média</option>
+            <option value="low">Baixa</option>
+          </select>
+          <button type="button" class="lb-chip" id="lbFilterMine" aria-pressed="false">Só os meus</button>
+          <button type="button" class="lb-link" id="lbFilterClear" hidden>Limpar filtros</button>
+          <span class="lb-tool__sp"></span>
+          <button type="button" id="kanbanToggleLostBtn" class="lb-chip kanban-lost-toggle" aria-pressed="false" aria-expanded="false" title="Mostrar ou ocultar a coluna Perdidos">
+            <span class="kanban-lost-toggle__label">Perdidos</span>
+            <span class="kanban-lost-toggle__count" id="kanbanLostCount" aria-hidden="true">0</span>
+          </button>
+          <div class="mleads-view-toggle lb-view" id="leadsKanbanViewToggle" hidden role="group" aria-label="Visualização">
+            <button type="button" class="mleads-view-toggle__btn" data-leads-view="list" aria-pressed="false">Lista</button>
+            <button type="button" class="mleads-view-toggle__btn is-active" data-leads-view="kanban" aria-pressed="true">Quadro</button>
+          </div>
         </div>
 
-        <div class="mod-kanban-wrap">
+        <div class="kanban-board-wrap lb-board-wrap">
           <div id="kanbanView" class="kanban-view-wrap">
-            <div class="kanban-board-toolbar" id="kanbanBoardToolbar">
-              <div class="mleads-view-toggle" id="leadsKanbanViewToggle" hidden role="group" aria-label="Visualização">
-                <button type="button" class="mleads-view-toggle__btn" data-leads-view="list" aria-pressed="false">Lista</button>
-                <button type="button" class="mleads-view-toggle__btn is-active" data-leads-view="kanban" aria-pressed="true">Kanban</button>
-              </div>
-              <button
-                type="button"
-                id="kanbanToggleLostBtn"
-                class="btn btn-secondary btn-sm kanban-lost-toggle"
-                aria-pressed="false"
-                aria-expanded="false"
-                title="Mostrar ou ocultar coluna Lost"
-              >
-                <span class="kanban-lost-toggle__label">Ver Lost</span>
-                <span class="kanban-lost-toggle__count" id="kanbanLostCount" aria-hidden="true">0</span>
-              </button>
-            </div>
-            <div class="kanban-board-wrap">
-              <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
-            </div>
+            <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
           </div>
         </div>
       </div>
@@ -446,7 +425,8 @@
   <script src="crm-device-calendar.js?v=20260819-ipad-ics"></script>
   <script src="lead-quote-engagement-icons.js?v=20260528-badge-check-x"></script>
   <script src="lead-quick-sheet.js?v=20261006-contacted1"></script>
-  <script src="leads-kanban.js?v=20261008-modulos1"></script>
-  <script src="leads-page.js?v=20261001-view2"></script>
+  <script src="lead-signals.js?v=20261009-lb1"></script>
+  <script src="leads-kanban.js?v=20261009-lb1"></script>
+  <script src="leads-page.js?v=20261009-lb1"></script>
 </body>
 </html>

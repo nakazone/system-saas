@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="leads-mobile.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-command-palette.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-dashboard.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="leads-board.css?v=20261009-lb1" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260929-dash1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -91,25 +92,15 @@
           </div>
         </header>
 
-        <div class="mleads-kpis" aria-label="Indicadores">
-          <article class="mleads-kpi mleads-kpi--dark">
-            <p class="mleads-kpi__label">Valor do pipeline</p>
-            <p class="mleads-kpi__value" id="mleadsKpiPipeline">—</p>
-            <p class="mleads-kpi__meta" id="mleadsKpiPipelineMeta">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17l5-5 5 5"/><path d="M7 10l5-5 5 5"/></svg>
-              —
-            </p>
-          </article>
-          <article class="mleads-kpi mleads-kpi--light">
-            <p class="mleads-kpi__label">Taxa de conversão</p>
-            <p class="mleads-kpi__value" id="mleadsKpiConversion">—</p>
-            <p class="mleads-kpi__meta" id="mleadsKpiConversionMeta">—</p>
-          </article>
+        <div class="mleads-kpis mleads-kpis--3" aria-label="Indicadores">
+          <article class="mleads-kpi"><p class="mleads-kpi__label">Pipeline</p><p class="mleads-kpi__value" id="mleadsKpiPipeline">—</p></article>
+          <article class="mleads-kpi"><p class="mleads-kpi__label">Abertos</p><p class="mleads-kpi__value" id="mleadsKpiOpen">—</p></article>
+          <article class="mleads-kpi"><p class="mleads-kpi__label">Parados +5d</p><p class="mleads-kpi__value" id="mleadsKpiStale">—</p></article>
         </div>
 
         <label class="mleads-search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-          <input type="search" id="mleadsSearch" placeholder="Nome, tipo de piso ou origem" autocomplete="off" />
+          <input type="search" id="mleadsSearch" placeholder="Buscar leads" autocomplete="off" />
         </label>
 
         <div class="mleads-chips" id="mleadsChips" role="tablist" aria-label="Estágios"></div>
@@ -277,6 +268,7 @@
   <script src="pipeline-stage-labels.js?v=20261006-contacted1"></script>
   <script src="lead-quick-sheet.js?v=20261008-dnd1"></script>
   <script src="om-dashboard.js?v=20261008-dash4"></script>
-  <script src="pipeline-lab.js?v=20261008-neutro3"></script>
+  <script src="lead-signals.js?v=20261009-lb1"></script>
+  <script src="pipeline-lab.js?v=20261009-lb1"></script>
 </body>
 </html>

@@ -77,6 +77,32 @@ function asMeta(raw: unknown): LeadMeta {
   return raw as LeadMeta;
 }
 
+/** Próxima visita marcada e follow-up pendente mais próximo (ficam no metadata do lead). */
+function leadAgenda(meta: LeadMeta) {
+  const now = Date.now() - 2 * 3600 * 1000;
+  let visit: { at: string; address: string | null } | null = null;
+  for (const raw of Array.isArray(meta.visits) ? meta.visits : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const v = raw as Record<string, unknown>;
+    const st = String(v.status || "scheduled");
+    const at = v.scheduled_at ? String(v.scheduled_at) : "";
+    const t = at ? new Date(at).getTime() : NaN;
+    if (st !== "scheduled" || Number.isNaN(t) || t < now) continue;
+    if (!visit || t < new Date(visit.at).getTime()) visit = { at, address: v.address ? String(v.address) : null };
+  }
+  let followup: { due: string | null; title: string } | null = null;
+  for (const raw of Array.isArray(meta.followups) ? meta.followups : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const f = raw as Record<string, unknown>;
+    if (String(f.status || "pending") === "done") continue;
+    const due = f.due_date ? String(f.due_date) : null;
+    const t = due ? new Date(due).getTime() : Infinity;
+    const cur = followup && followup.due ? new Date(followup.due).getTime() : Infinity;
+    if (!followup || t < cur) followup = { due, title: String(f.title || "Follow-up") };
+  }
+  return { visit, followup };
+}
+
 function mapLead(l: {
   id: string;
   name: string;
@@ -98,6 +124,7 @@ function mapLead(l: {
   lossReason?: { id: string; name: string } | null;
 }) {
   const meta = asMeta(l.metadata);
+  const agenda = leadAgenda(meta);
   // Prefer explicit lead.status (set by visit/automation) over stale pipeline join
   const statusSlug = (l.status && String(l.status).trim()) || l.pipelineStage?.slug || "";
   return {
@@ -129,6 +156,10 @@ function mapLead(l: {
     loss_note: meta.loss_note != null ? String(meta.loss_note) : null,
     lost_at: l.lostAt ? l.lostAt.toISOString() : null,
     last_contacted_at: l.lastContactedAt ? l.lastContactedAt.toISOString() : null,
+    next_visit_at: agenda.visit?.at ?? null,
+    next_visit_address: agenda.visit?.address ?? null,
+    followup_due_at: agenda.followup?.due ?? null,
+    followup_title: agenda.followup?.title ?? null,
   };
 }
 
@@ -223,9 +254,41 @@ dashboardLeadsRouter.get("/api/leads", requireCrmPermission("leads.view"), async
   }
 });
 
-dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmPermission("leads.view"), async (_req: AuthedRequest, res, next) => {
+/** Último orçamento de cada lead (número, valor, status, enviado/visto) para os cartões do funil. */
+dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {
-    res.json({ success: true, data: {} });
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const quotes = await tx.quote.findMany({
+        where: { leadId: { not: null }, status: { not: "archived" } },
+        orderBy: { createdAt: "desc" },
+        select: { leadId: true, quoteNumber: true, total: true, status: true, viewedAt: true, signedAt: true, payload: true, createdAt: true },
+        take: 5000,
+      });
+      const out: Record<string, Record<string, unknown>> = {};
+      for (const q of quotes) {
+        const id = q.leadId as string;
+        if (out[id]) {
+          out[id].quote_count = Number(out[id].quote_count) + 1;
+          continue;
+        }
+        const p = q.payload && typeof q.payload === "object" && !Array.isArray(q.payload) ? (q.payload as Record<string, unknown>) : {};
+        const sentAt = p.email_sent_at || p.sent_at || null;
+        out[id] = {
+          quote_count: 1,
+          quote_number: q.quoteNumber,
+          total: Number(q.total),
+          status: q.status,
+          email_sent: Boolean(sentAt),
+          email_sent_at: sentAt,
+          viewed: Boolean(q.viewedAt),
+          viewed_at: q.viewedAt ? q.viewedAt.toISOString() : null,
+          signed_at: q.signedAt ? q.signedAt.toISOString() : null,
+          created_at: q.createdAt.toISOString(),
+        };
+      }
+      return out;
+    });
+    res.json({ success: true, data });
   } catch (error) {
     next(error);
   }
