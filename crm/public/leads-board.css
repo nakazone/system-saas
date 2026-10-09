@@ -105,10 +105,17 @@ html body .lb .kanban-column-title { display: flex !important; align-items: cent
 .lb .kanban-column-title > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html body .lb .kanban-column-count { background: #fff !important; color: var(--lb-ink2) !important; font-size: 12px !important; font-weight: 650 !important; border-radius: 999px !important; padding: 1px 7px !important; min-width: 0 !important; height: auto !important; line-height: 1.5 !important; }
 .lb .kanban-column-value { font-size: 12px; font-weight: 650; color: var(--lb-ink2); white-space: nowrap; }
-.lb .kanban-column-cards { display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
-.lb .kanban-column-footer { padding: 4px 0 0; }
-.lb .kanban-load-more-btn { width: 100%; height: 30px !important; border: 0 !important; background: transparent !important; box-shadow: none !important; font-size: 12.5px !important; font-weight: 600 !important; color: var(--lb-ink2) !important; }
-.lb .kanban-load-more-btn:hover { color: var(--lb-ink) !important; }
+.lb .kanban-column-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 40px;
+  max-height: min(70vh, 720px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
 .lb .kanban-board-message { padding: 30px; color: var(--lb-ink2); font-size: 14px; }
 
 /* cartão */

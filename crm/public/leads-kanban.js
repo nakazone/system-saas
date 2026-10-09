@@ -10,17 +10,12 @@ let quoteEngagementByLeadId = {};
 let allUsers = [];
 /** Todas as visitas scheduled da API (Kanban filtra por estágio do lead) */
 let scheduledVisitsRawForKanban = [];
-/** Inicial: 5 cards por coluna; "Ver mais" +5 */
-const KANBAN_CARDS_INITIAL = 5;
-const KANBAN_CARDS_STEP = 5;
 /** Colunas com leads mais antigos no topo */
 const KANBAN_OLDEST_FIRST_SLUGS = new Set(['quote_sent', 'follow_up_1']);
 /** Colunas ocultas no quadro principal (acessíveis via botão Lost). */
 const KANBAN_HIDDEN_BOARD_SLUGS = new Set(['lost']);
 let kanbanShowLostColumn = false;
 let kanbanLostToggleBound = false;
-/** Chave = slug do estágio (ex.: meeting_scheduled); usado em "Ver mais" */
-let kanbanColumnVisible = {};
 /** Sortable.js instances for drag-and-drop between pipeline columns */
 let kanbanSortables = [];
 let kanbanSuppressCardClick = false;
@@ -265,7 +260,6 @@ function patchKanbanLeadCache(updatedLead) {
         allLeads.push(row);
     }
     renderKanbanBoard();
-    bindKanbanLoadMore();
     syncKanbanLostToggleUi();
     renderLeadsMobilePipeline();
 }
@@ -292,13 +286,6 @@ function kanbanStageDomId(stage) {
         return `kanban-stage-${stage.slug}`;
     }
     return `kanban-stage-${stage.id}`;
-}
-
-function kanbanColumnVisibilityKey(stage) {
-    if (stage.slug != null && stage.slug !== '') {
-        return String(stage.slug);
-    }
-    return String(stage.id);
 }
 
 function leadMatchesKanbanColumn(lead, stage) {
@@ -361,7 +348,6 @@ async function loadKanbanBoard() {
         }
         lbFillFilters();
         renderKanbanBoard();
-        bindKanbanLoadMore();
         bindKanbanLostToggle();
         syncKanbanLostToggleUi();
     } catch (error) {
@@ -493,7 +479,6 @@ function syncKanbanLostToggleUi() {
 function toggleKanbanLostColumn() {
     kanbanShowLostColumn = !kanbanShowLostColumn;
     renderKanbanBoard();
-    bindKanbanLoadMore();
     syncKanbanLostToggleUi();
     if (kanbanShowLostColumn) {
         const lostStage = getLostPipelineStage();
@@ -573,7 +558,6 @@ function lbFillFilters() {
             lbFilters.owner = (document.getElementById('lbFilterOwner') || {}).value || '';
             lbFilters.priority = (document.getElementById('lbFilterPriority') || {}).value || '';
             renderKanbanBoard();
-            bindKanbanLoadMore();
         };
         ['lbFilterSource', 'lbFilterOwner', 'lbFilterPriority'].forEach((id) => {
             const el = document.getElementById(id);
@@ -584,7 +568,6 @@ function lbFillFilters() {
             mine.addEventListener('click', () => {
                 lbFilters.mine = !lbFilters.mine;
                 renderKanbanBoard();
-                bindKanbanLoadMore();
             });
         }
         const clear = document.getElementById('lbFilterClear');
@@ -597,7 +580,6 @@ function lbFillFilters() {
                     if (el) el.value = '';
                 });
                 renderKanbanBoard();
-                bindKanbanLoadMore();
             });
         }
         const stagesNav = document.getElementById('lbStages');
@@ -738,13 +720,6 @@ function renderKanbanBoard() {
 
         const total = stageLeads.length;
         const stageValue = stageLeads.reduce((s, l) => s + lbLeadAmount(l), 0);
-        const colKey = kanbanColumnVisibilityKey(stage);
-        const visibleCap =
-            typeof kanbanColumnVisible[colKey] === 'number'
-                ? kanbanColumnVisible[colKey]
-                : KANBAN_CARDS_INITIAL;
-        const visibleLeads = stageLeads.slice(0, visibleCap);
-        const remaining = total - visibleLeads.length;
 
         const column = document.createElement('div');
         column.className = 'kanban-column';
@@ -764,7 +739,7 @@ function renderKanbanBoard() {
                 ${stageValue > 0 ? `<span class="kanban-column-value">${escapeKanbanHtml(window.omLeadSignals ? window.omLeadSignals.money(stageValue) : '$' + Math.round(stageValue))}</span>` : ''}
             </div>
             <div class="kanban-column-cards" id="${stageCardsId}">
-                ${visibleLeads
+                ${stageLeads
                     .map((lead) => {
                         try {
                             return renderKanbanCard(lead);
@@ -775,15 +750,6 @@ function renderKanbanBoard() {
                     })
                     .join('')}
             </div>
-            ${
-                remaining > 0
-                    ? `<div class="kanban-column-footer">
-                <button type="button" class="btn btn-secondary btn-sm kanban-load-more-btn" data-stage-id="${stage.id != null && stage.id !== '' ? stage.id : ''}" data-stage-slug="${stage.slug || ''}">
-                    Mostrar mais ${remaining}
-                </button>
-            </div>`
-                    : ''
-            }
         `;
 
         board.appendChild(column);
@@ -890,21 +856,6 @@ function initKanbanSortables() {
                 },
             }),
         );
-    });
-}
-
-function bindKanbanLoadMore() {
-    const board = document.getElementById('kanbanBoard');
-    if (!board) return;
-    board.querySelectorAll('.kanban-load-more-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const slug = (btn.dataset.stageSlug || '').trim();
-            if (!slug) return;
-            const cur = kanbanColumnVisible[slug] ?? KANBAN_CARDS_INITIAL;
-            kanbanColumnVisible[slug] = cur + KANBAN_CARDS_STEP;
-            renderKanbanBoard();
-            bindKanbanLoadMore();
-        });
     });
 }
 

@@ -117,8 +117,10 @@ export function createCrmRouter(): Router {
     }
   });
 
-  router.get("/pipeline-lab.html", requireAuth, (_req, res) => {
-    res.redirect(302, "/dashboard");
+  // Keep ?view=list (and any other query) so tablet Lista → list shell still works.
+  router.get("/pipeline-lab.html", requireAuth, (req, res) => {
+    const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    res.redirect(302, `/dashboard${qs}`);
   });
 
   // Block excluded SF modules in SaaS (deep links / bookmarks)

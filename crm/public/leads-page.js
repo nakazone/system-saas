@@ -131,7 +131,8 @@
             b.classList.toggle("is-active", on);
             b.setAttribute("aria-pressed", on ? "true" : "false");
           });
-          if (view === "list") location.assign("pipeline-lab.html?view=list");
+          // Canonical URL is /dashboard (pipeline-lab.html redirects and used to drop ?view=).
+          if (view === "list") location.assign("/dashboard?view=list");
         });
       }
 
@@ -139,7 +140,7 @@
       if (isTablet) {
         try {
           if (localStorage.getItem("obramate_leads_view") === "list") {
-            location.replace("pipeline-lab.html?view=list");
+            location.replace("/dashboard?view=list");
             return;
           }
         } catch (_) {}

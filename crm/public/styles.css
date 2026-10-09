@@ -2393,20 +2393,10 @@ input.score-auto {
 }
 
 .kanban-board-grid .kanban-column-cards {
-    max-height: min(58vh, 520px);
+    max-height: min(70vh, 720px);
     overflow-y: auto;
-}
-
-.kanban-column-footer {
-    padding-top: 6px;
-}
-
-.kanban-board-grid .kanban-load-more-btn {
-    width: 100%;
-    font-size: 0.75rem;
-    padding: 6px 8px;
-    white-space: normal;
-    line-height: 1.2;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 .kanban-board-grid .kanban-card-title {
