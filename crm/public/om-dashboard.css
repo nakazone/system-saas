@@ -1445,10 +1445,12 @@ body.plab.dashboard-app-body .omd-col {
     position: relative;
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-template-rows: repeat(7, 84px) auto;
+    /* Rows follow the column width (≈0.8×) so the bento keeps its proportions on wide screens. */
+    --omd-row: clamp(84px, calc((min(100vw, var(--om-shell-max, 1440px)) - 64px - 132px) / 12 * 0.8), 96px);
+    grid-template-rows: repeat(7, var(--omd-row)) auto;
     gap: 12px;
-    max-width: 1440px;
-    padding: 1.4rem 2rem 2rem;
+    max-width: var(--om-shell-max, 1440px);
+    padding: 1.4rem var(--om-shell-pad, 2rem) 2rem;
   }
 
   body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet)
@@ -1466,7 +1468,7 @@ body.plab.dashboard-app-body .omd-col {
     justify-content: flex-start;
     gap: 14px;
     margin: 0;
-    padding: 4px 6px 0;
+    padding: 4px 0 0;
   }
   body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-title {
     font-size: 44px;

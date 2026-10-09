@@ -320,10 +320,37 @@ body.dashboard-app-body .omd-btn--primary:hover {
     margin-left: 0 !important;
     padding-left: 0 !important;
   }
+  /* Uma largura só para barra de cima e conteúdo: logo e avatar alinhados com as bordas do conteúdo. */
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) {
+    --om-shell-max: 2048px;
+    --om-shell-pad: 32px;
+    --crm-page-max: var(--om-shell-max);
+    --crm-page-max-wide: var(--om-shell-max);
+    --crm-page-pad-x: var(--om-shell-pad);
+  }
+  /* Mesmo recuo lateral do conteúdo em todas as telas (a Calendar continua de ponta a ponta). */
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app):not(.sched-body) .dashboard-main {
+    padding-left: max(var(--om-shell-pad), calc((100% - var(--om-shell-max)) / 2 + var(--om-shell-pad))) !important;
+    padding-right: max(var(--om-shell-pad), calc((100% - var(--om-shell-max)) / 2 + var(--om-shell-pad))) !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main > .crm-page,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main .inv-page,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main #foRoot.fo,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main #cfg.cfg {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main .omd {
+    max-width: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
   html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #crmTopbar.crm-topbar,
   html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .crm-topbar {
     left: 0 !important;
-    padding-left: 20px !important;
+    padding-left: max(var(--om-shell-pad), calc((100% - var(--om-shell-max)) / 2 + var(--om-shell-pad))) !important;
+    padding-right: max(var(--om-shell-pad), calc((100% - var(--om-shell-max)) / 2 + var(--om-shell-pad))) !important;
   }
   html body.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #crmTopbar .crm-topbar__brand {
     display: flex !important;
