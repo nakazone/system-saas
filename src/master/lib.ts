@@ -3,6 +3,8 @@
  * UI copy is pt-BR; identifiers stay in English.
  */
 
+import crypto from "node:crypto";
+
 export const PLATFORM_ROLES = ["MASTER", "ADMIN", "FINANCE", "SUPPORT", "READONLY"] as const;
 export type PlatformRole = (typeof PLATFORM_ROLES)[number];
 
@@ -34,9 +36,9 @@ export type Capability =
 export const CAPABILITIES: { key: Capability; label: string }[] = [
   { key: "view", label: "Ver empresas, usuários e contatos" },
   { key: "billing_full", label: "Ver pagamentos e valores" },
-  { key: "billing_manage", label: "Registrar pagamento, mudar plano e prorrogar" },
+  { key: "billing_manage", label: "Criar empresa, editar assinatura, pagamento, plano e prazo" },
   { key: "refund", label: "Estornar pagamento" },
-  { key: "users_manage", label: "Bloquear usuários, encerrar sessões, senha temporária" },
+  { key: "users_manage", label: "Cadastrar usuários, bloquear, sessões e senha temporária" },
   { key: "tenants_suspend", label: "Suspender, reativar e cancelar empresas" },
   { key: "export", label: "Exportar dados (CSV)" },
   { key: "team_manage", label: "Equipe da plataforma" },
@@ -79,6 +81,23 @@ export const PLAN_LABEL: Record<string, string> = {
 export function planLabel(plan: string | null | undefined): string {
   const p = String(plan || "").toLowerCase();
   return PLAN_LABEL[p] ?? (p ? p[0].toUpperCase() + p.slice(1) : "—");
+}
+
+/** One-time password shown once in the Master UI (user must change on first login). */
+export function makeTempPassword(len = 12): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from(crypto.randomBytes(len), (b) => alphabet[b % alphabet.length]).join("");
+}
+
+/** Lowercase slug from a company name (letters, numbers, hyphens). */
+export function slugifyName(name: string): string {
+  return String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
 }
 
 export function cyclePriceCents(org: { plan: string; billingCycle: string; planPriceCents: number | null }): number {

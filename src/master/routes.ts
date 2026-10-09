@@ -57,15 +57,19 @@ import {
   dayFromToday,
   daysUntil,
   initials,
+  makeTempPassword,
   money,
   normalizeRole,
   planLabel,
   shortDate,
+  slugifyName,
   weekdayShort,
   ymdInTz,
   PLATFORM_ROLES,
   type PlatformRole,
 } from "./lib.js";
+import { createOrganizationWithAdmin, validateSlug } from "../modules/organizations/service.js";
+import { formatPersonName } from "../lib/name.js";
 
 export const masterRouter = Router();
 
@@ -516,6 +520,112 @@ masterRouter.get(
       filters: CLIENT_FILTERS.map((f) => ({ key: f[0], label: f[1], count: orgs.filter(f[2]).length })),
       sub: `${orgs.length} empresa(s) · ${money(mrr)} de MRR · ${orgs.filter((o) => o.overdue).length} com vencimento passado`,
       showMoney: can(req.master!.role, "billing_full"),
+      canCreate: can(req.master!.role, "billing_manage"),
+      plans: Object.entries(PLAN_LABEL).map(([key, label]) => ({
+        key,
+        label,
+        monthly: money(PLAN_MONTHLY_CENTS[key]),
+        annual: money(PLAN_MONTHLY_CENTS[key] * 10),
+      })),
+      todayYmd: ymdInTz(new Date()),
+    });
+  }),
+);
+
+const createOrgSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  slug: z.string().trim().max(48).optional().or(z.literal("")),
+  adminName: z.string().trim().min(2).max(120),
+  adminEmail: z.string().trim().email().max(200),
+  contactPhone: z.string().trim().max(40).optional().or(z.literal("")),
+  status: z.enum(["trial", "active"]).default("trial"),
+  plan: z.enum(["starter", "professional", "business"]).default("starter"),
+  cycle: z.enum(["monthly", "annual"]).default("monthly"),
+  price: z.union([z.literal(""), z.coerce.number().min(0).max(100000)]).optional(),
+  trialDays: z.coerce.number().int().min(1).max(366).optional(),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+});
+
+masterRouter.post(
+  "/clientes",
+  requireCap("billing_manage"),
+  requireStepUp,
+  h(async (req, res) => {
+    const parsed = createOrgSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Confira os dados da empresa e do dono.");
+    const slugRaw = (parsed.data.slug || slugifyName(parsed.data.name) || "empresa").slice(0, 48);
+    const slugErr = validateSlug(slugRaw);
+    if (slugErr) return fail(res, 400, slugErr);
+    const email = parsed.data.adminEmail.toLowerCase();
+    const temp = makeTempPassword();
+    let created: Awaited<ReturnType<typeof createOrganizationWithAdmin>>;
+    try {
+      created = await createOrganizationWithAdmin({
+        organizationName: parsed.data.name,
+        slug: slugRaw,
+        adminName: parsed.data.adminName,
+        adminEmail: email,
+        password: temp,
+        contactEmail: email,
+        contactPhone: parsed.data.contactPhone || undefined,
+      });
+    } catch (err) {
+      return fail(res, 400, err instanceof Error ? err.message : "Não foi possível criar a empresa.");
+    }
+    const custom =
+      parsed.data.price === "" || parsed.data.price == null ? null : Math.round(Number(parsed.data.price) * 100);
+    const listPrice = cyclePriceCents({
+      plan: parsed.data.plan,
+      billingCycle: parsed.data.cycle,
+      planPriceCents: null,
+    });
+    const planPriceCents = custom != null && custom !== listPrice ? custom : null;
+    const billing: Record<string, unknown> = {
+      plan: parsed.data.plan,
+      billingCycle: parsed.data.cycle,
+      planPriceCents,
+    };
+    if (parsed.data.status === "trial") {
+      const days = parsed.data.trialDays ?? 30;
+      billing.status = "trial";
+      billing.trialEndsAt = dayFromToday(days);
+      billing.currentPeriodEnd = null;
+    } else {
+      billing.status = "active";
+      billing.trialEndsAt = null;
+      billing.currentPeriodEnd = parsed.data.periodEnd
+        ? new Date(`${parsed.data.periodEnd}T12:00:00Z`)
+        : addCycle(dayFromToday(0), parsed.data.cycle);
+    }
+    await prisma.organization.update({ where: { id: created.organization.id }, data: billing });
+    await prisma.user.update({
+      where: { id: created.admin.id },
+      data: { mustChangePassword: true },
+    });
+    await audit(
+      req,
+      actor(req),
+      "tenant.create",
+      {
+        type: "organization",
+        id: created.organization.id,
+        label: created.organization.name,
+        meta: {
+          slug: slugRaw,
+          status: billing.status,
+          plan: parsed.data.plan,
+          adminEmail: email,
+        },
+      },
+      true,
+    );
+    ok(res, `${parsed.data.name} criada. Passe a senha temporária para ${email}.`, {
+      redirect: `/master/clientes/${created.organization.id}`,
+      reveal: {
+        title: `Senha temporária · ${parsed.data.adminName}`,
+        value: temp,
+        note: `Empresa ${slugRaw} · ${email}. No primeiro acesso o sistema pede uma senha nova. A senha não aparece de novo.`,
+      },
     });
   }),
 );
@@ -525,11 +635,16 @@ masterRouter.get(
   h(async (req, res) => {
     const org = await loadOrg(String(req.params.id));
     if (!org) return void res.status(404).render("master/error", { title: "Empresa não encontrada", message: "Essa empresa não existe." });
-    const [users, payments, notes, contactLog] = await Promise.all([
+    const [users, payments, notes, contactLog, roles] = await Promise.all([
       loadUsers({ organizationId: org.id }),
       loadPayments({ organizationId: org.id }, 6),
       prisma.platformNote.findMany({ where: { organizationId: org.id }, orderBy: { createdAt: "desc" }, take: 20 }),
       prisma.platformContactLog.findMany({ where: { organizationId: org.id }, orderBy: { createdAt: "desc" }, take: 5 }),
+      prisma.role.findMany({
+        where: { organizationId: org.id },
+        select: { id: true, key: true, name: true },
+        orderBy: { name: "asc" },
+      }),
     ]);
     const nextPeriodStart = org.currentPeriodEnd && org.currentPeriodEnd > new Date() ? org.currentPeriodEnd : dayFromToday(0);
     const data = {
@@ -538,18 +653,126 @@ masterRouter.get(
       payments,
       notes,
       contactLog,
+      roles,
       plans: Object.entries(PLAN_LABEL).map(([key, label]) => ({ key, label, monthly: money(PLAN_MONTHLY_CENTS[key]), annual: money(PLAN_MONTHLY_CENTS[key] * 10) })),
       methods: Object.entries(METHOD_LABEL),
       todayYmd: ymdInTz(new Date()),
       dueYmd: org.due ? ymdInTz(org.due) : "",
+      trialYmd: org.trialEndsAt ? ymdInTz(org.trialEndsAt) : "",
+      periodYmd: org.currentPeriodEnd ? ymdInTz(org.currentPeriodEnd) : "",
       priceDollars: (org.priceCents / 100).toFixed(2),
       nextPeriodLabel: `${shortDate(nextPeriodStart)} → ${shortDate(addCycle(nextPeriodStart, org.billingCycle))}`,
       canBilling: can(req.master!.role, "billing_manage"),
       canSuspend: can(req.master!.role, "tenants_suspend"),
+      canUsers: can(req.master!.role, "users_manage"),
       showMoney: can(req.master!.role, "billing_full"),
     };
     if (req.query.partial) return void res.render("master/_cliente", { ...data, partial: true });
     page(res, "cliente", await shell(req, "clientes"), { ...data, partial: false });
+  }),
+);
+
+masterRouter.get(
+  "/clientes/:id/papeis",
+  requireCap("users_manage"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const roles = await prisma.role.findMany({
+      where: { organizationId: org.id },
+      select: { id: true, key: true, name: true },
+      orderBy: { name: "asc" },
+    });
+    res.json({ ok: true, roles });
+  }),
+);
+
+const assinaturaSchema = z.object({
+  status: z.enum(["trial", "active", "past_due", "suspended", "canceled"]),
+  plan: z.enum(["starter", "professional", "business"]),
+  cycle: z.enum(["monthly", "annual"]),
+  price: z.union([z.literal(""), z.coerce.number().min(0).max(100000)]).optional(),
+  trialEndsAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+  currentPeriodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+});
+
+masterRouter.post(
+  "/clientes/:id/assinatura",
+  requireCap("billing_manage"),
+  requireStepUp,
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const parsed = assinaturaSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Confira status, plano e datas.");
+    const custom =
+      parsed.data.price === "" || parsed.data.price == null ? null : Math.round(Number(parsed.data.price) * 100);
+    const listPrice = cyclePriceCents({
+      plan: parsed.data.plan,
+      billingCycle: parsed.data.cycle,
+      planPriceCents: null,
+    });
+    const planPriceCents = custom != null && custom !== listPrice ? custom : null;
+    const trialEndsAt = parsed.data.trialEndsAt
+      ? new Date(`${parsed.data.trialEndsAt}T12:00:00Z`)
+      : null;
+    const currentPeriodEnd = parsed.data.currentPeriodEnd
+      ? new Date(`${parsed.data.currentPeriodEnd}T12:00:00Z`)
+      : null;
+    const data: Record<string, unknown> = {
+      status: parsed.data.status,
+      plan: parsed.data.plan,
+      billingCycle: parsed.data.cycle,
+      planPriceCents,
+      trialEndsAt: parsed.data.status === "trial" ? trialEndsAt || org.trialEndsAt : trialEndsAt,
+      currentPeriodEnd:
+        parsed.data.status === "trial" ? currentPeriodEnd : currentPeriodEnd || org.currentPeriodEnd,
+    };
+    if (parsed.data.status === "suspended" && org.status !== "suspended") {
+      data.suspendedAt = new Date();
+    }
+    if (parsed.data.status !== "suspended") data.suspendedAt = null;
+    if (parsed.data.status === "canceled" && org.status !== "canceled") {
+      data.canceledAt = new Date();
+    }
+    if (parsed.data.status !== "canceled") {
+      data.canceledAt = null;
+      data.cancelReason = null;
+    }
+    await prisma.organization.update({ where: { id: org.id }, data });
+    if (parsed.data.status === "suspended" || parsed.data.status === "canceled") {
+      await endOrgSessions(org.id);
+    }
+    await audit(
+      req,
+      actor(req),
+      "tenant.subscription",
+      {
+        type: "organization",
+        id: org.id,
+        label: org.name,
+        meta: {
+          from: {
+            status: org.status,
+            plan: org.plan,
+            cycle: org.billingCycle,
+            priceCents: org.planPriceCents,
+            trialEndsAt: org.trialEndsAt?.toISOString() ?? null,
+            currentPeriodEnd: org.currentPeriodEnd?.toISOString() ?? null,
+          },
+          to: {
+            status: parsed.data.status,
+            plan: parsed.data.plan,
+            cycle: parsed.data.cycle,
+            priceCents: planPriceCents,
+            trialEndsAt: trialEndsAt?.toISOString() ?? null,
+            currentPeriodEnd: currentPeriodEnd?.toISOString() ?? null,
+          },
+        },
+      },
+      true,
+    );
+    ok(res, `Assinatura de ${org.name} atualizada.`);
   }),
 );
 
@@ -829,6 +1052,14 @@ masterRouter.get(
     const q = String(req.query.q || "").trim().toLowerCase();
     const rows = users.filter(filter[2]).filter((u) => !q || `${u.name} ${u.email} ${u.orgName}`.toLowerCase().includes(q));
     const orgCount = new Set(users.map((u) => u.organizationId)).size;
+    const orgsForCreate = can(req.master!.role, "users_manage")
+      ? await prisma.organization.findMany({
+          where: { status: { not: "canceled" } },
+          select: { id: true, name: true, slug: true },
+          orderBy: { name: "asc" },
+          take: 500,
+        })
+      : [];
     page(res, "usuarios", await shell(req, "usuarios"), {
       rows,
       q: String(req.query.q || ""),
@@ -836,6 +1067,76 @@ masterRouter.get(
       filters: USER_FILTERS.map((f) => ({ key: f[0], label: f[1], count: users.filter(f[2]).length })),
       sub: `${users.length} usuário(s) em ${orgCount} empresa(s) · ${users.filter((u) => u.sessions > 0).length} com sessão aberta`,
       canManage: can(req.master!.role, "users_manage"),
+      orgsForCreate,
+    });
+  }),
+);
+
+const createUserSchema = z.object({
+  organizationId: z.string().uuid(),
+  name: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(200),
+  roleId: z.string().uuid(),
+});
+
+masterRouter.post(
+  "/usuarios",
+  requireCap("users_manage"),
+  requireStepUp,
+  h(async (req, res) => {
+    const parsed = createUserSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Confira empresa, nome, e-mail e papel.");
+    const org = await prisma.organization.findUnique({
+      where: { id: parsed.data.organizationId },
+      select: { id: true, name: true, status: true },
+    });
+    if (!org) return fail(res, 404, "Empresa não encontrada.");
+    if (org.status === "canceled") return fail(res, 400, "Reative a empresa antes de cadastrar usuários.");
+    const role = await prisma.role.findFirst({
+      where: { id: parsed.data.roleId, organizationId: org.id },
+      select: { id: true, name: true, key: true },
+    });
+    if (!role) return fail(res, 400, "Papel inválido para essa empresa.");
+    const email = parsed.data.email.toLowerCase();
+    const taken = await prisma.user.findFirst({
+      where: { email, organizationId: org.id },
+      select: { id: true },
+    });
+    if (taken) return fail(res, 409, "Já existe um usuário com esse e-mail nesta empresa.");
+    const temp = makeTempPassword();
+    const user = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${org.id}, true)`;
+      return tx.user.create({
+        data: {
+          organizationId: org.id,
+          email,
+          name: formatPersonName(parsed.data.name),
+          passwordHash: await hashPassword(temp),
+          roleId: role.id,
+          status: "active",
+          mustChangePassword: true,
+        },
+      });
+    });
+    await audit(
+      req,
+      actor(req),
+      "user.create",
+      {
+        type: "user",
+        id: user.id,
+        label: `${user.name} · ${org.name}`,
+        meta: { email, role: role.key, organizationId: org.id },
+      },
+      true,
+    );
+    ok(res, `${user.name} cadastrado em ${org.name}.`, {
+      redirect: `/master/usuarios/${user.id}`,
+      reveal: {
+        title: `Senha temporária · ${user.name}`,
+        value: temp,
+        note: `Passe para ${email} por um canal seguro. No primeiro acesso o sistema pede uma senha nova. Ela não aparece de novo.`,
+      },
     });
   }),
 );
@@ -904,8 +1205,7 @@ masterRouter.post(
   h(async (req, res) => {
     const u = await userOr404(req, res);
     if (!u) return;
-    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    const temp = Array.from(crypto.randomBytes(12), (b) => alphabet[b % alphabet.length]).join("");
+    const temp = makeTempPassword();
     await prisma.user.update({ where: { id: u.id }, data: { passwordHash: await hashPassword(temp), mustChangePassword: true } });
     await endUserSessions([u.id]);
     await audit(req, actor(req), "user.temp_password", { type: "user", id: u.id, label: `${u.name} · ${u.organization.name}` }, true);
@@ -1262,8 +1562,11 @@ const AUDIT_TEXT: Record<string, string> = {
   "tenant.suspend": "Suspendeu a empresa",
   "tenant.reactivate": "Reativou a empresa",
   "tenant.cancel": "Cancelou a empresa",
+  "tenant.create": "Criou empresa",
+  "tenant.subscription": "Editou assinatura",
   "payment.record": "Registrou pagamento",
   "payment.refund": "Estornou pagamento",
+  "user.create": "Cadastrou usuário",
   "user.block": "Bloqueou usuário",
   "user.unblock": "Desbloqueou usuário",
   "user.end_sessions": "Encerrou sessões",

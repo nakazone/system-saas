@@ -267,6 +267,70 @@
   }
   initPanel(document);
 
+  // ---------- Create company: slug from name + trial/active fields ----------
+  $$("form[data-slugify]").forEach(function (form) {
+    var name = form.querySelector("[name=name]");
+    var slug = form.querySelector("[name=slug]");
+    var slugTouched = false;
+    if (slug) slug.addEventListener("input", function () { slugTouched = !!slug.value.trim(); });
+    if (name && slug) {
+      name.addEventListener("input", function () {
+        if (slugTouched) return;
+        slug.value = String(name.value || "")
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+      });
+    }
+    function syncStatus() {
+      var st = form.querySelector("[name=status]:checked");
+      var trial = st && st.value === "trial";
+      $$("[data-trial-fields]", form).forEach(function (el) { el.hidden = !trial; });
+      $$("[data-active-fields]", form).forEach(function (el) { el.hidden = trial; });
+      var period = form.querySelector("[name=periodEnd]");
+      if (period) period.required = !trial;
+    }
+    form.addEventListener("change", function (e) {
+      if (e.target && e.target.name === "status") syncStatus();
+    });
+    syncStatus();
+  });
+
+  // ---------- Create user: load roles for selected company ----------
+  $$("form[data-user-create]").forEach(function (form) {
+    var orgSel = form.querySelector("[data-org-roles]");
+    var roleSel = form.querySelector("[data-role-select]");
+    if (!orgSel || !roleSel) return;
+    orgSel.addEventListener("change", function () {
+      var id = orgSel.value;
+      roleSel.innerHTML = '<option value="">Carregando…</option>';
+      roleSel.disabled = true;
+      if (!id) {
+        roleSel.innerHTML = '<option value="">Selecione a empresa primeiro</option>';
+        return;
+      }
+      fetch("/master/clientes/" + encodeURIComponent(id) + "/papeis", {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var roles = (j && j.roles) || [];
+          if (!roles.length) {
+            roleSel.innerHTML = '<option value="">Nenhum papel nesta empresa</option>';
+            return;
+          }
+          roleSel.innerHTML = roles.map(function (r) {
+            var sel = r.key === "admin" ? " selected" : "";
+            return '<option value="' + r.id + '"' + sel + ">" + r.name + "</option>";
+          }).join("");
+          roleSel.disabled = false;
+        })
+        .catch(function () {
+          roleSel.innerHTML = '<option value="">Erro ao carregar papéis</option>';
+        });
+    });
+  });
+
   // ---------- Bulk selection (users) ----------
   var bulk = $("#bulkbar");
   if (bulk) {

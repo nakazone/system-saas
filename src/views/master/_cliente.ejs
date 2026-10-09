@@ -15,10 +15,13 @@
     <% } %>
   </div>
   <div class="d-actions">
-    <% if (canBilling && o.status !== 'canceled') { %>
-      <button class="btn btn-dark" type="button" data-open="dlg-pagamento">Registrar pagamento</button>
-      <button class="btn" type="button" data-open="dlg-prorrogar"><%= o.due ? 'Prorrogar' : 'Definir vencimento' %></button>
-      <button class="btn" type="button" data-open="dlg-plano">Mudar plano</button>
+    <% if (canBilling) { %>
+      <button class="btn btn-dark" type="button" data-open="dlg-assinatura">Editar assinatura</button>
+      <% if (o.status !== 'canceled') { %>
+        <button class="btn" type="button" data-open="dlg-pagamento">Registrar pagamento</button>
+        <button class="btn" type="button" data-open="dlg-prorrogar"><%= o.due ? 'Prorrogar' : 'Definir vencimento' %></button>
+        <button class="btn" type="button" data-open="dlg-plano">Mudar plano</button>
+      <% } %>
     <% } %>
     <% if (canSuspend) { %>
       <% if (o.status === 'suspended' || o.status === 'canceled') { %>
@@ -31,7 +34,7 @@
 </div>
 <div class="d-body">
   <section class="d-sec">
-    <h3>Assinatura <% if (o.stripeCustomerId) { %><span class="pill pill-sm tone-soft">Stripe</span><% } %></h3>
+    <h3>Assinatura <% if (o.stripeCustomerId) { %><span class="pill pill-sm tone-soft">Stripe</span><% } %><% if (canBilling) { %> <button class="btn btn-soft btn-sm" type="button" data-open="dlg-assinatura">Editar</button><% } %></h3>
     <div class="kv" style="box-shadow:none;padding:0">
       <div><span>Plano</span><b><%= o.planText %> · <%= o.cycleText.toLowerCase() %></b></div>
       <% if (showMoney) { %><div><span>Valor</span><b><%= o.status === 'trial' ? 'grátis no trial · depois ' + money(o.priceCents) : o.priceText %><%= o.planPriceCents != null ? ' (preço especial)' : '' %></b></div><% } %>
@@ -73,7 +76,10 @@
   </section>
 
   <section class="d-sec">
-    <h3>Usuários (<%= users.length %>) <a class="btn btn-soft btn-sm" href="/master/usuarios?q=<%= encodeURIComponent(o.name) %>">Ver todos</a></h3>
+    <h3>Usuários (<%= users.length %>)
+      <% if (canUsers && o.status !== 'canceled') { %><button class="btn btn-soft btn-sm" type="button" data-open="dlg-user-empresa">+ Usuário</button><% } %>
+      <a class="btn btn-soft btn-sm" href="/master/usuarios?q=<%= encodeURIComponent(o.name) %>">Ver todos</a>
+    </h3>
     <% users.slice(0, 6).forEach(function (u) { %>
       <a class="d-line" href="/master/usuarios/<%= u.id %>" data-usuario="<%= u.id %>">
         <span class="av round" style="width:30px;height:30px;font-size:11px;background:<%= u.avatarBg %>"><%= u.initials %></span>
@@ -115,6 +121,38 @@
 </div>
 
 <% if (canBilling) { %>
+<dialog id="dlg-assinatura" aria-labelledby="t-as">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-as">Editar assinatura</h2><p>Controle total: status, plano, ciclo, preço e datas.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/clientes/<%= id %>/assinatura" data-stepup="Editar assinatura de <%= o.name %>">
+      <div class="field">Status
+        <div class="seg-pick">
+          <% [['trial','Trial'],['active','Ativa'],['past_due','Atrasada'],['suspended','Suspensa'],['canceled','Cancelada']].forEach(function (s) { %>
+            <label><input type="radio" name="status" value="<%= s[0] %>" <%= o.status === s[0] ? 'checked' : '' %>><span><%= s[1] %></span></label>
+          <% }) %>
+        </div>
+      </div>
+      <div class="seg-pick cards">
+        <% plans.forEach(function (p) { %><label><input type="radio" name="plan" value="<%= p.key %>" <%= o.plan === p.key ? 'checked' : '' %>><span><b><%= p.label %></b><small><%= p.monthly %>/mês · <%= p.annual %>/ano</small></span></label><% }) %>
+      </div>
+      <div class="field">Ciclo
+        <div class="seg-pick">
+          <label><input type="radio" name="cycle" value="monthly" <%= o.billingCycle !== 'annual' ? 'checked' : '' %>><span>Mensal</span></label>
+          <label><input type="radio" name="cycle" value="annual" <%= o.billingCycle === 'annual' ? 'checked' : '' %>><span>Anual</span></label>
+        </div>
+      </div>
+      <label class="field">Preço especial por ciclo (USD)<input class="input num" name="price" type="number" step="0.01" min="0" value="<%= o.planPriceCents != null ? (o.planPriceCents / 100).toFixed(2) : '' %>" placeholder="preço de lista"></label>
+      <div class="form-row">
+        <label class="field">Fim do trial<input class="input" name="trialEndsAt" type="date" value="<%= trialYmd || '' %>"></label>
+        <label class="field">Vencimento / renovação<input class="input" name="currentPeriodEnd" type="date" value="<%= periodYmd || '' %>"></label>
+      </div>
+      <div class="note-box">Suspensa ou cancelada: os usuários saem na hora. Os dados ficam guardados.</div>
+      <button class="btn btn-dark btn-block" type="submit">Salvar assinatura</button>
+    </form>
+  </div>
+</dialog>
+
 <dialog id="dlg-prorrogar" aria-labelledby="t-pr">
   <div class="modal">
     <div class="modal-head"><div><h2 id="t-pr"><%= o.due ? 'Prorrogar' : 'Definir vencimento' %></h2><p><%= o.status === 'trial' ? 'Fim do trial' : 'Vencimento' %> atual: <%= o.due ? o.dueLabel + (o.overdue ? ' (já passou)' : '') : 'nenhum' %></p></div>
@@ -201,6 +239,28 @@
       <label class="field">Motivo<input class="input" name="reason" maxlength="200" placeholder="Ex.: achou caro, fechou a empresa…"></label>
       <label class="field">Digite <%= o.slug %> para confirmar<input class="input" name="confirm" required autocomplete="off"></label>
       <button class="btn btn-danger btn-block" type="submit">Cancelar empresa</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
+
+<% if (canUsers && o.status !== 'canceled') { %>
+<dialog id="dlg-user-empresa" aria-labelledby="t-ue">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-ue">Novo usuário · <%= o.name %></h2><p>Cadastro manual. A senha temporária aparece uma vez.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/usuarios" data-stepup="Cadastrar usuário em <%= o.name %>">
+      <input type="hidden" name="organizationId" value="<%= id %>">
+      <div class="form-row">
+        <label class="field">Nome<input class="input" name="name" required maxlength="120" autofocus></label>
+        <label class="field">E-mail<input class="input" name="email" type="email" required maxlength="200"></label>
+      </div>
+      <label class="field">Papel
+        <select class="input" name="roleId" required>
+          <% (roles || []).forEach(function (r) { %><option value="<%= r.id %>" <%= r.key === 'admin' ? 'selected' : '' %>><%= r.name %></option><% }) %>
+        </select>
+      </label>
+      <button class="btn btn-dark btn-block" type="submit">Cadastrar usuário</button>
     </form>
   </div>
 </dialog>

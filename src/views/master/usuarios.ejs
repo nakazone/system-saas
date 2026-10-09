@@ -1,7 +1,10 @@
 <%- include('_top', { pageTitle: 'Usuários' }) %>
 <div class="page-head">
   <div><h1>Usuários</h1><div class="page-sub"><%= sub %></div></div>
-  <% if (locals.can && can('export')) { %><form data-action action="/master/exportar/usuarios" data-stepup="Exportar todos os usuários com e-mail"><button class="btn" type="submit">Exportar CSV</button></form><% } %>
+  <div class="row-actions">
+    <% if (canManage) { %><button class="btn btn-dark" type="button" data-open="dlg-novo-usuario">+ Novo usuário</button><% } %>
+    <% if (locals.can && can('export')) { %><form data-action action="/master/exportar/usuarios" data-stepup="Exportar todos os usuários com e-mail"><button class="btn" type="submit">Exportar CSV</button></form><% } %>
+  </div>
 </div>
 <form class="toolbar" method="get" action="/master/usuarios" data-autosubmit role="search">
   <div class="chips">
@@ -40,4 +43,30 @@
   <% }) %>
   <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:28px">Nenhum usuário com esse filtro.</div><% } %>
 </section>
+<% if (canManage) { %>
+<dialog id="dlg-novo-usuario" aria-labelledby="t-nu">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-nu">Novo usuário</h2><p>Cadastro manual em uma empresa existente. A senha temporária aparece uma vez.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/usuarios" data-stepup="Cadastrar usuário no Master" data-user-create>
+      <label class="field">Empresa
+        <select class="input" name="organizationId" required data-org-roles>
+          <option value="">Selecione…</option>
+          <% orgsForCreate.forEach(function (o) { %><option value="<%= o.id %>"><%= o.name %> (<%= o.slug %>)</option><% }) %>
+        </select>
+      </label>
+      <div class="form-row">
+        <label class="field">Nome<input class="input" name="name" required maxlength="120" autofocus></label>
+        <label class="field">E-mail<input class="input" name="email" type="email" required maxlength="200"></label>
+      </div>
+      <label class="field">Papel
+        <select class="input" name="roleId" required data-role-select disabled>
+          <option value="">Selecione a empresa primeiro</option>
+        </select>
+      </label>
+      <button class="btn btn-dark btn-block" type="submit">Cadastrar usuário</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
 <%- include('_bottom') %>

@@ -1,11 +1,12 @@
 <%- include('_top', { pageTitle: 'Clientes' }) %>
 <div class="page-head">
   <div><h1>Clientes</h1><div class="page-sub"><%= sub %></div></div>
-  <% if (locals.can && can('export')) { %>
   <div class="row-actions">
+    <% if (canCreate) { %><button class="btn btn-dark" type="button" data-open="dlg-nova-empresa">+ Nova empresa</button><% } %>
+    <% if (locals.can && can('export')) { %>
     <form data-action action="/master/exportar/clientes" data-stepup="Exportar a base de clientes com contatos"><button class="btn" type="submit">Exportar CSV</button></form>
+    <% } %>
   </div>
-  <% } %>
 </div>
 <form class="toolbar" method="get" action="/master/clientes" data-autosubmit role="search">
   <div class="chips">
@@ -32,4 +33,42 @@
   <% }) %>
   <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:28px">Nenhum cliente com esse filtro.</div><% } %>
 </section>
+<% if (canCreate) { %>
+<dialog id="dlg-nova-empresa" aria-labelledby="t-ne">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-ne">Nova empresa</h2><p>Cria a conta na hora com o dono e a assinatura. A senha temporária aparece uma vez.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/clientes" data-stepup="Criar empresa no Master" data-slugify>
+      <label class="field">Nome da empresa<input class="input" name="name" required maxlength="120" autofocus placeholder="Ex.: Senior Floors LLC"></label>
+      <label class="field">Slug (URL)<input class="input" name="slug" maxlength="48" placeholder="gerado do nome" pattern="[a-z0-9]+(?:-[a-z0-9]+)*"><small class="muted">empresa.obramate.com</small></label>
+      <div class="form-row">
+        <label class="field">Dono · nome<input class="input" name="adminName" required maxlength="120"></label>
+        <label class="field">Dono · e-mail<input class="input" name="adminEmail" type="email" required maxlength="200"></label>
+      </div>
+      <label class="field">Telefone (opcional)<input class="input" name="contactPhone" type="tel" maxlength="40"></label>
+      <div class="field">Status inicial
+        <div class="seg-pick">
+          <label><input type="radio" name="status" value="trial" checked data-status-toggle><span>Trial</span></label>
+          <label><input type="radio" name="status" value="active" data-status-toggle><span>Ativa (paga)</span></label>
+        </div>
+      </div>
+      <div class="seg-pick cards">
+        <% plans.forEach(function (p) { %><label><input type="radio" name="plan" value="<%= p.key %>" <%= p.key === 'starter' ? 'checked' : '' %>><span><b><%= p.label %></b><small><%= p.monthly %>/mês</small></span></label><% }) %>
+      </div>
+      <div class="field">Ciclo
+        <div class="seg-pick">
+          <label><input type="radio" name="cycle" value="monthly" checked><span>Mensal</span></label>
+          <label><input type="radio" name="cycle" value="annual"><span>Anual</span></label>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="field" data-trial-fields>Dias de trial<input class="input" name="trialDays" type="number" min="1" max="366" value="30"></label>
+        <label class="field" data-active-fields hidden>Vencimento<input class="input" name="periodEnd" type="date" min="<%= todayYmd %>"></label>
+        <label class="field">Preço especial / ciclo (USD)<input class="input num" name="price" type="number" step="0.01" min="0" placeholder="preço de lista"></label>
+      </div>
+      <button class="btn btn-dark btn-block" type="submit">Criar empresa</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
 <%- include('_bottom') %>
