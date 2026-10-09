@@ -127,6 +127,9 @@ body.dashboard-app-body .fo-stat__go:hover { background: #E7792C !important; bor
   .fw-main .fo-quick__go { min-width: 0; }
   .fw-dc { min-height: 80px; padding: 8px 9px; }
   .fw-main .fo-name small { display: none; }
+  .fw-main .fo-tbl--week .c-st { display: none; }
+  .fw-main .fo-tbl--week tfoot td[colspan="2"] { display: none; }
+  .fw-main .fo-name b { white-space: nowrap; }
 }
 @container fwm (max-width: 860px) {
   .fw-emp__grid { grid-template-columns: minmax(0, 1fr); }

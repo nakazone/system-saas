@@ -653,14 +653,14 @@
         ${showSq ? `<td class="r">${r.totals.sqft ? qty(r.totals.sqft) : '<span class="fo-muted">—</span>'}</td>` : ""}
         <td class="r">${adj ? `${adj > 0 ? "+" : "−"}${money(Math.abs(adj))}` : '<span class="fo-muted">—</span>'}</td>
         <td class="r"><b>${money(r.totals.net)}</b>${r.totals.pending_amount ? `<small class="fo-sub">+${money(r.totals.pending_amount)} em conferência</small>` : ""}</td>
-        <td>${empStatus(r)}</td>
+        <td class="c-st">${empStatus(r)}</td>
         <td class="r fo-acts">${tableActions(r)}</td>
       </tr>`;
     };
     return `<div class="fo-card fo-tbl-wrap--week"><table class="fo-tbl fo-tbl--week">
       <thead><tr>
         <th class="c">${st.manage ? `<input type="checkbox" data-selall ${allSel ? "checked" : ""} ${payable.length ? "" : "disabled"} aria-label="Selecionar todos a pagar" />` : ""}</th>
-        <th>Funcionário</th><th>${cycleDays().length > 8 ? "Ciclo" : "Semana"}</th><th class="r">Diárias</th><th class="r">Extra</th>${showSq ? '<th class="r">Sq ft</th>' : ""}<th class="r">Ajustes</th><th class="r">Líquido</th><th>Status</th><th></th>
+        <th>Funcionário</th><th>${cycleDays().length > 8 ? "Ciclo" : "Semana"}</th><th class="r">Diárias</th><th class="r">Extra</th>${showSq ? '<th class="r">Sq ft</th>' : ""}<th class="r">Ajustes</th><th class="r">Líquido</th><th class="c-st">Status</th><th></th>
       </tr></thead>
       <tbody>${groups
         .map(([k, list]) => {
