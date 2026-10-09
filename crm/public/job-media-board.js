@@ -1,16 +1,44 @@
+/**
+ * ObraCam (Opção B): lista de jobs ao lado (quem precisa de foto primeiro) e as fotos do job escolhido
+ * em Antes / Durante / Depois com o mapa de onde foram tiradas. "Todas as fotos" mostra as recentes por dia.
+ * Foto abre no visualizador (cam-viewer.js).
+ */
 (function () {
-  let map = null;
-  let mapMarkers = [];
-  let allJobs = [];
-  let allFeed = [];
-  let searchQ = "";
-  let searchTimer = null;
-  let mapGen = 0;
+  const $ = (id) => document.getElementById(id);
+  const STAGES = [["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["none", "Geral"]];
+  const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
+  const WDL = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+  const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const FEED_DAYS = 7;
   const GEO_CACHE_KEY = "om_jmb_geocode_v1";
-  const geoCache = loadGeoCache();
+  const SVG = {
+    cam: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
+    pin: '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    back: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+  };
 
-  async function api(url) {
-    const r = await fetch(url, { credentials: "include", headers: { Accept: "application/json" } });
+  let jobs = [];
+  let feed = [];
+  let mode = "active";
+  let q = "";
+  let selId = null;
+  let stageFilter = "all";
+  let canManage = false;
+  const mediaCache = {};
+  const metaCache = {};
+  let map = null;
+  let mapGen = 0;
+  let shown = [];
+  const geoCache = (() => {
+    try {
+      return JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  })();
+
+  async function api(url, opts) {
+    const r = await fetch(url, { credentials: "include", headers: { Accept: "application/json", "Content-Type": "application/json" }, ...opts });
     const j = await r.json().catch(() => ({}));
     if (r.status === 401) {
       location.href = "/login.html";
@@ -19,69 +47,21 @@
     if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
     return j;
   }
-
-  function escapeHtml(s) {
-    return String(s || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
-
-  function loadGeoCache() {
-    try {
-      const raw = localStorage.getItem(GEO_CACHE_KEY);
-      const parsed = raw ? JSON.parse(raw) : {};
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch (_) {
-      return {};
-    }
+  function norm(s) {
+    return String(s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   }
-
-  function saveGeoCache() {
-    try {
-      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(geoCache));
-    } catch (_) {}
+  function statusLabel(s) {
+    return { draft: "Rascunho", scheduled: "Agendado", in_progress: "Em campo", completed: "Concluído", canceled: "Cancelado" }[s] || s || "—";
   }
-
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-
-  const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
-  const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-  const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-  let days = 7;
-  let stageFilter = "all";
-  let jobFilter = "active";
-  let canManage = false;
-
-  function statusLabel(status) {
-    const map = { draft: "Rascunho", scheduled: "Agendado", in_progress: "Em campo", completed: "Concluído", canceled: "Cancelado" };
-    return map[status] || status || "—";
-  }
-
-  function stageLabel(stage) {
-    return STAGE[stage] || "Geral";
-  }
-
   function isActive(j) {
     return j.status === "scheduled" || j.status === "in_progress" || j.status === "draft";
   }
-
-  /** Sem foto recente só vale para job ativo (concluído não precisa de foto nova). */
   function needsPhoto(j) {
     return isActive(j) && !!j.stale;
   }
-
-  function fmtWhen(iso) {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "—";
-    const p = (n) => String(n).padStart(2, "0");
-    return `${WD[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]} · ${p(d.getHours())}:${p(d.getMinutes())}`;
-  }
-
   function ago(iso) {
     if (!iso) return "";
     const ms = Date.now() - new Date(iso).getTime();
@@ -92,573 +72,474 @@
     }
     return d === 1 ? "ontem" : `há ${d} dias`;
   }
-
-  function proofLabel(j) {
-    if (!isActive(j)) return j.last_photo ? "Concluído" : "—";
-    if (j.stale) return j.last_photo ? "Sem foto recente" : "Sem foto";
-    return "Em dia";
+  function dayKey(iso) {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   }
-
-  function setMapStatus(text) {
-    const el = document.getElementById("jmbMapStatus");
-    if (el) el.textContent = text || "";
+  function dayLabel(iso) {
+    const d = new Date(iso);
+    if (d.toDateString() === new Date().toDateString()) return "Hoje";
+    if (d.toDateString() === new Date(Date.now() - 86400000).toDateString()) return "Ontem";
+    return `${WDL[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]}`;
   }
-
-  function photoSrc(p) {
-    return (p && (p.thumb_url || p.url)) || "";
-  }
-
-  function normalizeQuery(q) {
-    return String(q || "")
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "");
-  }
-
-  function jobMatches(j, q) {
-    if (!q) return true;
-    const hay = normalizeQuery(
-      [j.number, j.title, j.address, j.client_name, statusLabel(j.status), proofLabel(j), ...(j.photos || []).map((p) => p.author_name)].filter(Boolean).join(" "),
-    );
-    return hay.includes(q);
-  }
-
-  function feedMatches(p, q) {
-    if (stageFilter !== "all" && (p.stage || "none") !== stageFilter) return false;
-    if (!q) return true;
-    const hay = normalizeQuery([p.job_number, p.job_title, stageLabel(p.stage), p.caption, p.address, p.author_name].filter(Boolean).join(" "));
-    return hay.includes(q);
-  }
-
-  function inPeriod(p) {
-    return new Date(p.created_at).getTime() >= Date.now() - days * 86400000;
-  }
-
-  function filteredJobs() {
-    return allJobs.filter((j) => {
-      if (!jobMatches(j, searchQ)) return false;
-      if (jobFilter === "active") return isActive(j);
-      if (jobFilter === "need") return needsPhoto(j);
-      if (jobFilter === "done") return j.status === "completed";
-      return true;
-    });
-  }
-
-  function filteredFeed() {
-    return allFeed.filter((p) => feedMatches(p, searchQ));
-  }
-
-  function setSearchMeta(jobs, feed) {
-    const meta = document.getElementById("jmbSearchMeta");
-    if (!meta) return;
-    meta.textContent = searchQ ? `${jobs.length} job${jobs.length === 1 ? "" : "s"} · ${feed.length} foto${feed.length === 1 ? "" : "s"}` : "";
-  }
-
-  function renderOverview() {
-    const active = allJobs.filter(isActive);
-    const ok = active.filter((j) => !j.stale).length;
-    const need = active.filter((j) => j.stale).length;
-    const period = allFeed.filter(inPeriod);
-    const noGps = period.filter((p) => !(p.location_available && p.lat != null && p.lng != null)).length;
-    const far = period.filter((p) => p.far_from_job).length;
-    const cards = [
-      ["Jobs ativos", active.length, "agendados ou em campo", "", "active"],
-      ["Com foto recente", ok, `nos últimos ${days} dias`, ok ? "is-ok" : "", "active"],
-      ["Sem foto recente", need, need ? "jobs ativos precisam de foto" : "todos em dia", need ? "is-hot" : "", "need"],
-      ["Fotos no período", period.length, period.length ? `${noGps} sem GPS · ${far} longe do job` : `nenhuma em ${days} dias`, far ? "is-hot" : "", ""],
-    ];
-    const host = document.getElementById("camCards");
-    if (host) {
-      host.innerHTML = cards
-        .map(
-          ([k, v, sub, cls, f]) =>
-            `<button type="button" class="cam-card${f && jobFilter === f && f === "need" ? " is-on" : ""}" ${f ? `data-cam-jobs="${f}"` : 'data-cam-scroll="feed"'}><span>${k}</span><b class="${cls === "is-hot" && v ? "is-hot" : ""}">${v}</b><small class="${cls}">${escapeHtml(sub)}</small></button>`,
-        )
-        .join("");
-    }
-    const stageHost = document.getElementById("camStage");
-    if (stageHost) {
-      const counts = { all: allFeed.length, before: 0, during: 0, after: 0, none: 0 };
-      allFeed.forEach((p) => (counts[p.stage && counts[p.stage] != null ? p.stage : "none"] += 1));
-      stageHost.innerHTML = [["all", "Todas"], ["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["none", "Geral"]]
-        .filter(([k]) => k === "all" || counts[k] > 0)
-        .map(([k, l]) => `<button type="button" class="cam-chip${stageFilter === k ? " is-on" : ""}" data-stage="${k}">${l} <em>${counts[k]}</em></button>`)
-        .join("");
-    }
-    const jf = document.getElementById("camJobFilter");
-    if (jf) {
-      const n = { active: active.length, need, done: allJobs.filter((j) => j.status === "completed").length, all: allJobs.length };
-      jf.innerHTML = [["active", "Ativos"], ["need", "Sem foto recente"], ["done", "Concluídos"], ["all", "Todos"]]
-        .map(([k, l]) => `<button type="button" class="cam-chip${jobFilter === k ? " is-on" : ""}" data-jobs="${k}">${l} <em>${n[k]}</em></button>`)
-        .join("");
-    }
-  }
-
-  function fmtDistance(m) {
+  function fmtDist(m) {
     if (m == null || !Number.isFinite(Number(m))) return "";
     const n = Number(m);
-    if (n < 1000) return `${Math.round(n)} m`;
-    return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)} km`;
+    return n < 1000 ? `${Math.round(n)} m` : `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)} km`;
+  }
+  function hasGps(p) {
+    return p.lat != null && p.lng != null && p.location_available !== false;
+  }
+  function gpsTag(p) {
+    if (!hasGps(p)) return `<span class="cam-tag">${SVG.pin}sem GPS</span>`;
+    if (p.far_from_job) return `<span class="cam-tag is-far">${SVG.pin}longe${p.distance_m != null ? ` · ${esc(fmtDist(p.distance_m))}` : ""}</span>`;
+    const d = fmtDist(p.distance_m);
+    return `<span class="cam-tag">${SVG.pin}${d ? esc(d) : "GPS"}</span>`;
+  }
+  function isPhone() {
+    return window.matchMedia("(max-width: 760px)").matches;
+  }
+  function isWide() {
+    return window.matchMedia("(min-width: 1025px)").matches;
   }
 
-  function gpsHtml(p) {
-    const hasGps = p.location_available !== false && p.lat != null && p.lng != null;
-    if (!hasGps) return `<span class="cam-gps is-off">Sem GPS</span>`;
-    const maps = `https://maps.google.com/?q=${encodeURIComponent(`${p.lat},${p.lng}`)}`;
-    const dist = fmtDistance(p.distance_m);
-    return `<a class="cam-gps${p.far_from_job ? " is-far" : ""}" href="${escapeHtml(maps)}" target="_blank" rel="noopener">${p.far_from_job ? `Longe · ${escapeHtml(dist)}` : dist ? `${escapeHtml(dist)} do job` : "Ver no mapa"}</a>`;
+  // ---------------------------------------------------------------- lista
+  function jobHit(j) {
+    if (!q) return true;
+    return norm([j.number, j.title, j.address, j.client_name, statusLabel(j.status), ...(j.photos || []).map((p) => p.author_name)].filter(Boolean).join(" ")).includes(q);
   }
 
-  /** Foto do feed → formato do visualizador. */
-  function feedToViewer(p) {
-    return {
-      id: p.id, url: p.url, thumb_url: p.thumb_url, stage: p.stage, created_at: p.created_at, taken_at_device: p.taken_at_device,
-      author: p.author_name, device: p.device_label, caption: p.caption, address: p.address, lat: p.lat, lng: p.lng,
-      location_available: p.location_available, distance_m: p.distance_m, far_from_job: p.far_from_job, in_portfolio: p.in_portfolio,
-      job: { id: p.job_id, number: p.job_number, title: p.job_title, client: (allJobs.find((j) => j.id === p.job_id) || {}).client_name },
-    };
+  function rowSub(j) {
+    const st = isActive(j) && !j.scheduled_start ? "Sem data" : statusLabel(j.status);
+    if (!j.last_photo) return { text: `${st} · nenhuma foto`, hot: needsPhoto(j) && !!j.scheduled_start };
+    return { text: `${st} · última ${ago(j.last_photo.created_at)}`, hot: needsPhoto(j) };
   }
-  function jobPhotoToViewer(j, p) {
+
+  function rowHtml(j) {
+    const last = j.last_photo;
+    const th = last ? `<span class="cam-row__th" style="background-image:url('${esc(last.url)}')"></span>` : `<span class="cam-row__th is-empty">${SVG.cam}</span>`;
+    const sub = rowSub(j);
+    const n = j.photo_count != null ? j.photo_count : (j.photos || []).length;
+    return `<a class="cam-row${String(j.id) === String(selId) && mode !== "photos" ? " is-on" : ""}" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos" data-cam-id="${esc(j.id)}">
+      ${th}
+      <span class="cam-row__b"><b>${esc(j.title || "Job")}</b><small class="${sub.hot ? "is-hot" : ""}">${esc(sub.text)}</small></span>
+      ${n ? `<em>${n} foto${n === 1 ? "" : "s"}</em>` : ""}
+    </a>`;
+  }
+
+  function groups() {
+    const hit = jobs.filter(jobHit);
+    if (mode === "done") {
+      const done = hit.filter((j) => j.status === "completed").sort((a, b) => new Date(b.last_photo?.created_at || 0) - new Date(a.last_photo?.created_at || 0));
+      return [["Concluídos", done]];
+    }
+    const act = hit.filter(isActive);
+    const g = [
+      ["Precisa de foto", act.filter((j) => needsPhoto(j) && j.scheduled_start)],
+      ["Em dia", act.filter((j) => !needsPhoto(j))],
+      ["Sem data", act.filter((j) => needsPhoto(j) && !j.scheduled_start)],
+    ];
+    if (mode === "photos") g.push(["Concluídos", hit.filter((j) => j.status === "completed")]);
+    return g;
+  }
+
+  function renderList() {
+    const active = jobs.filter(isActive);
+    const done = jobs.filter((j) => j.status === "completed");
+    const need = active.filter(needsPhoto).length;
+    const recent = feed.filter((p) => new Date(p.created_at).getTime() >= Date.now() - FEED_DAYS * 86400000);
+    const noGps = feed.filter((p) => !hasGps(p)).length;
+    $("camJobsN").textContent = `${jobs.length} job${jobs.length === 1 ? "" : "s"}`;
+    $("camStats").innerHTML = `<span><b>${recent.length}</b> foto${recent.length === 1 ? "" : "s"} · ${FEED_DAYS} dias</span><span><b class="${need ? "is-hot" : ""}">${need}</b> sem foto 3+ dias</span><span><b>${noGps}</b> sem GPS</span>`;
+    document.querySelectorAll("#camMode [data-mode]").forEach((b) => {
+      const m = b.getAttribute("data-mode");
+      b.classList.toggle("is-on", m === mode);
+      b.innerHTML = m === "active" ? `Ativos <em>${active.length}</em>` : m === "done" ? `Concluídos <em>${done.length}</em>` : "Todas as fotos";
+    });
+    const html = groups()
+      .filter(([, rows]) => rows.length)
+      .map(([label, rows]) => `<p class="cam-grp"><span>${label}</span><em>${rows.length}</em></p>${rows.map(rowHtml).join("")}`)
+      .join("");
+    $("camRows").innerHTML = html || `<p class="cam-empty">${q ? "Nenhum job com essa busca." : mode === "done" ? "Nenhum job concluído." : "Nenhum job ativo."}</p>`;
+  }
+
+  /** Abre primeiro um job que tenha fotos (senão o primeiro da lista). */
+  function firstVisibleId() {
+    const rows = [...$("camRows").querySelectorAll("[data-cam-id]")].map((a) => a.getAttribute("data-cam-id"));
+    const withPhotos = rows.find((id) => (jobs.find((j) => String(j.id) === id) || {}).last_photo);
+    return withPhotos || rows[0] || null;
+  }
+
+  // ---------------------------------------------------------------- visualizador
+  function toViewer(j, p) {
     return {
-      id: p.id, url: p.url, thumb_url: p.url, stage: p.stage, created_at: p.created_at, taken_at_device: p.taken_at_device,
+      id: p.legacy ? null : p.id, url: p.url, thumb_url: p.thumb_url || p.url, stage: p.stage, created_at: p.created_at, taken_at_device: p.taken_at_device,
       author: p.author_name, device: p.device_label, caption: p.caption, address: p.address || j.address, lat: p.lat, lng: p.lng,
-      location_available: p.lat != null && p.lng != null, distance_m: p.distance_m, far_from_job: p.far_from_job, in_portfolio: p.in_portfolio,
-      job: { id: j.id, number: j.number, title: j.title, client: j.client_name },
+      location_available: p.location_available != null ? p.location_available : p.lat != null, distance_m: p.distance_m, far_from_job: p.far_from_job,
+      in_portfolio: p.in_portfolio, job: { id: j.id, number: j.number, title: j.title, client: j.client_name },
     };
   }
 
   function openViewer(list, index) {
-    if (!window.CamViewer) return;
+    if (!window.CamViewer || !list.length) return;
     window.CamViewer.open({
       photos: list,
       index,
       canPortfolio: canManage,
       onPortfolio: async (photo, next) => {
-        const r = await fetch(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}/portfolio`, {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ in_portfolio: next }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok || j.success === false) throw new Error(j.error || "Erro ao salvar");
-        [allFeed, ...allJobs.map((x) => x.photos || [])].forEach((arr) => arr.forEach((q) => { if (q.id === photo.id) q.in_portfolio = next; }));
+        await api(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}/portfolio`, { method: "PATCH", body: JSON.stringify({ in_portfolio: next }) });
+        [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
+          arr.forEach((x) => {
+            if (x.id === photo.id) x.in_portfolio = next;
+          }),
+        );
         window.crmToast?.success?.(next ? "Foto no portfólio público." : "Foto tirada do portfólio.");
         return { in_portfolio: next };
       },
     });
   }
 
-  let shownFeed = [];
-  let feedAll = false;
-  function renderFeed(feed) {
-    const feedEl = document.getElementById("jmbFeed");
-    if (!feedEl) return;
-    shownFeed = feed;
-    const cnt = document.getElementById("camFeedCount");
-    if (cnt) cnt.textContent = feed.length ? `${feed.length} foto${feed.length === 1 ? "" : "s"}` : "";
-    if (!feed.length) {
-      feedEl.innerHTML = `<p class="cam-empty">${searchQ || stageFilter !== "all" ? "Nenhuma foto com esse filtro." : "Ainda sem fotos. A equipe tira pelo Campo (ticket do job)."}</p>`;
-      return;
-    }
-    const phone = window.matchMedia("(max-width: 760px)").matches;
-    const cut = phone && !feedAll && feed.length > 4 ? 4 : feed.length;
-    feedEl.innerHTML = feed
-      .slice(0, cut)
-      .map(
-        (p, i) => `<div class="cam-fi">
-          <button type="button" class="cam-fi__th" data-feed-i="${i}" aria-label="Ver foto" style="background-image:url('${escapeHtml(p.thumb_url || p.url)}')"><span>${escapeHtml(stageLabel(p.stage))}</span></button>
-          <div class="cam-fi__b">
-            <a href="job-detail.html?id=${encodeURIComponent(p.job_id)}#fotos"><b>#${escapeHtml(String(p.job_number ?? "—"))}</b> ${escapeHtml(p.job_title || "")}</a>
-            <small>${escapeHtml(fmtWhen(p.taken_at_device || p.created_at))}${p.author_name ? ` · ${escapeHtml(p.author_name)}` : ""}</small>
-            ${p.caption ? `<small class="cam-fi__cap">${escapeHtml(p.caption)}</small>` : ""}
-            ${gpsHtml(p)}
-          </div>
-        </div>`,
-      )
-      .join("") + (cut < feed.length ? `<button type="button" class="cam-feed__all" data-feed-all>Ver todas as ${feed.length} fotos</button>` : "");
+  function photoTile(p, i, opts) {
+    const st = STAGE[p.stage] || "Geral";
+    return `<button type="button" class="cam-ph" data-ph-i="${i}" aria-label="Ver foto" style="background-image:url('${esc(p.thumb_url || p.url)}')">
+      ${opts && opts.stage ? `<span class="cam-ph__st">${esc(st)}</span>` : ""}
+      ${opts && opts.job ? `<span class="cam-ph__jn">#${esc(p.job_number ?? "—")}</span>` : ""}
+      ${gpsTag(p)}
+    </button>`;
   }
 
-  function renderJobs(jobs) {
-    const body = document.getElementById("jmbJobsBody");
-    if (!body) return;
-    const count = document.getElementById("jmbJobsCount");
-    if (count) count.textContent = String(jobs.length);
-    if (!jobs.length) {
-      body.innerHTML = `<p class="cam-empty">${searchQ ? "Nenhum job com essa busca." : jobFilter === "need" ? "Todos os jobs ativos têm foto recente." : "Nenhum job neste filtro."}</p>`;
+  // ---------------------------------------------------------------- job aberto
+  function headHtml(j, list) {
+    const n = list ? list.length : j.photo_count || 0;
+    const authors = list ? [...new Set(list.map((p) => p.author_name).filter(Boolean))] : [];
+    const st = j.status === "in_progress" ? "dk" : j.status === "completed" ? "ol" : "";
+    const lastTxt = j.last_photo ? `Última foto ${ago(j.last_photo.created_at)}` : "Nenhuma foto";
+    const meta = [j.client_name ? esc(j.client_name) : "", j.address ? `${SVG.pin}${esc(j.address)}` : "", `${n} foto${n === 1 ? "" : "s"}`, authors.length ? `por ${esc(authors.slice(0, 3).join(", "))}` : ""].filter(Boolean);
+    return `<a class="cam-back" href="#" data-cam-back>${SVG.back}ObraCam</a>
+      <div class="cam-dh">
+        <div class="cam-dh__t">
+          <div class="cam-chips"><span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${esc(statusLabel(j.status))}</span><span class="cam-pill${needsPhoto(j) ? " cam-pill--hot" : ""}">${esc(lastTxt)}</span>${j.number != null ? `<span class="cam-num">Job #${esc(j.number)}</span>` : ""}</div>
+          <h2><a href="job-detail.html?id=${encodeURIComponent(j.id)}">${esc(j.title || "Job")}</a></h2>
+          <p class="cam-dmeta">${meta.map((x) => `<span>${x}</span>`).join("")}</p>
+        </div>
+        <div class="cam-dh__acts">
+          <a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">${SVG.cam}Adicionar fotos</a>
+          <a class="cam-btn cam-btn--pri" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a>
+        </div>
+      </div>`;
+  }
+
+  function pbarHtml(j) {
+    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a><a class="cam-btn cam-btn--pri" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">${SVG.cam}Tirar foto</a></div>`;
+  }
+  function movePbar() {
+    document.querySelectorAll("body > .cam-pbar").forEach((x) => x.remove());
+    const bar = $("camPbar");
+    if (!bar) return;
+    if (document.body.classList.contains("cam-detail-open")) document.body.appendChild(bar);
+    else bar.remove();
+  }
+
+  async function renderJob() {
+    const host = $("camDetail");
+    const j = jobs.find((x) => String(x.id) === String(selId));
+    if (!j) {
+      host.innerHTML = `<div class="cam-blank">Escolha um job na lista.</div>`;
       return;
     }
-    const order = (j) => (needsPhoto(j) ? 0 : isActive(j) ? 1 : 2);
-    body.innerHTML = jobs
-      .slice()
-      .sort((a, b) => order(a) - order(b))
-      .map((j) => {
-        const label = proofLabel(j);
-        const cls = label === "Em dia" ? "ok" : label === "Sem foto recente" || label === "Sem foto" ? "hot" : "";
-        const photos = (j.photos || []).filter((p) => photoSrc(p));
-        const total = j.photo_count != null ? j.photo_count : photos.length;
-        const thumbs = photos
-          .slice(0, 5)
-          .map((p, i) => `<button type="button" class="cam-th" data-job-photo="${escapeHtml(j.id)}" data-i="${i}" aria-label="Ver foto" style="background-image:url('${escapeHtml(photoSrc(p))}')"></button>`)
-          .join("");
-        const more = total > 5 ? `<span class="cam-more">+${total - 5}</span>` : "";
-        const gpsCount = photos.filter((p) => p.lat != null && p.lng != null).length;
-        const far = photos.filter((p) => p.far_from_job).length;
-        const st = j.status === "in_progress" ? "dk" : j.status === "completed" ? "ol" : "";
-        return `<div class="cam-tr">
-          <div class="cam-td cam-td--job">
-            <a href="${escapeHtml(j.detail_url)}#fotos"><b>${escapeHtml(j.title || "Job")}</b></a>
-            <small>#${escapeHtml(String(j.number ?? "—"))}${j.client_name ? ` · ${escapeHtml(j.client_name)}` : ""}</small>
-            ${thumbs ? `<div class="cam-ths">${thumbs}${more}</div>` : ""}
-          </div>
-          <div class="cam-td cam-td--addr">${escapeHtml(j.address || "Sem endereço")}</div>
-          <div class="cam-td"><span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${escapeHtml(statusLabel(j.status))}</span></div>
-          <div class="cam-td cam-td--last">${j.last_photo ? `<b>${escapeHtml(ago(j.last_photo.created_at))}</b><small>${escapeHtml(fmtWhen(j.last_photo.created_at))}</small>` : '<span class="cam-mu">Nenhuma foto</span>'}</div>
-          <div class="cam-td cam-td--n">${total ? `<b>${total}</b><small>${gpsCount ? `${gpsCount} com GPS` : "sem GPS"}${far ? ` · <span class="cam-hot">${far} longe</span>` : ""}</small>` : '<span class="cam-mu">—</span>'}</div>
-          <div class="cam-td"><span class="cam-proof${cls ? ` cam-proof--${cls}` : ""}">${escapeHtml(label)}</span></div>
-        </div>`;
-      })
+    if (!mediaCache[j.id]) {
+      host.innerHTML = headHtml(j, null) + `<div class="cam-box"><p class="cam-empty">Carregando fotos…</p></div>`;
+      try {
+        const m = await api(`/api/work-orders/${encodeURIComponent(j.id)}/media`);
+        mediaCache[j.id] = (m.data || []).filter((p) => (p.type || "photo") === "photo" && p.url);
+        metaCache[j.id] = m.meta || {};
+      } catch (_) {
+        mediaCache[j.id] = (j.photos || []).map((p) => ({ ...p, thumb_url: p.url }));
+      }
+      if (String(selId) !== String(j.id) || mode === "photos") return;
+    }
+    const list = mediaCache[j.id];
+    const counts = { before: 0, during: 0, after: 0, none: 0 };
+    list.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
+    shown = list.map((p) => toViewer(j, p));
+    const mapBox = `<div class="cam-box cam-box--map"><h3>Onde foram tiradas</h3><div class="cam-map" id="camMap"></div><p class="cam-meta" id="camMapNote"></p></div>`;
+    let body;
+    if (!list.length) {
+      body = `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar pela página do job.</p><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">Adicionar fotos</a></div>`;
+    } else if (isPhone()) {
+      const segs = [["all", "Todas", list.length], ...STAGES.filter(([k]) => counts[k]).map(([k, l]) => [k, l, counts[k]])];
+      if (!segs.some(([k]) => k === stageFilter)) stageFilter = "all";
+      const sel = list.map((p, i) => [p, i]).filter(([p]) => stageFilter === "all" || (stageFilter === "none" ? !STAGE[p.stage] : p.stage === stageFilter));
+      body = `<div class="cam-pseg">${segs.map(([k, l, n]) => `<button type="button" class="${k === stageFilter ? "is-on" : ""}" data-stage="${k}">${l} <em>${n}</em></button>`).join("")}</div>
+        <div class="cam-pgrid">${sel.map(([p, i]) => photoTile(p, i, { stage: stageFilter === "all" })).join("")}</div>${mapBox}`;
+    } else {
+      const cols = STAGES.filter(([k]) => k !== "none" || counts.none)
+        .map(([k, l]) => {
+          const items = list.map((p, i) => [p, i]).filter(([p]) => (k === "none" ? !STAGE[p.stage] : p.stage === k));
+          return `<div class="cam-col"><h4>${l}<em>${items.length}</em></h4>${items.length ? `<div class="cam-col__g">${items.map(([p, i]) => photoTile(p, i)).join("")}</div>` : `<p class="cam-col__none">Sem fotos</p>`}</div>`;
+        })
+        .join("");
+      body = `<div class="cam-body"><div class="cam-box"><div class="cam-cols" style="--cam-cols:${counts.none ? 4 : 3}">${cols}</div></div>${mapBox}</div>`;
+    }
+    host.innerHTML = headHtml(j, list) + body + (isPhone() ? pbarHtml(j) : "");
+    movePbar();
+    if (list.length) renderJobMap(j, list).catch(() => {});
+  }
+
+  // ---------------------------------------------------------------- todas as fotos
+  function renderFeed() {
+    const host = $("camDetail");
+    const hit = feed.filter((p) => {
+      if (stageFilter !== "all" && (STAGE[p.stage] ? p.stage : "none") !== stageFilter) return false;
+      if (!q) return true;
+      return norm([p.job_number, p.job_title, STAGE[p.stage], p.caption, p.address, p.author_name].filter(Boolean).join(" ")).includes(q);
+    });
+    const counts = { all: feed.length, before: 0, during: 0, after: 0, none: 0 };
+    feed.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
+    shown = hit.map((p) => toViewer({ id: p.job_id, number: p.job_number, title: p.job_title, client_name: (jobs.find((x) => x.id === p.job_id) || {}).client_name }, p));
+    const days = [];
+    hit.forEach((p, i) => {
+      const k = dayKey(p.created_at);
+      let d = days.find((x) => x.k === k);
+      if (!d) days.push((d = { k, label: dayLabel(p.created_at), items: [], jobs: new Set() }));
+      d.items.push([p, i]);
+      d.jobs.add(p.job_id);
+    });
+    const chips = [["all", "Todas"], ["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["none", "Geral"]]
+      .filter(([k]) => k === "all" || counts[k])
+      .map(([k, l]) => `<button type="button" class="cam-chip${stageFilter === k ? " is-on" : ""}" data-stage="${k}">${l} <em>${counts[k]}</em></button>`)
       .join("");
+    const grid = days.length
+      ? days
+          .map(
+            (d) =>
+              `<p class="cam-day">${esc(d.label)}<em>${d.items.length} foto${d.items.length === 1 ? "" : "s"} · ${d.jobs.size} job${d.jobs.size === 1 ? "" : "s"}</em></p><div class="cam-feedg">${d.items.map(([p, i]) => photoTile(p, i, { stage: true, job: true })).join("")}</div>`,
+          )
+          .join("")
+      : `<p class="cam-empty">${q || stageFilter !== "all" ? "Nenhuma foto com esse filtro." : "Ainda sem fotos."}</p>`;
+    host.innerHTML = `<a class="cam-back" href="#" data-cam-back>${SVG.back}ObraCam</a>
+      <div class="cam-dh"><div class="cam-dh__t"><h2>Todas as fotos</h2><p class="cam-dmeta"><span>${feed.length} mais recentes de todos os jobs</span></p></div></div>
+      <div class="cam-chips cam-chips--bar">${chips}</div>
+      <div class="cam-body"><div class="cam-box">${grid}</div>
+      <div class="cam-box cam-box--map"><h3>Mapa dos jobs</h3><div class="cam-map" id="camMap"></div><p class="cam-meta" id="camMapNote"></p></div></div>`;
+    movePbar();
+    renderAllMap().catch(() => {});
   }
 
-  async function geocodeNominatim(address) {
-    const url =
-      "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(address);
-    const r = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!r.ok) return null;
-    const rows = await r.json();
-    if (!Array.isArray(rows) || !rows[0]) return null;
-    const lat = Number(rows[0].lat);
-    const lng = Number(rows[0].lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-    return { lat, lng };
-  }
-
-  async function geocodeAddress(address) {
-    const key = String(address || "")
-      .trim()
-      .toLowerCase();
+  // ---------------------------------------------------------------- mapa
+  async function geocode(address) {
+    const key = String(address || "").trim().toLowerCase();
     if (!key) return null;
-    if (Object.prototype.hasOwnProperty.call(geoCache, key)) {
-      return geoCache[key];
-    }
+    if (Object.prototype.hasOwnProperty.call(geoCache, key)) return geoCache[key];
     let pt = null;
     try {
-      pt = await geocodeNominatim(address);
-    } catch (_) {
-      pt = null;
-    }
+      const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(address), { headers: { Accept: "application/json" } });
+      const rows = r.ok ? await r.json() : [];
+      if (rows[0]) pt = { lat: Number(rows[0].lat), lng: Number(rows[0].lon) };
+    } catch (_) {}
     geoCache[key] = pt;
-    saveGeoCache();
-    await sleep(1100);
+    try {
+      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(geoCache));
+    } catch (_) {}
     return pt;
   }
 
-  function markerColor(j) {
-    if (needsPhoto(j)) return "#B4561A";
-    return "#221E1A";
-  }
-
-  function jobPinHtml(j) {
-    const photos = (j.photos || []).filter((p) => photoSrc(p)).slice(0, 3);
-    if (!photos.length) {
-      const color = markerColor(j);
-      return `<span class="jmb-marker__pin" style="background:${color};width:18px;height:18px"></span>`;
-    }
-    const tone = needsPhoto(j) ? "is-stale" : "is-ok";
-    const imgs = photos
-      .map((p) => `<img class="jmb-marker__thumb" src="${escapeHtml(photoSrc(p))}" alt="" />`)
-      .join("");
-    const total = (j.photos || []).length;
-    const badge = total > 1 ? `<span class="jmb-marker__n">${total > 9 ? "9+" : total}</span>` : "";
-    return `<span class="jmb-marker__stack ${tone}">${imgs}${badge}</span>`;
-  }
-
-  function popupThumbsHtml(j) {
-    const photos = (j.photos || []).filter((p) => photoSrc(p)).slice(0, 6);
-    if (!photos.length) return "";
-    const imgs = photos
-      .map(
-        (p, i) =>
-          `<button type="button" data-job-photo="${escapeHtml(j.id)}" data-i="${i}" aria-label="Ver foto" style="background-image:url('${escapeHtml(photoSrc(p))}')"></button>`,
-      )
-      .join("");
-    const extra =
-      (j.photos || []).length > 6
-        ? `<span class="cam-pop__more">+${j.photos.length - 6}</span>`
-        : "";
-    return `<div class="jmb-popup-thumbs">${imgs}${extra}</div>`;
-  }
-
-  function addJobMarker(j, lat, lng, source) {
-    if (!map || lat == null || lng == null) return null;
-    const hasThumbs = (j.photos || []).some((p) => photoSrc(p));
-    const size = hasThumbs ? 44 : 18;
-    const icon = L.divIcon({
-      className: "jmb-marker",
-      html: jobPinHtml(j),
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-    });
-    const m = L.marker([lat, lng], { icon, zIndexOffset: hasThumbs ? 200 : 100 }).addTo(map);
-    const sourceLabel =
-      source === "photo" ? "GPS da foto" : source === "site" ? "Local do job (GPS/fotos)" : "Endereço do job";
-    const tip = j.address || `#${j.number ?? ""} ${j.title || ""}`.trim() || sourceLabel;
-    m.bindTooltip(escapeHtml(tip), { direction: "top", opacity: 0.95 });
-    m.bindPopup(
-      `<div class="cam-pop"><small>Job #${escapeHtml(String(j.number ?? ""))} · ${escapeHtml(statusLabel(j.status))}</small>` +
-        `<b>${escapeHtml(j.title || "")}</b>` +
-        `<span class="cam-pop__addr">${escapeHtml(j.address || "")}</span>` +
-        `<span class="cam-proof${needsPhoto(j) ? " cam-proof--hot" : isActive(j) ? " cam-proof--ok" : ""}">${escapeHtml(proofLabel(j))}</span>` +
-        popupThumbsHtml(j) +
-        `<span class="cam-pop__src">${sourceLabel}</span>` +
-        `<a class="cam-pop__btn" href="${escapeHtml(j.detail_url)}#fotos">Abrir job</a></div>`,
-      { maxWidth: 260 },
-    );
-    mapMarkers.push(m);
-    return m;
-  }
-
-  function addPhotoMarker(j, photo) {
-    if (!map || photo?.lat == null || photo?.lng == null) return null;
-    const far = Boolean(photo.far_from_job);
-    const src = photoSrc(photo);
-    const html = src
-      ? `<img class="jmb-marker__photo-thumb${far ? " is-far" : ""}" src="${escapeHtml(src)}" alt="" />`
-      : `<span class="jmb-marker__pin jmb-marker__pin--photo" style="background:${far ? "#B4561A" : "#221E1A"}"></span>`;
-    const size = src ? 34 : 12;
-    const icon = L.divIcon({
-      className: "jmb-marker",
-      html,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2],
-    });
-    const m = L.marker([Number(photo.lat), Number(photo.lng)], { icon, zIndexOffset: 50 }).addTo(map);
-    const dist = fmtDistance(photo.distance_m);
-    const maps = `https://maps.google.com/?q=${encodeURIComponent(`${photo.lat},${photo.lng}`)}`;
-    const when = fmtWhen(photo.taken_at_device || photo.created_at);
-    const addr = photo.address || j.address || `${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`;
-    const tip = [when, addr].filter(Boolean).join(" · ");
-    m.bindTooltip(escapeHtml(tip), { direction: "top", opacity: 0.95, sticky: true });
-    const idx = (j.photos || []).findIndex((q) => q.id === photo.id);
-    const preview = src
-      ? `<button type="button" class="cam-pop__img" data-job-photo="${escapeHtml(j.id)}" data-i="${idx < 0 ? 0 : idx}" style="background-image:url('${escapeHtml(src)}')" aria-label="Ver foto"></button>`
-      : "";
-    m.bindPopup(
-      `<div class="cam-pop"><small>Job #${escapeHtml(String(j.number ?? ""))} · ${escapeHtml(stageLabel(photo.stage))}</small>` +
-        `<b>${escapeHtml(j.title || "")}</b>` +
-        preview +
-        `<span class="cam-pop__addr">${escapeHtml(when)} · ${escapeHtml(addr)}</span>` +
-        (dist ? `<span class="cam-pop__dist${far ? " is-far" : ""}">${far ? "Longe do job" : "No local"} · ${escapeHtml(dist)}</span>` : "") +
-        `<span class="cam-pop__row"><a href="${escapeHtml(maps)}" target="_blank" rel="noopener">Abrir no Maps</a><a href="${escapeHtml(j.detail_url)}#fotos">Abrir job</a></span></div>`,
-      { maxWidth: 260 },
-    );
-    mapMarkers.push(m);
-    return m;
-  }
-
-  function fitMap() {
-    if (!map || !mapMarkers.length) return;
-    const bounds = mapMarkers.map((m) => m.getLatLng());
-    if (bounds.length === 1) map.setView(bounds[0], 12);
-    else map.fitBounds(bounds, { padding: [28, 28] });
-  }
-
-  async function renderMap(jobs) {
-    const el = document.getElementById("jmbMap");
-    if (!el) return;
-    if (typeof L === "undefined") {
-      setMapStatus("Mapa indisponível agora");
-      return;
-    }
-    const gen = ++mapGen;
-
-    mapMarkers = [];
+  function newMap() {
+    const el = $("camMap");
     if (map) {
-      map.remove();
+      try {
+        map.remove();
+      } catch (_) {}
       map = null;
     }
+    if (!el) return null;
+    if (typeof L === "undefined") {
+      el.classList.add("is-off");
+      const note = $("camMapNote");
+      if (note) note.textContent = "Mapa indisponível agora";
+      return null;
+    }
     map = L.map(el).setView([39.5, -98.35], 4);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: "&copy; OpenStreetMap &copy; CARTO",
-      subdomains: "abcd",
-      maxZoom: 19,
-    }).addTo(map);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains: "abcd", maxZoom: 19 }).addTo(map);
     setTimeout(() => map && map.invalidateSize(), 80);
-
-    let photoPins = 0;
-    let sitePins = 0;
-    const needGeocode = [];
-
-    for (const j of jobs) {
-      const photosWithGps = (j.photos || []).filter((p) => p.lat != null && p.lng != null);
-      for (const p of photosWithGps) {
-        addPhotoMarker(j, p);
-        photoPins += 1;
-      }
-      if (j.geo_lat != null && j.geo_lng != null && Number.isFinite(Number(j.geo_lat)) && Number.isFinite(Number(j.geo_lng))) {
-        addJobMarker(j, Number(j.geo_lat), Number(j.geo_lng), "site");
-        sitePins += 1;
-      } else if (!photosWithGps.length && j.address && String(j.address).trim()) {
-        needGeocode.push(j);
-      }
-    }
-    if (gen !== mapGen) return;
-    fitMap();
-
-    if (!photoPins && !sitePins && !needGeocode.length) {
-      setMapStatus(
-        searchQ
-          ? "Nenhum resultado com coordenadas na busca."
-          : "Sem localização — tire fotos com GPS no Campo ou ponha o endereço nos jobs.",
-      );
-      return;
-    }
-
-    if (!needGeocode.length) {
-      setMapStatus(
-        `${photoPins} foto${photoPins === 1 ? "" : "s"} com GPS` + (sitePins ? ` · ${sitePins} job${sitePins === 1 ? "" : "s"}` : ""),
-      );
-      return;
-    }
-
-    setMapStatus(
-      `Localizando ${needGeocode.length} job${needGeocode.length === 1 ? "" : "s"} pelo endereço…` +
-        (photoPins ? ` (${photoPins} fotos já no mapa)` : ""),
-    );
-
-    let placed = sitePins;
-    let failed = 0;
-    for (let i = 0; i < needGeocode.length; i++) {
-      if (gen !== mapGen) return;
-      const j = needGeocode[i];
-      const geo = await geocodeAddress(j.address);
-      if (gen !== mapGen) return;
-      if (geo) {
-        addJobMarker(j, geo.lat, geo.lng, "address");
-        placed += 1;
-        fitMap();
-      } else {
-        failed += 1;
-      }
-      setMapStatus(
-        `${photoPins} foto${photoPins === 1 ? "" : "s"}` +
-          (placed ? ` · ${placed} job${placed === 1 ? "" : "s"}` : "") +
-          (failed ? ` · ${failed} sem localização` : "") +
-          (i + 1 < needGeocode.length ? ` · ${i + 2}/${needGeocode.length}` : ""),
-      );
-    }
-    if (gen !== mapGen) return;
-    setMapStatus(
-      photoPins || placed
-        ? `${photoPins} foto${photoPins === 1 ? "" : "s"} com GPS` +
-            (placed ? ` · ${placed} job${placed === 1 ? "" : "s"} pelo endereço` : "") +
-            (failed ? ` · ${failed} sem localização` : "")
-        : "Não foi possível localizar os jobs. Verifique os endereços.",
-    );
+    return map;
+  }
+  function fit(pts) {
+    if (!map || !pts.length) return;
+    if (pts.length === 1) map.setView(pts[0], 15);
+    else map.fitBounds(pts, { padding: [28, 28], maxZoom: 16 });
+  }
+  function photoIcon(p) {
+    return L.divIcon({ className: "jmb-marker", html: `<img class="jmb-marker__photo-thumb${p.far_from_job ? " is-far" : ""}" src="${esc(p.thumb_url || p.url)}" alt="" />`, iconSize: [34, 34], iconAnchor: [17, 17] });
+  }
+  function jobIcon(hot) {
+    return L.divIcon({ className: "jmb-marker", html: `<span class="jmb-marker__pin" style="background:${hot ? "#B4561A" : "#221E1A"}"></span>`, iconSize: [16, 16], iconAnchor: [8, 8] });
   }
 
-  function applyFilters() {
-    const jobs = filteredJobs();
-    const feed = filteredFeed();
-    setSearchMeta(jobs, feed);
-    renderOverview();
-    renderFeed(feed);
-    renderJobs(jobs);
-    const mapJobs = allJobs.filter((j) => jobMatches(j, searchQ) && (isActive(j) || (j.photos || []).length));
-    renderMap(mapJobs).catch(() => {});
+  async function renderJobMap(j, list) {
+    const gen = ++mapGen;
+    if (!newMap()) return;
+    const pts = [];
+    list.forEach((p, i) => {
+      if (!hasGps(p)) return;
+      const m = L.marker([Number(p.lat), Number(p.lng)], { icon: photoIcon(p) }).addTo(map);
+      m.on("click", () => openViewer(shown, i));
+      pts.push([Number(p.lat), Number(p.lng)]);
+    });
+    let site = metaCache[j.id]?.job_geo || (j.geo_lat != null ? { lat: j.geo_lat, lng: j.geo_lng } : null);
+    if (!site && j.address) site = await geocode(j.address);
+    if (gen !== mapGen || !map) return;
+    if (site && Number.isFinite(Number(site.lat))) {
+      L.marker([Number(site.lat), Number(site.lng)], { icon: jobIcon(false) }).addTo(map).bindTooltip(esc(j.address || "Local do job"));
+      pts.push([Number(site.lat), Number(site.lng)]);
+    }
+    fit(pts);
+    const note = $("camMapNote");
+    if (note) note.textContent = `${list.filter(hasGps).length} de ${list.length} com GPS${site ? " · ponto preto = local do job" : ""}`;
   }
 
-  function wireSearch() {
-    const input = document.getElementById("jmbSearch");
-    const clearBtn = document.getElementById("jmbSearchClear");
-    if (!input) return;
+  async function renderAllMap() {
+    const gen = ++mapGen;
+    if (!newMap()) return;
+    const pts = [];
+    let placed = 0;
+    for (const j of jobs.filter((x) => isActive(x) || (x.photos || []).length)) {
+      let pt = j.geo_lat != null ? { lat: j.geo_lat, lng: j.geo_lng } : null;
+      if (!pt && j.address) pt = await geocode(j.address);
+      if (gen !== mapGen || !map) return;
+      if (!pt || !Number.isFinite(Number(pt.lat))) continue;
+      const m = L.marker([Number(pt.lat), Number(pt.lng)], { icon: jobIcon(needsPhoto(j)) }).addTo(map);
+      m.bindTooltip(esc(`#${j.number ?? ""} ${j.title || ""}`));
+      m.on("click", () => {
+        mode = isActive(j) ? "active" : "done";
+        select(j.id, true);
+      });
+      pts.push([Number(pt.lat), Number(pt.lng)]);
+      placed += 1;
+      fit(pts);
+    }
+    const note = $("camMapNote");
+    if (note) note.textContent = `${placed} job${placed === 1 ? "" : "s"} no mapa · laranja = precisa de foto`;
+  }
 
-    const syncClear = () => {
-      if (clearBtn) clearBtn.hidden = !String(input.value || "").trim();
-    };
+  // ---------------------------------------------------------------- navegação
+  function renderRight() {
+    if (mode === "photos") renderFeed();
+    else renderJob();
+  }
 
-    input.addEventListener("input", () => {
-      syncClear();
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        searchQ = normalizeQuery(input.value);
-        applyFilters();
-      }, 180);
-    });
+  function select(id, push) {
+    selId = id;
+    stageFilter = "all";
+    renderList();
+    const narrow = !isWide();
+    const open = narrow && (!!id || mode === "photos");
+    $("camSplit").classList.toggle("is-detail", open);
+    document.body.classList.toggle("cam-detail-open", open);
+    renderRight();
+    if (push) {
+      try {
+        const u = new URL(location.href);
+        if (id) u.searchParams.set("id", id);
+        else u.searchParams.delete("id");
+        history.replaceState(null, "", u);
+      } catch (_) {}
+    }
+    if (narrow) window.scrollTo(0, 0);
+  }
 
-    clearBtn?.addEventListener("click", () => {
-      input.value = "";
-      searchQ = "";
-      syncClear();
-      applyFilters();
-      input.focus();
-    });
+  function back() {
+    $("camSplit").classList.remove("is-detail");
+    document.body.classList.remove("cam-detail-open");
+    movePbar();
+    if (mode === "photos") mode = "active";
+    selId = null;
+    renderList();
+    try {
+      const u = new URL(location.href);
+      u.searchParams.delete("id");
+      history.replaceState(null, "", u);
+    } catch (_) {}
   }
 
   async function load() {
-    setMapStatus("Carregando…");
-    const json = await api(`/api/job-media/board?days=${days}`);
-    allJobs = json.data?.jobs || [];
-    allFeed = json.data?.feed || [];
-    applyFilters();
+    const j = await api("/api/job-media/board?days=3");
+    jobs = j.data?.jobs || [];
+    feed = j.data?.feed || [];
+    const id = new URLSearchParams(location.search).get("id");
+    const pre = id && jobs.find((x) => String(x.id) === id);
+    if (pre) {
+      mode = isActive(pre) ? "active" : "done";
+      select(pre.id, false);
+      return;
+    }
+    renderList();
+    if (isWide()) {
+      selId = firstVisibleId();
+      renderList();
+      renderRight();
+    }
   }
 
   function bind() {
-    document.getElementById("camDays")?.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-days]");
+    $("camMode").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-mode]");
       if (!b) return;
-      days = Number(b.getAttribute("data-days")) || 7;
-      document.querySelectorAll("#camDays [data-days]").forEach((x) => x.classList.toggle("is-on", x === b));
-      load().catch((err) => window.crmToast?.error?.(err.message || "Falha ao atualizar"));
-    });
-    document.getElementById("camStage")?.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-stage]");
-      if (!b) return;
-      stageFilter = b.getAttribute("data-stage");
-      applyFilters();
-    });
-    document.getElementById("camJobFilter")?.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-jobs]");
-      if (!b) return;
-      jobFilter = b.getAttribute("data-jobs");
-      applyFilters();
-    });
-    document.getElementById("camCards")?.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-cam-jobs],[data-cam-scroll]");
-      if (!b) return;
-      if (b.hasAttribute("data-cam-jobs")) {
-        jobFilter = b.getAttribute("data-cam-jobs");
-        applyFilters();
-        document.querySelector(".cam-list-h")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else {
-        document.getElementById("jmbFeed")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    });
-    document.getElementById("jmbFeed")?.addEventListener("click", (e) => {
-      if (e.target.closest("[data-feed-all]")) {
-        feedAll = true;
-        renderFeed(shownFeed);
+      mode = b.getAttribute("data-mode");
+      stageFilter = "all";
+      if (mode === "photos") {
+        select(null, true);
         return;
       }
-      const b = e.target.closest("[data-feed-i]");
-      if (!b) return;
-      openViewer(shownFeed.map(feedToViewer), Number(b.getAttribute("data-feed-i")) || 0);
+      selId = null;
+      renderList();
+      if (isWide()) {
+        selId = firstVisibleId();
+        renderList();
+        renderRight();
+      }
     });
-    document.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-job-photo]");
-      if (!b) return;
-      const j = allJobs.find((x) => String(x.id) === b.getAttribute("data-job-photo"));
-      if (!j) return;
-      const list = (j.photos || []).filter((p) => photoSrc(p)).map((p) => jobPhotoToViewer(j, p));
-      openViewer(list, Number(b.getAttribute("data-i")) || 0);
+    $("camRows").addEventListener("click", (e) => {
+      const a = e.target.closest("[data-cam-id]");
+      if (!a || e.metaKey || e.ctrlKey) return;
+      e.preventDefault();
+      const j = jobs.find((x) => String(x.id) === a.getAttribute("data-cam-id"));
+      if (mode === "photos") mode = j && j.status === "completed" ? "done" : "active";
+      select(a.getAttribute("data-cam-id"), true);
+    });
+    $("camQ").addEventListener("input", (e) => {
+      clearTimeout(e.target._t);
+      e.target._t = setTimeout(() => {
+        q = norm(e.target.value);
+        renderList();
+        if (mode === "photos") renderFeed();
+      }, 160);
+    });
+    $("camDetail").addEventListener("click", (e) => {
+      if (e.target.closest("[data-cam-back]")) {
+        e.preventDefault();
+        back();
+        return;
+      }
+      const s = e.target.closest("[data-stage]");
+      if (s) {
+        stageFilter = s.getAttribute("data-stage");
+        renderRight();
+        return;
+      }
+      const ph = e.target.closest("[data-ph-i]");
+      if (ph) openViewer(shown, Number(ph.getAttribute("data-ph-i")) || 0);
+    });
+    window.addEventListener("resize", () => {
+      if (isWide() && document.body.classList.contains("cam-detail-open")) {
+        $("camSplit").classList.remove("is-detail");
+        document.body.classList.remove("cam-detail-open");
+        movePbar();
+      }
     });
   }
 
-  wireSearch();
   bind();
-
   fetch("/api/auth/session", { credentials: "include" })
     .then((r) => r.json())
     .then((s) => {
@@ -666,12 +547,8 @@
       canManage = s?.user?.role === "admin" || perms.includes("work_orders.manage");
     })
     .catch(() => {});
-
   load().catch((e) => {
-    const feedEl = document.getElementById("jmbFeed");
-    if (feedEl) feedEl.innerHTML = `<p class="cam-empty">${escapeHtml(e.message || "Falha ao carregar")}</p>`;
-    const body = document.getElementById("jmbJobsBody");
-    if (body) body.innerHTML = `<p class="cam-empty">${escapeHtml(e.message || "Falha ao carregar")}</p>`;
-    setMapStatus(e.message || "Falha ao carregar");
+    $("camRows").innerHTML = `<p class="cam-empty">${esc(e.message || "Falha ao carregar")}</p>`;
+    $("camDetail").innerHTML = "";
   });
 })();

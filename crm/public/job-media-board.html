@@ -23,7 +23,7 @@
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
-  <link rel="stylesheet" href="obracam.css?v=20261009-cam1" />
+  <link rel="stylesheet" href="obracam.css?v=20261009-cam2" />
   <link rel="stylesheet" href="cam-viewer.css?v=20261009-cam1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cam-app">
@@ -75,49 +75,24 @@
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
       <div class="cam crm-page" id="cam">
-        <div class="cam-head">
-          <h1>ObraCam</h1>
-          <div class="cam-seg" id="camDays" role="group" aria-label="Período">
-            <button type="button" data-days="3">3 dias</button>
-            <button type="button" data-days="7" class="is-on">7 dias</button>
-            <button type="button" data-days="30">30 dias</button>
-          </div>
-          <div class="cam-head__acts">
-            <a class="cam-btn" href="jobs.html">Jobs</a>
-            <a class="cam-btn" href="schedule.html">Agenda</a>
-          </div>
-        </div>
-
-        <div class="cam-cards" id="camCards" aria-label="Resumo"></div>
-
-        <div class="cam-tool">
-          <label class="cam-search">
-            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="search" id="jmbSearch" placeholder="Buscar job, endereço ou quem tirou" autocomplete="off" enterkeyhint="search" />
-            <button type="button" class="cam-search__clear" id="jmbSearchClear" hidden aria-label="Limpar busca">×</button>
-          </label>
-          <div class="cam-chips" id="camStage" role="group" aria-label="Etapa"></div>
-          <span class="cam-meta" id="jmbSearchMeta"></span>
-        </div>
-
-        <div class="cam-panels">
-          <section class="cam-box cam-box--map">
-            <div class="cam-box__h"><h2>Mapa</h2><span class="cam-meta" id="jmbMapStatus"></span></div>
-            <div id="jmbMap" class="cam-map" role="img" aria-label="Mapa dos jobs e das fotos"></div>
+        <div class="cam-split" id="camSplit">
+          <section class="cam-list" aria-label="Jobs">
+            <div class="cam-list__top">
+              <div class="cam-list__h"><h1>ObraCam</h1><span id="camJobsN"></span></div>
+              <p class="cam-stats" id="camStats"></p>
+              <label class="cam-search">
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <input type="search" id="camQ" placeholder="Buscar job, endereço ou quem tirou" autocomplete="off" enterkeyhint="search" />
+              </label>
+              <div class="cam-seg" id="camMode" role="tablist">
+                <button type="button" data-mode="active" class="is-on">Ativos</button>
+                <button type="button" data-mode="done">Concluídos</button>
+                <button type="button" data-mode="photos">Todas as fotos</button>
+              </div>
+            </div>
+            <div class="cam-rows" id="camRows"><p class="cam-empty">Carregando…</p></div>
           </section>
-          <section class="cam-box cam-box--feed">
-            <div class="cam-box__h"><h2>Fotos recentes</h2><span class="cam-meta" id="camFeedCount"></span></div>
-            <div class="cam-feed" id="jmbFeed"><p class="cam-empty">Carregando…</p></div>
-          </section>
-        </div>
-
-        <div class="cam-list-h">
-          <h2>Jobs <em id="jmbJobsCount"></em></h2>
-          <div class="cam-chips" id="camJobFilter" role="group" aria-label="Jobs"></div>
-        </div>
-        <div class="cam-table" id="jmbJobs">
-          <div class="cam-tr cam-tr--h"><span>Job</span><span>Endereço</span><span>Status</span><span>Última foto</span><span>Fotos</span><span>Prova</span></div>
-          <div id="jmbJobsBody"><p class="cam-empty">Carregando…</p></div>
+          <section class="cam-detail" id="camDetail" aria-live="polite"></section>
         </div>
       </div>
     </main>
@@ -131,6 +106,6 @@
   <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="cam-viewer.js?v=20261009-cam1"></script>
-  <script src="job-media-board.js?v=20261009-cam1"></script>
+  <script src="job-media-board.js?v=20261009-cam2"></script>
 </body>
 </html>

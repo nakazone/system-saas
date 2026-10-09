@@ -811,6 +811,7 @@
     if (!$("jobMobRoot")) return;
     jobId = new URLSearchParams(location.search).get("id");
     if (!jobId) return;
+    if ((location.hash || "") === "#fotos") detTab = "fotos";
     // A barra fixa fica no body: dentro do main (que pode ter transform) ela não gruda no rodapé.
     const foot = $("jobMobFoot");
     if (foot && foot.parentElement !== document.body) document.body.appendChild(foot);
