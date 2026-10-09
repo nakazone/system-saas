@@ -14,11 +14,11 @@
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="css/builders-portal.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="tabela-valor.css?v=20261009-tv1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
-<body class="dashboard-app-body om-app sidebar-collapsed bp-page-body">
+<body class="dashboard-app-body om-app sidebar-collapsed bp-page-body tv-body">
   <script>
     (function () {
       try {
@@ -53,74 +53,40 @@
       </div>
     </aside>
     <main class="dashboard-main">
-      <div class="mod-page crm-page bp-pricing-admin-page">
-        <header class="crm-page-header">
-          <div class="crm-page-header__titles">
-            <h2 class="crm-page-header__title">Tabela de Valor</h2>
-            <p class="crm-page-header__subtitle">Preços por tipo: Particular, Builder, Contractor e Loja</p>
-          </div>
-          <div class="crm-page-header__actions">
-            <button type="button" class="btn btn-primary" id="btnAddService">+ Serviço</button>
-          </div>
-        </header>
-
-        <p id="adminReadOnlyBanner" class="bp-card bp-pricing-admin-readonly hidden">
-          Modo somente leitura. Solicite permissão <strong>builders.edit</strong> para alterar a tabela.
-        </p>
-
-        <div class="customers-list-toolbar quotes-list-toolbar bp-pricing-toolbar" role="search" aria-label="Filtrar serviços">
-          <input
-            type="search"
-            id="pricingSearch"
-            class="quotes-list-toolbar__search"
-            placeholder="Buscar serviço, unidade ou nota…"
-            autocomplete="off"
-            aria-label="Buscar serviços"
-          />
-          <select id="pricingCategoryFilter" class="customers-list-toolbar__select" aria-label="Filtrar categoria">
-            <option value="">Todas as categorias</option>
-            <option value="installation">Instalação</option>
-            <option value="sand_finish">Lixamento</option>
-            <option value="supply">Material</option>
-            <option value="custom">Personalizado</option>
-          </select>
-          <p class="bp-pricing-count quotes-list-toolbar__total-meta" id="pricingCount" aria-live="polite"></p>
+      <div class="tv" id="tv">
+        <div class="tv-split" id="tvSplit">
+          <aside class="tv-list" aria-label="Serviços">
+            <div class="tv-list__top">
+              <div class="tv-title"><h1>Tabela de Valor</h1><button type="button" class="tv-btn tv-btn--pri tv-btn--sm" id="tvNewBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Novo</span></button></div>
+              <p class="tv-sub" id="tvSub">Preços por tipo de cliente</p>
+              <label class="tv-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="pricingSearch" placeholder="Buscar serviço ou nota" autocomplete="off" aria-label="Buscar serviços" /></label>
+              <div class="tv-seg" id="tvSeg" role="group" aria-label="Categoria"></div>
+            </div>
+            <div class="tv-rows" id="tvRows"><p class="tv-empty">Carregando…</p></div>
+          </aside>
+          <section class="tv-main" id="tvMain">
+            <a class="tv-back" href="#" id="tvBack"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Tabela de Valor</a>
+            <p id="adminReadOnlyBanner" class="tv-ro" hidden>Modo somente leitura. Peça a permissão <b>builders.edit</b> para alterar a tabela.</p>
+            <div id="tvPane"></div>
+          </section>
         </div>
-
-        <div id="pricingEmpty" class="customers-list-empty bp-pricing-admin-empty hidden">
-          <p>Nenhum serviço na tabela. Clique em <strong>+ Serviço</strong> para começar.</p>
-        </div>
-        <div id="pricingNoMatch" class="customers-list-empty bp-pricing-admin-empty hidden">
-          <p>Nenhum serviço corresponde à busca.</p>
-        </div>
-
-        <div class="customers-list-wrap bp-pricing-list-wrap">
-          <div class="customers-list-head customers-list-head--pricing" aria-hidden="true">
-            <span></span>
-            <span>Serviço</span>
-            <span>Categoria</span>
-            <span>Un.</span>
-            <span>Particular</span>
-            <span>Builder</span>
-            <span>Contractor</span>
-            <span>Loja</span>
-            <span>Vis.</span>
-            <span></span>
-          </div>
-          <div id="pricingList" class="customers-list bp-pricing-admin-list" aria-live="polite"></div>
-        </div>
-
-        <section class="bp-pricing-admin-volume">
-          <h2 class="bp-pricing-admin-volume__title">Desconto por volume</h2>
-          <p class="bp-muted bp-pricing-admin-volume__hint">Aplicado ao preço parceiro no portal do builder.</p>
-          <div class="bp-card bp-pricing-volume-grid" id="volumeDiscounts"></div>
-        </section>
       </div>
+      <div class="tv-mbar" id="tvMbar" hidden></div>
     </main>
   </div>
+
+  <div class="tv-modal" id="tvModal" role="dialog" aria-modal="true" aria-labelledby="tvModalTitle" hidden>
+    <div class="tv-modal__backdrop" data-tv-close></div>
+    <form class="tv-modal__panel" id="tvForm">
+      <header class="tv-modal__head"><div><h2 id="tvModalTitle">Novo serviço</h2><p>Entra na tabela, nos orçamentos e no Field Quote</p></div><button type="button" class="tv-x" data-tv-close aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></header>
+      <div class="tv-modal__body" id="tvFormBody"></div>
+      <footer class="tv-modal__foot"><button type="button" class="tv-btn tv-btn--ghost" data-tv-close>Cancelar</button><button type="submit" class="tv-btn tv-btn--pri">Criar serviço</button></footer>
+    </form>
+  </div>
+
   <script src="crm-toast.js"></script>
   <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="crm-shared-nav.js?v=20261009-cx1"></script>
-  <script src="builder-pricing-admin.js?v=20260929-cadlayout1"></script>
+  <script src="builder-pricing-admin.js?v=20261009-tv1"></script>
 </body>
 </html>
