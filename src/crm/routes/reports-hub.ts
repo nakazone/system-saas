@@ -35,10 +35,107 @@ function money(n: number): number {
 }
 
 function periodFromQuery(req: AuthedRequest): PeriodFilter {
-  return parsePeriod({
+  const to = typeof req.query.to === "string" ? req.query.to : undefined;
+  const period = parsePeriod({
     from: typeof req.query.from === "string" ? req.query.from : undefined,
-    to: typeof req.query.to === "string" ? req.query.to : undefined,
+    to,
   });
+  // "Até 8 out" inclui o dia 8 inteiro.
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    period.to = new Date(period.to.getTime() + 24 * 3600 * 1000 - 1);
+  }
+  return period;
+}
+
+const DAY_MS = 24 * 3600 * 1000;
+
+/** Período de mesmo tamanho imediatamente antes (para comparar). */
+function previousPeriod(period: PeriodFilter): PeriodFilter {
+  const len = period.to.getTime() - period.from.getTime();
+  const to = new Date(period.from.getTime() - 1);
+  return { from: new Date(to.getTime() - len), to };
+}
+
+const WON_QUOTE_STATUSES = ["approved", "converted", "accepted", "invoiced"];
+
+/** Vendas do período: leads, orçamentos enviados, ganhos, conversão e ticket médio. */
+async function buildSalesSummary(tx: TenantPrisma, period: PeriodFilter) {
+  const [leads, quotes] = await Promise.all([
+    tx.lead.count({ where: { createdAt: { gte: period.from, lte: period.to } } }),
+    tx.quote.findMany({
+      where: { createdAt: { gte: period.from, lte: period.to } },
+      select: { status: true, total: true },
+    }),
+  ]);
+  const sent = quotes.filter((q) => String(q.status || "").toLowerCase() !== "draft");
+  const won = quotes.filter((q) => WON_QUOTE_STATUSES.includes(String(q.status || "").toLowerCase()));
+  const wonValue = won.reduce((s, q) => s + dec(q.total), 0);
+  return {
+    leads,
+    quotes_sent: sent.length,
+    won_count: won.length,
+    won_value: money(wonValue),
+    conversion_rate: sent.length ? Math.round((won.length / sent.length) * 1000) / 10 : null,
+    avg_ticket: won.length ? money(wonValue / won.length) : null,
+  };
+}
+
+/** Dinheiro a entrar: faturas abertas por prazo e por mês de vencimento, rascunhos à parte. */
+async function buildMoneyIn(tx: TenantPrisma, now: Date = new Date()) {
+  const invoices = await tx.quoteInvoice.findMany({
+    where: { status: { in: ["draft", "sent", "partially_paid"] } },
+    select: { status: true, amount: true, dueDate: true, receipts: { select: { amount: true } } },
+  });
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const soon = new Date(today.getTime() + 8 * DAY_MS);
+  let open = 0;
+  let openCount = 0;
+  let overdue = 0;
+  let overdueCount = 0;
+  let overdueMaxDays = 0;
+  let dueSoon = 0;
+  let onTime = 0;
+  let drafts = 0;
+  let draftCount = 0;
+  const byMonth = new Map<string, number>();
+  for (const inv of invoices) {
+    const paid = inv.receipts.reduce((s, r) => s + dec(r.amount), 0);
+    const balance = Math.max(0, dec(inv.amount) - paid);
+    if (balance <= 0.004) continue;
+    if (inv.status === "draft") {
+      drafts += balance;
+      draftCount += 1;
+      continue;
+    }
+    open += balance;
+    openCount += 1;
+    const due = inv.dueDate;
+    if (due && due < today) {
+      overdue += balance;
+      overdueCount += 1;
+      overdueMaxDays = Math.max(overdueMaxDays, Math.floor((today.getTime() - due.getTime()) / DAY_MS));
+      continue;
+    }
+    if (due && due < soon) dueSoon += balance;
+    else onTime += balance;
+    const key = due ? `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, "0")}` : "none";
+    byMonth.set(key, (byMonth.get(key) || 0) + balance);
+  }
+  return {
+    open: money(open),
+    open_count: openCount,
+    overdue: money(overdue),
+    overdue_count: overdueCount,
+    overdue_max_days: overdueMaxDays,
+    due_7_days: money(dueSoon),
+    on_time: money(onTime),
+    drafts: money(drafts),
+    draft_count: draftCount,
+    by_month: [...byMonth.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([month, amount]) => ({ month, amount: money(amount) })),
+  };
 }
 
 function hasPerm(req: AuthedRequest, key: string): boolean {
@@ -114,7 +211,9 @@ async function buildJobsOps(tx: TenantPrisma, period: PeriodFilter) {
   for (const s of WO_STATUSES) byStatus[s] = 0;
 
   let toInvoice = 0;
+  let toInvoiceValue = 0;
   let awaitingPayment = 0;
+  let awaitingPaymentValue = 0;
   let scheduledInPeriod = 0;
   let completedInPeriod = 0;
 
@@ -133,8 +232,14 @@ async function buildJobsOps(tx: TenantPrisma, period: PeriodFilter) {
         receipts: inv.receipts,
       })),
     );
-    if (wo.status === "completed" && billing.remaining_to_invoice > 0.004) toInvoice += 1;
-    if (billing.billing_status === "awaiting_payment") awaitingPayment += 1;
+    if (wo.status === "completed" && billing.remaining_to_invoice > 0.004) {
+      toInvoice += 1;
+      toInvoiceValue += billing.remaining_to_invoice;
+    }
+    if (billing.billing_status === "awaiting_payment") {
+      awaitingPayment += 1;
+      awaitingPaymentValue += billing.open_balance;
+    }
 
     const start = wo.scheduledStart;
     if (start && start >= period.from && start <= period.to) scheduledInPeriod += 1;
@@ -148,7 +253,9 @@ async function buildJobsOps(tx: TenantPrisma, period: PeriodFilter) {
     by_status: byStatus,
     active: (byStatus.scheduled || 0) + (byStatus.in_progress || 0),
     to_invoice: toInvoice,
+    to_invoice_value: money(toInvoiceValue),
     awaiting_payment: awaitingPayment,
+    awaiting_payment_value: money(awaitingPaymentValue),
     scheduled_in_period: scheduledInPeriod,
     completed_in_period: completedInPeriod,
     total_open: workOrders.filter((w) => w.status !== "completed").length,
@@ -156,7 +263,7 @@ async function buildJobsOps(tx: TenantPrisma, period: PeriodFilter) {
 }
 
 async function buildCashflow(tx: TenantPrisma, period: PeriodFilter) {
-  const toEnd = new Date(period.to.getTime() + 24 * 3600 * 1000 - 1);
+  const toEnd = period.to;
   const [receipts, costs, abatements, openInvoices] = await Promise.all([
     tx.invoiceReceipt.findMany({
       where: { paidAt: { gte: period.from, lte: toEnd } },
@@ -452,6 +559,7 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
   const canJobs = hasPerm(req, "work_orders.view");
   const canLeads = hasPerm(req, "leads.view");
   const canQuotes = hasPerm(req, "quotes.view");
+  const prev = previousPeriod(period);
 
   const [
     executive,
@@ -464,6 +572,10 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
     jobsOps,
     cashflow,
     folha,
+    salesSummary,
+    moneyIn,
+    prevSales,
+    prevCashflow,
   ] = await Promise.all([
     canLeads || canQuotes ? buildExecutive(tx, period, req) : null,
     canLeads ? reportConversionBySource(tx, period) : null,
@@ -475,6 +587,10 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
     canJobs ? buildJobsOps(tx, period) : null,
     canFinance ? buildCashflow(tx, period) : null,
     canPayroll ? buildFolha(tx, period).catch(() => null) : null,
+    canLeads || canQuotes ? buildSalesSummary(tx, period) : null,
+    canFinance ? buildMoneyIn(tx) : null,
+    canLeads || canQuotes ? buildSalesSummary(tx, prev) : null,
+    canFinance ? buildCashflow(tx, prev) : null,
   ]);
 
   const org = await tx.organization.findFirst({
@@ -511,6 +627,15 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
     cashflow,
     folha,
     profitability: showPricing ? profitability : null,
+    sales_summary: salesSummary,
+    money_in: moneyIn,
+    compare: {
+      period: { from: ymd(prev.from), to: ymd(prev.to) },
+      sales: prevSales,
+      cashflow: prevCashflow
+        ? { inflow: prevCashflow.inflow, outflow: prevCashflow.outflow, net: prevCashflow.net }
+        : null,
+    },
   };
 }
 

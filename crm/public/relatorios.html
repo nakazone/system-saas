@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f7f4ee" />
+  <meta name="theme-color" content="#F7F8FA" />
   <title>Relatórios | ObraMate</title>
   <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}@media (max-width:1024px){body.om-app.dashboard-app-body,body.om-app{--crm-sidebar-width:0px!important}body.om-app .dashboard-container{display:block!important;margin:0!important;width:100%!important;max-width:100%!important}body.om-app .dashboard-main,body.om-app.dashboard-app-body .dashboard-main,body.om-app.sidebar-collapsed .dashboard-main{margin:0!important;margin-left:0!important;margin-top:0!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;left:0!important;top:0!important;height:100vh!important;height:100dvh!important;width:min(288px,92vw)!important;min-width:0!important;max-width:min(288px,92vw)!important;transform:translate3d(-105%,0,0)!important;z-index:1100!important;margin:0!important}body.om-app #dashboardSidebar.mobile-open,body.om-app .dashboard-sidebar.mobile-open{transform:translate3d(0,0,0)!important}}</style>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
@@ -17,9 +17,8 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="relatorios.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="relatorios.css?v=20261009-rx1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
   <script src="om-device.js?v=20261007-stable1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
@@ -71,45 +70,52 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
-      <div class="crm-page rpt">
-        <header class="rpt-header">
-          <div>
-            <h1 class="rpt-header__title">Relatórios</h1>
-            <p class="rpt-header__sub">Visão unificada de vendas, jobs, financeiro e folha</p>
+      <div class="rx" id="rx">
+        <header class="rx-head">
+          <div class="rx-head__title">
+            <h1>Relatórios</h1>
+            <p id="rxSub">Como está o negócio no período, com o que precisa de ação primeiro</p>
           </div>
-          <div class="rpt-filters" role="group" aria-label="Período">
-            <div class="rpt-presets">
-              <button type="button" class="rpt-preset" data-preset="30">30 dias</button>
-              <button type="button" class="rpt-preset is-active" data-preset="90">90 dias</button>
-              <button type="button" class="rpt-preset" data-preset="month">Mês atual</button>
+          <div class="rx-period" role="group" aria-label="Período">
+            <div class="rx-seg" id="rxPresets">
+              <button type="button" data-preset="30">30 dias</button>
+              <button type="button" data-preset="90" class="is-on">90 dias</button>
+              <button type="button" data-preset="month">Mês</button>
+              <button type="button" data-preset="ytd">Ano</button>
             </div>
-            <label class="rpt-date">
-              <span>De</span>
-              <input type="date" id="rptFrom" />
-            </label>
-            <label class="rpt-date">
-              <span>Até</span>
-              <input type="date" id="rptTo" />
-            </label>
-            <button type="button" class="btn btn-primary" id="rptApply">Atualizar</button>
+            <div class="rx-range">
+              <button type="button" class="rx-range__btn" id="rxRangeBtn" aria-expanded="false" aria-controls="rxRangePop">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+                <span id="rxRangeLabel">—</span>
+                <small id="rxCompareLabel"></small>
+              </button>
+              <div class="rx-range__pop" id="rxRangePop" hidden>
+                <label><span>De</span><input type="date" id="rptFrom" /></label>
+                <label><span>Até</span><input type="date" id="rptTo" /></label>
+                <button type="button" class="rx-btn rx-btn--pri" id="rptApply">Aplicar</button>
+              </div>
+            </div>
           </div>
         </header>
 
-        <nav class="rpt-tabs" id="rptTabs" role="tablist" aria-label="Relatórios">
-          <button type="button" class="rpt-tab is-active" role="tab" data-tab="resumo" aria-selected="true">Resumo</button>
-          <button type="button" class="rpt-tab" role="tab" data-tab="vendas" aria-selected="false">Vendas</button>
-          <button type="button" class="rpt-tab" role="tab" data-tab="jobs" aria-selected="false">Jobs</button>
-          <button type="button" class="rpt-tab" role="tab" data-tab="receber" aria-selected="false">Recebíveis</button>
-          <button type="button" class="rpt-tab" role="tab" data-tab="caixa" aria-selected="false">Fluxo</button>
-          <button type="button" class="rpt-tab" role="tab" data-tab="folha" aria-selected="false">Folha</button>
-          <button type="button" class="rpt-tab" role="tab" data-tab="lucro" aria-selected="false">Lucratividade</button>
-          <button type="button" class="rpt-tab rpt-tab--extra" role="tab" data-tab="irss" aria-selected="false" hidden>
-            IRSS <span class="rpt-tab__badge">Extra</span>
-          </button>
+        <nav class="rx-tabs" id="rptTabs" role="tablist" aria-label="Relatórios">
+          <button type="button" role="tab" data-tab="resumo" class="is-on" aria-selected="true">Resumo</button>
+          <button type="button" role="tab" data-tab="vendas" aria-selected="false">Vendas</button>
+          <button type="button" role="tab" data-tab="jobs" aria-selected="false">Operação</button>
+          <button type="button" role="tab" data-tab="dinheiro" aria-selected="false">Dinheiro</button>
+          <button type="button" role="tab" data-tab="folha" aria-selected="false">Equipe</button>
+          <button type="button" role="tab" data-tab="lucro" aria-selected="false">Lucro</button>
+          <details class="rx-export" id="rxExport">
+            <summary class="rx-btn">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+              <span>Exportar</span>
+            </summary>
+            <div class="rx-export__menu" id="rxExportMenu"></div>
+          </details>
         </nav>
 
-        <p class="rpt-status" id="rptStatus" hidden>A carregar…</p>
-        <p class="rpt-error" id="rptError" hidden></p>
+        <p class="rx-status" id="rptStatus" hidden>Carregando…</p>
+        <p class="rx-error" id="rptError" hidden></p>
 
         <div id="rptRoot" role="tabpanel"></div>
       </div>
@@ -122,6 +128,6 @@
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-shared-nav.js?v=20261008-neutro1"></script>
   <script src="crm-shell.js?v=20261008-name1"></script>
-  <script src="relatorios.js?v=20261008-reports3"></script>
+  <script src="relatorios.js?v=20261009-rx1"></script>
 </body>
 </html>
