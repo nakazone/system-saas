@@ -8,7 +8,7 @@
   const STATUS = {
     draft: ["Rascunho", "draft"],
     scheduled: ["Agendado", "scheduled"],
-    in_progress: ["Em andamento", "progress"],
+    in_progress: ["Em campo", "progress"],
     completed: ["Concluído", "done"],
     canceled: ["Cancelado", "canceled"],
   };
@@ -121,6 +121,22 @@
     return job.address ? `https://maps.google.com/?q=${encodeURIComponent(job.address)}` : "";
   }
 
+  function lateInfo() {
+    return window.JobsInfo && job ? window.JobsInfo.late(job) : null;
+  }
+  /** Aviso quando o job passou da data e ainda não foi concluído. */
+  function renderLate() {
+    const card = $("jdLateCard");
+    if (!card) return;
+    const lt = lateInfo();
+    card.hidden = !lt;
+    if (!lt) return;
+    const d = `${lt.days} dia${lt.days > 1 ? "s" : ""}`;
+    card.innerHTML = `<b>${job.status === "in_progress" ? `Passou da data de término há ${d}` : `Era para começar e não foi iniciado (${d})`}</b>
+      <p>${job.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Inicie o job ou remarque a data."}</p>
+      ${canManage ? `<div class="jd-late__acts"><button type="button" class="jd-btn jd-btn--sm" data-primary="schedule">Remarcar</button><a class="jd-btn jd-btn--sm jd-btn--ghost" href="${esc($("btnOpenSchedule").href)}">Ver na agenda</a></div>` : ""}`;
+  }
+
   // ---------------------------------------------------------------- header
   function renderHeader() {
     const [label, cls] = STATUS[job.status] || [job.status, "draft"];
@@ -128,6 +144,7 @@
     const sectorLbl = job.sector === "installation" ? "Instalação" : job.sector === "sand_finish" ? "Lixa" : "";
     $("jdChips").innerHTML = `
       <span class="jd-pill jd-pill--${cls}">${esc(label)}</span>
+      ${lateInfo() ? `<span class="jd-pill jd-pill--late">${esc(lateInfo().short)}</span>` : ""}
       ${sectorLbl ? `<span class="jd-pill">${esc(sectorLbl)}</span>` : ""}
       ${
         job.needs_delivery
@@ -411,7 +428,7 @@
       ${total > 0 ? `<div class="jd-bar"><i class="p" style="width:${paidPct.toFixed(1)}%"></i><i class="o" style="width:${openPct.toFixed(1)}%"></i></div>` : ""}
       <dl class="jd-kv">
         <div><dt><i class="jd-dot jd-dot--paid"></i>Recebido</dt><dd>${money(b.paid_total)}</dd></div>
-        <div><dt><i class="jd-dot jd-dot--open"></i>Em aberto</dt><dd>${money(b.open_balance)}</dd></div>
+        <div><dt><i class="jd-dot jd-dot--open"></i>Faturado em aberto</dt><dd>${money(b.open_balance)}</dd></div>
         <div><dt>A faturar</dt><dd>${money(b.remaining_to_invoice)}</dd></div>
         <div class="jd-kv__total"><dt>Total do job</dt><dd>${money(total)}</dd></div>
       </dl>
@@ -424,7 +441,8 @@
               )
               .join("")}</ul>`
           : ""
-      }`;
+      }
+      ${canInvoice && b.remaining_to_invoice > 0.004 && job.status !== "canceled" ? `<button type="button" class="jd-btn jd-btn--block" data-primary="invoice">Faturar ${money0(b.remaining_to_invoice)}</button>` : ""}`;
   }
 
   // ---------------------------------------------------------------- after the job (review, caption, report, portfolio)
@@ -891,6 +909,7 @@
 
   function renderAll() {
     renderHeader();
+    renderLate();
     renderSteps();
     renderFacts();
     renderAttention();

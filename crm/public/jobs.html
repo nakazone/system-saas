@@ -16,14 +16,16 @@
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261009-job1" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="jobs.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-job-billing.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-job-billing.css?v=20261009-job1" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="jobs-board.css?v=20261009-job1" />
+  <link rel="stylesheet" href="jobs-mobile-v2.css?v=20261009-job1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
@@ -94,114 +96,49 @@
             <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           </button>
         </div>
-        <div class="jcm-seg" role="tablist">
-          <button type="button" class="jcm-seg__btn is-active" data-jobs-tab="today">Hoje · 0</button>
-          <button type="button" class="jcm-seg__btn" data-jobs-tab="active">Ativos · 0</button>
-          <button type="button" class="jcm-seg__btn" data-jobs-tab="done">Concluídos · 0</button>
+        <div class="jmx-sum" id="jobsMobSum"></div>
+        <div class="jcm-seg jmx-pills" role="tablist">
+          <button type="button" class="jcm-seg__btn is-active" data-jobs-tab="today">Hoje <em>0</em></button>
+          <button type="button" class="jcm-seg__btn" data-jobs-tab="active">Ativos <em>0</em></button>
+          <button type="button" class="jcm-seg__btn" data-jobs-tab="bill" hidden>A faturar <em>0</em></button>
+          <button type="button" class="jcm-seg__btn" data-jobs-tab="done">Concluídos <em>0</em></button>
         </div>
         <div class="om-ptr" id="jobsPtr" aria-hidden="true">↓ Puxe para atualizar</div>
         <div class="jcm-list om-dock-pad" id="jobsMobList"></div>
       </div>
 
-      <div class="jobs-page crm-page">
-        <div class="jobs-page-header">
+      <div class="jobs-page crm-page jx" id="jx">
+        <div class="jx-head">
           <h1>Jobs</h1>
-          <div class="jobs-page-header__actions">
-            <a class="btn btn-secondary" href="job-media-board.html">ObraCam</a>
-            <a class="btn btn-secondary" href="schedule.html">Agenda</a>
-            <button type="button" class="btn btn-primary" id="btnNewJob" data-crm-permission="work_orders.manage">Novo job</button>
+          <dl class="jx-sum" id="jxSum"></dl>
+          <div class="jx-head__acts">
+            <a class="jx-btn" href="schedule.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Agenda</span></a>
+            <button type="button" class="jx-btn jx-btn--pri" id="btnNewJob" data-crm-permission="work_orders.manage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Novo job</span></button>
           </div>
         </div>
-
-        <div class="jobs-overview" id="jobsOverview" aria-label="Resumo">
-          <div class="jobs-ov-card">
-            <p class="jobs-ov-card__title">Overview</p>
-            <ul class="jobs-ov-list" id="ovStatusList">
-              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-unscheduled"></span> Sem schedule</span><strong id="ovUnscheduled">0</strong></li>
-              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-late"></span> Atrasados</span><strong id="ovLate">0</strong></li>
-              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-scheduled"></span> Scheduled</span><strong id="ovScheduled">0</strong></li>
-              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-progress"></span> Em progresso</span><strong id="ovProgress">0</strong></li>
-              <li><span class="jobs-ov-list__left"><span class="jobs-ov-dot is-done"></span> Concluídos</span><strong id="ovDone">0</strong></li>
-            </ul>
-          </div>
-          <div class="jobs-ov-card">
-            <p class="jobs-ov-card__title">Próximos 30 dias</p>
-            <div class="jobs-ov-card__stat" id="ovNext30">0</div>
-            <div class="jobs-ov-card__sub">Jobs com início neste período</div>
-          </div>
-          <div class="jobs-ov-card">
-            <p class="jobs-ov-card__title">Últimos 30 dias</p>
-            <div class="jobs-ov-card__stat" id="ovPast30">0</div>
-            <div class="jobs-ov-card__sub">Jobs concluídos recentemente</div>
-          </div>
-          <button type="button" class="jobs-ov-card jobs-ov-card--bill" id="ovBillCard" hidden>
-            <p class="jobs-ov-card__title">Concluídos a faturar</p>
-            <div class="jobs-ov-card__stat" id="ovToBill">0</div>
-            <div class="jobs-ov-card__sub" id="ovToBillAmt">$0.00 para faturar</div>
-          </button>
-          <div class="jobs-ov-card jobs-ov-card--promo" id="ovPromoCard">
-            <p>Organize a equipa e os jobs no Schedule.</p>
-            <a href="schedule.html">Abrir Schedule →</a>
-          </div>
-        </div>
-
-        <div class="jobs-list-head">
-          <h2>All jobs <span class="jobs-list-head__count" id="jobsResultCount">(0)</span></h2>
-        </div>
-
-        <div class="jobs-toolbar">
-          <label>Status
-            <select id="filterStatus">
-              <option value="">All</option>
-              <option value="draft">Draft</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="in_progress">In progress</option>
-              <option value="completed">Completed</option>
-              <option value="canceled">Canceled</option>
-            </select>
-          </label>
-          <label>Origem
-            <select id="filterSource">
-              <option value="">All</option>
-              <option value="particular">Particular</option>
-              <option value="builder">Builder</option>
-              <option value="contractor">Contractor</option>
-              <option value="loja">Loja</option>
-              <option value="internal">Internal</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
-          <label id="filterBillingWrap" hidden>Cobrança
-            <select id="filterBilling">
-              <option value="">Todos</option>
-              <option value="to_invoice">Concluídos a faturar</option>
-              <option value="awaiting_payment">Aguardando pagamento</option>
-              <option value="paid">Pagos</option>
-            </select>
-          </label>
-          <label class="grow">Search
-            <input type="search" id="filterQ" placeholder="Search jobs…" />
-          </label>
-          <button type="button" class="btn btn-secondary" id="btnReload">Atualizar</button>
-        </div>
-
-        <div class="jobs-table-wrap">
-          <table class="jobs-table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Job number</th>
-                <th>Property</th>
-                <th>Schedule</th>
-                <th>Status</th>
-                <th class="jobs-col-billing" hidden>Valor</th>
-                <th>Assigned</th>
-              </tr>
-            </thead>
-            <tbody id="jobsTableBody">
-              <tr><td colspan="6" class="jobs-empty">Carregando…</td></tr>
-            </tbody>
-          </table>
+        <div class="jx-tiles" id="jxTiles" role="group" aria-label="Filtrar por etapa"></div>
+        <div class="jx-split" id="jxSplit">
+          <section class="jx-list" aria-label="Lista de jobs">
+            <div class="jx-list__top">
+              <label class="jx-search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="jxQ" placeholder="Buscar job, cliente ou endereço" autocomplete="off" /></label>
+              <div class="jx-list__bar">
+                <label class="jx-sel"><span>Origem</span>
+                  <select id="jxSource" aria-label="Origem">
+                    <option value="">Todas</option>
+                    <option value="particular">Particular</option>
+                    <option value="builder">Builder</option>
+                    <option value="contractor">Contractor</option>
+                    <option value="loja">Loja</option>
+                    <option value="internal">Interno</option>
+                    <option value="other">Outro</option>
+                  </select>
+                </label>
+                <span class="jx-count" id="jxCount"></span>
+              </div>
+            </div>
+            <div class="jx-rows" id="jxRows"><p class="jx-empty">Carregando…</p></div>
+          </section>
+          <section class="jx-detail" id="jxDetail" aria-live="polite"></section>
         </div>
       </div>
     </main>
@@ -216,9 +153,10 @@
   <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="om-gestures.js?v=20261002-gest1"></script>
-  <script src="crm-job-modal.js?v=20261006-deliv4"></script>
+  <script src="crm-job-modal.js?v=20261009-job1"></script>
   <script src="crm-job-billing.js?v=20261001-jobinv1"></script>
-  <script src="jobs.js?v=20261001-lockbox4"></script>
-  <script src="jobs-mobile.js?v=20261002-gest1"></script>
+  <script src="jobs-info.js?v=20261009-job1"></script>
+  <script src="jobs-page.js?v=20261009-job1"></script>
+  <script src="jobs-mobile.js?v=20261009-job1"></script>
 </body>
 </html>

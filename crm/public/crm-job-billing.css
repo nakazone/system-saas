@@ -1,5 +1,5 @@
 /* Job billing — Faturamento card, billing chips and the "Faturar job" dialog.
-   Paid uses carvão (no green, per brand); money to collect uses terracota. */
+   Base neutra: pago em oliva, a receber em carvão; laranja só em ação. */
 
 .jb-chip {
   display: inline-flex;
@@ -7,17 +7,17 @@
   gap: 0.3rem;
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 650;
   line-height: 1.5;
   white-space: nowrap;
-  border: 1px solid transparent;
+  border: 0;
 }
-.jb-chip--to_invoice { background: #fbe9dc; color: #9a4a1c; border-color: #f2c9a8; }
-.jb-chip--partially_invoiced { background: #fff4e5; color: #8a5a12; border-color: #f3dcb4; }
-.jb-chip--awaiting_payment { background: #fff; color: #221E1A; border-color: #cfc5b7; }
-.jb-chip--paid { background: #221E1A; color: #F7F8FA; }
-.jb-chip--no_value { background: #f3efe8; color: #98A2B3; }
+.jb-chip--to_invoice { background: #F1F3F5; color: #221E1A; }
+.jb-chip--partially_invoiced { background: #F1F3F5; color: #221E1A; }
+.jb-chip--awaiting_payment { background: #221E1A; color: #fff; }
+.jb-chip--paid { background: #EEF1EC; color: #536249; }
+.jb-chip--no_value { background: #F1F3F5; color: #98A2B3; }
 
 /* Card */
 .jb-stats {
@@ -28,18 +28,18 @@
 }
 .jb-stat {
   background: #F7F8FA;
-  border: 1px solid #ece4d8;
-  border-radius: 10px;
+  border: 0;
+  border-radius: 14px;
   padding: 0.6rem 0.7rem;
   min-width: 0;
 }
-.jb-stat__k { display: block; font-size: 0.7rem; font-weight: 600; color: #98A2B3; text-transform: uppercase; letter-spacing: 0.04em; }
-.jb-stat__v { display: block; margin-top: 0.15rem; font-size: 1.02rem; font-weight: 800; color: #221E1A; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
-.jb-stat--accent .jb-stat__v { color: #B4561A; }
+.jb-stat__k { display: block; font-size: 0.7rem; font-weight: 600; color: #667085; letter-spacing: 0; }
+.jb-stat__v { display: block; margin-top: 0.15rem; font-size: 1.05rem; font-weight: 700; color: #221E1A; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.jb-stat--accent .jb-stat__v { color: #221E1A; }
 
 .jb-bar { height: 6px; border-radius: 999px; background: #F1F3F5; overflow: hidden; margin: -0.35rem 0 0.9rem; display: flex; }
-.jb-bar__paid { background: #221E1A; }
-.jb-bar__open { background: #E7792C; }
+.jb-bar__paid { background: #536249; }
+.jb-bar__open { background: #221E1A; }
 
 .jb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
 .jb-inv {
@@ -48,16 +48,17 @@
   gap: 0.75rem;
   align-items: center;
   padding: 0.6rem 0.75rem;
-  border: 1px solid #ece4d8;
-  border-radius: 10px;
+  border: 0;
+  box-shadow: 0 0 0 1px #E5E7EB;
+  border-radius: 12px;
   text-decoration: none;
   color: inherit;
   background: #fff;
 }
-.jb-inv:hover { border-color: #E7792C; }
+.jb-inv:hover { box-shadow: 0 0 0 1px #D0D5DD; }
 .jb-inv__main { min-width: 0; }
 .jb-inv__num { font-weight: 700; font-size: 0.9rem; }
-.jb-inv__sub { display: block; font-size: 0.78rem; color: #98A2B3; }
+.jb-inv__sub { display: block; font-size: 0.78rem; color: #667085; }
 .jb-inv__amt { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
 .jb-inv__amt small { display: block; font-weight: 500; font-size: 0.74rem; color: #98A2B3; }
 
@@ -65,7 +66,7 @@
 .jb-empty { margin: 0; padding: 0.25rem 0 0; color: #98A2B3; font-size: 0.88rem; }
 
 /* Dialog */
-.jb-backdrop { position: fixed; inset: 0; background: rgba(33, 29, 26, 0.45); z-index: 1200; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; }
+.jb-backdrop { position: fixed; inset: 0; background: rgba(34, 30, 26, 0.45); z-index: 1200; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; }
 .jb-backdrop.is-open { opacity: 1; pointer-events: auto; }
 .jb-dialog {
   position: fixed;
@@ -79,13 +80,13 @@
   opacity: 0;
   pointer-events: none;
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 24px 60px rgba(33, 29, 26, 0.25);
+  border-radius: 24px;
+  box-shadow: 0 30px 60px -20px rgba(16, 24, 40, 0.45);
   padding: 1.25rem 1.25rem 1rem;
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .jb-dialog.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%); }
-.jb-dialog h2 { margin: 0 0 0.2rem; font-size: 1.1rem; }
+.jb-dialog h2 { margin: 0 0 0.2rem; font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: #221E1A; }
 .jb-dialog__sub { margin: 0 0 1rem; color: #667085; font-size: 0.86rem; }
 .jb-opts { display: grid; gap: 0.45rem; margin-bottom: 0.9rem; }
 .jb-opt {
@@ -94,15 +95,16 @@
   gap: 0.6rem;
   align-items: center;
   padding: 0.7rem 0.8rem;
-  border: 1.5px solid #E5E7EB;
-  border-radius: 12px;
+  border: 0;
+  box-shadow: 0 0 0 1px #E5E7EB;
+  border-radius: 14px;
   cursor: pointer;
 }
-.jb-opt:has(input:checked) { border-color: #E7792C; background: #fdf6f0; }
-.jb-opt input[type="radio"] { accent-color: #E7792C; margin: 0; }
-.jb-opt__t { font-weight: 700; font-size: 0.92rem; }
+.jb-opt:has(input:checked) { box-shadow: 0 0 0 1.5px #221E1A; background: #fff; }
+.jb-opt input[type="radio"] { accent-color: #221E1A; margin: 0; }
+.jb-opt__t { font-weight: 650; font-size: 0.92rem; }
 .jb-opt__d { display: block; font-weight: 400; font-size: 0.78rem; color: #98A2B3; }
-.jb-opt__v { font-weight: 800; font-variant-numeric: tabular-nums; }
+.jb-opt__v { font-weight: 700; font-variant-numeric: tabular-nums; }
 .jb-opt__inp { width: 5.5rem; padding: 0.35rem 0.45rem; border: 1px solid #E5E7EB; border-radius: 8px; font: inherit; text-align: right; }
 .jb-field { display: grid; gap: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #667085; margin-bottom: 0.9rem; }
 .jb-field input { padding: 0.55rem 0.65rem; border: 1px solid #E5E7EB; border-radius: 10px; font: inherit; font-weight: 400; color: #221E1A; }
@@ -122,3 +124,12 @@
   .jb-inv .jb-chip { grid-area: chip; justify-self: start; }
   .jb-inv__amt { grid-area: amt; align-self: center; }
 }
+
+/* botões neutros (laranja só na ação, texto escuro) */
+html body .jb-actions .btn, html body .jb-dialog .btn {
+  height: 38px; padding: 0 14px; border-radius: 12px; border: 0 !important; font-size: 13.5px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 1px #E5E7EB !important;
+  background: #fff !important; color: #221E1A !important; background-image: none !important;
+}
+html body .jb-actions .btn-primary, html body .jb-dialog .btn-primary { background: #E7792C !important; box-shadow: none !important; color: #221E1A !important; }
+html body .jb-actions .btn-primary:hover, html body .jb-dialog .btn-primary:hover { background: #EF8A44 !important; }

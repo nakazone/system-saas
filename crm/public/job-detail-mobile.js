@@ -34,8 +34,8 @@
   function statusPt(status) {
     const map = {
       draft: "Rascunho",
-      scheduled: "Agendada",
-      in_progress: "Em andamento",
+      scheduled: "Agendado",
+      in_progress: "Em campo",
       completed: "Concluído",
       canceled: "Cancelado",
     };
@@ -85,6 +85,14 @@
     return `${a} – ${pad(e.getHours())}:${pad(e.getMinutes())}`;
   }
 
+  function isTodayIso(iso) {
+    return !!iso && new Date(iso).toDateString() === new Date().toDateString();
+  }
+
+  function moneyFmt(n) {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n) || 0);
+  }
+
   function sqftTotal(wo) {
     const items = wo.line_items || [];
     const sum = items.reduce((s, it) => s + (Number(it.quantity_sqft) || 0), 0);
@@ -105,7 +113,7 @@
     } else if (wo.status === "in_progress") {
       steps.push({
         title,
-        meta: `${fmtDay(start)}${start ? ` · ${fmtTimeRange(start, end)} · hoje` : ""}`,
+        meta: `${fmtDay(start)}${start ? ` · ${fmtTimeRange(start, end)}${isTodayIso(start) ? " · hoje" : ""}` : ""}`,
         state: "current",
       });
       steps.push({ title: "Vistoria final", meta: "A agendar", state: "upcoming" });
@@ -413,13 +421,47 @@
   function render() {
     if (!job || !$("jobMobRoot")) return;
     const wo = job;
-    $("jobMobId").textContent = `Job #${wo.number != null ? wo.number : "—"}`;
+    const J = window.JobsInfo;
+    $("jobMobId").textContent = wo.number != null ? `#${wo.number}` : "";
     const badge = $("jobMobStatus");
     badge.textContent = statusPt(wo.status);
     badge.className = `jcm-badge ${statusCls(wo.status)}`;
-    $("jobMobName").textContent = clientLabel(wo);
-    const typeBits = [wo.title, sqftTotal(wo)].filter(Boolean).join(" · ");
-    $("jobMobType").textContent = typeBits || "—";
+    const lt = J ? J.late(wo) : null;
+    const lateEl = $("jobMobLate");
+    if (lateEl) {
+      lateEl.hidden = !lt;
+      lateEl.textContent = lt ? lt.short : "";
+    }
+    $("jobMobName").textContent = wo.title || `Job para ${clientLabel(wo)}`;
+    $("jobMobType").textContent = [clientLabel(wo), J ? J.dateRange(wo) : fmtDay(wo.scheduled_start), sqftTotal(wo)].filter(Boolean).join(" · ");
+    const stepsEl = $("jobMobSteps");
+    if (stepsEl && J) {
+      const st = J.step(wo);
+      const names = ["Agendado", "Campo", "Concluído", "Faturado", "Pago"];
+      stepsEl.hidden = st < 0;
+      stepsEl.innerHTML = names.map((n, i) => `<li class="${i < st ? "is-ok" : i === st ? "is-cur" : ""}"><i></i>${n}</li>`).join("");
+    }
+    const when = $("jobMobWhen");
+    if (when) when.textContent = wo.scheduled_start ? `${J ? J.dateRange(wo) : fmtDay(wo.scheduled_start)} · ${fmtTimeRange(wo.scheduled_start, wo.scheduled_end)}` : "Sem data";
+    const b = wo.billing;
+    const mw = $("jobMobMoneyWrap");
+    if (mw) {
+      mw.hidden = !(canBill && b);
+      if (canBill && b) {
+        const rows = [["Total do job", moneyFmt(b.services_total)]];
+        if (b.remaining_to_invoice > 0.004) rows.push(["A faturar", moneyFmt(b.remaining_to_invoice)]);
+        if (b.open_balance > 0.004) rows.push(["A receber", moneyFmt(b.open_balance)]);
+        rows.push(["Recebido", moneyFmt(b.paid_total)]);
+        $("jobMobMoney").innerHTML = rows.map(([k, v]) => `<div class="jmx-li"><span>${k}</span><b>${v}</b></div>`).join("");
+      }
+    }
+    const billQ = $("jobMobBillQuick");
+    if (billQ) billQ.hidden = !canBill;
+    const svcSum = $("jobMobSvcSum");
+    if (svcSum) {
+      const n = (wo.line_items || []).length;
+      svcSum.textContent = `${n} serviço${n === 1 ? "" : "s"} · editar ›`;
+    }
 
     const addr = wo.address || "—";
     const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "#";
@@ -625,15 +667,19 @@
     const cta = $("jobMobCta");
     if (!cta || !wo) return;
     if (wo.status === "in_progress") {
-      cta.textContent = "Concluir visita";
-      cta.className = "jcm-foot__btn jcm-foot__btn--ink";
+      cta.textContent = "Concluir job";
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "complete";
+    } else if (wo.status === "completed" && canInvoice && wo.billing && wo.billing.remaining_to_invoice > 0.004 && window.JobBilling) {
+      cta.textContent = `Faturar ${moneyFmt(wo.billing.remaining_to_invoice)}`;
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+      cta.dataset.action = "invoice";
     } else if (wo.status === "completed") {
       cta.textContent = "Ver na agenda";
       cta.className = "jcm-foot__btn jcm-foot__btn--ghost";
       cta.dataset.action = "schedule";
     } else {
-      cta.textContent = "Iniciar visita";
+      cta.textContent = "Iniciar job";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "start";
     }
@@ -706,12 +752,17 @@
           }
           return;
         }
+        if (action === "invoice") {
+          window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status });
+          return;
+        }
         if (action === "start") {
           await setStatus("in_progress");
-          window.crmToast?.success?.("Visita iniciada");
+          window.crmToast?.success?.("Job iniciado");
         } else if (action === "complete") {
+          if (!confirm("Marcar o job como concluído?")) return;
           await setStatus("completed");
-          window.crmToast?.success?.("Visita concluída");
+          window.crmToast?.success?.("Job concluído");
         } else if (action === "schedule") {
           location.href = "schedule.html";
         }
@@ -719,8 +770,23 @@
         window.crmToast?.error?.(e.message || "Erro");
       }
     });
+    $("jobMobPhotosQuick")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      detTab = "fotos";
+      render();
+      document.querySelector("[data-jd-tab='fotos']")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    $("jobMobBillQuick")?.addEventListener("click", () => {
+      detTab = "financeiro";
+      render();
+      document.querySelector("[data-jd-tab='financeiro']")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     $("jobMobNotesQuick")?.addEventListener("click", (e) => {
       e.preventDefault();
+      if (canManage && window.__crmJobModal) {
+        window.__crmJobModal.openEdit(jobId, { section: "notes" }).catch((err) => window.crmToast?.error?.(err.message || "Erro"));
+        return;
+      }
       $("jobMobInstr")?.scrollIntoView({ behavior: "smooth" });
     });
   }
@@ -730,6 +796,9 @@
     if (!$("jobMobRoot")) return;
     jobId = new URLSearchParams(location.search).get("id");
     if (!jobId) return;
+    // A barra fixa fica no body: dentro do main (que pode ter transform) ela não gruda no rodapé.
+    const foot = $("jobMobFoot");
+    if (foot && foot.parentElement !== document.body) document.body.appendChild(foot);
     try {
       const role = localStorage.getItem(ROLE_KEY) === "installer" ? "installer" : "office";
       document.querySelectorAll("[data-jobs-role]").forEach((b) => {

@@ -1,0 +1,112 @@
+/* Página do job — base neutra (Opção A): cabeçalho num cartão com o caminho do job em barras,
+   laranja só nos botões de ação (texto escuro), links sublinhados, aviso de atraso ao lado. */
+.jd {
+  --jd-ink-2: #667085;
+  --jd-ol: #536249;
+  --jd-ols: #EEF1EC;
+  font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+.jd-back { font-weight: 600; color: var(--jd-ink-2); }
+
+/* cabeçalho em cartão */
+.jd-top { background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px var(--jd-line); padding: 18px 20px 16px; }
+.jd-hd__title { font-weight: 700; letter-spacing: -.03em; margin: 7px 0 5px; }
+.jd-hd__sub { font-size: 13px; gap: 4px 16px; }
+.jd-hd__sub b { font-weight: 650; }
+.jd-hd__sub a:hover { color: var(--jd-ink); text-decoration: underline; text-decoration-color: var(--jd-terra); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.jd-num { font-weight: 600; color: var(--jd-ink-2); }
+
+.jd-pill { height: 22px; padding: 0 9px; font-weight: 650; border: 0 !important; }
+.jd-pill::before { display: none; }
+.jd-pill--draft, .jd-pill--scheduled { background: #F1F3F5; color: var(--jd-ink); }
+.jd-pill--progress { background: var(--jd-ink); color: #fff; }
+.jd-pill--done { background: var(--jd-ols); color: var(--jd-ol); }
+.jd-pill--canceled, .jd-pill--late { background: #FDF0E6; color: #B4561A; }
+.jd-pill--delivery { background: #F1F3F5; color: var(--jd-ink); }
+
+/* botões e links */
+.jd-btn { border: 0; box-shadow: 0 0 0 1px var(--jd-line); font-weight: 600; border-radius: 12px; height: 38px; }
+.jd-btn:hover { background: #F7F8FA; border: 0; }
+.jd-btn--pri, .jd-btn--pri:hover { background: var(--jd-terra); color: var(--jd-ink); box-shadow: none; }
+.jd-btn--pri:hover { background: #EF8A44; }
+.jd-btn--ghost { box-shadow: none; }
+.jd-btn--icon { font-size: 18px; }
+.jd-btn--block { width: 100%; margin-top: 12px; }
+.jd-link {
+  font-weight: 600; font-size: 12.5px; color: var(--jd-ink); text-decoration: underline; text-decoration-color: var(--jd-terra);
+  text-decoration-thickness: 2px; text-underline-offset: 3px;
+}
+.jd-link:hover { color: var(--jd-ink); text-decoration-color: var(--jd-ink); }
+.jd-mini:hover { border-color: #D0D5DD; }
+.jd-menu__list { border: 0; box-shadow: 0 0 0 1px var(--jd-line), 0 16px 40px rgba(16, 24, 40, .16); border-radius: 14px; }
+
+/* caminho do job em barras */
+.jd-steps { margin: 16px 0 0; padding: 0; border: 0; border-radius: 0; background: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; overflow: visible; }
+.jd-step { display: block; min-width: 0; font-size: 12px; font-weight: 600; color: #98A2B3; }
+.jd-step::after { display: none !important; }
+.jd-step i { display: block; width: auto; height: 6px; border: 0; border-radius: 3px; background: #F1F3F5; font-size: 0; margin-bottom: 6px; }
+.jd-step span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jd-step small { font-size: 11px; font-weight: 500; color: #98A2B3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jd-step.is-ok, .jd-step.is-cur { color: var(--jd-ink); }
+.jd-step.is-ok i { background: var(--jd-ink); }
+.jd-step.is-cur i { background: var(--jd-terra); border: 0; }
+.jd-step.is-cur small, .jd-step.is-ok small { color: var(--jd-ink-2); }
+.jd-step.is-canceled { color: #B4561A; }
+.jd-step.is-canceled i { background: #FDF0E6; }
+
+/* abas */
+.jd-tabs { background: var(--crm-chrome-bg, #F7F8FA); }
+.jd-tabs button { font-weight: 600; color: var(--jd-ink-2); border-bottom-width: 2px; }
+.jd-tabs button.is-on { color: var(--jd-ink); }
+
+/* cartões */
+.jd-card { border: 0; box-shadow: 0 0 0 1px var(--jd-line); border-radius: 20px; }
+.jd-ch h2 { font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--jd-ink-2); }
+.jd-ch__n { font-size: 12px; }
+.jd-facts small, .jd .jd-table th { font-weight: 650; color: var(--jd-ink-2); }
+.jd-facts > div { border-left-color: var(--jd-line); }
+.jd-facts b { font-weight: 650; }
+.jd .jd-table thead, .jd .jd-table thead tr, .jd .jd-table th { background: none !important; }
+.jd-table td, .jd .jd-table th { border-bottom-color: var(--jd-line); }
+.jd-table tfoot td { font-weight: 700; }
+.jd-alert { background: #F7F8FA; box-shadow: 0 0 0 1px var(--jd-line); }
+.jd-alert b { font-weight: 650; color: var(--jd-ink-2); }
+.jd-alert--problem { background: #FBF1EA; box-shadow: 0 0 0 1px #F2D9C6; }
+.jd-alert--problem b { color: #B4561A; }
+.jd-delivery { background: #fff; border: 0; box-shadow: 0 0 0 1px var(--jd-line); }
+.jd-delivery b, .jd-delivery a { color: var(--jd-ink); }
+.jd-note { background: #F7F8FA; border: 0; }
+
+/* aviso de atraso */
+.jd-late { background: #FBF1EA; box-shadow: 0 0 0 1px #F2D9C6; }
+.jd-late b { display: block; font-size: 14.5px; font-weight: 650; color: #7A3A12; }
+.jd-late p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: #8A4A22; }
+.jd-late__acts { display: flex; gap: 6px; margin-top: 10px; }
+.jd-late .jd-btn--ghost { color: #7A3A12; }
+
+/* dinheiro e equipe */
+.jd-big strong { font-weight: 700; letter-spacing: -.03em; }
+.jd-bar .p { background: var(--jd-ol); }
+.jd-bar .o { background: var(--jd-ink); }
+.jd-dot { border-radius: 2px; }
+.jd-dot--paid { background: var(--jd-ol); }
+.jd-dot--open { background: var(--jd-ink); }
+.jd-invs a { border: 0; box-shadow: 0 0 0 1px var(--jd-line); }
+.jd-invs a:hover { box-shadow: 0 0 0 1px #D0D5DD; }
+.jd-tag--paid { background: var(--jd-ols); color: var(--jd-ol); }
+.jd-tag--overdue { background: #FDF0E6; color: #B4561A; }
+.jd-tag--sent, .jd-tag--viewed, .jd-tag--partially_paid { background: #F1F3F5; color: var(--jd-ink); }
+.jd-av { background: #F1F3F5; color: var(--jd-ink); font-weight: 650; }
+.jd-av--lead { background: var(--jd-ink); color: #fff; }
+.jd-av--temp { background: #E5E7EB; color: var(--jd-ink); }
+.jd-people b { font-weight: 650; }
+.jd-photo__flag { background: var(--jd-ink); }
+.jd-ta:focus, .jd-in:focus { border-color: #D0D5DD; box-shadow: 0 0 0 4px rgba(231, 121, 44, .14); }
+.jd-seg { background: #EEF0F3; }
+.jd-seg button { font-weight: 600; color: var(--jd-ink-2); }
+
+@media (max-width: 900px) {
+  .jd-top { padding: 16px; }
+}

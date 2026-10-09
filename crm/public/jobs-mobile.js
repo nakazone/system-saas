@@ -8,6 +8,7 @@
   let canManage = false;
   let currentUserId = null;
   let tab = "today";
+  let tabChosen = false;
   let role = "office";
   let isField = false;
 
@@ -27,6 +28,12 @@
     }).format(Number(n) || 0);
   }
 
+  function compactMoney(n) {
+    const v = Number(n) || 0;
+    if (Math.abs(v) >= 10000) return `$${(v / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+    return money(v);
+  }
+
   function escapeHtml(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;")
@@ -42,8 +49,8 @@
   function statusPt(status) {
     const map = {
       draft: "Rascunho",
-      scheduled: "Agendada",
-      in_progress: "Em andamento",
+      scheduled: "Agendado",
+      in_progress: "Em campo",
       completed: "Concluído",
       canceled: "Cancelado",
     };
@@ -121,8 +128,13 @@
       );
     }
     if (tab === "active") return rows.filter((wo) => isActive(wo) && wo.status !== "canceled");
+    if (tab === "bill") return rows.filter(toBill);
     if (tab === "done") return rows.filter((wo) => wo.status === "completed");
     return rows;
+  }
+
+  function toBill(wo) {
+    return wo.status === "completed" && wo.billing && wo.billing.billing_status !== "no_value" && wo.billing.remaining_to_invoice > 0.004;
   }
 
   function contractTotal(rows) {
@@ -145,37 +157,39 @@
   }
 
   function renderOfficeCard(wo) {
-    const maps = wo.address
-      ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}`
-      : "";
+    const J = window.JobsInfo;
+    const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
     const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    const lt = J ? J.late(wo) : null;
+    const b = wo.billing;
     const cta =
       wo.status === "in_progress"
-        ? `<button type="button" class="jcm-job__cta jcm-job__cta--done" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Concluir visita</button>`
+        ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Concluir</button>`
         : wo.status === "scheduled" || wo.status === "draft"
-          ? `<button type="button" class="jcm-job__cta jcm-job__cta--start" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar visita</button>`
-          : wo.status === "completed" && wo.billing && wo.billing.remaining_to_invoice > 0.004
-            ? `<a class="jcm-job__cta jcm-job__cta--start" href="${detailHref}&faturar=1" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Faturar ${escapeHtml(money(wo.billing.remaining_to_invoice))}</a>`
-            : `<a class="jcm-job__cta jcm-job__cta--done" href="${detailHref}" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Ver job</a>`;
-    const crewColor = wo.crew?.color || "#e8792c";
+          ? wo.scheduled_start
+            ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button>`
+            : `<a class="jmx-b" href="${detailHref}">Agendar</a>`
+          : wo.status === "completed" && b && b.remaining_to_invoice > 0.004
+            ? `<a class="jmx-b jmx-b--or" href="${detailHref}&faturar=1">Faturar</a>`
+            : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
+    const stage = J ? J.stageLabel(wo) : statusPt(wo.status);
+    const when = wo.status === "completed" ? `concluído ${J ? J.dayShort(wo.scheduled_end || wo.scheduled_start) : ""}` : J ? J.dateRange(wo) : fmtDay(wo.scheduled_start);
+    const bl = J ? J.bill(wo) : null;
     return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
         <a class="om-swipe__act--edit" href="${detailHref}">Editar</a>
         <a class="om-swipe__act--open" href="${detailHref}">Abrir</a>
       </div>
-      <div class="om-swipe__body jcm-job">
-        <a href="${detailHref}" style="text-decoration:none;color:inherit;display:block">
-          <div class="jcm-job__top">
-            <p class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</p>
-            <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
-          </div>
-          <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
-          <p class="jcm-job__meta">#${escapeHtml(wo.number != null ? wo.number : "—")} · ${escapeHtml(clientLabel(wo))} · ${escapeHtml(wo.address || "—")}</p>
-          ${wo.billing && wo.billing.billing_status !== "no_value" && window.JobBilling ? `<p class="jcm-job__meta" style="margin-top:0.3rem">${window.JobBilling.chip(wo.billing)}</p>` : ""}
-          <div class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</div>
+      <div class="om-swipe__body jmx-card">
+        <a class="jmx-card__a" href="${detailHref}">
+          <span class="jmx-card__r1"><span>${wo.number != null ? `Job #${escapeHtml(wo.number)} · ` : ""}${escapeHtml(stage)}</span>${lt ? `<em class="is-hot">${escapeHtml(lt.label)}</em>` : bl && wo.status === "completed" ? `<em class="${bl.cls === "ok" ? "is-ok" : ""}">${escapeHtml(bl.text)}</em>` : ""}</span>
+          <b class="jmx-card__t">${escapeHtml(wo.title || `Job para ${clientLabel(wo)}`)}</b>
+          <span class="jmx-card__s">${escapeHtml(clientLabel(wo))} · ${escapeHtml(when)}</span>
+          ${J ? J.progHtml(wo) : ""}
         </a>
-        <div class="jcm-job__actions">
-          ${maps ? `<a class="jcm-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : `<span class="jcm-job__map" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`}
+        <div class="jmx-card__r3">
+          <span class="jmx-card__v">${escapeHtml(money(wo.services_total))}</span>
+          ${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : ""}
           ${cta}
         </div>
       </div>
@@ -245,6 +259,10 @@
     const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled").length;
     const doneN = base.filter((wo) => wo.status === "completed").length;
     const activeRows = base.filter((wo) => isActive(wo) && wo.status !== "canceled");
+    const billN = base.filter(toBill).length;
+    if (!tabChosen && tab === "today" && todayN === 0 && activeN > 0) tab = "active";
+    const J = window.JobsInfo;
+    const lateN = J ? base.filter((wo) => J.late(wo)).length : 0;
 
     const sub = $("jobsMobSub");
     if (sub) {
@@ -257,13 +275,23 @@
         sub.textContent = `${activeN} ativo${activeN === 1 ? "" : "s"} · ${money(contractTotal(activeRows))} em contratos`;
       }
     }
+    const sum = $("jobsMobSum");
+    if (sum) {
+      sum.hidden = isField;
+      const billTotal = base.reduce((t, wo) => t + (wo.status !== "canceled" && wo.billing && wo.billing.billing_status !== "no_value" ? wo.billing.remaining_to_invoice || 0 : 0), 0);
+      const hasBill = base.some((wo) => wo.billing);
+      sum.innerHTML = `<div><span>Ativos</span><b>${activeN}</b></div><div><span>Atrasados</span><b class="${lateN ? "is-hot" : ""}">${lateN}</b></div>${
+        hasBill ? `<div><span>A faturar</span><b>${escapeHtml(compactMoney(billTotal))}</b></div>` : `<div><span>Em contratos</span><b>${escapeHtml(compactMoney(contractTotal(activeRows)))}</b></div>`
+      }`;
+    }
 
     document.querySelectorAll("[data-jobs-tab]").forEach((btn) => {
       const id = btn.getAttribute("data-jobs-tab");
+      if (id === "bill") btn.hidden = isField || billN === 0;
       btn.classList.toggle("is-active", id === tab);
-      const n = id === "today" ? todayN : id === "active" ? activeN : doneN;
-      const label = id === "today" ? "Hoje" : id === "active" ? "Ativos" : "Concluídos";
-      btn.textContent = `${label} · ${n}`;
+      const n = id === "today" ? todayN : id === "active" ? activeN : id === "bill" ? billN : doneN;
+      const label = id === "today" ? "Hoje" : id === "active" ? "Ativos" : id === "bill" ? "A faturar" : "Concluídos";
+      btn.innerHTML = `${label} <em>${n}</em>`;
     });
 
     document.querySelectorAll("[data-jobs-role]").forEach((btn) => {
@@ -307,7 +335,7 @@
         if (!r.ok || j.success === false) throw new Error(j.error || "Erro");
         return j;
       });
-      window.crmToast?.success?.(status === "completed" ? "Visita concluída" : "Visita iniciada");
+      window.crmToast?.success?.(status === "completed" ? "Job concluído" : "Job iniciado");
       await load();
     } catch (e) {
       window.crmToast?.error?.(e.message || "Erro");
@@ -325,6 +353,7 @@
     document.querySelectorAll("[data-jobs-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
         tab = btn.getAttribute("data-jobs-tab") || "today";
+        tabChosen = true;
         render();
       });
     });

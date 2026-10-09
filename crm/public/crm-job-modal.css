@@ -579,3 +579,34 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
   color: #fff;
 }
 
+
+/* ---------- base neutra (2026-10): laranja só nos botões de ação, sempre com texto escuro */
+.jm { border-radius: 24px; box-shadow: 0 30px 70px -20px rgba(16, 24, 40, .45); font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; --jm-ink-2: #667085; }
+.jm-backdrop, .jm-rate { background: rgba(34, 30, 26, .45); }
+.jm__head h2 { font-weight: 700; letter-spacing: -.02em; }
+.jm__x { background: #F1F3F5; color: #221E1A; }
+.jm__x:hover { background: #E5E7EB; }
+.jm__side { background: #FAFBFC; border-left-color: #E5E7EB; }
+.jm-sec__t { font-weight: 650; letter-spacing: .05em; color: #667085; }
+.jm-field { font-weight: 600; }
+.jm-in:focus, .jm-search--svc.is-open { border-color: #D0D5DD; box-shadow: 0 0 0 4px rgba(231, 121, 44, .14); }
+.jm-link, .jm-delivery__file-name a {
+  font-weight: 600; color: #221E1A; text-decoration: underline; text-decoration-color: #E7792C; text-decoration-thickness: 2px; text-underline-offset: 3px;
+}
+.jm-link:hover { text-decoration-color: #221E1A; }
+.jm-more__toggle { background: #F7F8FA; border: 0; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 12px; }
+.jm-more__toggle b { color: #221E1A; font-weight: 600; text-decoration: underline; text-decoration-color: #E7792C; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.jm-more__panel { background: #F7F8FA; }
+.jm-chip { font-weight: 600; }
+.jm-dot { background: #E5E7EB; color: #221E1A; }
+.jm-btn { font-weight: 600; border-radius: 12px; }
+.jm-btn--pri, .jm-rate__acts .jm-btn--pri { background: #E7792C; border-color: #E7792C; color: #221E1A; box-shadow: none; }
+.jm-btn--pri:hover { background: #EF8A44; border-color: #EF8A44; }
+.jm-ln__del:hover { background: #FDF0E6; }
+.job-lockbox-badge { background: #221E1A; }
+.job-lockbox-badge__icon { color: #E7792C; }
+.jm-svc-dd__manual { color: #221E1A; font-weight: 600; }
+.jm-svc-dd__manual:hover { background: #F1F3F5; }
+.jm-picked { border: 0; background: #F7F8FA; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 14px; }
+.jm-picked__txt b { font-weight: 650; }
+.jm-picked .jm-av { border-radius: 50%; }

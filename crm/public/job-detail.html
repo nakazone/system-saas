@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261009-job1" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
@@ -24,8 +24,10 @@
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="job-comms.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-job-billing.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-job-billing.css?v=20261009-job1" />
   <link rel="stylesheet" href="job-detail.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="job-detail-v2.css?v=20261009-job1" />
+  <link rel="stylesheet" href="jobs-mobile-v2.css?v=20261009-job1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
@@ -87,31 +89,32 @@
             <button type="button" class="jcm-role__btn" data-jobs-role="installer">Instalador</button>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
-          <p class="jcm-jd__id" id="jobMobId">Job #—</p>
+        <div class="jmx-chips">
           <span class="jcm-badge" id="jobMobStatus">—</span>
+          <span class="jmx-pill jmx-pill--late" id="jobMobLate" hidden></span>
+          <span class="jcm-jd__id" id="jobMobId">#—</span>
         </div>
         <h1 class="jcm-jd__name" id="jobMobName">—</h1>
         <p class="jcm-jd__type" id="jobMobType">—</p>
+        <ol class="jmx-steps" id="jobMobSteps" aria-label="Andamento do job"></ol>
 
-        <div class="jcm-card">
-          <div class="jcm-jd__info">
-            <div class="jcm-jd__info-row">
-              <span class="jcm-jd__ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-              <span id="jobMobAddr">—</span>
-            </div>
-            <div class="jcm-jd__info-row">
-              <span class="jcm-job__team-dot" style="background:#3b82f6"></span>
-              <span id="jobMobTeam">—</span>
-            </div>
-          </div>
-          <div class="jcm-quick">
-            <a class="jcm-quick__btn" id="jobMobMapQuick" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Mapa</a>
-            <a class="jcm-quick__btn" id="jobMobCallQuick" href="#"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.8 19.8 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.97.35 1.92.67 2.83a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.32 1.86.54 2.83.67A2 2 0 0122 16.92z"/></svg>Cliente</a>
-            <a class="jcm-quick__btn" href="finance.html"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/></svg>Recibo</a>
-            <a class="jcm-quick__btn" id="jobMobNotesQuick" href="#"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>Nota</a>
-            <button type="button" class="jcm-quick__btn" id="jobMobEditServices" hidden><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>Serviços</button>
-          </div>
+        <div class="jmx-circ">
+          <a id="jobMobCallQuick" href="#"><span><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.8 19.8 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.97.35 1.92.67 2.83a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.32 1.86.54 2.83.67A2 2 0 0122 16.92z"/></svg></span>Ligar</a>
+          <a id="jobMobMapQuick" href="#" target="_blank" rel="noopener"><span><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>Mapa</a>
+          <a id="jobMobPhotosQuick" href="#"><span><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>Fotos</a>
+          <a id="jobMobNotesQuick" href="#"><span><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>Nota</a>
+        </div>
+
+        <div id="jobMobMoneyWrap" hidden>
+          <p class="jmx-sech">Dinheiro</p>
+          <div class="jmx-gl" id="jobMobMoney"></div>
+        </div>
+        <p class="jmx-sech">Obra</p>
+        <div class="jmx-gl">
+          <div class="jmx-li"><span>Endereço</span><b id="jobMobAddr">—</b></div>
+          <div class="jmx-li"><span>Quando</span><b id="jobMobWhen">—</b></div>
+          <div class="jmx-li"><span>Equipe</span><b id="jobMobTeam">—</b></div>
+          <button type="button" class="jmx-li jmx-li--btn" id="jobMobEditServices" hidden><span>Serviços</span><b id="jobMobSvcSum">Editar ›</b></button>
         </div>
 
         <div class="jcm-seg">
@@ -134,13 +137,15 @@
         </div>
       </div>
 
-      <div class="jcm-foot jcm-foot--single" id="jobMobFoot">
-        <button type="button" class="jcm-foot__btn jcm-foot__btn--primary" id="jobMobCta">Iniciar visita</button>
+      <div class="jcm-foot jcm-foot--single jmx-foot" id="jobMobFoot">
+        <button type="button" class="jmx-foot__sq" id="jobMobBillQuick" aria-label="Financeiro" hidden><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/><path d="M8 7h6M8 11h6"/></svg></button>
+        <button type="button" class="jcm-foot__btn jcm-foot__btn--primary" id="jobMobCta">Iniciar job</button>
       </div>
 
       <div class="job-detail-page crm-page jd" id="jobDetailRoot">
         <a class="jd-back" href="jobs.html">← Jobs</a>
 
+        <div class="jd-top">
         <header class="jd-hd">
           <div class="jd-hd__main">
             <div class="jd-hd__chips" id="jdChips"></div>
@@ -168,6 +173,7 @@
         </header>
 
         <ol class="jd-steps" id="jdSteps" aria-label="Andamento do job"></ol>
+        </div>
 
         <nav class="jd-tabs" id="jdTabs" role="tablist" aria-label="Seções do job">
           <button type="button" role="tab" data-tab="geral" class="is-on" aria-selected="true">Visão geral</button>
@@ -203,6 +209,7 @@
               </div>
             </div>
             <aside class="jd-col jd-side">
+              <div class="jd-card jd-late" id="jdLateCard" hidden></div>
               <div class="jd-card" id="jdMoneyCard" hidden>
                 <div class="jd-ch"><h2>Dinheiro</h2><button type="button" class="jd-link" data-goto="servicos">Faturas</button></div>
                 <div id="jdMoney"></div>
@@ -293,10 +300,11 @@
   <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="om-gestures.js?v=20261002-gest1"></script>
-  <script src="crm-job-modal.js?v=20261006-deliv4"></script>
+  <script src="crm-job-modal.js?v=20261009-job1"></script>
   <script src="crm-job-billing.js?v=20261001-jobinv1"></script>
   <script src="job-chat-comms.js?v=20260929-obranames1"></script>
-  <script src="job-detail.js?v=20261006-deliv1"></script>
-  <script src="job-detail-mobile.js?v=20261006-jobsck1"></script>
+  <script src="jobs-info.js?v=20261009-job1"></script>
+  <script src="job-detail.js?v=20261009-job1"></script>
+  <script src="job-detail-mobile.js?v=20261009-job1"></script>
 </body>
 </html>

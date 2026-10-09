@@ -678,7 +678,7 @@
   const STATUS_OPTS = [
     ["draft", "Rascunho"],
     ["scheduled", "Agendado"],
-    ["in_progress", "Em andamento"],
+    ["in_progress", "Em campo"],
     ["completed", "Concluído"],
     ["canceled", "Cancelado"],
   ];
