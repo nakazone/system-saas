@@ -25,9 +25,9 @@ const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 const UUID_RE = /^[0-9a-f-]{36}$/i;
 
 export const DEFAULT_SCHEDULE_CALENDARS: ScheduleCalendar[] = [
-  { id: "jobs", name: "Jobs", color: "#e8792c", kind: "jobs", sector: "all" },
-  { id: "visits", name: "Visitas", color: "#7a5ea8", kind: "visits" },
-  { id: "meetings", name: "Meetings", color: "#3b6ea5", kind: "meetings" },
+  { id: "jobs", name: "Jobs", color: "#221e1a", kind: "jobs", sector: "all" },
+  { id: "visits", name: "Visitas", color: "#8a7460", kind: "visits" },
+  { id: "meetings", name: "Meetings", color: "#98a2b3", kind: "meetings" },
 ];
 
 export function defaultScheduleSettings(): ScheduleSettings {
@@ -101,7 +101,7 @@ export function parseScheduleSettings(raw: unknown): ScheduleSettings {
     const fallbackName =
       kind === "jobs" ? "Jobs" : kind === "visits" ? "Visitas" : kind === "meetings" ? "Meetings" : "Agenda";
     const fallbackColor =
-      kind === "jobs" ? "#e8792c" : kind === "visits" ? "#7a5ea8" : kind === "meetings" ? "#3b6ea5" : "#16a34a";
+      kind === "jobs" ? "#221e1a" : kind === "visits" ? "#8a7460" : kind === "meetings" ? "#98a2b3" : "#667085";
     const cal: ScheduleCalendar = {
       id,
       kind,
@@ -213,11 +213,11 @@ export function resolveMeetingColor(
   const id = calendarId || "meetings";
   const hit = settings.calendars.find((c) => c.id === id);
   if (hit) return hit.color;
-  return settings.calendars.find((c) => c.kind === "meetings")?.color || "#3b6ea5";
+  return settings.calendars.find((c) => c.kind === "meetings")?.color || "#98a2b3";
 }
 
 export function resolveVisitColor(settings: ScheduleSettings): string {
-  return settings.calendars.find((c) => c.kind === "visits")?.color || "#7a5ea8";
+  return settings.calendars.find((c) => c.kind === "visits")?.color || "#8a7460";
 }
 
 export function resolveVisitCalendarId(settings: ScheduleSettings): string {
@@ -242,7 +242,7 @@ export function resolveJobCalendar(
   const all = jobs.find((c) => (c.sector || "all") === "all");
   if (all) return all;
   if (jobs[0]) return jobs[0];
-  return { id: "jobs", name: "Jobs", color: "#e8792c", kind: "jobs", sector: "all" };
+  return { id: "jobs", name: "Jobs", color: "#221e1a", kind: "jobs", sector: "all" };
 }
 
 export function resolveJobColor(

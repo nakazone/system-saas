@@ -82,10 +82,13 @@
 
   // ---------------------------------------------------------------- types
   const TYPES = {
-    job: { label: 'Jobs', one: 'Job', color: '#e8792c' },
-    visit: { label: 'Visitas', one: 'Visita', color: '#7a5ea8' },
-    meeting: { label: 'Compromissos', one: 'Compromisso', color: '#3b6ea5' },
+    job: { label: 'Jobs', one: 'Job', color: '#221e1a' },
+    visit: { label: 'Visitas', one: 'Visita', color: '#8a7460' },
+    meeting: { label: 'Compromissos', one: 'Compromisso', color: '#98a2b3' },
   };
+  /** Cores antigas de fábrica (laranja / roxo / azul) viram a base neutra; cores escolhidas pela empresa ficam. */
+  const LEGACY_COLORS = { '#e8792c': '#221e1a', '#7a5ea8': '#8a7460', '#3b6ea5': '#98a2b3' };
+  const neutralColor = (c) => LEGACY_COLORS[String(c || '').toLowerCase()] || c;
   const JOB_STATUS = { draft: 'Rascunho', scheduled: 'Agendado', in_progress: 'Em andamento', completed: 'Concluído', canceled: 'Cancelado' };
   const FIELD_STATUS = { en_route: 'A caminho', on_site: 'No local', completed: 'Finalizado no campo' };
   const MTG_STATUS = { scheduled: 'Agendado', completed: 'Concluído', canceled: 'Cancelado' };
@@ -102,7 +105,7 @@
     return cfg.map((c) => ({
       id: c.id,
       name: pt(c),
-      color: c.color,
+      color: neutralColor(c.color),
       kind: c.kind,
       sector: c.sector || (c.kind === 'jobs' ? 'all' : undefined),
     }));
@@ -209,7 +212,7 @@
     const type = TYPES[raw.type] ? raw.type : 'meeting';
     const m = raw.meta || {};
     const calendar = String(raw.calendar_id || (type === 'job' ? 'jobs' : type === 'visit' ? 'visits' : m.calendar_id || 'meetings'));
-    const color = /^#[0-9a-f]{6}$/i.test(String(raw.color || '')) ? raw.color : type === 'job' ? (m.crew && m.crew.color) || TYPES.job.color : TYPES[type].color;
+    const color = neutralColor(/^#[0-9a-f]{6}$/i.test(String(raw.color || '')) ? raw.color : type === 'job' ? (m.crew && m.crew.color) || TYPES.job.color : TYPES[type].color);
     const lastDay = sod(new Date(end.getTime() - 1));
     const multi = !sameDay(start, lastDay);
     const assignees = [];
@@ -329,7 +332,7 @@
     return items;
   }
 
-  const evStyle = (e) => `--ev:${e.color};--ev-bg:${tint(e.color, 0.16)};--ev-bg2:${tint(e.color, 0.26)};--ev-ink:${shade(e.color, 0.62)}`;
+  const evStyle = (e) => `--ev:${e.color};--ev-bg:#f1f3f5;--ev-bg2:#e5e7eb;--ev-ink:#221e1a`;
   const typeIcon = (e) =>
     e.type === 'job'
       ? '<svg viewBox="0 0 24 24"><path d="M4 8h16v11H4z"/><path d="M9 8V5h6v3"/></svg>'
@@ -357,6 +360,7 @@
     else if (S.view === 'year') renderYear();
     else if (S.view === 'list') renderList();
     else renderMonth();
+    renderDayPanel();
   }
 
   function renderTitle() {
@@ -415,10 +419,8 @@
         const room = Math.max(0, slots - Math.min(lanes, slots));
         const show = timed.length > room ? timed.slice(0, Math.max(0, room - 1)) : timed;
         const hidden = timed.length - show.length + bars.filter((b) => b.lane >= slots && b.s <= i && b.en >= i).length;
-        const routeBtn = !out && dayHasRoute(d)
-          ? `<button type="button" class="ag-day__rbtn" data-ag-day-route="${esc(ymd(d))}" title="Ver rota do dia">Rota</button>`
-          : '';
-        html += `<div class="ag-day${out ? ' is-out' : ''}${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-day="${ymd(d)}">
+        const routeBtn = '';
+        html += `<div class="ag-day${out ? ' is-out' : ''}${i === 0 || i === 6 ? ' is-we' : ''}${sameDay(d, S.selected) ? ' is-sel' : ''}" data-ag-day="${ymd(d)}">
           <div class="ag-day__n">${routeBtn}<span class="${isT ? 'is-today' : ''}">${d.getDate() === 1 && !isT ? `${MON3[d.getMonth()]} ${d.getDate()}` : d.getDate()}</span></div>
           <div class="ag-day__list" style="margin-top:${Math.min(lanes, slots) * 21}px">${show
             .map(
@@ -450,9 +452,7 @@
     let head = `<div class="ag-tg__head" style="--n:${n}"><div class="ag-tg__gutter"></div>${days
       .map((d) => {
         const isT = sameDay(d, today);
-        const route = n > 1 && dayHasRoute(d)
-          ? `<button type="button" class="ag-tg__rbtn" data-ag-day-route="${esc(ymd(d))}" title="Ver rota do dia">Rota</button>`
-          : '';
+        const route = '';
         return `<div class="ag-tg__dhwrap"><button type="button" class="ag-tg__dh${isT ? ' is-today' : ''}${d.getDay() === 0 || d.getDay() === 6 ? ' is-we' : ''}" data-ag-goday="${ymd(d)}"><span>${WD[d.getDay()]}</span><b>${d.getDate()}</b></button>${route}</div>`;
       })
       .join('')}</div>
@@ -480,12 +480,8 @@
         .join('')}${sameDay(d, today) ? `<div class="ag-now" style="top:${((Date.now() - d) / 3600e3) * HOUR_PX}px"></div>` : ''}</div>`;
     });
     grid += '</div></div>';
-    let aside = '';
-    if (n === 1) aside = dayAsideHtml(start);
-    const routeBar =
-      n === 1 && dayHasRoute(start)
-        ? `<div class="ag-routebar">${dayRouteBtnHtml(start, 'ag-btn ag-btn--pri')}</div>`
-        : '';
+    const aside = '';
+    const routeBar = '';
     $('#agStage').innerHTML = `<div class="ag-tg${n === 1 ? ' ag-tg--day' : ''}"><div class="ag-tg__main">${routeBar}${head}${grid}</div>${aside}</div>`;
     const sc = $('#agScroll');
     if (sc) {
@@ -541,7 +537,66 @@
   }
   function dayRouteBtnHtml(d, cls) {
     if (!dayHasRoute(d)) return '';
-    return `<button type="button" class="${cls || 'ag-btn ag-btn--pri ag-btn--block'}" data-ag-day-route="${esc(ymd(d))}">Ver rota do dia</button>`;
+    const n = window.__crmDayRoute.stopsFromAgendaEvents(eventsOnDay(d)).length;
+    return `<button type="button" class="${cls || 'ag-btn ag-btn--dark ag-btn--block'}" data-ag-day-route="${esc(ymd(d))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Rota do dia · ${n} ${n === 1 ? 'parada' : 'paradas'}</button>`;
+  }
+
+  /** Painel do dia (computador / iPad): o dia escolhido em ordem de horário, com a rota. */
+  function dayPanelHtml(d) {
+    const list = eventsOnDay(d)
+      .slice()
+      .sort((a, b) => (b.allDay - a.allDay) || a.start - b.start);
+    const by = { job: 0, visit: 0, meeting: 0 };
+    list.forEach((e) => (by[e.type] = (by[e.type] || 0) + 1));
+    const parts = [];
+    if (by.job) parts.push(`${by.job} ${by.job === 1 ? 'job' : 'jobs'}`);
+    if (by.visit) parts.push(`${by.visit} ${by.visit === 1 ? 'visita' : 'visitas'}`);
+    if (by.meeting) parts.push(`${by.meeting} ${by.meeting === 1 ? 'compromisso' : 'compromissos'}`);
+    const isT = sameDay(d, new Date());
+    const sub = (e) => {
+      const m = e.meta || {};
+      const bits = [];
+      if (e.type === 'job') {
+        if (m.number != null) bits.push(`#${m.number}`);
+        const st = JOB_STATUS[e.status];
+        if (st && e.status !== 'scheduled') bits.push(st.toLowerCase());
+        const ppl = peopleOf(e);
+        if (ppl.length) bits.push(ppl.join(', '));
+      }
+      if (e.address) bits.push(e.address.split(',').slice(0, 2).join(','));
+      return bits.join(' · ');
+    };
+    return `<div class="ag-dp__hd"><h3>${isT ? 'Hoje · ' : ''}${esc(WDL[d.getDay()])}, ${d.getDate()} ${esc(MON3[d.getMonth()])}</h3>
+        <p>${parts.length ? esc(parts.join(' · ')) : 'Nada agendado'}</p>
+        ${dayRouteBtnHtml(d)}
+        ${S.canManage ? `<button type="button" class="ag-dp__add" data-ag-dp-new="${ymd(d)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Agendar neste dia</button>` : ''}
+      </div>
+      <div class="ag-dp__list">${
+        list.length
+          ? list
+              .map((e) => {
+                const multi = e.allDay;
+                const t1 = multi ? 'dia todo' : fmtTime(e.start);
+                const t2 = multi
+                  ? `${fmtDateShort(e.start)} – ${fmtDateShort(e.lastDay)}`
+                  : `${Math.max(15, Math.round((e.end - e.start) / 60000)) >= 60 ? Math.round(((e.end - e.start) / 3600000) * 10) / 10 + ' h' : Math.round((e.end - e.start) / 60000) + ' min'}`;
+                return `<button type="button" class="ag-dp__it${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}">
+                  <time>${esc(t1)}<small>${esc(t2)}</small></time><i></i>
+                  <span class="ag-dp__b"><em>${esc(TYPES[e.type].one)}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(e.title)}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
+                </button>`;
+              })
+              .join('')
+          : `<p class="ag-empty">${S.canManage ? 'Dia livre. Clique duas vezes num dia ou use “Agendar neste dia”.' : 'Dia livre.'}</p>`
+      }</div>`;
+  }
+  function renderDayPanel() {
+    const panel = $('#agDayPanel');
+    if (!panel) return;
+    const show = !isPhone() && (S.view === 'month' || S.view === 'week' || S.view === 'day');
+    panel.hidden = !show;
+    if (!show) return;
+    const d = S.view === 'day' ? sod(S.cursor) : S.selected;
+    panel.innerHTML = dayPanelHtml(d);
   }
 
   function dayAsideHtml(d) {
@@ -606,7 +661,11 @@
       (m.members || []).forEach((x) => x.user_id && people.set(String(x.user_id), x.name || x.email));
     });
     const sel = S.filters.users;
-    $('#agSide').innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true })}
+    const td = eventsOnDay(sod(new Date())).filter((e) => e.status !== 'canceled');
+    const tc = (t) => td.filter((e) => e.type === t).length;
+    const todayBlk = `<button type="button" class="ag-today-blk" data-ag-goday="${ymd(sod(new Date()))}" title="Abrir o dia de hoje"><span class="ag-today-blk__t">Hoje · ${esc(WD[new Date().getDay()].toLowerCase())} ${new Date().getDate()}</span>
+      <span class="ag-today-blk__g"><span><b>${tc('job')}</b>${tc('job') === 1 ? 'job' : 'jobs'}</span><span><b>${tc('visit')}</b>${tc('visit') === 1 ? 'visita' : 'visitas'}</span><span><b>${tc('meeting')}</b>${tc('meeting') === 1 ? 'compromisso' : 'compromissos'}</span></span></button>`;
+    $('#agSide').innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true })}${todayBlk}
       <div class="ag-side__sec"><h3>Calendários ${
         canEditCals() ? '<button type="button" class="ag-link" data-ag-act="mcal" data-ag-cal-open="edit">Editar</button>' : ''
       }</h3>${calList()
@@ -672,9 +731,7 @@
         const show = timed.slice(0, room);
         const more = timed.length - show.length + bars.filter((b) => b.lane >= maxLanes && b.s <= i && b.en >= i).length;
         void laneCount;
-        const routeBtn = dayHasRoute(d)
-          ? `<button type="button" class="ag-md__rbtn" data-ag-day-route="${esc(ymd(d))}" title="Ver rota do dia">Rota</button>`
-          : '';
+        const routeBtn = '';
         html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-mday="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__top"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>${routeBtn}</span>
           <span class="ag-md__list" style="margin-top:${Math.min(lanesAll, maxLanes) * 19}px">${show
             .map((e) => `<button type="button" class="ag-pill" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(e.title)}</span></button>`)
@@ -981,7 +1038,7 @@
             }</div>${
               tel || sms
                 ? `<span class="ag-dtl__chips">${tel ? `<a class="ag-chip" href="${esc(tel)}">Ligar</a>` : ''}${
-                    sms ? `<a class="ag-chip" href="${esc(sms)}">Text</a>` : ''
+                    sms ? `<a class="ag-chip" href="${esc(sms)}">SMS</a>` : ''
                   }</span>`
                 : ''
             }</div>`
@@ -2417,9 +2474,15 @@
         return render();
       }
       if ((el = t.closest('[data-ag-day]')) && !isPhone()) {
-        // Keep selection in state for create shortcuts; no visual selection square.
         S.selected = parseYmd(el.dataset.agDay);
+        $$('.ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
+        el.classList.add('is-sel');
+        renderDayPanel();
         return;
+      }
+      if ((el = t.closest('[data-ag-dp-new]'))) {
+        const r = el.getBoundingClientRect();
+        return newMenu(r.left, r.bottom + 4, parseYmd(el.dataset.agDpNew));
       }
       if ((el = t.closest('[data-ag-col]')) && !t.closest('.ag-blk')) {
         if (!S.canManage) return;

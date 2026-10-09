@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="agenda.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="agenda-v2.css?v=20261009-cal1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
@@ -75,6 +76,7 @@
 
     <main class="dashboard-main ag-main">
       <div class="ag" id="ag" data-view="month">
+        <div class="ag-top">
         <!-- desktop / tablet toolbar -->
         <div class="ag-tool">
           <div class="ag-tool__left">
@@ -82,7 +84,7 @@
               <button type="button" class="ag-icon" data-ag-act="sidebar" aria-label="Calendários" title="Calendários"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M3.5 9.5h17M8 3v3M16 3v3"/><path d="M7.5 13h.01M10.5 13h.01M13.5 13h.01M16.5 13h.01M7.5 16.5h.01M10.5 16.5h.01M13.5 16.5h.01"/></svg></button>
               <button type="button" class="ag-icon" data-ag-act="list" aria-label="Lista" title="Próximos eventos"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg></button>
             </div>
-            <button type="button" class="ag-capsule ag-icon ag-icon--solo" data-ag-act="new" aria-label="Novo" title="Novo"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button type="button" class="ag-capsule ag-icon ag-icon--solo ag-new" data-ag-act="new" aria-label="Novo" title="Novo"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>Novo</span></button>
           </div>
           <nav class="ag-seg" aria-label="Visualização">
             <button type="button" data-ag-view="day">Dia</button>
@@ -114,10 +116,12 @@
             <button type="button" class="ag-icon" data-ag-act="next" aria-label="Próximo"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
           </div>
         </div>
+        </div>
 
         <div class="ag-body">
           <aside class="ag-side" id="agSide" hidden></aside>
           <section class="ag-stage" id="agStage" aria-live="polite"></section>
+          <aside class="ag-dp" id="agDayPanel" aria-label="Dia selecionado" hidden></aside>
         </div>
 
         <div class="ag-mfloat">
@@ -147,6 +151,6 @@
   <script src="novo-lead-sheet.js?v=20261001-addr1"></script>
   <script src="crm-job-modal.js?v=20261006-deliv4"></script>
   <script src="crm-phone.js?v=20261002-phone1"></script>
-  <script src="agenda.js?v=20261007-maps4"></script>
+  <script src="agenda.js?v=20261009-cal1"></script>
 </body>
 </html>
