@@ -252,6 +252,13 @@ function statsFor(data: Loaded, showMoney: boolean) {
   return out;
 }
 
+function ynStatus(raw: string | null | undefined): string {
+  const v = String(raw || "").toLowerCase();
+  if (v === "yes" || v === "sim") return "yes";
+  if (v === "no" || v === "nao" || v === "não") return "no";
+  return "unknown";
+}
+
 function baseCustomer(c: Loaded["customers"][number]) {
   return {
     id: c.id,
@@ -268,6 +275,10 @@ function baseCustomer(c: Loaded["customers"][number]) {
         : 0,
     company: c.company,
     responsible_name: c.contactName ?? null,
+    dumpster_status: ynStatus(c.dumpsterStatus),
+    dumpster_notes: c.dumpsterNotes ?? null,
+    storage_status: ynStatus(c.storageStatus),
+    storage_notes: c.storageNotes ?? null,
     notes: c.notes,
     lead_id: c.leadId,
     created_at: c.createdAt,

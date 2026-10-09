@@ -394,6 +394,16 @@
     kv.push(["Telefone", c.phone ? `<a href="${tel}">${esc(c.phone)}</a>` : "—", true]);
     kv.push(["E-mail", c.email ? `<a href="${mail}">${esc(c.email)}</a>` : "—", true]);
     kv.push(["Endereço", c.address ? `<a href="${route}" target="_blank" rel="noopener">${esc(c.address)}</a>` : "—", true]);
+    if (org) {
+      const dumpTxt =
+        ynLabel(c.dumpster_status) +
+        (c.dumpster_status === "yes" && c.dumpster_notes ? ` · ${c.dumpster_notes}` : "");
+      const storTxt =
+        ynLabel(c.storage_status) +
+        (c.storage_status === "yes" && c.storage_notes ? ` · ${c.storage_notes}` : "");
+      kv.push(["Dumpster", dumpTxt]);
+      kv.push(["Storage", storTxt]);
+    }
     const contact = `<section class="cx-box"><h3>Contato${canEdit ? '<button type="button" class="cx-lnk" data-edit>Editar</button>' : ""}</h3>
       <dl class="cx-kv">${kv.map(([k, v, raw]) => `<dt>${k}</dt><dd>${raw ? v : esc(v)}</dd>`).join("")}</dl></section>`;
     const prices = `<section class="cx-box"><h3>Preços${canEdit ? '<button type="button" class="cx-lnk" data-prices>Editar preços</button>' : ""}</h3>
@@ -524,6 +534,23 @@
     if (!document.querySelector(".cx-modal:not([hidden])")) document.body.classList.remove("cx-modal-open");
   }
 
+  function ynLabel(v) {
+    if (v === "yes") return "Sim";
+    if (v === "no") return "Não";
+    return "Não informado";
+  }
+
+  function syncOrgExtra() {
+    const org = isOrg(form.type);
+    const wrap = $("cxOrgExtra");
+    if (wrap) wrap.hidden = !org;
+    if (!org) return;
+    const dump = ($("cxDumpster") && $("cxDumpster").value) || "unknown";
+    const stor = ($("cxStorage") && $("cxStorage").value) || "unknown";
+    if ($("cxDumpsterNotesWrap")) $("cxDumpsterNotesWrap").hidden = dump !== "yes";
+    if ($("cxStorageNotesWrap")) $("cxStorageNotesWrap").hidden = stor !== "yes";
+  }
+
   function syncForm() {
     document.querySelectorAll("#cxTypeSeg [data-type]").forEach((b) => {
       const on = b.getAttribute("data-type") === form.type;
@@ -538,6 +565,7 @@
     const n = Object.values(form.rates || {}).filter((v) => Number(v) > 0).length;
     $("cxPricingCustomHint").textContent = n ? plural(n, "preço definido", "preços definidos") : "Nenhum preço definido";
     $("cxEditPrices").hidden = form.pricing !== "custom";
+    syncOrgExtra();
   }
 
   function fillForm(c) {
@@ -549,6 +577,12 @@
     $("cxEmail").value = c ? c.email || "" : "";
     $("cxAddress").value = c ? c.address || "" : "";
     $("cxNotes").value = c ? c.notes || "" : "";
+    const dump = c && ["yes", "no"].includes(c.dumpster_status) ? c.dumpster_status : "unknown";
+    const stor = c && ["yes", "no"].includes(c.storage_status) ? c.storage_status : "unknown";
+    if ($("cxDumpster")) $("cxDumpster").value = dump;
+    if ($("cxStorage")) $("cxStorage").value = stor;
+    if ($("cxDumpsterNotes")) $("cxDumpsterNotes").value = c ? c.dumpster_notes || "" : "";
+    if ($("cxStorageNotes")) $("cxStorageNotes").value = c ? c.storage_notes || "" : "";
     form = {
       type: c ? c.customer_type || "particular" : "particular",
       pricing: c && c.pricing_mode === "custom" ? "custom" : "table",
@@ -593,6 +627,8 @@
     if (org && resp.length < 2) return formError("Informe o responsável (pessoa de contato).");
     if (!email) return formError("Informe o e-mail.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return formError("E-mail inválido.");
+    const dump = org ? (($("cxDumpster") && $("cxDumpster").value) || "unknown") : "unknown";
+    const stor = org ? (($("cxStorage") && $("cxStorage").value) || "unknown") : "unknown";
     const body = {
       name,
       email,
@@ -603,6 +639,10 @@
       custom_pricing_rates: form.pricing === "custom" ? form.rates : {},
       notes: $("cxNotes").value.trim() || null,
       responsible_name: org ? resp : null,
+      dumpster_status: org ? dump : null,
+      dumpster_notes: org && dump === "yes" ? ($("cxDumpsterNotes").value.trim() || null) : null,
+      storage_status: org ? stor : null,
+      storage_notes: org && stor === "yes" ? ($("cxStorageNotes").value.trim() || null) : null,
     };
     const lead = $("cxFormLeadId").value.trim();
     if (lead && !id) body.lead_id = lead;
@@ -937,6 +977,10 @@
       }),
     );
     $("cxEditPrices").addEventListener("click", () => openPrices(false));
+    ["cxDumpster", "cxStorage"].forEach((id) => {
+      const el = $(id);
+      if (el) el.addEventListener("change", syncOrgExtra);
+    });
     $("cxPhone").addEventListener("input", (e) => {
       e.target.value = maskPhone(e.target.value);
     });

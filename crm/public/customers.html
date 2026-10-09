@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
-  <link rel="stylesheet" href="customers-board.css?v=20261009-btnw1" />
+  <link rel="stylesheet" href="customers-board.css?v=20261009-org1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cx-app">
   <script src="om-device.js?v=20261007-stable1"></script>
@@ -132,6 +132,36 @@
             <div class="cx-f cx-f--full"><label for="cxAddress">Endereço</label><input type="text" id="cxAddress" maxlength="500" placeholder="Comece a digitar o endereço…" autocomplete="off" /></div>
           </div>
         </section>
+        <section class="cx-fs" id="cxOrgExtra" hidden>
+          <h4>Dumpster e Storage</h4>
+          <p class="cx-hint">Só preencha se a empresa tiver essas informações.</p>
+          <div class="cx-ff">
+            <div class="cx-f">
+              <label for="cxDumpster">Dumpster</label>
+              <select id="cxDumpster">
+                <option value="unknown">Não informado</option>
+                <option value="yes">Sim</option>
+                <option value="no">Não</option>
+              </select>
+            </div>
+            <div class="cx-f">
+              <label for="cxStorage">Storage</label>
+              <select id="cxStorage">
+                <option value="unknown">Não informado</option>
+                <option value="yes">Sim</option>
+                <option value="no">Não</option>
+              </select>
+            </div>
+            <div class="cx-f cx-f--full" id="cxDumpsterNotesWrap" hidden>
+              <label for="cxDumpsterNotes">Detalhe do Dumpster</label>
+              <input type="text" id="cxDumpsterNotes" maxlength="500" placeholder="Local, horário ou observação" autocomplete="off" />
+            </div>
+            <div class="cx-f cx-f--full" id="cxStorageNotesWrap" hidden>
+              <label for="cxStorageNotes">Detalhe do Storage</label>
+              <input type="text" id="cxStorageNotes" maxlength="500" placeholder="Local, horário ou observação" autocomplete="off" />
+            </div>
+          </div>
+        </section>
         <section class="cx-fs">
           <h4>Preços</h4>
           <div class="cx-opts">
@@ -189,6 +219,6 @@
   <script src="om-gestures.js?v=20261002-gest1"></script>
   <script src="crm-job-modal.js?v=20261009-job1"></script>
   <script src="lead-signals.js?v=20261009-lb1"></script>
-  <script src="customers-page.js?v=20261009-cx1"></script>
+  <script src="customers-page.js?v=20261009-org1"></script>
 </body>
 </html>

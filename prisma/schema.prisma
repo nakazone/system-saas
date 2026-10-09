@@ -534,6 +534,14 @@ model Customer {
   notes          String?  @db.Text
   /// Pessoa de contato (responsável) em Builder / Loja
   contactName String?
+  /// Builder/Loja: unknown | yes | no — nem todos têm dumpster
+  dumpsterStatus String?
+  /// Detalhe/local do dumpster quando dumpsterStatus = yes
+  dumpsterNotes  String?  @db.Text
+  /// Builder/Loja: unknown | yes | no — nem todos têm storage
+  storageStatus  String?
+  /// Detalhe/local do storage quando storageStatus = yes
+  storageNotes   String?  @db.Text
   /// Opt-in for marketing blasts (future). Transactional emails ignore this.
   marketingConsent Boolean @default(true)
   /// When true, skip transactional automations (quote follow-ups, visit reminders).

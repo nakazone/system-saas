@@ -337,6 +337,16 @@ function mapProperty(p: {
   };
 }
 
+function normalizeYnStatus(raw: unknown): string | null {
+  const v = String(raw ?? "")
+    .toLowerCase()
+    .trim();
+  if (v === "yes" || v === "sim") return "yes";
+  if (v === "no" || v === "nao" || v === "não") return "no";
+  if (v === "unknown" || v === "" || v === "null") return "unknown";
+  return null;
+}
+
 function mapCustomer(c: {
   id: string;
   name: string;
@@ -349,6 +359,10 @@ function mapCustomer(c: {
   company: string | null;
   notes: string | null;
   contactName?: string | null;
+  dumpsterStatus?: string | null;
+  dumpsterNotes?: string | null;
+  storageStatus?: string | null;
+  storageNotes?: string | null;
   leadId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -365,6 +379,10 @@ function mapCustomer(c: {
     company: c.company,
     notes: c.notes,
     responsible_name: c.contactName ?? null,
+    dumpster_status: normalizeYnStatus(c.dumpsterStatus) || "unknown",
+    dumpster_notes: c.dumpsterNotes ?? null,
+    storage_status: normalizeYnStatus(c.storageStatus) || "unknown",
+    storage_notes: c.storageNotes ?? null,
     lead_id: c.leadId,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
@@ -974,6 +992,10 @@ customersQuotesRouter.post(
           company: z.string().optional().nullable(),
           notes: z.string().optional().nullable(),
           responsible_name: z.string().optional().nullable(),
+          dumpster_status: z.string().optional().nullable(),
+          dumpster_notes: z.string().optional().nullable(),
+          storage_status: z.string().optional().nullable(),
+          storage_notes: z.string().optional().nullable(),
           lead_id: z.string().uuid().optional().nullable(),
         })
         .safeParse(req.body);
@@ -988,6 +1010,9 @@ customersQuotesRouter.post(
           : {};
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const customerType = normalizeCustomerType(parsed.data.customer_type);
+        const isOrgType = customerType === "builder" || customerType === "loja";
+        const dumpsterStatus = isOrgType ? normalizeYnStatus(parsed.data.dumpster_status) || "unknown" : null;
+        const storageStatus = isOrgType ? normalizeYnStatus(parsed.data.storage_status) || "unknown" : null;
         const created = await tx.customer.create({
           data: {
             organizationId: req.organizationId!,
@@ -1001,6 +1026,11 @@ customersQuotesRouter.post(
             company: parsed.data.company || null,
             notes: parsed.data.notes || null,
             contactName: String(parsed.data.responsible_name || "").trim() || null,
+            dumpsterStatus,
+            dumpsterNotes:
+              dumpsterStatus === "yes" ? String(parsed.data.dumpster_notes || "").trim() || null : null,
+            storageStatus,
+            storageNotes: storageStatus === "yes" ? String(parsed.data.storage_notes || "").trim() || null : null,
             leadId: parsed.data.lead_id || null,
           },
         });
@@ -1088,6 +1118,21 @@ customersQuotesRouter.put(
         if (!existing) return null;
         const nextType =
           body.customer_type !== undefined ? normalizeCustomerType(body.customer_type) : existing.customerType;
+        const isOrgType = nextType === "builder" || nextType === "loja";
+        const dumpsterTouched =
+          body.dumpster_status !== undefined || body.dumpster_notes !== undefined || body.customer_type !== undefined;
+        const storageTouched =
+          body.storage_status !== undefined || body.storage_notes !== undefined || body.customer_type !== undefined;
+        const nextDumpster = !isOrgType
+          ? null
+          : body.dumpster_status !== undefined
+            ? normalizeYnStatus(body.dumpster_status) || "unknown"
+            : normalizeYnStatus(existing.dumpsterStatus) || "unknown";
+        const nextStorage = !isOrgType
+          ? null
+          : body.storage_status !== undefined
+            ? normalizeYnStatus(body.storage_status) || "unknown"
+            : normalizeYnStatus(existing.storageStatus) || "unknown";
         return tx.customer.update({
           where: { id },
           data: {
@@ -1111,6 +1156,20 @@ customersQuotesRouter.put(
             notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
             contactName:
               body.responsible_name !== undefined ? String(body.responsible_name || "").trim() || null : undefined,
+            dumpsterStatus: dumpsterTouched ? nextDumpster : undefined,
+            dumpsterNotes: dumpsterTouched
+              ? nextDumpster === "yes"
+                ? String(body.dumpster_notes !== undefined ? body.dumpster_notes : existing.dumpsterNotes || "").trim() ||
+                  null
+                : null
+              : undefined,
+            storageStatus: storageTouched ? nextStorage : undefined,
+            storageNotes: storageTouched
+              ? nextStorage === "yes"
+                ? String(body.storage_notes !== undefined ? body.storage_notes : existing.storageNotes || "").trim() ||
+                  null
+                : null
+              : undefined,
           },
         });
       });

@@ -202,12 +202,13 @@ a.cx-ev:hover b { text-decoration: underline; text-decoration-color: var(--cx-or
 .cx-ff { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cx-f--full { grid-column: 1 / -1; }
 .cx-f label { display: block; margin-bottom: 4px; font-size: 11.5px; font-weight: 600; color: var(--cx-ink2); }
-.cx-f input, .cx-fs textarea {
+.cx-f input, .cx-f select, .cx-fs textarea {
   width: 100%; height: 38px; border: 0 !important; border-radius: 11px !important; box-shadow: 0 0 0 1px var(--cx-line) !important; background: #fff !important;
   padding: 0 11px !important; font: inherit; font-size: 14px; color: var(--cx-ink); margin: 0 !important; min-height: 0 !important;
 }
+.cx-f select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #98A2B3 50%), linear-gradient(135deg, #98A2B3 50%, transparent 50%); background-position: calc(100% - 16px) 55%, calc(100% - 10px) 55%; background-size: 6px 6px, 6px 6px; background-repeat: no-repeat; padding-right: 28px !important; }
 .cx-fs textarea { height: auto; min-height: 72px !important; padding: 9px 11px !important; resize: vertical; line-height: 1.45; }
-.cx-f input:focus, .cx-fs textarea:focus { outline: none; box-shadow: 0 0 0 1px #D0D5DD, 0 0 0 4px rgba(231, 121, 44, .14) !important; }
+.cx-f input:focus, .cx-f select:focus, .cx-fs textarea:focus { outline: none; box-shadow: 0 0 0 1px #D0D5DD, 0 0 0 4px rgba(231, 121, 44, .14) !important; }
 .cx-opts { display: flex; gap: 8px; }
 .cx-opt {
   flex: 1; display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border-radius: 14px; border: 0; background: #fff; box-shadow: 0 0 0 1px var(--cx-line);
