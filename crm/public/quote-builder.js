@@ -1604,7 +1604,7 @@
     const el = $('itemsCountLabel');
     if (!el) return;
     const n = items.length;
-    el.textContent = n === 1 ? '1 adicionado' : `${n} adicionados`;
+    el.textContent = String(n);
   }
 
   function formatQuoteNumberLabel(num) {
@@ -1713,7 +1713,7 @@
     const no = $('previewEstimateNo');
     const dateEl = $('previewEstimateDate');
     const titlePart = metaText.includes('·') ? metaText.split('·')[0].trim() : metaText;
-    if (top) top.textContent = titlePart;
+    if (top) top.textContent = titlePart.replace(/^Or[çc]amento\s+/i, '') || 'Novo quote';
     const mobileTitle = $('mobileAppTitle');
     if (mobileTitle) mobileTitle.textContent = titlePart;
     if (no) {
@@ -1752,6 +1752,53 @@
   /** Paid total from invoices — Balance = total − paid. */
   let quotePaidTotal = 0;
 
+  /** Subtotal por grupo, total na barra do celular e números do resumo (por sq ft, margem, lucro). */
+  function qbProjectArea() {
+    const fromInput = (id) => {
+      const v = parseFloat(String(($(id) && $(id).value) || '').replace(',', '.'));
+      return Number.isFinite(v) && v > 0 ? v : 0;
+    };
+    const direct = fromInput('qbTotalSqft') || fromInput('quoteProjectSqft');
+    if (direct) return direct;
+    let work = 0;
+    let any = 0;
+    for (const it of items) {
+      if (String(it.unit_type || '') !== 'sq_ft') continue;
+      const q = Number(it.quantity) || 0;
+      any = Math.max(any, q);
+      if (it.item_type !== 'product' && normalizeServiceType(it.service_type) !== 'Supply') work = Math.max(work, q);
+    }
+    return work || any;
+  }
+
+  function qbUpdateExtras(total) {
+    const sums = {};
+    for (const it of items) {
+      const key = it.item_type === 'product' ? 'products' : normalizeServiceType(it.service_type);
+      sums[key] = (sums[key] || 0) + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
+    }
+    document.querySelectorAll('[data-cat-sum]').forEach((el) => {
+      el.textContent = money(sums[el.getAttribute('data-cat-sum')] || 0);
+    });
+    const bar = $('qbBarTotal');
+    if (bar) bar.textContent = money(total);
+    const box = $('qbSumStats');
+    if (!box) return;
+    if (!items.length) {
+      box.innerHTML = '';
+      return;
+    }
+    const area = qbProjectArea();
+    const p = localProfitSummary();
+    const hasCost = p.totalCost > 0;
+    const cell = (label, value, hint) =>
+      `<div><span>${label}</span><b>${value}</b>${hint ? `<small>${hint}</small>` : ''}</div>`;
+    box.innerHTML =
+      cell('Por sq ft', area > 0 ? money(total / area) : '—', area > 0 ? `${Math.round(area).toLocaleString('en-US')} sq ft` : '') +
+      cell('Margem', hasCost && p.marginPct != null ? `${Math.round(p.marginPct)}%` : '—', hasCost ? '' : 'sem custo') +
+      cell('Lucro', hasCost ? money(p.grossProfit) : '—', hasCost ? `custo ${money(p.totalCost)}` : '');
+  }
+
   function recalc() {
     const sub = sumItems();
     const dt = $('discountType').value;
@@ -1777,6 +1824,7 @@
     if (totalEl) totalEl.textContent = money(total);
     if (balEl) balEl.textContent = money(remainingDue);
     updateProfitPanel();
+    qbUpdateExtras(total);
     return { sub, total, disc, tax, remainingDue };
   }
 
@@ -4137,7 +4185,7 @@
       section.setAttribute('data-category-value', value);
       const head = document.createElement('div');
       head.className = 'qb-cat-section__head';
-      head.textContent = label;
+      head.innerHTML = `<span>${escapeHtmlText(label)}</span><em class="qb-cat-section__sum" data-cat-sum="${escapeHtmlText(value)}"></em>`;
       section.appendChild(head);
       const catList = document.createElement('div');
       catList.className = 'qb-cat-items';
@@ -4153,7 +4201,7 @@
       section.setAttribute('data-category-value', 'products');
       const head = document.createElement('div');
       head.className = 'qb-cat-section__head';
-      head.textContent = 'Materiais e produtos';
+      head.innerHTML = '<span>Materiais e produtos</span><em class="qb-cat-section__sum" data-cat-sum="products"></em>';
       section.appendChild(head);
       const catList = document.createElement('div');
       catList.className = 'qb-cat-items';
@@ -5842,7 +5890,7 @@
   const QB_STATUS = {
     draft: ['Rascunho', 'draft'],
     sent: ['Enviado', 'sent'],
-    viewed: ['Visualizado', 'viewed'],
+    viewed: ['Visto', 'viewed'],
     approved: ['Aprovado', 'approved'],
     accepted: ['Aceito', 'approved'],
     rejected: ['Recusado', 'rejected'],
@@ -5997,6 +6045,43 @@
     return t === '—' ? '' : t;
   }
 
+  const QB_MO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  function qbShortWhen(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${d.getDate()} ${QB_MO[d.getMonth()]} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  function qbClientDisplayName() {
+    const pick = (id) => {
+      const el = $(id);
+      if (!el) return '';
+      const box = el.closest('.qb-client-details');
+      if (box && box.classList.contains('hidden')) return '';
+      const t = String(el.textContent || '').trim();
+      return t && t !== '—' ? t : '';
+    };
+    return pick('qbClientName') || pick('qbBuilderCompany') || pick('qbBuilderContact') || pick('qbOrgCustomerName') || pick('qbOrgCustomerCompany');
+  }
+  function qbRenderMetaLine(job, who) {
+    const el = $('qbMetaLine');
+    if (!el) return;
+    const parts = [];
+    const tab = document.querySelector('.qb-party-tab.is-active');
+    if (tab) parts.push(String(tab.textContent || '').replace(/^Leads\s*\/\s*/i, '').trim());
+    const exp = String($('expirationDate')?.value || '').slice(0, 10);
+    if (exp) {
+      const d = new Date(`${exp}T12:00:00`);
+      const n = new Date();
+      const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(n.getFullYear(), n.getMonth(), n.getDate())) / 86400000);
+      const when = `${d.getDate()} ${QB_MO[d.getMonth()]}`;
+      if (days < 0) parts.push(`<b class="is-late">venceu ${when}</b>`);
+      else if (days === 0) parts.push('<b class="is-late">vence hoje</b>');
+      else parts.push(days <= 7 ? `<b class="is-late">vale até ${when} (${days} ${days === 1 ? 'dia' : 'dias'})</b>` : `vale até ${when} (${days} dias)`);
+    }
+    if (job && job !== who) parts.push(escapeHtmlText(job));
+    el.innerHTML = parts.map((x) => `<span>${x}</span>`).join('');
+  }
+
   function qbRenderProgress() {
     const status = String($('status')?.value || 'draft').toLowerCase();
     const [label, tone] = QB_STATUS[status] || [status, 'draft'];
@@ -6007,7 +6092,9 @@
     }
     const job = String($('quoteJobName')?.value || '').trim();
     const tj = $('qbTopJob');
-    if (tj) tj.textContent = job ? ` · ${job}` : '';
+    const who = qbClientDisplayName();
+    if (tj) tj.textContent = who ? ` · ${who}` : '';
+    qbRenderMetaLine(job, who);
 
     const approved = isQuoteApprovedStatus(status);
     const sent = qbMeta.email_sent_at || ['sent', 'viewed', 'approved', 'accepted'].includes(status);
@@ -6023,11 +6110,13 @@
     const nowIdx = steps.findIndex((x) => !x.on);
     const prog = $('qbProgress');
     if (prog) {
-      prog.innerHTML = `<h3 class="qb-side-t">Andamento</h3><ol class="qb-tl">${steps
+      const SHORT = { 'Enviado por e-mail': 'Enviado', 'Aberto pelo cliente': 'Aberto', 'Aprovado e assinado': 'Aprovado', 'Job criado': 'Job', 'Recusado pelo cliente': 'Recusado' };
+      prog.innerHTML = `<ol class="qb-trk" aria-label="Andamento">${steps
         .map((x, i) => {
           const cls = x.bad ? 'is-bad' : x.on ? 'is-on' : i === nowIdx ? 'is-now' : '';
-          const txt = x.href && x.on ? `<a href="${x.href}">${x.label} →</a>` : x.label;
-          return `<li class="${cls}"><i aria-hidden="true">${x.bad ? '!' : x.on ? '✓' : ''}</i><span>${txt}</span>${x.at ? `<small>${qbWhen(x.at)}</small>` : ''}</li>`;
+          const name = SHORT[x.label] || x.label;
+          const txt = x.href && x.on ? `<a href="${x.href}">${name} →</a>` : name;
+          return `<li class="${cls}" title="${x.label}"><i aria-hidden="true"></i><span>${txt}</span><small>${x.at ? qbShortWhen(x.at) : x.on ? '✓' : '—'}</small></li>`;
         })
         .join('')}</ol>`;
     }
@@ -6142,6 +6231,10 @@
     const SKIP = new Set(['customerSearch', 'orgCustomerSearch', 'modalServiceName', 'qbBuilderExtraEmailInput', 'ownerSignName', 'ownerSignTitle']);
     root?.addEventListener('change', (e) => {
       if (!SKIP.has(e.target.id) && !e.target.closest('#addItemPanel')) qbMarkDirty();
+      qbScheduleProgress();
+    });
+    root?.addEventListener('click', (e) => {
+      if (e.target.closest('.qb-party-tab')) setTimeout(qbScheduleProgress, 60);
     });
     root?.addEventListener('input', (e) => {
       if (SKIP.has(e.target.id) || e.target.closest('#addItemPanel')) {

@@ -1217,36 +1217,145 @@ function quoteSearchWhere(search: string): Prisma.QuoteWhereInput[] {
   return or;
 }
 
+/** Grupos da lista (Rascunho, Enviado, Visto, Aprovado, Expirado) — "visto" não é status, é viewedAt. */
+function quoteGroupWhere(group: string): Prisma.QuoteWhereInput {
+  const now = new Date();
+  const open = { status: { in: ["sent", "viewed", "changes_requested"] } };
+  switch (group) {
+    case "draft":
+      return { status: "draft" };
+    case "sent":
+      return { status: { in: ["sent", "changes_requested"] }, viewedAt: null, OR: [{ validUntil: null }, { validUntil: { gte: now } }] };
+    case "viewed":
+      return {
+        AND: [
+          { OR: [{ status: "viewed" }, { status: { in: ["sent", "changes_requested"] }, viewedAt: { not: null } }] },
+          { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+        ],
+      };
+    case "approved":
+      return { status: { in: ["approved", "accepted", "converted", "invoiced"] } };
+    case "expired":
+      return { OR: [{ status: "expired" }, { ...open, validUntil: { lt: now } }] };
+    case "archived":
+      return { status: { in: ["archived", "rejected"] } };
+    case "open":
+      return { status: { not: "archived" } };
+    default:
+      return {};
+  }
+}
+
+/** Números da lista de quotes: grupos com quantidade e valor, em aberto, aprovação, ticket médio, vencendo. */
+customersQuotesRouter.get("/api/quotes/summary", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+      tx.quote.findMany({
+        where: { status: { notIn: ["archived", "rejected"] } },
+        select: { status: true, total: true, viewedAt: true, validUntil: true, createdAt: true },
+        take: 10000,
+      }),
+    );
+    const now = Date.now();
+    const in7 = now + 7 * 86400000;
+    const since = now - 90 * 86400000;
+    const groups: Record<string, { count: number; value: number }> = {
+      all: { count: 0, value: 0 },
+      draft: { count: 0, value: 0 },
+      sent: { count: 0, value: 0 },
+      viewed: { count: 0, value: 0 },
+      approved: { count: 0, value: 0 },
+      expired: { count: 0, value: 0 },
+    };
+    let expiring7 = 0;
+    let sent90 = 0;
+    let won90 = 0;
+    let won90Value = 0;
+    for (const q of rows) {
+      const st = normalizeQuoteStatus(q.status);
+      const total = dec(q.total);
+      const valid = q.validUntil ? q.validUntil.getTime() : null;
+      const isOpen = st === "sent" || st === "changes_requested" || (st as string) === "viewed";
+      let g = "draft";
+      if (st === "approved" || st === "converted") g = "approved";
+      else if (st === "expired" || (isOpen && valid != null && valid < now)) g = "expired";
+      else if (isOpen) g = q.viewedAt || (st as string) === "viewed" ? "viewed" : "sent";
+      groups[g].count += 1;
+      groups[g].value += total;
+      groups.all.count += 1;
+      groups.all.value += total;
+      if (isOpen && valid != null && valid >= now && valid <= in7) expiring7 += 1;
+      if (q.createdAt.getTime() >= since && st !== "draft") {
+        sent90 += 1;
+        if (g === "approved") {
+          won90 += 1;
+          won90Value += total;
+        }
+      }
+    }
+    const round = (n: number) => Math.round(n * 100) / 100;
+    for (const k of Object.keys(groups)) groups[k].value = round(groups[k].value);
+    res.json({
+      success: true,
+      data: {
+        groups,
+        open_value: round(groups.sent.value + groups.viewed.value),
+        open_count: groups.sent.count + groups.viewed.count,
+        approval_rate_90: sent90 ? Math.round((won90 / sent90) * 1000) / 10 : null,
+        avg_ticket_90: won90 ? round(won90Value / won90) : null,
+        expiring_7: expiring7,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
     const skip = (page - 1) * limit;
     const status = req.query.status ? String(req.query.status) : null;
+    const group = req.query.group ? String(req.query.group) : null;
     const leadId = req.query.lead_id ? String(req.query.lead_id) : null;
     const customerId = req.query.customer_id ? String(req.query.customer_id) : null;
     const search = String(req.query.q || req.query.search || "").trim();
 
-    const [total, rows] = await withTenantTransaction(req.organizationId!, async (tx) => {
+    const [total, rows, leadNames] = await withTenantTransaction(req.organizationId!, async (tx) => {
       const where: Prisma.QuoteWhereInput = {};
       if (status) where.status = status;
+      if (group) Object.assign(where, quoteGroupWhere(group));
       if (leadId) where.leadId = leadId;
       if (customerId) where.customerId = customerId;
       if (search) {
         where.OR = quoteSearchWhere(search);
       }
-      return [
-        await tx.quote.count({ where }),
-        await tx.quote.findMany({
-          where,
-          orderBy: { createdAt: "desc" },
-          skip,
-          take: limit,
-          include: quoteListInclude(),
-        }),
-      ] as const;
+      const count = await tx.quote.count({ where });
+      const list = await tx.quote.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: quoteListInclude(),
+      });
+      // Quote não tem relação com Lead no schema: busca os nomes para a lista mostrar o cliente.
+      const ids = [...new Set(list.map((q) => q.leadId).filter((x): x is string => Boolean(x)))];
+      const leads = ids.length
+        ? await tx.lead.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, phone: true, email: true } })
+        : [];
+      return [count, list, new Map(leads.map((l) => [l.id, l]))] as const;
     });
-    res.json({ success: true, data: rows.map((q) => mapQuoteForUser(q, req.user)), total, page, limit });
+    res.json({
+      success: true,
+      data: rows.map((q) => {
+        const lead = q.leadId ? leadNames.get(q.leadId) : null;
+        return { ...mapQuoteForUser(q, req.user), lead_name: lead?.name ?? null, lead_phone: lead?.phone ?? null, lead_email: lead?.email ?? null };
+      }),
+      total,
+      page,
+      limit,
+    });
   } catch (error) {
     next(error);
   }

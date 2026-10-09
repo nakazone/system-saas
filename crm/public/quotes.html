@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
+  <link rel="stylesheet" href="quotes-board.css?v=20261009-qx1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed quotes-app">
   <script src="om-device.js?v=20261007-stable1"></script>
@@ -73,80 +74,47 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
-      <div class="mod-page crm-page">
-        <header class="crm-page-header">
-          <div class="crm-page-header__titles">
-            <h2 class="crm-page-header__title">Orçamentos</h2>
-            <p class="crm-page-header__subtitle" id="quotesListSubtitle">A carregar…</p>
-          </div>
-          <div class="crm-page-header__actions">
-            <a class="btn btn-secondary" href="quote-catalog.html" data-crm-permission="quotes.edit">Catálogo</a>
-            <a class="btn btn-primary" href="quote-builder.html" data-crm-permission="quotes.edit">+ Novo orçamento</a>
+      <div class="qx crm-page" id="qxRoot">
+        <header class="qx-head">
+          <h1>Quotes</h1>
+          <dl class="qx-sum" aria-label="Resumo">
+            <div><dt>Em aberto</dt><dd id="qxSumOpen">—</dd></div>
+            <div><dt>Aprovação · 90 dias</dt><dd id="qxSumRate">—</dd></div>
+            <div><dt>Ticket médio</dt><dd id="qxSumTicket">—</dd></div>
+            <div><dt>Vencem em 7 dias</dt><dd id="qxSumExpiring">—</dd></div>
+          </dl>
+          <div class="qx-head__acts">
+            <a class="qx-btn" href="quote-catalog.html" data-crm-permission="quotes.edit"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.4"/></svg>Catálogo</a>
+            <a class="qx-btn qx-btn--pri" href="quote-builder.html" data-crm-permission="quotes.edit"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo quote</a>
           </div>
         </header>
 
-        <div class="mod-overview" id="quotesOverview" aria-label="Resumo">
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Por status</p>
-            <ul class="mod-ov-list">
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-draft"></span> Rascunho</span><strong id="ovDraft">0</strong></li>
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-sent"></span> Enviado</span><strong id="ovSent">0</strong></li>
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-viewed"></span> Visualizado</span><strong id="ovViewed">0</strong></li>
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-accepted"></span> Aceite</span><strong id="ovAccepted">0</strong></li>
-              <li><span class="mod-ov-list__left"><span class="mod-ov-dot is-expired"></span> Expirado</span><strong id="ovExpired">0</strong></li>
-            </ul>
-          </div>
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Total filtrado</p>
-            <div class="mod-ov-card__stat" id="ovTotalAmount">$0</div>
-            <div class="mod-ov-card__sub" id="ovTotalCount">0 orçamentos</div>
-          </div>
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Enviados · 30 dias</p>
-            <div class="mod-ov-card__stat" id="ovSent30">0</div>
-            <div class="mod-ov-card__sub">Orçamentos enviados recentemente</div>
-          </div>
-          <div class="mod-ov-card mod-ov-card--promo">
-            <p>Crie um orçamento e envie ao cliente.</p>
-            <a href="quote-builder.html">Novo orçamento →</a>
-          </div>
-        </div>
+        <nav class="qx-groups" id="qxGroups" aria-label="Status"></nav>
 
-        <div class="customers-list-toolbar quotes-list-toolbar" role="search" aria-label="Filtrar orçamentos">
-          <input type="search" id="filterQ" class="quotes-list-toolbar__search" placeholder="Buscar nome, builder, endereço, nº…" autocomplete="off" aria-label="Buscar orçamentos" />
-          <select id="filterStatus" class="customers-list-toolbar__select" aria-label="Status">
-            <option value="">Todos os status</option>
-            <option value="draft">Rascunho</option>
-            <option value="sent">Enviado</option>
-            <option value="viewed">Visualizado</option>
-            <option value="approved">Aprovado</option>
-            <option value="accepted">Aceite</option>
-            <option value="rejected">Rejeitado</option>
-            <option value="expired">Expirado</option>
-          </select>
-          <button type="button" class="btn btn-secondary btn-sm" id="btnReload">Atualizar</button>
-          <span class="quotes-list-toolbar__total-meta" id="quotesResultCount"></span>
+        <div class="qx-tool">
+          <label class="qx-search">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" id="filterQ" placeholder="Buscar cliente, endereço ou nº" autocomplete="off" aria-label="Buscar quotes" />
+          </label>
+          <span class="qx-tool__sp"></span>
+          <span class="qx-count" id="quotesResultCount"></span>
+          <button type="button" class="qx-chip" id="qxArchived" aria-pressed="false">Arquivados</button>
         </div>
 
         <div class="om-ptr" id="quotesPtr" aria-hidden="true">↓ Puxe para atualizar</div>
-        <div class="customers-list-wrap">
-          <div class="customers-list-head customers-list-head--quotes" aria-hidden="true">
-            <span>Cliente</span>
-            <span>Valor</span>
-            <span>Status</span>
-            <span></span>
-            <span>Criado</span>
-            <span></span>
+        <div class="qx-table">
+          <div class="qx-row qx-row--head" aria-hidden="true">
+            <span>Cliente</span><span>Status</span><span>Valor</span><span>Próximo passo</span><span>Validade</span><span></span>
           </div>
-          <div id="quotesTableBody" class="customers-list" role="list">
-            <p class="customers-list-empty">A carregar…</p>
+          <div id="quotesTableBody" role="list">
+            <p class="qx-empty">Carregando…</p>
           </div>
         </div>
 
-        <div class="pagination customers-pagination">
-          <button type="button" class="btn btn-secondary" id="btnPrevPage">Anterior</button>
+        <div class="qx-pages" id="qxPages" hidden>
+          <button type="button" class="qx-btn" id="btnPrevPage">Anterior</button>
           <span id="pageInfo">Página 1</span>
-          <button type="button" class="btn btn-secondary" id="btnNextPage">Seguinte</button>
+          <button type="button" class="qx-btn" id="btnNextPage">Próxima</button>
         </div>
       </div>
     </main>
@@ -159,6 +127,7 @@
   <script src="crm-shell.js?v=20261008-name1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="om-gestures.js?v=20261002-gest1"></script>
-  <script src="quotes-page.js?v=20261007-qb1"></script>
+  <script src="lead-signals.js?v=20261009-lb1"></script>
+  <script src="quotes-page.js?v=20261009-qx1"></script>
 </body>
 </html>

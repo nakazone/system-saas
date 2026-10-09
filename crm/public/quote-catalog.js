@@ -25,11 +25,11 @@
   }
 
   function effectiveBuilder(r) {
-    return r.rate_builder != null ? r.rate_builder : r.default_rate;
+    return r.rate_builder != null ? r.rate_builder : r.default_rate != null ? r.default_rate : r.unit_price;
   }
 
   function effectiveCustomer(r) {
-    return r.rate_customer != null ? r.rate_customer : r.default_rate;
+    return r.rate_customer != null ? r.rate_customer : r.default_rate != null ? r.default_rate : r.unit_price;
   }
 
   function setCatalogTab(which) {
@@ -64,30 +64,30 @@
     empty.classList.add('hidden');
     rows.forEach((r) => {
       const tr = document.createElement('tr');
-      tr.className = 'border-b border-slate-100 hover:bg-slate-50/80';
-      const active = Number(r.active) === 1;
+      const active = r.active == null || r.active === true || Number(r.active) === 1;
+      if (!active) tr.className = 'is-off';
       tr.innerHTML = `
-        <td class="px-4 py-3 font-medium">${escapeHtml(r.name)}</td>
-        <td class="px-4 py-3 text-slate-600">${escapeHtml(r.category)}</td>
-        <td class="px-4 py-3 text-slate-600">${unitLabel(r.unit_type)}</td>
-        <td class="px-4 py-3 text-right font-mono">${money(effectiveBuilder(r))}</td>
-        <td class="px-4 py-3 text-right font-mono">${money(effectiveCustomer(r))}</td>
-        <td class="px-4 py-3">${active ? '<span class="text-green-700 font-medium">Sim</span>' : '<span class="text-slate-400">Não</span>'}</td>
-        <td class="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-          <button type="button" class="btn btn-sm btn-secondary" data-edit="${r.id}">Editar</button>
-          ${active ? `<button type="button" class="btn btn-sm btn-danger" data-del="${r.id}">Desativar</button>` : `<button type="button" class="btn btn-sm btn-success" data-rest="${r.id}">Reativar</button>`}
+        <td class="qx-ctable__name">${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.category || r.service_type || '—')}</td>
+        <td>${unitLabel(r.unit_type)}</td>
+        <td class="r b">${money(effectiveBuilder(r))}</td>
+        <td class="r b">${money(effectiveCustomer(r))}</td>
+        <td>${active ? '<span class="qx-pill qx-pill--ol"><i></i>Ativo</span>' : '<span class="qx-pill qx-pill--mu"><i></i>Inativo</span>'}</td>
+        <td class="r qx-ctable__acts">
+          <button type="button" class="qx-btn qx-btn--sm" data-edit="${escapeHtml(r.id)}">Editar</button>
+          ${active ? `<button type="button" class="qx-btn qx-btn--sm qx-btn--quiet" data-del="${escapeHtml(r.id)}">Desativar</button>` : `<button type="button" class="qx-btn qx-btn--sm" data-rest="${escapeHtml(r.id)}">Reativar</button>`}
         </td>`;
       tb.appendChild(tr);
     });
 
     tb.querySelectorAll('[data-edit]').forEach((b) => {
-      b.addEventListener('click', () => edit(parseInt(b.getAttribute('data-edit'), 10)));
+      b.addEventListener('click', () => edit(b.getAttribute('data-edit')));
     });
     tb.querySelectorAll('[data-del]').forEach((b) => {
-      b.addEventListener('click', () => deactivate(parseInt(b.getAttribute('data-del'), 10)));
+      b.addEventListener('click', () => deactivate(b.getAttribute('data-del')));
     });
     tb.querySelectorAll('[data-rest]').forEach((b) => {
-      b.addEventListener('click', () => reactivate(parseInt(b.getAttribute('data-rest'), 10)));
+      b.addEventListener('click', () => reactivate(b.getAttribute('data-rest')));
     });
   }
 
@@ -100,8 +100,8 @@
   }
 
   function rowById(arr, id) {
-    const n = Number(id);
-    return arr.find((x) => Number(x.id) === n);
+    const n = id;
+    return arr.find((x) => String(x.id) === String(n));
   }
 
   async function load() {
@@ -146,7 +146,7 @@
     $('fNotesBuilder').value = row.notes_builder || '';
     $('fNotesCustomer').value = row.notes_customer || '';
     $('fDesc').value = row.default_description || '';
-    $('fActive').checked = Number(row.active) === 1;
+    $('fActive').checked = row.active == null || row.active === true || Number(row.active) === 1;
     $('fActiveWrap').classList.remove('hidden');
     setCatalogTab('builder');
     openModal();

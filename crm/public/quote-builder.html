@@ -1843,9 +1843,10 @@
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="quote-builder-v2.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="quote-builder-v3.css?v=20261009-qx1" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
-<body class="qb-dashboard-inner dashboard-app-body om-app qb-sidebar-page om-no-dock sidebar-collapsed">
+<body class="qb-dashboard-inner dashboard-app-body om-app sidebar-collapsed qb-v3">
   <script src="om-device.js?v=20261007-stable1"></script>
   <script>
     (function () {
@@ -1898,8 +1899,9 @@
       <div class="qb-page">
       <header class="qb-topbar">
         <div class="qb-topbar__left">
-          <p class="qb-topbar__crumb"><a href="quotes.html" class="qb-topbar__back">← Orçamentos</a><span id="qbTopJob" class="qb-topbar__job"></span></p>
+          <p class="qb-topbar__crumb"><a href="quotes.html" class="qb-topbar__back"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Quotes</a><span id="qbTopJob" class="qb-topbar__job"></span></p>
           <h1 class="qb-topbar__title"><span id="topbarTitle">Novo orçamento</span> <span class="qb-status-pill" id="qbStatusPill" data-status="draft">Rascunho</span> <span class="qb-dirty" id="qbDirty" hidden>Alterações não salvas</span></h1>
+          <p class="qb-meta" id="qbMetaLine"></p>
         </div>
         <div class="qb-topbar__actions">
           <span
@@ -1971,6 +1973,7 @@
             <button type="button" class="btn btn-primary" data-qb-proxy="btnSend" disabled>Enviar ao cliente</button>
           </div>
         </div>
+        <div class="qb-progress" id="qbProgress"></div>
       </header>
 
       <div class="estimate-builder">
@@ -2183,7 +2186,7 @@
             </section>
 
             <section class="qb-sheet__section" id="qbItemsSection">
-              <div class="qb-items-bar" id="itemsCountBar">Itens — <span id="itemsCountLabel">0 adicionados</span></div>
+              <div class="qb-items-bar" id="itemsCountBar">Itens · <span id="itemsCountLabel">0</span></div>
               <div id="itemsList" class="qb-items-list" role="list"></div>
               <div id="addItemPanel" class="qb-item-editor hidden" aria-label="Adicionar ou editar serviço">
                 <div class="qb-item-editor__field qb-client-search" id="modalServiceSearchWrap">
@@ -2368,7 +2371,6 @@
         <aside class="builder-sidebar" aria-label="Resumo do orçamento">
           <div class="qb-preview">
             <div class="qb-next" id="qbNext" aria-live="polite"></div>
-            <div class="qb-progress" id="qbProgress"></div>
             <div class="qb-preview__head">
               <p class="qb-preview__label">Orçamento</p>
               <p class="qb-preview__number" id="previewEstimateNo">—</p>
@@ -2406,6 +2408,7 @@
                 <span>Saldo</span>
                 <span class="qb-preview__value" id="dispBalance">$0.00</span>
               </div>
+              <div class="qb-sum-stats" id="qbSumStats" aria-live="polite"></div>
             </div>
 
             <details class="qb-preview__profit">
@@ -2473,6 +2476,7 @@
 
   <nav class="qb-action-bar" id="qbActionBar" aria-label="Ações do orçamento">
     <div class="qb-action-bar__inner">
+      <div class="qb-action-bar__total" aria-live="polite"><span>Total</span><b id="qbBarTotal">$0.00</b></div>
       <button type="button" id="btnSave" class="btn btn-primary" title="Salvar">
         <span class="qb-action-bar__full">Salvar</span>
         <span class="qb-action-bar__short">Salvar</span>
@@ -2728,13 +2732,13 @@
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="crm-rich-text.js?v=20261002-rich2"></script>
   <link rel="stylesheet" href="crm-rich-text.css?v=20261002-rich2" />
-  <script src="crm-shell.js?v=20261008-name1"></script>
+  <script src="crm-shell.js?v=20261009-qx1"></script>
   <script src="crm-shared-nav.js?v=20261008-neutro1"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261008-qbnote2"></script>
+  <script src="quote-builder.js?v=20261009-qx1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

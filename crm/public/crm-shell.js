@@ -250,13 +250,8 @@
     if (document.getElementById("omDock")) return;
     // Home pipeline page has its own dock
     if (document.body.classList.contains("plab") && document.querySelector(".plab-dock")) return;
-    // Quote builder owns the bottom of the viewport — no floating dock
-    const file = (location.pathname || "").split("/").pop() || "";
-    if (
-      document.body.classList.contains("qb-sidebar-page") ||
-      document.getElementById("qbActionBar") ||
-      /^quote-builder\.html$/i.test(file)
-    ) {
+    // Quote builder antigo (barra lateral) não usa o dock; o novo (qb-v3) usa.
+    if (document.body.classList.contains("qb-sidebar-page")) {
       document.body.classList.add("om-no-dock");
       return;
     }
