@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import { Router, type Response, type NextFunction } from "express";
 import QRCode from "qrcode";
 import { z } from "zod";
