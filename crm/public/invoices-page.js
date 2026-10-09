@@ -432,7 +432,12 @@
       closeNew();
       btn.disabled = false;
       btn.textContent = 'Criar fatura';
-      toast(`${r.data.invoice_number || 'Fatura'} criada. Envie ao cliente quando estiver pronta.`);
+      const issued = picked.kind === 'job' || r.data.status === 'sent';
+      toast(
+        issued
+          ? `${r.data.invoice_number || 'Fatura'} faturada.`
+          : `${r.data.invoice_number || 'Fatura'} criada. Envie ao cliente quando estiver pronta.`,
+      );
       await load();
       select(r.data.id, true);
     } catch (err) {

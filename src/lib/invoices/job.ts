@@ -283,6 +283,9 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
   const invoiceNumber = await nextInvoiceNumber(tx, input.organizationId);
   const amount = new Prisma.Decimal(calc.amount.toFixed(2));
   const jobNotesForInvoice = stripLockbox(job.notes).slice(0, 4000) || null;
+  // Job "Faturar" issues the invoice immediately so Invoices shows it as Enviada/faturada
+  // (not stuck in Rascunho). E-mail to the client is a separate Reenviar step.
+  const issuedAt = new Date();
   const inv = await tx.quoteInvoice.create({
     data: {
       organizationId: input.organizationId,
@@ -291,7 +294,8 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
       customerId: job.customerId,
       invoiceNumber,
       invoiceType: calc.kind,
-      status: "draft",
+      status: "sent",
+      issuedAt,
       amount,
       dueDate: input.dueDate || new Date(Date.now() + 1 * 86400000),
       notes: input.notes?.trim() || jobNotesForInvoice,
@@ -339,7 +343,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     changes: { invoice: { from: null, to: invoiceNumber } },
   });
 
-  const billing = jobBilling(servicesTotal, [...job.invoices, { amount: calc.amount, status: "draft", receipts: [] }]);
+  const billing = jobBilling(servicesTotal, [...job.invoices, { amount: calc.amount, status: "sent", receipts: [] }]);
   return {
     ok: true,
     invoice: {

@@ -133,7 +133,7 @@ jobInvoicesRouter.post(
           amount: result.invoice.amount,
           due_date: result.invoice.dueDate,
         },
-        redirect: `invoice.html?id=${encodeURIComponent(result.invoice.id)}`,
+        redirect: `invoices.html?id=${encodeURIComponent(result.invoice.id)}&new=1`,
         billing: { ...result.billing, billing_status_label: jobBillingLabel(result.billing.billing_status) },
       });
     } catch (error) {

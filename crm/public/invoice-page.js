@@ -1193,7 +1193,15 @@
       const act = params.get('action');
       if (act === 'pay' && inv.can.record_payment) openPay(params.get('mode') === 'partial' ? 'partial' : 'full');
       else if (act === 'send' && inv.can.manage) openSend();
-      if (params.get('new') === '1') toast(`${inv.invoice_number} criada. Envie ao cliente quando estiver pronta.`, 'info');
+      if (params.get('new') === '1') {
+        const justIssued = inv.status === 'sent' || inv.display_status === 'sent';
+        toast(
+          justIssued
+            ? `${inv.invoice_number} faturada. Pode enviar o e-mail ao cliente ou receber pagamento.`
+            : `${inv.invoice_number} criada. Envie ao cliente quando estiver pronta.`,
+          'info',
+        );
+      }
       if (act || params.get('new')) history.replaceState(null, '', `${EMBED ? 'invoices' : 'invoice'}.html?id=${encodeURIComponent(invoiceId)}`);
     } catch (err) {
       showError(err);
