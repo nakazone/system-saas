@@ -122,8 +122,8 @@ body.dashboard-app-body .omd-btn--primary:hover {
 
 /* ===================== Desktop e iPad: doca inferior ===================== */
 @media (min-width: 768px) {
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar.dashboard-sidebar,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-sidebar {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar.dashboard-sidebar,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-sidebar {
     position: fixed !important;
     inset: auto auto 14px 50% !important;
     top: auto !important;
@@ -150,14 +150,14 @@ body.dashboard-app-body .omd-btn--primary:hover {
     z-index: 1150 !important;
     overflow: visible !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-header,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item.sidebar-collapse-btn,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar button.sidebar-collapse-btn,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav-group-label,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-user-bar {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-header,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item.sidebar-collapse-btn,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar button.sidebar-collapse-btn,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-nav-group-label,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-user-bar {
     display: none !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-nav {
     display: flex !important;
     flex: none !important;
     width: auto !important;
@@ -166,13 +166,13 @@ body.dashboard-app-body .omd-btn--primary:hover {
     padding: 0 !important;
     margin: 0 !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar #crmSharedNavRoot {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar #crmSharedNavRoot {
     display: flex !important;
     flex-direction: row !important;
     align-items: flex-end !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav-group,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-footer {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-nav-group,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-footer {
     position: relative !important;
     display: flex !important;
     flex-direction: row !important;
@@ -185,12 +185,12 @@ body.dashboard-app-body .omd-btn--primary:hover {
     background: transparent !important;
     flex-shrink: 0 !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav-group + .sidebar-nav-group,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-footer {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-nav-group + .sidebar-nav-group,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-footer {
     margin-left: 13px !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav-group + .sidebar-nav-group::before,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-footer::before {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-nav-group + .sidebar-nav-group::before,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-footer::before {
     content: "";
     position: absolute;
     left: -7px;
@@ -199,8 +199,8 @@ body.dashboard-app-body .omd-btn--primary:hover {
     height: 40px;
     background: var(--om-line);
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar a.nav-item.sidebar-footer-link {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar a.nav-item.sidebar-footer-link {
     position: relative !important;
     display: flex !important;
     flex-direction: column !important;
@@ -221,11 +221,11 @@ body.dashboard-app-body .omd-btn--primary:hover {
     text-decoration: none !important;
     transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item::before {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item::before {
     content: none !important;
     display: none !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item > svg {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item > svg {
     width: 44px !important;
     height: 44px !important;
     min-width: 44px !important;
@@ -239,7 +239,7 @@ body.dashboard-app-body .omd-btn--primary:hover {
     opacity: 1 !important;
     transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item .nav-item__label {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item .nav-item__label {
     display: block !important;
     position: static !important;
     font-size: 11px !important;
@@ -254,28 +254,28 @@ body.dashboard-app-body .omd-btn--primary:hover {
     overflow: visible !important;
     transform: none !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item:hover {
     transform: translateY(-6px) !important;
     background: transparent !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover > svg {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item:hover > svg {
     background: #fff !important;
     color: var(--om-accent) !important;
     box-shadow: 0 10px 20px -8px rgba(16, 24, 40, 0.28), 0 0 0 1px var(--om-line) !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover .nav-item__label {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item:hover .nav-item__label {
     color: var(--om-ink) !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item.active > svg {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item.active > svg {
     background: var(--om-ink) !important;
     color: #fff !important;
     box-shadow: 0 6px 14px -6px rgba(16, 24, 40, 0.45) !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item.active .nav-item__label {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item.active .nav-item__label {
     color: var(--om-ink) !important;
     font-weight: 650 !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item.active::after {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item.active::after {
     content: "" !important;
     position: absolute !important;
     left: 50% !important;
@@ -287,7 +287,7 @@ body.dashboard-app-body .omd-btn--primary:hover {
     background: var(--om-accent) !important;
     display: block !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item__badge {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item__badge {
     position: absolute !important;
     top: -3px !important;
     left: calc(50% + 9px) !important;
@@ -305,23 +305,23 @@ body.dashboard-app-body .omd-btn--primary:hover {
     box-shadow: 0 0 0 2px #fff !important;
     transform: none !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item__badge:empty,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item__badge[hidden] {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item__badge:empty,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item__badge[hidden] {
     display: none !important;
   }
 
   /* Conteúdo ocupa a largura toda; espaço para a doca embaixo. */
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app).sidebar-collapsed .dashboard-main {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-main,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page).sidebar-collapsed .dashboard-main {
     margin-left: 0 !important;
     padding-bottom: 124px !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-container {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-container {
     margin-left: 0 !important;
     padding-left: 0 !important;
   }
   /* Uma largura só para barra de cima e conteúdo: logo e avatar alinhados com as bordas do conteúdo. */
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) {
     --om-shell-max: 2048px;
     --om-shell-pad: 32px;
     --crm-page-max: var(--om-shell-max);
@@ -329,35 +329,35 @@ body.dashboard-app-body .omd-btn--primary:hover {
     --crm-page-pad-x: var(--om-shell-pad);
   }
   /* Mesmo recuo lateral do conteúdo em todas as telas (a Calendar continua de ponta a ponta). */
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app):not(.sched-body) .dashboard-main {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.sched-body) .dashboard-main {
     padding-left: max(var(--om-shell-pad), calc((100% - var(--om-shell-max)) / 2 + var(--om-shell-pad))) !important;
     padding-right: max(var(--om-shell-pad), calc((100% - var(--om-shell-max)) / 2 + var(--om-shell-pad))) !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main > .crm-page,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main .inv-page,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main #foRoot.fo,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main #cfg.cfg {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-main > .crm-page,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-main .inv-page,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-main #foRoot.fo,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-main #cfg.cfg {
     max-width: none !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main .omd {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-main .omd {
     max-width: none !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #crmTopbar.crm-topbar,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .crm-topbar {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #crmTopbar.crm-topbar,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .crm-topbar {
     left: 0 !important;
     padding-left: max(var(--om-shell-pad), calc((100% - var(--om-shell-max)) / 2 + var(--om-shell-pad))) !important;
     padding-right: max(var(--om-shell-pad), calc((100% - var(--om-shell-max)) / 2 + var(--om-shell-pad))) !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #crmTopbar .crm-topbar__brand {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #crmTopbar .crm-topbar__brand {
     display: flex !important;
     order: -1;
     margin-right: 10px !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #crmTopbar .crm-topbar__brand img {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #crmTopbar .crm-topbar__brand img {
     /* PNG tem respiro transparente: 52px de altura = logotipo com ~24px visíveis. */
     height: 52px !important;
     margin: -14px -8px !important;
@@ -365,17 +365,17 @@ body.dashboard-app-body .omd-btn--primary:hover {
     max-width: none !important;
     display: block !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .om-dock,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .plab-dock,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .mobile-overlay {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .om-dock,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .plab-dock,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .mobile-overlay {
     display: none !important;
   }
 }
 
 /* iPad e janelas menores: doca compacta que rola para o lado; barra de cima clara. */
 @media (min-width: 768px) and (max-width: 1179px) {
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar.dashboard-sidebar,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-sidebar {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar.dashboard-sidebar,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-sidebar {
     left: 12px !important;
     right: 12px !important;
     transform: none !important;
@@ -387,38 +387,38 @@ body.dashboard-app-body .omd-btn--primary:hover {
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar::-webkit-scrollbar {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar::-webkit-scrollbar {
     display: none;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .sidebar-nav,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar #crmSharedNavRoot {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-nav,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar #crmSharedNavRoot {
     margin-inline: auto !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar a.nav-item.sidebar-footer-link {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar a.nav-item.sidebar-footer-link {
     min-width: 54px !important;
     padding: 2px 2px 0 !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item > svg {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item > svg {
     width: 40px !important;
     height: 40px !important;
     min-width: 40px !important;
     padding: 10px !important;
     border-radius: 13px !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item .nav-item__label {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item .nav-item__label {
     font-size: 10.5px !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item:hover {
     transform: none !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .dashboard-main,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app).sidebar-collapsed .dashboard-main {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-main,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page).sidebar-collapsed .dashboard-main {
     padding-bottom: 112px !important;
   }
   /* Barra de cima do iPad em pé: clara, sem o menu hambúrguer (a doca é o menu). */
   html body.dashboard-app-body:not(.om-device-mobile) .mobile-app-header,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .mobile-app-header {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .mobile-app-header {
     background: rgba(247, 248, 250, 0.92) !important;
     color: var(--om-ink) !important;
     border-bottom: 1px solid var(--om-line) !important;
@@ -427,24 +427,24 @@ body.dashboard-app-body .omd-btn--primary:hover {
     -webkit-backdrop-filter: blur(14px);
   }
   html body.dashboard-app-body:not(.om-device-mobile) .mobile-app-header *:not(svg):not(svg *),
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .mobile-app-header *:not(svg):not(svg *) {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .mobile-app-header *:not(svg):not(svg *) {
     color: var(--om-ink) !important;
   }
   html body.dashboard-app-body:not(.om-device-mobile) .mobile-app-header__menu-icon {
     background: var(--om-ink) !important;
     box-shadow: 0 7px 0 var(--om-ink), 0 -7px 0 var(--om-ink) !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #mobileMenuToggle,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .mobile-app-header__menu {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #mobileMenuToggle,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .mobile-app-header__menu {
     display: none !important;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item {
     transition: none !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) #dashboardSidebar .nav-item:hover {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item:hover {
     transform: none !important;
   }
 }
@@ -983,8 +983,8 @@ body.dashboard-app-body .bp-pricing-row {
 
 /* Barras fixas de ação ficam acima da doca (desktop/iPad) e acima da barra de abas (iPhone). */
 @media (min-width: 768px) {
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .fq-bar,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .inv-mobile-bar {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .fq-bar,
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .inv-mobile-bar {
     left: 12px !important;
     right: 12px !important;
     bottom: 104px !important;
@@ -993,7 +993,7 @@ body.dashboard-app-body .bp-pricing-row {
     box-shadow: 0 12px 30px -14px rgba(16, 24, 40, 0.3) !important;
     padding-bottom: 10px !important;
   }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page):not(.chat-app) .fo-bar {
+  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .fo-bar {
     bottom: 104px !important;
   }
 }

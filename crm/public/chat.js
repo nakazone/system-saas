@@ -35,6 +35,9 @@
     editingId: null,
     canViewHidden: false,
     mentionsUnreadOnly: true,
+    detail: null,
+    detailsOpen: null,
+    dmMode: "dm",
   };
 
   function $(id) {
@@ -223,12 +226,59 @@
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
+  function dayKeyOf(iso) {
+    const d = new Date(iso || 0);
+    if (Number.isNaN(d.getTime()) || !iso) return "";
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  }
+
+  function dayLabel(iso) {
+    const d = new Date(iso);
+    const today = new Date();
+    const y = new Date();
+    y.setDate(today.getDate() - 1);
+    if (dayKeyOf(d.toISOString()) === dayKeyOf(today.toISOString())) return "Hoje";
+    if (dayKeyOf(d.toISOString()) === dayKeyOf(y.toISOString())) return "Ontem";
+    const sameYear = d.getFullYear() === today.getFullYear();
+    return d.toLocaleDateString("pt-BR", sameYear ? { weekday: "short", day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" });
+  }
+
   function avatarTone(seed) {
     const tones = ["a", "b", "c", "d", "e"];
     let h = 0;
     const s = String(seed || "");
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
     return tones[h % tones.length];
+  }
+
+  const SVG = {
+    building:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16"/><path d="M15 9h4a1 1 0 0 1 1 1v11"/><path d="M3 21h18M8 8h3M8 12h3M8 16h3"/></svg>',
+    users:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/></svg>',
+    mute:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>',
+    chev:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
+  };
+
+  /** Avatar per conversation type: obra = rounded square with building, grupo = people, direta = initials. */
+  function convAvatarHtml(c, size) {
+    const sz = size ? ` chat-ava--${size}` : "";
+    if (c.type === "job") return `<span class="chat-ava chat-ava--job${sz}" aria-hidden="true">${SVG.building}</span>`;
+    if (c.type === "group") return `<span class="chat-ava chat-ava--group${sz}" aria-hidden="true">${SVG.users}</span>`;
+    const other = (c.members || []).find((m) => m.user_id !== state.me?.id);
+    const name = other?.name || c.title || c.name || "?";
+    return `<span class="chat-ava chat-ava--person is-${avatarTone(other?.user_id || name)}${sz}" aria-hidden="true">${escapeHtml(
+      initialsFrom(name),
+    )}</span>`;
+  }
+
+  function personAvatarHtml(userId, name, size) {
+    const sz = size ? ` chat-ava--${size}` : "";
+    return `<span class="chat-ava chat-ava--person is-${avatarTone(userId || name)}${sz}" aria-hidden="true">${escapeHtml(
+      initialsFrom(name),
+    )}</span>`;
   }
 
   /** Conversations with a real (non-system) message — skips empty auto job channels. */
@@ -274,12 +324,12 @@
         ? c.subtitle || c.work_order?.address || ""
         : c.type === "group"
           ? `${(c.members || []).length} membros`
-          : typeLabel(c.type);
-    const tone = avatarTone(c.id || company);
+          : "Direta";
+    const muted = c.muted && !unread ? `<span class="chat-conv__muted" title="Silenciada">${SVG.mute}</span>` : "";
     return `<button type="button" class="chat-conv${active}${unread ? " is-unread" : ""}${
       c.type === "job" ? " chat-conv--job" : ""
     }" data-id="${c.id}">
-      <span class="chat-conv__avatar is-${tone}" aria-hidden="true">${escapeHtml(initialsFrom(company))}</span>
+      ${convAvatarHtml(c)}
       <span class="chat-conv__body">
         <span class="chat-conv__top">
           <span class="chat-conv__title">${escapeHtml(company)}</span>
@@ -288,7 +338,7 @@
         ${sub ? `<span class="chat-conv__addr">${escapeHtml(sub)}</span>` : ""}
         <span class="chat-conv__bottom">
           <span class="chat-conv__preview">${escapeHtml(String(preview || "").slice(0, 100))}</span>
-          ${badge}
+          ${badge}${muted}
         </span>
       </span>
     </button>`;
@@ -310,7 +360,22 @@
     }
     empty.hidden = true;
     root.hidden = false;
-    // Flat timeline list (messenger-style) — no section headers unless filtering "all" with mixed types feels sparse.
+    // "Todas": grouped in Obras / Grupos / Diretas (most recent first inside each). Filters stay flat.
+    if (state.filter === "all") {
+      const groups = [
+        ["job", "Obras"],
+        ["group", "Grupos"],
+        ["dm", "Diretas"],
+      ];
+      root.innerHTML = groups
+        .map(([type, label]) => {
+          const part = rows.filter((c) => (type === "dm" ? c.type !== "job" && c.type !== "group" : c.type === type));
+          if (!part.length) return "";
+          return `<p class="chat-section">${label}</p>${part.map(convRowHtml).join("")}`;
+        })
+        .join("");
+      return;
+    }
     root.innerHTML = rows.map(convRowHtml).join("");
   }
 
@@ -372,8 +437,23 @@
     loadOlder.hidden = !state.hasMore;
     let prevAuthor = null;
     let prevTs = 0;
+    let prevDay = "";
+    const isDm = (state.conversations.find((c) => c.id === state.activeId) || {}).type === "dm";
     inner.innerHTML = state.messages
       .map((m) => {
+        const dayKey = dayKeyOf(m.created_at);
+        let sep = "";
+        if (dayKey && dayKey !== prevDay) {
+          prevDay = dayKey;
+          prevAuthor = null;
+          prevTs = 0;
+          sep = `<div class="chat-day" role="separator"><span>${escapeHtml(dayLabel(m.created_at))}</span></div>`;
+        }
+        return sep + messageRow(m);
+      })
+      .join("");
+
+    function messageRow(m) {
         if (m.type === "system") {
           prevAuthor = null;
           prevTs = 0;
@@ -455,20 +535,21 @@
               ? `<div class="chat-msg__history"><p>Sem versões anteriores nesta carga.</p></div>`
               : "";
 
-        const meta = stacked
+        const meta = stacked || mine || isDm
           ? ""
           : `<div class="chat-msg__meta">${escapeHtml(author)}</div>`;
+        const ava = !mine && !isDm && !stacked ? personAvatarHtml(m.author_id, author, "msg") : "";
         const time = `<time class="chat-msg__time">${fmtTime(m.created_at)}${edited}${removedNote}</time>`;
 
-        return `<div class="${cls}" data-id="${m.id}">
+        return `<div class="${cls}${!mine && !isDm ? " has-ava" : ""}" data-id="${m.id}">
+          ${ava}
           ${meta}
           <div class="chat-msg__bubble">${bubbleInner}${time}</div>
           ${actionsHtml}
           ${historyHtml}
           ${status}
         </div>`;
-      })
-      .join("");
+    }
 
     state.messages.forEach((m) => {
       if (state.editingId === m.id) {
@@ -506,6 +587,30 @@
           .slice(0, 6)
           .join(", ") || typeLabel(d.type);
     }
+    const convForAvatar = { ...(conv || {}), type: d.type, members: d.members || conv?.members || [] };
+    $("chatThreadAvatar").outerHTML = convAvatarHtml(convForAvatar, "md").replace(
+      'class="chat-ava',
+      'id="chatThreadAvatar" class="chat-ava',
+    );
+    if (d.type === "group") {
+      $("chatThreadSub").textContent = `${(d.members || []).length} membros`;
+    } else if (d.type !== "job") {
+      $("chatThreadSub").textContent = "Direta";
+    } else {
+      const wo = conv?.work_order;
+      const bits = [wo?.number ? `#${wo.number}` : "", jobAddressFrom(d.context_job || wo) || ""].filter(Boolean);
+      $("chatThreadSub").textContent = bits.join(" · ") || "Canal da obra";
+    }
+    const openJob = $("chatOpenJob");
+    if (d.type === "job" && d.work_order_id) {
+      openJob.hidden = false;
+      openJob.href = `job-detail.html?id=${encodeURIComponent(d.work_order_id)}`;
+    } else {
+      openJob.hidden = true;
+    }
+    state.detail = d;
+    renderDetails();
+
     state.muted = !!d.muted;
     $("chatMuteBtn").setAttribute("aria-pressed", state.muted ? "true" : "false");
     $("chatMuteBtn").title = state.muted ? "Reativar notificações" : "Silenciar";
@@ -1048,6 +1153,154 @@
   }
 
   // —— Init ——
+  // —— Details panel (Central da obra) ——
+  const WIDE = window.matchMedia("(min-width: 1180px)");
+
+  function isPhone() {
+    return document.body.classList.contains("om-device-mobile");
+  }
+
+  function setDetailsOpen(open) {
+    const panel = $("chatDetails");
+    const scrim = $("chatDetailsScrim");
+    if (!panel) return;
+    const docked = WIDE.matches && !isPhone();
+    state.detailsOpen = open;
+    panel.hidden = !open || !state.activeId;
+    document.body.classList.toggle("chat-details-open", !panel.hidden);
+    document.body.classList.toggle("chat-details-docked", !panel.hidden && docked);
+    if (scrim) scrim.hidden = panel.hidden || docked;
+    $("chatInfoBtn")?.setAttribute("aria-pressed", panel.hidden ? "false" : "true");
+    try {
+      if (docked) localStorage.setItem("om_chat_details", open ? "1" : "0");
+    } catch (_) {}
+  }
+
+  function defaultDetailsOpen() {
+    if (!WIDE.matches || isPhone()) return false;
+    try {
+      return localStorage.getItem("om_chat_details") !== "0";
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function memberRole(m) {
+    if (m.user_id === state.me?.id) return "Você";
+    if (m.role === "owner" || m.role === "admin") return "Admin";
+    return "";
+  }
+
+  async function loadDetailsGallery(workOrderId, token) {
+    const host = $("chatDetailsGallery");
+    if (!host) return;
+    try {
+      const j = await api(`/api/chat/jobs/${encodeURIComponent(workOrderId)}/gallery`);
+      if (token !== state.activeId) return;
+      const imgs = (j.data || []).filter((a) => String(a.mime_type || "").startsWith("image/"));
+      $("chatDetailsGalleryCount").textContent = imgs.length ? ` · ${imgs.length}` : "";
+      host.innerHTML = imgs.length
+        ? imgs
+            .slice(0, 9)
+            .map(
+              (a) =>
+                `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(
+                  a.thumb_url || a.url,
+                )}" alt="" loading="lazy" /></a>`,
+            )
+            .join("")
+        : `<p class="chat-details__empty">Nenhuma foto nesta conversa ainda.</p>`;
+    } catch (_) {
+      host.closest(".chat-details__blk")?.setAttribute("hidden", "");
+    }
+  }
+
+  function renderDetails() {
+    const body = $("chatDetailsBody");
+    const d = state.detail;
+    if (!body || !d) return;
+    const conv = state.conversations.find((c) => c.id === state.activeId) || {};
+    const members = d.members || conv.members || [];
+    const membersHtml = members
+      .map(
+        (m) => `<div class="chat-member">${personAvatarHtml(m.user_id, m.name, "sm")}<span>${escapeHtml(
+          m.name || "—",
+        )}</span><small>${escapeHtml(memberRole(m))}</small></div>`,
+      )
+      .join("");
+    const canAdd = d.type !== "dm";
+    const membersBlk = `<section class="chat-details__blk">
+        <h4>Membros · ${members.length}${canAdd ? '<button type="button" class="chat-link" id="chatAddMember">Adicionar</button>' : ""}</h4>
+        ${membersHtml || '<p class="chat-details__empty">Sem membros.</p>'}
+      </section>`;
+    const actions = `<div class="chat-details__acts">
+        <button type="button" class="chat-pill" data-details-mute>${SVG.mute}<span>${state.muted ? "Reativar" : "Silenciar"}</span></button>
+        ${
+          d.type === "job" && d.work_order_id
+            ? `<a class="chat-pill" href="job-detail.html?id=${encodeURIComponent(d.work_order_id)}">${SVG.building}<span>Abrir job</span></a>`
+            : ""
+        }
+      </div>`;
+
+    if (d.type === "job") {
+      const wo = conv.work_order || {};
+      const ctx = d.context_job || {};
+      const title = wo.title || ctx.title || d.name || "Obra";
+      const status = jobStatusLabel(wo.status || ctx.status);
+      const company = jobCompanyFrom(ctx.id ? ctx : wo) || wo.customer_name || "";
+      const address = jobAddressFrom(ctx.id ? ctx : wo) || wo.address || "";
+      body.innerHTML = `<header class="chat-details__hd">
+          ${convAvatarHtml({ type: "job" }, "lg")}
+          <div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(
+            [wo.number ? `Job #${wo.number}` : "", company].filter(Boolean).join(" · "),
+          )}</span></div>
+        </header>
+        ${status ? `<div class="chat-details__tags"><span class="chat-tag is-${escapeHtml(wo.status || "")}">${escapeHtml(status)}</span></div>` : ""}
+        <section class="chat-details__blk">
+          <h4>Obra${d.work_order_id ? `<a class="chat-link" href="job-detail.html?id=${encodeURIComponent(d.work_order_id)}">Abrir job</a>` : ""}</h4>
+          <dl class="chat-kv">
+            ${company ? `<dt>Cliente</dt><dd>${escapeHtml(company)}</dd>` : ""}
+            ${address ? `<dt>Endereço</dt><dd>${escapeHtml(address)}</dd>` : ""}
+            ${status ? `<dt>Status</dt><dd>${escapeHtml(status)}</dd>` : ""}
+          </dl>
+        </section>
+        ${membersBlk}
+        ${
+          hasPerm("work_orders.view") || state.me?.roleKey === "admin"
+            ? `<section class="chat-details__blk">
+          <h4>Fotos na conversa<span id="chatDetailsGalleryCount"></span></h4>
+          <div class="chat-gallery" id="chatDetailsGallery"><p class="chat-details__empty">Carregando…</p></div>
+        </section>`
+            : ""
+        }
+        ${actions}`;
+      if (d.work_order_id) loadDetailsGallery(d.work_order_id, state.activeId);
+    } else if (d.type === "group") {
+      body.innerHTML = `<header class="chat-details__hd">
+          ${convAvatarHtml({ type: "group" }, "lg")}
+          <div><strong>${escapeHtml(d.name || conv.title || "Grupo")}</strong><span>Grupo · ${members.length} membros</span></div>
+        </header>
+        ${membersBlk}
+        ${actions}`;
+    } else {
+      const other = members.find((m) => m.user_id !== state.me?.id) || {};
+      body.innerHTML = `<header class="chat-details__hd chat-details__hd--person">
+          ${personAvatarHtml(other.user_id, other.name || d.name, "xl")}
+          <div><strong>${escapeHtml(other.name || d.name || conv.title || "Conversa")}</strong><span>Conversa direta</span></div>
+        </header>
+        ${membersBlk}
+        ${actions}`;
+    }
+    $("chatAddMember")?.addEventListener("click", () => {
+      state.dmMode = "add";
+      $("chatDmTitle").textContent = "Adicionar à conversa";
+      openModal("chatDmModal");
+      loadUserPicker("chatDmList", "").catch(() => {});
+    });
+    body.querySelector("[data-details-mute]")?.addEventListener("click", () => $("chatMuteBtn").click());
+    setDetailsOpen(state.detailsOpen == null ? defaultDetailsOpen() : state.detailsOpen);
+  }
+
   async function init() {
     try {
       const r = await fetch("/api/auth/session", { credentials: "include" });
@@ -1113,6 +1366,7 @@
     });
 
     $("chatBackBtn").addEventListener("click", () => {
+      setDetailsOpen(false);
       showThread(false);
       state.activeId = null;
       if (state.realtime) {
@@ -1232,10 +1486,23 @@
         $("chatMuteBtn").classList.toggle("is-muted", next);
         $("chatMuteBtn").setAttribute("aria-pressed", next ? "true" : "false");
         notify(next ? "Conversa silenciada — sem push" : "Notificações reativadas", "success");
+        const conv = state.conversations.find((c) => c.id === state.activeId);
+        if (conv) conv.muted = next;
+        const lbl = document.querySelector("[data-details-mute] span");
+        if (lbl) lbl.textContent = next ? "Reativar" : "Silenciar";
+        renderList();
       } catch (err) {
         notify(err.message, "error");
       }
     });
+
+    $("chatInfoBtn").addEventListener("click", () => setDetailsOpen($("chatDetails").hidden));
+    $("chatThreadWho").addEventListener("click", () => {
+      if (!WIDE.matches || isPhone()) setDetailsOpen(true);
+    });
+    $("chatDetailsClose").addEventListener("click", () => setDetailsOpen(false));
+    $("chatDetailsScrim").addEventListener("click", () => setDetailsOpen(false));
+    WIDE.addEventListener("change", () => setDetailsOpen(defaultDetailsOpen()));
 
     $("chatMessagesInner").addEventListener("click", async (e) => {
       const retry = e.target.closest("[data-retry]");
@@ -1315,6 +1582,8 @@
 
     // DM modal
     $("chatNewDmBtn").addEventListener("click", () => {
+      state.dmMode = "dm";
+      $("chatDmTitle").textContent = "Nova conversa";
       openModal("chatDmModal");
       loadUserPicker("chatDmList", "").catch(() => {});
     });
@@ -1324,6 +1593,23 @@
     $("chatDmList").addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-user]");
       if (!btn) return;
+      if (state.dmMode === "add" && state.activeId) {
+        try {
+          await api(`/api/chat/conversations/${state.activeId}/members`, {
+            method: "POST",
+            body: JSON.stringify({ user_ids: [btn.getAttribute("data-user")] }),
+          });
+          closeModal("chatDmModal");
+          notify(`${btn.getAttribute("data-name") || "Pessoa"} adicionada`, "success");
+          const detail = await api(`/api/chat/conversations/${state.activeId}`);
+          state.detail = detail.data;
+          await loadConversations();
+          renderDetails();
+        } catch (err) {
+          notify(err.message, "error");
+        }
+        return;
+      }
       try {
         const j = await api("/api/chat/conversations/dm", {
           method: "POST",

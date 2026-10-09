@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="chat.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="chat.css?v=20261008-chatv2" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
@@ -129,13 +129,23 @@
               <button type="button" class="chat-back-btn" id="chatBackBtn" aria-label="Voltar às conversas">
                 <svg viewBox="0 0 24 24" width="22" height="22"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
               </button>
-              <div class="chat-thread-head__meta">
-                <h2 class="chat-thread-title" id="chatThreadTitle">—</h2>
-                <p class="chat-thread-sub" id="chatThreadSub"></p>
-              </div>
+              <button type="button" class="chat-thread-head__who" id="chatThreadWho" aria-label="Ver detalhes da conversa">
+                <span class="chat-ava chat-ava--md" id="chatThreadAvatar" aria-hidden="true"></span>
+                <span class="chat-thread-head__meta">
+                  <span class="chat-thread-title" id="chatThreadTitle">—</span>
+                  <span class="chat-thread-sub" id="chatThreadSub"></span>
+                </span>
+              </button>
               <div class="chat-thread-head__actions">
+                <a class="chat-pill" id="chatOpenJob" href="#" hidden>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9.5 21v-6h5v6"/></svg>
+                  <span>Abrir job</span>
+                </a>
                 <button type="button" class="chat-icon-btn" id="chatMuteBtn" title="Silenciar" aria-label="Silenciar conversa">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+                </button>
+                <button type="button" class="chat-icon-btn chat-info-btn" id="chatInfoBtn" title="Detalhes" aria-label="Detalhes da conversa" aria-pressed="false">
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>
                 </button>
               </div>
             </header>
@@ -162,9 +172,9 @@
                 <button type="button" class="chat-icon-btn chat-camera-btn" id="chatCameraBtn" title="Câmera" aria-label="Tirar foto">
                   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 </button>
-                <textarea id="chatInput" rows="1" placeholder="Mensagem… (@ menção, / obra)" autocomplete="off" enterkeyhint="send"></textarea>
+                <textarea id="chatInput" rows="1" placeholder="Mensagem… @ para mencionar, / para obra" autocomplete="off" enterkeyhint="send"></textarea>
                 <button type="button" class="chat-send-btn" id="chatSendBtn" aria-label="Enviar">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                  <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
                 </button>
               </div>
               <input type="file" id="chatFileInput" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple hidden />
@@ -172,6 +182,16 @@
             </div>
           </div>
         </section>
+
+        <!-- Right: conversation details (job, group or direct) -->
+        <aside class="chat-details" id="chatDetails" aria-label="Detalhes da conversa" hidden>
+          <div class="chat-details__grab" aria-hidden="true"></div>
+          <button type="button" class="chat-icon-btn chat-details__close" id="chatDetailsClose" aria-label="Fechar detalhes">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+          <div class="chat-details__body" id="chatDetailsBody"></div>
+        </aside>
+        <button type="button" class="chat-details-scrim" id="chatDetailsScrim" aria-label="Fechar detalhes" hidden></button>
       </div>
     </main>
   </div>
@@ -229,12 +249,12 @@
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
   <script src="crm-i18n.js?v=20261001-refresh1"></script>
   <script src="crm-shared-nav.js?v=20261008-neutro1"></script>
-  <script src="crm-shell.js?v=20261008-chatfs2"></script>
+  <script src="crm-shell.js?v=20261008-chatv2"></script>
   <script src="crm-account-menu.js?v=20261001-refresh1"></script>
   <script src="crm-toast.js"></script>
   <script src="saas-branding.js?v=20260929-navia1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="chat-realtime.js?v=20260928-chat1"></script>
-  <script src="chat.js?v=20261008-chat8"></script>
+  <script src="chat.js?v=20261008-chatv2"></script>
 </body>
 </html>
