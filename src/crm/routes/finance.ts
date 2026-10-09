@@ -120,7 +120,16 @@ financeRouter.get(
             where: { paidAt: { gte: from, lte: toEnd } },
             include: {
               invoice: {
-                select: { invoiceNumber: true, id: true, customer: { select: { name: true } } },
+                select: {
+                  invoiceNumber: true,
+                  id: true,
+                  amount: true,
+                  dueDate: true,
+                  status: true,
+                  customer: { select: { name: true } },
+                  workOrder: { select: { number: true } },
+                  receipts: { select: { amount: true } },
+                },
               },
             },
             orderBy: { paidAt: "desc" },
@@ -155,7 +164,17 @@ financeRouter.get(
             kind: "invoice_receipt",
             label: cust ? `Recebimento · Invoice ${invNo} · ${cust}` : `Recebimento · Invoice ${invNo}`,
             amount: money(dec(r.amount)),
-            meta: { invoice_id: r.invoiceId, method: r.method },
+            meta: {
+              invoice_id: r.invoiceId,
+              method: r.method,
+              invoice_number: invNo,
+              customer_name: cust || null,
+              invoice_amount: r.invoice ? money(dec(r.invoice.amount)) : null,
+              invoice_paid: r.invoice ? money(r.invoice.receipts.reduce((s, x) => s + dec(x.amount), 0)) : null,
+              invoice_due: r.invoice?.dueDate ? r.invoice.dueDate.toISOString().slice(0, 10) : null,
+              invoice_status: r.invoice?.status ?? null,
+              job_number: r.invoice?.workOrder?.number ?? null,
+            },
           });
         }
         for (const c of costs) {
@@ -177,7 +196,7 @@ financeRouter.get(
             kind: "payroll",
             label: `Folha · ${a.label}`,
             amount: money(dec(a.amount)),
-            meta: { period_id: a.periodId, method: a.method },
+            meta: { period_id: a.periodId, method: a.method, payroll_label: a.label, notes: a.notes },
           });
         }
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f7f4ee" />
-  <title>Financeiro | ObraMate</title>
+  <title>Fluxo de caixa | ObraMate</title>
   <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}/*maismob2*/@media (max-width:1024px){body.om-app.dashboard-app-body,body.om-app{--crm-sidebar-width:0px!important}body.om-app .dashboard-container{display:block!important;margin:0!important;width:100%!important;max-width:100%!important}body.om-app .dashboard-main,body.om-app.dashboard-app-body .dashboard-main,body.om-app.sidebar-collapsed .dashboard-main{margin:0!important;margin-left:0!important;margin-top:0!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;left:0!important;top:0!important;height:100vh!important;height:100dvh!important;width:min(288px,92vw)!important;min-width:0!important;max-width:min(288px,92vw)!important;transform:translate3d(-105%,0,0)!important;z-index:1100!important;margin:0!important}body.om-app #dashboardSidebar.mobile-open,body.om-app .dashboard-sidebar.mobile-open{transform:translate3d(0,0,0)!important}}</style>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
@@ -18,13 +18,12 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="finance.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="finance-payroll-mobile.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="finance-v2.css?v=20261009-fx1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
-<body class="dashboard-app-body om-app sidebar-collapsed fin-app">
+<body class="dashboard-app-body om-app sidebar-collapsed fin-app fx-body">
   <script>
     (function () {
       try {
@@ -42,7 +41,7 @@
     </button>
     <div class="mobile-app-header__brand">
       <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
-      <h1 class="mobile-app-header__title">Financeiro</h1>
+      <h1 class="mobile-app-header__title">Fluxo de caixa</h1>
     </div>
   </header>
 
@@ -72,338 +71,102 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
-      <!-- Mobile Financeiro -->
-      <div class="fpm" id="finMobile" aria-label="Financeiro">
-        <header class="fpm-top">
-          <a class="fpm-icon-btn" href="mais.html" aria-label="Voltar">
-            <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
-          </a>
-          <div class="fpm-top__center">
-            <h1 class="fpm-top__title">Financeiro</h1>
-            <p class="fpm-top__sub" id="finMobMonth">—</p>
-          </div>
-          <button type="button" class="fpm-icon-btn fpm-icon-btn--accent" id="finMobAdd" data-crm-permission="finance.manage" aria-label="Criar">
-            <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          </button>
-        </header>
-
-        <div class="fpm-seg" role="tablist" aria-label="Secções">
-          <button type="button" class="fpm-seg__btn is-active" data-fin-mob-tab="geral">Geral</button>
-          <button type="button" class="fpm-seg__btn" data-fin-mob-tab="receber">A receber<span class="fpm-seg__dot" id="finMobRecvDot" hidden></span></button>
-          <button type="button" class="fpm-seg__btn" data-fin-mob-tab="despesas">Despesas<span class="fpm-seg__dot fpm-seg__dot--warn" id="finMobCostDot" hidden></span></button>
-          <button type="button" class="fpm-seg__btn" data-fin-mob-tab="obras">Obras</button>
-        </div>
-
-        <div class="fpm-pane" data-fin-mob-pane="geral">
-          <section class="fpm-hero" aria-label="Resultado do mês">
-            <p class="fpm-hero__label">Resultado do mês</p>
-            <p class="fpm-hero__value" id="finMobNet">—</p>
-            <p class="fpm-hero__meta" id="finMobNetMeta">—</p>
-            <div class="fpm-hero__split">
-              <div>
-                <p class="fpm-hero__split-label"><span class="fpm-hero__split-ico fpm-hero__split-ico--in" aria-hidden="true"></span>Entradas</p>
-                <p class="fpm-hero__split-val" id="finMobIn">—</p>
+      <div class="fx" id="fx">
+        <div class="fx-split" id="fxSplit">
+          <section class="fx-list" aria-label="Movimentos">
+            <div class="fx-list__top">
+              <div class="fx-title">
+                <h1>Fluxo de caixa</h1>
+                <button type="button" class="fx-btn fx-btn--pri fx-btn--sm" id="fxScanBtn" data-crm-permission="finance.manage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Scan</span></button>
+                <button type="button" class="fx-btn fx-btn--icon fx-btn--sm" id="fxNewBtn" data-crm-permission="finance.manage" aria-label="Novo custo" title="Novo custo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
               </div>
-              <div>
-                <p class="fpm-hero__split-label"><span class="fpm-hero__split-ico fpm-hero__split-ico--out" aria-hidden="true"></span>Saídas</p>
-                <p class="fpm-hero__split-val" id="finMobOut">—</p>
+              <div class="fx-period">
+                <div class="fx-month" id="fxMonth">
+                  <button type="button" id="fxPrev" aria-label="Período anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+                  <span id="fxPerLabel">—</span>
+                  <button type="button" id="fxNext" aria-label="Próximo período"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
+                </div>
+                <div class="fx-range" id="fxRange" role="group" aria-label="Período">
+                  <button type="button" data-range="month" class="is-on">Mês</button>
+                  <button type="button" data-range="30">30 dias</button>
+                  <button type="button" data-range="year">Ano</button>
+                  <button type="button" data-range="custom">Datas</button>
+                </div>
+              </div>
+              <div class="fx-dates" id="fxDates" hidden>
+                <label>De<input type="date" id="finFrom" /></label>
+                <label>Até<input type="date" id="finTo" /></label>
+              </div>
+              <div class="fx-phero" id="fxPhero"></div>
+              <dl class="fx-sums" id="fxSums"></dl>
+              <label class="fx-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="fxQ" placeholder="Buscar movimento" autocomplete="off" aria-label="Buscar movimento" /></label>
+              <div class="fx-seg" id="fxSeg" role="group" aria-label="Filtrar">
+                <button type="button" data-f="all" class="is-on">Tudo <em></em></button>
+                <button type="button" data-f="in">Entradas <em></em></button>
+                <button type="button" data-f="out">Saídas <em></em></button>
+                <button type="button" data-f="draft">Revisar <em></em></button>
               </div>
             </div>
+            <div class="fx-rows" id="fxRows"><p class="fx-empty">Carregando…</p></div>
           </section>
-
-          <section class="fpm-card" aria-label="Fluxo semanal">
-            <div class="fpm-card__head">
-              <h2 class="fpm-card__title">Fluxo de caixa por semana</h2>
-              <div class="fpm-legend"><span><i class="in"></i>Entradas</span><span><i class="out"></i>Saídas</span></div>
-            </div>
-            <div class="fpm-chart" id="finMobChart"></div>
-            <div class="fpm-week-sum" id="finMobWeekSum"></div>
+          <section class="fx-main" id="fxMain">
+            <a class="fx-back" href="#" id="fxBack"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Fluxo de caixa</a>
+            <div class="fx-pane" id="fxPane"></div>
           </section>
-
-          <div class="fpm-stat-grid">
-            <button type="button" class="fpm-stat" id="finMobOverdueBtn" data-fin-mob-tab-jump="receber">
-              <div class="fpm-stat__top fpm-stat__top--danger">Vencido</div>
-              <p class="fpm-stat__val" id="finMobOverdue">—</p>
-              <p class="fpm-stat__sub" id="finMobOverdueSub">—</p>
-            </button>
-            <button type="button" class="fpm-stat" id="finMobDraftBtn" data-fin-mob-tab-jump="despesas">
-              <div class="fpm-stat__top fpm-stat__top--muted">A classificar</div>
-              <p class="fpm-stat__val" id="finMobDraft">—</p>
-              <p class="fpm-stat__sub" id="finMobDraftSub">—</p>
-            </button>
-          </div>
-
-          <h2 class="fpm-section-title">Últimas movimentações</h2>
-          <div class="fpm-mov" id="finMobMoves"></div>
-        </div>
-
-        <div class="fpm-pane" data-fin-mob-pane="receber" hidden>
-          <h2 class="fpm-section-title">A receber</h2>
-          <div class="fpm-list" id="finMobRecvList"></div>
-        </div>
-
-        <div class="fpm-pane" data-fin-mob-pane="despesas" hidden>
-          <h2 class="fpm-section-title">Despesas &amp; recibos</h2>
-          <div class="fpm-list" id="finMobCostList"></div>
-        </div>
-
-        <div class="fpm-pane" data-fin-mob-pane="obras" hidden>
-          <h2 class="fpm-section-title">Obras</h2>
-          <div class="fpm-list" id="finMobJobsList"></div>
         </div>
       </div>
-
-      <button type="button" class="fpm-backdrop" id="finMobCreateBackdrop" hidden aria-label="Fechar"></button>
-      <div class="fpm-create-sheet" id="finMobCreateSheet" hidden role="dialog" aria-labelledby="finMobCreateTitle">
-        <div class="fpm-create-sheet__grab" aria-hidden="true"></div>
-        <h2 class="fpm-create-sheet__title" id="finMobCreateTitle">Criar</h2>
-        <div class="fpm-create-sheet__grid">
-          <button type="button" class="fpm-create-sheet__btn" id="finMobScanBtn" data-crm-permission="finance.manage">
-            <strong>Scan recibo</strong>
-            <span>Foto e OCR</span>
-          </button>
-          <button type="button" class="fpm-create-sheet__btn" id="finMobCostBtn" data-crm-permission="finance.manage">
-            <strong>Novo custo</strong>
-            <span>Lançamento manual</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="mod-page crm-page finance-page">
-        <div class="mod-page-header">
-          <h1>Financeiro</h1>
-          <div class="mod-page-header__actions">
-            <label class="fin-period">
-              De
-              <input type="date" id="finFrom" />
-            </label>
-            <label class="fin-period">
-              Até
-              <input type="date" id="finTo" />
-            </label>
-            <button type="button" class="btn btn-secondary" id="btnFinApply">Aplicar</button>
-            <button type="button" class="btn btn-primary" id="btnFinScan" data-crm-permission="finance.manage">Scan recibo</button>
-            <button type="button" class="btn btn-secondary" id="btnFinAddCost" data-crm-permission="finance.manage">+ Custo</button>
-          </div>
-        </div>
-
-        <div class="mod-overview" id="finOverview" aria-label="Resumo">
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Entradas</p>
-            <div class="mod-ov-card__stat fin-in" id="ovInflow">$0</div>
-            <div class="mod-ov-card__sub">Recebimentos no período</div>
-          </div>
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Saídas</p>
-            <div class="mod-ov-card__stat fin-out" id="ovOutflow">$0</div>
-            <div class="mod-ov-card__sub">Custos + folha paga</div>
-          </div>
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">Saldo líquido</p>
-            <div class="mod-ov-card__stat" id="ovNet">$0</div>
-            <div class="mod-ov-card__sub">Entradas − saídas</div>
-          </div>
-          <div class="mod-ov-card">
-            <p class="mod-ov-card__title">A receber</p>
-            <div class="mod-ov-card__stat" id="ovReceivables">$0</div>
-            <div class="mod-ov-card__sub">Invoices em aberto</div>
-          </div>
-        </div>
-
-        <div class="fin-tabs" role="tablist" aria-label="Secções do financeiro">
-          <button type="button" class="fin-tab is-active" data-tab="cashflow" role="tab" aria-selected="true">Fluxo de caixa</button>
-          <button type="button" class="fin-tab" data-tab="receivables" role="tab">Recebimentos</button>
-          <button type="button" class="fin-tab" data-tab="payroll" role="tab">Folha</button>
-          <button type="button" class="fin-tab" data-tab="costs" role="tab">Custos &amp; recibos</button>
-        </div>
-
-        <section class="fin-pane is-active" data-pane="cashflow" role="tabpanel">
-          <div class="mod-list-head">
-            <h2>Movimentos <span class="mod-list-head__count" id="cashflowCount">(0)</span></h2>
-          </div>
-          <div class="mod-table-wrap">
-            <table class="mod-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Tipo</th>
-                  <th>Descrição</th>
-                  <th class="num">Valor</th>
-                </tr>
-              </thead>
-              <tbody id="cashflowBody">
-                <tr><td colspan="4" class="fin-empty">A carregar…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="fin-pane" data-pane="receivables" role="tabpanel" hidden>
-          <div class="mod-list-head">
-            <h2>Invoices a receber <span class="mod-list-head__count" id="recvCount">(0)</span></h2>
-            <a class="btn btn-secondary" href="invoices.html">Abrir Invoices</a>
-          </div>
-          <div class="mod-table-wrap">
-            <table class="mod-table">
-              <thead>
-                <tr>
-                  <th>Invoice</th>
-                  <th>Cliente</th>
-                  <th>Vencimento</th>
-                  <th class="num">Total</th>
-                  <th class="num">Pago</th>
-                  <th class="num">Saldo</th>
-                </tr>
-              </thead>
-              <tbody id="recvBody">
-                <tr><td colspan="6" class="fin-empty">A carregar…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="fin-pane" data-pane="payroll" role="tabpanel" hidden>
-          <div class="mod-list-head">
-            <h2>
-              Abatimento de folha
-              <span class="mod-tip">
-                <button type="button" class="mod-tip__btn" aria-label="Ajuda: abatimento de folha">?</button>
-                <span class="mod-tip__pop" role="tooltip">Registe o pagamento de um período de folha para refletir a saída no fluxo de caixa.</span>
-              </span>
-            </h2>
-            <a class="btn btn-secondary" href="folha.html">Abrir Folha</a>
-          </div>
-          <div class="mod-table-wrap">
-            <table class="mod-table">
-              <thead>
-                <tr>
-                  <th>Período</th>
-                  <th>Estado</th>
-                  <th class="num">Custo estimado</th>
-                  <th>Abatimento</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="payrollBody">
-                <tr><td colspan="5" class="fin-empty">A carregar…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="fin-pane" data-pane="costs" role="tabpanel" hidden>
-          <div class="mod-list-head">
-            <h2>Custos &amp; recibos <span class="mod-list-head__count" id="costsCount">(0)</span></h2>
-          </div>
-          <div class="mod-table-wrap">
-            <table class="mod-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Descrição</th>
-                  <th>Fornecedor</th>
-                  <th>Origem</th>
-                  <th class="num">Valor</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody id="costsBody">
-                <tr><td colspan="6" class="fin-empty">A carregar…</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
+      <div class="fx-mbar" id="fxMbar" hidden></div>
     </main>
   </div>
 
-  <!-- Manual cost modal -->
-  <div class="fin-modal" id="costModal" hidden>
-    <div class="fin-modal__backdrop" data-close="costModal"></div>
-    <div class="fin-modal__panel" role="dialog" aria-labelledby="costModalTitle">
-      <h2 id="costModalTitle">Novo custo</h2>
-      <form id="costForm" class="fin-form">
-        <label>Descrição<input name="description" required maxlength="200" /></label>
-        <label>Fornecedor<input name="vendor_name" maxlength="120" /></label>
-        <div class="fin-form__row">
-          <label>Valor ($)<input name="amount" type="number" step="0.01" min="0.01" required /></label>
-          <label>Data<input name="incurred_on" type="date" required /></label>
+  <!-- Novo custo: foto do recibo (scan) ou à mão -->
+  <div class="fx-modal" id="fxNewModal" role="dialog" aria-modal="true" aria-labelledby="fxNewTitle" hidden>
+    <div class="fx-modal__backdrop" data-fx-close></div>
+    <div class="fx-modal__panel">
+      <header class="fx-modal__head">
+        <div><h2 id="fxNewTitle">Novo custo</h2><p id="fxNewSub">Entra no fluxo de caixa</p></div>
+        <button type="button" class="fx-x" data-fx-close aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </header>
+      <div class="fx-modal__seg fx-range" id="fxNewMode">
+        <button type="button" data-mode="scan" class="is-on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto do recibo</button>
+        <button type="button" data-mode="manual">Lançar à mão</button>
+      </div>
+      <form id="scanForm" class="fx-form" data-mode-pane="scan">
+        <div class="fx-modal__body">
+          <label class="fx-drop" id="fxDrop">
+            <input name="receipt_file" type="file" accept="image/*" capture="environment" />
+            <span class="fx-drop__in" id="fxDropIn"><span class="fx-drop__ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span><b>Tirar foto ou escolher arquivo</b><small id="scanOcrHint">Valor, fornecedor e data são lidos da foto</small></span>
+            <span class="fx-drop__img" id="scanPreview" hidden></span>
+          </label>
+          <p class="fx-sec">Corrigir antes de ler <span>opcional</span></p>
+          <div class="fx-row2">
+            <label class="fx-field">Fornecedor<input name="vendor_name" maxlength="120" placeholder="Lido da foto" /></label>
+            <label class="fx-field">Valor ($)<input name="amount" type="number" step="0.01" min="0.01" placeholder="Lido da foto" /></label>
+          </div>
+          <label class="fx-field">Data<input name="incurred_on" type="date" /></label>
+          <label class="fx-check"><input type="checkbox" name="force_draft" /><span>Guardar como rascunho (revisar antes de lançar)</span></label>
         </div>
-        <label>Categoria
-          <select name="category">
-            <option value="materials">Materiais</option>
-            <option value="services">Serviços</option>
-            <option value="utilities">Utilidades</option>
-            <option value="travel">Deslocação</option>
-            <option value="equipment">Equipamento</option>
-            <option value="taxes">Impostos</option>
-            <option value="other" selected>Outro</option>
-          </select>
-        </label>
-        <label>Recibo (opcional)<input name="receipt_file" type="file" accept="image/*,application/pdf" /></label>
-        <label>Notas<textarea name="notes" rows="2"></textarea></label>
-        <div class="fin-form__actions">
-          <button type="button" class="btn btn-secondary" data-close="costModal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Guardar</button>
-        </div>
+        <footer class="fx-modal__foot">
+          <button type="button" class="fx-btn fx-btn--ghost" data-fx-close>Cancelar</button>
+          <button type="submit" class="fx-btn fx-btn--pri" id="scanSubmitBtn">Ler e lançar</button>
+        </footer>
       </form>
-    </div>
-  </div>
-
-  <!-- Scan modal -->
-  <div class="fin-modal" id="scanModal" hidden>
-    <div class="fin-modal__backdrop" data-close="scanModal"></div>
-    <div class="fin-modal__panel" role="dialog" aria-labelledby="scanModalTitle">
-      <h2 id="scanModalTitle">Scan de recibo / nota fiscal</h2>
-      <p class="fin-hint" id="scanOcrHint">A foto será lida automaticamente (valor, fornecedor, data). Se a confiança for boa, o custo entra no fluxo de caixa.</p>
-      <form id="scanForm" class="fin-form">
-        <label>Foto do recibo
-          <input name="receipt_file" type="file" accept="image/*" capture="environment" required />
-        </label>
-        <div id="scanPreview" class="fin-scan-preview" hidden></div>
-        <p class="fin-hint">Opcional — só preencha se quiser corrigir antes do OCR:</p>
-        <label>Fornecedor<input name="vendor_name" maxlength="120" placeholder="Deixar em branco = OCR" /></label>
-        <div class="fin-form__row">
-          <label>Valor ($)<input name="amount" type="number" step="0.01" min="0.01" placeholder="OCR automático" /></label>
-          <label>Data<input name="incurred_on" type="date" /></label>
+      <form id="costForm" class="fx-form" data-mode-pane="manual" hidden>
+        <div class="fx-modal__body">
+          <label class="fx-field">Descrição<input name="description" required maxlength="200" placeholder="Ex.: Cola e argamassa" /></label>
+          <div class="fx-row2">
+            <label class="fx-field">Fornecedor<input name="vendor_name" maxlength="120" /></label>
+            <label class="fx-field">Valor ($)<input name="amount" type="number" step="0.01" min="0.01" required /></label>
+          </div>
+          <label class="fx-field">Data<input name="incurred_on" type="date" required /></label>
+          <div class="fx-field">Categoria<div class="fx-cats" data-cat-picker><input type="hidden" name="category" value="other" /></div></div>
+          <label class="fx-field"><span>Recibo <span class="fx-opt">opcional</span></span><input name="receipt_file" type="file" accept="image/*,application/pdf" /></label>
+          <label class="fx-field"><span>Notas <span class="fx-opt">opcional</span></span><textarea name="notes" rows="2" data-crm-rich="off" placeholder="Só a equipe vê"></textarea></label>
         </div>
-        <label class="fin-check">
-          <input type="checkbox" name="force_draft" />
-          Guardar só como rascunho (não lançar automaticamente)
-        </label>
-        <div class="fin-form__actions">
-          <button type="button" class="btn btn-secondary" data-close="scanModal">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="scanSubmitBtn">Ler e lançar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Payroll abatement modal -->
-  <div class="fin-modal" id="abatementModal" hidden>
-    <div class="fin-modal__backdrop" data-close="abatementModal"></div>
-    <div class="fin-modal__panel" role="dialog" aria-labelledby="abatementModalTitle">
-      <h2 id="abatementModalTitle">Abater folha</h2>
-      <form id="abatementForm" class="fin-form">
-        <input type="hidden" name="period_id" />
-        <label>Período<input name="label" required /></label>
-        <div class="fin-form__row">
-          <label>Valor ($)<input name="amount" type="number" step="0.01" min="0.01" required /></label>
-          <label>Pago em<input name="paid_on" type="date" required /></label>
-        </div>
-        <label>Método
-          <select name="method">
-            <option value="ach">Transferência / ACH</option>
-            <option value="check">Cheque</option>
-            <option value="cash">Dinheiro</option>
-            <option value="other">Outro</option>
-          </select>
-        </label>
-        <label>Notas<textarea name="notes" rows="2"></textarea></label>
-        <div class="fin-form__actions">
-          <button type="button" class="btn btn-secondary" data-close="abatementModal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Registar pagamento</button>
-        </div>
+        <footer class="fx-modal__foot">
+          <button type="button" class="fx-btn fx-btn--ghost" data-fx-close>Cancelar</button>
+          <button type="submit" class="fx-btn fx-btn--pri">Salvar custo</button>
+        </footer>
       </form>
     </div>
   </div>
@@ -415,6 +178,6 @@
   <script src="crm-shared-nav.js?v=20261009-cx1"></script>
   <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
-  <script src="finance.js?v=20261001-folha1"></script>
+  <script src="finance.js?v=20261009-fx1"></script>
 </body>
 </html>
