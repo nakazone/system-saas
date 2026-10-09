@@ -64,6 +64,8 @@
     q: "",
     quick: { empId: "", dates: new Set(), days: 1, ot: 0, reimb: "", disc: "", open: false, touched: false },
     quickSheet: false,
+    sel: null,
+    detail: false,
     report: null,
     rep: { preset: "year", from: null, to: null, employee: "", sector: "" },
     pays: null,
@@ -164,6 +166,8 @@
     document.querySelectorAll("#foRoot [data-panel]").forEach((p) => (p.hidden = p.getAttribute("data-panel") !== tab));
     renderPayBar();
     writeHash();
+    if ($("fwMbar") && tab !== "semana") $("fwMbar").hidden = true;
+    document.body.classList.toggle("fw-detail-open", tab === "semana" && Boolean(st.detail) && window.matchMedia("(max-width: 1024px)").matches);
     if ($("foHdWeek")) $("foHdWeek").hidden = tab !== "semana" || !st.week;
     if (tab === "semana") loadWeek();
     else if (tab === "conferir") loadPend();
@@ -580,67 +584,83 @@
       ${cur ? "" : '<button type="button" class="fo-btn fo-btn--ghost fo-btn--sm" data-week="today">Hoje</button>'}
     </div>`;
   }
-  function renderWeek() {
-    const w = st.week;
-    const box = $("foSemana");
-    const hdw = $("foHdWeek");
-    if (hdw) {
-      hdw.innerHTML = renderWeekHead();
-      hdw.hidden = false;
-    }
-    const all = st.week.employees;
-    const rows = weekRows();
+  // ---------- Semana: lista lateral (B) + painel da semana (A) ou funcionário aberto
+  function empPhone(id) {
+    const e = ((st.emps && st.emps.employees) || []).find((x) => x.id === id);
+    return e && e.phone ? e.phone : "";
+  }
+  function rowState(r) {
+    if (r.payment) return "paid";
+    if (r.totals.pending_days) return "pend";
+    if (r.totals.open_days) return "open";
+    if (Number(r.totals.net) > 0) return "due";
+    return "none";
+  }
+  function listSub(r) {
+    const s = rowState(r);
+    if (s === "paid") return `Pago ${esc(brShort(r.payment.paid_on))}${r.payment.method_label ? ` · ${esc(r.payment.method_label)}` : ""}`;
+    if (s === "pend") return `<span class="is-hot">${r.totals.pending_days} dia${r.totals.pending_days > 1 ? "s" : ""} a conferir</span>`;
+    const bits = [`${dayFrac(r.totals.days)} diária${r.totals.days === 1 || r.totals.days === 0.5 ? "" : "s"}`];
+    if (r.totals.overtime_minutes) bits.push(`${hm(r.totals.overtime_minutes)} extra`);
+    if (r.totals.sqft) bits.push(`${qty(r.totals.sqft)} sq ft`);
+    if (s === "open") bits.push("em andamento");
+    if (st.sector === "all") bits.push(esc(SECTORS[r.sector]));
+    return bits.join(" · ");
+  }
+  function fwRow(r) {
+    return `<a class="fw-row${st.sel === r.id ? " is-on" : ""}" href="#" data-fw-emp="${esc(r.id)}">
+      <span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span>
+      <span class="fw-row__b"><b>${esc(r.name)}</b><small>${listSub(r)}</small>${weekStrip(r)}</span>
+      <span class="fw-row__v">${money(r.totals.net)}</span></a>`;
+  }
+  function weekStats(rows) {
     const t = sumRows(rows);
     const payable = rows.filter(canPay);
-    const toPayAll = payable.reduce((s, r) => s + r.totals.net, 0);
     const sec = sectorLabel();
-    const segBtn = (k, l) => `<button type="button" data-sector="${k}" aria-pressed="${st.sector === k}">${l} <small>${sectorRosterCount(k)}</small></button>`;
     const payAllLbl = sec ? `Pagar ${esc(sec)}` : "Pagar todos";
-    const stats = `<div class="fo-stats">
-        <div class="fo-stat fo-stat--ink"><small>A pagar${sec ? ` · ${esc(sec)}` : " neste ciclo"}</small><b>${money(t.to_pay)}</b><span>${payable.length ? `${payable.length} funcionário${payable.length === 1 ? "" : "s"}` : "ninguém a pagar"}${t.paid ? ` · ${money(t.paid)} já pago` : ""}</span>${
+    const prevPaid = st.week.prev_paid != null ? st.week.prev_paid : null;
+    return `<div class="fo-stats fw-stats">
+        <div class="fo-stat fo-stat--ink"><small>A pagar${sec ? ` · ${esc(sec)}` : " neste ciclo"}</small><b>${money(t.to_pay)}</b><span>${payable.length ? `${payable.length} funcionário${payable.length === 1 ? "" : "s"}` : "ninguém a pagar"}${st.week.week.pay_on ? ` · ${esc(WD[wdOf(st.week.week.pay_on)])} ${esc(brShort(st.week.week.pay_on))}` : ""}</span>${
           payable.length > 1 ? `<button type="button" class="fo-btn fo-btn--sm fo-stat__go" data-payall>${payAllLbl}</button>` : ""
         }</div>
-        <div class="fo-stat"><small>Diárias</small><b>${dayFrac(t.days)}</b></div>
+        <div class="fo-stat"><small>Diárias</small><b>${dayFrac(t.days)}</b><span>${rows.length} pessoa${rows.length === 1 ? "" : "s"} trabalharam</span></div>
         <div class="fo-stat${t.pending_days ? " fo-stat--warn" : ""}"><small>A conferir</small><b>${t.pending_days} dia${t.pending_days === 1 ? "" : "s"}</b><span>${t.pending_days ? '<button type="button" class="fo-link" data-goto="conferir">Conferir agora</button>' : "tudo conferido"}</span></div>
         <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_minutes)}</b><span>${t.overtime_amount ? `${money(t.overtime_amount)} em extras` : t.sqft ? `${qty(t.sqft)} sq ft de produção` : "depois do horário padrão"}</span></div>
+        <div class="fo-stat"><small>Pago no ciclo</small><b>${money(t.paid)}</b><span>${t.paid ? `${rows.filter((r) => r.payment).length} pagamento${rows.filter((r) => r.payment).length === 1 ? "" : "s"}` : "nenhum ainda"}${prevPaid != null ? "" : ""}</span></div>
       </div>`;
-    const filters = `<div class="fo-flt fo-flt--folha">
-        <div class="fo-folha-tabs">
-          <span class="fo-folha-tabs__lbl">Folha</span>
-          <div class="fo-seg fo-seg--folha" role="group" aria-label="Folha por setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}${segBtn("all", "Todas")}</div>
-        </div>
-        ${all.length > 4 || (st.emps && (st.emps.employees || []).length > 4) ? `<input type="search" class="fo-in fo-flt__q" id="foWeekQ" placeholder="Buscar funcionário" value="${esc(st.q)}" />` : ""}
-      </div>`;
-    const fab = "";
-    const pweek = `<div class="fo-pweek">${renderWeekHead()}${st.manage ? `<button type="button" class="fo-btn fo-btn--pri fo-qfab" data-q-sheet>+ Lançar${sec ? ` · ${esc(sec)}` : ""}</button>` : ""}</div>`;
-    if (!rows.length) {
-      box.innerHTML = `${pweek}${renderQuickBar()}${stats}${filters}<div class="fo-card"><div class="fo-empty"><b>${st.q ? "Ninguém com esse nome nesta folha." : sec ? `Nenhum funcionário em ${esc(sec)}.` : "Nenhum lançamento neste ciclo."}</b>${st.manage ? (sec ? " Cadastre o time em Funcionários, ou lance uma diária acima." : " Lance uma diária acima, ou espere a equipe finalizar o dia no celular.") : "A equipe finaliza o dia no celular."}</div></div>${fab}`;
-      renderPayBar();
-      return;
-    }
+  }
+  function tableActions(r) {
+    if (!st.manage) return "";
+    if (r.payment) return `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-receipt="${esc(r.id)}">Recibo</button>`;
+    if (Number(r.totals.net) > 0 || Number(r.totals.gross) > 0) return `<button type="button" class="fo-btn fo-btn--sm fo-btn--pri" data-pay="${esc(r.id)}">Pagar</button>`;
+    return "";
+  }
+  function weekTable(rows) {
+    const t = sumRows(rows);
+    const payable = rows.filter(canPay);
     const showSq = rows.some((r) => r.totals.sqft);
     const allSel = payable.length && payable.every((r) => st.selected.has(r.id));
-    const cols = 8 + (showSq ? 1 : 0);
+    const cols = 9 + (showSq ? 1 : 0);
     const groups = st.sector === "all" ? ["installation", "sand_finish"].map((k) => [k, rows.filter((r) => r.sector === k)]).filter((g) => g[1].length) : [[st.sector, rows]];
     const rowHtml = (r) => {
-      const open = st.open.has(r.id);
       const adj = r.totals.reimbursement - r.totals.discount;
-      return `<tr class="is-row${open ? " is-open" : ""}" data-emp="${esc(r.id)}">
+      return `<tr class="is-row${st.sel === r.id ? " is-sel" : ""}" data-emp="${esc(r.id)}">
         <td class="c">${canPay(r) ? `<input type="checkbox" data-sel="${esc(r.id)}" ${st.selected.has(r.id) ? "checked" : ""} aria-label="Selecionar ${esc(r.name)}" />` : ""}</td>
-        <td><div class="fo-name"><span class="fo-chev" aria-hidden="true">›</span><span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b><small>${rowSub(r)}</small></span></div></td>
+        <td><div class="fo-name"><span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b><small>${rowSub(r)}</small></span></div></td>
         <td>${weekStrip(r)}</td>
         <td class="r">${dayFrac(r.totals.days)}</td>
         <td class="r">${r.totals.overtime_minutes ? `<span class="fo-ot">${hm(r.totals.overtime_minutes)}</span>` : '<span class="fo-muted">—</span>'}</td>
         ${showSq ? `<td class="r">${r.totals.sqft ? qty(r.totals.sqft) : '<span class="fo-muted">—</span>'}</td>` : ""}
-        <td class="r"><b>${money(r.totals.net)}</b>${adj ? `<small class="fo-sub" title="Reembolso ${money(r.totals.reimbursement)} · Desconto ${money(r.totals.discount)}">${adj > 0 ? "+" : "−"}${money(Math.abs(adj))} ajustes</small>` : ""}${r.totals.pending_amount ? `<small class="fo-sub">+${money(r.totals.pending_amount)} em conferência</small>` : ""}</td>
+        <td class="r">${adj ? `${adj > 0 ? "+" : "−"}${money(Math.abs(adj))}` : '<span class="fo-muted">—</span>'}</td>
+        <td class="r"><b>${money(r.totals.net)}</b>${r.totals.pending_amount ? `<small class="fo-sub">+${money(r.totals.pending_amount)} em conferência</small>` : ""}</td>
         <td>${empStatus(r)}</td>
-        <td class="r fo-acts">${rowActions(r)}</td>
-      </tr>${open ? `<tr class="is-open is-days"><td colspan="${cols}"><div class="fo-days">${dayRows(r)}</div></td></tr>` : ""}`;
+        <td class="r fo-acts">${tableActions(r)}</td>
+      </tr>`;
     };
-    const table = `<div class="fo-card fo-tbl-wrap--week"><table class="fo-tbl fo-tbl--week">
+    return `<div class="fo-card fo-tbl-wrap--week"><table class="fo-tbl fo-tbl--week">
       <thead><tr>
         <th class="c">${st.manage ? `<input type="checkbox" data-selall ${allSel ? "checked" : ""} ${payable.length ? "" : "disabled"} aria-label="Selecionar todos a pagar" />` : ""}</th>
-        <th>Funcionário</th><th>${cycleDays().length > 8 ? "Ciclo" : "Semana"}</th><th class="r">Diárias</th><th class="r">Extra</th>${showSq ? '<th class="r">Sq ft</th>' : ""}<th class="r">Líquido</th><th>Status</th><th></th>
+        <th>Funcionário</th><th>${cycleDays().length > 8 ? "Ciclo" : "Semana"}</th><th class="r">Diárias</th><th class="r">Extra</th>${showSq ? '<th class="r">Sq ft</th>' : ""}<th class="r">Ajustes</th><th class="r">Líquido</th><th>Status</th><th></th>
       </tr></thead>
       <tbody>${groups
         .map(([k, list]) => {
@@ -648,46 +668,167 @@
           return `${groups.length > 1 ? `<tr class="fo-grp"><td></td><td colspan="${cols - 1}">${esc(SECTORS[k])} <span>· ${list.length} · ${money(g.net)}</span></td></tr>` : ""}${list.map(rowHtml).join("")}`;
         })
         .join("")}</tbody>
-      <tfoot><tr><td></td><td>Total${st.sector === "all" ? "" : ` ${esc(SECTORS[st.sector])}`}</td><td></td><td class="r">${dayFrac(t.days)}</td><td class="r">${t.overtime_minutes ? hm(t.overtime_minutes) : "—"}</td>${showSq ? `<td class="r">${t.sqft ? qty(t.sqft) : "—"}</td>` : ""}<td class="r">${money(t.net)}</td><td colspan="2"></td></tr></tfoot>
+      <tfoot><tr><td></td><td>Total${st.sector === "all" ? "" : ` ${esc(SECTORS[st.sector])}`}</td><td></td><td class="r">${dayFrac(t.days)}</td><td class="r">${t.overtime_minutes ? hm(t.overtime_minutes) : "—"}</td>${showSq ? `<td class="r">${t.sqft ? qty(t.sqft) : "—"}</td>` : ""}<td></td><td class="r">${money(t.net)}</td><td colspan="2"></td></tr></tfoot>
     </table></div>`;
-    const cards = `<div class="fo-mlist">${rows
-      .map((r) => {
-        const open = st.open.has(r.id);
-        const bits = [`${dayFrac(r.totals.days)} diária${r.totals.days === 1 || r.totals.days === 0.5 ? "" : "s"}`];
-        if (r.totals.overtime_minutes) bits.push(`<span class="fo-ot">${hm(r.totals.overtime_minutes)} extra</span>`);
-        if (r.totals.sqft) bits.push(`${qty(r.totals.sqft)} sq ft`);
-        if (r.totals.reimbursement) bits.push(`<span class="fo-ok">+${money(r.totals.reimbursement)} reemb.</span>`);
-        if (r.totals.discount) bits.push(`<span class="fo-warn">−${money(r.totals.discount)} desc.</span>`);
-        if (st.sector === "all") bits.push(esc(SECTORS[r.sector]));
-        const acts = rowActions(r, true);
-        const manualDays = (r.days || []).filter((d) => d.kind !== "line" && d.source === "manual");
-        const canSwipeDel = st.manage && !r.payment && manualDays.length > 0;
-        const card = `<div class="fo-mcard${open ? " is-open" : ""}${canSwipeDel ? " om-swipe__body" : ""}" data-emp-card="${esc(r.id)}">
-          <div class="fo-mcard__top" data-toggle="${esc(r.id)}">
-            <span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span>
-            <div class="fo-name"><span><b>${esc(r.name)}</b><small>${bits.join(" · ")}</small></span></div>
-            <div class="fo-mcard__v"><b>${money(r.totals.net)}</b>${empStatus(r)}</div>
-          </div>
-          <div class="fo-mcard__act">
-            ${canPay(r) ? `<input type="checkbox" class="fo-mcheck" data-sel="${esc(r.id)}" ${st.selected.has(r.id) ? "checked" : ""} aria-label="Selecionar ${esc(r.name)}" />` : ""}
-            ${weekStrip(r)}
-          </div>
-          ${acts ? `<div class="fo-mcard__btns">${acts}</div>` : ""}
-          ${open ? `<div class="fo-days">${dayRows(r)}</div>` : ""}
-        </div>`;
-        if (!canSwipeDel) return card;
-        return `<article class="om-swipe fo-emp-swipe">
-          <div class="om-swipe__actions" aria-hidden="true">
-            <button type="button" class="om-swipe__act--delete" data-emp-days-del="${esc(r.id)}" data-emp-label="${esc(r.name)}" data-emp-days-n="${manualDays.length}">Excluir</button>
-          </div>
-          ${card}
-        </article>`;
+  }
+  function resumoPane(rows) {
+    const w = st.week;
+    const cur = w.week.today >= w.week.start && w.week.today <= w.week.end;
+    const sec = sectorLabel();
+    const head = `<div class="fw-phead"><div><p>${esc(w.week.label)} · ${cur ? "ciclo atual" : w.period?.status === "closed" ? "ciclo fechado" : "ciclo aberto"}${w.week.pay_on ? ` · paga ${esc(WD[wdOf(w.week.pay_on)])} ${esc(brShort(w.week.pay_on))}` : ""}</p><h2>Semana${sec ? ` · ${esc(sec)}` : ""}</h2></div></div>`;
+    const body = rows.length
+      ? weekTable(rows)
+      : `<div class="fo-card"><div class="fo-empty"><b>${st.q ? "Ninguém com esse nome nesta folha." : sec ? `Nenhum lançamento em ${esc(sec)} neste ciclo.` : "Nenhum lançamento neste ciclo."}</b>${st.manage ? " Lance uma diária acima, ou espere a equipe finalizar o dia no celular." : " A equipe finaliza o dia no celular."}</div></div>`;
+    return `${head}${renderQuickBar()}${weekStats(rows)}${body}`;
+  }
+  function dayCards(r) {
+    const days = cycleDays();
+    if (days.length > 8) return "";
+    const by = new Map(r.days.map((d) => [d.date, d]));
+    const w = st.week.week;
+    return `<div class="fw-dcards">${days
+      .map((d) => {
+        const x = by.get(d);
+        const fut = d > w.today;
+        const pend = x && (x.status === "pending" || x.status === "returned");
+        const cls = x ? (pend ? "is-pend" : "is-ok") : d === w.today ? "is-today" : fut ? "is-fut" : "";
+        const n = x ? Number(x.days_worked) || (x.kind === "line" ? 1 : 0) : 0;
+        const sub = x
+          ? `${x.worked_minutes ? hm(x.worked_minutes) : n === 0.5 ? "½ diária" : n >= 2 ? "Double" : "diária"}${x.jobs && x.jobs[0] && x.jobs[0].number != null ? ` · #${esc(x.jobs[0].number)}` : ""}`
+          : d === w.today ? "hoje" : d === w.pay_on ? "pagamento" : fut ? "" : "—";
+        const tag = `${x ? `data-day="${esc(x.id)}" data-kind="${x.kind}" role="button" tabindex="0"` : ""}`;
+        return `<div class="fw-dc ${cls}" ${tag}><small>${esc(WD[wdOf(d)])}</small><b>${Number(d.slice(8, 10))}</b><span>${sub}</span>${x ? `<em>${money0(x.amount)}</em>` : ""}</div>`;
       })
       .join("")}</div>`;
-    box.innerHTML = pweek + renderQuickBar() + stats + filters + table + cards + fab;
+  }
+  function empPane(r) {
+    const s = rowState(r);
+    const chip =
+      s === "paid" ? '<span class="fw-chip is-ok">Pago</span>' : s === "pend" ? '<span class="fw-chip is-hot">A conferir</span>' : s === "open" ? '<span class="fw-chip">Em andamento</span>' : s === "due" ? '<span class="fw-chip is-hot">A pagar</span>' : "";
+    const ph = empPhone(r.id);
+    const phFmt = ph && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(ph) || ph : ph;
+    const acts = rowActions(r, false, true);
+    const t = r.totals;
+    const otAmt = ((Number(t.overtime_minutes) || 0) / 60) * (Number(r.overtime_rate) || 0);
+    const base = Math.max(0, (Number(t.gross) || 0) - otAmt);
+    const paid = Boolean(r.payment);
+    const payBtn = canPay(r) || (!paid && Number(t.net) > 0 && st.manage)
+      ? `<button type="button" class="fo-btn fo-btn--pri" data-pay="${esc(r.id)}">Pagar ${money(t.net)}</button>`
+      : paid && st.manage
+        ? `<button type="button" class="fo-btn fw-btn--ghost-dk" data-receipt="${esc(r.id)}">Ver recibo</button>`
+        : "";
+    const pend = t.pending_days
+      ? `<div class="fw-note is-hot"><b>${t.pending_days} dia${t.pending_days > 1 ? "s" : ""} a conferir</b> · ${money(t.pending_amount)} entram depois de aprovados. Toque no dia para conferir.</div>`
+      : "";
+    return `<div class="fw-emp">
+      <div class="fw-emp__hd">
+        <span class="fo-av fw-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span>
+        <div class="fw-emp__t"><div class="fw-chips">${chip}${sectorTag(r.sector)}</div><h2>${esc(r.name)}</h2><p>${rowSub(r)}${r.overtime_rate ? ` · extra ${money0(r.overtime_rate)}/h` : ""}${phFmt ? ` · ${esc(phFmt)}` : ""}</p></div>
+        <div class="fw-emp__acts">${ph ? `<a class="fo-btn fo-btn--ghost" href="tel:${esc(ph)}" aria-label="Ligar" title="Ligar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .4 1.9.7 2.8a2 2 0 01-.5 2.1L8 9.9a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.8.7a2 2 0 011.7 2z"/></svg></a>` : ""}${acts}</div>
+      </div>
+      ${dayCards(r)}
+      ${pend}
+      <div class="fw-emp__grid">
+        <div class="fo-card fw-card"><h3>Dias ${cycleDays().length > 8 ? "do ciclo" : "da semana"} <em>${r.days.length}</em></h3><div class="fo-days">${dayRows(r)}</div></div>
+        <div class="fw-side">
+          <div class="fw-pay">
+            <span>${paid ? `Pago em ${esc(brShort(r.payment.paid_on))}${r.payment.method_label ? ` · ${esc(r.payment.method_label)}` : ""}` : `A pagar${st.week.week.pay_on ? ` no ${esc(WD[wdOf(st.week.week.pay_on)])} ${esc(brShort(st.week.week.pay_on))}` : ""}`}</span>
+            <b>${money(paid ? r.payment.amount : t.net)}</b>
+            <div class="fw-pay__ln"><span>${dayFrac(t.days)} diária${t.days === 1 || t.days === 0.5 ? "" : "s"}${t.sqft ? ` · ${qty(t.sqft)} sq ft` : ""}</span><span>${money(base)}</span></div>
+            <div class="fw-pay__ln"><span>Hora extra${t.overtime_minutes ? ` · ${hm(t.overtime_minutes)}` : ""}</span><span>${money(otAmt)}</span></div>
+            <div class="fw-pay__ln"><span>Reembolso</span><span>+${money(t.reimbursement)}</span></div>
+            <div class="fw-pay__ln"><span>Desconto</span><span>−${money(t.discount)}</span></div>
+            ${payBtn}
+          </div>
+          ${r.adjustment && r.adjustment.notes ? `<div class="fo-card fw-card"><h3>Observação</h3><p class="fo-muted" style="margin:0;font-size:13px">${esc(r.adjustment.notes)}</p></div>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }
+  function fwMbar(r) {
+    const bar = $("fwMbar");
+    if (!bar) return;
+    if (!r || !st.detail) {
+      bar.hidden = true;
+      return;
+    }
+    const t = r.totals;
+    let h = "";
+    if (st.manage && !r.payment && Number(t.net) > 0) h = `<button type="button" class="fo-btn" data-adjust="${esc(r.id)}">Ajustes</button><button type="button" class="fo-btn fo-btn--pri" data-pay="${esc(r.id)}">Pagar ${money(t.net)}</button>`;
+    else if (r.payment && st.manage) h = `<button type="button" class="fo-btn fo-btn--pri" data-receipt="${esc(r.id)}">Ver recibo</button>`;
+    bar.innerHTML = h;
+    bar.hidden = !h;
+  }
+  const fwNarrow = () => window.matchMedia("(max-width: 1024px)").matches;
+  function fwSync() {
+    const on = fwNarrow() && st.detail && st.tab === "semana";
+    $("fwSplit")?.classList.toggle("is-detail", !!on);
+    document.body.classList.toggle("fw-detail-open", !!on);
+  }
+  function fwSelect(id, user) {
+    st.sel = id || null;
+    if (user) st.detail = Boolean(id);
+    renderWeek();
+    if (user && fwNarrow()) window.scrollTo({ top: 0 });
+  }
+  function renderWeek() {
+    const w = st.week;
+    const box = $("foSemana");
+    const hdw = $("foHdWeek");
+    if (hdw) hdw.hidden = true;
+    const rows = weekRows();
+    if (st.sel && !rows.some((r) => r.id === st.sel)) {
+      st.sel = null;
+      st.detail = false;
+    }
+    const t = sumRows(rows);
+    const sec = sectorLabel();
+    const segBtn = (k, l) => `<button type="button" data-sector="${k}" aria-pressed="${st.sector === k}">${l} <small>${sectorRosterCount(k)}</small></button>`;
+    const groups = [
+      ["pend", "A conferir"],
+      ["open", "Em andamento"],
+      ["due", "A pagar"],
+      ["paid", "Pagos"],
+      ["none", "Sem valor"],
+    ];
+    let list = `<a class="fw-res${!st.sel ? " is-on" : ""}" href="#" data-fw-res><span class="fw-res__ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6"/></svg></span><span class="fw-res__b"><b>Semana${sec ? ` · ${esc(sec)}` : ""}</b><small>${money(t.to_pay)} a pagar${t.pending_days ? ` · ${t.pending_days} a conferir` : ""}</small></span></a>`;
+    if (!rows.length) list += `<p class="fw-empty">${st.q ? "Ninguém com esse nome." : "Nenhum lançamento neste ciclo."}</p>`;
+    groups.forEach(([k, label]) => {
+      const g = rows.filter((r) => rowState(r) === k);
+      if (!g.length) return;
+      const sum = g.reduce((s, r) => s + (Number(r.totals.net) || 0), 0);
+      list += `<div class="fw-grp">${label}<em>${g.length} · ${money0(sum)}</em></div>${g.map(fwRow).join("")}`;
+    });
+    const sel = st.sel ? rows.find((r) => r.id === st.sel) : null;
+    const showSearch = (st.week.employees || []).length > 4 || (st.emps && (st.emps.employees || []).length > 4);
+    box.innerHTML = `<div class="fw" id="fwSplit">
+      <aside class="fw-list" aria-label="Equipe da semana">
+        <div class="fw-list__top">
+          ${renderWeekHead()}
+          <div class="fo-seg fo-seg--folha fw-seg" role="group" aria-label="Folha por setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}${segBtn("all", "Todos")}</div>
+          <dl class="fw-sums"><div><dt>A pagar</dt><dd>${money0(t.to_pay)}</dd></div><div><dt>A conferir</dt><dd class="${t.pending_days ? "is-hot" : ""}">${t.pending_days}</dd></div><div><dt>Diárias</dt><dd>${dayFrac(t.days)}</dd></div></dl>
+          <div class="fw-ph">${st.manage ? `<button type="button" class="fo-btn fo-btn--pri fo-qfab" data-q-sheet>+ Lançar${sec ? ` · ${esc(sec)}` : ""}</button>` : ""}${weekStats(rows)}</div>
+          ${showSearch ? `<input type="search" class="fo-in fw-q" id="foWeekQ" placeholder="Buscar funcionário" value="${esc(st.q)}" />` : ""}
+        </div>
+        <div class="fw-rows">${list}</div>
+      </aside>
+      <section class="fw-main">
+        <a class="fw-back" href="#" data-fw-back><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Semana</a>
+        ${sel ? empPane(sel) : resumoPane(rows)}
+      </section>
+    </div>`;
+    if (!$("fwMbar")) {
+      const b = document.createElement("div");
+      b.className = "fw-mbar";
+      b.id = "fwMbar";
+      b.hidden = true;
+      document.body.appendChild(b);
+    }
+    fwMbar(sel);
+    fwSync();
     renderPayBar();
   }
-  function rowActions(r, compact) {
+  function rowActions(r, compact, priPay) {
     if (!st.manage) return "";
     if (r.payment) return `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-receipt="${esc(r.id)}">Recibo</button>`;
     const parts = [];
@@ -699,7 +840,7 @@
       `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-conf="${esc(r.id)}" title="Enviar relatório para o funcionário conferir">Relatório</button>`,
     );
     if (!r.payment && (canPay(r) || Number(r.totals.gross) > 0 || Number(r.totals.reimbursement) > 0 || Number(r.totals.net) > 0)) {
-      parts.push(`<button type="button" class="fo-btn fo-btn--sm${compact ? " fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
+      parts.push(`<button type="button" class="fo-btn fo-btn--sm${compact || priPay ? " fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
     }
     return parts.join("");
   }
@@ -2287,9 +2428,17 @@
     if ((b = el("[data-receipt]"))) return openReceipt(b.getAttribute("data-receipt"));
     if ((b = el("[data-void]"))) return voidPay(b.getAttribute("data-void"));
     if (el("[data-print]")) return window.print();
-    if ((b = el("[data-toggle]"))) {
-      const id = b.getAttribute("data-toggle");
-      st.open.has(id) ? st.open.delete(id) : st.open.add(id);
+    if ((b = el("[data-fw-emp]"))) {
+      e.preventDefault();
+      return fwSelect(b.getAttribute("data-fw-emp"), true);
+    }
+    if (el("[data-fw-res]")) {
+      e.preventDefault();
+      return fwSelect(null, true);
+    }
+    if (el("[data-fw-back]")) {
+      e.preventDefault();
+      st.detail = false;
       return renderWeek();
     }
     if ((b = el("[data-day-mode]"))) return renderDay($("foSheet")._day, b.getAttribute("data-day-mode") === "view" ? undefined : b.getAttribute("data-day-mode"));
@@ -2346,11 +2495,9 @@
       });
       return;
     }
-    // Clicking the employee row (not a control) opens / closes its days.
+    // Clicking the employee row (not a control) opens the employee next to the list.
     if ((b = el("tr[data-emp]")) && !el("button, input, a, select")) {
-      const id = b.getAttribute("data-emp");
-      st.open.has(id) ? st.open.delete(id) : st.open.add(id);
-      return renderWeek();
+      return fwSelect(b.getAttribute("data-emp"), true);
     }
   }
   function onChange(e) {
@@ -2483,6 +2630,9 @@
       }
     });
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", () => {
+      if (st.tab === "semana" && $("fwSplit")) fwSync();
+    });
     window.addEventListener("hashchange", () => {
       const before = `${st.tab}|${st.weekRef}|${st.sector}`;
       readHash();
