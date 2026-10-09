@@ -65,7 +65,7 @@ body.om-device-mobile.jobs-app .jcm-empty { padding: 28px 8px; text-align: cente
 
 /* cartão do instalador (modo campo) */
 .jcm-job { border: 0 !important; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 18px !important; }
-.jcm-job__cta--start { background: #E7792C !important; color: #221E1A !important; box-shadow: none !important; }
+.jcm-job__cta--start { background: #E7792C !important; color: #fff !important; box-shadow: none !important; }
 .jcm-job__day.is-today { color: #221E1A !important; }
 
 /* status (lista e página) */
@@ -121,7 +121,7 @@ body.om-device-mobile.job-detail-app .jcm-foot.jmx-foot.is-visible {
   box-shadow: 0 0 0 1px #E5E7EB, 0 14px 30px -14px rgba(16, 24, 40, .35);
 }
 .jmx-foot .jcm-foot__btn { flex: 1; height: 46px; border-radius: 14px; font-size: 15px; font-weight: 650; }
-.jmx-foot .jcm-foot__btn--primary { background: #E7792C; color: #221E1A; box-shadow: none; }
+.jmx-foot .jcm-foot__btn--primary { background: #E7792C; color: #fff; box-shadow: none; }
 .jmx-foot .jcm-foot__btn--ink { background: #221E1A; color: #fff; }
 .jmx-foot .jcm-foot__btn--ghost { border: 0; box-shadow: 0 0 0 1px #E5E7EB; }
 .jmx-foot__sq { flex: none; width: 46px; height: 46px; border: 0; border-radius: 14px; background: #fff; box-shadow: 0 0 0 1px #E5E7EB; display: grid; place-items: center; color: #221E1A; cursor: pointer; }

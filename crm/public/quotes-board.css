@@ -34,8 +34,8 @@
 }
 .qx-btn:hover { background: #F7F8FA; }
 .qx-btn:disabled { opacity: .45; cursor: default; }
-.qx-btn--pri { background: var(--qx-or) !important; box-shadow: none; color: var(--qx-ink) !important; }
-.qx-btn--pri:hover { background: #EF8A44 !important; }
+.qx-btn--pri { background: var(--qx-or) !important; box-shadow: none; color: #fff !important; }
+.qx-btn--pri:hover { background: #EF8A44 !important; color: #fff !important; }
 
 /* cartões de status */
 .qx-groups { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
@@ -235,7 +235,7 @@
 .qx-modal__card #formError { margin: 0; color: #B4561A; font-size: 13px; font-weight: 600; }
 .qx-modal__card .flex.justify-end { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 .qx-modal__card .btn { height: 38px; padding: 0 16px; border-radius: 12px; border: 0 !important; font-weight: 600; font-size: 13.5px; box-shadow: 0 0 0 1px #E5E7EB; background: #fff; color: #221E1A; cursor: pointer; }
-.qx-modal__card .btn-primary { background: #E7792C !important; box-shadow: none; color: #221E1A !important; }
+.qx-modal__card .btn-primary { background: #E7792C !important; box-shadow: none; color: #fff !important; }
 @media (max-width: 760px) {
   .qx-cat { padding: 12px 12px 120px; }
   .qx-cat .qx-head__acts { width: 100%; margin: 0; }

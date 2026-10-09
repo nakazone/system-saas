@@ -37,8 +37,8 @@
 }
 .cx-btn:hover { background: #F7F8FA; }
 .cx-btn:disabled, .cx-btn.is-off { opacity: .45; cursor: default; pointer-events: none; }
-.cx-btn--pri { background: var(--cx-or) !important; box-shadow: none; color: var(--cx-ink) !important; }
-.cx-btn--pri:hover { background: #EF8A44 !important; }
+.cx-btn--pri { background: var(--cx-or) !important; box-shadow: none; color: #fff !important; }
+.cx-btn--pri:hover { background: #EF8A44 !important; color: #fff !important; }
 .cx-btn--sq { width: 38px; padding: 0; }
 .cx-btn--quiet { color: var(--cx-ink2) !important; }
 .cx-btn--quiet:hover { color: var(--cx-deep) !important; }

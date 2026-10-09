@@ -48,8 +48,8 @@ html body.dashboard-app-body .ag .ag-day__n span.is-today, html body.dashboard-a
 
 /* botões */
 .ag-btn { font-weight: 600 !important; border-radius: 12px !important; }
-.ag-btn--pri, .ag-pillbtn--pri, .ag-dtl__done { background: var(--terra) !important; border-color: var(--terra) !important; color: var(--ink) !important; }
-.ag-btn--pri:hover, .ag-pillbtn--pri:hover, .ag-dtl__done:hover { background: #EF8A44 !important; }
+.ag-btn--pri, .ag-pillbtn--pri, .ag-dtl__done { background: var(--terra) !important; border-color: var(--terra) !important; color: #fff !important; }
+.ag-btn--pri:hover, .ag-pillbtn--pri:hover, .ag-dtl__done:hover { background: #EF8A44 !important; color: #fff !important; }
 .ag-btn--dark { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--ink) !important; border-color: var(--ink) !important; color: #fff !important; }
 .ag-btn--dark svg { width: 16px !important; height: 16px !important; }
 .ag-btn--dark:hover { background: #3A332D !important; }
@@ -124,7 +124,7 @@ html body.dashboard-app-body .ag .ag-day__n span.is-today, html body.dashboard-a
   .ag:not(.is-phone) .ag-capsule { box-shadow: 0 0 0 1px var(--line); border: 0; border-radius: 12px; }
   .ag:not(.is-phone) .ag-capsule .ag-icon { width: 36px; height: 34px; border-radius: 10px; }
   .ag:not(.is-phone) .ag-capsule .ag-icon svg { width: 18px; height: 18px; }
-  .ag:not(.is-phone) .ag-new { width: auto !important; height: 36px !important; padding: 0 14px !important; gap: 6px; border-radius: 12px !important; background: var(--terra) !important; box-shadow: none !important; color: var(--ink) !important; font-size: 13.5px; font-weight: 650; display: inline-flex !important; align-items: center; }
+  .ag:not(.is-phone) .ag-new { width: auto !important; height: 36px !important; padding: 0 14px !important; gap: 6px; border-radius: 12px !important; background: var(--terra) !important; box-shadow: none !important; color: #fff !important; font-size: 13.5px; font-weight: 650; display: inline-flex !important; align-items: center; }
   .ag:not(.is-phone) .ag-new svg { width: 16px !important; height: 16px !important; stroke-width: 2.2; }
   .ag:not(.is-phone) .ag-new:hover { background: #EF8A44 !important; }
   .ag-new span { display: none; }

@@ -35,8 +35,8 @@
   text-decoration: none; cursor: pointer; white-space: nowrap;
 }
 .lb-btn:hover { background: #F7F8FA; }
-.lb-btn--pri { background: var(--lb-or) !important; box-shadow: none; color: var(--lb-ink) !important; }
-.lb-btn--pri:hover { background: #EF8A44 !important; }
+.lb-btn--pri { background: var(--lb-or) !important; box-shadow: none; color: #fff !important; }
+.lb-btn--pri:hover { background: #EF8A44 !important; color: #fff !important; }
 
 /* cartões de etapa */
 .lb-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 14px; }

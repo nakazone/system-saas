@@ -29,8 +29,8 @@
 /* botões e links */
 .jd-btn { border: 0; box-shadow: 0 0 0 1px var(--jd-line); font-weight: 600; border-radius: 12px; height: 38px; }
 .jd-btn:hover { background: #F7F8FA; border: 0; }
-.jd-btn--pri, .jd-btn--pri:hover { background: var(--jd-terra); color: var(--jd-ink); box-shadow: none; }
-.jd-btn--pri:hover { background: #EF8A44; }
+.jd-btn--pri, .jd-btn--pri:hover { background: var(--jd-terra); color: #fff; box-shadow: none; }
+.jd-btn--pri:hover { background: #EF8A44; color: #fff; }
 .jd-btn--ghost { box-shadow: none; }
 .jd-btn--icon { font-size: 18px; }
 .jd-btn--block { width: 100%; margin-top: 12px; }
