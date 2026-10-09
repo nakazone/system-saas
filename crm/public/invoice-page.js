@@ -1,12 +1,14 @@
-/* Fatura — detail page (invoice.html?id=…). Payments, receipts, send, PAID stamp. */
+/* Fatura — aberta dentro de Invoices (invoices.html?id=…), ao lado da lista. Payments, receipts, send, PAID stamp.
+   window.InvoicePage = { open(id), current() }; avisa a lista com o evento 'invoice:changed' / 'invoice:deleted'. */
 (function () {
   'use strict';
 
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
-  const invoiceId = params.get('id');
+  let invoiceId = params.get('id');
   let inv = null;
   let busy = false;
+  const EMBED = !!document.getElementById('invSplit');
 
   // ---------------------------------------------------------------- utils
   function esc(s) {
@@ -122,6 +124,7 @@
     if (inv.quote) ql.href = `quote-builder.html?id=${encodeURIComponent(inv.quote.id)}`;
 
     renderSteps();
+    renderNext();
     renderBanner();
     renderPaper();
     renderSummary();
@@ -129,6 +132,72 @@
     renderQuote();
     renderActivity();
     $('invPage').setAttribute('aria-busy', 'false');
+    window.dispatchEvent(new CustomEvent('invoice:changed', { detail: inv }));
+  }
+
+  // ---------------------------------------------------------------- próximo passo
+  function daysUntil(d) {
+    const x = dateObj(d);
+    if (!x) return null;
+    const t = new Date();
+    return Math.round((Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()) - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000);
+  }
+  function plural(n, a, b) {
+    return `${n} ${n === 1 ? a : b}`;
+  }
+  /** Um passo óbvio por fatura, com as datas que já existem (envio, visualização, vencimento, pagamentos). */
+  function renderNext() {
+    const box = $('invNext');
+    if (!box) return;
+    const c = inv.client || {};
+    const who = c.name || 'o cliente';
+    const phone = c.phone ? String(c.phone).replace(/[^\d+]/g, '') : '';
+    const sentTxt = inv.issued_at ? `Enviada ${fdate(inv.issued_at, { year: undefined })}` : 'Enviada';
+    const seen = inv.viewed_at ? `vista ${fdate(inv.viewed_at, { year: undefined })}` : 'ainda não aberta';
+    let title = '';
+    let text = '';
+    const btns = [];
+    if (inv.status === 'void' || inv.display_status === 'paid') {
+      box.hidden = true;
+      return;
+    }
+    if (inv.status === 'draft') {
+      title = 'Enviar ao cliente';
+      text = `Rascunho de ${money(inv.amount)}. ${who} ainda não recebeu esta fatura.`;
+      if (inv.can.manage) btns.push(['send', 'Enviar fatura', true]);
+    } else if (inv.display_status === 'overdue') {
+      title = `Cobrar ${who}`;
+      text = `Venceu há ${plural(inv.days_overdue, 'dia', 'dias')}. ${sentTxt}, ${seen}.`;
+      if (inv.can.manage) btns.push(['send', 'Reenviar', true]);
+      if (phone) btns.push(['call', 'Ligar', false]);
+      else if (inv.can.record_payment) btns.push(['pay', 'Receber', false]);
+    } else {
+      const d = daysUntil(inv.due_date);
+      title = `Receber ${money(inv.remaining_amount)}`;
+      const dueTxt = d == null ? '' : d === 0 ? 'Vence hoje' : d > 0 ? `Vence em ${plural(d, 'dia', 'dias')}` : '';
+      text = [inv.paid_amount > 0 ? `${money(inv.paid_amount)} já recebido` : '', dueTxt, `${sentTxt}, ${seen}`].filter(Boolean).join(' · ') + '.';
+      if (inv.can.record_payment) btns.push(['pay', 'Receber pagamento', true], ['partial', 'Baixa parcial', false]);
+    }
+    box.hidden = false;
+    box.innerHTML = `<h3>Próximo passo</h3><b>${esc(title)}</b><p>${esc(text)}</p>${
+      btns.length
+        ? `<div class="inv-next__row">${btns
+            .map(([k, l, pri]) =>
+              k === 'call'
+                ? `<a class="inv-btn ${pri ? 'inv-btn--primary' : 'inv-next__ghost'}" href="tel:${esc(phone)}">${esc(l)}</a>`
+                : `<button type="button" class="inv-btn ${pri ? 'inv-btn--primary' : 'inv-next__ghost'}" data-next="${k}">${esc(l)}</button>`,
+            )
+            .join('')}</div>`
+        : ''
+    }`;
+    box.querySelectorAll('[data-next]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const k = b.dataset.next;
+        if (k === 'send') openSend();
+        else if (k === 'pay') openPay('full');
+        else if (k === 'partial') openPay('partial');
+      }),
+    );
   }
 
   function renderSteps() {
@@ -296,7 +365,7 @@
         <div><dt>Pago</dt><dd>${money(inv.paid_amount)} <small>(${inv.percent_paid}%)</small></dd></div>
         <div><dt>Saldo</dt><dd><b>${money(inv.remaining_amount)}</b></dd></div>
       </dl>
-      ${inv.can.record_payment && inv.remaining_amount > 0.004 && inv.status !== 'void' && inv.status !== 'draft' ? `
+      ${false ? `
         <div class="inv-summary__quick">
           <button type="button" class="inv-btn inv-btn--primary inv-btn--block" data-pay="full">Pagamento integral · ${money(inv.remaining_amount)}</button>
           <button type="button" class="inv-btn inv-btn--secondary inv-btn--block" data-pay="partial">Dar baixa parcial</button>
@@ -382,7 +451,7 @@
       <p class="inv-muted">Faturado ${money(q.invoiced_total)} de ${money(q.total)}${q.remaining_to_invoice > 0 ? ` · falta faturar ${money(q.remaining_to_invoice)}` : ' · totalmente faturado'}</p>
       ${inv.sibling_invoices.length ? `<ul class="inv-siblings">${inv.sibling_invoices
         .map(
-          (s) => `<li><a href="invoice.html?id=${encodeURIComponent(s.id)}">${esc(s.invoice_number || 'Fatura')}</a><span>${esc(s.invoice_type_label)}</span><span>${money(s.amount)}</span><span class="inv-dot ${esc((STATUS[s.status] || STATUS.sent).cls)}" title="${esc((STATUS[s.status] || STATUS.sent).label)}"></span></li>`,
+          (s) => `<li><a href="invoices.html?id=${encodeURIComponent(s.id)}" data-inv-open="${esc(s.id)}">${esc(s.invoice_number || 'Fatura')}</a><span>${esc(s.invoice_type_label)}</span><span>${money(s.amount)}</span><span class="inv-dot ${esc((STATUS[s.status] || STATUS.sent).cls)}" title="${esc((STATUS[s.status] || STATUS.sent).label)}"></span></li>`,
         )
         .join('')}</ul>` : ''}
     `;
@@ -1018,7 +1087,11 @@
     try {
       const r = await api(`/api/quote-invoices/${invoiceId}`, { method: 'DELETE' });
       toast('Fatura apagada.');
-      location.href = 'invoices.html';
+      if (EMBED) {
+        window.dispatchEvent(new CustomEvent('invoice:deleted', { detail: { id: invoiceId } }));
+        invoiceId = null;
+        inv = null;
+      } else location.href = 'invoices.html';
     } catch (err) {
       toast(err.message, 'error');
     }
@@ -1080,9 +1153,39 @@
     render();
   }
 
+  function showLoading() {
+    $('invPage').setAttribute('aria-busy', 'true');
+    $('invPaper').innerHTML = '<div class="inv-skel" style="height:420px"></div>';
+    $('invSummary').innerHTML = '<div class="inv-skel" style="height:150px"></div>';
+    $('invActions').hidden = false;
+  }
+  function showError(err) {
+    $('invPage').setAttribute('aria-busy', 'false');
+    $('invPaper').innerHTML = `<div class="inv-empty inv-empty--big"><b>Não foi possível abrir a fatura.</b><p>${esc(err.message)}</p></div>`;
+    $('invSummary').innerHTML = '';
+    $('invActions').hidden = true;
+    $('invMobileBar').hidden = true;
+  }
+  let openSeq = 0;
+  async function open(id) {
+    const seq = ++openSeq;
+    invoiceId = id;
+    inv = null;
+    showLoading();
+    try {
+      const r = await api(`/api/quote-invoices/${encodeURIComponent(id)}`);
+      if (seq !== openSeq) return;
+      inv = r.data;
+      render();
+    } catch (err) {
+      if (seq === openSeq) showError(err);
+    }
+  }
+  window.InvoicePage = { open, current: () => inv };
+
   async function boot() {
     if (!invoiceId) {
-      location.replace('invoices.html');
+      if (!EMBED) location.replace('invoices.html');
       return;
     }
     try {
@@ -1091,13 +1194,9 @@
       if (act === 'pay' && inv.can.record_payment) openPay(params.get('mode') === 'partial' ? 'partial' : 'full');
       else if (act === 'send' && inv.can.manage) openSend();
       if (params.get('new') === '1') toast(`${inv.invoice_number} criada. Envie ao cliente quando estiver pronta.`, 'info');
-      if (act || params.get('new')) history.replaceState(null, '', `invoice.html?id=${encodeURIComponent(invoiceId)}`);
+      if (act || params.get('new')) history.replaceState(null, '', `${EMBED ? 'invoices' : 'invoice'}.html?id=${encodeURIComponent(invoiceId)}`);
     } catch (err) {
-      $('invPage').setAttribute('aria-busy', 'false');
-      $('invPaper').innerHTML = `<div class="inv-empty inv-empty--big"><b>Não foi possível abrir a fatura.</b><p>${esc(err.message)}</p><a class="inv-btn inv-btn--secondary" href="invoices.html">Voltar para Faturas</a></div>`;
-      $('invSummary').innerHTML = '';
-      $('invActions').hidden = true;
-      $('invMobileBar').hidden = true;
+      showError(err);
     }
   }
 

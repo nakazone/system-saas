@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f7f4ee" />
-  <title>Faturas | ObraMate</title>
+  <title>Invoices | ObraMate</title>
   <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}/*maismob2*/@media (max-width:1024px){body.om-app.dashboard-app-body,body.om-app{--crm-sidebar-width:0px!important}body.om-app .dashboard-container{display:block!important;margin:0!important;width:100%!important;max-width:100%!important}body.om-app .dashboard-main,body.om-app.dashboard-app-body .dashboard-main,body.om-app.sidebar-collapsed .dashboard-main{margin:0!important;margin-left:0!important;margin-top:0!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;left:0!important;top:0!important;height:100vh!important;height:100dvh!important;width:min(288px,92vw)!important;min-width:0!important;max-width:min(288px,92vw)!important;transform:translate3d(-105%,0,0)!important;z-index:1100!important;margin:0!important}body.om-app #dashboardSidebar.mobile-open,body.om-app .dashboard-sidebar.mobile-open{transform:translate3d(0,0,0)!important}}</style>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
@@ -18,7 +18,9 @@
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="invoices-module.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="invoices-v2.css?v=20261009-inv1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -40,7 +42,7 @@
     </button>
     <div class="mobile-app-header__brand">
       <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
-      <h1 class="mobile-app-header__title">Faturas</h1>
+      <h1 class="mobile-app-header__title">Invoices</h1>
     </div>
   </header>
 
@@ -70,63 +72,110 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
-      <div class="inv-page">
-        <header class="inv-list-head">
-          <div>
-            <h2>Faturas</h2>
-            <p id="invListSub">Cobranças emitidas a partir dos orçamentos aprovados.</p>
+      <div class="inv-page ix" id="ix">
+        <div class="ix-head">
+          <h1>Invoices</h1>
+          <dl class="ix-sum" id="ixSum"></dl>
+          <div class="ix-head__acts">
+            <button type="button" class="inv-btn inv-btn--primary" id="btnNewInvoice" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nova fatura</span></button>
           </div>
-          <button type="button" class="inv-btn inv-btn--primary" id="btnNewInvoice" hidden>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-            Nova fatura
-          </button>
+        </div>
+        <div class="ix-tiles" id="ixTiles" role="group" aria-label="Filtrar por status"></div>
+        <div class="ix-split" id="invSplit">
+          <section class="ix-list" aria-label="Faturas">
+            <div class="ix-list__top">
+              <label class="ix-search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="filterQ" placeholder="Buscar fatura, cliente ou job" autocomplete="off" aria-label="Buscar faturas" /></label>
+              <p class="ix-count" id="ixCount"></p>
+            </div>
+            <div class="om-ptr" id="invPtr" aria-hidden="true">↓ Puxe para atualizar</div>
+            <div class="ix-rows" id="invRows"><p class="ix-empty">Carregando…</p></div>
+          </section>
+          <section class="ix-detail" id="ixDetail">
+            <div class="ix-blank" id="ixBlank">Escolha uma fatura na lista.</div>
+            <div class="inv-one" id="invPage" aria-busy="true" hidden>
+              <a class="ix-back" href="#" id="ixBack"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Invoices <span id="invCrumbNumber" hidden></span></a>
+              <div class="inv-top">
+        <header class="inv-head">
+          <div class="inv-head__who">
+            <div class="inv-head__title-row">
+              <h2 class="inv-head__title" id="invTitle">Fatura</h2>
+              <span class="inv-chip" id="invStatusChip">…</span>
+            </div>
+            <p class="inv-head__sub" id="invSubtitle"></p>
+          </div>
+          <div class="inv-head__actions" id="invActions">
+            <button type="button" class="inv-btn inv-btn--ghost" id="btnPdf">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
+              PDF
+            </button>
+            <button type="button" class="inv-btn inv-btn--secondary" id="btnSend">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>
+              <span id="btnSendLabel">Enviar</span>
+            </button>
+            <button type="button" class="inv-btn inv-btn--primary" id="btnReceive">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>
+              Receber pagamento
+            </button>
+            <div class="inv-more">
+              <button type="button" class="inv-btn inv-btn--icon" id="btnMore" aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+              </button>
+              <div class="inv-menu" id="moreMenu" role="menu" hidden>
+                <button type="button" role="menuitem" data-act="edit">Editar fatura</button>
+                <button type="button" role="menuitem" data-act="copy-link">Copiar link do cliente</button>
+                <button type="button" role="menuitem" data-act="mark-sent">Marcar como enviada</button>
+                <a role="menuitem" id="menuQuoteLink" href="#">Abrir orçamento</a>
+                <hr />
+                <button type="button" role="menuitem" data-act="void" class="is-danger">Anular fatura</button>
+                <button type="button" role="menuitem" data-act="delete" class="is-danger">Apagar rascunho</button>
+              </div>
+            </div>
+          </div>
         </header>
 
-        <div class="inv-kpis" id="invKpis">
-          <button type="button" class="inv-kpi" data-tab="unpaid"><span>Em aberto</span><strong id="kpiOutstanding">—</strong><small id="kpiOutstandingN"></small></button>
-          <button type="button" class="inv-kpi inv-kpi--overdue" data-tab="overdue"><span>Vencidas</span><strong id="kpiOverdue">—</strong><small id="kpiOverdueN"></small></button>
-          <button type="button" class="inv-kpi" data-tab="paid"><span>Recebido · 30 dias</span><strong id="kpiReceived">—</strong><small>pagamentos registrados</small></button>
-          <button type="button" class="inv-kpi" data-tab="draft"><span>Rascunhos</span><strong id="kpiDraft">—</strong><small id="kpiDraftN"></small></button>
+        <ol class="inv-steps" id="invSteps" aria-label="Andamento da fatura"></ol>
+              </div>
+
+        <div class="inv-layout">
+          <section class="inv-paper-wrap" aria-label="Pré-visualização da fatura">
+            <div class="inv-banner" id="invBanner" hidden></div>
+            <article class="inv-paper" id="invPaper">
+              <div class="inv-skel" style="height:420px"></div>
+            </article>
+          </section>
+
+          <aside class="inv-side">
+            <section class="inv-next" id="invNext" hidden></section>
+            <section class="inv-card inv-summary" id="invSummary">
+              <div class="inv-skel" style="height:150px"></div>
+            </section>
+
+            <section class="inv-card">
+              <header class="inv-card__head">
+                <h3>Pagamentos</h3>
+                <button type="button" class="inv-link-btn" id="btnAddPayment">+ Registrar</button>
+              </header>
+              <div id="invPayments" class="inv-payments"></div>
+            </section>
+
+            <section class="inv-card" id="invQuoteCard" hidden>
+              <header class="inv-card__head"><h3 id="invQuoteCardTitle">Orçamento</h3></header>
+              <div id="invQuote"></div>
+            </section>
+
+            <section class="inv-card">
+              <header class="inv-card__head"><h3>Atividade</h3></header>
+              <ol id="invActivity" class="inv-activity"></ol>
+            </section>
+          </aside>
         </div>
-
-        <nav class="inv-tabs" role="tablist" aria-label="Filtrar por status" id="invTabs">
-          <button type="button" class="inv-tab is-active" role="tab" data-tab="all" aria-selected="true">Todas <em data-count="all"></em></button>
-          <button type="button" class="inv-tab" role="tab" data-tab="unpaid" aria-selected="false">Em aberto <em data-count="unpaid"></em></button>
-          <button type="button" class="inv-tab" role="tab" data-tab="overdue" aria-selected="false">Vencidas <em data-count="overdue"></em></button>
-          <button type="button" class="inv-tab" role="tab" data-tab="partially_paid" aria-selected="false">Parciais <em data-count="partially_paid"></em></button>
-          <button type="button" class="inv-tab" role="tab" data-tab="paid" aria-selected="false">Pagas <em data-count="paid"></em></button>
-          <button type="button" class="inv-tab" role="tab" data-tab="draft" aria-selected="false">Rascunhos <em data-count="draft"></em></button>
-          <button type="button" class="inv-tab" role="tab" data-tab="void" aria-selected="false">Anuladas</button>
-        </nav>
-
-        <div class="inv-toolbar">
-          <label class="inv-search">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-            <input type="search" id="filterQ" placeholder="Buscar fatura, orçamento ou cliente…" autocomplete="off" aria-label="Buscar faturas" />
-          </label>
+            </div>
+          </section>
         </div>
-
-        <div class="om-ptr" id="invPtr" aria-hidden="true">↓ Puxe para atualizar</div>
-
-        <div class="inv-table om-dock-pad" role="table" aria-label="Faturas">
-          <div class="inv-trow inv-trow--head" role="row">
-            <span role="columnheader">Cliente</span>
-            <span role="columnheader">Fatura</span>
-            <span role="columnheader">Recebido</span>
-            <span role="columnheader">Vencimento</span>
-            <span role="columnheader">Status</span>
-            <span role="columnheader" style="text-align:right">Saldo / total</span>
-          </div>
-          <div id="invRows"><div class="inv-table-empty">A carregar…</div></div>
-        </div>
-
-        <div class="inv-pager">
-          <span id="pageInfo"></span>
-          <div>
-            <button type="button" class="inv-btn inv-btn--secondary" id="btnPrevPage">Anterior</button>
-            <button type="button" class="inv-btn inv-btn--secondary" id="btnNextPage">Seguinte</button>
-          </div>
-        </div>
+      </div>
+      <div class="inv-mobile-bar" id="invMobileBar">
+        <button type="button" class="inv-btn inv-btn--secondary" id="btnSendMobile">Enviar</button>
+        <button type="button" class="inv-btn inv-btn--primary" id="btnReceiveMobile">Receber pagamento</button>
       </div>
     </main>
   </div>
@@ -171,12 +220,172 @@
     </form>
   </div>
 
+  <!-- Receber pagamento -->
+  <div class="inv-modal" id="payModal" role="dialog" aria-modal="true" aria-labelledby="payTitle" hidden>
+    <div class="inv-modal__backdrop" data-close></div>
+    <form class="inv-modal__panel" id="payForm" novalidate>
+      <header class="inv-modal__head">
+        <div>
+          <h3 id="payTitle">Receber pagamento</h3>
+          <p id="payMeta" class="inv-modal__sub"></p>
+        </div>
+        <button type="button" class="inv-x" data-close aria-label="Fechar">×</button>
+      </header>
+      <div class="inv-modal__body">
+        <div class="inv-seg" role="radiogroup" aria-label="Tipo de pagamento">
+          <label class="inv-seg__opt"><input type="radio" name="payMode" value="full" checked /><span><b>Pagamento integral</b><small>Só quando o valor total já entrou — carimba PAGO</small></span></label>
+          <label class="inv-seg__opt"><input type="radio" name="payMode" value="partial" /><span><b>Pagamento parcial</b><small>Dá baixa só no valor que já recebeu</small></span></label>
+        </div>
+
+        <div class="inv-pay-amount" id="payFullBox">
+          <span>Valor a receber</span>
+          <strong id="payFullAmount">$0.00</strong>
+        </div>
+
+        <div id="payPartialBox" hidden>
+          <label class="inv-field">
+            <span>Valor recebido</span>
+            <div class="inv-money-input"><span>$</span><input type="number" id="payAmount" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" /></div>
+          </label>
+          <div class="inv-quick" id="payQuick"></div>
+          <p class="inv-after" id="payAfter"></p>
+        </div>
+
+        <div class="inv-row2">
+          <label class="inv-field"><span>Data do pagamento</span><input type="date" id="payDate" required /></label>
+          <label class="inv-field"><span>Referência <em>opcional</em></span><input type="text" id="payRef" maxlength="120" placeholder="Nº do cheque, confirmação…" /></label>
+        </div>
+
+        <fieldset class="inv-field">
+          <legend>Forma de pagamento</legend>
+          <div class="inv-methods" id="payMethods">
+            <label><input type="radio" name="payMethod" value="check" checked /><span>Cheque</span></label>
+            <label><input type="radio" name="payMethod" value="zelle" /><span>Zelle</span></label>
+            <label><input type="radio" name="payMethod" value="ach" /><span>ACH</span></label>
+            <label><input type="radio" name="payMethod" value="credit_card" /><span>Cartão</span></label>
+            <label><input type="radio" name="payMethod" value="cash" /><span>Dinheiro</span></label>
+            <label><input type="radio" name="payMethod" value="venmo" /><span>Venmo</span></label>
+            <label><input type="radio" name="payMethod" value="financing" /><span>Financiamento</span></label>
+            <label><input type="radio" name="payMethod" value="other" /><span>Outro</span></label>
+          </div>
+        </fieldset>
+
+        <label class="inv-field"><span>Observação interna <em>opcional</em></span><textarea id="payNotes" rows="2" maxlength="2000"></textarea></label>
+
+        <label class="inv-check">
+          <input type="checkbox" id="paySendReceipt" checked />
+          <span>Enviar recibo por e-mail <b id="payReceiptTo"></b></span>
+        </label>
+        <button type="button" class="inv-btn inv-btn--secondary" id="btnPayPreviewEmail" hidden>Pré-visualizar e-mail</button>
+        <p class="inv-form-error" id="payError" role="alert" hidden></p>
+      </div>
+      <footer class="inv-modal__foot">
+        <button type="button" class="inv-btn inv-btn--ghost" data-close>Cancelar</button>
+        <button type="submit" class="inv-btn inv-btn--primary" id="paySubmit">Registrar pagamento</button>
+      </footer>
+    </form>
+  </div>
+
+  <!-- Pré-visualizar e-mail do recibo -->
+  <div class="inv-modal" id="receiptEmailPreviewModal" role="dialog" aria-modal="true" aria-labelledby="receiptEmailPreviewTitle" hidden>
+    <div class="inv-modal__backdrop" data-close></div>
+    <div class="inv-modal__panel inv-modal__panel--wide">
+      <header class="inv-modal__head">
+        <div>
+          <h3 id="receiptEmailPreviewTitle">Pré-visualizar e-mail do recibo</h3>
+          <p class="inv-modal__sub">Confira o e-mail antes de registrar o pagamento e enviar ao cliente.</p>
+        </div>
+        <button type="button" class="inv-x" data-close aria-label="Fechar">×</button>
+      </header>
+      <div class="inv-modal__body">
+        <div class="inv-email-meta" id="receiptEmailPreviewMeta"></div>
+        <label class="inv-field"><span>Para</span><input type="email" id="receiptEmailPreviewTo" required /></label>
+        <label class="inv-field"><span>Assunto</span><input type="text" id="receiptEmailPreviewSubject" readonly /></label>
+        <iframe id="receiptEmailPreviewFrame" class="inv-email-frame" title="Pré-visualização do e-mail" sandbox=""></iframe>
+        <p class="inv-email-note" id="receiptEmailPreviewNote"></p>
+        <p class="inv-form-error" id="receiptEmailPreviewError" role="alert" hidden></p>
+      </div>
+      <footer class="inv-modal__foot">
+        <button type="button" class="inv-btn inv-btn--ghost" data-close>Voltar</button>
+        <button type="button" class="inv-btn inv-btn--primary" id="btnReceiptEmailConfirm">Registrar e enviar</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Enviar fatura -->
+  <div class="inv-modal" id="sendModal" role="dialog" aria-modal="true" aria-labelledby="sendTitle" hidden>
+    <div class="inv-modal__backdrop" data-close></div>
+    <form class="inv-modal__panel" id="sendForm" novalidate>
+      <header class="inv-modal__head">
+        <div><h3 id="sendTitle">Enviar fatura</h3><p class="inv-modal__sub">O cliente recebe o link seguro e o PDF anexo.</p></div>
+        <button type="button" class="inv-x" data-close aria-label="Fechar">×</button>
+      </header>
+      <div class="inv-modal__body">
+        <label class="inv-field"><span>Para</span><input type="email" id="sendTo" required placeholder="cliente@email.com" /></label>
+        <label class="inv-field"><span>Mensagem <em>opcional</em></span><textarea id="sendMsg" rows="4" maxlength="4000" placeholder="Here is your invoice…"></textarea></label>
+        <div class="inv-share">
+          <span>Ou compartilhe o link</span>
+          <div class="inv-share__row">
+            <input type="text" id="sendLink" readonly placeholder="Gerar link…" />
+            <button type="button" class="inv-btn inv-btn--secondary" id="btnCopyLink">Copiar</button>
+            <a class="inv-btn inv-btn--secondary" id="btnSms" href="#">SMS</a>
+          </div>
+        </div>
+        <p class="inv-form-error" id="sendError" role="alert" hidden></p>
+      </div>
+      <footer class="inv-modal__foot">
+        <button type="button" class="inv-btn inv-btn--ghost" id="btnMarkSent">Só marcar como enviada</button>
+        <button type="submit" class="inv-btn inv-btn--primary" id="sendSubmit">Enviar e-mail</button>
+      </footer>
+    </form>
+  </div>
+
+  <!-- Editar -->
+  <div class="inv-modal" id="editModal" role="dialog" aria-modal="true" aria-labelledby="editTitle" hidden>
+    <div class="inv-modal__backdrop" data-close></div>
+    <form class="inv-modal__panel" id="editForm" novalidate>
+      <header class="inv-modal__head">
+        <div><h3 id="editTitle">Editar fatura</h3></div>
+        <button type="button" class="inv-x" data-close aria-label="Fechar">×</button>
+      </header>
+      <div class="inv-modal__body">
+        <div class="inv-row2">
+          <label class="inv-field"><span>Vencimento</span><input type="date" id="editDue" /></label>
+          <label class="inv-field"><span>Valor</span><div class="inv-money-input"><span>$</span><input type="number" id="editAmount" min="0.01" step="0.01" /></div><small id="editAmountHint"></small></label>
+        </div>
+        <label class="inv-field"><span>Descrição do item</span><textarea id="editLine" rows="2" maxlength="2000"></textarea></label>
+        <label class="inv-field"><span>Como pagar</span><textarea id="editInstructions" rows="3" maxlength="4000" placeholder="Zelle: pay@empresa.com · Cheque nominal a…"></textarea></label>
+        <label class="inv-field"><span>Nota para o cliente</span><textarea id="editNotes" rows="2" maxlength="4000"></textarea></label>
+        <p class="inv-form-error" id="editError" role="alert" hidden></p>
+      </div>
+      <footer class="inv-modal__foot">
+        <button type="button" class="inv-btn inv-btn--ghost" data-close>Cancelar</button>
+        <button type="submit" class="inv-btn inv-btn--primary" id="editSubmit">Salvar</button>
+      </footer>
+    </form>
+  </div>
+
+  <!-- Confirmação genérica -->
+  <div class="inv-modal" id="confirmModal" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" hidden>
+    <div class="inv-modal__backdrop" data-close></div>
+    <div class="inv-modal__panel inv-modal__panel--sm">
+      <header class="inv-modal__head"><div><h3 id="confirmTitle"></h3><p class="inv-modal__sub" id="confirmText"></p></div></header>
+      <div class="inv-modal__body" id="confirmExtra"></div>
+      <footer class="inv-modal__foot">
+        <button type="button" class="inv-btn inv-btn--ghost" data-close>Cancelar</button>
+        <button type="button" class="inv-btn inv-btn--danger" id="confirmOk">Confirmar</button>
+      </footer>
+    </div>
+  </div>
+
   <script src="crm-toast.js"></script>
   <script src="crm-i18n.js?v=20261001-refresh1"></script>
   <script src="saas-branding.js"></script>
   <script src="crm-shared-nav.js?v=20261009-cx1"></script>
   <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="om-gestures.js?v=20261002-gest1"></script>
-  <script src="invoices-page.js?v=20261008-invname2"></script>
+  <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
+  <script src="invoice-page.js?v=20261009-inv1"></script>
+  <script src="invoices-page.js?v=20261009-inv1"></script>
 </body>
 </html>

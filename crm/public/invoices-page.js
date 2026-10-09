@@ -1,14 +1,18 @@
-/* Faturas — list page (invoices.html). Opens each invoice in invoice.html. */
+/* Invoices — números no topo, status como filtros, lista lateral agrupada e a fatura aberta ao lado
+   (Opção A com a lista lateral da B). A fatura em si é desenhada por invoice-page.js (window.InvoicePage). */
 (function () {
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const LIMIT = 25;
   const url = new URLSearchParams(location.search);
-  let page = 1;
   let tab = url.get('status') || 'all';
   let perms = [];
   let isAdmin = false;
+  let all = [];
+  let summary = null;
+  let billableTotal = null;
+  let selId = url.get('id') || null;
+  let q = '';
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -17,11 +21,27 @@
     const d = dec == null ? 2 : dec;
     return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   }
+  const MO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  function dshort(d) {
+    if (!d) return '';
+    const x = new Date(d);
+    if (Number.isNaN(x.getTime())) return '';
+    return `${x.getUTCDate()} ${MO[x.getUTCMonth()]}`;
+  }
   function fdate(d) {
     if (!d) return '—';
     const x = new Date(d);
     if (Number.isNaN(x.getTime())) return '—';
     return x.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
+  function daysUntil(d) {
+    if (!d) return null;
+    const x = new Date(d);
+    const t = new Date();
+    return Math.round((Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()) - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 86400000);
+  }
+  function plural(n, a, b) {
+    return `${n} ${n === 1 ? a : b}`;
   }
   function toast(msg, type) {
     if (window.crmToast) window.crmToast[type === 'error' ? 'error' : 'success'](msg);
@@ -37,6 +57,7 @@
     return j;
   }
   const can = (p) => isAdmin || perms.includes(p);
+  const isWide = () => window.matchMedia('(min-width: 1025px)').matches;
 
   const STATUS = {
     draft: ['Rascunho', 'is-draft'],
@@ -47,104 +68,229 @@
     paid: ['Paga', 'is-paid'],
     void: ['Anulada', 'is-void'],
   };
+  const isOpen = (i) => i.display_status !== 'paid' && i.display_status !== 'void' && i.display_status !== 'draft';
 
-  // ---------------------------------------------------------------- list
-  function setTab(t) {
-    tab = t;
-    page = 1;
-    document.querySelectorAll('.inv-tab').forEach((b) => {
-      const on = b.dataset.tab === t;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-selected', String(on));
-    });
-    document.querySelectorAll('.inv-kpi').forEach((k) => k.classList.toggle('is-active', k.dataset.tab === t));
-    const u = new URL(location.href);
-    if (t === 'all') u.searchParams.delete('status');
-    else u.searchParams.set('status', t);
-    history.replaceState(null, '', u);
-    load();
+  // ---------------------------------------------------------------- derivados
+  function dueInfo(i) {
+    if (i.display_status === 'paid') return { main: `Paga ${dshort(i.paid_at)}`, sub: '', hot: false };
+    if (i.display_status === 'void') return { main: 'Anulada', sub: '', hot: false };
+    if (i.display_status === 'overdue') return { main: dshort(i.due_date), sub: `vencida há ${plural(i.days_overdue, 'dia', 'dias')}`, hot: true };
+    const d = daysUntil(i.due_date);
+    return { main: dshort(i.due_date) || 'Sem vencimento', sub: d == null ? '' : d === 0 ? 'vence hoje' : d > 0 ? `em ${plural(d, 'dia', 'dias')}` : '', hot: false };
   }
-
-  function renderSummary(s) {
-    if (!s) return;
-    $('kpiOutstanding').textContent = money(s.outstanding, 0);
-    $('kpiOutstandingN').textContent = `${s.count.unpaid} ${s.count.unpaid === 1 ? 'fatura' : 'faturas'}`;
-    $('kpiOverdue').textContent = money(s.overdue_amount, 0);
-    $('kpiOverdueN').textContent = s.count.overdue ? `${s.count.overdue} ${s.count.overdue === 1 ? 'vencida' : 'vencidas'}` : 'nenhuma vencida';
-    $('kpiReceived').textContent = money(s.received_30d, 0);
-    $('kpiDraft').textContent = String(s.count.draft);
-    $('kpiDraftN').textContent = s.count.draft ? `${money(s.draft_amount, 0)} a enviar` : 'nada pendente';
-    document.querySelectorAll('[data-count]').forEach((el) => {
-      const n = s.count[el.dataset.count];
-      el.textContent = n ? String(n) : '';
-      el.hidden = !n;
-    });
-    $('invListSub').textContent = s.count.all
-      ? `${s.count.all} ${s.count.all === 1 ? 'fatura' : 'faturas'} · ${money(s.outstanding)} a receber`
-      : 'Cobranças emitidas a partir dos orçamentos aprovados.';
-  }
-
-  function dueCell(inv) {
-    if (inv.display_status === 'paid') return `<span class="inv-trow__due">Paga ${esc(fdate(inv.paid_at))}</span>`;
-    if (inv.display_status === 'void') return '<span class="inv-trow__due">—</span>';
-    if (inv.display_status === 'overdue')
-      return `<span class="inv-trow__due is-overdue">${esc(fdate(inv.due_date))}<br><small>há ${inv.days_overdue} ${inv.days_overdue === 1 ? 'dia' : 'dias'}</small></span>`;
-    return `<span class="inv-trow__due">${esc(fdate(inv.due_date))}</span>`;
-  }
-
-  function renderRows(rows) {
-    const host = $('invRows');
-    if (!rows.length) {
-      const q = $('filterQ').value.trim();
-      host.innerHTML = `<div class="inv-table-empty"><b>${q ? 'Nada encontrado' : tab === 'all' ? 'Nenhuma fatura ainda' : 'Nenhuma fatura neste filtro'}</b>${
-        q ? 'Tente outro termo.' : tab === 'all' ? 'Emita a primeira a partir de um orçamento aprovado.' : ''
-      }</div>`;
-      return;
+  /** Próximo passo curto para a linha (a fatura aberta mostra o cartão completo). */
+  function nextStep(i) {
+    const sent = i.email_sent_at || i.issued_at;
+    switch (i.display_status) {
+      case 'draft':
+        return { t: 'Enviar ao cliente', hot: false };
+      case 'overdue':
+        return { t: `Cobrar · ${i.viewed_at ? `vista ${dshort(i.viewed_at)}` : sent ? `enviada ${dshort(sent)}, não abriu` : 'não abriu'}`, hot: true };
+      case 'paid':
+        return { t: `${money(i.amount, 0)} recebido`, hot: false };
+      case 'void':
+        return { t: 'Anulada', hot: false };
+      default:
+        if (i.paid_amount > 0) return { t: `Receber saldo ${money(i.remaining_amount, 0)}`, hot: false };
+        if (i.viewed_at) return { t: `Vista ${dshort(i.viewed_at)} · aguardando`, hot: false };
+        return { t: sent ? `Enviada ${dshort(sent)} · não abriu` : 'Aguardando pagamento', hot: false };
     }
-    host.innerHTML = rows
-      .map((inv) => {
-        const [label, cls] = STATUS[inv.display_status] || STATUS.sent;
-        const open = inv.display_status !== 'paid' && inv.display_status !== 'void';
-        const href = `invoice.html?id=${encodeURIComponent(inv.id)}`;
-        const cells = `
-          <span class="inv-trow__who" role="cell"><b>${esc(inv.customer_name || '—')}</b><small>${esc(inv.reference_note || inv.source_ref || '')}</small></span>
-          <span class="inv-trow__num" role="cell">${esc(inv.invoice_number || '—')}<small>${esc(inv.invoice_type_label)}${inv.source_ref ? ` · ${esc(inv.source_ref)}` : ''}</small></span>
-          <span class="inv-trow__pay" role="cell">${money(inv.paid_amount)} de ${money(inv.amount)}<div class="inv-progress"><span style="width:${inv.percent_paid}%"></span></div></span>
-          ${dueCell(inv)}
-          <span class="inv-trow__st" role="cell"><span class="inv-chip ${cls}">${esc(label)}</span></span>
-          <span class="inv-trow__amt" role="cell"><b>${money(open ? inv.remaining_amount : inv.amount)}</b><small>${open && inv.paid_amount > 0 ? `de ${money(inv.amount)}` : open ? 'a receber' : inv.display_status === 'paid' ? 'recebido' : ''}</small></span>`;
-        return `<article class="om-swipe inv-swipe" data-inv-id="${esc(inv.id)}">
-          <div class="om-swipe__actions" aria-hidden="true">
-            <a class="om-swipe__act--edit" href="${href}">Abrir</a>
-            ${open ? `<a class="om-swipe__act--open" href="${href}&receber=1">Receber</a>` : `<a class="om-swipe__act--open" href="${href}">Ver</a>`}
-          </div>
-          <a class="om-swipe__body inv-trow" role="row" href="${href}">${cells}</a>
-        </article>`;
+  }
+
+  // ---------------------------------------------------------------- filtros
+  const TILES = [
+    ['all', 'Todas'],
+    ['draft', 'Rascunho'],
+    ['sent', 'Enviadas'],
+    ['viewed', 'Vistas'],
+    ['overdue', 'Vencidas'],
+    ['partially_paid', 'Parciais'],
+    ['paid', 'Pagas'],
+    ['void', 'Anuladas'],
+  ];
+  function inTab(i, t) {
+    if (t === 'all') return i.display_status !== 'void';
+    if (t === 'unpaid') return isOpen(i);
+    return i.display_status === t;
+  }
+  function hit(i) {
+    if (!q) return true;
+    const hay = [i.invoice_number, i.customer_name, i.customer_email, i.source_ref, i.job_title, i.quote_title, i.reference_note, i.invoice_type_label].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  }
+
+  function renderSum() {
+    const s = summary || {};
+    const parts = [
+      ['Em aberto', money(s.outstanding, 0), ''],
+      ['Vencido', money(s.overdue_amount, 0), s.overdue_amount > 0 ? 'is-hot' : ''],
+      ['Recebido · 30 dias', money(s.received_30d, 0), ''],
+      ['Rascunhos', money(s.draft_amount, 0), ''],
+    ];
+    if (billableTotal != null) parts.push(['Jobs a faturar', money(billableTotal, 0), '']);
+    $('ixSum').innerHTML = parts.map(([k, v, c]) => `<div><dt>${k}</dt><dd class="${c}">${v}</dd></div>`).join('');
+  }
+
+  function renderTiles() {
+    const sum = (rows, f) => rows.reduce((a, i) => a + (Number(f(i)) || 0), 0);
+    const html = TILES.filter(([k]) => k !== 'void' || all.some((i) => i.display_status === 'void'))
+      .map(([k, label]) => {
+        const rows = all.filter((i) => inTab(i, k));
+        let sub = '';
+        let hot = false;
+        if (k === 'all') sub = `${money(sum(rows, (i) => i.amount), 0)} faturado`;
+        else if (k === 'draft') sub = rows.length ? `${money(sum(rows, (i) => i.amount), 0)} a enviar` : 'nada pendente';
+        else if (k === 'sent' || k === 'viewed') sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount), 0)} a receber` : '—';
+        else if (k === 'overdue') {
+          sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount), 0)} · ${Math.max(...rows.map((i) => i.days_overdue || 0))} dias` : 'nenhuma';
+          hot = rows.length > 0;
+        } else if (k === 'partially_paid') sub = rows.length ? `${money(sum(rows, (i) => i.paid_amount), 0)} recebido` : '—';
+        else if (k === 'paid') sub = rows.length ? `${money(sum(rows, (i) => i.amount), 0)} recebido` : '—';
+        else if (k === 'void') sub = 'fora dos totais';
+        return `<button type="button" class="ix-tile${tab === k ? ' is-on' : ''}" data-tab="${k}" aria-pressed="${tab === k}"${!rows.length && k !== 'all' && tab !== k ? ' data-zero' : ''}><span>${label}</span><b>${rows.length}</b><small class="${hot ? 'is-hot' : ''}">${esc(sub)}</small></button>`;
       })
       .join('');
-    if (window.OmGestures && window.matchMedia('(max-width: 900px), (pointer: coarse)').matches) {
-      window.OmGestures.bindSwipeRow(host);
-    }
+    $('ixTiles').innerHTML = html;
+    $('ixTiles').style.setProperty('--ix-tiles', String($('ixTiles').children.length));
   }
 
-  let reqSeq = 0;
-  async function load() {
-    const seq = ++reqSeq;
-    const p = new URLSearchParams({ page: String(page), limit: String(LIMIT), status: tab });
-    const q = $('filterQ').value.trim();
-    if (q) p.set('q', q);
+  function rowHtml(i) {
+    const d = dueInfo(i);
+    const n = nextStep(i);
+    const [label, cls] = STATUS[i.display_status] || STATUS.sent;
+    const open = i.display_status !== 'paid' && i.display_status !== 'void';
+    const pct = Math.max(0, Math.min(100, Number(i.percent_paid) || 0));
+    return `<a class="ix-row${String(i.id) === String(selId) ? ' is-on' : ''}" href="invoices.html?id=${encodeURIComponent(i.id)}" data-inv-id="${esc(i.id)}">
+      <span class="ix-row__l1"><b>${esc(i.customer_name || '—')}</b><em>${money(open ? i.remaining_amount : i.amount, 0)}</em></span>
+      <span class="ix-row__l2"><span>${esc(i.invoice_number || '—')} · ${esc(i.source_ref || i.invoice_type_label || '')}</span><em class="${d.hot ? 'is-hot' : ''}">${esc(d.sub || d.main)}</em></span>
+      <span class="ix-row__l3"><span class="ix-next${n.hot ? ' is-hot' : ''}">${esc(n.t)}</span><span class="inv-chip ${cls}">${esc(label)}</span></span>
+      ${pct > 0 && pct < 100 ? `<span class="ix-prog"><i style="width:${pct}%"></i></span>` : ''}
+    </a>`;
+  }
+
+  const GROUPS = [
+    ['Vencidas', (i) => i.display_status === 'overdue'],
+    ['A receber', (i) => ['sent', 'viewed', 'partially_paid'].includes(i.display_status)],
+    ['Rascunhos', (i) => i.display_status === 'draft'],
+    ['Pagas', (i) => i.display_status === 'paid'],
+    ['Anuladas', (i) => i.display_status === 'void'],
+  ];
+
+  function visible() {
+    return all.filter((i) => inTab(i, tab) && hit(i));
+  }
+
+  function renderList() {
+    const rows = visible();
+    $('ixCount').textContent = `${rows.length} ${rows.length === 1 ? 'fatura' : 'faturas'}`;
+    if (!rows.length) {
+      $('invRows').innerHTML = `<p class="ix-empty">${q ? 'Nada encontrado. Tente outro termo.' : !all.length ? 'Nenhuma fatura ainda. Crie a primeira a partir de um job ou orçamento.' : 'Nenhuma fatura neste filtro.'}</p>`;
+      return;
+    }
+    const byDate = (a, b) => new Date(b.created_at) - new Date(a.created_at);
+    $('invRows').innerHTML = GROUPS.map(([label, fn]) => {
+      const g = rows.filter(fn).sort(label === 'Vencidas' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
+      if (!g.length) return '';
+      const tot = g.reduce((a, i) => a + Number(label === 'Pagas' || label === 'Anuladas' ? i.amount : i.remaining_amount) || 0, 0);
+      return `<p class="ix-grp"><span>${label}</span><em>${g.length} · ${money(tot, 0)}</em></p>${g.map(rowHtml).join('')}`;
+    }).join('');
+    if (window.OmGestures && !isWide()) window.OmGestures.bindSwipeRow?.($('invRows'));
+  }
+
+  function renderAll() {
+    renderSum();
+    renderTiles();
+    renderList();
+  }
+
+  // ---------------------------------------------------------------- abrir fatura
+  function select(id, push) {
+    selId = id;
+    $('invRows').querySelectorAll('[data-inv-id]').forEach((a) => a.classList.toggle('is-on', a.getAttribute('data-inv-id') === String(id)));
+    const narrow = !isWide();
+    $('invSplit').classList.toggle('is-detail', narrow && !!id);
+    document.body.classList.toggle('ix-detail-open', narrow && !!id);
+    $('ixBlank').hidden = !!id;
+    $('invPage').hidden = !id;
+    if (id) window.InvoicePage?.open(id);
+    if (push) {
+      try {
+        const u = new URL(location.href);
+        if (id) u.searchParams.set('id', id);
+        else u.searchParams.delete('id');
+        u.searchParams.delete('action');
+        u.searchParams.delete('mode');
+        u.searchParams.delete('new');
+        history.replaceState(null, '', u);
+      } catch (_) {}
+    }
+    if (narrow) window.scrollTo(0, 0);
+  }
+
+  function back() {
+    selId = null;
+    $('invSplit').classList.remove('is-detail');
+    document.body.classList.remove('ix-detail-open');
+    $('invPage').hidden = true;
+    $('ixBlank').hidden = false;
+    renderList();
     try {
-      const j = await api(`/api/invoices?${p}`);
-      if (seq !== reqSeq) return;
-      renderRows(j.data || []);
-      renderSummary(j.summary);
-      const pages = Math.max(1, Math.ceil((j.total || 0) / LIMIT));
-      $('pageInfo').textContent = j.total ? `Página ${page} de ${pages} · ${j.total} ${j.total === 1 ? 'fatura' : 'faturas'}` : '';
-      $('btnPrevPage').disabled = page <= 1;
-      $('btnNextPage').disabled = page >= pages;
-      $('btnPrevPage').parentElement.hidden = pages <= 1;
-    } catch (err) {
-      $('invRows').innerHTML = `<div class="inv-table-empty"><b>Não foi possível carregar</b>${esc(err.message)}</div>`;
+      const u = new URL(location.href);
+      u.searchParams.delete('id');
+      history.replaceState(null, '', u);
+    } catch (_) {}
+  }
+
+  async function fetchAll() {
+    const out = [];
+    let page = 1;
+    let total = Infinity;
+    let sum = null;
+    while (out.length < total && page <= 20) {
+      const j = await api(`/api/invoices?status=all&limit=100&page=${page}`);
+      out.push(...(j.data || []));
+      total = j.total || out.length;
+      sum = sum || j.summary;
+      if (!(j.data || []).length) break;
+      page += 1;
+    }
+    // "all" pode não trazer as anuladas: busca à parte.
+    if (!out.some((i) => i.display_status === 'void')) {
+      try {
+        const v = await api('/api/invoices?status=void&limit=100');
+        (v.data || []).forEach((i) => {
+          if (!out.some((x) => x.id === i.id)) out.push(i);
+        });
+      } catch (_) {}
+    }
+    return { rows: out, summary: sum };
+  }
+
+  let loading = null;
+  async function load() {
+    if (loading) return loading;
+    loading = (async () => {
+      try {
+        const r = await fetchAll();
+        all = r.rows;
+        summary = r.summary;
+        renderAll();
+      } catch (err) {
+        $('invRows').innerHTML = `<p class="ix-empty"><b>Não foi possível carregar</b><br>${esc(err.message)}</p>`;
+      } finally {
+        loading = null;
+      }
+    })();
+    return loading;
+  }
+
+  async function loadBillableTotal() {
+    try {
+      const j = await api('/api/invoices/billable-jobs');
+      billableTotal = (j.data || []).reduce((a, x) => a + (Number(x.remaining_to_invoice) || 0), 0);
+      renderSum();
+    } catch (_) {
+      billableTotal = null;
     }
   }
 
@@ -283,7 +429,12 @@
           due_date: $('newDue').value || null,
         }),
       });
-      location.href = `invoice.html?id=${encodeURIComponent(r.data.id)}&new=1`;
+      closeNew();
+      btn.disabled = false;
+      btn.textContent = 'Criar fatura';
+      toast(`${r.data.invoice_number || 'Fatura'} criada. Envie ao cliente quando estiver pronta.`);
+      await load();
+      select(r.data.id, true);
     } catch (err) {
       $('newError').textContent = err.message;
       $('newError').hidden = false;
@@ -305,38 +456,117 @@
     } catch (_) {
       /* api() already redirects on 401 */
     }
-    if (url.get('q') && $('filterQ')) $('filterQ').value = url.get('q');
+    if (url.get('q')) {
+      $('filterQ').value = url.get('q');
+      q = url.get('q').toLowerCase();
+    }
+    if (tab === 'unpaid') tab = 'all';
+    const bar = $('invMobileBar');
+    if (bar && bar.parentElement !== document.body) document.body.appendChild(bar);
     $('btnNewInvoice').hidden = !can('invoices.manage');
     $('btnNewInvoice').addEventListener('click', openNew);
-    document.querySelectorAll('.inv-tab, .inv-kpi').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-    $('btnPrevPage').addEventListener('click', () => {
-      if (page > 1) {
-        page -= 1;
-        load();
+    $('ixTiles').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-tab]');
+      if (!b) return;
+      tab = b.dataset.tab;
+      try {
+        const u = new URL(location.href);
+        if (tab === 'all') u.searchParams.delete('status');
+        else u.searchParams.set('status', tab);
+        history.replaceState(null, '', u);
+      } catch (_) {}
+      renderTiles();
+      renderList();
+      if (isWide() && !visible().some((i) => String(i.id) === String(selId))) {
+        const first = $('invRows').querySelector('[data-inv-id]');
+        if (first) select(first.getAttribute('data-inv-id'), true);
       }
     });
-    $('btnNextPage').addEventListener('click', () => {
-      page += 1;
-      load();
+    $('invRows').addEventListener('click', (e) => {
+      const a = e.target.closest('[data-inv-id]');
+      if (!a || e.metaKey || e.ctrlKey) return;
+      e.preventDefault();
+      select(a.getAttribute('data-inv-id'), true);
+    });
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-inv-open]');
+      if (!a || e.metaKey || e.ctrlKey) return;
+      e.preventDefault();
+      select(a.getAttribute('data-inv-open'), true);
+    });
+    $('ixBack').addEventListener('click', (e) => {
+      e.preventDefault();
+      back();
     });
     let t = null;
     $('filterQ').addEventListener('input', () => {
       clearTimeout(t);
       t = setTimeout(() => {
-        page = 1;
-        load();
-      }, 280);
+        q = $('filterQ').value.trim().toLowerCase();
+        renderList();
+      }, 160);
     });
-    setTab(tab);
-    if (window.OmGestures) {
-      window.OmGestures.initPullToRefresh({
-        key: 'invoices',
-        indicator: '#invPtr',
-        refresh: () => load(),
+    let rt = null;
+    window.addEventListener('invoice:changed', (e) => {
+      const d = e.detail;
+      const i = d && all.findIndex((x) => x.id === d.id);
+      if (i >= 0 && d) {
+        // mantém a linha em dia na hora; os totais vêm do servidor logo depois
+        Object.assign(all[i], {
+          display_status: d.display_status,
+          status: d.status,
+          paid_amount: d.paid_amount,
+          remaining_amount: d.remaining_amount,
+          percent_paid: d.percent_paid,
+          days_overdue: d.days_overdue,
+          viewed_at: d.viewed_at,
+          issued_at: d.issued_at,
+          amount: d.amount,
+          due_date: d.due_date,
+        });
+        renderList();
+      }
+      clearTimeout(rt);
+      rt = setTimeout(() => load(), 600);
+    });
+    window.addEventListener('invoice:deleted', () => {
+      load().then(() => {
+        if (isWide()) {
+          const first = $('invRows').querySelector('[data-inv-id]');
+          select(first ? first.getAttribute('data-inv-id') : null, true);
+        } else back();
       });
-      window.OmGestures.ensureDockPadding('#invList, .inv-page, .mod-page');
+    });
+    window.addEventListener('resize', () => {
+      if (isWide()) {
+        $('invSplit').classList.remove('is-detail');
+        document.body.classList.remove('ix-detail-open');
+      }
+    });
+
+    await load();
+    loadBillableTotal();
+    if (selId && all.some((i) => String(i.id) === String(selId))) {
+      const inv = all.find((i) => String(i.id) === String(selId));
+      if (!inTab(inv, tab)) tab = 'all';
+      renderTiles();
+      renderList();
+      // invoice-page.js já abre a fatura do ?id= (com ?action=pay|send); aqui só arruma a tela
+      const narrow = !isWide();
+      $('invSplit').classList.toggle('is-detail', narrow);
+      document.body.classList.toggle('ix-detail-open', narrow);
+      $('ixBlank').hidden = true;
+      $('invPage').hidden = false;
+      $('invRows').querySelectorAll('[data-inv-id]').forEach((a) => a.classList.toggle('is-on', a.getAttribute('data-inv-id') === String(selId)));
+    } else if (isWide()) {
+      const first = $('invRows').querySelector('[data-inv-id]');
+      if (first) select(first.getAttribute('data-inv-id'), true);
     }
-    if (url.get('new') === '1' && can('invoices.manage')) openNew();
+    if (window.OmGestures) {
+      window.OmGestures.initPullToRefresh({ key: 'invoices', indicator: '#invPtr', refresh: () => load() });
+      window.OmGestures.ensureDockPadding('.ix-list, .inv-page');
+    }
+    if (url.get('new') === '1' && !selId && can('invoices.manage')) openNew();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
