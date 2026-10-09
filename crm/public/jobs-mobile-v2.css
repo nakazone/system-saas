@@ -11,7 +11,7 @@ body.om-device-mobile.jobs-app .jcm-title { font-size: 34px; font-weight: 700; l
 body.om-device-mobile.jobs-app .jcm-sub { display: none; }
 body.om-device-mobile.jobs-app.jcm-field .jcm-sub { display: block; }
 .jcm-icon-btn { border: 0; box-shadow: 0 0 0 1px #E5E7EB; }
-.jcm-icon-btn--accent { background: #E7792C; color: #221E1A; box-shadow: none; border-radius: 50%; }
+.jcm-icon-btn--accent { background: #E7792C; color: #fff; box-shadow: none; border-radius: 50%; }
 .jcm-role { background: #EEF0F3; border-radius: 11px; padding: 3px; }
 .jcm-role__btn { font-weight: 600; font-size: 12.5px; border-radius: 9px; padding: 6px 10px; }
 .jcm-role__btn.is-active { box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
@@ -57,7 +57,7 @@ body.om-device-mobile .jcm-seg.jmx-pills { background: none; padding: 0 16px; ma
   height: 34px; padding: 0 13px; border: 0; border-radius: 11px; background: #F1F3F5; color: #221E1A !important; font: inherit; font-size: 13px; font-weight: 650;
   display: inline-flex; align-items: center; justify-content: center; gap: 5px; text-decoration: none !important; cursor: pointer;
 }
-.jmx-b--or { background: #E7792C; }
+.jmx-b--or { background: #E7792C; color: #fff !important; }
 .jmx-b--sq { width: 34px; padding: 0; }
 .jmx-b svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 body.om-device-mobile.jobs-app .jcm-list { gap: 8px; }

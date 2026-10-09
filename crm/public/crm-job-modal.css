@@ -580,7 +580,7 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 }
 
 
-/* ---------- base neutra (2026-10): laranja só nos botões de ação, sempre com texto escuro */
+/* ---------- base neutra (2026-10): laranja só nos botões de ação, texto branco */
 .jm { border-radius: 24px; box-shadow: 0 30px 70px -20px rgba(16, 24, 40, .45); font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; --jm-ink-2: #667085; }
 .jm-backdrop, .jm-rate { background: rgba(34, 30, 26, .45); }
 .jm__head h2 { font-weight: 700; letter-spacing: -.02em; }
@@ -600,8 +600,8 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 .jm-chip { font-weight: 600; }
 .jm-dot { background: #E5E7EB; color: #221E1A; }
 .jm-btn { font-weight: 600; border-radius: 12px; }
-.jm-btn--pri, .jm-rate__acts .jm-btn--pri { background: #E7792C; border-color: #E7792C; color: #221E1A; box-shadow: none; }
-.jm-btn--pri:hover { background: #EF8A44; border-color: #EF8A44; }
+.jm-btn--pri, .jm-rate__acts .jm-btn--pri { background: #E7792C; border-color: #E7792C; color: #fff; box-shadow: none; }
+.jm-btn--pri:hover { background: #EF8A44; border-color: #EF8A44; color: #fff; }
 .jm-ln__del:hover { background: #FDF0E6; }
 .job-lockbox-badge { background: #221E1A; }
 .job-lockbox-badge__icon { color: #E7792C; }

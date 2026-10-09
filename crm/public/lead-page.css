@@ -45,8 +45,8 @@ body.om-app .dashboard-main.lp-main { background: #F7F8FA; }
 .lp-btn:hover:not(:disabled) { background: #F7F8FA; box-shadow: 0 0 0 1px #D0D5DD; }
 .lp-btn:disabled { opacity: .45; cursor: default; }
 .lp-btn svg { flex: none; }
-.lp-btn--pri { background: var(--lp-terra, #E7792C) !important; box-shadow: none !important; color: var(--lp-ink, #221E1A) !important; }
-.lp-btn--pri:hover:not(:disabled) { background: #EF8A44 !important; }
+.lp-btn--pri { background: var(--lp-terra, #E7792C) !important; box-shadow: none !important; color: #fff !important; }
+.lp-btn--pri:hover:not(:disabled) { background: #EF8A44 !important; color: #fff !important; }
 .lp-btn--ink { background: var(--lp-ink, #221E1A) !important; box-shadow: none !important; color: #fff !important; }
 .lp-btn--danger { background: var(--lp-terrad, #B4561A) !important; box-shadow: none !important; color: #fff !important; }
 .lp-btn--ghost { background: transparent; box-shadow: none; color: var(--lp-ink2); }

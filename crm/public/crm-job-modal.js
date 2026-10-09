@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261009-jobs3";
+  const CSS_HREF = "crm-job-modal.css?v=20261009-btnw2";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",

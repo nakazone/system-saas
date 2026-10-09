@@ -593,7 +593,7 @@
 }
 .chat-msg--mine .chat-msg__time { color: rgba(255, 255, 255, 0.6); }
 .chat-msg--mine .chat-chip--user { background: rgba(255, 255, 255, 0.16); color: #fff; }
-.chat-msg--mine .chat-chip--job { background: #E7792C; color: #221E1A; }
+.chat-msg--mine .chat-chip--job { background: #E7792C; color: #fff; }
 .chat-msg--mine .chat-chip--special { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .chat-msg--mine .chat-file-link { color: #fff !important; text-decoration: underline; }
 .chat-msg.is-sending .chat-msg__bubble { opacity: 0.7; }

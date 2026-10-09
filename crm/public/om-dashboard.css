@@ -1427,7 +1427,7 @@ body.plab.dashboard-app-body {
 
 body.plab.dashboard-app-body .omd-btn--primary,
 body.plab.dashboard-app-body .omd a.omd-btn--primary {
-  color: #221E1A;
+  color: #fff;
   box-shadow: none;
 }
 
@@ -1516,17 +1516,17 @@ body.plab.dashboard-app-body .omd-col {
     font-weight: 500;
   }
 
-  /* Pipeline aberto: bloco laranja alto, texto escuro */
+  /* Pipeline aberto: bloco laranja alto, texto branco */
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] {
     grid-column: 6 / 10;
     grid-row: 1 / 4;
     background: #E7792C;
     border-color: #E7792C;
-    color: #221E1A;
+    color: #fff;
   }
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__label,
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
-    color: rgba(34, 30, 26, 0.78);
+    color: rgba(255, 255, 255, 0.88);
   }
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__value {
     font-size: 64px;
@@ -1698,7 +1698,7 @@ body.plab.dashboard-app-body .omd-col {
 }
 body.plab.dashboard-app-body .omd-map-pin.is-job {
   background: #E7792C;
-  color: #221E1A;
+  color: #fff;
 }
 body.plab.dashboard-app-body .omd-map-pin.is-visit {
   background: #221E1A;
@@ -1750,9 +1750,9 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     display: inline;
     font-size: 13px;
     font-weight: 600;
-    color: #221E1A;
+    color: #fff;
     text-decoration: underline;
-    text-decoration-color: #221E1A;
+    text-decoration-color: rgba(255, 255, 255, 0.85);
     text-decoration-thickness: 2px;
     text-underline-offset: 4px;
   }
@@ -1769,14 +1769,14 @@ body.plab.dashboard-app-body .omd-tag.is-job {
     background: rgba(255, 255, 255, 0.22);
     font-size: 12px;
     font-weight: 550;
-    color: rgba(34, 30, 26, 0.75);
+    color: rgba(255, 255, 255, 0.88);
   }
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes b {
     display: block;
     font-size: 18px;
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: #221E1A;
+    color: #fff;
   }
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
     margin-top: 10px;
@@ -1878,7 +1878,7 @@ body.plab.dashboard-app-body .omd-tag.is-job {
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-count {
     padding: 1px 8px;
     background: #E7792C;
-    color: #221E1A;
+    color: #fff;
     font-size: 12px;
     font-weight: 650;
   }

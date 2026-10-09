@@ -85,7 +85,7 @@ body.dashboard-app-body .dashboard-main {
   background-color: var(--om-bg) !important;
 }
 
-/* Laranja da marca: sempre com texto escuro. */
+/* Laranja da marca: texto branco para contraste. */
 body.dashboard-app-body .crm-topbar__create-btn,
 body.dashboard-app-body .omd-btn--primary,
 body.dashboard-app-body .btn-primary,
@@ -94,12 +94,14 @@ body.dashboard-app-body .plab-dock__primary,
 body.dashboard-app-body .om-dock__primary,
 body.dashboard-app-body .om-sheet__icon--primary {
   background: var(--om-accent) !important;
-  color: var(--om-ink) !important;
+  color: #fff !important;
   border-color: transparent !important;
 }
 body.dashboard-app-body .crm-topbar__create-btn:hover,
-body.dashboard-app-body .omd-btn--primary:hover {
+body.dashboard-app-body .omd-btn--primary:hover,
+body.dashboard-app-body .btn-primary:hover {
   background: #D96B20 !important;
+  color: #fff !important;
 }
 
 /* Barra superior (desktop) */
@@ -297,7 +299,7 @@ body.dashboard-app-body .omd-btn--primary:hover {
     padding: 0 5px !important;
     border-radius: 9px !important;
     background: var(--om-accent) !important;
-    color: var(--om-ink) !important;
+    color: #fff !important;
     font-size: 10.5px !important;
     font-weight: 700 !important;
     line-height: 18px !important;
@@ -753,7 +755,7 @@ body.dashboard-app-body {
   --om-radius-card: 20px;
 }
 
-/* Laranja da marca sempre com texto escuro */
+/* Laranja da marca: texto/ícone brancos */
 body.dashboard-app-body .lp-btn--pri,
 body.dashboard-app-body .lp-step.is-now,
 body.dashboard-app-body .fo-btn--pri,
@@ -772,8 +774,21 @@ body.dashboard-app-body .crm-help-panel__btn,
 body.dashboard-app-body .ag-mini__d.is-today.is-sel,
 body.dashboard-app-body .ag-day__n .is-today,
 body.dashboard-app-body .ag-md__n.is-today,
-body.dashboard-app-body .nav-item__badge {
-  color: var(--om-ink) !important;
+body.dashboard-app-body .nav-item__badge,
+body.dashboard-app-body .jx-btn--pri,
+body.dashboard-app-body .lb-btn--pri,
+body.dashboard-app-body .qx-btn--pri,
+body.dashboard-app-body .cx-btn--pri,
+body.dashboard-app-body .jd-btn--pri,
+body.dashboard-app-body .ag-btn--pri,
+body.dashboard-app-body .ag-pillbtn--pri,
+body.dashboard-app-body .jm-btn--pri,
+body.dashboard-app-body .cam-btn--pri,
+body.dashboard-app-body .cv-btn--pri,
+body.dashboard-app-body .jmx-b--or,
+body.dashboard-app-body .rx-btn--pri,
+body.dashboard-app-body .qb-next .btn {
+  color: #fff !important;
 }
 body.dashboard-app-body .lp-btn--pri svg,
 body.dashboard-app-body .fo-btn--pri svg,
@@ -781,8 +796,17 @@ body.dashboard-app-body .fq-btn--pri svg,
 body.dashboard-app-body .chat-send-btn svg,
 body.dashboard-app-body .mleads-add svg,
 body.dashboard-app-body .jcm-icon-btn--accent svg,
-body.dashboard-app-body .fpm-icon-btn--accent svg {
-  color: var(--om-ink) !important;
+body.dashboard-app-body .fpm-icon-btn--accent svg,
+body.dashboard-app-body .jx-btn--pri svg,
+body.dashboard-app-body .lb-btn--pri svg,
+body.dashboard-app-body .qx-btn--pri svg,
+body.dashboard-app-body .cx-btn--pri svg,
+body.dashboard-app-body .jd-btn--pri svg,
+body.dashboard-app-body .jm-btn--pri svg,
+body.dashboard-app-body .cam-btn--pri svg,
+body.dashboard-app-body .cv-btn--pri svg,
+body.dashboard-app-body .jmx-b--or svg {
+  color: #fff !important;
   stroke: currentColor;
 }
 body.dashboard-app-body .crm-topbar__user-avatar {

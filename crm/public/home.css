@@ -763,7 +763,7 @@ body.home-app.om-device-mobile .home-action {
 body.home-app.om-device-mobile .home-action:has(.home-action__icon--primary) {
   background: #E7792C;
   box-shadow: none;
-  color: #221E1A;
+  color: #fff;
 }
 body.home-app.om-device-mobile .home-action__icon,
 body.home-app.om-device-mobile .home-action__icon--primary {

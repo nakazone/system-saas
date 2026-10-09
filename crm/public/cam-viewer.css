@@ -15,7 +15,7 @@ body.cv-open { overflow: hidden; }
   width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .14); color: #fff; display: grid; place-items: center; cursor: pointer;
 }
 .cv-round:hover, .cv-nav:hover { background: rgba(255, 255, 255, .24); }
-.cv-round.is-on { background: #E7792C; color: #221E1A; }
+.cv-round.is-on { background: #E7792C; color: #fff; }
 .cv-round.is-on svg { fill: currentColor; }
 .cv-nav { position: absolute; top: 50%; margin-top: -21px; }
 .cv-nav--prev { left: 16px; }
@@ -50,8 +50,8 @@ body.cv-open { overflow: hidden; }
 }
 .cv-btn:hover { background: #F7F8FA; }
 .cv-btn svg { width: 16px; height: 16px; }
-.cv-btn--pri { background: #E7792C; box-shadow: none; }
-.cv-btn--pri:hover { background: #EF8A44; }
+.cv-btn--pri { background: #E7792C; box-shadow: none; color: #fff !important; }
+.cv-btn--pri:hover { background: #EF8A44; color: #fff !important; }
 
 @media (max-width: 900px) {
   .cv { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; background: #0F0D0B; }
