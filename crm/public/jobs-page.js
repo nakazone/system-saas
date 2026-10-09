@@ -14,7 +14,7 @@
   let selId = null;
   let firstLoad = true;
 
-  const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Contractor", loja: "Loja", internal: "Interno", other: "Outro" };
+  const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Loja", internal: "Interno", other: "Outro" };
   const SVG = {
     phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .4 1.9.7 2.8a2 2 0 01-.5 2.1L8.1 9.9a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.8.7a2 2 0 011.7 2z"/></svg>',
     edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>',
@@ -85,8 +85,14 @@
     }
   }
 
+  function sourceMatches(wo) {
+    if (!source) return true;
+    if (source === "builder") return wo.source_type === "builder" || wo.source_type === "contractor";
+    return wo.source_type === source;
+  }
+
   function searchHit(wo) {
-    if (source && wo.source_type !== source) return false;
+    if (!sourceMatches(wo)) return false;
     if (!q) return true;
     const hay = [wo.title, wo.number != null ? `#${wo.number}` : "", String(wo.number || ""), I().client(wo), wo.address, wo.assigned_user?.name]
       .join(" ")
@@ -372,8 +378,14 @@
       }, 150);
     });
     $("jxSource").addEventListener("change", (e) => {
-      source = e.target.value;
+      source = e.target.value === "contractor" ? "builder" : e.target.value;
+      if (e.target.value === "contractor") e.target.value = "builder";
       e.target.closest(".jx-sel").classList.toggle("is-on", !!source);
+      const params = new URLSearchParams(location.search);
+      if (source) params.set("source", source);
+      else params.delete("source");
+      const qs = params.toString();
+      history.replaceState(null, "", qs ? `${location.pathname}?${qs}` : location.pathname);
       render();
     });
     $("jxDetail").addEventListener("click", async (e) => {
@@ -433,6 +445,13 @@
       const sn = $("sidebarUserName");
       if (sn) sn.textContent = s.user?.name || s.user?.email || "—";
       if (!canManage && $("btnNewJob")) $("btnNewJob").style.display = "none";
+      let srcQp = new URLSearchParams(location.search).get("source") || "";
+      if (srcQp === "contractor") srcQp = "builder";
+      if (srcQp && $("jxSource") && [...$("jxSource").options].some((o) => o.value === srcQp)) {
+        source = srcQp;
+        $("jxSource").value = srcQp;
+        $("jxSource").closest(".jx-sel")?.classList.add("is-on");
+      }
       bind();
       await load();
       const openId = sessionStorage.getItem("obramate_open_job");

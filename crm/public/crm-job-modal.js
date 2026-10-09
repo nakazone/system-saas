@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261006-deliv4";
+  const CSS_HREF = "crm-job-modal.css?v=20261009-jobs3";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -217,20 +217,55 @@
     }
     return null;
   }
+  function partyNorm(s) {
+    return String(s || "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+  /** Keys used to hide Customer rows that already exist as Builder (same company/email/name). */
+  function builderDupKeys(b) {
+    const keys = new Set();
+    const name = partyNorm(builderName(b));
+    const company = partyNorm(b.company);
+    const email = partyNorm(b.email);
+    if (name) keys.add(`n:${name}`);
+    if (company) keys.add(`n:${company}`);
+    if (email) keys.add(`e:${email}`);
+    return keys;
+  }
   function pickerEntries(query) {
     const q = String(query || "").trim().toLowerCase();
     const match = (s) => !q || String(s || "").toLowerCase().includes(q);
+    const seenBuilder = new Set();
+    builders.forEach((b) => builderDupKeys(b).forEach((k) => seenBuilder.add(k)));
     const bRows = builders
       .filter((b) => match(builderName(b)) || match(b.email) || match([b.first_name, b.last_name].join(" ")))
-      .map((b) => ({
-        kind: "builder",
-        id: b.id,
-        name: builderName(b),
-        type: String(b.type || "builder").toLowerCase(),
-        sub: [b.first_name, b.last_name].filter(Boolean).join(" ") || b.email || "",
-      }));
+      .map((b) => {
+        let type = String(b.type || "builder").toLowerCase();
+        if (type === "contractor") type = "builder";
+        return {
+          kind: "builder",
+          id: b.id,
+          name: builderName(b),
+          type,
+          sub: [b.first_name, b.last_name].filter(Boolean).join(" ") || b.email || "",
+        };
+      });
     const cRows = customers
-      .filter((c) => match(c.name) || match(c.company) || match(c.email) || match(c.phone))
+      .filter((c) => {
+        if (!(match(c.name) || match(c.company) || match(c.email) || match(c.phone))) return false;
+        let type = String(c.customer_type || "particular").toLowerCase();
+        if (type === "contractor") type = "builder";
+        // Builder/loja customers mirrored from the Builders module — keep Builder row only.
+        if (type === "builder" || type === "loja") {
+          const name = partyNorm(c.company || c.name);
+          const email = partyNorm(c.email);
+          if (name && seenBuilder.has(`n:${name}`)) return false;
+          if (email && seenBuilder.has(`e:${email}`)) return false;
+        }
+        return true;
+      })
       .map((c) => {
         let type = String(c.customer_type || "particular").toLowerCase();
         if (type === "contractor") type = "builder";
@@ -685,40 +720,37 @@
   const SRC_OPTS = [
     ["particular", "Particular"],
     ["builder", "Builder"],
-    ["contractor", "Contractor"],
     ["loja", "Loja"],
     ["internal", "Interno"],
     ["other", "Outro"],
   ];
+  function sourceTypeUi(raw) {
+    const t = String(raw || "particular").toLowerCase();
+    if (t === "contractor") return "builder";
+    return SRC_OPTS.some(([v]) => v === t) ? t : "other";
+  }
 
   function renderMore() {
     const box = $("jmMore");
     const isEdit = Boolean(st.id);
     const auto = autoTitle();
     const titleShown = st.titleTouched ? st.title : st.title || auto;
+    const srcUi = sourceTypeUi(st.sourceType);
     if (!st.moreOpen) {
       const bits = [
         `<span><em>Título</em> ${esc(titleShown || "automático")}</span>`,
-        `<span><em>Origem</em> ${esc(SRC_OPTS.find((o) => o[0] === st.sourceType)?.[1] || st.sourceType)}</span>`,
+        `<span><em>Origem</em> ${esc(SRC_OPTS.find((o) => o[0] === srcUi)?.[1] || srcUi)}</span>`,
         isEdit ? `<span><em>Status</em> ${esc(STATUS_OPTS.find((o) => o[0] === st.status)?.[1] || st.status)}</span>` : "",
       ].join("");
       box.innerHTML = `<button type="button" class="jm-more__toggle" data-act="more">${bits}<b>Editar</b></button>`;
       return;
     }
-    const custOpts = ['<option value="">—</option>']
-      .concat(customers.map((c) => `<option value="${esc(c.id)}"${String(c.id) === String(st.customerId) ? " selected" : ""}>${esc(c.name || c.company)}</option>`))
-      .join("");
-    const bOpts = ['<option value="">—</option>']
-      .concat(builders.map((b) => `<option value="${esc(b.id)}"${String(b.id) === String(st.builderId) ? " selected" : ""}>${esc(builderName(b))}</option>`))
-      .join("");
     box.innerHTML = `<div class="jm-more__panel">
       <label class="jm-field jm-field--wide">Título do job
         <input type="text" id="jobTitle" class="jm-in" maxlength="200" value="${esc(titleShown)}" placeholder="${esc(auto || "Ex.: Summit — Lot 14")}" />
       </label>
       ${isEdit ? `<label class="jm-field">Status<select id="jobStatus" class="jm-in">${STATUS_OPTS.map(([v, l]) => `<option value="${v}"${v === st.status ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
-      <label class="jm-field">Origem (coluna de preço)<select id="jobSourceType" class="jm-in">${SRC_OPTS.map(([v, l]) => `<option value="${v}"${v === st.sourceType ? " selected" : ""}>${l}</option>`).join("")}</select></label>
-      <label class="jm-field">Cliente<select id="jobCustomer" class="jm-in">${custOpts}</select></label>
-      <label class="jm-field">Builder<select id="jobBuilder" class="jm-in">${bOpts}</select></label>
+      <label class="jm-field">Origem (coluna de preço)<select id="jobSourceType" class="jm-in">${SRC_OPTS.map(([v, l]) => `<option value="${v}"${v === srcUi ? " selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="jm-field jm-field--wide">Nome da origem<input type="text" id="jobSourceName" class="jm-in" maxlength="200" value="${esc(st.sourceName)}" placeholder="Empresa / contato" /></label>
       <button type="button" class="jm-link" data-act="more">Fechar opções</button>
     </div>`;
@@ -1183,7 +1215,7 @@
       st.customerId = null;
       const b = currentBuilder();
       const t = String(b?.type || "builder").toLowerCase();
-      st.sourceType = ["builder", "contractor", "loja"].includes(t) ? t : "builder";
+      st.sourceType = t === "loja" ? "loja" : "builder";
       if (st.sourceNameAuto) st.sourceName = builderName(b);
       // Do not copy builder mailing address into the job site field.
     }
@@ -1346,7 +1378,7 @@
       st.builderId = String(o.builderId);
       st.pickerOpen = false;
     }
-    if (o.sourceType) st.sourceType = o.sourceType;
+    if (o.sourceType) st.sourceType = sourceTypeUi(o.sourceType);
     if (o.sourceName != null) {
       st.sourceName = o.sourceName;
       st.sourceNameAuto = false;
@@ -1409,7 +1441,7 @@
     st.status = wo.status || "draft";
     st.customerId = wo.customer_id || null;
     st.builderId = wo.builder_id || null;
-    st.sourceType = wo.source_type || "other";
+    st.sourceType = sourceTypeUi(wo.source_type || "other");
     st.sourceName = wo.source_name || "";
     st.sourceNameAuto = !wo.source_name;
     st.title = wo.title || "";

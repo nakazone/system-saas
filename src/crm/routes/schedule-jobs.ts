@@ -650,7 +650,11 @@ scheduleJobsRouter.get(
             ? { status }
             : {}),
           ...(source && WO_SOURCES.includes(source as (typeof WO_SOURCES)[number])
-            ? { sourceType: source }
+            ? {
+                // Builder filter includes legacy "contractor" rows (same pricing column).
+                sourceType:
+                  source === "builder" ? { in: ["builder", "contractor"] as const } : source,
+              }
             : {}),
           ...(from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())
             ? {

@@ -812,3 +812,15 @@ body.dashboard-app-body .jmb-search input[type="search"],
 .jobs-ov-card--promo[hidden] { display: none !important; }
 .jobs-table__bill { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .jobs-table__bill strong { margin-right: 0.35rem; }
+
+/* Sticky active filters (Origem / Status / Cobrança) */
+.jobs-toolbar label.is-filtered select {
+  border-color: var(--jobs-accent, #E7792C);
+  background: var(--jobs-accent, #E7792C);
+  font-weight: 600;
+  color: #fff;
+}
+.jobs-toolbar label.is-filtered select option {
+  color: var(--jobs-ink, #221E1A);
+  background: #fff;
+}
