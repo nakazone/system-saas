@@ -53,7 +53,18 @@
     const name = (session && session.user && (session.user.name || session.user.email)) || "";
     $("omdGreeting").textContent = D.greeting(overview, name);
     $("omdDate").textContent = D.dateLabel(overview) || " ";
-    $("omdSummary").textContent = D.summary(overview) || "Tudo pronto.";
+    // Bold the facts ("2 visitas e 1 instalação", "2 itens urgentes") like the approved layout.
+    const sum = D.summary(overview) || "Tudo pronto.";
+    $("omdSummary").innerHTML = sum
+      .split(" · ")
+      .map((part) => {
+        const m = /^(Hoje:\s*)(.+?)(\.?)$/.exec(part);
+        if (m) return `${esc(m[1])}<b>${esc(m[2])}</b>${esc(m[3])}`;
+        const n = /^(\d+\s.+?)(\.?)$/.exec(part);
+        if (n) return `<b>${esc(n[1])}</b>${esc(n[2])}`;
+        return esc(part);
+      })
+      .join(" · ");
   }
 
   function renderUpdated() {
@@ -63,8 +74,47 @@
     el.textContent = mins < 1 ? "Atualizado agora" : `Atualizado há ${mins} min`;
   }
 
+  /** Full-dollar value for the bento tiles ($48,350 instead of $48.4K). */
+  function fullValue(key, k) {
+    const pick = {
+      pipeline: k.pipeline_open && k.pipeline_open.value,
+      won: k.won_month && k.won_month.value,
+      receivables: k.receivables && k.receivables.open_value,
+      gross_profit: k.gross_profit && k.gross_profit.value,
+    }[key];
+    return pick == null ? "" : D.money(pick);
+  }
+
+  /** "▲ 12% vs setembro" → "+12% vs set." (or "+8%" for the narrow Gross Profit tile). */
+  function shortDelta(text, tiny) {
+    const t = String(text || "");
+    const m = /^([▲▼])\s*(\d+%)\s*vs\s*(\S+)/.exec(t);
+    if (!m) return t;
+    const sign = m[1] === "▲" ? "+" : "−";
+    if (tiny) return `${sign}${m[2]}`;
+    return `${sign}${m[2]} vs ${m[3].slice(0, 3)}.`;
+  }
+
+  /** Shorter / full-dollar meta lines used by the bento tiles. */
+  function bentoMeta(c, k) {
+    if (c.key === "pipeline" && k.pipeline_open) return "Quotes enviados em aberto";
+    if (c.key === "gross_profit" && k.gross_profit) return c.short || "";
+    if (c.key === "receivables" && k.receivables && k.receivables.overdue_count) {
+      const r = k.receivables;
+      return `${D.money(r.overdue_value)} vencido · ${D.plural(r.overdue_count, "invoice", "invoices")}`;
+    }
+    return "";
+  }
+
   /** Extra detail shown only in the desktop bento tiles (values the overview already returns). */
   function kpiExtra(key, k) {
+    if (key === "pipeline" && k.pipeline_open) {
+      const p = k.pipeline_open;
+      return `<span class="omd-kpi__boxes" aria-hidden="true">
+        <span><b>${esc(String(p.count))}</b>${esc(p.count === 1 ? "quote enviado" : "quotes enviados")}</span>
+        <span><b>${esc(String(p.without_value || 0))}</b>sem valor</span>
+      </span>`;
+    }
     if (key === "gross_profit" && k.gross_profit && k.gross_profit.value != null) {
       const g = k.gross_profit;
       const revenue = Number(g.revenue) || 0;
@@ -74,8 +124,8 @@
       return `<div class="omd-kpi__split" aria-hidden="true">
         ${margin != null ? `<span class="omd-kpi__bar"><i style="width:${bar}%"></i></span>` : ""}
         ${margin != null ? `<span class="omd-kpi__line"><span>Margem</span><b>${margin}%</b></span>` : ""}
-        <span class="omd-kpi__line"><span>Receita</span><b>${esc(D.moneyCompact(revenue))}</b></span>
-        <span class="omd-kpi__line"><span>Custo</span><b>${esc(D.moneyCompact(cost))}</b></span>
+        <span class="omd-kpi__line"><span>Receita</span><b>${esc(D.money(revenue))}</b></span>
+        <span class="omd-kpi__line"><span>Custo</span><b>${esc(D.money(cost))}</b></span>
       </div>`;
     }
     if (key === "receivables" && k.receivables && Number(k.receivables.open_value) > 0) {
@@ -103,13 +153,26 @@
     const k = (overview && overview.kpis) || {};
     host.innerHTML = cards
       .map((c) => {
-        const delta = c.delta ? `<span class="omd-delta is-${esc(c.delta.tone)}">${esc(c.delta.text)}</span>` : "";
+        const delta = c.delta
+          ? `<span class="omd-delta is-${esc(c.delta.tone)}"><span class="omd-v-row">${esc(c.delta.text)}</span><span class="omd-v-bento">${esc(
+              shortDelta(c.delta.text, c.key === "gross_profit"),
+            )}</span></span>`
+          : "";
+        const full = fullValue(c.key, k);
+        const value = full
+          ? `<span class="omd-v-row">${esc(c.value)}</span><span class="omd-v-bento">${esc(full)}</span>`
+          : esc(c.value);
+        const metaBento = bentoMeta(c, k);
+        const meta = metaBento
+          ? `<span class="omd-v-row">${esc(c.meta)}</span><span class="omd-v-bento">${esc(metaBento)}</span>`
+          : esc(c.meta);
+        const go = c.key === "pipeline" ? '<span class="omd-kpi__go" aria-hidden="true">Ver quotes →</span>' : "";
         return `<a class="omd-kpi${c.tone === "dark" ? " omd-kpi--dark" : ""}" data-kpi="${esc(c.key)}" href="${esc(c.href)}"${
           c.title ? ` title="${esc(c.title)}"` : ""
         }>
-          <p class="omd-kpi__label">${esc(c.label)}</p>
-          <p class="omd-kpi__value">${esc(c.value)}</p>
-          <p class="omd-kpi__meta${c.metaTone ? ` is-${esc(c.metaTone)}` : ""}"><span>${esc(c.meta)}</span>${delta}</p>
+          <p class="omd-kpi__label"><span>${esc(c.label)}</span>${go}</p>
+          <p class="omd-kpi__value">${value}</p>
+          <p class="omd-kpi__meta${c.metaTone ? ` is-${esc(c.metaTone)}` : ""}"><span>${meta}</span>${delta}</p>
           ${kpiExtra(c.key, k)}
         </a>`;
       })
@@ -118,7 +181,11 @@
 
   function attentionRow(it) {
     const v = D.attentionView(it, overview);
-    const badge = v.badge ? `<span class="omd-badge is-pulse">${esc(v.badge)}</span>` : "";
+    const badge = v.badge ? `<span class="omd-badge is-pulse omd-v-row">${esc(v.badge)}</span>` : "";
+    // Bento: the countdown moves into the detail line (orange) so the name never gets squeezed.
+    const bentoDetail = v.badge
+      ? [v.badge, it.source, it.amount > 0 ? D.moneyCompact(it.amount) : ""].filter(Boolean).join(" · ")
+      : "";
     const cta = v.tel
       ? `<a class="omd-btn omd-btn--ghost omd-btn--sm" href="${esc(v.tel)}" title="Ligar para ${esc(it.entity.name)}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.4 1.8.7 2.7a2 2 0 01-.5 2.1L8 9.8a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.7.7a2 2 0 011.7 2z"/></svg>
@@ -128,7 +195,11 @@
       <span class="omd-row__icon">${v.icon}</span>
       <div class="omd-row__body">
         <p class="omd-row__title"><a href="${esc(v.href)}">${esc(v.title)}</a></p>
-        <p class="omd-row__detail">${esc(v.detail)}</p>
+        <p class="omd-row__detail">${
+          bentoDetail
+            ? `<span class="omd-v-row">${esc(v.detail)}</span><span class="omd-v-bento is-hot">${esc(bentoDetail)}</span>`
+            : esc(v.detail)
+        }</p>
       </div>
       <div class="omd-row__aside">${badge}${cta}</div>
     </li>`;
@@ -185,7 +256,7 @@
         const right = v.live
           ? `<span class="omd-live">${esc(v.status || "Em andamento")}</span>`
           : `<span class="omd-tag is-${esc(v.tagTone)}">${esc(v.tag)}</span>`;
-        return `<li class="omd-row omd-ev">
+        return `<li class="omd-row omd-ev${v.live ? " is-now" : ""}">
           <span class="omd-ev__time"><strong>${esc(v.time)}</strong><span>${esc(v.until)}</span></span>
           <div class="omd-row__body">
             <p class="omd-row__title"><a href="${esc(v.href)}">${esc(v.title)}</a></p>
@@ -644,6 +715,21 @@
     });
   }
 
+  /** Início uses the neutral palette for stages (DB stage colors stay on the Leads Kanban). */
+  const STAGE_TONES = {
+    new_lead: "#D0D5DD",
+    contacted: "#98A2B3",
+    meeting_scheduled: "#536249",
+    quote_sent: "#E7792C",
+    stand_by: "#EAECF0",
+    won: "#221E1A",
+  };
+  function stageTone(col) {
+    if (STAGE_TONES[col.slug]) return STAGE_TONES[col.slug];
+    if (/^follow_up/.test(String(col.slug || ""))) return "#221E1A";
+    return "#98A2B3";
+  }
+
   function renderPipeline() {
     const card = $("omdPipeCard");
     const board = overview.board;
@@ -670,7 +756,7 @@
         .filter((c) => c.value > 0)
         .map(
           (c) =>
-            `<i style="flex:${c.value};background:${esc(c.color)}" title="${esc(D.stageLabel(c.slug, c.name))}: ${esc(
+            `<i style="flex:${c.value};background:${esc(stageTone(c))}" title="${esc(D.stageLabel(c.slug, c.name))}: ${esc(
               D.money(c.value),
             )}"></i>`,
         )
@@ -692,7 +778,7 @@
         const add = col.slug === "new_lead" && canCreate ? '<button type="button" class="omd-col__add" data-omd-new>+ Adicionar lead</button>' : "";
         return `<section class="omd-col${col.slug === "won" ? " is-closed" : ""}" data-stage-slug="${esc(col.slug)}" aria-label="${esc(label)}">
           <header class="omd-col__head">
-            <span class="omd-col__dot" style="background:${esc(col.color)}"></span>
+            <span class="omd-col__dot${col.slug === "stand_by" ? " is-hollow" : ""}" style="background:${esc(stageTone(col))}"></span>
             <h3 class="omd-col__name">${esc(label)}</h3>
             <span class="omd-col__count">${col.count}</span>
           </header>

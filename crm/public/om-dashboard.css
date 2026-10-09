@@ -1675,3 +1675,449 @@ body.plab.dashboard-app-body .omd-col {
   background: #B4561A;
   box-shadow: none;
 }
+
+
+/* =====================================================================
+ * Início — acabamento fiel ao mock aprovado (M6, base neutra)
+ * ===================================================================== */
+.omd-v-bento,
+.omd-kpi__go,
+.omd-kpi__boxes {
+  display: none;
+}
+.omd-kpi__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.omd-col__dot.is-hollow {
+  box-shadow: inset 0 0 0 1.5px #98A2B3;
+}
+body.plab.dashboard-app-body .omd-map-pin.is-job {
+  background: #E7792C;
+  color: #221E1A;
+}
+body.plab.dashboard-app-body .omd-map-pin.is-visit {
+  background: #221E1A;
+}
+body.plab.dashboard-app-body .omd-tag.is-visit {
+  background: #fff;
+  color: #221E1A;
+  box-shadow: 0 0 0 1px #E5E7EB;
+}
+body.plab.dashboard-app-body .omd-tag.is-job {
+  background: #FDF0E6;
+  color: #221E1A;
+}
+
+@media (min-width: 1180px) {
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-v-row {
+    display: none;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-v-bento {
+    display: inline;
+  }
+
+  /* Saudação */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-date {
+    font-size: 14px;
+    font-weight: 550;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-summary {
+    font-size: 14.5px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-summary b {
+    color: #221E1A;
+    font-weight: 600;
+  }
+
+  /* Links dos cartões: grafite com sublinhado laranja */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: #221E1A !important;
+    text-decoration: underline;
+    text-decoration-color: #E7792C;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+
+  /* Pipeline aberto */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__go {
+    display: inline;
+    font-size: 13px;
+    font-weight: 600;
+    color: #221E1A;
+    text-decoration: underline;
+    text-decoration-color: #221E1A;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes > span {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.22);
+    font-size: 12px;
+    font-weight: 550;
+    color: rgba(34, 30, 26, 0.75);
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes b {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #221E1A;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
+    margin-top: 10px;
+  }
+
+  /* Comparação com o mês anterior: pílula curta numa linha */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi .omd-delta {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi .omd-kpi__meta {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] .omd-kpi__meta.is-danger {
+    color: #B4561A;
+    font-weight: 600;
+  }
+
+  /* Hoje: eventos em caixas, o atual em laranja claro */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-today__list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev {
+    grid-template-columns: 58px minmax(0, 1fr);
+    grid-template-areas: "time body" "time aside";
+    align-items: start;
+    gap: 2px 12px;
+    margin: 0;
+    padding: 11px 12px;
+    border: 0;
+    border-radius: 16px;
+    background: #F1F3F5;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev + .omd-ev {
+    border-top: 0;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev:hover {
+    background: #EAECF0;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev.is-now {
+    background: #FDF0E6;
+    box-shadow: inset 3px 0 0 #E7792C;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time {
+    grid-area: time;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time strong {
+    font-size: 14px;
+    font-weight: 650;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time span {
+    font-size: 12px;
+    color: #667085;
+    font-weight: 500;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-row__body {
+    grid-area: body;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-row__title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-row__aside {
+    grid-area: aside;
+    justify-self: start;
+    margin-top: 4px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-live {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #EEF1EC;
+    color: #536249;
+    font-size: 11.5px;
+    font-weight: 650;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-live::before {
+    width: 6px;
+    height: 6px;
+    background: #536249;
+    box-shadow: 0 0 0 3px rgba(83, 98, 73, 0.18);
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-today .omd-tag {
+    padding: 2px 8px;
+    font-size: 11.5px;
+    font-weight: 650;
+  }
+
+  /* Precisa da sua atenção */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-card__head {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-count {
+    padding: 1px 8px;
+    background: #E7792C;
+    color: #221E1A;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 8px 0;
+    margin: 0;
+    border-radius: 0;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row + .omd-row {
+    border-top: 1px solid #E5E7EB;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row:hover {
+    background: transparent;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__icon svg {
+    width: 17px;
+    height: 17px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row.is-danger .omd-row__icon {
+    background: #FDF0E6;
+    color: #B4561A;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row.is-warn .omd-row__icon {
+    background: #F1F3F5;
+    color: #667085;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__detail {
+    font-size: 12.5px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-btn--ghost {
+    height: 30px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    background: #F1F3F5;
+    font-size: 12.5px;
+    font-weight: 600;
+    gap: 5px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn a.omd-btn--ghost[href^="tel:"] {
+    background: #221E1A;
+    color: #fff !important;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn a.omd-btn--ghost[href^="tel:"] svg {
+    width: 13px;
+    height: 13px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-badge {
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #FDF0E6;
+    color: #B4561A;
+    font-size: 11.5px;
+    font-weight: 650;
+  }
+
+  /* Previsão de jobs: hoje em grafite */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__days {
+    gap: 4px;
+    margin: 10px 0 6px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day {
+    padding: 6px 0 5px;
+    border: 0;
+    border-radius: 12px;
+    background: #F1F3F5;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-n {
+    font-size: 15px;
+    font-weight: 650;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-wd {
+    font-size: 10.5px;
+    font-weight: 650;
+    color: #98A2B3;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-c {
+    font-size: 11px;
+    font-weight: 650;
+    color: #98A2B3;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-busy .omd-jobs__day-c {
+    color: #221E1A;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today {
+    background: #221E1A;
+    color: #fff;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today .omd-jobs__day-wd {
+    color: #C8CDD5;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today .omd-jobs__day-c {
+    color: #E7792C;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 12px;
+    padding: 8px 0;
+    margin: 0;
+    border-radius: 0;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row + .omd-row {
+    border-top: 1px solid #E5E7EB;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row:hover {
+    background: transparent;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-ev__time strong {
+    font-size: 13.5px;
+    font-weight: 650;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-ev__time span {
+    font-size: 12px;
+    color: #667085;
+  }
+
+  /* Pipeline de vendas: título e resumo na mesma linha */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-pipe__head > div:first-child {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-pipe__head h2 {
+    font-size: 17px;
+    font-weight: 650;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe #omdPipeMeta {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #667085;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-funnel {
+    height: 8px;
+    border-radius: 4px;
+    gap: 2px;
+    margin: 6px 0 12px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col {
+    border-radius: 16px;
+    padding: 10px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__name {
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__count {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__value {
+    font-size: 12px;
+    font-weight: 550;
+    color: #98A2B3;
+  }
+
+  /* Mapa do dia: cabeçalho em vidro sobre o mapa */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map {
+    position: relative;
+    padding: 0;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    z-index: 500;
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 0 0 1px #E5E7EB, 0 4px 14px -8px rgba(16, 24, 40, 0.25);
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head h2 {
+    font-size: 15px;
+    font-weight: 650;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head h2::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    flex: none;
+    background: #E7792C;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.5'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-map__body {
+    position: absolute;
+    inset: 0;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-map__canvas {
+    border-radius: 24px;
+    height: 100%;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-map .omd-map__empty {
+    border-radius: 24px;
+    height: 100%;
+    margin: 0;
+    padding-top: 70px;
+    background: #F1F3F5;
+  }
+}
+
+@media (min-width: 1180px) {
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__detail .is-hot {
+    color: #B4561A;
+    font-weight: 600;
+  }
+  /* Previsão de jobs: a faixa da semana mostra a contagem; a lista mostra os próximos 2. */
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__list > li:nth-child(n + 3) {
+    display: none;
+  }
+}
+@media (min-width: 1180px) {
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-board {
+    grid-auto-columns: calc((100% - 5 * 0.75rem) / 6);
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.om-device-tablet) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__more {
+    color: #221E1A !important;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: #E7792C;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+}
