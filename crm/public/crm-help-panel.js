@@ -38,7 +38,7 @@
       "<strong>Work</strong>" +
       "<span>Help covering each step of your workflow — leads, quotes, invoices, payroll, and job costs.</span>" +
       "</a>" +
-      '<a class="crm-help-panel__card" href="dashboard.html?page=customers">' +
+      '<a class="crm-help-panel__card" href="customers.html">' +
       "<strong>Clients</strong>" +
       "<span>Manage clients and builders, and keep communications organized across your team.</span>" +
       "</a>" +

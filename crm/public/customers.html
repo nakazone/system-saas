@@ -3,33 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f3f1ee" />
+  <meta name="theme-color" content="#f7f4ee" />
   <title>Clientes | ObraMate</title>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}/*maismob2*/@media (max-width:1024px){body.om-app.dashboard-app-body,body.om-app{--crm-sidebar-width:0px!important}body.om-app .dashboard-container{display:block!important;margin:0!important;width:100%!important;max-width:100%!important}body.om-app .dashboard-main,body.om-app.dashboard-app-body .dashboard-main,body.om-app.sidebar-collapsed .dashboard-main{margin:0!important;margin-left:0!important;margin-top:0!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;left:0!important;top:0!important;height:100vh!important;height:100dvh!important;width:min(288px,92vw)!important;min-width:0!important;max-width:min(288px,92vw)!important;transform:translate3d(-105%,0,0)!important;z-index:1100!important;margin:0!important}body.om-app #dashboardSidebar.mobile-open,body.om-app .dashboard-sidebar.mobile-open{transform:translate3d(0,0,0)!important}}</style>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="stylesheet" href="styles.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
+  <link rel="stylesheet" href="customers-board.css?v=20261009-cx1" />
+</head>
+<body class="dashboard-app-body om-app sidebar-collapsed cx-app">
   <script src="om-device.js?v=20261007-stable1"></script>
   <script>
     (function () {
-      if (window.__omDevice && window.__omDevice.guardMobileOnlyPage("dashboard.html?page=customers")) return;
-    })();
-  </script>
-  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}/*maismob2*/@media (max-width:1024px){body.om-app.dashboard-app-body,body.om-app{--crm-sidebar-width:0px!important}body.om-app .dashboard-container{display:block!important;margin:0!important;width:100%!important;max-width:100%!important}body.om-app .dashboard-main,body.om-app.dashboard-app-body .dashboard-main,body.om-app.sidebar-collapsed .dashboard-main{margin:0!important;margin-left:0!important;margin-top:0!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;left:0!important;top:0!important;height:100vh!important;height:100dvh!important;width:min(288px,92vw)!important;min-width:0!important;max-width:min(288px,92vw)!important;transform:translate3d(-105%,0,0)!important;z-index:1100!important;margin:0!important}body.om-app #dashboardSidebar.mobile-open,body.om-app .dashboard-sidebar.mobile-open{transform:translate3d(0,0,0)!important}}</style>
-  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="jobs-customers-mobile.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
-</head>
-<body class="dashboard-app-body om-app sidebar-collapsed cli-app">
-  <script>
-    (function () {
       try {
-        if (localStorage.getItem("crm_sidebar_collapsed") === "0") document.body.classList.remove("sidebar-collapsed");
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
       } catch (e) {}
       if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
     })();
@@ -40,6 +43,7 @@
       <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
     </button>
     <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
       <h1 class="mobile-app-header__title">Clientes</h1>
     </div>
   </header>
@@ -48,102 +52,143 @@
     <aside class="dashboard-sidebar" id="dashboardSidebar">
       <div class="sidebar-header">
         <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
-        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu">
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
       </div>
-      <nav class="sidebar-nav" aria-label="Principal"><div id="crmSharedNavRoot" data-layout="sidebar"></div></nav>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
       <div class="sidebar-footer">
         <div class="sidebar-user-bar">
-          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar">—</div>
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
           <div class="sidebar-user-bar__text">
             <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
             <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
           </div>
-          <button type="button" id="logoutBtn" class="sidebar-logout-btn" aria-label="Sair">
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
           </button>
         </div>
       </div>
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
-
     <main class="dashboard-main">
-      <div class="cli-desktop" hidden></div>
-      <div class="jcm" id="cliMobile">
-        <!-- List -->
-        <div class="jcm-pane" id="cliListPane">
-          <div class="jcm-nav">
-            <a class="jcm-icon-btn" href="mais.html" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></a>
-            <button type="button" class="jcm-icon-btn jcm-icon-btn--accent" id="cliAddBtn" data-crm-permission="customers.create" aria-label="Novo cliente">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            </button>
+      <div class="cx" id="cxRoot">
+        <header class="cx-head">
+          <h1>Clientes</h1>
+          <dl class="cx-sum" aria-label="Resumo">
+            <div><dt>Clientes</dt><dd id="cxSumCount">—</dd></div>
+            <div><dt>Com job ativo</dt><dd id="cxSumActive">—</dd></div>
+            <div data-money><dt>A receber</dt><dd id="cxSumOpen">—</dd></div>
+            <div data-money><dt>Vencido</dt><dd id="cxSumOverdue">—</dd></div>
+            <div data-money><dt>Quotes em aberto</dt><dd id="cxSumQuotes">—</dd></div>
+          </dl>
+          <div class="cx-head__acts">
+            <button type="button" class="cx-btn" id="cxDupBtn" hidden><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v6a6 6 0 0 0 6 6h6"/><path d="m15 12 3 3-3 3"/><path d="M6 21v-6"/></svg><span>Duplicados</span></button>
+            <button type="button" class="cx-btn cx-btn--pri" id="cxNewBtn" data-crm-permission="customers.create"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Novo cliente</span></button>
           </div>
-          <h1 class="jcm-title">Clientes</h1>
-          <p class="jcm-sub" id="cliSummary">—</p>
-          <label class="jcm-search">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-            <input type="search" id="cliSearch" placeholder="Nome, endereço ou telefone" autocomplete="off" />
-          </label>
-          <div class="jcm-chips" id="cliChips"></div>
-          <div class="om-ptr" id="cliPtr" aria-hidden="true">↓ Puxe para atualizar</div>
-          <div class="jcm-list om-dock-pad" id="cliList"></div>
-        </div>
+        </header>
 
-        <!-- Detail -->
-        <div class="jcm-pane" id="cliDetailPane" hidden>
-          <div class="jcm-nav">
-            <button type="button" class="jcm-icon-btn" id="cliDetailBack" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
-            <strong style="font-size:1rem;font-weight:800">Cliente</strong>
-            <button type="button" class="jcm-icon-btn" id="cliEditBtn" aria-label="Editar"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
-          </div>
-          <div class="jcm-profile">
-            <span class="jcm-profile__av" id="cliDetAv">—</span>
-            <h1 class="jcm-profile__name" id="cliDetName">—</h1>
-            <div class="jcm-profile__row">
-              <span class="jcm-badge jcm-badge--builder" id="cliDetType">—</span>
-              <span class="jcm-profile__since" id="cliDetSince">—</span>
+        <div class="cx-split" id="cxSplit">
+          <aside class="cx-list" id="cxListPane" aria-label="Lista de clientes">
+            <div class="cx-list__top">
+              <label class="cx-search"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="cxSearch" placeholder="Buscar nome, telefone, e-mail ou endereço" autocomplete="off" aria-label="Buscar clientes" /></label>
+              <nav class="cx-chips" id="cxChips" aria-label="Tipo de cliente"></nav>
             </div>
-          </div>
-          <div class="jcm-quick" id="cliQuick"></div>
-          <div class="jcm-kpis">
-            <div class="jcm-kpi"><p class="jcm-kpi__label">Contratado</p><p class="jcm-kpi__val" id="cliKpiContracted">—</p></div>
-            <div class="jcm-kpi"><p class="jcm-kpi__label">Recebido</p><p class="jcm-kpi__val" id="cliKpiPaid">—</p></div>
-            <div class="jcm-kpi jcm-kpi--accent"><p class="jcm-kpi__label">Em aberto</p><p class="jcm-kpi__val" id="cliKpiOpen">—</p></div>
-          </div>
-          <div class="jcm-seg" id="cliDetTabs">
-            <button type="button" class="jcm-seg__btn is-active" data-cli-tab="resumo">Resumo</button>
-            <button type="button" class="jcm-seg__btn" data-cli-tab="jobs">Jobs</button>
-            <button type="button" class="jcm-seg__btn" data-cli-tab="extrato">Extrato</button>
-          </div>
-          <div id="cliDetResumo">
-            <div class="jcm-card">
-              <div class="jcm-dl" id="cliDetDl"></div>
-            </div>
-            <div class="jcm-notes" id="cliDetNotesWrap" hidden>
-              <p class="jcm-notes__label">Notas internas</p>
-              <p class="jcm-notes__body" id="cliDetNotes"></p>
-            </div>
-          </div>
-          <div id="cliDetJobs" hidden></div>
-          <div id="cliDetExtrato" hidden></div>
+            <div class="om-ptr" id="cxPtr" aria-hidden="true">↓ Puxe para atualizar</div>
+            <div class="cx-rows" id="cxRows" role="list"><p class="cx-empty">Carregando…</p></div>
+          </aside>
+          <section class="cx-detail" id="cxDetail" aria-live="polite">
+            <div class="cx-blank" id="cxBlank"><p>Escolha um cliente na lista.</p></div>
+          </section>
         </div>
-      </div>
-
-      <div class="jcm-foot" id="cliFoot">
-        <a class="jcm-foot__btn jcm-foot__btn--ghost" id="cliFootExtrato" href="finance.html">Extrato</a>
-        <a class="jcm-foot__btn jcm-foot__btn--primary" id="cliFootQuote" href="quote-builder.html">Nova quote</a>
       </div>
     </main>
   </div>
 
+  <!-- Novo / editar cliente -->
+  <div class="cx-modal" id="cxFormModal" role="dialog" aria-modal="true" aria-labelledby="cxFormTitle" hidden>
+    <form class="cx-modal__card" id="cxForm" novalidate>
+      <div class="cx-modal__head"><h2 id="cxFormTitle">Novo cliente</h2><button type="button" class="cx-x" data-cx-close aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div class="cx-modal__body">
+        <input type="hidden" id="cxFormId" />
+        <input type="hidden" id="cxFormLeadId" />
+        <section class="cx-fs">
+          <h4>Tipo de cliente</h4>
+          <div class="cx-seg" id="cxTypeSeg" role="radiogroup" aria-label="Tipo de cliente">
+            <button type="button" role="radio" data-type="particular">Particular</button>
+            <button type="button" role="radio" data-type="builder">Builder</button>
+            <button type="button" role="radio" data-type="loja">Loja</button>
+          </div>
+        </section>
+        <section class="cx-fs">
+          <h4>Dados</h4>
+          <div class="cx-ff">
+            <div class="cx-f" id="cxNameWrap"><label for="cxName" id="cxNameLabel">Nome *</label><input type="text" id="cxName" maxlength="255" autocomplete="off" /></div>
+            <div class="cx-f" id="cxRespWrap" hidden><label for="cxResp">Responsável *</label><input type="text" id="cxResp" maxlength="255" autocomplete="off" /></div>
+            <div class="cx-f"><label for="cxPhone">Telefone</label><input type="tel" id="cxPhone" maxlength="14" inputmode="numeric" placeholder="(XXX) XXX-XXXX" autocomplete="off" /></div>
+            <div class="cx-f"><label for="cxEmail">E-mail *</label><input type="email" id="cxEmail" maxlength="255" autocomplete="off" /></div>
+            <div class="cx-f cx-f--full"><label for="cxAddress">Endereço</label><input type="text" id="cxAddress" maxlength="500" placeholder="Comece a digitar o endereço…" autocomplete="off" /></div>
+          </div>
+        </section>
+        <section class="cx-fs">
+          <h4>Preços</h4>
+          <div class="cx-opts">
+            <button type="button" class="cx-opt" data-pricing="table"><i></i><span><b>Tabela de Valores</b><small id="cxPricingTableHint">Coluna Particular</small></span></button>
+            <button type="button" class="cx-opt" data-pricing="custom"><i></i><span><b>Só deste cliente</b><small id="cxPricingCustomHint">Nenhum preço definido</small></span></button>
+          </div>
+          <button type="button" class="cx-link" id="cxEditPrices" hidden>Editar preços deste cliente</button>
+        </section>
+        <section class="cx-fs">
+          <h4>Notas internas</h4>
+          <textarea id="cxNotes" rows="3" maxlength="8000" placeholder="Só a equipe vê."></textarea>
+        </section>
+        <p class="cx-err" id="cxFormError" hidden></p>
+      </div>
+      <div class="cx-modal__foot">
+        <button type="button" class="cx-btn cx-btn--quiet" id="cxFormDelete" hidden>Excluir</button>
+        <span class="cx-sp"></span>
+        <button type="button" class="cx-btn" data-cx-close>Cancelar</button>
+        <button type="submit" class="cx-btn cx-btn--pri" id="cxFormSubmit">Salvar</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Preços só deste cliente -->
+  <div class="cx-modal" id="cxPriceModal" role="dialog" aria-modal="true" aria-labelledby="cxPriceTitle" hidden>
+    <div class="cx-modal__card cx-modal__card--wide">
+      <div class="cx-modal__head"><h2 id="cxPriceTitle">Preços deste cliente</h2><button type="button" class="cx-x" data-cx-close aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div class="cx-modal__body">
+        <p class="cx-hint" id="cxPriceIntro">Em branco = usa o valor da Tabela de Valores.</p>
+        <label class="cx-search cx-search--full"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="cxPriceSearch" placeholder="Buscar serviço…" autocomplete="off" /></label>
+        <div class="cx-prices" id="cxPriceList"></div>
+      </div>
+      <div class="cx-modal__foot"><span class="cx-sp"></span><button type="button" class="cx-btn" data-cx-close>Cancelar</button><button type="button" class="cx-btn cx-btn--pri" id="cxPriceApply">Aplicar</button></div>
+    </div>
+  </div>
+
+  <!-- Duplicados -->
+  <div class="cx-modal" id="cxDupModal" role="dialog" aria-modal="true" aria-labelledby="cxDupTitle" hidden>
+    <div class="cx-modal__card">
+      <div class="cx-modal__head"><h2 id="cxDupTitle">Possíveis duplicados</h2><button type="button" class="cx-x" data-cx-close aria-label="Fechar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div class="cx-modal__body" id="cxDupBody"></div>
+      <div class="cx-modal__foot"><span class="cx-hint" id="cxDupHint">Jobs, quotes e faturas do outro cadastro passam para o que ficar.</span><span class="cx-sp"></span><button type="button" class="cx-btn" data-cx-close>Agora não</button></div>
+    </div>
+  </div>
+
+  <div class="cx-menu" id="cxMoreMenu" role="menu" hidden></div>
+
   <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js?v=20261001-refresh1"></script>
   <script src="saas-branding.js"></script>
-  <script src="om-device.js?v=20261007-stable1"></script>
-  <script src="crm-shared-nav.js?v=20261008-neutro1"></script>
-  <script src="crm-shell.js?v=20261008-name1"></script>
+  <script src="crm-address-autocomplete.js?v=20261009-cx1"></script>
+  <script src="crm-shared-nav.js?v=20261009-cx1"></script>
+  <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="om-gestures.js?v=20261002-gest1"></script>
-  <script src="customers-mobile.js?v=20261005-cli1"></script>
+  <script src="crm-job-modal.js?v=20261006-deliv4"></script>
+  <script src="lead-signals.js?v=20261009-lb1"></script>
+  <script src="customers-page.js?v=20261009-cx1"></script>
 </body>
 </html>

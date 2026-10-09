@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    /* Clientes mudou para customers.html (09/10). Links antigos com ?page=customers vão para lá. */
+    (function () {
+      try {
+        var qp = new URLSearchParams(location.search);
+        if (qp.get('page') === 'customers') {
+          var out = new URLSearchParams();
+          ['id', 'edit', 'new', 'q', 'type'].forEach(function (k) { if (qp.get(k)) out.set(k, qp.get(k)); });
+          location.replace('customers.html' + (out.toString() ? '?' + out.toString() : ''));
+        }
+      } catch (e) {}
+    })();
+  </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f4ee">
@@ -146,7 +159,7 @@
             <details class="mobile-more-sheet__cadastro">
                 <summary class="mobile-more-sheet__btn mobile-more-sheet__cadastro-summary"><span class="mobile-more-sheet__emoji" aria-hidden="true">📋</span> Cadastro</summary>
                 <div class="mobile-more-sheet__cadastro-panel">
-                    <a href="dashboard.html?page=customers" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</a>
+                    <a href="customers.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</a>
                     <a href="builder-pricing-admin.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission-any="builders.view,quotes.edit"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Tabela de Valor</a>
                     <a href="equipe.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Equipe</a>
                 </div>
@@ -1816,18 +1829,18 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="crm-toast.js"></script>
     <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
-    <script src="crm-command-palette.js?v=20261002-leadmsg2"></script>
+    <script src="crm-command-palette.js?v=20261009-cx1"></script>
     <script src="crm-i18n.js?v=20261001-refresh1"></script>
     <script src="crm-account-menu.js?v=20261001-refresh1"></script>
-    <script src="crm-help-panel.js?v=20260924-omapp11"></script>
-    <script src="crm-shared-nav.js?v=20261008-neutro1"></script>
-  <script src="crm-shell.js?v=20261008-name1"></script>
+    <script src="crm-help-panel.js?v=20261009-cx1"></script>
+    <script src="crm-shared-nav.js?v=20261009-cx1"></script>
+  <script src="crm-shell.js?v=20261009-cx1"></script>
     
     <script src="crm-pwa-install.js?v=20260924-pwa"></script>
     <script src="crm-push.js?v=20260923-push"></script>
     <script src="notification-center.js"></script>
     <script src="marketing-dashboard.js"></script>
-    <script src="dashboard.js?v=20261005-cli1"></script>
+    <script src="dashboard.js?v=20261009-cx1"></script>
     <script src="pipeline-stage-labels.js?v=20261006-contacted1"></script>
     <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
     <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>

@@ -858,6 +858,10 @@ if (dashboardSidebarEl && !dashboardSidebarEl.dataset.navBound) {
 }
 
 function showPage(pageName) {
+    if (pageName === 'customers') {
+        location.href = 'customers.html';
+        return;
+    }
     if (!pageName || typeof pageName !== 'string') return;
 
     if (pageName === 'crm') pageName = 'leads';
@@ -1978,7 +1982,7 @@ function renderSfMobileDashboardBlocks() {
     if (qa) {
         qa.innerHTML = `
             <button type="button" class="sf-quick-pill touchable" data-crm-permission="quotes.edit" onclick="location.href='quote-builder.html'"><span aria-hidden="true">+</span> Quote</button>
-            <button type="button" class="sf-quick-pill touchable" data-crm-permission="customers.create" onclick="showPage('customers'); showNewCustomerModal();"><span aria-hidden="true">+</span> Cliente</button>`;
+            <button type="button" class="sf-quick-pill touchable" data-crm-permission="customers.create" onclick="location.href='customers.html?new=1'"><span aria-hidden="true">+</span> Cliente</button>`;
     }
     if (typeof applyCrmNavPermissions === 'function') {
         applyCrmNavPermissions(crmUserPermissions, crmUserRole);

@@ -532,6 +532,8 @@ model Customer {
   customPricingRates Json?
   company        String?
   notes          String?  @db.Text
+  /// Pessoa de contato (responsável) em Builder / Loja
+  contactName String?
   /// Opt-in for marketing blasts (future). Transactional emails ignore this.
   marketingConsent Boolean @default(true)
   /// When true, skip transactional automations (quote follow-ups, visit reminders).

@@ -114,7 +114,7 @@
           { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
           { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
           {
-            href: isMobileDevice() ? 'customers.html' : 'dashboard.html?page=customers',
+            href: 'customers.html',
             label: 'Clientes',
             perm: 'customers.view',
             page: 'customers',
@@ -180,7 +180,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261008-dash1';
+  const NAV_STRUCTURE_VERSION = '20261009-cli1';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
@@ -288,6 +288,7 @@
     if (base === 'pipeline-lab.html') {
       return file === 'pipeline-lab.html' || (file === 'dashboard.html' && !(page || ''));
     }
+    if (base === 'customers.html') return file === 'customers.html' || (file === 'dashboard.html' && (page || '') === 'customers');
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
     if (base === 'invoices.html') return file === 'invoices.html' || file === 'invoice.html';

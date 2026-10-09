@@ -348,6 +348,7 @@ function mapCustomer(c: {
   customPricingRates?: unknown;
   company: string | null;
   notes: string | null;
+  contactName?: string | null;
   leadId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -363,6 +364,7 @@ function mapCustomer(c: {
     custom_pricing_rates: normalizeCustomPricingRates(c.customPricingRates),
     company: c.company,
     notes: c.notes,
+    responsible_name: c.contactName ?? null,
     lead_id: c.leadId,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
@@ -713,6 +715,7 @@ customersQuotesRouter.post(
             phone: keep.phone || merge.phone,
             address: keep.address || merge.address,
             company: keep.company || merge.company,
+            contactName: keep.contactName || merge.contactName,
             notes: keep.notes || merge.notes,
             customerType: normalizeCustomerType(keep.customerType || merge.customerType),
           },
@@ -970,6 +973,7 @@ customersQuotesRouter.post(
             .nullable(),
           company: z.string().optional().nullable(),
           notes: z.string().optional().nullable(),
+          responsible_name: z.string().optional().nullable(),
           lead_id: z.string().uuid().optional().nullable(),
         })
         .safeParse(req.body);
@@ -996,6 +1000,7 @@ customersQuotesRouter.post(
             customPricingRates: customRates,
             company: parsed.data.company || null,
             notes: parsed.data.notes || null,
+            contactName: String(parsed.data.responsible_name || "").trim() || null,
             leadId: parsed.data.lead_id || null,
           },
         });
@@ -1104,6 +1109,8 @@ customersQuotesRouter.put(
                 : undefined,
             company: body.company !== undefined ? String(body.company || "") || null : undefined,
             notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
+            contactName:
+              body.responsible_name !== undefined ? String(body.responsible_name || "").trim() || null : undefined,
           },
         });
       });

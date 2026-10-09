@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261008-dash1";
+  const SHELL_VER = "20261009-cx1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -42,7 +42,7 @@
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z"/><path d="M8 10h8M8 14h5"/></svg>',
     },
     {
-      href: "dashboard.html?page=customers&new=1",
+      href: "customers.html?new=1",
       label: "Cliente",
       shortcut: "",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',

@@ -142,7 +142,7 @@ dashboardOverviewRouter.get("/api/search", requireCrmAuth, async (req: AuthedReq
             id: c.id,
             title: c.name,
             subtitle: [c.company, c.phone || c.email].filter(Boolean).join(" · ") || null,
-            href: `dashboard.html?page=customers&id=${encodeURIComponent(c.id)}&q=${encodeURIComponent(c.name)}`,
+            href: `customers.html?id=${encodeURIComponent(c.id)}`,
             mobile_href: `customers.html?id=${encodeURIComponent(c.id)}`,
           });
         }

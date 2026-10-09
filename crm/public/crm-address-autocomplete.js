@@ -691,6 +691,10 @@
 
   var PRESETS = [
     {
+      input: '#cxAddress',
+      map: { combined: '#cxAddress' },
+    },
+    {
       input: '#clientAddress',
       map: {
         combined: '#clientAddress',
