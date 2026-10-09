@@ -18,14 +18,15 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="jobs.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260928-chat1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
+  <link rel="stylesheet" href="obracam.css?v=20261009-cam1" />
+  <link rel="stylesheet" href="cam-viewer.css?v=20261009-cam1" />
 </head>
-<body class="dashboard-app-body om-app sidebar-collapsed jobs-app">
+<body class="dashboard-app-body om-app sidebar-collapsed cam-app">
   <script>
     (function () {
       try {
@@ -73,86 +74,50 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
-      <div class="jobs-page crm-page">
-        <div class="jobs-page-header">
+      <div class="cam crm-page" id="cam">
+        <div class="cam-head">
           <h1>ObraCam</h1>
-          <div class="jobs-page-header__actions">
-            <a class="btn btn-secondary" href="jobs.html">Jobs</a>
-            <a class="btn btn-secondary" href="schedule.html">Agenda</a>
-            <button type="button" class="btn btn-secondary" id="jmbReload">Atualizar</button>
+          <div class="cam-seg" id="camDays" role="group" aria-label="Período">
+            <button type="button" data-days="3">3 dias</button>
+            <button type="button" data-days="7" class="is-on">7 dias</button>
+            <button type="button" data-days="30">30 dias</button>
+          </div>
+          <div class="cam-head__acts">
+            <a class="cam-btn" href="jobs.html">Jobs</a>
+            <a class="cam-btn" href="schedule.html">Agenda</a>
           </div>
         </div>
 
-        <div class="jobs-overview" aria-label="Resumo">
-          <div class="jobs-ov-card">
-            <p class="jobs-ov-card__title">Jobs abertos</p>
-            <div class="jobs-ov-card__stat" id="jmbStatJobs">—</div>
-            <div class="jobs-ov-card__sub">Com schedule ou em progresso</div>
-          </div>
-          <div class="jobs-ov-card">
-            <p class="jobs-ov-card__title">Com foto recente</p>
-            <div class="jobs-ov-card__stat" id="jmbStatOk">—</div>
-            <div class="jobs-ov-card__sub">Últimos 3 dias</div>
-          </div>
-          <div class="jobs-ov-card">
-            <p class="jobs-ov-card__title">Atrasados</p>
-            <div class="jobs-ov-card__stat" id="jmbStatStale">—</div>
-            <div class="jobs-ov-card__sub">Sem foto recente</div>
-          </div>
-          <div class="jobs-ov-card jobs-ov-card--promo">
-            <p>A equipa captura fotos no Campo (ticket do job).</p>
-            <a href="jobs.html">Abrir Jobs →</a>
-          </div>
-        </div>
+        <div class="cam-cards" id="camCards" aria-label="Resumo"></div>
 
-        <div class="jmb-toolbar">
-          <label class="jmb-search">
-            <span class="jmb-search__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-            </span>
-            <input type="search" id="jmbSearch" placeholder="Buscar job, título ou morada…" autocomplete="off" enterkeyhint="search" />
-            <button type="button" class="jmb-search__clear" id="jmbSearchClear" hidden aria-label="Limpar busca">×</button>
+        <div class="cam-tool">
+          <label class="cam-search">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="search" id="jmbSearch" placeholder="Buscar job, endereço ou quem tirou" autocomplete="off" enterkeyhint="search" />
+            <button type="button" class="cam-search__clear" id="jmbSearchClear" hidden aria-label="Limpar busca">×</button>
           </label>
-          <span class="jmb-search__meta" id="jmbSearchMeta"></span>
+          <div class="cam-chips" id="camStage" role="group" aria-label="Etapa"></div>
+          <span class="cam-meta" id="jmbSearchMeta"></span>
         </div>
 
-        <div class="jmb-panels">
-          <section class="job-card jmb-panel">
-            <div class="job-card__head">
-              <h2>Mapa</h2>
-              <span class="jobs-table__muted" id="jmbMapStatus" style="font-size:0.78rem"></span>
-            </div>
-            <div id="jmbMap" class="jmb-map" role="img" aria-label="Mapa dos jobs"></div>
+        <div class="cam-panels">
+          <section class="cam-box cam-box--map">
+            <div class="cam-box__h"><h2>Mapa</h2><span class="cam-meta" id="jmbMapStatus"></span></div>
+            <div id="jmbMap" class="cam-map" role="img" aria-label="Mapa dos jobs e das fotos"></div>
           </section>
-          <section class="job-card jmb-panel">
-            <div class="job-card__head">
-              <h2>Feed recente</h2>
-            </div>
-            <div class="jmb-feed" id="jmbFeed">
-              <p class="jobs-empty" style="padding:1rem 0">A carregar…</p>
-            </div>
+          <section class="cam-box cam-box--feed">
+            <div class="cam-box__h"><h2>Fotos recentes</h2><span class="cam-meta" id="camFeedCount"></span></div>
+            <div class="cam-feed" id="jmbFeed"><p class="cam-empty">Carregando…</p></div>
           </section>
         </div>
 
-        <div class="jobs-list-head">
-          <h2>Jobs <span class="jobs-list-head__count" id="jmbJobsCount">(0)</span></h2>
+        <div class="cam-list-h">
+          <h2>Jobs <em id="jmbJobsCount"></em></h2>
+          <div class="cam-chips" id="camJobFilter" role="group" aria-label="Jobs"></div>
         </div>
-
-        <div class="jobs-table-wrap">
-          <table class="jobs-table">
-            <thead>
-              <tr>
-                <th>Job</th>
-                <th>Morada</th>
-                <th>Status</th>
-                <th>Última foto</th>
-                <th>Prova</th>
-              </tr>
-            </thead>
-            <tbody id="jmbJobsBody">
-              <tr><td colspan="5" class="jobs-empty">A carregar…</td></tr>
-            </tbody>
-          </table>
+        <div class="cam-table" id="jmbJobs">
+          <div class="cam-tr cam-tr--h"><span>Job</span><span>Endereço</span><span>Status</span><span>Última foto</span><span>Fotos</span><span>Prova</span></div>
+          <div id="jmbJobsBody"><p class="cam-empty">Carregando…</p></div>
         </div>
       </div>
     </main>
@@ -165,6 +130,7 @@
   <script src="crm-shared-nav.js?v=20261009-cx1"></script>
   <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
-  <script src="job-media-board.js?v=20261008-obracam1"></script>
+  <script src="cam-viewer.js?v=20261009-cam1"></script>
+  <script src="job-media-board.js?v=20261009-cam1"></script>
 </body>
 </html>

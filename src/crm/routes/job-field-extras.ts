@@ -87,6 +87,8 @@ jobFieldExtrasRouter.get(
             scheduledStart: true,
             geoLat: true,
             geoLng: true,
+            sourceName: true,
+            customer: { select: { name: true } },
             media: {
               where: { deletedAt: null },
               orderBy: [{ createdAt: "desc" }],
@@ -102,8 +104,12 @@ jobFieldExtrasRouter.get(
                 stage: true,
                 caption: true,
                 address: true,
+                inPortfolio: true,
+                deviceLabel: true,
+                author: { select: { name: true } },
               },
             },
+            _count: { select: { media: { where: { deletedAt: null } } } },
           },
           orderBy: [{ scheduledStart: "desc" }],
           take: 120,
@@ -135,6 +141,9 @@ jobFieldExtrasRouter.get(
                 address: m.address || null,
                 lat: Number.isFinite(lat) ? lat : null,
                 lng: Number.isFinite(lng) ? lng : null,
+                in_portfolio: m.inPortfolio,
+                device_label: m.deviceLabel || null,
+                author_name: m.author?.name || null,
               };
               return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
             });
@@ -146,6 +155,8 @@ jobFieldExtrasRouter.get(
               status: wo.status,
               field_status: wo.fieldStatus,
               address: wo.address,
+              client_name: wo.customer?.name || wo.sourceName || null,
+              photo_count: wo._count.media,
               scheduled_start: wo.scheduledStart?.toISOString() ?? null,
               geo_lat: jobGeo?.lat ?? null,
               geo_lng: jobGeo?.lng ?? null,
@@ -169,7 +180,7 @@ jobFieldExtrasRouter.get(
           take: 40,
           include: {
             author: { select: { name: true } },
-            workOrder: { select: { id: true, number: true, title: true, geoLat: true, geoLng: true } },
+            workOrder: { select: { id: true, number: true, title: true, status: true, geoLat: true, geoLng: true } },
           },
         });
         return photos.map((p) => {
@@ -186,6 +197,7 @@ jobFieldExtrasRouter.get(
             job_id: p.workOrderId,
             job_number: p.workOrder?.number ?? null,
             job_title: p.workOrder?.title ?? null,
+            job_status: p.workOrder?.status ?? null,
             job_geo_lat: jobGeo?.lat ?? null,
             job_geo_lng: jobGeo?.lng ?? null,
           };

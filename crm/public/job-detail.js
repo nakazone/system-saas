@@ -646,7 +646,7 @@
             const locBits = [];
             if (hasGps) {
               locBits.push(
-                `<a class="jd-photo__gps${p.far_from_job ? " is-far" : ""}" href="${esc(maps)}" target="_blank" rel="noopener" title="${esc(gpsTitle)}">📍 ${p.far_from_job ? "Longe" : dist || "GPS"}</a>`,
+                `<a class="jd-photo__gps${p.far_from_job ? " is-far" : ""}" href="${esc(maps)}" target="_blank" rel="noopener" title="${esc(gpsTitle)}">${p.far_from_job ? "Longe" : dist ? `${dist} do job` : "GPS"}</a>`,
               );
             } else {
               locBits.push(`<span class="jd-photo__gps is-off">Sem GPS</span>`);
@@ -660,7 +660,7 @@
                 ? `<button type="button" class="jd-photo__port" data-port="${esc(p.id)}" data-on="${p.in_portfolio ? "1" : "0"}" title="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${p.in_portfolio ? "★" : "☆"}</button>`
                 : "";
             return `<figure class="jd-photo">
-              <a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.thumb_url || p.url)}" alt="${esc(p.caption || st || "Foto")}" loading="lazy" /></a>
+              <a href="${esc(p.url)}" target="_blank" rel="noopener" data-view-photo="${esc(p.id)}"><img src="${esc(p.thumb_url || p.url)}" alt="${esc(p.caption || st || "Foto")}" loading="lazy" /></a>
               ${st ? `<span class="jd-photo__stage">${esc(st)}</span>` : ""}
               ${portBtn}
               <figcaption><span>${esc(p.caption || "")}</span></figcaption>
@@ -1050,6 +1050,30 @@
       if (filter) {
         mediaFilter = filter.getAttribute("data-filter");
         renderPhotos();
+        return;
+      }
+      const view = t.closest("[data-view-photo]");
+      if (view && window.CamViewer && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        const list = (media || []).filter((m) => mediaFilter === "all" || (mediaFilter === "none" ? !m.stage : m.stage === mediaFilter));
+        const idx = Math.max(0, list.findIndex((m) => String(m.id) === view.getAttribute("data-view-photo")));
+        window.CamViewer.open({
+          photos: list.map((m) => ({
+            id: m.legacy ? null : m.id, url: m.url, thumb_url: m.thumb_url, stage: m.stage, created_at: m.created_at, taken_at_device: m.taken_at_device,
+            author: m.author_name, device: m.device_label, caption: m.caption, address: m.address || job.address, lat: m.lat, lng: m.lng,
+            location_available: m.location_available, distance_m: m.distance_m, far_from_job: m.far_from_job, in_portfolio: m.in_portfolio,
+            job: { number: job.number, title: job.title || clientName(), client: clientName() },
+          })),
+          index: idx,
+          canPortfolio: canManage,
+          onPortfolio: async (photo, next) => {
+            const j = await api(`/api/work-orders/${jobId}/media/${photo.id}/portfolio`, { method: "PATCH", body: JSON.stringify({ in_portfolio: next }) });
+            media = media.map((x) => (x.id === j.data.id ? j.data : x));
+            renderPhotos();
+            notify(next ? "Foto no portfólio público." : "Foto tirada do portfólio.", "success");
+            return j.data;
+          },
+        });
         return;
       }
       const port = t.closest("[data-port]");

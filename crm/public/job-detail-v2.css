@@ -110,3 +110,8 @@
 @media (max-width: 900px) {
   .jd-top { padding: 16px; }
 }
+.jd-photo a { cursor: zoom-in; }
+.jd-photo__port[data-on="1"] { color: #E7792C; }
+.jd-photo__stage { border-radius: 6px; font-weight: 650; letter-spacing: 0; text-transform: none; font-size: 11px; }
+.jd-photo { border: 0; box-shadow: 0 0 0 1px var(--jd-line); }
+.jd-photo__gps { color: var(--jd-ink); }

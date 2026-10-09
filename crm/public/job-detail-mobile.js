@@ -385,10 +385,10 @@
       ? `<p class="jcm-empty">A carregar fotos…</p>`
       : mediaList.length
         ? `<div class="jcm-photo-grid">${mediaList
-            .map((p) => {
+            .map((p, i) => {
               const st = stageLabel(p.stage);
               const cap = escapeHtml(p.caption || st || "Foto");
-              return `<a class="jcm-photo-thumb" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">
+              return `<a class="jcm-photo-thumb" href="${escapeHtml(p.url)}" target="_blank" rel="noopener" data-mob-photo="${i}">
                 ${st ? `<span class="jcm-photo-thumb__stg">${escapeHtml(st)}</span>` : ""}
                 <img src="${escapeHtml(p.thumb_url || p.url)}" alt="${cap}" loading="lazy" />
                 <span class="jcm-photo-thumb__cap">${cap}</span>
@@ -726,6 +726,21 @@
     });
     $("jobMobEditServices")?.addEventListener("click", () => openServicesModal());
     $("jobMobExtra")?.addEventListener("click", (e) => {
+      const ph = e.target.closest("[data-mob-photo]");
+      if (ph && window.CamViewer) {
+        e.preventDefault();
+        const wo = job || {};
+        window.CamViewer.open({
+          photos: mediaList.map((m) => ({
+            id: m.legacy ? null : m.id, url: m.url, thumb_url: m.thumb_url, stage: m.stage, created_at: m.created_at, taken_at_device: m.taken_at_device,
+            author: m.author_name, device: m.device_label, caption: m.caption, address: m.address || wo.address, lat: m.lat, lng: m.lng,
+            location_available: m.location_available, distance_m: m.distance_m, far_from_job: m.far_from_job, in_portfolio: m.in_portfolio,
+            job: { number: wo.number, title: wo.title || clientLabel(wo), client: clientLabel(wo) },
+          })),
+          index: Number(ph.getAttribute("data-mob-photo")) || 0,
+        });
+        return;
+      }
       const btn = e.target.closest("[data-job-mob-svc]");
       if (!btn) return;
       openServicesModal();
