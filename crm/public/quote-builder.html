@@ -1845,6 +1845,8 @@
   <link rel="stylesheet" href="quote-builder-v2.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="quote-builder-v3.css?v=20261009-btnw2" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
+  <link rel="stylesheet" href="quote-paper.css?v=20261009-qp1" />
+  <link rel="stylesheet" href="quote-services-popup.css?v=20261009-qp1" />
 </head>
 <body class="qb-dashboard-inner dashboard-app-body om-app sidebar-collapsed qb-v3">
   <script src="om-device.js?v=20261007-stable1"></script>
@@ -2186,7 +2188,7 @@
             </section>
 
             <section class="qb-sheet__section" id="qbItemsSection">
-              <div class="qb-items-bar" id="itemsCountBar">Itens · <span id="itemsCountLabel">0</span></div>
+              <div class="qb-items-bar" id="itemsCountBar"><span>Itens · <span id="itemsCountLabel">0</span></span><button type="button" class="qpe-open-doc" id="btnQbDoc" title="Abrir a folha do PDF e editar os serviços nela"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/></svg>Editar no documento</button></div>
               <div id="itemsList" class="qb-items-list" role="list"></div>
               <div id="addItemPanel" class="qb-item-editor hidden" aria-label="Adicionar ou editar serviço">
                 <div class="qb-item-editor__field qb-client-search" id="modalServiceSearchWrap">
@@ -2738,7 +2740,9 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-builder.js?v=20261009-qx1"></script>
+  <script src="quote-paper.js?v=20261009-qp1"></script>
+  <script src="quote-builder.js?v=20261009-qp1"></script>
+  <script src="quote-services-popup.js?v=20261009-qp1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

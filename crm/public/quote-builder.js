@@ -5686,8 +5686,13 @@
 
     $('modalConfirmService').addEventListener('click', confirmAddServiceLine);
     $('modalCancel').addEventListener('click', closeAddItemPanel);
-    $('btnAddLine').addEventListener('click', () => openAddItemPanel(-1));
+    $('btnAddLine').addEventListener('click', () => {
+      // Popup com o visual do PDF (passo a passo); painel antigo só se o popup não carregou.
+      if (window.OmQuoteServices) window.OmQuoteServices.openStep();
+      else openAddItemPanel(-1);
+    });
     addItemPanel?.addEventListener('keydown', handleServiceEditorTab);
+    $('btnQbDoc')?.addEventListener('click', () => window.OmQuoteServices && window.OmQuoteServices.openDoc());
     const btnSqft = $('btnApplySqftToLines');
     if (btnSqft) btnSqft.addEventListener('click', () => applyProjectSqftToAllSqFtLines());
     const sqftIn = $('quoteProjectSqft');
@@ -6248,9 +6253,87 @@
     qbRenderProgress();
   }
 
+  /** Ponte para o popup de serviços (quote-services-popup.js). */
+  function qbTextOf(id) {
+    const el = $(id);
+    return el ? String(el.textContent || '').trim() : '';
+  }
+  function qbBridgeHeader() {
+    let bill = { name: '', email: '', phone: '' };
+    if (quotePartyMode === 'builder') {
+      bill = { name: qbTextOf('qbBuilderCompany'), email: qbTextOf('qbBuilderEmail'), phone: qbTextOf('qbBuilderPhone') };
+    } else if (quotePartyMode === 'contractor' || quotePartyMode === 'loja') {
+      bill = { name: qbTextOf('qbOrgCustomerName'), email: qbTextOf('qbOrgCustomerEmail'), phone: qbTextOf('qbOrgCustomerPhone') };
+    } else {
+      bill = { name: qbTextOf('qbClientName'), email: qbTextOf('qbClientEmail'), phone: qbTextOf('qbClientPhone') };
+    }
+    const clean = (v) => (v && v !== '—' ? v : '');
+    const area = (() => {
+      for (const id of ['quoteProjectSqft', 'qbTotalSqft']) {
+        const v = parseFloat(String(($(id) && $(id).value) || '').replace(',', '.'));
+        if (Number.isFinite(v) && v > 0) return v;
+      }
+      return 0;
+    })();
+    return {
+      quoteId,
+      number: loadedQuoteNumber,
+      bill: { name: clean(bill.name), email: clean(bill.email), phone: clean(bill.phone) },
+      jobName: String(($('quoteJobName') && $('quoteJobName').value) || '').trim(),
+      jobAddress: String(($('quoteJobAddress') && $('quoteJobAddress').value) || '').trim(),
+      valid: String(($('expirationDate') && $('expirationDate').value) || '').slice(0, 10),
+      floorArea: area,
+      projectArea: qbProjectArea(),
+    };
+  }
+  function qbBridgeTotals(list) {
+    const sub = (list || items).reduce((t, it) => t + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0), 0);
+    const disc = discountAmt(sub, $('discountType').value, parseFloat($('discountValue').value) || 0);
+    const tax = parseFloat(String($('taxTotal').value || '').replace(/[$,\s]/g, '')) || 0;
+    return { sub, disc, tax, total: Math.max(0, Math.round((sub - disc + tax) * 100) / 100) };
+  }
+  window.QBBridge = {
+    getItems: () => items.map((it) => ({ ...it })),
+    setItems(next) {
+      items = (next || []).map((it) => ({ ...it }));
+      renderItems();
+      recalc();
+      qbMarkDirty();
+    },
+    catalog: () => catalog,
+    filterCatalog: (q) => filterCatalogForServiceSearch(q),
+    rateFor: (row) => effectiveCatalogRate(row, catalogPricingSource()),
+    descFor: (row, name) => descriptionBodyWithoutTitle(name || (row && row.name) || '', catalogDescriptionForRow(row)),
+    catalogIds: (row) => ({ service_catalog_id: row ? normalizeCatalogId(row.id) : null, pricing_item_id: catalogPricingItemId(row) }),
+    pricingLabel: () => pricingTypeLabel(catalogPricingSource()),
+    normalizeServiceType,
+    computeSellUnitRate,
+    lineAmount,
+    header: qbBridgeHeader,
+    totals: qbBridgeTotals,
+    toast: (m, t) => qbToast(m, t),
+  };
+
+  /** Links vindos da lista: ?services=1 abre o documento editável, ?send=1 abre o envio. */
+  function qbDeepLinks() {
+    const p = new URLSearchParams(location.search);
+    const services = p.get('services') === '1';
+    const send = p.get('send') === '1';
+    if (!services && !send) return;
+    p.delete('services');
+    p.delete('send');
+    try {
+      history.replaceState(null, '', `${location.pathname}${p.toString() ? `?${p}` : ''}${location.hash}`);
+    } catch (_) {
+      /* ignore */
+    }
+    if (services && window.OmQuoteServices) setTimeout(() => window.OmQuoteServices.openDoc(), 120);
+    if (send) setTimeout(() => $('btnSend') && $('btnSend').click(), 300);
+  }
+
   initQbPanel();
 
-  init().catch((e) => {
+  init().then(qbDeepLinks).catch((e) => {
     $('authMsg').textContent = e.message;
     $('authMsg').classList.remove('hidden');
   });

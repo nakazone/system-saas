@@ -23,9 +23,10 @@
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
-  <link rel="stylesheet" href="quotes-board.css?v=20261009-btnw1" />
+  <link rel="stylesheet" href="quote-paper.css?v=20261009-qp1" />
+  <link rel="stylesheet" href="quotes-v2.css?v=20261009-qs1" />
 </head>
-<body class="dashboard-app-body om-app sidebar-collapsed quotes-app">
+<body class="dashboard-app-body om-app sidebar-collapsed quotes-app qs-body">
   <script src="om-device.js?v=20261007-stable1"></script>
   <script>
     (function () {
@@ -74,49 +75,32 @@
     </aside>
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
-      <div class="qx crm-page" id="qxRoot">
-        <header class="qx-head">
-          <h1>Quotes</h1>
-          <dl class="qx-sum" aria-label="Resumo">
-            <div><dt>Em aberto</dt><dd id="qxSumOpen">—</dd></div>
-            <div><dt>Aprovação · 90 dias</dt><dd id="qxSumRate">—</dd></div>
-            <div><dt>Ticket médio</dt><dd id="qxSumTicket">—</dd></div>
-            <div><dt>Vencem em 7 dias</dt><dd id="qxSumExpiring">—</dd></div>
-          </dl>
-          <div class="qx-head__acts">
-            <a class="qx-btn" href="quote-catalog.html" data-crm-permission="quotes.edit"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.4"/></svg>Catálogo</a>
-            <a class="qx-btn qx-btn--pri" href="quote-builder.html" data-crm-permission="quotes.edit"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo quote</a>
-          </div>
-        </header>
-
-        <nav class="qx-groups" id="qxGroups" aria-label="Status"></nav>
-
-        <div class="qx-tool">
-          <label class="qx-search">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input type="search" id="filterQ" placeholder="Buscar cliente, endereço ou nº" autocomplete="off" aria-label="Buscar quotes" />
-          </label>
-          <span class="qx-tool__sp"></span>
-          <span class="qx-count" id="quotesResultCount"></span>
-          <button type="button" class="qx-chip" id="qxArchived" aria-pressed="false">Arquivados</button>
-        </div>
-
-        <div class="om-ptr" id="quotesPtr" aria-hidden="true">↓ Puxe para atualizar</div>
-        <div class="qx-table">
-          <div class="qx-row qx-row--head" aria-hidden="true">
-            <span>Cliente</span><span>Status</span><span>Valor</span><span>Próximo passo</span><span>Validade</span><span></span>
-          </div>
-          <div id="quotesTableBody" role="list">
-            <p class="qx-empty">Carregando…</p>
-          </div>
-        </div>
-
-        <div class="qx-pages" id="qxPages" hidden>
-          <button type="button" class="qx-btn" id="btnPrevPage">Anterior</button>
-          <span id="pageInfo">Página 1</span>
-          <button type="button" class="qx-btn" id="btnNextPage">Próxima</button>
+      <div class="qs crm-page" id="qsRoot">
+        <div class="qs-split" id="qsSplit">
+          <aside class="qs-list" aria-label="Lista de quotes">
+            <div class="qs-list__top">
+              <div class="qs-title">
+                <h1>Quotes</h1>
+                <a class="qs-btn qs-btn--sm qs-btn--ghost" href="quote-catalog.html" data-crm-permission="quotes.edit" title="Catálogo" aria-label="Catálogo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.4"/></svg></a>
+                <a class="qs-btn qs-btn--sm qs-btn--pri" href="quote-builder.html" data-crm-permission="quotes.edit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Novo</span></a>
+              </div>
+              <p class="qs-sums" id="qsSums">&nbsp;</p>
+              <label class="qs-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input type="search" id="filterQ" placeholder="Buscar cliente, nº ou endereço" autocomplete="off" aria-label="Buscar quotes" />
+              </label>
+              <div class="qs-seg" id="qsSeg" role="tablist" aria-label="Filtro"></div>
+            </div>
+            <div class="om-ptr" id="quotesPtr" aria-hidden="true">↓ Puxe para atualizar</div>
+            <div class="qs-rows" id="qsRows" role="list"><p class="qs-empty">Carregando…</p></div>
+          </aside>
+          <section class="qs-main" id="qsMain" aria-live="polite">
+            <a class="qs-back" id="qsBack" href="quotes.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Quotes</a>
+            <div id="qsPane"></div>
+          </section>
         </div>
       </div>
+      <div class="qs-mbar" id="qsMbar" hidden></div>
     </main>
   </div>
 
@@ -128,6 +112,7 @@
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="om-gestures.js?v=20261002-gest1"></script>
   <script src="lead-signals.js?v=20261009-lb1"></script>
-  <script src="quotes-page.js?v=20261009-qx1"></script>
+  <script src="quote-paper.js?v=20261009-qp1"></script>
+  <script src="quotes-page.js?v=20261009-qs1"></script>
 </body>
 </html>

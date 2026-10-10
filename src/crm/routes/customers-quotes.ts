@@ -179,7 +179,7 @@ function serviceTypeFromMetaOrPayload(
   return null;
 }
 
-async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
+async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
   const quote = await withTenantTransaction(organizationId, async (tx) =>
     tx.quote.findFirst({
       where: { id: quoteId },
@@ -231,7 +231,7 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
   const total = Number(quote.total);
   const scheduleItems = pdfPaymentItemsFromSchedule(total, quote.paymentSchedule?.items);
   const depositAmount = scheduleItems[0]?.amount ?? null;
-  const buffer = await buildQuotePdf({
+  const input: Parameters<typeof buildQuotePdf>[0] = {
     organizationName: org.name,
     organizationContact: [org.contactPhone, org.contactEmail].filter(Boolean).join(" · "),
     organizationAddress: documentAddressLine({
@@ -302,9 +302,37 @@ async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
       imageUrl: qs.owner_signature.image_url,
     },
     inclusions: qs.inclusions,
-  });
+  };
 
-  return { buffer, quote, number: quote.quoteNumber || String(quote.number) };
+  return { input, quote, schedule: quote.paymentSchedule?.items || [] };
+}
+
+async function buildQuotePdfForCrm(organizationId: string, quoteId: string) {
+  const built = await quotePdfInputForCrm(organizationId, quoteId);
+  if (!built) return null;
+  const buffer = await buildQuotePdf(built.input);
+  return { buffer, quote: built.quote, number: built.quote.quoteNumber || String(built.quote.number) };
+}
+
+/** Header data for the PDF-look paper (quote builder popup and list preview). */
+async function quotePaperOrgForCrm(organizationId: string) {
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+  const orgAny = org as Record<string, unknown>;
+  const qs = parseQuoteSettings(orgAny.quoteSettings);
+  return {
+    organizationName: org.name,
+    organizationContact: [org.contactPhone, org.contactEmail].filter(Boolean).join(" · "),
+    organizationLicense: documentLicenseLine({
+      showLicenseOnDocuments: Boolean(orgAny.showLicenseOnDocuments),
+      licenseNumber: (orgAny.licenseNumber as string | null) ?? null,
+      licenseState: (orgAny.licenseState as string | null) ?? null,
+    }),
+    organizationLogoUrl: (orgAny.logoUrl as string | null) ?? null,
+    brandPrimary: (orgAny.primaryColor as string | null) ?? null,
+    brandAccent: (orgAny.accentColor as string | null) ?? null,
+    preparedBy: { name: qs.owner_signature.name, title: qs.owner_signature.title, email: org.contactEmail },
+    inclusions: qs.inclusions,
+  };
 }
 
 function mapProperty(p: {
@@ -2280,6 +2308,40 @@ customersQuotesRouter.post(
         lead_move_reason: data.leadMoveReason,
         public_url: publicUrl,
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/** JSON with everything the PDF shows, for the PDF-look paper in the CRM (preview + services popup). */
+customersQuotesRouter.get(
+  "/api/quotes/:id/paper",
+  requireCrmAuth,
+  requireCrmPermission("quotes.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const org = await quotePaperOrgForCrm(req.organizationId!);
+      if (id === "new") {
+        res.json({ success: true, data: { ...org, lines: [], schedule: [] } });
+        return;
+      }
+      if (!asOptionalUuid(id)) {
+        res.status(400).json({ success: false, error: "ID inválido" });
+        return;
+      }
+      const built = await quotePdfInputForCrm(req.organizationId!, id);
+      if (!built) {
+        res.status(404).json({ success: false, error: "Orçamento não encontrado" });
+        return;
+      }
+      const schedule = built.schedule.map((it) => ({
+        label: it.label,
+        percent: it.percent == null ? null : Number(it.percent),
+        fixedAmount: it.fixedAmount == null ? null : Number(it.fixedAmount),
+      }));
+      res.json({ success: true, data: { ...built.input, schedule } });
     } catch (error) {
       next(error);
     }
