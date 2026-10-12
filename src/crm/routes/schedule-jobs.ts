@@ -322,6 +322,7 @@ function mapMeeting(m: {
   status: string;
   scheduledStart: Date;
   scheduledEnd: Date;
+  allDay?: boolean;
   location: string | null;
   notes: string | null;
   customerId: string | null;
@@ -344,6 +345,7 @@ function mapMeeting(m: {
     status: m.status,
     scheduled_start: m.scheduledStart.toISOString(),
     scheduled_end: m.scheduledEnd.toISOString(),
+    all_day: Boolean(m.allDay),
     location: m.location,
     notes: m.notes,
     customer_id: m.customerId,
@@ -1460,6 +1462,7 @@ const meetingBody = z.object({
   status: z.enum(MTG_STATUSES).optional(),
   scheduled_start: z.string().datetime(),
   scheduled_end: z.string().datetime(),
+  all_day: z.boolean().optional(),
   location: z.string().max(500).optional().nullable(),
   notes: z.string().max(8000).optional().nullable(),
   customer_id: z.string().uuid().optional().nullable(),
@@ -1493,6 +1496,7 @@ scheduleJobsRouter.post(
           status: d.status ?? "scheduled",
           scheduledStart: start,
           scheduledEnd: end,
+          allDay: Boolean(d.all_day),
           location: d.location?.trim() || null,
           notes: d.notes?.trim() || null,
           customerId: d.customer_id || null,
@@ -1549,6 +1553,7 @@ scheduleJobsRouter.put(
           ...(d.status !== undefined ? { status: d.status } : {}),
           ...(d.scheduled_start !== undefined ? { scheduledStart: start } : {}),
           ...(d.scheduled_end !== undefined ? { scheduledEnd: end } : {}),
+          ...(d.all_day !== undefined ? { allDay: Boolean(d.all_day) } : {}),
           ...(d.location !== undefined ? { location: d.location?.trim() || null } : {}),
           ...(d.notes !== undefined ? { notes: d.notes?.trim() || null } : {}),
           ...(d.customer_id !== undefined ? { customerId: d.customer_id || null } : {}),
@@ -1677,7 +1682,8 @@ scheduleJobsRouter.get(
           status: m.status,
           start: m.scheduledStart.toISOString(),
           end: m.scheduledEnd.toISOString(),
-          // Visits / meetings follow Configurações › Agenda.
+          all_day: Boolean(m.allDay),
+          // Visits / meetings follow Configurações › Agenda (visits fall back to meetings calendar).
           calendar_id: m.leadId ? visitCalId : m.calendarId || "meetings",
           color: m.leadId ? resolveVisitColor(sched) : resolveMeetingColor(sched, m.calendarId),
           meta: mapMeeting(m),

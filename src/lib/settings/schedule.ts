@@ -216,12 +216,24 @@ export function resolveMeetingColor(
   return settings.calendars.find((c) => c.kind === "meetings")?.color || "#98a2b3";
 }
 
+/**
+ * Calendar that owns site visits. Prefer kind=visits; if the org removed that
+ * agenda (e.g. renamed everything under Compromissos), fall back to meetings.
+ */
+export function resolveVisitCalendar(settings: ScheduleSettings): ScheduleCalendar | null {
+  return (
+    settings.calendars.find((c) => c.kind === "visits") ||
+    settings.calendars.find((c) => c.kind === "meetings") ||
+    null
+  );
+}
+
 export function resolveVisitColor(settings: ScheduleSettings): string {
-  return settings.calendars.find((c) => c.kind === "visits")?.color || "#8a7460";
+  return resolveVisitCalendar(settings)?.color || "#8a7460";
 }
 
 export function resolveVisitCalendarId(settings: ScheduleSettings): string {
-  return settings.calendars.find((c) => c.kind === "visits")?.id || "visits";
+  return resolveVisitCalendar(settings)?.id || "visits";
 }
 
 /**

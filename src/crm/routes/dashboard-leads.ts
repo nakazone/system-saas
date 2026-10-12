@@ -722,11 +722,17 @@ dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), asy
         (body.address != null ? String(body.address) : null);
 
       const scheduledRaw = body.scheduled_at != null ? String(body.scheduled_at) : "";
-      const start = scheduledRaw ? new Date(scheduledRaw) : null;
-      const end =
-        start && !Number.isNaN(start.getTime())
-          ? new Date(start.getTime() + 60 * 60 * 1000)
-          : null;
+      const allDay = body.all_day === true || body.all_day === 1 || body.all_day === "1" || body.all_day === "true";
+      let start = scheduledRaw ? new Date(scheduledRaw) : null;
+      let end: Date | null = null;
+      if (start && !Number.isNaN(start.getTime())) {
+        if (allDay) {
+          start = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0);
+          end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+        } else {
+          end = new Date(start.getTime() + 60 * 60 * 1000);
+        }
+      }
 
       let assigneeId: string | null =
         body.seller_id != null && String(body.seller_id).trim()
@@ -752,6 +758,7 @@ dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), asy
             status: "scheduled",
             scheduledStart: start,
             scheduledEnd: end,
+            allDay,
             location: addr ? String(addr) : null,
             notes: body.notes != null ? String(body.notes) : null,
             assignedUserId: assigneeId,
@@ -837,11 +844,20 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
 
         const scheduledRaw =
           body.scheduled_at != null ? String(body.scheduled_at) : String(prev.scheduled_at || "");
-        const start = scheduledRaw ? new Date(scheduledRaw) : null;
-        const end =
-          start && !Number.isNaN(start.getTime())
-            ? new Date(start.getTime() + 60 * 60 * 1000)
-            : null;
+        const allDay =
+          body.all_day !== undefined
+            ? body.all_day === true || body.all_day === 1 || body.all_day === "1" || body.all_day === "true"
+            : Boolean(prev.all_day);
+        let start = scheduledRaw ? new Date(scheduledRaw) : null;
+        let end: Date | null = null;
+        if (start && !Number.isNaN(start.getTime())) {
+          if (allDay) {
+            start = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0);
+            end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+          } else {
+            end = new Date(start.getTime() + 60 * 60 * 1000);
+          }
+        }
 
         let assigneeId: string | null =
           body.seller_id != null && String(body.seller_id).trim()
@@ -869,6 +885,7 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
                   leadId: lead.id,
                   scheduledStart: start,
                   scheduledEnd: end,
+                  allDay,
                   location: addr ? String(addr) : null,
                   notes: body.notes != null ? String(body.notes) : (prev.notes as string | null),
                   assignedUserId: assigneeId,
@@ -888,6 +905,7 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
                 status: "scheduled",
                 scheduledStart: start,
                 scheduledEnd: end,
+                allDay,
                 location: addr ? String(addr) : null,
                 notes: body.notes != null ? String(body.notes) : null,
                 assignedUserId: assigneeId,

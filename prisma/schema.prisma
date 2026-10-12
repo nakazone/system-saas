@@ -2046,6 +2046,8 @@ model Meeting {
   status         String   @default("scheduled")
   scheduledStart DateTime
   scheduledEnd   DateTime
+  /// True = spans calendar day(s) without timed slots (Agenda “Dia inteiro”).
+  allDay         Boolean  @default(false)
   location       String?
   notes          String?  @db.Text
   customerId     String?  @db.Uuid

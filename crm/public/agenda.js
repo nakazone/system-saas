@@ -86,6 +86,24 @@
     visit: { label: 'Visitas', one: 'Visita', color: '#8a7460' },
     meeting: { label: 'Compromissos', one: 'Compromisso', color: '#98a2b3' },
   };
+  /** Display labels follow Configurações › Agenda (e.g. Visitas renamed to Compromissos). */
+  function typeInfo(type) {
+    const base = TYPES[type] || TYPES.meeting;
+    if (type === 'visit') {
+      const c =
+        calList().find((x) => x.kind === 'visits') || calList().find((x) => x.kind === 'meetings');
+      if (c) return { ...base, label: c.name, one: c.name.replace(/s$/i, '') || c.name, color: c.color };
+    }
+    if (type === 'meeting') {
+      const c = calList().find((x) => x.kind === 'meetings');
+      if (c) return { ...base, label: c.name, one: c.name.replace(/s$/i, '') || c.name, color: c.color };
+    }
+    if (type === 'job') {
+      const c = calList().find((x) => x.kind === 'jobs');
+      if (c) return { ...base, label: c.name, one: c.name, color: c.color };
+    }
+    return base;
+  }
   /** Cores antigas de fábrica (laranja / roxo / azul) viram a base neutra; cores escolhidas pela empresa ficam. */
   const LEGACY_COLORS = { '#e8792c': '#221e1a', '#7a5ea8': '#8a7460', '#3b6ea5': '#98a2b3' };
   const neutralColor = (c) => LEGACY_COLORS[String(c || '').toLowerCase()] || c;
@@ -110,7 +128,11 @@
       sector: c.sector || (c.kind === 'jobs' ? 'all' : undefined),
     }));
   }
-  const calOf = (e) => calList().find((c) => c.id === e.calendar) || { name: TYPES[e.type].one, color: e.color };
+  const calOf = (e) =>
+    calList().find((c) => c.id === e.calendar) || {
+      name: typeInfo(e.type).one,
+      color: e.color,
+    };
   const SECTOR_LBL = { installation: 'Instalação', sand_finish: 'Lixa' };
   const CAL_KINDS = [
     { id: 'jobs', label: 'Jobs' },
@@ -211,10 +233,24 @@
     if (!(end > start)) end = new Date(start.getTime() + 3600e3);
     const type = TYPES[raw.type] ? raw.type : 'meeting';
     const m = raw.meta || {};
-    const calendar = String(raw.calendar_id || (type === 'job' ? 'jobs' : type === 'visit' ? 'visits' : m.calendar_id || 'meetings'));
-    const color = neutralColor(/^#[0-9a-f]{6}$/i.test(String(raw.color || '')) ? raw.color : type === 'job' ? (m.crew && m.crew.color) || TYPES.job.color : TYPES[type].color);
+    const visitCalId =
+      calList().find((c) => c.kind === 'visits')?.id ||
+      calList().find((c) => c.kind === 'meetings')?.id ||
+      'visits';
+    const calendar = String(
+      raw.calendar_id ||
+        (type === 'job' ? 'jobs' : type === 'visit' ? visitCalId : m.calendar_id || 'meetings'),
+    );
+    const color = neutralColor(
+      /^#[0-9a-f]{6}$/i.test(String(raw.color || ''))
+        ? raw.color
+        : type === 'job'
+          ? (m.crew && m.crew.color) || TYPES.job.color
+          : typeInfo(type).color,
+    );
     const lastDay = sod(new Date(end.getTime() - 1));
     const multi = !sameDay(start, lastDay);
+    const flaggedAllDay = Boolean(raw.all_day ?? m.all_day);
     const assignees = [];
     if (m.assigned_user_id) assignees.push(String(m.assigned_user_id));
     (m.members || []).forEach((x) => x.user_id && assignees.push(String(x.user_id)));
@@ -222,12 +258,12 @@
       id: String(raw.id),
       type,
       calendar,
-      title: raw.title || TYPES[type].one,
+      title: raw.title || typeInfo(type).one,
       status: raw.status,
       start,
       end,
       lastDay,
-      allDay: multi,
+      allDay: flaggedAllDay || multi,
       color,
       meta: m,
       assignees,
@@ -332,7 +368,21 @@
     return items;
   }
 
-  const evStyle = (e) => `--ev:${e.color};--ev-bg:#f1f3f5;--ev-bg2:#e5e7eb;--ev-ink:#221e1a`;
+  /** Mix calendar color toward white for soft event backgrounds. */
+  function mixHex(hex, whitePct) {
+    const h = String(hex || '#98a2b3').replace('#', '');
+    if (!/^[0-9a-f]{6}$/i.test(h)) return '#f1f3f5';
+    const w = Math.min(1, Math.max(0, whitePct));
+    const mix = (ch) => Math.round(parseInt(ch, 16) * (1 - w) + 255 * w);
+    const r = mix(h.slice(0, 2));
+    const g = mix(h.slice(2, 4));
+    const b = mix(h.slice(4, 6));
+    return `#${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+  }
+  const evStyle = (e) => {
+    const c = e.color || '#98a2b3';
+    return `--ev:${c};--ev-bg:${mixHex(c, 0.88)};--ev-bg2:${mixHex(c, 0.78)};--ev-ink:#221e1a`;
+  };
   const typeIcon = (e) =>
     e.type === 'job'
       ? '<svg viewBox="0 0 24 24"><path d="M4 8h16v11H4z"/><path d="M9 8V5h6v3"/></svg>'
@@ -582,7 +632,7 @@
                   : `${Math.max(15, Math.round((e.end - e.start) / 60000)) >= 60 ? Math.round(((e.end - e.start) / 3600000) * 10) / 10 + ' h' : Math.round((e.end - e.start) / 60000) + ' min'}`;
                 return `<button type="button" class="ag-dp__it${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}">
                   <time>${esc(t1)}<small>${esc(t2)}</small></time><i></i>
-                  <span class="ag-dp__b"><em>${esc(TYPES[e.type].one)}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(e.title)}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
+                  <span class="ag-dp__b"><em>${esc(typeInfo(e.type).one)}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(e.title)}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
                 </button>`;
               })
               .join('')
@@ -639,7 +689,7 @@
               ([d, l]) => `<section><div class="ag-list__hd"><h3 class="${sameDay(d, from) ? 'is-today' : ''}">${esc(fmtDateLong(d))}</h3>${dayRouteBtnHtml(d, 'ag-btn ag-btn--sm')}</div>${l
                 .map(
                   (e) => `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(e.title)}</b><small>${esc(
-                    [TYPES[e.type].one, e.needs_delivery ? 'Delivery' : null, e.address].filter(Boolean).join(' · ')
+                    [typeInfo(e.type).one, e.needs_delivery ? 'Delivery' : null, e.address].filter(Boolean).join(' · ')
                   )}</small></div></button>`
                 )
                 .join('')}</section>`
@@ -921,9 +971,12 @@
   function whenText(e) {
     if (e.allDay) {
       const days = Math.round((e.lastDay - sod(e.start)) / DAY) + 1;
+      if (days <= 1) {
+        return { date: fmtDateLong(e.start), time: 'Dia inteiro' };
+      }
       return {
         date: `${fmtDateShort(e.start)} – ${fmtDateShort(e.lastDay)} ${e.lastDay.getFullYear()}`,
-        time: `${days} dias · começa ${fmtTime(e.start)}, termina ${fmtTime(e.end)}`,
+        time: `${days} dias · dia inteiro`,
       };
     }
     return { date: fmtDateLong(e.start), time: `${fmtTime(e.start)} – ${fmtTime(e.end)}` };
@@ -1439,7 +1492,7 @@
        <div class="ag-sheet__body"><div class="ag-card" style="padding:6px">${list
          .map(
            (e) =>
-             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(e.title)}</b><small>${esc(TYPES[e.type].one)}</small></div></button>`
+             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(e.title)}</b><small>${esc(typeInfo(e.type).one)}</small></div></button>`
          )
          .join('')}</div></div>`
     );
@@ -1610,8 +1663,8 @@
     const label = when ? (when.getHours() || when.getMinutes() ? ` · ${fmtDateShort(when)} ${fmtTime(when)}` : ` · ${fmtDateShort(when)}`) : '';
     openMenu(x, y, [
       { act: 'new-job', label: 'Novo job' + label, color: calList()[0].color, data: w },
-      { act: 'new-visit', label: 'Nova visita' + label, color: TYPES.visit.color, data: w },
-      { act: 'new-meeting', label: 'Novo compromisso' + label, color: (calList().find((c) => c.kind === 'meetings') || TYPES.meeting).color, data: w },
+      { act: 'new-visit', label: `Nova ${typeInfo('visit').one.toLowerCase()}` + label, color: typeInfo('visit').color, data: w },
+      { act: 'new-meeting', label: `Novo ${typeInfo('meeting').one.toLowerCase()}` + label, color: typeInfo('meeting').color, data: w },
     ]);
   }
 
@@ -1649,7 +1702,16 @@
     const e = ev ? ev.end : new Date(s.getTime() + 3600e3);
     const m = ev ? ev.meta : {};
     const isVisit = kind === 'visit';
-    const title = ev ? (isVisit ? 'Editar visita' : 'Editar compromisso') : isVisit ? 'Nova visita' : 'Novo compromisso';
+    const isAllDay = Boolean(ev && ev.allDay);
+    const visitLbl = typeInfo('visit').one;
+    const mtgLbl = typeInfo('meeting').one;
+    const title = ev
+      ? isVisit
+        ? `Editar ${visitLbl.toLowerCase()}`
+        : `Editar ${mtgLbl.toLowerCase()}`
+      : isVisit
+        ? `Nova ${visitLbl.toLowerCase()}`
+        : `Novo ${mtgLbl.toLowerCase()}`;
     const seller = ev ? m.assigned_user_id : S.me && S.me.id;
     closePop();
     openSheet(
@@ -1664,8 +1726,9 @@
         }
         <div class="ag-card ag-form__grp">
           <label class="ag-form__row"><span>Data</span><input type="date" name="date" required value="${ymd(s)}" /></label>
-          <label class="ag-form__row"><span>Início</span><input type="time" name="start" required value="${hm(s)}" step="900" /></label>
-          ${isVisit && !ev ? '' : `<label class="ag-form__row"><span>Fim</span><input type="time" name="end" required value="${hm(e)}" step="900" /></label>`}
+          <label class="ag-form__check"><input type="checkbox" name="all_day" value="1" id="agAllDay" ${isAllDay ? 'checked' : ''}/><span>Dia inteiro</span></label>
+          <label class="ag-form__row ag-form__time" data-ag-time><span>Início</span><input type="time" name="start" ${isAllDay ? '' : 'required'} value="${hm(s)}" step="900" ${isAllDay ? 'disabled' : ''} /></label>
+          ${isVisit && !ev ? '' : `<label class="ag-form__row ag-form__time" data-ag-time><span>Fim</span><input type="time" name="end" ${isAllDay ? '' : 'required'} value="${hm(e)}" step="900" ${isAllDay ? 'disabled' : ''} /></label>`}
         </div>
         <div class="ag-card ag-form__grp">
           <label class="ag-form__row ag-form__row--col"><span>Local</span><input name="location" data-ag-address autocomplete="off" placeholder="Endereço" value="${esc(ev ? ev.address : '')}" /></label>
@@ -1679,7 +1742,7 @@
           ${ev ? `<label class="ag-form__row"><span>Status</span><select name="status">${Object.keys(MTG_STATUS).filter((k) => k !== 'canceled').map((k) => `<option value="${k}" ${k === ev.status ? 'selected' : ''}>${MTG_STATUS[k]}</option>`).join('')}</select></label>` : ''}
         </div>
         <div class="ag-card ag-form__grp"><textarea name="notes" rows="4" placeholder="Notas">${esc(ev ? m.notes || '' : '')}</textarea></div>
-        ${isVisit && !ev ? '<p class="ag-hint">A visita dura 1 hora e o lead vai para a etapa Visita agendada.</p>' : ''}
+        ${isVisit && !ev ? `<p class="ag-hint">Sem “Dia inteiro”, a visita dura 1 hora. O lead vai para a etapa Visita agendada.</p>` : ''}
       </form>`,
       'ag-sheet__card--form'
     );
@@ -1687,7 +1750,27 @@
     if (addr && typeof window.sfAttachAddressAutocomplete === 'function') {
       window.sfAttachAddressAutocomplete(addr, { map: { combined: addr } }).catch(() => {});
     }
+    wireAllDayToggle();
     if (isVisit && !ev) wireLeadPicker();
+  }
+
+  function wireAllDayToggle() {
+    const box = $('#agAllDay');
+    if (!box) return;
+    const sync = () => {
+      const on = box.checked;
+      $$('#agForm [data-ag-time]').forEach((row) => {
+        row.hidden = on;
+        const inp = row.querySelector('input');
+        if (inp) {
+          inp.disabled = on;
+          if (on) inp.removeAttribute('required');
+          else inp.setAttribute('required', '');
+        }
+      });
+    };
+    box.addEventListener('change', sync);
+    sync();
   }
 
   function wireLeadPicker() {
@@ -1727,11 +1810,21 @@
     const kind = form.dataset.kind;
     const id = form.dataset.id;
     const date = fd.get('date');
-    const st = fd.get('start');
-    if (!date || !st) throw new Error('Informe data e horário.');
-    const start = new Date(`${date}T${st}`);
-    let end = fd.get('end') ? new Date(`${date}T${fd.get('end')}`) : new Date(start.getTime() + 3600e3);
-    if (end <= start) end = new Date(end.getTime() + DAY);
+    const allDay = fd.get('all_day') === '1' || fd.get('all_day') === 'on';
+    if (!date) throw new Error('Informe a data.');
+    let start;
+    let end;
+    if (allDay) {
+      const [y, mo, d] = String(date).split('-').map(Number);
+      start = new Date(y, mo - 1, d, 0, 0, 0, 0);
+      end = new Date(start.getTime() + DAY);
+    } else {
+      const st = fd.get('start');
+      if (!st) throw new Error('Informe data e horário.');
+      start = new Date(`${date}T${st}`);
+      end = fd.get('end') ? new Date(`${date}T${fd.get('end')}`) : new Date(start.getTime() + 3600e3);
+      if (end <= start) end = new Date(end.getTime() + DAY);
+    }
     const location = String(fd.get('location') || '').trim() || null;
     const notes = String(fd.get('notes') || '').trim() || null;
     const assigned = fd.get('assigned_user_id') || null;
@@ -1739,9 +1832,26 @@
     if (kind === 'visit' && !id) {
       const leadId = fd.get('lead_id');
       if (!leadId) throw new Error('Escolha o lead da visita.');
-      saved = await api('/api/visits', { method: 'POST', body: { lead_id: leadId, scheduled_at: start.toISOString(), address: location, notes, seller_id: assigned } });
+      saved = await api('/api/visits', {
+        method: 'POST',
+        body: {
+          lead_id: leadId,
+          scheduled_at: start.toISOString(),
+          all_day: allDay,
+          address: location,
+          notes,
+          seller_id: assigned,
+        },
+      });
     } else {
-      const body = { scheduled_start: start.toISOString(), scheduled_end: end.toISOString(), location, notes, assigned_user_id: assigned };
+      const body = {
+        scheduled_start: start.toISOString(),
+        scheduled_end: end.toISOString(),
+        all_day: allDay,
+        location,
+        notes,
+        assigned_user_id: assigned,
+      };
       if (kind === 'meeting') {
         const title = String(fd.get('title') || '').trim();
         if (title.length < 2) throw new Error('Dê um título ao compromisso.');
@@ -1801,7 +1911,7 @@
       ? hits
           .map(
             (e) => `<button type="button" class="ag-li" data-ag-hit="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(fmtDateShort(e.start))}<br/><small>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</small></time><div><b>${esc(e.title)}</b><small>${esc(
-              [TYPES[e.type].one, e.address].filter(Boolean).join(' · ')
+              [typeInfo(e.type).one, e.address].filter(Boolean).join(' · ')
             )}</small></div></button>`
           )
           .join('')

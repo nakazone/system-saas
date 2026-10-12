@@ -161,7 +161,7 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-day__rbtn:hover { background: #fce8d6; }
 .ag-day__list { display: grid; gap: 2px; }
 .ag-row {
-  appearance: none; border: 0; background: transparent;
+  appearance: none; border: 0; background: var(--ev-bg);
   display: flex; align-items: center; gap: 5px; width: 100%;
   height: 18px; padding: 0 5px; border-radius: 5px;
   font-size: 11.5px; font-weight: 650; line-height: 1; text-align: left; min-width: 0;
@@ -170,7 +170,7 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-row i { width: 3px; height: 11px; border-radius: 2px; background: var(--ev); flex: none; }
 .ag-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ag-row time { font-size: 10.5px; color: var(--mut); font-weight: 650; flex: none; letter-spacing: 0.01em; }
-.ag-row:hover, .ag-row.is-active-ev { background: var(--ev-bg); }
+.ag-row:hover, .ag-row.is-active-ev { background: var(--ev-bg2); }
 .ag-more { appearance: none; border: 0; background: none; text-align: left; font-size: 11px; font-weight: 800; color: var(--mut); padding: 0 5px; height: 16px; line-height: 16px; }
 .ag-more:hover { color: var(--ink); }
 .ag-bars { position: absolute; left: 0; right: 0; top: 30px; pointer-events: none; }
@@ -245,8 +245,8 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-now::before { content: ""; position: absolute; left: -2px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--terra); }
 .ag-dayside { width: 300px; flex: none; border-left: 1px solid var(--line); padding: 16px; overflow-y: auto; background: #fcfbf9; display: grid; align-content: start; gap: 18px; }
 .ag-dayside__list h3 { margin: 0 0 8px; font-size: 13px; font-weight: 800; }
-.ag-li { appearance: none; border: 0; background: transparent; width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 8px 6px; border-radius: 10px; }
-.ag-li:hover { background: var(--ev-bg); }
+.ag-li { appearance: none; border: 0; background: var(--ev-bg); width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 8px 6px; border-radius: 10px; }
+.ag-li:hover, .ag-li.is-active-ev { background: var(--ev-bg2); }
 .ag-li > i { width: 4px; align-self: stretch; min-height: 32px; border-radius: 2px; background: var(--ev); flex: none; }
 .ag-li time { width: 64px; flex: none; font-size: 12.5px; font-weight: 700; color: var(--ink2); padding-top: 1px; }
 .ag-li time small { color: var(--mut); font-weight: 600; }
@@ -643,6 +643,8 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-pillbtn--ghost { box-shadow: none; background: transparent; color: var(--ink2) !important; }
 .ag-pillbtn:disabled { opacity: .5; }
 .ag-form__grp { padding: 4px 14px; display: grid; }
+.ag-form__check { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(33, 29, 26, .07); font-size: 15px; font-weight: 650; cursor: pointer; }
+.ag-form__check input { width: 18px; height: 18px; accent-color: var(--terrad, #c45c26); }
 .ag-form__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(33, 29, 26, .07); font-size: 15px; font-weight: 600; }
 .ag-form__row:last-child { border-bottom: 0; }
 .ag-form__row--col { flex-direction: column; align-items: stretch; gap: 4px; }
