@@ -302,12 +302,12 @@
       p = 'Atualize a validade e reenvie se o cliente ainda tiver interesse.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}">Abrir e renovar</a>`;
     } else if (g === 'approved') {
-      t = q.work_order_id ? 'Completar o job' : 'Aprovado — virar job';
+      t = q.work_order_id ? 'Criar Job' : 'Aprovado — virar job';
       p = q.work_order_id
         ? 'Abra o job para preencher Quando, Setor, Equipe e Campo.'
         : 'Transforme em job: cliente, endereço e serviços já vão preenchidos.';
       cta = q.work_order_id
-        ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?setup=${encodeURIComponent(q.work_order_id)}">Completar o job</a>`
+        ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?setup=${encodeURIComponent(q.work_order_id)}">Criar Job</a>`
         : `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a>`;
       if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
         cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;

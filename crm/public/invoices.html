@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="invoices-module.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="invoices-v2.css?v=20261012-inv4" />
+  <link rel="stylesheet" href="invoices-v2.css?v=20261012-inv5" />
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -80,18 +80,19 @@
             <button type="button" class="inv-btn inv-btn--primary" id="btnNewInvoice" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nova fatura</span></button>
           </div>
         </div>
+        <div class="ix-tiles" id="ixTiles" role="group" aria-label="Filtrar por status"></div>
+        <div class="ix-period" id="ixPeriod" hidden>
+          <button type="button" class="ix-period__nav" id="ixPeriodPrev" aria-label="Mês anterior">‹</button>
+          <button type="button" class="ix-period__label" id="ixPeriodLabel">Este mês</button>
+          <button type="button" class="ix-period__nav" id="ixPeriodNext" aria-label="Próximo mês">›</button>
+          <button type="button" class="ix-period__all" id="ixPeriodAll" aria-pressed="false">Tudo</button>
+        </div>
         <div class="ix-split" id="invSplit">
           <section class="ix-list" aria-label="Faturas">
             <div class="ix-list__top">
               <label class="ix-search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="filterQ" placeholder="Buscar fatura, cliente ou job" autocomplete="off" aria-label="Buscar faturas" /></label>
+              <div class="ix-seg" id="ixSeg" role="tablist" aria-label="Filtro rápido"></div>
               <p class="ix-count" id="ixCount"></p>
-            </div>
-            <div class="ix-tiles" id="ixTiles" role="group" aria-label="Filtrar por status"></div>
-            <div class="ix-period" id="ixPeriod" hidden>
-              <button type="button" class="ix-period__nav" id="ixPeriodPrev" aria-label="Mês anterior">‹</button>
-              <button type="button" class="ix-period__label" id="ixPeriodLabel">Este mês</button>
-              <button type="button" class="ix-period__nav" id="ixPeriodNext" aria-label="Próximo mês">›</button>
-              <button type="button" class="ix-period__all" id="ixPeriodAll" aria-pressed="false">Tudo</button>
             </div>
             <div class="om-ptr" id="invPtr" aria-hidden="true">↓ Puxe para atualizar</div>
             <div class="ix-rows" id="invRows"><p class="ix-empty">Carregando…</p></div>
@@ -392,6 +393,6 @@
   <script src="om-gestures.js?v=20261002-gest1"></script>
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="invoice-page.js?v=20261009-jobinv2"></script>
-  <script src="invoices-page.js?v=20261012-inv4"></script>
+  <script src="invoices-page.js?v=20261012-inv5"></script>
 </body>
 </html>

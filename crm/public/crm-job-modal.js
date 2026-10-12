@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261009-btnw2";
+  const CSS_HREF = "crm-job-modal.css?v=20261012-svcprev1";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -92,6 +92,9 @@
       pickerQuery: "",
       moreOpen: false,
       busy: false,
+      /** Job acabou de nascer do Quote — serviços em pré-visualização (como no orçamento). */
+      fromQuote: false,
+      svcEdit: false,
     };
   }
 
@@ -950,9 +953,48 @@
       .slice(0, 12);
   }
 
+  function renderServicesPreview() {
+    const box = $("jmSvc");
+    if (!box) return;
+    const cards = st.lines
+      .map((l, i) => {
+        const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
+        const unit = unitLabel(item?.unit || l.unit);
+        const qty = Number(l.qty) || 0;
+        const note = String(l.note || "").trim();
+        return `<article class="jm-svc-card" data-i="${i}">
+          <div class="jm-svc-card__top">
+            <b class="jm-svc-card__name">${esc(l.name || item?.name || "Serviço")}</b>
+            <span class="jm-svc-card__total">${money(lineTotal(l))}</span>
+          </div>
+          ${note ? `<p class="jm-svc-card__desc">${esc(note)}</p>` : ""}
+          <p class="jm-svc-card__meta">${qty ? `${esc(String(qty))} ${esc(unit)}` : esc(unit)}${Number(l.price) ? ` · ${money(l.price)}/${esc(unit)}` : ""}</p>
+        </article>`;
+      })
+      .join("");
+    box.innerHTML = `${
+      st.lines.length
+        ? `<div class="jm-svc-preview" role="list">${cards}</div>`
+        : `<p class="jm-empty jm-empty--svc">Nenhum serviço veio do orçamento.</p>`
+    }
+      <div class="jm-svc__foot">
+        <span class="jm-svc__foot-acts">
+          <button type="button" class="jm-link" data-act="svc-edit">Editar serviços</button>
+        </span>
+        <span id="jmSvcCount"></span>
+      </div>`;
+    $("jmPriceHint").innerHTML = st.lines.length
+      ? `Serviços copiados do orçamento · total <b>${money(linesTotal())}</b>. Complete Quando, Setor, Equipe e Campo.`
+      : "Adicione serviços ou volte ao orçamento.";
+    updateSvcCount();
+  }
   function renderServices() {
     const box = $("jmSvc");
     if (!box) return;
+    if (st.fromQuote && !st.svcEdit) {
+      renderServicesPreview();
+      return;
+    }
     const rows = st.lines
       .map((l, i) => {
         const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
@@ -1013,6 +1055,7 @@
     }
       <div class="jm-svc__foot">
         <span class="jm-svc__foot-acts">
+          ${st.fromQuote ? `<button type="button" class="jm-link" data-act="svc-preview">Ver pré-visualização</button>` : ""}
           <button type="button" class="jm-link" data-act="add-line">+ Adicionar serviço</button>
           <button type="button" class="jm-link" data-act="add-manual">+ Serviço manual</button>
         </span>
@@ -1642,6 +1685,8 @@
     // Coming from Quote→Job: keep Para quem / endereço / serviços; user fills Quando, Setor, Equipe, Campo, Notas.
     if (opts && opts.fromQuote) {
       st.section = "all";
+      st.fromQuote = true;
+      st.svcEdit = false;
       st.notes = "";
       if (!wo.scheduled_start) {
         st.date = "";
@@ -1992,7 +2037,16 @@
         openScheduleLixaFrom(snap);
         break;
       }
+      case "svc-edit":
+        st.svcEdit = true;
+        renderServices();
+        break;
+      case "svc-preview":
+        st.svcEdit = false;
+        renderServices();
+        break;
       case "add-line":
+        st.svcEdit = true;
         st.lines.push(blankLine());
         renderServices();
         refreshNumbers();

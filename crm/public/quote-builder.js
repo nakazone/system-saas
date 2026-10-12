@@ -6481,8 +6481,8 @@
         ? `Complete a agenda/equipe no job ou fature ${money(left)}.`
         : 'Complete Quando, Setor, Equipe e Campo no job.';
       btn = canInvoice
-        ? `${invoiceBtn}<button type="button" class="btn qb-next__alt" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Completar o job</button>`
-        : `<button type="button" class="btn btn-primary" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Completar o job</button>`;
+        ? `${invoiceBtn}<button type="button" class="btn qb-next__alt" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Criar Job</button>`
+        : `<button type="button" class="btn btn-primary" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Criar Job</button>`;
     } else if (approved && canInvoice && invoiced > 0.009) {
       title = 'Saldo a faturar';
       text = `Já faturado ${money(invoiced)}. Falta emitir ${money(left)} do orçamento.`;

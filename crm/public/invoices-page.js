@@ -188,6 +188,29 @@
     $('ixSum').innerHTML = parts.map(([k, v, c]) => `<div><dt>${k}</dt><dd class="${c}">${v}</dd></div>`).join('');
   }
 
+  function setTab(next, pushUrl) {
+    tab = next;
+    try {
+      const u = new URL(location.href);
+      if (tab === 'all') u.searchParams.delete('status');
+      else u.searchParams.set('status', tab);
+      history[pushUrl ? 'pushState' : 'replaceState'](null, '', u);
+    } catch (_) {}
+    renderTiles();
+    renderList();
+    if (isWide() && !visible().some((i) => String(i.id) === String(selId))) {
+      const first = $('invRows').querySelector('[data-inv-id]');
+      if (first) select(first.getAttribute('data-inv-id'), true);
+    }
+  }
+  function renderSeg() {
+    const host = $('ixSeg');
+    if (!host) return;
+    host.innerHTML = TILES.map(([k, label]) => {
+      const n = all.filter((i) => inTab(i, k)).length;
+      return `<button type="button" role="tab" class="${tab === k ? 'is-on' : ''}" data-tab="${k}" aria-selected="${tab === k}">${label}${n ? `<em>${n}</em>` : ''}</button>`;
+    }).join('');
+  }
   function renderTiles() {
     const sum = (rows, f) => rows.reduce((a, i) => a + (Number(f(i)) || 0), 0);
     const html = TILES.map(([k, label]) => {
@@ -210,6 +233,7 @@
     }).join('');
     $('ixTiles').innerHTML = html;
     $('ixTiles').style.setProperty('--ix-tiles', String($('ixTiles').children.length));
+    renderSeg();
     renderPeriodBar();
   }
 
@@ -563,23 +587,13 @@
     if (bar && bar.parentElement !== document.body) document.body.appendChild(bar);
     $('btnNewInvoice').hidden = !can('invoices.manage');
     $('btnNewInvoice').addEventListener('click', openNew);
-    $('ixTiles').addEventListener('click', (e) => {
+    const onTabClick = (e) => {
       const b = e.target.closest('[data-tab]');
       if (!b) return;
-      tab = b.dataset.tab;
-      try {
-        const u = new URL(location.href);
-        if (tab === 'all') u.searchParams.delete('status');
-        else u.searchParams.set('status', tab);
-        history.replaceState(null, '', u);
-      } catch (_) {}
-      renderTiles();
-      renderList();
-      if (isWide() && !visible().some((i) => String(i.id) === String(selId))) {
-        const first = $('invRows').querySelector('[data-inv-id]');
-        if (first) select(first.getAttribute('data-inv-id'), true);
-      }
-    });
+      setTab(b.dataset.tab, false);
+    };
+    $('ixTiles').addEventListener('click', onTabClick);
+    $('ixSeg')?.addEventListener('click', onTabClick);
     const refreshPeriod = () => {
       syncPeriodUrl();
       renderTiles();

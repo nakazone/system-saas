@@ -180,17 +180,7 @@
         <span class="jx-row__l3">${J.progHtml(wo)}<small>${J.esc(J.stageLabel(wo))}</small></span>
       </span>
     </a>`;
-    const extras = `${
-      showBill
-        ? `<a class="jx-row__bill" href="${billHref(wo)}" data-jx-bill title="Faturar">${showDel && useSwipeDelete() ? "Faturar" : `Faturar${wo.billing ? ` ${J.money0(wo.billing.remaining_to_invoice)}` : ""}`}</a>`
-        : ""
-    }${
-      showDel
-        ? `<button type="button" class="jx-row__del" data-jx-delete="${J.esc(wo.id)}" data-jx-label="${J.esc(wo.title || J.client(wo))}" title="Excluir" aria-label="Excluir">Excluir</button>`
-        : ""
-    }`;
-    const wrap = `<div class="jx-row-wrap">${body}${extras}</div>`;
-    // Swipe-to-delete only on touch / narrow — on desktop the wrapper breaks the list layout.
+    // Swipe-to-delete only on touch / narrow — desktop list stays clean (no inline buttons).
     if (showDel && useSwipeDelete()) {
       return `<article class="om-swipe jx-swipe" data-jx-swipe="${J.esc(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
@@ -198,10 +188,10 @@
         ${showBill ? `<a class="om-swipe__act--open" href="${billHref(wo)}">Faturar</a>` : ""}
         <button type="button" class="om-swipe__act--delete" data-jx-delete="${J.esc(wo.id)}" data-jx-label="${J.esc(wo.title || J.client(wo))}">Excluir</button>
       </div>
-      <div class="om-swipe__body">${wrap}</div>
+      <div class="om-swipe__body">${body}</div>
     </article>`;
     }
-    return wrap;
+    return body;
   }
 
   async function deleteJob(id, label, btn) {
@@ -432,7 +422,7 @@
       render();
     });
     $("jxRows").addEventListener("click", (e) => {
-      if (e.target.closest("[data-jx-bill], [data-jx-delete], .om-swipe__actions")) return;
+      if (e.target.closest("[data-jx-delete], .om-swipe__actions")) return;
       const a = e.target.closest("[data-jx-id]");
       if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
       e.preventDefault();
