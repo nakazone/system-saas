@@ -10,10 +10,10 @@
   const MO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
   const SEGS = [
+    ['all', 'Todos'],
     ['open', 'Abertos'],
     ['approved', 'Aprovados'],
     ['expired', 'Expirados'],
-    ['all', 'Todos'],
   ];
   const GROUPS = [
     ['changes', 'Pediu alterações'],
@@ -25,7 +25,7 @@
   ];
 
   const st = {
-    seg: 'open',
+    seg: 'all',
     q: '',
     rows: [],
     archived: false,
