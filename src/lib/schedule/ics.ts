@@ -85,3 +85,21 @@ export function buildScheduleIcsCalendar(
   lines.push("END:VCALENDAR");
   return lines.map(foldLine).join("\r\n") + "\r\n";
 }
+
+/** One-shot .ics for “Adicionar ao Calendar” (meeting / visit). */
+export function buildSingleEventIcs(
+  event: ScheduleIcsEvent,
+  opts?: { name?: string; prodId?: string },
+): string {
+  return buildScheduleIcsCalendar([event], {
+    name: opts?.name || "ObraMate",
+    prodId: opts?.prodId || "-//ObraMate//Meeting//PT",
+  });
+}
+
+export function meetingStatusToIcs(status: string | null | undefined): ScheduleIcsEvent["status"] {
+  const s = String(status || "").toLowerCase();
+  if (s === "canceled" || s === "cancelled") return "CANCELLED";
+  if (s === "completed" || s === "done" || s === "confirmed") return "CONFIRMED";
+  return "TENTATIVE";
+}

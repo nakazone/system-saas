@@ -1,5 +1,5 @@
 /**
- * Abrir visita de lead no calendario do dispositivo.
+ * Abrir visita de lead ou meeting no calendario do dispositivo.
  * iPad/iPhone/Safari: GET sincrona a /calendar.ics no gesto do toque
  * (data: URI e fetch+assign sao bloqueados pelo Safari).
  * Android / Chrome desktop: Google Calendar ou escolha.
@@ -10,6 +10,7 @@
   const icsCache = new Map();
   const ICS_CACHE_MS = 5 * 60 * 1000;
   let chooserLead = null;
+  let chooserMeeting = null;
   let chooserOptions = null;
 
   function snapToNextHalfHour(fromDate) {
@@ -119,11 +120,14 @@
     return '/api/leads/' + encodeURIComponent(String(leadId)) + '/calendar.ics';
   }
 
+  function meetingIcsUrl(meetingId) {
+    return '/api/meetings/' + encodeURIComponent(String(meetingId)) + '/calendar.ics';
+  }
+
   /**
    * Tem de correr no mesmo tick do clique. Nao usar await antes disto no iPad.
    */
-  function openIcsViaUserGesture(leadId) {
-    const url = leadVisitIcsUrl(leadId);
+  function openIcsUrlViaUserGesture(url) {
     if (isAppleMobile() || isStandaloneDisplay()) {
       global.location.assign(url);
       return true;
@@ -138,44 +142,74 @@
     return true;
   }
 
-  async function fetchLeadIcsText(leadId) {
-    const r = await fetch('/api/leads/' + encodeURIComponent(String(leadId)) + '/calendar.ics', {
-      credentials: 'include',
-      cache: 'no-store',
-    });
+  function openIcsViaUserGesture(leadId) {
+    return openIcsUrlViaUserGesture(leadVisitIcsUrl(leadId));
+  }
+
+  function openMeetingIcsViaUserGesture(meetingId) {
+    return openIcsUrlViaUserGesture(meetingIcsUrl(meetingId));
+  }
+
+  async function fetchIcsText(url) {
+    const r = await fetch(url, { credentials: 'include', cache: 'no-store' });
     if (!r.ok) throw new Error('ICS HTTP ' + r.status);
     return await r.text();
   }
 
-  function getCachedIcs(leadId) {
-    const row = icsCache.get(String(leadId));
+  async function fetchLeadIcsText(leadId) {
+    return fetchIcsText(leadVisitIcsUrl(leadId));
+  }
+
+  async function fetchMeetingIcsText(meetingId) {
+    return fetchIcsText(meetingIcsUrl(meetingId));
+  }
+
+  function cacheKey(kind, id) {
+    return kind + ':' + String(id);
+  }
+
+  function getCachedIcs(key) {
+    const row = icsCache.get(String(key));
     if (!row) return null;
     if (Date.now() - row.at > ICS_CACHE_MS) {
-      icsCache.delete(String(leadId));
+      icsCache.delete(String(key));
       return null;
     }
     return row.ics;
   }
 
-  function setCachedIcs(leadId, ics) {
-    icsCache.set(String(leadId), { ics, at: Date.now() });
+  function setCachedIcs(key, ics) {
+    icsCache.set(String(key), { ics, at: Date.now() });
   }
 
   /** Pre-carrega .ics ao abrir o lead (necessario para iOS abrir no clique). */
   async function prefetchLeadVisitIcs(leadId) {
     const id = leadId != null ? String(leadId) : '';
-    if (!id || getCachedIcs(id)) return;
+    const key = cacheKey('lead', id);
+    if (!id || getCachedIcs(key)) return;
     try {
       const ics = await fetchLeadIcsText(id);
-      setCachedIcs(id, ics);
+      setCachedIcs(key, ics);
     } catch (err) {
       console.warn('[crm-device-calendar] prefetch', err);
     }
   }
 
+  async function prefetchMeetingIcs(meetingId) {
+    const id = meetingId != null ? String(meetingId) : '';
+    const key = cacheKey('meeting', id);
+    if (!id || getCachedIcs(key)) return;
+    try {
+      const ics = await fetchMeetingIcsText(id);
+      setCachedIcs(key, ics);
+    } catch (err) {
+      console.warn('[crm-device-calendar] meeting prefetch', err);
+    }
+  }
+
   /** Abre Calendario Apple via data URI (tem de ser sincrono no gesto do utilizador). */
   function openAppleCalendarFromCache(leadId) {
-    const ics = getCachedIcs(leadId);
+    const ics = getCachedIcs(cacheKey('lead', leadId));
     if (!ics) return false;
     const dataUrl = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
     global.location.assign(dataUrl);
@@ -183,11 +217,47 @@
   }
 
   async function ensureIcsCached(leadId) {
-    let ics = getCachedIcs(leadId);
+    const key = cacheKey('lead', leadId);
+    let ics = getCachedIcs(key);
     if (ics) return ics;
     ics = await fetchLeadIcsText(leadId);
-    setCachedIcs(leadId, ics);
+    setCachedIcs(key, ics);
     return ics;
+  }
+
+  function normalizeMeeting(meetingOrId) {
+    if (meetingOrId == null) return null;
+    if (typeof meetingOrId === 'string' || typeof meetingOrId === 'number') {
+      return { id: String(meetingOrId), title: 'Compromisso' };
+    }
+    const id = meetingOrId.id != null ? String(meetingOrId.id) : '';
+    if (!id) return null;
+    const startRaw = meetingOrId.scheduled_start || meetingOrId.start || meetingOrId.scheduledStart;
+    const endRaw = meetingOrId.scheduled_end || meetingOrId.end || meetingOrId.scheduledEnd;
+    return {
+      id,
+      title: String(meetingOrId.title || 'Compromisso').trim() || 'Compromisso',
+      location: meetingOrId.location != null ? String(meetingOrId.location) : '',
+      notes: meetingOrId.notes != null ? String(meetingOrId.notes) : '',
+      start: startRaw ? new Date(startRaw) : null,
+      end: endRaw ? new Date(endRaw) : null,
+    };
+  }
+
+  function buildGoogleCalendarMeetingUrl(meeting) {
+    const m = normalizeMeeting(meeting);
+    if (!m) return 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+    let start = m.start && !Number.isNaN(m.start.getTime()) ? m.start : snapToNextHalfHour();
+    let end = m.end && !Number.isNaN(m.end.getTime()) ? m.end : new Date(start.getTime() + 60 * 60 * 1000);
+    if (end.getTime() <= start.getTime()) end = new Date(start.getTime() + 60 * 60 * 1000);
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: m.title,
+      dates: formatGoogleCalendarDate(start) + '/' + formatGoogleCalendarDate(end),
+      details: m.notes || '',
+      location: m.location || '',
+    });
+    return 'https://calendar.google.com/calendar/render?' + params.toString();
   }
 
   function ensureCalendarChooserDom() {
@@ -236,11 +306,13 @@
     root.classList.remove('is-open');
     root.setAttribute('aria-hidden', 'true');
     chooserLead = null;
+    chooserMeeting = null;
     chooserOptions = null;
   }
 
   function openCalendarChooser(lead, options) {
     chooserLead = lead;
+    chooserMeeting = null;
     chooserOptions = options || null;
     const root = ensureCalendarChooserDom();
     const nameEl = document.getElementById('sfCalendarChooserLeadName');
@@ -263,7 +335,38 @@
     if (lead && lead.id != null) void prefetchLeadVisitIcs(lead.id);
   }
 
+  function openMeetingCalendarChooser(meeting) {
+    const m = normalizeMeeting(meeting);
+    if (!m) return;
+    chooserLead = null;
+    chooserMeeting = m;
+    chooserOptions = null;
+    const root = ensureCalendarChooserDom();
+    const nameEl = document.getElementById('sfCalendarChooserLeadName');
+    const hintEl = document.getElementById('sfCalendarChooserHint');
+    const appleBtn = document.getElementById('sfCalendarChooserApple');
+    if (nameEl) nameEl.textContent = m.title;
+    if (hintEl) {
+      hintEl.textContent = isMacOS()
+        ? 'No Chrome ou Edge, prefira Google Calendar. No Safari, Calend\u00e1rio Apple abre direto.'
+        : 'Escolha o calend\u00e1rio que usa no dia a dia.';
+    }
+    if (appleBtn) {
+      appleBtn.disabled = false;
+      appleBtn.textContent = 'Calend\u00e1rio Apple';
+    }
+    root.classList.add('is-open');
+    root.setAttribute('aria-hidden', 'false');
+    void prefetchMeetingIcs(m.id);
+  }
+
   function onChooserAppleClick() {
+    if (chooserMeeting && chooserMeeting.id) {
+      const id = chooserMeeting.id;
+      closeCalendarChooser();
+      openMeetingIcsViaUserGesture(id);
+      return;
+    }
     const lead = chooserLead;
     if (!lead || lead.id == null) return;
     closeCalendarChooser();
@@ -271,6 +374,12 @@
   }
 
   function onChooserGoogleClick() {
+    if (chooserMeeting) {
+      const m = chooserMeeting;
+      closeCalendarChooser();
+      global.location.href = buildGoogleCalendarMeetingUrl(m);
+      return;
+    }
     const lead = chooserLead;
     if (!lead) return;
     closeCalendarChooser();
@@ -308,8 +417,39 @@
     }
   }
 
+  /**
+   * @param {object|string} meetingOrId — meeting { id, title, scheduled_start, scheduled_end, location, notes } ou id
+   * @returns {boolean}
+   */
+  function openMeetingInDeviceCalendar(meetingOrId) {
+    const m = normalizeMeeting(meetingOrId);
+    if (!m) return false;
+
+    try {
+      if (isAndroidDevice()) {
+        global.location.href = buildGoogleCalendarMeetingUrl(m);
+        return true;
+      }
+
+      const appleNative = isSafariBrowser() || isAppleMobile();
+      if (appleNative) {
+        return openMeetingIcsViaUserGesture(m.id);
+      }
+
+      void prefetchMeetingIcs(m.id);
+      openMeetingCalendarChooser(m);
+      return true;
+    } catch (err) {
+      console.warn('[crm-device-calendar] meeting', err);
+      openMeetingCalendarChooser(m);
+      return true;
+    }
+  }
+
   global.sfOpenLeadVisitInDeviceCalendar = openLeadVisitInDeviceCalendar;
   global.sfPrefetchLeadVisitIcs = prefetchLeadVisitIcs;
+  global.sfOpenMeetingInDeviceCalendar = openMeetingInDeviceCalendar;
+  global.sfPrefetchMeetingIcs = prefetchMeetingIcs;
   global.sfBuildGoogleCalendarVisitUrl = buildGoogleCalendarUrl;
   global.sfSnapVisitToNextHalfHour = snapToNextHalfHour;
   global.sfOpenCalendarChooser = openCalendarChooser;

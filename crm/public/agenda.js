@@ -1146,6 +1146,10 @@
       </div>
       ${notesBlock}
       <div class="ag-dtl__acts">${e.type === 'visit' && e.status !== 'canceled' ? `<a class="ag-btn ag-btn--pri" href="field-quote.html?meeting_id=${encodeURIComponent(e.id)}">Começar Field Quote</a>` : ''}${ct.href ? `<a class="ag-btn${e.type === 'visit' ? '' : ' ag-btn--pri'}" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
+        (e.type === 'meeting' || e.type === 'visit') && e.status !== 'canceled'
+          ? `<button type="button" class="ag-btn" data-ag-cal-add="${esc(e.id)}">Adicionar ao Calendar</button>`
+          : ''
+      }${
         canEdit && e.type === 'job'
           ? `<a class="ag-btn" href="campo/ticket.html?id=${encodeURIComponent(e.id)}">Editar ticket</a>`
           : ''
@@ -1498,9 +1502,43 @@
     );
   }
 
+  function meetingCalPayload(e) {
+    if (!e || (e.type !== 'meeting' && e.type !== 'visit')) return null;
+    return {
+      id: e.id,
+      title: e.title,
+      scheduled_start: e.start && e.start.toISOString ? e.start.toISOString() : null,
+      scheduled_end: e.end && e.end.toISOString ? e.end.toISOString() : null,
+      location: e.address || (e.meta && e.meta.location) || '',
+      notes: (e.meta && e.meta.notes) || '',
+    };
+  }
+
+  function openMeetingInDeviceCalendar(payload) {
+    if (!payload || !payload.id) return false;
+    if (typeof window.sfOpenMeetingInDeviceCalendar === 'function') {
+      return window.sfOpenMeetingInDeviceCalendar(payload);
+    }
+    window.location.assign('/api/meetings/' + encodeURIComponent(payload.id) + '/calendar.ics');
+    return true;
+  }
+
+  function offerAddToDeviceCalendar(payload, label) {
+    if (!payload || !payload.id) return;
+    if (typeof window.sfPrefetchMeetingIcs === 'function') void window.sfPrefetchMeetingIcs(payload.id);
+    const what = label || 'compromisso';
+    openSheet(
+      `<div class="ag-confirm"><h2>Adicionar ao Calendar?</h2><p>${esc(payload.title || what)}</p><p class="ag-hint">Abre no Calendário do iPhone (ou Google) com data, local e notas.</p><div class="ag-confirm__acts"><button type="button" class="ag-btn" data-ag-close>Agora não</button><button type="button" class="ag-btn ag-btn--pri" data-ag-cal-add-ok="${esc(payload.id)}" data-ag-cal-title="${esc(payload.title || '')}" data-ag-cal-start="${esc(payload.scheduled_start || '')}" data-ag-cal-end="${esc(payload.scheduled_end || '')}" data-ag-cal-loc="${esc(payload.location || '')}" data-ag-cal-notes="${esc(payload.notes || '')}">Adicionar ao Calendar</button></div></div>`,
+      'ag-sheet__card--confirm'
+    );
+  }
+
   function openDetail(id, anchor) {
     const e = findEv(id);
     if (!e) return;
+    if ((e.type === 'meeting' || e.type === 'visit') && e.status !== 'canceled' && typeof window.sfPrefetchMeetingIcs === 'function') {
+      void window.sfPrefetchMeetingIcs(e.id);
+    }
     const paint = () => {
       if (isPhone()) {
         openSheet(`<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${
@@ -1867,6 +1905,32 @@
     if (conflicts.length) toast(`Atenção: conflita com ${conflicts.length} evento(s) do mesmo responsável.`, 'info');
     await ensureRange(addDays(start, -1), addDays(start, 2)).catch(() => {});
     await reload();
+    if (!id && (kind === 'meeting' || kind === 'visit')) {
+      const data = saved && saved.data ? saved.data : null;
+      const meetingId =
+        kind === 'meeting'
+          ? data && data.id
+          : data && (data.meeting_id || data.id);
+      if (meetingId) {
+        offerAddToDeviceCalendar(
+          {
+            id: String(meetingId),
+            title:
+              (data && data.title) ||
+              (kind === 'visit'
+                ? data && data.lead_name
+                  ? `Visita — ${data.lead_name}`
+                  : 'Visita'
+                : 'Compromisso'),
+            scheduled_start: (data && data.scheduled_start) || start.toISOString(),
+            scheduled_end: (data && data.scheduled_end) || end.toISOString(),
+            location: (data && (data.location || data.address)) || location || '',
+            notes: (data && data.notes) || notes || '',
+          },
+          kind === 'visit' ? 'visita' : 'compromisso'
+        );
+      }
+    }
   }
 
   async function cancelEvent(e) {
@@ -2329,6 +2393,24 @@
         return;
       }
       if ((el = t.closest('[data-ag-hit]'))) return gotoHit(el.dataset.agHit);
+      if ((el = t.closest('[data-ag-cal-add]'))) {
+        const e = findEv(el.dataset.agCalAdd);
+        const payload = meetingCalPayload(e);
+        if (payload) openMeetingInDeviceCalendar(payload);
+        return;
+      }
+      if ((el = t.closest('[data-ag-cal-add-ok]'))) {
+        openMeetingInDeviceCalendar({
+          id: el.dataset.agCalAddOk,
+          title: el.dataset.agCalTitle || 'Compromisso',
+          scheduled_start: el.dataset.agCalStart || null,
+          scheduled_end: el.dataset.agCalEnd || null,
+          location: el.dataset.agCalLoc || '',
+          notes: el.dataset.agCalNotes || '',
+        });
+        closeSheet();
+        return;
+      }
       if ((el = t.closest('[data-ag-edit]'))) {
         const e = findEv(el.dataset.agEdit);
         if (e) openEditor(e.type, e);

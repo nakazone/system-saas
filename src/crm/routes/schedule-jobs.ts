@@ -26,6 +26,7 @@ import {
 import { formatUsPhone } from "../../lib/phone.js";
 import { formatPersonName } from "../../lib/name.js";
 import { storage } from "../../lib/storage/index.js";
+import { buildSingleEventIcs, meetingStatusToIcs } from "../../lib/schedule/ics.js";
 
 const WO_SECTORS = ["installation", "sand_finish"] as const;
 
@@ -1457,6 +1458,51 @@ scheduleJobsRouter.get(
         return;
       }
       res.json({ success: true, data: mapMeeting(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/** One-shot .ics → Apple/Google Calendar (same gesture pattern as lead visit). */
+scheduleJobsRouter.get(
+  "/api/meetings/:id/calendar.ics",
+  requireCrmAuth,
+  requireCrmPermission("schedule.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const row = await prisma.meeting.findFirst({
+        where: {
+          id: String(req.params.id),
+          organizationId: req.organizationId!,
+          ...fieldMeetingScope(req.user),
+        },
+      });
+      if (!row) {
+        res.status(404).json({ success: false, error: "Compromisso não encontrado" });
+        return;
+      }
+      const descParts = [
+        row.notes ? String(row.notes).trim() : "",
+        row.leadId ? `Lead: ${row.leadId}` : "",
+      ].filter(Boolean);
+      const ics = buildSingleEventIcs(
+        {
+          uid: `meeting-${row.id}@obramate.com`,
+          summary: row.title || "Compromisso",
+          description: descParts.join("\n") || undefined,
+          location: row.location,
+          start: row.scheduledStart,
+          end: row.scheduledEnd,
+          stamp: row.updatedAt || new Date(),
+          status: meetingStatusToIcs(row.status),
+        },
+        { name: row.title || "ObraMate" },
+      );
+      res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+      res.setHeader("Content-Disposition", 'inline; filename="meeting.ics"');
+      res.setHeader("Cache-Control", "no-store");
+      res.status(200).send(ics);
     } catch (error) {
       next(error);
     }
