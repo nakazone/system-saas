@@ -28,6 +28,7 @@ import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
 import { publicJobsRouter } from "./modules/work-orders/public-routes.js";
 import { publicFolhaRouter } from "./modules/folha/public-routes.js";
 import { scheduleCalendarFeedPublicRouter } from "./crm/routes/schedule-calendar-feed.js";
+import { scheduleIcsPublicRouter } from "./crm/routes/schedule-ics-public.js";
 import { publicPortfolioRouter } from "./modules/portfolio/public-routes.js";
 import { paymentSchedulesRouter } from "./modules/invoices/schedule-routes.js";
 import { paymentTemplatesRouter } from "./modules/invoices/templates-routes.js";
@@ -214,6 +215,8 @@ export function createApp() {
   app.use("/f", publicFolhaRouter);
   // Schedule ICS subscription (Apple Calendar / Google / Outlook): /feeds/schedule/<token>.ics
   app.use("/feeds/schedule", scheduleCalendarFeedPublicRouter);
+  // One-shot lead/meeting .ics (signed token — Apple Calendar fetches without cookies)
+  app.use("/feeds", scheduleIcsPublicRouter);
   app.use("/public/portfolio", publicPortfolioRouter);
 
   // Public LP / Meta lead intake (tenant via slug header/query/subdomain — no session)

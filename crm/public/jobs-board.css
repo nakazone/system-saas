@@ -89,11 +89,13 @@
 .jx-count { margin-left: auto; font-size: 12px; color: var(--jx-ink2); white-space: nowrap; }
 .jx-rows { overflow-y: auto; padding: 2px 8px 10px; flex: 1; min-height: 0; }
 .jx-swipe { margin: 0 0 2px; border-radius: 14px; }
-.jx-swipe .jx-row { margin: 0; }
-.jx-swipe .om-swipe__body { background: transparent; }
+.jx-swipe .jx-row { margin: 0; background: #fff; }
+/* Opaque body so Abrir/Excluir stay hidden until the row is swiped (tablet/touch). */
+.jx-swipe .om-swipe__body { background: #fff; border-radius: 14px; }
 @media (min-width: 1025px) and (pointer: fine) {
   .jx-swipe .om-swipe__actions { display: none !important; }
-  .jx-swipe .om-swipe__body { display: contents; transform: none !important; }
+  .jx-swipe .om-swipe__body { display: contents; transform: none !important; background: transparent; }
+  .jx-swipe .jx-row { background: transparent; }
   .jx-swipe { overflow: visible; }
 }
 .jx-grp { display: flex; align-items: baseline; margin: 12px 10px 4px; font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--jx-ink3); }

@@ -127,6 +127,7 @@ export async function resolveTenant(
     if (
       req.path === "/health" ||
       req.path.startsWith("/public/") ||
+      req.path.startsWith("/feeds/") ||
       req.path === "/api/receive-lead" ||
       req.path === "/api/receive-lead-batch"
     ) {

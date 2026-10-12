@@ -8,6 +8,8 @@
   'use strict';
 
   const icsCache = new Map();
+  /** Final public /feeds/… URL after redirect (Apple Calendar fetches without cookies). */
+  const icsPublicUrlCache = new Map();
   const ICS_CACHE_MS = 5 * 60 * 1000;
   let chooserLead = null;
   let chooserMeeting = null;
@@ -143,25 +145,22 @@
   }
 
   function openIcsViaUserGesture(leadId) {
-    return openIcsUrlViaUserGesture(leadVisitIcsUrl(leadId));
+    const key = cacheKey('lead', leadId);
+    return openIcsUrlViaUserGesture(getCachedPublicUrl(key) || leadVisitIcsUrl(leadId));
   }
 
   function openMeetingIcsViaUserGesture(meetingId) {
-    return openIcsUrlViaUserGesture(meetingIcsUrl(meetingId));
+    const key = cacheKey('meeting', meetingId);
+    return openIcsUrlViaUserGesture(getCachedPublicUrl(key) || meetingIcsUrl(meetingId));
   }
 
-  async function fetchIcsText(url) {
-    const r = await fetch(url, { credentials: 'include', cache: 'no-store' });
+  async function fetchIcsWithPublicUrl(apiUrl) {
+    const r = await fetch(apiUrl, { credentials: 'include', cache: 'no-store', redirect: 'follow' });
     if (!r.ok) throw new Error('ICS HTTP ' + r.status);
-    return await r.text();
-  }
-
-  async function fetchLeadIcsText(leadId) {
-    return fetchIcsText(leadVisitIcsUrl(leadId));
-  }
-
-  async function fetchMeetingIcsText(meetingId) {
-    return fetchIcsText(meetingIcsUrl(meetingId));
+    const ics = await r.text();
+    const finalUrl = typeof r.url === 'string' ? r.url : '';
+    const publicUrl = /\/feeds\/(lead-visit|meeting)\//.test(finalUrl) ? finalUrl : '';
+    return { ics, publicUrl };
   }
 
   function cacheKey(kind, id) {
@@ -182,14 +181,30 @@
     icsCache.set(String(key), { ics, at: Date.now() });
   }
 
-  /** Pre-carrega .ics ao abrir o lead (necessario para iOS abrir no clique). */
+  function getCachedPublicUrl(key) {
+    const row = icsPublicUrlCache.get(String(key));
+    if (!row) return null;
+    if (Date.now() - row.at > ICS_CACHE_MS) {
+      icsPublicUrlCache.delete(String(key));
+      return null;
+    }
+    return row.url || null;
+  }
+
+  function setCachedPublicUrl(key, url) {
+    if (!url) return;
+    icsPublicUrlCache.set(String(key), { url: String(url), at: Date.now() });
+  }
+
+  /** Pre-carrega .ics + URL pública ao abrir o lead (necessario para iOS abrir no clique). */
   async function prefetchLeadVisitIcs(leadId) {
     const id = leadId != null ? String(leadId) : '';
     const key = cacheKey('lead', id);
-    if (!id || getCachedIcs(key)) return;
+    if (!id || (getCachedIcs(key) && getCachedPublicUrl(key))) return;
     try {
-      const ics = await fetchLeadIcsText(id);
+      const { ics, publicUrl } = await fetchIcsWithPublicUrl(leadVisitIcsUrl(id));
       setCachedIcs(key, ics);
+      setCachedPublicUrl(key, publicUrl);
     } catch (err) {
       console.warn('[crm-device-calendar] prefetch', err);
     }
@@ -198,10 +213,11 @@
   async function prefetchMeetingIcs(meetingId) {
     const id = meetingId != null ? String(meetingId) : '';
     const key = cacheKey('meeting', id);
-    if (!id || getCachedIcs(key)) return;
+    if (!id || (getCachedIcs(key) && getCachedPublicUrl(key))) return;
     try {
-      const ics = await fetchMeetingIcsText(id);
+      const { ics, publicUrl } = await fetchIcsWithPublicUrl(meetingIcsUrl(id));
       setCachedIcs(key, ics);
+      setCachedPublicUrl(key, publicUrl);
     } catch (err) {
       console.warn('[crm-device-calendar] meeting prefetch', err);
     }
