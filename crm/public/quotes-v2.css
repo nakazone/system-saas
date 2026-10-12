@@ -107,6 +107,8 @@
 .qs-next > span { display: block; font-size: 11.5px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: #98A2B3; }
 .qs-next > b { display: block; margin-top: 8px; font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
 .qs-next > p { margin: 4px 0 14px; font-size: 13px; color: #D0D5DD; line-height: 1.45; }
+.qs-next .qs-btn + .qs-btn { margin-top: 8px; }
+.qs-next .qs-btn:not(.qs-btn--pri) { background: transparent; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35); }
 .qs-card { background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px #E5E7EB; padding: 16px 18px; }
 .qs-card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
 .qs-sum { margin: 0; }
