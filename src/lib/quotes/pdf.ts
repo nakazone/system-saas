@@ -966,16 +966,9 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       }
     }
 
-    y += 12;
-    doc.fillColor(PAL.mutedLight).font("Helvetica-Oblique").fontSize(8);
-    doc.text("Totals, optional add-ons and approval on the next page", margin, y, { lineBreak: false });
-
-    // ═══════════════════════════════════════
-    // PAGE 2 — Totals & approval
-    // ═══════════════════════════════════════
-    doc.addPage({ size: "LETTER", margin: 0 });
-    y = margin;
-    drawCompactHeader();
+    // Optional add-ons, totals, terms — continue below services (new page only if needed)
+    y += 18;
+    ensureSpace(56);
 
     // Optional add-ons
     doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(11);
