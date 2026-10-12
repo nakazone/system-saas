@@ -62,7 +62,8 @@
 .ix-sum dd.is-hot { color: #B4561A; }
 .ix-head__acts { margin-left: auto; display: flex; gap: 8px; }
 .ix-head__acts svg { width: 15px; height: 15px; }
-.ix-tiles { display: grid; grid-template-columns: repeat(var(--ix-tiles, 4), minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.ix-tiles { display: grid; grid-template-columns: repeat(var(--ix-tiles, 4), minmax(0, 1fr)); gap: 6px; margin: 0; padding: 8px 14px 0; flex: none; }
+.ix-list .ix-period { margin: 8px 14px 0; }
 .ix-period {
   display: flex; align-items: center; gap: 6px; margin: 0 0 14px; flex-wrap: wrap;
 }
@@ -253,8 +254,9 @@
   .ix-sum > div:nth-child(n+4) { display: none; }
   .ix-sum dd { font-size: 17px; }
   .ix-sum dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ix-tiles { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px 12px; padding: 0 16px; scrollbar-width: none; }
+  .ix-tiles { display: flex; gap: 6px; overflow-x: auto; margin: 0; padding: 8px 0 4px; scrollbar-width: none; }
   .ix-tiles::-webkit-scrollbar { display: none; }
+  .ix-list .ix-period { margin: 6px 0 0; }
   .ix-tile { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 999px; }
   .ix-tile span { font-size: 13px; }
   .ix-tile b { font-size: 11.5px; font-weight: 600; color: var(--inv-muted-2); margin: 0; letter-spacing: 0; }

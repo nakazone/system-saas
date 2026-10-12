@@ -453,11 +453,14 @@ invoicesCrmRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const q = String(req.query.q || "").trim();
+      const pinId = String(req.query.id || "").trim();
       const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
         tx.quote.findMany({
           where: {
-            status: { in: ["approved", "accepted", "invoiced", "converted"] },
-            ...(q
+            // Matches POST /quotes/:id/invoices — draft/sent can be invoiced (auto-approved).
+            status: { notIn: ["archived", "rejected", "expired"] },
+            ...(UUID_RE.test(pinId) ? { id: pinId } : {}),
+            ...(q && !UUID_RE.test(pinId)
               ? {
                   OR: [
                     { title: { contains: q, mode: "insensitive" } },
@@ -478,7 +481,7 @@ invoicesCrmRouter.get(
             invoices: { where: { status: { not: "void" } }, select: { amount: true } },
           },
           orderBy: { updatedAt: "desc" },
-          take: 60,
+          take: UUID_RE.test(pinId) ? 1 : 60,
         }),
       );
       const data = rows
@@ -512,12 +515,14 @@ invoicesCrmRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const q = String(req.query.q || "").trim();
+      const pinId = String(req.query.id || "").trim();
       const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
         tx.workOrder.findMany({
           where: {
             status: { not: "canceled" },
             lineItems: { some: {} },
-            ...(q
+            ...(UUID_RE.test(pinId) ? { id: pinId } : {}),
+            ...(q && !UUID_RE.test(pinId)
               ? {
                   OR: [
                     { title: { contains: q, mode: "insensitive" } },
@@ -540,7 +545,7 @@ invoicesCrmRouter.get(
             invoices: { select: { amount: true, status: true, receipts: { select: { amount: true } } } },
           },
           orderBy: [{ updatedAt: "desc" }],
-          take: 200,
+          take: UUID_RE.test(pinId) ? 1 : 200,
         }),
       );
       const data = rows

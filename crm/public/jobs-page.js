@@ -8,6 +8,7 @@
   let all = [];
   let canManage = false;
   let canBill = false;
+  let canInvoice = false;
   let filter = "all";
   let source = "";
   let q = "";
@@ -155,11 +156,23 @@
   }
 
   // ---------------------------------------------------------------- list
+  function useSwipeDelete() {
+    return window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
+  }
+  function billHref(wo) {
+    return `invoices.html?new=1&job=${encodeURIComponent(wo.id)}`;
+  }
+  function canFaturar(wo) {
+    const b = wo.billing;
+    return canInvoice && wo.status !== "canceled" && b && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value";
+  }
   function rowHtml(wo) {
     const J = I();
     const lt = J.late(wo);
     const sub = lt ? `<em class="is-hot">${J.esc(lt.label)}</em>` : `<em>${J.esc(wo.status === "completed" ? `concluído ${J.dayShort(wo.scheduled_end || wo.scheduled_start)}` : J.dateRange(wo))}</em>`;
     const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    const showBill = canFaturar(wo);
+    const showDel = canManage && wo.status !== "canceled";
     const body = `<a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
       <span class="jx-row__b">
         <span class="jx-row__l1"><b>${J.esc(wo.title || `Job para ${J.client(wo)}`)}</b><em>${canBill || canManage ? J.money0(wo.services_total) : ""}</em></span>
@@ -167,14 +180,28 @@
         <span class="jx-row__l3">${J.progHtml(wo)}<small>${J.esc(J.stageLabel(wo))}</small></span>
       </span>
     </a>`;
-    if (!canManage || wo.status === "canceled") return body;
-    return `<article class="om-swipe jx-swipe" data-jx-swipe="${J.esc(wo.id)}">
+    const extras = `${
+      showBill
+        ? `<a class="jx-row__bill" href="${billHref(wo)}" data-jx-bill title="Faturar">${showDel && useSwipeDelete() ? "Faturar" : `Faturar${wo.billing ? ` ${J.money0(wo.billing.remaining_to_invoice)}` : ""}`}</a>`
+        : ""
+    }${
+      showDel
+        ? `<button type="button" class="jx-row__del" data-jx-delete="${J.esc(wo.id)}" data-jx-label="${J.esc(wo.title || J.client(wo))}" title="Excluir" aria-label="Excluir">Excluir</button>`
+        : ""
+    }`;
+    const wrap = `<div class="jx-row-wrap">${body}${extras}</div>`;
+    // Swipe-to-delete only on touch / narrow — on desktop the wrapper breaks the list layout.
+    if (showDel && useSwipeDelete()) {
+      return `<article class="om-swipe jx-swipe" data-jx-swipe="${J.esc(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
         <a class="om-swipe__act--edit" href="${href}">Abrir</a>
+        ${showBill ? `<a class="om-swipe__act--open" href="${billHref(wo)}">Faturar</a>` : ""}
         <button type="button" class="om-swipe__act--delete" data-jx-delete="${J.esc(wo.id)}" data-jx-label="${J.esc(wo.title || J.client(wo))}">Excluir</button>
       </div>
-      <div class="om-swipe__body">${body}</div>
+      <div class="om-swipe__body">${wrap}</div>
     </article>`;
+    }
+    return wrap;
   }
 
   async function deleteJob(id, label, btn) {
@@ -236,9 +263,10 @@
 
   // ---------------------------------------------------------------- detail
   function primary(wo) {
-    if (!canManage || wo.status === "canceled") return null;
+    if (wo.status === "canceled") return null;
     const b = wo.billing;
-    if (wo.status === "completed" && canBill && b && b.remaining_to_invoice > 0.004) return { label: `Faturar ${I().money0(b.remaining_to_invoice)}`, href: `job-detail.html?id=${encodeURIComponent(wo.id)}&faturar=1` };
+    if (canFaturar(wo)) return { label: `Faturar ${I().money0(b.remaining_to_invoice)}`, href: billHref(wo) };
+    if (!canManage) return null;
     if (!(wo.line_items || []).length) return { label: "Adicionar serviços", act: "services" };
     if (!wo.scheduled_start) return { label: "Agendar", act: "schedule" };
     if (wo.status === "draft" || wo.status === "scheduled") return { label: "Iniciar job", act: "start" };
@@ -404,6 +432,7 @@
       render();
     });
     $("jxRows").addEventListener("click", (e) => {
+      if (e.target.closest("[data-jx-bill], [data-jx-delete], .om-swipe__actions")) return;
       const a = e.target.closest("[data-jx-id]");
       if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
       e.preventDefault();
@@ -482,6 +511,7 @@
       const role = s.user?.role || "";
       canManage = role === "admin" || perms.includes("work_orders.manage");
       canBill = role === "admin" || perms.includes("invoices.view");
+      canInvoice = role === "admin" || perms.includes("invoices.manage");
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
       const sn = $("sidebarUserName");

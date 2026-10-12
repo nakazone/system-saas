@@ -6,6 +6,7 @@
   const ROLE_KEY = "om_jobs_role";
   let allJobs = [];
   let canManage = false;
+  let canInvoice = false;
   let currentUserId = null;
   let tab = "today";
   let tabChosen = false;
@@ -174,8 +175,8 @@
           ? wo.scheduled_start
             ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button>`
             : `<a class="jmx-b" href="${detailHref}">Agendar</a>`
-          : wo.status === "completed" && b && b.remaining_to_invoice > 0.004
-            ? `<a class="jmx-b jmx-b--or" href="${detailHref}&faturar=1">Faturar</a>`
+          : canInvoice && wo.status === "completed" && b && b.remaining_to_invoice > 0.004
+            ? `<a class="jmx-b jmx-b--or" href="invoices.html?new=1&job=${encodeURIComponent(wo.id)}">Faturar</a>`
             : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
     const stage = J ? J.stageLabel(wo) : statusPt(wo.status);
     const when = wo.status === "completed" ? `concluído ${J ? J.dayShort(wo.scheduled_end || wo.scheduled_start) : ""}` : J ? J.dateRange(wo) : fmtDay(wo.scheduled_start);
@@ -423,6 +424,7 @@
       const roleName = String(s.user?.role || "").toLowerCase();
       const perms = s.user?.permissions || [];
       canManage = roleName === "admin" || perms.includes("work_orders.manage");
+      canInvoice = roleName === "admin" || perms.includes("invoices.manage");
       isField =
         (window.__crmFieldGate && window.__crmFieldGate.isFieldRole(roleName)) ||
         roleName === "installer" || roleName === "subcontractor" ||

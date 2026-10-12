@@ -363,8 +363,11 @@
   // ---------------------------------------------------------------- new invoice
   let picked = null;
   let billable = [];
-  function openNew() {
+  /** @type {{ kind: 'job'|'quote', id: string } | null} */
+  let pendingPick = null;
+  function openNew(opts) {
     picked = null;
+    pendingPick = (opts && opts.pick) || null;
     $('newQ').value = '';
     $('newKindBox').hidden = true;
     $('newSubmit').disabled = true;
@@ -377,6 +380,17 @@
     requestAnimationFrame(() => m.classList.add('is-open'));
     setTimeout(() => $('newQ').focus(), 60);
     loadBillable();
+  }
+  function applyPick(item) {
+    if (!item) return;
+    picked = item;
+    renderPick();
+    const partial = picked.invoiced_total > 0.004;
+    $('newFullOpt').hidden = partial;
+    $('newRemainingHint').textContent = money(picked.remaining_to_invoice);
+    document.querySelector(`input[name="newKind"][value="${partial ? 'final' : 'deposit'}"]`).checked = true;
+    $('newKindBox').hidden = false;
+    syncNew();
   }
   function closeNew() {
     const m = $('newModal');
@@ -392,11 +406,20 @@
   async function loadBillable() {
     const q = $('newQ').value.trim();
     try {
-      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      const jobParams = new URLSearchParams();
+      const quoteParams = new URLSearchParams();
+      if (q) {
+        jobParams.set('q', q);
+        quoteParams.set('q', q);
+      }
+      if (pendingPick?.kind === 'job') jobParams.set('id', pendingPick.id);
+      if (pendingPick?.kind === 'quote') quoteParams.set('id', pendingPick.id);
+      const jobQs = jobParams.toString() ? `?${jobParams}` : '';
+      const quoteQs = quoteParams.toString() ? `?${quoteParams}` : '';
       // Jobs (fixed table prices, no quote) first — that is the day-to-day billing for builders/lojas.
       const [jobs, quotes] = await Promise.all([
-        api(`/api/invoices/billable-jobs${qs}`).catch(() => ({ data: [] })),
-        api(`/api/invoices/billable-quotes${qs}`),
+        api(`/api/invoices/billable-jobs${jobQs}`).catch(() => ({ data: [] })),
+        api(`/api/invoices/billable-quotes${quoteQs}`),
       ]);
       billable = [
         ...(jobs.data || []).map((j) => ({
@@ -408,6 +431,16 @@
         ...(quotes.data || []).map((x) => ({ ...x, kind: 'quote', key: `quote:${x.id}`, ref: x.number || '' })),
       ];
       renderPick();
+      if (pendingPick) {
+        const key = `${pendingPick.kind}:${pendingPick.id}`;
+        const found = billable.find((x) => x.key === key);
+        pendingPick = null;
+        if (found) applyPick(found);
+        else {
+          $('newError').textContent = 'Nada a faturar neste item (já faturado ou sem valor).';
+          $('newError').hidden = false;
+        }
+      }
     } catch (err) {
       $('newPick').innerHTML = `<p class="inv-empty">${esc(err.message)}</p>`;
     }
@@ -426,17 +459,10 @@
     const quotes = billable.filter((x) => x.kind === 'quote');
     $('newPick').innerHTML =
       (jobs.length ? `<p class="inv-pick__group">Jobs · tabela de valores</p>${jobs.map(item).join('')}` : '') +
-      (quotes.length ? `<p class="inv-pick__group">Orçamentos aprovados</p>${quotes.map(item).join('')}` : '');
+      (quotes.length ? `<p class="inv-pick__group">Orçamentos</p>${quotes.map(item).join('')}` : '');
     $('newPick').querySelectorAll('[data-id]').forEach((b) =>
       b.addEventListener('click', () => {
-        picked = billable.find((x) => x.key === b.dataset.id);
-        renderPick();
-        const partial = picked.invoiced_total > 0.004;
-        $('newFullOpt').hidden = partial;
-        $('newRemainingHint').textContent = money(picked.remaining_to_invoice);
-        document.querySelector(`input[name="newKind"][value="${partial ? 'final' : 'deposit'}"]`).checked = true;
-        $('newKindBox').hidden = false;
-        syncNew();
+        applyPick(billable.find((x) => x.key === b.dataset.id));
       }),
     );
   }
@@ -664,7 +690,19 @@
       window.OmGestures.initPullToRefresh({ key: 'invoices', indicator: '#invPtr', refresh: () => load() });
       window.OmGestures.ensureDockPadding('.ix-list, .inv-page');
     }
-    if (url.get('new') === '1' && !selId && can('invoices.manage')) openNew();
+    if (url.get('new') === '1' && !selId && can('invoices.manage')) {
+      const jobId = url.get('job');
+      const quoteId = url.get('quote');
+      const pick = jobId ? { kind: 'job', id: jobId } : quoteId ? { kind: 'quote', id: quoteId } : null;
+      openNew(pick ? { pick } : undefined);
+      try {
+        const u = new URL(location.href);
+        u.searchParams.delete('new');
+        u.searchParams.delete('job');
+        u.searchParams.delete('quote');
+        history.replaceState(null, '', u.pathname + (u.searchParams.toString() ? `?${u.searchParams}` : '') + u.hash);
+      } catch (_) {}
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

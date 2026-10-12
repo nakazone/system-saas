@@ -35,6 +35,7 @@
     paper: {},
     canDelete: false,
     canEdit: true,
+    canInvoice: false,
     delArmed: null,
   };
 
@@ -269,21 +270,33 @@
       t = 'Cliente pediu alterações';
       p = 'Ajuste os serviços na folha e reenvie.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&services=1">Editar serviços</a>`;
+      if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
+        cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;
+      }
     } else if (g === 'draft') {
       t = 'Enviar ou virar job';
       p = 'Mande ao cliente ou transforme em job sem passar pelas etapas de envio.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a><a class="qs-btn qs-btn--full" href="${b}&send=1">Enviar ao cliente</a>`;
+      if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
+        cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;
+      }
     } else if (g === 'waiting' && isViewed(q)) {
       const at = q.viewed_at || q.pdf_viewed_at;
       const d = at ? S.daysSince(at) : null;
       t = `Lembrar ${firstName(q)}`;
       p = d != null ? `Abriu há ${plural(d, 'dia', 'dias')} e ainda não aprovou. Também pode virar job agora.` : 'Abriu e ainda não aprovou. Também pode virar job agora.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a><a class="qs-btn qs-btn--full" href="${b}&send=1">Reenviar</a>`;
+      if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
+        cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;
+      }
     } else if (g === 'waiting') {
       const d = q.email_sent_at ? S.daysSince(q.email_sent_at) : null;
       t = 'Aguardando o cliente';
       p = d != null ? `Enviado há ${plural(d, 'dia', 'dias')}. Ainda não abriu — ou transforme em job direto.` : 'Ainda não abriu — ou transforme em job direto.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a><a class="qs-btn qs-btn--full" href="${b}&send=1">Reenviar</a>`;
+      if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
+        cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;
+      }
     } else if (g === 'expired') {
       t = 'Venceu';
       p = 'Atualize a validade e reenvie se o cliente ainda tiver interesse.';
@@ -296,6 +309,9 @@
       cta = q.work_order_id
         ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?setup=${encodeURIComponent(q.work_order_id)}">Completar o job</a>`
         : `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a>`;
+      if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
+        cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;
+      }
     } else {
       t = 'Arquivado';
       p = 'Este quote não aparece nos abertos.';
@@ -343,6 +359,8 @@
     const del = st.canDelete
       ? `<button type="button" class="qs-btn qs-btn--ghost qs-btn--ico${st.delArmed === q.id ? ' is-armed' : ''}" data-del="${esc(q.id)}" title="Apagar" aria-label="Apagar">${st.delArmed === q.id ? 'Apagar mesmo?' : ico('del')}</button>`
       : '';
+    const g = groupOf(q);
+    const showFat = st.canInvoice && g !== 'archived' && g !== 'expired' && (Number(q.total_amount ?? q.total) || 0) > 0;
     return `
       <header class="qs-head">
         <div class="qs-head__top">
@@ -355,6 +373,7 @@
             ${del}
             <a class="qs-btn" href="${pdfHref}" target="_blank" rel="noopener">${ico('pdf')}PDF</a>
             ${link ? `<button type="button" class="qs-btn" data-copy="${esc(link)}">${ico('link')}Link</button>` : ''}
+            ${showFat ? `<a class="qs-btn" href="invoices.html?new=1&quote=${encodeURIComponent(q.id)}">${ico('doc')}Faturar</a>` : ''}
             <a class="qs-btn qs-btn--pri" href="quote-builder.html?id=${encodeURIComponent(q.id)}" data-crm-permission="quotes.edit">Editar orçamento</a>
           </div>
         </div>
@@ -379,8 +398,13 @@
     $('qsPane').innerHTML = q ? paneHtml(q) : blankPane();
     const bar = $('qsMbar');
     if (q) {
+      const fat =
+        st.canInvoice && groupOf(q) !== 'archived' && groupOf(q) !== 'expired' && (Number(q.total_amount ?? q.total) || 0) > 0
+          ? `<a class="qs-btn" href="invoices.html?new=1&quote=${encodeURIComponent(q.id)}">Faturar</a>`
+          : '';
       bar.innerHTML = `<a class="qs-btn qs-btn--sq" href="/api/quotes/${encodeURIComponent(q.id)}/invoice-pdf" target="_blank" rel="noopener" aria-label="PDF">${ico('pdf')}</a>
         <a class="qs-btn" href="quote-builder.html?id=${encodeURIComponent(q.id)}&services=1">Serviços</a>
+        ${fat}
         <a class="qs-btn qs-btn--pri" href="quote-builder.html?id=${encodeURIComponent(q.id)}">Editar orçamento</a>`;
       bar.hidden = false;
     } else {
@@ -578,6 +602,7 @@
     const role = s.user?.role || '';
     st.canDelete = role === 'admin' || perms.includes('quotes.delete');
     st.canEdit = role === 'admin' || perms.includes('quotes.edit') || !perms.length;
+    st.canInvoice = role === 'admin' || perms.includes('invoices.manage');
     window.__crmPermissionKeys = perms;
     window.__crmUserRole = role;
     const sn = $('sidebarUserName');
