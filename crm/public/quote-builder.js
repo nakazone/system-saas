@@ -4507,16 +4507,30 @@
       const draft = computeInvoiceDraftAmount(bal);
       submit.disabled = !draft.ok;
     }
+    syncInvoiceUiVisibility();
     return bal;
   }
 
   function syncInvoiceUiVisibility() {
     const panel = $('quoteInvoicesPanel');
     const btnInv = $('btnInvoice');
+    const btnOpen = $('btnOpenInvoiceModal');
     if (panel) panel.classList.toggle('hidden', !quoteId);
+    const bal = quoteInvoiceBalance || (quoteId ? computeLocalInvoiceBalance() : null);
+    const left = Number(bal?.remaining_to_invoice) || 0;
+    const canIssue = Boolean(quoteId) && left > 0.009;
+    const label = bal && Number(bal.invoiced_total) > 0.009 && left > 0.009 ? 'Emitir saldo' : 'Emitir fatura';
     if (btnInv) {
       btnInv.classList.remove('hidden');
-      btnInv.disabled = !quoteId;
+      btnInv.disabled = !canIssue;
+      const full = btnInv.querySelector('.qb-action-bar__full');
+      if (full) full.textContent = label;
+      else btnInv.textContent = label;
+      btnInv.title = canIssue ? label : 'Todo o valor já foi faturado';
+    }
+    if (btnOpen) {
+      btnOpen.disabled = !canIssue;
+      btnOpen.textContent = bal && Number(bal.invoiced_total) > 0.009 && left > 0.009 ? 'Emitir saldo' : 'Emitir';
     }
   }
 
@@ -4617,9 +4631,10 @@
     renderInvoiceBalanceSummary();
     syncInvoiceUiVisibility();
     recalc();
+    qbScheduleProgress();
   }
 
-  function openInvoiceModal() {
+  function openInvoiceModal(opts) {
     const modal = $('qbInvoiceModal');
     if (!modal) return;
     const due = $('invDueDate');
@@ -4627,9 +4642,11 @@
     const bal = quoteInvoiceBalance || computeLocalInvoiceBalance();
     const typeEl = $('invType');
     const customEl = $('invCustomAmount');
-    // Default: Valor total. If something was already invoiced, fall back to saldo restante.
+    const prefer = opts && opts.preferType;
+    // Default: Valor total. If something was already invoiced (or preferType=final), use saldo restante.
     if (typeEl) {
-      typeEl.value = bal && Number(bal.invoiced_total) > 0.009 ? 'final' : 'full';
+      if (prefer) typeEl.value = prefer;
+      else typeEl.value = bal && Number(bal.invoiced_total) > 0.009 ? 'final' : 'full';
     }
     if (customEl && bal && Number(bal.remaining_to_invoice) > 0) {
       customEl.value = String(bal.remaining_to_invoice);
@@ -4643,6 +4660,10 @@
     syncInvoiceTypeFields();
     renderInvoiceBalanceSummary();
     modal.classList.remove('hidden');
+  }
+
+  function openRemainingInvoiceModal() {
+    openInvoiceModal({ preferType: 'final' });
   }
 
   function closeInvoiceModal() {
@@ -5178,8 +5199,14 @@
   }
 
   function wireInvoiceUi() {
-    $('btnInvoice')?.addEventListener('click', openInvoiceModal);
-    $('btnOpenInvoiceModal')?.addEventListener('click', openInvoiceModal);
+    $('btnInvoice')?.addEventListener('click', () => openInvoiceModal());
+    $('btnOpenInvoiceModal')?.addEventListener('click', () => openInvoiceModal());
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-qb-invoice-final]')) {
+        e.preventDefault();
+        openRemainingInvoiceModal();
+      }
+    });
     $('btnInvoiceModalCancel')?.addEventListener('click', closeInvoiceModal);
     $('qbInvoiceForm')?.addEventListener('submit', submitInvoiceForm);
     $('invType')?.addEventListener('change', syncInvoiceTypeFields);
@@ -6210,6 +6237,20 @@
     const link = $('publicLink')?.href || '';
     const first = qbClientFirstName();
     const phone = qbDigits(qbClientPhone());
+    const bal = quoteInvoiceBalance || computeLocalInvoiceBalance();
+    const left = Number(bal?.remaining_to_invoice) || 0;
+    const invoiced = Number(bal?.invoiced_total) || 0;
+    const canInvoice = left > 0.009 && Number(bal?.quote_total) > 0;
+    const invoiceBtn = canInvoice
+      ? invoiced > 0.009
+        ? '<button type="button" class="btn btn-primary" data-qb-invoice-final="1">Emitir saldo restante</button>'
+        : '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnInvoice">Emitir fatura</button>'
+      : '';
+    const invoiceAlt = canInvoice
+      ? invoiced > 0.009
+        ? '<button type="button" class="btn qb-next__alt" data-qb-invoice-final="1">Emitir saldo restante</button>'
+        : '<button type="button" class="btn qb-next__alt" data-qb-proxy-now="btnInvoice">Emitir fatura</button>'
+      : '';
     let title = '';
     let text = '';
     let btn = '';
@@ -6217,33 +6258,45 @@
       title = 'Monte o orçamento';
       text = 'Escolha o cliente, adicione os serviços e salve.';
       btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSave">Salvar orçamento</button>';
-    } else if (status === 'rejected') {
+    } else if (status === 'rejected' || status === 'archived') {
       title = 'Cliente recusou';
       text = 'Duplique para mandar uma nova versão com outro preço ou escopo.';
       btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnDup">Duplicar como nova versão</button>';
     } else if (approved && qbMeta.work_order_id) {
       title = 'Aprovado — job criado';
-      text = 'Agende a equipe e acompanhe as faturas pelo job.';
-      btn = `<a class="btn btn-primary" href="job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}">Abrir o job</a>`;
+      text = canInvoice
+        ? `Job criado. Ainda falta faturar ${money(left)}.`
+        : 'Agende a equipe e acompanhe as faturas pelo job.';
+      btn = canInvoice
+        ? `${invoiceBtn}<a class="btn qb-next__alt" href="job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}">Abrir o job</a>`
+        : `<a class="btn btn-primary" href="job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}">Abrir o job</a>`;
+    } else if (approved && canInvoice && invoiced > 0.009) {
+      title = 'Saldo a faturar';
+      text = `Já faturado ${money(invoiced)}. Falta emitir ${money(left)} do orçamento.`;
+      btn = invoiceBtn;
     } else if (approved) {
       title = 'Aprovado';
-      text = 'Emita a fatura de depósito para começar.';
-      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnInvoice">Emitir fatura</button>';
+      text = canInvoice ? 'Emita a fatura — depósito ou valor total.' : 'Todo o valor já foi faturado.';
+      btn = invoiceBtn || '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnInvoice" disabled>Emitir fatura</button>';
     } else if (viewed) {
       title = 'Cliente abriu o orçamento';
-      text = `${first || 'O cliente'} abriu ${qbMeta.viewed_at ? qbAgo(qbMeta.viewed_at) : ''} e ainda não aprovou.`;
+      text = `${first || 'O cliente'} abriu ${qbMeta.viewed_at ? qbAgo(qbMeta.viewed_at) : ''} e ainda não aprovou. Pode faturar sem esperar.`;
       const msg = buildQuoteFollowupBody(first, link);
       btn = phone
-        ? `<a class="btn btn-primary" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Lembrar por WhatsApp</a>`
-        : '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>';
+        ? `<a class="btn btn-primary" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Lembrar por WhatsApp</a>${invoiceAlt}`
+        : `<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>${invoiceAlt}`;
     } else if (sent) {
       title = 'Enviado — aguardando o cliente';
-      text = qbMeta.email_sent_at ? `Enviado ${qbAgo(qbMeta.email_sent_at)}. Ainda não abriu.` : 'Ainda não abriu.';
-      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>';
+      text = (qbMeta.email_sent_at ? `Enviado ${qbAgo(qbMeta.email_sent_at)}. Ainda não abriu.` : 'Ainda não abriu.') + ' Pode faturar sem esperar.';
+      btn = `<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>${invoiceAlt}`;
     } else {
       title = 'Pronto para enviar';
-      text = 'Confira os itens e mande o link por e-mail ou SMS.';
-      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Enviar ao cliente</button>';
+      text = canInvoice
+        ? 'Envie ao cliente ou fature direto — o orçamento será aprovado ao emitir a fatura.'
+        : 'Confira os itens e mande o link por e-mail ou SMS.';
+      btn = canInvoice
+        ? `<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Enviar ao cliente</button>${invoiceAlt}`
+        : '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Enviar ao cliente</button>';
     }
     box.innerHTML = `<b>${title}</b><p>${text}</p>${btn}`;
   }

@@ -173,6 +173,8 @@ body.qb-v3 .qb-next b { font-size: 17px; font-weight: 700; letter-spacing: -.02e
 body.qb-v3 .qb-next p { font-weight: 500; color: #D0D5DD; }
 body.qb-v3 .qb-next .btn { height: 42px; border-radius: 12px; font-weight: 650; font-size: 14px; color: #fff !important; background: var(--q-terra) !important; }
 body.qb-v3 .qb-next .btn:hover { background: #EF8A44 !important; color: #fff !important; }
+body.qb-v3 .qb-next .btn.qb-next__alt { background: transparent !important; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.35); }
+body.qb-v3 .qb-next .btn.qb-next__alt:hover { background: rgba(255, 255, 255, 0.08) !important; }
 body.qb-v3 .qb-preview__rows { padding: 16px 18px; }
 body.qb-v3 .qb-preview__rows::before { margin-bottom: 8px; }
 body.qb-v3 .qb-preview__row { font-size: 13.5px; color: var(--q-ink2); padding: 6px 0; }

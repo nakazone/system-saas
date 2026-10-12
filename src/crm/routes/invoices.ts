@@ -652,8 +652,27 @@ invoicesCrmRouter.post(
           },
         });
         if (!quote) return { error: "Orçamento não encontrado", status: 404 } as const;
+        const quoteStatus = String(quote.status || "").toLowerCase();
+        const blockedQuote = ["archived", "rejected", "expired"].includes(quoteStatus);
+        if (blockedQuote) {
+          return { error: "Não é possível emitir fatura deste orçamento.", status: 409 } as const;
+        }
+        // Allow invoicing without sending the quote to the client: auto-approve draft/sent/etc.
         if (!isApprovedQuoteStatus(quote.status)) {
-          return { error: "Só é possível emitir fatura de um orçamento aprovado.", status: 409 } as const;
+          await tx.quote.update({ where: { id: quote.id }, data: { status: "approved" } });
+          await recordActivity(tx, {
+            organizationId: req.organizationId!,
+            entityType: "quote",
+            entityId: quote.id,
+            actorType: "user",
+            actorId: req.user!.id,
+            action: "approved",
+            changes: {
+              status: { from: quote.status, to: "approved" },
+              reason: { from: null, to: "invoice_issued" },
+            },
+          });
+          (quote as { status: string }).status = "approved";
         }
         const invoicedTotal = await invoicedTotalForQuote(tx, quote.id);
         const calc = computeNewInvoiceAmount({

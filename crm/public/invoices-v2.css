@@ -62,7 +62,20 @@
 .ix-sum dd.is-hot { color: #B4561A; }
 .ix-head__acts { margin-left: auto; display: flex; gap: 8px; }
 .ix-head__acts svg { width: 15px; height: 15px; }
-.ix-tiles { display: grid; grid-template-columns: repeat(var(--ix-tiles, 7), minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.ix-tiles { display: grid; grid-template-columns: repeat(var(--ix-tiles, 4), minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.ix-period {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 14px; flex-wrap: wrap;
+}
+.ix-period[hidden] { display: none !important; }
+.ix-period__nav, .ix-period__label, .ix-period__all {
+  border: 0; font: inherit; cursor: pointer; background: #fff; color: var(--inv-ink);
+  box-shadow: 0 0 0 1px var(--inv-line); border-radius: 11px; height: 34px;
+}
+.ix-period__nav { width: 34px; font-size: 18px; line-height: 1; }
+.ix-period__label { padding: 0 14px; font-size: 13px; font-weight: 650; min-width: 140px; }
+.ix-period__label:hover, .ix-period__nav:hover, .ix-period__all:hover { background: #F7F8FA; }
+.ix-period__all { padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--inv-muted); margin-left: 2px; }
+.ix-period__all[aria-pressed="true"] { background: var(--inv-ink); color: #fff; box-shadow: none; }
 .ix-tile { border: 0; text-align: left; font: inherit; cursor: pointer; background: #fff; border-radius: 16px; box-shadow: 0 0 0 1px var(--inv-line); padding: 10px 13px; min-width: 0; color: var(--inv-ink); }
 .ix-tile:hover { box-shadow: 0 0 0 1px #D0D5DD; }
 .ix-tile span { display: block; font-size: 12.5px; font-weight: 600; color: var(--inv-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -216,7 +229,7 @@
   .ix-detail { display: none; }
   .ix-split.is-detail .ix-list { display: none; }
   .ix-split.is-detail .ix-detail { display: block; }
-  body.ix-detail-open .ix-head, body.ix-detail-open .ix-tiles { display: none; }
+  body.ix-detail-open .ix-head, body.ix-detail-open .ix-tiles, body.ix-detail-open .ix-period { display: none; }
   .ix-back { display: inline-flex; }
   .ix-blank { display: none; }
   .inv-mobile-bar { display: none; }

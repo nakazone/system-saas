@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="invoices-module.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="invoices-v2.css?v=20261009-inv2" />
+  <link rel="stylesheet" href="invoices-v2.css?v=20261012-inv3" />
   <link rel="stylesheet" href="om-gestures.css?v=20261008-modulos1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -81,6 +81,12 @@
           </div>
         </div>
         <div class="ix-tiles" id="ixTiles" role="group" aria-label="Filtrar por status"></div>
+        <div class="ix-period" id="ixPeriod" hidden>
+          <button type="button" class="ix-period__nav" id="ixPeriodPrev" aria-label="Mês anterior">‹</button>
+          <button type="button" class="ix-period__label" id="ixPeriodLabel">Este mês</button>
+          <button type="button" class="ix-period__nav" id="ixPeriodNext" aria-label="Próximo mês">›</button>
+          <button type="button" class="ix-period__all" id="ixPeriodAll" aria-pressed="false">Tudo</button>
+        </div>
         <div class="ix-split" id="invSplit">
           <section class="ix-list" aria-label="Faturas">
             <div class="ix-list__top">
@@ -185,7 +191,7 @@
     <div class="inv-modal__backdrop" data-close></div>
     <form class="inv-modal__panel" id="newForm" novalidate>
       <header class="inv-modal__head">
-        <div><h3 id="newTitle">Nova fatura</h3><p class="inv-modal__sub">Escolha um job ou um orçamento aprovado com valor a faturar.</p></div>
+        <div><h3 id="newTitle">Nova fatura</h3><p class="inv-modal__sub">Escolha um job ou orçamento com valor a faturar. O saldo restante usa as faturas já emitidas.</p></div>
         <button type="button" class="inv-x" data-close aria-label="Fechar">×</button>
       </header>
       <div class="inv-modal__body">
@@ -386,6 +392,6 @@
   <script src="om-gestures.js?v=20261002-gest1"></script>
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="invoice-page.js?v=20261009-jobinv2"></script>
-  <script src="invoices-page.js?v=20261009-inv1"></script>
+  <script src="invoices-page.js?v=20261012-inv3"></script>
 </body>
 </html>

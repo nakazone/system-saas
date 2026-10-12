@@ -141,7 +141,8 @@ export function computeNewInvoiceAmount(input: NewInvoiceAmountInput): NewInvoic
       if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
         return { ok: false, error: "Percentual do depósito deve estar entre 1 e 100." };
       }
-      amountC = Math.round((totalC * pct) / 100);
+      // Cap at what is left so successive invoices stay in sync with the quote total.
+      amountC = Math.min(remainingC, Math.round((totalC * pct) / 100));
       finalKind = "deposit";
       label = `Deposit (${Number(pct.toFixed(2))}%)`;
       break;

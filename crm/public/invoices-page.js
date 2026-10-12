@@ -69,6 +69,65 @@
     void: ['Anulada', 'is-void'],
   };
   const isOpen = (i) => i.display_status !== 'paid' && i.display_status !== 'void' && i.display_status !== 'draft';
+  const isReceivable = (i) => ['sent', 'viewed', 'partially_paid', 'draft'].includes(i.display_status);
+
+  // ---------------------------------------------------------------- período (só em Todos)
+  const MON_FULL = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  let periodAll = url.get('period') === 'all';
+  let periodAnchor = (() => {
+    const m = url.get('month');
+    if (m && /^\d{4}-\d{2}$/.test(m)) {
+      const [y, mo] = m.split('-').map(Number);
+      return new Date(y, mo - 1, 1);
+    }
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  })();
+  function periodBounds() {
+    if (periodAll) return null;
+    const from = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth(), 1);
+    const to = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth() + 1, 1);
+    return { from, to };
+  }
+  function inPeriod(i) {
+    const b = periodBounds();
+    if (!b) return true;
+    const raw = i.created_at || i.issued_at || i.due_date;
+    if (!raw) return false;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return false;
+    return d >= b.from && d < b.to;
+  }
+  function periodLabel() {
+    if (periodAll) return 'Todos os períodos';
+    return `${MON_FULL[periodAnchor.getMonth()]} ${periodAnchor.getFullYear()}`;
+  }
+  function syncPeriodUrl() {
+    try {
+      const u = new URL(location.href);
+      if (periodAll) {
+        u.searchParams.set('period', 'all');
+        u.searchParams.delete('month');
+      } else {
+        u.searchParams.delete('period');
+        const m = `${periodAnchor.getFullYear()}-${String(periodAnchor.getMonth() + 1).padStart(2, '0')}`;
+        u.searchParams.set('month', m);
+      }
+      history.replaceState(null, '', u);
+    } catch (_) {}
+  }
+  function renderPeriodBar() {
+    const bar = $('ixPeriod');
+    if (!bar) return;
+    const show = tab === 'all';
+    bar.hidden = !show;
+    if (!show) return;
+    $('ixPeriodLabel').textContent = periodLabel();
+    $('ixPeriodAll').setAttribute('aria-pressed', String(periodAll));
+    $('ixPeriodPrev').disabled = periodAll;
+    $('ixPeriodNext').disabled = periodAll;
+    $('ixPeriodLabel').disabled = false;
+  }
 
   // ---------------------------------------------------------------- derivados
   function dueInfo(i) {
@@ -99,18 +158,16 @@
 
   // ---------------------------------------------------------------- filtros
   const TILES = [
-    ['all', 'Todas'],
-    ['draft', 'Rascunho'],
-    ['sent', 'Enviadas'],
-    ['viewed', 'Vistas'],
-    ['overdue', 'Vencidas'],
-    ['partially_paid', 'Parciais'],
-    ['paid', 'Pagas'],
-    ['void', 'Anuladas'],
+    ['all', 'Todos'],
+    ['receivable', 'A Receber'],
+    ['overdue', 'Vencidos'],
+    ['paid', 'Pagos'],
   ];
   function inTab(i, t) {
-    if (t === 'all') return i.display_status !== 'void';
-    if (t === 'unpaid') return isOpen(i);
+    if (t === 'all') return i.display_status !== 'void' && inPeriod(i);
+    if (t === 'receivable' || t === 'unpaid') return isReceivable(i);
+    if (t === 'overdue') return i.display_status === 'overdue';
+    if (t === 'paid') return i.display_status === 'paid';
     return i.display_status === t;
   }
   function hit(i) {
@@ -133,25 +190,27 @@
 
   function renderTiles() {
     const sum = (rows, f) => rows.reduce((a, i) => a + (Number(f(i)) || 0), 0);
-    const html = TILES.filter(([k]) => k !== 'void' || all.some((i) => i.display_status === 'void'))
-      .map(([k, label]) => {
-        const rows = all.filter((i) => inTab(i, k));
-        let sub = '';
-        let hot = false;
-        if (k === 'all') sub = `${money(sum(rows, (i) => i.amount), 0)} faturado`;
-        else if (k === 'draft') sub = rows.length ? `${money(sum(rows, (i) => i.amount), 0)} a enviar` : 'nada pendente';
-        else if (k === 'sent' || k === 'viewed') sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount), 0)} a receber` : '—';
-        else if (k === 'overdue') {
-          sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount), 0)} · ${Math.max(...rows.map((i) => i.days_overdue || 0))} dias` : 'nenhuma';
-          hot = rows.length > 0;
-        } else if (k === 'partially_paid') sub = rows.length ? `${money(sum(rows, (i) => i.paid_amount), 0)} recebido` : '—';
-        else if (k === 'paid') sub = rows.length ? `${money(sum(rows, (i) => i.amount), 0)} recebido` : '—';
-        else if (k === 'void') sub = 'fora dos totais';
-        return `<button type="button" class="ix-tile${tab === k ? ' is-on' : ''}" data-tab="${k}" aria-pressed="${tab === k}"${!rows.length && k !== 'all' && tab !== k ? ' data-zero' : ''}><span>${label}</span><b>${rows.length}</b><small class="${hot ? 'is-hot' : ''}">${esc(sub)}</small></button>`;
-      })
-      .join('');
+    const html = TILES.map(([k, label]) => {
+      const rows = all.filter((i) => inTab(i, k));
+      let sub = '';
+      let hot = false;
+      if (k === 'all') {
+        sub = periodAll
+          ? `${money(sum(rows, (i) => i.amount), 0)} faturado`
+          : `${money(sum(rows, (i) => i.amount), 0)} · ${periodLabel()}`;
+      } else if (k === 'receivable') {
+        sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount), 0)} a receber` : 'nada pendente';
+      } else if (k === 'overdue') {
+        sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount), 0)} · ${Math.max(...rows.map((i) => i.days_overdue || 0))} dias` : 'nenhuma';
+        hot = rows.length > 0;
+      } else if (k === 'paid') {
+        sub = rows.length ? `${money(sum(rows, (i) => i.amount), 0)} recebido` : '—';
+      }
+      return `<button type="button" class="ix-tile${tab === k ? ' is-on' : ''}" data-tab="${k}" aria-pressed="${tab === k}"><span>${label}</span><b>${rows.length}</b><small class="${hot ? 'is-hot' : ''}">${esc(sub)}</small></button>`;
+    }).join('');
     $('ixTiles').innerHTML = html;
     $('ixTiles').style.setProperty('--ix-tiles', String($('ixTiles').children.length));
+    renderPeriodBar();
   }
 
   function rowHtml(i) {
@@ -169,10 +228,9 @@
   }
 
   const GROUPS = [
-    ['Vencidas', (i) => i.display_status === 'overdue'],
-    ['A receber', (i) => ['sent', 'viewed', 'partially_paid'].includes(i.display_status)],
-    ['Rascunhos', (i) => i.display_status === 'draft'],
-    ['Pagas', (i) => i.display_status === 'paid'],
+    ['Vencidos', (i) => i.display_status === 'overdue'],
+    ['A receber', (i) => isReceivable(i)],
+    ['Pagos', (i) => i.display_status === 'paid'],
     ['Anuladas', (i) => i.display_status === 'void'],
   ];
 
@@ -182,18 +240,26 @@
 
   function renderList() {
     const rows = visible();
-    $('ixCount').textContent = `${rows.length} ${rows.length === 1 ? 'fatura' : 'faturas'}`;
+    const periodNote = tab === 'all' && !periodAll ? ` · ${periodLabel()}` : '';
+    $('ixCount').textContent = `${rows.length} ${rows.length === 1 ? 'fatura' : 'faturas'}${periodNote}`;
     if (!rows.length) {
-      $('invRows').innerHTML = `<p class="ix-empty">${q ? 'Nada encontrado. Tente outro termo.' : !all.length ? 'Nenhuma fatura ainda. Crie a primeira a partir de um job ou orçamento.' : 'Nenhuma fatura neste filtro.'}</p>`;
+      $('invRows').innerHTML = `<p class="ix-empty">${q ? 'Nada encontrado. Tente outro termo.' : !all.length ? 'Nenhuma fatura ainda. Crie a primeira a partir de um job ou orçamento.' : tab === 'all' && !periodAll ? 'Nenhuma fatura neste mês. Use Tudo ou mude o período.' : 'Nenhuma fatura neste filtro.'}</p>`;
       return;
     }
     const byDate = (a, b) => new Date(b.created_at) - new Date(a.created_at);
-    $('invRows').innerHTML = GROUPS.map(([label, fn]) => {
-      const g = rows.filter(fn).sort(label === 'Vencidas' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
-      if (!g.length) return '';
-      const tot = g.reduce((a, i) => a + Number(label === 'Pagas' || label === 'Anuladas' ? i.amount : i.remaining_amount) || 0, 0);
-      return `<p class="ix-grp"><span>${label}</span><em>${g.length} · ${money(tot, 0)}</em></p>${g.map(rowHtml).join('')}`;
-    }).join('');
+    // Abas específicas: lista plana; Todos: agrupa por status.
+    if (tab !== 'all') {
+      const sorted = rows.slice().sort(tab === 'overdue' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
+      const tot = sorted.reduce((a, i) => a + Number(tab === 'paid' ? i.amount : i.remaining_amount) || 0, 0);
+      $('invRows').innerHTML = `<p class="ix-grp"><span>${TILES.find((x) => x[0] === tab)?.[1] || ''}</span><em>${sorted.length} · ${money(tot, 0)}</em></p>${sorted.map(rowHtml).join('')}`;
+    } else {
+      $('invRows').innerHTML = GROUPS.map(([label, fn]) => {
+        const g = rows.filter(fn).sort(label === 'Vencidos' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
+        if (!g.length) return '';
+        const tot = g.reduce((a, i) => a + Number(label === 'Pagos' || label === 'Anuladas' ? i.amount : i.remaining_amount) || 0, 0);
+        return `<p class="ix-grp"><span>${label}</span><em>${g.length} · ${money(tot, 0)}</em></p>${g.map(rowHtml).join('')}`;
+      }).join('');
+    }
     if (window.OmGestures && !isWide()) window.OmGestures.bindSwipeRow?.($('invRows'));
   }
 
@@ -465,7 +531,8 @@
       $('filterQ').value = url.get('q');
       q = url.get('q').toLowerCase();
     }
-    if (tab === 'unpaid') tab = 'all';
+    if (tab === 'unpaid' || tab === 'open') tab = 'receivable';
+    if (['draft', 'sent', 'viewed', 'partially_paid', 'void'].includes(tab)) tab = 'all';
     const bar = $('invMobileBar');
     if (bar && bar.parentElement !== document.body) document.body.appendChild(bar);
     $('btnNewInvoice').hidden = !can('invoices.manage');
@@ -486,6 +553,32 @@
         const first = $('invRows').querySelector('[data-inv-id]');
         if (first) select(first.getAttribute('data-inv-id'), true);
       }
+    });
+    const refreshPeriod = () => {
+      syncPeriodUrl();
+      renderTiles();
+      renderList();
+    };
+    $('ixPeriodPrev')?.addEventListener('click', () => {
+      if (periodAll) return;
+      periodAnchor = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth() - 1, 1);
+      refreshPeriod();
+    });
+    $('ixPeriodNext')?.addEventListener('click', () => {
+      if (periodAll) return;
+      periodAnchor = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth() + 1, 1);
+      refreshPeriod();
+    });
+    $('ixPeriodLabel')?.addEventListener('click', () => {
+      // Clique no rótulo volta ao mês corrente (e sai de "Tudo").
+      const now = new Date();
+      periodAll = false;
+      periodAnchor = new Date(now.getFullYear(), now.getMonth(), 1);
+      refreshPeriod();
+    });
+    $('ixPeriodAll')?.addEventListener('click', () => {
+      periodAll = !periodAll;
+      refreshPeriod();
     });
     $('invRows').addEventListener('click', (e) => {
       const a = e.target.closest('[data-inv-id]');

@@ -66,6 +66,12 @@ describe("invoices — money and status (pure)", () => {
     expect(computeNewInvoiceAmount({ kind: "final", quoteTotal: 1000, invoicedTotal: 300 })).toMatchObject({ ok: true, amount: 700 });
     expect(computeNewInvoiceAmount({ kind: "full", quoteTotal: 1000, invoicedTotal: 0 })).toMatchObject({ ok: true, amount: 1000 });
     expect(computeNewInvoiceAmount({ kind: "full", quoteTotal: 1000, invoicedTotal: 300 }).ok).toBe(false);
+    // Deposit never exceeds what is left to invoice (keeps quote math in sync).
+    expect(computeNewInvoiceAmount({ kind: "deposit", quoteTotal: 1000, invoicedTotal: 800, depositPct: 50 })).toMatchObject({
+      ok: true,
+      amount: 200,
+      kind: "deposit",
+    });
     expect(computeNewInvoiceAmount({ kind: "progress", quoteTotal: 1000, invoicedTotal: 300, customAmount: 800 }).ok).toBe(false);
     expect(computeNewInvoiceAmount({ kind: "deposit", quoteTotal: 1000, invoicedTotal: 0, depositPct: 0 }).ok).toBe(false);
     expect(computeNewInvoiceAmount({ kind: "final", quoteTotal: 1000, invoicedTotal: 1000 }).ok).toBe(false);
@@ -305,8 +311,11 @@ describe.skipIf(!privileged)("invoices — HTTP flow (issue → pay → receipt 
   it("runs the whole invoice lifecycle", async () => {
     const admin = await login(emails.admin, orgA);
 
-    // Only approved quotes can be invoiced.
-    expect((await call(admin, "POST", `/api/quotes/${draftQuoteId}/invoices`, { invoice_type: "full" })).status).toBe(409);
+    // Draft quotes can be invoiced without sending to the client (auto-approved).
+    const fromDraft = await call(admin, "POST", `/api/quotes/${draftQuoteId}/invoices`, { invoice_type: "full" });
+    expect(fromDraft.status).toBe(201);
+    expect(fromDraft.json.data.amount).toBe(900);
+    expect(fromDraft.json.balance).toMatchObject({ quote_total: 900, invoiced_total: 900, remaining_to_invoice: 0 });
 
     // Deposit 40% → redirect to the invoice module.
     const created = await call(admin, "POST", `/api/quotes/${quoteId}/invoices`, { invoice_type: "deposit", deposit_pct: 40 });
