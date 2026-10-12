@@ -48,7 +48,7 @@ describe("project budget freeze + cost summary", () => {
       slug: `cost-org-${suffix}`,
       adminName: "Admin",
       adminEmail: `cost-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = org.organization.id;
 

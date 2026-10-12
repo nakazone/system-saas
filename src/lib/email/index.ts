@@ -59,7 +59,13 @@ export class ConsoleEmailProvider implements EmailProvider {
     console.log(`To: ${to}`);
     if (message.cc) console.log(`Cc: ${asList(message.cc).join(", ")}`);
     console.log(`Subject: ${message.subject}`);
-    console.log(message.text);
+    // In production the body often carries customer data and private links (quote/invoice/
+    // invite). Keep it out of the logs unless explicitly asked for while debugging.
+    if (process.env.NODE_ENV !== "production" || process.env.EMAIL_CONSOLE_LOG_BODY === "1") {
+      console.log(message.text);
+    } else {
+      console.log("(body hidden in production — configure Resend to deliver, or set EMAIL_CONSOLE_LOG_BODY=1 temporarily)");
+    }
     if (message.attachments?.length) {
       console.log(`Attachments: ${message.attachments.map((a) => a.filename).join(", ")}`);
     }

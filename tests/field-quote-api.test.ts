@@ -43,7 +43,7 @@ describe.skipIf(!privileged)("Field Quote — medição no local vira orçamento
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    const a = await createOrganizationWithAdmin({ organizationName: `FQ ${suffix}`, slug: `fq-${suffix}`, adminName: "Admin", adminEmail: email, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `FQ ${suffix}`, slug: `fq-${suffix}`, adminName: "Admin", adminEmail: email, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     leadId = await withTenantTransaction(orgId, async (tx) =>
       (await tx.lead.create({ data: { organizationId: orgId, name: "Dana Whitfield", phone: "(303) 555-0142", status: "new", metadata: { address: "410 Elm St, Golden, CO", zipcode: "80401" } } })).id,
@@ -56,7 +56,7 @@ describe.skipIf(!privileged)("Field Quote — medição no local vira orçamento
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: "password12345", organizationId: orgId }),
+      body: JSON.stringify({ email, password: "Test-Passw0rd-2026", organizationId: orgId }),
       redirect: "manual",
     });
     cookie = (r.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");

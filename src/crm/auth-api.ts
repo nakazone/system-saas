@@ -8,6 +8,22 @@ import { verifyPassword, hashPassword } from "../lib/auth/password.js";
 import { storage } from "../lib/storage/index.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
+import {
+  burnPasswordCheck,
+  isLeakedDefaultPassword,
+  LEAKED_PASSWORD_LOGIN_MESSAGE,
+  newPasswordProblem,
+} from "../lib/auth/password-policy.js";
+import { purgeUserSessions } from "../lib/auth/session-purge.js";
+import {
+  loginBlockedFor,
+  loginLockedMessage,
+  rateLimit,
+  recordLoginFailure,
+  recordLoginSuccess,
+} from "../lib/security/rate-limit.js";
+
+const LOGIN_SCOPE = "crm-login";
 
 /**
  * Auth API shaped like senior-floors-system `/api/auth/*`
@@ -154,6 +170,23 @@ async function establishSession(
   const permissionKeys = await applyFeaturePermissions(user.organizationId, buildPermissionKeys(user));
   const slug = user.organization.slug;
 
+  // New session id on every login (prevents session fixation).
+  req.session.regenerate((regenErr) => {
+    if (regenErr) {
+      res.status(500).json({ success: false, error: "Could not establish session" });
+      return;
+    }
+    fillSession(req, user, permissionKeys, slug, res);
+  });
+}
+
+function fillSession(
+  req: TenantRequest,
+  user: NonNullable<AuthUser>,
+  permissionKeys: string[],
+  slug: string,
+  res: import("express").Response,
+) {
   req.session.userId = user.id;
   req.session.organizationId = user.organizationId;
   req.session.workspaceSlug = slug;
@@ -207,6 +240,26 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
     const preferredOrgId =
       parsed.data.organizationId || req.organizationId || undefined;
 
+    const locked = loginBlockedFor(LOGIN_SCOPE, req, email);
+    if (locked > 0) {
+      res.setHeader("Retry-After", String(locked));
+      res.status(429).json({ success: false, error: loginLockedMessage(locked), message: loginLockedMessage(locked) });
+      return;
+    }
+    const fail = () => {
+      recordLoginFailure(LOGIN_SCOPE, req, email);
+      res.status(401).json({ success: false, error: "Invalid email or password." });
+    };
+    const refuseLeaked = () => {
+      recordLoginFailure(LOGIN_SCOPE, req, email);
+      res.status(403).json({
+        success: false,
+        error: LEAKED_PASSWORD_LOGIN_MESSAGE,
+        message: LEAKED_PASSWORD_LOGIN_MESSAGE,
+        code: "DEFAULT_PASSWORD_BLOCKED",
+      });
+    };
+
     // Tenant host (subdomain) or explicit org: keep lookup scoped.
     if (preferredOrgId) {
       const user = await prisma.user.findUnique({
@@ -221,17 +274,24 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
 
       if (!user || user.status !== "active" || ["canceled", "suspended"].includes(user.organization.status)) {
         if (user) await recordUserLogin({ ...fromRequest(req), email, userId: user.id, organizationId: user.organizationId, success: false, reason: user.status !== "active" ? "blocked" : "company_closed" });
-        res.status(401).json({ success: false, error: "Invalid email or password." });
+        await burnPasswordCheck(password);
+        fail();
         return;
       }
 
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) {
         await recordUserLogin({ ...fromRequest(req), email, userId: user.id, organizationId: user.organizationId, success: false, reason: "wrong_password" });
-        res.status(401).json({ success: false, error: "Invalid email or password." });
+        fail();
+        return;
+      }
+      if (isLeakedDefaultPassword(password)) {
+        await recordUserLogin({ ...fromRequest(req), email, userId: user.id, organizationId: user.organizationId, success: false, reason: "default_password" });
+        refuseLeaked();
         return;
       }
 
+      recordLoginSuccess(LOGIN_SCOPE, email);
       await recordUserLogin({ ...fromRequest(req), email, userId: user.id, organizationId: user.organizationId, success: true });
       await establishSession(req, user, res);
       return;
@@ -243,6 +303,7 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
       include: userAuthInclude,
     });
 
+    if (candidates.length === 0) await burnPasswordCheck(password);
     const matches: NonNullable<AuthUser>[] = [];
     for (const candidate of candidates) {
       if (!candidate.organization || ["canceled", "suspended"].includes(candidate.organization.status)) {
@@ -254,9 +315,14 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
 
     if (matches.length === 0) {
       for (const c of candidates) await recordUserLogin({ ...fromRequest(req), email, userId: c.id, organizationId: c.organizationId, success: false, reason: "wrong_password" });
-      res.status(401).json({ success: false, error: "Invalid email or password." });
+      fail();
       return;
     }
+    if (isLeakedDefaultPassword(password)) {
+      refuseLeaked();
+      return;
+    }
+    recordLoginSuccess(LOGIN_SCOPE, email);
 
     if (matches.length > 1) {
       res.status(200).json({
@@ -289,7 +355,15 @@ crmAuthRouter.post("/api/auth/logout", (req, res) => {
   });
 });
 
-crmAuthRouter.post("/api/auth/change-password", async (req: AuthedRequest, res, next) => {
+crmAuthRouter.post(
+  "/api/auth/change-password",
+  rateLimit({
+    name: "change-password",
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+    key: (req) => String(req.session?.userId || req.ip),
+  }),
+  async (req: AuthedRequest, res, next) => {
   try {
     if (!req.session.userId || !req.organizationId) {
       res.status(401).json({ success: false, error: "Authentication required" });
@@ -298,11 +372,9 @@ crmAuthRouter.post("/api/auth/change-password", async (req: AuthedRequest, res, 
 
     const newPassword = String(req.body.new_password || "").trim();
     const currentPassword = String(req.body.current_password || "").trim();
-    if (!newPassword || newPassword.length < 8) {
-      res.status(400).json({
-        success: false,
-        error: "A nova senha deve ter pelo menos 8 caracteres.",
-      });
+    const problem = newPasswordProblem(newPassword, { email: req.session.userEmail });
+    if (problem) {
+      res.status(400).json({ success: false, error: problem });
       return;
     }
 
@@ -323,6 +395,10 @@ crmAuthRouter.post("/api/auth/change-password", async (req: AuthedRequest, res, 
       res.status(400).json({ success: false, error: "Senha atual incorreta." });
       return;
     }
+    if (currentPassword === newPassword) {
+      res.status(400).json({ success: false, error: "A nova senha precisa ser diferente da atual." });
+      return;
+    }
 
     const passwordHash = await hashPassword(newPassword);
     await prisma.user.update({
@@ -330,6 +406,8 @@ crmAuthRouter.post("/api/auth/change-password", async (req: AuthedRequest, res, 
       data: { passwordHash, mustChangePassword: false },
     });
     req.session.mustChangePassword = false;
+    // Other devices / stolen sessions stop working once the password changes.
+    await purgeUserSessions(user.id, req.sessionID);
 
     req.session.save((err) => {
       if (err) {
@@ -344,7 +422,8 @@ crmAuthRouter.post("/api/auth/change-password", async (req: AuthedRequest, res, 
   } catch (error) {
     next(error);
   }
-});
+  },
+);
 
 function mePayload(user: {
   id: string;

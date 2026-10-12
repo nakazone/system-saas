@@ -126,7 +126,7 @@ describe.skipIf(!privileged)("settings/organization — HTTP (tenant isolation, 
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: "password12345", organizationId }),
+      body: JSON.stringify({ email, password: "Test-Passw0rd-2026", organizationId }),
       redirect: "manual",
     });
     const cookie = (r.headers.getSetCookie?.() ?? [])
@@ -158,18 +158,18 @@ describe.skipIf(!privileged)("settings/organization — HTTP (tenant isolation, 
       slug: `set-a-${suffix}`,
       adminName: "Admin A",
       adminEmail: emails.admin,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     const b = await createOrganizationWithAdmin({
       organizationName: `Settings B ${suffix}`,
       slug: `set-b-${suffix}`,
       adminName: "Admin B",
       adminEmail: `set-b-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgA = a.organization.id;
     orgB = b.organization.id;
-    const passwordHash = await hashPassword("password12345");
+    const passwordHash = await hashPassword("Test-Passw0rd-2026");
     await withTenantTransaction(orgA, async (tx) => {
       const role = await tx.role.findFirstOrThrow({ where: { key: "sales" } });
       await tx.user.create({

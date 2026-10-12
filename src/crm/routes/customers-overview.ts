@@ -8,7 +8,7 @@
 import { Router } from "express";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
-import { requireCrmAuth, dec } from "../http.js";
+import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { canViewPricing } from "../../lib/pricing/visibility.js";
 import { formatUsPhone } from "../../lib/phone.js";
 import { ensureReferralCode, referralBalance } from "../../lib/referrals/engine.js";
@@ -291,7 +291,7 @@ function baseCustomer(c: Loaded["customers"][number]) {
   };
 }
 
-customersOverviewRouter.get("/api/customers/overview", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersOverviewRouter.get("/api/customers/overview", requireCrmAuth, requireCrmPermission("customers.view"), async (req: AuthedRequest, res, next) => {
   try {
     const showMoney = canViewPricing(req.user);
     const data = await withTenantTransaction(req.organizationId!, (tx) => loadAll(tx));
@@ -338,7 +338,7 @@ const JOB_PT: Record<string, string> = {
   canceled: "Cancelado",
 };
 
-customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, requireCrmPermission("customers.view"), async (req: AuthedRequest, res, next) => {
   try {
     const showMoney = canViewPricing(req.user);
     const id = String(req.params.id);

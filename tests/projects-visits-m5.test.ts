@@ -79,7 +79,7 @@ describe("quote to project convert + phase payment triggers", () => {
       slug: `proj-org-${suffix}`,
       adminName: "Admin",
       adminEmail: `proj-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = org.organization.id;
 

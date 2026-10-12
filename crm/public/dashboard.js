@@ -2126,13 +2126,13 @@ async function loadLeads() {
                             (lead.pipeline_stage_name && String(lead.pipeline_stage_name).trim()) ||
                             statusSlug.replace(/_/g, ' ');
                         return `<tr class="lead-table-row" style="--lead-stage-color: ${stageColor}">
-                            <td>${lead.id}</td>
-                            <td>${lead.name || '-'}${urgentBadge}</td>
-                            <td>${lead.email || '-'}</td>
-                            <td>${(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(lead.phone) : lead.phone) || '-'}</td>
-                            <td>${lead.zipcode || '-'}</td>
-                            <td><span class="lead-status-pipeline" title="${escapeHtmlLeadList(statusLabel)}"><span class="lead-stage-color-dot" style="background-color: ${stageColor}" aria-hidden="true"></span><span class="badge badge-${statusSlug}">${escapeHtmlLeadList(statusLabel)}</span></span></td>
-                            <td>${lead.source || '-'}</td>
+                            <td>${escapeHtmlLeadList(lead.id)}</td>
+                            <td>${escapeHtmlLeadList(lead.name || '-')}${urgentBadge}</td>
+                            <td>${escapeHtmlLeadList(lead.email || '-')}</td>
+                            <td>${escapeHtmlLeadList((typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(lead.phone) : lead.phone) || '-')}</td>
+                            <td>${escapeHtmlLeadList(lead.zipcode || '-')}</td>
+                            <td><span class="lead-status-pipeline" title="${escapeHtmlLeadList(statusLabel)}"><span class="lead-stage-color-dot" style="background-color: ${stageColor}" aria-hidden="true"></span><span class="badge badge-${escapeHtmlLeadList(statusSlug)}">${escapeHtmlLeadList(statusLabel)}</span></span></td>
+                            <td>${escapeHtmlLeadList(lead.source || '-')}</td>
                             <td>${lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '-'}</td>
                             <td>
                                 <button class="btn btn-sm" onclick="viewLead('${lead.id}')" title="Ver"><span class="action-btn-icon">V</span></button>

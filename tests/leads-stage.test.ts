@@ -28,14 +28,14 @@ describe("lead stage + duplicates", () => {
       slug: `stage-a-${suffix}`,
       adminName: "Admin",
       adminEmail: `stage-a-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     const b = await createOrganizationWithAdmin({
       organizationName: `Stage B ${suffix}`,
       slug: `stage-b-${suffix}`,
       adminName: "Admin",
       adminEmail: `stage-b-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = a.organization.id;
     otherOrgId = b.organization.id;

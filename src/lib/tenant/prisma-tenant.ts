@@ -103,6 +103,12 @@ const TENANT_MODELS = new Set([
   "ChatMessageFlag",
   "ReferralReward",
   "ReferralLedgerEntry",
+  // Added in the security review: these hold tenant data and were missing from the list.
+  "FieldQuote",
+  "OrgCatalogItem",
+  "CampoSegment",
+  "CampoWeekSubmission",
+  "CampoManualEntry",
 ]);
 
 type Operation =

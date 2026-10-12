@@ -36,14 +36,14 @@ describe("public quote token isolation", () => {
       slug: `tok-a-${suffix}`,
       adminName: "Admin A",
       adminEmail: `tok-a-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     const orgB = await createOrganizationWithAdmin({
       organizationName: `Tok B ${suffix}`,
       slug: `tok-b-${suffix}`,
       adminName: "Admin B",
       adminEmail: `tok-b-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgAId = orgA.organization.id;
     orgBId = orgB.organization.id;

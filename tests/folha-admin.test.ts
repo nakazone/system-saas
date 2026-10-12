@@ -32,7 +32,7 @@ describe.skipIf(!privileged)("folha — painel do admin (HTTP)", () => {
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: "password12345", organizationId: orgId }),
+      body: JSON.stringify({ email, password: "Test-Passw0rd-2026", organizationId: orgId }),
       redirect: "manual",
     });
     const cookie = (r.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
@@ -49,10 +49,10 @@ describe.skipIf(!privileged)("folha — painel do admin (HTTP)", () => {
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    const a = await createOrganizationWithAdmin({ organizationName: `Folha ${suffix}`, slug: `fa-${suffix}`, adminName: "Admin", adminEmail: emails.admin, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Folha ${suffix}`, slug: `fa-${suffix}`, adminName: "Admin", adminEmail: emails.admin, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/Denver" } });
-    const passwordHash = await hashPassword("password12345");
+    const passwordHash = await hashPassword("Test-Passw0rd-2026");
     await withTenantTransaction(orgId, async (tx) => {
       const role = await tx.role.findFirstOrThrow({ where: { key: "installer" } });
       installerUserId = (await tx.user.create({ data: { organizationId: orgId, email: emails.inst, name: "Rafa", passwordHash, roleId: role.id } })).id;

@@ -89,7 +89,7 @@ describe.skipIf(!privileged)("Master — login, 2FA, ações e auditoria", () =>
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    const a = await createOrganizationWithAdmin({ organizationName: `Master Co ${suffix}`, slug: `master-${suffix}`, adminName: "Olivia Owner", adminEmail: tenantEmail, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Master Co ${suffix}`, slug: `master-${suffix}`, adminName: "Olivia Owner", adminEmail: tenantEmail, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     orgSlug = a.organization.slug;
     userId = (await prisma.user.findFirstOrThrow({ where: { organizationId: orgId } })).id;
@@ -216,7 +216,7 @@ describe.skipIf(!privileged)("Master — login, 2FA, ações e auditoria", () =>
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: tenantEmail, password: "password12345" }),
+      body: JSON.stringify({ email: tenantEmail, password: "Test-Passw0rd-2026" }),
     });
     const j = (await r.json()) as { success?: boolean };
     expect(j.success).not.toBe(true);

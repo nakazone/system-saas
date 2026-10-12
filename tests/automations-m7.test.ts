@@ -42,14 +42,14 @@ describe("automations M7", () => {
       slug: `auto-a-${suffix}`,
       adminName: "Admin A",
       adminEmail: `auto-a-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     const orgB = await createOrganizationWithAdmin({
       organizationName: `Auto B ${suffix}`,
       slug: `auto-b-${suffix}`,
       adminName: "Admin B",
       adminEmail: `auto-b-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgAId = orgA.organization.id;
     orgBId = orgB.organization.id;

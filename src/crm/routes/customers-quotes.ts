@@ -684,7 +684,7 @@ function mapQuoteForUser(
   return withPricingGate(user, mapQuote(q));
 }
 
-customersQuotesRouter.get("/api/customers", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/customers", requireCrmAuth, requireCrmPermission("customers.view"), async (req: AuthedRequest, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
@@ -719,7 +719,7 @@ customersQuotesRouter.get("/api/customers", requireCrmAuth, async (req: AuthedRe
   }
 });
 
-customersQuotesRouter.get("/api/customers/duplicates", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/customers/duplicates", requireCrmAuth, requireCrmPermission("customers.view"), async (req: AuthedRequest, res, next) => {
   try {
     const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
       tx.customer.findMany({ orderBy: { createdAt: "asc" } }),
@@ -819,7 +819,7 @@ customersQuotesRouter.post(
   },
 );
 
-customersQuotesRouter.get("/api/customers/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/customers/:id", requireCrmAuth, requireCrmPermission("customers.view"), async (req: AuthedRequest, res, next) => {
   try {
     const row = await withTenantTransaction(req.organizationId!, async (tx) =>
       tx.customer.findFirst({
@@ -970,6 +970,27 @@ customersQuotesRouter.get(
         res.status(400).json({ success: false, error: "entity_type and entity_id required" });
         return;
       }
+      // Each record type is readable only with that module's view permission.
+      const ACTIVITY_PERM: Record<string, string> = {
+        lead: "leads.view",
+        customer: "customers.view",
+        quote: "quotes.view",
+        invoice: "invoices.view",
+        quote_invoice: "invoices.view",
+        work_order: "work_orders.view",
+        project: "projects.view",
+        property: "customers.view",
+        visit: "visits.view",
+        site_assessment: "assessments.view",
+        payment: "invoices.view",
+        work_order_temp: "work_orders.view",
+        folha_conference: "payroll.view",
+      };
+      const need = ACTIVITY_PERM[entityType] || "settings.manage";
+      if (req.user?.roleKey !== "admin" && !req.user?.permissions.includes(need)) {
+        res.status(403).json({ success: false, error: "Permission denied", missing: [need] });
+        return;
+      }
       const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
         tx.activityEvent.findMany({
           where: { entityType, entityId },
@@ -996,7 +1017,7 @@ customersQuotesRouter.get(
   },
 );
 
-customersQuotesRouter.get("/api/customers/:id/insight", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/customers/:id/insight", requireCrmAuth, requireCrmPermission("customers.view"), async (req: AuthedRequest, res, next) => {
   try {
     const insight = await withTenantTransaction(req.organizationId!, async (tx) => {
       const customer = await tx.customer.findFirst({ where: { id: String(req.params.id) } });
@@ -1026,7 +1047,7 @@ customersQuotesRouter.get("/api/customers/:id/insight", requireCrmAuth, async (r
   }
 });
 
-customersQuotesRouter.get("/api/customers/by-lead/:leadId", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/customers/by-lead/:leadId", requireCrmAuth, requireCrmPermission("customers.view"), async (req: AuthedRequest, res, next) => {
   try {
     const row = await withTenantTransaction(req.organizationId!, async (tx) =>
       tx.customer.findFirst({ where: { leadId: String(req.params.leadId) } }),
@@ -1421,7 +1442,7 @@ function quoteGroupWhere(group: string): Prisma.QuoteWhereInput {
 }
 
 /** Números da lista de quotes: grupos com quantidade e valor, em aberto, aprovação, ticket médio, vencendo. */
-customersQuotesRouter.get("/api/quotes/summary", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/quotes/summary", requireCrmAuth, requireCrmPermission("quotes.view"), async (req: AuthedRequest, res, next) => {
   try {
     const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
       tx.quote.findMany({
@@ -1485,7 +1506,7 @@ customersQuotesRouter.get("/api/quotes/summary", requireCrmAuth, async (req: Aut
   }
 });
 
-customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/quotes", requireCrmAuth, requireCrmPermission("quotes.view"), async (req: AuthedRequest, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
@@ -1555,7 +1576,7 @@ customersQuotesRouter.get(
   },
 );
 
-customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, requireCrmPermission("quotes.view"), async (req: AuthedRequest, res, next) => {
   try {
     let row = await withTenantTransaction(req.organizationId!, async (tx) =>
       tx.quote.findFirst({
@@ -2481,7 +2502,7 @@ customersQuotesRouter.delete(
 // Invoice endpoints live in ./invoices.ts (Faturas module).
 
 
-customersQuotesRouter.get("/api/quote-catalog", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+customersQuotesRouter.get("/api/quote-catalog", requireCrmAuth, requireCrmPermission("quotes.view"), async (req: AuthedRequest, res, next) => {
   try {
     const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
       tx.quoteCatalogItem.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),

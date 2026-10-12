@@ -305,8 +305,16 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
       res.redirect(`/public/quotes/${token}?error=signature`);
       return;
     }
-    const contentType = match[1]!;
+    const contentType = match[1]!.toLowerCase();
+    if (!/^image\/(png|jpeg|jpg|webp)$/.test(contentType)) {
+      res.redirect(`/public/quotes/${token}?error=signature`);
+      return;
+    }
     const body = Buffer.from(match[2]!, "base64");
+    if (body.length > 2 * 1024 * 1024) {
+      res.redirect(`/public/quotes/${token}?error=signature`);
+      return;
+    }
     const signedDocumentSha256 = createHash("sha256").update(body).digest("hex");
     const lat =
       parsed.data.approvedLat != null && parsed.data.approvedLat !== ""

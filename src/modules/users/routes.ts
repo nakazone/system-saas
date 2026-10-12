@@ -12,6 +12,9 @@ import { env } from "../../config/env.js";
 import { ensureDefaultRoles } from "../../lib/tenant/ensure-default-roles.js";
 import { DEFAULT_ROLE_PERMISSIONS } from "../../lib/tenant/defaults.js";
 import { formatPersonName } from "../../lib/name.js";
+import { newPasswordProblem } from "../../lib/auth/password-policy.js";
+import { purgeUserSessions } from "../../lib/auth/session-purge.js";
+import { assertCanAssignRole, assertCanManageUser } from "../../lib/auth/user-admin-guard.js";
 
 export const usersRouter = Router();
 
@@ -111,6 +114,14 @@ usersRouter.post(
         if (existing) {
           throw new Error("A user with this email already exists");
         }
+        // The role must belong to this company; only an Admin may invite another Admin.
+        const role = await tx.role.findFirst({ where: { id: parsed.data.roleId } });
+        if (!role) {
+          throw Object.assign(new Error("Invalid role"), { status: 400 });
+        }
+        if (role.key === "admin" && req.user!.roleKey !== "admin") {
+          throw Object.assign(new Error("Only an admin can invite another admin"), { status: 403 });
+        }
 
         await tx.invitation.create({
           data: {
@@ -159,11 +170,15 @@ usersRouter.post(
       }
 
       await withTenantTransaction(req.organizationId!, async (tx) => {
+        const target = await tx.user.findFirst({ where: { id: param(req, "id") }, include: { role: true } });
+        if (!target) throw Object.assign(new Error("User not found"), { status: 404 });
+        assertCanManageUser(req.user, { id: target.id, roleKey: target.role?.key });
         await tx.user.update({
-          where: { id: param(req, "id") },
+          where: { id: target.id },
           data: { status: parsed.data.status },
         });
       });
+      if (parsed.data.status !== "active") await purgeUserSessions(param(req, "id"));
       res.redirect("/users");
     } catch (error) {
       next(error);
@@ -186,6 +201,13 @@ usersRouter.post(
       await withTenantTransaction(req.organizationId!, async (tx) => {
         const role = await tx.role.findFirst({ where: { id: parsed.data.roleId } });
         if (!role) throw new Error("Role not found");
+        const target = await tx.user.findFirst({ where: { id: param(req, "id") }, include: { role: true } });
+        if (!target) throw Object.assign(new Error("User not found"), { status: 404 });
+        assertCanManageUser(req.user, { id: target.id, roleKey: target.role?.key });
+        assertCanAssignRole(req.user, role);
+        if (target.id === req.user!.id && req.user!.roleKey !== "admin") {
+          throw Object.assign(new Error("You cannot change your own role"), { status: 403 });
+        }
         await tx.user.update({
           where: { id: param(req, "id") },
           data: { roleId: role.id },
@@ -259,6 +281,18 @@ invitationsRouter.post("/:token", async (req, res, next) => {
       return;
     }
 
+    const pwProblem = newPasswordProblem(parsed.data.password, { email: invitation.email });
+    if (pwProblem) {
+      res.status(400).render("users/accept-invitation", {
+        title: "Accept invitation",
+        organization: invitation.organization,
+        invitation,
+        error: pwProblem,
+        appRootDomain: env.APP_ROOT_DOMAIN,
+      });
+      return;
+    }
+
     const passwordHash = await hashPassword(parsed.data.password);
 
     const user = await prisma.$transaction(async (tx) => {
@@ -280,6 +314,9 @@ invitationsRouter.post("/:token", async (req, res, next) => {
       return created;
     });
 
+    await new Promise<void>((resolve, reject) =>
+      req.session.regenerate((err) => (err ? reject(err) : resolve())),
+    );
     req.session.userId = user.id;
     req.session.organizationId = invitation.organizationId;
 

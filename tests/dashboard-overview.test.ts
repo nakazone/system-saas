@@ -384,14 +384,14 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
       slug: `dash-a-${suffix}`,
       adminName: "Admin A",
       adminEmail: `dash-a-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     const b = await createOrganizationWithAdmin({
       organizationName: `Dash B ${suffix}`,
       slug: `dash-b-${suffix}`,
       adminName: "Admin B",
       adminEmail: `dash-b-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgA = a.organization.id;
     orgB = b.organization.id;

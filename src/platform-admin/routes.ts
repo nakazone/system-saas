@@ -3,12 +3,37 @@ import type { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { verifyPassword } from "../lib/auth/password.js";
 import { z } from "zod";
+import {
+  loginBlockedFor,
+  loginLockedMessage,
+  recordLoginFailure,
+  recordLoginSuccess,
+} from "../lib/security/rate-limit.js";
+import { burnPasswordCheck, isLeakedDefaultPassword } from "../lib/auth/password-policy.js";
+
+const LOGIN_SCOPE = "platform-admin-login";
+
+/**
+ * The legacy panel signs in with a password only (no 2FA). The Master panel (/master) replaced
+ * it, so in production it stays closed unless PLATFORM_ADMIN_LEGACY=1 is set on purpose.
+ */
+function legacyPanelEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.PLATFORM_ADMIN_LEGACY === "1";
+}
 
 /**
  * Platform admin area — served only on admin.{APP_ROOT_DOMAIN}.
  * Completely separate from organization User model.
  */
 export const platformAdminRouter = Router();
+
+platformAdminRouter.use((_req, res, next) => {
+  if (legacyPanelEnabled()) {
+    next();
+    return;
+  }
+  res.status(404).type("text/plain; charset=utf-8").send("Use o painel Master: /master");
+});
 
 function requirePlatformAdmin(req: Request, res: Response): boolean {
   if (!req.session.platformAdminId) {
@@ -143,10 +168,22 @@ platformAdminRouter.post("/login", async (req, res, next) => {
       });
       return;
     }
+    const emailKey = parsed.data.email.toLowerCase();
+    const locked = loginBlockedFor(LOGIN_SCOPE, req, emailKey);
+    if (locked > 0) {
+      res.status(429).render("platform-admin/login", {
+        title: "Platform admin login",
+        organization: null,
+        error: loginLockedMessage(locked),
+      });
+      return;
+    }
     const admin = await prisma.platformAdmin.findUnique({
-      where: { email: parsed.data.email.toLowerCase() },
+      where: { email: emailKey },
     });
     if (!admin || admin.status !== "active") {
+      await burnPasswordCheck(parsed.data.password);
+      recordLoginFailure(LOGIN_SCOPE, req, emailKey);
       res.status(401).render("platform-admin/login", {
         title: "Platform admin login",
         organization: null,
@@ -164,7 +201,8 @@ platformAdminRouter.post("/login", async (req, res, next) => {
       return;
     }
     const ok = await verifyPassword(parsed.data.password, admin.passwordHash);
-    if (!ok) {
+    if (!ok || isLeakedDefaultPassword(parsed.data.password)) {
+      recordLoginFailure(LOGIN_SCOPE, req, emailKey);
       res.status(401).render("platform-admin/login", {
         title: "Platform admin login",
         organization: null,
@@ -172,6 +210,10 @@ platformAdminRouter.post("/login", async (req, res, next) => {
       });
       return;
     }
+    recordLoginSuccess(LOGIN_SCOPE, emailKey);
+    await new Promise<void>((resolve, reject) =>
+      req.session.regenerate((err) => (err ? reject(err) : resolve())),
+    );
     req.session.platformAdminId = admin.id;
     res.redirect("/");
   } catch (error) {

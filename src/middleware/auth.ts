@@ -14,6 +14,8 @@ export type SessionUser = {
   roleKey: string | null;
   roleId: string | null;
   permissions: string[];
+  /** Temporary password set by an admin — only the password change is allowed until done. */
+  mustChangePassword?: boolean;
 };
 
 declare module "express-session" {
@@ -130,6 +132,7 @@ export async function loadSessionUser(
       roleKey,
       roleId: user.roleId,
       permissions: await applyFeaturePermissions(user.organizationId, Array.from(rolePerms)),
+      mustChangePassword: Boolean(user.mustChangePassword),
     };
     // Usage frequency for the Master (health score); support sessions are not company usage.
     if (!req.session.support) markActiveDay(user.id, user.organizationId);

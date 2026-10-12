@@ -43,7 +43,7 @@ describe("pipeline move + loss reason", () => {
       slug: `m8-org-${suffix}`,
       adminName: "Admin",
       adminEmail: `m8-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = org.organization.id;
 
@@ -170,7 +170,7 @@ describe("action home counts match filters", () => {
       slug: `home-org-${suffix}`,
       adminName: "Admin",
       adminEmail: `home-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = org.organization.id;
 

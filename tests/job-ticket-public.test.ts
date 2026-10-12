@@ -97,7 +97,7 @@ describe.skipIf(!privileged)("worker ticket — link + page (HTTP)", () => {
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: "password12345", organizationId: orgId }),
+      body: JSON.stringify({ email, password: "Test-Passw0rd-2026", organizationId: orgId }),
       redirect: "manual",
     });
     const cookie = (r.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
@@ -129,7 +129,7 @@ describe.skipIf(!privileged)("worker ticket — link + page (HTTP)", () => {
       slug: `tk-${suffix}`,
       adminName: "Admin",
       adminEmail: email,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = a.organization.id;
     await prisma.organization.update({

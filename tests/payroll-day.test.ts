@@ -81,7 +81,7 @@ describe.skipIf(!privileged)("dia de trabalho — service + API", () => {
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: "password12345", organizationId: orgId }),
+      body: JSON.stringify({ email, password: "Test-Passw0rd-2026", organizationId: orgId }),
       redirect: "manual",
     });
     return (r.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
@@ -95,9 +95,9 @@ describe.skipIf(!privileged)("dia de trabalho — service + API", () => {
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    orgId = (await createOrganizationWithAdmin({ organizationName: `PD ${suffix}`, slug: `pd-${suffix}`, adminName: "Admin", adminEmail: emails.admin, password: "password12345" })).organization.id;
+    orgId = (await createOrganizationWithAdmin({ organizationName: `PD ${suffix}`, slug: `pd-${suffix}`, adminName: "Admin", adminEmail: emails.admin, password: "Test-Passw0rd-2026" })).organization.id;
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: TZ } });
-    const passwordHash = await hashPassword("password12345");
+    const passwordHash = await hashPassword("Test-Passw0rd-2026");
     await withTenantTransaction(orgId, async (tx) => {
       const role = await tx.role.findFirstOrThrow({ where: { key: "crew_lead" } });
       userId = (await tx.user.create({ data: { organizationId: orgId, email: emails.crew, name: "Carlos Lima", passwordHash, roleId: role.id } })).id;

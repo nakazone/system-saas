@@ -25,7 +25,7 @@ describe("quote approve → job", () => {
       slug: `job-quote-${suffix}`,
       adminName: "Admin",
       adminEmail: `job-quote-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = a.organization.id;
 

@@ -13,6 +13,23 @@ import {
 import { env } from "../../config/env.js";
 import type { ListedObject, ObjectStorage, StoredObject } from "./types.js";
 
+/**
+ * Uploaded files are served from our domain (local fallback) or a public bucket. A file whose
+ * declared type is HTML/SVG/XML/JS would open as a live page there, so only types that browsers
+ * render as passive content keep their type; everything else is stored as a plain download.
+ */
+const SAFE_CONTENT_TYPE =
+  /^(image\/(png|jpeg|gif|webp|heic|heif|avif|bmp|tiff)|application\/pdf|video\/(mp4|quicktime|webm|3gpp)|audio\/(mpeg|mp4|webm|ogg|wav|x-wav|x-m4a|aac|3gpp)|text\/(plain|csv))$/;
+
+export function safeContentType(contentType: string | null | undefined): string {
+  const ct = String(contentType || "")
+    .split(";")[0]!
+    .trim()
+    .toLowerCase()
+    .replace(/^image\/jpg$/, "image/jpeg");
+  return SAFE_CONTENT_TYPE.test(ct) ? ct : "application/octet-stream";
+}
+
 export class S3CompatibleStorage implements ObjectStorage {
   private client: S3Client;
   private bucket: string;
@@ -40,12 +57,15 @@ export class S3CompatibleStorage implements ObjectStorage {
     body: Buffer;
     contentType: string;
   }): Promise<StoredObject> {
+    const contentType = safeContentType(params.contentType);
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: params.key,
         Body: params.body,
-        ContentType: params.contentType,
+        ContentType: contentType,
+        // Passive types open inline; anything else downloads instead of rendering.
+        ContentDisposition: contentType === "application/octet-stream" ? "attachment" : undefined,
       }),
     );
 
@@ -56,7 +76,7 @@ export class S3CompatibleStorage implements ObjectStorage {
     return {
       key: params.key,
       url,
-      contentType: params.contentType,
+      contentType,
       size: params.body.length,
     };
   }
@@ -142,20 +162,21 @@ export class LocalFileStorage implements ObjectStorage {
     body: Buffer;
     contentType: string;
   }): Promise<StoredObject> {
+    const contentType = safeContentType(params.contentType);
     this.memory.set(params.key, {
       body: params.body,
-      contentType: params.contentType,
+      contentType,
     });
     const filePath = this.safePath(params.key);
     if (filePath) {
       await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, params.body);
-      await fs.writeFile(`${filePath}.meta.json`, JSON.stringify({ contentType: params.contentType }));
+      await fs.writeFile(`${filePath}.meta.json`, JSON.stringify({ contentType }));
     }
     return {
       key: params.key,
       url: this.publicUrlFor(params.key),
-      contentType: params.contentType,
+      contentType,
       size: params.body.length,
     };
   }

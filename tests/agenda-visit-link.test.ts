@@ -38,7 +38,7 @@ describe.skipIf(!privileged)("agenda — visita do lead ligada ao compromisso", 
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    const a = await createOrganizationWithAdmin({ organizationName: `Agenda ${suffix}`, slug: `ag-${suffix}`, adminName: "Admin", adminEmail: email, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Agenda ${suffix}`, slug: `ag-${suffix}`, adminName: "Admin", adminEmail: email, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     leadId = await withTenantTransaction(orgId, async (tx) =>
       (await tx.lead.create({ data: { organizationId: orgId, name: "Teri Hubbeling", phone: "(512) 484-7818", status: "new" } })).id,
@@ -51,7 +51,7 @@ describe.skipIf(!privileged)("agenda — visita do lead ligada ao compromisso", 
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: "password12345", organizationId: orgId }),
+      body: JSON.stringify({ email, password: "Test-Passw0rd-2026", organizationId: orgId }),
       redirect: "manual",
     });
     cookie = (r.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");

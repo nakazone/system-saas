@@ -87,7 +87,7 @@ describe("invoice numbering + schedule triggers", () => {
       slug: `pay-org-${suffix}`,
       adminName: "Admin",
       adminEmail: `pay-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = org.organization.id;
 

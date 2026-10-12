@@ -88,14 +88,14 @@ describe("checklist snapshot + assessment isolation", () => {
       slug: `assess-a-${suffix}`,
       adminName: "Admin A",
       adminEmail: `assess-a-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     const orgB = await createOrganizationWithAdmin({
       organizationName: `Assess B ${suffix}`,
       slug: `assess-b-${suffix}`,
       adminName: "Admin B",
       adminEmail: `assess-b-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgAId = orgA.organization.id;
     orgBId = orgB.organization.id;

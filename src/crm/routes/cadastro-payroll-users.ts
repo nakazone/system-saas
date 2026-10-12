@@ -9,6 +9,13 @@ import { prisma } from "../../lib/prisma.js";
 import { buildBrandPalette } from "../../lib/branding/palette.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { formatPersonName } from "../../lib/name.js";
+import { newPasswordProblem } from "../../lib/auth/password-policy.js";
+import { purgeUserSessions } from "../../lib/auth/session-purge.js";
+import {
+  assertCanAssignRole,
+  assertCanManageUser,
+  assertCanSetPermissions,
+} from "../../lib/auth/user-admin-guard.js";
 
 export const cadastroPayrollUsersRouter = Router();
 
@@ -338,7 +345,7 @@ cadastroPayrollUsersRouter.put(
 );
 
 /** Legacy simple payroll list used by financial-engine.js */
-cadastroPayrollUsersRouter.get("/api/payroll", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+cadastroPayrollUsersRouter.get("/api/payroll", requireCrmAuth, requireCrmPermission("payroll.view"), async (req: AuthedRequest, res, next) => {
   try {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
@@ -489,6 +496,11 @@ cadastroPayrollUsersRouter.post(
         res.status(403).json({ success: false, error: userLimit.message, code: "LIMIT_REACHED" });
         return;
       }
+      const pwProblem = newPasswordProblem(parsed.data.password, { email: parsed.data.email });
+      if (pwProblem) {
+        res.status(400).json({ success: false, error: pwProblem });
+        return;
+      }
       const passwordHash = await hashPassword(parsed.data.password);
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const existing = await tx.user.findFirst({
@@ -496,9 +508,15 @@ cadastroPayrollUsersRouter.post(
         });
         if (existing) throw new Error("EMAIL_EXISTS");
         let roleId = parsed.data.role_id || null;
-        if (!roleId) {
+        if (roleId) {
+          // Role id must belong to this company.
+          const role = await tx.role.findFirst({ where: { id: roleId } });
+          if (!role) throw Object.assign(new Error("Cargo inválido."), { status: 400 });
+          assertCanAssignRole(req.user, role);
+        } else {
           const roleKey = parsed.data.role || "sales_rep";
           const role = await tx.role.findFirst({ where: { key: roleKey } });
+          assertCanAssignRole(req.user, role);
           roleId = role?.id ?? null;
         }
         return tx.user.create({
@@ -520,6 +538,7 @@ cadastroPayrollUsersRouter.post(
       if (permissionIds.length && row) {
         await withTenantTransaction(req.organizationId!, async (tx) => {
           const perms = await tx.permission.findMany({ where: { id: { in: permissionIds } } });
+          assertCanSetPermissions(req.user, row.id, perms.map((p: { key: string }) => p.key));
           for (const p of perms) {
             await tx.userPermission.create({
               data: { userId: row.id, permissionId: p.id, granted: true },
@@ -547,13 +566,25 @@ cadastroPayrollUsersRouter.put(
       const id = String(req.params.id);
       const b = req.body || {};
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const existing = await tx.user.findFirst({ where: { id } });
+        const existing = await tx.user.findFirst({ where: { id }, include: { role: true } });
         if (!existing) return null;
+        assertCanManageUser(req.user, { id: existing.id, roleKey: existing.role?.key });
         let roleId: string | null | undefined = undefined;
-        if (b.role_id !== undefined) roleId = b.role_id || null;
-        else if (b.role !== undefined) {
+        if (b.role_id !== undefined) {
+          roleId = b.role_id ? String(b.role_id) : null;
+          if (roleId) {
+            // Role id must belong to this company.
+            const role = await tx.role.findFirst({ where: { id: roleId } });
+            if (!role) throw Object.assign(new Error("Cargo inválido."), { status: 400 });
+            assertCanAssignRole(req.user, role);
+          }
+        } else if (b.role !== undefined) {
           const role = await tx.role.findFirst({ where: { key: String(b.role) } });
+          assertCanAssignRole(req.user, role);
           roleId = role?.id ?? existing.roleId;
+        }
+        if (id === req.user?.id && roleId !== undefined && roleId !== existing.roleId && req.user?.roleKey !== "admin") {
+          throw Object.assign(new Error("Você não pode mudar o seu próprio cargo."), { status: 403 });
         }
         let status: string | undefined;
         if (b.is_active !== undefined) {
@@ -568,6 +599,8 @@ cadastroPayrollUsersRouter.put(
           data.role = roleId ? { connect: { id: roleId } } : { disconnect: true };
         }
         if (b.password) {
+          const pwProblem = newPasswordProblem(String(b.password), { email: existing.email });
+          if (pwProblem) throw Object.assign(new Error(pwProblem), { status: 400 });
           data.passwordHash = await hashPassword(String(b.password));
           data.mustChangePassword = false;
         }
@@ -576,6 +609,10 @@ cadastroPayrollUsersRouter.put(
       if (!row) {
         res.status(404).json({ success: false, error: "User not found" });
         return;
+      }
+      // New password or account turned off → sign that user out everywhere.
+      if (b.password || row.status !== "active") {
+        await purgeUserSessions(row.id, row.id === req.user?.id ? req.sessionID : null);
       }
       res.json({ success: true, message: "User updated", data: mapUser(row) });
     } catch (error) {
@@ -596,8 +633,9 @@ cadastroPayrollUsersRouter.delete(
         return;
       }
       const ok = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const existing = await tx.user.findFirst({ where: { id } });
+        const existing = await tx.user.findFirst({ where: { id }, include: { role: true } });
         if (!existing) return false;
+        assertCanManageUser(req.user, { id: existing.id, roleKey: existing.role?.key });
         await tx.user.update({ where: { id }, data: { status: "disabled" } });
         return true;
       });
@@ -605,6 +643,7 @@ cadastroPayrollUsersRouter.delete(
         res.status(404).json({ success: false, error: "User not found" });
         return;
       }
+      await purgeUserSessions(id);
       res.json({ success: true, message: "Utilizador desativado." });
     } catch (error) {
       next(error);
@@ -626,11 +665,16 @@ cadastroPayrollUsersRouter.put(
       }
       const permissionIds = rawIds.map((x: unknown) => String(x)).filter(Boolean);
       const ok = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const user = await tx.user.findFirst({ where: { id } });
+        const user = await tx.user.findFirst({ where: { id }, include: { role: true } });
         if (!user) return false;
+        assertCanManageUser(req.user, { id: user.id, roleKey: user.role?.key });
+        const wanted = permissionIds.length
+          ? await tx.permission.findMany({ where: { id: { in: permissionIds } } })
+          : [];
+        assertCanSetPermissions(req.user, id, wanted.map((p: { key: string }) => p.key));
         await tx.userPermission.deleteMany({ where: { userId: id } });
         if (permissionIds.length) {
-          const perms = await tx.permission.findMany({ where: { id: { in: permissionIds } } });
+          const perms = wanted;
           for (const p of perms) {
             await tx.userPermission.create({
               data: { userId: id, permissionId: p.id, granted: true },

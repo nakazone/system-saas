@@ -23,6 +23,7 @@ import { notifyNewLeadPush } from "../../lib/push/notify.js";
 import type { TenantRequest } from "../../lib/tenant/resolve-tenant.js";
 import { formatUsPhone } from "../../lib/phone.js";
 import { formatPersonName } from "../../lib/name.js";
+import { clientIp, hit } from "../../lib/security/rate-limit.js";
 
 export const publicReceiveLeadRouter = Router();
 
@@ -123,6 +124,42 @@ function isSheetsSync(req: Request): boolean {
   return String(req.headers["x-sheets-sync"] || "").trim() === "1";
 }
 
+function secretMatches(given: string, secret: string): boolean {
+  if (!given || !secret) return false;
+  const a = crypto.createHash("sha256").update(given).digest();
+  const b = crypto.createHash("sha256").update(secret).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+/** Caller proved it holds the intake secret (Sheets sync / trusted server). */
+function hasValidSecret(req: Request, post: Record<string, unknown>): boolean {
+  const secret = intakeSecret();
+  if (!secret) return false;
+  const given = String(
+    req.headers["x-sheets-sync-secret"] ||
+      req.headers["x-lead-intake-secret"] ||
+      post["sync-secret"] ||
+      post.sync_secret ||
+      "",
+  ).trim();
+  return secretMatches(given, secret);
+}
+
+/** Per-IP limit for anonymous submissions (landing-page forms). Trusted syncs skip it. */
+function intakeRateLimited(req: Request, res: Response, name: string, limit: number): boolean {
+  const retry = hit(`${name}:${clientIp(req)}`, limit, 10 * 60 * 1000);
+  if (retry > 0) {
+    res.setHeader("Retry-After", String(retry));
+    res.status(429).json({
+      success: false,
+      errors: ["Too many submissions. Please try again later."],
+      api_version: "receive-lead-saas",
+    });
+    return true;
+  }
+  return false;
+}
+
 function checkSecret(req: Request, post: Record<string, unknown>, required: boolean): string | null {
   const secret = intakeSecret();
   if (!required) return null;
@@ -135,7 +172,7 @@ function checkSecret(req: Request, post: Record<string, unknown>, required: bool
       "",
   ).trim();
   const fromBody = String(post["sync-secret"] || post.sync_secret || "").trim();
-  if ((fromHeader || fromBody) !== secret) {
+  if (!secretMatches(fromHeader || fromBody, secret)) {
     return "Unauthorized";
   }
   return null;
@@ -219,6 +256,12 @@ function pickFields(post: Record<string, unknown>) {
   return { name, email, phone, zipcode, message };
 }
 
+function clampText(v: unknown, max: number): string | null {
+  if (v == null || typeof v === "object") return null;
+  const s = String(v).trim();
+  return s ? s.slice(0, max) : null;
+}
+
 function phoneDigits(phone: string): string {
   return phone.replace(/\D/g, "");
 }
@@ -229,7 +272,7 @@ export async function ingestPublicLead(
   sheetsSync: boolean,
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   const post = normalizePost(rawPost);
-  const formName = String(post["form-name"] || post.formName || "contact-form").trim();
+  const formName = String(post["form-name"] || post.formName || "contact-form").trim().slice(0, 80);
   const isMeta = /meta/i.test(formName) || formName === "meta-instant-form";
   const relax = sheetsSync || isMeta;
 
@@ -279,21 +322,21 @@ export async function ingestPublicLead(
   name = name.slice(0, 255);
   phone = phone.slice(0, 50);
   email = email.slice(0, 255);
-  message = message.slice(0, 65535);
+  message = message.slice(0, 5000);
   const source = mapSource(formName);
 
   const marketing: Record<string, string> = {};
   for (const key of UTM_KEYS) {
     const v = post[key];
-    if (v != null && String(v).trim()) marketing[key] = String(v).trim();
+    if (v != null && String(v).trim()) marketing[key] = String(v).trim().slice(0, 500);
   }
 
   const metadata: Record<string, unknown> = {
     zipcode: zipClean,
     form_type: formName,
     message: message || null,
-    project_type: post.project_type || post.projectType || null,
-    ip_address: req.ip || req.headers["x-forwarded-for"] || null,
+    project_type: clampText(post.project_type || post.projectType, 120),
+    ip_address: req.ip || null,
     ...marketing,
   };
 
@@ -403,6 +446,8 @@ publicReceiveLeadRouter.post("/api/receive-lead", async (req: TenantRequest, res
   try {
     setCors(res);
     const post = normalizePost(parseBody(req));
+    const trusted = hasValidSecret(req, post);
+    if (!trusted && intakeRateLimited(req, res, "lead-intake", 30)) return;
     const sheets = isSheetsSync(req);
     const secretErr = checkSecret(req, post, sheets || requireSecretAlways());
     if (secretErr) {
@@ -414,6 +459,15 @@ publicReceiveLeadRouter.post("/api/receive-lead", async (req: TenantRequest, res
       return;
     }
     const out = await ingestPublicLead(req, post, sheets);
+    if (!trusted && out.status === 200) {
+      // Anonymous callers must not learn whether an e-mail/phone is already a lead, nor its id.
+      res.status(200).json({
+        success: true,
+        message: "Thank you! We'll contact you within 24 hours.",
+        api_version: "receive-lead-saas",
+      });
+      return;
+    }
     res.status(out.status).json(out.json);
   } catch (error) {
     next(error);
@@ -424,6 +478,7 @@ publicReceiveLeadRouter.post("/api/receive-lead-batch", async (req: TenantReques
   try {
     setCors(res);
     const root = normalizePost(parseBody(req));
+    if (!hasValidSecret(req, root) && intakeRateLimited(req, res, "lead-intake-batch", 20)) return;
     const secretErr = checkSecret(req, root, true);
     if (secretErr) {
       res.status(secretErr === "Unauthorized" ? 401 : 503).json({

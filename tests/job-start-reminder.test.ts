@@ -28,7 +28,7 @@ describe("job start reminders", () => {
       slug: `job-start-${suffix}`,
       adminName: "Admin",
       adminEmail: `job-start-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgId = a.organization.id;
     userId = a.admin.id;

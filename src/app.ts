@@ -60,6 +60,14 @@ import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
 import { CRM_ASSETS_DIR, CRM_PUBLIC_DIR } from "./crm/mount.js";
 import { getLocalFileStorage } from "./lib/storage/index.js";
+import {
+  apiNoStore,
+  enforcePasswordChange,
+  neutralisePublicInput,
+  rejectCrossSiteWrites,
+  securityHeaders,
+} from "./middleware/security.js";
+import { clientIp, rateLimit } from "./lib/security/rate-limit.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PgSession = connectPgSimple(session);
@@ -83,7 +91,10 @@ export function createApp() {
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
   app.set("trust proxy", 1);
+  app.disable("x-powered-by");
 
+  app.use(securityHeaders);
+  app.use(apiNoStore);
   // Stripe needs the raw body to check the signature: before the JSON parser.
   app.use(stripeWebhookRouter);
   app.use(resendWebhookRouter);
@@ -91,6 +102,8 @@ export function createApp() {
   app.use(express.urlencoded({ extended: true, limit: "15mb" }));
   app.use(express.json({ limit: "15mb" }));
   app.use(cookieParser());
+  app.use(rejectCrossSiteWrites(env.APP_ROOT_DOMAIN));
+  app.use(neutralisePublicInput);
   app.use("/assets", express.static(CRM_ASSETS_DIR));
   app.use("/assets", express.static(path.join(__dirname, "public")));
 
@@ -135,8 +148,17 @@ export function createApp() {
         res.status(404).end();
         return;
       }
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      res.type(obj.contentType);
+      // Uploaded bytes are never allowed to run as a page on our origin.
+      const ct = String(obj.contentType || "application/octet-stream").toLowerCase();
+      const inlineSafe = /^(image\/(png|jpe?g|gif|webp|heic|heif|avif)|application\/pdf|video\/(mp4|quicktime|webm)|audio\/(mpeg|mp4|webm|ogg|wav|x-m4a))$/.test(ct);
+      res.setHeader("Cache-Control", "private, max-age=86400");
+      // (Chrome refuses to open PDFs under a sandbox CSP — PDFs are passive, so skip it there.)
+      if (ct !== "application/pdf") {
+        res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox");
+      }
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      if (!inlineSafe) res.setHeader("Content-Disposition", "attachment");
+      res.type(inlineSafe ? ct : "application/octet-stream");
       res.send(obj.body);
     } catch (error) {
       next(error);
@@ -230,6 +252,20 @@ export function createApp() {
 
   // Modo manutenção (Master › Operação): company screens, APIs and client links answer "Voltamos já".
   app.use(maintenanceGuard);
+  // Abuse limits on unauthenticated endpoints (per client IP).
+  app.post(
+    "/public/quotes/:token/verify",
+    rateLimit({
+      name: "quote-verify",
+      limit: 6,
+      windowMs: 15 * 60 * 1000,
+      key: (req) => `${clientIp(req)}:${String(req.params.token || "").slice(0, 64)}`,
+    }),
+  );
+  app.post(/^\/public\/quotes\/[^/]+\/(approve|request-changes|recalculate)$/, rateLimit({ name: "quote-public-write", limit: 30, windowMs: 10 * 60 * 1000 }));
+  app.post(/^\/(public\/jobs|t)\/[^/]+\/photos$/, rateLimit({ name: "ticket-photos", limit: 120, windowMs: 10 * 60 * 1000 }));
+  app.use(["/public", "/t", "/f", "/feeds"], rateLimit({ name: "public-token-pages", limit: 600, windowMs: 5 * 60 * 1000 }));
+  app.post("/invitations/:token", rateLimit({ name: "invite-accept", limit: 10, windowMs: 15 * 60 * 1000 }));
 
   // Public quote links (token-based, no subdomain tenant required)
   app.use("/public", publicQuotesRouter);
@@ -313,6 +349,7 @@ export function createApp() {
   app.use(requireTenant);
   app.use(bindTenantContext);
   app.use(loadSessionUser);
+  app.use(enforcePasswordChange);
   // Support sessions: read-only, payroll hidden, ends on time or from the Master.
   app.use(supportGuard);
   app.use(supportSessionApi);

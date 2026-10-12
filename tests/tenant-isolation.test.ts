@@ -38,14 +38,14 @@ describe("tenant isolation", () => {
       slug: `org-a-${suffix}`,
       adminName: "Admin A",
       adminEmail: `admin-a-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     const orgB = await createOrganizationWithAdmin({
       organizationName: `Org B ${suffix}`,
       slug: `org-b-${suffix}`,
       adminName: "Admin B",
       adminEmail: `admin-b-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgAId = orgA.organization.id;
     orgBId = orgB.organization.id;

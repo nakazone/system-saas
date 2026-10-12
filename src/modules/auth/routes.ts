@@ -5,6 +5,27 @@ import { verifyPassword } from "../../lib/auth/password.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireAuth } from "../../middleware/auth.js";
 import type { TenantRequest } from "../../lib/tenant/resolve-tenant.js";
+import {
+  burnPasswordCheck,
+  isLeakedDefaultPassword,
+  LEAKED_PASSWORD_LOGIN_MESSAGE,
+} from "../../lib/auth/password-policy.js";
+import {
+  loginBlockedFor,
+  loginLockedMessage,
+  recordLoginFailure,
+  recordLoginSuccess,
+} from "../../lib/security/rate-limit.js";
+
+// Same counters as the CRM login (/api/auth/login): both forms protect the same accounts.
+const LOGIN_SCOPE = "crm-login";
+
+/** New session id on login (prevents session fixation), then copy the identity in. */
+function regenerateSession(req: TenantRequest): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((err) => (err ? reject(err) : resolve()));
+  });
+}
 
 export const authRouter = Router();
 
@@ -32,6 +53,16 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
     const email = parsed.data.email.toLowerCase().trim();
     const orgId = parsed.data.organizationId || req.organizationId;
 
+    const locked = loginBlockedFor(LOGIN_SCOPE, req, email);
+    if (locked > 0) {
+      res.status(429).render("auth/login", {
+        title: "Sign in",
+        organization: req.organization ?? null,
+        error: loginLockedMessage(locked),
+      });
+      return;
+    }
+
     let user = null as Awaited<ReturnType<typeof prisma.user.findFirst>>;
 
     if (orgId) {
@@ -58,6 +89,8 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
         }
       }
       if (!user) {
+        if (candidates.length === 0) await burnPasswordCheck(parsed.data.password);
+        recordLoginFailure(LOGIN_SCOPE, req, email);
         res.status(401).render("auth/login", {
           title: "Sign in",
           organization: null,
@@ -65,7 +98,18 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
         });
         return;
       }
+      if (isLeakedDefaultPassword(parsed.data.password)) {
+        recordLoginFailure(LOGIN_SCOPE, req, email);
+        res.status(403).render("auth/login", {
+          title: "Sign in",
+          organization: null,
+          error: LEAKED_PASSWORD_LOGIN_MESSAGE,
+        });
+        return;
+      }
       // password already verified above for email-first path
+      recordLoginSuccess(LOGIN_SCOPE, email);
+      await regenerateSession(req);
       req.session.userId = user.id;
       req.session.organizationId = user.organizationId;
       req.session.workspaceSlug =
@@ -77,6 +121,19 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
     }
 
     if (!user) {
+      await burnPasswordCheck(parsed.data.password);
+      recordLoginFailure(LOGIN_SCOPE, req, email);
+      res.status(401).render("auth/login", {
+        title: "Sign in",
+        organization: req.organization,
+        error: "Invalid email or password.",
+      });
+      return;
+    }
+
+    const orgStatus = (user as { organization?: { status?: string } }).organization?.status;
+    if (orgStatus === "canceled" || orgStatus === "suspended") {
+      recordLoginFailure(LOGIN_SCOPE, req, email);
       res.status(401).render("auth/login", {
         title: "Sign in",
         organization: req.organization,
@@ -105,6 +162,7 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
 
     const ok = await verifyPassword(parsed.data.password, user.passwordHash);
     if (!ok) {
+      recordLoginFailure(LOGIN_SCOPE, req, email);
       res.status(401).render("auth/login", {
         title: "Sign in",
         organization: req.organization,
@@ -112,7 +170,18 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
       });
       return;
     }
+    if (isLeakedDefaultPassword(parsed.data.password)) {
+      recordLoginFailure(LOGIN_SCOPE, req, email);
+      res.status(403).render("auth/login", {
+        title: "Sign in",
+        organization: req.organization,
+        error: LEAKED_PASSWORD_LOGIN_MESSAGE,
+      });
+      return;
+    }
 
+    recordLoginSuccess(LOGIN_SCOPE, email);
+    await regenerateSession(req);
     req.session.userId = user.id;
     req.session.organizationId = user.organizationId;
     const slug =

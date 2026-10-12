@@ -77,7 +77,7 @@ describe.skipIf(!privileged)("settings/quotes — HTTP", () => {
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: "password12345", organizationId }),
+      body: JSON.stringify({ email, password: "Test-Passw0rd-2026", organizationId }),
     });
     const cookie = (r.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
     if (!cookie.includes("=")) throw new Error(`login failed ${r.status}`);
@@ -105,18 +105,18 @@ describe.skipIf(!privileged)("settings/quotes — HTTP", () => {
       slug: `sq-a-${suffix}`,
       adminName: "Admin A",
       adminEmail: emails.admin,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     const b = await createOrganizationWithAdmin({
       organizationName: `Quotes B ${suffix}`,
       slug: `sq-b-${suffix}`,
       adminName: "Admin B",
       adminEmail: `sq-b-${suffix}@example.com`,
-      password: "password12345",
+      password: "Test-Passw0rd-2026",
     });
     orgA = a.organization.id;
     orgB = b.organization.id;
-    const passwordHash = await hashPassword("password12345");
+    const passwordHash = await hashPassword("Test-Passw0rd-2026");
     await withTenantTransaction(orgA, async (tx) => {
       const role = await tx.role.findFirstOrThrow({ where: { key: "sales" } });
       await tx.user.create({ data: { organizationId: orgA, email: emails.sales, name: "Sales", passwordHash, roleId: role.id } });

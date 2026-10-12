@@ -59,7 +59,7 @@ describe.skipIf(!privileged)("job field summary — HTTP access", () => {
     const r = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: "password12345", organizationId }),
+      body: JSON.stringify({ email, password: "Test-Passw0rd-2026", organizationId }),
       redirect: "manual",
     });
     return (r.headers.getSetCookie?.() ?? []).map((c) => c.split(";")[0]).join("; ");
@@ -73,9 +73,9 @@ describe.skipIf(!privileged)("job field summary — HTTP access", () => {
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    orgA = (await createOrganizationWithAdmin({ organizationName: `JF A ${suffix}`, slug: `jf-a-${suffix}`, adminName: "A", adminEmail: emails.admin, password: "password12345" })).organization.id;
-    orgB = (await createOrganizationWithAdmin({ organizationName: `JF B ${suffix}`, slug: `jf-b-${suffix}`, adminName: "B", adminEmail: emails.b, password: "password12345" })).organization.id;
-    const passwordHash = await hashPassword("password12345");
+    orgA = (await createOrganizationWithAdmin({ organizationName: `JF A ${suffix}`, slug: `jf-a-${suffix}`, adminName: "A", adminEmail: emails.admin, password: "Test-Passw0rd-2026" })).organization.id;
+    orgB = (await createOrganizationWithAdmin({ organizationName: `JF B ${suffix}`, slug: `jf-b-${suffix}`, adminName: "B", adminEmail: emails.b, password: "Test-Passw0rd-2026" })).organization.id;
+    const passwordHash = await hashPassword("Test-Passw0rd-2026");
     await withTenantTransaction(orgA, async (tx) => {
       const role = await tx.role.findFirstOrThrow({ where: { key: "crew_lead" } });
       const lead = await tx.user.create({ data: { organizationId: orgA, email: emails.lead, name: "Lead", passwordHash, roleId: role.id } });
