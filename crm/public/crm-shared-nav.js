@@ -1,5 +1,5 @@
 /**
- * Menu CRM padrão (Visão geral / Vendas / Operação / Financeiro) em páginas standalone.
+ * Menu CRM padrão (Início · Calendar · Leads/Clientes · Quotes/Jobs/Invoices · …) em páginas standalone.
  * Respeita permissões via GET /api/auth/session.
  */
 (function () {
@@ -94,25 +94,20 @@
 
   function getSidebarGroups(role) {
     if (isFieldRole(role)) return getFieldSidebarGroups();
+    // Groups with label:null → visual bar between clusters (dock + sidebar).
     return [
       {
-        label: 'Visão geral',
-        items: [
-          { href: '/dashboard', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
-          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
-        ],
+        label: null,
+        items: [{ href: '/dashboard', label: 'Início', perm: null, page: '', iconKey: 'dashboard' }],
       },
       {
-        label: 'Relatórios',
-        items: [
-          { href: 'relatorios.html', label: 'Relatórios', perm: 'reports.view', page: '', iconKey: 'reports' },
-        ],
+        label: null,
+        items: [{ href: 'schedule.html', label: 'Calendar', perm: 'schedule.view', page: '', iconKey: 'schedule' }],
       },
       {
-        label: 'Vendas',
+        label: null,
         items: [
           { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
-          { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
           {
             href: 'customers.html',
             label: 'Clientes',
@@ -123,10 +118,16 @@
         ],
       },
       {
-        label: 'Operação',
+        label: null,
         items: [
-          { href: 'schedule.html', label: 'Calendar', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+          { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
+          { href: 'invoices.html', label: 'Invoices', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
+        ],
+      },
+      {
+        label: null,
+        items: [
           {
             href: 'job-media-board.html',
             label: 'ObraCam',
@@ -134,28 +135,63 @@
             page: '',
             iconKey: 'camera',
           },
+          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
         ],
       },
       {
-        label: 'Financeiro',
+        label: null,
         items: [
-          { href: 'invoices.html', label: 'Invoices', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
-          { href: 'finance.html', label: 'Fluxo de caixa', perm: 'finance.view', page: '', iconKey: 'finance' },
           {
             href: 'folha.html',
-            label: 'Folha de Pagamento',
+            label: 'Folha',
+            ariaLabel: 'Folha de Pagamento',
             perm: 'payroll.view',
             permAny: ['payroll.view'],
             page: '',
             iconKey: 'payroll',
           },
           {
+            href: 'finance.html',
+            label: 'Fluxo',
+            ariaLabel: 'Fluxo de Caixa',
+            perm: 'finance.view',
+            page: '',
+            iconKey: 'finance',
+          },
+          {
             href: 'builder-pricing-admin.html',
-            label: 'Tabela de Valor',
+            label: 'Tabela',
+            ariaLabel: 'Tabela de Valor',
             perm: 'builders.view',
             permAny: ['builders.view', 'quotes.edit'],
             page: '',
             iconKey: 'pricing',
+          },
+        ],
+      },
+      {
+        label: null,
+        items: [
+          {
+            href: 'relatorios.html',
+            label: 'Relatórios',
+            ariaLabel: 'Relatórios',
+            perm: 'reports.view',
+            page: '',
+            iconKey: 'reports',
+          },
+        ],
+      },
+      {
+        label: null,
+        items: [
+          {
+            href: 'configuracoes.html',
+            label: 'Config',
+            ariaLabel: 'Configurações',
+            perm: null,
+            page: '',
+            iconKey: 'settings',
           },
         ],
       },
@@ -180,7 +216,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261009-cli1';
+  const NAV_STRUCTURE_VERSION = '20261012-nav1';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
@@ -347,8 +383,9 @@
     if (Array.isArray(item.permAny) && item.permAny.length) {
       a.setAttribute('data-crm-permission-any', item.permAny.join(','));
     }
-    a.setAttribute('aria-label', item.label);
-    a.removeAttribute('title');
+    const a11y = item.ariaLabel || item.label;
+    a.setAttribute('aria-label', a11y);
+    a.setAttribute('title', a11y);
     const iconHtml = ICONS[item.iconKey] || ICONS.dashboard;
     const tpl = document.createElement('template');
     tpl.innerHTML = iconHtml.trim();

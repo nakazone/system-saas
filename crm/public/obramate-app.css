@@ -388,6 +388,11 @@ body.om-app .dashboard-main {
     margin: 0 0 0.55rem !important;
     padding: 0 !important;
   }
+  body.om-app #dashboardSidebar .sidebar-nav-group + .sidebar-nav-group {
+    border-top: 1px solid var(--plab-line, #E5E7EB);
+    padding-top: 0.5rem !important;
+    margin-top: 0.15rem !important;
+  }
 
   body.om-app #dashboardSidebar .sidebar-nav-group-label {
     display: block !important;

@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261012-svcprev1";
+  const CSS_HREF = "crm-job-modal.css?v=20261012-svcquote1";
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -92,9 +92,10 @@
       pickerQuery: "",
       moreOpen: false,
       busy: false,
-      /** Job acabou de nascer do Quote — serviços em pré-visualização (como no orçamento). */
+      /** Job acabou de nascer do Quote (mensagem de setup). */
       fromQuote: false,
-      svcEdit: false,
+      /** Painel Adicionar/Editar serviço (igual ao Quote): null | { i, name, note, qty, price, pricingId, unit, query, open } */
+      svcPanel: null,
     };
   }
 
@@ -953,116 +954,115 @@
       .slice(0, 12);
   }
 
-  function renderServicesPreview() {
-    const box = $("jmSvc");
-    if (!box) return;
-    const cards = st.lines
-      .map((l, i) => {
-        const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
-        const unit = unitLabel(item?.unit || l.unit);
-        const qty = Number(l.qty) || 0;
-        const note = String(l.note || "").trim();
-        return `<article class="jm-svc-card" data-i="${i}">
-          <div class="jm-svc-card__top">
-            <b class="jm-svc-card__name">${esc(l.name || item?.name || "Serviço")}</b>
-            <span class="jm-svc-card__total">${money(lineTotal(l))}</span>
-          </div>
-          ${note ? `<p class="jm-svc-card__desc">${esc(note)}</p>` : ""}
-          <p class="jm-svc-card__meta">${qty ? `${esc(String(qty))} ${esc(unit)}` : esc(unit)}${Number(l.price) ? ` · ${money(l.price)}/${esc(unit)}` : ""}</p>
-        </article>`;
-      })
-      .join("");
-    box.innerHTML = `${
-      st.lines.length
-        ? `<div class="jm-svc-preview" role="list">${cards}</div>`
-        : `<p class="jm-empty jm-empty--svc">Nenhum serviço veio do orçamento.</p>`
-    }
-      <div class="jm-svc__foot">
-        <span class="jm-svc__foot-acts">
-          <button type="button" class="jm-link" data-act="svc-edit">Editar serviços</button>
+  function blankSvcPanel(opts) {
+    const o = opts || {};
+    return {
+      i: o.i != null ? o.i : null,
+      name: o.name || "",
+      note: o.note || "",
+      qty: o.qty != null ? o.qty : 1,
+      price: o.price != null ? o.price : 0,
+      pricingId: o.pricingId || null,
+      unit: o.unit || null,
+      query: o.query != null ? o.query : o.name || "",
+      open: Boolean(o.open),
+      manual: Boolean(o.manual),
+    };
+  }
+  function svcPanelTotal() {
+    const p = st.svcPanel;
+    if (!p) return 0;
+    return Math.round((Number(p.qty) || 0) * (Number(p.price) || 0) * 100) / 100;
+  }
+  function renderSvcPanelHtml() {
+    const p = st.svcPanel;
+    if (!p) return "";
+    const matches = filterPricing(p.query);
+    const dd = p.open
+      ? `<div class="jm-svc-dd" role="listbox" aria-label="Serviços da tabela">
+          ${
+            matches.length
+              ? matches
+                  .map((item) => {
+                    const rate = priceFor(item);
+                    return `<button type="button" class="jm-svc-dd__opt" role="option" data-act="panel-pick" data-id="${esc(item.id)}"><b>${esc(item.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(item.unit))}` : esc(unitLabel(item.unit))}</small></button>`;
+                  })
+                  .join("")
+              : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`
+          }
+          <button type="button" class="jm-svc-dd__manual" data-act="panel-manual">+ Serviço manual (fora da tabela)</button>
+        </div>`
+      : "";
+    const editing = p.i != null;
+    return `<div class="jm-svc-editor" data-svc-editor="1" aria-label="${editing ? "Editar serviço" : "Adicionar serviço"}">
+      <div class="jm-svc-editor__field jm-svc-pick">
+        <label for="jmSvcName">Nome do serviço</label>
+        <span class="jm-search jm-search--svc${p.open ? " is-open" : ""}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="search" id="jmSvcName" class="jm-in" data-f="panel-q" maxlength="200" placeholder="Buscar na Tabela de Valores…" autocomplete="off" aria-expanded="${p.open ? "true" : "false"}" value="${esc(p.query)}" />
         </span>
-        <span id="jmSvcCount"></span>
-      </div>`;
-    $("jmPriceHint").innerHTML = st.lines.length
-      ? `Serviços copiados do orçamento · total <b>${money(linesTotal())}</b>. Complete Quando, Setor, Equipe e Campo.`
-      : "Adicione serviços ou volte ao orçamento.";
-    updateSvcCount();
+        ${dd}
+      </div>
+      <div class="jm-svc-editor__field">
+        <label for="jmSvcNote">Descrição <span class="jm-svc-editor__hint">(opcional)</span></label>
+        <textarea id="jmSvcNote" class="jm-in jm-ta jm-ta--sm" data-f="panel-note" rows="2" maxlength="2000" placeholder="Nota / descrição deste serviço">${esc(p.note)}</textarea>
+      </div>
+      <div class="jm-svc-editor__pricing">
+        <label class="jm-svc-editor__cell"><span>Quantidade</span><input type="text" class="jm-in" data-f="panel-qty" inputmode="decimal" value="${Number(p.qty) ? esc(p.qty) : ""}" autocomplete="off" /></label>
+        <span class="jm-svc-editor__sep" aria-hidden="true">×</span>
+        <label class="jm-svc-editor__cell"><span>Preço</span><span class="jm-svc-editor__money"><em>$</em><input type="text" class="jm-in" data-f="panel-price" inputmode="decimal" value="${Number(p.price) ? esc(Number(p.price).toFixed(2)) : ""}" autocomplete="off" /></span></label>
+        <span class="jm-svc-editor__sep" aria-hidden="true">=</span>
+        <div class="jm-svc-editor__cell jm-svc-editor__cell--tot"><span>Total</span><strong data-panel-tot>${money(svcPanelTotal())}</strong></div>
+      </div>
+      <div class="jm-svc-editor__acts">
+        <button type="button" class="jm-btn jm-btn--ghost" data-act="svc-cancel">Cancelar</button>
+        <button type="button" class="jm-btn jm-btn--pri" data-act="svc-save">${editing ? "Salvar" : "Adicionar"}</button>
+      </div>
+    </div>`;
   }
   function renderServices() {
     const box = $("jmSvc");
     if (!box) return;
-    if (st.fromQuote && !st.svcEdit) {
-      renderServicesPreview();
-      return;
-    }
     const rows = st.lines
       .map((l, i) => {
         const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
         const unit = unitLabel(item?.unit || l.unit);
-        const useManualUi = Boolean(l.manual);
-        const displayQ =
-          l.svcOpen || String(l.svcQuery || "").length
-            ? l.svcQuery
-            : item
-              ? item.name
-              : l.pricingId
-                ? l.name
-                : l.svcQuery || "";
-        const matches = filterPricing(l.svcOpen ? l.svcQuery : displayQ);
-        const dd = l.svcOpen
-          ? `<div class="jm-svc-dd" role="listbox" aria-label="Serviços da tabela">
-              ${
-                matches.length
-                  ? matches
-                      .map((p) => {
-                        const rate = priceFor(p);
-                        return `<button type="button" class="jm-svc-dd__opt" role="option" data-act="pick-svc" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(p.unit))}` : esc(unitLabel(p.unit))}</small></button>`;
-                      })
-                      .join("")
-                  : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`
-              }
-              <button type="button" class="jm-svc-dd__manual" data-act="manual-line">+ Serviço manual (fora da tabela)</button>
-            </div>`
-          : "";
-        return `<div class="jm-ln" data-i="${i}">
-          <div class="jm-ln__svc">
-            ${
-              useManualUi
-                ? `<span class="jm-ln__manual-lbl">Serviço manual</span>
-                   <input type="text" class="jm-in jm-in--sm" data-f="name" maxlength="200" placeholder="Descrição do serviço" value="${esc(l.name)}" aria-label="Nome do serviço" />
-                   <button type="button" class="jm-link" data-act="to-catalog" style="justify-self:start">Buscar na tabela</button>`
-                : `<div class="jm-svc-pick">
-                    <span class="jm-search jm-search--svc${l.svcOpen ? " is-open" : ""}">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-                      <input type="search" class="jm-in" data-f="svc-q" maxlength="200" placeholder="Buscar serviço na tabela…" autocomplete="off" aria-label="Buscar serviço" aria-expanded="${l.svcOpen ? "true" : "false"}" value="${esc(displayQ)}" />
-                    </span>
-                    ${dd}
-                  </div>`
-            }
-            <label class="jm-ln__note"><span class="jm-sr">Nota do serviço</span><input type="text" class="jm-in jm-in--sm" data-f="note" maxlength="2000" placeholder="Nota / descrição deste serviço (opcional)" value="${esc(l.note || "")}" /></label>
+        const name = l.name || item?.name || "Sem nome";
+        const note = String(l.note || "").trim();
+        const editing = st.svcPanel && st.svcPanel.i === i;
+        return `<article class="jm-svc-row${editing ? " is-editing" : ""}" data-i="${i}" role="listitem">
+          <div class="jm-svc-row__name" data-act="edit-line" role="button" tabindex="0" title="Editar serviço">
+            <b>${esc(name)}</b>
+            ${note ? `<small>${esc(note)}</small>` : ""}
           </div>
-          <label class="jm-ln__qty"><input type="number" class="jm-in jm-in--sm" data-f="qty" min="0" step="0.01" inputmode="decimal" value="${Number(l.qty) ? esc(l.qty) : ""}" placeholder="0" aria-label="Quantidade" /><span>${esc(unit)}</span></label>
-          <label class="jm-ln__price"><span>$</span><input type="number" class="jm-in jm-in--sm" data-f="price" min="0" step="0.01" inputmode="decimal" value="${Number(l.price) ? esc(Number(l.price).toFixed(2)) : ""}" placeholder="0.00" aria-label="Preço por ${esc(unit)}" /></label>
-          <b class="jm-ln__tot" data-tot>${money(lineTotal(l))}</b>
-          <button type="button" class="jm-ln__del" data-act="del-line" aria-label="Remover serviço">×</button>
-        </div>`;
+          <label class="jm-svc-row__qty"><span class="jm-svc-row__lbl">Qtd</span><input type="text" inputmode="decimal" data-f="qty" value="${Number(l.qty) ? esc(l.qty) : ""}" aria-label="Quantidade de ${esc(name)}" autocomplete="off" /></label>
+          <span class="jm-svc-row__unit">${esc(unit)}</span>
+          <label class="jm-svc-row__rate"><span class="jm-svc-row__lbl">Preço</span><span class="jm-svc-row__cur">$</span><input type="text" inputmode="decimal" data-f="price" value="${Number(l.price) ? esc(Number(l.price).toFixed(2)) : ""}" aria-label="Preço de ${esc(name)}" autocomplete="off" /></label>
+          <span class="jm-svc-row__total" data-tot>${money(lineTotal(l))}</span>
+          <div class="jm-svc-row__act">
+            <button type="button" class="jm-svc-row__ic" data-act="edit-line" title="Editar" aria-label="Editar ${esc(name)}">✎</button>
+            <button type="button" class="jm-svc-row__ic jm-svc-row__ic--del" data-act="del-line" title="Remover" aria-label="Remover ${esc(name)}">×</button>
+          </div>
+        </article>`;
       })
       .join("");
-    box.innerHTML = `${
-      st.lines.length
-        ? `<div class="jm-ln jm-ln--hdr" aria-hidden="true"><span>Serviço</span><span>Quantidade</span><span>Preço</span><span>Total</span><span></span></div>${rows}`
-        : `<p class="jm-empty jm-empty--svc">Nenhum serviço ainda. Os serviços, com o preço da tabela, viram a fatura do job.</p>`
-    }
+    const list =
+      st.lines.length || st.svcPanel
+        ? `<div class="jm-svc-list" role="list">
+            ${st.lines.length ? `<div class="jm-svc-list__head" aria-hidden="true"><span></span><span>Serviço</span><span class="r">Qtd</span><span>Un.</span><span class="r">Preço</span><span class="r">Total</span><span></span></div>` : ""}
+            ${rows}
+            ${renderSvcPanelHtml()}
+          </div>`
+        : `<p class="jm-empty jm-empty--svc">Nenhum serviço neste job. Adicione da Tabela de Valores — o valor vira a fatura.</p>`;
+    box.innerHTML = `${list}
       <div class="jm-svc__foot">
-        <span class="jm-svc__foot-acts">
-          ${st.fromQuote ? `<button type="button" class="jm-link" data-act="svc-preview">Ver pré-visualização</button>` : ""}
-          <button type="button" class="jm-link" data-act="add-line">+ Adicionar serviço</button>
-          <button type="button" class="jm-link" data-act="add-manual">+ Serviço manual</button>
-        </span>
+        <button type="button" class="jm-svc__add" data-act="add-line"${st.svcPanel ? " disabled" : ""}>+ Adicionar serviço</button>
         <span id="jmSvcCount"></span>
       </div>`;
     const card = clientCard();
-    $("jmPriceHint").innerHTML = `Preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Dá para ajustar o preço em cada linha.`;
+    $("jmPriceHint").innerHTML = st.fromQuote
+      ? `Serviços do orçamento · preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Ajuste se precisar.`
+      : `Preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Igual ao orçamento: busque na tabela e ajuste quantidade/preço.`;
     updateSvcCount();
   }
 
@@ -1686,7 +1686,7 @@
     if (opts && opts.fromQuote) {
       st.section = "all";
       st.fromQuote = true;
-      st.svcEdit = false;
+      st.svcPanel = null;
       st.notes = "";
       if (!wo.scheduled_start) {
         st.date = "";
@@ -1942,9 +1942,13 @@
 
   // ---------------------------------------------------------------- events
   function lineFromEl(el) {
-    const row = el.closest(".jm-ln");
+    const row = el.closest(".jm-svc-row, .jm-ln");
     const i = row ? Number(row.getAttribute("data-i")) : -1;
     return { row, i, line: i >= 0 ? st.lines[i] : null };
+  }
+  function syncPanelTot() {
+    const el = $("jmSvc")?.querySelector("[data-panel-tot]");
+    if (el) el.textContent = money(svcPanelTotal());
   }
 
   function onClick(e) {
@@ -2037,88 +2041,100 @@
         openScheduleLixaFrom(snap);
         break;
       }
-      case "svc-edit":
-        st.svcEdit = true;
-        renderServices();
-        break;
-      case "svc-preview":
-        st.svcEdit = false;
-        renderServices();
-        break;
       case "add-line":
-        st.svcEdit = true;
-        st.lines.push(blankLine());
+        st.svcPanel = blankSvcPanel({ open: true, query: "" });
         renderServices();
-        refreshNumbers();
-        setTimeout(() => {
-          const inputs = $("jmSvc").querySelectorAll('[data-f="svc-q"]');
-          const last = inputs[inputs.length - 1];
-          if (last) {
-            last.focus();
-            const { line } = lineFromEl(last);
-            if (line) {
-              line.svcOpen = true;
-              line.svcQuery = "";
-              renderServices();
-              $("jmSvc").querySelector(`.jm-ln[data-i="${st.lines.length - 1}"] [data-f="svc-q"]`)?.focus();
-            }
-          }
-        }, 20);
+        setTimeout(() => $("jmSvcName")?.focus(), 20);
         break;
-      case "add-manual":
-        st.lines.push(blankLine({ manual: true }));
+      case "edit-line": {
+        const { i, line } = lineFromEl(btn);
+        if (!line || i < 0) break;
+        const item = line.pricingId ? pricing.find((p) => p.id === line.pricingId) : null;
+        st.svcPanel = blankSvcPanel({
+          i,
+          name: line.name || item?.name || "",
+          note: line.note || "",
+          qty: Number(line.qty) || 1,
+          price: Number(line.price) || 0,
+          pricingId: line.pricingId || null,
+          unit: item?.unit || line.unit || null,
+          query: line.name || item?.name || "",
+          open: false,
+          manual: Boolean(line.manual),
+        });
         renderServices();
-        refreshNumbers();
-        setTimeout(() => {
-          const inputs = $("jmSvc").querySelectorAll('[data-f="name"]');
-          inputs[inputs.length - 1]?.focus();
-        }, 20);
-        break;
-      case "manual-line": {
-        const { line, i } = lineFromEl(btn);
-        if (!line) break;
-        const q = String(line.svcQuery || "").trim();
-        line.manual = true;
-        line.pricingId = null;
-        line.unit = null;
-        line.svcOpen = false;
-        line.svcQuery = "";
-        if (!String(line.name || "").trim() && q) line.name = q;
-        renderServices();
-        refreshNumbers();
-        setTimeout(() => $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="name"]`)?.focus(), 20);
+        setTimeout(() => $("jmSvcName")?.focus(), 20);
         break;
       }
-      case "to-catalog": {
-        const { line, i } = lineFromEl(btn);
-        if (!line) break;
-        line.manual = false;
-        line.svcOpen = true;
-        line.svcQuery = "";
+      case "svc-cancel":
+        st.svcPanel = null;
         renderServices();
-        setTimeout(() => $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="svc-q"]`)?.focus(), 20);
         break;
-      }
-      case "pick-svc": {
-        const { line, i } = lineFromEl(btn);
-        if (!line) break;
-        const item = pricing.find((p) => p.id === btn.getAttribute("data-id")) || null;
-        line.manual = false;
-        line.pricingId = item ? item.id : null;
-        line.unit = item?.unit || null;
-        if (item) line.name = item.name;
-        line.price = item ? priceFor(item) : line.price;
-        line.priceTouched = false;
-        line.svcOpen = false;
-        line.svcQuery = "";
+      case "svc-save": {
+        const p = st.svcPanel;
+        if (!p) break;
+        const name = String(p.name || p.query || "").trim();
+        if (!name) {
+          notify("Informe o nome do serviço.", "error");
+          $("jmSvcName")?.focus();
+          break;
+        }
+        const row = {
+          ...blankLine({
+            pricingId: p.pricingId,
+            name,
+            qty: Number(p.qty) || 0,
+            price: Number(p.price) || 0,
+            unit: p.unit,
+            priceTouched: true,
+            manual: Boolean(p.manual) || !p.pricingId,
+            note: String(p.note || "").trim(),
+          }),
+        };
+        if (p.i != null && p.i >= 0) st.lines[p.i] = row;
+        else st.lines.push(row);
+        st.svcPanel = null;
         renderServices();
         refreshNumbers();
-        setTimeout(() => $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="qty"]`)?.focus(), 20);
+        break;
+      }
+      case "panel-pick": {
+        if (!st.svcPanel) break;
+        const item = pricing.find((x) => x.id === btn.getAttribute("data-id")) || null;
+        if (!item) break;
+        st.svcPanel.manual = false;
+        st.svcPanel.pricingId = item.id;
+        st.svcPanel.unit = item.unit || null;
+        st.svcPanel.name = item.name;
+        st.svcPanel.query = item.name;
+        st.svcPanel.price = priceFor(item);
+        st.svcPanel.open = false;
+        renderServices();
+        setTimeout(() => $("jmSvc")?.querySelector('[data-f="panel-qty"]')?.focus(), 20);
+        break;
+      }
+      case "panel-manual": {
+        if (!st.svcPanel) break;
+        const q = String(st.svcPanel.query || "").trim();
+        st.svcPanel.manual = true;
+        st.svcPanel.pricingId = null;
+        st.svcPanel.unit = null;
+        st.svcPanel.open = false;
+        if (q) {
+          st.svcPanel.name = q;
+          st.svcPanel.query = q;
+        }
+        renderServices();
+        setTimeout(() => $("jmSvcName")?.focus(), 20);
         break;
       }
       case "del-line": {
         const { i } = lineFromEl(btn);
-        if (i >= 0) st.lines.splice(i, 1);
+        if (i >= 0) {
+          st.lines.splice(i, 1);
+          if (st.svcPanel && st.svcPanel.i === i) st.svcPanel = null;
+          else if (st.svcPanel && st.svcPanel.i != null && st.svcPanel.i > i) st.svcPanel.i -= 1;
+        }
         renderServices();
         refreshNumbers();
         break;
@@ -2223,51 +2239,43 @@
         break;
     }
     const f = t.getAttribute && t.getAttribute("data-f");
-    if (f === "svc-q") {
-      const { line, i } = lineFromEl(t);
-      if (!line) return;
-      line.svcQuery = t.value;
-      line.svcOpen = true;
-      line.manual = false;
-      // Keep caret: re-render dropdown only via lightweight update
-      const pick = t.closest(".jm-svc-pick");
-      if (pick) {
-        const matches = filterPricing(line.svcQuery);
-        let dd = pick.querySelector(".jm-svc-dd");
-        if (!dd) {
-          dd = document.createElement("div");
-          dd.className = "jm-svc-dd";
-          dd.setAttribute("role", "listbox");
-          dd.setAttribute("aria-label", "Serviços da tabela");
-          pick.appendChild(dd);
+    if (f === "panel-q" || f === "panel-note" || f === "panel-qty" || f === "panel-price") {
+      if (!st.svcPanel) return;
+      if (f === "panel-q") {
+        st.svcPanel.query = t.value;
+        st.svcPanel.name = t.value;
+        st.svcPanel.open = true;
+        // Lightweight dropdown refresh (keep caret)
+        const pick = t.closest(".jm-svc-pick");
+        if (pick) {
+          const matches = filterPricing(st.svcPanel.query);
+          let dd = pick.querySelector(".jm-svc-dd");
+          if (!dd) {
+            dd = document.createElement("div");
+            dd.className = "jm-svc-dd";
+            dd.setAttribute("role", "listbox");
+            pick.appendChild(dd);
+          }
+          dd.hidden = false;
+          t.closest(".jm-search--svc")?.classList.add("is-open");
+          t.setAttribute("aria-expanded", "true");
+          dd.innerHTML =
+            (matches.length
+              ? matches
+                  .map((p) => {
+                    const rate = priceFor(p);
+                    return `<button type="button" class="jm-svc-dd__opt" role="option" data-act="panel-pick" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(p.unit))}` : esc(unitLabel(p.unit))}</small></button>`;
+                  })
+                  .join("")
+              : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`) +
+            `<button type="button" class="jm-svc-dd__manual" data-act="panel-manual">+ Serviço manual (fora da tabela)</button>`;
         }
-        dd.hidden = false;
-        t.closest(".jm-search--svc")?.classList.add("is-open");
-        t.setAttribute("aria-expanded", "true");
-        dd.innerHTML =
-          (matches.length
-            ? matches
-                .map((p) => {
-                  const rate = priceFor(p);
-                  return `<button type="button" class="jm-svc-dd__opt" role="option" data-act="pick-svc" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(p.unit))}` : esc(unitLabel(p.unit))}</small></button>`;
-                })
-                .join("")
-            : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`) +
-          `<button type="button" class="jm-svc-dd__manual" data-act="manual-line">+ Serviço manual (fora da tabela)</button>`;
-        // Close other rows' dropdowns without full re-render
-        st.lines.forEach((other, oi) => {
-          if (oi !== i && other.svcOpen) other.svcOpen = false;
-        });
-        $("jmSvc")
-          .querySelectorAll(".jm-ln")
-          .forEach((row) => {
-            const ri = Number(row.getAttribute("data-i"));
-            if (ri === i) return;
-            row.querySelector(".jm-svc-dd")?.remove();
-            row.querySelector(".jm-search--svc")?.classList.remove("is-open");
-            row.querySelector('[data-f="svc-q"]')?.setAttribute("aria-expanded", "false");
-          });
+        return;
       }
+      if (f === "panel-note") st.svcPanel.note = t.value;
+      if (f === "panel-qty") st.svcPanel.qty = t.value;
+      if (f === "panel-price") st.svcPanel.price = t.value;
+      syncPanelTot();
       return;
     }
     if (f === "qty" || f === "price" || f === "name" || f === "note") {
@@ -2394,6 +2402,12 @@
 
   function onKey(e) {
     if (!st) return;
+    if (e.key === "Enter" && e.target.closest?.("[data-svc-editor]")) {
+      if (e.target.tagName === "TEXTAREA") return;
+      e.preventDefault();
+      $("jmSvc")?.querySelector('[data-act="svc-save"]')?.click();
+      return;
+    }
     if (e.key === "Enter" && e.target.id === "jmClientQ") {
       e.preventDefault();
       $("jmClient").querySelector('[data-act="pick"]')?.click();
@@ -2436,24 +2450,18 @@
           tableRate: item ? systemRateFor(item) : 0,
         };
       }
-      if (t.getAttribute && t.getAttribute("data-f") === "svc-q") {
-        const { line, i } = lineFromEl(t);
-        if (!line) return;
-        const wasOpen = Boolean(line.svcOpen);
-        st.lines.forEach((other, oi) => {
-          other.svcOpen = oi === i;
-        });
-        if (!wasOpen) {
-          line.svcQuery = "";
-          renderServices();
-          const again = $("jmSvc").querySelector(`.jm-ln[data-i="${i}"] [data-f="svc-q"]`);
+      if (t.getAttribute && t.getAttribute("data-f") === "panel-q" && st.svcPanel && !st.svcPanel.open) {
+        st.svcPanel.open = true;
+        renderServices();
+        setTimeout(() => {
+          const again = $("jmSvcName");
           if (again) {
             again.focus();
             try {
               again.select();
             } catch (_) {}
           }
-        }
+        }, 0);
       }
     });
     modal.addEventListener("focusout", (e) => {
@@ -2474,11 +2482,8 @@
     document.addEventListener("pointerdown", (e) => {
       if (!st || !modal.classList.contains("is-open")) return;
       if (e.target.closest(".jm-svc-pick")) return;
-      if (!st.lines.some((l) => l.svcOpen)) return;
-      st.lines.forEach((l) => {
-        l.svcOpen = false;
-        l.svcQuery = "";
-      });
+      if (!st.svcPanel?.open) return;
+      st.svcPanel.open = false;
       renderServices();
     });
     document.addEventListener("keydown", (e) => {
@@ -2488,11 +2493,14 @@
         return;
       }
       if (e.key === "Escape" && st && modal.classList.contains("is-open")) {
-        if (st.lines.some((l) => l.svcOpen)) {
-          st.lines.forEach((l) => {
-            l.svcOpen = false;
-            l.svcQuery = "";
-          });
+        if (st.svcPanel?.open) {
+          st.svcPanel.open = false;
+          renderServices();
+          e.stopPropagation();
+          return;
+        }
+        if (st.svcPanel) {
+          st.svcPanel = null;
           renderServices();
           e.stopPropagation();
           return;
