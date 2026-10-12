@@ -6312,6 +6312,7 @@
     header: qbBridgeHeader,
     totals: qbBridgeTotals,
     toast: (m, t) => qbToast(m, t),
+    save: () => saveQuote(),
   };
 
   /** Links vindos da lista: ?services=1 abre o documento editável, ?send=1 abre o envio. */

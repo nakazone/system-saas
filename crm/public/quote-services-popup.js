@@ -1,9 +1,9 @@
 /**
- * Popup de serviços do construtor de orçamento — mesma aparência do PDF.
- *  - Documento (openDoc): a folha é editável no lugar (nome, descrição, qtd, unidade, preço).
- *  - Passo a passo (openStep): Serviço → Quantidade → Preço → Descrição → Seção,
- *    com a linha nova entrando na folha ao lado a cada passo.
- * Lê e grava os itens pelo window.QBBridge (quote-builder.js).
+ * Popup de serviços do construtor de orçamento — mesma aparência do PDF, numa tela só:
+ *  - à esquerda, "Adicionar serviço" (Serviço → Quantidade → Preço → Descrição → Seção);
+ *  - à direita, a folha do PDF, editável no lugar, com a linha nova entrando ao vivo.
+ * Ao adicionar, a linha vai para a folha e o painel volta para o próximo serviço — sem fechar.
+ * Cada mudança já vai para o orçamento (QBBridge, quote-builder.js); "Salvar e fechar" grava.
  */
 (function () {
   const P = window.OmQuotePaper;
@@ -28,14 +28,15 @@
 
   let paper = null; // GET /api/quotes/:id/paper
   let paperFor = undefined;
-  let mode = null; // 'doc' | 'step'
-  let W = null; // itens em edição no modo documento
-  let docDirty = false;
-  let fromDoc = false;
+  let open = false;
+  let W = []; // itens do orçamento (cópia viva, sincronizada com o construtor)
+  let added = 0; // serviços adicionados nesta abertura
   let draft = null;
   let step = 1;
   let ddState = null;
-  let cancelArmed = 0;
+  let syncT = null;
+  let flashKey = null;
+  let saving = false;
   const E = {};
 
   function esc(s) {
@@ -54,6 +55,13 @@
   }
   function isPhone() {
     return window.matchMedia('(max-width: 760px)').matches;
+  }
+  function stacked() {
+    return window.matchMedia('(max-width: 1024px) and (orientation: portrait), (max-width: 900px)').matches;
+  }
+  function secName(st) {
+    const n = B().normalizeServiceType(st);
+    return n === 'Sand & Finishing' ? 'Sand & Finish' : n;
   }
 
   /* ---------- dados da folha ---------- */
@@ -87,13 +95,13 @@
     };
   }
 
-  function buildModel(list, extraLine) {
+  function buildModel(withDraft) {
     const h = B().header();
     const pd = paper || {};
-    const all = extraLine ? list.concat([extraLine.item]) : list;
-    const t = B().totals(all);
-    const lines = list.map((it, i) => itemToLine(it, i));
-    if (extraLine) lines.push(itemToLine(extraLine.item, 'new'));
+    const d = withDraft ? draftItem() : null;
+    const t = B().totals(d && d.name ? W.concat([d]) : W);
+    const lines = W.map((it, i) => itemToLine(it, i));
+    if (d) lines.push(itemToLine(d, 'new'));
     const prepared = pd.preparedBy || {};
     return {
       org: P.orgFromApi(pd),
@@ -124,158 +132,169 @@
     };
   }
 
-  /* ---------- casca do popup ---------- */
+  /** Leva a folha para o orçamento (o construtor marca "alterações não salvas"). */
+  function sync(now) {
+    clearTimeout(syncT);
+    const run = () => {
+      syncT = null;
+      B().setItems(W.filter((it) => String(it.name || '').trim() || Number(it.rate) > 0));
+    };
+    if (now) run();
+    else syncT = setTimeout(run, 350);
+  }
+
+  /* ---------- casca ---------- */
   function ensureDom() {
     if (E.root) return;
     const root = document.createElement('div');
     root.className = 'qpe';
     root.id = 'qpe';
     root.hidden = true;
+    root.dataset.mode = 'work';
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-modal', 'true');
     root.setAttribute('aria-labelledby', 'qpeTitle');
     root.innerHTML = `
       <div class="qpe-box">
         <header class="qpe-hd">
-          <button type="button" class="qpe-x" data-qpe-cancel aria-label="Fechar"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          <button type="button" class="qpe-x" data-qpe-close aria-label="Fechar"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
           <div class="qpe-hd__t"><h2 id="qpeTitle"></h2><p id="qpeSub"></p></div>
           <div class="qpe-hd__r">
             <span class="qpe-tot">Total <b id="qpeTotal">$0.00</b></span>
-            <button type="button" class="qpe-btn qpe-btn--ghost" id="qpeCancel" data-qpe-cancel>Cancelar</button>
-            <button type="button" class="qpe-btn qpe-btn--pri" id="qpeDone">Pronto</button>
+            <button type="button" class="qpe-btn qpe-btn--ghost" data-qpe-close>Fechar</button>
+            <button type="button" class="qpe-btn qpe-btn--pri" id="qpeSave">Salvar e fechar</button>
           </div>
         </header>
         <div class="qpe-body">
-          <section class="qpe-steps" id="qpeSteps" aria-label="Passo a passo"></section>
+          <section class="qpe-steps" id="qpeSteps" aria-label="Adicionar serviço"></section>
           <div class="qpe-wrap" id="qpeWrap"><div class="qp" id="qpePaper"></div></div>
-          <aside class="qpe-side" id="qpeSide"></aside>
-        </div>
-        <div class="qpe-mbar" id="qpeMbar">
-          <span class="qpe-mbar__t">Total <b id="qpeMTotal">$0.00</b></span>
-          <button type="button" class="qpe-btn qpe-btn--pri" data-qpe-add="">+ Adicionar serviço</button>
         </div>
       </div>
       <div class="qpe-dd" id="qpeDD" hidden role="listbox"></div>`;
     document.body.appendChild(root);
     E.root = root;
-    ['qpeTitle', 'qpeSub', 'qpeTotal', 'qpeMTotal', 'qpeCancel', 'qpeDone', 'qpeSteps', 'qpeWrap', 'qpePaper', 'qpeSide', 'qpeMbar', 'qpeDD'].forEach((id) => {
+    ['qpeTitle', 'qpeSub', 'qpeTotal', 'qpeSave', 'qpeSteps', 'qpeWrap', 'qpePaper', 'qpeDD'].forEach((id) => {
       E[id] = document.getElementById(id);
     });
     bind();
   }
 
-  function show() {
+  /** Abre a tela (opts.section já escolhe a seção do próximo serviço). */
+  async function openWork(opts) {
+    if (!B()) return;
+    ensureDom();
+    opts = opts || {};
+    if (!open) {
+      W = B().getItems();
+      added = 0;
+      draft = newDraft(sectionSt(opts.section));
+      step = 1;
+    }
+    await loadPaper();
+    open = true;
     E.root.hidden = false;
     document.documentElement.classList.add('qpe-open');
-    E.root.dataset.mode = mode;
+    renderHead();
+    renderAll(true);
+    if (opts.focusPaper) E.qpeWrap.scrollTop = 0;
   }
-  function hide() {
+  function close() {
+    if (syncT) sync(true);
+    open = false;
     E.root.hidden = true;
     document.documentElement.classList.remove('qpe-open');
     hideDD();
-    mode = null;
-    W = null;
-    draft = null;
+    if (added) B().toast(`${added} ${added === 1 ? 'serviço adicionado' : 'serviços adicionados'} — lembre de salvar o orçamento.`, 'success');
+  }
+  async function saveAndClose() {
+    if (saving) return;
+    if (syncT) sync(true);
+    saving = true;
+    E.qpeSave.disabled = true;
+    E.qpeSave.textContent = 'Salvando…';
+    let ok = false;
+    try {
+      ok = (await B().save()) !== false;
+    } catch (_) {
+      ok = false;
+    }
+    saving = false;
+    E.qpeSave.disabled = false;
+    E.qpeSave.textContent = 'Salvar e fechar';
+    if (ok) {
+      added = 0;
+      close();
+    }
   }
 
   function setTotal(v) {
     E.qpeTotal.textContent = money(v);
-    E.qpeMTotal.textContent = money(v);
   }
-
-  /* ---------- modo documento ---------- */
-  async function openDoc() {
-    if (!B()) return;
-    ensureDom();
-    mode = 'doc';
-    fromDoc = false;
-    W = B().getItems();
-    docDirty = false;
-    await loadPaper();
-    show();
-    renderDoc();
-    E.qpeWrap.scrollTop = 0;
-  }
-
-  function docTitle() {
+  function renderHead() {
     const n = B().header().number || (paper && paper.number) || '';
-    return `Serviços do orçamento${n ? ' · ' + n : ''}`;
+    E.qpeTitle.textContent = `Serviços do orçamento${n ? ' · ' + n : ''}`;
+    E.qpeSub.textContent = isPhone()
+      ? 'Adicione embaixo · toque na folha para editar'
+      : stacked()
+        ? 'Adicione abaixo e veja a linha entrar na folha · toque na folha para editar'
+        : 'Adicione à esquerda e veja a linha entrar na folha · clique na folha para editar';
   }
 
-  function renderDoc(focusKey) {
-    E.root.dataset.mode = 'doc';
-    E.qpeTitle.textContent = docTitle();
-    E.qpeSub.textContent = 'Edite direto no documento — é assim que o cliente vê o PDF';
-    E.qpeDone.textContent = 'Pronto';
-    E.qpeDone.hidden = false;
-    E.qpeCancel.textContent = 'Cancelar';
-    cancelArmed = 0;
-    const m = buildModel(W);
-    E.qpePaper.innerHTML = P.render(m, { mode: 'edit', focusKey });
+  /* ---------- folha ---------- */
+  function renderPaper(scrollToNew) {
+    const m = buildModel(true);
+    E.qpePaper.innerHTML = P.render(m, { mode: 'edit', newKey: 'new' });
     E.qpePaper.querySelectorAll('.qp-in--desc').forEach(autosize);
     setTotal(m.total);
-    renderSide(m);
-    E.qpeMbar.querySelector('[data-qpe-add]').setAttribute('data-qpe-add', '');
+    if (flashKey != null) {
+      const row = E.qpePaper.querySelector(`.qp-tr[data-k="${flashKey}"]`);
+      if (row) row.classList.add('is-flash');
+    }
+    if (scrollToNew) scrollIntoWrap(E.qpePaper.querySelector('.qp-tr.is-new'));
   }
-
-  function renderSide(m) {
-    const sq = B().header().projectArea;
-    E.qpeSide.innerHTML = `
-      <div class="qpe-card">
-        <button type="button" class="qpe-btn qpe-btn--pri qpe-btn--full" data-qpe-add="">+ Adicionar serviço</button>
-        <p class="qpe-note">Passo a passo, vendo a linha entrar no PDF.</p>
-      </div>
-      <div class="qpe-card">
-        <h3>Resumo</h3>
-        <dl class="qpe-sum">
-          <div><dt>Subtotal</dt><dd data-side="sub">${money(m.subtotal)}</dd></div>
-          ${m.discount > 0 ? `<div><dt>Desconto</dt><dd data-side="disc">−${money(m.discount)}</dd></div>` : ''}
-          <div><dt>Imposto</dt><dd data-side="tax">${money(m.tax)}</dd></div>
-          <div class="qpe-sum__t"><dt>Total</dt><dd data-side="total">${money(m.total)}</dd></div>
-          ${sq > 0 ? `<div><dt>Por sq ft</dt><dd data-side="sqft">${money(m.total / sq)}</dd></div>` : ''}
-        </dl>
-        <p class="qpe-note">Desconto e imposto ficam no resumo do orçamento.</p>
-      </div>
-      <div class="qpe-card">
-        <h3>Atalhos</h3>
-        <ul class="qpe-tips">
-          <li>Clique em qualquer texto da folha para editar</li>
-          <li>Digite o nome para buscar na Tabela de Valor (${esc(B().pricingLabel())})</li>
-          <li><kbd>Enter</kbd> vai para o próximo campo</li>
-        </ul>
-      </div>`;
+  function scrollIntoWrap(row) {
+    if (!row) return;
+    const wr = E.qpeWrap.getBoundingClientRect();
+    const rr = row.getBoundingClientRect();
+    if (rr.top < wr.top + 20 || rr.bottom > wr.bottom - 20) {
+      E.qpeWrap.scrollTop += rr.top - wr.top - wr.height / 3;
+    }
   }
-
-  function refreshDocNumbers() {
-    const m = buildModel(W);
+  /** Atualiza só a linha nova (sem recriar os campos da folha). */
+  function refreshDraftRow() {
+    const old = E.qpePaper.querySelector('.qp-tr.is-new');
+    const m = buildModel(true);
+    const sec = P.sectionOf('service', draftItem().service_type);
+    const oldSec = old && old.closest('.qp-block') && old.closest('.qp-block').querySelector('.qp-sec');
+    if (!old || !oldSec || oldSec.getAttribute('data-sec') !== sec) {
+      renderPaper(true);
+      return;
+    }
+    const tmp = document.createElement('div');
+    tmp.innerHTML = P.render(m, { mode: 'edit', newKey: 'new' });
+    const fresh = tmp.querySelector('.qp-tr.is-new');
+    if (fresh) old.replaceWith(fresh);
     P.refreshNumbers(E.qpePaper, m);
     setTotal(m.total);
-    const set = (k, v) => {
-      const el = E.qpeSide.querySelector(`[data-side="${k}"]`);
-      if (el) el.textContent = v;
-    };
-    set('sub', money(m.subtotal));
-    set('disc', '−' + money(m.discount));
-    set('tax', money(m.tax));
-    set('total', money(m.total));
-    const sq = B().header().projectArea;
-    if (sq > 0) set('sqft', money(m.total / sq));
   }
-
+  function refreshNumbers() {
+    const m = buildModel(true);
+    P.refreshNumbers(E.qpePaper, m);
+    setTotal(m.total);
+  }
   function autosize(t) {
     t.style.setProperty('height', 'auto', 'important');
     t.style.setProperty('height', t.scrollHeight + 2 + 'px', 'important');
   }
 
-  function onDocInput(e) {
+  function onPaperInput(e) {
     const inp = e.target.closest('[data-f]');
-    if (!inp || mode !== 'doc') return;
+    if (!inp || !open) return;
     const row = inp.closest('.qp-tr');
     const k = Number(row && row.getAttribute('data-k'));
     const it = W[k];
     if (!it) return;
     const f = inp.getAttribute('data-f');
-    docDirty = true;
     if (f === 'name') {
       it.name = inp.value;
       openDD(inp, k);
@@ -291,10 +310,11 @@
     } else if (f === 'unit') {
       it.unit_type = inp.value;
     }
-    refreshDocNumbers();
+    refreshNumbers();
+    sync();
   }
 
-  /* ---------- busca na Tabela de Valor (modo documento) ---------- */
+  /* ---------- busca na Tabela de Valor (linhas da folha) ---------- */
   function openDD(input, k) {
     const q = String(input.value || '').trim();
     const rows = B().filterCatalog(q).slice(0, 7);
@@ -303,9 +323,8 @@
       return;
     }
     ddState = { input, k, rows, on: 0 };
-    const label = B().pricingLabel();
     E.qpeDD.innerHTML =
-      `<div class="qpe-dd__h">Tabela de Valor · ${esc(label)}</div>` +
+      `<div class="qpe-dd__h">Tabela de Valor · ${esc(B().pricingLabel())}</div>` +
       rows
         .map(
           (r, i) => `<button type="button" class="qpe-dd__o${i === 0 ? ' is-on' : ''}" data-dd="${i}" role="option">
@@ -348,13 +367,13 @@
       cost_price: rate > 0 ? rate : null,
       markup_percentage: null,
     };
-    docDirty = true;
-    renderDoc(k);
+    sync(true);
+    renderPaper(false);
     const q = E.qpePaper.querySelector(`.qp-tr[data-k="${k}"] [data-f="quantity"]`);
     if (q) q.focus();
   }
 
-  function onDocKey(e) {
+  function onPaperKey(e) {
     if (ddState && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       e.preventDefault();
       ddState.on = (ddState.on + (e.key === 'ArrowDown' ? 1 : -1) + ddState.rows.length) % ddState.rows.length;
@@ -378,16 +397,11 @@
     }
   }
 
-  function commitDoc() {
-    hideDD();
-    const clean = W.filter((it) => String(it.name || '').trim() || Number(it.rate) > 0);
-    B().setItems(clean);
-    hide();
-    if (docDirty) B().toast('Serviços atualizados.', 'success');
+  /* ---------- painel "Adicionar serviço" ---------- */
+  function sectionSt(key) {
+    return key ? (P.SECTIONS.find((s) => s.key === key) || {}).st || null : null;
   }
-
-  /* ---------- passo a passo ---------- */
-  function newDraft(section) {
+  function newDraft(sectionStValue) {
     return {
       name: '',
       description: '',
@@ -396,34 +410,16 @@
       unit_type: 'sq_ft',
       base: 0,
       markup: '',
-      service_type: section || 'Installation',
-      sectionSet: !!section,
+      service_type: sectionStValue || 'Installation',
+      sectionSet: !!sectionStValue,
       row: null,
       query: '',
     };
   }
-
-  async function openStep(opts) {
-    if (!B()) return;
-    ensureDom();
-    opts = opts || {};
-    fromDoc = mode === 'doc';
-    mode = 'step';
-    const st = opts.section
-      ? (P.SECTIONS.find((s) => s.key === opts.section) || {}).st
-      : null;
-    draft = newDraft(st);
-    step = 1;
-    await loadPaper();
-    show();
-    renderStep(true);
-  }
-
   function draftSell() {
     const m = String(draft.markup).trim() === '' ? null : num(draft.markup);
     return B().computeSellUnitRate(num(draft.base), m);
   }
-
   function draftItem() {
     const sell = draftSell();
     const ids = B().catalogIds(draft.row);
@@ -448,49 +444,53 @@
       estimateAuto: false,
     };
   }
-
-  function baseList() {
-    return fromDoc && W ? W : B().getItems();
+  function hasName() {
+    return !!String(draft.name || '').trim();
   }
-
+  function canReach(id) {
+    return id <= 1 || hasName();
+  }
   function stepSummary(id) {
     const unit = P.unitText(draft.unit_type);
     if (id === 1) return draft.name ? `${draft.name}${draft.row ? ' · Tabela de Valor' : ' · serviço novo'}` : '';
-    if (id === 2) return num(draft.quantity) > 0 ? `${P.qtyLabel(num(draft.quantity), draft.unit_type)}` : '';
+    if (id === 2) return num(draft.quantity) > 0 ? P.qtyLabel(num(draft.quantity), draft.unit_type) : '';
     if (id === 3) {
       if (!(num(draft.base) > 0)) return '';
       const mk = String(draft.markup).trim() !== '' ? ` · margem ${num(draft.markup)}%` : '';
       return `${money(draftSell())} / ${unit}${mk}`;
     }
     if (id === 4) return draft.description ? `“${String(draft.description).split('\n')[0].slice(0, 60)}”` : '';
-    if (id === 5) return (P.SECTIONS.find((s) => s.st === B().normalizeServiceType(draft.service_type)) || {}).name || '';
+    if (id === 5) return secName(draft.service_type);
     return '';
   }
 
-  function canReach(id) {
-    if (id <= 1) return true;
-    return !!String(draft.name || '').trim();
+  function calcHtml() {
+    const sell = draftSell();
+    return `No PDF: <b>${money(sell)}</b> × ${esc(P.qtyLabel(num(draft.quantity), draft.unit_type))} = <b>${money(B().lineAmount(num(draft.quantity), sell))}</b>`;
+  }
+
+  function optsHtml(q) {
+    const rows = B().filterCatalog(q).slice(0, 8);
+    const exact = rows.some((r) => String(r.name || '').trim().toLowerCase() === String(q || '').trim().toLowerCase());
+    return (
+      (rows
+        .map(
+          (r) => `<button type="button" class="qpe-opt${draft.row === r ? ' is-on' : ''}" data-pick="${esc(String(r.id))}">
+            <b>${esc(r.name)}</b><span>${esc(secName(r.category))} · ${esc(P.unitText(r.unit_type || 'sq_ft'))} · ${money(B().rateFor(r))}</span></button>`,
+        )
+        .join('') || '<p class="qpe-empty">Nada na Tabela de Valor com esse nome.</p>') +
+      (String(q || '').trim() && !exact
+        ? `<button type="button" class="qpe-opt qpe-opt--new" data-pick-new><b>+ “${esc(String(q).trim())}”</b><span>usar como serviço novo</span></button>`
+        : '')
+    );
   }
 
   function stepBody(id) {
     if (id === 1) {
       const q = draft.query != null ? draft.query : draft.name;
-      const rows = B().filterCatalog(q).slice(0, 8);
-      const exact = rows.some((r) => String(r.name || '').trim().toLowerCase() === String(q || '').trim().toLowerCase());
       return `<label class="qpe-search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input type="search" id="qpeQ" value="${esc(q)}" placeholder="Buscar na Tabela de Valor" autocomplete="off" aria-label="Buscar serviço" /></label>
-        <div class="qpe-opts" id="qpeOpts">${
-          rows
-            .map(
-              (r) => `<button type="button" class="qpe-opt${draft.row === r ? ' is-on' : ''}" data-pick="${esc(String(r.id))}">
-              <b>${esc(r.name)}</b><span>${esc(B().normalizeServiceType(r.category) === 'Sand & Finishing' ? 'Sand & Finish' : B().normalizeServiceType(r.category))} · ${esc(P.unitText(r.unit_type || 'sq_ft'))} · ${money(B().rateFor(r))}</span></button>`,
-            )
-            .join('') || '<p class="qpe-empty">Nada na Tabela de Valor com esse nome.</p>'
-        }${
-          String(q || '').trim() && !exact
-            ? `<button type="button" class="qpe-opt qpe-opt--new" data-pick-new><b>+ “${esc(String(q).trim())}”</b><span>usar como serviço novo</span></button>`
-            : ''
-        }</div>`;
+        <div class="qpe-opts" id="qpeOpts">${optsHtml(q)}</div>`;
     }
     if (id === 2) {
       const area = B().header().projectArea;
@@ -506,13 +506,12 @@
     }
     if (id === 3) {
       const table = draft.row ? B().rateFor(draft.row) : 0;
-      const sell = draftSell();
       return `<div class="qpe-grid2">
           <label class="qpe-f"><span>Preço por ${esc(P.unitText(draft.unit_type))}</span><div class="qpe-money"><i>$</i><input class="qpe-in" id="qpeRate" inputmode="decimal" value="${esc(draft.base ? String(Math.round(num(draft.base) * 100) / 100) : '')}" placeholder="0.00" /></div></label>
           <label class="qpe-f"><span>Margem %</span><input class="qpe-in" id="qpeMk" inputmode="decimal" value="${esc(draft.markup)}" placeholder="opcional" /></label>
         </div>
         <p class="qpe-note">${table > 0 ? `Tabela de Valor (${esc(B().pricingLabel())}): ${money(table)} / ${esc(P.unitText(draft.row.unit_type || draft.unit_type))}` : 'Serviço fora da Tabela de Valor — digite o preço.'}</p>
-        <p class="qpe-calc" id="qpeCalc">No PDF: <b>${money(sell)}</b> × ${esc(P.qtyLabel(num(draft.quantity), draft.unit_type))} = <b>${money(B().lineAmount(num(draft.quantity), sell))}</b></p>`;
+        <p class="qpe-calc" id="qpeCalc">${calcHtml()}</p>`;
     }
     if (id === 4) {
       return `<label class="qpe-f"><span>Descrição</span><textarea class="qpe-in" id="qpeDesc" rows="3" data-crm-rich="off" placeholder="Ex.: Remove and reinstall baseboards">${esc(draft.description)}</textarea></label>
@@ -523,14 +522,14 @@
     return `<div class="qpe-chips qpe-chips--sec" role="group" aria-label="Seção">${P.SECTIONS.map(
       (s) => `<button type="button" class="qpe-chip${cur === s.st ? ' is-on' : ''}" data-sec="${esc(s.st)}">${esc(s.name)}</button>`,
     ).join('')}</div>
-      ${sug ? `<p class="qpe-note">Sugestão da Tabela de Valor: ${esc(sug === 'Sand & Finishing' ? 'Sand & Finish' : sug)}</p>` : ''}`;
+      ${sug ? `<p class="qpe-note">Sugestão da Tabela de Valor: ${esc(secName(sug))}</p>` : ''}`;
   }
 
-  function renderStepsPanel() {
+  function renderSteps() {
     const list = STEPS.map((s) => {
       const on = s.id === step;
       const sum = stepSummary(s.id);
-      const done = !on && !!sum && s.id < step;
+      const done = !on && !!sum && hasName();
       return `<div class="qpe-st${on ? ' is-on' : ''}${done ? ' is-done' : ''}" data-st="${s.id}">
         <button type="button" class="qpe-st__h" data-go="${s.id}"${canReach(s.id) ? '' : ' disabled'}>
           <span class="qpe-st__n">${done ? '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>' : s.id}</span>
@@ -539,49 +538,15 @@
         ${on ? `<div class="qpe-st__b">${stepBody(s.id)}</div>` : ''}
       </div>`;
     }).join('');
-    const last = step === 5;
-    E.qpeSteps.innerHTML = `<div class="qpe-st-list">${list}</div>
+    const head = `<div class="qpe-st-hd"><b>Adicionar serviço</b>${
+      added ? `<span class="qpe-st-hd__n">${added} ${added === 1 ? 'adicionado' : 'adicionados'}</span>` : ''
+    }${hasName() ? '<button type="button" class="qpe-link qpe-link--mu" data-clear>Limpar</button>' : ''}</div>`;
+    E.qpeSteps.innerHTML = `${head}<div class="qpe-st-list">${list}</div>
       <div class="qpe-st-ft">
-        <button type="button" class="qpe-btn qpe-btn--ghost" data-step-back>${step === 1 ? (fromDoc ? 'Documento' : 'Cancelar') : 'Voltar'}</button>
-        ${
-          last
-            ? `<button type="button" class="qpe-btn qpe-btn--ghost" data-add-more>Adicionar e continuar</button><button type="button" class="qpe-btn qpe-btn--pri" data-add>Adicionar</button>`
-            : `<button type="button" class="qpe-btn qpe-btn--pri" data-step-next${canReach(step + 1) ? '' : ' disabled'}>Continuar</button>`
-        }
+        ${step > 1 ? '<button type="button" class="qpe-btn qpe-btn--ghost qpe-btn--sq" data-step-back aria-label="Voltar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>' : ''}
+        ${step < 5 ? `<button type="button" class="qpe-btn qpe-btn--ghost" data-step-next${canReach(step + 1) ? '' : ' disabled'}>Próximo</button>` : ''}
+        <button type="button" class="qpe-btn qpe-btn--pri" data-add${hasName() ? '' : ' disabled'}>Adicionar à folha <kbd>↵</kbd></button>
       </div>`;
-  }
-
-  function renderStepPaper(scroll) {
-    const base = baseList();
-    const m = buildModel(base, { item: draftItem() });
-    E.qpePaper.innerHTML = P.render(m, { mode: 'step', newKey: 'new' });
-    setTotal(m.total);
-    if (scroll) {
-      const row = E.qpePaper.querySelector('.qp-tr.is-new');
-      if (row) {
-        const wr = E.qpeWrap.getBoundingClientRect();
-        const rr = row.getBoundingClientRect();
-        if (rr.top < wr.top + 20 || rr.bottom > wr.bottom - 20) {
-          E.qpeWrap.scrollTop += rr.top - wr.top - wr.height / 3;
-        }
-      }
-    }
-  }
-
-  function renderStep(scroll, focus) {
-    E.root.dataset.mode = 'step';
-    const n = B().header().number || (paper && paper.number) || '';
-    E.qpeTitle.textContent = `Adicionar serviço${n ? ' · ' + n : ''}`;
-    const stacked = window.matchMedia('(max-width: 1024px) and (orientation: portrait), (max-width: 900px)').matches;
-    E.qpeSub.textContent = isPhone()
-      ? 'A linha entra na folha a cada passo'
-      : stacked
-        ? 'Preencha abaixo e veja a linha entrar no PDF acima'
-        : 'Preencha à esquerda e veja a linha entrar no PDF à direita';
-    E.qpeDone.hidden = true;
-    E.qpeCancel.textContent = fromDoc ? 'Voltar ao documento' : 'Fechar';
-    renderStepsPanel();
-    renderStepPaper(scroll !== false);
     const on = E.qpeSteps.querySelector('.qpe-st.is-on');
     const lst = E.qpeSteps.querySelector('.qpe-st-list');
     if (on && lst) {
@@ -589,29 +554,41 @@
       const or = on.getBoundingClientRect();
       if (or.bottom > lr.bottom || or.top < lr.top) lst.scrollTop += or.top - lr.top - 8;
     }
-    if (focus !== false) focusStep();
+  }
+  function syncFooter() {
+    const add = E.qpeSteps.querySelector('[data-add]');
+    if (add) add.disabled = !hasName();
+    const nx = E.qpeSteps.querySelector('[data-step-next]');
+    if (nx) nx.disabled = !canReach(step + 1);
+    E.qpeSteps.querySelectorAll('[data-go]').forEach((b) => {
+      b.disabled = !canReach(Number(b.getAttribute('data-go')));
+    });
   }
 
+  function renderAll(scroll, focus) {
+    renderSteps();
+    renderPaper(scroll !== false);
+    if (focus !== false) focusStep();
+  }
   function focusStep() {
     const id = { 1: 'qpeQ', 2: 'qpeQty', 3: 'qpeRate', 4: 'qpeDesc' }[step];
     const el = id && document.getElementById(id);
     if (el && !isPhone()) {
       el.focus();
       try {
-        const v = el.value;
-        el.setSelectionRange(v.length, v.length);
+        el.setSelectionRange(el.value.length, el.value.length);
       } catch (_) {
         /* ignore */
       }
     }
   }
-
   function goStep(n) {
     if (n < 1 || n > 5 || !canReach(n)) return;
     step = n;
-    renderStep(true);
+    renderSteps();
+    refreshDraftRow();
+    focusStep();
   }
-
   function pickRow(r) {
     draft.row = r;
     draft.name = r.name || '';
@@ -621,45 +598,33 @@
     draft.base = B().rateFor(r);
     draft.markup = '';
     if (!draft.sectionSet) draft.service_type = B().normalizeServiceType(r.category);
-    goStep(2);
+    step = 2;
+    renderSteps();
+    renderPaper(true);
+    focusStep();
   }
 
-  function addDraft(more) {
+  /** Adiciona a linha à folha e já prepara o próximo serviço (a tela não fecha). */
+  function addDraft() {
     const it = draftItem();
     if (!it.name) {
       goStep(1);
       return;
     }
     if (!(it.quantity > 0)) it.quantity = 1;
-    if (fromDoc) {
-      W.push(it);
-      docDirty = true;
-      if (more) {
-        draft = newDraft(draft.sectionSet ? draft.service_type : null);
-        step = 1;
-        renderStep(true);
-        return;
-      }
-      mode = 'doc';
-      renderDoc(W.length - 1);
-      const row = E.qpePaper.querySelector(`.qp-tr[data-k="${W.length - 1}"]`);
-      if (row) {
-        row.scrollIntoView({ block: 'center' });
-        row.classList.add('is-flash');
-      }
-      return;
-    }
-    const list = B().getItems();
-    list.push(it);
-    B().setItems(list);
-    B().toast(`“${it.name}” adicionado.`, 'success');
-    if (more) {
-      draft = newDraft(draft.sectionSet ? draft.service_type : null);
-      step = 1;
-      renderStep(true);
-      return;
-    }
-    hide();
+    W.push(it);
+    added += 1;
+    flashKey = W.length - 1;
+    sync(true);
+    draft = newDraft(draft.sectionSet ? draft.service_type : null);
+    step = 1;
+    renderSteps();
+    renderPaper(false);
+    scrollIntoWrap(E.qpePaper.querySelector(`.qp-tr[data-k="${flashKey}"]`));
+    setTimeout(() => {
+      flashKey = null;
+    }, 1700);
+    focusStep();
   }
 
   function onStepInput(e) {
@@ -669,17 +634,8 @@
       draft.name = t.value;
       draft.row = null;
       const box = document.getElementById('qpeOpts');
-      if (box) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = stepBody(1);
-        const fresh = tmp.querySelector('#qpeOpts');
-        if (fresh) box.innerHTML = fresh.innerHTML;
-      }
-      const nx = E.qpeSteps.querySelector('[data-step-next]');
-      if (nx) nx.disabled = !canReach(2);
-      E.qpeSteps.querySelectorAll('[data-go]').forEach((b) => {
-        b.disabled = !canReach(Number(b.getAttribute('data-go')));
-      });
+      if (box) box.innerHTML = optsHtml(t.value);
+      syncFooter();
     } else if (t.id === 'qpeQty') draft.quantity = t.value;
     else if (t.id === 'qpeRate') draft.base = num(t.value);
     else if (t.id === 'qpeMk') draft.markup = t.value;
@@ -688,67 +644,41 @@
     else return;
     if (t.id === 'qpeRate' || t.id === 'qpeMk') {
       const c = document.getElementById('qpeCalc');
-      const sell = draftSell();
-      if (c) c.innerHTML = `No PDF: <b>${money(sell)}</b> × ${esc(P.qtyLabel(num(draft.quantity), draft.unit_type))} = <b>${money(B().lineAmount(num(draft.quantity), sell))}</b>`;
+      if (c) c.innerHTML = calcHtml();
     }
     const sm = E.qpeSteps.querySelector(`.qpe-st[data-st="${step}"] .qpe-st__t small`);
     if (sm && step !== 1) sm.textContent = stepSummary(step) || STEPS[step - 1].hint;
-    renderStepPaper(false);
+    refreshDraftRow();
   }
 
   /* ---------- eventos ---------- */
-  function cancel() {
-    if (mode === 'step') {
-      if (fromDoc) {
-        mode = 'doc';
-        renderDoc();
-      } else hide();
-      return;
-    }
-    if (mode === 'doc') {
-      if (docDirty && !cancelArmed) {
-        cancelArmed = 1;
-        E.qpeCancel.textContent = 'Descartar alterações?';
-        E.qpeCancel.classList.add('is-warn');
-        setTimeout(() => {
-          if (!E.qpeCancel) return;
-          cancelArmed = 0;
-          E.qpeCancel.classList.remove('is-warn');
-          if (mode === 'doc') E.qpeCancel.textContent = 'Cancelar';
-        }, 3200);
-        return;
-      }
-      E.qpeCancel.classList.remove('is-warn');
-      hide();
-    }
-  }
-
   function bind() {
     E.root.addEventListener('click', (e) => {
       const t = e.target;
-      if (t.closest('[data-qpe-cancel]')) {
-        if (t.closest('.qpe-x') && mode === 'doc' && docDirty) {
-          // no celular o X também pede confirmação
+      if (t.closest('[data-qpe-close]')) {
+        close();
+        return;
+      }
+      if (t.closest('#qpeSave')) {
+        void saveAndClose();
+        return;
+      }
+      const secAdd = t.closest('[data-qp-add]');
+      if (secAdd) {
+        const st = sectionSt(secAdd.getAttribute('data-qp-add'));
+        if (st) {
+          draft.service_type = st;
+          draft.sectionSet = true;
         }
-        cancel();
-        return;
-      }
-      if (t.closest('#qpeDone')) {
-        commitDoc();
-        return;
-      }
-      const add = t.closest('[data-qpe-add],[data-qp-add]');
-      if (add) {
-        const sec = add.getAttribute('data-qp-add') || '';
-        void openStep({ section: sec || null });
+        if (!hasName()) step = 1;
+        renderAll(true);
         return;
       }
       const del = t.closest('[data-qp-del]');
-      if (del && mode === 'doc') {
-        const k = Number(del.getAttribute('data-qp-del'));
-        W.splice(k, 1);
-        docDirty = true;
-        renderDoc();
+      if (del) {
+        W.splice(Number(del.getAttribute('data-qp-del')), 1);
+        sync(true);
+        renderPaper(false);
         return;
       }
       const dd = t.closest('[data-dd]');
@@ -756,7 +686,13 @@
         pickDD(Number(dd.getAttribute('data-dd')));
         return;
       }
-      if (mode !== 'step') return;
+      if (!t.closest('.qpe-steps')) return;
+      if (t.closest('[data-clear]')) {
+        draft = newDraft(draft.sectionSet ? draft.service_type : null);
+        step = 1;
+        renderAll(false);
+        return;
+      }
       const go = t.closest('[data-go]');
       if (go) {
         goStep(Number(go.getAttribute('data-go')));
@@ -764,8 +700,7 @@
       }
       const pick = t.closest('[data-pick]');
       if (pick) {
-        const id = pick.getAttribute('data-pick');
-        const r = B().catalog().find((x) => String(x.id) === id);
+        const r = B().catalog().find((x) => String(x.id) === pick.getAttribute('data-pick'));
         if (r) pickRow(r);
         return;
       }
@@ -779,23 +714,26 @@
       const u = t.closest('[data-unit]');
       if (u) {
         draft.unit_type = u.getAttribute('data-unit');
-        renderStep(false, false);
-        const q = document.getElementById('qpeQty');
-        if (q && !isPhone()) q.focus();
+        renderSteps();
+        refreshDraftRow();
+        focusStep();
         return;
       }
       const ar = t.closest('[data-area]');
       if (ar) {
         draft.quantity = String(Math.round(Number(ar.getAttribute('data-area')) * 100) / 100);
         draft.unit_type = 'sq_ft';
-        renderStep(false);
+        renderSteps();
+        refreshDraftRow();
+        focusStep();
         return;
       }
       const sc = t.closest('[data-sec]');
-      if (sc && t.closest('.qpe-steps')) {
+      if (sc) {
         draft.service_type = sc.getAttribute('data-sec');
         draft.sectionSet = true;
-        renderStep(true, false);
+        renderSteps();
+        renderPaper(true);
         return;
       }
       if (t.closest('[data-step-next]')) {
@@ -803,36 +741,31 @@
         return;
       }
       if (t.closest('[data-step-back]')) {
-        if (step === 1) cancel();
-        else goStep(step - 1);
+        goStep(step - 1);
         return;
       }
-      if (t.closest('[data-add-more]')) {
-        addDraft(true);
-        return;
-      }
-      if (t.closest('[data-add]')) {
-        addDraft(false);
-      }
+      if (t.closest('[data-add]')) addDraft();
     });
     E.root.addEventListener('mousedown', (e) => {
       if (e.target.closest('[data-dd]')) e.preventDefault();
     });
-    E.qpePaper.addEventListener('input', onDocInput);
+    E.qpePaper.addEventListener('input', onPaperInput);
     E.qpePaper.addEventListener('change', (e) => {
-      if (e.target.matches('select[data-f]')) onDocInput(e);
+      if (e.target.matches('select[data-f]')) onPaperInput(e);
     });
-    E.qpePaper.addEventListener('keydown', onDocKey);
+    E.qpePaper.addEventListener('keydown', onPaperKey);
     E.qpePaper.addEventListener('focusin', (e) => {
-      if (mode === 'doc' && e.target.matches('[data-f="name"]')) {
+      if (e.target.matches('[data-f="name"]')) {
         const row = e.target.closest('.qp-tr');
         if (e.target.value.trim().length < 2) openDD(e.target, Number(row.getAttribute('data-k')));
       }
     });
     E.qpePaper.addEventListener('focusout', (e) => {
-      if (e.target.matches('[data-f="name"]')) setTimeout(() => {
-        if (ddState && document.activeElement !== ddState.input) hideDD();
-      }, 120);
+      if (e.target.matches('[data-f="name"]')) {
+        setTimeout(() => {
+          if (ddState && document.activeElement !== ddState.input) hideDD();
+        }, 120);
+      }
       if (e.target.matches('[data-f="quantity"],[data-f="rate"]')) {
         const v = num(e.target.value);
         e.target.value = e.target.matches('[data-f="rate"]') ? v.toFixed(2) : String(Math.round(v * 100) / 100);
@@ -844,15 +777,16 @@
       if (e.key !== 'Enter' || e.target.matches('textarea')) return;
       e.preventDefault();
       if (step === 1) {
-        const first = E.qpeSteps.querySelector('[data-pick]');
         const q = String(draft.query || '').trim().toLowerCase();
-        const r = q && B().catalog().find((x) => String(x.name || '').trim().toLowerCase() === q);
-        if (r) pickRow(r);
-        else if (first && draft.query && B().filterCatalog(draft.query).length === 1) first.click();
-        else if (canReach(2)) goStep(2);
+        const exact = q && B().catalog().find((x) => String(x.name || '').trim().toLowerCase() === q);
+        const list = draft.query ? B().filterCatalog(draft.query) : [];
+        if (exact) pickRow(exact);
+        else if (list.length === 1) pickRow(list[0]);
+        else if (hasName()) goStep(2);
         return;
       }
-      if (step === 5) addDraft(false);
+      // Enter adiciona quando já há preço (veio da Tabela ou foi digitado); senão vai ao próximo passo.
+      if (num(draft.base) > 0 || step === 5) addDraft();
       else goStep(step + 1);
     });
     document.addEventListener('keydown', (e) => {
@@ -861,12 +795,16 @@
         hideDD();
         return;
       }
-      cancel();
+      close();
     });
     window.addEventListener('resize', () => {
       hideDD();
+      if (open) renderHead();
     });
   }
 
-  window.OmQuoteServices = { openDoc, openStep };
+  window.OmQuoteServices = {
+    openDoc: () => openWork({ focusPaper: true }),
+    openStep: (opts) => openWork(opts),
+  };
 })();

@@ -228,7 +228,7 @@
         if (!show) return '';
         const head = `<div class="qp-sec" data-sec="${s.key}"><span>${s.label}</span><small>Section total&nbsp; <i data-sec-total="${s.key}">${money(s.total)}</i></small></div>
           <div class="qp-th"><span>DESCRIPTION</span><span>QTY</span><span>RATE</span><span>AMOUNT</span></div>`;
-        const rows = s.lines.map((l) => (mode === 'edit' ? rowEdit(l, opts) : rowView(l, opts))).join('');
+        const rows = s.lines.map((l) => (mode === 'edit' && l.key !== opts.newKey ? rowEdit(l, opts) : rowView(l, opts))).join('');
         const add =
           mode === 'edit'
             ? `<button type="button" class="qp-add" data-qp-add="${s.key}"><span>+</span> Adicionar serviço em ${s.name}${
@@ -265,7 +265,7 @@
       <div class="qp-lines">${secHtml}${noLines}</div>
       <div class="qp-end">
         <div class="qp-pay"><b>PAYMENT SCHEDULE</b>${pays
-          .map((p, i) => `<div><span>${esc(p.label)}</span><b${i === 0 ? ' data-qp-dep2' : ''}>${money(p.amount)}</b></div>`)
+          .map((p, i) => `<div><span>${esc(p.label)}</span><b data-qp-pay="${i}">${money(p.amount)}</b></div>`)
           .join('')}<small>We accept card, ACH, and check.</small></div>
         <div class="qp-tots">
           <div><span>Subtotal</span><b data-qp-sub>${money(model.subtotal)}</b></div>
@@ -293,7 +293,8 @@
     const pays = payments(model);
     const set = (sel, v) => root.querySelectorAll(sel).forEach((e) => (e.textContent = v));
     set('[data-qp-total],[data-qp-total2]', money(model.total));
-    set('[data-qp-dep],[data-qp-dep2]', money(pays[0] ? pays[0].amount : 0));
+    pays.forEach((p, i) => set(`[data-qp-pay="${i}"]`, money(p.amount)));
+    set('[data-qp-dep]', money(pays[0] ? pays[0].amount : 0));
     set('[data-qp-sub]', money(model.subtotal));
     set('[data-qp-tax]', money(model.tax));
     set('[data-qp-disc]', '−' + money(model.discount));

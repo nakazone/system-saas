@@ -175,3 +175,7 @@
   .qp-add { font-size: 14px; padding: 12px; }
   .qp-editbtn { position: static; transform: none; margin: 0 0 12px auto; display: flex; }
 }
+
+/* linha nova dentro da folha editável */
+.qp--edit .qp-tr.is-new { padding: .45em .4em; margin: .2em -.4em .5em; }
+.qp--edit .qp-tr.is-new .qp-c--q, .qp--edit .qp-tr.is-new .qp-c--r { display: block; font-size: .75em; }
