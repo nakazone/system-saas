@@ -1147,7 +1147,7 @@
       ${notesBlock}
       <div class="ag-dtl__acts">${e.type === 'visit' && e.status !== 'canceled' ? `<a class="ag-btn ag-btn--pri" href="field-quote.html?meeting_id=${encodeURIComponent(e.id)}">Começar Field Quote</a>` : ''}${ct.href ? `<a class="ag-btn${e.type === 'visit' ? '' : ' ag-btn--pri'}" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
         (e.type === 'meeting' || e.type === 'visit') && e.status !== 'canceled'
-          ? `<button type="button" class="ag-btn" data-ag-cal-add="${esc(e.id)}">Adicionar ao Calendar</button>`
+          ? `<button type="button" class="ag-btn" data-ag-device-cal="${esc(e.id)}">Adicionar ao Apple Calendar</button>`
           : ''
       }${
         canEdit && e.type === 'job'
@@ -1523,13 +1523,58 @@
     return true;
   }
 
+  function openDraftInDeviceCalendar(payload) {
+    if (typeof window.sfOpenDraftEventInDeviceCalendar === 'function') {
+      return window.sfOpenDraftEventInDeviceCalendar(payload);
+    }
+    return false;
+  }
+
   function offerAddToDeviceCalendar(payload, label) {
     if (!payload || !payload.id) return;
     if (typeof window.sfPrefetchMeetingIcs === 'function') void window.sfPrefetchMeetingIcs(payload.id);
     const what = label || 'compromisso';
     openSheet(
-      `<div class="ag-confirm"><h2>Adicionar ao Calendar?</h2><p>${esc(payload.title || what)}</p><p class="ag-hint">Abre no Calendário do iPhone (ou Google) com data, local e notas.</p><div class="ag-confirm__acts"><button type="button" class="ag-btn" data-ag-close>Agora não</button><button type="button" class="ag-btn ag-btn--pri" data-ag-cal-add-ok="${esc(payload.id)}" data-ag-cal-title="${esc(payload.title || '')}" data-ag-cal-start="${esc(payload.scheduled_start || '')}" data-ag-cal-end="${esc(payload.scheduled_end || '')}" data-ag-cal-loc="${esc(payload.location || '')}" data-ag-cal-notes="${esc(payload.notes || '')}">Adicionar ao Calendar</button></div></div>`,
+      `<div class="ag-confirm"><h2>Também no Apple Calendar?</h2><p>${esc(payload.title || what)}</p><p class="ag-hint">Já está na Agenda ObraMate. Toque para abrir o Calendário do iPhone com o mesmo horário.</p><div class="ag-confirm__acts"><button type="button" class="ag-btn" data-ag-close>Agora não</button><button type="button" class="ag-btn ag-btn--pri" data-ag-device-cal-ok="${esc(payload.id)}" data-ag-cal-title="${esc(payload.title || '')}" data-ag-cal-start="${esc(payload.scheduled_start || '')}" data-ag-cal-end="${esc(payload.scheduled_end || '')}" data-ag-cal-loc="${esc(payload.location || '')}" data-ag-cal-notes="${esc(payload.notes || '')}">Abrir Apple Calendar</button></div></div>`,
       'ag-sheet__card--confirm'
+    );
+  }
+
+  function openMeetingWhereChooser(when) {
+    const w = when ? (when instanceof Date ? when.toISOString() : String(when)) : '';
+    const mtg = typeInfo('meeting').one;
+    openSheet(
+      `<header class="ag-sheet__bar"><button type="button" class="ag-pillbtn ag-pillbtn--ghost" data-ag-close>Cancelar</button><h2>Novo ${esc(mtg.toLowerCase())}</h2><span></span></header>
+      <div class="ag-sheet__body ag-confirm" style="padding-top:8px">
+        <p class="ag-hint" style="margin-bottom:16px">Onde quer criar este compromisso?</p>
+        <div class="ag-confirm__acts" style="flex-direction:column;align-items:stretch;gap:10px">
+          <button type="button" class="ag-btn ag-btn--pri" data-ag-meeting-where="system" data-ag-when="${esc(w)}">Na Agenda ObraMate</button>
+          <button type="button" class="ag-btn" data-ag-meeting-where="apple" data-ag-when="${esc(w)}">No Apple Calendar</button>
+        </div>
+        <p class="ag-hint" style="margin-top:14px">ObraMate: fica na agenda da equipe. Apple: só no Calendário do iPhone (não grava no sistema).</p>
+      </div>`,
+      'ag-sheet__card--confirm'
+    );
+  }
+
+  function openAppleMeetingForm(when) {
+    const s = defaultStart(when ? new Date(when) : null);
+    const e = new Date(s.getTime() + 3600e3);
+    const mtg = typeInfo('meeting').one;
+    openSheet(
+      `<header class="ag-sheet__bar"><button type="button" class="ag-pillbtn ag-pillbtn--ghost" data-ag-close>Cancelar</button><h2>${esc(mtg)} · Apple</h2><button type="submit" form="agAppleForm" class="ag-pillbtn ag-pillbtn--pri">Abrir Calendar</button></header>
+      <form class="ag-sheet__body ag-form" id="agAppleForm" novalidate>
+        <div class="ag-card ag-form__grp"><input name="title" class="ag-form__title" placeholder="Título" required maxlength="200" /></div>
+        <div class="ag-card ag-form__grp ag-form__when">
+          <label>Data<input type="date" name="date" value="${esc(ymd(s))}" required /></label>
+          <label>Início<input type="time" name="start" value="${esc(hm(s))}" required /></label>
+          <label>Fim<input type="time" name="end" value="${esc(hm(e))}" required /></label>
+        </div>
+        <div class="ag-card ag-form__grp"><label>Local<input type="text" name="location" maxlength="500" placeholder="Endereço ou local" /></label></div>
+        <div class="ag-card ag-form__grp"><label>Notas<textarea name="notes" rows="2" maxlength="2000" placeholder="Opcional"></textarea></label></div>
+        <p class="ag-hint">Não cria compromisso no ObraMate — só abre o Calendário do iPhone / Google.</p>
+      </form>`,
+      'ag-sheet__card--form'
     );
   }
 
@@ -2351,13 +2396,20 @@
         if (document.querySelector('#agSheet [data-ag-cal-sheet]')) calDraft = null;
         return closeSheet();
       }
-      if ((el = t.closest('[data-ag-cal-add]'))) {
+      if ((el = t.closest('[data-ag-cal-new]'))) {
         const draft = ensureCalDraft();
         if (!draft) return toast('Sem permissão para editar agendas.', 'error');
         if (draft.length >= 24) return toast('Limite de agendas atingido.', 'error');
         draft.push({ id: newCalId(), name: 'Nova agenda', color: '#16a34a', kind: 'custom' });
         calSheetMode = 'edit';
         return openCalSheet('edit');
+      }
+      if ((el = t.closest('[data-ag-meeting-where]'))) {
+        const where = el.getAttribute('data-ag-meeting-where');
+        const whenRaw = el.getAttribute('data-ag-when') || '';
+        const when = whenRaw ? new Date(whenRaw) : null;
+        if (where === 'apple') return openAppleMeetingForm(when && !Number.isNaN(when.getTime()) ? when : null);
+        return openEditor('meeting', null, when && !Number.isNaN(when.getTime()) ? when : null);
       }
       if ((el = t.closest('[data-ag-cal-del]'))) {
         const draft = ensureCalDraft();
@@ -2381,7 +2433,9 @@
         if (act === 'close') return;
         if (act === 'new-job') return openEditor('job', null, when || null);
         if (act === 'new-visit') return openEditor('visit', null, when || null);
-        if (act === 'new-meeting') return openEditor('meeting', null, when || null);
+        if (act === 'new-meeting') {
+          return openMeetingWhereChooser(when ? new Date(when) : null);
+        }
         return;
       }
       if ((el = t.closest('[data-ag-lead]'))) {
@@ -2393,15 +2447,15 @@
         return;
       }
       if ((el = t.closest('[data-ag-hit]'))) return gotoHit(el.dataset.agHit);
-      if ((el = t.closest('[data-ag-cal-add]'))) {
-        const e = findEv(el.dataset.agCalAdd);
+      if ((el = t.closest('[data-ag-device-cal]'))) {
+        const e = findEv(el.dataset.agDeviceCal);
         const payload = meetingCalPayload(e);
         if (payload) openMeetingInDeviceCalendar(payload);
         return;
       }
-      if ((el = t.closest('[data-ag-cal-add-ok]'))) {
+      if ((el = t.closest('[data-ag-device-cal-ok]'))) {
         openMeetingInDeviceCalendar({
-          id: el.dataset.agCalAddOk,
+          id: el.dataset.agDeviceCalOk,
           title: el.dataset.agCalTitle || 'Compromisso',
           scheduled_start: el.dataset.agCalStart || null,
           scheduled_end: el.dataset.agCalEnd || null,
@@ -2772,6 +2826,33 @@
     });
 
     document.addEventListener('submit', async (ev) => {
+      if (ev.target.id === 'agAppleForm') {
+        ev.preventDefault();
+        const fd = new FormData(ev.target);
+        const title = String(fd.get('title') || '').trim();
+        const date = String(fd.get('date') || '');
+        const stT = String(fd.get('start') || '');
+        const en = String(fd.get('end') || '');
+        if (title.length < 2) return toast('Dê um título ao compromisso.', 'error');
+        if (!date || !stT) return toast('Informe data e horário.', 'error');
+        let start = new Date(`${date}T${stT}`);
+        let end = en ? new Date(`${date}T${en}`) : new Date(start.getTime() + 3600e3);
+        if (Number.isNaN(start.getTime())) return toast('Data inválida.', 'error');
+        if (!(end > start)) end = new Date(start.getTime() + 3600e3);
+        const ok = openDraftInDeviceCalendar({
+          title,
+          start,
+          end,
+          scheduled_start: start.toISOString(),
+          scheduled_end: end.toISOString(),
+          location: String(fd.get('location') || '').trim(),
+          notes: String(fd.get('notes') || '').trim(),
+        });
+        if (!ok) return toast('Não foi possível abrir o Calendar.', 'error');
+        closeSheet();
+        toast('Evento aberto no Calendar do dispositivo.', 'success');
+        return;
+      }
       if (ev.target.id !== 'agForm') return;
       ev.preventDefault();
       const btn = $('[form="agForm"][type="submit"]');
@@ -2913,7 +2994,7 @@
           </article>`;
         })
         .join('')}</div>
-      <button type="button" class="ag-cal-add" data-ag-cal-add>
+      <button type="button" class="ag-cal-add" data-ag-cal-new>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         Nova agenda
       </button>`;

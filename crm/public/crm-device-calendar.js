@@ -446,9 +446,110 @@
     }
   }
 
+  function escapeIcsText(value) {
+    return String(value || '')
+      .replace(/\\/g, '\\\\')
+      .replace(/\r\n/g, '\n')
+      .replace(/\n/g, '\\n')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,');
+  }
+
+  function formatIcsUtc(date) {
+    const d = date instanceof Date ? date : new Date(date);
+    const pad = (n) => String(n).padStart(2, '0');
+    return (
+      d.getUTCFullYear() +
+      pad(d.getUTCMonth() + 1) +
+      pad(d.getUTCDate()) +
+      'T' +
+      pad(d.getUTCHours()) +
+      pad(d.getUTCMinutes()) +
+      pad(d.getUTCSeconds()) +
+      'Z'
+    );
+  }
+
+  /** .ics local (sem gravar no CRM) — para “Agendar no Apple Calendar”. */
+  function buildDraftEventIcs(ev) {
+    const title = String((ev && ev.title) || 'Compromisso').trim() || 'Compromisso';
+    let start = ev && ev.start instanceof Date ? ev.start : ev && ev.scheduled_start ? new Date(ev.scheduled_start) : snapToNextHalfHour();
+    if (Number.isNaN(start.getTime())) start = snapToNextHalfHour();
+    let end =
+      ev && ev.end instanceof Date
+        ? ev.end
+        : ev && ev.scheduled_end
+          ? new Date(ev.scheduled_end)
+          : new Date(start.getTime() + 60 * 60 * 1000);
+    if (Number.isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
+      end = new Date(start.getTime() + 60 * 60 * 1000);
+    }
+    const uid = 'draft-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10) + '@obramate.com';
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ObraMate//Meeting//PT',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      'UID:' + uid,
+      'DTSTAMP:' + formatIcsUtc(new Date()),
+      'DTSTART:' + formatIcsUtc(start),
+      'DTEND:' + formatIcsUtc(end),
+      'SUMMARY:' + escapeIcsText(title),
+    ];
+    if (ev && ev.location) lines.push('LOCATION:' + escapeIcsText(ev.location));
+    if (ev && ev.notes) lines.push('DESCRIPTION:' + escapeIcsText(ev.notes));
+    lines.push('STATUS:TENTATIVE', 'END:VEVENT', 'END:VCALENDAR');
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  /**
+   * Abre um evento rascunho no Calendar do dispositivo (não cria meeting no CRM).
+   * Tem de correr no gesto do toque.
+   */
+  function openDraftEventInDeviceCalendar(ev) {
+    const draft = {
+      title: (ev && ev.title) || 'Compromisso',
+      scheduled_start: ev && (ev.scheduled_start || ev.start),
+      scheduled_end: ev && (ev.scheduled_end || ev.end),
+      location: (ev && ev.location) || '',
+      notes: (ev && ev.notes) || '',
+      start: ev && ev.start instanceof Date ? ev.start : ev && ev.scheduled_start ? new Date(ev.scheduled_start) : null,
+      end: ev && ev.end instanceof Date ? ev.end : ev && ev.scheduled_end ? new Date(ev.scheduled_end) : null,
+    };
+    try {
+      if (isAndroidDevice()) {
+        global.location.href = buildGoogleCalendarMeetingUrl(draft);
+        return true;
+      }
+      const ics = buildDraftEventIcs(draft);
+      const dataUrl = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+      if (isAppleMobile() || isSafariBrowser() || isStandaloneDisplay()) {
+        global.location.assign(dataUrl);
+        return true;
+      }
+      // Desktop: download .ics (abre no Calendar / Outlook).
+      const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'compromisso.ics';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      return true;
+    } catch (err) {
+      console.warn('[crm-device-calendar] draft', err);
+      return false;
+    }
+  }
+
   global.sfOpenLeadVisitInDeviceCalendar = openLeadVisitInDeviceCalendar;
   global.sfPrefetchLeadVisitIcs = prefetchLeadVisitIcs;
   global.sfOpenMeetingInDeviceCalendar = openMeetingInDeviceCalendar;
+  global.sfOpenDraftEventInDeviceCalendar = openDraftEventInDeviceCalendar;
   global.sfPrefetchMeetingIcs = prefetchMeetingIcs;
   global.sfBuildGoogleCalendarVisitUrl = buildGoogleCalendarUrl;
   global.sfSnapVisitToNextHalfHour = snapToNextHalfHour;
