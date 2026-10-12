@@ -605,7 +605,74 @@
   }
 
   function openLqsScheduleVisitInDeviceCalendar() {
-    openLqsScheduleVisitModal();
+    if (!sheetLead || !sheetLeadId) return;
+    if (typeof global.sfPrefetchLeadVisitIcs === 'function') {
+      void global.sfPrefetchLeadVisitIcs(sheetLeadId);
+    }
+    if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
+      const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
+      if (ok) return;
+    }
+    notifySheet('Não foi possível abrir o Apple Calendar neste dispositivo.', 'error');
+  }
+
+  function closeLqsVisitWhereModal() {
+    const root = document.getElementById('lqsVisitWhereModal');
+    if (!root) return;
+    root.classList.remove('active');
+    root.setAttribute('aria-hidden', 'true');
+  }
+
+  function ensureLqsVisitWhereModal() {
+    let root = document.getElementById('lqsVisitWhereModal');
+    if (root) return root;
+    root = document.createElement('div');
+    root.id = 'lqsVisitWhereModal';
+    root.className = 'modal modal-lightbox lqs-visit-modal';
+    root.setAttribute('aria-hidden', 'true');
+    root.innerHTML =
+      '<div class="modal-backdrop lqs-visit-modal__backdrop" data-lqs-visit-where-close tabindex="-1" aria-hidden="true"></div>' +
+      '<div class="modal-content modal-content-lightbox lqs-visit-modal__sheet" role="dialog" aria-modal="true" aria-labelledby="lqsVisitWhereTitle">' +
+      '<div class="lead-quick-sheet__handle lqs-visit-modal__grab" aria-hidden="true"></div>' +
+      '<header class="lqs-visit-modal__header">' +
+      '<h2 id="lqsVisitWhereTitle" class="lqs-visit-modal__title">Agendar visita</h2>' +
+      '<button type="button" class="lead-quick-sheet__close lqs-visit-modal__close-btn" data-lqs-visit-where-close aria-label="Fechar">&times;</button>' +
+      '</header>' +
+      '<div class="modal-body">' +
+      '<p class="form-hint" style="margin:0 0 14px;color:#667085;font-size:14px;line-height:1.45">Onde quer criar esta visita?</p>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<button type="button" class="lead-quick-sheet__edit-save lqs-visit-modal__btn-submit" data-lqs-visit-where="system" style="width:100%">Na Agenda ObraMate</button>' +
+      '<button type="button" class="lead-quick-sheet__edit-cancel lqs-visit-modal__btn-cancel" data-lqs-visit-where="apple" style="width:100%">No Apple Calendar</button>' +
+      '</div>' +
+      '<p class="form-hint" style="margin:14px 0 0;color:#98A2B3;font-size:12.5px;line-height:1.45">ObraMate: visita na agenda da equipe. Apple: só no Calendário do iPhone (não grava no sistema).</p>' +
+      '</div></div>';
+    document.body.appendChild(root);
+    root.querySelectorAll('[data-lqs-visit-where-close]').forEach((el) => {
+      el.addEventListener('click', () => closeLqsVisitWhereModal());
+    });
+    root.querySelectorAll('[data-lqs-visit-where]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const where = btn.getAttribute('data-lqs-visit-where');
+        closeLqsVisitWhereModal();
+        if (where === 'apple') {
+          openLqsScheduleVisitInDeviceCalendar();
+          return;
+        }
+        openLqsScheduleVisitModal();
+      });
+    });
+    return root;
+  }
+
+  function openLqsVisitWhereChooser() {
+    if (!sheetLead || !sheetLeadId) return;
+    if (typeof global.sfPrefetchLeadVisitIcs === 'function') {
+      void global.sfPrefetchLeadVisitIcs(sheetLeadId);
+    }
+    const root = ensureLqsVisitWhereModal();
+    root.classList.add('active');
+    root.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
   }
 
   function openLqsScheduleVisitModal() {
@@ -635,6 +702,35 @@
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
+  }
+
+  function offerLqsVisitAppleCalendar(meetingId, title) {
+    if (!meetingId || typeof global.sfOpenMeetingInDeviceCalendar !== 'function') return;
+    if (typeof global.sfPrefetchMeetingIcs === 'function') void global.sfPrefetchMeetingIcs(meetingId);
+    const root = document.createElement('div');
+    root.className = 'modal modal-lightbox lqs-visit-modal active';
+    root.setAttribute('role', 'dialog');
+    root.innerHTML =
+      '<div class="modal-backdrop lqs-visit-modal__backdrop" data-lqs-apple-offer-close tabindex="-1"></div>' +
+      '<div class="modal-content modal-content-lightbox lqs-visit-modal__sheet">' +
+      '<header class="lqs-visit-modal__header"><h2 class="lqs-visit-modal__title">Também no Apple Calendar?</h2>' +
+      '<button type="button" class="lead-quick-sheet__close lqs-visit-modal__close-btn" data-lqs-apple-offer-close aria-label="Fechar">&times;</button></header>' +
+      '<div class="modal-body"><p class="form-hint" style="margin:0 0 14px;color:#667085;font-size:14px">A visita já está na Agenda ObraMate' +
+      (title ? ' · ' + String(title).replace(/</g, '') : '') +
+      '.</p>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<button type="button" class="lead-quick-sheet__edit-save lqs-visit-modal__btn-submit" data-lqs-apple-offer-ok style="width:100%">Abrir Apple Calendar</button>' +
+      '<button type="button" class="lead-quick-sheet__edit-cancel lqs-visit-modal__btn-cancel" data-lqs-apple-offer-close style="width:100%">Agora não</button>' +
+      '</div></div></div>';
+    document.body.appendChild(root);
+    const close = () => {
+      root.remove();
+    };
+    root.querySelectorAll('[data-lqs-apple-offer-close]').forEach((el) => el.addEventListener('click', close));
+    root.querySelector('[data-lqs-apple-offer-ok]')?.addEventListener('click', () => {
+      global.sfOpenMeetingInDeviceCalendar(String(meetingId));
+      close();
+    });
   }
 
   async function openLqsEditVisitModal(visitId) {
@@ -687,6 +783,7 @@
   }
 
   function closeLqsScheduleVisitModal() {
+    closeLqsVisitWhereModal();
     const modal = document.getElementById('lqsScheduleVisitModal');
     if (modal) {
       modal.classList.remove('active');
@@ -763,6 +860,15 @@
         if (prop) prop.innerHTML = renderPropertyBlock_(sheetLead);
         await forceLeadToMeetingScheduled_(data.lead || sheetLead);
         void refreshQuotesOnly();
+        if (!editingId) {
+          const meetingId =
+            (data.data && (data.data.meeting_id || data.data.meetingId)) ||
+            (data.visit && data.visit.meeting_id) ||
+            null;
+          if (meetingId) {
+            offerLqsVisitAppleCalendar(meetingId, sheetLead && sheetLead.name);
+          }
+        }
       } else {
         notifySheet(data.error || 'Nao foi possivel guardar a visita.', 'error');
       }
@@ -1797,7 +1903,7 @@
       e.preventDefault();
       const createMenu = document.getElementById('lqsCreateMenu');
       if (createMenu) createMenu.hidden = true;
-      openLqsScheduleVisitModal();
+      openLqsVisitWhereChooser();
       return;
     }
     const editVisitBtn = e.target.closest('[data-lqs-edit-visit]');

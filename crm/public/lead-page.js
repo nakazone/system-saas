@@ -217,7 +217,7 @@
     }
     wire();
     await loadAll();
-    if (params.get('schedule') === '1' || params.get('visit') === '1') openVisitModal();
+    if (params.get('schedule') === '1' || params.get('visit') === '1') openVisitModal(null, { system: params.get('system') === '1' });
     if (typeof window.sfLoadLeadMessageSettings === 'function') window.sfLoadLeadMessageSettings().catch(() => {});
   }
 
@@ -861,8 +861,39 @@
     document.body.classList.remove('lp-modal-open');
   }
 
+  function openVisitInAppleCalendar() {
+    const lead = S.lead;
+    if (!lead) return;
+    if (typeof window.sfPrefetchLeadVisitIcs === 'function') void window.sfPrefetchLeadVisitIcs(S.id);
+    if (typeof window.sfOpenLeadVisitInDeviceCalendar === 'function') {
+      const ok = window.sfOpenLeadVisitInDeviceCalendar(lead);
+      if (ok) return;
+    }
+    toast('Não foi possível abrir o Apple Calendar neste dispositivo.', 'error');
+  }
+
+  function openVisitWhereChooser(opts) {
+    if (typeof window.sfPrefetchLeadVisitIcs === 'function') void window.sfPrefetchLeadVisitIcs(S.id);
+    openModal(
+      'Agendar visita',
+      `<p class="lp-hint" style="margin-top:0">Onde quer criar esta visita?</p>
+      <div class="lp-form__acts" style="flex-direction:column;align-items:stretch;gap:10px">
+        <button type="button" class="lp-btn lp-btn--pri" data-lp-visit-where="system">Na Agenda ObraMate</button>
+        <button type="button" class="lp-btn" data-lp-visit-where="apple">No Apple Calendar</button>
+      </div>
+      <p class="lp-hint">ObraMate: visita na agenda da equipe. Apple: só no Calendário do iPhone (não grava no sistema).</p>`,
+      null
+    );
+    void opts;
+  }
+
   async function openVisitModal(visitId, opts) {
     const v = visitId ? S.visits.find((x) => String(x.id) === String(visitId)) : null;
+    // New visit: choose sistema vs Apple first (edit goes straight to form).
+    if (!v && !(opts && opts.system)) {
+      openVisitWhereChooser(opts);
+      return;
+    }
     const users = await ensureUsers();
     let when = v ? toLocalInput(v.scheduled_at) : null;
     if (!when) {
@@ -900,6 +931,12 @@
         await Promise.all([reloadVisits(), reloadActivity()]).catch(() => {});
         toast(v ? 'Visita atualizada' : 'Visita agendada', 'success');
         renderAll();
+        if (!v) {
+          const meetingId = j.data && (j.data.meeting_id || j.data.meetingId);
+          if (meetingId && typeof window.sfOpenMeetingInDeviceCalendar === 'function') {
+            return { deviceCalMeetingId: String(meetingId) };
+          }
+        }
       }
     );
     attachAddress($('#lpModalForm [data-lp-address]'));
@@ -1071,6 +1108,20 @@
     }
     if (t.closest('[data-lp-lost]') || t.closest('[data-lp-lost-edit]')) return openLostModal();
     if (t.closest('[data-lp-visit-new]')) return openVisitModal();
+    if ((el = t.closest('[data-lp-visit-where]'))) {
+      const where = el.getAttribute('data-lp-visit-where');
+      closeModal();
+      if (where === 'apple') return openVisitInAppleCalendar();
+      return openVisitModal(null, { system: true });
+    }
+    if ((el = t.closest('[data-lp-device-cal]'))) {
+      const id = el.getAttribute('data-lp-device-cal');
+      if (id && typeof window.sfOpenMeetingInDeviceCalendar === 'function') {
+        window.sfOpenMeetingInDeviceCalendar(id);
+      }
+      closeModal();
+      return;
+    }
     if ((el = t.closest('[data-lp-visit-edit]'))) return openVisitModal(el.getAttribute('data-lp-visit-edit'));
     if (t.closest('[data-lp-fu-new]')) return openFollowupModal();
     if ((el = t.closest('[data-lp-fu-done]'))) {
@@ -1196,8 +1247,19 @@
       const btn = form.querySelector('[type=submit]');
       if (btn) btn.disabled = true;
       try {
-        await modalSubmit(new FormData(form));
+        const result = await modalSubmit(new FormData(form));
         closeModal();
+        if (result && result.deviceCalMeetingId) {
+          openModal(
+            'Também no Apple Calendar?',
+            `<p class="lp-hint" style="margin-top:0">A visita já está na Agenda ObraMate.</p>
+            <div class="lp-form__acts" style="flex-direction:column;align-items:stretch;gap:10px">
+              <button type="button" class="lp-btn lp-btn--pri" data-lp-device-cal="${esc(result.deviceCalMeetingId)}">Abrir Apple Calendar</button>
+              <button type="button" class="lp-btn" data-lp-close>Agora não</button>
+            </div>`,
+            null
+          );
+        }
       } catch (err) {
         toast(err.message, 'error');
         if (btn) btn.disabled = false;
