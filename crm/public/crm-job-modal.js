@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261012-svcqpe1";
+  const CSS_HREF = "crm-job-modal.css?v=20261012-svcqpe2";
   const QPE_CSS = "quote-services-popup.css?v=20261012-qp3";
   const QPE_JS = "quote-services-popup.js?v=20261012-qp3";
   const PAPER_CSS = "quote-paper.css?v=20261012-qp4";
@@ -1031,8 +1031,9 @@
     });
   }
 
-  function ensureCss(href) {
-    const base = href.split("?")[0];
+  function ensureAssetCss(href) {
+    if (!href) return;
+    const base = String(href).split("?")[0];
     if ([...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => (l.getAttribute("href") || "").split("?")[0] === base)) {
       return;
     }
@@ -1042,8 +1043,9 @@
     document.head.appendChild(link);
   }
 
-  function ensureScript(src) {
-    const base = src.split("?")[0];
+  function ensureAssetScript(src) {
+    if (!src) return Promise.reject(new Error("Script não informado"));
+    const base = String(src).split("?")[0];
     if (base.endsWith("quote-paper.js") && window.OmQuotePaper) return Promise.resolve();
     if (base.endsWith("quote-services-popup.js") && window.OmQuoteServices) return Promise.resolve();
     const existing = [...document.querySelectorAll("script")].find((s) => (s.getAttribute("src") || "").split("?")[0] === base);
@@ -1083,10 +1085,10 @@
     if (window.OmQuotePaper && window.OmQuoteServices) return;
     if (qpeAssetsPromise) return qpeAssetsPromise;
     qpeAssetsPromise = (async () => {
-      ensureCss(PAPER_CSS);
-      ensureCss(QPE_CSS);
-      await ensureScript(PAPER_JS);
-      await ensureScript(QPE_JS);
+      ensureAssetCss(PAPER_CSS);
+      ensureAssetCss(QPE_CSS);
+      await ensureAssetScript(PAPER_JS);
+      await ensureAssetScript(QPE_JS);
       if (!window.OmQuotePaper || !window.OmQuoteServices) {
         throw new Error("Não foi possível abrir a tela de serviços.");
       }
