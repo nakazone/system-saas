@@ -32,6 +32,7 @@
 }
 .tv-list__top { padding: 16px 16px 10px; border-bottom: 1px solid #E5E7EB; display: flex; flex-direction: column; gap: 10px; }
 .tv-title { display: flex; align-items: center; gap: 8px; }
+.tv-title__acts { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .tv-title h1 { flex: 1; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; color: #221E1A; }
 .tv-sub { margin: -4px 0 0; font-size: 12.5px; color: #667085; }
 .tv-search { position: relative; display: flex; align-items: center; margin: 0; }

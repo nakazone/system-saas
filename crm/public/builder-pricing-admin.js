@@ -97,7 +97,7 @@
     const vis = S.rows.filter(isVis).length;
     $('tvSub').textContent = `${S.rows.length} serviço${S.rows.length === 1 ? '' : 's'} · ${vis} no portal do builder`;
     let h = `<a class="tv-res${!S.sel ? ' is-on' : ''}" href="#" data-tv-res><span class="tv-res__ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M9 5v14"/></svg></span><span class="tv-res__b"><b>Tabela completa</b><small>4 preços por serviço · editar no lugar</small></span></a>`;
-    if (!S.rows.length) h += '<p class="tv-empty">Nenhum serviço ainda. Toque em Novo para começar.</p>';
+    if (!S.rows.length) h += '<p class="tv-empty">Nenhum serviço ainda. Use <b>Catálogo</b> para carregar serviços padrão (sem preços) ou <b>Novo</b> para criar um.</p>';
     else if (!list.length) h += '<p class="tv-empty">Nenhum serviço com essa busca.</p>';
     groups(list).forEach(([, label, items]) => {
       h += `<div class="tv-grp">${esc(label)}<em>${items.length}</em></div>`;
@@ -253,6 +253,29 @@
   }
 
   /* ---------------- ações */
+  async function seedDefaults() {
+    if (!S.canEdit) return;
+    const hasRows = S.rows.length > 0;
+    const ok = confirm(
+      hasRows
+        ? 'Adicionar serviços do catálogo padrão que ainda faltam?\n\nNão altera preços nem serviços já existentes — só cria os que faltam, com descrição e preço em branco.'
+        : 'Carregar o catálogo padrão de serviços?\n\nInclui nomes, categorias, unidades e descrições. Os preços ficam em branco para você preencher.',
+    );
+    if (!ok) return;
+    const btn = $('tvSeedBtn');
+    if (btn) btn.disabled = true;
+    try {
+      const j = await api('/api/pricing/seed-defaults', { method: 'POST', body: JSON.stringify({}) });
+      if (Array.isArray(j.data)) S.rows = j.data;
+      notify(j.message || 'Catálogo atualizado.', j.created > 0 ? 'success' : 'info');
+      render();
+    } catch (e) {
+      notify(e.message, 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   function readForm(root) {
     const g = (n) => root.querySelector(`[name="${n}"]`);
     const body = {
@@ -438,6 +461,7 @@
         return;
       }
       if (t.closest('[data-tv-new]') || t.closest('#tvNewBtn')) return openNew();
+      if (t.closest('#tvSeedBtn')) return void seedDefaults();
       if (t.closest('[data-tv-close]')) return closeNew();
       if ((b = t.closest('[data-tv-vis]'))) return toggleVis(b);
       if ((b = t.closest('[data-tv-del]'))) return deleteService(b);
@@ -492,6 +516,7 @@
     if (!S.canEdit) {
       $('adminReadOnlyBanner').hidden = false;
       $('tvNewBtn').hidden = true;
+      if ($('tvSeedBtn')) $('tvSeedBtn').hidden = true;
     }
     bind();
     try {

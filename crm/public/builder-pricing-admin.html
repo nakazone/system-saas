@@ -57,7 +57,12 @@
         <div class="tv-split" id="tvSplit">
           <aside class="tv-list" aria-label="Serviços">
             <div class="tv-list__top">
-              <div class="tv-title"><h1>Tabela de Valor</h1><button type="button" class="tv-btn tv-btn--pri tv-btn--sm" id="tvNewBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Novo</span></button></div>
+              <div class="tv-title"><h1>Tabela de Valor</h1>
+                <div class="tv-title__acts">
+                  <button type="button" class="tv-btn tv-btn--sm" id="tvSeedBtn" title="Adiciona serviços padrão com descrições; preços ficam em branco">Catálogo</button>
+                  <button type="button" class="tv-btn tv-btn--pri tv-btn--sm" id="tvNewBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Novo</span></button>
+                </div>
+              </div>
               <p class="tv-sub" id="tvSub">Preços por tipo de cliente</p>
               <label class="tv-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="pricingSearch" placeholder="Buscar serviço ou nota" autocomplete="off" aria-label="Buscar serviços" /></label>
               <div class="tv-seg" id="tvSeg" role="group" aria-label="Categoria"></div>
@@ -87,6 +92,6 @@
   <script src="crm-toast.js"></script>
   <script src="crm-shell.js?v=20261009-cx1"></script>
   <script src="crm-shared-nav.js?v=20261009-cx1"></script>
-  <script src="builder-pricing-admin.js?v=20261009-tv1"></script>
+  <script src="builder-pricing-admin.js?v=20261012-seed1"></script>
 </body>
 </html>

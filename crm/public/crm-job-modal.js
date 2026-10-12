@@ -186,6 +186,65 @@
   function currentBuilder() {
     return st.builderId ? builders.find((b) => String(b.id) === String(st.builderId)) || null : null;
   }
+  function findCustomerById(id) {
+    if (id == null || id === "") return null;
+    return customers.find((c) => String(c.id) === String(id)) || null;
+  }
+  function rememberCustomer(row) {
+    if (!row || row.id == null) return null;
+    const idx = customers.findIndex((c) => String(c.id) === String(row.id));
+    if (idx >= 0) customers[idx] = { ...customers[idx], ...row };
+    else customers.push(row);
+    return findCustomerById(row.id);
+  }
+  /** CRM customer used for custom pricing — direct selection or linked via Builder.customer_id / name·email. */
+  function matchCustomerForBuilder(b) {
+    if (!b) return null;
+    if (b.customer_id != null && b.customer_id !== "") {
+      const linked = findCustomerById(b.customer_id);
+      if (linked) return linked;
+    }
+    const keys = builderDupKeys(b);
+    if (!keys.size) return null;
+    return (
+      customers.find((c) => {
+        let type = String(c.customer_type || "particular").toLowerCase();
+        if (type === "contractor") type = "builder";
+        if (type !== "builder" && type !== "loja") return false;
+        const name = partyNorm(c.company || c.name);
+        const email = partyNorm(c.email);
+        if (name && keys.has(`n:${name}`)) return true;
+        if (email && keys.has(`e:${email}`)) return true;
+        return false;
+      }) || null
+    );
+  }
+  function pricingCustomer() {
+    return currentCustomer() || matchCustomerForBuilder(currentBuilder());
+  }
+  /** Load linked CRM customer when the job only has a Builder selected. */
+  async function ensurePricingCustomer() {
+    let c = pricingCustomer();
+    if (c) return c;
+    const b = currentBuilder();
+    if (!b) return null;
+    let customerId = b.customer_id;
+    if (customerId == null || customerId === "") {
+      const fullB = await api(`/api/builders/${encodeURIComponent(b.id)}`).catch(() => null);
+      const row = fullB?.data || fullB;
+      if (row && row.customer_id != null && row.customer_id !== "") {
+        b.customer_id = row.customer_id;
+        customerId = row.customer_id;
+        const bi = builders.findIndex((x) => String(x.id) === String(b.id));
+        if (bi >= 0) builders[bi] = { ...builders[bi], customer_id: customerId };
+      }
+    }
+    if (customerId == null || customerId === "") return matchCustomerForBuilder(b);
+    const full = await api(`/api/customers/${encodeURIComponent(customerId)}`).catch(() => null);
+    const row = full?.data || full;
+    if (row && row.id != null) return rememberCustomer(row);
+    return null;
+  }
   /** The party the job is for (and billed to): customer first, else builder. */
   function clientCard() {
     const c = currentCustomer();
@@ -207,12 +266,13 @@
       const person = [b.first_name, b.last_name].filter(Boolean).join(" ");
       let bType = String(b.type || "builder").toLowerCase();
       if (bType === "contractor") bType = "builder";
+      const pc = matchCustomerForBuilder(b);
       return {
         name: builderName(b),
         type: bType,
         sub: [person && person !== builderName(b) ? person : null, b.phone, b.email].filter(Boolean).join(" · "),
         address: b.address || "",
-        custom: false,
+        custom: !!(pc && pc.pricing_mode === "custom"),
       };
     }
     return null;
@@ -287,7 +347,7 @@
     return RATE_KEY[st.sourceType] || "price_particular";
   }
   function customRates() {
-    const c = currentCustomer();
+    const c = pricingCustomer();
     return c && c.pricing_mode === "custom" && c.custom_pricing_rates ? c.custom_pricing_rates : null;
   }
   function priceFor(item) {
@@ -359,6 +419,7 @@
     rateSavePending = payload;
     const typeLabel = payload.typeLabel || pricingTypeLabel();
     const customer = payload.customer || null;
+    const partyLabel = payload.partyLabel || "cliente";
     const customerName = customer && (customer.name || customer.company) ? String(customer.name || customer.company) : "";
     const nameEl = $("jmSaveRateServiceName");
     const oldEl = $("jmSaveRateOld");
@@ -372,19 +433,27 @@
     if (newEl) newEl.textContent = money(Number(payload.newRate) || 0);
     if (typeEl) typeEl.textContent = typeLabel;
     const noCustomer = !customer || customer.id == null;
+    const hasBuilderOnly = !!(st && st.builderId && noCustomer);
     if (clientBtn) {
       clientBtn.disabled = noCustomer;
       clientBtn.classList.toggle("is-disabled", noCustomer);
       clientBtn.textContent = noCustomer
-        ? "Só para este cliente"
-        : `Só para ${customerName || "este cliente"}`;
+        ? `Só para este ${partyLabel}`
+        : `Só para ${customerName || `este ${partyLabel}`}`;
     }
     if (tableBtn) tableBtn.textContent = `Atualizar Tabela · ${typeLabel}`;
-    if (clientHint) clientHint.classList.toggle("hidden", !noCustomer);
+    if (clientHint) {
+      clientHint.classList.toggle("hidden", !noCustomer);
+      if (noCustomer) {
+        clientHint.textContent = hasBuilderOnly
+          ? "Este builder ainda não tem cadastro CRM ligado. Atualize o builder no módulo Builders ou escolha Atualizar Tabela."
+          : "Para gravar no cadastro, selecione um cliente ou builder neste job.";
+      }
+    }
     root.classList.remove("hidden");
   }
 
-  function maybeOfferRatePersist(lineIdx) {
+  async function maybeOfferRatePersist(lineIdx) {
     ensureRateModal();
     const root = $("jmSaveRateModal");
     if (root && !root.classList.contains("hidden")) return;
@@ -396,6 +465,9 @@
     if (!Number.isFinite(newRate) || newRate < 0) return;
     const tableRate = systemRateFor(item);
     if (ratesNearlyEqual(newRate, tableRate)) return;
+    const customer = (await ensurePricingCustomer()) || pricingCustomer();
+    const b = currentBuilder();
+    const partyLabel = b && !currentCustomer() ? (String(b.type || "").toLowerCase() === "loja" ? "loja" : "builder") : "cliente";
     openSaveRateModal({
       lineIdx,
       serviceName: String(line.name || item.name || "Serviço").trim() || "Serviço",
@@ -403,20 +475,31 @@
       tableRate,
       typeLabel: pricingTypeLabel(),
       pricingItemId: String(item.id),
-      customer: currentCustomer(),
+      customer,
+      partyLabel,
     });
   }
 
   async function persistRateForCustomerOnly() {
     const p = rateSavePending;
-    if (!p || !p.customer || p.customer.id == null) {
-      notify("Selecione um cliente CRM para gravar preço personalizado.", "error");
+    let customer = p && p.customer && p.customer.id != null ? p.customer : null;
+    if (!customer) {
+      customer = await ensurePricingCustomer();
+      if (customer && p) p.customer = customer;
+    }
+    if (!p || !customer || customer.id == null) {
+      notify(
+        currentBuilder()
+          ? "Este builder não tem cadastro CRM ligado para preço personalizado."
+          : "Selecione um cliente ou builder neste job para gravar preço personalizado.",
+        "error",
+      );
       return;
     }
-    const cid = String(p.customer.id);
+    const cid = String(customer.id);
     const prevRates =
-      p.customer.custom_pricing_rates && typeof p.customer.custom_pricing_rates === "object"
-        ? { ...p.customer.custom_pricing_rates }
+      customer.custom_pricing_rates && typeof customer.custom_pricing_rates === "object"
+        ? { ...customer.custom_pricing_rates }
         : {};
     prevRates[String(p.pricingItemId)] = p.newRate;
     const btn = $("jmSaveRateClient");
@@ -430,10 +513,9 @@
         }),
       });
       const updated = j.data || j;
-      const idx = customers.findIndex((c) => String(c.id) === cid);
-      if (idx >= 0) customers[idx] = { ...customers[idx], ...updated };
-      else if (updated && updated.id) customers.push(updated);
-      notify("Preço gravado no cadastro deste cliente.", "success");
+      rememberCustomer(updated && updated.id ? updated : { ...customer, pricing_mode: "custom", custom_pricing_rates: prevRates });
+      const party = currentBuilder() && !currentCustomer() ? "builder" : "cliente";
+      notify(`Preço gravado no cadastro deste ${party}.`, "success");
       closeSaveRateModal();
       renderServices();
     } catch (e) {
@@ -624,7 +706,7 @@
       <div><span>Neste job</span><strong id="jmSaveRateNew">—</strong></div>
     </div>
     <p id="jmSaveRateClientHint" class="jm-rate__hint hidden">
-      Para gravar no cadastro do cliente, selecione um cliente CRM neste job.
+      Para gravar no cadastro, selecione um cliente ou builder neste job.
     </p>
     <div class="jm-rate__acts">
       <button type="button" id="jmSaveRateClient" class="jm-btn jm-btn--dark">Só para este cliente</button>
@@ -1218,6 +1300,14 @@
       st.sourceType = t === "loja" ? "loja" : "builder";
       if (st.sourceNameAuto) st.sourceName = builderName(b);
       // Do not copy builder mailing address into the job site field.
+      // Preload CRM customer linked to this builder so custom rates apply.
+      void ensurePricingCustomer().then((pc) => {
+        if (!st || String(st.builderId) !== String(id)) return;
+        if (pc) {
+          repriceLines();
+          renderServices();
+        }
+      });
     }
     st.pickerOpen = false;
     st.pickerQuery = "";
@@ -1433,6 +1523,14 @@
     if (wo.builder_id && !builders.some((b) => String(b.id) === String(wo.builder_id))) {
       builders.push({ id: wo.builder_id, company: wo.builder?.company, name: wo.builder?.name, type: "builder" });
     }
+    if (wo.builder_id) {
+      const bi = builders.findIndex((b) => String(b.id) === String(wo.builder_id));
+      if (bi >= 0 && (builders[bi].customer_id == null || builders[bi].customer_id === "")) {
+        const fullB = await api(`/api/builders/${encodeURIComponent(wo.builder_id)}`).catch(() => null);
+        const brow = fullB?.data || fullB;
+        if (brow && brow.customer_id != null) builders[bi] = { ...builders[bi], ...brow };
+      }
+    }
     st = blankState();
     const section = (opts && opts.section) || "all";
     st.section = SECTIONS.includes(section) ? section : "all";
@@ -1484,6 +1582,7 @@
     st.relatedWorkOrder = wo.related_work_order || null;
     st.relatedChildren = Array.isArray(wo.related_children) ? wo.related_children : [];
     st.pickerOpen = !(st.customerId || st.builderId);
+    if (st.builderId && !st.customerId) await ensurePricingCustomer();
     open();
   }
 
@@ -2243,7 +2342,7 @@
       const newRate = Number(line.price);
       if (!Number.isFinite(newRate)) return;
       if (ratesNearlyEqual(newRate, ctx.baseline)) return;
-      setTimeout(() => maybeOfferRatePersist(i), 0);
+      setTimeout(() => void maybeOfferRatePersist(i), 0);
     });
     modal.addEventListener("keydown", onKey);
     ensureRateModal();

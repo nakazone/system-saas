@@ -7,7 +7,7 @@
  *   PUT    /api/settings/catalog/:kind/:id      settings.manage
  *   DELETE /api/settings/catalog/:kind/:id      settings.manage
  *
- * kind = service_category | unit | customer_type | payroll_payment_method
+ * kind = service_category | unit | customer_type | pricing_column | payroll_payment_method
  */
 import { Router } from "express";
 import { z } from "zod";
@@ -21,7 +21,24 @@ import {
 
 export const settingsCatalogRouter = Router();
 
-const KINDS = new Set(["service_category", "unit", "customer_type", PAYROLL_PAYMENT_METHOD_KIND]);
+/** Fixed price columns on PricingItem — labels/visibility only (no new DB columns). */
+export const PRICING_COLUMN_KIND = "pricing_column";
+export const PRICING_COLUMN_KEYS = ["particular", "builder", "contractor", "loja"] as const;
+export type PricingColumnKey = (typeof PRICING_COLUMN_KEYS)[number];
+export const PRICING_COLUMN_FIELD: Record<PricingColumnKey, string> = {
+  particular: "price_particular",
+  builder: "price_builder",
+  contractor: "price_contractor",
+  loja: "price_loja",
+};
+
+const KINDS = new Set([
+  "service_category",
+  "unit",
+  "customer_type",
+  PRICING_COLUMN_KIND,
+  PAYROLL_PAYMENT_METHOD_KIND,
+]);
 
 const DEFAULTS: Record<string, Array<{ key: string; label: string; description?: string; sortOrder: number }>> = {
   service_category: [
@@ -42,6 +59,12 @@ const DEFAULTS: Record<string, Array<{ key: string; label: string; description?:
     { key: "particular", label: "Particular", description: "Cliente final / residencial", sortOrder: 10 },
     { key: "builder", label: "Builder", description: "Builders e contractors (cadastro unificado)", sortOrder: 20 },
     { key: "loja", label: "Loja", description: "Loja / retail partner", sortOrder: 30 },
+  ],
+  [PRICING_COLUMN_KIND]: [
+    { key: "particular", label: "Cliente", description: "Coluna Cliente / Particular na Tabela de Valores", sortOrder: 10 },
+    { key: "builder", label: "Builder", description: "Coluna Builder na Tabela de Valores", sortOrder: 20 },
+    { key: "contractor", label: "Contractor", description: "Coluna Contractor na Tabela de Valores", sortOrder: 30 },
+    { key: "loja", label: "Loja", description: "Coluna Loja na Tabela de Valores", sortOrder: 40 },
   ],
   [PAYROLL_PAYMENT_METHOD_KIND]: DEFAULT_PAYROLL_PAYMENT_METHODS.map((m) => ({
     key: m.key,
@@ -97,9 +120,30 @@ function serialize(row: {
 }
 
 async function ensureDefaults(tx: any, organizationId: string, kind: string) {
+  const seeds = DEFAULTS[kind] || [];
+  if (!seeds.length) return;
+  // pricing_column: seed any missing system keys (org may already have a partial set).
+  if (kind === PRICING_COLUMN_KIND) {
+    for (const s of seeds) {
+      const exists = await tx.orgCatalogItem.findFirst({ where: { kind, key: s.key } });
+      if (exists) continue;
+      await tx.orgCatalogItem.create({
+        data: {
+          organizationId,
+          kind,
+          key: s.key,
+          label: s.label,
+          description: s.description || null,
+          sortOrder: s.sortOrder,
+          active: true,
+          isSystem: true,
+        },
+      });
+    }
+    return;
+  }
   const count = await tx.orgCatalogItem.count({ where: { kind } });
   if (count > 0) return;
-  const seeds = DEFAULTS[kind] || [];
   for (const s of seeds) {
     await tx.orgCatalogItem.create({
       data: {
@@ -147,6 +191,8 @@ settingsCatalogRouter.get(
         perms.includes("quotes.view") ||
         perms.includes("quotes.edit") ||
         perms.includes("customers.view") ||
+        perms.includes("builders.view") ||
+        perms.includes("builders.edit") ||
         perms.includes("payroll.view") ||
         perms.includes("payroll.manage");
       if (!allowed) {
@@ -194,6 +240,14 @@ settingsCatalogRouter.post(
         res.status(400).json({
           success: false,
           error: "Use o tipo Builder (Contractor foi unificado no cadastro).",
+        });
+        return;
+      }
+      // Pricing columns are fixed (map to PricingItem fields) — rename/hide only.
+      if (kind === PRICING_COLUMN_KIND) {
+        res.status(400).json({
+          success: false,
+          error: "As colunas da Tabela de Valores são fixas. Edite ou desative as existentes.",
         });
         return;
       }
@@ -254,11 +308,20 @@ settingsCatalogRouter.put(
         let key = current.key;
         if (parsed.data.key && parsed.data.key !== current.key) {
           if (current.isSystem && kind !== "payroll_payment_method") throw new Error("SYSTEM_KEY");
+          if (kind === PRICING_COLUMN_KIND) throw new Error("SYSTEM_KEY");
           key = parsed.data.key;
           const clash = await tx.orgCatalogItem.findFirst({
             where: { kind, key, NOT: { id: current.id } },
           });
           if (clash) throw new Error("KEY_EXISTS");
+        }
+
+        const nextActive = parsed.data.active === undefined ? current.active : parsed.data.active;
+        if (kind === PRICING_COLUMN_KIND && current.active && !nextActive) {
+          const activeCount = await tx.orgCatalogItem.count({
+            where: { kind: PRICING_COLUMN_KIND, active: true, NOT: { id: current.id } },
+          });
+          if (activeCount < 1) throw new Error("LAST_PRICING_COLUMN");
         }
 
         return tx.orgCatalogItem.update({
@@ -268,7 +331,7 @@ settingsCatalogRouter.put(
             label: parsed.data.label.trim(),
             description: parsed.data.description === undefined ? current.description : parsed.data.description || null,
             sortOrder: parsed.data.sort_order ?? current.sortOrder,
-            active: parsed.data.active === undefined ? current.active : parsed.data.active,
+            active: nextActive,
           },
         });
       });
@@ -284,6 +347,10 @@ settingsCatalogRouter.put(
       }
       if (error instanceof Error && error.message === "SYSTEM_KEY") {
         res.status(400).json({ success: false, error: "Não é possível alterar a chave de um item padrão" });
+        return;
+      }
+      if (error instanceof Error && error.message === "LAST_PRICING_COLUMN") {
+        res.status(400).json({ success: false, error: "Mantenha ao menos uma coluna ativa na Tabela de Valores." });
         return;
       }
       next(error);
@@ -305,6 +372,12 @@ settingsCatalogRouter.delete(
       await withTenantTransaction(req.organizationId!, async (tx) => {
         const current = await tx.orgCatalogItem.findFirst({ where: { id: paramStr(req.params.id), kind } });
         if (!current) throw new Error("NOT_FOUND");
+        if (kind === PRICING_COLUMN_KIND) {
+          const activeCount = await tx.orgCatalogItem.count({
+            where: { kind: PRICING_COLUMN_KIND, active: true, NOT: { id: current.id } },
+          });
+          if (activeCount < 1) throw new Error("LAST_PRICING_COLUMN");
+        }
         if (current.isSystem && kind !== "payroll_payment_method") {
           // Soft-deactivate system defaults instead of hard delete
           await tx.orgCatalogItem.update({
@@ -319,6 +392,10 @@ settingsCatalogRouter.delete(
     } catch (error) {
       if (error instanceof Error && error.message === "NOT_FOUND") {
         res.status(404).json({ success: false, error: "Item não encontrado" });
+        return;
+      }
+      if (error instanceof Error && error.message === "LAST_PRICING_COLUMN") {
+        res.status(400).json({ success: false, error: "Mantenha ao menos uma coluna ativa na Tabela de Valores." });
         return;
       }
       next(error);

@@ -4,6 +4,10 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../http.js";
 import { formatPersonName } from "../../lib/name.js";
+import {
+  DEFAULT_PRICING_SERVICES,
+  seedDefaultPricingServices,
+} from "../../lib/pricing/default-services.js";
 
 export const buildersPricingRouter = Router();
 
@@ -64,6 +68,7 @@ function mapPricing(row: {
     price_contractor: priceContractor,
     price_loja: priceLoja,
     notes: row.notes || row.description,
+    description: row.description || row.notes || null,
     is_visible: row.isVisible ? 1 : 0,
     is_locked: row.isLocked ? 1 : 0,
     sort_order: row.sortOrder,
@@ -313,6 +318,73 @@ buildersPricingRouter.get(
 buildersPricingRouter.get("/api/pricing/volume-discounts", (_req, res) => {
   res.json({ success: true, data: VOLUME_DISCOUNTS });
 });
+
+/** Default service catalog (names/descriptions only — rates stay 0). */
+buildersPricingRouter.get(
+  "/api/pricing/default-catalog",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ success: false, error: "Authentication required" });
+        return;
+      }
+      const canRead =
+        user.roleKey === "admin" ||
+        user.permissions.includes("builders.view") ||
+        user.permissions.includes("quotes.view");
+      if (!canRead) {
+        res.status(403).json({ success: false, error: "Permission denied", missing: ["builders.view"] });
+        return;
+      }
+      res.json({
+        success: true,
+        data: DEFAULT_PRICING_SERVICES.map((s) => ({
+          name: s.name,
+          category: s.category,
+          unit: s.unit,
+          description: s.description,
+          sort_order: s.sortOrder,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Load default services into this org's Tabela de Valores.
+ * Does not overwrite existing rows or set prices — only inserts missing name+category.
+ */
+buildersPricingRouter.post(
+  "/api/pricing/seed-defaults",
+  requireCrmAuth,
+  requireCrmPermission("builders.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const emptyOnly = Boolean(req.body?.empty_only);
+      const created = await withTenantTransaction(req.organizationId!, async (tx) =>
+        seedDefaultPricingServices(tx as never, req.organizationId!, { emptyOnly }),
+      );
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
+        tx.pricingItem.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+      );
+      res.json({
+        success: true,
+        created,
+        data: rows.map(mapPricing),
+        message:
+          created > 0
+            ? `${created} serviço${created === 1 ? "" : "s"} adicionado${created === 1 ? "" : "s"} (preços em branco para você preencher).`
+            : "Nenhum serviço novo — a tabela já tinha esses itens.",
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 buildersPricingRouter.post(
   "/api/pricing",
