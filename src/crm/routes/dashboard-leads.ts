@@ -11,6 +11,8 @@ import { ensureCanonicalPipelineStages, ensureStageForSlug, findDuplicateLead } 
 import { formatUsPhone } from "../../lib/phone.js";
 import { formatPersonName } from "../../lib/name.js";
 import { safeTimeZone, startOfZonedDay, startOfZonedMonth } from "../../lib/time/zoned.js";
+import { buildLeadVisitIcs } from "../../lib/schedule/lead-visit-ics.js";
+import { safeTimeZone } from "../../lib/time/zoned.js";
 
 export const dashboardLeadsRouter = Router();
 
@@ -308,6 +310,62 @@ dashboardLeadsRouter.get("/api/leads/:id", requireCrmPermission("leads.view"), a
     next(error);
   }
 });
+
+/** One-shot .ics → Apple Calendar (same gesture pattern as meetings). */
+dashboardLeadsRouter.get(
+  "/api/leads/:id/calendar.ics",
+  requireCrmPermission("leads.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const packed = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const [lead, org] = await Promise.all([
+          loadLeadOrNull(tx, String(req.params.id)),
+          tx.organization.findFirst({ select: { timezone: true } }),
+        ]);
+        return { lead, timezone: org?.timezone ?? null };
+      });
+      if (!packed.lead) {
+        res.status(404).type("text/plain").send("Lead not found");
+        return;
+      }
+      const mapped = mapLead(packed.lead);
+      const meta = asMeta(packed.lead.metadata);
+      const metaStr = (key: string) =>
+        meta[key] != null && String(meta[key]).trim() ? String(meta[key]).trim() : null;
+      const ics = buildLeadVisitIcs(
+        {
+          id: mapped.id,
+          name: mapped.name,
+          phone: mapped.phone,
+          email: mapped.email,
+          notes: mapped.notes,
+          source: mapped.source,
+          address: mapped.address,
+          zipcode: mapped.zipcode ?? metaStr("zipcode"),
+          address_line1: metaStr("address_line1") || mapped.address,
+          address_line2: metaStr("address_line2"),
+          city: metaStr("city"),
+          message: metaStr("message"),
+          form_type: metaStr("form_type"),
+          marketing_platform: metaStr("marketing_platform"),
+          utm_source: metaStr("utm_source"),
+          utm_medium: metaStr("utm_medium"),
+          landing_page: metaStr("landing_page"),
+          gclid: metaStr("gclid"),
+          fbclid: metaStr("fbclid"),
+        },
+        { timezone: safeTimeZone(packed.timezone) },
+      );
+      res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+      res.setHeader("Content-Disposition", 'inline; filename="visita-lead.ics"');
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.status(200).send(ics);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 dashboardLeadsRouter.get("/api/leads/:id/qualification", requireCrmPermission("leads.view"), async (req: AuthedRequest, res, next) => {
   try {

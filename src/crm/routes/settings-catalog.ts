@@ -57,13 +57,12 @@ const DEFAULTS: Record<string, Array<{ key: string; label: string; description?:
   ],
   customer_type: [
     { key: "particular", label: "Particular", description: "Cliente final / residencial", sortOrder: 10 },
-    { key: "builder", label: "Builder", description: "Builders e contractors (cadastro unificado)", sortOrder: 20 },
+    { key: "builder", label: "Builder", description: "Builders e parceiros de obra", sortOrder: 20 },
     { key: "loja", label: "Loja", description: "Loja / retail partner", sortOrder: 30 },
   ],
   [PRICING_COLUMN_KIND]: [
-    { key: "particular", label: "Cliente", description: "Coluna Cliente / Particular na Tabela de Valores", sortOrder: 10 },
+    { key: "particular", label: "Particular", description: "Coluna Particular na Tabela de Valores", sortOrder: 10 },
     { key: "builder", label: "Builder", description: "Coluna Builder na Tabela de Valores", sortOrder: 20 },
-    { key: "contractor", label: "Contractor", description: "Coluna Contractor na Tabela de Valores", sortOrder: 30 },
     { key: "loja", label: "Loja", description: "Coluna Loja na Tabela de Valores", sortOrder: 40 },
   ],
   [PAYROLL_PAYMENT_METHOD_KIND]: DEFAULT_PAYROLL_PAYMENT_METHODS.map((m) => ({
@@ -140,6 +139,11 @@ async function ensureDefaults(tx: any, organizationId: string, kind: string) {
         },
       });
     }
+    // Contractor was consolidated into Builder — hide the retired pricing column.
+    await tx.orgCatalogItem.updateMany({
+      where: { organizationId, kind, key: "contractor", active: true },
+      data: { active: false },
+    });
     return;
   }
   const count = await tx.orgCatalogItem.count({ where: { kind } });

@@ -8,7 +8,7 @@
 
   const S = window.omLeadSignals || {};
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-  const TYPE_PT = { particular: "Particular", builder: "Builder", loja: "Loja" };
+  const TYPE_PT = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Loja" };
   const DAY = 86400000;
 
   let rows = [];

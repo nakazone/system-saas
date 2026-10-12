@@ -907,8 +907,7 @@
   }
 
   function pricingTypeFromParty(party) {
-    if (party === 'builder') return 'builder';
-    if (party === 'contractor') return 'contractor';
+    if (party === 'builder' || party === 'contractor') return 'builder';
     if (party === 'loja') return 'loja';
     return 'particular';
   }
@@ -917,7 +916,7 @@
     const map = {
       particular: 'Particular',
       builder: 'Builder',
-      contractor: 'Contractor',
+      contractor: 'Builder',
       loja: 'Loja',
     };
     return map[type] || type;
@@ -1305,7 +1304,8 @@
   function catalogPricingSource() {
     const r = document.querySelector('input[name="pricingCatalog"]:checked');
     const v = r && r.value ? String(r.value) : '';
-    if (v === 'builder' || v === 'contractor' || v === 'loja' || v === 'particular') return v;
+    if (v === 'contractor') return 'builder';
+    if (v === 'builder' || v === 'loja' || v === 'particular') return v;
     if (v === 'customer') return 'particular';
     return pricingTypeFromParty(getQuoteParty());
   }
@@ -1332,7 +1332,8 @@
   }
 
   function getQuoteParty() {
-    if (quotePartyMode === 'builder' || quotePartyMode === 'contractor' || quotePartyMode === 'loja') {
+    if (quotePartyMode === 'contractor') return 'builder';
+    if (quotePartyMode === 'builder' || quotePartyMode === 'loja') {
       return quotePartyMode;
     }
     return 'lead';
@@ -1386,32 +1387,27 @@
     });
     $('qbLeadPanel')?.classList.toggle('hidden', party !== 'lead');
     $('qbBuilderPanel')?.classList.toggle('hidden', party !== 'builder');
-    const org = party === 'contractor' || party === 'loja';
+    const org = party === 'loja';
     $('qbOrgCustomerPanel')?.classList.toggle('hidden', !org);
     $('qbJobFields')?.classList.toggle('hidden', party === 'lead');
     const hint = $('qbOrgCustomerHint');
     if (hint) {
       hint.textContent =
-        party === 'contractor'
-          ? 'Usa a coluna Contract da Tabela de Valores.'
-          : party === 'loja'
-            ? 'Usa a coluna Loja da Tabela de Valores.'
-            : 'Usa a coluna correspondente da Tabela de Valores.';
+        party === 'loja'
+          ? 'Usa a coluna Loja da Tabela de Valores.'
+          : 'Usa a coluna correspondente da Tabela de Valores.';
     }
     const search = $('orgCustomerSearch');
     if (search && org) {
-      search.placeholder =
-        party === 'contractor'
-          ? 'Pesquisar contract por nome, empresa, e-mail…'
-          : 'Pesquisar loja por nome, empresa, e-mail…';
+      search.placeholder = 'Pesquisar loja por nome, empresa, e-mail…';
     }
     syncPartyTabsVisibility();
     syncQuoteNoteLabel();
   }
 
   function setQuoteParty(party, { applyPrices = true } = {}) {
-    const next =
-      party === 'builder' || party === 'contractor' || party === 'loja' ? party : 'lead';
+    if (party === 'contractor') party = 'builder';
+    const next = party === 'builder' || party === 'loja' ? party : 'lead';
     if (quotePartyMode !== next) {
       if (next !== 'builder') {
         selectedQuoteBuilder = null;
@@ -3282,8 +3278,8 @@
         search.value = formatCustomerLabel(c);
         const type = String(c.customer_type || '').toLowerCase();
         if (type === 'builder' || type === 'contractor' || type === 'loja') {
-          setQuoteParty(type, { applyPrices: false });
-          if (type === 'contractor' || type === 'loja') {
+          setQuoteParty(type === 'contractor' ? 'builder' : type, { applyPrices: false });
+          if (type === 'loja') {
             selectOrgCustomer(c, { applyPrices: false });
           }
         } else {
@@ -5477,8 +5473,10 @@
     if ($('quoteJobName')) $('quoteJobName').value = q.job_name || payload.job_name || q.title || '';
     if ($('quoteJobAddress')) $('quoteJobAddress').value = q.job_address || payload.job_address || '';
     await loadQuoteBuilders();
+    const partyRaw = String(q.quote_party || payload.quote_party || '').toLowerCase();
     const isBuilderQuote =
-      String(q.quote_party || payload.quote_party || '') === 'builder' ||
+      partyRaw === 'builder' ||
+      partyRaw === 'contractor' ||
       (q.builder_id != null && String(q.builder_id).trim() !== '');
     if (isBuilderQuote) {
       setQuoteParty('builder', { applyPrices: false });
@@ -5486,6 +5484,11 @@
       const b = quoteBuilders.find((x) => String(x.id) === bid) || (bid ? { id: bid, customer_id: q.customer_id } : null);
       if (b) applySelectedBuilder(b, { applyPrices: false });
       setCatalogPricingMode('builder');
+    } else if (partyRaw === 'loja') {
+      setQuoteParty('loja', { applyPrices: false });
+      applySelectedBuilder(null, { applyPrices: false });
+      await setClientSearchFromLoadedQuote(q);
+      setCatalogPricingMode('loja');
     } else {
       setQuoteParty('lead', { applyPrices: false });
       applySelectedBuilder(null, { applyPrices: false });
@@ -5787,10 +5790,6 @@
       setQuoteParty('builder');
       void loadQuoteBuilders();
     });
-    $('qbPartyContractor')?.addEventListener('click', () => {
-      setQuoteParty('contractor');
-      scheduleOrgCustomerSearch();
-    });
     $('qbPartyLoja')?.addEventListener('click', () => {
       setQuoteParty('loja');
       scheduleOrgCustomerSearch();
@@ -5855,7 +5854,7 @@
             if ($('customerId')) $('customerId').value = String(c.id);
             const type = String(c.customer_type || 'particular').toLowerCase();
             if (type === 'builder' || type === 'loja' || type === 'contractor') {
-              setQuoteParty(type === 'contractor' ? 'contractor' : type);
+              setQuoteParty(type === 'contractor' ? 'builder' : type);
             } else {
               setQuoteParty('lead');
             }

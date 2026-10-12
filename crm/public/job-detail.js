@@ -12,7 +12,7 @@
     completed: ["Concluído", "done"],
     canceled: ["Cancelado", "canceled"],
   };
-  const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Contractor", loja: "Loja", internal: "Interno", other: "Outro" };
+  const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Loja", internal: "Interno", other: "Outro" };
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
   const TABS = ["geral", "servicos", "fotos", "campo", "conversa"];
 
@@ -533,7 +533,7 @@
     } catch (_) {
       proposals = [];
     }
-    // Fixed-price jobs (Builder / Contractor / Loja) are billed from the table — no quote.
+    // Fixed-price jobs (Builder / Loja) are billed from the table — no quote.
     card.hidden = isB2B() && !proposals.length;
     const body = $("jobProposalBody");
     if (!proposals.length) {

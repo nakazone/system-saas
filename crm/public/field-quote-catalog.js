@@ -105,7 +105,6 @@
   const CUSTOMER_TYPES = [
     { id: 'particular', pt: 'Particular' },
     { id: 'builder', pt: 'Builder' },
-    { id: 'contractor', pt: 'Contractor' },
     { id: 'loja', pt: 'Loja' },
   ];
 

@@ -125,8 +125,7 @@
   }
   function partyLabel(q) {
     const p = String(q.quote_party || (q.builder_id ? 'builder' : '')).toLowerCase();
-    if (p === 'builder') return 'Builder';
-    if (p === 'contractor') return 'Contractor';
+    if (p === 'builder' || p === 'contractor') return 'Builder';
     if (p === 'loja') return 'Loja';
     return 'Particular';
   }

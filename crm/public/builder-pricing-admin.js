@@ -39,7 +39,6 @@
   const TYPES = [
     ['price_particular', 'Particular'],
     ['price_builder', 'Builder'],
-    ['price_contractor', 'Contractor'],
     ['price_loja', 'Loja'],
   ];
 
@@ -96,7 +95,7 @@
     const list = filtered();
     const vis = S.rows.filter(isVis).length;
     $('tvSub').textContent = `${S.rows.length} serviço${S.rows.length === 1 ? '' : 's'} · ${vis} no portal do builder`;
-    let h = `<a class="tv-res${!S.sel ? ' is-on' : ''}" href="#" data-tv-res><span class="tv-res__ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M9 5v14"/></svg></span><span class="tv-res__b"><b>Tabela completa</b><small>4 preços por serviço · editar no lugar</small></span></a>`;
+    let h = `<a class="tv-res${!S.sel ? ' is-on' : ''}" href="#" data-tv-res><span class="tv-res__ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M9 5v14"/></svg></span><span class="tv-res__b"><b>Tabela completa</b><small>3 preços por serviço · editar no lugar</small></span></a>`;
     if (!S.rows.length) h += '<p class="tv-empty">Nenhum serviço ainda. Use <b>Catálogo</b> para carregar serviços padrão (sem preços) ou <b>Novo</b> para criar um.</p>';
     else if (!list.length) h += '<p class="tv-empty">Nenhum serviço com essa busca.</p>';
     groups(list).forEach(([, label, items]) => {
@@ -132,7 +131,7 @@
     };
     const body = groups(list)
       .map(
-        ([, label, items]) => `<tr class="tv-gr"><td colspan="8"><span>${esc(label)}</span><em>${items.length} serviço${items.length === 1 ? '' : 's'}</em></td></tr>${items
+        ([, label, items]) => `<tr class="tv-gr"><td colspan="7"><span>${esc(label)}</span><em>${items.length} serviço${items.length === 1 ? '' : 's'}</em></td></tr>${items
           .map(
             (s) => `<tr class="tv-tr${isVis(s) ? '' : ' is-off'}" data-id="${esc(s.id)}">
           <td><a href="#" class="tv-name" data-tv-sel="${esc(s.id)}"><b>${esc(s.name)}</b>${s.notes ? `<small>${esc(s.notes)}</small>` : ''}</a></td>

@@ -35,7 +35,7 @@
   const TYPE_LABEL = { builder: "Builder", contractor: "Builder", loja: "Loja", particular: "Particular" };
   const RATE_KEY = {
     builder: "price_builder",
-    contractor: "price_contractor",
+    contractor: "price_builder",
     loja: "price_loja",
     internal: "price_loja",
     particular: "price_particular",
@@ -392,7 +392,7 @@
   }
   function pricingLabel() {
     if (customRates()) return "tabela personalizada do cliente";
-    const nice = { builder: "Builder", contractor: "Contractor", loja: "Loja", internal: "Loja" }[st.sourceType] || "Particular";
+    const nice = { builder: "Builder", contractor: "Builder", loja: "Loja", internal: "Loja" }[st.sourceType] || "Particular";
     return `Tabela de Valores · ${nice}`;
   }
   function lineTotal(l) {
@@ -425,7 +425,7 @@
 
   function pricingTypeLabel() {
     return (
-      { builder: "Builder", contractor: "Contractor", loja: "Loja", internal: "Loja" }[st && st.sourceType] || "Particular"
+      { builder: "Builder", contractor: "Builder", loja: "Loja", internal: "Loja" }[st && st.sourceType] || "Particular"
     );
   }
 
