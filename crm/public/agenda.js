@@ -1519,8 +1519,23 @@
     if (typeof window.sfOpenMeetingInDeviceCalendar === 'function') {
       return window.sfOpenMeetingInDeviceCalendar(payload);
     }
-    window.location.assign('/api/meetings/' + encodeURIComponent(payload.id) + '/calendar.ics');
-    return true;
+    // Fallback: never replace the Agenda page — open in a short-lived tab.
+    try {
+      const w = window.open(
+        '/api/meetings/' + encodeURIComponent(payload.id) + '/calendar.ics',
+        '_blank',
+        'noopener',
+      );
+      if (w) {
+        setTimeout(() => {
+          try {
+            w.close();
+          } catch (_) {}
+        }, 2500);
+        return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   function openDraftInDeviceCalendar(payload) {

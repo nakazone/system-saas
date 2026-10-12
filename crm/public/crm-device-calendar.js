@@ -127,12 +127,74 @@
   }
 
   /**
-   * Tem de correr no mesmo tick do clique. Nao usar await antes disto no iPad.
+   * Abre .ics sem navegar a página do CRM (evita popup/aba presa que o utilizador tem de fechar).
+   * Preferir texto ICS em cache → blob; senão URL pública em iframe oculto.
+   * Tem de correr no mesmo tick do clique no iPad.
    */
-  function openIcsUrlViaUserGesture(url) {
-    if (isAppleMobile() || isStandaloneDisplay()) {
-      global.location.assign(url);
+  function openIcsWithoutLeavingPage(opts) {
+    const icsText = opts && opts.ics ? String(opts.ics) : '';
+    const url = opts && opts.url ? String(opts.url) : '';
+    let href = '';
+    let revoke = null;
+    try {
+      if (icsText && icsText.indexOf('BEGIN:VCALENDAR') !== -1) {
+        const blob = new Blob([icsText], { type: 'text/calendar;charset=utf-8' });
+        href = URL.createObjectURL(blob);
+        revoke = function () {
+          try {
+            URL.revokeObjectURL(href);
+          } catch (_) {}
+        };
+      } else if (url) {
+        href = url;
+      }
+      if (!href) return false;
+
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.setAttribute('tabindex', '-1');
+      iframe.style.cssText =
+        'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;left:-9999px;top:0';
+      iframe.src = href;
+      document.body.appendChild(iframe);
+
+      setTimeout(function () {
+        try {
+          iframe.remove();
+        } catch (_) {}
+        if (revoke) revoke();
+      }, 6000);
       return true;
+    } catch (err) {
+      console.warn('[crm-device-calendar] openIcsWithoutLeavingPage', err);
+      if (revoke) revoke();
+      return false;
+    }
+  }
+
+  /**
+   * Tem de correr no mesmo tick do clique. Nao usar await antes disto no iPad.
+   * Nunca location.assign na janela principal — isso tira o utilizador do CRM.
+   */
+  function openIcsUrlViaUserGesture(url, icsText) {
+    if (isAppleMobile() || isStandaloneDisplay() || isSafariBrowser()) {
+      if (openIcsWithoutLeavingPage({ ics: icsText, url: url })) return true;
+      // Fallback: nova aba (CRM fica por baixo); tenta fechar sozinha.
+      try {
+        const w = global.open(url || 'about:blank', '_blank', 'noopener');
+        if (w && url) {
+          try {
+            w.location.href = url;
+          } catch (_) {}
+          setTimeout(function () {
+            try {
+              w.close();
+            } catch (_) {}
+          }, 2500);
+          return true;
+        }
+      } catch (_) {}
+      return false;
     }
     const a = document.createElement('a');
     a.href = url;
@@ -146,12 +208,16 @@
 
   function openIcsViaUserGesture(leadId) {
     const key = cacheKey('lead', leadId);
-    return openIcsUrlViaUserGesture(getCachedPublicUrl(key) || leadVisitIcsUrl(leadId));
+    const ics = getCachedIcs(key);
+    const url = getCachedPublicUrl(key) || leadVisitIcsUrl(leadId);
+    return openIcsUrlViaUserGesture(url, ics);
   }
 
   function openMeetingIcsViaUserGesture(meetingId) {
     const key = cacheKey('meeting', meetingId);
-    return openIcsUrlViaUserGesture(getCachedPublicUrl(key) || meetingIcsUrl(meetingId));
+    const ics = getCachedIcs(key);
+    const url = getCachedPublicUrl(key) || meetingIcsUrl(meetingId);
+    return openIcsUrlViaUserGesture(url, ics);
   }
 
   async function fetchIcsWithPublicUrl(apiUrl) {
@@ -223,13 +289,12 @@
     }
   }
 
-  /** Abre Calendario Apple via data URI (tem de ser sincrono no gesto do utilizador). */
+  /** Abre Calendario Apple a partir do .ics em cache (sem sair do CRM). */
   function openAppleCalendarFromCache(leadId) {
-    const ics = getCachedIcs(cacheKey('lead', leadId));
+    const key = cacheKey('lead', leadId);
+    const ics = getCachedIcs(key);
     if (!ics) return false;
-    const dataUrl = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
-    global.location.assign(dataUrl);
-    return true;
+    return openIcsWithoutLeavingPage({ ics: ics, url: getCachedPublicUrl(key) || '' });
   }
 
   async function ensureIcsCached(leadId) {
@@ -540,10 +605,8 @@
         return true;
       }
       const ics = buildDraftEventIcs(draft);
-      const dataUrl = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
       if (isAppleMobile() || isSafariBrowser() || isStandaloneDisplay()) {
-        global.location.assign(dataUrl);
-        return true;
+        return openIcsWithoutLeavingPage({ ics: ics });
       }
       // Desktop: download .ics (abre no Calendar / Outlook).
       const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });

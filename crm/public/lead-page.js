@@ -861,30 +861,61 @@
     document.body.classList.remove('lp-modal-open');
   }
 
+  const VISIT_WHERE_PREF_KEY = 'om_visit_schedule_where';
+
+  function getVisitWherePref() {
+    try {
+      const v = String(localStorage.getItem(VISIT_WHERE_PREF_KEY) || '').toLowerCase();
+      return v === 'apple' || v === 'system' ? v : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function setVisitWherePref(where) {
+    try {
+      if (where === 'apple' || where === 'system') localStorage.setItem(VISIT_WHERE_PREF_KEY, where);
+    } catch (_) {}
+  }
+
   function openVisitInAppleCalendar() {
     const lead = S.lead;
     if (!lead) return;
     if (typeof window.sfPrefetchLeadVisitIcs === 'function') void window.sfPrefetchLeadVisitIcs(S.id);
     if (typeof window.sfOpenLeadVisitInDeviceCalendar === 'function') {
       const ok = window.sfOpenLeadVisitInDeviceCalendar(lead);
-      if (ok) return;
+      if (ok) {
+        toast('Abra o Calendário e toque em Adicionar. Pode continuar no ObraMate.', 'success');
+        return;
+      }
     }
     toast('Não foi possível abrir o Apple Calendar neste dispositivo.', 'error');
   }
 
   function openVisitWhereChooser(opts) {
     if (typeof window.sfPrefetchLeadVisitIcs === 'function') void window.sfPrefetchLeadVisitIcs(S.id);
+    const force = opts && opts.force;
+    const pref = !force ? getVisitWherePref() : '';
+    if (pref === 'apple') {
+      setVisitWherePref('apple');
+      openVisitInAppleCalendar();
+      return;
+    }
+    if (pref === 'system') {
+      setVisitWherePref('system');
+      void openVisitModal(null, { system: true });
+      return;
+    }
     openModal(
       'Agendar visita',
-      `<p class="lp-hint" style="margin-top:0">Onde quer criar esta visita?</p>
+      `<p class="lp-hint" style="margin-top:0">Onde quer criar esta visita? A escolha fica lembrada neste aparelho.</p>
       <div class="lp-form__acts" style="flex-direction:column;align-items:stretch;gap:10px">
         <button type="button" class="lp-btn lp-btn--pri" data-lp-visit-where="system">Na Agenda ObraMate</button>
         <button type="button" class="lp-btn" data-lp-visit-where="apple">No Apple Calendar</button>
       </div>
-      <p class="lp-hint">ObraMate: visita na agenda da equipe. Apple: só no Calendário do iPhone (não grava no sistema).</p>`,
+      <p class="lp-hint">ObraMate: visita na agenda da equipe. Apple: só no Calendário do iPhone. A folha «Adicionar» é do iPhone — o ObraMate continua aberto.</p>`,
       null
     );
-    void opts;
   }
 
   async function openVisitModal(visitId, opts) {
@@ -1111,7 +1142,11 @@
     if ((el = t.closest('[data-lp-visit-where]'))) {
       const where = el.getAttribute('data-lp-visit-where');
       closeModal();
-      if (where === 'apple') return openVisitInAppleCalendar();
+      if (where === 'apple') {
+        setVisitWherePref('apple');
+        return openVisitInAppleCalendar();
+      }
+      setVisitWherePref('system');
       return openVisitModal(null, { system: true });
     }
     if ((el = t.closest('[data-lp-device-cal]'))) {

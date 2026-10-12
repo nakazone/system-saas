@@ -604,6 +604,35 @@
     });
   }
 
+  const VISIT_WHERE_PREF_KEY = 'om_visit_schedule_where';
+
+  function getVisitWherePref() {
+    try {
+      const v = String(global.localStorage?.getItem(VISIT_WHERE_PREF_KEY) || '').toLowerCase();
+      return v === 'apple' || v === 'system' ? v : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function setVisitWherePref(where) {
+    try {
+      if (where === 'apple' || where === 'system') {
+        global.localStorage?.setItem(VISIT_WHERE_PREF_KEY, where);
+      }
+    } catch (_) {}
+  }
+
+  function applyLqsVisitWhere(where) {
+    if (where === 'apple') {
+      setVisitWherePref('apple');
+      openLqsScheduleVisitInDeviceCalendar();
+      return;
+    }
+    setVisitWherePref('system');
+    openLqsScheduleVisitModal();
+  }
+
   function openLqsScheduleVisitInDeviceCalendar() {
     if (!sheetLead || !sheetLeadId) return;
     if (typeof global.sfPrefetchLeadVisitIcs === 'function') {
@@ -611,7 +640,10 @@
     }
     if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
       const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
-      if (ok) return;
+      if (ok) {
+        notifySheet('Abra o Calendário e toque em Adicionar. Pode continuar no ObraMate.', 'success');
+        return;
+      }
     }
     notifySheet('Não foi possível abrir o Apple Calendar neste dispositivo.', 'error');
   }
@@ -639,12 +671,12 @@
       '<button type="button" class="lead-quick-sheet__close lqs-visit-modal__close-btn" data-lqs-visit-where-close aria-label="Fechar">&times;</button>' +
       '</header>' +
       '<div class="modal-body">' +
-      '<p class="form-hint" style="margin:0 0 14px;color:#667085;font-size:14px;line-height:1.45">Onde quer criar esta visita?</p>' +
+      '<p class="form-hint" style="margin:0 0 14px;color:#667085;font-size:14px;line-height:1.45">Onde quer criar esta visita? A escolha fica lembrada neste aparelho.</p>' +
       '<div style="display:flex;flex-direction:column;gap:10px">' +
       '<button type="button" class="lead-quick-sheet__edit-save lqs-visit-modal__btn-submit" data-lqs-visit-where="system" style="width:100%">Na Agenda ObraMate</button>' +
       '<button type="button" class="lead-quick-sheet__edit-cancel lqs-visit-modal__btn-cancel" data-lqs-visit-where="apple" style="width:100%">No Apple Calendar</button>' +
       '</div>' +
-      '<p class="form-hint" style="margin:14px 0 0;color:#98A2B3;font-size:12.5px;line-height:1.45">ObraMate: visita na agenda da equipe. Apple: só no Calendário do iPhone (não grava no sistema).</p>' +
+      '<p class="form-hint" style="margin:14px 0 0;color:#98A2B3;font-size:12.5px;line-height:1.45">ObraMate: visita na agenda da equipe. Apple: só no Calendário do iPhone. A folha «Adicionar» do iPhone é do sistema — o ObraMate continua aberto por baixo.</p>' +
       '</div></div>';
     document.body.appendChild(root);
     root.querySelectorAll('[data-lqs-visit-where-close]').forEach((el) => {
@@ -654,20 +686,22 @@
       btn.addEventListener('click', () => {
         const where = btn.getAttribute('data-lqs-visit-where');
         closeLqsVisitWhereModal();
-        if (where === 'apple') {
-          openLqsScheduleVisitInDeviceCalendar();
-          return;
-        }
-        openLqsScheduleVisitModal();
+        applyLqsVisitWhere(where);
       });
     });
     return root;
   }
 
-  function openLqsVisitWhereChooser() {
+  function openLqsVisitWhereChooser(opts) {
     if (!sheetLead || !sheetLeadId) return;
     if (typeof global.sfPrefetchLeadVisitIcs === 'function') {
       void global.sfPrefetchLeadVisitIcs(sheetLeadId);
+    }
+    const force = opts && opts.force;
+    const pref = !force ? getVisitWherePref() : '';
+    if (pref === 'apple' || pref === 'system') {
+      applyLqsVisitWhere(pref);
+      return;
     }
     const root = ensureLqsVisitWhereModal();
     root.classList.add('active');
