@@ -1479,13 +1479,22 @@
     const b = selectedQuoteBuilder;
     if (!b) {
       box.classList.add('hidden');
+      box.innerHTML = '';
       return;
     }
-    const set = (id, val) => setWrappingField(id, val);
-    set('qbBuilderCompany', b.company || b.label);
-    set('qbBuilderContact', b.name);
-    set('qbBuilderEmail', b.email);
-    set('qbBuilderPhone', b.phone);
+    const company = String(b.company || b.label || '').trim();
+    const contact = String(b.name || '').trim();
+    box.className = 'qb-client-card';
+    box.innerHTML = contactCardHtml({
+      nameId: 'qbBuilderCompany',
+      phoneId: 'qbBuilderPhone',
+      emailId: 'qbBuilderEmail',
+      name: company || contact || 'Builder',
+      sub: company && contact && company !== contact ? contact : '',
+      phone: b.phone,
+      email: b.email,
+      address: b.address || '',
+    }) + `<span id="qbBuilderContact" class="hidden">${escapeHtmlText(contact || '—')}</span>`;
     box.classList.remove('hidden');
   }
 
@@ -1662,6 +1671,58 @@
     return null;
   }
 
+  function phoneDigits(phone) {
+    return String(phone || '').replace(/\D/g, '');
+  }
+  function phoneDisplay(phone) {
+    const raw = String(phone || '').trim();
+    if (!raw) return '';
+    if (typeof window.sfFormatPhone === 'function') return window.sfFormatPhone(raw) || raw;
+    return raw;
+  }
+  function mapsUrl(address) {
+    const a = String(address || '').trim();
+    if (!a) return '';
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}`;
+  }
+  /** Visual contact card for the CRM editor (not the client-facing PDF). */
+  function contactCardHtml(opts) {
+    const name = String(opts.name || '').trim();
+    const sub = String(opts.sub || '').trim();
+    const phone = String(opts.phone || '').trim();
+    const email = String(opts.email || '').trim();
+    const address = String(opts.address || '').trim();
+    const digits = phoneDigits(phone);
+    const maps = mapsUrl(address);
+    const soft = (s) => escapeHtmlText(String(s || '').replace(/([^\s]{16})/g, '$1\u200b'));
+    let rows = '';
+    if (phone) {
+      rows += `<div class="qb-client-card__row">
+        <p class="qb-client-card__val" id="${escapeAttr(opts.phoneId || '')}">${soft(phoneDisplay(phone))}</p>
+        <span class="qb-client-card__acts">
+          <a class="qb-client-card__act" href="tel:${escapeAttr(digits || phone)}" title="Ligar">Call</a>
+          <a class="qb-client-card__act" href="sms:${escapeAttr(digits || phone)}" title="Mensagem">Text</a>
+        </span>
+      </div>`;
+    }
+    if (email) {
+      rows += `<div class="qb-client-card__row">
+        <p class="qb-client-card__val" id="${escapeAttr(opts.emailId || '')}">${soft(email)}</p>
+        <span class="qb-client-card__acts">
+          <a class="qb-client-card__act" href="mailto:${escapeAttr(email)}" title="Enviar e-mail">Email</a>
+        </span>
+      </div>`;
+    }
+    if (address) {
+      rows += `<div class="qb-client-card__row">
+        <a class="qb-client-card__val qb-client-card__addr" id="${escapeAttr(opts.addressId || '')}" href="${escapeAttr(maps)}" target="_blank" rel="noopener">${soft(address)}</a>
+      </div>`;
+    }
+    return `<p class="qb-client-card__name" id="${escapeAttr(opts.nameId || '')}">${soft(name || '—')}</p>
+      ${sub ? `<p class="qb-client-card__sub">${soft(sub)}</p>` : ''}
+      ${rows}`;
+  }
+
   function renderClientDetails() {
     const box = $('qbClientDetails');
     if (!box) return;
@@ -1671,13 +1732,19 @@
       (info.name || info.phone || info.email || info.address || String($('customerId')?.value || '').trim());
     if (!hasClient) {
       box.classList.add('hidden');
+      box.innerHTML = '';
       return;
     }
-    const set = (id, val) => setWrappingField(id, val);
-    set('qbClientName', info?.name);
-    set('qbClientPhone', info?.phone);
-    set('qbClientEmail', info?.email);
-    set('qbClientAddress', info?.address);
+    box.innerHTML = contactCardHtml({
+      nameId: 'qbClientName',
+      phoneId: 'qbClientPhone',
+      emailId: 'qbClientEmail',
+      addressId: 'qbClientAddress',
+      name: info?.name,
+      phone: info?.phone,
+      email: info?.email,
+      address: info?.address,
+    });
     box.classList.remove('hidden');
     updateClientActionButtons();
   }
@@ -1998,12 +2065,23 @@
     const c = selectedOrgCustomer;
     if (!c) {
       box.classList.add('hidden');
+      box.innerHTML = '';
       return;
     }
-    setWrappingField('qbOrgCustomerName', c.name);
-    setWrappingField('qbOrgCustomerCompany', c.company);
-    setWrappingField('qbOrgCustomerEmail', c.email);
-    setWrappingField('qbOrgCustomerPhone', c.phone);
+    const name = String(c.name || '').trim();
+    const company = String(c.company || '').trim();
+    box.className = 'qb-client-card';
+    box.innerHTML = contactCardHtml({
+      nameId: 'qbOrgCustomerName',
+      phoneId: 'qbOrgCustomerPhone',
+      emailId: 'qbOrgCustomerEmail',
+      addressId: 'qbOrgCustomerAddress',
+      name: name || company || 'Cliente',
+      sub: company && name && company !== name ? company : '',
+      phone: c.phone,
+      email: c.email,
+      address: customerAddress(c),
+    }) + `<span id="qbOrgCustomerCompany" class="hidden">${escapeHtmlText(company || '—')}</span>`;
     box.classList.remove('hidden');
   }
 
@@ -6060,7 +6138,7 @@
     const pick = (id) => {
       const el = $(id);
       if (!el) return '';
-      const box = el.closest('.qb-client-details');
+      const box = el.closest('.qb-client-details, .qb-client-card');
       if (box && box.classList.contains('hidden')) return '';
       const t = String(el.textContent || '').trim();
       return t && t !== '—' ? t : '';

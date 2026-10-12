@@ -221,50 +221,6 @@
         .map((r) => (r.b ? `<b>${esc(r.t)}</b>` : `<span>${esc(r.t)}</span>`))
         .join('')}</div>`;
 
-    const bill = model.bill || {};
-    const job = model.job || {};
-    const phoneRaw = String(bill.phone || '').trim();
-    const phoneDigits = phoneRaw.replace(/\D/g, '');
-    const emailRaw = String(bill.email || '').trim();
-    const addrParts = [job.address, job.city].filter(Boolean).join(', ').trim();
-    const phoneDisp =
-      typeof global.sfFormatPhone === 'function' && phoneRaw ? global.sfFormatPhone(phoneRaw) : phoneRaw;
-    const mapsHref = addrParts
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addrParts)}`
-      : '';
-    const clientCard = `<div class="qp-client">
-        <span class="qp-lbl">CLIENTE</span>
-        <b class="qp-client__name">${esc(bill.name || 'Client')}</b>
-        ${
-          phoneRaw
-            ? `<div class="qp-client__row">
-          <span class="qp-client__val">${esc(phoneDisp || phoneRaw)}</span>
-          <span class="qp-client__acts">
-            <a class="qp-act" href="tel:${esc(phoneDigits || phoneRaw)}" title="Ligar">Call</a>
-            <a class="qp-act" href="sms:${esc(phoneDigits || phoneRaw)}" title="Mensagem">Text</a>
-          </span>
-        </div>`
-            : ''
-        }
-        ${
-          emailRaw
-            ? `<div class="qp-client__row">
-          <span class="qp-client__val">${esc(emailRaw)}</span>
-          <span class="qp-client__acts">
-            <a class="qp-act" href="mailto:${esc(emailRaw)}" title="Enviar e-mail">Email</a>
-          </span>
-        </div>`
-            : ''
-        }
-        ${
-          addrParts
-            ? `<div class="qp-client__row qp-client__row--addr">
-          <a class="qp-client__addr" href="${esc(mapsHref)}" target="_blank" rel="noopener">${esc(addrParts)}</a>
-        </div>`
-            : ''
-        }
-      </div>`;
-
     const secHtml = sections
       .map((s) => {
         const show = s.lines.length || mode === 'edit';
@@ -294,9 +250,9 @@
         }</div></div>
         <div class="qp-no"><span class="qp-om">ObraMate <i></i></span><span>QUOTE</span><b>${esc(numLabel)}</b><small>Issued ${esc(fmtDate(model.issued))}</small><small>Valid until ${esc(fmtDate(model.valid))}</small></div>
       </header>
-      ${clientCard}
       <div class="qp-infos">
-        ${info('JOB SITE', [{ t: job.name || 'Project', b: 1 }, { t: job.address }, { t: job.city }])}
+        ${info('BILL TO', [{ t: (model.bill || {}).name || 'Client', b: 1 }, { t: (model.bill || {}).email }, { t: (model.bill || {}).phone }])}
+        ${info('JOB SITE', [{ t: (model.job || {}).name || 'Project', b: 1 }, { t: (model.job || {}).address }, { t: (model.job || {}).city }])}
         ${info('PREPARED BY', [{ t: (model.prep || {}).name || org.name, b: 1 }, { t: (model.prep || {}).line }])}
       </div>
       <div class="qp-lines">${secHtml}${noLines}</div>

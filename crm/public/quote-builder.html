@@ -873,18 +873,90 @@
       font-size: 1.1rem;
       line-height: 1;
     }
-    .qb-client-details {
+    .qb-client-details,
+    .qb-client-card {
       margin-top: 0.75rem;
-      padding: 0.85rem 1rem;
-      border-radius: 8px;
-      background: var(--bg-primary-light);
-      border: 1px solid var(--border-color);
+      padding: 1rem 1.1rem 1.05rem;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid #e8e4dc;
+      border-left: 4px solid var(--plab-accent, #e8792c);
+      box-shadow: 0 1px 2px rgba(34, 30, 26, 0.04);
       min-width: 0;
       max-width: 100%;
     }
-    .qb-client-details.hidden {
+    .qb-client-details.hidden,
+    .qb-client-card.hidden {
       display: none !important;
     }
+    .qb-client-card__name {
+      margin: 0 0 0.65rem;
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      color: #221e1a;
+      overflow-wrap: anywhere;
+    }
+    .qb-client-card__sub {
+      margin: -0.35rem 0 0.65rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #64748b;
+      overflow-wrap: anywhere;
+    }
+    .qb-client-card__row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      padding: 0.4rem 0;
+      border-top: 1px solid #f1eee8;
+      min-width: 0;
+    }
+    .qb-client-card__row:first-of-type { border-top: 0; padding-top: 0; }
+    .qb-client-card__val {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #221e1a;
+      overflow-wrap: anywhere;
+      min-width: 0;
+      flex: 1;
+    }
+    .qb-client-card__acts {
+      display: inline-flex;
+      gap: 0.35rem;
+      flex: none;
+    }
+    .qb-client-card__act {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 30px;
+      padding: 0 0.7rem;
+      border-radius: 999px;
+      border: 1px solid #e5e2da;
+      background: #faf9f7;
+      color: #221e1a;
+      font-size: 0.75rem;
+      font-weight: 750;
+      text-decoration: none;
+      line-height: 1;
+    }
+    .qb-client-card__act:hover {
+      border-color: var(--plab-accent, #e8792c);
+      color: var(--plab-accent, #e8792c);
+      background: #fff;
+    }
+    .qb-client-card__addr {
+      color: var(--plab-accent, #e8792c);
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 0.12em;
+    }
+    .qb-client-card__addr:hover { opacity: 0.85; }
     .qb-client-details__list {
       margin: 0;
       display: flex;
@@ -908,11 +980,7 @@
       font-weight: 600;
       color: #64748b;
     }
-    .qb-client-details__row dd,
-    #qbClientName,
-    #qbClientPhone,
-    #qbClientEmail,
-    #qbClientAddress {
+    .qb-client-details__row dd {
       display: block;
       margin: 0;
       color: #0f172a;
@@ -923,7 +991,6 @@
       white-space: pre-wrap !important;
       overflow-wrap: anywhere !important;
       word-break: break-word !important;
-      word-break: break-all;
     }
     .qb-client-meta {
       margin-top: 1.25rem;
@@ -1845,7 +1912,7 @@
   <link rel="stylesheet" href="quote-builder-v2.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="quote-builder-v3.css?v=20261009-btnw2" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
-  <link rel="stylesheet" href="quote-paper.css?v=20261012-qp3" />
+  <link rel="stylesheet" href="quote-paper.css?v=20261012-qp4" />
   <link rel="stylesheet" href="quote-services-popup.css?v=20261012-qp2" />
 </head>
 <body class="qb-dashboard-inner dashboard-app-body om-app sidebar-collapsed qb-v3">
@@ -2041,26 +2108,7 @@
                     <button type="button" id="btnEditClientSave" class="px-3 py-1.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-semibold">Salvar no CRM</button>
                   </div>
                 </div>
-                <div id="qbClientDetails" class="qb-client-details hidden" aria-live="polite">
-                  <dl class="qb-client-details__list">
-                    <div class="qb-client-details__row">
-                      <dt>Nome</dt>
-                      <dd id="qbClientName">—</dd>
-                    </div>
-                    <div class="qb-client-details__row">
-                      <dt>Telefone</dt>
-                      <dd id="qbClientPhone">—</dd>
-                    </div>
-                    <div class="qb-client-details__row">
-                      <dt>E-mail</dt>
-                      <dd id="qbClientEmail">—</dd>
-                    </div>
-                    <div class="qb-client-details__row">
-                      <dt>Endereço</dt>
-                      <dd id="qbClientAddress">—</dd>
-                    </div>
-                  </dl>
-                </div>
+                <div id="qbClientDetails" class="qb-client-card hidden" aria-live="polite"></div>
                 </div>
                 <div id="qbBuilderPanel" class="hidden">
                   <label class="block text-xs font-semibold text-slate-500 mb-1" for="quoteBuilderSelect">Builder cadastrado</label>
@@ -2068,26 +2116,7 @@
                     <option value="">Selecionar builder…</option>
                   </select>
                   <p class="text-xs text-slate-500 mt-2">Usa a coluna Builder da Tabela de Valores.</p>
-                  <div id="qbBuilderDetails" class="qb-client-details hidden" aria-live="polite">
-                    <dl class="qb-client-details__list">
-                      <div class="qb-client-details__row">
-                        <dt>Empresa</dt>
-                        <dd id="qbBuilderCompany">—</dd>
-                      </div>
-                      <div class="qb-client-details__row">
-                        <dt>Contato</dt>
-                        <dd id="qbBuilderContact">—</dd>
-                      </div>
-                      <div class="qb-client-details__row">
-                        <dt>E-mail</dt>
-                        <dd id="qbBuilderEmail">—</dd>
-                      </div>
-                      <div class="qb-client-details__row">
-                        <dt>Telefone</dt>
-                        <dd id="qbBuilderPhone">—</dd>
-                      </div>
-                    </dl>
-                  </div>
+                  <div id="qbBuilderDetails" class="qb-client-card hidden" aria-live="polite"></div>
                   <div id="qbBuilderExtraEmailsWrap" class="qb-extra-emails">
                     <label class="qb-extra-emails__label" for="qbBuilderExtraEmailInput">E-mails extras (CC)</label>
                     <p class="qb-extra-emails__hint">Além do e-mail principal do builder. Enter ou vírgula para adicionar.</p>
@@ -2115,26 +2144,7 @@
                     <div id="orgCustomerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de clientes"></div>
                   </div>
                   <p id="qbOrgCustomerHint" class="text-xs text-slate-500 mt-2">Usa a coluna correspondente da Tabela de Valores.</p>
-                  <div id="qbOrgCustomerDetails" class="qb-client-details hidden" aria-live="polite">
-                    <dl class="qb-client-details__list">
-                      <div class="qb-client-details__row">
-                        <dt>Nome</dt>
-                        <dd id="qbOrgCustomerName">—</dd>
-                      </div>
-                      <div class="qb-client-details__row">
-                        <dt>Empresa</dt>
-                        <dd id="qbOrgCustomerCompany">—</dd>
-                      </div>
-                      <div class="qb-client-details__row">
-                        <dt>E-mail</dt>
-                        <dd id="qbOrgCustomerEmail">—</dd>
-                      </div>
-                      <div class="qb-client-details__row">
-                        <dt>Telefone</dt>
-                        <dd id="qbOrgCustomerPhone">—</dd>
-                      </div>
-                    </dl>
-                  </div>
+                  <div id="qbOrgCustomerDetails" class="qb-client-card hidden" aria-live="polite"></div>
                 </div>
                 <div id="qbJobFields" class="qb-job-fields hidden">
                   <p class="qb-job-fields__title">Projeto deste orçamento</p>
@@ -2740,8 +2750,8 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-paper.js?v=20261012-qp3"></script>
-  <script src="quote-builder.js?v=20261012-qp2"></script>
+  <script src="quote-paper.js?v=20261012-qp4"></script>
+  <script src="quote-builder.js?v=20261012-qbc1"></script>
   <script src="quote-services-popup.js?v=20261012-qp2"></script>
   <script>
     (function () {
