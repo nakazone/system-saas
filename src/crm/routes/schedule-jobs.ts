@@ -27,6 +27,7 @@ import { formatUsPhone } from "../../lib/phone.js";
 import { formatPersonName } from "../../lib/name.js";
 import { storage } from "../../lib/storage/index.js";
 import { signIcsAccessToken } from "../../lib/schedule/signed-ics-token.js";
+import { buildSingleEventIcs, meetingStatusToIcs } from "../../lib/schedule/ics.js";
 
 const WO_SECTORS = ["installation", "sand_finish"] as const;
 
@@ -1464,29 +1465,55 @@ scheduleJobsRouter.get(
   },
 );
 
-/** One-shot .ics → Apple Calendar: redirect to signed public URL (no cookie on re-fetch). */
+/** One-shot .ics → Apple Calendar (?link=1 = public URL JSON; else inline .ics). */
 scheduleJobsRouter.get(
   "/api/meetings/:id/calendar.ics",
   requireCrmAuth,
   requireCrmPermission("schedule.view"),
   async (req: AuthedRequest, res, next) => {
     try {
+      const wantLink =
+        String(req.query.link || "") === "1" ||
+        String(req.headers.accept || "").includes("application/json");
       const row = await prisma.meeting.findFirst({
         where: {
           id: String(req.params.id),
           organizationId: req.organizationId!,
           ...fieldMeetingScope(req.user),
         },
-        select: { id: true },
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Compromisso não encontrado" });
         return;
       }
       const token = signIcsAccessToken("meeting", req.organizationId!, row.id);
-      const url = `${publicBaseUrl(req).replace(/\/$/, "")}/feeds/meeting/${token}.ics`;
+      const publicUrl = `${publicBaseUrl(req).replace(/\/$/, "")}/feeds/meeting/${token}.ics`;
+      if (wantLink) {
+        res.setHeader("Cache-Control", "no-store");
+        res.json({ success: true, data: { url: publicUrl } });
+        return;
+      }
+      const descParts = [
+        row.notes ? String(row.notes).trim() : "",
+        row.leadId ? `Lead: ${row.leadId}` : "",
+      ].filter(Boolean);
+      const ics = buildSingleEventIcs(
+        {
+          uid: `meeting-${row.id}@obramate.com`,
+          summary: row.title || "Compromisso",
+          description: descParts.join("\n") || undefined,
+          location: row.location,
+          start: row.scheduledStart,
+          end: row.scheduledEnd,
+          stamp: row.updatedAt || new Date(),
+          status: meetingStatusToIcs(row.status),
+        },
+        { name: row.title || "ObraMate" },
+      );
+      res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+      res.setHeader("Content-Disposition", 'inline; filename="meeting.ics"');
       res.setHeader("Cache-Control", "no-store");
-      res.redirect(302, url);
+      res.status(200).send(ics);
     } catch (error) {
       next(error);
     }

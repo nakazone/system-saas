@@ -640,10 +640,7 @@
     }
     if (typeof global.sfOpenLeadVisitInDeviceCalendar === 'function') {
       const ok = global.sfOpenLeadVisitInDeviceCalendar(sheetLead);
-      if (ok) {
-        notifySheet('Abra o Calendário e toque em Adicionar. Pode continuar no ObraMate.', 'success');
-        return;
-      }
+      if (ok) return;
     }
     notifySheet('Não foi possível abrir o Apple Calendar neste dispositivo.', 'error');
   }

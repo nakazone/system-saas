@@ -13,6 +13,7 @@ import { formatPersonName } from "../../lib/name.js";
 import { safeTimeZone, startOfZonedDay, startOfZonedMonth } from "../../lib/time/zoned.js";
 import { signIcsAccessToken } from "../../lib/schedule/signed-ics-token.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
+import { buildLeadVisitIcs } from "../../lib/schedule/lead-visit-ics.js";
 
 export const dashboardLeadsRouter = Router();
 
@@ -312,8 +313,9 @@ dashboardLeadsRouter.get("/api/leads/:id", requireCrmPermission("leads.view"), a
 });
 
 /**
- * Issues a public signed .ics URL (Apple Calendar re-fetches without cookies).
- * Session required here; the redirected /feeds/lead-visit/… URL is public.
+ * Lead visit .ics for Apple Calendar.
+ * - ?link=1 → JSON with public /feeds/… URL (prefetch; Calendar can open without cookies)
+ * - default → inline .ics (session; same gesture as the old CRM)
  */
 dashboardLeadsRouter.get(
   "/api/leads/:id/calendar.ics",
@@ -321,17 +323,60 @@ dashboardLeadsRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const leadId = String(req.params.id);
-      const lead = await withTenantTransaction(req.organizationId!, async (tx) =>
-        loadLeadOrNull(tx, leadId),
-      );
-      if (!lead) {
+      const wantLink =
+        String(req.query.link || "") === "1" ||
+        String(req.headers.accept || "").includes("application/json");
+      const packed = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const [lead, org] = await Promise.all([
+          loadLeadOrNull(tx, leadId),
+          tx.organization.findFirst({ select: { timezone: true } }),
+        ]);
+        return { lead, timezone: org?.timezone ?? null };
+      });
+      if (!packed.lead) {
         res.status(404).type("text/plain").send("Lead not found");
         return;
       }
       const token = signIcsAccessToken("lead", req.organizationId!, leadId);
-      const url = `${publicBaseUrl(req).replace(/\/$/, "")}/feeds/lead-visit/${token}.ics`;
-      res.setHeader("Cache-Control", "no-store");
-      res.redirect(302, url);
+      const publicUrl = `${publicBaseUrl(req).replace(/\/$/, "")}/feeds/lead-visit/${token}.ics`;
+      if (wantLink) {
+        res.setHeader("Cache-Control", "no-store");
+        res.json({ success: true, data: { url: publicUrl } });
+        return;
+      }
+      const mapped = mapLead(packed.lead);
+      const meta = asMeta(packed.lead.metadata);
+      const metaStr = (key: string) =>
+        meta[key] != null && String(meta[key]).trim() ? String(meta[key]).trim() : null;
+      const ics = buildLeadVisitIcs(
+        {
+          id: mapped.id,
+          name: mapped.name,
+          phone: mapped.phone,
+          email: mapped.email,
+          notes: mapped.notes,
+          source: mapped.source,
+          address: mapped.address,
+          zipcode: mapped.zipcode ?? metaStr("zipcode"),
+          address_line1: metaStr("address_line1") || mapped.address,
+          address_line2: metaStr("address_line2"),
+          city: metaStr("city"),
+          message: metaStr("message"),
+          form_type: metaStr("form_type"),
+          marketing_platform: metaStr("marketing_platform"),
+          utm_source: metaStr("utm_source"),
+          utm_medium: metaStr("utm_medium"),
+          landing_page: metaStr("landing_page"),
+          gclid: metaStr("gclid"),
+          fbclid: metaStr("fbclid"),
+        },
+        { timezone: safeTimeZone(packed.timezone) },
+      );
+      res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+      res.setHeader("Content-Disposition", 'inline; filename="visita-lead.ics"');
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.status(200).send(ics);
     } catch (error) {
       next(error);
     }

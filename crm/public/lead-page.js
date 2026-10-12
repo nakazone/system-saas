@@ -884,10 +884,7 @@
     if (typeof window.sfPrefetchLeadVisitIcs === 'function') void window.sfPrefetchLeadVisitIcs(S.id);
     if (typeof window.sfOpenLeadVisitInDeviceCalendar === 'function') {
       const ok = window.sfOpenLeadVisitInDeviceCalendar(lead);
-      if (ok) {
-        toast('Abra o Calendário e toque em Adicionar. Pode continuar no ObraMate.', 'success');
-        return;
-      }
+      if (ok) return;
     }
     toast('Não foi possível abrir o Apple Calendar neste dispositivo.', 'error');
   }

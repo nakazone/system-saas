@@ -127,77 +127,27 @@
   }
 
   /**
-   * Abre .ics sem navegar a página do CRM (evita popup/aba presa que o utilizador tem de fechar).
-   * Preferir texto ICS em cache → blob; senão URL pública em iframe oculto.
-   * Tem de correr no mesmo tick do clique no iPad.
+   * iPhone/iPad/Safari: navegar para a URL https do .ics (inline) abre o
+   * «Adicionar ao Calendário» — igual ao CRM antigo. Blob/iframe fazem download.
+   * pushState permite Voltar ao ObraMate depois.
    */
-  function openIcsWithoutLeavingPage(opts) {
-    const icsText = opts && opts.ics ? String(opts.ics) : '';
-    const url = opts && opts.url ? String(opts.url) : '';
-    let href = '';
-    let revoke = null;
-    try {
-      if (icsText && icsText.indexOf('BEGIN:VCALENDAR') !== -1) {
-        const blob = new Blob([icsText], { type: 'text/calendar;charset=utf-8' });
-        href = URL.createObjectURL(blob);
-        revoke = function () {
-          try {
-            URL.revokeObjectURL(href);
-          } catch (_) {}
-        };
-      } else if (url) {
-        href = url;
-      }
-      if (!href) return false;
+  function openIcsUrlViaUserGesture(url) {
+    const href = String(url || '').trim();
+    if (!href) return false;
 
-      const iframe = document.createElement('iframe');
-      iframe.setAttribute('aria-hidden', 'true');
-      iframe.setAttribute('tabindex', '-1');
-      iframe.style.cssText =
-        'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;left:-9999px;top:0';
-      iframe.src = href;
-      document.body.appendChild(iframe);
-
-      setTimeout(function () {
-        try {
-          iframe.remove();
-        } catch (_) {}
-        if (revoke) revoke();
-      }, 6000);
-      return true;
-    } catch (err) {
-      console.warn('[crm-device-calendar] openIcsWithoutLeavingPage', err);
-      if (revoke) revoke();
-      return false;
-    }
-  }
-
-  /**
-   * Tem de correr no mesmo tick do clique. Nao usar await antes disto no iPad.
-   * Nunca location.assign na janela principal — isso tira o utilizador do CRM.
-   */
-  function openIcsUrlViaUserGesture(url, icsText) {
     if (isAppleMobile() || isStandaloneDisplay() || isSafariBrowser()) {
-      if (openIcsWithoutLeavingPage({ ics: icsText, url: url })) return true;
-      // Fallback: nova aba (CRM fica por baixo); tenta fechar sozinha.
       try {
-        const w = global.open(url || 'about:blank', '_blank', 'noopener');
-        if (w && url) {
-          try {
-            w.location.href = url;
-          } catch (_) {}
-          setTimeout(function () {
-            try {
-              w.close();
-            } catch (_) {}
-          }, 2500);
-          return true;
-        }
+        history.pushState({ omCalHandoff: 1 }, '', location.href);
       } catch (_) {}
-      return false;
+      try {
+        sessionStorage.setItem('om_cal_return', location.href);
+      } catch (_) {}
+      global.location.assign(href);
+      return true;
     }
+
     const a = document.createElement('a');
-    a.href = url;
+    a.href = href;
     a.target = '_blank';
     a.rel = 'noopener';
     document.body.appendChild(a);
@@ -208,25 +158,29 @@
 
   function openIcsViaUserGesture(leadId) {
     const key = cacheKey('lead', leadId);
-    const ics = getCachedIcs(key);
+    // Preferir URL pública /feeds/… (sem cookie). Fallback: API com sessão.
     const url = getCachedPublicUrl(key) || leadVisitIcsUrl(leadId);
-    return openIcsUrlViaUserGesture(url, ics);
+    return openIcsUrlViaUserGesture(url);
   }
 
   function openMeetingIcsViaUserGesture(meetingId) {
     const key = cacheKey('meeting', meetingId);
-    const ics = getCachedIcs(key);
     const url = getCachedPublicUrl(key) || meetingIcsUrl(meetingId);
-    return openIcsUrlViaUserGesture(url, ics);
+    return openIcsUrlViaUserGesture(url);
   }
 
-  async function fetchIcsWithPublicUrl(apiUrl) {
-    const r = await fetch(apiUrl, { credentials: 'include', cache: 'no-store', redirect: 'follow' });
-    if (!r.ok) throw new Error('ICS HTTP ' + r.status);
-    const ics = await r.text();
-    const finalUrl = typeof r.url === 'string' ? r.url : '';
-    const publicUrl = /\/feeds\/(lead-visit|meeting)\//.test(finalUrl) ? finalUrl : '';
-    return { ics, publicUrl };
+  async function prefetchCalendarLink(apiUrl) {
+    const linkUrl = apiUrl + (apiUrl.indexOf('?') >= 0 ? '&' : '?') + 'link=1';
+    const r = await fetch(linkUrl, {
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!r.ok) throw new Error('ICS link HTTP ' + r.status);
+    const j = await r.json().catch(() => ({}));
+    const url = j && j.data && j.data.url ? String(j.data.url) : '';
+    if (!url || url.indexOf('/feeds/') === -1) throw new Error('ICS link missing');
+    return url;
   }
 
   function cacheKey(kind, id) {
@@ -262,14 +216,13 @@
     icsPublicUrlCache.set(String(key), { url: String(url), at: Date.now() });
   }
 
-  /** Pre-carrega .ics + URL pública ao abrir o lead (necessario para iOS abrir no clique). */
+  /** Pre-carrega a URL pública /feeds/… (necessario para o toque abrir o Calendar). */
   async function prefetchLeadVisitIcs(leadId) {
     const id = leadId != null ? String(leadId) : '';
     const key = cacheKey('lead', id);
-    if (!id || (getCachedIcs(key) && getCachedPublicUrl(key))) return;
+    if (!id || getCachedPublicUrl(key)) return;
     try {
-      const { ics, publicUrl } = await fetchIcsWithPublicUrl(leadVisitIcsUrl(id));
-      setCachedIcs(key, ics);
+      const publicUrl = await prefetchCalendarLink(leadVisitIcsUrl(id));
       setCachedPublicUrl(key, publicUrl);
     } catch (err) {
       console.warn('[crm-device-calendar] prefetch', err);
@@ -279,31 +232,20 @@
   async function prefetchMeetingIcs(meetingId) {
     const id = meetingId != null ? String(meetingId) : '';
     const key = cacheKey('meeting', id);
-    if (!id || (getCachedIcs(key) && getCachedPublicUrl(key))) return;
+    if (!id || getCachedPublicUrl(key)) return;
     try {
-      const { ics, publicUrl } = await fetchIcsWithPublicUrl(meetingIcsUrl(id));
-      setCachedIcs(key, ics);
+      const publicUrl = await prefetchCalendarLink(meetingIcsUrl(id));
       setCachedPublicUrl(key, publicUrl);
     } catch (err) {
       console.warn('[crm-device-calendar] meeting prefetch', err);
     }
   }
 
-  /** Abre Calendario Apple a partir do .ics em cache (sem sair do CRM). */
+  /** Abre Calendario Apple com a URL pública já pré-carregada. */
   function openAppleCalendarFromCache(leadId) {
-    const key = cacheKey('lead', leadId);
-    const ics = getCachedIcs(key);
-    if (!ics) return false;
-    return openIcsWithoutLeavingPage({ ics: ics, url: getCachedPublicUrl(key) || '' });
-  }
-
-  async function ensureIcsCached(leadId) {
-    const key = cacheKey('lead', leadId);
-    let ics = getCachedIcs(key);
-    if (ics) return ics;
-    ics = await fetchLeadIcsText(leadId);
-    setCachedIcs(key, ics);
-    return ics;
+    const url = getCachedPublicUrl(cacheKey('lead', leadId));
+    if (!url) return false;
+    return openIcsUrlViaUserGesture(url);
   }
 
   function normalizeMeeting(meetingOrId) {
@@ -606,7 +548,12 @@
       }
       const ics = buildDraftEventIcs(draft);
       if (isAppleMobile() || isSafariBrowser() || isStandaloneDisplay()) {
-        return openIcsWithoutLeavingPage({ ics: ics });
+        // data: URI — Safari abre o Calendário (gesto do utilizador).
+        try {
+          history.pushState({ omCalHandoff: 1 }, '', location.href);
+        } catch (_) {}
+        global.location.assign('data:text/calendar;charset=utf-8,' + encodeURIComponent(ics));
+        return true;
       }
       // Desktop: download .ics (abre no Calendar / Outlook).
       const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
