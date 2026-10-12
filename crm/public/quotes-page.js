@@ -270,20 +270,20 @@
       p = 'Ajuste os serviços na folha e reenvie.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&services=1">Editar serviços</a>`;
     } else if (g === 'draft') {
-      t = 'Pronto para enviar';
-      p = 'Confira a folha e mande o link por e-mail ou SMS.';
-      cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&send=1">Enviar ao cliente</a>`;
+      t = 'Enviar ou virar job';
+      p = 'Mande ao cliente ou transforme em job sem passar pelas etapas de envio.';
+      cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a><a class="qs-btn qs-btn--full" href="${b}&send=1">Enviar ao cliente</a>`;
     } else if (g === 'waiting' && isViewed(q)) {
       const at = q.viewed_at || q.pdf_viewed_at;
       const d = at ? S.daysSince(at) : null;
       t = `Lembrar ${firstName(q)}`;
-      p = d != null ? `Abriu há ${plural(d, 'dia', 'dias')} e ainda não aprovou.` : 'Abriu e ainda não aprovou.';
-      cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&send=1">Reenviar</a>`;
+      p = d != null ? `Abriu há ${plural(d, 'dia', 'dias')} e ainda não aprovou. Também pode virar job agora.` : 'Abriu e ainda não aprovou. Também pode virar job agora.';
+      cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a><a class="qs-btn qs-btn--full" href="${b}&send=1">Reenviar</a>`;
     } else if (g === 'waiting') {
       const d = q.email_sent_at ? S.daysSince(q.email_sent_at) : null;
       t = 'Aguardando o cliente';
-      p = d != null ? `Enviado há ${plural(d, 'dia', 'dias')}. Ainda não abriu.` : 'Ainda não abriu.';
-      cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&send=1">Reenviar</a>`;
+      p = d != null ? `Enviado há ${plural(d, 'dia', 'dias')}. Ainda não abriu — ou transforme em job direto.` : 'Ainda não abriu — ou transforme em job direto.';
+      cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a><a class="qs-btn qs-btn--full" href="${b}&send=1">Reenviar</a>`;
     } else if (g === 'expired') {
       t = 'Venceu';
       p = 'Atualize a validade e reenvie se o cliente ainda tiver interesse.';
@@ -295,7 +295,7 @@
         : 'Transforme em job: cliente, endereço e serviços já vão preenchidos.';
       cta = q.work_order_id
         ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?setup=${encodeURIComponent(q.work_order_id)}">Completar o job</a>`
-        : `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Criar o job</a>`;
+        : `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a>`;
     } else {
       t = 'Arquivado';
       p = 'Este quote não aparece nos abertos.';

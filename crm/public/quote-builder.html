@@ -2502,6 +2502,10 @@
         <span class="qb-action-bar__full">Emitir fatura</span>
         <span class="qb-action-bar__short">Fatura</span>
       </button>
+      <button type="button" id="btnCreateJob" class="btn btn-secondary" disabled title="Transformar em job sem enviar ao cliente">
+        <span class="qb-action-bar__full">Transformar em job</span>
+        <span class="qb-action-bar__short">Job</span>
+      </button>
       <button type="button" id="btnSend" class="btn btn-secondary" disabled title="Enviar" aria-haspopup="menu" aria-expanded="false" aria-controls="quoteSendMenu">
         <span class="qb-action-bar__full">Enviar</span>
         <span class="qb-action-bar__short">Enviar</span>
@@ -2524,6 +2528,7 @@
 
   <div id="qbMoreMenu" class="qb-more-menu hidden" role="menu" aria-label="Mais ações">
     <button type="button" class="qb-more-menu__item qb-more-menu__mob" role="menuitem" data-qb-proxy="btnPdf">Ver PDF</button>
+    <button type="button" class="qb-more-menu__item" role="menuitem" data-qb-proxy="btnCreateJob">Transformar em job</button>
     <button type="button" class="qb-more-menu__item" role="menuitem" data-qb-proxy="btnInvoice">Emitir fatura</button>
     <button type="button" class="qb-more-menu__item" role="menuitem" data-qb-proxy="btnDup">Duplicar</button>
     <button type="button" class="qb-more-menu__item" role="menuitem" data-qb-proxy="btnSaveTpl">Salvar como template</button>
@@ -2753,7 +2758,7 @@
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="quote-paper.js?v=20261012-qp4"></script>
   <script src="crm-job-modal.js?v=20261012-jq1"></script>
-  <script src="quote-builder.js?v=20261012-jq1"></script>
+  <script src="quote-builder.js?v=20261012-jq2"></script>
   <script src="quote-services-popup.js?v=20261012-qp2"></script>
   <script>
     (function () {

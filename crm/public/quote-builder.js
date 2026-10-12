@@ -1820,6 +1820,90 @@
     location.href = `jobs.html?setup=${encodeURIComponent(jobId)}`;
   }
 
+  function quoteHasServices() {
+    return items.some((it) => String(it.name || it.description || '').trim() && (Number(it.quantity) || 0) > 0);
+  }
+
+  function quoteHasClient() {
+    if (String($('customerId')?.value || '').trim()) return true;
+    if (selectedOrgCustomer?.id || selectedQuoteLead?.id) return true;
+    const bid = String($('quoteBuilderSelect')?.value || '').trim();
+    if (bid) return true;
+    return Boolean(qbClientDisplayName());
+  }
+
+  function canTransformToJob() {
+    const status = String($('status')?.value || 'draft').toLowerCase();
+    if (status === 'rejected' || status === 'archived') return false;
+    if (qbMeta.work_order_id) return false;
+    return quoteHasClient() && quoteHasServices();
+  }
+
+  function syncCreateJobButton() {
+    const btn = $('btnCreateJob');
+    if (!btn) return;
+    const can = canTransformToJob();
+    btn.disabled = !can;
+    btn.classList.toggle('hidden', Boolean(qbMeta.work_order_id));
+    btn.title = qbMeta.work_order_id
+      ? 'Job já criado'
+      : can
+        ? 'Transformar em job sem enviar ao cliente'
+        : 'Escolha o cliente e adicione serviços para transformar em job';
+  }
+
+  /** Approve + create WorkOrder + open Job modal — no need to send the quote to the client. */
+  async function transformQuoteToJob() {
+    if (qbMeta.work_order_id) {
+      await openJobSetupFromQuote(qbMeta.work_order_id);
+      return;
+    }
+    if (!quoteHasClient()) {
+      qbToast('Escolha o cliente (ou builder) antes de criar o job.', 'error');
+      return;
+    }
+    if (!quoteHasServices()) {
+      qbToast('Adicione pelo menos um serviço antes de criar o job.', 'error');
+      return;
+    }
+    const statusEl = $('status');
+    if (statusEl && !isQuoteApprovedStatus(statusEl.value)) {
+      statusEl.value = 'approved';
+      qbToast('Orçamento marcado como Aprovado ao criar o job.', 'info');
+    }
+    const btn = $('btnCreateJob');
+    const prev = btn?.querySelector('.qb-action-bar__full')?.textContent || btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      const full = btn.querySelector('.qb-action-bar__full');
+      const short = btn.querySelector('.qb-action-bar__short');
+      if (full) full.textContent = 'A criar…';
+      if (short) short.textContent = '…';
+    }
+    try {
+      const ok = await saveQuote();
+      if (!ok) return;
+      let wid = qbMeta.work_order_id;
+      if (!wid && quoteId) {
+        const r = await api(`/api/quotes/${quoteId}`);
+        wid = r.data?.work_order_id || null;
+        if (wid) qbMeta.work_order_id = wid;
+      }
+      qbScheduleProgress();
+      syncCreateJobButton();
+      if (wid) await openJobSetupFromQuote(wid);
+      else qbToast('Job não foi criado. Confira cliente e serviços e tente de novo.', 'error');
+    } finally {
+      if (btn) {
+        const full = btn.querySelector('.qb-action-bar__full');
+        const short = btn.querySelector('.qb-action-bar__short');
+        if (full) full.textContent = prev && prev !== 'A criar…' ? prev : 'Transformar em job';
+        if (short) short.textContent = 'Job';
+        syncCreateJobButton();
+      }
+    }
+  }
+
   function updateInlineItemTotal() {
     const el = $('inlineItemTotal');
     if (!el) return;
@@ -5272,6 +5356,7 @@
   function wireInvoiceUi() {
     $('btnInvoice')?.addEventListener('click', () => openInvoiceModal());
     $('btnOpenInvoiceModal')?.addEventListener('click', () => openInvoiceModal());
+    $('btnCreateJob')?.addEventListener('click', () => void transformQuoteToJob());
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-qb-invoice-final]')) {
         e.preventDefault();
@@ -5340,6 +5425,7 @@
     $('btnDup').disabled = !quoteId;
     if ($('btnDeleteQuote')) $('btnDeleteQuote').disabled = !quoteId;
     syncInvoiceUiVisibility();
+    syncCreateJobButton();
     if (!quoteId) {
       updateEmailSentBadge(null);
       updateQuoteViewedBadge(null);
@@ -6092,25 +6178,17 @@
       });
     }
 
-    // Quotes list CTA "Criar o job" → approve/heal then open Job modal.
-    if (params.get('create_job') === '1' && quoteId) {
+    // Quotes list CTA "Transformar em job" → approve/heal then open Job modal (no send required).
+    if (params.get('create_job') === '1') {
       try {
         const u = new URL(location.href);
         u.searchParams.delete('create_job');
         history.replaceState(null, '', u.pathname + (u.searchParams.toString() ? `?${u.searchParams}` : ''));
       } catch (_) {}
       setTimeout(() => {
-        document.querySelector('[data-qb-create-job]')?.click();
-        if (!document.querySelector('[data-qb-create-job]') && qbMeta.work_order_id) {
-          void openJobSetupFromQuote(qbMeta.work_order_id);
-        } else if (!document.querySelector('[data-qb-create-job]') && !qbMeta.work_order_id) {
-          const statusEl = $('status');
-          if (statusEl && !isQuoteApprovedStatus(statusEl.value)) statusEl.value = 'approved';
-          void saveQuote().then((ok) => {
-            if (ok && qbMeta.work_order_id) void openJobSetupFromQuote(qbMeta.work_order_id);
-          });
-        }
-      }, 80);
+        if (qbMeta.work_order_id) void openJobSetupFromQuote(qbMeta.work_order_id);
+        else void transformQuoteToJob();
+      }, 120);
     }
   }
 
@@ -6375,21 +6453,32 @@
         ? '<button type="button" class="btn qb-next__alt" data-qb-invoice-final="1">Emitir saldo restante</button>'
         : '<button type="button" class="btn qb-next__alt" data-qb-proxy-now="btnInvoice">Emitir fatura</button>'
       : '';
+    const jobReady = canTransformToJob();
+    const jobBtn = jobReady
+      ? '<button type="button" class="btn btn-primary" data-qb-create-job="1">Transformar em job</button>'
+      : '';
+    const jobAlt = jobReady
+      ? '<button type="button" class="btn qb-next__alt" data-qb-create-job="1">Transformar em job</button>'
+      : '';
     let title = '';
     let text = '';
     let btn = '';
-    if (!quoteId) {
+    if (!quoteId && !jobReady) {
       title = 'Monte o orçamento';
-      text = 'Escolha o cliente, adicione os serviços e salve.';
+      text = 'Escolha o cliente, adicione os serviços e salve — ou transforme em job quando estiver pronto.';
       btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSave">Salvar orçamento</button>';
+    } else if (!quoteId && jobReady) {
+      title = 'Pronto para virar job';
+      text = 'Não precisa enviar ao cliente. Transforme em job agora — o orçamento será aprovado automaticamente.';
+      btn = `${jobBtn}<button type="button" class="btn qb-next__alt" data-qb-proxy-now="btnSave">Só salvar</button>`;
     } else if (status === 'rejected' || status === 'archived') {
       title = 'Cliente recusou';
       text = 'Duplique para mandar uma nova versão com outro preço ou escopo.';
       btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnDup">Duplicar como nova versão</button>';
-    } else if (approved && qbMeta.work_order_id) {
-      title = 'Aprovado — job criado';
+    } else if (qbMeta.work_order_id) {
+      title = 'Job criado';
       text = canInvoice
-        ? `Job criado. Complete a agenda/equipe no job ou fature ${money(left)}.`
+        ? `Complete a agenda/equipe no job ou fature ${money(left)}.`
         : 'Complete Quando, Setor, Equipe e Campo no job.';
       btn = canInvoice
         ? `${invoiceBtn}<button type="button" class="btn qb-next__alt" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Completar o job</button>`
@@ -6397,32 +6486,31 @@
     } else if (approved && canInvoice && invoiced > 0.009) {
       title = 'Saldo a faturar';
       text = `Já faturado ${money(invoiced)}. Falta emitir ${money(left)} do orçamento.`;
-      btn = invoiceBtn;
-    } else if (approved) {
-      title = 'Aprovado — transformar em job';
-      text = 'Crie o job a partir deste orçamento. Para quem, endereço e serviços já vêm preenchidos.';
-      btn = `<button type="button" class="btn btn-primary" data-qb-create-job="1">Criar o job</button>${invoiceAlt}`;
+      btn = `${invoiceBtn}${jobAlt}`;
+    } else if (jobReady) {
+      title = approved ? 'Aprovado — transformar em job' : 'Transformar em job';
+      text = 'Não precisa enviar ao cliente. Cliente, endereço e serviços vão para o job; complete Quando, Setor, Equipe e Campo no popup.';
+      btn = approved
+        ? `${jobBtn}${invoiceAlt}`
+        : `${jobBtn}<button type="button" class="btn qb-next__alt" data-qb-proxy-now="btnSend">Enviar ao cliente</button>${invoiceAlt}`;
     } else if (viewed) {
       title = 'Cliente abriu o orçamento';
-      text = `${first || 'O cliente'} abriu ${qbMeta.viewed_at ? qbAgo(qbMeta.viewed_at) : ''} e ainda não aprovou. Pode faturar sem esperar.`;
+      text = `${first || 'O cliente'} abriu ${qbMeta.viewed_at ? qbAgo(qbMeta.viewed_at) : ''} e ainda não aprovou.`;
       const msg = buildQuoteFollowupBody(first, link);
       btn = phone
         ? `<a class="btn btn-primary" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Lembrar por WhatsApp</a>${invoiceAlt}`
         : `<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>${invoiceAlt}`;
     } else if (sent) {
       title = 'Enviado — aguardando o cliente';
-      text = (qbMeta.email_sent_at ? `Enviado ${qbAgo(qbMeta.email_sent_at)}. Ainda não abriu.` : 'Ainda não abriu.') + ' Pode faturar sem esperar.';
+      text = qbMeta.email_sent_at ? `Enviado ${qbAgo(qbMeta.email_sent_at)}. Ainda não abriu.` : 'Ainda não abriu.';
       btn = `<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Reenviar</button>${invoiceAlt}`;
     } else {
       title = 'Pronto para enviar';
-      text = canInvoice
-        ? 'Envie ao cliente ou fature direto — o orçamento será aprovado ao emitir a fatura.'
-        : 'Confira os itens e mande o link por e-mail ou SMS.';
-      btn = canInvoice
-        ? `<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Enviar ao cliente</button>${invoiceAlt}`
-        : '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Enviar ao cliente</button>';
+      text = 'Adicione cliente e serviços para transformar em job, ou envie o link ao cliente.';
+      btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Enviar ao cliente</button>';
     }
     box.innerHTML = `<b>${title}</b><p>${text}</p>${btn}`;
+    syncCreateJobButton();
   }
 
   function qbOpenMoreMenu(anchor) {
@@ -6473,24 +6561,7 @@
       const createJobBtn = e.target.closest('[data-qb-create-job]');
       if (createJobBtn) {
         e.preventDefault();
-        void (async () => {
-          const statusEl = $('status');
-          if (statusEl && !isQuoteApprovedStatus(statusEl.value)) statusEl.value = 'approved';
-          const ok = await saveQuote();
-          if (ok && qbMeta.work_order_id) await openJobSetupFromQuote(qbMeta.work_order_id);
-          else if (ok && quoteId) {
-            try {
-              const r = await api(`/api/quotes/${quoteId}`);
-              const wid = r.data?.work_order_id;
-              if (wid) {
-                qbMeta.work_order_id = wid;
-                await openJobSetupFromQuote(wid);
-              } else qbToast('Salve o orçamento aprovado para criar o job.', 'error');
-            } catch (err) {
-              qbToast(err.message || 'Erro ao criar job', 'error');
-            }
-          }
-        })();
+        void transformQuoteToJob();
         return;
       }
       const now = e.target.closest('[data-qb-proxy-now]');
