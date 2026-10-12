@@ -631,10 +631,6 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
         ? input.number
         : `Q-${input.number}`;
     const customerName = input.customerName || "Client";
-    const floorArea =
-      Number(input.floorAreaSqft) ||
-      input.rooms.reduce((s, r) => s + (Number(r.areaSqft) || 0), 0) ||
-      0;
 
     let depositAmount = Number(input.depositAmount);
     if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
@@ -746,29 +742,8 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
 
     y += 88;
 
-    // Summary bar
-    const barH = 56;
-    doc.roundedRect(margin, y, contentW, barH, 4).fill(PAL.panelBg);
-    const colW = contentW / 4;
-    const summaryCols: { label: string; value: string; large?: boolean }[] = [
-      { label: "QUOTE TOTAL", value: money(input.total), large: true },
-      { label: "DUE ON APPROVAL", value: money(depositAmount), large: true },
-      {
-        label: "FLOOR AREA",
-        value: floorArea > 0 ? `${floorArea.toLocaleString("en-US")} sq ft` : "—",
-      },
-      { label: "VALID UNTIL", value: formatDate(input.validUntil) },
-    ];
-    summaryCols.forEach((c, i) => {
-      const cx = margin + i * colW + 14;
-      doc.fillColor(PAL.label).font("Helvetica-Bold").fontSize(7);
-      doc.text(c.label, cx, y + 12, { lineBreak: false });
-      doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(c.large ? 14 : 11);
-      doc.text(c.value, cx, y + 28, { lineBreak: false });
-    });
-    y += barH + 22;
+    // Bill to / Job site / Prepared by (matches CRM preview — no KPI summary bar)
 
-    // Bill to / Job site / Prepared by
     const infoColW = (contentW - colGap * 2) / 3;
     const infoY = y;
     const drawInfoCol = (
