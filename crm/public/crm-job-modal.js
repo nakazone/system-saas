@@ -10,7 +10,13 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261012-svcquote1";
+  const CSS_HREF = "crm-job-modal.css?v=20261012-svcqpe1";
+  const QPE_CSS = "quote-services-popup.css?v=20261012-qp3";
+  const QPE_JS = "quote-services-popup.js?v=20261012-qp3";
+  const PAPER_CSS = "quote-paper.css?v=20261012-qp4";
+  const PAPER_JS = "quote-paper.js?v=20261012-qp4";
+  let prevQBBridge = null;
+  let qpeAssetsPromise = null;
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
@@ -924,9 +930,254 @@
       priceTouched: Boolean(o.priceTouched),
       manual: Boolean(o.manual),
       note: o.note || "",
+      serviceType: o.serviceType || null,
       svcQuery: o.svcQuery != null ? o.svcQuery : "",
       svcOpen: false,
     };
+  }
+
+  function normalizeServiceType(raw) {
+    const lower = String(raw || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ");
+    if (!lower) return "Installation";
+    if (lower === "supply" || lower.includes("supply") || lower.includes("fornec") || lower.includes("material")) return "Supply";
+    if (
+      lower.includes("sand") ||
+      lower.includes("lix") ||
+      lower.includes("acab") ||
+      (lower.includes("finish") && !lower.includes("install"))
+    ) {
+      return "Sand & Finishing";
+    }
+    return "Installation";
+  }
+
+  function lineAmount(q, r) {
+    return Math.round((Number(q) || 0) * (Number(r) || 0) * 100) / 100;
+  }
+
+  function computeSellUnitRate(base, marginPct) {
+    const b = Number(base) || 0;
+    if (b <= 0) return 0;
+    if (marginPct == null || !Number.isFinite(Number(marginPct))) return b;
+    return Math.round(b * (1 + Math.max(0, Number(marginPct) || 0) / 100) * 10000) / 10000;
+  }
+
+  function descBodyWithoutTitle(name, description) {
+    const n = String(name || "").trim();
+    let desc = String(description || "").trim();
+    if (!desc) return "";
+    if (!n) return desc;
+    if (desc === n) return "";
+    const nLower = n.toLowerCase();
+    const lines = desc.split(/\n/);
+    if (lines[0] && lines[0].trim().toLowerCase() === nLower) desc = lines.slice(1).join("\n").trim();
+    while (desc && desc.toLowerCase().startsWith(nLower)) {
+      desc = desc.slice(n.length).replace(/^[\s—–:·.\-]+/, "").trim();
+    }
+    return desc;
+  }
+
+  function pricingAsCatalog() {
+    return (pricing || []).map((p) => ({
+      ...p,
+      category: normalizeServiceType(p.category || p.category_label || ""),
+      unit_type: p.unit || p.unit_type || "sq_ft",
+      default_description: p.notes != null ? String(p.notes).trim() || null : null,
+    }));
+  }
+
+  function jobLineToQuoteItem(l) {
+    const item = l.pricingId ? pricing.find((p) => String(p.id) === String(l.pricingId)) : null;
+    const name = (l.name || item?.name || "").trim();
+    const unit = l.unit || item?.unit || "sq_ft";
+    const stype =
+      l.serviceType ||
+      (st.sector === "sand_finish" ? "Sand & Finishing" : st.sector === "installation" ? "Installation" : "Installation");
+    return {
+      item_type: "service",
+      name,
+      description: String(l.note || "").trim(),
+      notes: null,
+      unit_type: unit || "sq_ft",
+      quantity: Number(l.qty) || 0,
+      rate: Number(l.price) || 0,
+      sell_price: Number(l.price) || 0,
+      service_type: normalizeServiceType(stype),
+      catalog_customer_notes: String(l.note || "").trim() || null,
+      service_catalog_id: null,
+      product_id: null,
+      pricing_item_id: l.pricingId || null,
+      estimateAuto: false,
+    };
+  }
+
+  function quoteItemToJobLine(it) {
+    const desc = String(it.description || it.catalog_customer_notes || "").trim();
+    const notes = String(it.notes || "").trim();
+    return blankLine({
+      pricingId: it.pricing_item_id || null,
+      name: String(it.name || "").trim(),
+      qty: Number(it.quantity) || 0,
+      price: Number(it.rate != null ? it.rate : it.sell_price) || 0,
+      unit: it.unit_type || null,
+      priceTouched: true,
+      manual: !it.pricing_item_id,
+      note: [desc, notes].filter(Boolean).join("\n"),
+      serviceType: normalizeServiceType(it.service_type),
+    });
+  }
+
+  function ensureCss(href) {
+    const base = href.split("?")[0];
+    if ([...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => (l.getAttribute("href") || "").split("?")[0] === base)) {
+      return;
+    }
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = href;
+    document.head.appendChild(link);
+  }
+
+  function ensureScript(src) {
+    const base = src.split("?")[0];
+    if (base.endsWith("quote-paper.js") && window.OmQuotePaper) return Promise.resolve();
+    if (base.endsWith("quote-services-popup.js") && window.OmQuoteServices) return Promise.resolve();
+    const existing = [...document.querySelectorAll("script")].find((s) => (s.getAttribute("src") || "").split("?")[0] === base);
+    if (existing) {
+      if (existing.dataset.loaded === "1") return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        let done = false;
+        const ok = () => {
+          if (done) return;
+          done = true;
+          existing.dataset.loaded = "1";
+          resolve();
+        };
+        existing.addEventListener("load", ok, { once: true });
+        existing.addEventListener("error", () => reject(new Error(`Falha ao carregar ${base}`)), { once: true });
+        // Already executed (static tag) — give the parser a tick, then resolve if globals appeared.
+        setTimeout(() => {
+          if (base.endsWith("quote-paper.js") && window.OmQuotePaper) ok();
+          if (base.endsWith("quote-services-popup.js") && window.OmQuoteServices) ok();
+        }, 0);
+      });
+    }
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = false;
+      s.onload = () => {
+        s.dataset.loaded = "1";
+        resolve();
+      };
+      s.onerror = () => reject(new Error(`Falha ao carregar ${base}`));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureQuoteServicesAssets() {
+    if (window.OmQuotePaper && window.OmQuoteServices) return;
+    if (qpeAssetsPromise) return qpeAssetsPromise;
+    qpeAssetsPromise = (async () => {
+      ensureCss(PAPER_CSS);
+      ensureCss(QPE_CSS);
+      await ensureScript(PAPER_JS);
+      await ensureScript(QPE_JS);
+      if (!window.OmQuotePaper || !window.OmQuoteServices) {
+        throw new Error("Não foi possível abrir a tela de serviços.");
+      }
+    })().catch((err) => {
+      qpeAssetsPromise = null;
+      throw err;
+    });
+    return qpeAssetsPromise;
+  }
+
+  function installJobQBBridge() {
+    prevQBBridge = window.QBBridge || null;
+    window.QBBridge = {
+      __job: true,
+      docNoun: () => "job",
+      getItems: () => (st ? st.lines.map(jobLineToQuoteItem) : []),
+      setItems(next) {
+        if (!st) return;
+        st.lines = (next || []).map(quoteItemToJobLine);
+        st.svcPanel = null;
+        renderServices();
+        refreshNumbers();
+      },
+      catalog: () => pricingAsCatalog(),
+      filterCatalog(q) {
+        const needle = String(q || "")
+          .trim()
+          .toLowerCase();
+        const rows = pricingAsCatalog();
+        if (!needle) return rows.slice(0, 12);
+        return rows
+          .filter((p) => `${p.name || ""} ${p.unit_type || ""} ${p.category || ""}`.toLowerCase().includes(needle))
+          .slice(0, 12);
+      },
+      rateFor: (row) => priceFor(row),
+      descFor: (row, name) => descBodyWithoutTitle(name || (row && row.name) || "", (row && (row.default_description || row.notes)) || ""),
+      catalogIds: (row) => ({ service_catalog_id: null, pricing_item_id: row ? row.id : null }),
+      pricingLabel: () => pricingLabel(),
+      normalizeServiceType,
+      computeSellUnitRate,
+      lineAmount,
+      header() {
+        const card = clientCard();
+        const c = currentCustomer();
+        const b = currentBuilder();
+        return {
+          quoteId: "new",
+          number: st && st.number != null ? String(st.number) : "",
+          bill: {
+            name: (card && card.name) || "",
+            email: (c && c.email) || (b && b.email) || "",
+            phone: (c && c.phone) || (b && b.phone) || "",
+          },
+          jobName: (st && (String(st.title || "").trim() || autoTitle())) || "Job",
+          jobAddress: (st && st.address) || "",
+          valid: "",
+          floorArea: 0,
+          projectArea: 0,
+        };
+      },
+      totals(list) {
+        const sub = (list || []).reduce((t, it) => t + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0), 0);
+        return { sub, disc: 0, tax: 0, total: Math.max(0, Math.round(sub * 100) / 100) };
+      },
+      toast: (m, t) => notify(m, t || "info"),
+      save: async () => true,
+      onClose() {
+        if (prevQBBridge) window.QBBridge = prevQBBridge;
+        else if (window.QBBridge && window.QBBridge.__job) delete window.QBBridge;
+        prevQBBridge = null;
+        if (st) {
+          renderServices();
+          refreshNumbers();
+        }
+      },
+    };
+  }
+
+  async function openJobServicesPopup(opts) {
+    if (!st || !canManage) return;
+    try {
+      await ensureQuoteServicesAssets();
+      installJobQBBridge();
+      const section =
+        st.sector === "sand_finish" ? "sand_finish" : st.sector === "installation" ? "installation" : null;
+      const o = Object.assign({ section }, opts || {});
+      if (o.focusPaper) window.OmQuoteServices.openDoc();
+      else window.OmQuoteServices.openStep(o);
+    } catch (err) {
+      notify((err && err.message) || "Não foi possível abrir serviços.", "error");
+    }
   }
 
   function closeSvcDropdowns(exceptI) {
@@ -1029,9 +1280,8 @@
         const unit = unitLabel(item?.unit || l.unit);
         const name = l.name || item?.name || "Sem nome";
         const note = String(l.note || "").trim();
-        const editing = st.svcPanel && st.svcPanel.i === i;
-        return `<article class="jm-svc-row${editing ? " is-editing" : ""}" data-i="${i}" role="listitem">
-          <div class="jm-svc-row__name" data-act="edit-line" role="button" tabindex="0" title="Editar serviço">
+        return `<article class="jm-svc-row" data-i="${i}" role="listitem">
+          <div class="jm-svc-row__name" data-act="edit-line" role="button" tabindex="0" title="Editar na folha">
             <b>${esc(name)}</b>
             ${note ? `<small>${esc(note)}</small>` : ""}
           </div>
@@ -1040,29 +1290,27 @@
           <label class="jm-svc-row__rate"><span class="jm-svc-row__lbl">Preço</span><span class="jm-svc-row__cur">$</span><input type="text" inputmode="decimal" data-f="price" value="${Number(l.price) ? esc(Number(l.price).toFixed(2)) : ""}" aria-label="Preço de ${esc(name)}" autocomplete="off" /></label>
           <span class="jm-svc-row__total" data-tot>${money(lineTotal(l))}</span>
           <div class="jm-svc-row__act">
-            <button type="button" class="jm-svc-row__ic" data-act="edit-line" title="Editar" aria-label="Editar ${esc(name)}">✎</button>
+            <button type="button" class="jm-svc-row__ic" data-act="edit-line" title="Editar na folha" aria-label="Editar ${esc(name)}">✎</button>
             <button type="button" class="jm-svc-row__ic jm-svc-row__ic--del" data-act="del-line" title="Remover" aria-label="Remover ${esc(name)}">×</button>
           </div>
         </article>`;
       })
       .join("");
-    const list =
-      st.lines.length || st.svcPanel
-        ? `<div class="jm-svc-list" role="list">
-            ${st.lines.length ? `<div class="jm-svc-list__head" aria-hidden="true"><span></span><span>Serviço</span><span class="r">Qtd</span><span>Un.</span><span class="r">Preço</span><span class="r">Total</span><span></span></div>` : ""}
+    const list = st.lines.length
+      ? `<div class="jm-svc-list" role="list">
+            <div class="jm-svc-list__head" aria-hidden="true"><span></span><span>Serviço</span><span class="r">Qtd</span><span>Un.</span><span class="r">Preço</span><span class="r">Total</span><span></span></div>
             ${rows}
-            ${renderSvcPanelHtml()}
           </div>`
-        : `<p class="jm-empty jm-empty--svc">Nenhum serviço neste job. Adicione da Tabela de Valores — o valor vira a fatura.</p>`;
+      : `<p class="jm-empty jm-empty--svc">Nenhum serviço neste job. Toque em Adicionar serviço para abrir a folha com pré-visualização — igual ao orçamento.</p>`;
     box.innerHTML = `${list}
       <div class="jm-svc__foot">
-        <button type="button" class="jm-svc__add" data-act="add-line"${st.svcPanel ? " disabled" : ""}>+ Adicionar serviço</button>
+        <button type="button" class="jm-svc__add" data-act="add-line">+ Adicionar serviço</button>
         <span id="jmSvcCount"></span>
       </div>`;
     const card = clientCard();
     $("jmPriceHint").innerHTML = st.fromQuote
-      ? `Serviços do orçamento · preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Ajuste se precisar.`
-      : `Preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Igual ao orçamento: busque na tabela e ajuste quantidade/preço.`;
+      ? `Serviços do orçamento · preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Abra a folha para adicionar ou editar.`
+      : `Preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Mesma tela do orçamento: passos à esquerda e folha à direita.`;
     updateSvcCount();
   }
 
@@ -2042,30 +2290,11 @@
         break;
       }
       case "add-line":
-        st.svcPanel = blankSvcPanel({ open: true, query: "" });
-        renderServices();
-        setTimeout(() => $("jmSvcName")?.focus(), 20);
+        openJobServicesPopup();
         break;
-      case "edit-line": {
-        const { i, line } = lineFromEl(btn);
-        if (!line || i < 0) break;
-        const item = line.pricingId ? pricing.find((p) => p.id === line.pricingId) : null;
-        st.svcPanel = blankSvcPanel({
-          i,
-          name: line.name || item?.name || "",
-          note: line.note || "",
-          qty: Number(line.qty) || 1,
-          price: Number(line.price) || 0,
-          pricingId: line.pricingId || null,
-          unit: item?.unit || line.unit || null,
-          query: line.name || item?.name || "",
-          open: false,
-          manual: Boolean(line.manual),
-        });
-        renderServices();
-        setTimeout(() => $("jmSvcName")?.focus(), 20);
+      case "edit-line":
+        openJobServicesPopup({ focusPaper: true });
         break;
-      }
       case "svc-cancel":
         st.svcPanel = null;
         renderServices();

@@ -63,6 +63,15 @@
     const n = B().normalizeServiceType(st);
     return n === 'Sand & Finishing' ? 'Sand & Finish' : n;
   }
+  /** "orçamento" no Quote · "job" quando o Job modal empresta esta tela. */
+  function docNoun() {
+    try {
+      const n = B().docNoun && B().docNoun();
+      return n ? String(n) : 'orçamento';
+    } catch (_) {
+      return 'orçamento';
+    }
+  }
 
   /* ---------- dados da folha ---------- */
   async function loadPaper() {
@@ -204,7 +213,12 @@
     E.root.hidden = true;
     document.documentElement.classList.remove('qpe-open');
     hideDD();
-    if (added) B().toast(`${added} ${added === 1 ? 'serviço adicionado' : 'serviços adicionados'} — lembre de salvar o orçamento.`, 'success');
+    if (added) B().toast(`${added} ${added === 1 ? 'serviço adicionado' : 'serviços adicionados'} — lembre de salvar o ${docNoun()}.`, 'success');
+    try {
+      if (B().onClose) B().onClose({ added });
+    } catch (_) {
+      /* ignore */
+    }
   }
   async function saveAndClose() {
     if (saving) return;
@@ -232,7 +246,7 @@
   }
   function renderHead() {
     const n = B().header().number || (paper && paper.number) || '';
-    E.qpeTitle.textContent = `Serviços do orçamento${n ? ' · ' + n : ''}`;
+    E.qpeTitle.textContent = `Serviços do ${docNoun()}${n ? ' · ' + n : ''}`;
     E.qpeSub.textContent = isPhone()
       ? 'Adicione embaixo · toque na folha para editar'
       : stacked()
