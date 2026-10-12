@@ -151,3 +151,31 @@
     display: none !important;
   }
 }
+
+/* Puxar para atualizar com o símbolo da marca (om-reload.js, animação Montagem) */
+.om-ptr.om-ptr--rl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 0;
+  max-width: none;
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0;
+  background: transparent !important;
+  color: #667085 !important;
+  font-size: 12px;
+  font-weight: 500;
+  font-style: italic;
+  opacity: 0;
+  transform: none;
+  transition: height 0.22s ease, opacity 0.18s ease;
+}
+.om-ptr.om-ptr--rl.om-ptr-visible {
+  height: 84px;
+  opacity: 1;
+  transform: none;
+}
+.om-ptr--rl .om-ptr__mark { display: block; transition: transform 0.08s linear; }
+.om-ptr--rl.is-ready { color: #221E1A !important; }

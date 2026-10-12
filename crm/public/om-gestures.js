@@ -7,7 +7,7 @@
 (function (global) {
   "use strict";
 
-  const VER = "20261002-gest1";
+  const VER = "20261012-rl1";
 
   function isTouchViewport() {
     return window.matchMedia("(max-width: 900px), (pointer: coarse)").matches;
@@ -119,6 +119,19 @@
             e.preventDefault();
           } catch (_) {}
         }
+        const R = global.OmReload;
+        if (R) {
+          // símbolo da marca montando conforme o dedo desce (animação "Montagem")
+          if (dy > 14) {
+            const ok = dy > 72;
+            ind.classList.add("om-ptr-visible");
+            ind.classList.toggle("is-ready", ok);
+            R.ptrSet(ind, "pull", (dy - 14) / 58, ok ? o.labelReady || "Solte para atualizar" : o.labelIdle || "Puxe para atualizar");
+          } else {
+            ind.classList.remove("om-ptr-visible", "is-ready");
+          }
+          return;
+        }
         const idle = o.labelIdle || "↓ Puxe para atualizar";
         const ready = o.labelReady || "↓ Largar para atualizar";
         if (dy > 48) {
@@ -141,26 +154,42 @@
       }
       const o = global.__omPtrRegistry[activeKey];
       const ind = indEl(o);
+      const R = global.OmReload;
       const should = !!(ind && ind.classList.contains("om-ptr-visible") && ind.classList.contains("is-ready"));
       pulling = false;
       armed = false;
-      if (ind) {
-        ind.classList.remove("om-ptr-visible", "is-ready");
-        if (should) ind.textContent = o.labelBusy || "A atualizar…";
-      }
       if (!should || refreshing) {
+        if (ind) {
+          ind.classList.remove("om-ptr-visible", "is-ready");
+          if (!R) ind.textContent = (o && o.labelIdle) || "↓ Puxe para atualizar";
+        }
         activeKey = null;
-        if (ind) ind.textContent = (o && o.labelIdle) || "↓ Puxe para atualizar";
         return;
       }
       refreshing = true;
       haptic(12);
+      if (ind) {
+        ind.classList.remove("is-ready");
+        if (R) {
+          ind.classList.add("om-ptr-visible", "is-busy");
+          R.ptrSet(ind, "busy", 1, o.labelBusy || "Atualizando…");
+        } else {
+          ind.classList.remove("om-ptr-visible");
+          ind.textContent = o.labelBusy || "A atualizar…";
+        }
+      }
       try {
         await Promise.resolve(o.refresh());
       } finally {
         refreshing = false;
-        if (ind) ind.textContent = o.labelIdle || "↓ Puxe para atualizar";
         activeKey = null;
+        if (ind && R) {
+          ind.classList.remove("is-busy");
+          R.ptrSet(ind, "done", 1, "Atualizado");
+          setTimeout(() => ind.classList.remove("om-ptr-visible"), 650);
+        } else if (ind) {
+          ind.textContent = o.labelIdle || "↓ Puxe para atualizar";
+        }
       }
     };
 
