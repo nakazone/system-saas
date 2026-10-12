@@ -133,7 +133,8 @@ export async function ensureWorkOrderOnApprove(
       customerId: quote.customerId,
       builderId: quote.builderId,
       address,
-      notes: quote.notes,
+      // Notas internas and scheduling/team/campo are filled in the Job modal after conversion.
+      notes: null,
       lineItems: {
         create: selectedLines.map((li, idx) => {
           const qty = Number(li.quantity) || 0;

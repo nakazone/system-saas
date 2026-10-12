@@ -120,17 +120,22 @@
     return rows.filter(onMyJob);
   }
 
+  function byCreatedDesc(a, b) {
+    return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+  }
+
   function tabFiltered(rows) {
+    let out;
     if (tab === "today") {
-      return rows.filter(
+      out = rows.filter(
         (wo) =>
           isToday(wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
       );
-    }
-    if (tab === "active") return rows.filter((wo) => isActive(wo) && wo.status !== "canceled");
-    if (tab === "bill") return rows.filter(toBill);
-    if (tab === "done") return rows.filter((wo) => wo.status === "completed");
-    return rows;
+    } else if (tab === "active") out = rows.filter((wo) => isActive(wo) && wo.status !== "canceled");
+    else if (tab === "bill") out = rows.filter(toBill);
+    else if (tab === "done") out = rows.filter((wo) => wo.status === "completed");
+    else out = rows.slice();
+    return out.sort(byCreatedDesc);
   }
 
   function toBill(wo) {
@@ -177,8 +182,8 @@
     const bl = J ? J.bill(wo) : null;
     return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
-        <a class="om-swipe__act--edit" href="${detailHref}">Editar</a>
-        <a class="om-swipe__act--open" href="${detailHref}">Abrir</a>
+        <a class="om-swipe__act--edit" href="${detailHref}">Abrir</a>
+        ${canManage && wo.status !== "canceled" ? `<button type="button" class="om-swipe__act--delete" data-job-delete="${escapeHtml(wo.id)}" data-job-label="${escapeHtml(wo.title || clientLabel(wo))}">Excluir</button>` : `<a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>`}
       </div>
       <div class="om-swipe__body jmx-card">
         <a class="jmx-card__a" href="${detailHref}">
@@ -317,6 +322,39 @@
         updateStatus(id, action === "complete" ? "completed" : "in_progress");
       });
     });
+    host.querySelectorAll("[data-job-delete]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void deleteJob(btn.getAttribute("data-job-delete"), btn.getAttribute("data-job-label"), btn);
+      });
+    });
+  }
+
+  async function deleteJob(id, label, btn) {
+    if (!id || !canManage) return;
+    if (!confirm(`Excluir o job “${label || id}”?\n\nO job será cancelado e sai da lista ativa.`)) return;
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "…";
+    }
+    try {
+      const r = await fetch(`/api/work-orders/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+      window.crmToast?.success?.("Job excluído.");
+      await load();
+    } catch (err) {
+      window.crmToast?.error?.(err.message || "Não foi possível excluir");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || "Excluir";
+      }
+    }
   }
 
   async function updateStatus(id, status) {
@@ -368,9 +406,7 @@
       });
     });
     $("jobsMobAdd")?.addEventListener("click", () => {
-      if (window.__crmJobModal) {
-        window.__crmJobModal.openCreate().catch((e) => window.crmToast?.error?.(e.message));
-      }
+      location.href = "quote-builder.html";
     });
   }
 

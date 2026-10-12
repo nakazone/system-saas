@@ -246,11 +246,23 @@
     return null;
   }
   /** The party the job is for (and billed to): customer first, else builder. */
+  function clientDisplayLabel(c) {
+    if (!c) return "";
+    if (c.display_name) return c.display_name;
+    const n = String(c.name || c.company || "").trim();
+    const code = String(c.client_code || "").trim();
+    if (code && n) return `${n} - ${code}`;
+    return n || code || "Cliente";
+  }
+
   function clientCard() {
     const c = currentCustomer();
     if (c) {
       return {
-        name: c.name || c.company || "Cliente",
+        name: clientDisplayLabel(c),
+        baseName: c.name || c.company || "Cliente",
+        clientCode: c.client_code || "",
+        customerId: c.id,
         type: (() => {
           let t = String(c.customer_type || "particular").toLowerCase();
           if (t === "contractor") t = "builder";
@@ -268,7 +280,10 @@
       if (bType === "contractor") bType = "builder";
       const pc = matchCustomerForBuilder(b);
       return {
-        name: builderName(b),
+        name: pc ? clientDisplayLabel(pc) : builderName(b),
+        baseName: builderName(b),
+        clientCode: pc?.client_code || "",
+        customerId: pc?.id || null,
         type: bType,
         sub: [person && person !== builderName(b) ? person : null, b.phone, b.email].filter(Boolean).join(" · "),
         address: b.address || "",
@@ -314,7 +329,7 @@
       });
     const cRows = customers
       .filter((c) => {
-        if (!(match(c.name) || match(c.company) || match(c.email) || match(c.phone))) return false;
+        if (!(match(c.name) || match(c.company) || match(c.email) || match(c.phone) || match(c.client_code) || match(c.display_name))) return false;
         let type = String(c.customer_type || "particular").toLowerCase();
         if (type === "contractor") type = "builder";
         // Builder/loja customers mirrored from the Builders module — keep Builder row only.
@@ -335,6 +350,7 @@
           name: c.name || c.company || "Cliente",
           type,
           sub: [c.address, c.phone].filter(Boolean)[0] || "",
+          raw: c,
         };
       });
     // Fixed-price accounts (builder / loja) first — that is the day-to-day job.
@@ -748,11 +764,18 @@
     const card = clientCard();
     if (card && !st.pickerOpen) {
       box.innerHTML = `<div class="jm-picked">
-        <span class="jm-av">${esc(initials(card.name))}</span>
+        <span class="jm-av">${esc(initials(card.baseName || card.name))}</span>
         <span class="jm-picked__txt"><b>${esc(card.name)} <span class="jm-tag">${esc(TYPE_LABEL[card.type] || card.type)}</span></b>
         <small>${esc(card.sub || (card.custom ? "Tabela personalizada" : ""))}</small></span>
         <button type="button" class="jm-link" data-act="change-client">Trocar</button>
-      </div>`;
+      </div>
+      ${
+        card.customerId
+          ? `<label class="jm-field jm-field--wide" style="margin-top:10px">ID do cliente
+              <input type="text" id="jmClientCode" class="jm-in" maxlength="80" value="${esc(card.clientCode || "")}" placeholder="Opcional · aparece como Nome - ID" autocomplete="off" />
+            </label>`
+          : ""
+      }`;
       return;
     }
     const rows = pickerEntries(st.pickerQuery);
@@ -760,11 +783,14 @@
     const list = rows.slice(0, q ? 12 : 6);
     const fixed = list.filter((r) => r.type !== "particular");
     const part = list.filter((r) => r.type === "particular");
-    const item = (r) => `<button type="button" class="jm-opt" data-act="pick" data-kind="${r.kind}" data-id="${esc(r.id)}">
+    const item = (r) => {
+      const label = r.kind === "customer" ? clientDisplayLabel(r.raw || r) : r.name;
+      return `<button type="button" class="jm-opt" data-act="pick" data-kind="${r.kind}" data-id="${esc(r.id)}">
         <span class="jm-av jm-av--sm">${esc(initials(r.name))}</span>
-        <span class="jm-opt__txt"><b>${esc(r.name)}</b><small>${esc(r.sub)}</small></span>
+        <span class="jm-opt__txt"><b>${esc(label)}</b><small>${esc(r.sub)}</small></span>
         <span class="jm-tag jm-tag--soft">${esc(TYPE_LABEL[r.type] || r.type)}</span>
       </button>`;
+    };
     box.innerHTML = `<div class="jm-picker">
       <span class="jm-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
         <input type="search" id="jmClientQ" class="jm-in" placeholder="Buscar builder, loja ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
@@ -1511,6 +1537,36 @@
     });
   }
 
+  async function saveClientCode(raw) {
+    const card = clientCard();
+    const customerId = card?.customerId || st.customerId;
+    if (!customerId) return;
+    const code = String(raw || "").trim().slice(0, 80);
+    try {
+      const r = await api(`/api/customers/${encodeURIComponent(customerId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ client_code: code || null }),
+      });
+      const row = r.data;
+      if (row) rememberCustomer(row);
+      else {
+        const c = customers.find((x) => String(x.id) === String(customerId));
+        if (c) {
+          c.client_code = code || null;
+          c.display_name = code ? `${c.name} - ${code}` : c.name;
+        }
+      }
+      if (!st.pickerOpen) renderClient();
+      if (!st.titleTouched) {
+        st.title = autoTitle();
+        const titleEl = $("jobTitle");
+        if (titleEl && !st.moreOpen) titleEl.value = st.title;
+      }
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar o ID do cliente", "error");
+    }
+  }
+
   async function openEdit(id, opts) {
     await Promise.all([loadLookups(), ensureJobsSettings()]);
     const j = await api(`/api/work-orders/${id}`);
@@ -1583,6 +1639,16 @@
     st.relatedChildren = Array.isArray(wo.related_children) ? wo.related_children : [];
     st.pickerOpen = !(st.customerId || st.builderId);
     if (st.builderId && !st.customerId) await ensurePricingCustomer();
+    // Coming from Quote→Job: keep Para quem / endereço / serviços; user fills Quando, Setor, Equipe, Campo, Notas.
+    if (opts && opts.fromQuote) {
+      st.section = "all";
+      st.notes = "";
+      if (!wo.scheduled_start) {
+        st.date = "";
+        st.time = "";
+      }
+      notify("Job criado a partir do orçamento. Complete Quando, Setor, Equipe, Campo e Notas.", "success");
+    }
     open();
   }
 
@@ -2075,6 +2141,11 @@
         st.pickerQuery = t.value;
         renderPickerKeepFocus();
         remoteSearch(t.value.trim());
+        return;
+      case "jmClientCode":
+        // Debounced persist of client ID — display becomes "Name - ID" without renaming Customer.name.
+        clearTimeout(st._clientCodeTimer);
+        st._clientCodeTimer = setTimeout(() => void saveClientCode(t.value), 450);
         return;
       case "jobAddress":
         st.address = t.value;

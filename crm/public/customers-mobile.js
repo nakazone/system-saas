@@ -152,7 +152,7 @@
           <button type="button" class="om-swipe__body jcm-cli" data-cli-open="${id}">
             <span class="jcm-cli__av" style="background:${bg}">${escapeHtml(initials(c.name))}</span>
             <span>
-              <p class="jcm-cli__name">${escapeHtml(c.name || "—")}</p>
+              <p class="jcm-cli__name">${escapeHtml(c.display_name || (c.client_code ? `${c.name || "—"} - ${c.client_code}` : c.name) || "—")}</p>
               <p class="jcm-cli__meta">${escapeHtml(typeLabel(c))} · ${jobs} job${jobs === 1 ? "" : "s"}</p>
             </span>
             <span style="text-align:right">

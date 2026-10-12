@@ -375,9 +375,19 @@ function normalizeYnStatus(raw: unknown): string | null {
   return null;
 }
 
+/** Display label: "Name - ID" when clientCode is set; never mutates Customer.name. */
+export function customerDisplayName(name: string | null | undefined, clientCode?: string | null): string {
+  const n = String(name || "").trim();
+  const code = String(clientCode || "").trim();
+  if (!code) return n;
+  if (!n) return code;
+  return `${n} - ${code}`;
+}
+
 function mapCustomer(c: {
   id: string;
   name: string;
+  clientCode?: string | null;
   email: string | null;
   phone: string | null;
   address: string | null;
@@ -395,9 +405,12 @@ function mapCustomer(c: {
   createdAt: Date;
   updatedAt: Date;
 }) {
+  const clientCode = c.clientCode != null ? String(c.clientCode).trim() || null : null;
   return {
     id: c.id,
     name: c.name,
+    client_code: clientCode,
+    display_name: customerDisplayName(c.name, clientCode),
     email: c.email,
     phone: formatUsPhone(c.phone),
     address: c.address,
@@ -507,7 +520,7 @@ function mapQuote(q: {
   payload: unknown;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { name: string; company?: string | null } | null;
+  customer?: { name: string; company?: string | null; clientCode?: string | null } | null;
   builder?: {
     company?: string | null;
     firstName?: string | null;
@@ -581,7 +594,7 @@ function mapQuote(q: {
     terms_conditions: q.terms,
     service_type: q.serviceType,
     customer_id: q.customerId,
-    customer_name: q.customer?.name ?? null,
+    customer_name: customerDisplayName(q.customer?.name, q.customer?.clientCode) || q.customer?.name || null,
     customer_company: q.customer?.company ?? null,
     lead_id: q.leadId,
     builder_id: q.builderId,
@@ -665,6 +678,7 @@ customersQuotesRouter.get("/api/customers", requireCrmAuth, async (req: AuthedRe
       if (search) {
         where.OR = [
           { name: { contains: search, mode: "insensitive" } },
+          { clientCode: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
           { phone: { contains: search, mode: "insensitive" } },
           { company: { contains: search, mode: "insensitive" } },
@@ -1019,6 +1033,7 @@ customersQuotesRouter.post(
             .nullable(),
           company: z.string().optional().nullable(),
           notes: z.string().optional().nullable(),
+          client_code: z.string().max(80).optional().nullable(),
           responsible_name: z.string().optional().nullable(),
           dumpster_status: z.string().optional().nullable(),
           dumpster_notes: z.string().optional().nullable(),
@@ -1045,6 +1060,7 @@ customersQuotesRouter.post(
           data: {
             organizationId: req.organizationId!,
             name: formatCustomerName(parsed.data.name, customerType),
+            clientCode: String(parsed.data.client_code || "").trim() || null,
             email: parsed.data.email || null,
             phone: formatUsPhone(parsed.data.phone ?? null),
             address: parsed.data.address || null,
@@ -1165,6 +1181,8 @@ customersQuotesRouter.put(
           where: { id },
           data: {
             name: body.name !== undefined ? formatCustomerName(String(body.name), nextType) : undefined,
+            clientCode:
+              body.client_code !== undefined ? String(body.client_code || "").trim().slice(0, 80) || null : undefined,
             email: body.email !== undefined ? String(body.email || "") || null : undefined,
             phone: body.phone !== undefined ? formatUsPhone(String(body.phone || "") || null) : undefined,
             address: body.address !== undefined ? String(body.address || "") || null : undefined,
@@ -1266,7 +1284,7 @@ customersQuotesRouter.delete(
 
 function quoteListInclude() {
   return {
-    customer: { select: { name: true, company: true } },
+    customer: { select: { name: true, company: true, clientCode: true } },
     builder: { select: { company: true, firstName: true, lastName: true } },
     property: { select: { line1: true, city: true, state: true, label: true } },
     lineItems: { orderBy: { sortOrder: "asc" as const } },

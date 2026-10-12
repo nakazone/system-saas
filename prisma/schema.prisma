@@ -521,6 +521,8 @@ model Customer {
   leadId         String?  @db.Uuid
   lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
   name           String
+  /// Optional reference code shown as "Name - code" in Jobs/Quotes; never mutates name.
+  clientCode     String?
   email          String?
   phone          String?
   /// @deprecated Prefer Property records. Kept for back-compat; do not remove in M1.

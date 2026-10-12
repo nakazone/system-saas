@@ -1633,18 +1633,34 @@
     return String(c.address || '').trim();
   }
 
+  function withClientCodeLabel(name, clientCode) {
+    const n = String(name || '').trim();
+    const code = String(clientCode || '').trim();
+    if (!code) return n;
+    if (!n) return code;
+    return `${n} - ${code}`;
+  }
+
   function getClientDisplayInfo() {
     if (selectedQuoteLead) {
       return {
         name: selectedQuoteLead.name != null ? String(selectedQuoteLead.name).trim() : '',
+        baseName: selectedQuoteLead.name != null ? String(selectedQuoteLead.name).trim() : '',
+        clientCode: '',
+        customerId: null,
         phone: selectedQuoteLead.phone != null ? String(selectedQuoteLead.phone).trim() : '',
         email: selectedQuoteLead.email != null ? String(selectedQuoteLead.email).trim() : '',
         address: leadAddress(selectedQuoteLead),
       };
     }
     if (selectedOrgCustomer) {
+      const base = selectedOrgCustomer.name != null ? String(selectedOrgCustomer.name).trim() : '';
+      const code = selectedOrgCustomer.client_code != null ? String(selectedOrgCustomer.client_code).trim() : '';
       return {
-        name: selectedOrgCustomer.name != null ? String(selectedOrgCustomer.name).trim() : '',
+        name: selectedOrgCustomer.display_name || withClientCodeLabel(base, code) || base,
+        baseName: base,
+        clientCode: code,
+        customerId: selectedOrgCustomer.id || null,
         phone: selectedOrgCustomer.phone != null ? String(selectedOrgCustomer.phone).trim() : '',
         email: selectedOrgCustomer.email != null ? String(selectedOrgCustomer.email).trim() : '',
         address: customerAddress(selectedOrgCustomer),
@@ -1654,14 +1670,18 @@
     if (cid) {
       const c = clients.find((x) => sameId(x.id, cid));
       if (c) {
-        const name =
+        const base =
           c.name != null
             ? String(c.name).trim()
             : c.responsible_name != null
               ? String(c.responsible_name).trim()
               : '';
+        const code = c.client_code != null ? String(c.client_code).trim() : '';
         return {
-          name,
+          name: c.display_name || withClientCodeLabel(base, code) || base,
+          baseName: base,
+          clientCode: code,
+          customerId: c.id || cid,
           phone: c.phone != null ? String(c.phone).trim() : '',
           email: c.email != null ? String(c.email).trim() : '',
           address: customerAddress(c),
@@ -1735,18 +1755,69 @@
       box.innerHTML = '';
       return;
     }
-    box.innerHTML = contactCardHtml({
-      nameId: 'qbClientName',
-      phoneId: 'qbClientPhone',
-      emailId: 'qbClientEmail',
-      addressId: 'qbClientAddress',
-      name: info?.name,
-      phone: info?.phone,
-      email: info?.email,
-      address: info?.address,
-    });
+    box.innerHTML =
+      contactCardHtml({
+        nameId: 'qbClientName',
+        phoneId: 'qbClientPhone',
+        emailId: 'qbClientEmail',
+        addressId: 'qbClientAddress',
+        name: info?.name,
+        phone: info?.phone,
+        email: info?.email,
+        address: info?.address,
+      }) +
+      (info?.customerId
+        ? `<label class="qb-client-code"><span>ID do cliente</span><input type="text" id="qbClientCode" maxlength="80" value="${escapeAttr(info.clientCode || '')}" placeholder="Opcional · aparece como Nome - ID" autocomplete="off" /></label>`
+        : '');
     box.classList.remove('hidden');
     updateClientActionButtons();
+    const codeEl = $('qbClientCode');
+    if (codeEl && !codeEl.dataset.bound) {
+      codeEl.dataset.bound = '1';
+      let t = null;
+      codeEl.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(() => void saveClientCodeFromQuote(codeEl.value), 450);
+      });
+    }
+  }
+
+  async function saveClientCodeFromQuote(raw) {
+    const info = getClientDisplayInfo();
+    const customerId = info?.customerId || String($('customerId')?.value || '').trim();
+    if (!customerId) return;
+    const code = String(raw || '').trim().slice(0, 80);
+    try {
+      const r = await api(`/api/customers/${encodeURIComponent(customerId)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ client_code: code || null }),
+      });
+      const row = r.data;
+      if (row) {
+        if (selectedOrgCustomer && sameId(selectedOrgCustomer.id, customerId)) {
+          selectedOrgCustomer = { ...selectedOrgCustomer, ...row };
+        }
+        const idx = clients.findIndex((x) => sameId(x.id, customerId));
+        if (idx >= 0) clients[idx] = { ...clients[idx], ...row };
+      }
+      renderClientDetails();
+      qbScheduleProgress();
+    } catch (err) {
+      qbToast(err.message || 'Não foi possível salvar o ID do cliente', 'error');
+    }
+  }
+
+  async function openJobSetupFromQuote(jobId) {
+    if (!jobId) return;
+    if (window.__crmJobModal?.openEdit) {
+      try {
+        await window.__crmJobModal.openEdit(jobId, { fromQuote: true });
+        return;
+      } catch (err) {
+        qbToast(err.message || 'Não foi possível abrir o job', 'error');
+      }
+    }
+    location.href = `jobs.html?setup=${encodeURIComponent(jobId)}`;
   }
 
   function updateInlineItemTotal() {
@@ -5534,12 +5605,22 @@
             else if (jobCreated) msg = 'Orçamento aprovado — job criado (fatura pendente).';
             else msg = 'Orçamento aprovado, mas a fatura não foi criada. Salve de novo ou emita manualmente.';
             qbToast(msg, hasInvoice || jobCreated ? 'success' : 'error');
+            if (jobCreated && r.created_job_id) {
+              qbMeta.work_order_id = r.created_job_id;
+              qbScheduleProgress();
+              void openJobSetupFromQuote(r.created_job_id);
+            }
             enableActions();
             return true;
           }
-          // Backfill path: already approved, save again to create missing invoice.
+          // Backfill path: already approved — create missing invoice/job on save.
           if (!hasInvoice) {
             qbToast('Orçamento aprovado sem fatura — tente salvar de novo.', 'error');
+          }
+          if (jobCreated && r.created_job_id) {
+            qbMeta.work_order_id = r.created_job_id;
+            qbScheduleProgress();
+            void openJobSetupFromQuote(r.created_job_id);
           }
         }
       } else {
@@ -5568,6 +5649,11 @@
           else if (jobCreated) msg = 'Orçamento aprovado — job criado (fatura pendente).';
           else msg = 'Orçamento aprovado, mas a fatura não foi criada. Salve de novo ou emita manualmente.';
           qbToast(msg, createdIds.length || jobCreated ? 'success' : 'error');
+          if (jobCreated && r.created_job_id) {
+            qbMeta.work_order_id = r.created_job_id;
+            qbScheduleProgress();
+            void openJobSetupFromQuote(r.created_job_id);
+          }
           enableActions();
           return true;
         }
@@ -5661,6 +5747,7 @@
     const params = new URLSearchParams(location.search);
     const qid = params.get('id');
     const leadParam = params.get('lead_id');
+    const customerParam = params.get('customer_id');
     if (leadParam && String(leadParam).trim()) {
       pendingLeadId = String(leadParam).trim();
     }
@@ -5673,6 +5760,22 @@
       quoteId = null;
       $('quoteMeta').textContent = 'Novo orçamento';
       await applyNewQuoteDefaults();
+      if (customerParam && String(customerParam).trim()) {
+        try {
+          const cr = await api(`/api/customers/${encodeURIComponent(String(customerParam).trim())}`);
+          const c = cr.data;
+          if (c) {
+            selectedOrgCustomer = c;
+            if ($('customerId')) $('customerId').value = String(c.id);
+            const type = String(c.customer_type || 'particular').toLowerCase();
+            if (type === 'builder' || type === 'loja' || type === 'contractor') {
+              setQuoteParty(type === 'contractor' ? 'contractor' : type);
+            } else {
+              setQuoteParty('lead');
+            }
+          }
+        } catch (_) {}
+      }
       updatePreviewHeader();
       renderClientDetails();
       updateClientActionButtons();
@@ -5988,6 +6091,27 @@
         attributeFilter: ['disabled', 'hidden', 'class'],
       });
     }
+
+    // Quotes list CTA "Criar o job" → approve/heal then open Job modal.
+    if (params.get('create_job') === '1' && quoteId) {
+      try {
+        const u = new URL(location.href);
+        u.searchParams.delete('create_job');
+        history.replaceState(null, '', u.pathname + (u.searchParams.toString() ? `?${u.searchParams}` : ''));
+      } catch (_) {}
+      setTimeout(() => {
+        document.querySelector('[data-qb-create-job]')?.click();
+        if (!document.querySelector('[data-qb-create-job]') && qbMeta.work_order_id) {
+          void openJobSetupFromQuote(qbMeta.work_order_id);
+        } else if (!document.querySelector('[data-qb-create-job]') && !qbMeta.work_order_id) {
+          const statusEl = $('status');
+          if (statusEl && !isQuoteApprovedStatus(statusEl.value)) statusEl.value = 'approved';
+          void saveQuote().then((ok) => {
+            if (ok && qbMeta.work_order_id) void openJobSetupFromQuote(qbMeta.work_order_id);
+          });
+        }
+      }, 80);
+    }
   }
 
   // ---------------------------------------------------------------- painel (status, andamento, próximo passo)
@@ -6265,19 +6389,19 @@
     } else if (approved && qbMeta.work_order_id) {
       title = 'Aprovado — job criado';
       text = canInvoice
-        ? `Job criado. Ainda falta faturar ${money(left)}.`
-        : 'Agende a equipe e acompanhe as faturas pelo job.';
+        ? `Job criado. Complete a agenda/equipe no job ou fature ${money(left)}.`
+        : 'Complete Quando, Setor, Equipe e Campo no job.';
       btn = canInvoice
-        ? `${invoiceBtn}<a class="btn qb-next__alt" href="job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}">Abrir o job</a>`
-        : `<a class="btn btn-primary" href="job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}">Abrir o job</a>`;
+        ? `${invoiceBtn}<button type="button" class="btn qb-next__alt" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Completar o job</button>`
+        : `<button type="button" class="btn btn-primary" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Completar o job</button>`;
     } else if (approved && canInvoice && invoiced > 0.009) {
       title = 'Saldo a faturar';
       text = `Já faturado ${money(invoiced)}. Falta emitir ${money(left)} do orçamento.`;
       btn = invoiceBtn;
     } else if (approved) {
-      title = 'Aprovado';
-      text = canInvoice ? 'Emita a fatura — depósito ou valor total.' : 'Todo o valor já foi faturado.';
-      btn = invoiceBtn || '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnInvoice" disabled>Emitir fatura</button>';
+      title = 'Aprovado — transformar em job';
+      text = 'Crie o job a partir deste orçamento. Para quem, endereço e serviços já vêm preenchidos.';
+      btn = `<button type="button" class="btn btn-primary" data-qb-create-job="1">Criar o job</button>${invoiceAlt}`;
     } else if (viewed) {
       title = 'Cliente abriu o orçamento';
       text = `${first || 'O cliente'} abriu ${qbMeta.viewed_at ? qbAgo(qbMeta.viewed_at) : ''} e ainda não aprovou. Pode faturar sem esperar.`;
@@ -6340,6 +6464,35 @@
       const menu = $('qbMoreMenu');
       if (menu && !menu.classList.contains('hidden') && !e.target.closest('#qbMoreMenu')) menu.classList.add('hidden');
       if (menu && e.target.closest('#qbMoreMenu [data-qb-proxy]')) setTimeout(() => menu.classList.add('hidden'), 0);
+      const openJobBtn = e.target.closest('[data-qb-open-job]');
+      if (openJobBtn) {
+        e.preventDefault();
+        void openJobSetupFromQuote(openJobBtn.getAttribute('data-qb-open-job'));
+        return;
+      }
+      const createJobBtn = e.target.closest('[data-qb-create-job]');
+      if (createJobBtn) {
+        e.preventDefault();
+        void (async () => {
+          const statusEl = $('status');
+          if (statusEl && !isQuoteApprovedStatus(statusEl.value)) statusEl.value = 'approved';
+          const ok = await saveQuote();
+          if (ok && qbMeta.work_order_id) await openJobSetupFromQuote(qbMeta.work_order_id);
+          else if (ok && quoteId) {
+            try {
+              const r = await api(`/api/quotes/${quoteId}`);
+              const wid = r.data?.work_order_id;
+              if (wid) {
+                qbMeta.work_order_id = wid;
+                await openJobSetupFromQuote(wid);
+              } else qbToast('Salve o orçamento aprovado para criar o job.', 'error');
+            } catch (err) {
+              qbToast(err.message || 'Erro ao criar job', 'error');
+            }
+          }
+        })();
+        return;
+      }
       const now = e.target.closest('[data-qb-proxy-now]');
       if (now) {
         const id = now.getAttribute('data-qb-proxy-now');

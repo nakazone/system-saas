@@ -625,7 +625,7 @@
       <a role="menuitem" href="quote-builder.html">Novo quote${ICONS.quote}</a>
       <a role="menuitem" href="invoices.html?new=1">Nova invoice${ICONS.invoice}</a>
       <div class="om-pulldown__sep" aria-hidden="true"></div>
-      <a role="menuitem" href="jobs.html?new=1">Novo job${ICONS.job}</a>`;
+      <a role="menuitem" href="quote-builder.html">Novo orçamento${ICONS.job}</a>`;
     document.body.appendChild(scrim);
     document.body.appendChild(menu);
     scrim.addEventListener("click", closeCreateMenu);

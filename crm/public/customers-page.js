@@ -160,7 +160,7 @@
     if (filter === "balance" && !(Number(s.open_balance) > 0.004)) return false;
     if (filter !== "all" && filter !== "balance" && c.customer_type !== filter) return false;
     if (q) {
-      const hay = [c.name, c.email, c.phone, c.address, c.responsible_name, c.company].filter(Boolean).join(" ").toLowerCase();
+      const hay = [c.name, c.display_name, c.client_code, c.email, c.phone, c.address, c.responsible_name, c.company].filter(Boolean).join(" ").toLowerCase();
       const digits = q.replace(/\D/g, "");
       if (!hay.includes(q) && !(digits.length >= 3 && String(c.phone || "").replace(/\D/g, "").includes(digits))) return false;
     }
@@ -215,7 +215,7 @@
     return `<a class="cx-row${on ? " is-on" : ""}" role="listitem" href="customers.html?id=${encodeURIComponent(c.id)}" data-id="${esc(c.id)}">
       ${av(c)}
       <span class="cx-row__b">
-        <span class="cx-row__l1"><b>${esc(c.name || "Sem nome")}</b>${right ? `<em>${right}</em>` : ""}</span>
+        <span class="cx-row__l1"><b>${esc(c.display_name || (c.client_code ? `${c.name || "Sem nome"} - ${c.client_code}` : c.name) || "Sem nome")}</b>${right ? `<em>${right}</em>` : ""}</span>
         <span class="cx-row__l2"><span>${esc(meta.join(" · "))}</span>${sub2 ? `<em class="${hot ? "is-hot" : ""}">${esc(sub2)}</em>` : ""}</span>
       </span>
     </a>`;
@@ -369,7 +369,7 @@
       <a class="cx-back" href="customers.html" data-back>${ic("back", 13, 2.4)}Clientes</a>
       <div class="cx-ch__r">
         ${av(c, "cx-av--lg")}
-        <div class="cx-ch__t"><h2>${esc(c.name)}</h2><p class="cx-meta">${meta.join('<span class="cx-dot">·</span>')}</p></div>
+        <div class="cx-ch__t"><h2>${esc(c.display_name || (c.client_code ? `${c.name} - ${c.client_code}` : c.name))}</h2><p class="cx-meta">${meta.join('<span class="cx-dot">·</span>')}</p></div>
         <div class="cx-ch__acts">
           ${btnA(tel, "phone", "Ligar", " cx-btn--ic")}${btnA(sms, "sms", "SMS", " cx-btn--ic")}${btnA(mail, "mail", "E-mail", " cx-btn--ic")}
           <button type="button" class="cx-btn cx-btn--sq" data-more aria-label="Mais ações" aria-haspopup="menu">${ic("more", 16)}</button>
@@ -572,6 +572,7 @@
     $("cxFormId").value = c ? c.id : "";
     $("cxFormLeadId").value = c && c.lead_id ? c.lead_id : "";
     $("cxName").value = c ? c.name || "" : "";
+    if ($("cxClientCode")) $("cxClientCode").value = c ? c.client_code || "" : "";
     $("cxResp").value = c ? c.responsible_name || "" : "";
     $("cxPhone").value = c ? maskPhone(c.phone || "") : "";
     $("cxEmail").value = c ? c.email || "" : "";
@@ -631,6 +632,7 @@
     const stor = org ? (($("cxStorage") && $("cxStorage").value) || "unknown") : "unknown";
     const body = {
       name,
+      client_code: $("cxClientCode")?.value.trim() || null,
       email,
       phone: $("cxPhone").value.trim(),
       address: $("cxAddress").value.trim() || null,
@@ -839,25 +841,14 @@
     }
   }
 
-  // ---------------------------------------------------------------- new job
+  // ---------------------------------------------------------------- new job (via Quote)
   function newJob() {
-    const jm = window.__crmJobModal;
-    if (!jm || !detail) {
-      location.href = "jobs.html";
+    const c = detail?.customer;
+    if (c?.id) {
+      location.href = `quote-builder.html?customer_id=${encodeURIComponent(c.id)}`;
       return;
     }
-    const c = detail.customer;
-    if (!newJob.bound && typeof jm.onSaved === "function") {
-      newJob.bound = true;
-      jm.onSaved(() => {
-        if (selectedId) Promise.all([loadList(), openDetail(selectedId, { keepUrl: true })]).catch(() => {});
-      });
-    }
-    jm.openCreate({
-      customerId: c.id,
-      sourceType: c.customer_type === "builder" ? "builder" : "other",
-      sourceName: c.name,
-    });
+    location.href = "quote-builder.html";
   }
 
   // ---------------------------------------------------------------- events

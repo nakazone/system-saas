@@ -20,8 +20,27 @@
   const money0 = (n) => fmt0.format(Number(n) || 0);
   const money = (n) => fmt2.format(Number(n) || 0);
 
+  /** Label with optional client code: "Name - ID" (does not mutate Customer.name). */
+  function displayName(name, clientCode) {
+    const n = String(name || "").trim();
+    const code = String(clientCode || "").trim();
+    if (!code) return n;
+    if (!n) return code;
+    return `${n} - ${code}`;
+  }
+
   function client(wo) {
-    return wo.customer?.name || wo.builder?.company || wo.builder?.name || wo.source_name || "Sem cliente";
+    if (wo.customer) {
+      return (
+        wo.customer.display_name ||
+        displayName(wo.customer.name, wo.customer.client_code) ||
+        wo.builder?.company ||
+        wo.builder?.name ||
+        wo.source_name ||
+        "Sem cliente"
+      );
+    }
+    return wo.builder?.company || wo.builder?.name || wo.source_name || "Sem cliente";
   }
 
   function isActive(wo) {
@@ -139,6 +158,6 @@
   }
 
   window.JobsInfo = {
-    esc, money, money0, client, isActive, late, step, STEP_NAMES, stageLabel, progHtml, bill, dateRange, dayShort, isToday, initials, team,
+    esc, money, money0, client, displayName, isActive, late, step, STEP_NAMES, stageLabel, progHtml, bill, dateRange, dayShort, isToday, initials, team,
   };
 })();

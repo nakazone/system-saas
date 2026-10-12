@@ -175,7 +175,7 @@ function mapWorkOrder(wo: {
   scheduledEnd: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { id: string; name: string; email?: string | null; phone?: string | null } | null;
+  customer?: { id: string; name: string; clientCode?: string | null; email?: string | null; phone?: string | null } | null;
   builder?: { id: string; firstName: string; lastName: string; company: string | null } | null;
   assignedUser?: { id: string; name: string } | null;
   crew?: { id: string; name: string; color: string | null } | null;
@@ -279,6 +279,12 @@ function mapWorkOrder(wo: {
       ? {
           id: wo.customer.id,
           name: wo.customer.name,
+          client_code: wo.customer.clientCode != null ? String(wo.customer.clientCode).trim() || null : null,
+          display_name: (() => {
+            const n = String(wo.customer.name || "").trim();
+            const code = wo.customer.clientCode != null ? String(wo.customer.clientCode).trim() : "";
+            return code ? (n ? `${n} - ${code}` : code) : n;
+          })(),
           email: wo.customer.email ?? null,
           phone: formatUsPhone(wo.customer.phone ?? null),
         }
@@ -380,7 +386,7 @@ const relatedWoSelect = {
 } as const;
 
 const woInclude = {
-  customer: { select: { id: true, name: true, email: true, phone: true } },
+  customer: { select: { id: true, name: true, clientCode: true, email: true, phone: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
@@ -507,7 +513,7 @@ function teamUserIdsFromWorkOrder(wo: {
 }
 
 const mtgInclude = {
-  customer: { select: { id: true, name: true } },
+  customer: { select: { id: true, name: true, clientCode: true } },
   assignedUser: { select: { id: true, name: true } },
   lead: { select: { id: true, name: true, phone: true, email: true, notes: true, metadata: true } },
 } as const;
@@ -674,7 +680,7 @@ scheduleJobsRouter.get(
             : {}),
         },
         include: woIncludeFor(req.user),
-        orderBy: [{ scheduledStart: "asc" }, { createdAt: "desc" }],
+        orderBy: [{ createdAt: "desc" }],
         take: billingFilter ? 500 : 200,
       });
       let data = rows.map(mapWorkOrder);

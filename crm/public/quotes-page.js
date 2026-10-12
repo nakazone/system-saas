@@ -289,11 +289,13 @@
       p = 'Atualize a validade e reenvie se o cliente ainda tiver interesse.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}">Abrir e renovar</a>`;
     } else if (g === 'approved') {
-      t = q.work_order_id ? 'Job criado' : 'Aprovado';
-      p = q.work_order_id ? 'O trabalho já está em Jobs.' : 'Crie o job para agendar a obra.';
+      t = q.work_order_id ? 'Completar o job' : 'Aprovado — virar job';
+      p = q.work_order_id
+        ? 'Abra o job para preencher Quando, Setor, Equipe e Campo.'
+        : 'Transforme em job: cliente, endereço e serviços já vão preenchidos.';
       cta = q.work_order_id
-        ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="job-detail.html?id=${encodeURIComponent(q.work_order_id)}">Abrir o job</a>`
-        : `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}">Criar o job</a>`;
+        ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?setup=${encodeURIComponent(q.work_order_id)}">Completar o job</a>`
+        : `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Criar o job</a>`;
     } else {
       t = 'Arquivado';
       p = 'Este quote não aparece nos abertos.';

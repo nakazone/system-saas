@@ -100,10 +100,10 @@
     return hay.includes(q);
   }
 
-  function sortRows(rows, bk) {
-    const t = (wo) => new Date(wo.scheduled_start || wo.created_at || 0).getTime();
-    if (bk === "done" || bk === "toinvoice" || bk === "receivable" || bk === "canceled") return rows.sort((a, b) => t(b) - t(a));
-    return rows.sort((a, b) => t(a) - t(b));
+  function sortRows(rows) {
+    // Newest jobs first (by creation).
+    const t = (wo) => new Date(wo.created_at || 0).getTime();
+    return rows.sort((a, b) => t(b) - t(a));
   }
 
   // ---------------------------------------------------------------- top
@@ -159,13 +159,44 @@
     const J = I();
     const lt = J.late(wo);
     const sub = lt ? `<em class="is-hot">${J.esc(lt.label)}</em>` : `<em>${J.esc(wo.status === "completed" ? `concluído ${J.dayShort(wo.scheduled_end || wo.scheduled_start)}` : J.dateRange(wo))}</em>`;
-    return `<a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="job-detail.html?id=${encodeURIComponent(wo.id)}" data-jx-id="${J.esc(wo.id)}">
+    const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    const body = `<a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
       <span class="jx-row__b">
         <span class="jx-row__l1"><b>${J.esc(wo.title || `Job para ${J.client(wo)}`)}</b><em>${canBill || canManage ? J.money0(wo.services_total) : ""}</em></span>
         <span class="jx-row__l2"><span>${J.esc(J.client(wo))}${wo.number != null ? ` · #${J.esc(wo.number)}` : ""}</span>${sub}</span>
         <span class="jx-row__l3">${J.progHtml(wo)}<small>${J.esc(J.stageLabel(wo))}</small></span>
       </span>
     </a>`;
+    if (!canManage || wo.status === "canceled") return body;
+    return `<article class="om-swipe jx-swipe" data-jx-swipe="${J.esc(wo.id)}">
+      <div class="om-swipe__actions" aria-hidden="true">
+        <a class="om-swipe__act--edit" href="${href}">Abrir</a>
+        <button type="button" class="om-swipe__act--delete" data-jx-delete="${J.esc(wo.id)}" data-jx-label="${J.esc(wo.title || J.client(wo))}">Excluir</button>
+      </div>
+      <div class="om-swipe__body">${body}</div>
+    </article>`;
+  }
+
+  async function deleteJob(id, label, btn) {
+    if (!id || !canManage) return;
+    if (!confirm(`Excluir o job “${label || id}”?\n\nO job será cancelado e sai da lista ativa.`)) return;
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "…";
+    }
+    try {
+      await api(`/api/work-orders/${encodeURIComponent(id)}`, { method: "DELETE" });
+      notify("Job excluído.", "success");
+      if (String(selId) === String(id)) selId = null;
+      await load();
+    } catch (err) {
+      notify(err.message || "Não foi possível excluir", "error");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || "Excluir";
+      }
+    }
   }
 
   function visibleRows() {
@@ -177,21 +208,29 @@
     const host = $("jxRows");
     $("jxCount").textContent = `${rows.length} job${rows.length === 1 ? "" : "s"}`;
     if (!rows.length) {
-      host.innerHTML = `<p class="jx-empty">${all.length ? "Nenhum job neste filtro." : "Nenhum job ainda. Crie o primeiro em Novo job."}</p>`;
+      host.innerHTML = `<p class="jx-empty">${all.length ? "Nenhum job neste filtro." : 'Nenhum job ainda. Crie um orçamento em <a href="quote-builder.html">Quotes</a> e transforme em job.'}</p>`;
       return rows;
     }
     let html = "";
     if (filter === "all" || filter === "done") {
       GROUPS.forEach(([bk, label]) => {
-        const g = sortRows(rows.filter((w) => bucket(w) === bk), bk);
+        const g = sortRows(rows.filter((w) => bucket(w) === bk));
         if (!g.length) return;
         const tot = g.reduce((s, w) => s + (Number(w.services_total) || 0), 0);
         html += `<p class="jx-grp"><span>${label}</span><em>${g.length}${canBill ? ` · ${I().money0(tot)}` : ""}</em></p>${g.map(rowHtml).join("")}`;
       });
     } else {
-      html = sortRows(rows.slice(), filter).map(rowHtml).join("");
+      html = sortRows(rows.slice()).map(rowHtml).join("");
     }
     host.innerHTML = html;
+    if (window.OmGestures) window.OmGestures.bindSwipeRow?.(host);
+    host.querySelectorAll("[data-jx-delete]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void deleteJob(btn.getAttribute("data-jx-delete"), btn.getAttribute("data-jx-label"), btn);
+      });
+    });
     return rows;
   }
 
@@ -412,7 +451,10 @@
         notify(err.message || "Erro", "error");
       }
     });
-    $("btnNewJob")?.addEventListener("click", () => window.__crmJobModal.openCreate().catch((e) => notify(e.message, "error")));
+    $("btnNewJob")?.addEventListener("click", () => {
+      // Jobs nascem de Quotes: abre o builder para montar o orçamento e depois transformar.
+      location.href = "quote-builder.html";
+    });
     window.__crmJobModal.onSaved((data) => {
       if (data && data.id) selId = data.id;
       load().catch(() => {});
@@ -460,8 +502,17 @@
         location.href = `job-detail.html?id=${encodeURIComponent(openId)}`;
         return;
       }
-      if (canManage && (sessionStorage.getItem("obramate_job_pref_start") || new URLSearchParams(location.search).get("new") === "1")) {
-        window.__crmJobModal.openCreate().catch(() => {});
+      const setupId = new URLSearchParams(location.search).get("setup");
+      if (canManage && setupId) {
+        window.__crmJobModal.openEdit(setupId, { fromQuote: true }).catch((e) => notify(e.message, "error"));
+        try {
+          const u = new URL(location.href);
+          u.searchParams.delete("setup");
+          history.replaceState(null, "", u.pathname + (u.searchParams.toString() ? `?${u.searchParams}` : ""));
+        } catch (_) {}
+      } else if (canManage && new URLSearchParams(location.search).get("new") === "1") {
+        location.replace("quote-builder.html");
+        return;
       }
     } catch (err) {
       notify(err.message || "Falha ao carregar os jobs", "error");
