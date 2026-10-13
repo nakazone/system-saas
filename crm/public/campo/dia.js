@@ -39,6 +39,9 @@
     toast._t = setTimeout(() => (t.hidden = true), 3200);
   }
   async function api(url, opts) {
+    if (window.OmOffline && typeof window.OmOffline.api === "function") {
+      return window.OmOffline.api(url, { ...(opts || {}), dataOnly: true, credentials: "include" });
+    }
     const r = await fetch(url, { credentials: "include", headers: { "Content-Type": "application/json" }, ...(opts || {}) });
     if (r.status === 401) {
       location.href = "/login.html?next=" + encodeURIComponent(location.pathname);
@@ -83,7 +86,18 @@
       S = await api("/api/campo/dia");
       await refreshQueue();
       render();
+      // Warm ticket caches for today's jobs so Campo works offline on site.
+      try {
+        const ids = (S.jobs || []).map((j) => j.id || j.work_order_id).filter(Boolean);
+        if (window.OmOffline && ids.length) {
+          window.OmOffline.warm(ids.map((id) => `/api/campo/jobs/${encodeURIComponent(id)}`));
+        }
+      } catch (_) {}
       flushPhotos();
+      if (S && S.__offline && $("dyNet")) {
+        $("dyNet").hidden = false;
+        $("dyNet").textContent = "Offline · dados guardados";
+      }
       if (/[?&]manual=1/.test(location.search) && S.linked && !sheet) {
         history.replaceState(null, "", location.pathname);
         openManual(null);

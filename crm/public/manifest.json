@@ -9,6 +9,7 @@
   "orientation": "portrait-primary",
   "background_color": "#f3f1ee",
   "theme_color": "#f3f1ee",
+  "prefer_related_applications": false,
   "lang": "pt-BR",
   "categories": [
     "business",

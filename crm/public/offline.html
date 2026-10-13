@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f1ee" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Offline | ObraMate</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="manifest" href="/manifest.json?v=20260930-native2" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100dvh; font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      background: linear-gradient(165deg, #F7F8FA 0%, #F3F1EE 48%, #FDF0E6 100%);
+      color: #221E1A; display: flex; align-items: center; justify-content: center; padding: 24px;
+    }
+    .card {
+      width: min(420px, 100%); background: #fff; border-radius: 24px;
+      box-shadow: 0 0 0 1px #E5E7EB, 0 18px 40px rgba(34, 30, 26, .08); padding: 28px 24px 22px; text-align: center;
+    }
+    img { width: 56px; height: 56px; margin: 0 auto 14px; display: block; }
+    h1 { margin: 0; font-size: 22px; letter-spacing: -.03em; font-weight: 800; }
+    p { margin: 10px 0 0; font-size: 14.5px; line-height: 1.45; color: #667085; font-weight: 500; }
+    .acts { display: grid; gap: 10px; margin-top: 22px; }
+    a, button {
+      appearance: none; border: 0; border-radius: 14px; padding: 14px 16px; font: inherit; font-weight: 700;
+      font-size: 14.5px; text-decoration: none; cursor: pointer;
+    }
+    .pri { background: #E7792C; color: #fff; }
+    .ghost { background: #F1F3F5; color: #221E1A; }
+    .hint { margin-top: 14px; font-size: 12.5px; color: #98A2B3; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" width="56" height="56" />
+    <h1>Sem internet</h1>
+    <p>O Campo continua com o que foi guardado neste aparelho: agenda do dia, tickets e fotos na fila.</p>
+    <div class="acts">
+      <a class="pri" href="/campo/hoje.html">Abrir Meu dia</a>
+      <a class="ghost" href="/campo/agenda.html">Abrir Agenda</a>
+      <button type="button" class="ghost" id="btnRetry">Tentar de novo</button>
+    </div>
+    <p class="hint" id="hint">As alterações voltam a sincronizar quando houver sinal.</p>
+  </main>
+  <script>
+    document.getElementById("btnRetry").addEventListener("click", function () {
+      location.reload();
+    });
+    window.addEventListener("online", function () {
+      location.href = "/campo/hoje.html";
+    });
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(function () {});
+    }
+  </script>
+</body>
+</html>

@@ -57,6 +57,17 @@
   }
 
   async function api(path, opts) {
+    if (window.OmOffline && typeof window.OmOffline.api === "function") {
+      const json = await window.OmOffline.api(path, {
+        credentials: "same-origin",
+        ...(opts || {}),
+        allowQueue: true,
+      });
+      if (json && json.queued) {
+        toast(json.message || "Guardado offline — envia ao reconectar.", "success");
+      }
+      return json;
+    }
     const res = await fetch(path, {
       credentials: "same-origin",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -1263,6 +1274,14 @@
           method: "POST",
           body: JSON.stringify({ advance: true }),
         });
+        if (json && json.queued) {
+          if (ticket?.next_status) {
+            ticket.field_status = ticket.next_status;
+            ticket.next_status = null;
+            apply(ticket);
+          }
+          return;
+        }
         apply(json.data);
       } catch (err) {
         toast(err.message || "Falha ao atualizar status");
@@ -1289,6 +1308,7 @@
               photo_media_id: last.id,
             }),
           });
+          if (json && json.queued) return;
           apply(json.data);
           toast("Foto anexada ao item", "success");
         } catch (err) {
@@ -1306,6 +1326,11 @@
           method: "PATCH",
           body: JSON.stringify({ item_id: id, done: !item.done }),
         });
+        if (json && json.queued) {
+          item.done = !item.done;
+          apply(ticket);
+          return;
+        }
         apply(json.data);
       } catch (err) {
         toast(err.message || "Falha no checklist");

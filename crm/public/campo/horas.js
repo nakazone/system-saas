@@ -20,11 +20,20 @@
 
   async function load() {
     try {
-      const r = await fetch(`/api/campo/dia/semana?week=${ref}`, { credentials: "include" });
-      if (r.status === 401) return (location.href = "/login.html");
-      const j = await r.json();
-      if (!j.success) throw new Error(j.error || "Erro");
-      render(j.data);
+      let data;
+      if (window.OmOffline && typeof window.OmOffline.api === "function") {
+        data = await window.OmOffline.api(`/api/campo/dia/semana?week=${ref}`, {
+          credentials: "include",
+          dataOnly: true,
+        });
+      } else {
+        const r = await fetch(`/api/campo/dia/semana?week=${ref}`, { credentials: "include" });
+        if (r.status === 401) return (location.href = "/login.html");
+        const j = await r.json();
+        if (!j.success) throw new Error(j.error || "Erro");
+        data = j.data;
+      }
+      render(data);
     } catch (e) {
       $("hrTotals").innerHTML = `<h2>Não foi possível carregar</h2><p class="dy-card__sub">${esc(e.message)}</p>`;
     }

@@ -41,6 +41,9 @@
   }
 
   async function api(path) {
+    if (window.OmOffline && typeof window.OmOffline.api === "function") {
+      return window.OmOffline.api(path, { credentials: "same-origin" });
+    }
     const res = await fetch(path, {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
@@ -141,6 +144,13 @@
     if (selectedYmd) q.set("day", selectedYmd);
     const json = await api(`/api/campo/agenda?${q}`);
     render(json.data);
+    try {
+      const jobs = (json.data && json.data.jobs) || [];
+      const ids = jobs.map((j) => j.id || j.work_order_id).filter(Boolean);
+      if (window.OmOffline && ids.length) {
+        window.OmOffline.warm(ids.slice(0, 12).map((id) => `/api/campo/jobs/${encodeURIComponent(id)}`));
+      }
+    } catch (_) {}
   }
 
   function shiftWeek(delta) {

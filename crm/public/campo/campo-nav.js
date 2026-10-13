@@ -2,7 +2,7 @@
  * Campo tabbar — Hoje / Agenda / Jobs / Chat / Horas
  */
 (function () {
-  const VER = "20260928-chat1";
+  const VER = "20261013-off1";
 
   const ICONS = {
     hoje: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
