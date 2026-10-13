@@ -109,7 +109,7 @@ describe.skipIf(!privileged)("Master fase 1 — planos, só leitura, régua, Str
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    await saveLadder({ ...DEFAULT_LADDER });
+    await saveLadder({ ...DEFAULT_LADDER, enabled: true });
     await prisma.$executeRaw`UPDATE "PlatformAdmin" SET role = 'ADMIN' WHERE role = 'MASTER'`;
     await prisma.platformAdmin.create({
       data: {

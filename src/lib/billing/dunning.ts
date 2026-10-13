@@ -32,7 +32,7 @@ export type LadderConfig = {
 };
 
 export const DEFAULT_LADDER: LadderConfig = {
-  enabled: true,
+  enabled: false, // off until the Master turns it on (Vencimentos › Configurar)
   trialReminders: [7, 3, 1],
   renewReminders: [7],
   pastDueAt: 1,

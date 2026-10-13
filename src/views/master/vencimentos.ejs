@@ -5,7 +5,7 @@
     <div style="flex:1;min-width:220px">
       <h2>Régua de cobrança <span class="pill pill-sm <%= ladder.enabled ? 'tone-ink' : 'tone-danger' %>"><%= ladder.enabled ? 'Automática' : 'Desligada' %></span></h2>
       <small class="muted" style="font-weight:600">
-        <% if (!lastRun) { %>Ainda não rodou. Roda todo dia às 6h (Denver).<% } else if (lastRun.ok === false) { %><span style="color:var(--danger)">Falhou <%= lastRun.when %>: <%= lastRun.error %></span><% } else { %>Última execução <%= lastRun.when %><%= lastRun.detail ? ' · ' + (lastRun.detail.emails || 0) + ' e-mail(s) · ' + ((lastRun.detail.changes || []).length) + ' mudança(s)' : '' %><% } %>
+        <% if (!ladder.enabled) { %>Desligada: nenhuma empresa muda de status nem recebe e-mail automático. Ligue em Configurar.<% } else if (!lastRun) { %>Ainda não rodou. Roda todo dia às 6h (Denver).<% } else if (lastRun.ok === false) { %><span style="color:var(--danger)">Falhou <%= lastRun.when %>: <%= lastRun.error %></span><% } else { %>Última execução <%= lastRun.when %><%= lastRun.detail ? ' · ' + (lastRun.detail.emails || 0) + ' e-mail(s) · ' + ((lastRun.detail.changes || []).length) + ' mudança(s)' : '' %><% } %>
       </small>
     </div>
     <% if (canLadder) { %>
