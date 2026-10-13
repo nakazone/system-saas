@@ -73,7 +73,7 @@
         </div>
     </div>
 
-    <script src="om-device.js?v=20261007-stable1"></script>
+    <script src="om-device.js?v=20261013-login1"></script>
     <script src="crm-toast.js"></script>
     <script>
         function handleLogoError(img) {
@@ -184,13 +184,15 @@
                     var u = data.user || {};
                     var role = String(u.role || '').toLowerCase();
                     var mobile = window.__omDevice && window.__omDevice.isMobile && window.__omDevice.isMobile();
-                    // Go straight to the start screen (was /dashboard.html → redirect → start screen).
-                    var home = (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || 'pipeline-lab.html';
+                    // Go straight to the start screen. entryHref() already returns a root path
+                    // (e.g. "/dashboard"); do NOT prefix "/" or browsers treat "//dashboard" as https://dashboard.
+                    var home = (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || '/dashboard';
+                    if (home.charAt(0) !== '/') home = '/' + home;
                     var dest = u.must_change_password
                         ? '/change-password.html'
                         : (role === 'installer' || role === 'crew_lead' || role === 'subcontractor')
                             ? (mobile ? '/campo/hoje.html' : '/funcionario.html')
-                            : '/' + home;
+                            : home;
                     setTimeout(function () {
                         window.location.href = dest;
                     }, 100);

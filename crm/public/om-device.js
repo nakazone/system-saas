@@ -68,7 +68,8 @@
   }
 
   function entryHref() {
-    return isMobile() ? "home.html" : "/dashboard";
+    // Always return a same-origin path (leading "/"). Never "//…" — that is a host URL.
+    return isMobile() ? "/home.html" : "/dashboard";
   }
 
   function applyBodyClass() {
