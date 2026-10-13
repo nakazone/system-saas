@@ -1380,17 +1380,80 @@
     return !t || t === 'particular' || t === 'lead' || t === 'customer';
   }
 
+  function hasSelectedClient() {
+    const party = getQuoteParty();
+    if (party === 'builder') return Boolean(selectedQuoteBuilder && selectedQuoteBuilder.id != null);
+    if (party === 'loja') return Boolean(selectedOrgCustomer && selectedOrgCustomer.id != null);
+    if (selectedQuoteLead && selectedQuoteLead.id != null) return true;
+    if (String($('customerId')?.value || '').trim()) return true;
+    return false;
+  }
+
+  function partyTypeLabel(party) {
+    if (party === 'builder') return 'Builder';
+    if (party === 'loja') return 'Loja';
+    return 'Leads / Particular';
+  }
+
   function syncPartyTabsVisibility() {
-    // Keep all party tabs visible so Lead / Builder / Loja behave the same when switching.
+    const selected = hasSelectedClient();
+    const party = getQuoteParty();
     const tabs = $('qbPartyTabs');
+    const bar = $('qbClientSelectedBar');
+    const typeEl = $('qbClientSelectedType');
     if (tabs) {
-      tabs.classList.remove('is-solo');
-      tabs.hidden = false;
+      tabs.classList.toggle('is-solo', selected);
+      tabs.hidden = selected;
     }
+    if (bar) bar.hidden = !selected;
+    if (typeEl) typeEl.textContent = partyTypeLabel(party);
     document.querySelectorAll('.qb-party-tab').forEach((btn) => {
       btn.hidden = false;
       if (btn.getAttribute('data-party') === 'lead') btn.textContent = 'Leads / Particular';
     });
+    // Hide pickers/search once a client is chosen; keep the card + clear.
+    const leadSearch = $('qbClientSearchWrap');
+    const leadActions = document.querySelector('#qbLeadPanel .qb-client-actions');
+    const builderSearch = $('qbBuilderSearchWrap');
+    const orgSearch = $('qbOrgCustomerSearchWrap');
+    const orgHint = $('qbOrgCustomerHint');
+    if (leadSearch) leadSearch.classList.toggle('hidden', selected && party === 'lead');
+    if (leadActions) leadActions.classList.toggle('hidden', selected && party === 'lead');
+    if (builderSearch) builderSearch.classList.toggle('hidden', selected && party === 'builder');
+    if (orgSearch) orgSearch.classList.toggle('hidden', selected && party === 'loja');
+    if (orgHint) orgHint.classList.toggle('hidden', selected && party === 'loja');
+    const builderHint = document.querySelector('#qbBuilderPanel > p.text-xs');
+    if (builderHint) builderHint.classList.toggle('hidden', selected && party === 'builder');
+  }
+
+  function clearSelectedClient() {
+    const party = getQuoteParty();
+    selectedQuoteLead = null;
+    pendingLeadId = null;
+    loadedQuoteLeadId = null;
+    selectedQuoteBuilder = null;
+    selectedOrgCustomer = null;
+    if ($('customerId')) $('customerId').value = '';
+    if ($('customerSearch')) $('customerSearch').value = '';
+    if ($('builderSearch')) $('builderSearch').value = '';
+    if ($('orgCustomerSearch')) $('orgCustomerSearch').value = '';
+    const sel = $('quoteBuilderSelect');
+    if (sel) sel.value = '';
+    hideClientSearchResults();
+    hideBuilderSearchResults();
+    hideOrgCustomerSearchResults();
+    hideClientForms();
+    const hint = $('leadContextHint');
+    if (hint) {
+      hint.textContent = '';
+      hint.classList.add('hidden');
+    }
+    renderClientDetails();
+    renderBuilderDetails();
+    renderOrgCustomerDetails();
+    updateClientActionButtons();
+    syncQuotePartyUi();
+    if (typeof qbMarkDirty === 'function') qbMarkDirty();
   }
 
   function syncQuoteNoteLabel() {
@@ -1503,6 +1566,7 @@
     if (!b) {
       box.classList.add('hidden');
       box.innerHTML = '';
+      syncPartyTabsVisibility();
       return;
     }
     const company = String(b.company || b.label || '').trim();
@@ -1519,6 +1583,7 @@
       address: b.address || '',
     }) + `<span id="qbBuilderContact" class="hidden">${escapeHtmlText(contact || '—')}</span>`;
     box.classList.remove('hidden');
+    syncPartyTabsVisibility();
   }
 
   function applySelectedBuilder(builder, { applyPrices = true } = {}) {
@@ -1539,6 +1604,7 @@
       if (!builder || !builder.customer_id) $('customerId').value = '';
     }
     renderBuilderDetails();
+    syncPartyTabsVisibility();
     if (applyPrices) {
       setCatalogPricingMode('builder');
       refreshRatesForCatalogLines();
@@ -1865,6 +1931,7 @@
     if (!hasClient) {
       box.classList.add('hidden');
       box.innerHTML = '';
+      syncPartyTabsVisibility();
       return;
     }
     box.innerHTML =
@@ -1883,6 +1950,7 @@
         : '');
     box.classList.remove('hidden');
     updateClientActionButtons();
+    syncPartyTabsVisibility();
     const codeEl = $('qbClientCode');
     if (codeEl && !codeEl.dataset.bound) {
       codeEl.dataset.bound = '1';
@@ -2333,6 +2401,7 @@
     if (!c) {
       box.classList.add('hidden');
       box.innerHTML = '';
+      syncPartyTabsVisibility();
       return;
     }
     const name = String(c.name || '').trim();
@@ -2350,6 +2419,7 @@
       address: customerAddress(c),
     }) + `<span id="qbOrgCustomerCompany" class="hidden">${escapeHtmlText(company || '—')}</span>`;
     box.classList.remove('hidden');
+    syncPartyTabsVisibility();
   }
 
   async function fetchCustomersByType(customerType, query) {
@@ -2417,6 +2487,7 @@
     if (search) search.value = c.name || c.company || '';
     hideOrgCustomerSearchResults();
     renderOrgCustomerDetails();
+    syncPartyTabsVisibility();
     if (applyPrices) {
       applyPricingFromCustomer(c);
       refreshRatesForCatalogLines();
@@ -6085,6 +6156,10 @@
     $('btnEditClient')?.addEventListener('click', () => void openClientEditForm());
     $('btnEditClientCancel')?.addEventListener('click', hideClientForms);
     $('btnEditClientSave')?.addEventListener('click', () => void saveClientEdits());
+    $('btnClearClient')?.addEventListener('click', () => {
+      clearSelectedClient();
+      qbToast('Cliente removido. Escolha o tipo novamente.', 'info');
+    });
 
     if (modalServiceResults) {
       modalServiceResults.setAttribute('role', 'listbox');
