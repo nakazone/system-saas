@@ -335,7 +335,19 @@ function lineSection(it: QuotePdfLine): (typeof SECTION_DEFS)[number]["key"] {
   if (String(it.itemType || "").toLowerCase() === "product") return "supply";
   const st = String(it.serviceType || "").trim().toLowerCase();
   if (!st) return "installation";
-  if (st.includes("supply") || st.includes("fornec") || st.includes("material")) return "supply";
+  if (
+    st.includes("supply") ||
+    st.includes("fornec") ||
+    st.includes("material") ||
+    st.includes("delivery") ||
+    st.includes("entrega") ||
+    st.includes("frete") ||
+    st.includes("shipping")
+  ) {
+    return "supply";
+  }
+  const name = String(it.name || "").toLowerCase();
+  if (/delivery|entrega|frete|shipping|\bsupply\b|fornec|material/.test(name)) return "supply";
   if (st.includes("sand") || st.includes("finish") || st.includes("lix") || st.includes("acab")) {
     return "sand_finish";
   }
@@ -353,6 +365,11 @@ export function groupItemsForPdf(items: QuotePdfLine[]) {
     const k = lineSection(it);
     buckets[k].push(it);
   }
+  const pinSupply = (it: QuotePdfLine) =>
+    /delivery|entrega|frete|shipping|\bsupply\b|fornec/i.test(
+      `${it.serviceType || ""} ${it.name || ""} ${it.description || ""}`,
+    );
+  buckets.supply.sort((a, b) => Number(pinSupply(b)) - Number(pinSupply(a)));
   return SECTION_DEFS.filter((d) => buckets[d.key].length > 0).map((d) => ({
     label: d.label,
     key: d.key,

@@ -176,13 +176,9 @@
   }
 
   /* ---------- lista ---------- */
-  function renderSums() {
-    const s = st.sum;
-    if (!s) return;
-    const parts = [`<b>${money(s.open_value)}</b> em aberto`];
-    if (s.approval_rate_90 != null) parts.push(`<b>${Math.round(s.approval_rate_90)}%</b> aprovação`);
-    if (s.expiring_7) parts.push(`<b class="is-hot">${s.expiring_7}</b> vence${s.expiring_7 === 1 ? '' : 'm'} em 7d`);
-    $('qsSums').innerHTML = parts.join('<i>·</i>');
+  function groupValue(key) {
+    const g = (st.sum && st.sum.groups) || {};
+    return g[key] && g[key].value != null ? Number(g[key].value) : 0;
   }
   function segCount(key) {
     const g = (st.sum && st.sum.groups) || {};
@@ -192,12 +188,57 @@
     if (key === 'expired') return c('expired');
     return c('all');
   }
+  function openValue() {
+    const s = st.sum || {};
+    if (s.open_value != null) return Number(s.open_value) || 0;
+    return groupValue('draft') + groupValue('sent') + groupValue('viewed');
+  }
+  function renderSums() {
+    const el = $('qsSums');
+    if (!el) return;
+    const s = st.sum || {};
+    const parts = [
+      ['Em aberto', money(openValue()), ''],
+      ['Aprovação · 90d', s.approval_rate_90 != null ? Math.round(s.approval_rate_90) + '%' : '—', ''],
+      ['Vence em 7d', String(s.expiring_7 || 0), s.expiring_7 > 0 ? 'is-hot' : ''],
+      ['Aprovados', money(groupValue('approved')), ''],
+    ];
+    el.innerHTML = parts.map(([k, v, c]) => `<div><dt>${k}</dt><dd class="${c}">${v}</dd></div>`).join('');
+  }
+  function renderTiles() {
+    const host = $('qsTiles');
+    if (!host) return;
+    const html = SEGS.map(([k, label]) => {
+      const n = st.sum ? segCount(k) : st.rows.filter((r) => {
+        if (st.archived) return false;
+        if (k === 'all') return true;
+        if (k === 'open') return ['draft', 'waiting', 'changes'].includes(groupOf(r));
+        if (k === 'approved') return groupOf(r) === 'approved';
+        if (k === 'expired') return groupOf(r) === 'expired';
+        return false;
+      }).length;
+      let sub = '—';
+      let hot = false;
+      if (k === 'all') sub = `${money(groupValue('all') || openValue() + groupValue('approved') + groupValue('expired'))} total`;
+      else if (k === 'open') sub = n ? `${money(openValue())} em aberto` : 'nada pendente';
+      else if (k === 'approved') sub = n ? `${money(groupValue('approved'))} aprovado` : '—';
+      else if (k === 'expired') {
+        sub = n ? `${n} expirado${n === 1 ? '' : 's'}` : 'nenhum';
+        hot = n > 0;
+      }
+      const on = !st.archived && st.seg === k;
+      return `<button type="button" class="qs-tile${on ? ' is-on' : ''}" data-seg="${k}" aria-pressed="${on}"><span>${label}</span><b>${n}</b><small class="${hot ? 'is-hot' : ''}">${esc(sub)}</small></button>`;
+    }).join('');
+    host.innerHTML = html;
+    host.style.setProperty('--qs-tiles', String(host.children.length));
+  }
   function renderSeg() {
     $('qsSeg').innerHTML = SEGS.map(([k, l]) => {
       const on = !st.archived && st.seg === k;
       const n = st.sum ? segCount(k) : '';
       return `<button type="button" role="tab" aria-selected="${on}" class="${on ? 'is-on' : ''}" data-seg="${k}">${l}${n !== '' && (k === 'open' || k === 'all') ? ` <em>${n}</em>` : ''}</button>`;
     }).join('');
+    renderTiles();
   }
   function renderList() {
     const box = $('qsRows');
@@ -455,6 +496,7 @@
     }
     renderSums();
     renderSeg();
+    renderTiles();
   }
   async function loadRows() {
     const params = new URLSearchParams({ page: '1', limit: '100' });
@@ -526,10 +568,8 @@
       e.preventDefault();
       select(a.getAttribute('data-id'), narrow());
     });
-    $('qsSeg').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-seg]');
-      if (!b) return;
-      st.seg = b.getAttribute('data-seg');
+    function applySeg(next) {
+      st.seg = next;
       st.archived = false;
       renderSeg();
       if (!st.rows.length || st.rows.some((r) => groupOf(r) === 'archived')) {
@@ -542,7 +582,20 @@
         const first = st.rows.find(inSeg);
         select(first ? first.id : null);
       }
+    }
+    $('qsSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-seg]');
+      if (!b) return;
+      applySeg(b.getAttribute('data-seg'));
     });
+    const tiles = $('qsTiles');
+    if (tiles) {
+      tiles.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-seg]');
+        if (!b) return;
+        applySeg(b.getAttribute('data-seg'));
+      });
+    }
     $('qsBack').addEventListener('click', (e) => {
       e.preventDefault();
       st.detail = false;

@@ -99,7 +99,7 @@ export const DEFAULT_PRICING_SERVICES: DefaultPricingService[] = [
   },
   {
     name: "Delivery Fee",
-    category: "installation",
+    category: "supply",
     unit: "fixed",
     description: "Material delivery to job site",
     sortOrder: 130,

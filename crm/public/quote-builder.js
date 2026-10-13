@@ -54,7 +54,11 @@
       lower === 'supply' ||
       lower.includes('supply') ||
       lower.includes('fornec') ||
-      lower.includes('material')
+      lower.includes('material') ||
+      lower.includes('delivery') ||
+      lower.includes('entrega') ||
+      lower.includes('frete') ||
+      lower.includes('shipping')
     ) {
       return 'Supply';
     }
@@ -71,6 +75,34 @@
     }
     return 'Installation';
   }
+
+  /** Classify a line into Supply / Installation / Sand using type + name (Delivery Fee → Supply). */
+  function resolveItemSection(it) {
+    if (!it || it.item_type === 'product') return 'Supply';
+    const fromType = normalizeServiceType(it.service_type);
+    if (fromType === 'Supply' || fromType === 'Sand & Finishing') return fromType;
+    const hay = `${it.name || ''} ${it.description || ''}`.toLowerCase();
+    if (/delivery|entrega|frete|shipping|\bsupply\b|fornec|material/.test(hay)) return 'Supply';
+    return fromType;
+  }
+
+  /** Pin Delivery / Supply fee lines at the top of the Supply section. */
+  function isSupplyPinnedItem(it) {
+    if (!it || it.item_type === 'product') return false;
+    if (resolveItemSection(it) !== 'Supply') return false;
+    const hay = `${it.service_type || ''} ${it.name || ''} ${it.description || ''}`.toLowerCase();
+    return /delivery|entrega|frete|shipping|\bsupply\b|fornec/.test(hay);
+  }
+
+  function sortSupplyIndices(indices) {
+    return indices.slice().sort((a, b) => {
+      const pa = isSupplyPinnedItem(items[a]) ? 0 : 1;
+      const pb = isSupplyPinnedItem(items[b]) ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return a - b;
+    });
+  }
+
 
   function categoryLabel(st) {
     const n = normalizeServiceType(st);
@@ -1349,20 +1381,15 @@
   }
 
   function syncPartyTabsVisibility() {
-    const solo = isParticularLikeClient();
+    // Keep all party tabs visible so Lead / Builder / Loja behave the same when switching.
     const tabs = $('qbPartyTabs');
     if (tabs) {
-      tabs.classList.toggle('is-solo', solo);
-      tabs.hidden = solo;
+      tabs.classList.remove('is-solo');
+      tabs.hidden = false;
     }
     document.querySelectorAll('.qb-party-tab').forEach((btn) => {
-      const p = btn.getAttribute('data-party');
-      if (p === 'lead') {
-        btn.hidden = false;
-        btn.textContent = solo ? 'Cliente' : 'Leads / Particular';
-      } else {
-        btn.hidden = solo;
-      }
+      btn.hidden = false;
+      if (btn.getAttribute('data-party') === 'lead') btn.textContent = 'Leads / Particular';
     });
   }
 
@@ -1498,6 +1525,14 @@
     selectedQuoteBuilder = builder || null;
     const sel = $('quoteBuilderSelect');
     if (sel && builder && builder.id != null) sel.value = String(builder.id);
+    else if (sel && !builder) sel.value = '';
+    const search = $('builderSearch');
+    if (search) {
+      search.value = builder
+        ? String(builder.label || builder.company || builder.name || builder.full_name || '').trim()
+        : '';
+    }
+    hideBuilderSearchResults();
     if (builder && builder.customer_id) {
       $('customerId').value = String(builder.customer_id);
     } else if (getQuoteParty() === 'builder') {
@@ -1509,6 +1544,87 @@
       refreshRatesForCatalogLines();
       renderItems();
     }
+  }
+
+  function showBuilderSearchResults(html) {
+    const box = $('builderSearchResults');
+    if (!box) return;
+    box.innerHTML = html;
+    box.classList.toggle('hidden', !html);
+  }
+  function hideBuilderSearchResults() {
+    const box = $('builderSearchResults');
+    if (!box) return;
+    box.innerHTML = '';
+    box.classList.add('hidden');
+  }
+  function filterQuoteBuilders(query) {
+    const q = String(query || '').trim().toLowerCase();
+    const rows = Array.isArray(quoteBuilders) ? quoteBuilders : [];
+    if (!q) return rows.slice(0, 40);
+    return rows
+      .filter((b) => {
+        const hay = [b.label, b.company, b.name, b.full_name, b.email, b.phone]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, 40);
+  }
+  function renderBuilderSearchResults(rows) {
+    if (!rows.length) {
+      showBuilderSearchResults('<div class="qb-client-search__empty">Nenhum builder encontrado.</div>');
+      return;
+    }
+    const html = rows
+      .map((b) => {
+        const id = String(b.id);
+        const name = b.label || b.company || b.full_name || b.name || `Builder ${id.slice(0, 8)}`;
+        const meta = [b.email, b.phone].filter(Boolean).map(escapeHtmlText).join(' · ');
+        return `<button type="button" class="qb-client-search__item" data-builder-id="${escapeAttr(id)}" role="option">
+          <span class="qb-client-search__item-name">${escapeHtmlText(name)}</span>
+          <span class="qb-client-search__item-meta">${meta || 'Builder'}</span>
+        </button>`;
+      })
+      .join('');
+    showBuilderSearchResults(html);
+  }
+  let builderSearchTimer = null;
+  function scheduleBuilderSearch() {
+    clearTimeout(builderSearchTimer);
+    builderSearchTimer = setTimeout(() => {
+      renderBuilderSearchResults(filterQuoteBuilders($('builderSearch')?.value || ''));
+    }, 160);
+  }
+  function wireBuilderSearch() {
+    const search = $('builderSearch');
+    const box = $('builderSearchResults');
+    const wrap = $('qbBuilderSearchWrap');
+    if (!search || !box || search.dataset.wired === '1') return;
+    search.dataset.wired = '1';
+    search.addEventListener('focus', () => scheduleBuilderSearch());
+    search.addEventListener('input', () => {
+      if (selectedQuoteBuilder) {
+        selectedQuoteBuilder = null;
+        const sel = $('quoteBuilderSelect');
+        if (sel) sel.value = '';
+        if (getQuoteParty() === 'builder') $('customerId').value = '';
+        renderBuilderDetails();
+      }
+      scheduleBuilderSearch();
+    });
+    box.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-builder-id]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-builder-id');
+      const b = quoteBuilders.find((x) => sameId(x.id, id));
+      if (b) applySelectedBuilder(b, { applyPrices: true });
+    });
+    document.addEventListener('click', (e) => {
+      if (wrap && wrap.contains(e.target)) return;
+      hideBuilderSearchResults();
+    });
   }
 
   function onQuoteBuilderChange() {
@@ -3756,7 +3872,17 @@
     const name = row.name || '';
     const descRaw = catalogDescriptionForRow(row);
     $('modalServiceDesc').value = descriptionBodyWithoutTitle(name, descRaw);
-    $('modalServiceType').value = serviceTypeFromCatalogCategory(row.category);
+    let st = serviceTypeFromCatalogCategory(row.category);
+    if (
+      isSupplyPinnedItem({
+        name: row.name,
+        service_type: row.category,
+        description: catalogDescriptionForRow(row),
+      })
+    ) {
+      st = 'Supply';
+    }
+    $('modalServiceType').value = st;
     $('modalServiceUnit').value = row.unit_type || 'sq_ft';
     setMoneyFieldValue($('modalServiceRate'), rate);
     hideModalServiceResults();
@@ -4222,6 +4348,7 @@
     };
     const savedIdx = inlineEditIdx >= 0 ? inlineEditIdx : items.length;
     if (inlineEditIdx >= 0) items[inlineEditIdx] = line;
+    else if (isSupplyPinnedItem(line)) items.unshift(line);
     else items.push(line);
     closeAddItemPanel();
     renderItems();
@@ -4396,8 +4523,16 @@
     const buckets = { Supply: [], Installation: [], 'Sand & Finishing': [], products: [] };
     items.forEach((it, idx) => {
       if (it.item_type === 'product') buckets.products.push(idx);
-      else buckets[normalizeServiceType(it.service_type)].push(idx);
+      else {
+        const sec = resolveItemSection(it);
+        (buckets[sec] || buckets.Installation).push(idx);
+        // Keep stored type aligned so PDF/public match the Supply tab.
+        if (sec === 'Supply' && normalizeServiceType(it.service_type) !== 'Supply') {
+          it.service_type = 'Supply';
+        }
+      }
     });
+    buckets.Supply = sortSupplyIndices(buckets.Supply);
 
     if (items.length) {
       const headRow = document.createElement('div');
@@ -5781,6 +5916,7 @@
 
     wireClientLeadSearch();
     wireOrgCustomerSearch();
+    wireBuilderSearch();
     attachItemsListHandlers();
     wireMarginPricingFields();
     bootQuoteAddressAutocomplete();

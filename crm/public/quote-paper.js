@@ -52,11 +52,23 @@
     return (String(name || 'OM').replace(/[^A-Za-z0-9]/g, '').slice(0, 2) || 'OM').toUpperCase();
   }
   /** Mesmo agrupamento do PDF: produto → Supply; sem tipo → Installation. */
-  function sectionOf(itemType, serviceType) {
+  function sectionOf(itemType, serviceType, name) {
     if (String(itemType || '').toLowerCase() === 'product') return 'supply';
     const st = String(serviceType || '').trim().toLowerCase();
+    const nm = String(name || '').trim().toLowerCase();
+    if (
+      st.includes('supply') ||
+      st.includes('fornec') ||
+      st.includes('material') ||
+      st.includes('delivery') ||
+      st.includes('entrega') ||
+      st.includes('frete') ||
+      st.includes('shipping') ||
+      /delivery|entrega|frete|shipping|\bsupply\b|fornec|material/.test(nm)
+    ) {
+      return 'supply';
+    }
     if (!st) return 'installation';
-    if (st.includes('supply') || st.includes('fornec') || st.includes('material')) return 'supply';
     if (st.includes('sand') || st.includes('finish') || st.includes('lix') || st.includes('acab')) return 'sand_finish';
     return 'installation';
   }
@@ -90,7 +102,7 @@
         unit: l.unit,
         rate: Number(l.unitPrice) || 0,
         amount: Number(l.amount) || 0,
-        section: sectionOf(l.itemType, l.serviceType),
+        section: sectionOf(l.itemType, l.serviceType, l.name),
       }));
     const prepared = d.preparedBy || {};
     return {

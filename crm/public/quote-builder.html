@@ -2112,10 +2112,20 @@
                 <div id="qbClientDetails" class="qb-client-card hidden" aria-live="polite"></div>
                 </div>
                 <div id="qbBuilderPanel" class="hidden">
-                  <label class="block text-xs font-semibold text-slate-500 mb-1" for="quoteBuilderSelect">Builder cadastrado</label>
-                  <select id="quoteBuilderSelect" class="qb-builder-select" aria-label="Selecionar builder">
-                    <option value="">Selecionar builder…</option>
-                  </select>
+                  <div class="qb-client-search" id="qbBuilderSearchWrap">
+                    <input
+                      type="search"
+                      id="builderSearch"
+                      class="qb-client-search__input"
+                      autocomplete="off"
+                      placeholder="Buscar builder por nome, empresa, e-mail…"
+                      aria-label="Buscar builder"
+                    />
+                    <select id="quoteBuilderSelect" class="hidden" aria-hidden="true" tabindex="-1">
+                      <option value="">Selecionar builder…</option>
+                    </select>
+                    <div id="builderSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Resultados de builders"></div>
+                  </div>
                   <p class="text-xs text-slate-500 mt-2">Usa a coluna Builder da Tabela de Valores.</p>
                   <div id="qbBuilderDetails" class="qb-client-card hidden" aria-live="polite"></div>
                   <div id="qbBuilderExtraEmailsWrap" class="qb-extra-emails">
@@ -2755,9 +2765,9 @@
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
   <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-paper.js?v=20261012-qp4"></script>
+  <script src="quote-paper.js?v=20261013-supply1"></script>
   <script src="crm-job-modal.js?v=20261012-noct1"></script>
-  <script src="quote-builder.js?v=20261012-noct1"></script>
+  <script src="quote-builder.js?v=20261013-client1"></script>
   <script src="quote-services-popup.js?v=20261012-qp3"></script>
   <script>
     (function () {
