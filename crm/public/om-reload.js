@@ -33,28 +33,30 @@
 .om-rl.is-done > polygon{animation:none;transform:none;opacity:1}
 .om-rl--nav > polygon{animation-duration:var(--rl-dur,.55s)!important}
 @keyframes omRlIn{0%{transform:translate(var(--dx),var(--dy));opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
-.om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .32s ease}
+@keyframes omRlWordIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:none}}
+.om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .32s ease}
 .om-rl-splash.is-out{opacity:0;pointer-events:none}
-.om-rl-splash .om-rl-brand{display:flex;flex-direction:column;align-items:center;gap:10px;min-height:40px}
-.om-rl-splash .om-rl-word{width:188px;height:auto;display:block;opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
-.om-rl-splash .om-rl-name{margin:0;font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-weight:800;font-size:1.75rem;letter-spacing:-0.03em;line-height:1;color:#221E1A;opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
-.om-rl-splash.is-word .om-rl-word,.om-rl-splash.is-word .om-rl-name{opacity:1;transform:none}
-.om-rl-splash .om-rl-name.is-fallback{display:none}
-.om-rl-splash .om-rl-name:not(.is-fallback){display:block}
-.om-rl-splash--nav .om-rl-brand{min-height:0}
+.om-rl-splash .om-rl-brand{display:flex;align-items:center;justify-content:center;min-height:36px}
+/* Wordmark as real text — always animates in (no PNG / no JS class dependency) */
+.om-rl-splash .om-rl-wordmark{margin:0;font-family:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;font-weight:800;font-size:clamp(1.65rem,5.5vw,2rem);letter-spacing:-0.04em;line-height:1;white-space:nowrap;opacity:0;animation:omRlWordIn .5s ease ${FULL_WORD_AT_MS}ms both}
+.om-rl-splash .om-rl-wordmark__obra{color:#221E1A}
+.om-rl-splash .om-rl-wordmark__mate{color:${ORANGE}}
+.om-rl-splash--nav .om-rl-brand{display:none}
 .om-ptr--rl,.om-ptr--rl.om-ptr-visible,
 .sf-ptr-indicator.om-ptr--rl{display:none!important;height:0!important;max-height:0!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;overflow:hidden!important}
 @media (prefers-reduced-motion: reduce){
   .om-rl > polygon,.om-rl.is-in > polygon{animation:none;transform:none;opacity:1}
-  .om-rl-splash .om-rl-word,.om-rl-splash .om-rl-name{transition:none}
+  .om-rl-splash .om-rl-wordmark{animation:none;opacity:1;transform:none}
 }`;
 
   function injectCss() {
-    if (document.getElementById("om-reload-css")) return;
-    const st = document.createElement("style");
-    st.id = "om-reload-css";
+    let st = document.getElementById("om-reload-css");
+    if (!st) {
+      st = document.createElement("style");
+      st.id = "om-reload-css";
+      (document.head || document.documentElement).appendChild(st);
+    }
     st.textContent = CSS;
-    (document.head || document.documentElement).appendChild(st);
   }
 
   function touchUi() {
@@ -83,45 +85,23 @@
     return `<svg class="om-rl is-in${nav}" width="${size}" height="${size}" viewBox="100 100 312 312" style="--rl-dur:${dur};--rl-gap:${gap}" aria-hidden="true" focusable="false">${polys}</svg>`;
   }
 
-  /** Markup com nome ObraMate (wordmark + texto de reserva). */
+  /** Markup com nome ObraMate visível (texto tipográfico, não PNG). */
   function entryMarkup(kind) {
     const nav = kind === "nav";
     const size = nav ? 64 : MARK_SIZE;
     const brand = nav
       ? ""
       : `<div class="om-rl-brand">` +
-        `<img class="om-rl-word" src="/assets/obramate-wordmark.png?v=20261012-rl1" alt="ObraMate" width="188" height="31" />` +
-        `<span class="om-rl-name is-fallback">ObraMate</span>` +
-        `</div>`;
+        `<p class="om-rl-wordmark" aria-label="ObraMate">` +
+        `<span class="om-rl-wordmark__obra">Obra</span>` +
+        `<span class="om-rl-wordmark__mate">Mate</span>` +
+        `</p></div>`;
     return mark(size, { nav }) + brand;
-  }
-
-  function wireWordmark(el) {
-    const img = el.querySelector(".om-rl-word");
-    const fallback = el.querySelector(".om-rl-name.is-fallback");
-    if (!img || !fallback) return;
-    const showFallback = () => {
-      img.style.display = "none";
-      fallback.classList.remove("is-fallback");
-      fallback.style.display = "block";
-    };
-    const showImg = () => {
-      fallback.style.display = "none";
-      img.style.display = "block";
-    };
-    if (img.complete) {
-      if (img.naturalWidth > 0) showImg();
-      else showFallback();
-    } else {
-      img.addEventListener("load", showImg, { once: true });
-      img.addEventListener("error", showFallback, { once: true });
-    }
   }
 
   let layer = null;
   let layerShownAt = 0;
   let layerKind = "full";
-  let wordTimer = null;
   let failTimer = null;
   let showTimer = null;
   let navVeil = false;
@@ -148,23 +128,16 @@
     const mode = kind === "nav" ? "nav" : "full";
     layerKind = mode;
     const el = ensureLayer();
-    clearTimeout(wordTimer);
     el.classList.remove("is-out", "is-word");
     el.classList.toggle("om-rl-splash--nav", mode === "nav");
     el.innerHTML = entryMarkup(mode);
+    // Restart CSS animations (mark + wordmark).
     void el.offsetWidth;
     layerShownAt = Date.now();
-    if (mode === "full") {
-      wireWordmark(el);
-      wordTimer = setTimeout(() => {
-        if (layer === el) el.classList.add("is-word");
-      }, reduced() ? 0 : FULL_WORD_AT_MS);
-    }
     return el;
   }
 
   function dismissLayer(force) {
-    clearTimeout(wordTimer);
     clearTimeout(failTimer);
     clearTimeout(showTimer);
     clearTimeout(hideAfterMin);
