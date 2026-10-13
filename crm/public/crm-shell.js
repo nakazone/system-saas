@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261013-ptr2";
+  const SHELL_VER = "20261013-badge1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1291,11 +1291,35 @@
     }
   }
 
+  /** Clear iOS Home Screen badge when CRM pages become visible (pages without om-device). */
+  function wireAppBadgeClear() {
+    if (typeof window === "undefined" || window.__omBadgeClearBound) return;
+    window.__omBadgeClearBound = true;
+    const clear = function () {
+      try {
+        if (navigator.clearAppBadge) navigator.clearAppBadge().catch(function () {});
+      } catch (_) {}
+      try {
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: "CLEAR_APP_BADGE" });
+        }
+      } catch (_) {}
+    };
+    const run = function () {
+      if (document.visibilityState === "visible") clear();
+    };
+    document.addEventListener("visibilitychange", run);
+    window.addEventListener("focus", clear);
+    run();
+  }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
+      wireAppBadgeClear();
       boot().catch(() => {});
     });
   } else {
+    wireAppBadgeClear();
     boot().catch(() => {});
   }
 

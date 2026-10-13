@@ -167,6 +167,38 @@
     lockStableViewport,
   };
 
+  /** Clear iOS/Home Screen app-icon badge when the user opens the PWA. */
+  function clearAppBadge() {
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.clearAppBadge === "function") {
+        navigator.clearAppBadge().catch(function () {});
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    try {
+      if (typeof navigator !== "undefined" && navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: "CLEAR_APP_BADGE" });
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function wireAppBadgeClear() {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+    if (global.__omBadgeClearBound) return;
+    global.__omBadgeClearBound = true;
+    const run = function () {
+      if (document.visibilityState === "visible") clearAppBadge();
+    };
+    document.addEventListener("visibilitychange", run);
+    window.addEventListener("focus", clearAppBadge);
+    run();
+  }
+
+  api.clearAppBadge = clearAppBadge;
+
   global.__omDevice = api;
 
   if (typeof document !== "undefined") {
@@ -174,5 +206,6 @@
     if (document.body) applyBodyClass();
     else document.addEventListener("DOMContentLoaded", applyBodyClass);
     wireMobileAppHeightLock();
+    wireAppBadgeClear();
   }
 })(typeof window !== "undefined" ? window : globalThis);

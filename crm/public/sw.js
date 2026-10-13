@@ -1,8 +1,10 @@
 /**
  * ObraMate — service worker (static cache + Campo offline + Web Push).
  */
-const CACHE = "om-static-v59";
+const CACHE = "om-static-v60";
 const API_CACHE = "om-api-v1";
+const BADGE_CACHE = "om-badge-v1";
+const BADGE_URL = "/__om_app_badge_count";
 const PRECACHE = [
   "/offline.html",
   "/home.html",
@@ -21,7 +23,7 @@ const PRECACHE = [
   "/campo/horas.js?v=20261013-off1",
   "/campo/ticket.js?v=20261013-off1",
   "/om-offline.js?v=20261013-off1",
-  "/om-device.js?v=20261013-login1",
+  "/om-device.js?v=20261013-badge1",
   "/styles.css",
   "/design-system.css",
   "/mobile-design-system.css",
@@ -54,7 +56,11 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE && k !== API_CACHE).map((k) => caches.delete(k))),
+        Promise.all(
+          keys
+            .filter((k) => k !== CACHE && k !== API_CACHE && k !== BADGE_CACHE)
+            .map((k) => caches.delete(k)),
+        ),
       )
       .then(() => self.clients.claim()),
   );
@@ -109,6 +115,56 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+/** Persist unread count for iOS Home Screen app-icon badge (Badging API). */
+async function readBadgeCount() {
+  try {
+    const cache = await caches.open(BADGE_CACHE);
+    const res = await cache.match(BADGE_URL);
+    if (!res) return 0;
+    const j = await res.json();
+    return Math.max(0, Number(j.count) || 0);
+  } catch (_) {
+    return 0;
+  }
+}
+
+async function writeBadgeCount(n) {
+  const count = Math.max(0, Math.floor(Number(n) || 0));
+  try {
+    const cache = await caches.open(BADGE_CACHE);
+    await cache.put(
+      BADGE_URL,
+      new Response(JSON.stringify({ count }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    if (count > 0 && self.navigator && typeof self.navigator.setAppBadge === "function") {
+      await self.navigator.setAppBadge(count);
+    } else if (self.navigator && typeof self.navigator.clearAppBadge === "function") {
+      await self.navigator.clearAppBadge();
+    }
+  } catch (_) {
+    /* ignore — API only on installed PWAs with notification permission */
+  }
+  return count;
+}
+
+async function bumpAppBadge(explicit) {
+  if (explicit != null && Number(explicit) >= 0) {
+    return writeBadgeCount(explicit);
+  }
+  const next = (await readBadgeCount()) + 1;
+  return writeBadgeCount(next);
+}
+
+async function clearAppBadge() {
+  return writeBadgeCount(0);
+}
+
 self.addEventListener("push", (event) => {
   let data = {
     title: "ObraMate",
@@ -128,15 +184,25 @@ self.addEventListener("push", (event) => {
     } catch (_) {}
   }
 
+  const unread =
+    data.unreadCount != null
+      ? Number(data.unreadCount)
+      : data.badgeCount != null
+        ? Number(data.badgeCount)
+        : null;
+
   event.waitUntil(
-    self.registration.showNotification(data.title || "ObraMate", {
-      body: data.body || "",
-      icon: "/assets/favicon-192.png?v=20260924-pwa",
-      badge: "/assets/favicon-192.png?v=20260924-pwa",
-      tag: data.tag || "obramate",
-      renotify: true,
-      data: { url: data.url || "/home.html" },
-    }),
+    Promise.all([
+      bumpAppBadge(Number.isFinite(unread) && unread >= 0 ? unread : null),
+      self.registration.showNotification(data.title || "ObraMate", {
+        body: data.body || "",
+        icon: "/assets/favicon-192.png?v=20260924-pwa",
+        badge: "/assets/favicon-192.png?v=20260924-pwa",
+        tag: data.tag || "obramate",
+        renotify: true,
+        data: { url: data.url || "/home.html" },
+      }),
+    ]),
   );
 });
 
@@ -146,14 +212,24 @@ self.addEventListener("notificationclick", (event) => {
   const url = new URL(raw, self.location.origin).href;
 
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.startsWith(self.location.origin) && "focus" in client) {
-          return client.focus();
+    Promise.all([
+      clearAppBadge(),
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.startsWith(self.location.origin) && "focus" in client) {
+            return client.focus();
+          }
         }
-      }
-      if (self.clients.openWindow) return self.clients.openWindow(url);
-      return undefined;
-    }),
+        if (self.clients.openWindow) return self.clients.openWindow(url);
+        return undefined;
+      }),
+    ]),
   );
+});
+
+self.addEventListener("message", (event) => {
+  const type = event.data && event.data.type;
+  if (type === "CLEAR_APP_BADGE" || type === "om-clear-app-badge") {
+    event.waitUntil(clearAppBadge());
+  }
 });
