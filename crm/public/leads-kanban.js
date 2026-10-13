@@ -2,7 +2,7 @@
  * Leads Kanban Board and Management Functions
  */
 
-let currentView = 'list'; // 'list' or 'kanban'
+let currentView = 'kanban'; // 'list' or 'kanban'
 let pipelineStages = [];
 let allLeads = [];
 /** lead_id → resumo de orçamento (e-mail / link / PDF) */
@@ -162,20 +162,38 @@ async function loadCRMKanban() {
     await loadKanbanBoard();
 }
 
-// Show Kanban View (deprecated - kept for compatibility)
-function showKanbanView() {
-    currentView = 'kanban';
+function syncLeadsViewChrome() {
     const kanbanView = document.getElementById('kanbanView');
     const listView = document.getElementById('listView');
-    if (kanbanView) kanbanView.style.display = 'block';
-    if (listView) listView.style.display = 'none';
-    loadKanbanBoard();
+    const wrap = document.querySelector('.lb-board-wrap');
+    const isList = currentView === 'list';
+    if (kanbanView) kanbanView.hidden = isList;
+    if (listView) listView.hidden = !isList;
+    if (wrap) wrap.classList.toggle('is-list', isList);
+    document.body.classList.toggle('lb-view-list', isList);
+    document.body.classList.toggle('lb-view-kanban', !isList);
 }
 
-// Show List View (deprecated - kept for compatibility)
-function showListView() {
-    showKanbanView();
+function showKanbanView() {
+    currentView = 'kanban';
+    try {
+        localStorage.setItem('obramate_leads_view', 'kanban');
+    } catch (_) {}
+    syncLeadsViewChrome();
+    renderKanbanBoard();
 }
+
+function showListView() {
+    currentView = 'list';
+    try {
+        localStorage.setItem('obramate_leads_view', 'list');
+    } catch (_) {}
+    syncLeadsViewChrome();
+    renderKanbanBoard();
+}
+
+window.showKanbanView = showKanbanView;
+window.showListView = showListView;
 
 /** Normalize legacy `leads.status` / slug typos to canonical pipeline slug (matches migrate-pipeline-kanban-v3). */
 function normalizeLeadPipelineSlug(raw) {
@@ -264,21 +282,17 @@ function patchKanbanLeadCache(updatedLead) {
     renderLeadsMobilePipeline();
 }
 
-/** Neutral stage tones (same as Início); unknown stages keep their own color as a small dot. */
+/** Pipeline stage colors (azul / laranja / verde… — same defaults as PIPELINE_V9_KANBAN_DEFAULTS). */
 function kanbanStageTone(stage) {
+    if (stage && stage.color) return String(stage.color);
     const slug = String((stage && stage.slug) || '');
-    const tones = {
-        new_lead: '#D0D5DD',
-        contacted: '#98A2B3',
-        meeting_scheduled: '#536249',
-        quote_sent: '#E7792C',
-        stand_by: '#EAECF0',
-        won: '#221E1A',
-        lost: '#98A2B3',
-    };
-    if (tones[slug]) return tones[slug];
-    if (/^follow_up/.test(slug)) return '#221E1A';
-    return (stage && stage.color) || '#98A2B3';
+    const def =
+        typeof PIPELINE_V9_KANBAN_DEFAULTS !== 'undefined' && PIPELINE_V9_KANBAN_DEFAULTS[slug]
+            ? PIPELINE_V9_KANBAN_DEFAULTS[slug].color
+            : null;
+    if (def) return def;
+    if (/^follow_up/.test(slug)) return '#F1C40F';
+    return '#98A2B3';
 }
 
 function kanbanStageDomId(stage) {
@@ -631,18 +645,20 @@ function lbFocusStage(slug) {
         el.setAttribute('aria-pressed', el.classList.contains('is-on') ? 'true' : 'false');
     });
     const board = document.getElementById('kanbanBoard');
-    if (!board) return;
-    board.classList.toggle('is-focused', Boolean(lbFocusedStage));
-    board.querySelectorAll('.kanban-column').forEach((col) => {
-        const on = lbFocusedStage && kanbanCanonicalStageSlug(col.dataset.stageSlug) === lbFocusedStage;
-        col.classList.toggle('is-focus', Boolean(on));
-        if (on) {
-            const wrap = col.closest('.kanban-board-wrap');
-            if (wrap && wrap.scrollWidth > wrap.clientWidth) {
-                wrap.scrollTo({ left: Math.max(0, col.offsetLeft - 16), behavior: 'smooth' });
+    if (board) {
+        board.classList.toggle('is-focused', Boolean(lbFocusedStage));
+        board.querySelectorAll('.kanban-column').forEach((col) => {
+            const on = lbFocusedStage && kanbanCanonicalStageSlug(col.dataset.stageSlug) === lbFocusedStage;
+            col.classList.toggle('is-focus', Boolean(on));
+            if (on) {
+                const wrap = col.closest('.kanban-board-wrap');
+                if (wrap && wrap.scrollWidth > wrap.clientWidth) {
+                    wrap.scrollTo({ left: Math.max(0, col.offsetLeft - 16), behavior: 'smooth' });
+                }
             }
-        }
-    });
+        });
+    }
+    if (currentView === 'list') renderLeadsListView();
 }
 
 /** Números do funil e cartões de etapa (Todos, Novo lead, Contactado…). */
@@ -726,6 +742,7 @@ function renderKanbanBoard() {
         column.dataset.stageId =
             stage.id != null && stage.id !== '' ? String(stage.id) : '';
         column.dataset.stageSlug = stage.slug || '';
+        column.style.setProperty('--stage-color', kanbanStageTone(stage));
 
         const stageCardsId = kanbanStageDomId(stage);
 
@@ -768,6 +785,8 @@ function renderKanbanBoard() {
         lbFocusedStage = '';
         lbFocusStage(keep);
     }
+    renderLeadsListView();
+    syncLeadsViewChrome();
     renderLeadsMobilePipeline();
     initKanbanSortables();
 }
@@ -1026,6 +1045,8 @@ function renderKanbanCard(lead) {
     const sig = window.omLeadSignals;
     const quote = lbQuoteFor(lead);
     const days = kanbanDaysInCurrentColumn(lead);
+    const stage = resolveStageForLead(lead);
+    const tone = kanbanStageTone(stage);
     const name = escapeKanbanHtml(lead.name || 'Sem nome');
     const val = sig ? sig.value(lead, quote) : { amount: parseFloat(lead.estimated_value) || null, sub: '' };
     const next = sig ? sig.nextStep(lead, quote, days) : null;
@@ -1043,7 +1064,7 @@ function renderKanbanCard(lead) {
         lead.phone ? `<button type="button" class="lb-qa" data-lb-sms="${lead.id}" data-sf-sms-picker-btn aria-haspopup="menu" title="SMS" aria-label="SMS">${sig ? sig.icon('sms', 13) : '✉'}</button>` : ''
     }${deleteBtn}`;
     return `
-        <div class="kanban-card lb-card kanban-card--open-sheet" data-lead-id="${lead.id}" role="button" tabindex="0" onclick="viewLead('${lead.id}', event)" title="Abrir lead">
+        <div class="kanban-card lb-card kanban-card--open-sheet" data-lead-id="${lead.id}" style="--stage-color:${escapeKanbanHtml(tone)}" role="button" tabindex="0" onclick="viewLead('${lead.id}', event)" title="Abrir lead">
             <div class="lb-card__r1">
                 ${originLogo}
                 <span class="lb-card__name">${name}</span>
@@ -1054,6 +1075,66 @@ function renderKanbanCard(lead) {
             <div class="lb-card__ft">${owner}<span>${escapeKanbanHtml(daysTxt)}</span><span class="lb-card__qa">${quick}</span></div>
         </div>
     `;
+}
+
+function renderLeadsListRow(lead) {
+    const sig = window.omLeadSignals;
+    const stage = resolveStageForLead(lead);
+    const tone = kanbanStageTone(stage);
+    const stageName = lbStageTitle(stage) || stageLabelFallback(lead);
+    const quote = lbQuoteFor(lead);
+    const val = sig ? sig.value(lead, quote) : { amount: parseFloat(lead.estimated_value) || null };
+    const phone = lead.phone
+        ? typeof window.sfFormatPhone === 'function'
+            ? window.sfFormatPhone(lead.phone) || lead.phone
+            : lead.phone
+        : '';
+    const moneyTxt = val.amount
+        ? sig
+            ? sig.money(val.amount)
+            : '$' + Math.round(val.amount).toLocaleString('en-US')
+        : '—';
+    const owner = lead.owner_name || '—';
+    return `<button type="button" class="lb-row" data-lead-id="${lead.id}" style="--stage-color:${escapeKanbanHtml(tone)}" onclick="viewLead('${lead.id}', event)">
+      <i class="lb-row__bar" aria-hidden="true"></i>
+      <span class="lb-row__main">
+        <b>${escapeKanbanHtml(lead.name || 'Sem nome')}</b>
+        <small>${escapeKanbanHtml([phone, lead.source || ''].filter(Boolean).join(' · ') || 'Sem contato')}</small>
+      </span>
+      <span class="lb-row__stage"><i style="background:${escapeKanbanHtml(tone)}"></i>${escapeKanbanHtml(stageName)}</span>
+      <span class="lb-row__val">${escapeKanbanHtml(moneyTxt)}</span>
+      <span class="lb-row__owner">${escapeKanbanHtml(owner)}</span>
+    </button>`;
+}
+
+function stageLabelFallback(lead) {
+    const slug = kanbanCanonicalStageSlug(lead.status || lead.pipeline_stage_slug);
+    if (typeof pipelineStageDisplayName === 'function') return pipelineStageDisplayName(slug, lead.pipeline_stage_name);
+    return lead.pipeline_stage_name || slug || '—';
+}
+
+function renderLeadsListView() {
+    const root = document.getElementById('listView');
+    if (!root) return;
+    let rows = lbFilteredLeads();
+    if (lbFocusedStage) {
+        rows = rows.filter((l) => kanbanCanonicalStageSlug(l.status || l.pipeline_stage_slug) === lbFocusedStage);
+    }
+    if (!kanbanShowLostColumn) {
+        rows = rows.filter((l) => kanbanCanonicalStageSlug(l.status || l.pipeline_stage_slug) !== 'lost');
+    }
+    rows = rows.slice().sort((a, b) => {
+        const sa = pipelineStages.findIndex((st) => leadMatchesKanbanColumn(a, st));
+        const sb = pipelineStages.findIndex((st) => leadMatchesKanbanColumn(b, st));
+        if (sa !== sb) return (sa < 0 ? 99 : sa) - (sb < 0 ? 99 : sb);
+        return String(a.name || '').localeCompare(String(b.name || ''), 'pt', { sensitivity: 'base' });
+    });
+    if (!rows.length) {
+        root.innerHTML = '<p class="lb-list__empty">Nenhum lead neste filtro.</p>';
+        return;
+    }
+    root.innerHTML = `<div class="lb-list__head" aria-hidden="true"><span>Lead</span><span>Etapa</span><span>Valor</span><span>Dono</span></div>
+      <div class="lb-list">${rows.map(renderLeadsListRow).join('')}</div>`;
 }
 
 /** Preenche o select de estágio do modal Novo Lead (inclui Visita Agendada, etc.). */

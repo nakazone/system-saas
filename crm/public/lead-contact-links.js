@@ -413,33 +413,59 @@
     const leadId = leadIdOf(lead);
     const priority =
       action && action.set_priority ? String(action.set_priority).toLowerCase() : '';
+    const slug = resolveLeadStageSlug(lead);
+    const patch = {};
+    if (priority === 'low' || priority === 'medium' || priority === 'high') patch.priority = priority;
+    // First SMS/text from New Lead → move to Contacted automatically.
+    if (slug === 'new_lead' || slug === 'new' || slug === 'lead_received') {
+      patch.status = 'contacted';
+    }
 
-    if (leadId && (priority === 'low' || priority === 'medium' || priority === 'high')) {
-      try {
-        const res = await fetch('/api/leads/' + encodeURIComponent(leadId), {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ priority }),
-        });
-        if (res.ok) {
-          const j = await res.json().catch(() => null);
-          const updated = j && j.success && j.data ? j.data : { ...lead, priority, id: leadId };
-          if (typeof global.patchKanbanLeadCache === 'function') {
-            global.patchKanbanLeadCache(updated);
-          }
-          if (typeof global.dispatchEvent === 'function') {
-            try {
-              global.dispatchEvent(
-                new CustomEvent('sf:lead-updated', { detail: { lead: updated, reason: 'on_send_action' } }),
-              );
-            } catch (_) {
-              /* ignore */
+    if (leadId) {
+      if (Object.keys(patch).length) {
+        try {
+          const res = await fetch('/api/leads/' + encodeURIComponent(leadId), {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(patch),
+          });
+          if (res.ok) {
+            const j = await res.json().catch(() => null);
+            const updated = j && j.success && j.data ? j.data : { ...lead, ...patch, id: leadId };
+            if (typeof global.patchKanbanLeadCache === 'function') {
+              global.patchKanbanLeadCache(updated);
+            }
+            if (typeof global.dispatchEvent === 'function') {
+              try {
+                global.dispatchEvent(
+                  new CustomEvent('sf:lead-updated', { detail: { lead: updated, reason: 'on_send_action' } }),
+                );
+              } catch (_) {
+                /* ignore */
+              }
             }
           }
+        } catch (_) {
+          /* still open the native link */
         }
-      } catch (_) {
-        /* still open the native link */
+      }
+      const href = String(option.href || '');
+      const ixType = /^sms:/i.test(href) ? 'sms' : /^mailto:/i.test(href) ? 'email' : '';
+      if (ixType) {
+        try {
+          await fetch('/api/leads/' + encodeURIComponent(leadId) + '/interactions', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              type: ixType,
+              notes: ixType === 'sms' ? 'SMS enviado' : 'E-mail enviado',
+            }),
+          });
+        } catch (_) {
+          /* ignore */
+        }
       }
     }
 

@@ -36,7 +36,7 @@
   </script>
   <link rel="stylesheet" href="lead-mobile.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="leads-mobile.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="leads-board.css?v=20261009-scroll1" />
+  <link rel="stylesheet" href="leads-board.css?v=20261013-pipe1" />
   <style>
     /* Tablet: keep Kanban usable with horizontal scroll and a Lista toggle. */
     body.om-device-tablet .kanban-board-wrap {
@@ -64,7 +64,7 @@
       gap: 0.65rem;
       margin-bottom: 0.65rem;
     }
-    body.om-device-tablet #leadsKanbanViewToggle:not([hidden]) {
+    #leadsKanbanViewToggle {
       display: inline-flex !important;
     }
   </style>
@@ -157,7 +157,7 @@
             <span class="kanban-lost-toggle__label">Perdidos</span>
             <span class="kanban-lost-toggle__count" id="kanbanLostCount" aria-hidden="true">0</span>
           </button>
-          <div class="mleads-view-toggle lb-view" id="leadsKanbanViewToggle" hidden role="group" aria-label="Visualização">
+          <div class="mleads-view-toggle lb-view" id="leadsKanbanViewToggle" role="group" aria-label="Visualização">
             <button type="button" class="mleads-view-toggle__btn" data-leads-view="list" aria-pressed="false">Lista</button>
             <button type="button" class="mleads-view-toggle__btn is-active" data-leads-view="kanban" aria-pressed="true">Quadro</button>
           </div>
@@ -167,6 +167,7 @@
           <div id="kanbanView" class="kanban-view-wrap">
             <div id="kanbanBoard" class="kanban-board-grid" aria-label="Pipeline de leads"></div>
           </div>
+          <div id="listView" class="lb-list-view" hidden aria-label="Lista de leads"></div>
         </div>
       </div>
     </main>
@@ -420,14 +421,14 @@
   <script src="om-mobile-nav.js?v=20261008-neutro1"></script>
   <script src="novo-lead-sheet.js?v=20261002-tablet-leads"></script>
   <script src="pipeline-stage-labels.js?v=20261006-contacted1"></script>
-  <script src="lead-contact-links.js?v=20261005-leadauto1"></script>
+  <script src="lead-contact-links.js?v=20261013-sms1"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="lead-visit-calendar-format.js?v=20260528-cal-address"></script>
   <script src="crm-device-calendar.js?v=20261012-calopen1"></script>
   <script src="lead-quote-engagement-icons.js?v=20260528-badge-check-x"></script>
   <script src="lead-quick-sheet.js?v=20261012-calopen1"></script>
   <script src="lead-signals.js?v=20261009-lb1"></script>
-  <script src="leads-kanban.js?v=20261009-scroll1"></script>
-  <script src="leads-page.js?v=20261009-list1"></script>
+  <script src="leads-kanban.js?v=20261013-pipe1"></script>
+  <script src="leads-page.js?v=20261013-pipe1"></script>
 </body>
 </html>

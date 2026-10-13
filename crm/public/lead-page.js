@@ -362,7 +362,12 @@
     const pri = String(L.priority || 'medium');
     const slug = currentSlug();
     const bits = [];
-    bits.push(`<span class="lp-pill lp-pill--stage" data-stage="${esc(slug)}">${esc(stageLabel(slug))}</span>`);
+    const stageTone =
+      (typeof PIPELINE_V9_KANBAN_DEFAULTS !== 'undefined' && PIPELINE_V9_KANBAN_DEFAULTS[slug] && PIPELINE_V9_KANBAN_DEFAULTS[slug].color) ||
+      '#98A2B3';
+    bits.push(
+      `<span class="lp-pill lp-pill--stage" data-stage="${esc(slug)}" style="--stage-color:${esc(stageTone)}">${esc(stageLabel(slug))}</span>`,
+    );
     if (pri === 'high') bits.push('<span class="lp-pill lp-pill--hot">Alta prioridade</span>');
     if (pri === 'low') bits.push('<span class="lp-pill lp-pill--low">Baixa prioridade</span>');
     const meta = [L.source || 'Sem origem', 'criado ' + relTime(L.created_at)];
@@ -406,7 +411,10 @@
     const idx = stageNeighbors().idx;
     const steps = STAGES.map((st, i) => {
       const cls = isLost() ? '' : i < idx ? 'is-done' : i === idx ? 'is-now' : '';
-      return `<button type="button" class="lp-step ${cls}" data-lp-stage="${st.slug}" aria-current="${i === idx ? 'step' : 'false'}" title="Mover para ${esc(st.label)}"><i></i><span>${esc(st.label)}</span></button>`;
+      const tone =
+        (typeof PIPELINE_V9_KANBAN_DEFAULTS !== 'undefined' && PIPELINE_V9_KANBAN_DEFAULTS[st.slug] && PIPELINE_V9_KANBAN_DEFAULTS[st.slug].color) ||
+        '#D0D5DD';
+      return `<button type="button" class="lp-step ${cls}" data-lp-stage="${st.slug}" style="--stage-color:${esc(tone)}" aria-current="${i === idx ? 'step' : 'false'}" title="Mover para ${esc(st.label)}"><i></i><span>${esc(st.label)}</span></button>`;
     }).join('');
     const funnel = $('#lpFunnel');
     funnel.innerHTML = `<div class="lp-funnel__track">${steps}</div>`;
@@ -483,7 +491,7 @@
     const L = S.lead;
     const pri = String(L.priority || 'medium');
     const tags = (L.tags || []).map((t) => `<span class="lp-chip">${esc(t)}<button type="button" data-lp-tag-del="${esc(t)}" aria-label="Remover ${esc(t)}">×</button></span>`).join('');
-    return `<div class="lp-card lp-card--details"><h3 class="lp-h3">Detalhes</h3>
+    return `<details class="lp-card lp-details lp-card--details"><summary class="lp-h3">Informações adicionais</summary>
         <div class="lp-prio"><span>Prioridade</span><div class="lp-seg" role="group" aria-label="Prioridade">${['low', 'medium', 'high']
             .map((p) => `<button type="button" class="${p === pri ? 'is-on' : ''}" data-lp-priority="${p}">${PRIORITY[p]}</button>`)
             .join('')}</div></div>
@@ -494,7 +502,7 @@
           <dt>Último contato</dt><dd>${esc(L.last_contacted_at ? relTime(L.last_contacted_at) : '—')}</dd>
         </dl>
         <div class="lp-tags">${tags}<form class="lp-tag-add" data-lp-tag-form><input type="text" maxlength="40" placeholder="+ Tag" aria-label="Nova tag" /></form></div>
-      </div>`;
+      </details>`;
   }
 
   function renderSide() {
@@ -515,10 +523,24 @@
     }
   }
 
-  // ---------- Visão geral
+  // ---------- Visão geral (card colapsável) + Qualificação + Informações adicionais
+  function overviewSummaryBits() {
+    const L = S.lead;
+    const Q = S.qual || {};
+    const phone =
+      L.phone && typeof window.sfFormatPhone === 'function'
+        ? window.sfFormatPhone(L.phone) || L.phone
+        : L.phone || '';
+    const bits = [phone, L.email, SERVICE[Q.service_type] || Q.service_type, money(L.estimated_value)].filter(
+      (x) => x && x !== '—',
+    );
+    return bits.length ? bits.join(' · ') : 'Toque para ver contato e projeto';
+  }
+
   function renderLeft() {
     const L = S.lead;
     const Q = S.qual || {};
+    const editingOverview = S.editing === 'contact' || S.editing === 'project';
     const contact =
       S.editing === 'contact'
         ? `<form class="lp-form" data-lp-form="contact">
@@ -555,16 +577,28 @@
           <dt>Prazo</dt><dd>${esc(Q.decision_timeline || '—')}</dd>
         </dl>`;
     const utmKeys = Object.keys(UTM_LABELS).filter((k) => L[k]);
+    const overviewOpen = editingOverview ? ' open' : '';
     $('#lpLeft').innerHTML = `
-      <div class="lp-card" id="lpContactCard"><h3 class="lp-h3">Contato ${S.editing === 'contact' ? '' : '<button type="button" class="lp-link" data-lp-edit="contact">Editar</button>'}</h3>${contact}</div>
-      <div class="lp-card"><h3 class="lp-h3">Projeto ${S.editing === 'project' ? '' : '<button type="button" class="lp-link" data-lp-edit="project">Editar</button>'}</h3>${project}</div>
-      ${L.message ? `<div class="lp-card"><h3 class="lp-h3">Mensagem do cliente</h3><p class="lp-quote">${esc(L.message)}</p></div>` : ''}
+      <details class="lp-card lp-details lp-overview" id="lpOverview"${overviewOpen}>
+        <summary class="lp-overview__sum">
+          <span class="lp-overview__label">Visão geral</span>
+          <span class="lp-overview__preview">${esc(overviewSummaryBits())}</span>
+          ${editingOverview ? '' : '<button type="button" class="lp-link" data-lp-edit="contact" data-lp-overview-edit>Editar</button>'}
+        </summary>
+        <div class="lp-overview__body" id="lpContactCard">
+          <h4 class="lp-h4">Contato ${S.editing === 'contact' ? '' : '<button type="button" class="lp-link" data-lp-edit="contact">Editar</button>'}</h4>
+          ${contact}
+          <h4 class="lp-h4">Projeto ${S.editing === 'project' ? '' : '<button type="button" class="lp-link" data-lp-edit="project">Editar</button>'}</h4>
+          ${project}
+        </div>
+      </details>
+      ${qualHtml()}
       ${detailsCardHtml()}
+      ${L.message ? `<div class="lp-card"><h3 class="lp-h3">Mensagem do cliente</h3><p class="lp-quote">${esc(L.message)}</p></div>` : ''}
       <div class="lp-card"><h3 class="lp-h3">Notas internas <span class="lp-saved" id="lpNotesSaved" hidden>Salvo</span></h3>
         <textarea class="lp-textarea" id="lpNotes" rows="3" placeholder="O que a equipe precisa saber sobre este lead…">${esc(L.notes || '')}</textarea>
         <div class="lp-form__acts lp-form__acts--end"><button type="button" class="lp-btn lp-btn--sm lp-btn--ink" data-lp-notes-save hidden>Salvar notas</button></div>
       </div>
-      ${qualHtml()}
       ${
         utmKeys.length
           ? `<details class="lp-card lp-details"><summary class="lp-h3">Origem e marketing</summary><dl class="lp-kv">${utmKeys
@@ -1168,8 +1202,12 @@
       return;
     }
     if ((el = t.closest('[data-lp-edit]'))) {
+      e.preventDefault();
+      e.stopPropagation();
       S.editing = el.getAttribute('data-lp-edit');
       renderLeft();
+      const ov = $('#lpOverview');
+      if (ov) ov.open = true;
       const card = $(`[data-lp-form="${S.editing}"]`);
       if (card && card.getBoundingClientRect().top < 60) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
       const f = $(`[data-lp-form="${S.editing}"] input, [data-lp-form="${S.editing}"] select`);

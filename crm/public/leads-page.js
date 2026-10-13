@@ -92,10 +92,7 @@
       });
 
       const viewToggle = $("leadsKanbanViewToggle");
-      const isTablet =
-        (window.__omDevice && typeof window.__omDevice.isTablet === "function" && window.__omDevice.isTablet()) ||
-        document.body.classList.contains("om-device-tablet");
-      // Honor ?view= from the other screen; never overwrite an explicit list preference on boot.
+      // Honor ?view= from the other screen; switch Quadro/Lista on this page (distinct visuals).
       try {
         const params = new URLSearchParams(location.search);
         const qView = params.get("view");
@@ -103,16 +100,16 @@
           localStorage.setItem("obramate_leads_view", qView);
         }
       } catch (_) {}
-      if (viewToggle && isTablet) {
+      const current = (() => {
+        try {
+          return localStorage.getItem("obramate_leads_view") || "kanban";
+        } catch (_) {
+          return "kanban";
+        }
+      })();
+      if (viewToggle) {
         viewToggle.hidden = false;
         viewToggle.style.display = "inline-flex";
-        const current = (() => {
-          try {
-            return localStorage.getItem("obramate_leads_view") || "kanban";
-          } catch (_) {
-            return "kanban";
-          }
-        })();
         viewToggle.querySelectorAll("[data-leads-view]").forEach((btn) => {
           const on = btn.getAttribute("data-leads-view") === current;
           btn.classList.toggle("is-active", on);
@@ -131,22 +128,19 @@
             b.classList.toggle("is-active", on);
             b.setAttribute("aria-pressed", on ? "true" : "false");
           });
-          // Canonical URL is /dashboard (pipeline-lab.html redirects and used to drop ?view=).
-          if (view === "list") location.assign("/dashboard?view=list");
+          if (view === "list" && typeof window.showListView === "function") window.showListView();
+          else if (typeof window.showKanbanView === "function") window.showKanbanView();
+          try {
+            const u = new URL(location.href);
+            u.searchParams.set("view", view);
+            history.replaceState(null, "", u.toString());
+          } catch (_) {}
         });
       }
 
-      // If a tablet explicitly asked for list, send them there (e.g. stale bookmark).
-      if (isTablet) {
-        try {
-          if (localStorage.getItem("obramate_leads_view") === "list") {
-            location.replace("/dashboard?view=list");
-            return;
-          }
-        } catch (_) {}
-      }
-
       await refreshAll();
+      if (current === "list" && typeof window.showListView === "function") window.showListView();
+      else if (typeof window.showKanbanView === "function") window.showKanbanView();
     } catch (err) {
       notify(err.message || "Falha ao carregar", "error");
       location.href = "/login.html";
