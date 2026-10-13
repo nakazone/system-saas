@@ -308,7 +308,7 @@
     const n = (job.line_items || []).length;
     $("jdFacts").innerHTML = `
       <div><small>Cliente</small><b>${esc(clientName())}</b><span>${contact || esc(job.builder?.name || "Sem contato")}</span></div>
-      <div><small>Quando</small><b>${esc(w.main)}</b><span>${esc(w.sub)}</span></div>
+      <div><small>Start</small><b>${esc(w.main)}</b><span>${esc(w.sub)}</span></div>
       <div><small>Equipe</small><b>${esc(job.assigned_user?.name || "Sem responsável")}</b><span>${esc(teamSub || (job.assigned_user ? "Responsável" : ""))}</span></div>
       <div><small>Preços</small><b>Tabela · ${esc(SOURCE[job.source_type] || "—")}</b><span>${n ? `${n} serviço${n > 1 ? "s" : ""} · ${money(job.services_total)}` : "Sem serviços"}</span></div>`;
   }

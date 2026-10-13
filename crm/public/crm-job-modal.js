@@ -1,7 +1,7 @@
 /**
  * Jobs create/edit modal — shared by jobs.html, schedule.html and job-detail.html.
  *
- * Create (and "Editar tudo") is one screen: Para quem → Quando → Serviços → Equipe,
+ * Create (and "Editar tudo") is one screen: Para quem → Start → Serviços → Equipe,
  * with a live summary/total. Edit from the job page can open a single section.
  *
  * window.__crmJobModal = { ready, openCreate(opts), openEdit(id, opts), openSection(id, section),
@@ -20,7 +20,7 @@
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
-    schedule: "Quando",
+    schedule: "Start",
     team: "Equipe & funcionário extra",
     services: "Serviços do job",
     campo: "Atenção e checklist do campo",
@@ -638,7 +638,7 @@
         </section>
 
         <section class="jm-sec" data-job-section="schedule">
-          <h3 class="jm-sec__t"><span class="jm-n">2</span>Quando</h3>
+          <h3 class="jm-sec__t"><span class="jm-n">2</span>Start</h3>
           <div class="jm-when">
             <label class="jm-field">Data<input type="date" id="jmDate" class="jm-in" /></label>
             <label class="jm-field">Início<input type="time" id="jmTime" class="jm-in" step="900" /></label>
@@ -1460,7 +1460,7 @@
       <dl>
         <div><dt>Cliente</dt><dd>${esc(card?.name || "—")}</dd></div>
         <div><dt>Preços</dt><dd>${esc(customRates() ? "Personalizada" : TYPE_LABEL[st.sourceType] || "Particular")}</dd></div>
-        <div><dt>Quando</dt><dd>${esc(whenLabel())}</dd></div>
+        <div><dt>Start</dt><dd>${esc(whenLabel())}</dd></div>
         <div><dt>Setor</dt><dd>${esc(sectorLabel(st.sector))}</dd></div>
         <div><dt>Delivery</dt><dd>${st.needsDelivery ? esc(st.deliveryPickupAddress || "Retirar material") : "—"}</dd></div>
         <div><dt>Equipe</dt><dd>${esc(assignee ? `${assignee.name || assignee.email}${others ? ` +${others}` : ""}` : "—")}</dd></div>
@@ -1932,7 +1932,7 @@
     st.relatedChildren = Array.isArray(wo.related_children) ? wo.related_children : [];
     st.pickerOpen = !(st.customerId || st.builderId);
     if (st.builderId && !st.customerId) await ensurePricingCustomer();
-    // Coming from Quote→Job: keep Para quem / endereço / serviços; user fills Quando, Setor, Equipe, Campo, Notas.
+    // Coming from Quote→Job: keep Para quem / endereço / serviços; user fills Start, Setor, Equipe, Campo, Notas.
     if (opts && opts.fromQuote) {
       st.section = "all";
       st.fromQuote = true;
@@ -1942,7 +1942,7 @@
         st.date = "";
         st.time = "";
       }
-      notify("Job criado a partir do orçamento. Complete Quando, Setor, Equipe, Campo e Notas.", "success");
+      notify("Job criado a partir do orçamento. Complete Start, Setor, Equipe, Campo e Notas.", "success");
     }
     open();
   }

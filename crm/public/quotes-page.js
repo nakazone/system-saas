@@ -344,7 +344,7 @@
     } else if (g === 'approved') {
       t = q.work_order_id ? 'Criar Job' : 'Aprovado — virar job';
       p = q.work_order_id
-        ? 'Abra o job para preencher Quando, Setor, Equipe e Campo.'
+        ? 'Abra o job para preencher Start, Setor, Equipe e Campo.'
         : 'Transforme em job: cliente, endereço e serviços já vão preenchidos.';
       cta = q.work_order_id
         ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?setup=${encodeURIComponent(q.work_order_id)}">Criar Job</a>`

@@ -1,6 +1,6 @@
 /**
- * Jobs (computador e iPad) — números no topo, etapas como filtros, lista agrupada ao lado
- * e o job escolhido aberto à direita. A página completa do job continua em job-detail.html.
+ * Jobs (computador e iPad) — lista à esquerda e o job aberto à direita com as mesmas
+ * abas da antiga tela Abrir job (visão geral, serviços, fotos, campo, conversa).
  */
 (function () {
   const I = () => window.JobsInfo;
@@ -14,6 +14,12 @@
   let q = "";
   let selId = null;
   let firstLoad = true;
+  let detailTab = "geral";
+  let detailWo = null;
+  let billingCtl = null;
+  let commsCtl = null;
+  let mediaCache = null;
+  let fieldCache = null;
 
   const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Loja", internal: "Interno", other: "Outro" };
   const SVG = {
@@ -252,6 +258,14 @@
   }
 
   // ---------------------------------------------------------------- detail
+  const DETAIL_TABS = [
+    ["geral", "Visão geral"],
+    ["servicos", "Serviços e faturas"],
+    ["fotos", "Fotos"],
+    ["campo", "Campo"],
+    ["conversa", "Conversa"],
+  ];
+
   function primary(wo) {
     if (wo.status === "canceled") return null;
     const b = wo.billing;
@@ -279,54 +293,268 @@
     return x.toLocaleString("en-US", { maximumFractionDigits: 2 });
   }
 
+  function phoneDisp(raw) {
+    if (!raw) return "";
+    return typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(raw) || raw : raw;
+  }
+
+  function startText(wo) {
+    if (!wo.scheduled_start) return { main: "Sem data", sub: "Ainda não agendado" };
+    const s = new Date(wo.scheduled_start);
+    const time = s.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    return { main: I().dateRange(wo), sub: `${time} · sem fim definido` };
+  }
+
+  function destroyDetailMounts() {
+    if (commsCtl && typeof commsCtl.destroy === "function") {
+      try {
+        commsCtl.destroy();
+      } catch (_) {}
+    }
+    commsCtl = null;
+    billingCtl = null;
+  }
+
+  function panelGeral(wo) {
+    const J = I();
+    const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
+    const st = startText(wo);
+    const c = wo.customer;
+    const phone = c?.phone ? phoneDisp(c.phone) : "";
+    const tel = c?.phone ? String(c.phone).replace(/[^\d+]/g, "") : "";
+    const contact = [phone ? `<a href="tel:${J.esc(tel)}">${J.esc(phone)}</a>` : "", c?.email ? `<a href="mailto:${J.esc(c.email)}">${J.esc(c.email)}</a>` : ""].filter(Boolean).join(" · ");
+    const team = J.team(wo);
+    const teamHtml = team.length
+      ? team.map((t) => `<div class="jx-tm"><span class="jx-av${t.lead ? " jx-av--lead" : ""}">${J.esc(J.initials(t.name))}</span><span><b>${J.esc(t.name)}</b><small>${t.lead ? "Responsável" : t.temp ? "Temporário" : "Equipe"}</small></span></div>`).join("")
+      : `<p class="jx-none">Ninguém escalado.</p>`;
+    const lines = wo.line_items || [];
+    const svc = lines.length
+      ? `<table class="jx-tbl"><thead><tr><th>Serviço</th><th class="r">Qtd</th><th class="r">Total</th></tr></thead><tbody>${lines
+          .map((l) => {
+            const note = String(l.notes || "").trim();
+            return `<tr><td>${J.esc(l.service_name)}${note ? `<small class="jx-svc-note">${J.esc(note)}</small>` : ""}</td><td class="r">${qty(l.quantity_sqft)} ${J.esc(unitLabel(l.unit))}</td><td class="r">${J.money(l.line_total)}</td></tr>`;
+          })
+          .join("")}</tbody><tfoot><tr><td colspan="2">Total do job</td><td class="r">${J.money(wo.services_total)}</td></tr></tfoot></table>`
+      : `<p class="jx-none">Nenhum serviço ainda.${canManage ? " Adicione pela Tabela de Valores." : ""}</p>`;
+    const notes = String(wo.notes || "").trim();
+    const att = String(wo.campo_attention || "").trim();
+    const alertBits = [];
+    if (att) alertBits.push(`<div><b>Atenção para o campo</b><p>${J.esc(att)}</p></div>`);
+    if (wo.needs_delivery) {
+      alertBits.push(
+        `<div><b>Delivery</b><p>${J.esc(wo.delivery_pickup_address || "Retirar material da obra")}${wo.delivery_notes ? `<br>${J.esc(wo.delivery_notes)}` : ""}</p></div>`,
+      );
+    }
+    const money = canBill && wo.billing
+      ? `<div class="jx-box"><h3>Dinheiro</h3><dl class="jx-kv">
+          <dt>Total</dt><dd>${J.money(wo.billing.services_total)}</dd>
+          <dt>Faturado</dt><dd>${J.money(wo.billing.invoiced_total)}</dd>
+          <dt>Recebido</dt><dd>${J.money(wo.billing.paid_total)}</dd>
+          <dt>A faturar</dt><dd>${J.money(wo.billing.remaining_to_invoice)}</dd>
+        </dl>${canFaturar(wo) ? `<a class="jx-btn jx-btn--pri" style="margin-top:10px" href="${billHref(wo)}">Faturar ${J.money0(wo.billing.remaining_to_invoice)}</a>` : ""}</div>`
+      : "";
+    return `<div class="jx-cols">
+      <div>
+        <div class="jx-facts">
+          <div><small>Cliente</small><b>${J.esc(J.client(wo))}</b><span>${contact || J.esc(wo.builder?.name || "Sem contato")}</span></div>
+          <div><small>Start</small><b>${J.esc(st.main)}</b><span>${J.esc(st.sub)}</span></div>
+          <div><small>Equipe</small><b>${J.esc(wo.assigned_user?.name || "Sem responsável")}</b><span>${team.length > 1 ? `${team.length} na equipe` : team.length ? "Responsável" : ""}</span></div>
+          <div><small>Preços</small><b>Tabela · ${J.esc(SOURCE[wo.source_type] || "—")}</b><span>${lines.length ? `${lines.length} serviço${lines.length > 1 ? "s" : ""} · ${J.money(wo.services_total)}` : "Sem serviços"}</span></div>
+        </div>
+        ${alertBits.length ? `<div class="jx-box jx-box--alert">${alertBits.join("")}${canManage ? `<button type="button" class="jx-lnk" data-jx-tab="campo" style="margin-top:8px">Ver no Campo</button>` : ""}</div>` : ""}
+        <div class="jx-box"><h3>Serviços${canManage ? `<button type="button" class="jx-lnk" data-jx-act="services">Editar</button>` : ""}</h3>${svc}</div>
+        <div class="jx-box"><h3>Notas da obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="notes">Editar</button>` : ""}</h3>${
+          notes ? `<p class="jx-note">${J.esc(notes)}</p>` : `<p class="jx-none">Sem notas.${canManage ? " Use para acesso, portão, cuidados." : ""}</p>`
+        }</div>
+        <div class="jx-box"><h3>Obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="schedule">Agenda</button>` : ""}</h3>
+          <dl class="jx-kv">
+            <dt>Start</dt><dd>${J.esc(J.dateRange(wo))}${wo.scheduled_start ? ` · ${new Date(wo.scheduled_start).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</dd>
+            <dt>Endereço</dt><dd>${wo.address ? `<a href="${J.esc(maps)}" target="_blank" rel="noopener">${J.esc(wo.address)}</a>` : '<span class="jx-mu">Sem endereço</span>'}</dd>
+          </dl>
+        </div>
+      </div>
+      <div>
+        ${money}
+        <div class="jx-box"><h3>Equipe${canManage ? `<button type="button" class="jx-lnk" data-jx-act="team">Gerir</button>` : ""}</h3>${teamHtml}</div>
+      </div>
+    </div>`;
+  }
+
+  function panelServicos(wo) {
+    const J = I();
+    const lines = wo.line_items || [];
+    const svc = lines.length
+      ? `<table class="jx-tbl"><thead><tr><th>Serviço</th><th class="r">Qtd</th><th class="r">Preço</th><th class="r">Total</th></tr></thead><tbody>${lines
+          .map((l) => `<tr><td>${J.esc(l.service_name)}</td><td class="r">${qty(l.quantity_sqft)} ${J.esc(unitLabel(l.unit))}</td><td class="r jx-mu">${J.money(l.unit_price)}</td><td class="r">${J.money(l.line_total)}</td></tr>`)
+          .join("")}</tbody><tfoot><tr><td colspan="3">Total do job</td><td class="r">${J.money(wo.services_total)}</td></tr></tfoot></table>`
+      : `<p class="jx-none">Nenhum serviço ainda.</p>`;
+    return `<div class="jx-cols">
+      <div class="jx-box"><h3>Serviços${canManage ? `<button type="button" class="jx-lnk" data-jx-act="services">Editar serviços</button>` : ""}</h3>${svc}</div>
+      <div class="jx-box" ${canBill ? "" : "hidden"}><h3>Faturamento</h3><div id="jxBilling"></div></div>
+    </div>`;
+  }
+
+  function panelFotos(wo) {
+    const n = mediaCache ? mediaCache.length : null;
+    return `<div class="jx-box">
+      <h3>Fotos${n != null ? `<span class="jx-ch__n">${n}</span>` : ""}<a class="jx-lnk" href="job-media-board.html?job=${encodeURIComponent(wo.id)}">ObraCam</a></h3>
+      <div id="jxPhotos">${n == null ? `<p class="jx-none">A carregar fotos…</p>` : ""}</div>
+    </div>`;
+  }
+
+  function panelCampo(wo) {
+    return `<div id="jxField">${fieldCache == null ? `<div class="jx-box"><p class="jx-none">A carregar campo…</p></div>` : ""}</div>`;
+  }
+
+  function panelConversa() {
+    return `<div class="jx-box"><h3>Conversa da obra<a class="jx-lnk" href="chat.html">Abrir ObraChat</a></h3><div id="jxComms"></div></div>`;
+  }
+
+  function renderPhotosBody() {
+    const box = $("jxPhotos");
+    if (!box || mediaCache == null) return;
+    const J = I();
+    if (!mediaCache.length) {
+      box.innerHTML = `<p class="jx-none">Nenhuma foto ainda. Use ObraCam no campo ou envie pelo celular.</p>`;
+      return;
+    }
+    box.innerHTML = `<div class="jx-photos">${mediaCache
+      .slice(0, 24)
+      .map((m) => {
+        const src = m.thumb_url || m.url || m.preview_url || "";
+        const stage = m.stage === "before" ? "Antes" : m.stage === "during" ? "Durante" : m.stage === "after" ? "Depois" : "";
+        return `<a class="jx-ph" href="${J.esc(m.url || src)}" target="_blank" rel="noopener"${src ? ` style="background-image:url('${J.esc(src)}')"` : ""}>${stage ? `<span>${J.esc(stage)}</span>` : ""}</a>`;
+      })
+      .join("")}</div>${mediaCache.length > 24 ? `<p class="jx-none" style="margin-top:10px">${mediaCache.length - 24} foto(s) a mais no ObraCam.</p>` : ""}`;
+  }
+
+  function renderFieldBody(wo) {
+    const box = $("jxField");
+    if (!box) return;
+    const J = I();
+    const f = fieldCache;
+    if (!f) {
+      box.innerHTML = `<div class="jx-box"><p class="jx-none">Não foi possível carregar o campo.</p></div>`;
+      return;
+    }
+    const c = f.checklist;
+    const checklistOn = f.checklist_enabled !== false;
+    const att = String(wo.campo_attention || "").trim();
+    const ckHtml =
+      checklistOn && c
+        ? `<div class="jx-box"><h3>Checklist${c.customized ? `<span class="jx-ch__n">${c.done}/${c.total}</span>` : ""}${
+            canManage ? `<button type="button" class="jx-lnk" data-jx-act="campo">${c.customized ? "Editar" : "Criar checklist"}</button>` : ""
+          }</h3>${
+            !c.customized
+              ? `<p class="jx-none">Nenhum checklist definido.${canManage ? " Crie a lista do que a equipe precisa fazer." : ""}</p>`
+              : `<ul class="jx-check">${(c.items || [])
+                  .map((i) => `<li class="${i.done ? "is-done" : ""}"><i>${i.done ? "✓" : ""}</i><span>${J.esc(i.text)}</span></li>`)
+                  .join("")}</ul>`
+          }</div>`
+        : "";
+    box.innerHTML = `
+      ${f.problem_note ? `<div class="jx-box jx-box--alert"><div><b>Problema relatado</b><p>${J.esc(f.problem_note)}</p></div></div>` : ""}
+      ${att ? `<div class="jx-box jx-box--alert"><div><b>Atenção para o campo</b><p>${J.esc(att)}</p></div></div>` : ""}
+      ${ckHtml}
+      <div class="jx-box"><h3>Status no campo</h3><p class="jx-note">${J.esc(f.field_status_label || f.field_status || "—")}${
+        f.hours?.total ? ` · ${qty(f.hours.total)} h registradas` : ""
+      }</p></div>`;
+  }
+
+  function mountLazyPanels(wo) {
+    if (detailTab === "servicos" && canBill && window.JobBilling && $("jxBilling")) {
+      billingCtl = window.JobBilling.mountCard($("jxBilling"), {
+        jobId: wo.id,
+        jobStatus: wo.status,
+        canManage: canInvoice,
+      });
+    }
+    if (detailTab === "fotos") {
+      if (mediaCache && String(mediaCache._jobId) === String(wo.id)) renderPhotosBody();
+      else {
+        mediaCache = null;
+        api(`/api/work-orders/${encodeURIComponent(wo.id)}/media`)
+          .then((j) => {
+            if (String(selId) !== String(wo.id) || detailTab !== "fotos") return;
+            mediaCache = j.data || [];
+            mediaCache._jobId = wo.id;
+            renderPhotosBody();
+            const tab = document.querySelector('[data-jx-tab="fotos"]');
+            if (tab && mediaCache.length) tab.innerHTML = `Fotos <em>${mediaCache.length}</em>`;
+          })
+          .catch(() => {
+            const box = $("jxPhotos");
+            if (box) box.innerHTML = `<p class="jx-none">Não foi possível carregar as fotos.</p>`;
+          });
+      }
+    }
+    if (detailTab === "campo") {
+      if (fieldCache && String(fieldCache._jobId) === String(wo.id)) renderFieldBody(wo);
+      else {
+        fieldCache = null;
+        api(`/api/work-orders/${encodeURIComponent(wo.id)}/field`)
+          .then((j) => {
+            if (String(selId) !== String(wo.id) || detailTab !== "campo") return;
+            fieldCache = j.data || null;
+            if (fieldCache) fieldCache._jobId = wo.id;
+            renderFieldBody(wo);
+            const c = fieldCache?.checklist;
+            const tab = document.querySelector('[data-jx-tab="campo"]');
+            if (tab && c?.customized) tab.innerHTML = `Campo <em>${c.done}/${c.total}</em>`;
+          })
+          .catch(() => {
+            const box = $("jxField");
+            if (box) box.innerHTML = `<div class="jx-box"><p class="jx-none">Não foi possível carregar o campo.</p></div>`;
+          });
+      }
+    }
+    if (detailTab === "conversa" && window.JobChatComms && $("jxComms")) {
+      commsCtl = window.JobChatComms.mount($("jxComms"), {
+        jobId: wo.id,
+        workOrder: wo,
+        compact: true,
+        onError: (err) => notify(err.message || "Erro", "error"),
+      });
+    }
+  }
+
   function renderDetail() {
     const J = I();
     const host = $("jxDetail");
-    const wo = all.find((w) => String(w.id) === String(selId));
+    destroyDetailMounts();
+    const listWo = all.find((w) => String(w.id) === String(selId));
+    const wo = detailWo && String(detailWo.id) === String(selId) ? detailWo : listWo;
     if (!wo) {
       host.innerHTML = `<div class="jx-blank">Escolha um job na lista.</div>`;
       return;
     }
-    const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
     const lt = J.late(wo);
     const b = wo.billing;
     const bl = J.bill(wo);
     const p = primary(wo);
     const phone = wo.customer?.phone ? String(wo.customer.phone).replace(/[^\d+]/g, "") : "";
-    const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
     const s = J.step(wo);
     const steps = J.STEP_NAMES.map((n, i) => `<li class="${s < 0 ? "" : i < s ? "is-ok" : i === s ? "is-cur" : ""}"><i></i>${n}</li>`).join("");
     const team = J.team(wo);
-    const kpis = [
-      ["Total do job", J.money0(wo.services_total), `${(wo.line_items || []).length} serviço${(wo.line_items || []).length === 1 ? "" : "s"}`],
-    ];
+    const kpis = [["Total do job", J.money0(wo.services_total), `${(wo.line_items || []).length} serviço${(wo.line_items || []).length === 1 ? "" : "s"}`]];
     if (canBill && b) {
       kpis.push(["A faturar", J.money0(b.remaining_to_invoice), b.invoiced_total > 0 ? `${J.money0(b.invoiced_total)} faturado` : "nada faturado"]);
       kpis.push([b.open_balance > 0.004 ? "A receber" : "Recebido", J.money0(b.open_balance > 0.004 ? b.open_balance : b.paid_total), b.open_balance > 0.004 ? `${J.money0(b.paid_total)} recebido` : b.billing_status === "paid" ? "tudo pago" : "nada recebido"]);
     }
     kpis.push(["Equipe", team.length ? team.map((t) => t.name.split(" ")[0]).join(", ") : "Sem equipe", team.length ? `${team.length} pessoa${team.length > 1 ? "s" : ""}` : canManage ? "escalar no Editar" : ""]);
 
-    const lines = wo.line_items || [];
-    const svc = lines.length
-      ? `<table class="jx-tbl"><thead><tr><th>Serviço</th><th class="r">Qtd</th><th class="r">Total</th></tr></thead><tbody>${lines
-          .map((l) => `<tr><td>${J.esc(l.service_name)}</td><td class="r">${qty(l.quantity_sqft)} ${J.esc(unitLabel(l.unit))}</td><td class="r">${J.money(l.line_total)}</td></tr>`)
-          .join("")}</tbody><tfoot><tr><td colspan="2">Total do job</td><td class="r">${J.money(wo.services_total)}</td></tr></tfoot></table>`
-      : `<p class="jx-none">Nenhum serviço ainda.</p>`;
-
-    const ck = Array.isArray(wo.campo_checklist) ? wo.campo_checklist : Array.isArray(wo.campo_checklist?.items) ? wo.campo_checklist.items : [];
-    const ckDone = ck.filter((c) => c && (c.done || c.checked || c.completed)).length;
-    const notes = String(wo.notes || "").trim();
-    const campo = `<dl class="jx-kv">
-      <dt>Quando</dt><dd>${J.esc(J.dateRange(wo))}${wo.scheduled_start ? ` · ${new Date(wo.scheduled_start).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</dd>
-      <dt>Endereço</dt><dd>${wo.address ? `<a href="${J.esc(maps)}" target="_blank" rel="noopener">${J.esc(wo.address)}</a>` : '<span class="jx-mu">Sem endereço</span>'}</dd>
-      ${ck.length ? `<dt>Checklist</dt><dd>${ckDone} de ${ck.length}</dd>` : ""}
-      ${wo.campo_attention ? `<dt>Atenção</dt><dd>${J.esc(wo.campo_attention)}</dd>` : ""}
-      ${wo.needs_delivery ? `<dt>Delivery</dt><dd>${J.esc(wo.delivery_pickup_address || "Retirar material")}</dd>` : ""}
-      <dt>Notas</dt><dd>${notes ? J.esc(notes.length > 140 ? `${notes.slice(0, 140)}…` : notes) : '<span class="jx-mu">Sem notas</span>'}</dd>
-    </dl>`;
-    const teamHtml = team.length
-      ? team.map((t) => `<div class="jx-tm"><span class="jx-av${t.lead ? " jx-av--lead" : ""}">${J.esc(J.initials(t.name))}</span><span><b>${J.esc(t.name)}</b><small>${t.lead ? "Responsável" : t.temp ? "Temporário" : "Equipe"}</small></span></div>`).join("")
-      : `<p class="jx-none">Ninguém escalado.</p>`;
+    const tab = DETAIL_TABS.some(([k]) => k === detailTab) ? detailTab : "geral";
+    detailTab = tab;
+    const body =
+      tab === "servicos"
+        ? panelServicos(wo)
+        : tab === "fotos"
+          ? panelFotos(wo)
+          : tab === "campo"
+            ? panelCampo(wo)
+            : tab === "conversa"
+              ? panelConversa()
+              : panelGeral(wo);
 
     host.innerHTML = `
       <a class="jx-back" href="#" data-jx-back>${SVG.back}Jobs</a>
@@ -334,14 +562,13 @@
         <div class="jx-ch__r">
           <div class="jx-ch__t">
             <div class="jx-chips">${statusPill(wo)}${lt ? `<span class="jx-pill jx-pill--late">${J.esc(lt.short)}</span>` : ""}${bl && canBill && wo.status === "completed" ? `<span class="jx-pill${bl.cls === "ok" ? " jx-pill--ol" : ""}">${J.esc(bl.text)}</span>` : ""}${wo.number != null ? `<span class="jx-num">Job #${J.esc(wo.number)}</span>` : ""}</div>
-            <h2><a href="${href}">${J.esc(wo.title || `Job para ${J.client(wo)}`)}</a></h2>
+            <h2>${J.esc(wo.title || `Job para ${J.client(wo)}`)}</h2>
             <p class="jx-meta">${[`<b>${J.esc(J.client(wo))}</b>${SOURCE[wo.source_type] ? ` · ${SOURCE[wo.source_type]}` : ""}`, wo.address ? `${SVG.pin}${J.esc(wo.address)}` : "", `${SVG.cal}${J.esc(J.dateRange(wo))}`].filter(Boolean).map((x, i) => `<span class="jx-mp">${i ? '<i class="jx-dot">·</i>' : ""}${x}</span>`).join("")}</p>
           </div>
           <div class="jx-ch__acts">
             ${phone ? `<a class="jx-btn jx-btn--sq" href="tel:${J.esc(phone)}" title="Ligar para o cliente" aria-label="Ligar">${SVG.phone}</a>` : ""}
             ${canManage ? `<button type="button" class="jx-btn" data-jx-act="edit">${SVG.edit}<span>Editar</span></button>` : ""}
             ${p ? (p.href ? `<a class="jx-btn jx-btn--pri" href="${p.href}">${J.esc(p.label)}</a>` : `<button type="button" class="jx-btn jx-btn--pri" data-jx-act="${p.act}">${J.esc(p.label)}</button>`) : ""}
-            <a class="jx-btn" href="${href}">Abrir job</a>
           </div>
         </div>
         ${s >= 0 ? `<ol class="jx-steps">${steps}</ol>` : ""}
@@ -352,14 +579,31 @@
           ? `<div class="jx-alert"><div><b>${wo.status === "in_progress" ? `Passou da data de término há ${lt.days} dia${lt.days > 1 ? "s" : ""}` : `Era para começar e não foi iniciado (${lt.days} dia${lt.days > 1 ? "s" : ""})`}</b><p>${wo.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Inicie o job ou remarque a data."}</p></div>${canManage ? `<button type="button" class="jx-btn" data-jx-act="schedule">Remarcar</button>` : ""}</div>`
           : ""
       }
-      <nav class="jx-tabs"><a class="is-on" href="${href}">Visão geral</a><a href="${href}#servicos">Serviços e faturas</a><a href="${href}#fotos">Fotos</a><a href="${href}#campo">Campo</a><a href="${href}#conversa">Conversa</a></nav>
-      <div class="jx-cols">
-        <div class="jx-box"><h3>Serviços${canManage ? `<button type="button" class="jx-lnk" data-jx-act="services">Editar</button>` : ""}</h3>${svc}</div>
-        <div>
-          <div class="jx-box"><h3>Obra e campo${canManage ? `<button type="button" class="jx-lnk" data-jx-act="schedule">Agenda</button>` : ""}</h3>${campo}</div>
-          <div class="jx-box"><h3>Equipe${canManage ? `<button type="button" class="jx-lnk" data-jx-act="team">Gerir</button>` : ""}</h3>${teamHtml}</div>
-        </div>
-      </div>`;
+      <nav class="jx-tabs" role="tablist">${DETAIL_TABS.map(
+        ([k, label]) => `<button type="button" role="tab" class="${k === tab ? "is-on" : ""}" data-jx-tab="${k}" aria-selected="${k === tab}">${label}</button>`,
+      ).join("")}</nav>
+      <div class="jx-panel" data-jx-panel="${tab}">${body}</div>`;
+    mountLazyPanels(wo);
+  }
+
+  async function ensureDetailWo(id) {
+    if (!id) {
+      detailWo = null;
+      return;
+    }
+    if (detailWo && String(detailWo.id) === String(id)) return;
+    try {
+      const j = await api(`/api/work-orders/${encodeURIComponent(id)}`);
+      if (String(selId) !== String(id)) return;
+      detailWo = j.data || null;
+      if (detailWo) {
+        const ix = all.findIndex((w) => String(w.id) === String(id));
+        if (ix >= 0) all[ix] = { ...all[ix], ...detailWo };
+      }
+      renderDetail();
+    } catch (_) {
+      /* lista já tem o suficiente para a visão geral */
+    }
   }
 
   function render() {
@@ -376,9 +620,18 @@
   }
 
   function select(id, push) {
+    const changed = String(selId || "") !== String(id || "");
     selId = id;
+    if (changed) {
+      detailTab = "geral";
+      detailWo = null;
+      mediaCache = null;
+      fieldCache = null;
+      destroyDetailMounts();
+    }
     $("jxRows").querySelectorAll("[data-jx-id]").forEach((a) => a.classList.toggle("is-on", a.getAttribute("data-jx-id") === String(id)));
     renderDetail();
+    if (id) void ensureDetailWo(id);
     const narrow = !window.matchMedia("(min-width: 1025px)").matches;
     $("jxSplit").classList.toggle("is-detail", narrow && !!id);
     document.body.classList.toggle("jx-detail-open", narrow && !!id);
@@ -405,7 +658,10 @@
       if (qs.get("id")) selId = qs.get("id");
     }
     render();
-    if (selId && !window.matchMedia("(min-width: 1025px)").matches && new URLSearchParams(location.search).get("id")) select(selId, false);
+    if (selId) {
+      if (!window.matchMedia("(min-width: 1025px)").matches && new URLSearchParams(location.search).get("id")) select(selId, false);
+      else void ensureDetailWo(selId);
+    }
   }
 
   async function setStatus(id, status, msg) {
@@ -452,6 +708,15 @@
         select(null, true);
         return;
       }
+      const tabBtn = e.target.closest("[data-jx-tab]");
+      if (tabBtn) {
+        e.preventDefault();
+        const next = tabBtn.getAttribute("data-jx-tab");
+        if (!next || next === detailTab) return;
+        detailTab = next;
+        renderDetail();
+        return;
+      }
       const b = e.target.closest("[data-jx-act]");
       if (!b) return;
       const act = b.getAttribute("data-jx-act");
@@ -461,6 +726,8 @@
         else if (act === "services") await window.__crmJobModal.openEdit(id, { section: "services" });
         else if (act === "schedule") await window.__crmJobModal.openEdit(id, { section: "schedule" });
         else if (act === "team") await window.__crmJobModal.openEdit(id, { section: "team" });
+        else if (act === "notes") await window.__crmJobModal.openEdit(id, { section: "notes" });
+        else if (act === "campo") await window.__crmJobModal.openEdit(id, { section: "campo" });
         else if (act === "start") await setStatus(id, "in_progress", "Job iniciado.");
         else if (act === "complete") {
           if (!confirm("Marcar o job como concluído?")) return;
@@ -475,7 +742,12 @@
       location.href = "quote-builder.html";
     });
     window.__crmJobModal.onSaved((data) => {
-      if (data && data.id) selId = data.id;
+      if (data && data.id) {
+        selId = data.id;
+        detailWo = null;
+        mediaCache = null;
+        fieldCache = null;
+      }
       load().catch(() => {});
     });
     window.addEventListener("resize", () => {
@@ -519,8 +791,7 @@
       const openId = sessionStorage.getItem("obramate_open_job");
       if (openId) {
         sessionStorage.removeItem("obramate_open_job");
-        location.href = `job-detail.html?id=${encodeURIComponent(openId)}`;
-        return;
+        select(openId, true);
       }
       const setupId = new URLSearchParams(location.search).get("setup");
       if (canManage && setupId) {

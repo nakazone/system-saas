@@ -6684,7 +6684,7 @@
       title = 'Job criado';
       text = canInvoice
         ? `Complete a agenda/equipe no job ou fature ${money(left)}.`
-        : 'Complete Quando, Setor, Equipe e Campo no job.';
+        : 'Complete Start, Setor, Equipe e Campo no job.';
       btn = canInvoice
         ? `${invoiceBtn}<button type="button" class="btn qb-next__alt" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Criar Job</button>`
         : `<button type="button" class="btn btn-primary" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Criar Job</button>`;
@@ -6694,7 +6694,7 @@
       btn = `${invoiceBtn}${jobAlt}`;
     } else if (jobReady) {
       title = approved ? 'Aprovado — transformar em job' : 'Transformar em job';
-      text = 'Não precisa enviar ao cliente. Cliente, endereço e serviços vão para o job; complete Quando, Setor, Equipe e Campo no popup.';
+      text = 'Não precisa enviar ao cliente. Cliente, endereço e serviços vão para o job; complete Start, Setor, Equipe e Campo no popup.';
       btn = approved
         ? `${jobBtn}${invoiceAlt}`
         : `${jobBtn}<button type="button" class="btn qb-next__alt" data-qb-proxy-now="btnSend">Enviar ao cliente</button>${invoiceAlt}`;
