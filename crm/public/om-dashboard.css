@@ -498,6 +498,45 @@ a.omd-kpi:hover {
   flex-shrink: 0;
 }
 
+.omd-jobs__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.omd-jobs__nav-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--omd-ink) 12%, transparent);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--omd-ink);
+  cursor: pointer;
+}
+
+.omd-jobs__nav-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.omd-jobs__nav-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--omd-accent) 45%, transparent);
+  color: var(--omd-accent-deep);
+}
+
+.omd-jobs__nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .omd-jobs__day {
   display: flex;
   flex-direction: column;
@@ -508,6 +547,13 @@ a.omd-kpi:hover {
   background: var(--omd-soft);
   border: 1px solid transparent;
   min-width: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.omd-jobs__day:hover {
+  border-color: color-mix(in srgb, var(--omd-ink) 14%, transparent);
 }
 
 .omd-jobs__day.is-today {
@@ -517,6 +563,21 @@ a.omd-kpi:hover {
 
 .omd-jobs__day.is-busy {
   background: color-mix(in srgb, var(--omd-ink) 6%, #fff);
+}
+
+.omd-jobs__day.is-selected {
+  background: var(--omd-ink);
+  border-color: var(--omd-ink);
+  color: #fff;
+}
+
+.omd-jobs__day.is-selected .omd-jobs__day-wd,
+.omd-jobs__day.is-selected .omd-jobs__day-c {
+  color: color-mix(in srgb, #fff 72%, transparent);
+}
+
+.omd-jobs__day.is-selected .omd-jobs__day-n {
+  color: #fff;
 }
 
 .omd-jobs__day-wd {
@@ -1974,15 +2035,22 @@ body.plab.dashboard-app-body .omd-tag.is-job {
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-busy .omd-jobs__day-c {
     color: #221E1A;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today:not(.is-selected) {
+    border-color: color-mix(in srgb, var(--omd-accent) 40%, transparent);
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-selected {
     background: #221E1A;
+    border-color: #221E1A;
     color: #fff;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today .omd-jobs__day-wd {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-selected .omd-jobs__day-wd {
     color: #C8CDD5;
   }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today .omd-jobs__day-c {
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-selected .omd-jobs__day-c {
     color: #E7792C;
+  }
+  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-selected .omd-jobs__day-n {
+    color: #fff;
   }
   body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row {
     grid-template-columns: 52px minmax(0, 1fr);

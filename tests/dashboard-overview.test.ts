@@ -192,15 +192,19 @@ describe("dashboard quote + invoice sections", () => {
         q({ id: "s1", status: "sent", total: 12000 }),
         q({ id: "s2", status: "changes_requested", total: 4500 }),
         q({ id: "s3", status: "sent", total: 0 }),
+        q({ id: "v", status: "viewed", total: 2000 }),
         q({ id: "w", status: "approved", total: 9000, signedAt: ago(DAY) }),
         q({ id: "a", status: "archived", total: 3000 }),
         q({ id: "d", status: "draft", total: 8000 }),
+        // Still "sent" but lead already won/lost → not open pipeline.
+        q({ id: "sent-won", status: "sent", total: 7000, leadId: "L1", leadStatus: "won" }),
+        q({ id: "sent-lost", status: "sent", total: 4000, leadId: "L2", leadStatus: "lost" }),
       ],
       NOW,
       TZ,
       true,
     );
-    expect(pipeline_open).toEqual({ value: 16500, count: 3, without_value: 1 });
+    expect(pipeline_open).toEqual({ value: 18500, count: 4, without_value: 1 });
   });
 
   it("computes gross profit from won quotes this month (total − material − labor)", () => {

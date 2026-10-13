@@ -666,14 +666,15 @@
     const wo = job;
     const cta = $("jobMobCta");
     if (!cta || !wo) return;
-    if (wo.status === "in_progress") {
-      cta.textContent = "Concluir job";
-      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
-      cta.dataset.action = "complete";
-    } else if (wo.status === "completed" && canInvoice && wo.billing && wo.billing.remaining_to_invoice > 0.004 && window.JobBilling) {
+    if (canInvoice && wo.billing && wo.billing.remaining_to_invoice > 0.004 && window.JobBilling) {
+      // Faturar without start/finish — server marks the job completed on invoice.
       cta.textContent = `Faturar ${moneyFmt(wo.billing.remaining_to_invoice)}`;
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "invoice";
+    } else if (wo.status === "in_progress") {
+      cta.textContent = "Concluir job";
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+      cta.dataset.action = "complete";
     } else if (wo.status === "completed") {
       cta.textContent = "Ver na agenda";
       cta.className = "jcm-foot__btn jcm-foot__btn--ghost";

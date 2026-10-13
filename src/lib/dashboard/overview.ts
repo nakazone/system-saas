@@ -92,6 +92,10 @@ export type QuoteRow = {
   materialCost: number;
   laborCost: number;
   leadId: string | null;
+  /** Linked lead pipeline fields — used to drop open quotes whose lead is already won/lost. */
+  leadStatus?: string | null;
+  leadPipelineStageId?: string | null;
+  leadStageSlug?: string | null;
   customerName: string | null;
   signedAt: Date | null;
   viewedAt: Date | null;
@@ -253,8 +257,8 @@ export type DashboardOverview = {
   jobs_forecast: JobsForecastDay[] | null;
 };
 
-/** Quote statuses that still count as open pipeline (sent, waiting on client). */
-export const OPEN_QUOTE_STATUSES = ["sent", "changes_requested"] as const;
+/** Quote statuses that still count as open pipeline (waiting on client). */
+export const OPEN_QUOTE_STATUSES = ["sent", "viewed", "changes_requested"] as const;
 const OPEN_QUOTE_SET = new Set<string>(OPEN_QUOTE_STATUSES);
 export const JOBS_FORECAST_DAYS = 7;
 
@@ -478,6 +482,7 @@ export function buildQuoteSection(
   now: Date,
   tz: string,
   showMoney: boolean,
+  stageRows: StageRow[] = [],
 ): {
   pipeline_open: NonNullable<DashboardOverview["kpis"]["pipeline_open"]>;
   won_month: NonNullable<DashboardOverview["kpis"]["won_month"]>;
@@ -530,9 +535,24 @@ export function buildQuoteSection(
     }
 
     if (OPEN_QUOTE_SET.has(status)) {
-      openCount += 1;
-      if (q.total <= 0) withoutValue += 1;
-      else openValue += q.total;
+      // Lead already won/lost → quote is off the open pipeline even if status stayed "sent".
+      const leadClosed =
+        !!q.leadId &&
+        !isOpenStage(
+          resolveLeadStage(
+            {
+              status: q.leadStatus ?? null,
+              pipelineStageId: q.leadPipelineStageId ?? null,
+              stageSlug: q.leadStageSlug ?? null,
+            },
+            stageRows,
+          ),
+        );
+      if (!leadClosed) {
+        openCount += 1;
+        if (q.total <= 0) withoutValue += 1;
+        else openValue += q.total;
+      }
     }
 
     if (status === "changes_requested") {
@@ -823,13 +843,17 @@ export async function loadDashboardOverview(
     jobs_forecast: null,
   };
   const attention: AttentionItem[] = [];
+  let stageRows: StageRow[] = [];
 
-  if (access.leads) {
-    const stageRows = await tx.pipelineStage.findMany({
+  if (access.leads || access.quotes) {
+    stageRows = await tx.pipelineStage.findMany({
       where: { isActive: true },
       orderBy: { order: "asc" },
       select: { id: true, name: true, slug: true, order: true, color: true, isClosed: true },
     });
+  }
+
+  if (access.leads) {
     // Only the columns the dashboard needs — avoids loading every lead's full metadata JSON.
     const leads = await tx.$queryRaw<RawLead[]>`
       SELECT l.id, l.name, l.phone, l.source, l.status, l.notes,
@@ -879,17 +903,45 @@ export async function loadDashboardOverview(
         customer: { select: { name: true } },
       },
     });
+    // Quote.leadId has no Prisma relation — resolve lead stage separately so won/lost leads drop out of pipeline.
+    const leadIds = [...new Set(quotes.map((q) => q.leadId).filter((id): id is string => !!id))];
+    const leadById = new Map<string, { status: string | null; pipelineStageId: string | null; stageSlug: string | null }>();
+    if (leadIds.length) {
+      const leadsForQuotes = await tx.lead.findMany({
+        where: { id: { in: leadIds } },
+        select: {
+          id: true,
+          status: true,
+          pipelineStageId: true,
+          pipelineStage: { select: { slug: true } },
+        },
+      });
+      for (const lead of leadsForQuotes) {
+        leadById.set(lead.id, {
+          status: lead.status,
+          pipelineStageId: lead.pipelineStageId,
+          stageSlug: lead.pipelineStage?.slug ?? null,
+        });
+      }
+    }
     const section = buildQuoteSection(
-      quotes.map((q) => ({
-        ...q,
-        total: Number(q.total),
-        materialCost: Number(q.materialCost),
-        laborCost: Number(q.laborCost),
-        customerName: q.customer?.name ?? null,
-      })),
+      quotes.map((q) => {
+        const lead = q.leadId ? leadById.get(q.leadId) : null;
+        return {
+          ...q,
+          total: Number(q.total),
+          materialCost: Number(q.materialCost),
+          laborCost: Number(q.laborCost),
+          customerName: q.customer?.name ?? null,
+          leadStatus: lead?.status ?? null,
+          leadPipelineStageId: lead?.pipelineStageId ?? null,
+          leadStageSlug: lead?.stageSlug ?? null,
+        };
+      }),
       now,
       tz,
       access.pricing,
+      stageRows,
     );
     overview.kpis.pipeline_open = section.pipeline_open;
     overview.kpis.won_month = section.won_month;

@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="leads-mobile.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-command-palette.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="om-dashboard.css?v=20261009-btnw2" />
+  <link rel="stylesheet" href="om-dashboard.css?v=20261013-jobs1" />
   <link rel="stylesheet" href="leads-board.css?v=20261009-btnw1" />
   <script src="om-device.js?v=20261007-stable1"></script>
   <script src="crm-field-gate.js?v=20260929-dash1"></script>
@@ -189,9 +189,17 @@
               <section class="omd-card omd-jobs" id="omdJobsCard" aria-labelledby="omdJobsTitle">
                 <header class="omd-card__head">
                   <h2 id="omdJobsTitle">Previsão de jobs</h2>
-                  <a class="omd-link" href="schedule.html">Agenda</a>
+                  <div class="omd-jobs__nav" id="omdJobsNav" hidden>
+                    <button type="button" class="omd-jobs__nav-btn" id="omdJobsPrev" aria-label="Dia anterior">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <button type="button" class="omd-jobs__nav-btn" id="omdJobsNext" aria-label="Próximo dia">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                    <a class="omd-link" href="schedule.html">Agenda</a>
+                  </div>
                 </header>
-                <div class="omd-jobs__days" id="omdJobsDays" aria-hidden="true"></div>
+                <div class="omd-jobs__days" id="omdJobsDays" role="tablist" aria-label="Dias da semana"></div>
                 <ol class="omd-jobs__list" id="omdJobsList">
                   <li class="omd-row is-skeleton"></li>
                   <li class="omd-row is-skeleton"></li>
@@ -268,8 +276,8 @@
   <script src="novo-lead-sheet.js?v=20261002-tablet-leads"></script>
   <script src="pipeline-stage-labels.js?v=20261006-contacted1"></script>
   <script src="lead-quick-sheet.js?v=20261008-dnd1"></script>
-  <script src="om-dashboard.js?v=20261008-dash4"></script>
+  <script src="om-dashboard.js?v=20261013-jobs1"></script>
   <script src="lead-signals.js?v=20261009-lb1"></script>
-  <script src="pipeline-lab.js?v=20261009-lb1"></script>
+  <script src="pipeline-lab.js?v=20261013-jobs1"></script>
 </body>
 </html>

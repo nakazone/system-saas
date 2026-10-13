@@ -188,7 +188,8 @@
     if (job.status === "canceled") return null;
     const b = billing?.billing;
     if (canInvoice && b) {
-      if (job.status === "completed" && b.remaining_to_invoice > 0.004) {
+      // Faturar is available without field start/finish — invoicing marks the job completed.
+      if (b.remaining_to_invoice > 0.004) {
         return { label: `Faturar ${money0(b.remaining_to_invoice)}`, act: "invoice" };
       }
       if (b.open_balance > 0.004) {

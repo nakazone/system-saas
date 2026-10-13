@@ -188,6 +188,9 @@ describe.skipIf(!privileged)("jobs — ordem de serviço → fatura (HTTP)", () 
     expect(dep.status, JSON.stringify(dep.json)).toBe(201);
     expect(dep.json.data.amount).toBe(666);
     expect(dep.json.billing).toMatchObject({ billing_status: "partially_invoiced", remaining_to_invoice: 1554 });
+    // Faturar marks the job completed even without field start/finish.
+    const afterBill = await call(admin, "GET", `/api/work-orders/${job.id}`);
+    expect(afterBill.json.data.status).toBe("completed");
 
     // The services can't be cut below what was already billed, and the job can't be canceled.
     const cut = await call(admin, "PUT", `/api/work-orders/${job.id}`, {

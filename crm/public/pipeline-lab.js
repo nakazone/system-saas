@@ -269,19 +269,49 @@
   }
 
   const WD_PT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  let jobsForecastDayKey = null;
+
+  function jobsForecastDays() {
+    return (overview && overview.jobs_forecast) || [];
+  }
+
+  function pickJobsForecastDay(days, preferred) {
+    if (!days.length) return null;
+    if (preferred && days.some((d) => d.date === preferred)) return preferred;
+    const todayKey = overview.today || "";
+    if (todayKey && days.some((d) => d.date === todayKey)) return todayKey;
+    const busy = days.find((d) => d.count > 0);
+    return (busy || days[0]).date;
+  }
+
+  function shiftJobsForecastDay(delta) {
+    const days = jobsForecastDays();
+    if (!days.length) return;
+    const cur = pickJobsForecastDay(days, jobsForecastDayKey);
+    const idx = Math.max(0, days.findIndex((d) => d.date === cur));
+    const next = days[idx + delta];
+    if (!next) return;
+    jobsForecastDayKey = next.date;
+    renderJobsForecast();
+  }
 
   function renderJobsForecast() {
     const card = $("omdJobsCard");
     const daysEl = $("omdJobsDays");
     const list = $("omdJobsList");
+    const nav = $("omdJobsNav");
     if (!card || !daysEl || !list) return;
-    const days = overview.jobs_forecast;
-    if (days == null) {
+    const days = jobsForecastDays();
+    if (overview.jobs_forecast == null) {
       card.hidden = true;
       return;
     }
     card.hidden = false;
+    if (nav) nav.hidden = false;
     const todayKey = overview.today || "";
+    jobsForecastDayKey = pickJobsForecastDay(days, jobsForecastDayKey);
+    const selectedIdx = Math.max(0, days.findIndex((d) => d.date === jobsForecastDayKey));
+
     daysEl.innerHTML = days
       .map((d) => {
         const dt = new Date(`${d.date}T12:00:00Z`);
@@ -289,32 +319,43 @@
         const n = Number(String(d.date).slice(-2));
         const isToday = d.date === todayKey;
         const busy = d.count > 0;
-        return `<div class="omd-jobs__day${isToday ? " is-today" : ""}${busy ? " is-busy" : ""}" title="${esc(d.date)}: ${d.count}">
+        const selected = d.date === jobsForecastDayKey;
+        return `<button type="button" class="omd-jobs__day${isToday ? " is-today" : ""}${busy ? " is-busy" : ""}${
+          selected ? " is-selected" : ""
+        }" data-jobs-day="${esc(d.date)}" role="tab" aria-selected="${selected ? "true" : "false"}" title="${esc(d.date)}: ${d.count}">
           <span class="omd-jobs__day-wd">${esc(wd)}</span>
           <span class="omd-jobs__day-n">${n}</span>
           <span class="omd-jobs__day-c">${d.count || "·"}</span>
-        </div>`;
+        </button>`;
       })
       .join("");
 
-    const upcoming = [];
-    for (const d of days) {
-      for (const j of d.jobs || []) upcoming.push({ ...j, date: d.date });
-    }
-    const show = upcoming.slice(0, 6);
+    const prev = $("omdJobsPrev");
+    const next = $("omdJobsNext");
+    if (prev) prev.disabled = selectedIdx <= 0;
+    if (next) next.disabled = selectedIdx >= days.length - 1;
+
+    const day = days.find((d) => d.date === jobsForecastDayKey) || days[0];
+    const show = (day && day.jobs) || [];
     if (!show.length) {
+      const label =
+        day && day.date === todayKey
+          ? "hoje"
+          : day
+            ? `${WD_PT[new Date(`${day.date}T12:00:00Z`).getUTCDay()] || ""} ${Number(String(day.date).slice(-2))}`.trim()
+            : "este dia";
       list.innerHTML = `<li class="omd-empty">
         <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
-        <div><strong>Sem jobs nos próximos dias</strong><p>Nenhuma instalação agendada nesta semana. <a class="omd-link" href="schedule.html">Abrir agenda</a></p></div>
+        <div><strong>Sem jobs ${esc(label)}</strong><p>Nenhuma instalação agendada. <a class="omd-link" href="schedule.html">Abrir agenda</a></p></div>
       </li>`;
       return;
     }
     list.innerHTML = show
       .map((j) => {
-        const when = j.date === todayKey ? D.timeOf(j.start, overview) : String(j.date).slice(5).replace("-", "/");
+        const when = D.timeOf(j.start, overview);
         const sub = [j.person, j.address].filter(Boolean).join(" · ");
         return `<li class="omd-row omd-ev">
-          <span class="omd-ev__time"><strong>${esc(when)}</strong><span>${j.date === todayKey ? "hoje" : esc(D.timeOf(j.start, overview))}</span></span>
+          <span class="omd-ev__time"><strong>${esc(when)}</strong><span>${day.date === todayKey ? "hoje" : esc(String(day.date).slice(5).replace("-", "/"))}</span></span>
           <div class="omd-row__body">
             <p class="omd-row__title"><a href="${esc(j.href)}">${esc(j.title)}</a></p>
             ${sub ? `<p class="omd-row__detail">${esc(sub)}</p>` : ""}
@@ -322,6 +363,29 @@
         </li>`;
       })
       .join("");
+  }
+
+  function bindJobsForecastNav() {
+    const daysEl = $("omdJobsDays");
+    if (daysEl && !daysEl.dataset.bound) {
+      daysEl.dataset.bound = "1";
+      daysEl.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-jobs-day]");
+        if (!btn) return;
+        jobsForecastDayKey = btn.getAttribute("data-jobs-day");
+        renderJobsForecast();
+      });
+    }
+    const prev = $("omdJobsPrev");
+    const next = $("omdJobsNext");
+    if (prev && !prev.dataset.bound) {
+      prev.dataset.bound = "1";
+      prev.addEventListener("click", () => shiftJobsForecastDay(-1));
+    }
+    if (next && !next.dataset.bound) {
+      next.dataset.bound = "1";
+      next.addEventListener("click", () => shiftJobsForecastDay(1));
+    }
   }
 
   let dayMap = null;
@@ -889,6 +953,7 @@
 
   function bootDesktop() {
     document.title = "Dashboard | ObraMate";
+    bindJobsForecastNav();
     $("omdNewLead").addEventListener("click", () => openNewLead(() => refresh(true)));
     $("plabDockNew").addEventListener("click", () => openNewLead(() => refresh(true)));
     $("plabDockSearch").addEventListener("click", () => openSearch());

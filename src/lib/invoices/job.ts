@@ -8,9 +8,48 @@
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
+import { ensureJobChatChannel } from "../chat/job-channel.js";
 import { nextInvoiceNumber, seedDefaultPaymentTemplates } from "../payments/engine.js";
 import { computeNewInvoiceAmount } from "./core.js";
 import { stripLockbox } from "../../modules/work-orders/public-ticket.js";
+
+/**
+ * Invoicing means the work is done for office purposes — mark the job completed even if
+ * field start/finish was never used. No-op when already completed or canceled.
+ */
+export async function markWorkOrderCompletedForInvoice(
+  tx: TenantPrisma,
+  input: { organizationId: string; workOrderId: string; actorId: string; reason?: string },
+): Promise<{ completed: boolean }> {
+  const job = await tx.workOrder.findFirst({
+    where: { id: input.workOrderId, organizationId: input.organizationId },
+    select: { id: true, status: true, fieldStatus: true },
+  });
+  if (!job || job.status === "canceled" || job.status === "completed") {
+    return { completed: false };
+  }
+  await tx.workOrder.update({
+    where: { id: job.id },
+    data: {
+      status: "completed",
+      ...(job.fieldStatus !== "completed" ? { fieldStatus: "completed" } : {}),
+    },
+  });
+  await recordActivity(tx, {
+    organizationId: input.organizationId,
+    entityType: "work_order",
+    entityId: job.id,
+    actorType: "user",
+    actorId: input.actorId,
+    action: "status_changed",
+    changes: {
+      status: { from: job.status, to: "completed" },
+      reason: { from: null, to: input.reason || "invoice_issued" },
+    },
+  });
+  await ensureJobChatChannel(tx, input.organizationId, job.id);
+  return { completed: true };
+}
 
 const cents = (n: unknown) => Math.round((Number(n) || 0) * 100);
 const money = (c: number) => Math.round(c) / 100;
@@ -341,6 +380,13 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     actorId: input.actorId,
     action: "job_invoice.created",
     changes: { invoice: { from: null, to: invoiceNumber } },
+  });
+
+  await markWorkOrderCompletedForInvoice(tx, {
+    organizationId: input.organizationId,
+    workOrderId: job.id,
+    actorId: input.actorId,
+    reason: "invoice_issued",
   });
 
   const billing = jobBilling(servicesTotal, [...job.invoices, { amount: calc.amount, status: "sent", receipts: [] }]);

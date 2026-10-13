@@ -169,7 +169,7 @@
         value: hasMoney ? moneyCompact(p.value) : plural(p.count, "quote", "quotes"),
         title: hasMoney ? money(p.value) : "Quotes enviados em aberto",
         meta:
-          plural(p.count, "quote enviado", "quotes enviados") +
+          plural(p.count, "quote em aberto", "quotes em aberto") +
           (p.without_value ? ` · ${p.without_value} sem valor` : ""),
         short: plural(p.count, "quote aberto", "quotes abertos"),
         href: "quotes.html?status=sent",

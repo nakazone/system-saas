@@ -41,7 +41,13 @@ import {
   type InvoiceDetail,
 } from "../../lib/invoices/service.js";
 import { buildReceiptPdf } from "../../lib/invoices/pdf.js";
-import { invoicedTotalForJob, jobBilling, quoteInvoiceLines, quoteReferenceNoteOf } from "../../lib/invoices/job.js";
+import {
+  invoicedTotalForJob,
+  jobBilling,
+  markWorkOrderCompletedForInvoice,
+  quoteInvoiceLines,
+  quoteReferenceNoteOf,
+} from "../../lib/invoices/job.js";
 import { invoiceEmail, receiptEmail } from "../../lib/invoices/email.js";
 import { parseInvoiceSettings } from "../../lib/settings/invoices.js";
 
@@ -742,6 +748,15 @@ invoicesCrmRouter.post(
             type: { from: null, to: calc.kind },
           },
         });
+        // Linked job counts as done once the quote is invoiced (no field start/finish required).
+        if (quote.workOrderId) {
+          await markWorkOrderCompletedForInvoice(tx, {
+            organizationId: req.organizationId!,
+            workOrderId: quote.workOrderId,
+            actorId: req.user!.id,
+            reason: "quote_invoice_issued",
+          });
+        }
         return { inv, invoicedTotal: invoicedTotal + calc.amount, quoteTotal: dec(quote.total) } as const;
       });
 
