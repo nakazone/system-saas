@@ -13,7 +13,7 @@
 (function () {
   if (window.__crmDayRoute) return;
 
-  const CSS_HREF = "crm-day-route.css?v=20261006-route6";
+  const CSS_HREF = "crm-day-route.css?v=20261013-map2";
   let root = null;
   let map = null;
   let routePolylines = [];
@@ -47,12 +47,12 @@
     const base = document.querySelector('script[src*="crm-day-route"]');
     if (base && base.src) {
       try {
-        link.href = new URL("../crm-day-route.css?v=20261006-route6", base.src).href;
+        link.href = new URL("../crm-day-route.css?v=20261013-map2", base.src).href;
       } catch (_) {
-        link.href = "/crm-day-route.css?v=20261006-route6";
+        link.href = "/crm-day-route.css?v=20261013-map2";
       }
     } else {
-      link.href = "/crm-day-route.css?v=20261006-route6";
+      link.href = "/crm-day-route.css?v=20261013-map2";
     }
     document.head.appendChild(link);
   }
@@ -367,11 +367,36 @@
     routePolylines = [];
   }
 
+  /** Fit map with room around the pin(s) — single stops used to zoom in too tight. */
+  function fitMapComfortably(bounds, pointCount) {
+    if (!map || !bounds || bounds.isEmpty()) return;
+    const pad = pointCount <= 1 ? 80 : 64;
+    map.fitBounds(bounds, pad);
+    google.maps.event.addListenerOnce(map, "idle", () => {
+      const z = map.getZoom();
+      const maxZ = pointCount <= 1 ? 14 : 15;
+      if (z != null && z > maxZ) map.setZoom(maxZ);
+    });
+  }
+
+  function expandBoundsForLonePoint(bounds, lat, lng) {
+    // ~1.2 km padding so a single address is not street-level zoom.
+    const d = 0.011;
+    bounds.extend({ lat: lat - d, lng: lng - d });
+    bounds.extend({ lat: lat + d, lng: lng + d });
+  }
+
   function fitMapToPath(path) {
     if (!map || !path || !path.length) return;
     const bounds = new google.maps.LatLngBounds();
     path.forEach((pt) => bounds.extend(pt));
-    if (!bounds.isEmpty()) map.fitBounds(bounds, 56);
+    if (path.length === 1) {
+      const pt = path[0];
+      const lat = typeof pt.lat === "function" ? pt.lat() : pt.lat;
+      const lng = typeof pt.lng === "function" ? pt.lng() : pt.lng;
+      if (Number.isFinite(lat) && Number.isFinite(lng)) expandBoundsForLonePoint(bounds, lat, lng);
+    }
+    fitMapComfortably(bounds, path.length);
   }
 
   function drawPathPolyline(path) {
@@ -458,7 +483,8 @@
     if (hit && map) {
       showJsMap();
       map.panTo(hit.getPosition());
-      map.setZoom(Math.max(map.getZoom() || 12, 14));
+      const z = map.getZoom() || 13;
+      map.setZoom(Math.min(Math.max(z, 13), 15));
       return;
     }
     // Fallback: open place only if map markers missing.
@@ -473,7 +499,12 @@
       if (p.latLng) bounds.extend(p.latLng);
       else bounds.extend({ lat: p.lat, lng: p.lng });
     });
-    if (map && !bounds.isEmpty()) map.fitBounds(bounds, 56);
+    if (!map || bounds.isEmpty()) return;
+    if (points.length === 1) {
+      const p = points[0];
+      expandBoundsForLonePoint(bounds, p.lat, p.lng);
+    }
+    fitMapComfortably(bounds, points.length);
   }
 
   async function routeViaGoogle(points) {

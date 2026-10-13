@@ -10,11 +10,12 @@
   --dr-terra-soft: #FDF0E6;
 }
 .dr-backdrop {
-  position: fixed; inset: 0; z-index: 2400;
+  /* Above agenda ticket sheet (10080) so the map opens over the card. */
+  position: fixed; inset: 0; z-index: 10200;
   background: rgba(33, 29, 26, 0.45);
 }
 .dr-panel {
-  position: fixed; z-index: 2410;
+  position: fixed; z-index: 10210;
   left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   width: min(920px, calc(100vw - 24px));
@@ -112,17 +113,29 @@
 .dr-btn--ghost { border-color: transparent; background: transparent; color: var(--dr-ink-2); }
 .dr-empty { margin: 8px 4px; font-size: 13px; font-weight: 650; color: var(--dr-muted); }
 .dr-inwrap { position: relative; display: block; flex: 1; min-width: 180px; }
-/* Places dropdown is appended to body — must sit above this panel (z 2410). */
-.pac-container { z-index: 2600 !important; }
+/* Places dropdown is appended to body — must sit above this panel. */
+.pac-container { z-index: 10300 !important; }
 .dr-root .crm-photon-ac { z-index: 20; }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
   .dr-panel {
     left: 0; top: auto; bottom: 0; right: 0;
-    transform: none; width: 100%; height: min(92vh, 100%);
+    transform: none; width: 100%;
+    height: min(90dvh, 100%);
+    max-height: calc(100dvh - 12px);
     border-radius: 18px 18px 0 0;
   }
-  .dr-body { grid-template-columns: 1fr; grid-template-rows: minmax(180px, 42%) 1fr; }
+  .dr-body { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 48%) minmax(0, 1fr); }
   .dr-list { border-right: 0; border-top: 1px solid var(--dr-line); order: 2; max-height: none; }
-  .dr-map-wrap { order: 1; min-height: 180px; position: relative; }
+  .dr-map-wrap { order: 1; min-height: 220px; position: relative; }
+  .dr-origin { padding: 10px 14px; }
+  .dr-panel__hd { padding: 14px 14px 10px; }
+  .dr-ft { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
+}
+
+@media (min-width: 1025px) {
+  .dr-panel {
+    width: min(960px, calc(100vw - 48px));
+    height: min(760px, calc(100vh - 48px));
+  }
 }

@@ -170,13 +170,20 @@ html body.dashboard-app-body .ag .ag-md__n.is-today {
   .ag-dp__add svg { width: 14px !important; height: 14px !important; }
   .ag-dp__add:hover { color: var(--ink); }
   .ag-dp__list { flex: 1; overflow-y: auto; padding: 6px 10px 14px; }
-  .ag-dp__it { appearance: none; border: 0; background: transparent; width: 100%; display: flex; gap: 10px; align-items: stretch; text-align: left; padding: 10px 8px; border-radius: 14px; cursor: pointer; color: var(--ink); }
-  .ag-dp__it:hover, .ag-dp__it.is-active-ev { background: #F1F3F5; }
+  .ag-dp__it { appearance: none; border: 0; background: transparent; width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 6px 4px; border-radius: 14px; cursor: pointer; color: var(--ink); }
+  .ag-dp__it:hover, .ag-dp__it.is-active-ev { background: transparent; }
+  .ag-dp__it:hover .ag-dp__b, .ag-dp__it.is-active-ev .ag-dp__b { filter: brightness(0.97); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ev) 28%, #D0D5DD); }
   .ag-dp__it.is-done { opacity: .6; }
-  .ag-dp__it time { width: 58px; flex: none; font-size: 12.5px; font-weight: 650; color: var(--ink); padding-top: 1px; }
-  .ag-dp__it time small { display: block; font-size: 11.5px; font-weight: 500; color: var(--mut); margin-top: 1px; }
-  .ag-dp__it > i { width: 3px; border-radius: 2px; background: var(--ev); flex: none; }
-  .ag-dp__b { flex: 1; min-width: 0; }
+  .ag-dp__it time { width: 52px; flex: none; font-size: 12.5px; font-weight: 650; color: var(--ink); padding-top: 10px; line-height: 1.2; }
+  .ag-dp__it time small { display: block; font-size: 11.5px; font-weight: 500; color: var(--mut); margin-top: 2px; }
+  .ag-dp__it > i { display: none; }
+  .ag-dp__b {
+    flex: 1; min-width: 0;
+    background: var(--ev-bg, #F1F3F5);
+    border-left: 3px solid var(--ev, #98A2B3);
+    border-radius: 12px;
+    padding: 8px 10px 9px;
+  }
   .ag-dp__b em { display: block; font-style: normal; font-size: 10.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--ink2); }
   .ag-dp__b b { display: block; font-size: 13.5px; font-weight: 650; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ag-dp__b small { display: block; font-size: 12px; color: var(--ink2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

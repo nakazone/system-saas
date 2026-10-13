@@ -86,17 +86,27 @@
     visit: { label: 'Visitas', one: 'Visita', color: '#8a7460' },
     meeting: { label: 'Compromissos', one: 'Compromisso', color: '#98a2b3' },
   };
-  /** Display labels follow Configurações › Agenda (e.g. Visitas renamed to Compromissos). */
+  /** Singular label for “Novo X” from a calendar display name. */
+  function calOne(name, fallback) {
+    const n = String(name || '').trim();
+    if (!n) return fallback || '';
+    if (/ões$/i.test(n)) return n.replace(/ões$/i, 'ão');
+    if (/ais$/i.test(n)) return n.replace(/ais$/i, 'al');
+    if (/ns$/i.test(n)) return n.replace(/ns$/i, 'm');
+    if (/s$/i.test(n) && !/ss$/i.test(n) && n.length > 3) return n.slice(0, -1);
+    return n;
+  }
+
+  /** Display labels follow Configurações › Agenda (only the matching kind — no visit→meeting fallback). */
   function typeInfo(type) {
     const base = TYPES[type] || TYPES.meeting;
     if (type === 'visit') {
-      const c =
-        calList().find((x) => x.kind === 'visits') || calList().find((x) => x.kind === 'meetings');
-      if (c) return { ...base, label: c.name, one: c.name.replace(/s$/i, '') || c.name, color: c.color };
+      const c = calList().find((x) => x.kind === 'visits');
+      if (c) return { ...base, label: c.name, one: calOne(c.name, base.one), color: c.color };
     }
     if (type === 'meeting') {
       const c = calList().find((x) => x.kind === 'meetings');
-      if (c) return { ...base, label: c.name, one: c.name.replace(/s$/i, '') || c.name, color: c.color };
+      if (c) return { ...base, label: c.name, one: calOne(c.name, base.one), color: c.color };
     }
     if (type === 'job') {
       const c = calList().find((x) => x.kind === 'jobs');
@@ -1543,15 +1553,16 @@
     );
   }
 
-  function openMeetingWhereChooser(when) {
+  function openMeetingWhereChooser(when, calendarId) {
     const w = when ? (when instanceof Date ? when.toISOString() : String(when)) : '';
     const mtg = typeInfo('meeting').one;
+    const calAttr = calendarId ? ` data-ag-cal-id="${esc(calendarId)}"` : '';
     openSheet(
       `<header class="ag-sheet__bar"><button type="button" class="ag-pillbtn ag-pillbtn--ghost" data-ag-close>Cancelar</button><h2>Novo ${esc(mtg.toLowerCase())}</h2><span></span></header>
       <div class="ag-sheet__body ag-confirm" style="padding-top:8px">
         <p class="ag-hint" style="margin-bottom:16px">Onde quer criar este compromisso?</p>
         <div class="ag-confirm__acts" style="flex-direction:column;align-items:stretch;gap:10px">
-          <button type="button" class="ag-btn ag-btn--pri" data-ag-meeting-where="system" data-ag-when="${esc(w)}">Na Agenda ObraMate</button>
+          <button type="button" class="ag-btn ag-btn--pri" data-ag-meeting-where="system" data-ag-when="${esc(w)}"${calAttr}>Na Agenda ObraMate</button>
           <button type="button" class="ag-btn" data-ag-meeting-where="apple" data-ag-when="${esc(w)}">No Apple Calendar</button>
         </div>
         <p class="ag-hint" style="margin-top:14px">ObraMate: fica na agenda da equipe. Apple: só no Calendário do iPhone (não grava no sistema).</p>
@@ -1669,6 +1680,8 @@
             ? '<hr/>'
             : `<button type="button" class="ag-menu__i${it.danger ? ' is-danger' : ''}" data-ag-menu="${esc(it.act)}" ${
                 it.data ? `data-ag-when="${esc(it.data)}"` : ''
+              }${it.cal ? ` data-ag-cal-id="${esc(it.cal)}"` : ''}${
+                it.sector ? ` data-ag-cal-sector="${esc(it.sector)}"` : ''
               }><span class="ag-dot" style="--ev:${it.color || '#8a8074'}"></span>${esc(it.label)}</button>`,
         )
         .join('');
@@ -1755,12 +1768,52 @@
   function newMenu(x, y, when) {
     if (!S.canManage) return toast('Sem permissão para agendar.', 'error');
     const w = when ? when.toISOString() : '';
-    const label = when ? (when.getHours() || when.getMinutes() ? ` · ${fmtDateShort(when)} ${fmtTime(when)}` : ` · ${fmtDateShort(when)}`) : '';
-    openMenu(x, y, [
-      { act: 'new-job', label: 'Novo job' + label, color: calList()[0].color, data: w },
-      { act: 'new-visit', label: `Nova ${typeInfo('visit').one.toLowerCase()}` + label, color: typeInfo('visit').color, data: w },
-      { act: 'new-meeting', label: `Novo ${typeInfo('meeting').one.toLowerCase()}` + label, color: typeInfo('meeting').color, data: w },
-    ]);
+    const whenLabel = when
+      ? when.getHours() || when.getMinutes()
+        ? ` · ${fmtDateShort(when)} ${fmtTime(when)}`
+        : ` · ${fmtDateShort(when)}`
+      : '';
+    const cals = calList();
+    const jobs = cals.filter((c) => c.kind === 'jobs');
+    const visits = cals.filter((c) => c.kind === 'visits');
+    const meets = cals.filter((c) => c.kind === 'meetings' || c.kind === 'custom');
+    const items = [];
+    jobs.forEach((c) => {
+      const name = jobs.length > 1 ? `Novo job · ${c.name}` : 'Novo job';
+      items.push({
+        act: 'new-job',
+        label: name + whenLabel,
+        color: c.color,
+        data: w,
+        cal: c.id,
+        sector: c.sector || 'all',
+      });
+    });
+    visits.forEach((c) => {
+      items.push({
+        act: 'new-visit',
+        label: `Nova ${calOne(c.name, 'visita').toLowerCase()}` + whenLabel,
+        color: c.color,
+        data: w,
+        cal: c.id,
+      });
+    });
+    meets.forEach((c) => {
+      items.push({
+        act: 'new-meeting',
+        label: `Novo ${calOne(c.name, 'compromisso').toLowerCase()}` + whenLabel,
+        color: c.color,
+        data: w,
+        cal: c.id,
+      });
+    });
+    if (!items.length) {
+      items.push(
+        { act: 'new-job', label: 'Novo job' + whenLabel, color: TYPES.job.color, data: w },
+        { act: 'new-meeting', label: 'Novo compromisso' + whenLabel, color: TYPES.meeting.color, data: w },
+      );
+    }
+    openMenu(x, y, items);
   }
 
   function defaultStart(when) {
@@ -1783,13 +1836,18 @@
     return S.users;
   }
 
-  async function openEditor(kind, ev, when) {
+  async function openEditor(kind, ev, when, opts) {
+    opts = opts || {};
     if (kind === 'job') {
       if (!window.__crmJobModal) return toast('Editor de job indisponível.', 'error');
       closePop();
       closeSheet();
       if (ev) window.__crmJobModal.openEdit(ev.id).catch((e) => toast(e.message, 'error'));
-      else window.__crmJobModal.openCreate(when ? { start: when } : {}).catch((e) => toast(e.message, 'error'));
+      else {
+        const createOpts = when ? { start: when instanceof Date ? when : new Date(when) } : {};
+        if (opts.sector === 'installation' || opts.sector === 'sand_finish') createOpts.sector = opts.sector;
+        window.__crmJobModal.openCreate(createOpts).catch((e) => toast(e.message, 'error'));
+      }
       return;
     }
     const users = await ensureUsers();
@@ -1832,7 +1890,12 @@
             .join('')}</select></label>
           ${!isVisit ? `<label class="ag-form__row"><span>Agenda</span><select name="calendar_id">${calList()
             .filter((c) => c.kind === 'meetings' || c.kind === 'custom')
-            .map((c) => `<option value="${esc(c.kind === 'meetings' ? '' : c.id)}" ${(ev ? (m.calendar_id || '') : '') === (c.kind === 'meetings' ? '' : c.id) ? 'selected' : ''}>${esc(c.name)}</option>`)
+            .map((c) => {
+              const val = c.kind === 'meetings' ? '' : c.id;
+              const prefer = ev ? m.calendar_id || '' : opts.calendarId || '';
+              const selected = String(prefer || '') === String(val);
+              return `<option value="${esc(val)}" ${selected ? 'selected' : ''}>${esc(c.name)}</option>`;
+            })
             .join('')}</select></label>` : ''}
           ${ev ? `<label class="ag-form__row"><span>Status</span><select name="status">${Object.keys(MTG_STATUS).filter((k) => k !== 'canceled').map((k) => `<option value="${k}" ${k === ev.status ? 'selected' : ''}>${MTG_STATUS[k]}</option>`).join('')}</select></label>` : ''}
         </div>
@@ -2433,8 +2496,11 @@
         const where = el.getAttribute('data-ag-meeting-where');
         const whenRaw = el.getAttribute('data-ag-when') || '';
         const when = whenRaw ? new Date(whenRaw) : null;
+        const calId = el.getAttribute('data-ag-cal-id') || '';
         if (where === 'apple') return openAppleMeetingForm(when && !Number.isNaN(when.getTime()) ? when : null);
-        return openEditor('meeting', null, when && !Number.isNaN(when.getTime()) ? when : null);
+        return openEditor('meeting', null, when && !Number.isNaN(when.getTime()) ? when : null, {
+          calendarId: calId,
+        });
       }
       if ((el = t.closest('[data-ag-cal-del]'))) {
         const draft = ensureCalDraft();
@@ -2456,10 +2522,21 @@
         const when = el.dataset.agWhen || '';
         closeMenu();
         if (act === 'close') return;
-        if (act === 'new-job') return openEditor('job', null, when || null);
+        if (act === 'new-job') {
+          return openEditor('job', null, when || null, {
+            calendarId: el.getAttribute('data-ag-cal-id') || '',
+            sector: el.getAttribute('data-ag-cal-sector') || 'all',
+          });
+        }
         if (act === 'new-visit') return openEditor('visit', null, when || null);
         if (act === 'new-meeting') {
-          return openMeetingWhereChooser(when ? new Date(when) : null);
+          const calId = el.getAttribute('data-ag-cal-id') || '';
+          const cal = calId ? calList().find((c) => c.id === calId) : null;
+          // Custom agendas open ObraMate directly; kind=meetings still offers Apple Calendar.
+          if (cal && cal.kind === 'custom') {
+            return openEditor('meeting', null, when || null, { calendarId: calId });
+          }
+          return openMeetingWhereChooser(when ? new Date(when) : null, calId);
         }
         return;
       }
