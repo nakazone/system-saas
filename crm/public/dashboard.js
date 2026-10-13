@@ -453,6 +453,15 @@ function initSfPullToRefresh() {
     if (document.documentElement.dataset.sfPtrBound) return;
     document.documentElement.dataset.sfPtrBound = '1';
 
+    // Hide legacy PTR copy chips; brand veil handles feedback.
+    try {
+        if (window.OmReload && typeof window.OmReload.ptrInit === 'function') {
+            document.querySelectorAll('.sf-ptr-indicator, .om-ptr').forEach((el) => {
+                window.OmReload.ptrInit(el);
+            });
+        }
+    } catch (_) {}
+
     const onTouchStart = (e) => {
         if (!isTouchViewport()) return;
         if (!getSfPtrIndicatorForPage(currentPageName)) return;
@@ -469,7 +478,7 @@ function initSfPullToRefresh() {
         const ind = getSfPtrIndicatorForPage(currentPageName);
         if (!ind) return;
         if (!isSfPtrAtScrollTop(e.target)) {
-            ind.classList.remove('sf-ptr-visible');
+            ind.classList.remove('sf-ptr-visible', 'is-ready');
             sfPtrArmed = false;
             return;
         }
@@ -479,11 +488,12 @@ function initSfPullToRefresh() {
                 e.preventDefault();
             } catch (err) {}
         }
+        const R = window.OmReload;
         if (dy > 48) {
-            ind.classList.add('sf-ptr-visible');
-            const ready = dy > 64;
-            ind.classList.toggle('is-ready', ready);
-            ind.textContent = ready ? '↓ Largar para atualizar' : '↓ Puxe para atualizar';
+            // No top chip/copy — threshold only; brand veil on release.
+            ind.classList.remove('sf-ptr-visible');
+            ind.classList.toggle('is-ready', dy > 64);
+            if (R) R.ptrSet(ind, 'pull', Math.min(1, (dy - 48) / 40), '');
         } else {
             ind.classList.remove('sf-ptr-visible', 'is-ready');
         }
@@ -492,25 +502,26 @@ function initSfPullToRefresh() {
     const onTouchEnd = async () => {
         if (!isTouchViewport()) return;
         const ind = getSfPtrIndicatorForPage(currentPageName);
-        const refresh = !!(ind && ind.classList.contains('sf-ptr-visible'));
+        const R = window.OmReload;
+        const refresh = !!(ind && ind.classList.contains('is-ready'));
         sfPtrPulling = false;
         sfPtrArmed = false;
-        if (ind) {
-            ind.classList.remove('sf-ptr-visible', 'is-ready');
-            if (refresh) ind.textContent = 'A atualizar…';
-        }
+        if (ind) ind.classList.remove('sf-ptr-visible', 'is-ready');
         if (refresh && isSfPtrAtScrollTop(document.body) && !sfPtrRefreshing) {
             sfPtrRefreshing = true;
             try {
                 navigator.vibrate(12);
             } catch (err) {}
+            if (R) R.ptrSet(ind, 'busy', 1, '');
             try {
                 await new Promise((r) => setTimeout(r, 180));
                 await runSfPtrRefresh(currentPageName);
             } finally {
                 sfPtrRefreshing = false;
-                if (ind) ind.textContent = '↓ Puxe para atualizar';
+                if (R) R.ptrSet(ind, 'done', 1, '');
             }
+        } else if (R && typeof R.hideLoading === 'function') {
+            R.hideLoading(true);
         }
     };
 

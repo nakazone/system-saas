@@ -7,7 +7,7 @@
 (function (global) {
   "use strict";
 
-  const VER = "20261013-rl3";
+  const VER = "20261013-rl4";
 
   function isTouchViewport() {
     // Phones + tablets (iPad landscape can exceed 900px).
@@ -58,6 +58,19 @@
     const key = opts.key || "default";
     if (!global.__omPtrRegistry) global.__omPtrRegistry = Object.create(null);
     global.__omPtrRegistry[key] = opts;
+
+    // Hide legacy “Puxe/Solte para atualizar” chips when brand reload is available.
+    try {
+      const ind =
+        typeof opts.indicator === "string"
+          ? document.querySelector(opts.indicator)
+          : opts.indicator;
+      if (ind && global.OmReload && typeof global.OmReload.ptrInit === "function") {
+        global.OmReload.ptrInit(ind);
+      }
+    } catch (_) {
+      /* ignore */
+    }
 
     if (document.documentElement.dataset.omPtrBound === "1") return;
     document.documentElement.dataset.omPtrBound = "1";
@@ -124,12 +137,12 @@
         }
         const R = global.OmReload;
         if (R) {
-          // símbolo da marca montando conforme o dedo desce (animação "Montagem")
+          // No top chip/copy — threshold only; brand veil shows on release.
           if (dy > 14) {
             const ok = dy > 72;
-            ind.classList.add("om-ptr-visible");
+            ind.classList.remove("om-ptr-visible");
             ind.classList.toggle("is-ready", ok);
-            R.ptrSet(ind, "pull", (dy - 14) / 58, ok ? o.labelReady || "Solte para atualizar" : o.labelIdle || "Puxe para atualizar");
+            R.ptrSet(ind, "pull", (dy - 14) / 58, "");
           } else {
             ind.classList.remove("om-ptr-visible", "is-ready");
           }
@@ -158,14 +171,19 @@
       const o = global.__omPtrRegistry[activeKey];
       const ind = indEl(o);
       const R = global.OmReload;
-      const should = !!(ind && ind.classList.contains("om-ptr-visible") && ind.classList.contains("is-ready"));
+      // With OmReload: ready flag only (no top chip). Without: need visible + ready.
+      const should = !!(
+        ind &&
+        ind.classList.contains("is-ready") &&
+        (R || ind.classList.contains("om-ptr-visible"))
+      );
       pulling = false;
       armed = false;
       if (!should || refreshing) {
         if (ind) {
           ind.classList.remove("om-ptr-visible", "is-ready", "is-busy");
           if (R) {
-            R.ptrSet(ind, "pull", 0, (o && o.labelIdle) || "Puxe para atualizar");
+            R.ptrSet(ind, "pull", 0, "");
             if (typeof R.hideLoading === "function") R.hideLoading(true);
           } else {
             ind.textContent = (o && o.labelIdle) || "↓ Puxe para atualizar";
@@ -177,15 +195,11 @@
       refreshing = true;
       haptic(12);
       if (ind) {
-        ind.classList.remove("is-ready");
+        ind.classList.remove("is-ready", "om-ptr-visible");
         if (R) {
-          // Full-screen brand veil (ptrSet busy) — hide the tiny top chip so it
-          // doesn't sit as a frozen logo block on iOS.
-          ind.classList.remove("om-ptr-visible");
           ind.classList.add("is-busy");
-          R.ptrSet(ind, "busy", 1, o.labelBusy || "Atualizando…");
+          R.ptrSet(ind, "busy", 1, "");
         } else {
-          ind.classList.remove("om-ptr-visible");
           ind.textContent = o.labelBusy || "A atualizar…";
         }
       }
@@ -195,9 +209,8 @@
         refreshing = false;
         activeKey = null;
         if (ind && R) {
-          ind.classList.remove("is-busy");
-          R.ptrSet(ind, "done", 1, "Atualizado");
-          ind.classList.remove("om-ptr-visible");
+          ind.classList.remove("is-busy", "om-ptr-visible");
+          R.ptrSet(ind, "done", 1, "");
         } else if (ind) {
           ind.textContent = o.labelIdle || "↓ Puxe para atualizar";
         }
