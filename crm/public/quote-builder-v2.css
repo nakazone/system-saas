@@ -70,6 +70,8 @@ body.qb-dashboard-inner #qbClientSection .qb-sheet__body { padding: 10px 16px 14
 
 /* party tabs → small segmented */
 body.qb-dashboard-inner .qb-party-tabs { display: inline-flex; gap: 3px; padding: 3px; background: var(--q-cream); border-radius: 11px; width: auto; grid-template-columns: none; margin-bottom: 10px; flex-wrap: wrap; }
+body.qb-dashboard-inner .qb-party-tabs.is-solo,
+body.qb-dashboard-inner .qb-party-tabs[hidden] { display: none !important; }
 body.qb-dashboard-inner .qb-party-tab { height: 32px; padding: 0 14px; border-radius: 8px; border: 0; background: transparent; color: var(--q-ink2); font-weight: 800; font-size: 13px; flex: none; width: auto; min-height: 0; }
 body.qb-dashboard-inner .qb-party-tab.is-active { background: #fff; color: var(--q-ink); box-shadow: 0 1px 3px rgba(33, 29, 26, 0.14); }
 

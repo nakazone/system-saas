@@ -1389,24 +1389,14 @@
     return false;
   }
 
-  function partyTypeLabel(party) {
-    if (party === 'builder') return 'Builder';
-    if (party === 'loja') return 'Loja';
-    return 'Leads / Particular';
-  }
-
   function syncPartyTabsVisibility() {
     const selected = hasSelectedClient();
     const party = getQuoteParty();
     const tabs = $('qbPartyTabs');
-    const bar = $('qbClientSelectedBar');
-    const typeEl = $('qbClientSelectedType');
     if (tabs) {
       tabs.classList.toggle('is-solo', selected);
       tabs.hidden = selected;
     }
-    if (bar) bar.hidden = !selected;
-    if (typeEl) typeEl.textContent = partyTypeLabel(party);
     document.querySelectorAll('.qb-party-tab').forEach((btn) => {
       btn.hidden = false;
       if (btn.getAttribute('data-party') === 'lead') btn.textContent = 'Leads / Particular';
@@ -1916,7 +1906,10 @@
         <a class="qb-client-card__val qb-client-card__addr" id="${escapeAttr(opts.addressId || '')}" href="${escapeAttr(maps)}" target="_blank" rel="noopener">${soft(address)}</a>
       </div>`;
     }
-    return `<p class="qb-client-card__name" id="${escapeAttr(opts.nameId || '')}">${soft(name || '—')}</p>
+    return `<div class="qb-client-card__head">
+        <p class="qb-client-card__name" id="${escapeAttr(opts.nameId || '')}">${soft(name || '—')}</p>
+        <button type="button" class="qb-client-card__clear" data-qb-clear-client title="Remover cliente" aria-label="Remover cliente selecionado">×</button>
+      </div>
       ${sub ? `<p class="qb-client-card__sub">${soft(sub)}</p>` : ''}
       ${rows}`;
   }
@@ -6156,7 +6149,9 @@
     $('btnEditClient')?.addEventListener('click', () => void openClientEditForm());
     $('btnEditClientCancel')?.addEventListener('click', hideClientForms);
     $('btnEditClientSave')?.addEventListener('click', () => void saveClientEdits());
-    $('btnClearClient')?.addEventListener('click', () => {
+    $('qbClientSection')?.addEventListener('click', (e) => {
+      const clearBtn = e.target.closest('[data-qb-clear-client]');
+      if (!clearBtn) return;
       clearSelectedClient();
       qbToast('Cliente removido. Escolha o tipo novamente.', 'info');
     });

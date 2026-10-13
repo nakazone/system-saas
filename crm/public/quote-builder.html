@@ -517,8 +517,9 @@
         padding: 0.55rem 0.75rem;
       }
     }
-    .qb-party-tabs.is-solo {
-      display: none;
+    .qb-party-tabs.is-solo,
+    .qb-party-tabs[hidden] {
+      display: none !important;
     }
     .qb-quote-note {
       margin: 0.85rem 0 0;
@@ -889,14 +890,47 @@
     .qb-client-card.hidden {
       display: none !important;
     }
-    .qb-client-card__name {
+    .qb-client-card__head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.65rem;
       margin: 0 0 0.65rem;
+    }
+    .qb-client-card__name {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
       font-size: 1.35rem;
       font-weight: 800;
       letter-spacing: -0.02em;
       line-height: 1.2;
       color: #221e1a;
       overflow-wrap: anywhere;
+    }
+    .qb-client-card__clear {
+      appearance: none;
+      flex: none;
+      width: 32px;
+      height: 32px;
+      margin: -0.15rem -0.25rem 0 0;
+      padding: 0;
+      border: 0;
+      border-radius: 10px;
+      background: #f3f1ee;
+      box-shadow: 0 0 0 1px #e5e2da;
+      color: #64748b;
+      font-size: 1.35rem;
+      font-weight: 500;
+      line-height: 1;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+    .qb-client-card__clear:hover {
+      background: #fff;
+      color: #221e1a;
+      box-shadow: 0 0 0 1px #cbd5e1;
     }
     .qb-client-card__sub {
       margin: -0.35rem 0 0.65rem;
@@ -1909,8 +1943,8 @@
   </style>
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="quote-builder-v2.css?v=20261012-jq1" />
-  <link rel="stylesheet" href="quote-builder-v3.css?v=20261013-clear1" />
+  <link rel="stylesheet" href="quote-builder-v2.css?v=20261013-clear2" />
+  <link rel="stylesheet" href="quote-builder-v3.css?v=20261013-clear2" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20261012-svcqpe2" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="stylesheet" href="quote-paper.css?v=20261012-qp4" />
@@ -2060,10 +2094,6 @@
                   <button type="button" class="qb-party-tab is-active" id="qbPartyLead" data-party="lead">Leads / Particular</button>
                   <button type="button" class="qb-party-tab" id="qbPartyBuilder" data-party="builder">Builder</button>
                   <button type="button" class="qb-party-tab" id="qbPartyLoja" data-party="loja">Loja</button>
-                </div>
-                <div class="qb-client-selected" id="qbClientSelectedBar" hidden>
-                  <span class="qb-client-selected__type" id="qbClientSelectedType">Cliente</span>
-                  <button type="button" class="qb-client-selected__clear" id="btnClearClient" title="Remover cliente" aria-label="Remover cliente selecionado">×</button>
                 </div>
                 <div id="qbLeadPanel">
                 <div class="qb-client-search" id="qbClientSearchWrap">
@@ -2771,7 +2801,7 @@
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="quote-paper.js?v=20261013-supply1"></script>
   <script src="crm-job-modal.js?v=20261012-noct1"></script>
-  <script src="quote-builder.js?v=20261013-clear1"></script>
+  <script src="quote-builder.js?v=20261013-clear2"></script>
   <script src="quote-services-popup.js?v=20261012-qp3"></script>
   <script>
     (function () {

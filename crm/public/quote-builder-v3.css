@@ -105,21 +105,12 @@ body.qb-v3 #qbClientSection .qb-sheet__body { padding: 12px 18px 16px; }
 body.qb-v3 .qb-party-tabs { background: #EEF0F3; }
 body.qb-v3 .qb-party-tab { height: 28px; padding: 0 12px; font-weight: 600; font-size: 12.5px; color: var(--q-ink2); }
 body.qb-v3 .qb-party-tab.is-active { color: var(--q-ink); box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
-body.qb-v3 .qb-client-selected {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  margin: 0 0 10px; padding: 8px 10px 8px 12px; border-radius: 12px; background: var(--q-cream, #F7F8FA);
-  box-shadow: 0 0 0 1px var(--q-line, #E5E7EB);
-}
-body.qb-v3 .qb-client-selected[hidden] { display: none !important; }
-body.qb-v3 .qb-client-selected__type {
-  font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--q-ink2);
-}
-body.qb-v3 .qb-client-selected__clear {
+body.qb-v3 .qb-client-card__clear {
   appearance: none; border: 0; width: 32px; height: 32px; border-radius: 10px; background: #fff;
   box-shadow: 0 0 0 1px var(--q-line, #E5E7EB); color: var(--q-ink2); font-size: 22px; font-weight: 500;
   line-height: 1; cursor: pointer; display: grid; place-items: center; padding: 0;
 }
-body.qb-v3 .qb-client-selected__clear:hover { background: #F1F3F5; color: var(--q-ink); }
+body.qb-v3 .qb-client-card__clear:hover { background: #F1F3F5; color: var(--q-ink); }
 body.qb-v3 .qb-client-search input,
 body.qb-v3 #quoteJobName,
 body.qb-v3 .qb-client-meta select,
