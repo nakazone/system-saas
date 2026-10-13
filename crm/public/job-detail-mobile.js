@@ -665,20 +665,39 @@
   function restoreVisitCta() {
     const wo = job;
     const cta = $("jobMobCta");
+    const sec = $("jobMobCtaSecondary");
     if (!cta || !wo) return;
-    if (canInvoice && wo.billing && wo.billing.remaining_to_invoice > 0.004 && window.JobBilling) {
-      // Faturar without start/finish — server marks the job completed on invoice.
-      cta.textContent = `Faturar ${moneyFmt(wo.billing.remaining_to_invoice)}`;
+    if (sec) {
+      sec.hidden = true;
+      sec.dataset.action = "";
+    }
+    // Ops before billing so off-schedule jobs can still be started / marked done.
+    if (canManage && (wo.status === "draft" || wo.status === "scheduled")) {
+      cta.textContent = "Iniciar job";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
-      cta.dataset.action = "invoice";
-    } else if (wo.status === "in_progress") {
+      cta.dataset.action = "start";
+      if (sec) {
+        sec.hidden = false;
+        sec.textContent = "Já concluído";
+        sec.className = "jcm-foot__btn jcm-foot__btn--ghost";
+        sec.dataset.action = "complete";
+      }
+    } else if (canManage && wo.status === "in_progress") {
       cta.textContent = "Concluir job";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "complete";
+    } else if (canInvoice && wo.billing && wo.billing.remaining_to_invoice > 0.004 && window.JobBilling) {
+      cta.textContent = `Faturar ${moneyFmt(wo.billing.remaining_to_invoice)}`;
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+      cta.dataset.action = "invoice";
     } else if (wo.status === "completed") {
       cta.textContent = "Ver na agenda";
       cta.className = "jcm-foot__btn jcm-foot__btn--ghost";
       cta.dataset.action = "schedule";
+    } else if (!canManage && (wo.status === "draft" || wo.status === "scheduled" || wo.status === "in_progress")) {
+      cta.textContent = wo.status === "in_progress" ? "Abrir no Campo" : "Iniciar no Campo";
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+      cta.dataset.action = "campo";
     } else {
       cta.textContent = "Iniciar job";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
@@ -746,8 +765,8 @@
       if (!btn) return;
       openServicesModal();
     });
-    $("jobMobCta")?.addEventListener("click", async () => {
-      const action = $("jobMobCta").dataset.action;
+    async function runMobCta(action) {
+      if (!action) return;
       try {
         if (action === "photo") {
           $("jobMobCameraInput")?.click() ||
@@ -785,7 +804,9 @@
       } catch (e) {
         window.crmToast?.error?.(e.message || "Erro");
       }
-    });
+    }
+    $("jobMobCta")?.addEventListener("click", () => runMobCta($("jobMobCta").dataset.action));
+    $("jobMobCtaSecondary")?.addEventListener("click", () => runMobCta($("jobMobCtaSecondary").dataset.action));
     $("jobMobPhotosQuick")?.addEventListener("click", (e) => {
       e.preventDefault();
       detTab = "fotos";

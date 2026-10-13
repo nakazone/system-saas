@@ -132,9 +132,15 @@
     card.hidden = !lt;
     if (!lt) return;
     const d = `${lt.days} dia${lt.days > 1 ? "s" : ""}`;
+    const ops =
+      job.status === "in_progress"
+        ? `<button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="complete">Concluir job</button>`
+        : job.status === "draft" || job.status === "scheduled"
+          ? `<button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="start">Iniciar job</button><button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="complete">Já concluído</button>`
+          : "";
     card.innerHTML = `<b>${job.status === "in_progress" ? `Passou da data de término há ${d}` : `Era para começar e não foi iniciado (${d})`}</b>
-      <p>${job.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Inicie o job ou remarque a data."}</p>
-      ${canManage ? `<div class="jd-late__acts"><button type="button" class="jd-btn jd-btn--sm" data-primary="schedule">Remarcar</button><a class="jd-btn jd-btn--sm jd-btn--ghost" href="${esc($("btnOpenSchedule").href)}">Ver na agenda</a></div>` : ""}`;
+      <p>${job.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Pode iniciar, marcar como já concluído ou remarcar — mesmo fora do dia agendado."}</p>
+      ${canManage ? `<div class="jd-late__acts">${ops}<button type="button" class="jd-btn jd-btn--sm" data-primary="schedule">Remarcar</button><a class="jd-btn jd-btn--sm jd-btn--ghost" href="${esc($("btnOpenSchedule").href)}">Ver na agenda</a></div>` : ""}`;
   }
 
   // ---------------------------------------------------------------- header
@@ -187,8 +193,13 @@
   function primaryAction() {
     if (job.status === "canceled") return null;
     const b = billing?.billing;
+    // Ops first so late / off-schedule jobs keep Iniciar & Concluir visible.
+    if (canManage) {
+      if (!job.line_items?.length) return { label: "Adicionar serviços", act: "services" };
+      if (job.status === "draft" || job.status === "scheduled") return { label: "Iniciar job", act: "start" };
+      if (job.status === "in_progress") return { label: "Concluir job", act: "complete" };
+    }
     if (canInvoice && b) {
-      // Faturar is available without field start/finish — invoicing marks the job completed.
       if (b.remaining_to_invoice > 0.004) {
         return { label: `Faturar ${money0(b.remaining_to_invoice)}`, act: "invoice" };
       }
@@ -198,11 +209,7 @@
         if (open) return { label: open.display_status === "draft" ? "Enviar fatura" : "Receber pagamento", href: open.url };
       }
     }
-    if (!canManage) return null;
-    if (!job.line_items?.length) return { label: "Adicionar serviços", act: "services" };
-    if (!job.scheduled_start) return { label: "Agendar", act: "schedule" };
-    if (job.status === "draft" || job.status === "scheduled") return { label: "Iniciar job", act: "start" };
-    if (job.status === "in_progress") return { label: "Concluir job", act: "complete" };
+    if (canManage && !job.scheduled_start && job.status !== "completed") return { label: "Agendar", act: "schedule" };
     return null;
   }
   function renderPrimary() {

@@ -83,7 +83,7 @@
 .jd-late { background: #FBF1EA; box-shadow: 0 0 0 1px #F2D9C6; }
 .jd-late b { display: block; font-size: 14.5px; font-weight: 650; color: #7A3A12; }
 .jd-late p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: #8A4A22; }
-.jd-late__acts { display: flex; gap: 6px; margin-top: 10px; }
+.jd-late__acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .jd-late .jd-btn--ghost { color: #7A3A12; }
 
 /* dinheiro e equipe */

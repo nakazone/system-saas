@@ -156,10 +156,11 @@
 .jx-kpis span { display: block; font-size: 11.5px; color: var(--jx-ink2); }
 .jx-kpis b { display: block; margin-top: 2px; font-size: 18px; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jx-kpis small { display: block; font-size: 11.5px; color: var(--jx-ink2); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.jx-alert { display: flex; align-items: center; gap: 14px; padding: 13px 16px; border-radius: 18px; background: #FBF1EA; box-shadow: 0 0 0 1px #F2D9C6; margin-bottom: 14px; }
+.jx-alert { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 13px 16px; border-radius: 18px; background: #FBF1EA; box-shadow: 0 0 0 1px #F2D9C6; margin-bottom: 14px; }
 .jx-alert > div { flex: 1; min-width: 0; }
 .jx-alert b { display: block; font-size: 14px; font-weight: 650; color: #7A3A12; }
 .jx-alert p { margin: 2px 0 0; font-size: 12.5px; color: #8A4A22; }
+.jx-alert__acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .jx-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--jx-line); margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
 .jx-tabs a,
 .jx-tabs button {

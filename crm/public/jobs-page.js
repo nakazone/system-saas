@@ -269,13 +269,29 @@
   function primary(wo) {
     if (wo.status === "canceled") return null;
     const b = wo.billing;
+    // Field/ops status first — Faturar must not hide Iniciar/Concluir (incl. late jobs).
+    if (canManage) {
+      if (!(wo.line_items || []).length) return { label: "Adicionar serviços", act: "services" };
+      if (wo.status === "draft" || wo.status === "scheduled") return { label: "Iniciar job", act: "start" };
+      if (wo.status === "in_progress") return { label: "Concluir job", act: "complete" };
+      if (!wo.scheduled_start && wo.status !== "completed") return { label: "Agendar", act: "schedule" };
+    }
     if (canFaturar(wo)) return { label: `Faturar ${I().money0(b.remaining_to_invoice)}`, href: billHref(wo) };
-    if (!canManage) return null;
-    if (!(wo.line_items || []).length) return { label: "Adicionar serviços", act: "services" };
-    if (!wo.scheduled_start) return { label: "Agendar", act: "schedule" };
-    if (wo.status === "draft" || wo.status === "scheduled") return { label: "Iniciar job", act: "start" };
-    if (wo.status === "in_progress") return { label: "Concluir job", act: "complete" };
     return null;
+  }
+
+  /** Extra CTA when job is late: allow jump to completed without going through “Em campo”. */
+  function lateActions(wo) {
+    if (!canManage || wo.status === "canceled" || wo.status === "completed") return [];
+    const acts = [];
+    if (wo.status === "draft" || wo.status === "scheduled") {
+      acts.push({ label: "Iniciar", act: "start" });
+      acts.push({ label: "Já concluído", act: "complete" });
+    } else if (wo.status === "in_progress") {
+      acts.push({ label: "Concluir", act: "complete" });
+    }
+    acts.push({ label: "Remarcar", act: "schedule" });
+    return acts;
   }
 
   function statusPill(wo) {
@@ -694,7 +710,13 @@
       </div>
       ${
         lt
-          ? `<div class="jx-alert"><div><b>${wo.status === "in_progress" ? `Passou da data de término há ${lt.days} dia${lt.days > 1 ? "s" : ""}` : `Era para começar e não foi iniciado (${lt.days} dia${lt.days > 1 ? "s" : ""})`}</b><p>${wo.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Inicie o job ou remarque a data."}</p></div>${canManage ? `<button type="button" class="jx-btn" data-jx-act="schedule">Remarcar</button>` : ""}</div>`
+          ? `<div class="jx-alert"><div><b>${wo.status === "in_progress" ? `Passou da data de término há ${lt.days} dia${lt.days > 1 ? "s" : ""}` : `Era para começar e não foi iniciado (${lt.days} dia${lt.days > 1 ? "s" : ""})`}</b><p>${wo.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Pode iniciar, marcar como já concluído ou remarcar a data — mesmo fora do dia agendado."}</p></div>${
+              canManage
+                ? `<div class="jx-alert__acts">${lateActions(wo)
+                    .map((a) => `<button type="button" class="jx-btn${a.act === "complete" || a.act === "start" ? " jx-btn--pri" : ""}" data-jx-act="${a.act}">${J.esc(a.label)}</button>`)
+                    .join("")}</div>`
+                : ""
+            }</div>`
           : ""
       }
       <nav class="jx-tabs" role="tablist">${DETAIL_TABS.map(

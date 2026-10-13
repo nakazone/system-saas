@@ -172,9 +172,11 @@
       wo.status === "in_progress"
         ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Concluir</button>`
         : wo.status === "scheduled" || wo.status === "draft"
-          ? wo.scheduled_start
-            ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button>`
-            : `<a class="jmx-b" href="${detailHref}">Agendar</a>`
+          ? canManage
+            ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button><button type="button" class="jmx-b" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Já concluído</button>`
+            : wo.scheduled_start
+              ? `<a class="jmx-b jmx-b--or" href="campo/ticket.html?id=${encodeURIComponent(wo.id)}">Campo</a>`
+              : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
           : canInvoice && wo.status === "completed" && b && b.remaining_to_invoice > 0.004
             ? `<a class="jmx-b jmx-b--or" href="invoices.html?new=1&job=${encodeURIComponent(wo.id)}">Faturar</a>`
             : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
@@ -363,6 +365,7 @@
       location.href = `job-detail.html?id=${encodeURIComponent(id)}`;
       return;
     }
+    if (status === "completed" && !confirm("Marcar o job como concluído?")) return;
     try {
       await fetch(`/api/work-orders/${id}`, {
         credentials: "include",
