@@ -21,17 +21,17 @@
   const CSS = `
 .om-rl{display:block;overflow:visible}
 .om-rl polygon{fill:${ORANGE};transform:translate(var(--dx),var(--dy));opacity:0}
-.om-rl.is-in polygon{animation:omRlIn var(--rl-dur,.9s) cubic-bezier(.34,1.56,.64,1) both;animation-delay:calc(var(--i) * var(--rl-gap,.11s))}
-.om-rl.is-loop polygon{animation:omRlLoop 1.7s infinite both;animation-delay:calc(var(--i) * .12s)}
+.om-rl.is-in polygon{animation:omRlIn var(--rl-dur,1.05s) cubic-bezier(.34,1.4,.64,1) both;animation-delay:calc(var(--i) * var(--rl-gap,.14s))}
+.om-rl.is-loop polygon{animation:omRlLoop 2.2s infinite both;animation-delay:calc(var(--i) * .16s)}
 .om-rl.is-manual polygon{animation:none;transform:translate(calc(var(--dx) * (1 - var(--p,0))),calc(var(--dy) * (1 - var(--p,0))));opacity:min(1,calc(var(--p,0) * 2.5))}
 .om-rl.is-done polygon{animation:none;transform:none;opacity:1}
 @keyframes omRlIn{0%{transform:translate(var(--dx),var(--dy));opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
-@keyframes omRlLoop{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}30%{transform:translate(var(--dx),var(--dy));opacity:0;animation-timing-function:cubic-bezier(.34,1.56,.64,1)}100%{transform:translate(0,0);opacity:1}}
-.om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .45s ease}
+@keyframes omRlLoop{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}28%{transform:translate(var(--dx),var(--dy));opacity:0;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}100%{transform:translate(0,0);opacity:1}}
+.om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .55s ease}
 .om-rl-splash.is-out{opacity:0;pointer-events:none}
-.om-rl-splash img{width:188px;height:auto;opacity:0;transform:translateY(6px);transition:opacity .5s ease,transform .5s ease}
+.om-rl-splash img{width:188px;height:auto;opacity:0;transform:translateY(6px);transition:opacity .55s ease,transform .55s ease}
 .om-rl-splash.is-word img{opacity:1;transform:none}
-.om-rl-ov{position:fixed;inset:0;z-index:2147482000;background:rgba(247,248,250,.86);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s ease}
+.om-rl-ov{position:fixed;inset:0;z-index:2147482000;background:rgba(247,248,250,.9);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .38s ease}
 .om-rl-ov.is-on{opacity:1;pointer-events:auto}
 @media (prefers-reduced-motion: reduce){
   .om-rl polygon,.om-rl.is-in polygon,.om-rl.is-manual polygon{animation:none;transform:none;opacity:1}
@@ -116,19 +116,32 @@
     document.body.appendChild(ov);
     return ov;
   }
+  let ovShownAt = 0;
+  const OV_MIN_MS = 720; // enough for one calm assemble cycle — avoids flashy “bug” transitions
   function showLoading(delay) {
     if (!document.body) return;
     clearTimeout(ovTimer);
     ovTimer = setTimeout(() => {
       overlay().classList.add("is-on");
+      ovShownAt = Date.now();
       clearTimeout(ovFail);
-      ovFail = setTimeout(hideLoading, 10000);
-    }, delay == null ? 140 : delay);
+      ovFail = setTimeout(hideLoading, 12000);
+    }, delay == null ? 90 : delay);
   }
   function hideLoading() {
     clearTimeout(ovTimer);
     clearTimeout(ovFail);
-    if (ov) ov.classList.remove("is-on");
+    if (!ov || !ov.classList.contains("is-on")) {
+      ovShownAt = 0;
+      return;
+    }
+    const wait = Math.max(0, OV_MIN_MS - (Date.now() - (ovShownAt || Date.now())));
+    const out = () => {
+      if (ov) ov.classList.remove("is-on");
+      ovShownAt = 0;
+    };
+    if (wait > 0) setTimeout(out, wait);
+    else out();
   }
   function isPageLink(a, e) {
     if (!a || e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
@@ -155,18 +168,20 @@
     } catch (_) {
       /* ignore */
     }
-    if (!ts || Date.now() - ts > 6000 || !touchUi() || document.querySelector(".om-rl-splash")) return;
+    if (!ts || Date.now() - ts > 8000 || !touchUi() || document.querySelector(".om-rl-splash")) return;
     const el = overlay();
     el.style.transition = "none";
     el.classList.add("is-on");
+    ovShownAt = Date.now();
     void el.offsetWidth;
     el.style.transition = "";
     const t0 = Date.now();
-    const done = () => setTimeout(hideLoading, Math.max(150, 450 - (Date.now() - t0)));
+    // Keep the veil up long enough to feel intentional (not a blink).
+    const done = () => setTimeout(hideLoading, Math.max(280, 900 - (Date.now() - t0)));
     if (document.readyState === "complete") done();
     else window.addEventListener("load", done, { once: true });
     clearTimeout(ovFail);
-    ovFail = setTimeout(hideLoading, 3000);
+    ovFail = setTimeout(hideLoading, 5000);
   }
   function bindNav() {
     // bolha na window: roda depois dos handlers das páginas (que podem impedir a navegação)

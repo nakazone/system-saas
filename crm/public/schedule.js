@@ -2344,6 +2344,7 @@
         backdrop.hidden = true;
       });
 
+      window.__omPullRefresh = () => loadEvents();
       await loadScheduleSettings();
       await loadEvents();
     } catch (err) {

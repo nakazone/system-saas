@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261012-nav1";
+  const SHELL_VER = "20261013-ptr2";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1033,6 +1033,16 @@
         ? window.__omDevice.isMobile()
         : /iPhone|iPod|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(navigator.userAgent || "") ||
           (/Android/i.test(navigator.userAgent || "") && /Mobile/i.test(navigator.userAgent || ""));
+    const wantGestures =
+      wantMobileNav ||
+      (typeof window.__omDevice?.isTablet === "function" && window.__omDevice.isTablet()) ||
+      (() => {
+        try {
+          return window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
+        } catch (_) {
+          return false;
+        }
+      })();
     if (wantMobileNav) {
       if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
@@ -1050,6 +1060,12 @@
       }
       if (!window.__omNovoLeadSheet && !document.querySelector('script[src*="novo-lead-sheet.js"]')) {
         jobs.push(ensureScript(`novo-lead-sheet.js?v=${SHELL_VER}`).catch(() => {}));
+      }
+    } else if (wantGestures) {
+      // Tablets: pull-to-refresh / swipe without the phone tab bar.
+      ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
+      if (!document.querySelector('script[src*="om-gestures.js"]')) {
+        jobs.push(ensureScript(`om-gestures.js?v=${SHELL_VER}`).catch(() => {}));
       }
     }
     if (!window.sfBootCrmAddressAutocomplete && !document.querySelector('script[src*="crm-address-autocomplete.js"]')) {

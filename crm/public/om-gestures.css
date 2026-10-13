@@ -29,6 +29,22 @@
   background: rgba(232, 121, 44, 0.14);
   color: #9a4e1c;
 }
+/* Fallback indicator when the page has no local .om-ptr */
+.om-ptr.om-ptr--global {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 1200;
+  margin: 0;
+  transform: translate(-50%, -12px);
+  box-shadow: 0 8px 24px rgba(34, 30, 26, 0.12);
+  background: rgba(247, 248, 250, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.om-ptr.om-ptr--global.om-ptr-visible {
+  transform: translate(-50%, 0);
+}
 
 .om-swipe {
   position: relative;

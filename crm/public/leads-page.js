@@ -138,6 +138,7 @@
         });
       }
 
+      window.__omPullRefresh = () => refreshAll();
       await refreshAll();
       if (current === "list" && typeof window.showListView === "function") window.showListView();
       else if (typeof window.showKanbanView === "function") window.showKanbanView();

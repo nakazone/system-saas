@@ -1,13 +1,13 @@
 /**
- * Mobile bottom nav — Início / Leads / + / Calendar / Mais
+ * Mobile bottom nav — Início / Leads / Calendar / Quotes / Mais
  * Field staff: Hoje / Calendar / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20261008-neutro1";
+  const VER = "20261013-quotes1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
-  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "invoices.html", "mais.html"];
+  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "quotes.html", "mais.html"];
   let edgeSwipeBound = false;
 
   const ICONS = {
@@ -64,13 +64,12 @@
       return "pipeline";
     }
     if (f === "schedule.html") return "agenda";
-    if (f === "invoices.html" || f === "invoice.html") return "invoices";
+    if (f === "quotes.html" || f === "quote-builder.html" || f === "quote-catalog.html") return "quotes";
     if (
       f === "mais.html" ||
       f === "chat.html" ||
-      f === "quotes.html" ||
-      f === "quote-builder.html" ||
-      f === "quote-catalog.html" ||
+      f === "invoices.html" ||
+      f === "invoice.html" ||
       f === "customers.html" ||
       f === "jobs.html" ||
       f === "job-detail.html" ||
@@ -566,7 +565,7 @@
       item("home", "home.html", ICONS.home, "Início"),
       item("pipeline", "/dashboard", ICONS.pipeline, "Leads"),
       item("agenda", "schedule.html", ICONS.agenda, "Calendar"),
-      item("invoices", "invoices.html", ICONS.invoice, "Invoices", "invoices.view"),
+      item("quotes", "quotes.html", ICONS.quote, "Quotes", "quotes.view"),
       item("more", "mais.html", ICONS.more, "Mais"),
     ].join("");
 

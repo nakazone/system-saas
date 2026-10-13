@@ -3231,6 +3231,7 @@
       toast('Sem conexão. Tente de novo.', 'error');
     }
     document.body.classList.toggle('ag-readonly', !S.canManage);
+    window.__omPullRefresh = () => reload();
     wire();
     if (window.__crmJobModal) {
       window.__crmJobModal.ready

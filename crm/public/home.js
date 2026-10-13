@@ -240,6 +240,7 @@
     setInterval(() => {
       if (overview) renderAttention();
     }, 30 * 1000);
+    window.__omPullRefresh = () => load(true);
     load(true);
   }
 

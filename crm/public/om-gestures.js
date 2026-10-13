@@ -7,10 +7,11 @@
 (function (global) {
   "use strict";
 
-  const VER = "20261012-rl1";
+  const VER = "20261013-ptr2";
 
   function isTouchViewport() {
-    return window.matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+    // Phones + tablets (iPad landscape can exceed 900px).
+    return window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
   }
 
   function haptic(ms) {
@@ -75,7 +76,9 @@
 
     function activeOpts() {
       const reg = global.__omPtrRegistry || {};
-      for (const k of Object.keys(reg)) {
+      // Prefer page-specific handlers over the global fallback.
+      const keys = Object.keys(reg).sort((a, b) => (a === "global" ? 1 : 0) - (b === "global" ? 1 : 0));
+      for (const k of keys) {
         const o = reg[k];
         if (o.enabled && !o.enabled()) continue;
         if (!indEl(o)) continue;
@@ -357,12 +360,51 @@
     });
   }
 
+  /**
+   * Global pull-to-refresh for mobile/tablet pages that don't register their own.
+   * Pages can set window.__omPullRefresh = () => Promise to soft-refresh instead of reload.
+   */
+  function ensureGlobalPullToRefresh() {
+    if (!isTouchViewport() || document.documentElement.dataset.omPtrGlobal === "1") return;
+    document.documentElement.dataset.omPtrGlobal = "1";
+    let ind = document.getElementById("omPtrGlobal");
+    if (!ind) {
+      ind = document.createElement("div");
+      ind.id = "omPtrGlobal";
+      ind.className = "om-ptr om-ptr--global";
+      ind.setAttribute("aria-hidden", "true");
+      ind.textContent = "↓ Puxe para atualizar";
+      (document.body || document.documentElement).appendChild(ind);
+    }
+    initPullToRefresh({
+      key: "global",
+      indicator: ind,
+      enabled: () => isTouchViewport(),
+      refresh: async () => {
+        const fn = global.__omPullRefresh;
+        if (typeof fn === "function") {
+          await Promise.resolve(fn());
+          return;
+        }
+        // Soft path: if a page registered another key after us, prefer reload of data only when possible.
+        location.reload();
+      },
+    });
+  }
+
+  function bootGestures() {
+    ensureGlobalPullToRefresh();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootGestures);
+  else bootGestures();
+
   global.OmGestures = {
     VER,
     isTouchViewport,
     initPullToRefresh,
     bindSwipeRow,
     ensureDockPadding,
+    ensureGlobalPullToRefresh,
     haptic,
   };
 })(typeof window !== "undefined" ? window : globalThis);
