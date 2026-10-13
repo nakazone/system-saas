@@ -1,0 +1,68 @@
+<%- include('_top', { pageTitle: 'Planos e preços' }) %>
+<div class="page-head">
+  <div><h1>Planos e preços</h1><div class="page-sub">O que as empresas pagam. Mudar o preço não muda quem já paga, a menos que você desmarque essa opção.</div></div>
+  <% if (canEdit) { %><button class="btn btn-primary" type="button" data-open="dlg-plan-new">+ Novo plano</button><% } %>
+</div>
+<% if (!stripeOn) { %>
+  <div class="note-box note-warn">Stripe ainda não está configurado neste servidor. Os planos já valem para cobrança manual; os links de pagamento funcionam depois de colocar <b>STRIPE_SECRET_KEY</b> e <b>STRIPE_WEBHOOK_SECRET</b> no Railway.</div>
+<% } %>
+<div class="plan-grid">
+  <% rows.forEach(function (p) { %>
+    <section class="card plan-card <%= p.active ? '' : 'is-off' %>">
+      <div class="plan-top">
+        <div>
+          <h2><%= p.name %></h2>
+          <small class="muted"><%= p.description || '—' %></small>
+        </div>
+        <div class="pills" style="justify-content:flex-end">
+          <% if (!p.active) { %><span class="pill pill-sm tone-muted">Fora de venda</span><% } %>
+          <% if (p.visible) { %><span class="pill pill-sm tone-ink">No site</span><% } else { %><span class="pill pill-sm tone-soft">Só por convite</span><% } %>
+        </div>
+      </div>
+      <div class="plan-price"><b class="num"><%= p.monthlyText %></b><span>/mês</span></div>
+      <div class="muted plan-annual"><%= p.annualText %>/ano<%= p.annualSaving > 0 ? ' · economiza ' + money(p.annualSaving) : '' %></div>
+      <ul class="plan-facts">
+        <li><%= p.usersText %></li>
+        <li><%= p.trialDays %> dias de teste grátis</li>
+      </ul>
+      <div class="plan-stats">
+        <div><b class="num"><%= p.payingCount %></b><small>pagando</small></div>
+        <div><b class="num"><%= p.trialCount %></b><small>em teste</small></div>
+        <div><b class="num"><%= p.mrr %></b><small>MRR</small></div>
+      </div>
+      <% if (p.specialCount) { %><small class="muted"><%= p.specialCount %> empresa(s) com preço especial</small><% } %>
+      <% if (canEdit) { %><button class="btn btn-soft" type="button" data-open="dlg-plan-<%= p.key %>">Editar</button><% } %>
+    </section>
+  <% }) %>
+</div>
+
+<% if (canEdit) { %>
+  <% rows.concat([{ key: '', name: '', description: '', monthlyDollars: '', annualDollars: '', includedUsers: 5, trialDays: 30, visible: false, active: true, payingCount: 0, isNew: true }]).forEach(function (p) { %>
+  <dialog id="dlg-plan-<%= p.isNew ? 'new' : p.key %>" aria-labelledby="t-plan-<%= p.key || 'new' %>">
+    <div class="modal">
+      <div class="modal-head"><div><h2 id="t-plan-<%= p.key || 'new' %>"><%= p.isNew ? 'Novo plano' : 'Editar ' + p.name %></h2><p><%= p.isNew ? 'Aparece para as empresas só se marcar “à venda”.' : 'Preço novo vale para assinaturas novas.' %></p></div>
+        <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <form data-action action="/master/planos/<%= p.isNew ? 'novo' : p.key %>" data-stepup="<%= p.isNew ? 'Criar plano novo' : 'Mudar plano e preço ' + p.name %>">
+        <% if (p.isNew) { %>
+          <label class="field">Código (sem espaço)<input class="input" name="key" required pattern="[a-z][a-z0-9-]{1,30}" placeholder="ex.: fundador"></label>
+        <% } %>
+        <div class="form-row">
+          <label class="field">Nome<input class="input" name="name" required maxlength="40" value="<%= p.name %>"></label>
+          <label class="field">Usuários incluídos<input class="input num" name="includedUsers" type="number" min="1" placeholder="vazio = ilimitado" value="<%= p.includedUsers == null ? '' : p.includedUsers %>"></label>
+        </div>
+        <label class="field">Descrição curta<input class="input" name="description" maxlength="160" value="<%= p.description || '' %>"></label>
+        <div class="form-row">
+          <label class="field">Preço mensal (USD)<input class="input num" name="monthly" type="number" step="0.01" min="0" required value="<%= p.monthlyDollars %>"></label>
+          <label class="field">Preço anual (USD)<input class="input num" name="annual" type="number" step="0.01" min="0" required value="<%= p.annualDollars %>"></label>
+        </div>
+        <label class="field">Dias de teste grátis<input class="input num" name="trialDays" type="number" min="0" max="120" required value="<%= p.trialDays %>"></label>
+        <label class="check"><input type="checkbox" name="active" value="1" <%= p.active ? 'checked' : '' %>> À venda (pode ser escolhido em assinaturas novas)</label>
+        <label class="check"><input type="checkbox" name="visible" value="1" <%= p.visible ? 'checked' : '' %>> Aparece na página de planos das empresas e no site</label>
+        <% if (!p.isNew && p.payingCount) { %><label class="check"><input type="checkbox" name="grandfather" value="1" checked> Se o preço mudar, as <%= p.payingCount %> empresa(s) pagantes continuam com o preço de hoje</label><% } %>
+        <button class="btn btn-primary btn-block" type="submit">Salvar plano</button>
+      </form>
+    </div>
+  </dialog>
+  <% }) %>
+<% } %>
+<%- include('_bottom') %>

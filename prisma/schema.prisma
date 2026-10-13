@@ -69,11 +69,19 @@ model PlatformPayment {
   method         String    @default("card")
   periodStart    DateTime?
   periodEnd      DateTime?
-  /// paid | refunded
+  /// paid | failed | refunded
   status         String    @default("paid")
   note           String?
   recordedById   String?   @db.Uuid
   refundedAt     DateTime?
+  /// manual | stripe
+  source         String    @default("manual")
+  stripeInvoiceId String?  @unique
+  stripeChargeId String?
+  /// Stripe hosted invoice page / PDF
+  invoiceUrl     String?
+  invoicePdfUrl  String?
+  failureReason  String?
   createdAt      DateTime  @default(now())
 
   @@index([organizationId, paidAt])
@@ -90,6 +98,74 @@ model PlatformNote {
   createdAt      DateTime @default(now())
 
   @@index([organizationId, createdAt])
+}
+
+/// Plan catalog edited in the Master (prices in cents). Annual price is per year.
+model Plan {
+  id                   String   @id @default(uuid()) @db.Uuid
+  key                  String   @unique
+  name                 String
+  description          String?
+  monthlyCents         Int
+  annualCents          Int
+  /// null = unlimited
+  includedUsers        Int?
+  trialDays            Int      @default(30)
+  /// Shown on the public site and in the company's plan page
+  visible              Boolean  @default(true)
+  /// Can be chosen for new subscriptions
+  active               Boolean  @default(true)
+  sortOrder            Int      @default(0)
+  stripeProductId      String?
+  stripeMonthlyPriceId String?
+  stripeAnnualPriceId  String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+/// Every Stripe webhook event, processed once.
+model StripeEvent {
+  id             String    @id
+  type           String
+  organizationId String?   @db.Uuid
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+  error          String?
+  payload        Json?
+
+  @@index([receivedAt])
+}
+
+/// Billing reminder / state change already done for a company and a due date.
+model DunningStep {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  /// YYYY-MM-DD of the due date the step belongs to (a new period starts over)
+  dueKey         String
+  /// e.g. trial-7, trial-0, due-7, due+7
+  step           String
+  /// email | state | skipped
+  action         String
+  detail         String?
+  sentAt         DateTime @default(now())
+
+  @@unique([organizationId, dueKey, step])
+  @@index([sentAt])
+}
+
+/// Background job executions (shown in the Master).
+model JobRun {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  ok         Boolean?
+  processed  Int       @default(0)
+  detail     Json?
+  error      String?
+  trigger    String    @default("schedule")
+
+  @@index([name, startedAt])
 }
 
 /// Conversations with a company's owner / billing contact (calls, e-mails, meetings).
@@ -118,7 +194,7 @@ model Organization {
   id               String    @id @default(uuid()) @db.Uuid
   slug             String    @unique
   name             String
-  status           String    @default("trial") // trial | active | past_due | suspended | canceled
+  status           String    @default("trial") // trial | active | past_due | read_only | suspended | canceled
   plan             String    @default("starter")
   logoUrl          String?
   primaryColor     String?
@@ -162,6 +238,14 @@ model Organization {
   suspendedAt      DateTime?
   canceledAt       DateTime?
   cancelReason     String?
+  /// Stripe subscription mirrored by the webhook
+  stripeSubscriptionId String? @unique
+  /// Subscription set to end at the period end (canceled in Stripe or by the company)
+  cancelAtPeriodEnd Boolean  @default(false)
+  /// When the account entered read-only mode (trial ended / unpaid)
+  readOnlySince    DateTime?
+  /// Billing reminders paused for this company until this date
+  dunningPausedUntil DateTime?
   /// Feature flags per org, e.g. { "job_media": true }
   featureFlags     Json?
   // --- Company details (Configurações › Dados da empresa) ---
@@ -1721,12 +1805,18 @@ model SupportTicket {
   category         String   @default("question")
   subject          String
   body             String   @db.Text
-  /// open | closed
+  /// open | waiting (answered, waiting for the company) | closed
   status           String   @default("open")
   adminNote        String?  @db.Text
   closedAt         DateTime?
+  /// low | normal | high
+  priority         String   @default("normal")
+  assigneeId       String?  @db.Uuid
+  firstResponseAt  DateTime?
+  lastMessageAt    DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  messages         SupportTicketMessage[]
 
   @@index([organizationId, createdAt])
   @@index([status, createdAt])
@@ -2594,4 +2684,21 @@ model FieldQuote {
   @@index([organizationId, updatedAt])
   @@index([leadId])
   @@index([quoteId])
+}
+
+/// Messages after the first one in a support ticket (company ↔ platform team).
+model SupportTicketMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  ticketId       String   @db.Uuid
+  ticket         SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  organizationId String   @db.Uuid
+  /// company | platform
+  authorType     String
+  authorId       String?  @db.Uuid
+  authorName     String
+  body           String   @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([organizationId])
 }

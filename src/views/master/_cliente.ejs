@@ -42,7 +42,30 @@
       <div><span>Usuários</span><b><%= o.users %></b></div>
       <% if (o.suspendedAt) { %><div><span>Suspensa em</span><b class="danger"><%= shortDate(o.suspendedAt) %></b></div><% } %>
       <% if (o.canceledAt) { %><div><span>Cancelada em</span><b><%= shortDate(o.canceledAt) %><%= o.cancelReason ? ' · ' + o.cancelReason : '' %></b></div><% } %>
+      <% if (o.readOnlySince) { %><div><span>Só leitura desde</span><b class="danger"><%= shortDate(o.readOnlySince) %></b></div><% } %>
+      <div><span>Cobrança</span><b><%= o.stripeSubscriptionId ? ('Cartão no Stripe' + (o.cancelAtPeriodEnd ? ' · cancela no fim do período' : '')) : (o.stripeCustomerId ? 'Cliente no Stripe, sem assinatura' : 'Manual (Zelle, cheque…)') %></b></div>
+      <% if (o.dunningPausedUntil && o.dunningPausedUntil > new Date()) { %><div><span>Régua</span><b>pausada até <%= shortDate(o.dunningPausedUntil) %></b></div><% } %>
     </div>
+    <% if (canBilling && o.status !== 'canceled') { %>
+    <div class="row-actions" style="margin-top:10px">
+      <% if (!o.stripeSubscriptionId || o.cancelAtPeriodEnd) { %>
+        <form data-action action="/master/clientes/<%= id %>/link-pagamento" style="display:flex"><button class="btn btn-sm <%= o.status === 'read_only' || o.overdue ? 'btn-dark' : 'btn-soft' %>" type="submit" <%= stripeOn ? '' : 'disabled title="Stripe não configurado"' %>>Enviar link de pagamento</button></form>
+      <% } %>
+      <% if (o.stripeSubscriptionId && ['past_due', 'read_only', 'suspended'].indexOf(o.status) >= 0) { %>
+        <form data-action action="/master/clientes/<%= id %>/cobrar" data-confirm="Tentar cobrar agora no cartão de <%= o.name %>?" style="display:flex"><button class="btn btn-sm btn-dark" type="submit">Cobrar agora no cartão</button></form>
+      <% } %>
+      <% if (o.dunningPausedUntil && o.dunningPausedUntil > new Date()) { %>
+        <form data-action action="/master/clientes/<%= id %>/pausar-regua" style="display:flex"><input type="hidden" name="days" value="0"><button class="btn btn-sm btn-soft" type="submit">Retomar régua</button></form>
+      <% } else if (o.status !== 'active' || o.overdue) { %>
+        <form data-action action="/master/clientes/<%= id %>/pausar-regua" style="display:flex" data-confirm="Pausar avisos e bloqueios automáticos de <%= o.name %> por 14 dias?"><input type="hidden" name="days" value="14"><button class="btn btn-sm btn-soft" type="submit">Pausar régua 14 dias</button></form>
+      <% } %>
+      <% if (canSuspend && o.status === 'read_only') { %>
+        <form data-action action="/master/clientes/<%= id %>/somente-leitura" data-stepup="Liberar edição para <%= o.name %> sem pagamento" style="display:flex"><input type="hidden" name="on" value="0"><button class="btn btn-sm btn-soft" type="submit">Tirar do só leitura</button></form>
+      <% } else if (canSuspend && ['trial', 'active', 'past_due'].indexOf(o.status) >= 0) { %>
+        <form data-action action="/master/clientes/<%= id %>/somente-leitura" data-stepup="Colocar <%= o.name %> em só leitura" data-confirm="<%= o.name %> vai ver tudo mas não poderá criar nem editar. Continuar?" style="display:flex"><input type="hidden" name="on" value="1"><button class="btn btn-sm btn-soft" type="submit">Colocar em só leitura</button></form>
+      <% } %>
+    </div>
+    <% } %>
   </section>
 
   <section class="d-sec">
@@ -128,7 +151,7 @@
     <form data-action action="/master/clientes/<%= id %>/assinatura" data-stepup="Editar assinatura de <%= o.name %>">
       <div class="field">Status
         <div class="seg-pick">
-          <% [['trial','Trial'],['active','Ativa'],['past_due','Atrasada'],['suspended','Suspensa'],['canceled','Cancelada']].forEach(function (s) { %>
+          <% [['trial','Trial'],['active','Ativa'],['past_due','Atrasada'],['read_only','Só leitura'],['suspended','Suspensa'],['canceled','Cancelada']].forEach(function (s) { %>
             <label><input type="radio" name="status" value="<%= s[0] %>" <%= o.status === s[0] ? 'checked' : '' %>><span><%= s[1] %></span></label>
           <% }) %>
         </div>

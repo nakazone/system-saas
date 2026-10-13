@@ -5,6 +5,7 @@ import {
   daysUntil,
   dueChip,
   dueDateOf,
+  isTrialDue,
   initials,
   monthlyCents,
   money,
@@ -36,6 +37,10 @@ const orgSelect = {
   suspendedAt: true,
   canceledAt: true,
   cancelReason: true,
+  stripeSubscriptionId: true,
+  cancelAtPeriodEnd: true,
+  readOnlySince: true,
+  dunningPausedUntil: true,
   createdAt: true,
   _count: { select: { users: true } },
 } as const;
@@ -84,7 +89,7 @@ export async function loadOrgs(where: Record<string, unknown> = {}) {
       due,
       days,
       dueLabel: shortDate(due, now),
-      dueKind: o.status === "trial" ? "Fim do trial" : "Renovação",
+      dueKind: isTrialDue(o) ? "Fim do trial" : "Renovação",
       pill: orgStatusPill(o.status, days),
       chip: o.status === "canceled" ? ({ label: "Cancelada", tone: "muted" } as Pill) : dueChip(days),
       planText: o.status === "trial" ? `Trial · ${planLabel(o.plan)}` : planLabel(o.plan),
@@ -182,6 +187,7 @@ export async function loadUsers(where: Record<string, unknown> = {}) {
 
 export const PAYMENT_PILL: Record<string, Pill> = {
   paid: { label: "Pago", tone: "ink" },
+  failed: { label: "Recusado", tone: "danger" },
   refunded: { label: "Estornado", tone: "muted" },
 };
 
@@ -207,7 +213,7 @@ export async function loadPayments(where: Record<string, unknown> = {}, take = 3
     amountText: money(p.amountCents),
     paidLabel: shortDate(p.paidAt),
     periodText: p.periodStart && p.periodEnd ? `${shortDate(p.periodStart)} → ${shortDate(p.periodEnd)}` : "—",
-    methodText: METHOD_LABEL[p.method] ?? p.method,
+    methodText: (METHOD_LABEL[p.method] ?? p.method) + (p.source === "stripe" ? " · Stripe" : ""),
     pill: PAYMENT_PILL[p.status] ?? { label: p.status, tone: "muted" },
   }));
 }

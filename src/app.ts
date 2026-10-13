@@ -46,6 +46,9 @@ import { checklistsRouter } from "./modules/checklists/routes.js";
 import { assessmentsRouter } from "./modules/assessments/routes.js";
 import { platformAdminRouter } from "./platform-admin/routes.js";
 import { masterRouter } from "./master/routes.js";
+import { stripeWebhookRouter } from "./lib/billing/webhook.js";
+import { accountBillingRouter, enforceAccountAccess } from "./lib/billing/access.js";
+import { prisma } from "./lib/prisma.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
 import { CRM_ASSETS_DIR, CRM_PUBLIC_DIR } from "./crm/mount.js";
@@ -74,6 +77,8 @@ export function createApp() {
   app.set("views", path.join(__dirname, "views"));
   app.set("trust proxy", 1);
 
+  // Stripe needs the raw body to check the signature: before the JSON parser.
+  app.use(stripeWebhookRouter);
   app.use(express.urlencoded({ extended: true, limit: "15mb" }));
   app.use(express.json({ limit: "15mb" }));
   app.use(cookieParser());
@@ -160,9 +165,18 @@ export function createApp() {
   });
 
   // Health must be registered before session/DB middleware so Railway probes never hang.
-  app.get("/health", (_req, res) => {
-    res.status(200).json({
-      ok: true,
+  app.get("/health", async (_req, res) => {
+    // The database check has its own short timeout so a probe never hangs.
+    const started = Date.now();
+    const db = await Promise.race([
+      prisma.$queryRaw`SELECT 1`.then(() => "ok" as const).catch(() => "error" as const),
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 2000)),
+    ]);
+    res.status(db === "ok" ? 200 : 503).json({
+      ok: db === "ok",
+      db,
+      dbMs: Date.now() - started,
+      version: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
       rootDomain: env.APP_ROOT_DOMAIN,
       tenantRouting: subdomainTenantsSupported() ? "subdomain" : "session",
     });
@@ -281,6 +295,9 @@ export function createApp() {
   app.use(requireTenant);
   app.use(bindTenantContext);
   app.use(loadSessionUser);
+  // Billing state: read-only companies cannot write; plan/payment API for the company.
+  app.use(enforceAccountAccess);
+  app.use(accountBillingRouter);
 
   // Senior Floors CRM UI + /api/auth bridge (primary product experience)
   app.use(createCrmRouter());

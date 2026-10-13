@@ -42,6 +42,7 @@ supportRouter.get("/api/support/tickets", requireCrmAuth, async (req: AuthedRequ
           createdAt: true,
           closedAt: true,
           createdByUser: { select: { id: true, name: true, email: true } },
+          messages: { orderBy: { createdAt: "asc" }, select: { authorType: true, authorName: true, body: true, createdAt: true } },
         },
       }),
     );
@@ -58,6 +59,12 @@ supportRouter.get("/api/support/tickets", requireCrmAuth, async (req: AuthedRequ
         author: t.createdByUser
           ? { id: t.createdByUser.id, name: t.createdByUser.name, email: t.createdByUser.email }
           : null,
+        messages: t.messages.map((m) => ({
+          from: m.authorType === "platform" ? "obramate" : "company",
+          author: m.authorName,
+          body: m.body,
+          created_at: m.createdAt.toISOString(),
+        })),
       })),
     });
   } catch (error) {
@@ -127,7 +134,7 @@ supportRouter.post("/api/support/tickets", requireCrmAuth, async (req: AuthedReq
             parsed.data.body,
             ``,
             `Ticket: ${ticket.id}`,
-            `Admin: https://admin.${env.APP_ROOT_DOMAIN}/support/${ticket.id}`,
+            `Abrir no Master: ${env.APP_BASE_URL.replace(/\/$/, "")}/master/suporte/${ticket.id}`,
           ].join("\n"),
         });
       }
@@ -146,6 +153,48 @@ supportRouter.post("/api/support/tickets", requireCrmAuth, async (req: AuthedReq
         created_at: ticket.createdAt.toISOString(),
       },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const replySchema = z.object({ body: z.string().trim().min(1).max(8000) });
+
+/** The company answers the platform team inside the ticket (reopens it). */
+supportRouter.post("/api/support/tickets/:id/messages", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const parsed = replySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: "Escreva a mensagem." });
+      return;
+    }
+    const ticketId = String(req.params.id);
+    const ticket = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const t = await tx.supportTicket.findFirst({ where: { id: ticketId }, select: { id: true, subject: true } });
+      if (!t) return null;
+      await tx.supportTicketMessage.create({
+        data: { ticketId: t.id, organizationId: req.organizationId!, authorType: "company", authorId: req.user!.id, authorName: req.user!.name, body: parsed.data.body },
+      });
+      await tx.supportTicket.update({ where: { id: t.id }, data: { status: "open", closedAt: null, lastMessageAt: new Date() } });
+      return t;
+    });
+    if (!ticket) {
+      res.status(404).json({ success: false, error: "Ticket não encontrado." });
+      return;
+    }
+    try {
+      const inbox = await resolveSupportInbox();
+      if (inbox) {
+        await email.send({
+          to: inbox,
+          subject: `[Suporte] Resposta — ${ticket.subject}`,
+          text: `${req.user!.name} <${req.user!.email}> respondeu:\n\n${parsed.data.body}\n\nAbrir no Master: ${env.APP_BASE_URL.replace(/\/$/, "")}/master/suporte/${ticket.id}`,
+        });
+      }
+    } catch (notifyErr) {
+      console.error("[support] notify failed", notifyErr);
+    }
+    res.status(201).json({ success: true });
   } catch (error) {
     next(error);
   }

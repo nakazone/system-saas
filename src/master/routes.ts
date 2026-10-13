@@ -45,6 +45,7 @@ import {
   CAPABILITIES,
   PLAN_LABEL,
   PLAN_MONTHLY_CENTS,
+  PLAN_ANNUAL_CENTS,
   ROLE_HINT,
   ROLE_LABEL,
   addCycle,
@@ -54,6 +55,7 @@ import {
   cyclePriceCents,
   dateTimeLabel,
   dayFromToday,
+  dueDateOf,
   daysUntil,
   initials,
   makeTempPassword,
@@ -66,11 +68,37 @@ import {
   ymdInTz,
   PLATFORM_ROLES,
   type PlatformRole,
+  type Pill,
 } from "./lib.js";
 import { createOrganizationWithAdmin, validateSlug } from "../modules/organizations/service.js";
 import { formatPersonName } from "../lib/name.js";
+import { plans, refreshPlans, trialDaysFor } from "./plans.js";
+import {
+  BillingError,
+  cancelSubscription,
+  createCheckoutUrl,
+  payOpenInvoice,
+  refundCharge,
+  stripeEnabled,
+  stripeMode,
+  syncSubscriptionPrice,
+} from "../lib/billing/stripe.js";
+import { DEFAULT_LADDER, ladderSteps, loadLadder, runBillingLadder, saveLadder } from "../lib/billing/dunning.js";
+import { BILLING_LADDER_JOB, runJob } from "../lib/billing/jobs.js";
 
 export const masterRouter = Router();
+
+/** A plan key that exists in the catalog. */
+const planKey = z.string().trim().toLowerCase().refine((k) => k in PLAN_LABEL, "Plano inválido");
+
+function planOptions() {
+  return Object.entries(PLAN_LABEL).map(([key, label]) => ({
+    key,
+    label,
+    monthly: money(PLAN_MONTHLY_CENTS[key] ?? 0),
+    annual: money(PLAN_ANNUAL_CENTS[key] ?? (PLAN_MONTHLY_CENTS[key] ?? 0) * 10),
+  }));
+}
 
 type Handler = (req: MasterRequest, res: Response, next: NextFunction) => Promise<void> | void;
 const h = (fn: Handler): Handler => async (req, res, next) => {
@@ -336,6 +364,12 @@ masterRouter.post(
 
 masterRouter.use(requireMaster);
 
+// Plan catalog in memory for every signed-in page (refreshed at most once a minute).
+masterRouter.use(async (_req, _res, next) => {
+  await plans();
+  next();
+});
+
 masterRouter.post(
   "/step-up",
   h(async (req, res) => {
@@ -363,16 +397,18 @@ async function shell(req: MasterRequest, active: string) {
     select: { status: true, trialEndsAt: true, currentPeriodEnd: true },
   });
   const overdue = orgs.filter((o) => {
-    const due = o.status === "trial" ? o.trialEndsAt : o.currentPeriodEnd;
-    const d = daysUntil(due);
+    const d = daysUntil(dueDateOf(o));
     return d != null && d < 0;
   }).length;
+  const openTickets = await prisma.supportTicket.count({ where: { status: "open" } });
   const nav = [
     { key: "central", label: "Central", href: "/master", icon: "M3 12l9-8 9 8M5 10v10h14V10" },
     { key: "clientes", label: "Clientes", href: "/master/clientes", icon: "M4 21V5l8-3 8 3v16M9 21v-4h6v4M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01", group: "CLIENTES" },
     { key: "usuarios", label: "Usuários", href: "/master/usuarios", icon: "M16 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 20v-1a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" },
+    { key: "suporte", label: "Suporte", href: "/master/suporte", icon: "M21 12a8 8 0 0 1-11.8 7L4 20l1.2-4.6A8 8 0 1 1 21 12zM9 10h6M9 14h4", badge: openTickets || null },
     { key: "contatos", label: "Contatos", href: "/master/contatos", icon: "M5 4h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5zM5 4v18M12 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM8.5 17a3.5 3.5 0 0 1 7 0" },
     { key: "pagamentos", label: "Pagamentos", href: "/master/pagamentos", icon: "M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM2 10h20M6 15h4", group: "FINANCEIRO", hidden: !can(req.master!.role, "billing_full") },
+    { key: "planos", label: "Planos e preços", href: "/master/planos", icon: "M4 4h7l9 9-7 7-9-9zM8 8h.01", hidden: !can(req.master!.role, "billing_full") },
     { key: "vencimentos", label: "Vencimentos", href: "/master/vencimentos", icon: "M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 13v3l2 1", badge: overdue || null, group: can(req.master!.role, "billing_full") ? undefined : "FINANCEIRO" },
     { key: "equipe", label: "Equipe e segurança", href: "/master/equipe", icon: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4", group: "SISTEMA" },
     { key: "auditoria", label: "Auditoria", href: "/master/auditoria", icon: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" },
@@ -451,6 +487,25 @@ masterRouter.get(
       queue.push({ tone: "warn", title: `${noTrialDate.length} trial(s) sem data de fim`, sub: noTrialDate.slice(0, 3).map((o) => o.name).join(", ") + (noTrialDate.length > 3 ? "…" : ""), cta: "Definir", href: `/master/clientes?ficha=${noTrialDate[0].id}&abrir=prorrogar` });
     }
     if (invitedTeam) queue.push({ tone: "muted", title: `${invitedTeam} convite(s) da equipe sem resposta`, sub: "Equipe e segurança", cta: "Ver", href: "/master/equipe" });
+    // Support tickets waiting for us, and the billing job.
+    const [waitingTickets, oldestTicket, lastLadder] = await Promise.all([
+      prisma.supportTicket.count({ where: { status: "open" } }),
+      prisma.supportTicket.findFirst({ where: { status: "open" }, orderBy: [{ priority: "asc" }, { lastMessageAt: "asc" }], include: { organization: { select: { name: true } } } }),
+      prisma.jobRun.findFirst({ where: { name: BILLING_LADDER_JOB }, orderBy: { startedAt: "desc" } }),
+    ]);
+    if (waitingTickets && oldestTicket) {
+      queue.unshift({
+        tone: oldestTicket.priority === "high" ? "danger" : "warn",
+        title: waitingTickets === 1 ? `Ticket esperando resposta: ${oldestTicket.subject}` : `${waitingTickets} tickets esperando resposta`,
+        sub: `${oldestTicket.organization.name} · ${ageLabel(oldestTicket.lastMessageAt ?? oldestTicket.createdAt)}`,
+        cta: "Responder",
+        href: waitingTickets === 1 ? `/master/suporte/${oldestTicket.id}` : "/master/suporte",
+        primary: true,
+      });
+    }
+    if (lastLadder && lastLadder.ok === false) {
+      queue.unshift({ tone: "danger", title: "A régua de cobrança falhou na última execução", sub: (lastLadder.error || "").slice(0, 90), cta: "Ver", href: "/master/vencimentos", primary: true });
+    }
 
     const userStats = [
       { label: "Total na plataforma", v: users.length, href: "/master/usuarios" },
@@ -491,7 +546,7 @@ const CLIENT_FILTERS: [string, string, (o: Awaited<ReturnType<typeof loadOrgs>>[
   ["todas", "Todas", () => true],
   ["ativas", "Ativas", (o) => o.status === "active"],
   ["trial", "Trial", (o) => o.status === "trial"],
-  ["atraso", "Em atraso", (o) => o.overdue || o.status === "past_due"],
+  ["atraso", "Em atraso", (o) => o.overdue || o.status === "past_due" || o.status === "read_only"],
   ["30dias", "Vencem em 30 dias", (o) => o.days != null && o.days >= 0 && o.days <= 30],
   ["suspensas", "Suspensas", (o) => o.status === "suspended"],
   ["canceladas", "Canceladas", (o) => o.status === "canceled"],
@@ -520,12 +575,7 @@ masterRouter.get(
       sub: `${orgs.length} empresa(s) · ${money(mrr)} de MRR · ${orgs.filter((o) => o.overdue).length} com vencimento passado`,
       showMoney: can(req.master!.role, "billing_full"),
       canCreate: can(req.master!.role, "billing_manage"),
-      plans: Object.entries(PLAN_LABEL).map(([key, label]) => ({
-        key,
-        label,
-        monthly: money(PLAN_MONTHLY_CENTS[key]),
-        annual: money(PLAN_MONTHLY_CENTS[key] * 10),
-      })),
+      plans: planOptions(),
       todayYmd: ymdInTz(new Date()),
     });
   }),
@@ -538,7 +588,7 @@ const createOrgSchema = z.object({
   adminEmail: z.string().trim().email().max(200),
   contactPhone: z.string().trim().max(40).optional().or(z.literal("")),
   status: z.enum(["trial", "active"]).default("trial"),
-  plan: z.enum(["starter", "professional", "business"]).default("starter"),
+  plan: planKey.default("starter"),
   cycle: z.enum(["monthly", "annual"]).default("monthly"),
   price: z.union([z.literal(""), z.coerce.number().min(0).max(100000)]).optional(),
   trialDays: z.coerce.number().int().min(1).max(366).optional(),
@@ -585,7 +635,7 @@ masterRouter.post(
       planPriceCents,
     };
     if (parsed.data.status === "trial") {
-      const days = parsed.data.trialDays ?? 30;
+      const days = parsed.data.trialDays ?? (await trialDaysFor(parsed.data.plan));
       billing.status = "trial";
       billing.trialEndsAt = dayFromToday(days);
       billing.currentPeriodEnd = null;
@@ -653,7 +703,7 @@ masterRouter.get(
       notes,
       contactLog,
       roles,
-      plans: Object.entries(PLAN_LABEL).map(([key, label]) => ({ key, label, monthly: money(PLAN_MONTHLY_CENTS[key]), annual: money(PLAN_MONTHLY_CENTS[key] * 10) })),
+      plans: planOptions(),
       methods: Object.entries(METHOD_LABEL),
       todayYmd: ymdInTz(new Date()),
       dueYmd: org.due ? ymdInTz(org.due) : "",
@@ -663,6 +713,7 @@ masterRouter.get(
       nextPeriodLabel: `${shortDate(nextPeriodStart)} → ${shortDate(addCycle(nextPeriodStart, org.billingCycle))}`,
       canBilling: can(req.master!.role, "billing_manage"),
       canSuspend: can(req.master!.role, "tenants_suspend"),
+      stripeOn: stripeEnabled(),
       canUsers: can(req.master!.role, "users_manage"),
       showMoney: can(req.master!.role, "billing_full"),
     };
@@ -687,8 +738,8 @@ masterRouter.get(
 );
 
 const assinaturaSchema = z.object({
-  status: z.enum(["trial", "active", "past_due", "suspended", "canceled"]),
-  plan: z.enum(["starter", "professional", "business"]),
+  status: z.enum(["trial", "active", "past_due", "read_only", "suspended", "canceled"]),
+  plan: planKey,
   cycle: z.enum(["monthly", "annual"]),
   price: z.union([z.literal(""), z.coerce.number().min(0).max(100000)]).optional(),
   trialEndsAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
@@ -738,6 +789,7 @@ masterRouter.post(
       data.canceledAt = null;
       data.cancelReason = null;
     }
+    data.readOnlySince = parsed.data.status === "read_only" ? org.readOnlySince ?? new Date() : null;
     await prisma.organization.update({ where: { id: org.id }, data });
     if (parsed.data.status === "suspended" || parsed.data.status === "canceled") {
       await endOrgSessions(org.id);
@@ -881,7 +933,7 @@ masterRouter.post(
 );
 
 const planSchema = z.object({
-  plan: z.enum(["starter", "professional", "business"]),
+  plan: planKey,
   cycle: z.enum(["monthly", "annual"]),
   price: z.union([z.literal(""), z.coerce.number().min(0).max(100000)]).optional(),
 });
@@ -898,6 +950,16 @@ masterRouter.post(
     const listPrice = cyclePriceCents({ plan: parsed.data.plan, billingCycle: parsed.data.cycle, planPriceCents: null });
     const planPriceCents = custom != null && custom !== listPrice ? custom : null;
     await prisma.organization.update({ where: { id: org.id }, data: { plan: parsed.data.plan, billingCycle: parsed.data.cycle, planPriceCents } });
+    let stripeNote = "";
+    if (org.stripeSubscriptionId && stripeEnabled()) {
+      try {
+        await syncSubscriptionPrice(org.id);
+        stripeNote = " Assinatura no Stripe atualizada (diferença proporcional na próxima fatura).";
+      } catch (error) {
+        console.error("[master] stripe plan sync failed", error);
+        stripeNote = " Atenção: o Stripe não aceitou a mudança; confira a assinatura lá.";
+      }
+    }
     await audit(req, actor(req), "tenant.plan", {
       type: "organization",
       id: org.id,
@@ -905,7 +967,7 @@ masterRouter.post(
       meta: { from: { plan: org.plan, cycle: org.billingCycle, priceCents: org.planPriceCents }, to: { plan: parsed.data.plan, cycle: parsed.data.cycle, priceCents: planPriceCents } },
     });
     const price = planPriceCents ?? listPrice;
-    ok(res, `${org.name}: ${planLabel(parsed.data.plan)} ${parsed.data.cycle === "annual" ? "anual" : "mensal"} · ${money(price)}.`);
+    ok(res, `${org.name}: ${planLabel(parsed.data.plan)} ${parsed.data.cycle === "annual" ? "anual" : "mensal"} · ${money(price)}.${stripeNote}`);
   }),
 );
 
@@ -1013,6 +1075,92 @@ masterRouter.post(
 );
 
 masterRouter.post(
+  "/clientes/:id/link-pagamento",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const org = await loadOrg(String(req.params.id));
+    if (!org) return fail(res, 404, "Empresa não encontrada.");
+    if (!stripeEnabled()) return fail(res, 503, "Stripe não configurado (falta STRIPE_SECRET_KEY no Railway).");
+    let url: string;
+    try {
+      url = await createCheckoutUrl(org.id, { createdBy: `master:${req.master!.email}` });
+    } catch (error) {
+      if (error instanceof BillingError) return fail(res, 409, error.message);
+      console.error("[master] checkout failed", error);
+      return fail(res, 502, "O Stripe não respondeu. Tente de novo.");
+    }
+    const to = org.billingContactEmail || org.ownerEmail;
+    if (to && req.body?.send !== "0") {
+      await emailProvider
+        .send({
+          to,
+          subject: `Subscribe to ObraMate — ${org.name}`,
+          text: `Hi ${org.ownerName.split(" ")[0] || "there"},\n\nHere is the secure link to subscribe to ObraMate (${planLabel(org.plan)}, ${org.priceText === "—" ? money(org.priceCents) : org.priceText}) for ${org.name}:\n${url}\n\nThe link expires in 24 hours. Reply to this e-mail if you have any questions.\n\n— The ObraMate team`,
+        })
+        .catch(() => undefined);
+    }
+    await audit(req, actor(req), "billing.checkout_link", { type: "organization", id: org.id, label: org.name, meta: { emailedTo: to || null } });
+    ok(res, to ? `Link de pagamento enviado para ${to}.` : "Link de pagamento criado.", {
+      reveal: { title: "Link de pagamento (Stripe)", value: url, note: "Vale 24 horas. Ao pagar, a empresa fica ativa sozinha." },
+    });
+  }),
+);
+
+masterRouter.post(
+  "/clientes/:id/cobrar",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    if (!stripeEnabled()) return fail(res, 503, "Stripe não configurado.");
+    try {
+      const r = await payOpenInvoice(org.id);
+      await audit(req, actor(req), "billing.charge_now", { type: "organization", id: org.id, label: org.name, meta: r });
+      if (!r.paid) return fail(res, 402, r.message);
+      ok(res, `${org.name}: ${r.message} A empresa volta a ficar ativa em instantes.`);
+    } catch (error) {
+      console.error("[master] charge failed", error);
+      fail(res, 502, "O Stripe não respondeu. Tente de novo.");
+    }
+  }),
+);
+
+masterRouter.post(
+  "/clientes/:id/somente-leitura",
+  requireCap("tenants_suspend"),
+  requireStepUp,
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const on = req.body?.on !== "0";
+    if (on) {
+      if (["read_only", "suspended", "canceled"].includes(org.status)) return fail(res, 400, "A empresa já está sem acesso de escrita.");
+      await prisma.organization.update({ where: { id: org.id }, data: { status: "read_only", readOnlySince: new Date() } });
+    } else {
+      if (org.status !== "read_only") return fail(res, 400, "A empresa não está em só leitura.");
+      const back = org.currentPeriodEnd && daysUntil(org.currentPeriodEnd)! >= 0 ? "active" : !org.currentPeriodEnd && org.trialEndsAt ? "trial" : "past_due";
+      await prisma.organization.update({ where: { id: org.id }, data: { status: back, readOnlySince: null } });
+    }
+    await audit(req, actor(req), on ? "tenant.read_only" : "tenant.read_only_off", { type: "organization", id: org.id, label: org.name, meta: { from: org.status } }, true);
+    ok(res, on ? `${org.name} em só leitura: vê tudo, não cria nem edita.` : `${org.name} voltou a poder editar.`, { warn: on });
+  }),
+);
+
+masterRouter.post(
+  "/clientes/:id/pausar-regua",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const days = Math.min(30, Math.max(0, Number(req.body?.days ?? 14) || 0));
+    const until = days ? dayFromToday(days) : null;
+    await prisma.organization.update({ where: { id: org.id }, data: { dunningPausedUntil: until } });
+    await audit(req, actor(req), days ? "ladder.pause" : "ladder.resume", { type: "organization", id: org.id, label: org.name, meta: { until: until?.toISOString() ?? null } });
+    ok(res, days ? `Cobrança automática pausada para ${org.name} até ${shortDate(until)}.` : `Cobrança automática retomada para ${org.name}.`);
+  }),
+);
+
+masterRouter.post(
   "/clientes/:id/cancelar",
   requireCap("tenants_suspend"),
   requireStepUp,
@@ -1023,10 +1171,20 @@ masterRouter.post(
     if (String(req.body?.confirm || "").trim().toLowerCase() !== org.slug.toLowerCase()) {
       return fail(res, 400, `Digite ${org.slug} para confirmar.`);
     }
-    await prisma.organization.update({ where: { id: org.id }, data: { status: "canceled", canceledAt: new Date(), cancelReason: reason || null } });
+    let stripeNote = "";
+    if (org.stripeSubscriptionId && stripeEnabled()) {
+      try {
+        await cancelSubscription(org.id, false);
+        stripeNote = " A assinatura no Stripe também foi cancelada (sem novas cobranças).";
+      } catch (error) {
+        console.error("[master] stripe cancel failed", error);
+        return fail(res, 502, "O Stripe não cancelou a assinatura. Nada foi alterado; tente de novo.");
+      }
+    }
+    await prisma.organization.update({ where: { id: org.id }, data: { status: "canceled", canceledAt: new Date(), cancelReason: reason || null, cancelAtPeriodEnd: false } });
     const killed = await endOrgSessions(org.id);
-    await audit(req, actor(req), "tenant.cancel", { type: "organization", id: org.id, label: org.name, meta: { from: org.status, reason, sessionsEnded: killed } }, true);
-    ok(res, `${org.name} cancelada.`, { warn: true });
+    await audit(req, actor(req), "tenant.cancel", { type: "organization", id: org.id, label: org.name, meta: { from: org.status, reason, sessionsEnded: killed, stripe: !!stripeNote } }, true);
+    ok(res, `${org.name} cancelada.${stripeNote}`, { warn: true });
   }),
 );
 
@@ -1317,6 +1475,123 @@ masterRouter.post(
 );
 
 // ---------------------------------------------------------------------------
+// Planos e preços
+// ---------------------------------------------------------------------------
+
+masterRouter.get(
+  "/planos",
+  requireCap("billing_full"),
+  h(async (req, res) => {
+    const [catalog, orgs] = await Promise.all([refreshPlans(), loadOrgs()]);
+    const rows = catalog.map((p) => {
+      const mine = orgs.filter((o) => o.plan === p.key && o.status !== "canceled");
+      const paying = mine.filter((o) => o.status === "active" || o.status === "past_due");
+      return {
+        ...p,
+        monthlyText: money(p.monthlyCents),
+        annualText: money(p.annualCents),
+        annualSaving: p.monthlyCents * 12 - p.annualCents,
+        usersText: p.includedUsers == null ? "Usuários ilimitados" : `Até ${p.includedUsers} usuários`,
+        payingCount: paying.length,
+        trialCount: mine.filter((o) => o.status === "trial").length,
+        specialCount: paying.filter((o) => o.planPriceCents != null).length,
+        mrr: money(paying.reduce((a, o) => a + o.monthlyCents, 0)),
+        monthlyDollars: (p.monthlyCents / 100).toFixed(2),
+        annualDollars: (p.annualCents / 100).toFixed(2),
+      };
+    });
+    page(res, "planos", await shell(req, "planos"), {
+      rows,
+      canEdit: can(req.master!.role, "plans_manage"),
+      stripeOn: stripeEnabled(),
+    });
+  }),
+);
+
+const planEditSchema = z.object({
+  name: z.string().trim().min(2).max(40),
+  description: z.string().trim().max(160).optional().default(""),
+  monthly: z.coerce.number().min(0).max(100000),
+  annual: z.coerce.number().min(0).max(1000000),
+  includedUsers: z.union([z.literal(""), z.coerce.number().int().min(1).max(10000)]).optional(),
+  trialDays: z.coerce.number().int().min(0).max(120),
+  visible: z.string().optional(),
+  active: z.string().optional(),
+  grandfather: z.string().optional(),
+});
+
+masterRouter.post(
+  "/planos/:key",
+  requireCap("plans_manage"),
+  requireStepUp,
+  h(async (req, res) => {
+    const isNew = String(req.params.key) === "novo";
+    const key = String(isNew ? req.body?.key || "" : req.params.key).trim().toLowerCase();
+    const parsed = planEditSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Confira nome, preços e dias de teste.");
+    const d = parsed.data;
+    const data = {
+      name: d.name,
+      description: d.description || null,
+      monthlyCents: Math.round(d.monthly * 100),
+      annualCents: Math.round(d.annual * 100),
+      includedUsers: d.includedUsers === "" || d.includedUsers == null ? null : Number(d.includedUsers),
+      trialDays: d.trialDays,
+      visible: !!d.visible,
+      active: !!d.active,
+    };
+    const existing = await prisma.plan.findUnique({ where: { key } });
+    if (isNew && existing) return fail(res, 409, "Já existe um plano com esse código.");
+    if (!existing) {
+      if (!/^[a-z][a-z0-9-]{1,30}$/.test(key)) return fail(res, 400, "Código do plano: letras minúsculas, números e hífen.");
+      const last = await prisma.plan.findFirst({ orderBy: { sortOrder: "desc" } });
+      await prisma.plan.create({ data: { key, ...data, sortOrder: (last?.sortOrder ?? 0) + 1 } });
+      await refreshPlans();
+      await audit(req, actor(req), "plan.create", { type: "plan", id: key, label: data.name, meta: data }, true);
+      return ok(res, `Plano ${data.name} criado.`);
+    }
+    const monthlyChanged = existing.monthlyCents !== data.monthlyCents;
+    const annualChanged = existing.annualCents !== data.annualCents;
+    let kept = 0;
+    if ((monthlyChanged || annualChanged) && d.grandfather) {
+      // Companies already paying keep what they pay today.
+      const payers = await prisma.organization.findMany({
+        where: { plan: key, planPriceCents: null, status: { in: ["active", "past_due", "read_only", "suspended"] } },
+        select: { id: true, billingCycle: true },
+      });
+      for (const o of payers) {
+        const old = o.billingCycle === "annual" ? existing.annualCents : existing.monthlyCents;
+        const changed = o.billingCycle === "annual" ? annualChanged : monthlyChanged;
+        if (!changed) continue;
+        await prisma.organization.update({ where: { id: o.id }, data: { planPriceCents: old } });
+        kept++;
+      }
+    }
+    await prisma.plan.update({
+      where: { key },
+      data: {
+        ...data,
+        // A new price is a new Stripe price; the old one stays for current subscribers.
+        stripeMonthlyPriceId: monthlyChanged ? null : existing.stripeMonthlyPriceId,
+        stripeAnnualPriceId: annualChanged ? null : existing.stripeAnnualPriceId,
+      },
+    });
+    await refreshPlans();
+    await audit(req, actor(req), "plan.update", {
+      type: "plan",
+      id: key,
+      label: data.name,
+      meta: {
+        from: { monthlyCents: existing.monthlyCents, annualCents: existing.annualCents, includedUsers: existing.includedUsers, trialDays: existing.trialDays, visible: existing.visible, active: existing.active },
+        to: data,
+        grandfathered: kept,
+      },
+    }, true);
+    ok(res, `${data.name} salvo${kept ? `. ${kept} empresa(s) mantêm o preço antigo.` : "."}`);
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Pagamentos
 // ---------------------------------------------------------------------------
 
@@ -1324,20 +1599,24 @@ masterRouter.get(
   "/pagamentos",
   requireCap("billing_full"),
   h(async (req, res) => {
-    const tab = ["todos", "estornados"].includes(String(req.query.aba)) ? String(req.query.aba) : "todos";
+    const tab = ["todos", "falhas", "estornados"].includes(String(req.query.aba)) ? String(req.query.aba) : "todos";
     const [all, orgs] = await Promise.all([loadPayments({}, 500), loadOrgs()]);
     const monthStart = startOfMonthInTz();
     const paidMonth = all.filter((p) => p.status === "paid" && p.paidAt >= monthStart);
+    const failedOpen = all.filter((p) => p.status === "failed");
     const refunded30 = all.filter((p) => p.status === "refunded" && p.refundedAt && Date.now() - p.refundedAt.getTime() < 30 * 86_400_000);
     const late = orgs.filter((o) => o.overdue && o.status !== "trial");
     const mrr = orgs.filter((o) => o.status === "active" || o.status === "past_due").reduce((a, o) => a + o.monthlyCents, 0);
     page(res, "pagamentos", await shell(req, "pagamentos"), {
-      rows: tab === "estornados" ? all.filter((p) => p.status === "refunded") : all,
+      rows: tab === "estornados" ? all.filter((p) => p.status === "refunded") : tab === "falhas" ? failedOpen : all,
       tab,
       tabs: [
         { key: "todos", label: "Todos", count: all.length },
+        { key: "falhas", label: "Cobranças recusadas", count: failedOpen.length },
         { key: "estornados", label: "Estornados", count: all.filter((p) => p.status === "refunded").length },
       ],
+      stripe: { mode: stripeMode(), webhook: !!process.env.STRIPE_WEBHOOK_SECRET },
+      canCharge: can(req.master!.role, "billing_manage"),
       kpis: [
         { label: "Recebido no mês", value: money(paidMonth.reduce((a, p) => a + p.amountCents, 0)), note: `${paidMonth.length} pagamento(s)` },
         { label: "MRR", value: money(mrr), note: "planos ativos" },
@@ -1357,9 +1636,25 @@ masterRouter.post(
     const p = await prisma.platformPayment.findUnique({ where: { id: String(req.params.id) }, include: { organization: { select: { name: true } } } });
     if (!p) return fail(res, 404, "Pagamento não encontrado.");
     if (p.status === "refunded") return fail(res, 400, "Já está estornado.");
+    if (p.status !== "paid") return fail(res, 400, "Só pagamentos aprovados podem ser estornados.");
+    const viaStripe = p.source === "stripe" && !!p.stripeChargeId;
+    if (viaStripe) {
+      if (!stripeEnabled()) return fail(res, 503, "Stripe não configurado neste servidor.");
+      try {
+        await refundCharge(p.stripeChargeId!);
+      } catch (error) {
+        console.error("[master] stripe refund failed", error);
+        return fail(res, 502, `O Stripe recusou o estorno: ${error instanceof Error ? error.message : "erro"}`);
+      }
+    }
     await prisma.platformPayment.update({ where: { id: p.id }, data: { status: "refunded", refundedAt: new Date() } });
-    await audit(req, actor(req), "payment.refund", { type: "organization", id: p.organizationId, label: p.organization.name, meta: { paymentId: p.id, amountCents: p.amountCents } }, true);
-    ok(res, `${money(p.amountCents)} marcado como estornado. Devolva o valor no meio de pagamento usado (${METHOD_LABEL[p.method] ?? p.method}).`);
+    await audit(req, actor(req), "payment.refund", { type: "organization", id: p.organizationId, label: p.organization.name, meta: { paymentId: p.id, amountCents: p.amountCents, viaStripe } }, true);
+    ok(
+      res,
+      viaStripe
+        ? `${money(p.amountCents)} estornado no cartão pelo Stripe. Cai em 5 a 10 dias.`
+        : `${money(p.amountCents)} marcado como estornado. Devolva o valor no meio de pagamento usado (${METHOD_LABEL[p.method] ?? p.method}).`,
+    );
   }),
 );
 
@@ -1381,8 +1676,22 @@ masterRouter.get(
       const money$ = b.list.filter((o) => o.status !== "trial").reduce((a, o) => a + o.priceCents, 0);
       return { ...b, total: money$ ? `${money(money$)} em jogo` : b.list.length ? "só trials" : "nada previsto" };
     });
+    const [ladder, lastRun, recentSteps] = await Promise.all([
+      loadLadder(),
+      prisma.jobRun.findFirst({ where: { name: BILLING_LADDER_JOB }, orderBy: { startedAt: "desc" } }),
+      prisma.dunningStep.findMany({ where: { action: { not: "skipped" } }, orderBy: { sentAt: "desc" }, take: 8 }),
+    ]);
+    const orgName = new Map(orgs.map((o) => [o.id, o.name]));
     page(res, "vencimentos", await shell(req, "vencimentos"), {
       buckets,
+      ladder,
+      ladderSteps: ladderSteps(ladder),
+      lastRun: lastRun
+        ? { when: dateTimeLabel(lastRun.startedAt), ok: lastRun.ok, error: lastRun.error, detail: lastRun.detail as { emails?: number; changes?: { org: string; to: string }[] } | null }
+        : null,
+      recentSteps: recentSteps.map((st) => ({ when: dateTimeLabel(st.sentAt), org: orgName.get(st.organizationId) ?? "—", orgId: st.organizationId, action: st.action, detail: st.detail ?? st.step })),
+      paused: orgs.filter((o) => o.dunningPausedUntil && o.dunningPausedUntil > new Date()).map((o) => ({ id: o.id, name: o.name, until: shortDate(o.dunningPausedUntil) })),
+      canLadder: can(req.master!.role, "plans_manage"),
       noDate: orgs.filter((o) => o.days == null),
       canBilling: can(req.master!.role, "billing_manage"),
       showMoney: can(req.master!.role, "billing_full"),
@@ -1403,6 +1712,243 @@ masterRouter.post(
     }
     await audit(req, actor(req), "tenant.bulk_reminder", { type: "organization", label: `${sent} empresa(s)`, meta: { ids } });
     ok(res, `Lembrete enviado para ${sent} empresa(s).`);
+  }),
+);
+
+masterRouter.post(
+  "/vencimentos/regua/rodar",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    const r = await runJob(BILLING_LADDER_JOB, "manual", () => runBillingLadder());
+    await audit(req, actor(req), "ladder.run", { type: "job", label: BILLING_LADDER_JOB, meta: r });
+    ok(res, `Régua rodou: ${r.checked} empresa(s) conferida(s), ${r.emails} e-mail(s), ${r.changes.length} mudança(s) de estado.`);
+  }),
+);
+
+const ladderSchema = z.object({
+  enabled: z.string().optional(),
+  trialReminders: z.string().default(""),
+  renewReminders: z.string().default(""),
+  pastDueAt: z.coerce.number().int().min(0).max(30),
+  overdueReminders: z.string().default(""),
+  readOnlyAt: z.coerce.number().int().min(1).max(60),
+  suspendAt: z.coerce.number().int().min(1).max(120),
+  cancelAt: z.coerce.number().int().min(7).max(365),
+  stripeGraceDays: z.coerce.number().int().min(0).max(14),
+});
+
+const dayList = (v: string) =>
+  Array.from(new Set(v.split(/[\s,;]+/).map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0 && n <= 60))).sort((a, b) => b - a);
+
+masterRouter.post(
+  "/vencimentos/regua",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    const parsed = ladderSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Confira os dias da régua.");
+    const d = parsed.data;
+    if (!(d.pastDueAt < d.readOnlyAt && d.readOnlyAt < d.suspendAt && d.suspendAt < d.cancelAt)) {
+      return fail(res, 400, "A ordem precisa ser: atrasado < só leitura < suspensa < cancelada.");
+    }
+    const before = await loadLadder();
+    const next = {
+      enabled: !!d.enabled,
+      trialReminders: dayList(d.trialReminders),
+      renewReminders: dayList(d.renewReminders),
+      pastDueAt: d.pastDueAt,
+      overdueReminders: dayList(d.overdueReminders).filter((x) => x > d.pastDueAt && x < d.suspendAt),
+      readOnlyAt: d.readOnlyAt,
+      suspendAt: d.suspendAt,
+      cancelAt: d.cancelAt,
+      stripeGraceDays: d.stripeGraceDays,
+    };
+    if (before.enabled && !next.enabled && !isFreshStepUp(req)) {
+      return fail(res, 428, "Confirme com o código do autenticador.", "step_up_required");
+    }
+    await saveLadder(next);
+    await audit(req, actor(req), "ladder.config", { type: "setting", label: "Régua de cobrança", meta: { from: before, to: next } }, before.enabled && !next.enabled);
+    ok(res, next.enabled ? "Régua salva." : "Régua desligada: nenhum aviso ou mudança automática.", { warn: !next.enabled });
+  }),
+);
+
+masterRouter.post(
+  "/vencimentos/regua/padrao",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    await saveLadder({ ...DEFAULT_LADDER });
+    await audit(req, actor(req), "ladder.config", { type: "setting", label: "Régua de cobrança", meta: { to: DEFAULT_LADDER } });
+    ok(res, "Régua voltou ao padrão.");
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Suporte (tickets das empresas)
+// ---------------------------------------------------------------------------
+
+const TICKET_FILTERS: [string, string, string[] | null][] = [
+  ["abertos", "Esperando a gente", ["open"]],
+  ["aguardando", "Esperando a empresa", ["waiting"]],
+  ["resolvidos", "Resolvidos", ["closed"]],
+  ["todos", "Todos", null],
+];
+const TICKET_CAT: Record<string, string> = { question: "Dúvida", suggestion: "Sugestão", bug: "Problema", other: "Outro" };
+const TICKET_STATUS: Record<string, Pill> = {
+  open: { label: "Esperando a gente", tone: "danger" },
+  waiting: { label: "Esperando a empresa", tone: "info" },
+  closed: { label: "Resolvido", tone: "muted" },
+};
+const PRIORITY: Record<string, Pill> = {
+  high: { label: "Alta", tone: "danger" },
+  normal: { label: "Normal", tone: "soft" },
+  low: { label: "Baixa", tone: "muted" },
+};
+
+function ageLabel(d: Date): string {
+  const h = Math.floor((Date.now() - d.getTime()) / 3_600_000);
+  if (h < 1) return "agora";
+  if (h < 24) return `há ${h} h`;
+  return `há ${Math.floor(h / 24)} d`;
+}
+
+masterRouter.get(
+  "/suporte",
+  h(async (req, res) => {
+    const f = TICKET_FILTERS.find((x) => x[0] === req.query.filtro) ?? TICKET_FILTERS[0];
+    const q = String(req.query.q || "").trim();
+    const [rows, counts] = await Promise.all([
+      prisma.supportTicket.findMany({
+        where: {
+          ...(f[2] ? { status: { in: f[2] } } : {}),
+          ...(q ? { OR: [{ subject: { contains: q, mode: "insensitive" } }, { body: { contains: q, mode: "insensitive" } }, { organization: { name: { contains: q, mode: "insensitive" } } }] } : {}),
+        },
+        orderBy: [{ lastMessageAt: "desc" }, { createdAt: "desc" }],
+        take: 200,
+        include: {
+          organization: { select: { id: true, name: true } },
+          createdByUser: { select: { name: true, email: true } },
+          _count: { select: { messages: true } },
+        },
+      }),
+      prisma.supportTicket.groupBy({ by: ["status"], _count: { _all: true } }),
+    ]);
+    const countOf = (st: string[] | null) => counts.filter((c) => !st || st.includes(c.status)).reduce((a, c) => a + c._count._all, 0);
+    const prioRank: Record<string, number> = { high: 0, normal: 1, low: 2 };
+    const list = rows
+      .map((t) => ({
+        id: t.id,
+        subject: t.subject,
+        orgName: t.organization.name,
+        orgId: t.organization.id,
+        author: t.createdByUser?.name ?? "—",
+        category: TICKET_CAT[t.category] ?? t.category,
+        pill: TICKET_STATUS[t.status] ?? { label: t.status, tone: "muted" as const },
+        priority: PRIORITY[t.priority] ?? PRIORITY.normal,
+        prioKey: t.priority,
+        age: ageLabel(t.lastMessageAt ?? t.createdAt),
+        replies: t._count.messages,
+        waitingUs: t.status === "open",
+      }))
+      .sort((a, b) => (f[0] === "abertos" ? (prioRank[a.prioKey] ?? 1) - (prioRank[b.prioKey] ?? 1) : 0));
+    page(res, "suporte", await shell(req, "suporte"), {
+      rows: list,
+      filter: f[0],
+      q,
+      filters: TICKET_FILTERS.map((x) => ({ key: x[0], label: x[1], count: countOf(x[2]) })),
+    });
+  }),
+);
+
+masterRouter.get(
+  "/suporte/:id",
+  h(async (req, res) => {
+    const t = await prisma.supportTicket.findUnique({
+      where: { id: String(req.params.id) },
+      include: {
+        organization: { select: { id: true, name: true, slug: true, status: true } },
+        createdByUser: { select: { id: true, name: true, email: true } },
+        messages: { orderBy: { createdAt: "asc" } },
+      },
+    });
+    if (!t) return void res.status(404).render("master/error", { title: "Ticket não encontrado", message: "Esse ticket não existe." });
+    const thread = [
+      { from: "company", author: t.createdByUser?.name ?? "Empresa", body: t.body, when: dateTimeLabel(t.createdAt) },
+      ...t.messages.map((m) => ({ from: m.authorType, author: m.authorName, body: m.body, when: dateTimeLabel(m.createdAt) })),
+    ];
+    page(res, "ticket", await shell(req, "suporte"), {
+      t: {
+        id: t.id,
+        subject: t.subject,
+        category: TICKET_CAT[t.category] ?? t.category,
+        status: t.status,
+        pill: TICKET_STATUS[t.status] ?? { label: t.status, tone: "muted" },
+        priority: t.priority,
+        org: t.organization,
+        author: t.createdByUser,
+        opened: dateTimeLabel(t.createdAt),
+        firstResponse: t.firstResponseAt ? dateTimeLabel(t.firstResponseAt) : null,
+      },
+      thread,
+    });
+  }),
+);
+
+masterRouter.post(
+  "/suporte/:id/responder",
+  h(async (req, res) => {
+    const body = String(req.body?.body || "").trim().slice(0, 8000);
+    const close = req.body?.close === "1";
+    const t = await prisma.supportTicket.findUnique({
+      where: { id: String(req.params.id) },
+      include: { createdByUser: { select: { name: true, email: true } }, organization: { select: { name: true, slug: true } } },
+    });
+    if (!t) return fail(res, 404, "Ticket não encontrado.");
+    if (!body && !close) return fail(res, 400, "Escreva a resposta.");
+    const now = new Date();
+    if (body) {
+      await prisma.supportTicketMessage.create({
+        data: { ticketId: t.id, organizationId: t.organizationId, authorType: "platform", authorId: req.master!.id, authorName: `${req.master!.name.split(" ")[0]} · ObraMate`, body },
+      });
+    }
+    await prisma.supportTicket.update({
+      where: { id: t.id },
+      data: {
+        status: close ? "closed" : "waiting",
+        closedAt: close ? now : null,
+        lastMessageAt: body ? now : t.lastMessageAt,
+        ...(body && !t.firstResponseAt ? { firstResponseAt: now } : {}),
+      },
+    });
+    if (body && t.createdByUser?.email) {
+      await emailProvider
+        .send({
+          to: t.createdByUser.email,
+          subject: `Re: ${t.subject}`,
+          text: `Olá, ${t.createdByUser.name.split(" ")[0]}.\n\n${body}\n\n—\nEquipe ObraMate\nPara responder, abra Configurações › Ajuda e suporte no ObraMate${close ? " (o ticket foi marcado como resolvido; responder reabre)." : "."}`,
+        })
+        .catch(() => undefined);
+    }
+    await audit(req, actor(req), body ? "support.reply" : "support.close", { type: "ticket", id: t.id, label: `${t.subject} · ${t.organization.name}`, meta: { close } });
+    ok(res, body ? (close ? "Resposta enviada e ticket resolvido." : "Resposta enviada. A empresa recebe por e-mail e vê no ObraMate.") : "Ticket resolvido.");
+  }),
+);
+
+masterRouter.post(
+  "/suporte/:id/status",
+  h(async (req, res) => {
+    const status = String(req.body?.status || "");
+    const priority = String(req.body?.priority || "");
+    const t = await prisma.supportTicket.findUnique({ where: { id: String(req.params.id) }, select: { id: true, subject: true, status: true, priority: true } });
+    if (!t) return fail(res, 404, "Ticket não encontrado.");
+    const data: Record<string, unknown> = {};
+    if (status && ["open", "waiting", "closed"].includes(status)) {
+      data.status = status;
+      data.closedAt = status === "closed" ? new Date() : null;
+    }
+    if (priority && ["low", "normal", "high"].includes(priority)) data.priority = priority;
+    if (!Object.keys(data).length) return fail(res, 400, "Nada para mudar.");
+    await prisma.supportTicket.update({ where: { id: t.id }, data });
+    await audit(req, actor(req), "support.update", { type: "ticket", id: t.id, label: t.subject, meta: { from: { status: t.status, priority: t.priority }, to: data } });
+    ok(res, "Ticket atualizado.");
   }),
 );
 

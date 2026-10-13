@@ -30,6 +30,7 @@
       icon: "home",
       desc: "Perfil, marca, licença e horário",
       subs: [
+        { id: "plano", label: "Plano e cobrança", section: "plano", perm: null, desc: "Seu plano no ObraMate, cartão, faturas e assinatura.", keywords: "plano assinatura cobrança cartão pagamento fatura stripe trial teste grátis cancelar upgrade preço" },
         { id: "perfil", label: "Perfil e endereço", section: "empresa", perm: "settings.manage", desc: "Aparecem nos orçamentos, faturas, PDFs e no link que o cliente abre.", keywords: "nome razão social telefone e-mail email site endereço rua cidade estado zip avaliação google review" },
         { id: "marca", label: "Marca no documento", section: "marca", perm: "settings.manage", desc: "Logo e cores dos documentos do cliente (orçamento, fatura, PDF e e-mails). Os menus do ObraMate não mudam.", keywords: "logo cores cor principal destaque tema" },
         { id: "licenca", label: "Licença e seguro", section: "empresa", perm: "settings.manage", desc: "Muitos clientes e builders pedem antes de fechar. Avisamos no Início 30 dias antes de vencer.", keywords: "licença seguro apólice certificado validade" },
@@ -3005,6 +3006,143 @@
     });
   }
 
+  // ---------------------------------------------------------------- plano e cobrança
+  const BILL_STATUS = {
+    trial: ["Teste grátis", ""],
+    active: ["Ativa", " is-open"],
+    past_due: ["Pagamento atrasado", " is-warn"],
+    read_only: ["Só leitura", " is-warn"],
+  };
+  const billState = { plan: null, cycle: "monthly", data: null };
+
+  async function billingPost(path, body) {
+    const r = await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.success) throw new Error(j.message || "Não foi possível abrir o pagamento.");
+    return j;
+  }
+
+  function fmtDay(iso) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  }
+
+  function renderBilling() {
+    const d = billState.data;
+    if (!d) return;
+    const st = BILL_STATUS[d.status] || [d.status, ""];
+    $("billStatus").textContent = st[0];
+    $("billStatus").className = "cfg-badge" + st[1];
+    $("billPlanName").textContent = d.plan.name + (d.status === "trial" ? " · teste grátis" : "");
+    $("billPlanPrice").textContent = d.plan.price_text + (d.plan.special_price ? " (preço especial)" : "");
+    let due = "";
+    if (d.status === "trial" && d.trial_ends_at) due = (d.has_subscription ? "Primeira cobrança em " : "Teste grátis até ") + fmtDay(d.trial_ends_at);
+    else if (d.current_period_end) due = (d.cancel_at_period_end ? "Acesso até " : d.status === "active" ? "Próxima cobrança em " : "Venceu em ") + fmtDay(d.current_period_end);
+    else if (d.trial_ends_at) due = "Teste grátis acabou em " + fmtDay(d.trial_ends_at);
+    $("billDue").textContent = due || "—";
+    const banner = $("billBanner");
+    banner.hidden = !d.banner;
+    if (d.banner) {
+      banner.textContent = d.banner.text;
+      banner.className = "cfg-bill-banner is-" + d.banner.tone;
+    }
+    const ok = new URLSearchParams(location.search).get("assinatura") === "ok";
+    $("billThanks").hidden = !ok;
+
+    // Plans
+    const wrap = $("billPlans");
+    if (!billState.plan) billState.plan = d.plan.key;
+    if (!billState.cycleSet) billState.cycle = d.plan.cycle === "annual" ? "annual" : "monthly";
+    wrap.innerHTML = d.plans
+      .map(
+        (p) =>
+          `<label class="cfg-plan${billState.plan === p.key ? " is-on" : ""}"><input type="radio" name="billPlan" value="${esc(p.key)}"${billState.plan === p.key ? " checked" : ""} />` +
+          `<span class="cfg-plan__name">${esc(p.name)}${p.current ? ' <span class="cfg-badge">atual</span>' : ""}</span>` +
+          `<span class="cfg-plan__price">${esc(billState.cycle === "annual" ? p.annual_text + "/ano" : p.monthly_text + "/mês")}</span>` +
+          `<span class="cfg-plan__desc">${esc(p.users_text)}${p.description ? " · " + esc(p.description) : ""}</span></label>`,
+      )
+      .join("");
+    wrap.querySelectorAll("input[name=billPlan]").forEach((r) =>
+      r.addEventListener("change", () => {
+        billState.plan = r.value;
+        renderBilling();
+      }),
+    );
+    document.querySelectorAll("[data-bill-cycle]").forEach((b) => {
+      b.classList.toggle("is-on", b.getAttribute("data-bill-cycle") === billState.cycle);
+      b.setAttribute("aria-pressed", b.getAttribute("data-bill-cycle") === billState.cycle ? "true" : "false");
+    });
+
+    const subscribed = d.has_subscription && !d.cancel_at_period_end && d.status !== "read_only";
+    $("billChoose").hidden = subscribed || !d.can_manage_billing;
+    $("btnBillCheckout").textContent =
+      d.status === "trial" ? "Assinar agora (cobra só no fim do teste)" : d.status === "read_only" ? "Assinar e liberar a conta" : "Assinar";
+    $("btnBillPortal").hidden = !d.can_manage_billing || !d.has_customer;
+    $("billNoAdmin").hidden = d.can_manage_billing;
+    $("billStripeOff").hidden = d.stripe_enabled || !d.can_manage_billing;
+    $("btnBillCheckout").disabled = !d.stripe_enabled;
+
+    const list = $("billPayments");
+    $("billHistory").hidden = !d.payments.length;
+    list.innerHTML = d.payments
+      .map(
+        (p) =>
+          `<div class="cfg-bill-pay"><span>${esc(fmtDay(p.paid_at))}</span><span>${esc(p.period || "")}</span><b>${esc(p.amount_text)}</b>` +
+          `<span class="cfg-badge${p.status === "paid" ? " is-open" : ""}">${p.status === "paid" ? "Pago" : "Estornado"}</span>` +
+          `${p.invoice_pdf_url || p.invoice_url ? `<a href="${esc(p.invoice_pdf_url || p.invoice_url)}" target="_blank" rel="noopener">Recibo</a>` : "<span></span>"}</div>`,
+      )
+      .join("");
+  }
+
+  let billBound = false;
+  async function loadBilling() {
+    if (!billBound) {
+      billBound = true;
+      document.querySelectorAll("[data-bill-cycle]").forEach((b) =>
+        b.addEventListener("click", () => {
+          billState.cycle = b.getAttribute("data-bill-cycle");
+          billState.cycleSet = true;
+          renderBilling();
+        }),
+      );
+      $("btnBillCheckout").addEventListener("click", async () => {
+        const btn = $("btnBillCheckout");
+        btn.disabled = true;
+        const label = btn.textContent;
+        btn.textContent = "Abrindo pagamento seguro…";
+        try {
+          const j = await billingPost("/api/billing/checkout", { plan: billState.plan, cycle: billState.cycle });
+          location.href = j.url;
+        } catch (err) {
+          notify(err.message, "error");
+          btn.disabled = false;
+          btn.textContent = label;
+        }
+      });
+      $("btnBillPortal").addEventListener("click", async () => {
+        try {
+          const j = await billingPost("/api/billing/portal");
+          location.href = j.url;
+        } catch (err) {
+          notify(err.message, "error");
+        }
+      });
+    }
+    try {
+      const j = await api("/api/billing/summary");
+      billState.data = j.data;
+      renderBilling();
+    } catch (err) {
+      notify("Não foi possível carregar o plano.", "error");
+    }
+  }
+
   // ---------------------------------------------------------------- app / support
   function syncInstalledNote() {
     const standalone =
@@ -3022,14 +3160,39 @@
       $("supportHistoryList").innerHTML = rows
         .map((t) => {
           const closed = t.status === "closed";
+          const answered = t.status === "waiting";
           const when = t.created_at ? new Date(t.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "";
           return (
-            `<article class="cfg-ticket"><div class="cfg-ticket__meta"><span class="cfg-badge${closed ? "" : " is-open"}">${closed ? "Resolvido" : "Aberto"}</span>` +
+            `<article class="cfg-ticket"><div class="cfg-ticket__meta"><span class="cfg-badge${closed ? "" : " is-open"}">${closed ? "Resolvido" : answered ? "Respondido" : "Aberto"}</span>` +
             `<span>${esc(CAT_LABEL[t.category] || t.category || "")}</span><span>${esc(when)}</span></div>` +
-            `<p class="cfg-ticket__subject">${esc(t.subject)}</p><p class="cfg-ticket__body">${esc(t.body)}</p></article>`
+            `<p class="cfg-ticket__subject">${esc(t.subject)}</p><p class="cfg-ticket__body">${esc(t.body)}</p>` +
+            (t.messages || [])
+              .map(
+                (m) =>
+                  `<div class="cfg-ticket__msg${m.from === "obramate" ? " is-us" : ""}"><span>${esc(m.author)} · ${esc(new Date(m.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }))}</span><p>${esc(m.body)}</p></div>`,
+              )
+              .join("") +
+            `<form class="cfg-ticket__reply" data-ticket="${esc(t.id)}"><input type="text" maxlength="8000" placeholder="${(t.messages || []).length ? "Responder…" : "Acrescentar algo…"}" aria-label="Responder ao ticket" /><button type="submit" class="btn btn-secondary cfg-btn-sm">Enviar</button></form></article>`
           );
         })
         .join("");
+      $("supportHistoryList").querySelectorAll(".cfg-ticket__reply").forEach((f) =>
+        f.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const input = f.querySelector("input");
+          const body = input.value.trim();
+          if (!body) return input.focus();
+          f.querySelector("button").disabled = true;
+          try {
+            await api(`/api/support/tickets/${encodeURIComponent(f.getAttribute("data-ticket"))}/messages`, { method: "POST", body: JSON.stringify({ body }) });
+            notify("Mensagem enviada.", "success");
+            loadSupportHistory();
+          } catch (err) {
+            notify(err.message || "Não foi possível enviar.", "error");
+            f.querySelector("button").disabled = false;
+          }
+        }),
+      );
     } catch (_) {
       /* history is optional */
     }
@@ -3415,6 +3578,7 @@
     if (id === "tipos-cliente") return loadCatalogKind("customer_type", "cfgCustTypesBody", "cfgCustTypeAddBtn");
     if (id === "folha") return loadFolhaSettings();
     if (id === "app") return syncInstalledNote();
+    if (id === "plano") return loadBilling();
     if (id === "suporte" && !loaded.has("suporte")) {
       loaded.add("suporte");
       return loadSupportHistory();

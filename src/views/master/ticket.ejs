@@ -1,0 +1,50 @@
+<%- include('_top', { pageTitle: t.subject }) %>
+<a class="btn btn-soft btn-sm" href="/master/suporte" style="align-self:flex-start">← Suporte</a>
+<div class="ticket-layout">
+  <section class="card card-pad ticket-main">
+    <div class="ticket-head">
+      <div style="flex:1;min-width:0">
+        <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em"><%= t.subject %></h1>
+        <div class="page-sub"><%= t.category %> · aberto <%= t.opened %><%= t.firstResponse ? ' · 1ª resposta ' + t.firstResponse : ' · ainda sem resposta' %></div>
+      </div>
+      <span class="pill tone-<%= t.pill.tone %>"><%= t.pill.label %></span>
+    </div>
+    <div class="thread">
+      <% thread.forEach(function (m) { %>
+        <article class="msg <%= m.from === 'platform' ? 'is-us' : '' %>">
+          <header><b><%= m.author %></b><small><%= m.when %></small></header>
+          <p><%= m.body %></p>
+        </article>
+      <% }) %>
+    </div>
+    <form data-action action="/master/suporte/<%= t.id %>/responder" class="reply">
+      <label class="field">Sua resposta<textarea class="input" name="body" rows="5" maxlength="8000" placeholder="Escreva para <%= t.author ? t.author.name.split(' ')[0] : 'a empresa' %>…"></textarea></label>
+      <div class="row-actions" style="justify-content:flex-end">
+        <% if (t.status !== 'closed') { %><button class="btn" type="submit" name="close" value="1">Responder e resolver</button><% } %>
+        <button class="btn btn-dark" type="submit">Enviar resposta</button>
+      </div>
+    </form>
+  </section>
+  <aside class="ticket-side">
+    <section class="card card-pad">
+      <h2 style="margin-bottom:8px">Empresa</h2>
+      <a class="d-line" href="/master/clientes/<%= t.org.id %>" data-ficha="<%= t.org.id %>" style="padding:0"><b style="flex:1"><%= t.org.name %></b><span style="font-size:12px;font-weight:800;color:var(--accent-ink)">Abrir ficha</span></a>
+      <% if (t.author) { %><div class="d-line" style="padding:8px 0 0"><span style="flex:1"><b><%= t.author.name %></b><br><small class="muted" style="font-weight:600"><%= t.author.email %></small></span><a class="btn btn-soft btn-sm" href="/master/usuarios/<%= t.author.id %>" data-usuario="<%= t.author.id %>">Usuário</a></div><% } %>
+    </section>
+    <section class="card card-pad" style="display:flex;flex-direction:column;gap:10px">
+      <h2>Andamento</h2>
+      <form data-action action="/master/suporte/<%= t.id %>/status" class="seg-pick" style="flex-wrap:wrap">
+        <% [['open','Esperando a gente'],['waiting','Esperando a empresa'],['closed','Resolvido']].forEach(function (s) { %>
+          <label><input type="radio" name="status" value="<%= s[0] %>" <%= t.status === s[0] ? 'checked' : '' %> onchange="this.form.requestSubmit()"><span><%= s[1] %></span></label>
+        <% }) %>
+      </form>
+      <h2 style="margin-top:6px">Prioridade</h2>
+      <form data-action action="/master/suporte/<%= t.id %>/status" class="seg-pick">
+        <% [['high','Alta'],['normal','Normal'],['low','Baixa']].forEach(function (s) { %>
+          <label><input type="radio" name="priority" value="<%= s[0] %>" <%= t.priority === s[0] ? 'checked' : '' %> onchange="this.form.requestSubmit()"><span><%= s[1] %></span></label>
+        <% }) %>
+      </form>
+    </section>
+  </aside>
+</div>
+<%- include('_bottom') %>

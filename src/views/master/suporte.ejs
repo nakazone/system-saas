@@ -1,0 +1,24 @@
+<%- include('_top', { pageTitle: 'Suporte' }) %>
+<div class="page-head"><div><h1>Suporte</h1><div class="page-sub">Mensagens que as empresas mandam por Configurações › Ajuda e suporte. A resposta chega por e-mail e aparece no ObraMate delas.</div></div></div>
+<form class="toolbar" method="get" action="/master/suporte" data-autosubmit role="search">
+  <div class="chips">
+    <% filters.forEach(function (f) { %><a class="chip" href="?filtro=<%= f.key %><%= q ? '&q=' + encodeURIComponent(q) : '' %>" aria-current="<%= f.key === filter %>"><%= f.label %><span class="n"><%= f.count %></span></a><% }) %>
+  </div>
+  <input type="hidden" name="filtro" value="<%= filter %>">
+  <label class="search"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg><input type="search" name="q" value="<%= q %>" placeholder="Assunto, texto ou empresa" aria-label="Buscar ticket"></label>
+</form>
+<section class="table">
+  <div class="tr head cols-tickets"><span>ASSUNTO</span><span>EMPRESA</span><span>TIPO</span><span>PRIORIDADE</span><span>STATUS</span><span class="right">ÚLTIMA MENSAGEM</span></div>
+  <% rows.forEach(function (t) { %>
+    <a class="tr cols-tickets" href="/master/suporte/<%= t.id %>">
+      <span class="stack"><b style="font-size:14px"><%= t.subject %></b><small><%= t.author %><%= t.replies ? ' · ' + t.replies + ' resposta(s)' : ' · sem resposta' %></small></span>
+      <span class="hide-m" style="font-size:13px;font-weight:600"><%= t.orgName %></span>
+      <span class="hide-m muted" style="font-size:13px;font-weight:600"><%= t.category %></span>
+      <span class="hide-m"><span class="pill pill-sm tone-<%= t.priority.tone %>"><%= t.priority.label %></span></span>
+      <span><span class="pill pill-sm tone-<%= t.pill.tone %>"><%= t.pill.label %></span></span>
+      <span class="right muted strong hide-m" style="font-size:13px"><%= t.age %></span>
+    </a>
+  <% }) %>
+  <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:28px"><%= filter === 'abertos' ? 'Nenhum ticket esperando resposta.' : 'Nenhum ticket aqui.' %></div><% } %>
+</section>
+<%- include('_bottom') %>

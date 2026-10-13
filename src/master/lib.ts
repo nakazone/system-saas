@@ -31,7 +31,8 @@ export type Capability =
   | "users_manage"
   | "tenants_suspend"
   | "export"
-  | "team_manage";
+  | "team_manage"
+  | "plans_manage";
 
 export const CAPABILITIES: { key: Capability; label: string }[] = [
   { key: "view", label: "Ver empresas, usuários e contatos" },
@@ -42,10 +43,11 @@ export const CAPABILITIES: { key: Capability; label: string }[] = [
   { key: "tenants_suspend", label: "Suspender, reativar e cancelar empresas" },
   { key: "export", label: "Exportar dados (CSV)" },
   { key: "team_manage", label: "Equipe da plataforma" },
+  { key: "plans_manage", label: "Planos e preços" },
 ];
 
 const MATRIX: Record<PlatformRole, Capability[]> = {
-  MASTER: ["view", "billing_full", "billing_manage", "refund", "users_manage", "tenants_suspend", "export", "team_manage"],
+  MASTER: ["view", "billing_full", "billing_manage", "refund", "users_manage", "tenants_suspend", "export", "team_manage", "plans_manage"],
   ADMIN: ["view", "billing_full", "billing_manage", "users_manage", "tenants_suspend"],
   FINANCE: ["view", "billing_full", "billing_manage"],
   SUPPORT: ["view", "users_manage"],
@@ -65,11 +67,22 @@ export function can(role: string | null | undefined, cap: Capability): boolean {
 // Plans and platform billing
 // ---------------------------------------------------------------------------
 
-/** List prices (cents per month). Annual = 10 months. */
+/**
+ * Plan prices and names. Filled from the `Plan` table by `refreshPlans()`
+ * (src/master/plans.ts) at startup and after every edit; the values below are
+ * only the fallback used before the first load.
+ */
 export const PLAN_MONTHLY_CENTS: Record<string, number> = {
   starter: 12900,
   professional: 29900,
   business: 59900,
+};
+
+/** Annual list prices (cents per year). Fallback = 10 months. */
+export const PLAN_ANNUAL_CENTS: Record<string, number> = {
+  starter: 129000,
+  professional: 299000,
+  business: 599000,
 };
 
 export const PLAN_LABEL: Record<string, string> = {
@@ -102,8 +115,9 @@ export function slugifyName(name: string): string {
 
 export function cyclePriceCents(org: { plan: string; billingCycle: string; planPriceCents: number | null }): number {
   if (org.planPriceCents != null) return org.planPriceCents;
-  const monthly = PLAN_MONTHLY_CENTS[String(org.plan || "").toLowerCase()] ?? 0;
-  return org.billingCycle === "annual" ? monthly * 10 : monthly;
+  const key = String(org.plan || "").toLowerCase();
+  const monthly = PLAN_MONTHLY_CENTS[key] ?? 0;
+  return org.billingCycle === "annual" ? (PLAN_ANNUAL_CENTS[key] ?? monthly * 10) : monthly;
 }
 
 export function monthlyCents(org: { plan: string; billingCycle: string; planPriceCents: number | null }): number {
@@ -175,6 +189,8 @@ export function orgStatusPill(status: string, days: number | null): Pill {
       return days != null && days < 0 ? { label: "Trial expirado", tone: "danger" } : { label: "Trial", tone: "info" };
     case "past_due":
       return { label: "Pagamento atrasado", tone: "danger" };
+    case "read_only":
+      return { label: "Só leitura", tone: "warn" };
     case "suspended":
       return { label: "Suspensa", tone: "dark" };
     case "canceled":
@@ -196,8 +212,13 @@ export function dueChip(days: number | null): Pill {
 /** The date that matters for an organization: trial end or paid period end. */
 export function dueDateOf(org: { status: string; trialEndsAt: Date | null; currentPeriodEnd: Date | null }): Date | null {
   if (org.status === "canceled") return null;
-  if (org.status === "trial") return org.trialEndsAt;
+  if (isTrialDue(org)) return org.trialEndsAt;
   return org.currentPeriodEnd;
+}
+
+/** The due date is the trial end: in trial, or never paid yet (trial ended → read-only). */
+export function isTrialDue(org: { status: string; trialEndsAt: Date | null; currentPeriodEnd: Date | null }): boolean {
+  return org.status === "trial" || (!org.currentPeriodEnd && !!org.trialEndsAt);
 }
 
 export function initials(name: string): string {

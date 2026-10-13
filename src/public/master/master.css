@@ -453,3 +453,45 @@ dialog.cmdk-dialog { margin-top: 0; }
   .matrix .tr { grid-template-columns: minmax(0, 1fr) repeat(5, 44px) !important; padding: 8px 12px; font-size: 12px; }
   .matrix .tr.head { display: grid; }
 }
+
+/* ---------- Fase 1: planos, régua, suporte ---------- */
+.plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.plan-card { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.plan-card.is-off { opacity: .65; }
+.plan-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.plan-top h2 { font-size: 20px; font-weight: 800; }
+.plan-price b { font-size: 34px; font-weight: 800; letter-spacing: -.02em; }
+.plan-price span { font-size: 14px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.plan-annual { font-size: 13px; font-weight: 600; margin-top: -8px; }
+.plan-facts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.plan-facts li::before { content: "·"; margin-right: 8px; color: var(--accent); font-weight: 800; }
+.plan-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.plan-stats div { display: flex; flex-direction: column; }
+.plan-stats b { font-size: 18px; font-weight: 800; }
+.plan-stats small { font-size: 12px; color: var(--muted); font-weight: 600; }
+.ladder { display: flex; flex-direction: column; gap: 14px; }
+.ladder-head { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.ladder-head h2 { display: flex; align-items: center; gap: 8px; }
+.ladder-row { display: flex; gap: 12px; align-items: stretch; }
+.ladder-row__name { width: 150px; flex-shrink: 0; font-size: 12px; font-weight: 800; color: var(--muted); padding-top: 10px; line-height: 1.35; }
+.ladder-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.ladder-steps li { flex: 0 1 150px; border-radius: 12px; background: var(--sunken); box-shadow: inset 0 0 0 1px var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+.ladder-steps li b { font-size: 12px; font-weight: 800; }
+.ladder-steps li span { font-size: 12px; font-weight: 600; color: var(--ink-2); line-height: 1.35; }
+.ladder-steps li.is-state { background: #fff6f2; box-shadow: inset 0 0 0 1px #efc2b3; }
+.ladder-steps li.is-state b { color: var(--danger); }
+.ladder-log summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.cols-tickets { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.2fr) 100px 100px 160px 120px; }
+.ticket-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.ticket-main { display: flex; flex-direction: column; gap: 16px; }
+.ticket-head { display: flex; gap: 12px; align-items: flex-start; }
+.ticket-side { display: flex; flex-direction: column; gap: 16px; }
+.thread { display: flex; flex-direction: column; gap: 10px; }
+.msg { border-radius: 14px; background: var(--sunken); box-shadow: inset 0 0 0 1px var(--line); padding: 12px 14px; max-width: 86%; }
+.msg.is-us { align-self: flex-end; background: #fdf6ee; box-shadow: inset 0 0 0 1px #f0d9c4; }
+.msg header { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; margin-bottom: 4px; }
+.msg header small { color: var(--muted); font-weight: 600; }
+.msg p { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+.reply { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line-soft); padding-top: 14px; }
+@media (max-width: 1180px) { .plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ticket-layout { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .ladder-row { flex-direction: column; gap: 6px; } .ladder-row__name { width: auto; padding: 0; } .plan-grid { grid-template-columns: 1fr; } .msg { max-width: 100%; } .cols-tickets { grid-template-columns: 1fr auto !important; } }

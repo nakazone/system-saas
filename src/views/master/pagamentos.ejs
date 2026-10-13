@@ -1,8 +1,13 @@
 <%- include('_top', { pageTitle: 'Pagamentos' }) %>
 <div class="page-head">
-  <div><h1>Pagamentos</h1><div class="page-sub">Assinaturas das empresas · registro manual até a cobrança automática (Stripe) entrar</div></div>
+  <div><h1>Pagamentos</h1><div class="page-sub">Assinaturas das empresas · cartão pelo Stripe e pagamentos registrados à mão</div></div>
   <% if (locals.can && can('export')) { %><form data-action action="/master/exportar/pagamentos" data-stepup="Exportar todos os pagamentos"><button class="btn" type="submit">Exportar CSV</button></form><% } %>
 </div>
+<% if (stripe.mode === 'off') { %>
+  <div class="note-box note-warn">Stripe desligado: só aparecem pagamentos registrados à mão. Para cobrar no cartão, coloque <b>STRIPE_SECRET_KEY</b> e <b>STRIPE_WEBHOOK_SECRET</b> no Railway e aponte o webhook do Stripe para <b>/webhooks/stripe</b>.</div>
+<% } else { %>
+  <div class="note-box note-ink" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="pill pill-sm <%= stripe.mode === 'live' ? 'tone-ink' : 'tone-warn' %>">Stripe <%= stripe.mode === 'live' ? 'produção' : 'modo teste' %></span><span style="flex:1"><%= stripe.webhook ? 'Pagamentos e recusas do cartão entram aqui sozinhos.' : 'Falta STRIPE_WEBHOOK_SECRET: os pagamentos do Stripe não vão aparecer aqui.' %></span></div>
+<% } %>
 <div class="kpis k4">
   <% kpis.forEach(function (k) { %><div class="kpi <%= k.danger ? 'danger' : '' %>"><span class="kpi-label"><%= k.label %></span><span class="kpi-value"><%= k.value %></span><span class="kpi-note"><%= k.note %></span></div><% }) %>
 </div>
@@ -14,14 +19,18 @@
   <% rows.forEach(function (p) { %>
     <div class="tr cols-pagamentos">
       <span class="muted strong hide-m" style="font-size:13px"><%= p.paidLabel %></span>
-      <a href="/master/clientes/<%= p.organizationId %>" data-ficha="<%= p.organizationId %>" class="stack" style="text-decoration:none"><b style="font-size:14px"><%= p.orgName %></b><small><%= p.note || p.paidLabel %></small></a>
+      <a href="/master/clientes/<%= p.organizationId %>" data-ficha="<%= p.organizationId %>" class="stack" style="text-decoration:none"><b style="font-size:14px"><%= p.orgName %></b><small><%= p.status === 'failed' ? (p.failureReason || 'Recusado') : (p.note || p.paidLabel) %></small></a>
       <span class="hide-m" style="font-size:13px;font-weight:600;color:var(--ink-2)"><%= p.periodText %></span>
       <span class="hide-m" style="font-size:13px;font-weight:600"><%= p.methodText %></span>
       <span class="right strong num"><%= p.amountText %></span>
       <span class="hide-m"><span class="pill pill-sm tone-<%= p.pill.tone %>"><%= p.pill.label %></span></span>
       <span class="right hide-m">
+        <% if (p.invoiceUrl) { %><a class="btn btn-soft btn-sm" href="<%= p.invoiceUrl %>" target="_blank" rel="noopener">Fatura</a><% } %>
+        <% if (canCharge && p.status === 'failed' && p.source === 'stripe') { %>
+          <form data-action action="/master/clientes/<%= p.organizationId %>/cobrar" data-confirm="Tentar cobrar <%= p.amountText %> de <%= p.orgName %> agora?" style="display:inline-flex"><button class="btn btn-dark btn-sm" type="submit">Cobrar agora</button></form>
+        <% } %>
         <% if (canRefund && p.status === 'paid') { %>
-          <form data-action action="/master/pagamentos/<%= p.id %>/estornar" data-stepup="Estornar <%= p.amountText %> de <%= p.orgName %>" data-confirm="Marcar <%= p.amountText %> de <%= p.orgName %> como estornado?"><button class="btn btn-soft btn-sm" type="submit">Estornar</button></form>
+          <form data-action action="/master/pagamentos/<%= p.id %>/estornar" data-stepup="Estornar <%= p.amountText %> de <%= p.orgName %>" data-confirm="<%= p.source === 'stripe' ? 'Devolver ' + p.amountText + ' no cartão de ' + p.orgName + '?' : 'Marcar ' + p.amountText + ' de ' + p.orgName + ' como estornado?' %>"><button class="btn btn-soft btn-sm" type="submit">Estornar</button></form>
         <% } %>
       </span>
     </div>

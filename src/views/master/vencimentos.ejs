@@ -1,5 +1,64 @@
 <%- include('_top', { pageTitle: 'Vencimentos' }) %>
 <div class="page-head"><div><h1>Vencimentos</h1><div class="page-sub">Fim de trial, renovações e atrasos · próximos 90 dias</div></div></div>
+<section class="card card-pad ladder">
+  <div class="ladder-head">
+    <div style="flex:1;min-width:220px">
+      <h2>Régua de cobrança <span class="pill pill-sm <%= ladder.enabled ? 'tone-ink' : 'tone-danger' %>"><%= ladder.enabled ? 'Automática' : 'Desligada' %></span></h2>
+      <small class="muted" style="font-weight:600">
+        <% if (!lastRun) { %>Ainda não rodou. Roda todo dia às 6h (Denver).<% } else if (lastRun.ok === false) { %><span style="color:var(--danger)">Falhou <%= lastRun.when %>: <%= lastRun.error %></span><% } else { %>Última execução <%= lastRun.when %><%= lastRun.detail ? ' · ' + (lastRun.detail.emails || 0) + ' e-mail(s) · ' + ((lastRun.detail.changes || []).length) + ' mudança(s)' : '' %><% } %>
+      </small>
+    </div>
+    <% if (canLadder) { %>
+      <div class="row-actions">
+        <form data-action action="/master/vencimentos/regua/rodar" data-confirm="Rodar a régua agora? E-mails e bloqueios do dia saem já."><button class="btn btn-sm" type="submit">Rodar agora</button></form>
+        <button class="btn btn-sm btn-soft" type="button" data-open="dlg-regua">Configurar</button>
+      </div>
+    <% } %>
+  </div>
+  <% [['trial', 'Teste grátis'], ['paid', 'Plano pago · dias a partir do vencimento']].forEach(function (g) { %>
+    <div class="ladder-row"><span class="ladder-row__name"><%= g[1] %></span>
+      <ol class="ladder-steps">
+        <% ladderSteps.filter(function (st) { return st.group === g[0]; }).forEach(function (st) { %><li class="<%= st.kind === 'state' ? 'is-state' : '' %>"><b><%= st.when %></b><span><%= st.what %></span></li><% }) %>
+      </ol>
+    </div>
+  <% }) %>
+  <% if (paused.length) { %><small class="muted" style="font-weight:600">Pausada para: <% paused.forEach(function (o, i) { %><a href="?ficha=<%= o.id %>" data-ficha="<%= o.id %>"><%= o.name %></a> (até <%= o.until %>)<%= i < paused.length - 1 ? ', ' : '' %><% }) %></small><% } %>
+  <% if (recentSteps.length) { %>
+    <details class="ladder-log"><summary>Últimas ações da régua</summary>
+      <% recentSteps.forEach(function (r) { %><div class="d-line"><span class="muted" style="width:120px"><%= r.when %></span><a href="?ficha=<%= r.orgId %>" data-ficha="<%= r.orgId %>" style="font-weight:700;width:180px"><%= r.org %></a><span style="flex:1;min-width:0"><%= r.detail %></span></div><% }) %>
+    </details>
+  <% } %>
+</section>
+<% if (canLadder) { %>
+<dialog id="dlg-regua" aria-labelledby="t-regua">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-regua">Configurar a régua</h2><p>Dias contados a partir do vencimento. Cada passo acontece uma vez por vencimento.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/vencimentos/regua" data-stepup="Desligar a régua de cobrança">
+      <label class="check"><input type="checkbox" name="enabled" value="1" <%= ladder.enabled ? 'checked' : '' %>> Régua ligada</label>
+      <div class="form-row">
+        <label class="field">Avisos antes do fim do teste (dias)<input class="input" name="trialReminders" value="<%= ladder.trialReminders.join(', ') %>" placeholder="7, 3, 1"></label>
+        <label class="field">Avisos antes da renovação (dias)<input class="input" name="renewReminders" value="<%= ladder.renewReminders.join(', ') %>" placeholder="7"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Atrasado após (dias)<input class="input num" type="number" name="pastDueAt" min="0" max="30" value="<%= ladder.pastDueAt %>"></label>
+        <label class="field">Avisos de atraso (dias)<input class="input" name="overdueReminders" value="<%= ladder.overdueReminders.join(', ') %>" placeholder="3"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Só leitura após (dias)<input class="input num" type="number" name="readOnlyAt" min="1" max="60" value="<%= ladder.readOnlyAt %>"></label>
+        <label class="field">Suspensa após (dias)<input class="input num" type="number" name="suspendAt" min="1" max="120" value="<%= ladder.suspendAt %>"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Cancelada após (dias)<input class="input num" type="number" name="cancelAt" min="7" max="365" value="<%= ladder.cancelAt %>"></label>
+        <label class="field">Folga extra com cartão no Stripe (dias)<input class="input num" type="number" name="stripeGraceDays" min="0" max="14" value="<%= ladder.stripeGraceDays %>"></label>
+      </div>
+      <p class="muted" style="margin:0;font-size:13px;font-weight:600">No fim do teste a conta vai direto para só leitura. Pagar, em qualquer passo, devolve a conta para ativa.</p>
+      <button class="btn btn-primary btn-block" type="submit">Salvar régua</button>
+    </form>
+    <form data-action action="/master/vencimentos/regua/padrao" data-confirm="Voltar a régua para o padrão?"><button class="btn btn-block" type="submit" style="height:42px">Voltar ao padrão</button></form>
+  </div>
+</dialog>
+<% } %>
 <% if (noDate.length) { %>
   <div class="note-box note-warn" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <span style="flex:1"><b><%= noDate.length %> empresa(s) sem data de vencimento:</b> <%= noDate.slice(0, 5).map(function (o) { return o.name; }).join(', ') %><%= noDate.length > 5 ? '…' : '' %>. Sem data, elas não aparecem aqui nem recebem lembrete.</span>
@@ -20,7 +79,7 @@
         <div class="due-card">
           <a class="top" href="/master/clientes/<%= o.id %>" data-ficha="<%= o.id %>">
             <span class="av" style="width:32px;height:32px;font-size:11px;background:<%= o.avatarBg %>"><%= o.initials %></span>
-            <span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= o.name %></b><small style="font-size:12px;font-weight:700;color:<%= o.status === 'trial' ? 'var(--info)' : (o.overdue ? 'var(--danger)' : 'var(--ink-2)') %>"><%= o.status === 'trial' ? (o.overdue ? 'Trial expirou' : 'Fim do trial') : (o.overdue ? (o.status === 'suspended' ? 'Suspensa · não pagou' : 'Não pagou') : (o.billingCycle === 'annual' ? 'Renovação anual' : 'Renovação mensal')) %></small></span>
+            <span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><%= o.name %></b><small style="font-size:12px;font-weight:700;color:<%= o.dueKind === 'Fim do trial' ? 'var(--info)' : (o.overdue ? 'var(--danger)' : 'var(--ink-2)') %>"><%= o.dueKind === 'Fim do trial' ? (o.overdue ? (o.status === 'read_only' ? 'Teste acabou · só leitura' : o.status === 'suspended' ? 'Teste acabou · suspensa' : 'Trial expirou') : 'Fim do trial') : (o.overdue ? (o.status === 'suspended' ? 'Suspensa · não pagou' : o.status === 'read_only' ? 'Só leitura · não pagou' : 'Não pagou') : (o.billingCycle === 'annual' ? 'Renovação anual' : 'Renovação mensal')) %></small></span>
           </a>
           <div class="meta"><span class="pill pill-sm tone-<%= o.chip.tone %>"><%= o.chip.label %> · <%= o.dueLabel %></span><b class="num" style="font-size:14px"><%= showMoney && o.status !== 'trial' ? o.priceText : (o.status === 'trial' ? 'trial' : '') %></b></div>
           <% if (canBilling) { %>

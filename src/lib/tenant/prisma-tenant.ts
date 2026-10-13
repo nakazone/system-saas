@@ -79,6 +79,7 @@ const TENANT_MODELS = new Set([
   "CampoShiftExpense",
   "PayrollPayment",
   "SupportTicket",
+  "SupportTicketMessage",
   "PushSubscription",
   "WorkOrder",
   "WorkOrderMember",

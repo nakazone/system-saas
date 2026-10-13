@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-push.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="configuracoes.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261013-plano1" />
   <link rel="stylesheet" href="configuracoes-v2.css?v=20261009-cfg1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -872,6 +872,48 @@
               </article>
             </section>
 
+            <!-- ---------- Plano e cobrança ---------- -->
+            <section class="cfg-section" data-section="plano" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Plano e cobrança</h2>
+                <p class="cfg-lead">Sua assinatura do ObraMate. O pagamento é feito pelo Stripe; o ObraMate não guarda os dados do cartão.</p>
+              </header>
+              <p class="cfg-bill-banner is-ok" id="billThanks" hidden>Pagamento recebido. Obrigado! Pode levar alguns segundos para aparecer aqui.</p>
+              <p class="cfg-bill-banner" id="billBanner" hidden></p>
+              <article class="cfg-card">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title" id="billPlanName">—</h3>
+                    <p class="cfg-card__desc"><span id="billPlanPrice">—</span> · <span id="billDue">—</span></p>
+                  </div>
+                  <span class="cfg-badge" id="billStatus">—</span>
+                </div>
+                <div class="cfg-row">
+                  <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnBillPortal" hidden>Cartão, recibos e cancelamento</button>
+                </div>
+                <p class="cfg-hint" id="billNoAdmin" hidden>Só administradores da empresa mudam o plano ou o cartão.</p>
+              </article>
+              <article class="cfg-card" id="billChoose" hidden>
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Escolha o plano</h3>
+                    <p class="cfg-card__desc">Cancele quando quiser. No anual você paga 10 meses e usa 12.</p>
+                  </div>
+                  <div class="cfg-seg" role="group" aria-label="Ciclo de cobrança">
+                    <button type="button" data-bill-cycle="monthly">Mensal</button>
+                    <button type="button" data-bill-cycle="annual">Anual</button>
+                  </div>
+                </div>
+                <div class="cfg-plans" id="billPlans"></div>
+                <p class="cfg-hint" id="billStripeOff" hidden>O pagamento online ainda não foi ativado. Fale com o suporte para assinar.</p>
+                <div class="cfg-row cfg-row--end"><button type="button" class="btn btn-primary" id="btnBillCheckout">Assinar</button></div>
+              </article>
+              <article class="cfg-card" id="billHistory" hidden>
+                <h3 class="cfg-card__title">Pagamentos</h3>
+                <div id="billPayments"></div>
+              </article>
+            </section>
+
             <!-- ---------- Suporte ---------- -->
             <section class="cfg-section" data-section="suporte" hidden>
               <header class="cfg-head">
@@ -986,6 +1028,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261009-cfg1"></script>
+  <script src="configuracoes.js?v=20261013-plano1"></script>
 </body>
 </html>
