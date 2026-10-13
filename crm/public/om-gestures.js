@@ -7,7 +7,7 @@
 (function (global) {
   "use strict";
 
-  const VER = "20261013-ptr2";
+  const VER = "20261013-rl2";
 
   function isTouchViewport() {
     // Phones + tablets (iPad landscape can exceed 900px).
@@ -386,7 +386,15 @@
           await Promise.resolve(fn());
           return;
         }
-        // Soft path: if a page registered another key after us, prefer reload of data only when possible.
+        // Full reload — show brand assemble veil on the way out and on arrival.
+        try {
+          sessionStorage.setItem("om_nav_loading", String(Date.now()));
+        } catch (_) {
+          /* ignore */
+        }
+        if (global.OmReload && typeof global.OmReload.showLoading === "function") {
+          global.OmReload.showLoading(0);
+        }
         location.reload();
       },
     });

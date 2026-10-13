@@ -18,20 +18,36 @@
     { pts: "398,113 399,398 356,353 354,207 263,281 193,281", dx: 71, dy: -71 },
   ];
 
+  // Keyframes use concrete px (not var(--dx) inside @keyframes) — Safari/iOS ignores
+  // custom properties in keyframe transforms, which froze the logo as a static block.
   const CSS = `
 .om-rl{display:block;overflow:visible}
-.om-rl polygon{fill:${ORANGE};transform:translate(var(--dx),var(--dy));opacity:0}
-.om-rl.is-in polygon{animation:omRlIn var(--rl-dur,1.05s) cubic-bezier(.34,1.4,.64,1) both;animation-delay:calc(var(--i) * var(--rl-gap,.14s))}
-.om-rl.is-loop polygon{animation:omRlLoop 2.2s infinite both;animation-delay:calc(var(--i) * .16s)}
-.om-rl.is-manual polygon{animation:none;transform:translate(calc(var(--dx) * (1 - var(--p,0))),calc(var(--dy) * (1 - var(--p,0))));opacity:min(1,calc(var(--p,0) * 2.5))}
+.om-rl polygon{fill:${ORANGE};opacity:0;will-change:transform,opacity}
+.om-rl polygon:nth-child(1){transform:translate(-71px,-71px)}
+.om-rl polygon:nth-child(2){transform:translate(0,100px)}
+.om-rl polygon:nth-child(3){transform:translate(71px,-71px)}
+.om-rl.is-in polygon:nth-child(1){animation:omRlIn0 var(--rl-dur,1.05s) cubic-bezier(.34,1.4,.64,1) both;animation-delay:calc(0 * var(--rl-gap,.14s))}
+.om-rl.is-in polygon:nth-child(2){animation:omRlIn1 var(--rl-dur,1.05s) cubic-bezier(.34,1.4,.64,1) both;animation-delay:calc(1 * var(--rl-gap,.14s))}
+.om-rl.is-in polygon:nth-child(3){animation:omRlIn2 var(--rl-dur,1.05s) cubic-bezier(.34,1.4,.64,1) both;animation-delay:calc(2 * var(--rl-gap,.14s))}
+.om-rl.is-loop polygon:nth-child(1){animation:omRlLoop0 2.2s infinite both;animation-delay:0s}
+.om-rl.is-loop polygon:nth-child(2){animation:omRlLoop1 2.2s infinite both;animation-delay:.16s}
+.om-rl.is-loop polygon:nth-child(3){animation:omRlLoop2 2.2s infinite both;animation-delay:.32s}
+.om-rl.is-manual polygon{animation:none}
+.om-rl.is-manual polygon:nth-child(1){transform:translate(calc(-71px * (1 - var(--p,0))),calc(-71px * (1 - var(--p,0))));opacity:calc(var(--p,0) * 2.5)}
+.om-rl.is-manual polygon:nth-child(2){transform:translate(0,calc(100px * (1 - var(--p,0))));opacity:calc(var(--p,0) * 2.5)}
+.om-rl.is-manual polygon:nth-child(3){transform:translate(calc(71px * (1 - var(--p,0))),calc(-71px * (1 - var(--p,0))));opacity:calc(var(--p,0) * 2.5)}
 .om-rl.is-done polygon{animation:none;transform:none;opacity:1}
-@keyframes omRlIn{0%{transform:translate(var(--dx),var(--dy));opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
-@keyframes omRlLoop{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}28%{transform:translate(var(--dx),var(--dy));opacity:0;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}100%{transform:translate(0,0);opacity:1}}
+@keyframes omRlIn0{0%{transform:translate(-71px,-71px);opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
+@keyframes omRlIn1{0%{transform:translate(0,100px);opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
+@keyframes omRlIn2{0%{transform:translate(71px,-71px);opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
+@keyframes omRlLoop0{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}28%{transform:translate(-71px,-71px);opacity:0;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}100%{transform:translate(0,0);opacity:1}}
+@keyframes omRlLoop1{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}28%{transform:translate(0,100px);opacity:0;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}100%{transform:translate(0,0);opacity:1}}
+@keyframes omRlLoop2{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}28%{transform:translate(71px,-71px);opacity:0;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}100%{transform:translate(0,0);opacity:1}}
 .om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .55s ease}
 .om-rl-splash.is-out{opacity:0;pointer-events:none}
 .om-rl-splash img{width:188px;height:auto;opacity:0;transform:translateY(6px);transition:opacity .55s ease,transform .55s ease}
 .om-rl-splash.is-word img{opacity:1;transform:none}
-.om-rl-ov{position:fixed;inset:0;z-index:2147482000;background:rgba(247,248,250,.9);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .38s ease}
+.om-rl-ov{position:fixed;inset:0;z-index:2147482000;background:rgba(247,248,250,.92);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .38s ease}
 .om-rl-ov.is-on{opacity:1;pointer-events:auto}
 @media (prefers-reduced-motion: reduce){
   .om-rl polygon,.om-rl.is-in polygon,.om-rl.is-manual polygon{animation:none;transform:none;opacity:1}
@@ -159,7 +175,10 @@
     if (u.pathname === location.pathname && u.search === location.search) return false; // só muda o #
     return true;
   }
-  /** Chegando de um link do app: o véu já aparece e some quando a página termina de carregar. */
+  /** Flag set while we intentionally show the nav/reload veil (don't cancel early). */
+  let navVeil = false;
+
+  /** Chegando de um link/reload do app: véu com o símbolo em loop até a página carregar. */
   function arrival() {
     let ts = 0;
     try {
@@ -169,19 +188,34 @@
       /* ignore */
     }
     if (!ts || Date.now() - ts > 8000 || !touchUi() || document.querySelector(".om-rl-splash")) return;
+    navVeil = true;
     const el = overlay();
     el.style.transition = "none";
     el.classList.add("is-on");
     ovShownAt = Date.now();
+    // Restart loop animation after paint (Safari).
+    const svg = el.querySelector(".om-rl");
+    if (svg) {
+      svg.classList.remove("is-loop");
+      void svg.offsetWidth;
+      svg.classList.add("is-loop");
+    }
     void el.offsetWidth;
     el.style.transition = "";
     const t0 = Date.now();
-    // Keep the veil up long enough to feel intentional (not a blink).
-    const done = () => setTimeout(hideLoading, Math.max(280, 900 - (Date.now() - t0)));
+    // Keep the veil up long enough for a full assemble cycle.
+    const done = () =>
+      setTimeout(() => {
+        navVeil = false;
+        hideLoading();
+      }, Math.max(400, 1100 - (Date.now() - t0)));
     if (document.readyState === "complete") done();
     else window.addEventListener("load", done, { once: true });
     clearTimeout(ovFail);
-    ovFail = setTimeout(hideLoading, 5000);
+    ovFail = setTimeout(() => {
+      navVeil = false;
+      hideLoading();
+    }, 6000);
   }
   function bindNav() {
     // bolha na window: roda depois dos handlers das páginas (que podem impedir a navegação)
@@ -198,9 +232,11 @@
       }
     });
     arrival();
-    window.addEventListener("pageshow", hideLoading);
+    window.addEventListener("pageshow", () => {
+      if (!navVeil) hideLoading();
+    });
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") hideLoading();
+      if (document.visibilityState === "visible" && !navVeil) hideLoading();
     });
   }
 
@@ -218,8 +254,13 @@
     const svg = ind.querySelector(".om-rl");
     const lbl = ind.querySelector(".om-ptr__lbl");
     if (svg) {
+      const next =
+        state === "busy" ? "is-loop" : state === "done" ? "is-done" : "is-manual";
+      const prev = ["is-in", "is-loop", "is-manual", "is-done"].find((c) => svg.classList.contains(c));
       svg.classList.remove("is-in", "is-loop", "is-manual", "is-done");
-      svg.classList.add(state === "busy" ? "is-loop" : state === "done" ? "is-done" : "is-manual");
+      // Force Safari to restart the assemble loop when entering busy.
+      if (prev !== next) void svg.offsetWidth;
+      svg.classList.add(next);
       const pp = Math.max(0, Math.min(1, p || 0));
       svg.style.setProperty("--p", String(pp));
       const mk = ind.querySelector(".om-ptr__mark");
