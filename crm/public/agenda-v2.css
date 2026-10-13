@@ -15,33 +15,39 @@
   font-family: Geist, "Plus Jakarta Sans", -apple-system, system-ui, sans-serif !important;
 }
 
-/* ---------- eventos neutros (cor só na barrinha) */
+/* ---------- eventos: fundo na cor do calendário (--ev / --ev-bg de agenda.js) */
 .ag-row { font-weight: 600; }
-.ag-row:hover, .ag-row.is-active-ev { background: #F1F3F5; }
-.ag-bar { background: #F1F3F5; color: var(--ink); box-shadow: inset 3px 0 0 var(--ev); padding-left: 7px; font-weight: 650; }
+.ag-row:hover, .ag-row.is-active-ev { background: var(--ev-bg2, #F1F3F5); }
+.ag-bar { background: var(--ev-bg, #F1F3F5); color: var(--ev-ink, var(--ink)); box-shadow: inset 3px 0 0 var(--ev); padding-left: 7px; font-weight: 650; }
 .ag-bar.cont-l { box-shadow: none; }
 .ag-bar__ic { background: transparent; color: var(--ink2); width: 12px; }
 .ag-bar__ic svg { stroke-width: 2.2; }
-.ag-bar:hover, .ag-bar.is-active-ev { filter: none; background: #E5E7EB; box-shadow: inset 3px 0 0 var(--ev); }
-.ag-blk { background: #F1F3F5; color: var(--ink); border-left-color: var(--ev); }
+.ag-bar:hover, .ag-bar.is-active-ev { filter: none; background: var(--ev-bg2, #E5E7EB); box-shadow: inset 3px 0 0 var(--ev); }
+.ag-blk { background: var(--ev-bg, #F1F3F5); color: var(--ev-ink, var(--ink)); border-left-color: var(--ev); }
 .ag-blk b { font-weight: 650; }
 .ag-blk small { color: var(--ink2); opacity: 1; font-weight: 500; }
-.ag-blk:hover, .ag-blk.is-active-ev { background: #E5E7EB; box-shadow: 0 0 0 1px #D0D5DD; }
-.ag-pill { background: #F1F3F5 !important; color: var(--ink) !important; }
+.ag-blk:hover, .ag-blk.is-active-ev { background: var(--ev-bg2, #E5E7EB); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ev) 28%, #D0D5DD); }
+.ag-pill { background: var(--ev-bg, #F1F3F5) !important; color: var(--ev-ink, var(--ink)) !important; }
 .ag-pill i { background: transparent !important; color: var(--ev) !important; }
-.ag-now { background: var(--ink); height: 1.5px; }
-.ag-now::before { background: var(--ink); }
+.ag-now { background: var(--terra); height: 1.5px; }
+.ag-now::before { background: var(--terra); }
 .ag-li > i { background: var(--ev); }
-.ag-li:hover { background: #F1F3F5; }
+.ag-li:hover { background: var(--ev-bg, #F1F3F5); }
 .ag-li b { font-weight: 650; }
 .ag-li small { color: var(--ink2); font-weight: 500; }
 
-/* hoje / seleção em grafite */
-html body.dashboard-app-body .ag .ag-day__n span.is-today, html body.dashboard-app-body .ag button.ag-mini__d.is-today, html body.dashboard-app-body .ag .ag-tg__dh.is-today b, html body.dashboard-app-body .ag .ag-md__n.is-today { background: #221E1A !important; color: #fff !important; }
-.ag-tg__dh.is-today { color: var(--ink) !important; }
+/* hoje em laranja ObraMate */
+html body.dashboard-app-body .ag .ag-day__n span.is-today,
+html body.dashboard-app-body .ag button.ag-mini__d.is-today,
+html body.dashboard-app-body .ag .ag-tg__dh.is-today b,
+html body.dashboard-app-body .ag .ag-md__n.is-today {
+  background: var(--terra) !important;
+  color: #fff !important;
+}
+.ag-tg__dh.is-today { color: var(--terrad) !important; }
 .ag-mini__d.is-sel { background: #E5E7EB; }
 .ag-mini__d.has-ev::after { background: var(--mut); }
-.ag-list h3.is-today { color: var(--ink); }
+.ag-list h3.is-today { color: var(--terrad); }
 .ag-day.is-we, .ag-tg__col.is-we { background: transparent !important; }
 .ag-day.is-out { background: #FAFBFC; }
 .ag-day.is-sel { background: #F7F8FA; box-shadow: inset 0 0 0 1.5px #D0D5DD; }
@@ -188,9 +194,20 @@ html body.dashboard-app-body .ag .ag-day__n span.is-today, html body.dashboard-a
   .ag:not(.is-phone) .ag-search { display: none; }
 }
 
-/* ---------- iPhone: mesma estrutura de hoje, paleta neutra */
-.ag.is-phone .ag-md__n.is-today, .ag.is-phone .ag-strip__d.is-sel b, .ag.is-phone .ag-strip__d.is-today.is-sel b { background: var(--ink) !important; color: #fff !important; }
-.ag.is-phone .ag-strip__d.is-today b { color: var(--ink); }
+/* ---------- iPhone: hoje em laranja; seleção do dia continua marcada */
+.ag.is-phone .ag-md__n.is-today,
+.ag.is-phone .ag-strip__d.is-today.is-sel b {
+  background: var(--terra) !important;
+  color: #fff !important;
+}
+.ag.is-phone .ag-strip__d.is-sel:not(.is-today) b {
+  background: var(--ink) !important;
+  color: #fff !important;
+}
+.ag.is-phone .ag-strip__d.is-today:not(.is-sel) b {
+  color: var(--terra);
+  background: transparent !important;
+}
 .ag.is-phone .ag-mm__t span { color: var(--ink) !important; border-color: var(--ink) !important; }
 .ag.is-phone .ag-mday__route .ag-btn { min-height: 46px; }
 .ag.is-phone .ag-md.is-we { background: transparent; }

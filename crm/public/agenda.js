@@ -1588,39 +1588,48 @@
       void window.sfPrefetchMeetingIcs(e.id);
     }
     const paint = () => {
-      if (isPhone()) {
-        openSheet(`<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${
-          S.canManage ? `<button type="button" class="ag-pillbtn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
-        }</header><div class="ag-sheet__body">${detailHtml(e, true)}</div>`);
-        return;
-      }
-      const pop = $('#agPop');
-      pop.innerHTML = detailHtml(e, false);
-      pop.hidden = false;
+      closePop();
       $$('.is-active-ev').forEach((x) => x.classList.remove('is-active-ev'));
       if (anchor) anchor.classList.add('is-active-ev');
-      const r = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth / 2, right: window.innerWidth / 2, top: 200, bottom: 220, width: 0 };
-      const pw = pop.offsetWidth;
-      const ph = pop.offsetHeight;
-      let left = r.right + 12;
-      let side = 'r';
-      if (left + pw > window.innerWidth - 12) {
-        left = r.left - pw - 12;
-        side = 'l';
-      }
-      if (left < 12) {
-        left = Math.max(12, Math.min(window.innerWidth - pw - 12, r.left));
-        side = 'b';
-      }
-      let top = side === 'b' ? r.bottom + 10 : r.top + r.height / 2 - ph / 2;
-      top = Math.max(70, Math.min(window.innerHeight - ph - 12, top));
-      pop.style.left = left + 'px';
-      pop.style.top = top + 'px';
-      pop.dataset.side = side;
+      // Same bottom sheet on phone, tablet and desktop (map + actions match).
+      openSheet(
+        `<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>${
+          S.canManage ? `<button type="button" class="ag-pillbtn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
+        }</header><div class="ag-sheet__body">${detailHtml(e, true)}</div>`,
+      );
     };
     if (S.canManage && !S.users.length) {
       ensureUsers().then(paint).catch(paint);
     } else paint();
+  }
+
+  /** In-app map for one ticket (PC/tablet/phone), with “Abrir no app Maps” in the route panel. */
+  function openEventMap(eOrAddress, title) {
+    const addr =
+      typeof eOrAddress === 'string'
+        ? String(eOrAddress || '').trim()
+        : String((eOrAddress && eOrAddress.address) || '').trim();
+    if (!addr) return toast('Sem endereço para abrir no mapa.', 'info');
+    if (!window.__crmDayRoute) {
+      return openMapsChooser(addr);
+    }
+    const e = typeof eOrAddress === 'object' && eOrAddress ? eOrAddress : null;
+    const label = (e && e.title) || title || 'Local';
+    const stops = e
+      ? window.__crmDayRoute.stopsFromAgendaEvents([e])
+      : [{ id: 'pin', kind: 'job', label, address: addr, time: '' }];
+    if (!stops.length) {
+      stops.push({ id: 'pin', kind: 'job', label, address: addr, time: '' });
+    }
+    window.__crmDayRoute.open({
+      title: 'Mapa',
+      subtitle: label,
+      origin: (S.me && S.me.route_start_address) || '',
+      stops,
+      onSaveOrigin: (a) => {
+        if (S.me) S.me.route_start_address = a || null;
+      },
+    });
   }
   function closePop() {
     const p = $('#agPop');
@@ -2055,6 +2064,17 @@
     return d;
   }
 
+  /** Ask before moving — DnD never reschedules silently. */
+  function confirmMoveEventToDay(e, day) {
+    if (!e || !day || !S.canManage) return;
+    if (sameDay(e.start, day)) return;
+    const what = e.type === 'job' ? 'o job' : e.type === 'visit' ? 'a visita' : 'o compromisso';
+    openSheet(
+      `<div class="ag-confirm"><h2>Mover ${what}?</h2><p>${esc(e.title)}</p><p class="ag-hint">De ${esc(whenText(e).date)} para <b>${esc(fmtDateShort(day))}</b>. O horário do evento se mantém.</p><div class="ag-confirm__acts"><button type="button" class="ag-btn" data-ag-close>Cancelar</button><button type="button" class="ag-btn ag-btn--pri" data-ag-move-ok="${esc(e.id)}" data-ag-move-day="${esc(ymd(day))}">Confirmar</button></div></div>`,
+      'ag-sheet__card--confirm',
+    );
+  }
+
   /** Move a job / visit / meeting to another calendar day, keeping duration and clock time. */
   async function moveEventToDay(e, day) {
     if (!e || !day || !S.canManage) return;
@@ -2371,7 +2391,7 @@
         const target = parseYmd(key);
         const e = findEv(id);
         if (!e || !target) return;
-        await moveEventToDay(e, target);
+        confirmMoveEventToDay(e, target);
       },
       true,
     );
@@ -2403,7 +2423,9 @@
         const draft = ensureCalDraft();
         if (!draft) return toast('Sem permissão para editar agendas.', 'error');
         if (draft.length >= 24) return toast('Limite de agendas atingido.', 'error');
-        draft.push({ id: newCalId(), name: 'Nova agenda', color: '#16a34a', kind: 'custom' });
+        // Reuse an unsaved empty "Nova agenda" instead of creating another duplicate row.
+        const pending = draft.find((c) => c.kind === 'custom' && String(c.name || '').trim() === 'Nova agenda');
+        if (!pending) draft.push({ id: newCalId(), name: 'Nova agenda', color: '#16a34a', kind: 'custom' });
         calSheetMode = 'edit';
         return openCalSheet('edit');
       }
@@ -2518,6 +2540,18 @@
         }
         return;
       }
+      if ((el = t.closest('[data-ag-move-ok]'))) {
+        const e = findEv(el.dataset.agMoveOk);
+        const day = parseYmd(el.getAttribute('data-ag-move-day') || '');
+        if (!e || !day) return;
+        el.disabled = true;
+        try {
+          await moveEventToDay(e, day);
+        } catch (_) {
+          el.disabled = false;
+        }
+        return;
+      }
       if ((el = t.closest('[data-ag-maps-close]'))) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -2527,7 +2561,11 @@
       if ((el = t.closest('[data-ag-maps]'))) {
         ev.preventDefault();
         ev.stopPropagation();
-        openMapsChooser(el.getAttribute('data-ag-maps'), ev.clientX, ev.clientY);
+        const detail = el.closest('[data-ag-detail]');
+        const evId = detail && detail.getAttribute('data-ag-detail');
+        const event = evId ? findEv(evId) : null;
+        if (event) openEventMap(event);
+        else openEventMap(el.getAttribute('data-ag-maps'));
         return;
       }
       if ((el = t.closest('[data-ag-maps-go]'))) {
@@ -2680,8 +2718,11 @@
           if (open === 'add' && canEditCals()) {
             const draft = ensureCalDraft();
             if (draft) {
-              if (draft.length >= 24) return toast('Limite de agendas atingido.', 'error');
-              draft.push({ id: newCalId(), name: 'Nova agenda', color: '#16a34a', kind: 'custom' });
+              const pending = draft.find((c) => c.kind === 'custom' && String(c.name || '').trim() === 'Nova agenda');
+              if (!pending) {
+                if (draft.length >= 24) return toast('Limite de agendas atingido.', 'error');
+                draft.push({ id: newCalId(), name: 'Nova agenda', color: '#16a34a', kind: 'custom' });
+              }
             }
             return openCalSheet('edit');
           }
