@@ -323,12 +323,24 @@ body.plab.plab-leads-list .mleads {
   color: #fff;
 }
 
+/* Stage-tinted panel — same color-mix as Kanban columns */
+.mleads-stage-panel {
+  margin: 0.15rem 0 0;
+  border-radius: 18px;
+  padding: 10px 10px 12px;
+  box-sizing: border-box;
+  background: #EEF0F3;
+}
+.mleads-stage-panel.has-stage {
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 10%, #EEF0F3);
+}
+
 .mleads-section {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
-  margin: 0.15rem 0 0.65rem;
+  margin: 0 0 0.65rem;
 }
 
 .mleads-section__title {
@@ -441,6 +453,11 @@ body.plab.plab-leads-list .mleads {
   margin: 0;
   transition: transform 0.18s ease;
   will-change: transform;
+  /* Soft stage wash in "Todos"; white cards when a stage panel is active */
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 12%, #fff);
+}
+
+.mleads-stage-panel.has-stage .mleads-swipe__body.mleads-card {
   background: #fff;
 }
 
@@ -450,15 +467,19 @@ body.plab.plab-leads-list .mleads {
   gap: 0.65rem;
   align-items: start;
   padding: 0.85rem 0.9rem;
-  background: #fff;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 12%, #fff);
   border: 1px solid var(--plab-line, #E5E7EB);
   border-radius: 14px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
+.mleads-stage-panel.has-stage .mleads-card {
+  background: #fff;
+}
+
 .mleads-card:active {
-  background: var(--plab-soft, #F1F3F5);
+  filter: brightness(0.97);
 }
 
 .mleads-card__avatar {

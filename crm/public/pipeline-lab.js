@@ -1496,6 +1496,17 @@
     $("mleadsSectionTitle").textContent = label;
     $("mleadsSectionMeta").textContent = `${D.plural(stageRows.length, "lead", "leads")} · ${D.money(stageValue)}`;
 
+    const panel = $("mleadsStagePanel");
+    if (panel) {
+      if (!isAll && stage) {
+        panel.style.setProperty("--stage-color", stage.color || "#98A2B3");
+        panel.classList.add("has-stage");
+      } else {
+        panel.style.removeProperty("--stage-color");
+        panel.classList.remove("has-stage");
+      }
+    }
+
     if (!stageRows.length) {
       list.innerHTML = "";
       empty.hidden = false;
@@ -1550,14 +1561,16 @@
         left.push(
           `<button type="button" class="mleads-swipe__btn mleads-swipe__btn--call" data-mleads-call="${id}" ${hasPhone ? "" : "disabled"}>${callIcon}<span>Ligar</span></button>`,
         );
-        return `<li class="mleads-swipe" data-id="${id}">
+        const leadStage = stageOf(lead);
+        const tone = (leadStage && leadStage.color) || (stage && stage.color) || "#98A2B3";
+        return `<li class="mleads-swipe" data-id="${id}" style="--stage-color:${esc(tone)}">
           <div class="mleads-swipe__actions" aria-hidden="true">
             <div class="mleads-swipe__slot mleads-swipe__slot--left">${left.join("")}</div>
             <div class="mleads-swipe__slot mleads-swipe__slot--right">
               <button type="button" class="mleads-swipe__btn mleads-swipe__btn--advance" data-mleads-advance="${id}" ${hasNext ? "" : "disabled"}>${advanceIcon}<span>Avançar</span></button>
             </div>
           </div>
-          <div class="mleads-swipe__body mleads-card" data-mleads-open="${id}" role="button" tabindex="0">
+          <div class="mleads-swipe__body mleads-card" data-mleads-open="${id}" role="button" tabindex="0" style="--stage-color:${esc(tone)}">
             ${
               window.OmLeadOrigin && typeof window.OmLeadOrigin.logoHtml === "function"
                 ? window.OmLeadOrigin.logoHtml(lead)
@@ -1569,8 +1582,8 @@
               }</p>
               ${sigHtml ? `<p class="mleads-card__next">${sigHtml}</p>` : ""}
               ${
-                isAll && stageOf(lead)
-                  ? `<p class="mleads-card__stage"><span class="mleads-tag__dot" style="background:${esc(stageOf(lead).color || "#98A2B3")}"></span>${esc(stageLabel(stageOf(lead)))}</p>`
+                isAll && leadStage
+                  ? `<p class="mleads-card__stage"><span class="mleads-tag__dot" style="background:${esc(leadStage.color || "#98A2B3")}"></span>${esc(stageLabel(leadStage))}</p>`
                   : ""
               }
             </div>

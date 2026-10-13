@@ -1096,6 +1096,16 @@ function renderLeadsListView() {
         if (sa !== sb) return (sa < 0 ? 99 : sa) - (sb < 0 ? 99 : sb);
         return String(a.name || '').localeCompare(String(b.name || ''), 'pt', { sensitivity: 'base' });
     });
+    const focusStage = lbFocusedStage
+        ? pipelineStages.find((st) => kanbanCanonicalStageSlug(st.slug) === lbFocusedStage)
+        : null;
+    if (focusStage) {
+        root.style.setProperty('--stage-color', kanbanStageTone(focusStage));
+        root.classList.add('has-stage');
+    } else {
+        root.style.removeProperty('--stage-color');
+        root.classList.remove('has-stage');
+    }
     if (!rows.length) {
         root.innerHTML = '<p class="lb-list__empty">Nenhum lead neste filtro.</p>';
         return;

@@ -183,15 +183,18 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
 .lb .lb-card:hover { box-shadow: 0 0 0 1px #D0D5DD, 0 6px 16px -10px rgba(16, 24, 40, .25) !important; }
 .lb .lb-card:focus-visible { outline: 2px solid var(--lb-or); outline-offset: 2px; }
 
-/* lista — mesmo fundo suave das colunas do Kanban (--lb-col) */
+/* lista — fundo pastel por etapa (mesmo color-mix das colunas do Kanban) */
 .lb-board-wrap.is-list { overflow: visible; }
 .lb #listView[hidden] { display: none !important; }
 .lb #listView.lb-list-view:not([hidden]),
 .lb-board-wrap.is-list #listView {
-  background: var(--lb-col);
   border-radius: 18px;
-  padding: 12px 10px 14px;
+  padding: 4px 0 8px;
   box-sizing: border-box;
+}
+.lb #listView.has-stage {
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 10%, #EEF0F3);
+  padding: 12px 10px 14px;
 }
 .lb-list__head {
   display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(120px, .9fr) 88px 100px; gap: 10px;
@@ -201,10 +204,13 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
 .lb-list__empty { margin: 24px 8px; color: var(--lb-ink2); font-size: 14px; font-weight: 600; }
 .lb-row {
   appearance: none; border: 0; width: 100%; display: grid; grid-template-columns: 4px minmax(0, 1.6fr) minmax(120px, .9fr) 88px 100px; gap: 10px; align-items: center;
-  text-align: left; background: #fff; border-radius: 14px; box-shadow: 0 0 0 1px var(--lb-line), 0 1px 2px rgba(16, 24, 40, .04); padding: 12px 14px 12px 0; cursor: pointer; font: inherit; color: inherit;
+  text-align: left;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 10%, #EEF0F3);
+  border-radius: 14px; box-shadow: 0 0 0 1px var(--lb-line), 0 1px 2px rgba(16, 24, 40, .04); padding: 12px 14px 12px 0; cursor: pointer; font: inherit; color: inherit;
   transition: box-shadow .15s, background .15s;
 }
-.lb-row:hover { box-shadow: 0 0 0 1px #D0D5DD, 0 6px 16px -10px rgba(16, 24, 40, .2); background: #FCFCFD; }
+.lb #listView.has-stage .lb-row { background: #fff; }
+.lb-row:hover { box-shadow: 0 0 0 1px #D0D5DD, 0 6px 16px -10px rgba(16, 24, 40, .2); filter: brightness(0.985); }
 .lb-row__bar { display: block; width: 4px; align-self: stretch; min-height: 36px; border-radius: 0 3px 3px 0; background: var(--stage-color, #98A2B3); margin-right: 4px; }
 .lb-row__main { min-width: 0; padding-left: 6px; }
 .lb-row__main b { display: block; font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -325,9 +331,19 @@ html body .lb .kanban-column-title { width: 100%; }
 .mleads .mleads-kpis--3 .mleads-kpi__label { font-size: 11.5px; font-weight: 550; color: #667085; }
 .mleads .mleads-kpis--3 .mleads-kpi__value { margin: 3px 0 0; font-size: 18px; font-weight: 700; letter-spacing: -.02em; color: #221E1A; }
 .mleads .mleads-kpis--3 .mleads-kpi__value.is-hot { color: #B4561A; }
+.mleads .mleads-stage-panel {
+  background: #EEF0F3;
+}
+.mleads .mleads-stage-panel.has-stage {
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 10%, #EEF0F3);
+}
 .mleads .mleads-card {
   grid-template-columns: 40px minmax(0, 1fr) auto; gap: 11px; align-items: center;
   padding: 12px 14px; border: 0; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 18px;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 12%, #fff);
+}
+.mleads .mleads-stage-panel.has-stage .mleads-card {
+  background: #fff;
 }
 .mleads .mleads-card__avatar { width: 40px; height: 40px; background: #F1F3F5 !important; color: #221E1A; font-size: 13px; font-weight: 650; }
 .mleads .mleads-card__main { min-width: 0; }
