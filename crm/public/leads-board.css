@@ -339,11 +339,15 @@ html body .lb .kanban-column-title { width: 100%; }
 }
 .mleads .mleads-card {
   grid-template-columns: 40px minmax(0, 1fr) auto; gap: 11px; align-items: center;
-  padding: 12px 14px; border: 0; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 18px;
+  padding: 12px 14px;
+  border: 1.5px solid #D0D5DD;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+  border-radius: 18px;
   background: color-mix(in srgb, var(--stage-color, #98A2B3) 12%, #fff);
 }
 .mleads .mleads-stage-panel.has-stage .mleads-card {
   background: #fff;
+  border-color: #C8CDD6;
 }
 .mleads .mleads-card__avatar { width: 40px; height: 40px; background: #F1F3F5 !important; color: #221E1A; font-size: 13px; font-weight: 650; }
 .mleads .mleads-card__main { min-width: 0; }
