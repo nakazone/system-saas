@@ -7,7 +7,7 @@
 (function (global) {
   "use strict";
 
-  const VER = "20261013-rl2";
+  const VER = "20261013-rl3";
 
   function isTouchViewport() {
     // Phones + tablets (iPad landscape can exceed 900px).
@@ -163,8 +163,13 @@
       armed = false;
       if (!should || refreshing) {
         if (ind) {
-          ind.classList.remove("om-ptr-visible", "is-ready");
-          if (!R) ind.textContent = (o && o.labelIdle) || "↓ Puxe para atualizar";
+          ind.classList.remove("om-ptr-visible", "is-ready", "is-busy");
+          if (R) {
+            R.ptrSet(ind, "pull", 0, (o && o.labelIdle) || "Puxe para atualizar");
+            if (typeof R.hideLoading === "function") R.hideLoading(true);
+          } else {
+            ind.textContent = (o && o.labelIdle) || "↓ Puxe para atualizar";
+          }
         }
         activeKey = null;
         return;
@@ -174,7 +179,10 @@
       if (ind) {
         ind.classList.remove("is-ready");
         if (R) {
-          ind.classList.add("om-ptr-visible", "is-busy");
+          // Full-screen brand veil (ptrSet busy) — hide the tiny top chip so it
+          // doesn't sit as a frozen logo block on iOS.
+          ind.classList.remove("om-ptr-visible");
+          ind.classList.add("is-busy");
           R.ptrSet(ind, "busy", 1, o.labelBusy || "Atualizando…");
         } else {
           ind.classList.remove("om-ptr-visible");
@@ -189,7 +197,7 @@
         if (ind && R) {
           ind.classList.remove("is-busy");
           R.ptrSet(ind, "done", 1, "Atualizado");
-          setTimeout(() => ind.classList.remove("om-ptr-visible"), 650);
+          ind.classList.remove("om-ptr-visible");
         } else if (ind) {
           ind.textContent = o.labelIdle || "↓ Puxe para atualizar";
         }

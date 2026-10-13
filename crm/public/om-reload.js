@@ -1,9 +1,10 @@
 /**
- * ObraMate — animação de reload "Montagem" (opção 1B do Claude Design), com o símbolo real da marca.
- * As 3 peças do logo entram de fora e se encaixam.
- *  - Splash ao abrir o app (celular/tablet, uma vez por sessão)
- *  - Puxar para atualizar (om-gestures.js usa OmReload.ptr*)
- *  - Carregamento entre páginas (véu com o símbolo em ciclo)
+ * ObraMate — animação de reload "Montagem" com o símbolo real da marca.
+ * Peças entram de fora e se encaixam (dirigido por JS — CSS transform em
+ * <polygon> fica estático no Safari/iOS).
+ *  - Splash ao abrir (touch, uma vez por sessão)
+ *  - Puxar para atualizar (om-gestures.js → OmReload.ptr*)
+ *  - Véu entre páginas / full reload
  * Carregar logo depois de <body>: <script src="/om-reload.js?v=…"></script>
  */
 (function (g) {
@@ -11,48 +12,25 @@
   if (g.OmReload) return;
 
   const ORANGE = "#E7792C";
-  /** Peças do símbolo (traçadas do logo oficial, viewBox 0 0 512 512) e a direção de onde entram. */
+  /** Peças do símbolo (viewBox 0 0 512 512) + direção de entrada. */
   const PIECES = [
     { pts: "112,112 361,112 302,157 159,158 158,337 112,297", dx: -71, dy: -71 },
     { pts: "112,353 334,354 285,399 112,399", dx: 0, dy: 100 },
     { pts: "398,113 399,398 356,353 354,207 263,281 193,281", dx: 71, dy: -71 },
   ];
 
-  // Keyframes use concrete px (not var(--dx) inside @keyframes) — Safari/iOS ignores
-  // custom properties in keyframe transforms, which froze the logo as a static block.
   const CSS = `
 .om-rl{display:block;overflow:visible}
-.om-rl polygon{fill:${ORANGE};opacity:0;will-change:transform,opacity}
-.om-rl polygon:nth-child(1){transform:translate(-71px,-71px)}
-.om-rl polygon:nth-child(2){transform:translate(0,100px)}
-.om-rl polygon:nth-child(3){transform:translate(71px,-71px)}
-.om-rl.is-in polygon:nth-child(1){animation:omRlIn0 var(--rl-dur,1.05s) cubic-bezier(.34,1.4,.64,1) both;animation-delay:calc(0 * var(--rl-gap,.14s))}
-.om-rl.is-in polygon:nth-child(2){animation:omRlIn1 var(--rl-dur,1.05s) cubic-bezier(.34,1.4,.64,1) both;animation-delay:calc(1 * var(--rl-gap,.14s))}
-.om-rl.is-in polygon:nth-child(3){animation:omRlIn2 var(--rl-dur,1.05s) cubic-bezier(.34,1.4,.64,1) both;animation-delay:calc(2 * var(--rl-gap,.14s))}
-.om-rl.is-loop polygon:nth-child(1){animation:omRlLoop0 2.2s infinite both;animation-delay:0s}
-.om-rl.is-loop polygon:nth-child(2){animation:omRlLoop1 2.2s infinite both;animation-delay:.16s}
-.om-rl.is-loop polygon:nth-child(3){animation:omRlLoop2 2.2s infinite both;animation-delay:.32s}
-.om-rl.is-manual polygon{animation:none}
-.om-rl.is-manual polygon:nth-child(1){transform:translate(calc(-71px * (1 - var(--p,0))),calc(-71px * (1 - var(--p,0))));opacity:calc(var(--p,0) * 2.5)}
-.om-rl.is-manual polygon:nth-child(2){transform:translate(0,calc(100px * (1 - var(--p,0))));opacity:calc(var(--p,0) * 2.5)}
-.om-rl.is-manual polygon:nth-child(3){transform:translate(calc(71px * (1 - var(--p,0))),calc(-71px * (1 - var(--p,0))));opacity:calc(var(--p,0) * 2.5)}
-.om-rl.is-done polygon{animation:none;transform:none;opacity:1}
-@keyframes omRlIn0{0%{transform:translate(-71px,-71px);opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
-@keyframes omRlIn1{0%{transform:translate(0,100px);opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
-@keyframes omRlIn2{0%{transform:translate(71px,-71px);opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
-@keyframes omRlLoop0{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}28%{transform:translate(-71px,-71px);opacity:0;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}100%{transform:translate(0,0);opacity:1}}
-@keyframes omRlLoop1{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}28%{transform:translate(0,100px);opacity:0;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}100%{transform:translate(0,0);opacity:1}}
-@keyframes omRlLoop2{0%{transform:translate(0,0);opacity:1;animation-timing-function:cubic-bezier(.65,0,.35,1)}28%{transform:translate(71px,-71px);opacity:0;animation-timing-function:cubic-bezier(.34,1.4,.64,1)}100%{transform:translate(0,0);opacity:1}}
+.om-rl__g{fill:${ORANGE}}
 .om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .55s ease}
 .om-rl-splash.is-out{opacity:0;pointer-events:none}
 .om-rl-splash img{width:188px;height:auto;opacity:0;transform:translateY(6px);transition:opacity .55s ease,transform .55s ease}
 .om-rl-splash.is-word img{opacity:1;transform:none}
-.om-rl-ov{position:fixed;inset:0;z-index:2147482000;background:rgba(247,248,250,.92);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .38s ease}
+.om-rl-ov{position:fixed;inset:0;z-index:2147482000;background:rgba(247,248,250,.94);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .32s ease}
 .om-rl-ov.is-on{opacity:1;pointer-events:auto}
+.om-ptr--rl .om-ptr__mark{display:flex;align-items:center;justify-content:center;overflow:visible;min-height:44px}
 @media (prefers-reduced-motion: reduce){
-  .om-rl polygon,.om-rl.is-in polygon,.om-rl.is-manual polygon{animation:none;transform:none;opacity:1}
-  .om-rl.is-loop polygon{animation:omRlPulse 1.4s ease-in-out infinite;transform:none}
-  @keyframes omRlPulse{50%{opacity:.35}}
+  .om-rl-ov{transition:none}
 }`;
 
   function injectCss() {
@@ -63,12 +41,119 @@
     (document.head || document.documentElement).appendChild(st);
   }
 
-  /** SVG do símbolo. state: 'in' (monta uma vez) | 'loop' | 'manual' (usa --p) | 'done'. */
+  function easeOutBack(t) {
+    const c = 1.4;
+    const t1 = t - 1;
+    return 1 + c * t1 * t1 * t1 + (c + 1) * t1 * t1;
+  }
+  function easeInOut(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  /** p=0 espalhado, p=1 montado. */
+  function paintMark(svg, p) {
+    if (!svg) return;
+    const prog = Math.max(0, Math.min(1, p));
+    const groups = svg.querySelectorAll(".om-rl__g");
+    for (let i = 0; i < groups.length; i += 1) {
+      const piece = PIECES[i];
+      if (!piece) continue;
+      const scatter = 1 - prog;
+      const dx = piece.dx * scatter;
+      const dy = piece.dy * scatter;
+      const op = Math.max(0, Math.min(1, prog * 2.4));
+      groups[i].setAttribute("transform", "translate(" + dx + "," + dy + ")");
+      groups[i].setAttribute("opacity", String(op));
+    }
+  }
+
+  function stopAnim(svg) {
+    if (!svg) return;
+    if (svg.__omRaf) {
+      cancelAnimationFrame(svg.__omRaf);
+      svg.__omRaf = 0;
+    }
+    svg.__omMode = "";
+  }
+
+  function startLoop(svg) {
+    if (!svg || reduced()) {
+      paintMark(svg, 1);
+      return;
+    }
+    stopAnim(svg);
+    svg.__omMode = "loop";
+    const t0 = performance.now();
+    const PERIOD = 2200;
+    const tick = (now) => {
+      if (svg.__omMode !== "loop") return;
+      const cycle = ((now - t0) % PERIOD) / PERIOD;
+      let p;
+      if (cycle < 0.3) {
+        p = 1 - easeInOut(cycle / 0.3);
+      } else {
+        p = easeOutBack(Math.min(1, (cycle - 0.3) / 0.7));
+        p = Math.max(0, Math.min(1, p));
+      }
+      paintMark(svg, p);
+      svg.__omRaf = requestAnimationFrame(tick);
+    };
+    svg.__omRaf = requestAnimationFrame(tick);
+  }
+
+  function playIn(svg, durMs) {
+    if (!svg) return;
+    if (reduced()) {
+      paintMark(svg, 1);
+      return;
+    }
+    stopAnim(svg);
+    svg.__omMode = "in";
+    const dur = durMs || 1050;
+    const gap = 140;
+    const t0 = performance.now();
+    const total = dur + gap * 2;
+    const tick = (now) => {
+      if (svg.__omMode !== "in") return;
+      const groups = svg.querySelectorAll(".om-rl__g");
+      for (let i = 0; i < groups.length; i += 1) {
+        const local = Math.max(0, Math.min(1, (now - t0 - i * gap) / dur));
+        const p = easeOutBack(local);
+        const piece = PIECES[i];
+        const scatter = 1 - Math.max(0, Math.min(1, p));
+        groups[i].setAttribute(
+          "transform",
+          "translate(" + piece.dx * scatter + "," + piece.dy * scatter + ")",
+        );
+        groups[i].setAttribute("opacity", String(Math.max(0, Math.min(1, local * 2.2))));
+      }
+      if (now - t0 < total) svg.__omRaf = requestAnimationFrame(tick);
+      else {
+        paintMark(svg, 1);
+        svg.__omMode = "done";
+      }
+    };
+    svg.__omRaf = requestAnimationFrame(tick);
+  }
+
+  /** SVG do símbolo. state: 'in' | 'loop' | 'manual' | 'done'. */
   function mark(size, state) {
-    const polys = PIECES.map(
-      (p, i) => `<polygon points="${p.pts}" style="--i:${i};--dx:${p.dx}px;--dy:${p.dy}px"/>`,
+    const groups = PIECES.map(
+      (p, i) =>
+        `<g class="om-rl__g" data-i="${i}" transform="translate(${p.dx},${p.dy})" opacity="0"><polygon points="${p.pts}"/></g>`,
     ).join("");
-    return `<svg class="om-rl is-${state || "in"}" width="${size}" height="${size}" viewBox="100 100 312 312" aria-hidden="true" focusable="false">${polys}</svg>`;
+    return `<svg class="om-rl is-${state || "in"}" width="${size}" height="${size}" viewBox="100 100 312 312" aria-hidden="true" focusable="false">${groups}</svg>`;
+  }
+
+  function bootMark(root, state) {
+    const svg = root && root.querySelector ? root.querySelector(".om-rl") : root;
+    if (!svg || !svg.classList || !svg.classList.contains("om-rl")) return null;
+    const st = state || (svg.className.match(/is-(\w+)/) || [])[1] || "in";
+    if (st === "loop") startLoop(svg);
+    else if (st === "in") playIn(svg);
+    else if (st === "done") paintMark(svg, 1);
+    else paintMark(svg, 0);
+    return svg;
   }
 
   function touchUi() {
@@ -99,9 +184,9 @@
     const el = document.createElement("div");
     el.className = "om-rl-splash";
     el.setAttribute("aria-hidden", "true");
-    el.innerHTML = mark(92, "in").replace('class="om-rl is-in"', 'class="om-rl is-in" style="--rl-dur:1.1s;--rl-gap:.14s"') +
-      '<img src="/assets/obramate-wordmark.png?v=20261012-rl1" alt="" width="188" height="31" />';
+    el.innerHTML = mark(92, "in") + '<img src="/assets/obramate-wordmark.png?v=20261012-rl1" alt="" width="188" height="31" />';
     document.body.appendChild(el);
+    bootMark(el, "in");
     const t0 = Date.now();
     const MIN = reduced() ? 500 : 1900;
     setTimeout(() => el.classList.add("is-word"), reduced() ? 0 : 1100);
@@ -109,13 +194,15 @@
     const out = () => {
       if (gone) return;
       gone = true;
+      const svg = el.querySelector(".om-rl");
+      stopAnim(svg);
       el.classList.add("is-out");
       setTimeout(() => el.remove(), 500);
     };
     const ready = () => setTimeout(out, Math.max(0, MIN - (Date.now() - t0)));
     if (document.readyState === "complete") ready();
     else window.addEventListener("load", ready, { once: true });
-    setTimeout(out, 4200); // nunca prende o app
+    setTimeout(out, 4200);
     el.addEventListener("click", out);
   }
 
@@ -123,42 +210,60 @@
   let ov = null;
   let ovTimer = null;
   let ovFail = null;
+  let ovShownAt = 0;
+  let navVeil = false;
+  const OV_MIN_MS = 900;
+
   function overlay() {
     if (ov) return ov;
     ov = document.createElement("div");
     ov.className = "om-rl-ov";
     ov.setAttribute("aria-hidden", "true");
-    ov.innerHTML = mark(72, "loop");
+    ov.innerHTML = mark(84, "loop");
     document.body.appendChild(ov);
     return ov;
   }
-  let ovShownAt = 0;
-  const OV_MIN_MS = 720; // enough for one calm assemble cycle — avoids flashy “bug” transitions
+
+  function showOverlayNow() {
+    const el = overlay();
+    el.classList.add("is-on");
+    ovShownAt = Date.now();
+    const svg = el.querySelector(".om-rl");
+    startLoop(svg);
+    clearTimeout(ovFail);
+    ovFail = setTimeout(hideLoading, 12000);
+    return el;
+  }
+
   function showLoading(delay) {
     if (!document.body) return;
     clearTimeout(ovTimer);
-    ovTimer = setTimeout(() => {
-      overlay().classList.add("is-on");
-      ovShownAt = Date.now();
-      clearTimeout(ovFail);
-      ovFail = setTimeout(hideLoading, 12000);
-    }, delay == null ? 90 : delay);
+    ovTimer = setTimeout(showOverlayNow, delay == null ? 40 : delay);
   }
-  function hideLoading() {
+
+  function hideLoading(force) {
     clearTimeout(ovTimer);
     clearTimeout(ovFail);
     if (!ov || !ov.classList.contains("is-on")) {
       ovShownAt = 0;
       return;
     }
-    const wait = Math.max(0, OV_MIN_MS - (Date.now() - (ovShownAt || Date.now())));
     const out = () => {
-      if (ov) ov.classList.remove("is-on");
+      if (ov) {
+        stopAnim(ov.querySelector(".om-rl"));
+        ov.classList.remove("is-on");
+      }
       ovShownAt = 0;
     };
+    if (force) {
+      out();
+      return;
+    }
+    const wait = Math.max(0, OV_MIN_MS - (Date.now() - (ovShownAt || Date.now())));
     if (wait > 0) setTimeout(out, wait);
     else out();
   }
+
   function isPageLink(a, e) {
     if (!a || e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
     if (a.hasAttribute("download") || (a.target && a.target !== "_self")) return false;
@@ -172,13 +277,10 @@
     }
     if (u.origin !== location.origin) return false;
     if (/^\/api\//.test(u.pathname) || /\.(pdf|png|jpe?g|csv|xlsx?|zip)$/i.test(u.pathname)) return false;
-    if (u.pathname === location.pathname && u.search === location.search) return false; // só muda o #
+    if (u.pathname === location.pathname && u.search === location.search) return false;
     return true;
   }
-  /** Flag set while we intentionally show the nav/reload veil (don't cancel early). */
-  let navVeil = false;
 
-  /** Chegando de um link/reload do app: véu com o símbolo em loop até a página carregar. */
   function arrival() {
     let ts = 0;
     try {
@@ -189,26 +291,13 @@
     }
     if (!ts || Date.now() - ts > 8000 || !touchUi() || document.querySelector(".om-rl-splash")) return;
     navVeil = true;
-    const el = overlay();
-    el.style.transition = "none";
-    el.classList.add("is-on");
-    ovShownAt = Date.now();
-    // Restart loop animation after paint (Safari).
-    const svg = el.querySelector(".om-rl");
-    if (svg) {
-      svg.classList.remove("is-loop");
-      void svg.offsetWidth;
-      svg.classList.add("is-loop");
-    }
-    void el.offsetWidth;
-    el.style.transition = "";
+    showOverlayNow();
     const t0 = Date.now();
-    // Keep the veil up long enough for a full assemble cycle.
     const done = () =>
       setTimeout(() => {
         navVeil = false;
         hideLoading();
-      }, Math.max(400, 1100 - (Date.now() - t0)));
+      }, Math.max(500, 1200 - (Date.now() - t0)));
     if (document.readyState === "complete") done();
     else window.addEventListener("load", done, { once: true });
     clearTimeout(ovFail);
@@ -217,8 +306,8 @@
       hideLoading();
     }, 6000);
   }
+
   function bindNav() {
-    // bolha na window: roda depois dos handlers das páginas (que podem impedir a navegação)
     window.addEventListener("click", (e) => {
       if (!touchUi()) return;
       const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
@@ -241,36 +330,51 @@
   }
 
   /* ---------------- puxar para atualizar ---------------- */
-  /** Prepara o indicador (om-gestures.js). */
   function ptrInit(ind) {
     if (!ind || ind.dataset.omRl === "1") return;
     ind.dataset.omRl = "1";
     ind.classList.add("om-ptr--rl");
-    ind.innerHTML = `<span class="om-ptr__mark">${mark(38, "manual")}</span><span class="om-ptr__lbl"></span>`;
+    ind.innerHTML = `<span class="om-ptr__mark">${mark(40, "manual")}</span><span class="om-ptr__lbl"></span>`;
+    paintMark(ind.querySelector(".om-rl"), 0);
   }
+
   function ptrSet(ind, state, p, label) {
     if (!ind) return;
     ptrInit(ind);
     const svg = ind.querySelector(".om-rl");
     const lbl = ind.querySelector(".om-ptr__lbl");
-    if (svg) {
-      const next =
-        state === "busy" ? "is-loop" : state === "done" ? "is-done" : "is-manual";
-      const prev = ["is-in", "is-loop", "is-manual", "is-done"].find((c) => svg.classList.contains(c));
-      svg.classList.remove("is-in", "is-loop", "is-manual", "is-done");
-      // Force Safari to restart the assemble loop when entering busy.
-      if (prev !== next) void svg.offsetWidth;
-      svg.classList.add(next);
-      const pp = Math.max(0, Math.min(1, p || 0));
-      svg.style.setProperty("--p", String(pp));
-      const mk = ind.querySelector(".om-ptr__mark");
-      if (mk) mk.style.transform = state === "pull" ? `scale(${0.6 + 0.4 * pp})` : "";
+    const mk = ind.querySelector(".om-ptr__mark");
+    const pp = Math.max(0, Math.min(1, p || 0));
+
+    if (state === "busy") {
+      // Full-screen assemble loop — the tiny top chip looked like a frozen block on iOS.
+      if (svg) {
+        stopAnim(svg);
+        paintMark(svg, 1);
+      }
+      showLoading(0);
+      if (mk) mk.style.transform = "";
+    } else if (state === "done") {
+      if (svg) {
+        stopAnim(svg);
+        paintMark(svg, 1);
+      }
+      hideLoading();
+      if (mk) mk.style.transform = "";
+    } else {
+      // pull progress — pieces assemble with the finger (JS transforms)
+      if (svg) {
+        stopAnim(svg);
+        paintMark(svg, pp);
+      }
+      if (mk) mk.style.transform = "scale(" + (0.62 + 0.38 * pp) + ")";
     }
+
     if (lbl && label != null) lbl.textContent = String(label).replace(/^[↓↑]\s*/, "");
   }
 
   injectCss();
-  g.OmReload = { mark, showLoading, hideLoading, ptrInit, ptrSet };
+  g.OmReload = { mark, showLoading, hideLoading, ptrInit, ptrSet, bootMark };
   if (document.body) {
     splash();
     bindNav();

@@ -172,12 +172,14 @@
 .om-ptr.om-ptr--rl {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
   height: 0;
   max-width: none;
   margin: 0 auto;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 0;
   background: transparent !important;
   color: #667085 !important;
@@ -186,12 +188,28 @@
   font-style: italic;
   opacity: 0;
   transform: none;
+  box-shadow: none !important;
   transition: height 0.22s ease, opacity 0.18s ease;
 }
 .om-ptr.om-ptr--rl.om-ptr-visible {
-  height: 84px;
+  height: 96px;
   opacity: 1;
   transform: none;
 }
-.om-ptr--rl .om-ptr__mark { display: block; transition: transform 0.08s linear; }
+.om-ptr.om-ptr--global.om-ptr--rl {
+  /* During pull: light chip; during busy the chip is hidden (full-screen veil). */
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  padding: 10px 16px 12px;
+  background: rgba(247, 248, 250, 0.96) !important;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(34, 30, 26, 0.1) !important;
+}
+.om-ptr--rl .om-ptr__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  min-height: 44px;
+  transition: transform 0.08s linear;
+}
 .om-ptr--rl.is-ready { color: #221E1A !important; }
