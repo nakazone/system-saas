@@ -428,6 +428,14 @@
       .join("")}</div>${mediaCache.length > 24 ? `<p class="jx-none" style="margin-top:10px">${mediaCache.length - 24} foto(s) a mais no ObraCam.</p>` : ""}`;
   }
 
+  function fieldStatusMeta(wo, f) {
+    const fs = wo.status === "completed" ? "completed" : wo.status === "canceled" ? "canceled" : f.field_status;
+    const label =
+      fs === "completed" ? "Concluída" : fs === "canceled" ? "Cancelada" : f.field_status_label || f.field_status || "—";
+    const cls = fs === "completed" ? "ok" : fs === "canceled" ? "late" : fs === "scheduled" || fs === "assigned" ? "" : "dk";
+    return { fs, label, cls };
+  }
+
   function renderFieldBody(wo) {
     const box = $("jxField");
     if (!box) return;
@@ -440,25 +448,135 @@
     const c = f.checklist;
     const checklistOn = f.checklist_enabled !== false;
     const att = String(wo.campo_attention || "").trim();
-    const ckHtml =
-      checklistOn && c
-        ? `<div class="jx-box"><h3>Checklist${c.customized ? `<span class="jx-ch__n">${c.done}/${c.total}</span>` : ""}${
-            canManage ? `<button type="button" class="jx-lnk" data-jx-act="campo">${c.customized ? "Editar" : "Criar checklist"}</button>` : ""
-          }</h3>${
-            !c.customized
-              ? `<p class="jx-none">Nenhum checklist definido.${canManage ? " Crie a lista do que a equipe precisa fazer." : ""}</p>`
-              : `<ul class="jx-check">${(c.items || [])
-                  .map((i) => `<li class="${i.done ? "is-done" : ""}"><i>${i.done ? "✓" : ""}</i><span>${J.esc(i.text)}</span></li>`)
-                  .join("")}</ul>`
-          }</div>`
-        : "";
+    const h = f.hours || { total: 0, people: [] };
+    const people = Array.isArray(h.people) ? h.people : [];
+    const measures = Array.isArray(f.measurements) ? f.measurements : [];
+    const inspections = Array.isArray(f.inspections) ? f.inspections : [];
+    const st = fieldStatusMeta(wo, f);
+    const ticketHref = `campo/ticket.html?id=${encodeURIComponent(wo.id)}`;
+    const pct = c?.customized && c.total ? Math.round((c.done / c.total) * 100) : 0;
+
+    const checklistBlock = !checklistOn
+      ? ""
+      : `<section class="jx-campo__card">
+          <header class="jx-campo__hd">
+            <div>
+              <h3>Checklist</h3>
+              ${c?.customized ? `<p class="jx-campo__sub">${c.done} de ${c.total} · ${pct}%</p>` : `<p class="jx-campo__sub">O que a equipe precisa fazer na obra</p>`}
+            </div>
+            ${canManage ? `<button type="button" class="jx-btn jx-btn--sm" data-jx-act="campo">${c?.customized ? "Editar" : "Criar"}</button>` : ""}
+          </header>
+          ${
+            !c?.customized
+              ? `<div class="jx-campo__empty">
+                  <p>Nenhum checklist neste job.</p>
+                  ${canManage ? `<button type="button" class="jx-btn jx-btn--pri jx-btn--sm" data-jx-act="campo">Criar checklist</button>` : ""}
+                </div>`
+              : `<div class="jx-campo__bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+                 <ul class="jx-check">${(c.items || [])
+                   .map((i) => {
+                     const tags = [
+                       i.photo_required ? (i.photos ? `${i.photos} foto${i.photos > 1 ? "s" : ""}` : "foto obrigatória") : "",
+                     ].filter(Boolean);
+                     return `<li class="${i.done ? "is-done" : ""}"><i aria-hidden="true">${i.done ? "✓" : ""}</i><span><b>${J.esc(i.text)}</b>${
+                       tags.length ? `<em class="jx-tag">${J.esc(tags.join(" · "))}</em>` : ""
+                     }${i.done && i.done_by ? `<small>${J.esc(i.done_by)}</small>` : ""}${i.note ? `<small>${J.esc(i.note)}</small>` : ""}</span></li>`;
+                   })
+                   .join("")}</ul>`
+          }
+        </section>`;
+
+    const hoursBlock = `<section class="jx-campo__card">
+      <header class="jx-campo__hd">
+        <div>
+          <h3>Horas na obra</h3>
+          <p class="jx-campo__sub">${h.total ? `${qty(h.total)} h registradas` : "Ainda sem horas lançadas"}</p>
+        </div>
+      </header>
+      ${
+        people.length
+          ? `<ul class="jx-people">${people
+              .map(
+                (p) => `<li><span class="jx-av">${J.esc(J.initials(p.name))}</span><span><b>${J.esc(p.name)}</b><small>${p.days || 0} dia${
+                  p.days === 1 ? "" : "s"
+                }${p.sqft ? ` · ${qty(p.sqft)} sq ft` : ""}</small></span><em>${qty(p.hours)} h</em></li>`,
+              )
+              .join("")}</ul>`
+          : `<p class="jx-none">Ninguém registrou horas neste job ainda.</p>`
+      }
+    </section>`;
+
+    const measuresBlock = measures.length
+      ? `<section class="jx-campo__card">
+          <header class="jx-campo__hd"><div><h3>Medições</h3><p class="jx-campo__sub">${measures.length} lançamento${measures.length > 1 ? "s" : ""} do campo</p></div></header>
+          <table class="jx-tbl"><tbody>${measures
+            .map(
+              (m) =>
+                `<tr><td>${J.esc(m.label)}${m.note ? `<small class="jx-svc-note">${J.esc(m.note)}</small>` : ""}</td><td class="r">${J.esc(qty(m.value))} ${J.esc(m.unit || "")}</td></tr>`,
+            )
+            .join("")}</tbody></table>
+        </section>`
+      : "";
+
+    const inspBlock = inspections.length
+      ? `<section class="jx-campo__card">
+          <header class="jx-campo__hd"><div><h3>Inspeções por voz</h3><p class="jx-campo__sub">${inspections.length} registro${inspections.length > 1 ? "s" : ""}</p></div></header>
+          <ul class="jx-insp">${inspections
+            .map(
+              (i) =>
+                `<li><small>${J.esc(new Date(i.created_at).toLocaleString("pt-BR"))}</small><p>${J.esc(i.summary || "Sem resumo")}</p></li>`,
+            )
+            .join("")}</ul>
+        </section>`
+      : "";
+
     box.innerHTML = `
-      ${f.problem_note ? `<div class="jx-box jx-box--alert"><div><b>Problema relatado</b><p>${J.esc(f.problem_note)}</p></div></div>` : ""}
-      ${att ? `<div class="jx-box jx-box--alert"><div><b>Atenção para o campo</b><p>${J.esc(att)}</p></div></div>` : ""}
-      ${ckHtml}
-      <div class="jx-box"><h3>Status no campo</h3><p class="jx-note">${J.esc(f.field_status_label || f.field_status || "—")}${
-        f.hours?.total ? ` · ${qty(f.hours.total)} h registradas` : ""
-      }</p></div>`;
+      <div class="jx-campo">
+        <section class="jx-campo__hero">
+          <div class="jx-campo__hero-main">
+            <span class="jx-pill${st.cls ? ` jx-pill--${st.cls}` : ""}">${J.esc(st.label)}</span>
+            <div>
+              <h3>Status no Campo</h3>
+              <p>${h.total ? `${qty(h.total)} h · ${people.length} pessoa${people.length === 1 ? "" : "s"}` : "Equipe ainda não registrou atividade"}</p>
+            </div>
+          </div>
+          <div class="jx-campo__hero-acts">
+            <a class="jx-btn jx-btn--pri jx-btn--sm" href="${ticketHref}" target="_blank" rel="noopener">Abrir ticket</a>
+            ${canManage ? `<button type="button" class="jx-btn jx-btn--sm" data-jx-act="campo">Preparar campo</button>` : ""}
+          </div>
+        </section>
+
+        ${
+          f.problem_note
+            ? `<section class="jx-campo__card jx-campo__card--danger"><header class="jx-campo__hd"><div><h3>Problema relatado</h3><p class="jx-campo__sub">Vindo do ticket do instalador</p></div></header><p class="jx-note">${J.esc(f.problem_note)}</p></section>`
+            : ""
+        }
+
+        <section class="jx-campo__card jx-campo__card--attention">
+          <header class="jx-campo__hd">
+            <div>
+              <h3>Atenção para o campo</h3>
+              <p class="jx-campo__sub">Aparece em destaque no ticket da equipe</p>
+            </div>
+          </header>
+          ${
+            canManage
+              ? `<textarea class="jx-ta" id="jxAttention" rows="3" maxlength="2000" placeholder="Ex.: proteger degraus, cachorro no quintal, código do portão…">${J.esc(att)}</textarea>
+                 <div class="jx-campo__row">
+                   <button type="button" class="jx-btn jx-btn--pri jx-btn--sm" data-jx-act="save-attention">Salvar aviso</button>
+                   <span class="jx-campo__hint" id="jxAttentionHint">${att ? "Salvo" : "Vazio — a equipe não vê aviso"}</span>
+                 </div>`
+              : att
+                ? `<p class="jx-note">${J.esc(att)}</p>`
+                : `<p class="jx-none">Nada destacado para a equipe.</p>`
+          }
+        </section>
+
+        <div class="jx-campo__grid">
+          <div class="jx-campo__col">${checklistBlock}${measuresBlock}${inspBlock}</div>
+          <div class="jx-campo__col">${hoursBlock}</div>
+        </div>
+      </div>`;
   }
 
   function mountLazyPanels(wo) {
@@ -728,7 +846,28 @@
         else if (act === "team") await window.__crmJobModal.openEdit(id, { section: "team" });
         else if (act === "notes") await window.__crmJobModal.openEdit(id, { section: "notes" });
         else if (act === "campo") await window.__crmJobModal.openEdit(id, { section: "campo" });
-        else if (act === "start") await setStatus(id, "in_progress", "Job iniciado.");
+        else if (act === "save-attention") {
+          const ta = $("jxAttention");
+          const btn = b;
+          btn.disabled = true;
+          try {
+            const j = await api(`/api/work-orders/${encodeURIComponent(id)}`, {
+              method: "PUT",
+              body: JSON.stringify({ campo_attention: (ta?.value || "").trim() || null }),
+            });
+            const next = j.data || null;
+            if (next) {
+              detailWo = next;
+              const ix = all.findIndex((w) => String(w.id) === String(id));
+              if (ix >= 0) all[ix] = { ...all[ix], ...next };
+            }
+            const hint = $("jxAttentionHint");
+            if (hint) hint.textContent = (ta?.value || "").trim() ? "Salvo — a equipe vê no ticket" : "Vazio — a equipe não vê aviso";
+            notify("Aviso salvo — a equipe vê em destaque no Campo.", "success");
+          } finally {
+            btn.disabled = false;
+          }
+        } else if (act === "start") await setStatus(id, "in_progress", "Job iniciado.");
         else if (act === "complete") {
           if (!confirm("Marcar o job como concluído?")) return;
           await setStatus(id, "completed", "Job concluído.");
