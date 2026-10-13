@@ -275,6 +275,44 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 }
 .ag-pop[hidden] { display: none; }
 .ag-dtl { display: grid; gap: 10px; min-width: 0; }
+/* Mini timeline inside detail sheet (all viewports — openDetail always uses the sheet). */
+.ag-card.ag-dtl__mini {
+  position: relative;
+  height: 198px;
+  overflow: hidden;
+  padding: 0;
+  isolation: isolate;
+}
+.ag-dtl__mh {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 44px;
+  border-top: 1px solid rgba(33, 29, 26, .1);
+  pointer-events: none;
+  z-index: 0;
+}
+.ag-dtl__mh span {
+  position: absolute;
+  left: 14px;
+  top: -9px;
+  font-size: 12.5px;
+  color: var(--mut);
+  font-weight: 600;
+  background: #fff;
+  padding-right: 6px;
+}
+.ag-sheet .ag-dtl__mh span,
+.ag-pop .ag-dtl__mh span { background: var(--cream, #F7F8FA); }
+.ag-dtl__slot {
+  position: absolute !important;
+  left: 64px;
+  right: 12px;
+  width: auto;
+  z-index: 1;
+  margin: 0 !important;
+  pointer-events: none;
+}
 .ag-dtl__head { border-left: 4px solid var(--ev); padding: 2px 0 2px 12px; margin-bottom: 4px; min-width: 0; }
 .ag-dtl__head h2 {
   margin: 0 0 6px; font-size: 20px; font-weight: 800; letter-spacing: -.01em; line-height: 1.25;
@@ -783,10 +821,6 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   .ag-btn { font-size: 15px; min-height: 48px; padding: 12px 16px; }
   .ag-chip { font-size: 13px; padding: 8px 12px; }
   .ag-dtl__map { width: 54px; height: 50px; font-size: 10px; }
-  .ag-dtl__mini { position: relative; height: 176px; overflow: hidden; padding: 0; }
-  .ag-dtl__mh { position: absolute; left: 0; right: 0; height: 44px; border-top: 1px solid rgba(33, 29, 26, .1); margin-top: 22px; }
-  .ag-dtl__mh span { position: absolute; left: 14px; top: -9px; font-size: 12.5px; color: var(--mut); font-weight: 600; background: #fff; padding-right: 6px; }
-  .ag-dtl__mini .ag-blk { margin-top: 22px; }
   .ag-form__row input, .ag-form__row select, .ag-form textarea { font-size: 16px; }
 }
 

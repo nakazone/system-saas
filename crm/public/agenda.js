@@ -1047,14 +1047,18 @@
             ? { kind: 'meeting', id: e.id, value: e.meta.notes || '', label: 'Notas', placeholder: 'Notas…' }
             : null;
     const startH = e.allDay ? null : Math.max(0, e.start.getHours() - 1);
+    const miniRow = 44;
+    const miniPad = 22;
     const mini =
       phone && !e.allDay
         ? `<div class="ag-card ag-dtl__mini">${[0, 1, 2, 3]
-            .map((i) => `<div class="ag-dtl__mh" style="top:${i * 44}px"><span>${esc(fmtHour((startH + i) % 24))}</span></div>`)
-            .join('')}<div class="ag-blk" style="${evStyle(e)};top:${((e.start - new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate(), startH)) / 3600e3) * 44}px;height:${Math.min(
-            3,
-            (e.end - e.start) / 3600e3
-          ) * 44 - 2}px;left:64px;right:12px;width:auto"><b>${esc(e.title)}</b>${e.address ? `<small>${esc(e.address)}</small>` : ''}</div></div>`
+            .map((i) => `<div class="ag-dtl__mh" style="top:${miniPad + i * miniRow}px"><span>${esc(fmtHour((startH + i) % 24))}</span></div>`)
+            .join('')}<div class="ag-blk ag-dtl__slot" style="${evStyle(e)};top:${
+            miniPad +
+            ((e.start - new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate(), startH)) / 3600e3) * miniRow
+          }px;height:${Math.max(18, Math.min(3, (e.end - e.start) / 3600e3) * miniRow - 2)}px"><b>${esc(e.title)}</b>${
+            e.address ? `<small>${esc(e.address)}</small>` : ''
+          }</div></div>`
         : '';
     const notesBlock = notesTarget
       ? `<div class="ag-card ag-dtl__notes">
