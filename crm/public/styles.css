@@ -1283,8 +1283,10 @@ input.score-auto {
     .kanban-board-grid .kanban-column {
         flex: 0 0 240px;
         width: 240px;
-        min-width: 240px;
+        min-width: 0;
         max-width: 240px;
+        box-sizing: border-box;
+        overflow: hidden;
     }
 
     .notification-bell-wrap {
@@ -2384,10 +2386,12 @@ input.score-auto {
 }
 
 .kanban-board-grid .kanban-column {
-    flex: 0 0 260px;
-    width: 260px;
-    min-width: 260px;
-    max-width: 260px;
+    flex: 0 0 248px;
+    width: 248px;
+    min-width: 0;
+    max-width: 248px;
+    box-sizing: border-box;
+    overflow: hidden;
     min-height: 260px;
     padding: 6px;
 }

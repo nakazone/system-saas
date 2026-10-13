@@ -473,6 +473,34 @@ body.plab.plab-leads-list .mleads {
   color: var(--plab-ink, #221E1A);
 }
 
+.mleads-card .lead-origin,
+.mleads-card .kanban-card-origin-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--plab-line, #e5e7eb);
+  overflow: hidden;
+}
+
+.mleads-card .lead-origin svg,
+.mleads-card .kanban-card-origin-logo svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.mleads-card .lead-origin img,
+.mleads-card .kanban-card-origin-logo img {
+  width: 24px;
+  height: 24px;
+  display: block;
+  object-fit: contain;
+}
+
 .mleads-card__name {
   margin: 0;
   font-size: 0.95rem;

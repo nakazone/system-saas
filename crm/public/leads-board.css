@@ -90,8 +90,18 @@
   width: 100% !important; min-width: max-content !important; grid-template-columns: none !important; padding: 2px;
 }
 html body .lb .kanban-board-grid .kanban-column {
-  flex: 1 0 210px !important; width: auto !important; min-width: 210px !important; max-width: none !important; min-height: 140px !important;
-  background: color-mix(in srgb, var(--stage-color, #98A2B3) 10%, #EEF0F3) !important; border-radius: 18px !important; padding: 8px !important; box-shadow: none !important;
+  /* Equal fixed width so Follow Up / Won don’t grow from $ totals or card content */
+  flex: 0 0 248px !important;
+  width: 248px !important;
+  min-width: 0 !important;
+  max-width: 248px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  min-height: 140px !important;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 10%, #EEF0F3) !important;
+  border-radius: 18px !important;
+  padding: 8px !important;
+  box-shadow: none !important;
   transition: opacity .2s, box-shadow .2s;
 }
 .lb .kanban-board-grid.is-focused .kanban-column:not(.is-focus) { opacity: .45; }
@@ -104,13 +114,24 @@ html body .lb .kanban-column-header--neutral {
 html body .lb .kanban-column-title { display: flex !important; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px !important; font-weight: 650 !important; color: var(--lb-ink) !important; }
 .lb .kanban-column-title > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html body .lb .kanban-column-count { background: #fff !important; color: var(--lb-ink2) !important; font-size: 12px !important; font-weight: 650 !important; border-radius: 999px !important; padding: 1px 7px !important; min-width: 0 !important; height: auto !important; line-height: 1.5 !important; }
-.lb .kanban-column-value { font-size: 12px; font-weight: 650; color: var(--lb-ink2); white-space: nowrap; }
+.lb .kanban-column-value {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--lb-ink2);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .lb .kanban-column-cards {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
   min-height: 40px;
   max-height: min(70vh, 720px);
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -119,10 +140,26 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
 .lb .kanban-board-message { padding: 30px; color: var(--lb-ink2); font-size: 14px; }
 
 /* cartão */
-.lb .lb-card {
-  display: block; position: relative; background: #fff !important; border: 0 !important; border-radius: 14px !important; margin: 0 !important;
-  box-shadow: 0 0 0 1px var(--lb-line), 0 1px 2px rgba(16, 24, 40, .04) !important; padding: 14px 12px 9px !important; cursor: pointer;
-  transition: box-shadow .15s, transform .15s; text-align: left; overflow: hidden;
+.lb .lb-card,
+.lb .kanban-card.lb-card {
+  display: block;
+  position: relative;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+  border: 0 !important;
+  border-left: 0 !important;
+  border-radius: 14px !important;
+  margin: 0 !important;
+  box-shadow: 0 0 0 1px var(--lb-line), 0 1px 2px rgba(16, 24, 40, .04) !important;
+  padding: 14px 12px 9px !important;
+  cursor: pointer;
+  transition: box-shadow .15s;
+  text-align: left;
+  overflow: hidden;
+  transform: none !important;
 }
 .lb .lb-card::before {
   content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px;
@@ -163,13 +200,45 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
 }
 .lb-card__r1 { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .lb-card__name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 650; color: var(--lb-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lb .kanban-card-origin-logo { width: 20px; height: 20px; border-radius: 6px; display: inline-grid; place-items: center; flex: none; background: #fff; box-shadow: inset 0 0 0 1px var(--lb-line); margin: 0 !important; }
-.lb .kanban-card-origin-logo svg { width: 12px; height: 12px; }
+.lb .kanban-card-origin-logo,
+.lead-origin {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--lb-line);
+  margin: 0 !important;
+  overflow: hidden;
+}
+.lb .kanban-card-origin-logo svg,
+.lead-origin svg { width: 12px; height: 12px; display: block; }
+.lb .kanban-card-origin-logo img,
+.lead-origin img { width: 14px; height: 14px; display: block; object-fit: contain; }
+.kanban-card-origin-logo--om { background: #fff; }
 .lb-src { width: 20px; height: 20px; border-radius: 6px; display: inline-grid; place-items: center; flex: none; background: var(--lb-sur); color: var(--lb-ink2); font-size: 10.5px; font-weight: 750; }
 .lb-pri { width: 7px; height: 7px; border-radius: 50%; background: var(--lb-or); flex: none; }
-.lb-card__val { margin-top: 7px; font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: var(--lb-ink); }
+.lb-card__val {
+  margin-top: 7px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: var(--lb-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 .lb-card__val small { margin-left: 5px; font-size: 11.5px; font-weight: 550; letter-spacing: 0; color: var(--lb-ink3); }
-.lb-card__next { margin-top: 6px; }
+.lb-card__next {
+  margin-top: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.lb-card__next .om-sig { max-width: 100%; }
 .lb-card__ft span { white-space: nowrap; }
 .lb-card__ft { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--lb-line); font-size: 11.5px; color: var(--lb-ink3); min-height: 32px; }
 .lb-owner { width: 20px; height: 20px; border-radius: 50%; background: var(--lb-ink); color: #fff; display: inline-grid; place-items: center; font-size: 8.5px; font-weight: 700; flex: none; }
@@ -205,7 +274,12 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
   .lb-stages { display: flex; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 14px; padding: 2px; }
   .lb-stages::-webkit-scrollbar { display: none; }
   .lb-stage { flex: 0 0 150px; }
-  .lb .kanban-board-grid .kanban-column { flex: 0 0 236px !important; min-width: 236px !important; }
+  .lb .kanban-board-grid .kanban-column {
+    flex: 0 0 236px !important;
+    width: 236px !important;
+    min-width: 0 !important;
+    max-width: 236px !important;
+  }
 }
 @media (max-width: 1024px) {
   .lb-sum { order: 3; width: 100%; padding: 0; border: 0; }

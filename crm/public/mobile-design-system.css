@@ -1087,6 +1087,40 @@
     margin-bottom: 6px;
   }
 
+  .lcard__main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lcard__top .lead-origin,
+  .lcard__top .kanban-card-origin-logo {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    margin-top: 1px;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px #e5e7eb;
+    overflow: hidden;
+  }
+
+  .lcard__top .lead-origin svg,
+  .lcard__top .kanban-card-origin-logo svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+  }
+
+  .lcard__top .lead-origin img,
+  .lcard__top .kanban-card-origin-logo img {
+    width: 14px;
+    height: 14px;
+    display: block;
+    object-fit: contain;
+  }
+
   .lcard__pri {
     width: 10px;
     height: 10px;

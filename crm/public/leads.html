@@ -9,9 +9,9 @@
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-  <link rel="stylesheet" href="styles.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="styles.css?v=20261013-origin1" />
   <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20261013-origin1" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261008-modulos1" />
@@ -35,8 +35,8 @@
     })();
   </script>
   <link rel="stylesheet" href="lead-mobile.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="leads-mobile.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="leads-board.css?v=20261013-pipe1" />
+  <link rel="stylesheet" href="leads-mobile.css?v=20261013-origin1" />
+  <link rel="stylesheet" href="leads-board.css?v=20261013-origin1" />
   <style>
     /* Tablet: keep Kanban usable with horizontal scroll and a Lista toggle. */
     body.om-device-tablet .kanban-board-wrap {
@@ -55,7 +55,10 @@
     body.om-device-tablet .kanban-board-grid .kanban-column {
       flex: 0 0 240px;
       width: 240px;
-      min-width: 240px;
+      min-width: 0;
+      max-width: 240px;
+      box-sizing: border-box;
+      overflow: hidden;
     }
     body.om-device-tablet .kanban-board-toolbar {
       display: flex;
@@ -428,7 +431,8 @@
   <script src="lead-quote-engagement-icons.js?v=20260528-badge-check-x"></script>
   <script src="lead-quick-sheet.js?v=20261012-calopen1"></script>
   <script src="lead-signals.js?v=20261009-lb1"></script>
-  <script src="leads-kanban.js?v=20261013-pipe1"></script>
+  <script src="lead-origin.js?v=20261013-origin1"></script>
+  <script src="leads-kanban.js?v=20261013-origin1"></script>
   <script src="leads-page.js?v=20261013-ptr2"></script>
 </body>
 </html>

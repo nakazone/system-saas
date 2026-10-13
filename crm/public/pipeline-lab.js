@@ -1558,7 +1558,11 @@
             </div>
           </div>
           <div class="mleads-swipe__body mleads-card" data-mleads-open="${id}" role="button" tabindex="0">
-            <span class="mleads-card__avatar">${esc(initials(lead.name))}</span>
+            ${
+              window.OmLeadOrigin && typeof window.OmLeadOrigin.logoHtml === "function"
+                ? window.OmLeadOrigin.logoHtml(lead)
+                : `<span class="mleads-card__avatar">${esc(initials(lead.name))}</span>`
+            }
             <div class="mleads-card__main">
               <p class="mleads-card__name"><span>${esc(lead.name || "Lead")}</span>${
                 String(lead.priority || "") === "high" ? '<i class="mleads-card__pri" aria-label="Alta prioridade"></i>' : ""
