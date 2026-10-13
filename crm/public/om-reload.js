@@ -36,17 +36,15 @@
 @keyframes omRlWordIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:none}}
 .om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .32s ease}
 .om-rl-splash.is-out{opacity:0;pointer-events:none}
-.om-rl-splash .om-rl-brand{display:flex;align-items:center;justify-content:center;min-height:36px}
-/* Wordmark as real text — always animates in (no PNG / no JS class dependency) */
-.om-rl-splash .om-rl-wordmark{margin:0;font-family:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;font-weight:800;font-size:clamp(1.65rem,5.5vw,2rem);letter-spacing:-0.04em;line-height:1;white-space:nowrap;opacity:0;animation:omRlWordIn .5s ease ${FULL_WORD_AT_MS}ms both}
-.om-rl-splash .om-rl-wordmark__obra{color:#221E1A}
-.om-rl-splash .om-rl-wordmark__mate{color:${ORANGE}}
+.om-rl-splash .om-rl-brand{display:flex;align-items:center;justify-content:center;min-height:40px}
+/* Real logo artwork (custom wordmark font) — not a CSS font approximation */
+.om-rl-splash .om-rl-wordmark-img{display:block;width:min(200px,72vw);height:auto;opacity:0;animation:omRlWordIn .5s ease ${FULL_WORD_AT_MS}ms both}
 .om-rl-splash--nav .om-rl-brand{display:none}
 .om-ptr--rl,.om-ptr--rl.om-ptr-visible,
 .sf-ptr-indicator.om-ptr--rl{display:none!important;height:0!important;max-height:0!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;overflow:hidden!important}
 @media (prefers-reduced-motion: reduce){
   .om-rl > polygon,.om-rl.is-in > polygon{animation:none;transform:none;opacity:1}
-  .om-rl-splash .om-rl-wordmark{animation:none;opacity:1;transform:none}
+  .om-rl-splash .om-rl-wordmark-img{animation:none;opacity:1;transform:none}
 }`;
 
   function injectCss() {
@@ -85,17 +83,15 @@
     return `<svg class="om-rl is-in${nav}" width="${size}" height="${size}" viewBox="100 100 312 312" style="--rl-dur:${dur};--rl-gap:${gap}" aria-hidden="true" focusable="false">${polys}</svg>`;
   }
 
-  /** Markup com nome ObraMate visível (texto tipográfico, não PNG). */
+  /** Markup com wordmark oficial (PNG com a tipografia real do logo). */
   function entryMarkup(kind) {
     const nav = kind === "nav";
     const size = nav ? 64 : MARK_SIZE;
     const brand = nav
       ? ""
       : `<div class="om-rl-brand">` +
-        `<p class="om-rl-wordmark" aria-label="ObraMate">` +
-        `<span class="om-rl-wordmark__obra">Obra</span>` +
-        `<span class="om-rl-wordmark__mate">Mate</span>` +
-        `</p></div>`;
+        `<img class="om-rl-wordmark-img" src="/assets/obramate-wordmark.png?v=20261013-rl8" alt="ObraMate" width="200" height="33" decoding="async" />` +
+        `</div>`;
     return mark(size, { nav }) + brand;
   }
 
@@ -131,6 +127,13 @@
     el.classList.remove("is-out", "is-word");
     el.classList.toggle("om-rl-splash--nav", mode === "nav");
     el.innerHTML = entryMarkup(mode);
+    // Warm the wordmark so fade-in isn't blank on slow first paint.
+    if (mode === "full") {
+      try {
+        const img = new Image();
+        img.src = "/assets/obramate-wordmark.png?v=20261013-rl8";
+      } catch (_) {}
+    }
     // Restart CSS animations (mark + wordmark).
     void el.offsetWidth;
     layerShownAt = Date.now();

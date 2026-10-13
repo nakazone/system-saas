@@ -126,6 +126,7 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
 .lb .kanban-column-cards {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   width: 100%;
   min-width: 0;
@@ -137,6 +138,18 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
   overscroll-behavior: contain;
   padding-right: 2px;
 }
+/* Never let flex squeeze cards when a column has many leads — scroll instead */
+.lb .kanban-column-cards > .lb-card,
+.lb .kanban-column-cards > .kanban-card,
+.lb .kanban-column-cards > * {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  flex-grow: 0 !important;
+  /* Keep natural content height — min-height:0 would let flex squash cards */
+  min-height: min-content !important;
+  height: auto !important;
+  max-height: none !important;
+}
 .lb .kanban-board-message { padding: 30px; color: var(--lb-ink2); font-size: 14px; }
 
 /* cartão */
@@ -147,6 +160,8 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
+  height: auto !important;
+  min-height: min-content !important;
   box-sizing: border-box !important;
   background: #fff !important;
   border: 0 !important;
@@ -168,18 +183,25 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
 .lb .lb-card:hover { box-shadow: 0 0 0 1px #D0D5DD, 0 6px 16px -10px rgba(16, 24, 40, .25) !important; }
 .lb .lb-card:focus-visible { outline: 2px solid var(--lb-or); outline-offset: 2px; }
 
-/* lista (visual distinto do quadro) */
+/* lista — mesmo fundo suave das colunas do Kanban (--lb-col) */
 .lb-board-wrap.is-list { overflow: visible; }
 .lb #listView[hidden] { display: none !important; }
+.lb #listView.lb-list-view:not([hidden]),
+.lb-board-wrap.is-list #listView {
+  background: var(--lb-col);
+  border-radius: 18px;
+  padding: 12px 10px 14px;
+  box-sizing: border-box;
+}
 .lb-list__head {
   display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(120px, .9fr) 88px 100px; gap: 10px;
-  padding: 0 14px 8px 18px; font-size: 11.5px; font-weight: 650; color: var(--lb-ink3); letter-spacing: .04em; text-transform: uppercase;
+  padding: 4px 14px 10px 18px; font-size: 11.5px; font-weight: 650; color: var(--lb-ink3); letter-spacing: .04em; text-transform: uppercase;
 }
-.lb-list { display: grid; gap: 6px; }
+.lb-list { display: grid; gap: 8px; }
 .lb-list__empty { margin: 24px 8px; color: var(--lb-ink2); font-size: 14px; font-weight: 600; }
 .lb-row {
   appearance: none; border: 0; width: 100%; display: grid; grid-template-columns: 4px minmax(0, 1.6fr) minmax(120px, .9fr) 88px 100px; gap: 10px; align-items: center;
-  text-align: left; background: #fff; border-radius: 14px; box-shadow: 0 0 0 1px var(--lb-line); padding: 12px 14px 12px 0; cursor: pointer; font: inherit; color: inherit;
+  text-align: left; background: #fff; border-radius: 14px; box-shadow: 0 0 0 1px var(--lb-line), 0 1px 2px rgba(16, 24, 40, .04); padding: 12px 14px 12px 0; cursor: pointer; font: inherit; color: inherit;
   transition: box-shadow .15s, background .15s;
 }
 .lb-row:hover { box-shadow: 0 0 0 1px #D0D5DD, 0 6px 16px -10px rgba(16, 24, 40, .2); background: #FCFCFD; }
