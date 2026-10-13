@@ -1,7 +1,7 @@
 /**
- * ObraMate — animação de reload "Montagem" com o símbolo real da marca.
- * A mesma sequência do abrir o app (peças + wordmark) é usada no puxar-para-atualizar
- * e no carregamento entre páginas.
+ * ObraMate — animação "Montagem" com o símbolo + nome da marca.
+ *  - Abrir app / puxar-para-atualizar: sequência completa (peças + “ObraMate”)
+ *  - Mudança de página: véu rápido (mais fluido)
  * Carregar logo depois de <body>: <script src="/om-reload.js?v=…"></script>
  */
 (function (g) {
@@ -9,7 +9,6 @@
   if (g.OmReload) return;
 
   const ORANGE = "#E7792C";
-  /** Peças do símbolo (viewBox 0 0 512 512) + direção de entrada. */
   const PIECES = [
     { pts: "112,112 361,112 302,157 159,158 158,337 112,297", dx: -71, dy: -71 },
     { pts: "112,353 334,354 285,399 112,399", dx: 0, dy: 100 },
@@ -17,25 +16,37 @@
   ];
 
   const MARK_SIZE = 92;
-  const WORD_AT_MS = 1100;
-  const ENTRY_MIN_MS = 1900;
-  const ENTRY_MIN_REDUCED_MS = 500;
-  const FADE_OUT_MS = 500;
+  /** Sequência completa (abrir app + reload). */
+  const FULL_WORD_AT_MS = 700;
+  const FULL_MIN_MS = 1900;
+  const FULL_MIN_REDUCED_MS = 500;
+  /** Mudança de página — curta e fluida. */
+  const NAV_MIN_MS = 320;
+  const NAV_MIN_REDUCED_MS = 120;
+  const NAV_SHOW_DELAY_MS = 0;
+  const FADE_OUT_MS = 320;
 
   const CSS = `
 .om-rl{display:block;overflow:visible}
 .om-rl > polygon{fill:${ORANGE};transform:translate(var(--dx),var(--dy));opacity:0}
 .om-rl.is-in > polygon{animation:omRlIn var(--rl-dur,1.1s) cubic-bezier(.34,1.56,.64,1) both;animation-delay:calc(var(--i) * var(--rl-gap,.14s))}
 .om-rl.is-done > polygon{animation:none;transform:none;opacity:1}
+.om-rl--nav > polygon{animation-duration:var(--rl-dur,.55s)!important}
 @keyframes omRlIn{0%{transform:translate(var(--dx),var(--dy));opacity:0}40%{opacity:1}100%{transform:translate(0,0);opacity:1}}
-.om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .45s ease}
+.om-rl-splash{position:fixed;inset:0;z-index:2147483000;background:#F7F8FA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .32s ease}
 .om-rl-splash.is-out{opacity:0;pointer-events:none}
-.om-rl-splash img{width:188px;height:auto;opacity:0;transform:translateY(6px);transition:opacity .5s ease,transform .5s ease}
-.om-rl-splash.is-word img{opacity:1;transform:none}
+.om-rl-splash .om-rl-brand{display:flex;flex-direction:column;align-items:center;gap:10px;min-height:40px}
+.om-rl-splash .om-rl-word{width:188px;height:auto;display:block;opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
+.om-rl-splash .om-rl-name{margin:0;font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-weight:800;font-size:1.75rem;letter-spacing:-0.03em;line-height:1;color:#221E1A;opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
+.om-rl-splash.is-word .om-rl-word,.om-rl-splash.is-word .om-rl-name{opacity:1;transform:none}
+.om-rl-splash .om-rl-name.is-fallback{display:none}
+.om-rl-splash .om-rl-name:not(.is-fallback){display:block}
+.om-rl-splash--nav .om-rl-brand{min-height:0}
 .om-ptr--rl,.om-ptr--rl.om-ptr-visible,
 .sf-ptr-indicator.om-ptr--rl{display:none!important;height:0!important;max-height:0!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;overflow:hidden!important}
 @media (prefers-reduced-motion: reduce){
   .om-rl > polygon,.om-rl.is-in > polygon{animation:none;transform:none;opacity:1}
+  .om-rl-splash .om-rl-word,.om-rl-splash .om-rl-name{transition:none}
 }`;
 
   function injectCss() {
@@ -60,39 +71,66 @@
       return false;
     }
   }
-  function entryMinMs() {
-    return reduced() ? ENTRY_MIN_REDUCED_MS : ENTRY_MIN_MS;
-  }
 
-  /** SVG do símbolo — mesma montagem CSS do abrir o app. */
-  function mark(size, state) {
+  function mark(size, opts) {
     const polys = PIECES.map(
       (p, i) =>
         `<polygon points="${p.pts}" style="--i:${i};--dx:${p.dx}px;--dy:${p.dy}px"/>`,
     ).join("");
-    const st = state === "done" ? "done" : "in";
-    return `<svg class="om-rl is-${st}" width="${size}" height="${size}" viewBox="100 100 312 312" aria-hidden="true" focusable="false">${polys}</svg>`;
+    const nav = opts && opts.nav ? " om-rl--nav" : "";
+    const dur = opts && opts.nav ? "0.55s" : "1.1s";
+    const gap = opts && opts.nav ? "0.08s" : "0.14s";
+    return `<svg class="om-rl is-in${nav}" width="${size}" height="${size}" viewBox="100 100 312 312" style="--rl-dur:${dur};--rl-gap:${gap}" aria-hidden="true" focusable="false">${polys}</svg>`;
   }
 
-  /** Markup idêntico ao splash de abertura. */
-  function entryMarkup() {
-    return (
-      mark(MARK_SIZE, "in").replace(
-        'class="om-rl is-in"',
-        'class="om-rl is-in" style="--rl-dur:1.1s;--rl-gap:.14s"',
-      ) +
-      '<img src="/assets/obramate-wordmark.png?v=20261012-rl1" alt="" width="188" height="31" />'
-    );
+  /** Markup com nome ObraMate (wordmark + texto de reserva). */
+  function entryMarkup(kind) {
+    const nav = kind === "nav";
+    const size = nav ? 64 : MARK_SIZE;
+    const brand = nav
+      ? ""
+      : `<div class="om-rl-brand">` +
+        `<img class="om-rl-word" src="/assets/obramate-wordmark.png?v=20261012-rl1" alt="ObraMate" width="188" height="31" />` +
+        `<span class="om-rl-name is-fallback">ObraMate</span>` +
+        `</div>`;
+    return mark(size, { nav }) + brand;
   }
 
-  /* ---------------- camada partilhada (abrir app + reload) ---------------- */
+  function wireWordmark(el) {
+    const img = el.querySelector(".om-rl-word");
+    const fallback = el.querySelector(".om-rl-name.is-fallback");
+    if (!img || !fallback) return;
+    const showFallback = () => {
+      img.style.display = "none";
+      fallback.classList.remove("is-fallback");
+      fallback.style.display = "block";
+    };
+    const showImg = () => {
+      fallback.style.display = "none";
+      img.style.display = "block";
+    };
+    if (img.complete) {
+      if (img.naturalWidth > 0) showImg();
+      else showFallback();
+    } else {
+      img.addEventListener("load", showImg, { once: true });
+      img.addEventListener("error", showFallback, { once: true });
+    }
+  }
+
   let layer = null;
   let layerShownAt = 0;
+  let layerKind = "full";
   let wordTimer = null;
   let failTimer = null;
   let showTimer = null;
   let navVeil = false;
   let hideAfterMin = null;
+
+  function minMsFor(kind) {
+    if (kind === "nav") return reduced() ? NAV_MIN_REDUCED_MS : NAV_MIN_MS;
+    return reduced() ? FULL_MIN_REDUCED_MS : FULL_MIN_MS;
+  }
 
   function ensureLayer() {
     if (layer && document.body.contains(layer)) return layer;
@@ -103,18 +141,25 @@
     return layer;
   }
 
-  /** Reinicia a animação de entrada (mesma do abrir o app). */
-  function playEntry() {
+  /**
+   * kind: 'full' (abrir app / reload) | 'nav' (troca de página, rápida)
+   */
+  function playEntry(kind) {
+    const mode = kind === "nav" ? "nav" : "full";
+    layerKind = mode;
     const el = ensureLayer();
     clearTimeout(wordTimer);
     el.classList.remove("is-out", "is-word");
-    el.innerHTML = entryMarkup();
-    // Force CSS animation restart.
+    el.classList.toggle("om-rl-splash--nav", mode === "nav");
+    el.innerHTML = entryMarkup(mode);
     void el.offsetWidth;
     layerShownAt = Date.now();
-    wordTimer = setTimeout(() => {
-      if (layer === el) el.classList.add("is-word");
-    }, reduced() ? 0 : WORD_AT_MS);
+    if (mode === "full") {
+      wireWordmark(el);
+      wordTimer = setTimeout(() => {
+        if (layer === el) el.classList.add("is-word");
+      }, reduced() ? 0 : FULL_WORD_AT_MS);
+    }
     return el;
   }
 
@@ -128,6 +173,7 @@
       return;
     }
     const el = layer;
+    const kind = layerKind;
     const finish = () => {
       el.classList.add("is-out");
       setTimeout(() => {
@@ -140,15 +186,12 @@
       finish();
       return;
     }
-    const wait = Math.max(0, entryMinMs() - (Date.now() - (layerShownAt || Date.now())));
-    if (wait > 0) {
-      hideAfterMin = setTimeout(finish, wait);
-    } else {
-      finish();
-    }
+    const wait = Math.max(0, minMsFor(kind) - (Date.now() - (layerShownAt || Date.now())));
+    if (wait > 0) hideAfterMin = setTimeout(finish, wait);
+    else finish();
   }
 
-  /* ---------------- splash ao abrir ---------------- */
+  /* ---------------- splash ao abrir (completo + nome) ---------------- */
   function splash() {
     let seen = false;
     try {
@@ -159,7 +202,7 @@
     }
     if (seen || !touchUi() || !document.body) return;
 
-    playEntry();
+    playEntry("full");
     const t0 = Date.now();
     let gone = false;
     const out = () => {
@@ -167,25 +210,27 @@
       gone = true;
       dismissLayer(true);
     };
-    const ready = () => setTimeout(out, Math.max(0, entryMinMs() - (Date.now() - t0)));
+    const ready = () => setTimeout(out, Math.max(0, minMsFor("full") - (Date.now() - t0)));
     if (document.readyState === "complete") ready();
     else window.addEventListener("load", ready, { once: true });
-    setTimeout(out, 4200); // nunca prende o app
+    setTimeout(out, 4200);
     if (layer) layer.addEventListener("click", out);
   }
 
-  /* ---------------- reload / navegação — mesma animação ---------------- */
-  function showOverlayNow() {
-    playEntry();
+  /* ---------------- reload (completo + nome) / nav (rápido) ---------------- */
+  function showOverlayNow(kind) {
+    playEntry(kind === "nav" ? "nav" : "full");
     clearTimeout(failTimer);
-    failTimer = setTimeout(() => dismissLayer(true), 12000);
+    failTimer = setTimeout(() => dismissLayer(true), kind === "nav" ? 4000 : 12000);
     return layer;
   }
 
-  function showLoading(delay) {
+  function showLoading(delay, kind) {
     if (!document.body) return;
     clearTimeout(showTimer);
-    showTimer = setTimeout(showOverlayNow, delay == null ? 40 : delay);
+    const mode = kind === "full" ? "full" : "nav";
+    const d = delay == null ? (mode === "nav" ? NAV_SHOW_DELAY_MS : 40) : delay;
+    showTimer = setTimeout(() => showOverlayNow(mode), d);
   }
 
   function hideLoading(force) {
@@ -217,31 +262,33 @@
 
   function arrival() {
     let ts = 0;
+    let kind = "nav";
     try {
       ts = Number(sessionStorage.getItem("om_nav_loading") || 0);
+      kind = sessionStorage.getItem("om_nav_kind") === "full" ? "full" : "nav";
       sessionStorage.removeItem("om_nav_loading");
+      sessionStorage.removeItem("om_nav_kind");
     } catch (_) {
       /* ignore */
     }
     if (!ts || Date.now() - ts > 8000 || !touchUi()) return;
-    // Se o splash de sessão já está a correr, não empilhar outra camada.
     if (document.querySelector(".om-rl-splash") && !navVeil) return;
 
     navVeil = true;
-    showOverlayNow();
+    showOverlayNow(kind);
     const t0 = Date.now();
     const done = () =>
       setTimeout(() => {
         navVeil = false;
         hideLoading();
-      }, Math.max(0, entryMinMs() - (Date.now() - t0)));
+      }, Math.max(0, minMsFor(kind) - (Date.now() - t0)));
     if (document.readyState === "complete") done();
     else window.addEventListener("load", done, { once: true });
     clearTimeout(failTimer);
     failTimer = setTimeout(() => {
       navVeil = false;
       hideLoading(true);
-    }, 6000);
+    }, kind === "full" ? 6000 : 2500);
   }
 
   function bindNav() {
@@ -249,9 +296,10 @@
       if (!touchUi()) return;
       const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
       if (isPageLink(a, e)) {
-        showLoading();
+        showLoading(NAV_SHOW_DELAY_MS, "nav");
         try {
           sessionStorage.setItem("om_nav_loading", String(Date.now()));
+          sessionStorage.setItem("om_nav_kind", "nav");
         } catch (_) {
           /* ignore */
         }
@@ -266,7 +314,6 @@
     });
   }
 
-  /* ---------------- puxar para atualizar (sem chip/texto no topo) ---------------- */
   function ptrInit(ind) {
     if (!ind || ind.dataset.omRl === "1") return;
     ind.dataset.omRl = "1";
@@ -278,8 +325,16 @@
   function ptrSet(ind, state) {
     if (!ind) return;
     ptrInit(ind);
-    if (state === "busy") showLoading(0);
-    else if (state === "done") hideLoading();
+    if (state === "busy") {
+      try {
+        sessionStorage.setItem("om_nav_kind", "full");
+      } catch (_) {
+        /* ignore */
+      }
+      showLoading(0, "full");
+    } else if (state === "done") {
+      hideLoading();
+    }
   }
 
   injectCss();

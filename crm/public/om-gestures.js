@@ -7,7 +7,7 @@
 (function (global) {
   "use strict";
 
-  const VER = "20261013-rl4";
+  const VER = "20261013-rl6";
 
   function isTouchViewport() {
     // Phones + tablets (iPad landscape can exceed 900px).
@@ -407,14 +407,15 @@
           await Promise.resolve(fn());
           return;
         }
-        // Full reload — show brand assemble veil on the way out and on arrival.
+        // Full reload — same entry animation (mark + ObraMate name) on the way out/in.
         try {
           sessionStorage.setItem("om_nav_loading", String(Date.now()));
+          sessionStorage.setItem("om_nav_kind", "full");
         } catch (_) {
           /* ignore */
         }
         if (global.OmReload && typeof global.OmReload.showLoading === "function") {
-          global.OmReload.showLoading(0);
+          global.OmReload.showLoading(0, "full");
         }
         location.reload();
       },
