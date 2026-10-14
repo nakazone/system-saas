@@ -109,6 +109,7 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
 }
 .jm-check input { margin-top: 0.15rem; accent-color: var(--jm-terra); }
 .jm-check strong { font-weight: 800; color: var(--jm-ink); }
+.jm-check--allday { margin-top: 10px; }
 .jm-delivery {
   display: grid;
   gap: 0.7rem;

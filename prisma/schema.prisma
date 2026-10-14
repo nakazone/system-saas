@@ -2401,6 +2401,8 @@ model WorkOrder {
   relatedChildren    WorkOrder[] @relation("WorkOrderRelated")
   scheduledStart DateTime?
   scheduledEnd   DateTime?
+  /// All-day start (no specific clock time). Agenda renders in the all-day lane.
+  allDay         Boolean   @default(false)
   /// Set when the pre-start push reminder was sent (dedupe).
   startReminderSentAt DateTime?
   /// Set when the "starts now" nudge / office auto-start ran (dedupe).

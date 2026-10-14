@@ -16,6 +16,8 @@
   let firstLoad = true;
   let detailTab = "geral";
   let detailWo = null;
+  /** Bumped to ignore in-flight GET /work-orders/:id that would clobber a fresher status. */
+  let detailFetchSeq = 0;
   let billingCtl = null;
   let commsCtl = null;
   let mediaCache = null;
@@ -740,15 +742,27 @@
       return;
     }
     if (detailWo && String(detailWo.id) === String(id)) return;
+    const seq = ++detailFetchSeq;
     try {
       const j = await api(`/api/work-orders/${encodeURIComponent(id)}`);
-      if (String(selId) !== String(id)) return;
-      detailWo = j.data || null;
-      if (detailWo) {
-        const ix = all.findIndex((w) => String(w.id) === String(id));
-        if (ix >= 0) all[ix] = { ...all[ix], ...detailWo };
+      if (seq !== detailFetchSeq || String(selId) !== String(id)) return;
+      const next = j.data || null;
+      if (!next) {
+        detailWo = null;
+        return;
       }
-      renderDetail();
+      const ix = all.findIndex((w) => String(w.id) === String(id));
+      const cur = ix >= 0 ? all[ix] : null;
+      const nextTs = Date.parse(next.updated_at || "") || 0;
+      const curTs = cur ? Date.parse(cur.updated_at || "") || 0 : 0;
+      // Never let a slow GET overwrite a newer list/status update (Iniciar / Concluir).
+      if (cur && curTs > nextTs) {
+        detailWo = { ...next, ...cur };
+      } else {
+        detailWo = next;
+        if (ix >= 0) all[ix] = { ...all[ix], ...next };
+      }
+      render();
     } catch (_) {
       /* lista já tem o suficiente para a visão geral */
     }
@@ -773,6 +787,7 @@
     if (changed) {
       detailTab = "geral";
       detailWo = null;
+      detailFetchSeq += 1;
       mediaCache = null;
       fieldCache = null;
       destroyDetailMounts();
@@ -797,6 +812,12 @@
   async function load() {
     const j = await api("/api/work-orders");
     all = j.data || [];
+    // Keep detail cache aligned with the list so stage bars follow status changes.
+    if (detailWo && selId) {
+      const fresh = all.find((w) => String(w.id) === String(selId));
+      if (fresh) detailWo = { ...detailWo, ...fresh };
+      else detailWo = null;
+    }
     if (firstLoad) {
       firstLoad = false;
       const qs = new URLSearchParams(location.search);
@@ -813,8 +834,18 @@
   }
 
   async function setStatus(id, status, msg) {
-    await api(`/api/work-orders/${id}`, { method: "PUT", body: JSON.stringify({ status }) });
+    const j = await api(`/api/work-orders/${id}`, { method: "PUT", body: JSON.stringify({ status }) });
+    const next = j.data || null;
+    detailFetchSeq += 1;
+    if (next) {
+      const ix = all.findIndex((w) => String(w.id) === String(id));
+      if (ix >= 0) all[ix] = { ...all[ix], ...next };
+      if (String(selId) === String(id)) detailWo = { ...(detailWo && String(detailWo.id) === String(id) ? detailWo : {}), ...next };
+    } else if (String(selId) === String(id)) {
+      detailWo = null;
+    }
     notify(msg, "success");
+    render();
     await load();
   }
 

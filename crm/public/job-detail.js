@@ -91,6 +91,7 @@
     if (!job.scheduled_start) return { main: "Sem data", sub: "Ainda não agendado" };
     const s = new Date(job.scheduled_start);
     const e = job.scheduled_end ? new Date(job.scheduled_end) : null;
+    if (job.all_day) return { main: shortDay(s), sub: e && s.toDateString() !== e.toDateString() ? `até ${shortDay(e)} · dia inteiro` : "Dia inteiro" };
     if (!e) return { main: shortDay(s), sub: `${fmtTime(s)} · sem fim definido` };
     const sameDay = s.toDateString() === e.toDateString();
     const sameMonth = s.getMonth() === e.getMonth();
@@ -249,21 +250,23 @@
     }
     const b = billing?.billing;
     const done = job.status === "completed";
+    const inField = job.status === "in_progress";
     const steps = [
       {
         label: "Agendado",
         sub: job.scheduled_start ? fmtDay(new Date(job.scheduled_start), { day: "numeric", month: "short" }) : "sem data",
-        state: job.scheduled_start ? "ok" : "cur",
+        // Only mark done once the job has left the scheduled stage (started or finished).
+        state: done || inField ? "ok" : "cur",
       },
       {
         label: "Em campo",
         sub:
-          job.status === "in_progress"
+          inField
             ? field?.field_status_label || "em andamento"
             : field?.hours?.total
               ? `${qty(field.hours.total)} h registradas`
               : "",
-        state: done ? "ok" : job.status === "in_progress" ? "cur" : "",
+        state: done ? "ok" : inField ? "cur" : "",
       },
       { label: "Concluído", sub: "", state: done ? "ok" : "" },
     ];

@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261012-svcqpe2";
+  const CSS_HREF = "crm-job-modal.css?v=20261014-allday";
   const QPE_CSS = "quote-services-popup.css?v=20261012-qp3";
   const QPE_JS = "quote-services-popup.js?v=20261012-qp3";
   const PAPER_CSS = "quote-paper.css?v=20261012-qp4";
@@ -71,6 +71,8 @@
       addressTouched: false,
       date: "",
       time: "07:30",
+      /** All-day start — no clock time; agenda shows in the all-day lane. */
+      allDay: false,
       /** null | installation | sand_finish */
       sector: null,
       relatedWorkOrderId: null,
@@ -583,6 +585,10 @@
   function computeRange() {
     if (!st.date) return { start: null, end: null };
     const [y, m, d] = st.date.split("-").map(Number);
+    if (st.allDay) {
+      const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+      return { start, end: null };
+    }
     const [hh, mm] = (st.time || "07:30").split(":").map(Number);
     const start = new Date(y, m - 1, d, hh || 0, mm || 0, 0, 0);
     return { start, end: null };
@@ -591,6 +597,7 @@
     const { start } = computeRange();
     if (!start) return "Sem data";
     const day = start.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
+    if (st.allDay) return `${day} · dia inteiro`;
     const t = start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     return `${day} · ${t}`;
   }
@@ -641,8 +648,12 @@
           <h3 class="jm-sec__t"><span class="jm-n">2</span>Start</h3>
           <div class="jm-when">
             <label class="jm-field">Data<input type="date" id="jmDate" class="jm-in" /></label>
-            <label class="jm-field">Início<input type="time" id="jmTime" class="jm-in" step="900" /></label>
+            <label class="jm-field" id="jmTimeWrap">Início<input type="time" id="jmTime" class="jm-in" step="900" /></label>
           </div>
+          <label class="jm-check jm-check--allday">
+            <input type="checkbox" id="jmAllDay" />
+            <span><strong>Dia inteiro</strong> — sem horário específico</span>
+          </label>
           <div class="jm-when" style="margin-top:10px">
             <label class="jm-field">Setor
               <select id="jmSector" class="jm-in">
@@ -655,7 +666,7 @@
               <select id="jmRelated" class="jm-in"><option value="">—</option></select>
             </label>
           </div>
-          <p class="jm-hint">Só data e hora de início — a duração fica aberta (obras são imprevisíveis). Setor define em qual agenda de Jobs o evento aparece.</p>
+          <p class="jm-hint">Data de início (e hora, se não for dia inteiro) — a duração fica aberta. Setor define em qual agenda de Jobs o evento aparece.</p>
         </section>
 
         <section class="jm-sec" data-job-section="services">
@@ -893,6 +904,9 @@
   function renderWhen() {
     if ($("jmDate")) $("jmDate").value = st.date || "";
     if ($("jmTime")) $("jmTime").value = st.time || "";
+    if ($("jmAllDay")) $("jmAllDay").checked = Boolean(st.allDay);
+    const timeWrap = $("jmTimeWrap");
+    if (timeWrap) timeWrap.hidden = Boolean(st.allDay);
     const sec = $("jmSector");
     if (sec) sec.value = st.sector || "";
     const wrap = $("jmRelatedWrap");
@@ -1761,10 +1775,11 @@
         start = new Date(pref);
       }
     }
+    if (o.allDay) st.allDay = true;
     if (start && !Number.isNaN(start.getTime())) {
       st.date = ymd(start);
       // A slot picked on the agenda at midnight means "that day", not 00:00.
-      if (start.getHours() || start.getMinutes()) st.time = hm(start);
+      if (!st.allDay && (start.getHours() || start.getMinutes())) st.time = hm(start);
     } else {
       const t = new Date();
       t.setDate(t.getDate() + 1);
@@ -1896,9 +1911,10 @@
     st.address = wo.address || "";
     st.addressTouched = true;
     const s = wo.scheduled_start ? new Date(wo.scheduled_start) : null;
+    st.allDay = Boolean(wo.all_day);
     if (s) {
       st.date = ymd(s);
-      st.time = hm(s);
+      if (!st.allDay) st.time = hm(s);
     }
     st.assigneeId = wo.assigned_user_id ? String(wo.assigned_user_id) : null;
     (wo.members || []).forEach((m) => st.members.add(String(m.user_id)));
@@ -1983,6 +1999,7 @@
         }),
       scheduled_start: start ? start.toISOString() : null,
       scheduled_end: end ? end.toISOString() : null,
+      all_day: start ? Boolean(st.allDay) : false,
       status: st.id ? st.status : start ? "scheduled" : "draft",
       sector: st.sector || null,
       related_work_order_id: st.sector === "sand_finish" ? st.relatedWorkOrderId || null : null,
@@ -1999,7 +2016,7 @@
     if (st.section === "all") return full;
     const pick = {
       details: ["title", "source_type", "source_name", "customer_id", "builder_id", "address", "status"],
-      schedule: ["scheduled_start", "scheduled_end", "sector", "related_work_order_id"],
+      schedule: ["scheduled_start", "scheduled_end", "all_day", "sector", "related_work_order_id"],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
       campo: checklistEnabled
@@ -2535,6 +2552,11 @@
         return;
       case "jmTime":
         st.time = t.value;
+        renderSide();
+        return;
+      case "jmAllDay":
+        st.allDay = Boolean(t.checked);
+        renderWhen();
         renderSide();
         return;
       case "jmNeedsDelivery":

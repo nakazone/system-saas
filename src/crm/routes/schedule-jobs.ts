@@ -175,6 +175,7 @@ function mapWorkOrder(wo: {
   relatedWorkOrderId?: string | null;
   scheduledStart: Date | null;
   scheduledEnd: Date | null;
+  allDay?: boolean;
   createdAt: Date;
   updatedAt: Date;
   customer?: { id: string; name: string; clientCode?: string | null; email?: string | null; phone?: string | null } | null;
@@ -275,6 +276,7 @@ function mapWorkOrder(wo: {
     })),
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
     scheduled_end: wo.scheduledEnd?.toISOString() ?? null,
+    all_day: Boolean(wo.allDay),
     created_at: wo.createdAt.toISOString(),
     updated_at: wo.updatedAt.toISOString(),
     customer: wo.customer
@@ -836,6 +838,7 @@ const workOrderBody = z.object({
   line_items: z.array(lineItemBody).max(50).optional(),
   scheduled_start: z.string().datetime().optional().nullable(),
   scheduled_end: z.string().datetime().optional().nullable(),
+  all_day: z.boolean().optional(),
 });
 
 scheduleJobsRouter.post(
@@ -905,6 +908,7 @@ scheduleJobsRouter.post(
           relatedWorkOrderId: relatedId,
           scheduledStart: start,
           scheduledEnd: end,
+          allDay: start ? Boolean(d.all_day) : false,
         },
       });
       await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
@@ -1089,6 +1093,11 @@ scheduleJobsRouter.put(
           ...(d.scheduled_start !== undefined || d.scheduled_end !== undefined
             ? { scheduledStart: start, scheduledEnd: end }
             : {}),
+          ...(d.all_day !== undefined
+            ? { allDay: start ? Boolean(d.all_day) : false }
+            : d.scheduled_start !== undefined && !start
+              ? { allDay: false }
+              : {}),
           // Re-arm start reminders when the start time moves.
           ...(scheduleChanged
             ? { startReminderSentAt: null, startNudgeSentAt: null }
@@ -1721,9 +1730,12 @@ scheduleJobsRouter.get(
       const events = [
         ...workOrders.map((wo) => {
           const startIso = wo.scheduledStart!.toISOString();
+          const allDay = Boolean(wo.allDay);
           const endIso = wo.scheduledEnd
             ? wo.scheduledEnd.toISOString()
-            : new Date(wo.scheduledStart!.getTime() + 60 * 60 * 1000).toISOString();
+            : allDay
+              ? new Date(wo.scheduledStart!.getTime() + 24 * 60 * 60 * 1000).toISOString()
+              : new Date(wo.scheduledStart!.getTime() + 60 * 60 * 1000).toISOString();
           const jobCal = resolveJobCalendar(sched, wo.sector);
           return {
             id: wo.id,
@@ -1732,6 +1744,7 @@ scheduleJobsRouter.get(
             status: wo.status,
             start: startIso,
             end: endIso,
+            all_day: allDay,
             calendar_id: jobCal.id,
             color: resolveJobColor(sched, wo.crew?.color || null, wo.sector),
             meta: mapWorkOrder(wo),
