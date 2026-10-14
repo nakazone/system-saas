@@ -46,7 +46,7 @@ import { CANCEL_REASONS, REASON_LABEL, recordMasterCancel } from "../lib/billing
 import { EXPORT_DAYS, createDownloadLink, exportFileName, isDownloadable, requestExport, revokeDownloadLink } from "../lib/data/export.js";
 import { findPerson, erasePerson, maskSubject, normalizeSubject, subjectHash } from "../lib/data/erase.js";
 import { deleteCompany, deletionCheck, sumCounts } from "../lib/data/delete-company.js";
-import { KIND_LABEL, OPEN_STATUSES, PRIVACY_DAYS, daysLeft, dueFrom, privacyAttention } from "../lib/data/privacy.js";
+import { KIND_LABEL, OPEN_STATUSES, PRIVACY_DAYS, daysLeft, dueFrom, privacyAttention, type AttentionRow } from "../lib/data/privacy.js";
 import {
   decryptSecret,
   encryptSecret,
@@ -678,11 +678,11 @@ masterRouter.get(
     const cardsSoon = (await expiringCards().catch(() => [])).filter((c) => c.daysToExp <= 15);
     if (cardsSoon.length) queue.push({ tone: "muted", title: `${cardsSoon.length} cartão(ões) vencem antes da próxima cobrança`, sub: cardsSoon.slice(0, 3).map((c) => c.name).join(", ") + " · a empresa recebe e-mail", cta: "Ver", href: "/master/pagamentos?aba=previsao" });
     // Dados e privacidade: requests near the deadline, failed exports.
-    const due = await privacyAttention().catch(() => []);
-    const late = due.filter((r) => r.days < 0);
+    const due: AttentionRow[] = await privacyAttention().catch((): AttentionRow[] => []);
+    const late = due.filter((r: AttentionRow) => r.days < 0);
     if (late.length) queue.unshift({ tone: "danger", title: late.length === 1 ? `Pedido de privacidade atrasado: ${late[0].requesterName}` : `${late.length} pedidos de privacidade atrasados`, sub: "O prazo é de 30 dias desde o recebimento", cta: "Ver", href: "/master/privacidade", primary: true });
-    const soon = due.filter((r) => r.days >= 0);
-    if (soon.length) queue.push({ tone: "warn", title: soon.length === 1 ? `Pedido de privacidade vence em ${soon[0].days} dia(s)` : `${soon.length} pedidos de privacidade vencem em 7 dias`, sub: soon.slice(0, 3).map((r) => `${r.requesterName}${r.orgName ? ` (${r.orgName})` : ""}`).join(", "), cta: "Ver", href: "/master/privacidade" });
+    const soon = due.filter((r: AttentionRow) => r.days >= 0);
+    if (soon.length) queue.push({ tone: "warn", title: soon.length === 1 ? `Pedido de privacidade vence em ${soon[0].days} dia(s)` : `${soon.length} pedidos de privacidade vencem em 7 dias`, sub: soon.slice(0, 3).map((r: AttentionRow) => `${r.requesterName}${r.orgName ? ` (${r.orgName})` : ""}`).join(", "), cta: "Ver", href: "/master/privacidade" });
     const failedExports = await prisma.dataExport.findMany({ where: { status: "failed", finishedAt: { gte: new Date(Date.now() - 86400e3) } }, select: { orgName: true, error: true }, take: 3 }).catch(() => []);
     if (failedExports.length) queue.push({ tone: "warn", title: `Exportação falhou: ${failedExports[0].orgName}`, sub: (failedExports[0].error || "").slice(0, 90), cta: "Ver", href: "/master/privacidade?aba=exportacoes" });
     // Comunicação: e-mails that bounced, e-mail not going out, urgent notice on the air.
