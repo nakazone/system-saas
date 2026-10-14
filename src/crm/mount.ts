@@ -15,6 +15,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { crmAuthRouter } from "./auth-api.js";
 import { crmApiRouter } from "./api.js";
 import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
+import { gateCrmPages } from "../middleware/code-gate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -89,6 +90,9 @@ export function createCrmRouter(): Router {
 
   router.use(crmAuthRouter);
   router.use(crmApiRouter);
+
+  // CRM screens (HTML) only for signed-in users; visitors go to the login page.
+  router.use(gateCrmPages);
 
   // SF logo / brand assets (SaaS CSS remains available via a second /assets mount)
   router.use("/assets", express.static(CRM_ASSETS_DIR));

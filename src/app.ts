@@ -12,7 +12,7 @@ import { DEFAULT_ESTIMATE_RULES } from "./lib/tenant/defaults.js";
 import { resolveTenant, requireTenant } from "./lib/tenant/resolve-tenant.js";
 import { subdomainTenantsSupported } from "./lib/tenant/workspace-url.js";
 import { bindTenantContext } from "./lib/tenant/bind-context.js";
-import { loadSessionUser } from "./middleware/auth.js";
+import { loadSessionUser, type AuthedRequest } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { organizationsRouter } from "./modules/organizations/routes.js";
 import { settingsRouter } from "./modules/organizations/settings-routes.js";
@@ -68,6 +68,7 @@ import {
   securityHeaders,
 } from "./middleware/security.js";
 import { clientIp, rateLimit } from "./lib/security/rate-limit.js";
+import { gateCrmScripts, issueCodeCookie } from "./middleware/code-gate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PgSession = connectPgSimple(session);
@@ -120,7 +121,8 @@ export function createApp() {
       return;
     }
     res.setHeader("Cache-Control", "no-cache");
-    crmStatic(req, res, next);
+    // CRM scripts only for signed-in browsers (see middleware/code-gate.ts).
+    gateCrmScripts(req, res, () => crmStatic(req, res, next));
   });
 
   // Local upload fallback (when S3 is not configured) — keys are unguessable org paths.
@@ -349,7 +351,20 @@ export function createApp() {
   app.use(requireTenant);
   app.use(bindTenantContext);
   app.use(loadSessionUser);
+  app.use(issueCodeCookie);
   app.use(enforcePasswordChange);
+  // Automated scraping through a real account (e.g. an agent crawling every record):
+  // generous per-user ceiling on the API, far above what a person clicking around uses.
+  app.use(
+    "/api",
+    rateLimit({
+      name: "api-user",
+      limit: 1500,
+      windowMs: 5 * 60 * 1000,
+      key: (req) => String((req as AuthedRequest).user?.id || clientIp(req)),
+      message: "Muitas requisições em pouco tempo. Aguarde um instante.",
+    }),
+  );
   // Support sessions: read-only, payroll hidden, ends on time or from the Master.
   app.use(supportGuard);
   app.use(supportSessionApi);

@@ -191,4 +191,17 @@ describe.skipIf(!privileged)("security hardening — HTTP", () => {
     const lead = await withTenantTransaction(orgId, (tx) => tx.lead.findFirst({ where: { email: body.email } }));
     expect(lead?.name).not.toContain("<");
   });
+
+  it("keeps CRM scripts and screens away from visitors who are not signed in", async () => {
+    clearRateLimits();
+    const anon = await fetch(`${base}/folha.js`);
+    expect(anon.status).toBe(401);
+    expect((await fetch(`${base}/om-device.js`)).status).toBe(200);
+    expect((await fetch(`${base}/login.html`)).status).toBe(200);
+    const forged = await fetch(`${base}/folha.js`, { headers: { Cookie: "om_a=9999999999999.forged" } });
+    expect(forged.status).toBe(401);
+    const { cookie } = await login(adminEmail, "Novo-Passw0rd-2026");
+    expect(cookie).toContain("om_a=");
+    expect((await fetch(`${base}/folha.js`, { headers: { Cookie: cookie } })).status).toBe(200);
+  });
 });

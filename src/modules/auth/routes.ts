@@ -5,6 +5,7 @@ import { verifyPassword } from "../../lib/auth/password.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireAuth } from "../../middleware/auth.js";
 import type { TenantRequest } from "../../lib/tenant/resolve-tenant.js";
+import { clearCodeCookie } from "../../middleware/code-gate.js";
 import {
   burnPasswordCheck,
   isLeakedDefaultPassword,
@@ -199,6 +200,7 @@ authRouter.post("/login", async (req: TenantRequest, res, next) => {
 });
 
 authRouter.post("/logout", requireAuth, (req: AuthedRequest, res) => {
+  clearCodeCookie(res);
   req.session.destroy(() => {
     res.redirect("/login.html");
   });

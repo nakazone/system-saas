@@ -15,6 +15,7 @@ import {
   newPasswordProblem,
 } from "../lib/auth/password-policy.js";
 import { purgeUserSessions } from "../lib/auth/session-purge.js";
+import { clearCodeCookie, setCodeCookie } from "../middleware/code-gate.js";
 import {
   loginBlockedFor,
   loginLockedMessage,
@@ -201,6 +202,7 @@ function fillSession(
       res.status(500).json({ success: false, error: "Could not establish session" });
       return;
     }
+    setCodeCookie(res);
     res.json({
       success: true,
       user: {
@@ -346,6 +348,7 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
 });
 
 crmAuthRouter.post("/api/auth/logout", (req, res) => {
+  clearCodeCookie(res);
   req.session.destroy((err) => {
     if (err) {
       res.status(500).json({ success: false, error: "Could not logout" });
