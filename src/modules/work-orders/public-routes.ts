@@ -1,3 +1,4 @@
+import { checkLimit, hasFeature } from "../../lib/features/index.js";
 import { Router } from "express";
 import { param } from "../../lib/http/params.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
@@ -253,8 +254,13 @@ publicJobsRouter.post("/:token/photos", async (req, res, next) => {
       where: { id: ref.organizationId },
       select: { featureFlags: true },
     });
-    if (!isJobMediaEnabled(org?.featureFlags)) {
+    if (!isJobMediaEnabled(org?.featureFlags) || !(await hasFeature(ref.organizationId, "job_media"))) {
       res.status(403).json({ success: false, error: "Fotos desativadas para esta empresa." });
+      return;
+    }
+    const photoLimit = await checkLimit(ref.organizationId, "photos_month", 1);
+    if (!photoLimit.ok) {
+      res.status(403).json({ success: false, error: "A empresa atingiu o limite de fotos do mês. Avise o escritório.", code: "LIMIT_REACHED" });
       return;
     }
     const meta = parsePhotoUploadMeta(raw);

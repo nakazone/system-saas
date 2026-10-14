@@ -1,3 +1,4 @@
+import { takeAiUse } from "../features/index.js";
 /**
  * Isolated AI client for ObraMate (OpenAI-compatible HTTP API).
  * Never call providers from the browser — only via this module.
@@ -86,6 +87,8 @@ export async function aiChatJson(params: {
       provider: "none",
     };
   }
+  const blocked = await takeAiUse();
+  if (blocked) return { ok: false, error: blocked, provider: "none" };
 
   const model = chatModel();
   const images = (params.imageUrls || [])
@@ -180,6 +183,8 @@ export async function aiTranscribeAudio(params: {
       provider: "none",
     };
   }
+  const blocked = await takeAiUse();
+  if (blocked) return { ok: false, error: blocked, provider: "none" };
 
   const model = whisperModel();
   const form = new FormData();

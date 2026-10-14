@@ -1,0 +1,52 @@
+<%- include('_top', { pageTitle: 'Recursos por plano' }) %>
+<div class="page-head">
+  <div><h1>Recursos por plano</h1><div class="page-sub">O que cada plano libera e até onde. Vale nesta ordem: desligado para todos → exceção da empresa → plano.</div></div>
+</div>
+
+<div class="note-box">Sempre incluídos em todos os planos: <b><%= core.join(', ') %></b>. Os módulos abaixo podem ficar de fora de um plano. O que a empresa desliga nas próprias Configurações continua valendo por cima.</div>
+
+<div class="section-title"><h2>Módulos</h2><small class="muted"><%= totalCompanies %> empresas ativas, em teste ou atrasadas</small></div>
+<section class="table feat-table">
+  <div class="tr head cols-feat"><span>MÓDULO</span><span>QUEM USA</span><span>PARA TODOS</span></div>
+  <% features.forEach(function (f) { %>
+    <div class="tr cols-feat">
+      <span class="feat-name"><b><%= f.name %></b><small><%= f.description %></small></span>
+      <span class="feat-use"><b class="num"><%= f.using %></b><small> de <%= totalCompanies %><%= f.exceptions ? ' · ' + f.exceptions + ' exceção(ões)' : '' %></small></span>
+      <span>
+        <form data-action action="/master/recursos/<%= f.key %>/estado" class="seg-pick feat-state" data-stepup="Desligar <%= f.name %> para todas as empresas" <%= canEdit ? '' : 'inert' %>>
+          <% [['on','Liberado'],['beta','Beta'],['off','Desligado']].forEach(function (o) { %>
+            <label class="st-<%= o[0] %>"><input type="radio" name="state" value="<%= o[0] %>" <%= f.state === o[0] ? 'checked' : '' %> onchange="if (this.value === 'off' && !confirm('Desligar <%= f.name %> para todas as empresas? Hoje <%= f.using %> usam.')) { this.form.reset(); return; } this.form.requestSubmit()"><span><%= o[1] %></span></label>
+          <% }) %>
+        </form>
+      </span>
+    </div>
+  <% }) %>
+</section>
+<p class="muted feat-help"><b>Beta</b>: só as empresas com exceção ligada (na ficha da empresa › Recursos e uso). <b>Desligado</b>: some para todos, inclusive quem tem exceção; pede o código do autenticador.</p>
+
+<div class="section-title"><h2>O que cada plano inclui</h2><small class="muted">Limite vazio = sem limite. Quem já passa de um limite novo continua funcionando; só não adiciona mais.</small></div>
+<div class="feat-plans">
+  <% plans.forEach(function (p) { %>
+    <form class="card card-pad feat-plan" data-action action="/master/recursos/plano/<%= p.key %>" data-confirm="Salvar o que o plano <%= p.name %> inclui? Vale na hora para <%= p.companies %> empresa(s) desse plano." <%= canEdit ? '' : 'inert' %>>
+      <div class="feat-plan-head"><h2><%= p.name %></h2><span class="pill pill-sm tone-soft"><%= p.companies %> empresa(s)</span></div>
+      <div class="feat-checks">
+        <% features.forEach(function (f) { %>
+          <label class="feat-check <%= f.state !== 'on' ? 'is-global-' + f.state : '' %>">
+            <input type="checkbox" name="f_<%= f.key %>" value="1" <%= p.features[f.key] ? 'checked' : '' %>>
+            <span><%= f.name %><% if (f.state !== 'on') { %> <em><%= f.stateLabel.toLowerCase() %> p/ todos</em><% } %></span>
+          </label>
+        <% }) %>
+      </div>
+      <div class="feat-limits">
+        <% limits.forEach(function (l) { %>
+          <label class="field"><%= l.name %>
+            <input class="input num" name="l_<%= l.key %>" inputmode="numeric" pattern="\d*" value="<%= p.limits[l.key] %>" placeholder="sem limite">
+          </label>
+        <% }) %>
+        <% if (p.includedUsers != null) { %><small class="muted">No site o plano aparece com “até <%= p.includedUsers %> usuários” (Planos e preços).</small><% } %>
+      </div>
+      <% if (canEdit) { %><button class="btn btn-dark btn-block" type="submit">Salvar <%= p.name %></button><% } %>
+    </form>
+  <% }) %>
+</div>
+<%- include('_bottom') %>

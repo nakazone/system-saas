@@ -1,6 +1,7 @@
 /**
  * Office + shared job media gallery and field reports (Phase 2).
  */
+import { checkLimit } from "../../lib/features/index.js";
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -232,6 +233,11 @@ jobReportsRouter.post(
         }
       }
 
+      const photoLimit = await checkLimit(req.organizationId!, "photos_month", 1);
+      if (!photoLimit.ok) {
+        res.status(403).json({ success: false, error: photoLimit.message, code: "LIMIT_REACHED" });
+        return;
+      }
       const key = `orgs/${req.organizationId}/jobs/${jobId}/${Date.now()}-${randomUUID().slice(0, 8)}`;
       const stored = await storage.upload({
         key,

@@ -2,6 +2,7 @@
  * Public org portfolio — before/after photos marked inPortfolio.
  * Mounted at /public/portfolio
  */
+import { hasFeature } from "../../lib/features/index.js";
 import { Router } from "express";
 import { prisma } from "../../lib/prisma.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
@@ -31,7 +32,7 @@ publicPortfolioRouter.get("/:slug", async (req, res, next) => {
       org.featureFlags && typeof org.featureFlags === "object" && !Array.isArray(org.featureFlags)
         ? (org.featureFlags as Record<string, unknown>)
         : {};
-    if (flags.public_portfolio === false || flags.publicPortfolio === false) {
+    if (flags.public_portfolio === false || flags.publicPortfolio === false || !(await hasFeature(org.id, "public_portfolio"))) {
       res.status(404).send("Portfolio not available");
       return;
     }

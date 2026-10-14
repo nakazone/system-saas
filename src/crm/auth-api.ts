@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { passwordResetRouter } from "./password-reset.js";
+import { applyFeaturePermissions } from "../lib/features/index.js";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { verifyPassword, hashPassword } from "../lib/auth/password.js";
@@ -79,7 +80,7 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
       return;
     }
 
-    const permissions = buildPermissionKeys(user);
+    const permissions = await applyFeaturePermissions(user.organizationId, buildPermissionKeys(user));
     req.session.userEmail = user.email;
     req.session.userName = user.name;
     req.session.userRole = user.role?.key ?? "staff";
@@ -133,12 +134,12 @@ type AuthUser = Awaited<
   >
 >;
 
-function establishSession(
+async function establishSession(
   req: TenantRequest,
   user: NonNullable<AuthUser>,
   res: import("express").Response,
 ) {
-  const permissionKeys = buildPermissionKeys(user);
+  const permissionKeys = await applyFeaturePermissions(user.organizationId, buildPermissionKeys(user));
   const slug = user.organization.slug;
 
   req.session.userId = user.id;
@@ -217,7 +218,7 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
         return;
       }
 
-      establishSession(req, user, res);
+      await establishSession(req, user, res);
       return;
     }
 
@@ -255,7 +256,7 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
       return;
     }
 
-    establishSession(req, matches[0]!, res);
+    await establishSession(req, matches[0]!, res);
   } catch (error) {
     next(error);
   }

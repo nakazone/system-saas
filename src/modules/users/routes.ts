@@ -1,3 +1,4 @@
+import { checkLimit } from "../../lib/features/index.js";
 import { Router } from "express";
 import { param } from "../../lib/http/params.js";
 import { randomBytes } from "node:crypto";
@@ -95,6 +96,11 @@ usersRouter.post(
         return;
       }
 
+      const userLimit = await checkLimit(req.organizationId!, "users", 1);
+      if (!userLimit.ok) {
+        res.redirect(`/users?error=${encodeURIComponent(userLimit.message)}`);
+        return;
+      }
       const token = randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 

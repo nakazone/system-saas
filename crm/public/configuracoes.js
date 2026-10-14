@@ -3046,6 +3046,18 @@
     else if (d.current_period_end) due = (d.cancel_at_period_end ? "Acesso até " : d.status === "active" ? "Próxima cobrança em " : "Venceu em ") + fmtDay(d.current_period_end);
     else if (d.trial_ends_at) due = "Teste grátis acabou em " + fmtDay(d.trial_ends_at);
     $("billDue").textContent = due || "—";
+    const usage = Array.isArray(d.usage) ? d.usage : [];
+    $("billUsage").hidden = !usage.length;
+    $("billUsage").innerHTML = usage
+      .map(
+        (u) =>
+          `<div class="cfg-usage__row${u.pct >= 100 ? " is-full" : u.pct >= 80 ? " is-near" : ""}"><div class="cfg-usage__top"><span>${esc(u.name)}</span><b>${esc(String(u.used))} / ${esc(String(u.limit))}</b></div>` +
+          `<div class="cfg-usage__track"><i style="width:${Math.max(0, Math.min(100, Number(u.pct) || 0))}%"></i></div></div>`,
+      )
+      .join("");
+    const missing = Array.isArray(d.not_included) ? d.not_included : [];
+    $("billNotIncluded").hidden = !missing.length;
+    $("billNotIncluded").textContent = missing.length ? "Fora do seu plano: " + missing.join(", ") + "." : "";
     const banner = $("billBanner");
     banner.hidden = !d.banner;
     if (d.banner) {

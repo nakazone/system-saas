@@ -1,3 +1,4 @@
+import { applyFeaturePermissions } from "../lib/features/index.js";
 import type { NextFunction, Response } from "express";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { prisma } from "../lib/prisma.js";
@@ -127,7 +128,7 @@ export async function loadSessionUser(
       name: user.name,
       roleKey,
       roleId: user.roleId,
-      permissions: Array.from(rolePerms),
+      permissions: await applyFeaturePermissions(user.organizationId, Array.from(rolePerms)),
     };
     next();
   } catch (error) {

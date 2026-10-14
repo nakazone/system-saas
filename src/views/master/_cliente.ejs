@@ -117,6 +117,29 @@
     <% if (!users.length) { %><p class="muted" style="margin:6px 0">Nenhum usuário.</p><% } %>
   </section>
 
+  <section class="d-sec">
+    <h3>Recursos e uso <% if (canBilling) { %><button class="btn btn-soft btn-sm" type="button" data-open="dlg-excecao">+ Exceção</button><% } %><a class="btn btn-soft btn-sm" href="/master/recursos">Por plano</a></h3>
+    <div class="use-bars">
+      <% rec.limits.forEach(function (l) { %>
+        <div class="use-bar tone-<%= l.tone %>">
+          <div class="use-top"><span><%= l.name %></span><b class="num"><%= l.used %><%= l.limit != null ? ' / ' + l.limit : '' %></b></div>
+          <% if (l.limit != null) { %><div class="use-track"><i style="width:<%= l.pct %>%"></i></div><% } else { %><small class="muted">sem limite no plano</small><% } %>
+        </div>
+      <% }) %>
+    </div>
+    <div class="feat-list">
+      <% rec.features.forEach(function (f) { %>
+        <div class="feat-row">
+          <span class="feat-dot <%= f.on ? 'on' : '' %>" aria-hidden="true"></span>
+          <span style="flex:1;min-width:0"><b><%= f.name %></b> <small class="muted"><%= f.on ? 'liberado' : 'sem acesso' %> · <%= f.source %></small>
+            <% if (f.override) { %><small class="feat-ov"><%= f.override.reason %><%= f.override.by ? ' · ' + f.override.by : '' %></small><% } %>
+          </span>
+          <% if (f.override && canBilling) { %><form data-action action="/master/clientes/<%= id %>/recursos/excecao/<%= f.key %>/remover"><button class="btn btn-soft btn-sm" type="submit">Voltar ao plano</button></form><% } %>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
   <% if (canSupport && supportSessions.length) { %>
   <section class="d-sec">
     <h3>Sessões de suporte</h3>
@@ -187,6 +210,32 @@
 <% if (canBilling) { %>
 
 <% if (canSupport) { %><%- include('_suporte-dlg', { sOrgId: id, sOrgName: o.name, sUsers: supportUsers, sUser: null, sTicketId: '', sReason: '' }) %><% } %>
+<% if (canBilling) { %>
+<dialog id="dlg-excecao" aria-labelledby="t-exc">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-exc">Exceção de recurso · <%= o.name %></h2><p>Liga ou desliga um módulo só para esta empresa, por cima do plano. Com data de fim, volta sozinho ao plano.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/clientes/<%= id %>/recursos/excecao">
+      <label class="field">Módulo
+        <select class="input" name="featureKey" required>
+          <% rec.featureOptions.forEach(function (f) { %><option value="<%= f.key %>"><%= f.name %></option><% }) %>
+        </select>
+      </label>
+      <div class="field">Para esta empresa
+        <div class="seg-pick">
+          <label><input type="radio" name="enabled" value="1" checked><span>Ligar</span></label>
+          <label><input type="radio" name="enabled" value="0"><span>Desligar</span></label>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="field">Motivo<input class="input" name="reason" required minlength="3" maxlength="300" placeholder="Ex.: teste do Field Quote por 30 dias"></label>
+        <label class="field">Até (opcional)<input class="input" type="date" name="endsAt" min="<%= todayYmd %>"></label>
+      </div>
+      <button class="btn btn-dark btn-block" type="submit">Salvar exceção</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
 <dialog id="dlg-assinatura" aria-labelledby="t-as">
   <div class="modal">
     <div class="modal-head"><div><h2 id="t-as">Editar assinatura</h2><p>Controle total: status, plano, ciclo, preço e datas.</p></div>
@@ -326,6 +375,7 @@
           <% (roles || []).forEach(function (r) { %><option value="<%= r.id %>" <%= r.key === 'admin' ? 'selected' : '' %>><%= r.name %></option><% }) %>
         </select>
       </label>
+      <label class="check-line" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:600;margin:4px 0 12px"><input type="checkbox" name="ignoreLimit" value="1" style="margin-top:2px"> Cadastrar mesmo passando do limite de usuários do plano</label>
       <button class="btn btn-dark btn-block" type="submit">Cadastrar usuário</button>
     </form>
   </div>
