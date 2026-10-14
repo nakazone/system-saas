@@ -275,3 +275,33 @@ describe("upload content types", () => {
     expect(safeContentType(undefined)).toBe("application/octet-stream");
   });
 });
+
+describe("Master scripts gate", () => {
+  it("blocks /assets/master scripts without the Master cookie", async () => {
+    const { gateMasterScripts } = await import("../src/middleware/code-gate.js");
+    const anon = run(gateMasterScripts, fakeReq({ path: "/master.js" }));
+    expect(anon.nextCalled).toBe(false);
+    expect(anon.res.statusCode).toBe(401);
+    const forged = run(gateMasterScripts, fakeReq({ path: "/master.js", headers: { cookie: "om_m=9999999999999.x" } }));
+    expect(forged.nextCalled).toBe(false);
+    // CSS stays open (the login screens use it).
+    expect(run(gateMasterScripts, fakeReq({ path: "/master.css" })).nextCalled).toBe(true);
+  });
+
+  it("issues the Master cookie only for a full Master session", async () => {
+    const { issueMasterCodeCookie, gateMasterScripts } = await import("../src/middleware/code-gate.js");
+    const half = Object.assign(fakeReq({ path: "/central" }), { session: { master: { stage: "password" } } });
+    const r1 = fakeRes() as FakeRes & { cookie?: unknown };
+    let set = "";
+    (r1 as unknown as { cookie: (n: string, v: string) => void }).cookie = (n, v) => { set = `${n}=${v}`; };
+    (r1 as unknown as { clearCookie: () => void }).clearCookie = () => undefined;
+    issueMasterCodeCookie(half as never, r1, () => undefined);
+    expect(set).toBe("");
+    const full = Object.assign(fakeReq({ path: "/central" }), { session: { master: { stage: "full" } } });
+    issueMasterCodeCookie(full as never, r1, () => undefined);
+    expect(set.startsWith("om_m=")).toBe(true);
+    const ok = run(gateMasterScripts, fakeReq({ path: "/master.js", headers: { cookie: set } }));
+    expect(ok.nextCalled).toBe(true);
+  });
+});
+

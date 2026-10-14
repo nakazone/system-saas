@@ -204,4 +204,14 @@ describe.skipIf(!privileged)("security hardening — HTTP", () => {
     expect(cookie).toContain("om_a=");
     expect((await fetch(`${base}/folha.js`, { headers: { Cookie: cookie } })).status).toBe(200);
   });
+
+  it("serves a robots.txt that keeps AI crawlers and app paths out", async () => {
+    const r = await fetch(`${base}/robots.txt`);
+    const body = await r.text();
+    expect(r.status).toBe(200);
+    expect(body).toContain("User-agent: GPTBot");
+    expect(body).toContain("Disallow: /api/");
+    expect((await fetch(`${base}/assets/master/master.js`)).status).toBe(401);
+  });
 });
+

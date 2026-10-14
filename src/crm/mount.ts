@@ -34,9 +34,11 @@ const BRANDING_INJECT = [
  */
 function resolveCrmDir(subdir: "public" | "assets"): string {
   const candidates = [
+    // Production runs dist/src/crm → dist/crm/{public,assets}: the build's copy, with minified
+    // JS/CSS (scripts/minify-crm.mjs). In development (tsx src/crm) this is the repo's crm/.
+    path.resolve(__dirname, "../../crm", subdir),
     path.resolve(process.cwd(), "crm", subdir),
     path.resolve(__dirname, "../../../crm", subdir), // dist/src/crm → repo root
-    path.resolve(__dirname, "../../crm", subdir), // src/crm → repo root
     path.resolve(__dirname, "../../", subdir), // dist/crm/{public,assets} if copied by build
   ];
   for (const candidate of candidates) {

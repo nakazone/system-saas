@@ -30,44 +30,78 @@ const ANONYMOUS_SCRIPTS = new Set([
   "/sw.js",
 ]);
 
-function sign(exp: number): string {
-  return createHmac("sha256", env.SESSION_SECRET).update(`om_a:${exp}`).digest("base64url");
+/** Separate cookie for the Master panel scripts (only a fully signed-in Master gets it). */
+export const MASTER_CODE_COOKIE = "om_m";
+const MASTER_TTL_MS = 12 * 60 * 60 * 1000;
+
+function sign(name: string, exp: number): string {
+  return createHmac("sha256", env.SESSION_SECRET).update(`${name}:${exp}`).digest("base64url");
 }
 
-function readCookie(req: Request): string {
-  const fromParser = (req as Request & { cookies?: Record<string, string> }).cookies?.[CODE_COOKIE];
+function readCookie(req: Request, name: string): string {
+  const fromParser = (req as Request & { cookies?: Record<string, string> }).cookies?.[name];
   if (fromParser) return String(fromParser);
   const raw = String(req.headers.cookie || "");
-  const m = raw.match(new RegExp(`(?:^|;\\s*)${CODE_COOKIE}=([^;]+)`));
+  const m = raw.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
   return m ? decodeURIComponent(m[1]!) : "";
 }
 
-/** Milliseconds left on a valid cookie, or 0 when missing/forged/expired. */
-export function codeCookieMsLeft(req: Request): number {
-  const v = readCookie(req);
+function msLeft(req: Request, name: string): number {
+  const v = readCookie(req, name);
   const dot = v.indexOf(".");
   if (dot <= 0) return 0;
   const exp = Number(v.slice(0, dot));
   if (!Number.isFinite(exp) || exp <= Date.now()) return 0;
   const given = Buffer.from(v.slice(dot + 1));
-  const want = Buffer.from(sign(exp));
+  const want = Buffer.from(sign(name, exp));
   if (given.length !== want.length || !timingSafeEqual(given, want)) return 0;
   return exp - Date.now();
 }
 
-export function setCodeCookie(res: Response): void {
-  const exp = Date.now() + TTL_MS;
-  res.cookie(CODE_COOKIE, `${exp}.${sign(exp)}`, {
+function setSigned(res: Response, name: string, ttl: number): void {
+  const exp = Date.now() + ttl;
+  res.cookie(name, `${exp}.${sign(name, exp)}`, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    maxAge: TTL_MS,
+    maxAge: ttl,
     path: "/",
   });
 }
 
+/** Milliseconds left on a valid cookie, or 0 when missing/forged/expired. */
+export function codeCookieMsLeft(req: Request): number {
+  return msLeft(req, CODE_COOKIE);
+}
+
+export function setCodeCookie(res: Response): void {
+  setSigned(res, CODE_COOKIE, TTL_MS);
+}
+
 export function clearCodeCookie(res: Response): void {
   res.clearCookie(CODE_COOKIE, { path: "/" });
+}
+
+/** /assets/master/*.js only for a browser with a fully signed-in Master session. */
+export function gateMasterScripts(req: Request, res: Response, next: NextFunction): void {
+  if (!isScriptPath(String(req.path || "")) || msLeft(req, MASTER_CODE_COOKIE) > 0) {
+    next();
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.status(401).type("text/plain; charset=utf-8").send("Sign in required");
+}
+
+/** On /master requests: full Master session → cookie (refreshed); otherwise it is removed. */
+export function issueMasterCodeCookie(req: Request, res: Response, next: NextFunction): void {
+  const stage = (req.session as unknown as { master?: { stage?: string } } | undefined)?.master?.stage;
+  const left = msLeft(req, MASTER_CODE_COOKIE);
+  if (stage === "full") {
+    if (left < MASTER_TTL_MS / 2) setSigned(res, MASTER_CODE_COOKIE, MASTER_TTL_MS);
+  } else if (readCookie(req, MASTER_CODE_COOKIE)) {
+    res.clearCookie(MASTER_CODE_COOKIE, { path: "/" });
+  }
+  next();
 }
 
 function isScriptPath(p: string): boolean {

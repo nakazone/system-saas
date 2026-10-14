@@ -68,7 +68,12 @@ import {
   securityHeaders,
 } from "./middleware/security.js";
 import { clientIp, rateLimit } from "./lib/security/rate-limit.js";
-import { gateCrmScripts, issueCodeCookie } from "./middleware/code-gate.js";
+import {
+  gateCrmScripts,
+  gateMasterScripts,
+  issueCodeCookie,
+  issueMasterCodeCookie,
+} from "./middleware/code-gate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PgSession = connectPgSimple(session);
@@ -105,6 +110,8 @@ export function createApp() {
   app.use(cookieParser());
   app.use(rejectCrossSiteWrites(env.APP_ROOT_DOMAIN));
   app.use(neutralisePublicInput);
+  // Master panel scripts only for a signed-in Master (see middleware/code-gate.ts).
+  app.use("/assets/master", gateMasterScripts);
   app.use("/assets", express.static(CRM_ASSETS_DIR));
   app.use("/assets", express.static(path.join(__dirname, "public")));
 
@@ -165,6 +172,45 @@ export function createApp() {
     } catch (error) {
       next(error);
     }
+  });
+
+  // Search engines index only the marketing site; AI training/answer crawlers get nothing.
+  app.get("/robots.txt", (_req, res) => {
+    const aiBots = [
+      "GPTBot",
+      "ChatGPT-User",
+      "OAI-SearchBot",
+      "ClaudeBot",
+      "Claude-Web",
+      "anthropic-ai",
+      "CCBot",
+      "Google-Extended",
+      "PerplexityBot",
+      "Bytespider",
+      "Amazonbot",
+      "Applebot-Extended",
+      "meta-externalagent",
+      "Diffbot",
+      "cohere-ai",
+    ];
+    const lines = [
+      ...aiBots.flatMap((bot) => [`User-agent: ${bot}`, "Disallow: /", ""]),
+      "User-agent: *",
+      "Disallow: /api/",
+      "Disallow: /public/",
+      "Disallow: /t/",
+      "Disallow: /f/",
+      "Disallow: /feeds/",
+      "Disallow: /invitations/",
+      "Disallow: /master",
+      "Disallow: /dashboard",
+      "Disallow: /campo/",
+      "Disallow: /*.html$",
+      "Disallow: /*.js$",
+      "",
+    ];
+    res.type("text/plain").setHeader("Cache-Control", "public, max-age=86400");
+    res.send(lines.join("\n"));
   });
 
   app.get("/favicon.ico", (_req, res) => {
@@ -289,7 +335,7 @@ export function createApp() {
   app.use(publicReferralRouter);
 
   // Master area of the platform owner (path-based so it works on any host).
-  app.use("/master", masterRouter);
+  app.use("/master", issueMasterCodeCookie, masterRouter);
   // "Entrar como suporte": single-use link from the Master, on the company's host.
   app.use(supportEntryRouter);
 
