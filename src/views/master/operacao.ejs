@@ -1,0 +1,96 @@
+<%- include('_top', { pageTitle: 'Operação' }) %>
+<div class="page-head">
+  <div><h1>Operação</h1><div class="page-sub">Está tudo funcionando? Serviços, jobs em segundo plano, erros e modo manutenção.</div></div>
+  <% if (canOps) { %><form data-action action="/master/operacao/checar"><button class="btn" type="submit">Verificar serviços agora</button></form><% } %>
+</div>
+
+<% if (maintenance.on) { %>
+  <div class="op-maint-on" role="alert">
+    <div><b>Modo manutenção ligado</b> desde <%= maintenance.startedText || '—' %><%= maintenance.untilText ? ' · previsão de volta ' + maintenance.untilText : '' %>. As empresas estão vendo “Voltamos já”.</div>
+    <% if (canOps) { %><form data-action action="/master/operacao/manutencao"><input type="hidden" name="action" value="off"><button class="btn btn-light" type="submit">Desligar agora</button></form><% } %>
+  </div>
+<% } %>
+
+<div class="section-title"><h2>Serviços</h2><small class="muted">Verificados a cada 15 min · faixa = pior estado de cada dia nos últimos 30 dias</small></div>
+<div class="op-services">
+  <% services.forEach(function (s) { %>
+    <section class="card op-svc st-<%= s.status %>">
+      <div class="op-svc-top">
+        <div><h3><%= s.name %></h3><small class="muted"><%= s.what %></small></div>
+        <span class="op-pill st-<%= s.status %>"><i aria-hidden="true"></i><%= s.statusLabel %></span>
+      </div>
+      <p class="op-detail"><%= s.detail %></p>
+      <div class="op-meta muted"><span><%= s.checked %></span><% if (s.latencyMs != null) { %><span><%= s.latencyMs %> ms</span><% } %><% if (s.uptimePct != null) { %><span><%= s.uptimePct %>% no ar</span><% } %></div>
+      <div class="op-strip" aria-label="Últimos 30 dias">
+        <% s.days.forEach(function (d) { %><i class="st-<%= d.status %>" title="<%= d.label %>"></i><% }) %>
+      </div>
+    </section>
+  <% }) %>
+</div>
+<div class="op-legend muted"><span><i class="st-ok"></i>Funcionando</span><span><i class="st-warn"></i>Atenção</span><span><i class="st-down"></i>Fora do ar</span><span><i class="st-off"></i>Não configurado / sem dado</span></div>
+
+<div class="section-title" id="jobs"><h2>Jobs em segundo plano</h2><small class="muted">Atrasado = passou 2× do intervalo sem rodar</small></div>
+<section class="table">
+  <div class="tr head cols-jobs"><span>JOB</span><span>FREQUÊNCIA</span><span>ÚLTIMA VEZ</span><span>DURAÇÃO</span><span>ITENS</span><span>ESTADO</span><span></span></div>
+  <% jobs.forEach(function (j) { %>
+    <div class="tr cols-jobs">
+      <span class="op-name"><b><%= j.label %></b><% if (j.lastError) { %><small class="op-err"><%= j.lastError %></small><% } else { %><small class="muted"><%= j.runs %> execução(ões)<%= j.failures ? ' · ' + j.failures + ' falha(s)' : '' %></small><% } %></span>
+      <span class="hide-m"><%= j.every %></span>
+      <span><%= j.last %></span>
+      <span class="hide-m num"><%= j.duration %></span>
+      <span class="hide-m num"><%= j.lastProcessed == null ? '—' : j.lastProcessed %></span>
+      <span><span class="pill pill-sm tone-<%= j.tone %>"><%= j.state %></span></span>
+      <span class="right"><% if (canOps && j.canRun) { %><form data-action action="/master/operacao/jobs/<%= j.name %>/rodar"><button class="btn btn-soft btn-sm" type="submit" <%= j.running ? 'disabled' : '' %>>Rodar agora</button></form><% } %></span>
+    </div>
+  <% }) %>
+  <% if (!jobs.length) { %><div class="empty" style="padding:20px;text-align:center">Nenhum job registrado ainda.</div><% } %>
+</section>
+
+<div class="section-title" id="erros"><h2>Erros da aplicação</h2><small class="muted">Erros do servidor (500) e do navegador, agrupados · resolvido que volta a acontecer reabre sozinho</small></div>
+<section class="table">
+  <div class="tr head cols-errs"><span>ERRO</span><span>VEZES</span><span>ÚLTIMA</span><span>EMPRESA</span><span></span></div>
+  <% errors.forEach(function (e) { %>
+    <div class="tr cols-errs <%= e.status === 'resolved' ? 'is-resolved' : '' %>">
+      <span class="op-name"><b><%= e.message %></b><small class="muted"><span class="pill pill-sm tone-soft"><%= e.source %></span> <%= e.where %><%= e.stackTop ? ' · ' + e.stackTop : '' %></small><% if (e.isNew && e.status === 'open') { %><small class="op-new">novo · desde <%= e.first %></small><% } %></span>
+      <span class="num strong"><%= e.count %></span>
+      <span><%= e.last %></span>
+      <span class="hide-m"><% if (e.org) { %><a href="/master/clientes/<%= e.org.id %>" data-ficha="<%= e.org.id %>"><%= e.org.name %></a><% } else { %>—<% } %></span>
+      <span class="right"><% if (canOps) { %><form data-action action="/master/operacao/erros/<%= e.fingerprint %>/resolver"><% if (e.status === 'resolved') { %><input type="hidden" name="reopen" value="1"><button class="btn btn-soft btn-sm" type="submit">Reabrir</button><% } else { %><button class="btn btn-soft btn-sm" type="submit">Resolvido</button><% } %></form><% } %></span>
+    </div>
+  <% }) %>
+  <% if (!errors.length) { %><div class="empty" style="padding:20px;text-align:center">Nenhum erro registrado. 🎉</div><% } %>
+</section>
+
+<div class="section-title" id="manutencao"><h2>Modo manutenção</h2><small class="muted">Para atualizações grandes: as empresas veem “Voltamos já”; o Master, o site e o Stripe continuam funcionando</small></div>
+<div class="op-maint-grid">
+  <section class="card card-pad">
+    <h3 class="op-h3"><%= maintenance.on ? 'Ligado agora' : 'Ligar agora' %></h3>
+    <% if (maintenance.on) { %>
+      <p class="muted op-p">Ligado desde <%= maintenance.startedText %><%= maintenance.untilText ? ' · volta prevista ' + maintenance.untilText : '' %>.</p>
+      <% if (canOps) { %><form data-action action="/master/operacao/manutencao"><input type="hidden" name="action" value="off"><button class="btn btn-dark btn-block" type="submit">Desligar e voltar para todos</button></form><% } %>
+    <% } else if (canOps) { %>
+      <form data-action action="/master/operacao/manutencao" data-stepup="Ligar o modo manutenção — todas as empresas ficam sem acesso" data-confirm="Ligar o modo manutenção agora? Todas as empresas perdem o acesso até você desligar.">
+        <input type="hidden" name="action" value="on">
+        <label class="field">Mensagem para as empresas (opcional)<input class="input" name="message" maxlength="300" placeholder="Estamos atualizando o sistema. Seus dados estão seguros."></label>
+        <label class="field">Previsão de volta (horário de Denver, opcional)<input class="input" type="datetime-local" name="until"></label>
+        <button class="btn btn-danger btn-block" type="submit">Ligar modo manutenção</button>
+      </form>
+    <% } %>
+  </section>
+  <section class="card card-pad">
+    <h3 class="op-h3">Avisar com antecedência</h3>
+    <% if (maintenance.scheduledText) { %>
+      <p class="op-p">Programada para <b><%= maintenance.scheduledText %></b><%= maintenance.scheduledNote ? ' · ' + maintenance.scheduledNote : '' %>. As empresas veem o aviso no app nas 24 h antes.</p>
+      <% if (canOps) { %><form data-action action="/master/operacao/manutencao"><input type="hidden" name="action" value="unschedule"><button class="btn btn-soft btn-block" type="submit">Cancelar aviso</button></form><% } %>
+    <% } else if (canOps) { %>
+      <p class="muted op-p">Só mostra o aviso no app; quem liga a manutenção na hora é você.</p>
+      <form data-action action="/master/operacao/manutencao">
+        <input type="hidden" name="action" value="schedule">
+        <label class="field">Quando (horário de Denver)<input class="input" type="datetime-local" name="scheduledAt" required></label>
+        <label class="field">Observação (opcional)<input class="input" name="note" maxlength="200" placeholder="Leva uns 15 minutos."></label>
+        <button class="btn btn-dark btn-block" type="submit">Programar aviso</button>
+      </form>
+    <% } %>
+  </section>
+</div>
+<%- include('_bottom') %>

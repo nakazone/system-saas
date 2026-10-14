@@ -5,6 +5,7 @@ import { legalPromptEnabled, pendingLegal, recordLegalAcceptance } from "../lega
 import { legalDocuments } from "../legal/documents.js";
 import { requestIp } from "../security/db-rate-limit.js";
 import { supportBanner } from "../support/session.js";
+import { getMaintenance, upcomingNotice } from "../ops/maintenance.js";
 import { FEATURES, LIMITS, getEntitlements, getUsage, hiddenPages } from "../features/index.js";
 import { prisma } from "../prisma.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
@@ -150,6 +151,7 @@ accountBillingRouter.get("/api/account/status", async (req: AuthedRequest, res, 
         legal: canManageBilling(req) && !req.session?.support ? await legalForApp(org.id) : null,
         support: supportBanner(req),
         hidden_pages: await hiddenPages(org.id),
+        maintenance_notice: upcomingNotice(await getMaintenance()),
       },
     });
   } catch (error) {

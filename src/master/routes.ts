@@ -75,6 +75,10 @@ import { createOrganizationWithAdmin, validateSlug } from "../modules/organizati
 import { legalPromptEnabled, legalStatus, setLegalPrompt } from "../lib/legal/acceptance.js";
 import { createSupportSession, endSupportSession, SUPPORT_DURATIONS } from "../lib/support/session.js";
 import { healthOf, invalidateHealth, type OrgHealth } from "./health.js";
+import { jobsOverview, runJobNow } from "../lib/ops/jobs.js";
+import { servicesOverview } from "../lib/ops/checks.js";
+import { getMaintenance, setMaintenance } from "../lib/ops/maintenance.js";
+import { SERVICE_CHECKS_JOB } from "../lib/billing/jobs.js";
 import { activeUsersDaily, activeUsersNow, ensureTodaySnapshot, moduleUsage, movementFrom, mrrByMonth, trialFunnel } from "./metrics.js";
 import { US_TIMEZONES } from "../modules/organizations/signup.js";
 import {
@@ -422,6 +426,7 @@ async function shell(req: MasterRequest, active: string) {
     return d != null && d < 0;
   }).length;
   const openTickets = await prisma.supportTicket.count({ where: { status: "open" } });
+  const opsIssues = await opsIssueCount();
   const signupPending = await prisma.signupRequest.count({ where: { verifiedAt: null, expiresAt: { gt: new Date() } } }).catch(() => 0);
   const nav = [
     { key: "central", label: "Central", href: "/master", icon: "M3 12l9-8 9 8M5 10v10h14V10" },
@@ -435,7 +440,8 @@ async function shell(req: MasterRequest, active: string) {
     { key: "planos", label: "Planos e preços", href: "/master/planos", icon: "M4 4h7l9 9-7 7-9-9zM8 8h.01", hidden: !can(req.master!.role, "billing_full") },
     { key: "recursos", label: "Recursos por plano", href: "/master/recursos", icon: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6M17 14v6", hidden: !can(req.master!.role, "billing_full") },
     { key: "vencimentos", label: "Vencimentos", href: "/master/vencimentos", icon: "M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 13v3l2 1", badge: overdue || null, group: can(req.master!.role, "billing_full") ? undefined : "FINANCEIRO" },
-    { key: "equipe", label: "Equipe e segurança", href: "/master/equipe", icon: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4", group: "SISTEMA" },
+    { key: "operacao", label: "Operação", href: "/master/operacao", icon: "M22 12h-4l-3 9L9 3l-3 9H2", group: "SISTEMA", badge: opsIssues || null },
+    { key: "equipe", label: "Equipe e segurança", href: "/master/equipe", icon: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4" },
     { key: "auditoria", label: "Auditoria", href: "/master/auditoria", icon: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" },
   ].filter((n) => !n.hidden);
   return {
@@ -549,6 +555,14 @@ masterRouter.get(
     const risk = [...healthAll.values()].filter((h) => h.band === "risk");
     if (risk.length) {
       queue.push({ tone: "warn", title: `${risk.length} empresa(s) com saúde em risco`, sub: risk.slice(0, 3).map((h) => `${nameOf.get(h.organizationId)} (${h.score})`).join(", ") + (risk.length > 3 ? "…" : ""), cta: "Ver", href: "/master/clientes?filtro=risco" });
+    }
+    // Operação: services down, jobs late or failing, new errors, maintenance on.
+    const ops = await opsProblems().catch(() => null);
+    if (ops) {
+      if (ops.maintenance.on) queue.unshift({ tone: "danger", title: "Modo manutenção LIGADO", sub: "As empresas estão vendo “Voltamos já”", cta: "Desligar", href: "/master/operacao#manutencao", primary: true });
+      for (const sv of ops.down) queue.unshift({ tone: "danger", title: `${sv.name} fora do ar`, sub: sv.detail.slice(0, 90), cta: "Ver", href: "/master/operacao", primary: true });
+      if (ops.lateJobs.length) queue.push({ tone: "warn", title: ops.lateJobs.length === 1 ? `Job com problema: ${ops.lateJobs[0].label}` : `${ops.lateJobs.length} jobs com problema`, sub: ops.lateJobs.map((j) => `${j.label} (${j.lastOk === false ? "falhou" : "atrasado"})`).slice(0, 3).join(", "), cta: "Ver", href: "/master/operacao#jobs" });
+      if (ops.newErrors.length) queue.push({ tone: "warn", title: `${ops.newErrors.length} erro(s) novo(s) nas últimas 24 h`, sub: ops.newErrors[0].message.slice(0, 90), cta: "Ver", href: "/master/operacao#erros" });
     }
     if (lastLadder && lastLadder.ok === false) {
       queue.unshift({ tone: "danger", title: "A régua de cobrança falhou na última execução", sub: (lastLadder.error || "").slice(0, 90), cta: "Ver", href: "/master/vencimentos", primary: true });
@@ -2276,6 +2290,11 @@ const AUDIT_TEXT: Record<string, string> = {
   "tenant.bulk_reminder": "Enviou lembretes em massa",
   "tenant.suspend": "Suspendeu a empresa",
   "support.start": "Entrou como suporte",
+  "ops.job_run": "Rodou um job na mão",
+  "ops.maintenance_on": "Ligou o modo manutenção",
+  "ops.maintenance_off": "Desligou o modo manutenção",
+  "ops.maintenance_schedule": "Programou manutenção",
+  "ops.maintenance_unschedule": "Cancelou manutenção programada",
   "tenant.details": "Editou os dados da empresa",
   "feature.state": "Mudou um módulo para todas as empresas",
   "plan.features": "Mudou o que o plano inclui",
@@ -2619,6 +2638,196 @@ masterRouter.post(
     const row = await prisma.signupRequest.findUnique({ where: { id }, select: { email: true, organizationName: true } });
     await audit(req, actor(req), "signup.resend", { type: "signup", id, label: row?.organizationName || id, meta: { email: row?.email } });
     ok(res, `Link de confirmação reenviado para ${row?.email}.`);
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Operação: serviços, jobs, erros, modo manutenção
+// ---------------------------------------------------------------------------
+
+const SERVICE_LABEL: Record<string, string> = { ok: "Funcionando", warn: "Atenção", down: "Fora do ar", off: "Não configurado", none: "Sem dado" };
+
+/** Problems the Master should look at (menu badge and Central queue). */
+async function opsProblems() {
+  const [services, jobs, errors, maintenance] = await Promise.all([
+    servicesOverview(),
+    jobsOverview(),
+    prisma.errorGroup.findMany({ where: { status: "open", lastSeen: { gte: new Date(Date.now() - 24 * 3600e3) } }, orderBy: { lastSeen: "desc" }, take: 50 }),
+    getMaintenance(),
+  ]);
+  return {
+    down: services.filter((s) => s.status === "down"),
+    warn: services.filter((s) => s.status === "warn"),
+    lateJobs: jobs.filter((j) => j.canRun && (j.late || j.lastOk === false)),
+    newErrors: errors.filter((e) => Date.now() - e.firstSeen.getTime() < 24 * 3600e3),
+    openErrors: errors,
+    maintenance,
+  };
+}
+
+let opsCountCache: { at: number; n: number } | null = null;
+async function opsIssueCount(): Promise<number> {
+  if (opsCountCache && Date.now() - opsCountCache.at < 60_000) return opsCountCache.n;
+  const p = await opsProblems().catch(() => null);
+  const n = p ? p.down.length + p.lateJobs.length + p.newErrors.length : 0;
+  opsCountCache = { at: Date.now(), n };
+  return n;
+}
+
+function durationText(ms: number | null): string {
+  if (ms == null) return "—";
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+function intervalText(sec: number): string {
+  if (sec >= 86400) return "1× por dia";
+  if (sec >= 3600) return `a cada ${Math.round(sec / 3600)} h`;
+  return `a cada ${Math.round(sec / 60)} min`;
+}
+function ago(d: Date | null): string {
+  if (!d) return "nunca";
+  const s = Math.round((Date.now() - d.getTime()) / 1000);
+  if (s < 90) return "agora";
+  if (s < 3600) return `há ${Math.round(s / 60)} min`;
+  if (s < 86400) return `há ${Math.round(s / 3600)} h`;
+  return dateTimeLabel(d);
+}
+
+masterRouter.get(
+  "/operacao",
+  h(async (req, res) => {
+    const [services, jobs, errors, maintenance] = await Promise.all([
+      servicesOverview(),
+      jobsOverview(),
+      prisma.errorGroup.findMany({ orderBy: [{ status: "asc" }, { lastSeen: "desc" }], take: 60 }),
+      getMaintenance(),
+    ]);
+    const orgIds = [...new Set(errors.map((e) => e.lastOrgId).filter(Boolean))] as string[];
+    const orgNames = new Map((await prisma.organization.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } })).map((o) => [o.id, o.name]));
+    page(res, "operacao", await shell(req, "operacao"), {
+      canOps: can(req.master!.role, "ops_manage"),
+      services: services.map((s) => ({ ...s, statusLabel: SERVICE_LABEL[s.status], checked: ago(s.checkedAt), days: s.days.map((d) => ({ ...d, label: `${d.day.split("-").reverse().slice(0, 2).join("/")}: ${SERVICE_LABEL[d.status]}` })) })),
+      jobs: jobs.map((j) => ({
+        ...j,
+        every: intervalText(j.intervalSec),
+        last: ago(j.lastFinishedAt ?? j.lastStartedAt),
+        duration: durationText(j.lastDurationMs),
+        tone: j.running ? "soft" : j.lastOk === false ? "danger" : j.late ? "warn" : j.lastOk ? "ink" : "muted",
+        state: j.running ? "Rodando" : j.lastOk === false ? "Falhou" : j.late ? "Atrasado" : j.lastOk ? "Em dia" : "Ainda não rodou",
+      })),
+      errors: errors.map((e) => ({
+        fingerprint: e.fingerprint,
+        source: e.source === "browser" ? "Navegador" : "Servidor",
+        message: e.message,
+        where: [e.method, e.path].filter(Boolean).join(" "),
+        stackTop: e.stackTop,
+        count: e.count,
+        first: ago(e.firstSeen),
+        last: ago(e.lastSeen),
+        isNew: Date.now() - e.firstSeen.getTime() < 24 * 3600e3,
+        status: e.status,
+        org: e.lastOrgId ? { id: e.lastOrgId, name: orgNames.get(e.lastOrgId) ?? "empresa" } : null,
+      })),
+      maintenance: {
+        ...maintenance,
+        untilText: maintenance.until ? dateTimeLabel(new Date(maintenance.until)) : null,
+        startedText: maintenance.startedAt ? dateTimeLabel(new Date(maintenance.startedAt)) : null,
+        scheduledText: maintenance.scheduledAt ? dateTimeLabel(new Date(maintenance.scheduledAt)) : null,
+      },
+    });
+  }),
+);
+
+masterRouter.post(
+  "/operacao/checar",
+  requireCap("ops_manage"),
+  h(async (_req, res) => {
+    const r = await runJobNow(SERVICE_CHECKS_JOB);
+    opsCountCache = null;
+    if (!r.ok) return fail(res, 400, r.message);
+    ok(res, "Serviços verificados agora.");
+  }),
+);
+
+masterRouter.post(
+  "/operacao/jobs/:name/rodar",
+  requireCap("ops_manage"),
+  h(async (req, res) => {
+    const name = String(req.params.name);
+    const r = await runJobNow(name);
+    opsCountCache = null;
+    await audit(req, actor(req), "ops.job_run", { type: "job", label: name, meta: r.ok ? { processed: r.processed } : { error: r.message } });
+    if (!r.ok) return fail(res, 400, `Não rodou: ${r.message}`);
+    ok(res, `Rodou${r.processed != null ? ` · ${r.processed} item(ns)` : ""}.`);
+  }),
+);
+
+masterRouter.post(
+  "/operacao/erros/:fp/resolver",
+  requireCap("ops_manage"),
+  h(async (req, res) => {
+    const reopen = String(req.body?.reopen || "") === "1";
+    const r = await prisma.errorGroup.updateMany({ where: { fingerprint: String(req.params.fp) }, data: reopen ? { status: "open", resolvedAt: null } : { status: "resolved", resolvedAt: new Date() } });
+    if (!r.count) return fail(res, 404, "Erro não encontrado.");
+    opsCountCache = null;
+    ok(res, reopen ? "Erro reaberto." : "Marcado como resolvido. Se acontecer de novo, ele reabre sozinho.");
+  }),
+);
+
+const maintenanceSchema = z.object({
+  action: z.enum(["on", "off", "schedule", "unschedule"]),
+  message: z.string().trim().max(300).optional().default(""),
+  until: z.string().optional().default(""),
+  scheduledAt: z.string().optional().default(""),
+  note: z.string().trim().max(200).optional().default(""),
+});
+
+/** datetime-local (Denver wall clock) → ISO. */
+function denverLocalToIso(v: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return null;
+  for (const off of ["-06:00", "-07:00"]) {
+    const d = new Date(`${v}:00${off}`);
+    const back = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Denver", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d).replace(" ", "T");
+    if (back === v) return d.toISOString();
+  }
+  return null;
+}
+
+function stepUpWhenTurningOn(req: MasterRequest, res: Response, next: NextFunction) {
+  if (String(req.body?.action || "") === "on") return requireStepUp(req, res, next);
+  next();
+}
+
+masterRouter.post(
+  "/operacao/manutencao",
+  requireCap("ops_manage"),
+  stepUpWhenTurningOn,
+  h(async (req, res) => {
+    const parsed = maintenanceSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Confira os campos.");
+    const d = parsed.data;
+    if (d.action === "on") {
+      const until = d.until ? denverLocalToIso(d.until) : null;
+      if (d.until && (!until || Date.parse(until) < Date.now())) return fail(res, 400, "A previsão de volta precisa ser no futuro.");
+      await setMaintenance({ on: true, message: d.message, until, startedAt: new Date().toISOString(), scheduledAt: null, scheduledNote: "" });
+      await audit(req, actor(req), "ops.maintenance_on", { type: "setting", label: "Modo manutenção", meta: { message: d.message, until } }, true);
+      return ok(res, "Modo manutenção LIGADO. As empresas veem “Voltamos já”; o Master continua funcionando.");
+    }
+    if (d.action === "off") {
+      const before = await getMaintenance();
+      await setMaintenance({ on: false, message: "", until: null, startedAt: null });
+      await audit(req, actor(req), "ops.maintenance_off", { type: "setting", label: "Modo manutenção", meta: { startedAt: before.startedAt } });
+      return ok(res, "Modo manutenção desligado. O sistema voltou para todos.");
+    }
+    if (d.action === "schedule") {
+      const at = denverLocalToIso(d.scheduledAt);
+      if (!at || Date.parse(at) < Date.now()) return fail(res, 400, "Escolha data e hora no futuro.");
+      await setMaintenance({ scheduledAt: at, scheduledNote: d.note });
+      await audit(req, actor(req), "ops.maintenance_schedule", { type: "setting", label: "Manutenção programada", meta: { at, note: d.note } });
+      return ok(res, "Manutenção programada. As empresas veem o aviso no app nas 24 h antes.");
+    }
+    await setMaintenance({ scheduledAt: null, scheduledNote: "" });
+    await audit(req, actor(req), "ops.maintenance_unschedule", { type: "setting", label: "Manutenção programada" });
+    ok(res, "Aviso de manutenção cancelado.");
   }),
 );
 

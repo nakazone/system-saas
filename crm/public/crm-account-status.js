@@ -228,6 +228,59 @@
     setTimeout(offsetTopBars, 2500);
   }
 
+  // Scheduled maintenance within 24 h: info banner (dismissible for the session).
+  function renderMaintenance(n) {
+    var old = document.getElementById("omMaintBanner");
+    if (old) old.remove();
+    if (!n || !n.at) return;
+    var key = "om_maint_hide_" + n.at;
+    try { if (sessionStorage.getItem(key)) return; } catch (e) { /* ignore */ }
+    css();
+    var when = new Date(n.at);
+    var txt = "Manutenção programada " + when.toLocaleString("pt-BR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + ". O sistema fica fora do ar por alguns minutos." + (n.note ? " " + n.note : "");
+    var el = document.createElement("div");
+    el.id = "omMaintBanner";
+    el.className = "om-acct om-acct--info";
+    el.setAttribute("role", "status");
+    var t = document.createElement("span");
+    t.className = "om-acct__text";
+    t.textContent = txt;
+    el.appendChild(t);
+    var x = document.createElement("button");
+    x.className = "om-acct__x";
+    x.type = "button";
+    x.setAttribute("aria-label", "Fechar aviso");
+    x.textContent = "×";
+    x.onclick = function () { try { sessionStorage.setItem(key, "1"); } catch (e) { /* ignore */ } el.remove(); };
+    el.appendChild(x);
+    var host = document.querySelector(".dashboard-main") || document.querySelector("main") || document.body;
+    host.insertBefore(el, host.firstChild);
+  }
+
+  // Uncaught browser errors go to Master › Operação (max 5 per page; noise ignored).
+  var errSent = 0;
+  var IGNORE = /^(Script error\.?|ResizeObserver loop|Non-Error promise rejection)/i;
+  function reportError(message, source, line) {
+    if (!message || errSent >= 5 || IGNORE.test(String(message))) return;
+    errSent++;
+    try {
+      origFetch("/api/client-errors", {
+        method: "POST",
+        credentials: "include",
+        keepalive: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: String(message).slice(0, 500), source: String(source || "").split("?")[0].slice(0, 160), line: line || 0, page: location.pathname }),
+      }).catch(function () {});
+    } catch (e) { /* ignore */ }
+  }
+  window.addEventListener("error", function (e) {
+    if (e && e.message) reportError(e.message, e.filename, e.lineno);
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e && e.reason;
+    reportError(r && r.message ? r.message : String(r || ""), r && r.stack ? String(r.stack).split("\n")[1] : "", 0);
+  });
+
   // Modules outside the company's plan: hide every link to their pages (dock, menu, tab bar, shortcuts).
   function hidePages(pages) {
     var old = document.getElementById("om-plan-hide");
@@ -296,6 +349,7 @@
         state.canManage = !!j.data.can_manage_billing;
         renderSupport(j.data.support || null);
         hidePages(j.data.hidden_pages || []);
+        renderMaintenance(j.data.maintenance_notice || null);
         document.documentElement.classList.toggle("om-read-only", state.mode === "read_only");
         renderBanner();
         legalModal(j.data.legal);

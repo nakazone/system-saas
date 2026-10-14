@@ -2,6 +2,7 @@
  * Remind crews before a scheduled job starts, nudge at start time, and
  * optionally move office status to in_progress (never auto-advances Campo fieldStatus).
  */
+import { registerJob, trackRun } from "../ops/jobs.js";
 import { prisma } from "../prisma.js";
 import { withTenantTransaction } from "../tenant/prisma-tenant.js";
 import { parseAutomationSettings } from "../automations/settings.js";
@@ -218,8 +219,9 @@ let timer: ReturnType<typeof setInterval> | null = null;
 /** Poll every 2 minutes for upcoming / due job starts. */
 export function startJobStartReminderJob(intervalMs = 2 * 60 * 1000): void {
   if (timer) return;
+  registerJob({ name: "job-start-reminder", label: "Lembrete de início de job", intervalMs, run: processDueJobStartReminders });
   const run = () => {
-    processDueJobStartReminders().catch((err) => {
+    trackRun("job-start-reminder", processDueJobStartReminders).catch((err) => {
       console.error("[job-start-reminder]", err);
     });
   };

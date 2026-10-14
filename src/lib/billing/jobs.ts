@@ -2,6 +2,10 @@ import { prisma } from "../prisma.js";
 import { PLATFORM_TZ, ymdInTz } from "../../master/lib.js";
 import { runBillingLadder } from "./dunning.js";
 import { takeSnapshot } from "../../master/metrics.js";
+import { registerJob, trackRun } from "../ops/jobs.js";
+import { runServiceChecks, SERVICES } from "../ops/checks.js";
+import { email as emailProvider } from "../email/index.js";
+import { env } from "../../config/env.js";
 
 /** Runs a background job and records it in JobRun (shown in the Master). */
 export async function runJob<T>(name: string, trigger: "schedule" | "manual", fn: () => Promise<T & { processed?: number }>): Promise<T> {
@@ -51,8 +55,42 @@ export async function metricsDue(now = new Date()): Promise<boolean> {
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
+const DAY_MS = 86400e3;
+export const SERVICE_CHECKS_JOB = "service-checks";
+
+const metricsRun = () => runJob(DAILY_METRICS_JOB, "manual", async () => ({ processed: (await takeSnapshot()).paying }));
+const ladderRun = () => runJob(BILLING_LADDER_JOB, "manual", () => runBillingLadder());
+
+/** Service checks, plus an e-mail to the Master when a service goes down (only on the change). */
+export async function serviceChecksWithAlert() {
+  const before = await prisma.serviceCheck.findMany({ where: { checkedAt: { gte: new Date(Date.now() - 2 * 3600e3) } }, orderBy: { checkedAt: "desc" }, take: 60 });
+  const lastStatus = new Map<string, string>();
+  for (const r of before) if (!lastStatus.has(r.service)) lastStatus.set(r.service, r.status);
+  const out = await runServiceChecks();
+  const newlyDown = out.results.filter((r) => r.status === "down" && lastStatus.get(r.service) !== "down");
+  if (newlyDown.length) {
+    const master = await prisma.platformAdmin.findFirst({ where: { role: "MASTER", status: "active" }, select: { email: true } });
+    if (master) {
+      const names = newlyDown.map((r) => `${SERVICES.find((x) => x.key === r.service)?.name ?? r.service}: ${r.detail}`);
+      await emailProvider
+        .send({
+          to: master.email,
+          subject: `[ObraMate] Serviço fora do ar: ${newlyDown.map((r) => SERVICES.find((x) => x.key === r.service)?.name ?? r.service).join(", ")}`,
+          text: [...names, "", `Veja em ${env.APP_BASE_URL.replace(/\/$/, "")}/master/operacao`].join("\n"),
+        })
+        .catch((e) => console.error("[ops] alert e-mail failed", e));
+    }
+  }
+  return { checked: out.checked, down: out.down };
+}
+
+registerJob({ name: SERVICE_CHECKS_JOB, label: "Checagem dos serviços", intervalMs: 15 * 60e3, run: serviceChecksWithAlert });
+registerJob({ name: DAILY_METRICS_JOB, label: "Foto diária das métricas", intervalMs: DAY_MS, run: metricsRun });
+if (process.env.BILLING_LADDER !== "off") registerJob({ name: BILLING_LADDER_JOB, label: "Régua de cobrança", intervalMs: DAY_MS, run: ladderRun });
+
 /**
  * Checks every 15 min:
+ *  - external services (Master › Operação; e-mail to the Master when one goes down);
  *  - metrics snapshot once a day (first check after midnight, America/Denver);
  *  - billing ladder once a day after 06:00 (off with BILLING_LADDER=off).
  */
@@ -62,12 +100,17 @@ export function startPlatformJobs(): void {
     if (running) return;
     running = true;
     try {
-      if (await metricsDue()) await runJob(DAILY_METRICS_JOB, "schedule", async () => ({ processed: (await takeSnapshot()).paying }));
+      await trackRun(SERVICE_CHECKS_JOB, serviceChecksWithAlert);
+    } catch (error) {
+      console.error("[jobs] service checks failed", error);
+    }
+    try {
+      if (await metricsDue()) await trackRun(DAILY_METRICS_JOB, () => runJob(DAILY_METRICS_JOB, "schedule", async () => ({ processed: (await takeSnapshot()).paying })));
     } catch (error) {
       console.error("[jobs] metrics snapshot failed", error);
     }
     try {
-      if (process.env.BILLING_LADDER !== "off" && (await ladderDue())) await runJob(BILLING_LADDER_JOB, "schedule", () => runBillingLadder());
+      if (process.env.BILLING_LADDER !== "off" && (await ladderDue())) await trackRun(BILLING_LADDER_JOB, () => runJob(BILLING_LADDER_JOB, "schedule", () => runBillingLadder()));
     } catch (error) {
       console.error("[jobs] billing ladder failed", error);
     } finally {
