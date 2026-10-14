@@ -1,0 +1,53 @@
+<%# Form for a new or existing in-app notice. Needs: a (or null), kinds, planOpts, orgOpts, totalOrgs %>
+<% var isNew = !a; var fid = isNew ? 'new' : a.id; %>
+<dialog id="dlg-ann-<%= fid %>" aria-labelledby="t-ann-<%= fid %>">
+  <div class="modal modal-wide cm-modal">
+    <div class="modal-head"><div><h2 id="t-ann-<%= fid %>"><%= isNew ? 'Novo aviso no app' : 'Editar aviso' %></h2><p>Aparece no topo de todas as telas do ObraMate para as empresas escolhidas.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/comunicacao/avisos<%= isNew ? '' : '/' + a.id %>" data-ann-form data-stepup="Aviso urgente para todas as empresas">
+      <fieldset class="cm-fs"><legend class="cm-legend">Tipo</legend>
+        <div class="seg-pick cards cm-kinds">
+          <% kinds.forEach(function (k) { %>
+            <label><input type="radio" name="kind" value="<%= k.key %>" <%= (isNew ? k.key === 'info' : a.kind === k.key) ? 'checked' : '' %>><span><b class="cm-kind-name"><i class="cm-kdot k-<%= k.key %>" aria-hidden="true"></i><%= k.label %></b><small><%= k.hint %></small></span></label>
+          <% }) %>
+        </div>
+      </fieldset>
+      <label class="field">Título<input class="input" name="title" required maxlength="80" value="<%= isNew ? '' : a.title %>" placeholder="ex.: Novo: fotos direto do celular no Job" data-ann-title></label>
+      <label class="field">Mensagem <small class="muted" data-count-for="body-<%= fid %>"></small><textarea class="input" id="body-<%= fid %>" name="body" maxlength="400" rows="3" placeholder="Uma ou duas frases. O que mudou, o que a pessoa precisa fazer." data-ann-body data-count><%= isNew ? '' : a.body %></textarea></label>
+      <fieldset class="cm-fs"><legend class="cm-legend">Para quem</legend>
+        <div class="seg-pick">
+          <label><input type="radio" name="audience" value="all" <%= isNew || a.audience === 'all' ? 'checked' : '' %>><span>Todas as empresas (<%= totalOrgs %>)</span></label>
+          <label><input type="radio" name="audience" value="plans" <%= !isNew && a.audience === 'plans' ? 'checked' : '' %>><span>Por plano</span></label>
+          <label><input type="radio" name="audience" value="companies" <%= !isNew && a.audience === 'companies' ? 'checked' : '' %>><span>Empresas escolhidas</span></label>
+        </div>
+        <div class="cm-aud" data-aud="plans">
+          <% planOpts.forEach(function (p) { %>
+            <label class="check"><input type="checkbox" name="plans" value="<%= p.key %>" <%= !isNew && a.plans.indexOf(p.key) >= 0 ? 'checked' : '' %>> <%= p.label %> <small class="muted"><%= p.count %> empresa(s)</small></label>
+          <% }) %>
+        </div>
+        <div class="cm-aud" data-aud="companies">
+          <label class="search cm-org-search"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg><input type="search" placeholder="Filtrar empresas" aria-label="Filtrar empresas" data-org-filter></label>
+          <div class="cm-orgs" data-org-list>
+            <% orgOpts.forEach(function (o) { %>
+              <label class="check" data-name="<%= o.name.toLowerCase() %>"><input type="checkbox" name="orgs" value="<%= o.id %>" <%= !isNew && a.organizationIds.indexOf(o.id) >= 0 ? 'checked' : '' %>> <span><%= o.name %> <small class="muted"><%= o.plan %></small></span></label>
+            <% }) %>
+          </div>
+          <small class="muted" data-org-picked></small>
+        </div>
+      </fieldset>
+      <div class="form-row">
+        <label class="field">Link (opcional)<input class="input" name="linkUrl" maxlength="500" value="<%= isNew ? '' : (a.linkUrl || '') %>" placeholder="https://… ou /configuracoes.html" data-ann-link></label>
+        <label class="field">Texto do botão<input class="input" name="linkLabel" maxlength="30" value="<%= isNew ? '' : (a.linkLabel || '') %>" placeholder="Saiba mais" data-ann-linklabel></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Começa (horário de Denver)<input class="input" type="datetime-local" name="startsAt" value="<%= isNew ? '' : a.startsLocal %>"><small class="muted">Vazio = agora</small></label>
+        <label class="field">Termina (opcional)<input class="input" type="datetime-local" name="endsAt" value="<%= isNew ? '' : a.endsLocal %>"><small class="muted">Vazio = até você tirar do ar</small></label>
+      </div>
+      <div class="cm-preview-wrap">
+        <span class="cm-legend">Prévia — como aparece no app</span>
+        <div class="cm-ann-preview" data-ann-preview aria-hidden="true"></div>
+      </div>
+      <button class="btn btn-dark btn-block" type="submit"><%= isNew ? 'Publicar aviso' : 'Salvar aviso' %></button>
+    </form>
+  </div>
+</dialog>

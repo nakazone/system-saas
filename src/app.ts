@@ -47,6 +47,7 @@ import { assessmentsRouter } from "./modules/assessments/routes.js";
 import { platformAdminRouter } from "./platform-admin/routes.js";
 import { masterRouter } from "./master/routes.js";
 import { stripeWebhookRouter } from "./lib/billing/webhook.js";
+import { resendWebhookRouter } from "./lib/email/delivery.js";
 import { accountBillingRouter, enforceAccountAccess } from "./lib/billing/access.js";
 import { supportEntryRouter, supportGuard, supportSessionApi } from "./lib/support/session.js";
 import { featureGuard } from "./lib/features/index.js";
@@ -83,6 +84,7 @@ export function createApp() {
 
   // Stripe needs the raw body to check the signature: before the JSON parser.
   app.use(stripeWebhookRouter);
+  app.use(resendWebhookRouter);
   app.use(express.urlencoded({ extended: true, limit: "15mb" }));
   app.use(express.json({ limit: "15mb" }));
   app.use(cookieParser());

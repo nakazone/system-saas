@@ -6,6 +6,7 @@ import { registerJob, trackRun } from "../ops/jobs.js";
 import { runServiceChecks, SERVICES } from "../ops/checks.js";
 import { email as emailProvider } from "../email/index.js";
 import { env } from "../../config/env.js";
+import { cleanupEmailLog, EMAIL_LOG_CLEANUP_JOB } from "../email/delivery.js";
 
 /** Runs a background job and records it in JobRun (shown in the Master). */
 export async function runJob<T>(name: string, trigger: "schedule" | "manual", fn: () => Promise<T & { processed?: number }>): Promise<T> {
@@ -52,6 +53,12 @@ export async function metricsDue(now = new Date()): Promise<boolean> {
   return !last || ymdInTz(last.startedAt) !== ymdInTz(now);
 }
 
+/** True when a daily job tracked in JobStatus has not finished today (platform time). */
+async function dailyDue(name: string, now = new Date()): Promise<boolean> {
+  const st = await prisma.jobStatus.findUnique({ where: { name }, select: { lastFinishedAt: true, lastOk: true } }).catch(() => null);
+  return !st?.lastFinishedAt || !st.lastOk || ymdInTz(st.lastFinishedAt) !== ymdInTz(now);
+}
+
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
@@ -77,6 +84,7 @@ export async function serviceChecksWithAlert() {
           to: master.email,
           subject: `[ObraMate] Serviço fora do ar: ${newlyDown.map((r) => SERVICES.find((x) => x.key === r.service)?.name ?? r.service).join(", ")}`,
           text: [...names, "", `Veja em ${env.APP_BASE_URL.replace(/\/$/, "")}/master/operacao`].join("\n"),
+          meta: { category: "internal", template: "ops_alert", organizationId: null },
         })
         .catch((e) => console.error("[ops] alert e-mail failed", e));
     }
@@ -86,12 +94,14 @@ export async function serviceChecksWithAlert() {
 
 registerJob({ name: SERVICE_CHECKS_JOB, label: "Checagem dos serviços", intervalMs: 15 * 60e3, run: serviceChecksWithAlert });
 registerJob({ name: DAILY_METRICS_JOB, label: "Foto diária das métricas", intervalMs: DAY_MS, run: metricsRun });
+registerJob({ name: EMAIL_LOG_CLEANUP_JOB, label: "Limpeza do registro de e-mails (90 dias)", intervalMs: DAY_MS, run: cleanupEmailLog });
 if (process.env.BILLING_LADDER !== "off") registerJob({ name: BILLING_LADDER_JOB, label: "Régua de cobrança", intervalMs: DAY_MS, run: ladderRun });
 
 /**
  * Checks every 15 min:
  *  - external services (Master › Operação; e-mail to the Master when one goes down);
  *  - metrics snapshot once a day (first check after midnight, America/Denver);
+ *  - e-mail send log trimmed to 90 days once a day;
  *  - billing ladder once a day after 06:00 (off with BILLING_LADDER=off).
  */
 export function startPlatformJobs(): void {
@@ -108,6 +118,11 @@ export function startPlatformJobs(): void {
       if (await metricsDue()) await trackRun(DAILY_METRICS_JOB, () => runJob(DAILY_METRICS_JOB, "schedule", async () => ({ processed: (await takeSnapshot()).paying })));
     } catch (error) {
       console.error("[jobs] metrics snapshot failed", error);
+    }
+    try {
+      if (await dailyDue(EMAIL_LOG_CLEANUP_JOB)) await trackRun(EMAIL_LOG_CLEANUP_JOB, () => cleanupEmailLog());
+    } catch (error) {
+      console.error("[jobs] e-mail log cleanup failed", error);
     }
     try {
       if (process.env.BILLING_LADDER !== "off" && (await ladderDue())) await trackRun(BILLING_LADDER_JOB, () => runJob(BILLING_LADDER_JOB, "schedule", () => runBillingLadder()));

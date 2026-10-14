@@ -199,6 +199,92 @@ model ErrorGroup {
   @@index([lastSeen])
 }
 
+/// In-app notice from the platform to companies (Master › Comunicação).
+model PlatformAnnouncement {
+  id              String    @id @default(uuid()) @db.Uuid
+  title           String
+  body            String    @db.Text
+  kind            String    @default("info") // info | maintenance | urgent (urgent can't be closed)
+  audience        String    @default("all") // all | plans | companies
+  plans           String[]  @default([])
+  organizationIds String[]  @default([]) @db.Uuid
+  linkUrl         String?
+  linkLabel       String?
+  startsAt        DateTime  @default(now())
+  endsAt          DateTime?
+  /// Taken down by the Master before endsAt.
+  endedAt         DateTime?
+  createdById     String?   @db.Uuid
+  createdByName   String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  receipts        PlatformAnnouncementReceipt[]
+
+  @@index([startsAt])
+}
+
+/// Who saw / closed each notice (one row per user).
+model PlatformAnnouncementReceipt {
+  announcementId String               @db.Uuid
+  userId         String               @db.Uuid
+  organizationId String               @db.Uuid
+  seenAt         DateTime             @default(now())
+  dismissedAt    DateTime?
+  announcement   PlatformAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@id([announcementId, userId])
+  @@index([organizationId])
+}
+
+/// Master edits of the platform e-mails (missing row = default text from code).
+model PlatformEmailTemplate {
+  key           String
+  locale        String // en | pt
+  subject       String
+  body          String   @db.Text
+  buttonLabel   String?
+  updatedById   String?  @db.Uuid
+  updatedByName String
+  updatedAt     DateTime @updatedAt
+
+  @@id([key, locale])
+}
+
+/// Every e-mail the system sends (kept 90 days). Status follows the Resend webhook.
+model PlatformEmailLog {
+  id             String    @id @default(uuid()) @db.Uuid
+  createdAt      DateTime  @default(now())
+  /// platform (ObraMate → company) | company (company → its client/team) | internal (to the Master team)
+  category       String
+  templateKey    String?
+  toEmail        String
+  subject        String
+  organizationId String?   @db.Uuid
+  provider       String // resend | console
+  providerId     String?
+  /// sent | delivered | opened | clicked | delayed | bounced | complained | failed | blocked | console
+  status         String
+  error          String?
+  lastEventAt    DateTime?
+  openedAt       DateTime?
+  /// [{ type, at }]
+  events         Json?
+
+  @@index([createdAt])
+  @@index([toEmail])
+  @@index([providerId])
+  @@index([organizationId, createdAt])
+}
+
+/// Addresses the system no longer e-mails (hard bounce, spam complaint or added by hand).
+model EmailSuppression {
+  email         String   @id
+  reason        String // bounce | complaint | manual
+  detail        String?
+  createdAt     DateTime @default(now())
+  createdByName String?
+}
+
 /// Daily snapshot of the business numbers (taken after midnight America/Denver). History for Métricas.
 model PlatformDailyMetric {
   day        String   @id // YYYY-MM-DD (America/Denver)

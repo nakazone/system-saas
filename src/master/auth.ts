@@ -234,7 +234,7 @@ export async function sendActivationEmail(to: string, name: string, link: string
     "O link vale por 48 horas e só pode ser usado uma vez.",
   ].join("\n");
   try {
-    await emailProvider.send({ to, subject, text });
+    await emailProvider.send({ to, subject, text, meta: { category: "internal", template: "master_access", organizationId: null } });
   } catch (error) {
     console.error("[master] activation e-mail failed", error);
   }

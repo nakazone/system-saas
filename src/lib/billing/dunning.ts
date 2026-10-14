@@ -1,6 +1,6 @@
 import { prisma } from "../prisma.js";
-import { email as emailProvider } from "../email/index.js";
-import { daysUntil, ymdInTz, planLabel, cyclePriceCents, money, PLATFORM_TZ } from "../../master/lib.js";
+import { sendPlatformEmail, templateDef, dateVar, type Vars, type VarValue } from "../email/templates.js";
+import { daysUntil, ymdInTz, planLabel, cyclePriceCents, money } from "../../master/lib.js";
 import { plans } from "../../master/plans.js";
 import { workspacePage } from "./stripe.js";
 import { systemAudit } from "./audit.js";
@@ -125,8 +125,8 @@ async function candidates() {
   });
 }
 
-async function recipient(org: OrgRow): Promise<{ email: string; name: string } | null> {
-  if (org.billingContactEmail) return { email: org.billingContactEmail, name: "there" };
+async function recipient(org: OrgRow): Promise<{ email: string; name: VarValue } | null> {
+  if (org.billingContactEmail) return { email: org.billingContactEmail, name: { en: "there", pt: "equipe" } };
   const owner = await prisma.user.findFirst({
     where: { organizationId: org.id, role: { key: "admin" }, status: "active" },
     orderBy: { createdAt: "asc" },
@@ -135,48 +135,36 @@ async function recipient(org: OrgRow): Promise<{ email: string; name: string } |
   return owner ? { email: owner.email, name: owner.name.split(" ")[0] || owner.name } : null;
 }
 
-const fmt = (d: Date) => new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: PLATFORM_TZ }).format(d);
+const TEMPLATE_KEY: Record<Exclude<Template, "none">, string> = {
+  trial_ending: "trial_ending",
+  trial_ended: "trial_ended",
+  renewal_soon: "renewal_soon",
+  past_due: "payment_overdue",
+  overdue: "payment_overdue",
+  read_only: "account_read_only",
+  suspended: "account_suspended",
+};
 
-function render(t: Template, org: OrgRow, due: Date, name: string): { subject: string; text: string } | null {
-  const link = workspacePage(org.slug);
-  const price = `${money(cyclePriceCents(org))}/${org.billingCycle === "annual" ? "year" : "month"}`;
-  const sign = "\n\n— The ObraMate team";
-  const left = daysUntil(due) ?? 0;
-  switch (t) {
-    case "trial_ending":
-      return {
-        subject: left <= 1 ? "Your ObraMate trial ends tomorrow" : `Your ObraMate trial ends in ${left} days`,
-        text: `Hi ${name},\n\nYour free trial for ${org.name} ends on ${fmt(due)}. Subscribe to keep creating quotes, jobs and invoices:\n${link}\n\nAfter the trial your data stays safe and the account becomes read-only until you subscribe.${sign}`,
-      };
-    case "trial_ended":
-      return {
-        subject: "Your ObraMate trial has ended",
-        text: `Hi ${name},\n\nYour free trial for ${org.name} ended on ${fmt(due)}. Your account is now read-only: you can see everything, but you can't create or edit until you subscribe.\n\nSubscribe here: ${link}${sign}`,
-      };
-    case "renewal_soon":
-      return {
-        subject: "Your ObraMate plan renews soon",
-        text: `Hi ${name},\n\nYour ObraMate ${planLabel(org.plan)} plan for ${org.name} (${price}) renews on ${fmt(due)}. Reply to this e-mail if you need anything.${sign}`,
-      };
-    case "past_due":
-    case "overdue":
-      return {
-        subject: "Your ObraMate payment is overdue",
-        text: `Hi ${name},\n\nWe couldn't collect the payment for ${org.name} (${planLabel(org.plan)}, ${price}), due on ${fmt(due)}. Please update your payment here:\n${link}\n\nYour account becomes read-only if the payment is still open a few days from now.${sign}`,
-      };
-    case "read_only":
-      return {
-        subject: "Your ObraMate account is now read-only",
-        text: `Hi ${name},\n\nThe payment for ${org.name} is still open, so the account is now read-only. Your data is safe. Pay here to unlock it right away:\n${link}${sign}`,
-      };
-    case "suspended":
-      return {
-        subject: "Your ObraMate account was suspended",
-        text: `Hi ${name},\n\nAccess to ${org.name} on ObraMate was suspended because the ${org.status === "trial" || !org.currentPeriodEnd ? "trial ended without a subscription" : "payment is still open"}. Your data is kept. Reply to this e-mail to restore access.${sign}`,
-      };
-    default:
-      return null;
-  }
+/** Template + values for a ladder step (text lives in Master › Comunicação › Modelos de e-mail). */
+export function ladderEmail(t: Template, org: OrgRow, due: Date, name: VarValue): { key: string; vars: Vars } | null {
+  if (t === "none") return null;
+  const cycle = org.billingCycle === "annual";
+  const amount = money(cyclePriceCents(org));
+  const left = Math.max(0, daysUntil(due) ?? 0);
+  const trialNoSub = org.status === "trial" || !org.currentPeriodEnd;
+  const vars: Vars = {
+    name,
+    company: org.name,
+    date: dateVar(due),
+    link: workspacePage(org.slug),
+    plan: planLabel(org.plan),
+    price: { en: `${amount}/${cycle ? "year" : "month"}`, pt: `${amount}/${cycle ? "ano" : "mês"}` },
+    ends_in: left <= 1 ? { en: "tomorrow", pt: "amanhã" } : { en: `in ${left} days`, pt: `em ${left} dias` },
+    reason: trialNoSub
+      ? { en: "the trial ended without a subscription", pt: "o teste acabou sem assinatura" }
+      : { en: "the payment is still open", pt: "o pagamento continua em aberto" },
+  };
+  return { key: TEMPLATE_KEY[t], vars };
 }
 
 export type LadderResult = { checked: number; emails: number; changes: { org: string; to: string }[]; skipped: number };
@@ -225,12 +213,16 @@ export async function runBillingLadder(now = new Date(), opts: { dryRun?: boolea
         (s.action === "state" ? action === "state" : (RANK[status] ?? 0) <= RANK.past_due);
       if (sendable && !opts.dryRun) {
         const to = await recipient(org);
-        const msg = to ? render(s.template, org, due, to.name) : null;
+        const msg = to ? ladderEmail(s.template, org, due, to.name) : null;
         if (to && msg) {
-          await emailProvider.send({ to: to.email, subject: msg.subject, text: msg.text }).catch((e) => console.error("[ladder] email failed", e));
+          const out = await sendPlatformEmail(msg.key, { to: to.email, organizationId: org.id, vars: msg.vars }).catch((e) => {
+            console.error("[ladder] email failed", e);
+            return null;
+          });
           result.emails++;
           if (action !== "state") action = "email";
-          detail = `${detail ? detail + " · " : ""}${msg.subject} → ${to.email}`;
+          const name = templateDef(msg.key)?.name ?? msg.key;
+          detail = `${detail ? detail + " · " : ""}${name} → ${to.email}${out?.skipped ? " (bloqueado)" : ""}`;
         }
       }
       if (!opts.dryRun) {

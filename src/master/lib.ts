@@ -34,7 +34,8 @@ export type Capability =
   | "team_manage"
   | "plans_manage"
   | "support_enter"
-  | "ops_manage";
+  | "ops_manage"
+  | "comms_manage";
 
 export const CAPABILITIES: { key: Capability; label: string }[] = [
   { key: "view", label: "Ver empresas, usuários e contatos" },
@@ -48,11 +49,12 @@ export const CAPABILITIES: { key: Capability; label: string }[] = [
   { key: "plans_manage", label: "Planos e preços" },
   { key: "support_enter", label: "Entrar como suporte (só leitura)" },
   { key: "ops_manage", label: "Operação: rodar jobs, resolver erros, modo manutenção" },
+  { key: "comms_manage", label: "Comunicação: avisos no app e modelos de e-mail" },
 ];
 
 const MATRIX: Record<PlatformRole, Capability[]> = {
-  MASTER: ["view", "billing_full", "billing_manage", "refund", "users_manage", "tenants_suspend", "export", "team_manage", "plans_manage", "support_enter", "ops_manage"],
-  ADMIN: ["view", "billing_full", "billing_manage", "users_manage", "tenants_suspend", "support_enter", "ops_manage"],
+  MASTER: ["view", "billing_full", "billing_manage", "refund", "users_manage", "tenants_suspend", "export", "team_manage", "plans_manage", "support_enter", "ops_manage", "comms_manage"],
+  ADMIN: ["view", "billing_full", "billing_manage", "users_manage", "tenants_suspend", "support_enter", "ops_manage", "comms_manage"],
   FINANCE: ["view", "billing_full", "billing_manage"],
   SUPPORT: ["view", "users_manage", "support_enter"],
   READONLY: ["view"],
