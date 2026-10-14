@@ -3,6 +3,11 @@ import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
 import { quoteInvoiceLines, quoteReferenceNoteOf } from "../invoices/job.js";
 import {
+  maybeCreditReferralOnInvoicePaid,
+  redeemReferralCredit,
+  referralBalanceCents,
+} from "../referrals/engine.js";
+import {
   DEFAULT_PAYMENT_TEMPLATES,
   type PaymentTemplateItemInput,
 } from "./defaults.js";
@@ -697,6 +702,15 @@ export async function recordInvoicePayment(
     throw new Error("Payment exceeds invoice balance");
   }
 
+  const method = String(params.method || "").toLowerCase() || null;
+  if (method === "referral_credit") {
+    if (!invoice.customerId) throw new Error("Fatura sem cliente para usar cashback.");
+    const balC = await referralBalanceCents(tx, invoice.customerId);
+    if (amountCents > balC + 1) {
+      throw new Error(`Saldo de cashback insuficiente (disponível $${fromCents(balC).toFixed(2)}).`);
+    }
+  }
+
   const receiptNumber = await nextReceiptNumber(tx, params.organizationId);
   const receipt = await tx.invoiceReceipt.create({
     data: {
@@ -706,13 +720,24 @@ export async function recordInvoicePayment(
       createdById: params.actorId || null,
       amount: new Prisma.Decimal(fromCents(amountCents).toFixed(2)),
       paidAt: params.paidAt ?? new Date(),
-      method: params.method || null,
+      method,
       referenceNumber: params.referenceNumber || null,
       notes: params.notes || null,
       externalPaymentId: params.externalPaymentId || null,
       processor: params.processor || null,
     },
   });
+
+  if (method === "referral_credit" && invoice.customerId) {
+    await redeemReferralCredit(tx, {
+      organizationId: params.organizationId,
+      customerId: invoice.customerId,
+      amount: fromCents(amountCents),
+      invoiceId: invoice.id,
+      invoiceReceiptId: receipt.id,
+      actorId: params.actorId,
+    });
+  }
 
   const newPaid = alreadyPaid + amountCents;
   const status = deriveInvoiceStatus({
@@ -753,10 +778,18 @@ export async function recordInvoicePayment(
     changes: {
       receipt: { from: null, to: receiptNumber },
       amount: { from: null, to: fromCents(amountCents) },
-      method: { from: null, to: params.method || null },
+      method: { from: null, to: method },
       status: { from: invoice.status, to: status },
     },
   });
+
+  if (status === "paid") {
+    await maybeCreditReferralOnInvoicePaid(tx, {
+      organizationId: params.organizationId,
+      invoiceId: invoice.id,
+      actorId: params.actorId,
+    });
+  }
 
   return receipt;
 }

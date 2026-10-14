@@ -402,6 +402,8 @@ function mapCustomer(c: {
   storageStatus?: string | null;
   storageNotes?: string | null;
   leadId: string | null;
+  referredByCustomerId?: string | null;
+  referralCode?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -425,9 +427,32 @@ function mapCustomer(c: {
     storage_status: normalizeYnStatus(c.storageStatus) || "unknown",
     storage_notes: c.storageNotes ?? null,
     lead_id: c.leadId,
+    referred_by_customer_id: c.referredByCustomerId ?? null,
+    referral_code: c.referralCode ?? null,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   };
+}
+
+async function resolveReferredById(
+  tx: { customer: { findFirst: Function } },
+  organizationId: string,
+  raw: unknown,
+  selfId?: string | null,
+): Promise<string | null | undefined> {
+  if (raw === undefined) return undefined;
+  if (raw === null || raw === "") return null;
+  const id = String(raw);
+  if (selfId && id === selfId) throw new Error("Cliente não pode indicar a si mesmo.");
+  const referrer = await tx.customer.findFirst({
+    where: { id, organizationId },
+    select: { id: true, customerType: true },
+  });
+  if (!referrer) throw new Error("Indicador não encontrado.");
+  if (String(referrer.customerType || "").toLowerCase() !== "particular") {
+    throw new Error("Só Particular pode indicar (programa de cashback).");
+  }
+  return referrer.id;
 }
 
 function normalizeCustomerType(raw: unknown): string {
@@ -1039,6 +1064,7 @@ customersQuotesRouter.post(
           storage_status: z.string().optional().nullable(),
           storage_notes: z.string().optional().nullable(),
           lead_id: z.string().uuid().optional().nullable(),
+          referred_by_customer_id: z.string().uuid().optional().nullable(),
         })
         .safeParse(req.body);
       if (!parsed.success) {
@@ -1050,6 +1076,16 @@ customersQuotesRouter.post(
         pricingMode === "custom"
           ? normalizeCustomPricingRates(parsed.data.custom_pricing_rates)
           : {};
+      let referredByCustomerId: string | null = null;
+      try {
+        const resolved = await withTenantTransaction(req.organizationId!, (tx) =>
+          resolveReferredById(tx, req.organizationId!, parsed.data.referred_by_customer_id, null),
+        );
+        if (resolved !== undefined) referredByCustomerId = resolved;
+      } catch (e) {
+        res.status(400).json({ success: false, error: e instanceof Error ? e.message : "Indicador inválido" });
+        return;
+      }
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const customerType = normalizeCustomerType(parsed.data.customer_type);
         const isOrgType = customerType === "builder";
@@ -1075,6 +1111,7 @@ customersQuotesRouter.post(
             storageStatus,
             storageNotes: storageStatus === "yes" ? String(parsed.data.storage_notes || "").trim() || null : null,
             leadId: parsed.data.lead_id || null,
+            referredByCustomerId,
           },
         });
         if (parsed.data.address) {
@@ -1156,6 +1193,17 @@ customersQuotesRouter.put(
     try {
       const id = String(req.params.id);
       const body = req.body || {};
+      let referredByCustomerId: string | null | undefined = undefined;
+      if (body.referred_by_customer_id !== undefined) {
+        try {
+          referredByCustomerId = await withTenantTransaction(req.organizationId!, (tx) =>
+            resolveReferredById(tx, req.organizationId!, body.referred_by_customer_id, id),
+          );
+        } catch (e) {
+          res.status(400).json({ success: false, error: e instanceof Error ? e.message : "Indicador inválido" });
+          return;
+        }
+      }
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const existing = await tx.customer.findFirst({ where: { id } });
         if (!existing) return null;
@@ -1215,6 +1263,7 @@ customersQuotesRouter.put(
                   null
                 : null
               : undefined,
+            referredByCustomerId,
           },
         });
       });

@@ -38,6 +38,8 @@ import { scheduleCalendarFeedRouter } from "./routes/schedule-calendar-feed.js";
 import { settingsJobsRouter } from "./routes/settings-jobs.js";
 import { settingsFolhaRouter } from "./routes/settings-folha.js";
 import { settingsCatalogRouter } from "./routes/settings-catalog.js";
+import { settingsReferralsRouter } from "./routes/settings-referrals.js";
+import { referralsRouter } from "./routes/referrals.js";
 import { reportsHubRouter } from "./routes/reports-hub.js";
 import { fieldQuotesRouter } from "./routes/field-quotes.js";
 
@@ -54,6 +56,8 @@ crmApiRouter.use(scheduleCalendarFeedRouter);
 crmApiRouter.use(settingsJobsRouter);
 crmApiRouter.use(settingsFolhaRouter);
 crmApiRouter.use(settingsCatalogRouter);
+crmApiRouter.use(settingsReferralsRouter);
+crmApiRouter.use(referralsRouter);
 crmApiRouter.use(supportRouter);
 crmApiRouter.use(pushRouter);
 crmApiRouter.use(scheduleJobsRouter);

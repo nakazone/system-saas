@@ -427,6 +427,32 @@
       ? `<section class="cx-box"><h3>Origem</h3><a class="cx-li" href="lead-detail.html?id=${encodeURIComponent(detail.lead.id)}"><span class="cx-li__ic">${ic("funnel", 15)}</span><span class="cx-li__b"><b>Lead · ${esc(detail.lead.name)}</b><small>${esc(detail.lead.stage || detail.lead.status || "")}</small></span><span class="cx-li__v">${ic("back", 14, 2.2).replace("m15 18-6-6 6-6", "m9 18 6-6-6-6")}</span></a></section>`
       : "";
 
+    const ref = detail.referrals || {};
+    const refBy = ref.referred_by;
+    const bal = ref.cashback_balance;
+    const referralBox = `<section class="cx-box"><h3>Indicações${canEdit ? '<button type="button" class="cx-lnk" data-edit>Editar</button>' : ""}</h3>
+      <dl class="cx-kv">
+        <dt>Indicado por</dt><dd>${
+          refBy
+            ? `<a href="customers.html?id=${encodeURIComponent(refBy.id)}">${esc(refBy.name)}</a>`
+            : "—"
+        }</dd>
+        <dt>Cashback</dt><dd>${
+          showMoney && bal != null
+            ? money(bal)
+            : bal != null
+              ? "—"
+              : ref.program_enabled
+                ? "$0.00"
+                : "Programa off"
+        }</dd>
+        <dt>Indicou</dt><dd>${plural(ref.referred_count || 0, "cliente", "clientes")}${
+          ref.program_enabled && ref.percent != null ? ` · ${esc(String(ref.percent))}% do projeto` : ""
+        }</dd>
+      </dl>
+      <p class="cx-hint" style="margin-top:0.5rem"><a href="referrals.html">Ver programa de indicações</a></p>
+    </section>`;
+
     const jobs = boxList(
       "jobs",
       "Jobs",
@@ -442,7 +468,7 @@
 
     host.innerHTML = `<article class="cx-page">${head}
       <div class="cx-cols">
-        <div class="cx-col cx-col--info">${contact}${prices}${addrBox}${notes}${origin}</div>
+        <div class="cx-col cx-col--info">${contact}${prices}${referralBox}${addrBox}${notes}${origin}</div>
         <div class="cx-col">${jobs}${quotes}</div>
         <div class="cx-col">${invoices}${activity}</div>
       </div>
@@ -589,11 +615,32 @@
       type: c ? c.customer_type || "particular" : "particular",
       pricing: c && c.pricing_mode === "custom" ? "custom" : "table",
       rates: c && c.custom_pricing_rates && typeof c.custom_pricing_rates === "object" ? { ...c.custom_pricing_rates } : {},
+      referredBy: c ? c.referred_by_customer_id || "" : "",
     };
     $("cxFormTitle").textContent = c ? "Editar cliente" : "Novo cliente";
     $("cxFormDelete").hidden = !c || !canEdit;
     $("cxFormError").hidden = true;
     syncForm();
+    fillReferredByOptions(c ? c.id : null, form.referredBy);
+  }
+
+  function fillReferredByOptions(selfId, selectedId) {
+    const sel = $("cxReferredBy");
+    if (!sel) return;
+    const particulares = (rows || []).filter((c) => {
+      const t = String(c.customer_type || "").toLowerCase();
+      return t === "particular" && (!selfId || String(c.id) !== String(selfId));
+    });
+    sel.innerHTML =
+      `<option value="">Ninguém</option>` +
+      particulares
+        .map(
+          (c) =>
+            `<option value="${esc(c.id)}"${String(c.id) === String(selectedId || "") ? " selected" : ""}>${esc(
+              c.display_name || c.name,
+            )}</option>`,
+        )
+        .join("");
   }
 
   async function openForm(id) {
@@ -646,6 +693,7 @@
       dumpster_notes: org && dump === "yes" ? ($("cxDumpsterNotes").value.trim() || null) : null,
       storage_status: org ? stor : null,
       storage_notes: org && stor === "yes" ? ($("cxStorageNotes").value.trim() || null) : null,
+      referred_by_customer_id: ($("cxReferredBy") && $("cxReferredBy").value) || null,
     };
     const lead = $("cxFormLeadId").value.trim();
     if (lead && !id) body.lead_id = lead;

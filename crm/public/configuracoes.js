@@ -70,6 +70,7 @@
         { id: "msg-orcamento", label: "Envio do orçamento", section: "mensagens-orcamento", perm: "settings.manage", desc: "SMS e WhatsApp ao enviar o orçamento e o follow-up depois que o cliente abriu.", keywords: "sms whatsapp mensagem orçamento quote enviar link follow-up" },
         { id: "msg-fatura", label: "Envio da fatura", section: "mensagens-faturas", perm: "settings.manage", desc: "SMS ao enviar o link da fatura.", keywords: "sms mensagem invoice fatura enviar link" },
         { id: "automacoes", label: "Automações", section: "automacoes-leads", perm: "settings.manage", desc: "Mover leads automaticamente no pipeline.", keywords: "automação follow-up quote sent estágio dias pipeline lead" },
+        { id: "indicacoes", label: "Indicações", section: "indicacoes", perm: "settings.manage", desc: "Cashback para Particular quando a fatura do indicado é paga.", keywords: "indicação referral cashback comissão particular percentual projeto fatura" },
       ],
     },
     {
@@ -261,6 +262,7 @@
     leadMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "new_lead" },
     leadAuto: { loaded: false, snapshot: null },
     jobs: { loaded: false, snapshot: null },
+    referrals: { loaded: false, snapshot: null },
     folha: { loaded: false, snapshot: null, draft: null },
     sig: { loaded: false, snapshot: null, drawn: false, removed: false, data: null },
     rules: { loaded: false, snapshot: null },
@@ -418,6 +420,7 @@
     if (id === "mensagens-fase") return leadMsgDirty() ? 1 : 0;
     if (id === "automacoes-leads") return leadAutoDirty() ? 1 : 0;
     if (id === "jobs") return jobsDirty() ? 1 : 0;
+    if (id === "indicacoes") return referralsDirty() ? 1 : 0;
     if (id === "folha") return folhaDirty() ? 1 : 0;
     if (id === "regras-estimativa") return rulesDirtyTypes().length;
     return 0;
@@ -667,6 +670,7 @@
     if (state.current === "mensagens-fase") return saveLeadMessages();
     if (state.current === "automacoes-leads") return saveLeadAutomations();
     if (state.current === "jobs") return saveJobsSettings();
+    if (state.current === "indicacoes") return saveReferralsSettings();
     if (state.current === "folha") return saveFolhaSettings();
     if (state.current === "regras-estimativa") return saveRules();
     return true;
@@ -682,6 +686,7 @@
     if (state.current === "mensagens-fase") discardLeadMessages();
     if (state.current === "automacoes-leads") discardLeadAutomations();
     if (state.current === "jobs") discardJobsSettings();
+    if (state.current === "indicacoes") discardReferralsSettings();
     if (state.current === "folha") discardFolhaSettings();
     if (state.current === "regras-estimativa") renderRules(state.rules.snapshot);
     clearErrors();
@@ -2542,6 +2547,94 @@
     form.addEventListener("change", () => updateSavebar());
   }
 
+  // ---------------------------------------------------------------- indicações
+  function readReferralsSettings() {
+    const validityRaw = String($("ref_validity")?.value || "").trim();
+    return {
+      enabled: !!$("ref_enabled")?.checked,
+      percent: Number($("ref_percent")?.value || 0),
+      credit_validity_days: validityRaw ? Number(validityRaw) : null,
+    };
+  }
+
+  function fillReferralsSettings(s) {
+    if (!s) return;
+    if ($("ref_enabled")) $("ref_enabled").checked = !!s.enabled;
+    if ($("ref_percent")) $("ref_percent").value = s.percent != null ? String(s.percent) : "5";
+    if ($("ref_validity")) {
+      $("ref_validity").value =
+        s.credit_validity_days != null && s.credit_validity_days !== "" ? String(s.credit_validity_days) : "";
+    }
+  }
+
+  function referralsDirty() {
+    if (!state.referrals.snapshot) return false;
+    const a = readReferralsSettings();
+    const b = state.referrals.snapshot;
+    return (
+      !!a.enabled !== !!b.enabled ||
+      Number(a.percent) !== Number(b.percent) ||
+      (a.credit_validity_days ?? null) !== (b.credit_validity_days ?? null)
+    );
+  }
+
+  function discardReferralsSettings() {
+    if (!state.referrals.snapshot) return;
+    fillReferralsSettings(state.referrals.snapshot);
+  }
+
+  async function loadReferralsSettings(force) {
+    if (state.referrals.loaded && !force) {
+      fillReferralsSettings(state.referrals.snapshot);
+      return;
+    }
+    const j = await api("/api/settings/referrals");
+    state.referrals.snapshot = {
+      enabled: !!j.data?.enabled,
+      percent: Number(j.data?.percent ?? 5),
+      credit_validity_days: j.data?.credit_validity_days ?? null,
+    };
+    state.referrals.loaded = true;
+    fillReferralsSettings(state.referrals.snapshot);
+  }
+
+  async function saveReferralsSettings() {
+    const body = readReferralsSettings();
+    if (!(body.percent >= 0 && body.percent <= 100)) {
+      notify("Informe um percentual entre 0 e 100.", "error");
+      return false;
+    }
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/referrals", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      state.referrals.snapshot = {
+        enabled: !!j.data?.enabled,
+        percent: Number(j.data?.percent ?? 5),
+        credit_validity_days: j.data?.credit_validity_days ?? null,
+      };
+      fillReferralsSettings(state.referrals.snapshot);
+      notify("Programa de indicações salvo.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindReferralsSettingsUi() {
+    const form = $("referralsSettingsForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("change", () => updateSavebar());
+    form.addEventListener("input", () => updateSavebar());
+  }
+
   // ---------------------------------------------------------------- folha cycle
   const FOLHA_WD = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
@@ -3704,6 +3797,7 @@
     if (id === "mensagens-fase") return loadLeadMessages();
     if (id === "automacoes-leads") return loadLeadAutomations();
     if (id === "jobs") return loadJobsSettings();
+    if (id === "indicacoes") return loadReferralsSettings();
     if (id === "regras-estimativa") return loadRules();
     if (id === "cargos") return loadRolesSection();
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
@@ -3747,6 +3841,7 @@
     bindLeadMessagesUi();
     bindLeadAutomationsUi();
     bindJobsSettingsUi();
+    bindReferralsSettingsUi();
     bindFolhaSettingsUi();
     bindInvoiceShareMessagesUi();
     $("cfgLeaveModal").addEventListener("click", (e) => {

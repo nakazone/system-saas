@@ -101,6 +101,8 @@ const TENANT_MODELS = new Set([
   "ChatAttachment",
   "ChatAuditLog",
   "ChatMessageFlag",
+  "ReferralReward",
+  "ReferralLedgerEntry",
 ]);
 
 type Operation =

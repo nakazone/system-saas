@@ -115,6 +115,13 @@
             page: 'customers',
             iconKey: 'customers',
           },
+          {
+            href: 'referrals.html',
+            label: 'Indicações',
+            perm: 'customers.view',
+            page: '',
+            iconKey: 'customers',
+          },
         ],
       },
       {
@@ -325,6 +332,7 @@
       return file === 'pipeline-lab.html' || (file === 'dashboard.html' && !(page || ''));
     }
     if (base === 'customers.html') return file === 'customers.html' || (file === 'dashboard.html' && (page || '') === 'customers');
+    if (base === 'referrals.html') return file === 'referrals.html';
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
     if (base === 'invoices.html') return file === 'invoices.html' || file === 'invoice.html';

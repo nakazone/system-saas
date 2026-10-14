@@ -171,6 +171,18 @@
           </div>
           <button type="button" class="cx-link" id="cxEditPrices" hidden>Editar preços deste cliente</button>
         </section>
+        <section class="cx-fs" id="cxReferralWrap">
+          <h4>Indicação</h4>
+          <p class="cx-hint">Se este cliente veio de indicação, escolha o Particular que indicou. O cashback nasce quando a fatura dele for paga.</p>
+          <div class="cx-ff">
+            <div class="cx-f cx-f--full">
+              <label for="cxReferredBy">Indicado por</label>
+              <select id="cxReferredBy">
+                <option value="">Ninguém</option>
+              </select>
+            </div>
+          </div>
+        </section>
         <section class="cx-fs">
           <h4>Notas internas</h4>
           <textarea id="cxNotes" rows="3" maxlength="8000" placeholder="Só a equipe vê."></textarea>
@@ -220,6 +232,6 @@
   <script src="om-gestures.js?v=20261013-rl6"></script>
   <script src="crm-job-modal.js?v=20261014-bld1"></script>
   <script src="lead-signals.js?v=20261009-lb1"></script>
-  <script src="customers-page.js?v=20261014-bld1"></script>
+  <script src="customers-page.js?v=20261014-ref1"></script>
 </body>
 </html>

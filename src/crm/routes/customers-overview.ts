@@ -11,6 +11,8 @@ import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prism
 import { requireCrmAuth, dec } from "../http.js";
 import { canViewPricing } from "../../lib/pricing/visibility.js";
 import { formatUsPhone } from "../../lib/phone.js";
+import { referralBalance } from "../../lib/referrals/engine.js";
+import { parseReferralSettings } from "../../lib/referrals/settings.js";
 
 export const customersOverviewRouter = Router();
 
@@ -281,6 +283,8 @@ function baseCustomer(c: Loaded["customers"][number]) {
     storage_notes: c.storageNotes ?? null,
     notes: c.notes,
     lead_id: c.leadId,
+    referred_by_customer_id: (c as { referredByCustomerId?: string | null }).referredByCustomerId ?? null,
+    referral_code: (c as { referralCode?: string | null }).referralCode ?? null,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   };
@@ -341,7 +345,8 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
       const data = await loadAll(tx, [id]);
       const c = data.customers[0];
       if (!c) return null;
-      const [properties, lead] = await Promise.all([
+      const referredById = (c as { referredByCustomerId?: string | null }).referredByCustomerId ?? null;
+      const [properties, lead, referrer, referredCount, cashbackBalance, org] = await Promise.all([
         tx.property.findMany({ where: { customerId: id }, orderBy: { createdAt: "asc" } }),
         c.leadId
           ? tx.lead.findFirst({
@@ -349,14 +354,26 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
               select: { id: true, name: true, status: true, pipelineStage: { select: { name: true } } },
             })
           : null,
+        referredById
+          ? tx.customer.findFirst({
+              where: { id: referredById },
+              select: { id: true, name: true, customerType: true },
+            })
+          : null,
+        tx.customer.count({ where: { referredByCustomerId: id } }),
+        referralBalance(tx, id),
+        tx.organization.findUnique({
+          where: { id: req.organizationId! },
+          select: { referralSettings: true },
+        }),
       ]);
-      return { data, c, properties, lead };
+      return { data, c, properties, lead, referrer, referredCount, cashbackBalance, org };
     });
     if (!result) {
       res.status(404).json({ success: false, error: "Cliente não encontrado" });
       return;
     }
-    const { data, c, properties, lead } = result;
+    const { data, c, properties, lead, referrer, referredCount, cashbackBalance, org } = result;
     const stats = statsFor(data, showMoney).get(c.id) || null;
     const m = (n: number) => (showMoney ? round(n) : null);
 
@@ -457,6 +474,7 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
     }
     ev.sort((a, b) => b.at.getTime() - a.at.getTime());
 
+    const refSettings = parseReferralSettings(org?.referralSettings);
     res.json({
       success: true,
       data: {
@@ -469,6 +487,15 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
         addresses,
         activity: ev.slice(0, 40).map((e) => ({ ...e, at: e.at })),
         show_money: showMoney,
+        referrals: {
+          program_enabled: refSettings.enabled,
+          percent: refSettings.percent,
+          referred_by: referrer
+            ? { id: referrer.id, name: referrer.name, customer_type: referrer.customerType }
+            : null,
+          referred_count: referredCount,
+          cashback_balance: showMoney ? round(cashbackBalance) : null,
+        },
       },
     });
   } catch (error) {

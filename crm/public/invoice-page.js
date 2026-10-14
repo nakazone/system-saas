@@ -579,7 +579,37 @@
         : `Dar baixa de ${money(amt)}`;
     $('paySubmit').disabled = !amt || amt > bal + 0.004;
   }
-  function openPay(mode) {
+  async function syncCashbackPayMethod() {
+    const wrap = $('payMethodCashback');
+    if (!wrap) return;
+    wrap.hidden = true;
+    const check = document.querySelector('input[name="payMethod"][value="check"]');
+    if (check) check.checked = true;
+    const clientId = inv && inv.client && inv.client.id;
+    if (!clientId) return;
+    try {
+      const j = await api(`/api/customers/${encodeURIComponent(clientId)}/referral-balance`);
+      const credit = Number(j.data && j.data.balance) || 0;
+      if (!(credit > 0.004)) return;
+      wrap.hidden = false;
+      const span = wrap.querySelector('span');
+      if (span) span.textContent = `Cashback indicação (${money(credit)})`;
+      const radio = wrap.querySelector('input');
+      if (radio) {
+        radio.onchange = () => {
+          if (!radio.checked) return;
+          const use = Math.min(credit, inv.remaining_amount);
+          document.querySelector('input[name="payMode"][value="partial"]').checked = true;
+          $('payAmount').value = (Math.round(use * 100) / 100).toFixed(2);
+          syncPay();
+        };
+      }
+    } catch (_) {
+      /* ignore — cashback optional */
+    }
+  }
+
+  async function openPay(mode) {
     if (!inv || inv.remaining_amount <= 0) return;
     if (inv.status === 'draft') {
       toast('Envie a fatura ao cliente antes de registrar o pagamento.', 'info');
@@ -619,6 +649,7 @@
         syncPay();
       }),
     );
+    await syncCashbackPayMethod();
     syncPay();
     openModal('payModal');
     if (mode === 'partial') setTimeout(() => $('payAmount').focus(), 80);

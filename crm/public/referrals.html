@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Indicações | ObraMate</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="stylesheet" href="styles.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="obramate-app.css?v=20261012-nav1" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
+  <style>
+    .ref-page { max-width: 960px; margin: 0 auto; padding: 1.25rem 1rem 4rem; font-family: "Plus Jakarta Sans", system-ui, sans-serif; }
+    .ref-page h1 { font-size: 1.35rem; font-weight: 800; margin: 0 0 0.25rem; }
+    .ref-page .ref-lead { color: #6b6458; font-size: 0.9rem; margin: 0 0 1.25rem; }
+    .ref-banner { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center; background: #fff; border: 1px solid #e8e2d6; border-radius: 12px; padding: 0.9rem 1.1rem; margin-bottom: 1rem; }
+    .ref-banner b { font-weight: 800; }
+    .ref-banner a { font-weight: 700; color: #1f6b4a; }
+    .ref-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e8e2d6; border-radius: 12px; overflow: hidden; font-size: 0.9rem; }
+    .ref-table th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: #8a8274; padding: 0.65rem 0.85rem; background: #faf7f1; }
+    .ref-table td { padding: 0.75rem 0.85rem; border-top: 1px solid #f0ebe2; vertical-align: top; }
+    .ref-table a { color: inherit; font-weight: 700; text-decoration: none; }
+    .ref-table a:hover { text-decoration: underline; }
+    .ref-empty { padding: 2rem 1rem; text-align: center; color: #8a8274; }
+    .ref-amt { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+  </style>
+</head>
+<body class="dashboard-app-body om-app sidebar-collapsed">
+  <script src="/om-reload.js?v=20261013-rl8"></script>
+  <div id="crmSharedNavRoot"></div>
+  <main class="dashboard-main">
+    <div class="ref-page">
+      <h1>Indicações</h1>
+      <p class="ref-lead">Cashback creditado a Particulares quando a fatura do indicado é paga.</p>
+      <div class="ref-banner" id="refBanner">Carregando…</div>
+      <div style="overflow-x:auto">
+        <table class="ref-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Indicador</th>
+              <th>Indicado</th>
+              <th>Projeto (fatura)</th>
+              <th>%</th>
+              <th>Cashback</th>
+            </tr>
+          </thead>
+          <tbody id="refBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  <script src="crm-toast.js"></script>
+  <script src="crm-shell.js?v=20261014-f2"></script>
+  <script src="crm-shared-nav.js?v=20261014-perfil1"></script>
+  <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
+  <script src="referrals-page.js?v=20261014-ref1"></script>
+</body>
+</html>

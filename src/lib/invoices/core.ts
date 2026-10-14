@@ -218,6 +218,7 @@ export const PAYMENT_METHOD_LABELS: Record<string, { pt: string; en: string }> =
   card: { pt: "Cartão", en: "Card" },
   cash: { pt: "Dinheiro", en: "Cash" },
   financing: { pt: "Financiamento", en: "Financing" },
+  referral_credit: { pt: "Cashback indicação", en: "Referral cashback" },
   other: { pt: "Outro", en: "Other" },
 };
 
