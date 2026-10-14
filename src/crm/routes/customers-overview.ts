@@ -487,7 +487,6 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
     if (isParticular && referralCode && org?.slug) {
       const base = publicBaseUrl(req).replace(/\/$/, "");
       shareUrl = `${base}/r/${encodeURIComponent(org.slug)}/${encodeURIComponent(referralCode)}`;
-      const first = String(c.name || "").trim().split(/\s+/)[0] || c.name;
       shareMessage =
         `Oi! Estou indicando a ${org.name}. ` +
         `Cadastre-se por este link e eles entram em contato: ${shareUrl}` +
