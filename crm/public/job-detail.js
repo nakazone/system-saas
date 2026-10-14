@@ -136,7 +136,7 @@
       job.status === "in_progress"
         ? `<button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="complete">Concluir job</button>`
         : job.status === "draft" || job.status === "scheduled"
-          ? `<button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="start">Iniciar job</button><button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="complete">Já concluído</button>`
+          ? `<button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="start">Iniciar job</button><button type="button" class="jd-btn jd-btn--sm" data-primary="complete">Já concluído</button>`
           : "";
     card.innerHTML = `<b>${job.status === "in_progress" ? `Passou da data de término há ${d}` : `Era para começar e não foi iniciado (${d})`}</b>
       <p>${job.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Pode iniciar, marcar como já concluído ou remarcar — mesmo fora do dia agendado."}</p>

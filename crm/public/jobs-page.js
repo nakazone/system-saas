@@ -285,10 +285,10 @@
     if (!canManage || wo.status === "canceled" || wo.status === "completed") return [];
     const acts = [];
     if (wo.status === "draft" || wo.status === "scheduled") {
-      acts.push({ label: "Iniciar", act: "start" });
+      acts.push({ label: "Iniciar", act: "start", primary: true });
       acts.push({ label: "Já concluído", act: "complete" });
     } else if (wo.status === "in_progress") {
-      acts.push({ label: "Concluir", act: "complete" });
+      acts.push({ label: "Concluir", act: "complete", primary: true });
     }
     acts.push({ label: "Remarcar", act: "schedule" });
     return acts;
@@ -713,7 +713,7 @@
           ? `<div class="jx-alert"><div><b>${wo.status === "in_progress" ? `Passou da data de término há ${lt.days} dia${lt.days > 1 ? "s" : ""}` : `Era para começar e não foi iniciado (${lt.days} dia${lt.days > 1 ? "s" : ""})`}</b><p>${wo.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Pode iniciar, marcar como já concluído ou remarcar a data — mesmo fora do dia agendado."}</p></div>${
               canManage
                 ? `<div class="jx-alert__acts">${lateActions(wo)
-                    .map((a) => `<button type="button" class="jx-btn${a.act === "complete" || a.act === "start" ? " jx-btn--pri" : ""}" data-jx-act="${a.act}">${J.esc(a.label)}</button>`)
+                    .map((a) => `<button type="button" class="jx-btn${a.primary ? " jx-btn--pri" : ""}" data-jx-act="${a.act}">${J.esc(a.label)}</button>`)
                     .join("")}</div>`
                 : ""
             }</div>`
