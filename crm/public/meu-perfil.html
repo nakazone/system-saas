@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Meu Perfil | ObraMate</title>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}/*maismob2*/@media (max-width:1024px){body.om-app.dashboard-app-body,body.om-app{--crm-sidebar-width:0px!important}body.om-app .dashboard-container{display:block!important;margin:0!important;width:100%!important;max-width:100%!important}body.om-app .dashboard-main,body.om-app.dashboard-app-body .dashboard-main,body.om-app.sidebar-collapsed .dashboard-main{margin:0!important;margin-left:0!important;margin-top:0!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;left:0!important;top:0!important;height:100vh!important;height:100dvh!important;width:min(288px,92vw)!important;min-width:0!important;max-width:min(288px,92vw)!important;transform:translate3d(-105%,0,0)!important;z-index:1100!important;margin:0!important}body.om-app #dashboardSidebar.mobile-open,body.om-app .dashboard-sidebar.mobile-open{transform:translate3d(0,0,0)!important}}</style>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="stylesheet" href="styles.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="obramate-app.css?v=20261012-nav1" />
+  <link rel="stylesheet" href="meu-perfil.css?v=20261014-perfil1" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
+</head>
+<body class="dashboard-app-body om-app sidebar-collapsed">
+  <script src="/om-reload.js?v=20261013-rl8"></script>
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Meu Perfil</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <main class="dashboard-main">
+      <div class="mod-page crm-page">
+        <div class="mp" id="mpRoot">
+          <header class="mp-head">
+            <h1>Meu Perfil</h1>
+            <p>Dados da sua conta, foto, preferências e senha.</p>
+          </header>
+
+          <section class="mp-card" aria-labelledby="mpHeroTitle">
+            <h2 id="mpHeroTitle" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Resumo</h2>
+            <div class="mp-hero">
+              <div class="mp-av" id="mpAv" aria-hidden="true">
+                <img id="mpAvImg" alt="" hidden />
+                <span class="mp-av__init" id="mpAvInit">—</span>
+              </div>
+              <div class="mp-hero__meta">
+                <b id="mpHeroName">—</b>
+                <span id="mpHeroMeta">—</span>
+              </div>
+              <div class="mp-hero__acts">
+                <label class="mp-btn" for="mpAvatarInput">Trocar foto</label>
+                <button type="button" class="mp-btn mp-btn--ghost" id="mpAvatarClear" hidden>Remover foto</button>
+                <input type="file" id="mpAvatarInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+              </div>
+            </div>
+            <p class="mp-card__hint" style="margin:12px 0 0">JPG, PNG, WebP ou GIF · máx. 2,5 MB</p>
+            <div class="mp-err" id="mpAvatarErr" role="alert"></div>
+            <div class="mp-ok" id="mpAvatarOk" role="status"></div>
+          </section>
+
+          <section class="mp-card" aria-labelledby="mpDadosTitle">
+            <h2 id="mpDadosTitle">Dados pessoais</h2>
+            <p class="mp-card__hint">Nome e telefone que a equipe vê no CRM. O e-mail é o login e não pode ser alterado aqui.</p>
+            <form id="mpDadosForm" class="mp-grid" novalidate autocomplete="on">
+              <div class="mp-field">
+                <label for="mpName">Nome</label>
+                <input id="mpName" name="name" type="text" maxlength="120" required autocomplete="name" />
+              </div>
+              <div class="mp-field">
+                <label for="mpPhone">Telefone</label>
+                <input id="mpPhone" name="phone" type="tel" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="(303) 555-0142" />
+              </div>
+              <div class="mp-field mp-field--full">
+                <label for="mpEmail">E-mail (login)</label>
+                <input id="mpEmail" type="email" readonly disabled autocomplete="username" />
+                <small>Para mudar o e-mail, peça a um administrador em Equipe.</small>
+              </div>
+              <div class="mp-row-end mp-field--full">
+                <button type="submit" class="mp-btn mp-btn--pri" id="mpDadosSave">Guardar dados</button>
+              </div>
+            </form>
+            <div class="mp-err" id="mpDadosErr" role="alert"></div>
+            <div class="mp-ok" id="mpDadosOk" role="status"></div>
+          </section>
+
+          <section class="mp-card" aria-labelledby="mpRotaTitle">
+            <h2 id="mpRotaTitle">Ponto de partida</h2>
+            <p class="mp-card__hint">Endereço habitual para o mapa de rotas do dia (campo e agenda).</p>
+            <form id="mpRotaForm" novalidate>
+              <div class="mp-field">
+                <label for="mpRoute">Endereço de partida</label>
+                <textarea id="mpRoute" name="route_start_address" maxlength="500" rows="3" placeholder="Ex.: 123 Main St, Denver, CO"></textarea>
+              </div>
+              <div class="mp-row-end">
+                <button type="submit" class="mp-btn mp-btn--pri" id="mpRotaSave">Guardar endereço</button>
+              </div>
+            </form>
+            <div class="mp-err" id="mpRotaErr" role="alert"></div>
+            <div class="mp-ok" id="mpRotaOk" role="status"></div>
+          </section>
+
+          <section class="mp-card" aria-labelledby="mpPrefTitle">
+            <h2 id="mpPrefTitle">Preferências</h2>
+            <p class="mp-card__hint">Idioma da interface neste aparelho.</p>
+            <div class="mp-field">
+              <label id="mpLangLabel">Idioma</label>
+              <div class="mp-seg" role="group" aria-labelledby="mpLangLabel">
+                <button type="button" data-locale="pt" class="is-on">Português</button>
+                <button type="button" data-locale="en">English</button>
+                <button type="button" data-locale="es">Español</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="mp-card" aria-labelledby="mpSenhaTitle">
+            <h2 id="mpSenhaTitle">Segurança</h2>
+            <p class="mp-card__hint">Altere a senha de acesso ao CRM. Mínimo 8 caracteres.</p>
+            <form id="mpSenhaForm" class="mp-grid" novalidate autocomplete="off">
+              <div class="mp-field mp-field--full">
+                <label for="mpCurPass">Senha atual</label>
+                <input id="mpCurPass" type="password" required autocomplete="current-password" />
+              </div>
+              <div class="mp-field">
+                <label for="mpNewPass">Nova senha</label>
+                <input id="mpNewPass" type="password" required minlength="8" autocomplete="new-password" />
+              </div>
+              <div class="mp-field">
+                <label for="mpNewPass2">Confirmar nova senha</label>
+                <input id="mpNewPass2" type="password" required minlength="8" autocomplete="new-password" />
+              </div>
+              <div class="mp-row-end mp-field--full">
+                <button type="submit" class="mp-btn mp-btn--pri" id="mpSenhaSave">Alterar senha</button>
+              </div>
+            </form>
+            <div class="mp-err" id="mpSenhaErr" role="alert"></div>
+            <div class="mp-ok" id="mpSenhaOk" role="status"></div>
+          </section>
+
+          <section class="mp-card" aria-labelledby="mpContaTitle">
+            <h2 id="mpContaTitle">Conta</h2>
+            <p class="mp-card__hint">Informações só de leitura. Cargo e permissões são definidos pela empresa.</p>
+            <dl class="mp-meta">
+              <div><dt>Cargo</dt><dd id="mpMetaRole">—</dd></div>
+              <div><dt>Conta desde</dt><dd id="mpMetaCreated">—</dd></div>
+              <div><dt>Última atualização</dt><dd id="mpMetaUpdated">—</dd></div>
+            </dl>
+            <p style="margin:14px 0 0;font-size:13px;color:var(--mp-ink2)">
+              Preferências da <a class="mp-link" href="configuracoes.html">empresa</a>
+              · gestão da <a class="mp-link" href="equipe.html">equipe</a>
+            </p>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js?v=20261014-perfil1"></script>
+  <script src="saas-branding.js"></script>
+  <script src="om-device.js?v=20261013-badge1"></script>
+  <script src="crm-field-gate.js?v=20261014-perfil1"></script>
+  <script src="crm-shared-nav.js?v=20261014-perfil1"></script>
+  <script src="crm-shell.js?v=20261014-perfil1"></script>
+  <script src="crm-account-menu.js?v=20261014-perfil1"></script>
+  <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
+  <script src="meu-perfil.js?v=20261014-perfil1"></script>
+</body>
+</html>

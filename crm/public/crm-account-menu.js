@@ -41,7 +41,7 @@
       '<div class="crm-account-menu__header">' +
       '<span class="crm-account-menu__email" id="crmAccountMenuEmail"></span>' +
       "</div>" +
-      '<a class="crm-account-menu__item" href="change-password.html" data-account-action="account">' +
+      '<a class="crm-account-menu__item" href="meu-perfil.html" data-account-action="account">' +
       '<span data-i18n="menu.account">' +
       t("menu.account") +
       "</span></a>" +
@@ -265,7 +265,18 @@
         var av = document.getElementById("crmTopbarUserAvatar");
         var nm = document.getElementById("crmTopbarUserName");
         var rl = document.getElementById("crmTopbarUserRole");
-        if (av) av.textContent = initials;
+        if (av) {
+          var avatarUrl = user.avatar_url || null;
+          if (avatarUrl) {
+            av.textContent = "";
+            av.style.backgroundImage = 'url("' + String(avatarUrl).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '")';
+            av.style.backgroundSize = "cover";
+            av.style.backgroundPosition = "center";
+          } else {
+            av.style.backgroundImage = "";
+            av.textContent = initials;
+          }
+        }
         if (nm) nm.textContent = disp;
         if (rl) rl.textContent = rolePretty || "—";
         var em = document.getElementById("crmAccountMenuEmail");

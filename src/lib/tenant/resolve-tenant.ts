@@ -231,6 +231,7 @@ export async function resolveTenant(
     if (
       req.path === "/dashboard.html" ||
       req.path === "/change-password.html" ||
+      req.path === "/meu-perfil.html" ||
       req.path === "/jobs.html" ||
       req.path === "/schedule.html" ||
       req.path === "/payroll-module.html" ||

@@ -480,13 +480,36 @@
     const sr = document.getElementById('sidebarUserRole');
     if (sr) sr.textContent = rolePretty;
     const sa = document.getElementById('sidebarUserAvatar');
-    if (sa) sa.textContent = initials;
+    if (sa) {
+      const avatarUrl = user && user.avatar_url;
+      if (avatarUrl) {
+        sa.textContent = '';
+        sa.style.backgroundImage = 'url("' + String(avatarUrl).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")';
+        sa.style.backgroundSize = 'cover';
+        sa.style.backgroundPosition = 'center';
+      } else {
+        sa.style.backgroundImage = '';
+        sa.textContent = initials;
+      }
+    }
 
     // Topbar user chip (account menu)
     const chipAvatar = document.getElementById('crmTopbarUserAvatar');
     const chipName = document.getElementById('crmTopbarUserName');
     const chipRole = document.getElementById('crmTopbarUserRole');
-    if (chipAvatar) chipAvatar.textContent = initials;
+    if (chipAvatar) {
+      const avatarUrl = user && user.avatar_url;
+      if (avatarUrl) {
+        chipAvatar.textContent = '';
+        chipAvatar.style.backgroundImage =
+          'url("' + String(avatarUrl).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")';
+        chipAvatar.style.backgroundSize = 'cover';
+        chipAvatar.style.backgroundPosition = 'center';
+      } else {
+        chipAvatar.style.backgroundImage = '';
+        chipAvatar.textContent = initials;
+      }
+    }
     if (chipName) chipName.textContent = disp;
     if (chipRole) chipRole.textContent = rolePretty || '—';
   }

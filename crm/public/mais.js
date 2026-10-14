@@ -68,7 +68,18 @@
 
       const av = initials(name);
       const avatar = $("maisAvatar");
-      if (avatar) avatar.textContent = av;
+      if (avatar) {
+        if (user.avatar_url) {
+          avatar.textContent = "";
+          avatar.style.backgroundImage =
+            'url("' + String(user.avatar_url).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '")';
+          avatar.style.backgroundSize = "cover";
+          avatar.style.backgroundPosition = "center";
+        } else {
+          avatar.style.backgroundImage = "";
+          avatar.textContent = av;
+        }
+      }
       const un = $("maisUserName");
       if (un) un.textContent = name;
       const ur = $("maisUserRole");

@@ -73,6 +73,7 @@ export function accountBanner(org: OrgBilling, now = new Date()): AccountBanner 
 /** Requests allowed even in read-only mode (sign in/out, paying, support, password). */
 const READ_ONLY_ALLOWED = [
   /^\/api\/auth\//,
+  /^\/api\/me$/,
   /^\/api\/billing\//,
   /^\/api\/support\//,
   /^\/api\/account\//,
@@ -80,6 +81,7 @@ const READ_ONLY_ALLOWED = [
   /^\/logout$/,
   /^\/login$/,
   /^\/change-password/,
+  /^\/meu-perfil/,
   /^\/api\/users\/me\/password$/,
 ];
 

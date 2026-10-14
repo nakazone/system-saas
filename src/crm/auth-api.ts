@@ -3,6 +3,7 @@ import { passwordResetRouter } from "./password-reset.js";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { verifyPassword, hashPassword } from "../lib/auth/password.js";
+import { storage } from "../lib/storage/index.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 
@@ -102,6 +103,8 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
         email: user.email,
         role: user.role?.key ?? "staff",
         name: user.name,
+        phone: user.phone || null,
+        avatar_url: user.avatarUrl || null,
         must_change_password: user.mustChangePassword,
         route_start_address: user.routeStartAddress || null,
         permissions,
@@ -323,6 +326,158 @@ crmAuthRouter.post("/api/auth/change-password", async (req: AuthedRequest, res, 
       }
       res.json({ success: true, message: "Senha alterada com sucesso." });
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+function mePayload(user: {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  mustChangePassword: boolean;
+  routeStartAddress: string | null;
+  role: { key: string; name: string } | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone || null,
+    avatar_url: user.avatarUrl || null,
+    role: user.role?.key ?? "staff",
+    role_name: user.role?.name ?? null,
+    must_change_password: user.mustChangePassword,
+    route_start_address: user.routeStartAddress || null,
+    created_at: user.createdAt.toISOString(),
+    updated_at: user.updatedAt.toISOString(),
+  };
+}
+
+const meSelect = {
+  id: true,
+  email: true,
+  name: true,
+  phone: true,
+  avatarUrl: true,
+  mustChangePassword: true,
+  routeStartAddress: true,
+  createdAt: true,
+  updatedAt: true,
+  role: { select: { key: true, name: true } },
+} as const;
+
+/** Self-service profile (Meu Perfil). */
+crmAuthRouter.get("/api/me", async (req: AuthedRequest, res, next) => {
+  try {
+    if (!req.session?.userId || !req.organizationId) {
+      res.status(401).json({ success: false, error: "Não autenticado" });
+      return;
+    }
+    const user = await prisma.user.findFirst({
+      where: { id: req.session.userId, organizationId: req.organizationId, status: "active" },
+      select: meSelect,
+    });
+    if (!user) {
+      res.status(404).json({ success: false, error: "Usuário não encontrado" });
+      return;
+    }
+    res.json({ success: true, data: mePayload(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const patchMeSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  phone: z.union([z.string().trim().max(40), z.literal(""), z.null()]).optional(),
+  route_start_address: z.union([z.string().trim().max(500), z.literal(""), z.null()]).optional(),
+  clear_avatar: z.boolean().optional(),
+  avatar_data_url: z.string().max(3_500_000).optional(),
+});
+
+crmAuthRouter.patch("/api/me", async (req: AuthedRequest, res, next) => {
+  try {
+    if (!req.session?.userId || !req.organizationId) {
+      res.status(401).json({ success: false, error: "Não autenticado" });
+      return;
+    }
+    const parsed = patchMeSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: "Dados inválidos", details: parsed.error.flatten() });
+      return;
+    }
+    const existing = await prisma.user.findFirst({
+      where: { id: req.session.userId, organizationId: req.organizationId, status: "active" },
+      select: { id: true },
+    });
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Usuário não encontrado" });
+      return;
+    }
+
+    const data: {
+      name?: string;
+      phone?: string | null;
+      routeStartAddress?: string | null;
+      avatarUrl?: string | null;
+    } = {};
+    if (parsed.data.name !== undefined) data.name = parsed.data.name;
+    if (parsed.data.phone !== undefined) {
+      data.phone = parsed.data.phone === "" || parsed.data.phone == null ? null : String(parsed.data.phone);
+    }
+    if (parsed.data.route_start_address !== undefined) {
+      data.routeStartAddress =
+        parsed.data.route_start_address === "" || parsed.data.route_start_address == null
+          ? null
+          : String(parsed.data.route_start_address);
+    }
+    if (parsed.data.clear_avatar) {
+      data.avatarUrl = null;
+    } else if (parsed.data.avatar_data_url?.startsWith("data:")) {
+      const match = /^data:([^;]+);base64,(.+)$/.exec(parsed.data.avatar_data_url);
+      if (!match) {
+        res.status(400).json({ success: false, error: "Foto inválida" });
+        return;
+      }
+      const contentType = match[1]!;
+      if (!contentType.startsWith("image/")) {
+        res.status(400).json({ success: false, error: "A foto deve ser uma imagem" });
+        return;
+      }
+      const body = Buffer.from(match[2]!, "base64");
+      if (body.length > 2.5 * 1024 * 1024) {
+        res.status(400).json({ success: false, error: "A foto deve ter menos de 2,5 MB" });
+        return;
+      }
+      const ext = contentType.includes("png")
+        ? "png"
+        : contentType.includes("webp")
+          ? "webp"
+          : contentType.includes("gif")
+            ? "gif"
+            : "jpg";
+      const key = `users/${req.organizationId}/${existing.id}/avatar-${Date.now()}.${ext}`;
+      const stored = await storage.upload({ key, body, contentType });
+      data.avatarUrl = stored.url;
+    }
+
+    if (!Object.keys(data).length) {
+      res.status(400).json({ success: false, error: "Nada para atualizar" });
+      return;
+    }
+
+    const user = await prisma.user.update({
+      where: { id: existing.id },
+      data,
+      select: meSelect,
+    });
+    if (data.name) req.session.userName = data.name;
+    res.json({ success: true, data: mePayload(user), message: "Perfil atualizado." });
   } catch (error) {
     next(error);
   }

@@ -24,6 +24,7 @@
     { id: 'reports', label: 'Relatórios', sub: 'Painel de vendas, jobs e caixa', href: 'relatorios.html', perm: 'reports.view' },
     { id: 'payroll', label: 'Folha de Pagamento', sub: '', href: 'folha.html', perm: 'payroll.view' },
     { id: 'finance', label: 'Financeiro', sub: 'Fluxo de caixa, recebimentos e custos', href: 'finance.html', perm: 'finance.view' },
+    { id: 'profile', label: 'Meu Perfil', sub: 'Foto, dados, senha e idioma', href: 'meu-perfil.html', perm: null },
     { id: 'settings', label: 'Configurações', sub: 'Visão geral da empresa', href: 'configuracoes.html#visao-geral', perm: null },
     { id: 'settings-company', label: 'Dados da empresa', sub: 'Configurações · endereço, licença, horário', href: 'configuracoes.html#empresa', perm: 'settings.manage' },
     { id: 'settings-brand', label: 'Marca e aparência', sub: 'Configurações · logo e cores', href: 'configuracoes.html#marca', perm: 'settings.manage' },

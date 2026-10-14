@@ -9,7 +9,7 @@
   var STRINGS = {
     en: {
       "menu.settings": "Settings",
-      "menu.account": "My profile & password",
+      "menu.account": "My profile",
       "menu.company": "Company settings",
       "menu.team": "Team",
       "menu.language": "Language",
@@ -24,7 +24,7 @@
     },
     pt: {
       "menu.settings": "Configurações",
-      "menu.account": "Meu perfil e senha",
+      "menu.account": "Meu perfil",
       "menu.company": "Configurações da empresa",
       "menu.team": "Equipe",
       "menu.language": "Idioma",
@@ -39,7 +39,7 @@
     },
     es: {
       "menu.settings": "Configuración",
-      "menu.account": "Mi perfil y contraseña",
+      "menu.account": "Mi perfil",
       "menu.company": "Configuración de la empresa",
       "menu.team": "Equipo",
       "menu.language": "Idioma",

@@ -66,6 +66,7 @@
     "ajustes.html",
     "configuracoes.html",
     "change-password.html",
+    "meu-perfil.html",
     "login.html",
   ]);
 
@@ -79,6 +80,7 @@
     "ajustes.html",
     "configuracoes.html",
     "change-password.html",
+    "meu-perfil.html",
     "login.html",
   ]);
 

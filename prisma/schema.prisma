@@ -463,6 +463,8 @@ model User {
   email              String
   passwordHash       String
   name               String
+  phone              String?
+  avatarUrl          String?
   roleId             String?  @db.Uuid
   role               Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
   status             String   @default("active") // active | invited | suspended | disabled

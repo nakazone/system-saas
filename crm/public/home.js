@@ -49,8 +49,21 @@
     $("homeDate").textContent = D.dateLabel(overview) || " ";
     const av = $("homeAvatar");
     if (av) {
-      av.textContent = initials(name);
-      av.title = name || "Conta";
+      const avatarUrl = session.user && session.user.avatar_url;
+      if (avatarUrl) {
+        av.textContent = "";
+        av.style.backgroundImage =
+          'url("' + String(avatarUrl).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '")';
+        av.style.backgroundSize = "cover";
+        av.style.backgroundPosition = "center";
+      } else {
+        av.style.backgroundImage = "";
+        av.textContent = initials(name);
+      }
+      av.title = name || "Meu perfil";
+      if (!av.getAttribute("href") || /configuracoes/i.test(av.getAttribute("href") || "")) {
+        av.setAttribute("href", "meu-perfil.html");
+      }
     }
   }
 
