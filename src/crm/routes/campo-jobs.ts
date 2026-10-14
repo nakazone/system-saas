@@ -1,6 +1,7 @@
 /**
  * Campo agenda + ticket (field-safe status, checklist, photos).
  */
+import { checkLimit } from "../../lib/features/index.js";
 import { Router } from "express";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -586,6 +587,11 @@ campoJobsRouter.post(
         }
       }
 
+      const photoLimit = await checkLimit(req.organizationId!, "photos_month", 1);
+      if (!photoLimit.ok) {
+        res.status(403).json({ success: false, error: photoLimit.message, code: "LIMIT_REACHED" });
+        return;
+      }
       const key = `orgs/${req.organizationId}/jobs/${jobId}/${Date.now()}-${randomUUID().slice(0, 8)}`;
       const stored = await storage.upload({
         key,

@@ -119,8 +119,46 @@ model Plan {
   stripeProductId      String?
   stripeMonthlyPriceId String?
   stripeAnnualPriceId  String?
+  /// Extra modules included: { featureKey: boolean }. Missing key = included.
+  features             Json?
+  /// Usage limits: { users, photos_month, ai_month, storage_gb }. Missing/null = no limit.
+  limits               Json?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+}
+
+/// Global state of each extra module: off (nobody), beta (only companies with an exception), on.
+model PlatformFeature {
+  key           String   @id
+  state         String   @default("on")
+  updatedAt     DateTime @updatedAt
+  updatedByName String?
+}
+
+/// A module turned on or off for one company, overriding its plan. Expired ones are ignored.
+model OrgFeatureOverride {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  featureKey     String
+  enabled        Boolean
+  reason         String
+  endsAt         DateTime?
+  createdByName  String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, featureKey])
+}
+
+/// Monthly usage counters that can't be counted from other tables (e.g. AI calls).
+model UsageCounter {
+  organizationId String   @db.Uuid
+  metric         String
+  period         String // YYYY-MM (America/Denver)
+  count          Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@id([organizationId, metric, period])
 }
 
 /// Every Stripe webhook event, processed once.
@@ -420,6 +458,7 @@ model Organization {
   platformPayments   PlatformPayment[]
   legalAcceptances   LegalAcceptance[]
   supportSessions    SupportSession[]
+  featureOverrides   OrgFeatureOverride[]
   platformNotes      PlatformNote[]
   platformContactLogs PlatformContactLog[]
   pushSubscriptions  PushSubscription[]

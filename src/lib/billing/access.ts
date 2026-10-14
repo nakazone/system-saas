@@ -5,6 +5,7 @@ import { legalPromptEnabled, pendingLegal, recordLegalAcceptance } from "../lega
 import { legalDocuments } from "../legal/documents.js";
 import { requestIp } from "../security/db-rate-limit.js";
 import { supportBanner } from "../support/session.js";
+import { FEATURES, LIMITS, getEntitlements, getUsage, hiddenPages } from "../features/index.js";
 import { prisma } from "../prisma.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { daysUntil, money, planLabel, cyclePriceCents, shortDate } from "../../master/lib.js";
@@ -150,12 +151,25 @@ accountBillingRouter.get("/api/account/status", async (req: AuthedRequest, res, 
         can_manage_billing: canManageBilling(req) && !req.session?.support,
         legal: canManageBilling(req) && !req.session?.support ? await legalForApp(org.id) : null,
         support: supportBanner(req),
+        hidden_pages: await hiddenPages(org.id),
       },
     });
   } catch (error) {
     next(error);
   }
 });
+
+/** Plan limits in use and modules left out of the plan (Configurações › Plano e cobrança). */
+async function planUsageForApp(organizationId: string) {
+  const [ent, usage] = await Promise.all([getEntitlements(organizationId), getUsage(organizationId)]);
+  return {
+    usage: LIMITS.filter((l) => ent.limits[l.key] != null).map((l) => {
+      const limit = ent.limits[l.key]!;
+      return { key: l.key, name: l.name, used: usage[l.key], limit, pct: limit ? Math.min(100, Math.round((usage[l.key] / limit) * 100)) : 100 };
+    }),
+    not_included: FEATURES.filter((f) => !ent.features[f.key].on).map((f) => f.name),
+  };
+}
 
 /** Terms / Privacy / DPA the company admin still has to accept (links are absolute: tenant hosts have no /terms). */
 async function legalForApp(organizationId: string) {
@@ -214,6 +228,7 @@ accountBillingRouter.get("/api/billing/summary", async (req: AuthedRequest, res,
         has_subscription: !!org.stripeSubscriptionId,
         has_customer: !!org.stripeCustomerId,
         users: org._count.users,
+        ...(await planUsageForApp(org.id)),
         can_manage_billing: canManageBilling(req),
         stripe_enabled: stripeEnabled(),
         plans: catalog

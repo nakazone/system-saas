@@ -6,6 +6,7 @@ import { email as emailProvider } from "../email/index.js";
 import { workspaceHomeUrl } from "../tenant/workspace-url.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { buildPermissionKeys } from "../../crm/auth-api.js";
+import { applyFeaturePermissions } from "../features/index.js";
 
 /**
  * "Entrar como suporte" — a platform admin opens a company's CRM as one of its users.
@@ -165,7 +166,7 @@ supportEntryRouter.get("/suporte/entrar", async (req: Request, res: Response, ne
     s.userEmail = user.email;
     s.userName = user.name;
     s.userRole = user.role?.key ?? "staff";
-    s.permissionKeys = buildPermissionKeys(user);
+    s.permissionKeys = await applyFeaturePermissions(row.organizationId, buildPermissionKeys(user));
     s.mustChangePassword = false;
     s.support = { id: row.id, adminName: row.adminName, userName: user.name, orgName: row.organization.name, expiresAt: expiresAt.getTime(), prev: Object.keys(prev || {}).length ? prev : null } satisfies SupportState;
 

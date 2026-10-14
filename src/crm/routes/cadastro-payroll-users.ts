@@ -1,3 +1,4 @@
+import { checkLimit } from "../../lib/features/index.js";
 import { Router } from "express";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -481,6 +482,11 @@ cadastroPayrollUsersRouter.post(
         .safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ success: false, error: "Invalid user payload" });
+        return;
+      }
+      const userLimit = await checkLimit(req.organizationId!, "users", 1);
+      if (!userLimit.ok) {
+        res.status(403).json({ success: false, error: userLimit.message, code: "LIMIT_REACHED" });
         return;
       }
       const passwordHash = await hashPassword(parsed.data.password);

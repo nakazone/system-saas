@@ -74,6 +74,19 @@ import {
 import { createOrganizationWithAdmin, validateSlug } from "../modules/organizations/service.js";
 import { legalPromptEnabled, legalStatus, setLegalPrompt } from "../lib/legal/acceptance.js";
 import { createSupportSession, endSupportSession, SUPPORT_DURATIONS } from "../lib/support/session.js";
+import {
+  CORE_MODULES,
+  FEATURES,
+  LIMITS,
+  checkLimit,
+  featureDef,
+  featureGlobals,
+  getEntitlements,
+  getUsage,
+  invalidateEntitlements,
+  resolveEntitlements,
+  type FeatureState,
+} from "../lib/features/index.js";
 import { currentLegalVersions, legalDocuments } from "../lib/legal/documents.js";
 import { signupMode, setSignupMode, resendSignup } from "../modules/organizations/signup.js";
 import { formatPersonName } from "../lib/name.js";
@@ -416,6 +429,7 @@ async function shell(req: MasterRequest, active: string) {
     { key: "contatos", label: "Contatos", href: "/master/contatos", icon: "M5 4h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5zM5 4v18M12 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM8.5 17a3.5 3.5 0 0 1 7 0" },
     { key: "pagamentos", label: "Pagamentos", href: "/master/pagamentos", icon: "M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM2 10h20M6 15h4", group: "FINANCEIRO", hidden: !can(req.master!.role, "billing_full") },
     { key: "planos", label: "Planos e preços", href: "/master/planos", icon: "M4 4h7l9 9-7 7-9-9zM8 8h.01", hidden: !can(req.master!.role, "billing_full") },
+    { key: "recursos", label: "Recursos por plano", href: "/master/recursos", icon: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6M17 14v6", hidden: !can(req.master!.role, "billing_full") },
     { key: "vencimentos", label: "Vencimentos", href: "/master/vencimentos", icon: "M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 13v3l2 1", badge: overdue || null, group: can(req.master!.role, "billing_full") ? undefined : "FINANCEIRO" },
     { key: "equipe", label: "Equipe e segurança", href: "/master/equipe", icon: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4", group: "SISTEMA" },
     { key: "auditoria", label: "Auditoria", href: "/master/auditoria", icon: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" },
@@ -734,6 +748,7 @@ masterRouter.get(
       legal: await legalStatus(org.id),
       canSupport: can(req.master!.role, "support_enter"),
       supportSessions: await supportSessionsFor({ organizationId: org.id }),
+      rec: await featuresForRecord(org.id),
       supportUsers: await prisma.user.findMany({
         where: { organizationId: org.id, status: "active" },
         select: { id: true, name: true, role: { select: { key: true, name: true } } },
@@ -1332,6 +1347,7 @@ const createUserSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(200),
   roleId: z.string().uuid(),
+  ignoreLimit: z.string().optional(),
 });
 
 masterRouter.post(
@@ -1358,6 +1374,11 @@ masterRouter.post(
       select: { id: true },
     });
     if (taken) return fail(res, 409, "Já existe um usuário com esse e-mail nesta empresa.");
+    const userLimit = await checkLimit(org.id, "users", 1);
+    const overLimit = !userLimit.ok;
+    if (overLimit && parsed.data.ignoreLimit !== "1") {
+      return fail(res, 409, `${org.name} já usa ${userLimit.used} de ${userLimit.limit} usuários do plano. Marque "Cadastrar mesmo passando do limite" para continuar.`);
+    }
     const temp = makeTempPassword();
     const user = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${org.id}, true)`;
@@ -1381,7 +1402,7 @@ masterRouter.post(
         type: "user",
         id: user.id,
         label: `${user.name} · ${org.name}`,
-        meta: { email, role: role.key, organizationId: org.id },
+        meta: { email, role: role.key, organizationId: org.id, ...(overLimit ? { overLimit: `${userLimit.used}/${userLimit.limit}` } : {}) },
       },
       true,
     );
@@ -2231,6 +2252,10 @@ const AUDIT_TEXT: Record<string, string> = {
   "tenant.bulk_reminder": "Enviou lembretes em massa",
   "tenant.suspend": "Suspendeu a empresa",
   "support.start": "Entrou como suporte",
+  "feature.state": "Mudou um módulo para todas as empresas",
+  "plan.features": "Mudou o que o plano inclui",
+  "feature.override": "Criou exceção de módulo",
+  "feature.override_remove": "Tirou exceção de módulo",
   "support.update": "Atualizou ticket de suporte",
   "billing.charge_now": "Cobrou agora no Stripe",
   "billing.checkout_link": "Gerou link de pagamento",
@@ -2560,6 +2585,246 @@ masterRouter.post(
     ok(res, `Link de confirmação reenviado para ${row?.email}.`);
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Recursos por plano: módulos extras, estado global, matriz plano × recurso, limites, exceções
+// ---------------------------------------------------------------------------
+
+const FEATURE_STATE_LABEL: Record<FeatureState, string> = { on: "Liberado", beta: "Beta", off: "Desligado" };
+
+/** Everyone that isn't canceled, with what they can use today. */
+async function entitlementsOfAll() {
+  const orgs = await prisma.organization.findMany({ where: { status: { not: "canceled" } }, select: { id: true, name: true, plan: true } });
+  const [planRows, globals, overrides] = await Promise.all([
+    prisma.plan.findMany({ select: { key: true, features: true, limits: true } }),
+    featureGlobals(),
+    prisma.orgFeatureOverride.findMany({ select: { organizationId: true, featureKey: true, enabled: true, endsAt: true } }),
+  ]);
+  return orgs.map((o) => {
+    const planKey = String(o.plan || "starter").toLowerCase();
+    return {
+      org: o,
+      ent: resolveEntitlements({ plan: planRows.find((p) => p.key === planKey) ?? null, planKey, globals, overrides: overrides.filter((x) => x.organizationId === o.id) }),
+      overrides: overrides.filter((x) => x.organizationId === o.id),
+    };
+  });
+}
+
+function asObj(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+
+masterRouter.get(
+  "/recursos",
+  requireCap("billing_full"),
+  h(async (req, res) => {
+    const [catalog, globals, all] = await Promise.all([refreshPlans(), featureGlobals(), entitlementsOfAll()]);
+    const now = Date.now();
+    const features = FEATURES.map((f) => {
+      const state = (globals[f.key] ?? "on") as FeatureState;
+      const using = all.filter((x) => x.ent.features[f.key].on).length;
+      const exceptions = all.filter((x) => x.overrides.some((o) => o.featureKey === f.key && (!o.endsAt || o.endsAt.getTime() > now))).length;
+      return { key: f.key, name: f.name, description: f.description, state, stateLabel: FEATURE_STATE_LABEL[state], using, exceptions };
+    });
+    const plansView = catalog.map((p) => {
+      const pf = asObj(p.features);
+      const pl = asObj(p.limits);
+      return {
+        key: p.key,
+        name: p.name,
+        companies: all.filter((x) => x.ent.plan === p.key).length,
+        features: Object.fromEntries(FEATURES.map((f) => [f.key, pf[f.key] !== false])),
+        limits: Object.fromEntries(LIMITS.map((l) => [l.key, typeof pl[l.key] === "number" ? String(pl[l.key]) : ""])),
+        includedUsers: p.includedUsers,
+      };
+    });
+    page(res, "recursos", await shell(req, "recursos"), {
+      features,
+      plans: plansView,
+      limits: LIMITS,
+      core: CORE_MODULES,
+      totalCompanies: all.length,
+      canEdit: can(req.master!.role, "plans_manage"),
+    });
+  }),
+);
+
+/** Turning a module off for everyone needs the authenticator code again. */
+function stepUpWhenOff(req: MasterRequest, res: Response, next: NextFunction) {
+  if (String(req.body?.state || "") === "off") return requireStepUp(req, res, next);
+  next();
+}
+
+masterRouter.post(
+  "/recursos/:key/estado",
+  requireCap("plans_manage"),
+  stepUpWhenOff,
+  h(async (req, res) => {
+    const def = featureDef(String(req.params.key));
+    if (!def) return fail(res, 404, "Recurso não encontrado.");
+    const state = String(req.body?.state || "") as FeatureState;
+    if (!["on", "beta", "off"].includes(state)) return fail(res, 400, "Escolha Liberado, Beta ou Desligado.");
+    const before = (await featureGlobals())[def.key] ?? "on";
+    if (before === state) return ok(res, `${def.name} já está ${FEATURE_STATE_LABEL[state].toLowerCase()}.`);
+    const usingBefore = (await entitlementsOfAll()).filter((x) => x.ent.features[def.key].on).length;
+    await prisma.platformFeature.upsert({
+      where: { key: def.key },
+      create: { key: def.key, state, updatedByName: req.master!.name },
+      update: { state, updatedByName: req.master!.name },
+    });
+    invalidateEntitlements();
+    const usingAfter = (await entitlementsOfAll()).filter((x) => x.ent.features[def.key].on).length;
+    await audit(req, actor(req), "feature.state", { type: "feature", label: def.name, meta: { from: before, to: state, companiesBefore: usingBefore, companiesAfter: usingAfter } }, state === "off");
+    const diff = usingAfter - usingBefore;
+    ok(res, `${def.name}: ${FEATURE_STATE_LABEL[state]}.${diff ? ` ${Math.abs(diff)} empresa(s) ${diff > 0 ? "ganharam" : "perderam"} acesso.` : ""}`);
+  }),
+);
+
+masterRouter.post(
+  "/recursos/plano/:key",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    const plan = await prisma.plan.findUnique({ where: { key: String(req.params.key) } });
+    if (!plan) return fail(res, 404, "Plano não encontrado.");
+    const features: Record<string, boolean> = {};
+    for (const f of FEATURES) features[f.key] = req.body?.[`f_${f.key}`] === "1";
+    const limits: Record<string, number | null> = {};
+    for (const l of LIMITS) {
+      const raw = String(req.body?.[`l_${l.key}`] ?? "").trim();
+      if (raw === "") limits[l.key] = null;
+      else {
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 0 || n > 1_000_000) return fail(res, 400, `${l.name}: use um número inteiro (ou deixe vazio para sem limite).`);
+        limits[l.key] = n;
+      }
+    }
+    const beforeAll = await entitlementsOfAll();
+    const beforeFeatures = asObj(plan.features);
+    const beforeLimits = asObj(plan.limits);
+    await prisma.plan.update({ where: { id: plan.id }, data: { features, limits } });
+    invalidateEntitlements();
+    await refreshPlans();
+    const afterAll = await entitlementsOfAll();
+    // Who gained or lost a module with this change (only companies on this plan can change).
+    let lost = 0;
+    let gained = 0;
+    for (const a of afterAll) {
+      const b = beforeAll.find((x) => x.org.id === a.org.id);
+      if (!b) continue;
+      for (const f of FEATURES) {
+        if (b.ent.features[f.key].on && !a.ent.features[f.key].on) lost++;
+        if (!b.ent.features[f.key].on && a.ent.features[f.key].on) gained++;
+      }
+    }
+    // Companies already above a new limit keep working; only adding more is blocked.
+    const over: string[] = [];
+    for (const l of LIMITS) {
+      const lim = limits[l.key];
+      if (lim == null) continue;
+      for (const a of afterAll.filter((x) => x.ent.plan === plan.key)) {
+        const u = await getUsage(a.org.id);
+        if (u[l.key] > lim) over.push(`${a.org.name} (${l.name.toLowerCase()} ${u[l.key]}/${lim})`);
+      }
+    }
+    const changes = [
+      ...FEATURES.filter((f) => (beforeFeatures[f.key] !== false) !== features[f.key]).map((f) => `${f.name}: ${features[f.key] ? "incluído" : "fora do plano"}`),
+      ...LIMITS.filter((l) => (beforeLimits[l.key] ?? null) !== limits[l.key]).map((l) => `${l.name}: ${beforeLimits[l.key] ?? "sem limite"} → ${limits[l.key] ?? "sem limite"}`),
+    ];
+    if (!changes.length) return ok(res, "Nada mudou.");
+    await audit(req, actor(req), "plan.features", { type: "plan", label: plan.name, meta: { changes, lost, gained, over: over.slice(0, 20) } });
+    const parts = [`${plan.name} atualizado.`];
+    if (lost) parts.push(`${lost} acesso(s) a módulo(s) removido(s).`);
+    if (gained) parts.push(`${gained} acesso(s) liberado(s).`);
+    ok(res, parts.join(" "), over.length ? { warn: `Já passam do novo limite (continuam funcionando, só não adicionam mais): ${over.slice(0, 5).join(", ")}${over.length > 5 ? "…" : ""}` } : {});
+  }),
+);
+
+const overrideSchema = z.object({
+  featureKey: z.string(),
+  enabled: z.enum(["1", "0"]),
+  reason: z.string().trim().min(3).max(300),
+  endsAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+});
+
+masterRouter.post(
+  "/clientes/:id/recursos/excecao",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const parsed = overrideSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Escolha o recurso, ligar ou desligar, e escreva o motivo.");
+    const def = featureDef(parsed.data.featureKey);
+    if (!def) return fail(res, 400, "Recurso inválido.");
+    // Valid through the whole chosen day in Denver.
+    const endsAt = parsed.data.endsAt ? new Date(`${parsed.data.endsAt}T23:59:00-07:00`) : null;
+    if (endsAt && endsAt.getTime() <= Date.now()) return fail(res, 400, "A data de fim precisa ser no futuro.");
+    const enabled = parsed.data.enabled === "1";
+    await prisma.orgFeatureOverride.upsert({
+      where: { organizationId_featureKey: { organizationId: org.id, featureKey: def.key } },
+      create: { organizationId: org.id, featureKey: def.key, enabled, reason: parsed.data.reason, endsAt, createdByName: req.master!.name },
+      update: { enabled, reason: parsed.data.reason, endsAt, createdByName: req.master!.name, createdAt: new Date() },
+    });
+    invalidateEntitlements(org.id);
+    await audit(req, actor(req), "feature.override", { type: "org", id: org.id, label: org.name, meta: { feature: def.key, enabled, reason: parsed.data.reason, endsAt: parsed.data.endsAt || null } });
+    const globals = await featureGlobals();
+    ok(res, `${def.name} ${enabled ? "ligado" : "desligado"} para ${org.name}${endsAt ? ` até ${shortDate(endsAt)}` : ""}.`, globals[def.key] === "off" && enabled ? { warn: `${def.name} está desligado para todos; a exceção só vale quando voltar a ficar liberado ou em beta.` } : {});
+  }),
+);
+
+masterRouter.post(
+  "/clientes/:id/recursos/excecao/:key/remover",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const def = featureDef(String(req.params.key));
+    if (!def) return fail(res, 404, "Recurso não encontrado.");
+    const r = await prisma.orgFeatureOverride.deleteMany({ where: { organizationId: org.id, featureKey: def.key } });
+    invalidateEntitlements(org.id);
+    if (r.count) await audit(req, actor(req), "feature.override_remove", { type: "org", id: org.id, label: org.name, meta: { feature: def.key } });
+    ok(res, `${def.name} volta a seguir o plano.`);
+  }),
+);
+
+/** "Recursos e uso" block of the company record. */
+async function featuresForRecord(organizationId: string) {
+  const [ent, usage, overrides] = await Promise.all([
+    getEntitlements(organizationId),
+    getUsage(organizationId),
+    prisma.orgFeatureOverride.findMany({ where: { organizationId } }),
+  ]);
+  const now = Date.now();
+  return {
+    features: FEATURES.map((f) => {
+      const e = ent.features[f.key];
+      const ov = overrides.find((o) => o.featureKey === f.key);
+      const ovActive = !!ov && (!ov.endsAt || ov.endsAt.getTime() > now);
+      return {
+        key: f.key,
+        name: f.name,
+        on: e.on,
+        source:
+          e.source === "global_off"
+            ? "desligado para todos"
+            : e.source === "beta"
+              ? "beta · sem exceção"
+              : e.source === "override"
+                ? `exceção${ov?.endsAt ? ` até ${shortDate(ov.endsAt)}` : ""}`
+                : "pelo plano",
+        override: ovActive ? { enabled: ov!.enabled, reason: ov!.reason, by: ov!.createdByName, endsAt: ov!.endsAt ? shortDate(ov!.endsAt) : null } : null,
+      };
+    }),
+    limits: LIMITS.map((l) => {
+      const limit = ent.limits[l.key];
+      const used = usage[l.key];
+      const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+      return { key: l.key, name: l.name, used, limit, pct, tone: limit == null ? "none" : pct >= 100 ? "danger" : pct >= 80 ? "warn" : "ok" };
+    }),
+    featureOptions: FEATURES.map((f) => ({ key: f.key, name: f.name })),
+  };
+}
+
 
 // Unknown paths inside /master
 masterRouter.use((req, res) => {

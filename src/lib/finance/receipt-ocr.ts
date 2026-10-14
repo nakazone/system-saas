@@ -1,3 +1,4 @@
+import { takeAiUse } from "../features/index.js";
 /**
  * Receipt / nota fiscal OCR for the Finance module.
  * Uses OpenAI-compatible Vision when OPENAI_API_KEY (or FINANCE_OCR_API_KEY) is set.
@@ -255,6 +256,22 @@ export async function extractReceiptFromDataUrl(dataUrl: string): Promise<Receip
       raw: null,
       error:
         "OCR não configurado. Defina OPENAI_API_KEY (ou FINANCE_OCR_API_KEY) no ambiente para leitura automática.",
+    };
+  }
+  const blocked = await takeAiUse();
+  if (blocked) {
+    return {
+      provider: "none",
+      status: "unavailable",
+      vendorName: null,
+      amount: null,
+      currency: null,
+      date: null,
+      description: null,
+      category: null,
+      confidence: 0,
+      raw: null,
+      error: blocked,
     };
   }
 

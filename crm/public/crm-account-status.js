@@ -228,6 +228,26 @@
     setTimeout(offsetTopBars, 2500);
   }
 
+  // Modules outside the company's plan: hide every link to their pages (dock, menu, tab bar, shortcuts).
+  function hidePages(pages) {
+    var old = document.getElementById("om-plan-hide");
+    if (old) old.remove();
+    pages = (pages || []).filter(function (p) { return /^[a-z0-9-]+\.html$/.test(p); });
+    if (!pages.length) return;
+    var sel = [];
+    // ":not(#…)" raises specificity above the dock/menu rules that force display with !important.
+    var boost = ":not(#om-x):not(#om-y)";
+    pages.forEach(function (p) {
+      ['="' + p + '"', '="/' + p + '"', '^="' + p + '?"', '^="/' + p + '?"', '^="' + p + '#"', '^="/' + p + '#"'].forEach(function (m) {
+        sel.push("a[href" + m + "]" + boost);
+      });
+    });
+    var st = document.createElement("style");
+    st.id = "om-plan-hide";
+    st.textContent = sel.join(",") + "{display:none !important}";
+    document.head.appendChild(st);
+  }
+
   var toastTimer = null;
   function supportToast(msg) {
     var el = document.getElementById("omSupToast");
@@ -275,6 +295,7 @@
         state.banner = j.data.banner;
         state.canManage = !!j.data.can_manage_billing;
         renderSupport(j.data.support || null);
+        hidePages(j.data.hidden_pages || []);
         document.documentElement.classList.toggle("om-read-only", state.mode === "read_only");
         renderBanner();
         legalModal(j.data.legal);
@@ -282,7 +303,7 @@
       .catch(function () {});
   }
 
-  window.__omAccount = { reload: load, readOnlyModal: readOnlyModal, state: state };
+  window.__omAccount = { reload: load, readOnlyModal: readOnlyModal, state: state, hidePages: hidePages };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", load);
   else load();
   window.addEventListener("hashchange", renderBanner);
