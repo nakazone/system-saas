@@ -132,15 +132,15 @@
     card.hidden = !lt;
     if (!lt) return;
     const d = `${lt.days} dia${lt.days > 1 ? "s" : ""}`;
-    const ops =
-      job.status === "in_progress"
-        ? `<button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="complete">Concluir job</button>`
-        : job.status === "draft" || job.status === "scheduled"
-          ? `<button type="button" class="jd-btn jd-btn--sm jd-btn--pri" data-primary="start">Iniciar job</button><button type="button" class="jd-btn jd-btn--sm" data-primary="complete">Já concluído</button>`
-          : "";
-    card.innerHTML = `<b>${job.status === "in_progress" ? `Passou da data de término há ${d}` : `Era para começar e não foi iniciado (${d})`}</b>
-      <p>${job.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Pode iniciar, marcar como já concluído ou remarcar — mesmo fora do dia agendado."}</p>
-      ${canManage ? `<div class="jd-late__acts">${ops}<button type="button" class="jd-btn jd-btn--sm" data-primary="schedule">Remarcar</button><a class="jd-btn jd-btn--sm jd-btn--ghost" href="${esc($("btnOpenSchedule").href)}">Ver na agenda</a></div>` : ""}`;
+    const title =
+      job.status === "in_progress" ? `Passou do término · ${d}` : `Não iniciado · ${d} após a data`;
+    // Ops live in the header primary CTA — here only quiet schedule links.
+    card.className = "jd-late-line";
+    card.innerHTML = `<span class="jd-late-line__dot" aria-hidden="true"></span><span>${esc(title)}</span>${
+      canManage
+        ? `<button type="button" class="jd-late-line__act" data-primary="schedule">Remarcar</button><a class="jd-late-line__act" href="${esc($("btnOpenSchedule").href)}">Agenda</a>`
+        : ""
+    }`;
   }
 
   // ---------------------------------------------------------------- header

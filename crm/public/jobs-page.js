@@ -707,18 +707,26 @@
         </div>
         ${s >= 0 ? `<ol class="jx-steps">${steps}</ol>` : ""}
         <div class="jx-kpis">${kpis.map(([k, v, sm]) => `<div><span>${k}</span><b>${J.esc(v)}</b>${sm ? `<small>${J.esc(sm)}</small>` : ""}</div>`).join("")}</div>
+        ${
+          lt
+            ? `<p class="jx-late-line" role="status"><span class="jx-late-line__dot" aria-hidden="true"></span><span>${
+                wo.status === "in_progress"
+                  ? `Passou do término · ${lt.days} dia${lt.days > 1 ? "s" : ""}`
+                  : `Não iniciado · ${lt.days} dia${lt.days > 1 ? "s" : ""} após a data`
+              }</span>${
+                canManage
+                  ? lateActions(wo)
+                      .map((a) =>
+                        a.primary
+                          ? ""
+                          : `<button type="button" class="jx-late-line__act" data-jx-act="${a.act}">${J.esc(a.label)}</button>`,
+                      )
+                      .join("")
+                  : ""
+              }</p>`
+            : ""
+        }
       </div>
-      ${
-        lt
-          ? `<div class="jx-alert"><div><b>${wo.status === "in_progress" ? `Passou da data de término há ${lt.days} dia${lt.days > 1 ? "s" : ""}` : `Era para começar e não foi iniciado (${lt.days} dia${lt.days > 1 ? "s" : ""})`}</b><p>${wo.status === "in_progress" ? "O job ainda está em campo. Conclua se o serviço terminou ou remarque o fim." : "Pode iniciar, marcar como já concluído ou remarcar a data — mesmo fora do dia agendado."}</p></div>${
-              canManage
-                ? `<div class="jx-alert__acts">${lateActions(wo)
-                    .map((a) => `<button type="button" class="jx-btn${a.primary ? " jx-btn--pri" : ""}" data-jx-act="${a.act}">${J.esc(a.label)}</button>`)
-                    .join("")}</div>`
-                : ""
-            }</div>`
-          : ""
-      }
       <nav class="jx-tabs" role="tablist">${DETAIL_TABS.map(
         ([k, label]) => `<button type="button" role="tab" class="${k === tab ? "is-on" : ""}" data-jx-tab="${k}" aria-selected="${k === tab}">${label}</button>`,
       ).join("")}</nav>
