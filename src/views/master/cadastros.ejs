@@ -1,0 +1,128 @@
+<%- include('_top', { pageTitle: 'Cadastros' }) %>
+<div class="page-head">
+  <div><h1>Cadastros</h1><div class="page-sub">Quem entra pelo site: modo de cadastro, convites e empresas se cadastrando.</div></div>
+  <% if (canInvite) { %><button class="btn btn-primary" type="button" data-open="dlg-invite">+ Novo convite</button><% } %>
+</div>
+
+<div class="kpis k4">
+  <div class="kpi dark"><span class="kpi-label">Iniciados · 30 dias</span><span class="kpi-value num"><%= stats.started %></span><span class="kpi-note">preencheram o formulário</span></div>
+  <div class="kpi"><span class="kpi-label">Confirmados</span><span class="kpi-value num"><%= stats.confirmed %></span><span class="kpi-note"><%= stats.rate == null ? '—' : stats.rate + '% confirmam o e-mail' %></span></div>
+  <div class="kpi <%= stats.pending ? 'warn' : '' %>"><span class="kpi-label">Aguardando e-mail</span><span class="kpi-value num"><%= stats.pending %></span><span class="kpi-note">link vale 48 horas</span></div>
+  <div class="kpi <%= legalMissing ? 'warn' : '' %>"><span class="kpi-label">Sem aceite dos termos atuais</span><span class="kpi-value num"><%= legalMissing %><small class="muted" style="font-size:15px"> / <%= legalTotal %></small></span><span class="kpi-note">o admin vê o pedido no app</span></div>
+</div>
+
+<div class="cad-grid">
+  <section class="card card-pad">
+    <div class="card-head"><h2>Cadastro pelo site</h2></div>
+    <p class="muted cad-sub">Vale para quem clica em “Start free trial”. Empresas criadas por aqui ou pelo Master não são afetadas.</p>
+    <form data-action action="/master/cadastros/modo" class="cad-modes" <%= canMode ? '' : 'inert' %>>
+      <% [
+        { k: 'open', t: 'Aberto', d: 'Qualquer empresa cria o espaço e confirma o e-mail.' },
+        { k: 'invite', t: 'Só com convite', d: 'O site pede o link do convite. Bom para o beta.' },
+        { k: 'closed', t: 'Fechado', d: 'Ninguém se cadastra pelo site.' },
+      ].forEach(function (m) { %>
+        <label class="cad-mode <%= mode === m.k ? 'is-on' : '' %>">
+          <input type="radio" name="mode" value="<%= m.k %>" <%= mode === m.k ? 'checked' : '' %> onchange="this.form.requestSubmit()">
+          <span><b><%= m.t %></b><small><%= m.d %></small></span>
+        </label>
+      <% }) %>
+    </form>
+    <% if (!canMode) { %><small class="muted">Só o Master muda essa opção.</small><% } %>
+  </section>
+
+  <section class="card card-pad">
+    <div class="card-head"><h2>Documentos legais</h2></div>
+    <p class="muted cad-sub">Aceitos no cadastro. Ao mudar a versão no código, os admins aceitam de novo ao abrir o app.</p>
+    <div class="cad-docs">
+      <% legal.forEach(function (d) { %>
+        <a class="cad-doc" href="<%= appBase + d.path %>" target="_blank" rel="noopener"><b><%= d.title %></b><small>Versão <%= d.version %> · abrir ↗</small></a>
+      <% }) %>
+    </div>
+  </section>
+</div>
+
+<div class="section-title"><h2>Convites</h2><small class="muted"><%= invites.filter(function (i) { return i.usable; }).length %> aguardando</small></div>
+<section class="table">
+  <div class="tr head cols-convites"><span>EMPRESA / E-MAIL</span><span>PLANO</span><span>VALIDADE</span><span>STATUS</span><span></span></div>
+  <% invites.forEach(function (i) { %>
+    <div class="tr cols-convites">
+      <span class="stack"><b style="font-size:14px"><%= i.companyName || i.email || 'Convite aberto' %></b><small><%= i.companyName && i.email ? i.email + ' · ' : '' %>criado <%= i.created %><%= i.note ? ' · ' + i.note : '' %></small></span>
+      <span class="hide-m" style="font-size:13px;font-weight:600"><%= i.planName %> · <%= i.trialDays %> dias grátis</span>
+      <span class="hide-m muted" style="font-size:13px;font-weight:600"><%= i.usedAt ? '—' : i.expires %></span>
+      <span>
+        <% if (i.usedAt && i.organizationId) { %>
+          <a class="pill pill-sm tone-ink" href="/master/clientes/<%= i.organizationId %>" data-ficha="<%= i.organizationId %>" style="text-decoration:none">Usado · <%= i.orgName %></a>
+        <% } else { %><span class="pill pill-sm tone-<%= i.pill.tone %>"><%= i.pill.label %></span><% } %>
+      </span>
+      <span class="right">
+        <% if (i.usable) { %>
+          <button class="btn btn-soft btn-sm" type="button" data-copy="<%= i.url %>">Copiar link</button>
+          <% if (canInvite) { %>
+            <form data-action action="/master/cadastros/convites/<%= i.id %>/cancelar" data-confirm="Cancelar este convite? O link para de funcionar." style="display:inline-flex"><button class="btn btn-soft btn-sm" type="submit">Cancelar</button></form>
+          <% } %>
+        <% } %>
+      </span>
+    </div>
+  <% }) %>
+  <% if (!invites.length) { %><div class="empty" style="text-align:center;padding:24px">Nenhum convite ainda. <% if (canInvite) { %>Crie um em “+ Novo convite” e mande o link para a empresa.<% } %></div><% } %>
+</section>
+
+<div class="section-title"><h2>Cadastros recentes</h2><small class="muted">últimos 30 dias</small></div>
+<section class="table">
+  <div class="tr head cols-cadastros"><span>EMPRESA</span><span>RESPONSÁVEL</span><span>QUANDO</span><span>STATUS</span><span></span></div>
+  <% rows.forEach(function (r) { %>
+    <div class="tr cols-cadastros">
+      <span class="stack">
+        <% if (r.organizationId) { %><a href="/master/clientes/<%= r.organizationId %>" data-ficha="<%= r.organizationId %>" style="text-decoration:none"><b style="font-size:14px"><%= r.orgName %></b></a><% } else { %><b style="font-size:14px"><%= r.company %></b><% } %>
+        <small><%= r.slug %><%= r.invite ? ' · por convite' : '' %></small>
+      </span>
+      <span class="stack hide-m"><b style="font-size:13px"><%= r.name %></b><small><%= r.email %></small></span>
+      <span class="stack hide-m"><b style="font-size:13px;font-weight:600"><%= r.when %></b><small><%= r.ip ? 'IP ' + r.ip : '' %><%= r.sends > 1 ? ' · ' + r.sends + ' e-mails' : '' %></small></span>
+      <span><span class="pill pill-sm tone-<%= r.pill.tone %>"><%= r.pill.label %></span></span>
+      <span class="right">
+        <% if (r.pending && canResend) { %>
+          <form data-action action="/master/cadastros/<%= r.id %>/reenviar" style="display:inline-flex"><button class="btn btn-soft btn-sm" type="submit">Reenviar link</button></form>
+        <% } %>
+      </span>
+    </div>
+  <% }) %>
+  <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:24px">Ninguém se cadastrou pelo site nos últimos 30 dias.</div><% } %>
+</section>
+
+<% if (canInvite) { %>
+<dialog id="dlg-invite" aria-labelledby="t-invite">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-invite">Novo convite</h2><p>Gera um link que cria uma empresa. Funciona mesmo com o cadastro fechado para o público.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/cadastros/convites">
+      <div class="form-row">
+        <label class="field">Empresa (opcional)<input class="input" name="companyName" maxlength="120" placeholder="ex.: Peak Flooring"></label>
+        <label class="field">E-mail (opcional)<input class="input" name="email" type="email" maxlength="200" placeholder="só esse e-mail pode usar"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Plano
+          <select class="input" name="plan"><% plans.forEach(function (p) { %><option value="<%= p.key %>" <%= p.key === 'starter' ? 'selected' : '' %>><%= p.label %></option><% }) %></select>
+        </label>
+        <label class="field">Dias de teste grátis<input class="input num" name="trialDays" type="number" min="0" max="120" value="30" required></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Link vale (dias)<input class="input num" name="validDays" type="number" min="0" max="365" value="14" required><small class="muted" style="font-weight:600">0 = sem prazo</small></label>
+        <label class="field">Nota interna<input class="input" name="note" maxlength="500" placeholder="ex.: indicação do Mike"></label>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Criar convite</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
+
+<script>
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]');
+    if (!b) return;
+    var v = b.getAttribute('data-copy');
+    (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(function () {
+      var t = b.textContent; b.textContent = 'Copiado'; setTimeout(function () { b.textContent = t; }, 1500);
+    }).catch(function () { window.prompt('Copie o link:', v); });
+  });
+</script>
+<%- include('_bottom') %>

@@ -20,6 +20,10 @@ export async function runJob<T>(name: string, trigger: "schedule" | "manual", fn
 }
 
 export const BILLING_LADDER_JOB = "billing-ladder";
+/** Written by `npm run backup:check` (scripts/backup-restore-check.ts). */
+export const BACKUP_CHECK_JOB = "backup-restore-check";
+/** A restore test older than this shows up in the Master queue. */
+export const BACKUP_CHECK_MAX_DAYS = 35;
 
 /** Hour of the day (platform time) after which the daily ladder runs. */
 const LADDER_HOUR = 6;

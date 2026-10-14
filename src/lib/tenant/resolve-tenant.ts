@@ -26,7 +26,13 @@ export type TenantRequest = Request & {
 const PUBLIC_MARKETING_PATHS = new Set([
   "/pricing",
   "/signup",
+  "/signup/check",
+  "/signup/resend",
+  "/signup/verify",
   "/find-workspace",
+  "/terms",
+  "/privacy",
+  "/dpa",
 ]);
 
 /** Apex paths that work before a workspace is chosen (email-first login). */
@@ -36,6 +42,10 @@ const PUBLIC_AUTH_PATHS = new Set([
   "/api/auth/login",
   "/api/auth/session",
   "/api/auth/logout",
+  "/forgot-password.html",
+  "/reset-password.html",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
 ]);
 
 function extractSubdomain(host: string, rootDomain: string): string | null {

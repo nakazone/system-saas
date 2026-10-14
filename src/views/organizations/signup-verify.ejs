@@ -1,0 +1,41 @@
+<%- include('../partials/header') %>
+
+<section class="auth-card-wrap">
+  <div class="auth-card su-center">
+    <% if (state === 'confirm') { %>
+      <p class="mkt-eyebrow">Step 3 of 3</p>
+      <h1>Create <%= row.organizationName %></h1>
+      <p class="mkt-lead">Confirm <strong><%= row.email %></strong> and open your workspace.</p>
+      <form method="post" action="/signup/verify" id="verifyForm">
+        <input type="hidden" name="token" value="<%= token %>" />
+        <button class="btn su-submit" type="submit">Confirm and open my workspace</button>
+      </form>
+      <script>
+        document.getElementById('verifyForm').addEventListener('submit', function (e) {
+          var b = e.target.querySelector('button'); b.disabled = true; b.textContent = 'Creating your workspace…';
+        });
+      </script>
+    <% } else if (state === 'already') { %>
+      <h1>Already confirmed</h1>
+      <p class="mkt-lead">This e-mail was already confirmed<%= row ? ' and ' + row.organizationName + ' is ready' : '' %>. Sign in with your e-mail and password.</p>
+      <div class="mkt-cta-row su-center-row"><a class="btn" href="<%= loginUrl %>">Sign in</a></div>
+    <% } else if (state === 'expired') { %>
+      <h1>This link expired</h1>
+      <p class="mkt-lead">Links work for 48 hours. Fill in the form again and we’ll send a new one.</p>
+      <div class="mkt-cta-row su-center-row"><a class="btn" href="/signup">Start again</a></div>
+    <% } else if (state === 'slug_taken') { %>
+      <h1>That address was just taken</h1>
+      <p class="mkt-lead">Another company took <strong><%= row ? row.slug : 'this address' %></strong> before you confirmed. Sign up again with a different workspace address.</p>
+      <div class="mkt-cta-row su-center-row"><a class="btn" href="/signup">Choose another address</a></div>
+    <% } else if (state === 'closed') { %>
+      <h1>Sign-ups are paused</h1>
+      <p class="mkt-lead">We can’t create new workspaces right now. Please contact us.</p>
+    <% } else { %>
+      <h1>This link is not valid</h1>
+      <p class="mkt-lead">It may have been replaced by a newer e-mail. Use the most recent link we sent, or start again.</p>
+      <div class="mkt-cta-row su-center-row"><a class="btn" href="/signup">Start again</a></div>
+    <% } %>
+  </div>
+</section>
+
+<%- include('../partials/footer') %>

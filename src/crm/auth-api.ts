@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { passwordResetRouter } from "./password-reset.js";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { verifyPassword, hashPassword } from "../lib/auth/password.js";
@@ -10,6 +11,7 @@ import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
  * so the vendored CRM UI can talk to System SaaS sessions.
  */
 export const crmAuthRouter = Router();
+crmAuthRouter.use(passwordResetRouter);
 
 function buildPermissionKeys(user: {
   role: {

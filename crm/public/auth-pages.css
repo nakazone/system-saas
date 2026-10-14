@@ -1,0 +1,10 @@
+/* Forgot / reset password pages (same shell as login.html). */
+.login-header h1 { font-size: 1.45rem; }
+.ap-done { text-align: center; padding: 0.5rem 0 0.25rem; }
+.ap-done[hidden], .login-form[hidden] { display: none !important; }
+.ap-done h2 { font-size: 1.2rem; margin: 0.5rem 0 0.4rem; color: #211d1a; }
+.ap-done p { color: #6e655c; line-height: 1.5; margin: 0 0 1rem; }
+.ap-icon { width: 52px; height: 52px; margin: 0 auto; border-radius: 15px; display: grid; place-items: center; background: #f7f4ee; color: #c1652f; border: 1px solid #e2d9cc; }
+.ap-muted { color: #6e655c; font-size: 0.85rem; }
+.ap-muted a, .login-alt a { color: #211d1a; font-weight: 600; text-decoration: underline; text-decoration-color: #e8792c; text-underline-offset: 2px; }
+.login-forgot { display: block; text-align: right; margin: -0.35rem 0 0.9rem; font-size: 0.85rem; font-weight: 600; color: #211d1a; text-decoration: underline; text-decoration-color: #e8792c; text-underline-offset: 2px; }

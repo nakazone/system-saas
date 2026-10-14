@@ -282,6 +282,8 @@ export function createApp() {
     if (
       p === "/login" ||
       p === "/login.html" ||
+      p === "/forgot-password.html" ||
+      p === "/reset-password.html" ||
       p.startsWith("/api/auth/") ||
       /\.(css|js|map|png|jpg|jpeg|gif|svg|webp|ico|woff2?)$/i.test(p)
     ) {

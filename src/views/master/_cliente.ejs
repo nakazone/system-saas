@@ -130,6 +130,31 @@
   <% } %>
 
   <section class="d-sec">
+    <h3>Termos e origem</h3>
+    <div class="legal-rows">
+      <% legal.forEach(function (l) { %>
+        <div class="legal-row">
+          <span class="legal-row__name"><%= l.document === 'terms' ? 'Termos de Serviço' : l.document === 'privacy' ? 'Privacidade' : 'DPA' %></span>
+          <% if (l.upToDate) { %>
+            <span class="pill pill-sm tone-ink">Aceito v<%= l.accepted %></span>
+            <small class="muted"><%= dateTimeLabel(l.acceptedAt) %><%= l.by ? ' · ' + l.by : '' %><%= l.source === 'signup' ? ' · no cadastro' : l.source === 'in_app' ? ' · no app' : '' %><%= l.ip ? ' · IP ' + l.ip : '' %></small>
+          <% } else if (l.accepted) { %>
+            <span class="pill pill-sm tone-warn">Versão antiga v<%= l.accepted %></span>
+            <small class="muted">Atual v<%= l.current %> · o admin vê o pedido ao abrir o app</small>
+          <% } else { %>
+            <span class="pill pill-sm tone-warn">Não aceito</span>
+            <small class="muted">O admin vê o pedido ao abrir o app</small>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+    <p class="muted" style="margin:8px 0 0;font-size:13px">
+      <% if (signupOrigin) { %>Cadastro pelo site em <%= dateTimeLabel(signupOrigin.createdAt) %><%= signupOrigin.ip ? ' · IP ' + signupOrigin.ip : '' %><%= signupOrigin.inviteId ? ' · por convite' : '' %> · e-mail confirmado <%= signupOrigin.verifiedAt ? dateTimeLabel(signupOrigin.verifiedAt) : '—' %>
+      <% } else { %>Criada pelo Master ou antes do cadastro com confirmação de e-mail.<% } %>
+    </p>
+  </section>
+
+  <section class="d-sec">
     <h3>Notas internas</h3>
     <% notes.forEach(function (n) { %><div class="note-card"><p><%= n.body %></p><small><%= n.authorName %> · <%= dateTimeLabel(n.createdAt) %></small></div><% }) %>
     <form class="inline-form" data-action action="/master/clientes/<%= id %>/nota">

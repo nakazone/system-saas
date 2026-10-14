@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css?v=20261008-modulos1">
     <link rel="stylesheet" href="design-system.css?v=20261008-modulos1">
     <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1">
+    <link rel="stylesheet" href="auth-pages.css?v=20261014-pw1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -54,6 +55,7 @@
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password" required autocomplete="current-password">
                 </div>
+                <a class="login-forgot" href="/forgot-password.html" id="forgotLink">Forgot password?</a>
 
                 <div id="errorMessage" class="error-message" style="display: none;"></div>
 
@@ -99,6 +101,14 @@
         }
 
         let pendingPassword = '';
+        (function () {
+            var f = document.getElementById('forgotLink');
+            var em = document.getElementById('email');
+            try { var q = new URLSearchParams(location.search).get('email'); if (q && em) em.value = q; } catch (e) {}
+            if (f && em) f.addEventListener('click', function () {
+                if (em.value.trim()) f.href = '/forgot-password.html?email=' + encodeURIComponent(em.value.trim());
+            });
+        })();
 
         fetch('/api/auth/session', { credentials: 'include' })
             .then(async (r) => {

@@ -19,7 +19,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:domain": "node scripts/check-obramate-domain.mjs",
-    "master:link": "tsx scripts/master-link.ts"
+    "master:link": "tsx scripts/master-link.ts",
+    "backup:check": "tsx scripts/backup-restore-check.ts"
   },
   "engines": {
     "node": ">=18"

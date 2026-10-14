@@ -495,3 +495,53 @@ dialog.cmdk-dialog { margin-top: 0; }
 .reply { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line-soft); padding-top: 14px; }
 @media (max-width: 1180px) { .plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ticket-layout { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .ladder-row { flex-direction: column; gap: 6px; } .ladder-row__name { width: auto; padding: 0; } .plan-grid { grid-template-columns: 1fr; } .msg { max-width: 100%; } .cols-tickets { grid-template-columns: 1fr auto !important; } }
+
+/* Termos e origem (ficha) */
+.legal-rows { display: grid; gap: 6px; }
+.legal-row { display: grid; grid-template-columns: 130px auto 1fr; align-items: center; gap: 8px; font-size: 13px; }
+.legal-row__name { font-weight: 700; }
+.legal-row small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .legal-row { grid-template-columns: 1fr auto; } .legal-row small { grid-column: 1 / -1; white-space: normal; } }
+
+/* Cadastros */
+.cad-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; }
+.cad-sub { margin: 0 0 12px; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.cad-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cad-mode { position: relative; display: flex; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--sunken); cursor: pointer; box-shadow: inset 0 0 0 1px transparent; transition: box-shadow .15s ease, background .15s ease; }
+.cad-mode:hover { background: var(--line-soft); }
+.cad-mode input { margin: 2px 0 0; width: 18px; height: 18px; accent-color: var(--ink); flex-shrink: 0; }
+.cad-mode span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cad-mode b { font-size: 14px; }
+.cad-mode small { font-size: 12px; color: var(--muted); font-weight: 600; line-height: 1.4; }
+.cad-mode.is-on { background: #fff; box-shadow: inset 0 0 0 2px var(--ink); }
+.cad-modes[inert] { opacity: .7; }
+.cad-docs { display: grid; gap: 8px; }
+.cad-doc { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--sunken); text-decoration: none; color: var(--ink); }
+.cad-doc:hover { background: var(--line-soft); }
+.cad-doc b { font-size: 14px; }
+.cad-doc small { font-size: 12px; color: var(--muted); font-weight: 700; white-space: nowrap; }
+.section-title { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 -4px; }
+.section-title h2 { margin: 0; font-size: 18px; font-weight: 800; }
+.section-title small { font-weight: 700; }
+.cols-convites { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 110px minmax(0, 1fr) 190px; }
+.cols-cadastros { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.3fr) minmax(0, 1fr) 140px 130px; }
+@media (max-width: 1180px) { .cad-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  .cad-modes { grid-template-columns: 1fr; }
+  .cols-convites, .cols-cadastros { grid-template-columns: minmax(0, 1fr) auto !important; }
+  .cols-convites .right, .cols-cadastros .right { grid-column: 1 / -1; justify-content: flex-start; display: flex; gap: 6px; }
+}
+
+/* Backup restore test (Equipe e segurança) */
+.backup-card { margin: 14px 0; }
+.backup-head { display: flex; gap: 12px; align-items: flex-start; }
+.backup-head h2 { margin: 0 0 4px; font-size: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.backup-problems { margin: 10px 0 0; padding: 10px 12px 10px 28px; border-radius: 12px; background: #fbe9e1; color: #7a2c10; font-size: 13px; font-weight: 600; }
+.backup-how { margin-top: 12px; border-top: 1px solid var(--line, #e7e0d4); padding-top: 10px; }
+.backup-how summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.backup-how ol { margin: 10px 0 0; padding-left: 20px; font-size: 13.5px; line-height: 1.55; color: var(--ink-2, #3d3630); }
+.backup-how li { margin-bottom: 6px; }
+.backup-how pre { margin: 6px 0 2px; padding: 10px 12px; border-radius: 10px; background: #211d1a; color: #f7f4ee; font-size: 12.5px; overflow-x: auto; white-space: pre; }
+.backup-how code { font-size: 12.5px; background: #f1ebe1; padding: 1px 5px; border-radius: 6px; }
+.backup-hist { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; font-weight: 600; color: var(--ink-3, #6e655c); }
+.backup-hist span { background: #f3efe6; border-radius: 999px; padding: 3px 9px; }

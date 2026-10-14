@@ -4,6 +4,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
 import { env } from "../config/env.js";
+import { randomBytes } from "node:crypto";
 import { hashPassword, verifyPassword } from "../lib/auth/password.js";
 import { email as emailProvider } from "../lib/email/index.js";
 import {
@@ -71,6 +72,9 @@ import {
   type Pill,
 } from "./lib.js";
 import { createOrganizationWithAdmin, validateSlug } from "../modules/organizations/service.js";
+import { legalStatus } from "../lib/legal/acceptance.js";
+import { currentLegalVersions, legalDocuments } from "../lib/legal/documents.js";
+import { signupMode, setSignupMode, resendSignup } from "../modules/organizations/signup.js";
 import { formatPersonName } from "../lib/name.js";
 import { plans, refreshPlans, trialDaysFor } from "./plans.js";
 import {
@@ -84,7 +88,7 @@ import {
   syncSubscriptionPrice,
 } from "../lib/billing/stripe.js";
 import { DEFAULT_LADDER, ladderSteps, loadLadder, runBillingLadder, saveLadder } from "../lib/billing/dunning.js";
-import { BILLING_LADDER_JOB, runJob } from "../lib/billing/jobs.js";
+import { BACKUP_CHECK_JOB, BACKUP_CHECK_MAX_DAYS, BILLING_LADDER_JOB, runJob } from "../lib/billing/jobs.js";
 
 export const masterRouter = Router();
 
@@ -401,10 +405,12 @@ async function shell(req: MasterRequest, active: string) {
     return d != null && d < 0;
   }).length;
   const openTickets = await prisma.supportTicket.count({ where: { status: "open" } });
+  const signupPending = await prisma.signupRequest.count({ where: { verifiedAt: null, expiresAt: { gt: new Date() } } }).catch(() => 0);
   const nav = [
     { key: "central", label: "Central", href: "/master", icon: "M3 12l9-8 9 8M5 10v10h14V10" },
     { key: "clientes", label: "Clientes", href: "/master/clientes", icon: "M4 21V5l8-3 8 3v16M9 21v-4h6v4M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01", group: "CLIENTES" },
     { key: "usuarios", label: "Usuários", href: "/master/usuarios", icon: "M16 20v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 20v-1a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" },
+    { key: "cadastros", label: "Cadastros", href: "/master/cadastros", icon: "M15 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M8.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM19 8v6M22 11h-6", badge: signupPending || null },
     { key: "suporte", label: "Suporte", href: "/master/suporte", icon: "M21 12a8 8 0 0 1-11.8 7L4 20l1.2-4.6A8 8 0 1 1 21 12zM9 10h6M9 14h4", badge: openTickets || null },
     { key: "contatos", label: "Contatos", href: "/master/contatos", icon: "M5 4h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5zM5 4v18M12 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM8.5 17a3.5 3.5 0 0 1 7 0" },
     { key: "pagamentos", label: "Pagamentos", href: "/master/pagamentos", icon: "M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM2 10h20M6 15h4", group: "FINANCEIRO", hidden: !can(req.master!.role, "billing_full") },
@@ -502,6 +508,14 @@ masterRouter.get(
         href: waitingTickets === 1 ? `/master/suporte/${oldestTicket.id}` : "/master/suporte",
         primary: true,
       });
+    }
+    const lastBackup = await prisma.jobRun.findFirst({ where: { name: BACKUP_CHECK_JOB }, orderBy: { startedAt: "desc" } });
+    if (!lastBackup) {
+      queue.push({ tone: "warn", title: "Backup ainda não foi testado", sub: "Faça um teste de restauração antes de receber empresas de fora", cta: "Como fazer", href: "/master/equipe#backup" });
+    } else if (lastBackup.ok === false) {
+      queue.unshift({ tone: "danger", title: "O último teste de restauração do backup falhou", sub: (lastBackup.error || "").slice(0, 90), cta: "Ver", href: "/master/equipe#backup", primary: true });
+    } else if (Date.now() - lastBackup.startedAt.getTime() > BACKUP_CHECK_MAX_DAYS * 86400e3) {
+      queue.push({ tone: "muted", title: `Backup testado há mais de ${BACKUP_CHECK_MAX_DAYS} dias`, sub: `Último teste ${shortDate(lastBackup.startedAt)}`, cta: "Testar de novo", href: "/master/equipe#backup" });
     }
     if (lastLadder && lastLadder.ok === false) {
       queue.unshift({ tone: "danger", title: "A régua de cobrança falhou na última execução", sub: (lastLadder.error || "").slice(0, 90), cta: "Ver", href: "/master/vencimentos", primary: true });
@@ -716,6 +730,8 @@ masterRouter.get(
       stripeOn: stripeEnabled(),
       canUsers: can(req.master!.role, "users_manage"),
       showMoney: can(req.master!.role, "billing_full"),
+      legal: await legalStatus(org.id),
+      signupOrigin: await prisma.signupRequest.findFirst({ where: { organizationId: org.id }, select: { createdAt: true, verifiedAt: true, ip: true, inviteId: true } }),
     };
     if (req.query.partial) return void res.render("master/_cliente", { ...data, partial: true });
     page(res, "cliente", await shell(req, "clientes"), { ...data, partial: false });
@@ -1980,8 +1996,25 @@ masterRouter.get(
       })
       .sort((a, b) => (a.role === "MASTER" ? -1 : b.role === "MASTER" ? 1 : 0));
     const roles = PLATFORM_ROLES;
+    const backupRuns = await prisma.jobRun.findMany({ where: { name: BACKUP_CHECK_JOB }, orderBy: { startedAt: "desc" }, take: 5 });
+    const backup = backupRuns.map((r) => {
+      const d = (r.detail ?? {}) as { tables?: number; rows?: number; dumpBytes?: number; dumpSeconds?: number; restoreSeconds?: number; problems?: string[]; warnings?: string[] };
+      const days = Math.floor((Date.now() - r.startedAt.getTime()) / 86400e3);
+      return {
+        ok: r.ok === true,
+        when: dateTimeLabel(r.startedAt),
+        age: days === 0 ? "hoje" : days === 1 ? "ontem" : `há ${days} dias`,
+        stale: days > BACKUP_CHECK_MAX_DAYS,
+        summary: `${d.tables ?? 0} tabelas · ${(d.rows ?? 0).toLocaleString("pt-BR")} linhas · ${((d.dumpBytes ?? 0) / 1048576).toFixed(1)} MB`,
+        timing: `cópia ${(d.dumpSeconds ?? 0).toFixed(0)} s · restauração ${(d.restoreSeconds ?? 0).toFixed(0)} s`,
+        problems: d.problems ?? (r.error ? [r.error] : []),
+        warnings: (d.warnings ?? []).length,
+      };
+    });
     page(res, "equipe", await shell(req, "equipe"), {
       members,
+      backup,
+      backupMaxDays: BACKUP_CHECK_MAX_DAYS,
       roles: roles.map((r) => ({ key: r, label: ROLE_LABEL[r] })),
       matrix: CAPABILITIES.map((c) => ({ label: c.label, cells: roles.map((r) => can(r, c.key)) })),
       inviteRoles: (["ADMIN", "FINANCE", "SUPPORT", "READONLY"] as const).map((r) => ({ key: r, label: ROLE_LABEL[r], hint: ROLE_HINT[r] })),
@@ -2233,6 +2266,179 @@ masterRouter.post(
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${kind}-${ymdInTz(new Date())}.csv"`);
     res.send("﻿" + csv);
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Cadastros (site sign-up: mode, invitations, recent sign-ups)
+// ---------------------------------------------------------------------------
+
+function inviteUrl(code: string): string {
+  return `${env.APP_BASE_URL.replace(/\/$/, "")}/signup?invite=${encodeURIComponent(code)}`;
+}
+
+function inviteState(i: { usedAt: Date | null; revokedAt: Date | null; expiresAt: Date | null }): Pill {
+  if (i.usedAt) return { label: "Usado", tone: "ink" };
+  if (i.revokedAt) return { label: "Cancelado", tone: "muted" };
+  if (i.expiresAt && i.expiresAt.getTime() < Date.now()) return { label: "Expirado", tone: "muted" };
+  return { label: "Aguardando", tone: "warn" };
+}
+
+masterRouter.get(
+  "/cadastros",
+  requireCap("view"),
+  h(async (req, res) => {
+    const since = new Date(Date.now() - 30 * 86400e3);
+    const [mode, invites, requests, activeOrgs] = await Promise.all([
+      signupMode(),
+      prisma.signupInvite.findMany({ orderBy: { createdAt: "desc" }, take: 60 }),
+      prisma.signupRequest.findMany({ where: { createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, take: 200 }),
+      prisma.organization.findMany({ where: { status: { not: "canceled" } }, select: { id: true } }),
+    ]);
+    const current = currentLegalVersions();
+    const accepted = await prisma.legalAcceptance.findMany({
+      where: { document: "terms", version: current.terms },
+      select: { organizationId: true },
+      distinct: ["organizationId"],
+    });
+    const acceptedSet = new Set(accepted.map((a) => a.organizationId));
+    const orgNames = new Map(
+      (await prisma.organization.findMany({
+        where: { id: { in: [...requests.map((r) => r.organizationId), ...invites.map((i) => i.organizationId)].filter((x): x is string => !!x) } },
+        select: { id: true, name: true },
+      })).map((o) => [o.id, o.name]),
+    );
+    const now = Date.now();
+    const rows = requests.map((r) => ({
+      id: r.id,
+      company: r.organizationName,
+      slug: r.slug,
+      email: r.email,
+      name: r.adminName,
+      when: dateTimeLabel(r.createdAt),
+      ip: r.ip,
+      sends: r.sendCount,
+      invite: !!r.inviteId,
+      organizationId: r.organizationId,
+      orgName: r.organizationId ? orgNames.get(r.organizationId) || r.organizationName : null,
+      pill: r.verifiedAt
+        ? ({ label: "Confirmado", tone: "ink" } as Pill)
+        : r.expiresAt.getTime() < now
+          ? ({ label: "Expirou", tone: "muted" } as Pill)
+          : ({ label: "Aguardando e-mail", tone: "warn" } as Pill),
+      pending: !r.verifiedAt && r.expiresAt.getTime() >= now,
+    }));
+    const started = requests.length;
+    const confirmed = requests.filter((r) => r.verifiedAt).length;
+    page(res, "cadastros", await shell(req, "cadastros"), {
+      mode,
+      canMode: can(req.master!.role, "plans_manage"),
+      canInvite: can(req.master!.role, "billing_manage"),
+      canResend: can(req.master!.role, "users_manage"),
+      invites: invites.map((i) => ({
+        ...i,
+        url: inviteUrl(i.code),
+        pill: inviteState(i),
+        created: dateTimeLabel(i.createdAt),
+        expires: i.expiresAt ? shortDate(i.expiresAt) : "sem prazo",
+        usable: !i.usedAt && !i.revokedAt && (!i.expiresAt || i.expiresAt.getTime() > now),
+        orgName: i.organizationId ? orgNames.get(i.organizationId) || "empresa" : null,
+        planName: planLabel(i.plan),
+      })),
+      rows,
+      stats: {
+        started,
+        confirmed,
+        pending: rows.filter((r) => r.pending).length,
+        rate: started ? Math.round((confirmed / started) * 100) : null,
+      },
+      legal: legalDocuments().map((d) => ({ title: d.title, path: d.path, version: d.version })),
+      legalMissing: activeOrgs.filter((o) => !acceptedSet.has(o.id)).length,
+      legalTotal: activeOrgs.length,
+      appBase: env.APP_BASE_URL.replace(/\/$/, ""),
+      plans: planOptions(),
+    });
+  }),
+);
+
+masterRouter.post(
+  "/cadastros/modo",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    const mode = String(req.body?.mode || "");
+    if (mode !== "open" && mode !== "invite" && mode !== "closed") return fail(res, 400, "Escolha uma opção.");
+    const before = await signupMode();
+    await setSignupMode(mode);
+    const label = { open: "aberto", invite: "só com convite", closed: "fechado" }[mode];
+    await audit(req, actor(req), "signup.mode", { type: "setting", label: "Cadastro pelo site", meta: { from: before, to: mode } });
+    ok(res, `Cadastro pelo site: ${label}.`);
+  }),
+);
+
+const signupInviteSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(200).optional().or(z.literal("")),
+  companyName: z.string().trim().max(120).optional().default(""),
+  plan: planKey,
+  trialDays: z.coerce.number().int().min(0).max(120),
+  validDays: z.coerce.number().int().min(0).max(365),
+  note: z.string().trim().max(500).optional().default(""),
+});
+
+masterRouter.post(
+  "/cadastros/convites",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const parsed = signupInviteSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Confira e-mail, plano e dias.");
+    const d = parsed.data;
+    const code = randomBytes(9).toString("base64url");
+    const inv = await prisma.signupInvite.create({
+      data: {
+        code,
+        email: d.email || null,
+        companyName: d.companyName || null,
+        plan: d.plan,
+        trialDays: d.trialDays,
+        note: d.note || null,
+        createdById: req.master!.id,
+        expiresAt: d.validDays ? new Date(Date.now() + d.validDays * 86400e3) : null,
+      },
+    });
+    await audit(req, actor(req), "signup.invite", { type: "invite", id: inv.id, label: d.companyName || d.email || code, meta: { plan: d.plan, trialDays: d.trialDays } });
+    ok(res, "Convite criado.", {
+      reveal: {
+        title: "Link do convite",
+        value: inviteUrl(code),
+        note: `Mande este link para ${d.email || d.companyName || "a empresa"}. ${d.validDays ? `Vale ${d.validDays} dias` : "Não expira"} e só cria uma empresa.`,
+      },
+    });
+  }),
+);
+
+masterRouter.post(
+  "/cadastros/convites/:id/cancelar",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const id = String(req.params.id);
+    const inv = await prisma.signupInvite.findUnique({ where: { id } }).catch(() => null);
+    if (!inv) return fail(res, 404, "Convite não encontrado.");
+    if (inv.usedAt) return fail(res, 409, "Esse convite já foi usado.");
+    await prisma.signupInvite.update({ where: { id }, data: { revokedAt: new Date() } });
+    await audit(req, actor(req), "signup.invite_revoke", { type: "invite", id, label: inv.companyName || inv.email || inv.code });
+    ok(res, "Convite cancelado. O link parou de funcionar.");
+  }),
+);
+
+masterRouter.post(
+  "/cadastros/:id/reenviar",
+  requireCap("users_manage"),
+  h(async (req, res) => {
+    const id = String(req.params.id);
+    const r = await resendSignup(id, { ip: `master:${req.master!.id}` });
+    if (!r.ok) return fail(res, 409, r.message);
+    const row = await prisma.signupRequest.findUnique({ where: { id }, select: { email: true, organizationName: true } });
+    await audit(req, actor(req), "signup.resend", { type: "signup", id, label: row?.organizationName || id, meta: { email: row?.email } });
+    ok(res, `Link de confirmação reenviado para ${row?.email}.`);
   }),
 );
 

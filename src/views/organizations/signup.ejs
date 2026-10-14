@@ -1,112 +1,145 @@
 <%- include('../partials/header') %>
+<% const v = values || {}; const errField = error && error.field ? error.field : ''; %>
+<% const inviteOnly = mode === 'invite' && !invite; %>
 
 <section class="signup-layout">
   <aside class="signup-aside">
-    <p class="mkt-eyebrow"><%= productName %></p>
+    <p class="mkt-eyebrow"><%= invite ? 'You’re invited' : productName %></p>
     <h1>Create your company workspace</h1>
     <p class="mkt-lead">
-      <% if (typeof subdomainTenants !== 'undefined' && subdomainTenants) { %>
-        Get a dedicated workspace at <code>sua-empresa.<%= appRootDomain %></code>, invite your team, and start quoting jobs today.
-      <% } else { %>
-        Create your company workspace, invite your team, and start quoting jobs today.
-      <% } %>
+      Leads, quotes, jobs, scheduling, invoices and crew pay in one place — set up in a few minutes.
     </p>
     <ul class="trust-list">
-      <li>30-day free trial — no card required</li>
-      <li>Your data stays isolated to your organization</li>
-      <li>Brand the workspace with your logo and colors</li>
-      <li>Invite staff with roles and permissions</li>
+      <li><%= trialDays %>-day free trial — no card required</li>
+      <li>Your data stays isolated to your company</li>
+      <li>Invite your team with roles and permissions</li>
+      <li>Export your data any time</li>
     </ul>
+    <ol class="su-steps" aria-label="How it works">
+      <li class="is-on"><span>1</span>Fill in the form</li>
+      <li><span>2</span>Confirm your e-mail</li>
+      <li><span>3</span>Open your workspace</li>
+    </ol>
   </aside>
 
   <div class="signup-form-panel auth-card">
-    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
-
-    <form method="post" action="/signup" class="auth-form" id="signupForm">
-      <fieldset>
-        <legend>Company</legend>
-        <label for="organizationName">Organization name</label>
-        <input id="organizationName" name="organizationName" required value="<%= values.organizationName || '' %>" />
-
-        <label for="slug">Subdomain slug</label>
-        <input
-          id="slug"
-          name="slug"
-          required
-          pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-          value="<%= values.slug || '' %>"
-          placeholder="acme-floors"
-        />
-        <p class="slug-live muted">
-          Workspace URL:
-          <% if (typeof subdomainTenants !== 'undefined' && subdomainTenants) { %>
-            <strong><span id="slugPreview">your-company</span>.<%= appRootDomain %></strong>
-          <% } else { %>
-            sign in on this site as workspace <strong><span id="slugPreview">your-company</span></strong>
-          <% } %>
-        </p>
-      </fieldset>
-
-      <fieldset>
-        <legend>Admin account</legend>
-        <label for="adminName">Your name</label>
-        <input id="adminName" name="adminName" required value="<%= values.adminName || '' %>" />
-
-        <label for="adminEmail">Work email</label>
-        <input id="adminEmail" type="email" name="adminEmail" required value="<%= values.adminEmail || '' %>" />
-
-        <label for="password">Password</label>
-        <input id="password" type="password" name="password" required minlength="8" />
-      </fieldset>
-
-      <fieldset>
-        <legend>Contact <span class="muted">(optional)</span></legend>
-        <label for="contactEmail">Public contact email</label>
-        <input id="contactEmail" type="email" name="contactEmail" value="<%= values.contactEmail || '' %>" />
-
-        <label for="contactPhone">Public contact phone</label>
-        <input id="contactPhone" name="contactPhone" value="<%= values.contactPhone || '' %>" />
-      </fieldset>
-
-      <button class="btn" type="submit">Create workspace</button>
+    <% if (mode === 'closed') { %>
+      <h2 class="su-title">Sign-ups are paused</h2>
+      <p class="muted">We are not opening new workspaces right now. Write to us and we will let you know as soon as there is a spot.</p>
       <p class="auth-alt muted">Already have a workspace? <a href="/login.html">Sign in</a></p>
-    </form>
+    <% } else if (inviteOnly) { %>
+      <h2 class="su-title">Sign-up is by invitation</h2>
+      <% if (inviteInvalid) { %><div class="alert alert-error">This invitation link is no longer valid. Ask for a new one.</div><% } %>
+      <p class="muted">We are onboarding a small group of companies first. If you received an invitation, open the link from that e-mail.</p>
+      <p class="auth-alt muted">Already have a workspace? <a href="/login.html">Sign in</a></p>
+    <% } else { %>
+      <% if (invite) { %>
+        <div class="su-invite">
+          <strong>Invitation<%= invite.companyName ? ' for ' + invite.companyName : '' %></strong>
+          <span><%= invite.trialDays %>-day free trial<%= invite.email ? ' · ' + invite.email : '' %></span>
+        </div>
+      <% } %>
+      <% if (error) { %><div class="alert alert-error" role="alert"><%= error.message %></div><% } %>
+
+      <form method="post" action="/signup" class="auth-form su-form" id="signupForm" novalidate>
+        <input type="hidden" name="invite" value="<%= v.invite || '' %>" />
+        <div class="su-hp" aria-hidden="true">
+          <label for="website">Website</label>
+          <input id="website" name="website" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <fieldset>
+          <legend>Company</legend>
+          <label for="organizationName">Company name</label>
+          <input id="organizationName" name="organizationName" required maxlength="120" autocomplete="organization"
+            value="<%= v.organizationName || '' %>" <%= errField === 'organizationName' ? 'aria-invalid=true' : '' %> />
+
+          <label for="slug">Workspace address</label>
+          <div class="su-slug <%= errField === 'slug' ? 'is-bad' : '' %>">
+            <input id="slug" name="slug" required maxlength="48" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" autocapitalize="none" spellcheck="false"
+              value="<%= v.slug || '' %>" placeholder="your-company" <%= errField === 'slug' ? 'aria-invalid=true' : '' %> />
+            <% if (typeof subdomainTenants !== 'undefined' && subdomainTenants) { %><span class="su-slug__suffix">.<%= appRootDomain %></span><% } %>
+          </div>
+          <p class="su-hint">Lowercase letters, numbers and hyphens. Your team signs in here.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>You</legend>
+          <label for="adminName">Your name</label>
+          <input id="adminName" name="adminName" required maxlength="120" autocomplete="name"
+            value="<%= v.adminName || '' %>" <%= errField === 'adminName' ? 'aria-invalid=true' : '' %> />
+
+          <label for="adminEmail">Work e-mail</label>
+          <input id="adminEmail" type="email" name="adminEmail" required maxlength="200" autocomplete="email"
+            value="<%= v.adminEmail || '' %>" <%= invite && invite.email ? 'readonly' : '' %> <%= errField === 'adminEmail' ? 'aria-invalid=true' : '' %> />
+          <p class="su-hint">We’ll send a link to confirm it.</p>
+
+          <label for="password">Password</label>
+          <div class="su-pass">
+            <input id="password" type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password"
+              <%= errField === 'password' ? 'aria-invalid=true' : '' %> />
+            <button type="button" class="su-pass__show" aria-controls="password" aria-pressed="false">Show</button>
+          </div>
+          <p class="su-hint">At least 8 characters.</p>
+
+          <div class="su-row">
+            <div>
+              <label for="contactPhone">Mobile phone <span class="muted">(optional)</span></label>
+              <input id="contactPhone" type="tel" name="contactPhone" maxlength="40" autocomplete="tel" value="<%= v.contactPhone || '' %>" />
+            </div>
+            <div>
+              <label for="timezone">Time zone</label>
+              <select id="timezone" name="timezone">
+                <% timezones.forEach(function (tz) { %>
+                  <option value="<%= tz.id %>" <%= (v.timezone || 'America/Denver') === tz.id ? 'selected' : '' %>><%= tz.label %></option>
+                <% }) %>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        <label class="su-check <%= errField === 'acceptLegal' ? 'is-bad' : '' %>">
+          <input type="checkbox" name="acceptLegal" value="on" required <%= v.acceptLegal ? 'checked' : '' %> />
+          <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>, the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a> and the <a href="/dpa" target="_blank" rel="noopener">Data Processing Addendum</a> on behalf of my company.</span>
+        </label>
+
+        <button class="btn su-submit" type="submit">Create workspace</button>
+        <p class="auth-alt muted">Already have a workspace? <a href="/login.html">Sign in</a></p>
+      </form>
+    <% } %>
   </div>
 </section>
 
 <script>
   (function () {
-    const input = document.getElementById('slug');
-    const preview = document.getElementById('slugPreview');
-    const nameInput = document.getElementById('organizationName');
-    if (!input || !preview) return;
-
-    const toSlug = (value) =>
-      value
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 48);
-
-    const sync = () => {
-      const value = (input.value || 'your-company').toLowerCase().trim() || 'your-company';
-      preview.textContent = value;
+    var slug = document.getElementById('slug');
+    var name = document.getElementById('organizationName');
+    var form = document.getElementById('signupForm');
+    if (!form) return;
+    var toSlug = function (value) {
+      return value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
     };
-
-    input.addEventListener('input', sync);
-    if (nameInput) {
-      nameInput.addEventListener('input', () => {
-        if (!input.dataset.touched) {
-          input.value = toSlug(nameInput.value);
-          sync();
-        }
-      });
-      input.addEventListener('input', () => {
-        input.dataset.touched = '1';
-      });
+    if (slug && slug.value) slug.dataset.touched = '1';
+    if (name && slug) {
+      name.addEventListener('input', function () { if (!slug.dataset.touched) slug.value = toSlug(name.value); });
+      slug.addEventListener('input', function () { slug.dataset.touched = '1'; slug.value = slug.value.toLowerCase().replace(/[^a-z0-9-]/g, ''); });
     }
-    sync();
+    var show = form.querySelector('.su-pass__show');
+    var pass = document.getElementById('password');
+    if (show && pass) show.addEventListener('click', function () {
+      var on = pass.type === 'password';
+      pass.type = on ? 'text' : 'password';
+      show.textContent = on ? 'Hide' : 'Show';
+      show.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    var bad = form.querySelector('[aria-invalid=true]');
+    if (bad) bad.focus();
+    form.addEventListener('submit', function (e) {
+      if (!form.checkValidity()) { e.preventDefault(); form.reportValidity(); return; }
+      var btn = form.querySelector('.su-submit');
+      btn.disabled = true; btn.textContent = 'Creating…';
+    });
   })();
 </script>
 

@@ -21,6 +21,44 @@
   <% }) %>
 </section>
 
+<section class="card card-pad backup-card" id="backup">
+  <div class="backup-head">
+    <div style="flex:1;min-width:220px">
+      <h2>Backup do banco
+        <% if (!backup.length) { %><span class="pill pill-sm tone-warn">Nunca testado</span>
+        <% } else if (!backup[0].ok) { %><span class="pill pill-sm tone-danger">Último teste falhou</span>
+        <% } else if (backup[0].stale) { %><span class="pill pill-sm tone-warn">Testar de novo</span>
+        <% } else { %><span class="pill pill-sm tone-ink">Restauração testada</span><% } %>
+      </h2>
+      <small class="muted" style="font-weight:600">
+        <% if (backup.length) { %>Último teste <%= backup[0].when %> (<%= backup[0].age %>) · <%= backup[0].summary %> · <%= backup[0].timing %><% } else { %>Ainda não houve teste de restauração. O Railway guarda os backups; o teste prova que dá para voltar com eles.<% } %>
+      </small>
+    </div>
+  </div>
+  <% if (backup.length && backup[0].problems.length) { %>
+    <ul class="backup-problems"><% backup[0].problems.forEach(function (p) { %><li><%= p %></li><% }) %></ul>
+  <% } %>
+  <details class="backup-how" <%= backup.length ? '' : 'open' %>>
+    <summary>Como testar (uns 10 minutos, a cada <%= backupMaxDays - 5 %> dias)</summary>
+    <ol>
+      <li>No Railway, crie um <b>Postgres temporário</b> no projeto (ou restaure um backup do Railway num serviço novo). Ele precisa estar vazio.</li>
+      <li>Copie a <b>URL pública</b> do banco de produção e a do temporário (aba Variables › <code>DATABASE_PUBLIC_URL</code>).</li>
+      <li>No seu computador, com o PostgreSQL instalado, dentro da pasta do sistema:
+        <pre>BACKUP_SOURCE_URL="url-da-produção" \
+RESTORE_TARGET_URL="url-do-temporário" \
+npm run backup:check</pre>
+      </li>
+      <li>O teste copia a produção, restaura no temporário, compara tabela por tabela e grava o resultado aqui. Ele nunca escreve na produção (só este registro) e recusa um destino que não esteja vazio.</li>
+      <li>Apague o Postgres temporário no Railway.</li>
+    </ol>
+  </details>
+  <% if (backup.length > 1) { %>
+    <div class="backup-hist">
+      <% backup.slice(1).forEach(function (b) { %><span><%= b.ok ? 'ok' : 'falhou' %> · <%= b.when %></span><% }) %>
+    </div>
+  <% } %>
+</section>
+
 <div class="grid-2" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)">
   <section class="table matrix">
     <div style="padding:16px 20px 10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px">O que cada papel pode fazer</h2></div>

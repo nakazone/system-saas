@@ -1,5 +1,9 @@
 import { Router, type NextFunction, type Response } from "express";
 import { z } from "zod";
+import { env } from "../../config/env.js";
+import { pendingLegal, recordLegalAcceptance } from "../legal/acceptance.js";
+import { legalDocuments } from "../legal/documents.js";
+import { requestIp } from "../security/db-rate-limit.js";
 import { prisma } from "../prisma.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { daysUntil, money, planLabel, cyclePriceCents, shortDate } from "../../master/lib.js";
@@ -141,8 +145,37 @@ accountBillingRouter.get("/api/account/status", async (req: AuthedRequest, res, 
         mode: accountMode(org.status),
         banner: accountBanner(org),
         can_manage_billing: canManageBilling(req),
+        legal: canManageBilling(req) ? await legalForApp(org.id) : null,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Terms / Privacy / DPA the company admin still has to accept (links are absolute: tenant hosts have no /terms). */
+async function legalForApp(organizationId: string) {
+  const pending = await pendingLegal(organizationId);
+  if (!pending.length) return { pending: [] };
+  const base = env.APP_BASE_URL.replace(/\/$/, "");
+  const firstTime = !(await prisma.legalAcceptance.findFirst({ where: { organizationId }, select: { id: true } }));
+  return {
+    pending,
+    first_time: firstTime,
+    docs: legalDocuments().map((d) => ({ key: d.key, title: d.title, url: base + d.path, version: d.version, pending: pending.includes(d.key) })),
+  };
+}
+
+accountBillingRouter.post("/api/account/legal/accept", async (req: AuthedRequest, res, next) => {
+  try {
+    if (!req.user || !req.organizationId) return void res.status(401).json({ success: false });
+    if (!canManageBilling(req)) return void res.status(403).json({ success: false, error: "Só o administrador da empresa pode aceitar." });
+    await recordLegalAcceptance(
+      req.organizationId,
+      { id: req.user.id, name: req.user.name, email: req.user.email },
+      { source: "in_app", ip: requestIp(req), userAgent: String(req.headers["user-agent"] || "") },
+    );
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

@@ -23,8 +23,13 @@ export type SignupInput = {
   adminName: string;
   adminEmail: string;
   password: string;
+  /** Already-hashed password (signup confirmed by e-mail); `password` is ignored when set. */
+  passwordHash?: string;
   contactEmail?: string;
   contactPhone?: string;
+  timezone?: string;
+  plan?: string;
+  trialDays?: number;
 };
 
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -53,7 +58,7 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
     throw new Error("This organization slug is already taken");
   }
 
-  const passwordHash = await hashPassword(input.password);
+  const passwordHash = input.passwordHash || (await hashPassword(input.password));
   await syncPermissionCatalog();
   const permissions = await prisma.permission.findMany();
   const permissionByKey = new Map(permissions.map((p) => [p.key, p]));
@@ -64,13 +69,13 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
         name: input.organizationName,
         slug: input.slug,
         status: "trial",
-        plan: "starter",
+        plan: input.plan || "starter",
         primaryColor: DEFAULT_BRAND.primaryColor,
         accentColor: DEFAULT_BRAND.accentColor,
         contactEmail: input.contactEmail ?? input.adminEmail,
         contactPhone: input.contactPhone,
-        timezone: "America/New_York",
-        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        timezone: input.timezone || "America/New_York",
+        trialEndsAt: new Date(Date.now() + (input.trialDays ?? 30) * 24 * 60 * 60 * 1000),
       },
     });
 

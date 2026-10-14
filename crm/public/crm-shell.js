@@ -1021,7 +1021,7 @@
     }
     if (!window.__omAccountStatus) {
       // Billing banner (trial ending / payment failed / read-only) + read-only explanation.
-      jobs.push(ensureScript("crm-account-status.js?v=20261013-f1").catch(() => {}));
+      jobs.push(ensureScript("crm-account-status.js?v=20261014-lg1").catch(() => {}));
     }
     if (!window.openCrmCommandPalette) {
       jobs.push(ensureScript(`crm-command-palette.js?v=${SHELL_VER}`).catch(() => {}));

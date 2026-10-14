@@ -20,6 +20,10 @@ declare module "express-session" {
     organizationId?: string;
     /** Active workspace slug on apex host (Railway / no wildcard DNS). */
     workspaceSlug?: string;
+    /** Self-service signup waiting for the e-mail link (shown on /signup/check). */
+    signupRequestId?: string;
+    signupEmail?: string;
+    signupDevLink?: string;
     /** Senior Floors CRM session fields (UI compatibility). */
     userEmail?: string;
     userName?: string;

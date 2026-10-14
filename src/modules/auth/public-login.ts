@@ -25,8 +25,8 @@ export function publicEmailLogin(
     return;
   }
 
-  if (p === "/login.html") {
-    res.sendFile(path.join(CRM_PUBLIC_DIR, "login.html"));
+  if (p === "/login.html" || p === "/forgot-password.html" || p === "/reset-password.html") {
+    res.sendFile(path.join(CRM_PUBLIC_DIR, p.slice(1)));
     return;
   }
 

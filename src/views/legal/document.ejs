@@ -1,0 +1,37 @@
+<%- include('../partials/header') %>
+
+<section class="legal">
+  <nav class="legal__tabs" aria-label="Legal documents">
+    <% docs.forEach(function (d) { %>
+      <a href="<%= d.path %>" <%= d.key === doc.key ? 'aria-current="page"' : '' %>><%= d.title %></a>
+    <% }) %>
+  </nav>
+
+  <header class="legal__head">
+    <p class="mkt-eyebrow"><%= entity.name %></p>
+    <h1><%= doc.title %></h1>
+    <p class="legal__meta">Effective <%= effective %> · Version <%= doc.version %></p>
+    <p class="mkt-lead"><%= doc.summary %></p>
+  </header>
+
+  <div class="legal__body">
+    <aside class="legal__toc" aria-label="On this page">
+      <strong>On this page</strong>
+      <ol>
+        <% doc.sections.forEach(function (s, i) { %><li><a href="#s<%= i + 1 %>"><%= s.heading.replace(/^\d+\.\s*/, '') %></a></li><% }) %>
+      </ol>
+    </aside>
+    <article class="legal__text">
+      <% doc.sections.forEach(function (s, i) { %>
+        <section id="s<%= i + 1 %>">
+          <h2><%= s.heading %></h2>
+          <% s.paragraphs.forEach(function (p) { %><p><%= p %></p><% }) %>
+          <% if (s.bullets && s.bullets.length) { %><ul><% s.bullets.forEach(function (b) { %><li><%= b %></li><% }) %></ul><% } %>
+        </section>
+      <% }) %>
+      <p class="legal__contact">Questions? Write to <a href="mailto:<%= entity.email %>"><%= entity.email %></a>.</p>
+    </article>
+  </div>
+</section>
+
+<%- include('../partials/footer') %>
