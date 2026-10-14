@@ -87,9 +87,7 @@
       init.hidden = false;
       init.textContent = initials(name);
     }
-    if (clearBtn) {
-      clearBtn.hidden = !(src || (url && !clearAvatar));
-    }
+    if (clearBtn) clearBtn.hidden = !(src || (url && !clearAvatar));
   }
 
   function paint(p) {
@@ -114,13 +112,13 @@
     const sa = $("sidebarUserAvatar");
     if (sa) {
       if (p.avatar_url && !clearAvatar && !pendingAvatarDataUrl) {
-        sa.innerHTML = "";
-        const im = document.createElement("img");
-        im.src = p.avatar_url;
-        im.alt = "";
-        im.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:50%";
-        sa.appendChild(im);
+        sa.textContent = "";
+        sa.style.backgroundImage =
+          'url("' + String(p.avatar_url).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '")';
+        sa.style.backgroundSize = "cover";
+        sa.style.backgroundPosition = "center";
       } else {
+        sa.style.backgroundImage = "";
         sa.textContent = initials(name);
       }
     }
@@ -128,7 +126,7 @@
 
   function syncLocaleSeg() {
     const cur = window.CrmI18n ? window.CrmI18n.getLocale() : "pt";
-    document.querySelectorAll(".mp-seg [data-locale]").forEach((btn) => {
+    document.querySelectorAll(".mp-langs [data-locale]").forEach((btn) => {
       btn.classList.toggle("is-on", btn.getAttribute("data-locale") === cur);
     });
   }
@@ -189,6 +187,7 @@
       clearMsgs("mpDadosErr", "mpDadosOk");
       const name = String($("mpName").value || "").trim();
       const phone = String($("mpPhone").value || "").trim();
+      const route = String($("mpRoute").value || "").trim();
       if (!name) {
         showMsg($("mpDadosErr"), "Indique o seu nome.", true);
         return;
@@ -198,34 +197,13 @@
       try {
         const j = await api("/api/me", {
           method: "PATCH",
-          body: JSON.stringify({ name, phone }),
+          body: JSON.stringify({ name, phone, route_start_address: route }),
         });
         paint(j.data);
-        showMsg($("mpDadosOk"), "Dados guardados.", true);
+        showMsg($("mpDadosOk"), "Perfil guardado.", true);
         if (typeof window.crmNotify === "function") window.crmNotify("Perfil atualizado.", "success");
       } catch (err) {
         showMsg($("mpDadosErr"), err.message || "Não foi possível guardar.", true);
-      } finally {
-        if (btn) btn.disabled = false;
-      }
-    });
-
-    $("mpRotaForm")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      clearMsgs("mpRotaErr", "mpRotaOk");
-      const route = String($("mpRoute").value || "").trim();
-      const btn = $("mpRotaSave");
-      if (btn) btn.disabled = true;
-      try {
-        const j = await api("/api/me", {
-          method: "PATCH",
-          body: JSON.stringify({ route_start_address: route }),
-        });
-        paint(j.data);
-        showMsg($("mpRotaOk"), "Endereço guardado.", true);
-        if (typeof window.crmNotify === "function") window.crmNotify("Endereço guardado.", "success");
-      } catch (err) {
-        showMsg($("mpRotaErr"), err.message || "Não foi possível guardar.", true);
       } finally {
         if (btn) btn.disabled = false;
       }
@@ -294,7 +272,7 @@
       await saveAvatar();
     });
 
-    document.querySelectorAll(".mp-seg [data-locale]").forEach((btn) => {
+    document.querySelectorAll(".mp-langs [data-locale]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const code = btn.getAttribute("data-locale");
         if (window.CrmI18n) window.CrmI18n.setLocale(code);
