@@ -150,6 +150,17 @@ model OrgFeatureOverride {
   @@unique([organizationId, featureKey])
 }
 
+/// One row per user per day they used the CRM (America/Denver day). Feeds usage frequency and health.
+model ActiveDay {
+  userId         String   @db.Uuid
+  day            String // YYYY-MM-DD
+  organizationId String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  @@id([userId, day])
+  @@index([organizationId, day])
+}
+
 /// Monthly usage counters that can't be counted from other tables (e.g. AI calls).
 model UsageCounter {
   organizationId String   @db.Uuid

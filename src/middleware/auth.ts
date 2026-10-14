@@ -1,4 +1,5 @@
 import { applyFeaturePermissions } from "../lib/features/index.js";
+import { markActiveDay } from "../master/health.js";
 import type { NextFunction, Response } from "express";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { prisma } from "../lib/prisma.js";
@@ -130,6 +131,8 @@ export async function loadSessionUser(
       roleId: user.roleId,
       permissions: await applyFeaturePermissions(user.organizationId, Array.from(rolePerms)),
     };
+    // Usage frequency for the Master (health score); support sessions are not company usage.
+    if (!req.session.support) markActiveDay(user.id, user.organizationId);
     next();
   } catch (error) {
     next(error);
