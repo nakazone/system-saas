@@ -8,7 +8,7 @@
 
   const S = window.omLeadSignals || {};
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-  const TYPE_PT = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Loja" };
+  const TYPE_PT = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Builder" };
   const DAY = 86400000;
 
   let rows = [];
@@ -184,11 +184,12 @@
 
   function renderChips() {
     const by = (summary && summary.by_type) || {};
+    const builderCount =
+      ((by.builder || {}).count || 0) + ((by.loja || {}).count || 0) + ((by.contractor || {}).count || 0);
     const items = [
       ["all", "Todos", rows.length],
       ["particular", "Particular", (by.particular || {}).count || 0],
-      ["builder", "Builder", (by.builder || {}).count || 0],
-      ["loja", "Loja", (by.loja || {}).count || 0],
+      ["builder", "Builder", builderCount],
     ];
     if (showMoney) items.push(["balance", "Com saldo", summary ? summary.with_balance : 0]);
     $("cxChips").innerHTML = items
@@ -692,7 +693,7 @@
 
   // ---------------------------------------------------------------- prices
   function tableRate(item, type) {
-    const key = type === "builder" ? "price_builder" : type === "loja" ? "price_loja" : "price_particular";
+    const key = type === "builder" || type === "loja" || type === "contractor" ? "price_builder" : "price_particular";
     const pref = Number(item[key]);
     if (Number.isFinite(pref) && pref > 0) return pref;
     for (const c of [item.price_loja, item.price_min, item.price_builder, item.partner_price, item.price_particular, item.price_max]) {

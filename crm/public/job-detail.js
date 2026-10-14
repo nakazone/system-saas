@@ -12,7 +12,7 @@
     completed: ["Concluído", "done"],
     canceled: ["Cancelado", "canceled"],
   };
-  const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Loja", internal: "Interno", other: "Outro" };
+  const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Interno", other: "Outro" };
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
   const TABS = ["geral", "servicos", "fotos", "campo", "conversa"];
 

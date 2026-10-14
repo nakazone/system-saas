@@ -434,11 +434,10 @@ function normalizeCustomerType(raw: unknown): string {
   const v = String(raw || "particular")
     .toLowerCase()
     .trim();
-  // Builder + Contractor share one cadastro type.
-  if (v === "contractor") return "builder";
-  if (v === "commercial") return "loja";
+  // Builder absorbs Contractor + Loja (one cadastro / pricing column).
+  if (v === "contractor" || v === "loja" || v === "commercial") return "builder";
   if (v === "residential" || v === "customer" || v === "property_manager" || v === "investor") return "particular";
-  if (v === "builder" || v === "loja" || v === "particular") return v;
+  if (v === "builder" || v === "particular") return v;
   // Org-defined types from Configurações › Tipos de cliente.
   if (/^[a-z][a-z0-9_]{0,39}$/.test(v)) return v;
   return "particular";
@@ -447,7 +446,7 @@ function normalizeCustomerType(raw: unknown): string {
 /** Person clients get title-case; company/builder names keep the typed casing (trimmed). */
 function formatCustomerName(name: string, customerType: unknown): string {
   const t = normalizeCustomerType(customerType);
-  if (t === "builder" || t === "loja") return String(name || "").trim().replace(/\s+/g, " ");
+  if (t === "builder") return String(name || "").trim().replace(/\s+/g, " ");
   return formatPersonName(name);
 }
 
@@ -673,7 +672,7 @@ customersQuotesRouter.get("/api/customers", requireCrmAuth, async (req: AuthedRe
       if (customerTypeRaw) {
         const t = normalizeCustomerType(customerTypeRaw);
         // Builder filter includes legacy contractor rows until migration runs everywhere.
-        where.customerType = t === "builder" ? { in: ["builder", "contractor"] } : t;
+        where.customerType = t === "builder" ? { in: ["builder", "contractor", "loja"] } : t;
       }
       if (search) {
         where.OR = [
@@ -1053,7 +1052,7 @@ customersQuotesRouter.post(
           : {};
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const customerType = normalizeCustomerType(parsed.data.customer_type);
-        const isOrgType = customerType === "builder" || customerType === "loja";
+        const isOrgType = customerType === "builder";
         const dumpsterStatus = isOrgType ? normalizeYnStatus(parsed.data.dumpster_status) || "unknown" : null;
         const storageStatus = isOrgType ? normalizeYnStatus(parsed.data.storage_status) || "unknown" : null;
         const created = await tx.customer.create({
@@ -1162,7 +1161,7 @@ customersQuotesRouter.put(
         if (!existing) return null;
         const nextType =
           body.customer_type !== undefined ? normalizeCustomerType(body.customer_type) : existing.customerType;
-        const isOrgType = nextType === "builder" || nextType === "loja";
+        const isOrgType = nextType === "builder";
         const dumpsterTouched =
           body.dumpster_status !== undefined || body.dumpster_notes !== undefined || body.customer_type !== undefined;
         const storageTouched =

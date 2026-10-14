@@ -44,11 +44,9 @@
 
   function typeLabel(c) {
     const t = String(c.customer_type || "").toLowerCase();
-    if (t === "builder" || t === "contractor") return "Builder";
-    if (t === "loja") return "Loja";
+    if (t === "builder" || t === "contractor" || t === "loja" || t === "commercial") return "Builder";
     if (t === "particular" || t === "residential") return "Particular";
     if (t === "lead") return "Lead";
-    if (t === "commercial") return "Loja";
     return "Particular";
   }
 
@@ -74,7 +72,7 @@
       const fin = financeFor(c.id);
       const t = String(c.customer_type || "").toLowerCase();
       if (filter === "balance" && !(fin.balance > 0)) return false;
-      if (filter === "builder" && t !== "builder" && t !== "contractor") return false;
+      if (filter === "builder" && t !== "builder" && t !== "contractor" && t !== "loja" && t !== "commercial") return false;
       if (filter === "particular" && t !== "particular" && t !== "residential" && t) return false;
       if (filter === "lead" && t !== "lead" && !c.lead_id) return false;
       if (q) {
@@ -95,7 +93,7 @@
     const withBal = customers.filter((c) => financeFor(c.id).balance > 0).length;
     const builders = customers.filter((c) => {
       const t = String(c.customer_type || "").toLowerCase();
-      return t === "builder" || t === "contractor";
+      return t === "builder" || t === "contractor" || t === "loja" || t === "commercial";
     }).length;
     const particular = customers.filter((c) => {
       const t = String(c.customer_type || "").toLowerCase();

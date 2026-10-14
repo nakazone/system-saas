@@ -57,13 +57,11 @@ const DEFAULTS: Record<string, Array<{ key: string; label: string; description?:
   ],
   customer_type: [
     { key: "particular", label: "Particular", description: "Cliente final / residencial", sortOrder: 10 },
-    { key: "builder", label: "Builder", description: "Builders e parceiros de obra", sortOrder: 20 },
-    { key: "loja", label: "Loja", description: "Loja / retail partner", sortOrder: 30 },
+    { key: "builder", label: "Builder", description: "Builders, lojas e parceiros de obra", sortOrder: 20 },
   ],
   [PRICING_COLUMN_KIND]: [
     { key: "particular", label: "Particular", description: "Coluna Particular na Tabela de Valores", sortOrder: 10 },
     { key: "builder", label: "Builder", description: "Coluna Builder na Tabela de Valores", sortOrder: 20 },
-    { key: "loja", label: "Loja", description: "Coluna Loja na Tabela de Valores", sortOrder: 40 },
   ],
   [PAYROLL_PAYMENT_METHOD_KIND]: DEFAULT_PAYROLL_PAYMENT_METHODS.map((m) => ({
     key: m.key,
@@ -139,27 +137,39 @@ async function ensureDefaults(tx: any, organizationId: string, kind: string) {
         },
       });
     }
-    // Contractor was consolidated into Builder — hide the retired pricing column.
+    // Contractor / Loja were consolidated into Builder — hide retired pricing columns.
     await tx.orgCatalogItem.updateMany({
-      where: { organizationId, kind, key: "contractor", active: true },
+      where: { organizationId, kind, key: { in: ["contractor", "loja"] }, active: true },
       data: { active: false },
     });
     return;
   }
   const count = await tx.orgCatalogItem.count({ where: { kind } });
-  if (count > 0) return;
-  for (const s of seeds) {
-    await tx.orgCatalogItem.create({
-      data: {
-        organizationId,
-        kind,
-        key: s.key,
-        label: s.label,
-        description: s.description || null,
-        sortOrder: s.sortOrder,
-        active: true,
-        isSystem: true,
-      },
+  if (count === 0) {
+    for (const s of seeds) {
+      await tx.orgCatalogItem.create({
+        data: {
+          organizationId,
+          kind,
+          key: s.key,
+          label: s.label,
+          description: s.description || null,
+          sortOrder: s.sortOrder,
+          active: true,
+          isSystem: true,
+        },
+      });
+    }
+  }
+  // Contractor / Loja were consolidated into Builder — hide retired customer types.
+  if (kind === "customer_type") {
+    await tx.orgCatalogItem.updateMany({
+      where: { organizationId, kind, key: { in: ["contractor", "loja"] }, active: true },
+      data: { active: false },
+    });
+    await tx.orgCatalogItem.updateMany({
+      where: { organizationId, kind, key: "builder", active: true },
+      data: { label: "Builder", description: "Builders, lojas e parceiros de obra" },
     });
   }
 }
@@ -239,11 +249,11 @@ settingsCatalogRouter.post(
         res.status(400).json({ success: false, error: "Chave inválida (use a-z, 0-9, _)" });
         return;
       }
-      // Contractor was consolidated into Builder — do not recreate as a separate type.
-      if (kind === "customer_type" && key === "contractor") {
+      // Contractor / Loja were consolidated into Builder — do not recreate as separate types.
+      if (kind === "customer_type" && (key === "contractor" || key === "loja")) {
         res.status(400).json({
           success: false,
-          error: "Use o tipo Builder (Contractor foi unificado no cadastro).",
+          error: "Use o tipo Builder (Loja e Contractor foram unificados no cadastro).",
         });
         return;
       }

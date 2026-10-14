@@ -32,12 +32,12 @@
     { key: "install", name: "Dia da instalação", items: [["Linhas de referência marcadas", false], ["Primeiras fileiras instaladas", true], ["Transições planejadas", false], ["Limpeza no fim do dia", true]] },
     { key: "final", name: "Vistoria final", items: [["Pendências revisadas", false], ["Fotos de depois completas", true], ["Vistoria com o cliente", false], ["Guia de cuidados entregue", false]] },
   ];
-  const TYPE_LABEL = { builder: "Builder", contractor: "Builder", loja: "Loja", particular: "Particular" };
+  const TYPE_LABEL = { builder: "Builder", contractor: "Builder", loja: "Builder", particular: "Particular" };
   const RATE_KEY = {
     builder: "price_builder",
     contractor: "price_builder",
-    loja: "price_loja",
-    internal: "price_loja",
+    loja: "price_builder",
+    internal: "price_builder",
     particular: "price_particular",
     other: "price_particular",
   };
@@ -394,7 +394,7 @@
   }
   function pricingLabel() {
     if (customRates()) return "tabela personalizada do cliente";
-    const nice = { builder: "Builder", contractor: "Builder", loja: "Loja", internal: "Loja" }[st.sourceType] || "Particular";
+    const nice = { builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Builder" }[st.sourceType] || "Particular";
     return `Tabela de Valores · ${nice}`;
   }
   function lineTotal(l) {
@@ -427,7 +427,7 @@
 
   function pricingTypeLabel() {
     return (
-      { builder: "Builder", contractor: "Builder", loja: "Loja", internal: "Loja" }[st && st.sourceType] || "Particular"
+      { builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Builder" }[st && st.sourceType] || "Particular"
     );
   }
 
@@ -495,7 +495,7 @@
     if (ratesNearlyEqual(newRate, tableRate)) return;
     const customer = (await ensurePricingCustomer()) || pricingCustomer();
     const b = currentBuilder();
-    const partyLabel = b && !currentCustomer() ? (String(b.type || "").toLowerCase() === "loja" ? "loja" : "builder") : "cliente";
+    const partyLabel = b && !currentCustomer() ? "builder" : "cliente";
     openSaveRateModal({
       lineIdx,
       serviceName: String(line.name || item.name || "Serviço").trim() || "Serviço",
@@ -814,15 +814,15 @@
     };
     box.innerHTML = `<div class="jm-picker">
       <span class="jm-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="search" id="jmClientQ" class="jm-in" placeholder="Buscar builder, loja ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
+        <input type="search" id="jmClientQ" class="jm-in" placeholder="Buscar builder ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
       <div class="jm-opts">
-        ${fixed.length ? `<p class="jm-grp">Builders e lojas</p>${fixed.map(item).join("")}` : ""}
+        ${fixed.length ? `<p class="jm-grp">Builders</p>${fixed.map(item).join("")}` : ""}
         ${part.length ? `<p class="jm-grp">Particulares</p>${part.map(item).join("")}` : ""}
         ${!list.length ? `<p class="jm-empty">${q ? "Ninguém com esse nome." : "Nenhum cliente cadastrado ainda."}</p>` : ""}
         ${
           q
             ? `<div class="jm-new"><span>Cadastrar <b>${esc(q)}</b> como</span>
-                ${["builder", "loja", "particular"].map((t) => `<button type="button" class="jm-chip jm-chip--sm" data-act="quick-client" data-type="${t}">${TYPE_LABEL[t]}</button>`).join("")}</div>`
+                ${["builder", "particular"].map((t) => `<button type="button" class="jm-chip jm-chip--sm" data-act="quick-client" data-type="${t}">${TYPE_LABEL[t]}</button>`).join("")}</div>`
             : ""
         }
         ${card ? `<button type="button" class="jm-link jm-link--back" data-act="keep-client">Manter ${esc(card.name)}</button>` : ""}
@@ -849,13 +849,12 @@
   const SRC_OPTS = [
     ["particular", "Particular"],
     ["builder", "Builder"],
-    ["loja", "Loja"],
     ["internal", "Interno"],
     ["other", "Outro"],
   ];
   function sourceTypeUi(raw) {
     const t = String(raw || "particular").toLowerCase();
-    if (t === "contractor") return "builder";
+    if (t === "contractor" || t === "loja") return "builder";
     return SRC_OPTS.some(([v]) => v === t) ? t : "other";
   }
 
@@ -1630,7 +1629,7 @@
       st.customerId = null;
       const b = currentBuilder();
       const t = String(b?.type || "builder").toLowerCase();
-      st.sourceType = t === "loja" ? "loja" : "builder";
+      st.sourceType = "builder";
       if (st.sourceNameAuto) st.sourceName = builderName(b);
       // Do not copy builder mailing address into the job site field.
       // Preload CRM customer linked to this builder so custom rates apply.
