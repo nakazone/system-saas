@@ -1,3 +1,4 @@
+import { registerJob, trackRun } from "../ops/jobs.js";
 import { prisma } from "../prisma.js";
 import { withTenantTransaction, type TenantPrisma } from "../tenant/prisma-tenant.js";
 import { email } from "../email/index.js";
@@ -304,8 +305,9 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 export function startAutomationWorker(intervalMs = 60 * 1000): void {
   if (timer) return;
+  registerJob({ name: "automations", label: "Automações (mensagens agendadas)", intervalMs, run: processDueScheduledMessages });
   const run = () => {
-    processDueScheduledMessages().catch((err) => {
+    trackRun("automations", processDueScheduledMessages).catch((err) => {
       console.error("[automations]", err);
     });
   };

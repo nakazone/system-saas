@@ -150,6 +150,55 @@ model OrgFeatureOverride {
   @@unique([organizationId, featureKey])
 }
 
+/// Latest state of each background job (one row per job, updated every run).
+model JobStatus {
+  name           String    @id
+  label          String
+  intervalSec    Int
+  lastStartedAt  DateTime?
+  lastFinishedAt DateTime?
+  lastOk         Boolean?
+  lastError      String?
+  lastDurationMs Int?
+  lastProcessed  Int?
+  runs           Int       @default(0)
+  failures       Int       @default(0)
+  updatedAt      DateTime  @updatedAt
+}
+
+/// Result of each external-service check (every 15 min, kept 30 days).
+model ServiceCheck {
+  id        BigInt   @id @default(autoincrement())
+  service   String
+  status    String // ok | warn | down | off
+  latencyMs Int?
+  detail    String?
+  checkedAt DateTime @default(now())
+
+  @@index([service, checkedAt])
+}
+
+/// Application errors grouped by fingerprint (server 5xx and browser errors from the CRM).
+model ErrorGroup {
+  fingerprint String    @id
+  source      String // server | browser
+  message     String
+  stackTop    String?
+  path        String?
+  method      String?
+  firstSeen   DateTime  @default(now())
+  lastSeen    DateTime  @default(now())
+  count       Int       @default(1)
+  lastOrgId   String?   @db.Uuid
+  lastUserId  String?   @db.Uuid
+  /// Last few occurrences: [{ at, path, method, orgId, userId, ua }]
+  samples     Json?
+  status      String    @default("open") // open | resolved
+  resolvedAt  DateTime?
+
+  @@index([lastSeen])
+}
+
 /// Daily snapshot of the business numbers (taken after midnight America/Denver). History for Métricas.
 model PlatformDailyMetric {
   day        String   @id // YYYY-MM-DD (America/Denver)

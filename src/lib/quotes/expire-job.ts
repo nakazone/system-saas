@@ -1,3 +1,4 @@
+import { registerJob, trackRun } from "../ops/jobs.js";
 import { prisma } from "../prisma.js";
 import { withTenantTransaction } from "../tenant/prisma-tenant.js";
 import { transitionQuote } from "./transitions.js";
@@ -47,8 +48,9 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 export function startQuoteExpiryJob(intervalMs = 60 * 60 * 1000): void {
   if (timer) return;
+  registerJob({ name: "quote-expiry", label: "Orçamentos vencidos → expirados", intervalMs, run: expireOverdueQuotes });
   const run = () => {
-    expireOverdueQuotes().catch((err) => {
+    trackRun("quote-expiry", expireOverdueQuotes).catch((err) => {
       console.error("[quote-expiry]", err);
     });
   };

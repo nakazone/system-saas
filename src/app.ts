@@ -50,6 +50,8 @@ import { stripeWebhookRouter } from "./lib/billing/webhook.js";
 import { accountBillingRouter, enforceAccountAccess } from "./lib/billing/access.js";
 import { supportEntryRouter, supportGuard, supportSessionApi } from "./lib/support/session.js";
 import { featureGuard } from "./lib/features/index.js";
+import { maintenanceGuard } from "./lib/ops/maintenance.js";
+import { clientErrorsRouter } from "./lib/ops/errors.js";
 import { prisma } from "./lib/prisma.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
@@ -221,6 +223,9 @@ export function createApp() {
     }),
   );
 
+  // Modo manutenção (Master › Operação): company screens, APIs and client links answer "Voltamos já".
+  app.use(maintenanceGuard);
+
   // Public quote links (token-based, no subdomain tenant required)
   app.use("/public", publicQuotesRouter);
   app.use("/public/invoices", publicInvoicesRouter);
@@ -304,6 +309,7 @@ export function createApp() {
   // Support sessions: read-only, payroll hidden, ends on time or from the Master.
   app.use(supportGuard);
   app.use(supportSessionApi);
+  app.use(clientErrorsRouter);
   // Modules the company's plan doesn't include (Master › Recursos).
   app.use(featureGuard);
   // Billing state: read-only companies cannot write; plan/payment API for the company.

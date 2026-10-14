@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { recordServerError } from "../lib/ops/errors.js";
 
 export function errorHandler(
   err: unknown,
@@ -27,6 +28,9 @@ export function errorHandler(
       : typeof anyErr?.statusCode === "number"
         ? anyErr.statusCode
         : 500;
+
+  // Grouped in Master › Operação › Erros.
+  if (status >= 500) recordServerError(err, req);
 
   const message = isPayload
     ? "Ficheiro ou pedido demasiado grande. Tente uma imagem mais pequena."
