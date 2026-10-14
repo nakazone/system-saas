@@ -2,7 +2,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { env } from "../../config/env.js";
 import { hashPassword } from "../../lib/auth/password.js";
-import { email as emailProvider } from "../../lib/email/index.js";
+import { sendPlatformEmail, firstName } from "../../lib/email/templates.js";
 import { newToken, hashToken, takeRate, HOUR, DAY } from "../../lib/security/db-rate-limit.js";
 import { currentLegalVersions, type LegalKey } from "../../lib/legal/documents.js";
 import { recordLegalAcceptance } from "../../lib/legal/acceptance.js";
@@ -83,30 +83,7 @@ function verifyUrl(token: string): string {
 }
 
 async function sendVerifyEmail(to: string, name: string, company: string, token: string): Promise<void> {
-  const link = verifyUrl(token);
-  const first = name.split(/\s+/)[0] || name;
-  const text = [
-    `Hi ${first},`,
-    "",
-    `Confirm your e-mail to finish creating the ${company} workspace on ${env.PRODUCT_NAME}:`,
-    link,
-    "",
-    "The link works for 48 hours. If you did not sign up, you can ignore this e-mail — nothing will be created.",
-    "",
-    `— ${env.PRODUCT_NAME}`,
-  ].join("\n");
-  const html = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#211d1a;max-width:520px;margin:0 auto;padding:24px">
-  <p style="font-size:16px;margin:0 0 12px">Hi ${escapeHtml(first)},</p>
-  <p style="font-size:16px;line-height:1.5;margin:0 0 20px">Confirm your e-mail to finish creating the <strong>${escapeHtml(company)}</strong> workspace on ${escapeHtml(env.PRODUCT_NAME)}.</p>
-  <p style="margin:0 0 24px"><a href="${link}" style="display:inline-block;background:#e8792c;color:#fff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:10px">Confirm e-mail</a></p>
-  <p style="font-size:13px;color:#6e655c;line-height:1.5;margin:0 0 8px">Or paste this link in your browser:<br><span style="word-break:break-all">${link}</span></p>
-  <p style="font-size:13px;color:#6e655c;line-height:1.5;margin:16px 0 0">The link works for 48 hours. If you did not sign up, ignore this e-mail — nothing will be created.</p>
-</div>`;
-  await emailProvider.send({ to, subject: `Confirm your e-mail to create ${company} on ${env.PRODUCT_NAME}`, text, html });
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+  await sendPlatformEmail("signup_verify", { to, organizationId: null, vars: { name: firstName(name), company, link: verifyUrl(token) } });
 }
 
 /**

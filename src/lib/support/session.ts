@@ -1,8 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { prisma } from "../prisma.js";
-import { env } from "../../config/env.js";
 import { newToken, hashToken, requestIp } from "../security/db-rate-limit.js";
-import { email as emailProvider } from "../email/index.js";
+import { sendPlatformEmail, firstName, dateTimeVar } from "../email/templates.js";
 import { workspaceHomeUrl } from "../tenant/workspace-url.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { buildPermissionKeys } from "../../crm/auth-api.js";
@@ -179,27 +178,9 @@ supportEntryRouter.get("/suporte/entrar", async (req: Request, res: Response, ne
 
 async function notifyCompanyAdmins(organizationId: string, company: string, staff: string, reason: string, minutes: number): Promise<void> {
   const admins = await prisma.user.findMany({ where: { organizationId, status: "active", role: { key: "admin" } }, select: { email: true, name: true }, take: 5 });
-  const when = new Date().toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
+  const when = dateTimeVar(new Date());
   for (const a of admins) {
-    const first = a.name.split(/\s+/)[0] || a.name;
-    const text = [
-      `Hi ${first},`,
-      "",
-      `${env.PRODUCT_NAME} support (${staff}) opened your ${company} workspace on ${when} (Mountain Time) to help you.`,
-      `Reason: ${reason}`,
-      `Access: view only, up to ${minutes} minutes. Payroll and employee pay are hidden from support.`,
-      "",
-      "If you did not ask for help, reply to this e-mail and we will look into it right away.",
-    ].join("\n");
-    await emailProvider.send({
-      to: a.email,
-      subject: `${env.PRODUCT_NAME} support accessed your workspace`,
-      text,
-      html: `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#211d1a;max-width:520px;margin:0 auto;padding:24px">${text
-        .split("\n")
-        .map((l) => (l ? `<p style="margin:0 0 10px;line-height:1.5">${l.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</p>` : ""))
-        .join("")}</div>`,
-    });
+    await sendPlatformEmail("support_access", { to: a.email, organizationId, vars: { name: firstName(a.name), company, staff, when, reason, minutes } });
   }
 }
 

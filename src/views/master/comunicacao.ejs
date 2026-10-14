@@ -1,0 +1,210 @@
+<%- include('_top', { pageTitle: 'Comunicação' }) %>
+<div class="page-head">
+  <div><h1>Comunicação</h1><div class="page-sub">Avisos dentro do app, e-mails que o ObraMate manda para as empresas e o que aconteceu com cada envio.</div></div>
+  <% if (tab === 'avisos' && canComms) { %><button class="btn btn-dark" type="button" data-open="dlg-ann-new" data-ann-open><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo aviso</button><% } %>
+</div>
+
+<nav class="cm-tabs" aria-label="Seções de comunicação">
+  <% [['avisos','Avisos no app'],['modelos','Modelos de e-mail'],['envios','Envios'],['remetente','Remetente']].forEach(function (t) { %>
+    <a href="/master/comunicacao?aba=<%= t[0] %>" aria-current="<%= tab === t[0] ? 'page' : 'false' %>"><%= t[1] %></a>
+  <% }) %>
+</nav>
+
+<% if (tab === 'avisos') { %>
+  <% function annCard(a) { %>
+    <article class="card cm-ann k-<%= a.kind %>">
+      <div class="cm-ann-main">
+        <div class="cm-ann-top">
+          <span class="pill pill-sm tone-<%= a.kindPill.tone %>"><%= a.kindPill.label %></span>
+          <span class="pill pill-sm tone-<%= a.statePill.tone %>"><%= a.statePill.label %></span>
+          <span class="muted cm-ann-aud"><%= a.audienceText %></span>
+        </div>
+        <h3><%= a.title %></h3>
+        <% if (a.body) { %><p><%= a.body %></p><% } %>
+        <div class="cm-ann-meta muted">
+          <span><%= a.period %></span>
+          <% if (a.linkUrl) { %><span>Botão “<%= a.linkLabel %>” → <%= a.linkUrl %></span><% } %>
+          <span>por <%= a.by %></span>
+        </div>
+      </div>
+      <div class="cm-ann-side">
+        <div class="cm-reach">
+          <% if (a.state === 'scheduled') { %>
+          <b class="num"><%= a.target %></b><span>empresa(s) vão ver</span>
+          <small class="muted">entra no ar sozinho</small>
+          <% } else { %>
+          <b class="num"><%= a.seen %></b><span>pessoa(s) viram</span>
+          <small class="muted"><%= a.companies %><%= a.target != null ? ' de ' + a.target : '' %> empresa(s)<%= a.kind !== 'urgent' ? ' · ' + a.closed + ' fecharam' : ' · não fecha' %></small>
+          <% } %>
+        </div>
+        <% if (canComms && a.state !== 'ended') { %>
+          <div class="cm-ann-actions">
+            <button class="btn btn-soft btn-sm" type="button" data-open="dlg-ann-<%= a.id %>" data-ann-open>Editar</button>
+            <form data-action action="/master/comunicacao/avisos/<%= a.id %>/encerrar" data-confirm="Tirar este aviso do ar agora?"><button class="btn btn-soft btn-sm" type="submit"><%= a.state === 'scheduled' ? 'Cancelar' : 'Tirar do ar' %></button></form>
+          </div>
+        <% } %>
+      </div>
+    </article>
+  <% } %>
+
+  <div class="section-title"><h2>No ar agora</h2><small class="muted">Mostrados no topo de todas as telas · urgente primeiro · até 3 por vez</small></div>
+  <% if (live.length) { live.forEach(annCard) } else { %>
+    <section class="card card-pad cm-empty">
+      <div><b>Nenhum aviso no ar.</b><p class="muted">Use para contar uma novidade, avisar uma manutenção ou explicar um problema enquanto ele acontece. Quem fecha não vê de novo; o urgente não fecha.</p></div>
+      <% if (canComms) { %><button class="btn btn-dark" type="button" data-open="dlg-ann-new" data-ann-open>Criar aviso</button><% } %>
+    </section>
+  <% } %>
+
+  <% if (scheduled.length) { %>
+    <div class="section-title"><h2>Programados</h2><small class="muted">Entram no ar sozinhos na data de início</small></div>
+    <% scheduled.forEach(annCard) %>
+  <% } %>
+
+  <% if (ended.length) { %>
+    <div class="section-title"><h2>Encerrados</h2><small class="muted">Últimos 15</small></div>
+    <section class="table">
+      <div class="tr head cols-cm-ended"><span>AVISO</span><span>PÚBLICO</span><span>PERÍODO</span><span>VIRAM</span></div>
+      <% ended.forEach(function (a) { %>
+        <div class="tr cols-cm-ended">
+          <span class="op-name"><b><%= a.title %></b><small class="muted"><span class="pill pill-sm tone-<%= a.kindPill.tone %>"><%= a.kindPill.label %></span> por <%= a.by %></small></span>
+          <span class="hide-m"><%= a.audienceText %></span>
+          <span class="hide-m"><%= a.period %></span>
+          <span class="num"><%= a.seen %> <small class="muted">em <%= a.companies %> empresa(s)</small></span>
+        </div>
+      <% }) %>
+    </section>
+  <% } %>
+
+  <% if (canComms) { %>
+    <%- include('_aviso-form', { a: null, kinds: kinds, planOpts: planOpts, orgOpts: orgOpts, totalOrgs: totalOrgs }) %>
+    <% live.concat(scheduled).forEach(function (a) { %><%- include('_aviso-form', { a: a, kinds: kinds, planOpts: planOpts, orgOpts: orgOpts, totalOrgs: totalOrgs }) %><% }) %>
+  <% } %>
+<% } %>
+
+<% if (tab === 'modelos') { %>
+  <section class="card card-pad cm-locale">
+    <div>
+      <h3 class="op-h3">Idioma dos e-mails</h3>
+      <p class="muted op-p">Cada e-mail tem texto em inglês e em português. O sistema escolhe pelo que você definir aqui.</p>
+    </div>
+    <form data-action action="/master/comunicacao/idioma" class="cm-locale-form">
+      <div class="seg-pick">
+        <label><input type="radio" name="mode" value="en" <%= localeMode === 'en' ? 'checked' : '' %> <%= canComms ? '' : 'disabled' %>><span>Sempre em inglês</span></label>
+        <label><input type="radio" name="mode" value="company" <%= localeMode === 'company' ? 'checked' : '' %> <%= canComms ? '' : 'disabled' %>><span>Idioma de cada empresa</span></label>
+      </div>
+      <% if (canComms) { %><button class="btn btn-soft btn-sm" type="submit">Salvar</button><% } %>
+    </form>
+  </section>
+
+  <% groups.forEach(function (g) { %>
+    <div class="section-title"><h2><%= g.name %></h2></div>
+    <section class="table">
+      <div class="tr head cols-cm-tpl"><span>E-MAIL</span><span>TEXTO</span><span>ENVIADOS 30 DIAS</span><span></span></div>
+      <% g.items.forEach(function (t) { %>
+        <div class="tr cols-cm-tpl">
+          <span class="op-name"><a class="strong" href="/master/comunicacao/modelos/<%= t.key %>"><%= t.name %></a><small class="muted"><%= t.when %></small></span>
+          <span class="cm-langs"><% t.langs.forEach(function (l) { %><span class="pill pill-sm tone-<%= l.edited ? 'ink' : 'muted' %>" title="<%= l.edited ? 'Editado por ' + l.by + ' em ' + l.at : 'Texto padrão' %>"><%= l.key.toUpperCase() %> · <%= l.edited ? 'editado' : 'padrão' %></span><% }) %></span>
+          <span class="num hide-m"><%= sent30[t.key] || 0 %></span>
+          <span class="right"><a class="btn btn-soft btn-sm" href="/master/comunicacao/modelos/<%= t.key %>"><%= canComms ? 'Editar' : 'Ver' %></a></span>
+        </div>
+      <% }) %>
+    </section>
+  <% }) %>
+  <p class="muted cm-foot">E-mails de segurança da equipe (acesso ao Master, alertas de serviço) não são editáveis. E-mails que as empresas mandam para os clientes delas (orçamentos, faturas) usam os textos de cada empresa.</p>
+<% } %>
+
+<% if (tab === 'envios') { %>
+  <section class="kpis k4 cm-kpis">
+    <div class="kpi"><span class="kpi-label">Enviados · 7 dias</span><span class="kpi-value num"><%= kpis.total %></span><span class="kpi-note"><%= kpis.console ? kpis.console + ' em modo teste (console)' : 'todos os tipos' %></span></div>
+    <div class="kpi"><span class="kpi-label">Entregues</span><span class="kpi-value num"><%= kpis.delivered == null ? '—' : kpis.delivered + '%' %></span><span class="kpi-note"><%= kpis.delivered == null ? 'sem envio real ainda' : 'confirmado pelo Resend' %></span></div>
+    <div class="kpi"><span class="kpi-label">Abertos</span><span class="kpi-value num"><%= kpis.opened == null ? '—' : kpis.opened + '%' %></span><span class="kpi-note">quando o rastreio de abertura está ligado</span></div>
+    <div class="kpi <%= kpis.problems ? 'danger' : '' %>"><span class="kpi-label">Com problema</span><span class="kpi-value num"><%= kpis.problems %></span><span class="kpi-note"><%= kpis.blocked %> não enviado(s) por bloqueio</span></div>
+  </section>
+
+  <form class="toolbar cm-toolbar" method="get" action="/master/comunicacao" data-autosubmit role="search">
+    <input type="hidden" name="aba" value="envios"><input type="hidden" name="status" value="<%= statusKey %>">
+    <% if (orgFilter) { %><input type="hidden" name="empresa" value="<%= orgFilter.id %>"><% } %>
+    <div class="chips">
+      <% filters.forEach(function (f) { %><a class="chip no-count" href="?aba=envios&status=<%= f.key %><%= cat ? '&tipo=' + cat : '' %><%= q ? '&q=' + encodeURIComponent(q) : '' %><%= orgFilter ? '&empresa=' + orgFilter.id : '' %>" aria-current="<%= f.active %>"><%= f.label %></a><% }) %>
+    </div>
+    <select class="input cm-select" name="tipo" aria-label="Tipo de e-mail">
+      <option value="">Todos os tipos</option>
+      <% cats.forEach(function (c) { %><option value="<%= c.key %>" <%= c.active ? 'selected' : '' %>><%= c.label %></option><% }) %>
+    </select>
+    <label class="search"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg><input type="search" name="q" value="<%= q %>" placeholder="E-mail ou assunto" aria-label="Buscar envios"></label>
+  </form>
+  <% if (orgFilter) { %><div class="cm-filter-tag">Só <b><%= orgFilter.name %></b> · <a href="?aba=envios&status=<%= statusKey %>">ver todas</a></div><% } %>
+
+  <section class="table">
+    <div class="tr head cols-cm-log"><span>QUANDO</span><span>PARA</span><span>E-MAIL</span><span>EMPRESA</span><span>SITUAÇÃO</span></div>
+    <% rows.forEach(function (r) { %>
+      <div class="tr cols-cm-log">
+        <span class="muted"><%= r.when %></span>
+        <span class="cm-to"><%= r.to %></span>
+        <span class="op-name"><b><%= r.subject %></b><small class="muted"><%= r.kind %><%= r.kind !== r.category ? ' · ' + r.category : '' %></small><% if (r.error) { %><small class="op-err"><%= r.error %></small><% } %></span>
+        <span class="hide-m"><% if (r.org) { %><a href="?aba=envios&empresa=<%= r.org.id %>"><%= r.org.name %></a><% } else { %>—<% } %></span>
+        <span><span class="pill pill-sm tone-<%= r.status.tone %>" title="<%= r.status.hint %><%= r.trail ? ' — ' + r.trail : '' %>"><%= r.status.label %></span></span>
+      </div>
+    <% }) %>
+    <% if (!rows.length) { %><div class="empty" style="padding:20px;text-align:center">Nenhum envio com esse filtro.</div><% } %>
+  </section>
+  <p class="muted cm-foot">Guardamos <%= days %> dias. A situação vem do Resend (entregue, aberto, voltou, spam) — passe o mouse na etiqueta para ver o histórico. Mostrando os 150 mais recentes.</p>
+
+  <div class="section-title" id="bloqueados"><h2>Endereços bloqueados</h2><small class="muted">O sistema não manda nada para eles. E-mail que volta ou vira spam entra aqui sozinho.</small></div>
+  <% if (canComms) { %>
+    <form data-action action="/master/comunicacao/bloqueados" class="inline-form cm-block-form">
+      <input class="input" type="email" name="email" required placeholder="email@exemplo.com" aria-label="E-mail para bloquear">
+      <input class="input" name="note" maxlength="200" placeholder="Motivo (opcional)" aria-label="Motivo">
+      <button class="btn btn-soft" type="submit">Bloquear</button>
+    </form>
+  <% } %>
+  <section class="table">
+    <div class="tr head cols-cm-block"><span>E-MAIL</span><span>MOTIVO</span><span>DESDE</span><span></span></div>
+    <% blocked.forEach(function (b) { %>
+      <div class="tr cols-cm-block">
+        <span class="strong cm-to"><%= b.email %></span>
+        <span class="op-name"><span><%= b.reason %></span><% if (b.detail && b.detail !== b.reason) { %><small class="muted"><%= b.detail %></small><% } %></span>
+        <span class="muted hide-m"><%= b.when %></span>
+        <span class="right"><% if (canComms) { %><form data-action action="/master/comunicacao/bloqueados/liberar" data-confirm="Liberar <%= b.email %>? Confira se o endereço está certo antes."><input type="hidden" name="email" value="<%= b.email %>"><button class="btn btn-soft btn-sm" type="submit">Liberar</button></form><% } %></span>
+      </div>
+    <% }) %>
+    <% if (!blocked.length) { %><div class="empty" style="padding:20px;text-align:center">Nenhum endereço bloqueado.</div><% } %>
+  </section>
+<% } %>
+
+<% if (tab === 'remetente') { %>
+  <% var tone = { verified: 'ok', pending: 'warn', failed: 'down', not_found: 'down', unknown: 'warn', 'n/a': 'off' }; var label = { verified: 'Verificado', pending: 'Aguardando DNS', failed: 'Falhou', not_found: 'Não cadastrado', unknown: 'Sem resposta', 'n/a': 'Modo console' }; %>
+  <div class="cm-sender">
+    <section class="card op-svc st-<%= sender.ready ? 'ok' : 'down' %>">
+      <div class="op-svc-top"><div><h3>Envio de e-mail</h3><small class="muted">Quem entrega os e-mails</small></div>
+        <span class="op-pill st-<%= sender.ready ? 'ok' : 'down' %>"><i aria-hidden="true"></i><%= sender.provider === 'resend' ? (sender.ready ? 'Resend ligado' : 'Falta chave') : 'Modo console' %></span></div>
+      <p class="op-detail"><%= sender.ready ? 'Os e-mails saem de verdade pelo Resend.' : 'Os e-mails não saem: só aparecem no log do servidor. Configure RESEND_API_KEY, EMAIL_FROM e EMAIL_PROVIDER=resend no Railway.' %></p>
+      <div class="op-meta muted"><span>Remetente: <b><%= sender.from %></b></span></div>
+    </section>
+    <section class="card op-svc st-<%= tone[sender.domainStatus] || 'off' %>">
+      <div class="op-svc-top"><div><h3>Domínio do remetente</h3><small class="muted"><%= sender.domain || 'sem domínio' %></small></div>
+        <span class="op-pill st-<%= tone[sender.domainStatus] || 'off' %>"><i aria-hidden="true"></i><%= label[sender.domainStatus] || sender.domainStatus %></span></div>
+      <p class="op-detail"><%= sender.domainDetail %></p>
+      <div class="op-meta muted"><span>Consultado <%= sender.checkedText %></span><a href="?aba=remetente&checar=1">Verificar de novo</a></div>
+    </section>
+    <section class="card op-svc st-<%= sender.webhook.configured ? (sender.lastEventText ? 'ok' : 'warn') : 'off' %>">
+      <div class="op-svc-top"><div><h3>Retorno de entrega</h3><small class="muted">Webhook do Resend: entregue, aberto, voltou, spam</small></div>
+        <span class="op-pill st-<%= sender.webhook.configured ? (sender.lastEventText ? 'ok' : 'warn') : 'off' %>"><i aria-hidden="true"></i><%= sender.webhook.configured ? (sender.lastEventText ? 'Recebendo' : 'Esperando o 1º evento') : 'Não configurado' %></span></div>
+      <p class="op-detail"><%= sender.webhook.configured ? (sender.lastEventText ? 'Último evento recebido ' + sender.lastEventText + '.' : 'Configurado. Assim que um e-mail sair, o Resend avisa aqui.') : 'Sem o webhook, os envios ficam como “Enviado” e e-mails que voltam não são bloqueados sozinhos.' %></p>
+    </section>
+  </div>
+
+  <% if (!sender.webhook.configured) { %>
+    <section class="card card-pad cm-howto">
+      <h3 class="op-h3">Ligar o retorno de entrega (5 minutos)</h3>
+      <ol>
+        <li>No Resend, abra <b>Webhooks › Add endpoint</b> e cole o endereço: <code class="cm-code" data-copy><%= webhookUrl %></code></li>
+        <li>Marque os eventos <b>email.sent, email.delivered, email.delivery_delayed, email.bounced, email.complained, email.opened, email.clicked</b>.</li>
+        <li>Copie o <b>Signing secret</b> (começa com <code>whsec_</code>) e coloque no Railway como <code>RESEND_WEBHOOK_SECRET</code>.</li>
+        <li>Depois do deploy, mande um teste em <a href="?aba=modelos">Modelos de e-mail</a> e veja a situação mudar em <a href="?aba=envios">Envios</a>.</li>
+      </ol>
+    </section>
+  <% } %>
+<% } %>
+<script src="/assets/master/comms.js?v=20261015-cm1" defer></script>
+<%- include('_bottom') %>

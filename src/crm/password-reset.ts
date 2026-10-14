@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { env } from "../config/env.js";
 import { hashPassword } from "../lib/auth/password.js";
-import { email as emailProvider } from "../lib/email/index.js";
+import { sendPlatformEmail, firstName, dateTimeVar } from "../lib/email/templates.js";
 import { newToken, hashToken, takeRate, requestIp, HOUR } from "../lib/security/db-rate-limit.js";
 
 /**
@@ -22,46 +22,12 @@ function resetUrl(token: string): string {
   return `${env.APP_BASE_URL.replace(/\/$/, "")}/reset-password.html?token=${encodeURIComponent(token)}`;
 }
 
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+async function sendResetEmail(to: string, name: string, company: string, organizationId: string, token: string): Promise<void> {
+  await sendPlatformEmail("password_reset", { to, organizationId, vars: { name: firstName(name), company, link: resetUrl(token) } });
 }
 
-function shell(inner: string): string {
-  return `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#211d1a;max-width:520px;margin:0 auto;padding:24px">${inner}</div>`;
-}
-
-async function sendResetEmail(to: string, name: string, company: string, token: string): Promise<void> {
-  const link = resetUrl(token);
-  const first = name.split(/\s+/)[0] || name;
-  await emailProvider.send({
-    to,
-    subject: `Reset your ${env.PRODUCT_NAME} password`,
-    text: [
-      `Hi ${first},`,
-      "",
-      `We received a request to reset your password for ${company} on ${env.PRODUCT_NAME}. Open this link to choose a new one:`,
-      link,
-      "",
-      "The link works for 1 hour and only once. If you did not ask for this, ignore this e-mail — your password stays the same.",
-    ].join("\n"),
-    html: shell(`<p style="font-size:16px;margin:0 0 12px">Hi ${esc(first)},</p>
-  <p style="font-size:16px;line-height:1.5;margin:0 0 20px">We received a request to reset your password for <strong>${esc(company)}</strong> on ${esc(env.PRODUCT_NAME)}.</p>
-  <p style="margin:0 0 24px"><a href="${link}" style="display:inline-block;background:#211d1a;color:#fff;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:10px">Choose a new password</a></p>
-  <p style="font-size:13px;color:#6e655c;line-height:1.5;margin:0">The link works for 1 hour and only once. If you did not ask for this, ignore this e-mail — your password stays the same.</p>`),
-  });
-}
-
-async function sendChangedEmail(to: string, name: string, company: string, ip: string): Promise<void> {
-  const first = name.split(/\s+/)[0] || name;
-  const when = new Date().toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
-  await emailProvider.send({
-    to,
-    subject: `Your ${env.PRODUCT_NAME} password was changed`,
-    text: `Hi ${first},\n\nThe password for your ${company} account on ${env.PRODUCT_NAME} was changed on ${when} (Mountain Time) from IP ${ip}. You were signed out on all devices.\n\nIf this was not you, reset your password right away and tell your company administrator.`,
-    html: shell(`<p style="font-size:16px;margin:0 0 12px">Hi ${esc(first)},</p>
-  <p style="font-size:16px;line-height:1.5;margin:0 0 12px">The password for your <strong>${esc(company)}</strong> account was changed on ${esc(when)} (Mountain Time) from IP ${esc(ip)}. You were signed out on all devices.</p>
-  <p style="font-size:14px;color:#6e655c;line-height:1.5;margin:0">If this was not you, reset your password right away and tell your company administrator.</p>`),
-  });
+async function sendChangedEmail(to: string, name: string, company: string, organizationId: string, ip: string): Promise<void> {
+  await sendPlatformEmail("password_changed", { to, organizationId, vars: { name: firstName(name), company, when: dateTimeVar(new Date()), ip } });
 }
 
 /** Users that can receive a reset link for this e-mail (active, in a company that is not closed). */
@@ -97,7 +63,7 @@ passwordResetRouter.post("/api/auth/forgot-password", async (req, res, next) => 
       await prisma.passwordResetToken.create({
         data: { userId: u.id, organizationId: u.organizationId, tokenHash: hash, expiresAt: new Date(Date.now() + RESET_TTL_MS), ip: ip.slice(0, 80) },
       });
-      await sendResetEmail(u.email, u.name, u.organization.name, token).catch((e) => console.error("[password-reset] e-mail failed", e));
+      await sendResetEmail(u.email, u.name, u.organization.name, u.organizationId, token).catch((e) => console.error("[password-reset] e-mail failed", e));
     }
     res.json({ success: true, message: GENERIC });
   } catch (error) {
@@ -146,7 +112,7 @@ passwordResetRouter.post("/api/auth/reset-password", async (req, res, next) => {
     await prisma.user.update({ where: { id: row.userId }, data: { passwordHash: await hashPassword(parsed.data.password), mustChangePassword: false } });
     await prisma.passwordResetToken.updateMany({ where: { userId: row.userId, usedAt: null }, data: { usedAt: new Date() } });
     await prisma.$executeRaw`DELETE FROM "session" WHERE sess->>'userId' = ${row.userId}`.catch(() => 0);
-    await sendChangedEmail(row.user.email, row.user.name, row.user.organization.name, ip).catch((e) => console.error("[password-reset] notice failed", e));
+    await sendChangedEmail(row.user.email, row.user.name, row.user.organization.name, row.organizationId, ip).catch((e) => console.error("[password-reset] notice failed", e));
     res.json({ success: true });
   } catch (error) {
     next(error);

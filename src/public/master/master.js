@@ -130,7 +130,7 @@
     fd.forEach(function (v, k) { body.append(k, v); });
     var btns = $$("button[type=submit], button:not([type])", form);
     btns.forEach(function (b) { b.disabled = true; });
-    var url = form.getAttribute("action");
+    var url = (submitter && submitter.getAttribute("formaction")) || form.getAttribute("action");
     var label = form.getAttribute("data-stepup") || "";
     // Opened now (inside the click) so popup blockers allow it; pointed at the link when the server answers.
     var tab = form.hasAttribute("data-new-tab") ? window.open("about:blank", "_blank") : null;
@@ -177,7 +177,7 @@
     var form = e.target;
     if (!form.matches("form[data-action]")) return;
     e.preventDefault();
-    var confirmText = form.getAttribute("data-confirm");
+    var confirmText = (e.submitter && e.submitter.getAttribute("data-confirm")) || form.getAttribute("data-confirm");
     if (confirmText && !window.confirm(confirmText)) return;
     submitAction(form, e.submitter);
   });
@@ -359,6 +359,9 @@
   }
 
   // ---------- Live filter search (submit on pause) ----------
+  $$("form[data-autosubmit] select").forEach(function (sel) {
+    sel.addEventListener("change", function () { sel.form.submit(); });
+  });
   $$("form[data-autosubmit] input[type=search]").forEach(function (inp) {
     var t = null;
     inp.addEventListener("input", function () { clearTimeout(t); t = setTimeout(function () { inp.form.submit(); }, 450); });

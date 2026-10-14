@@ -6,7 +6,28 @@ import { prisma } from "../lib/prisma.js";
 import { env } from "../config/env.js";
 import { randomBytes } from "node:crypto";
 import { hashPassword, verifyPassword } from "../lib/auth/password.js";
-import { email as emailProvider } from "../lib/email/index.js";
+import { email as emailProvider, getEmailTransportStatus } from "../lib/email/index.js";
+import {
+  sendPlatformEmail,
+  firstName,
+  dateVar,
+  TEMPLATES,
+  LOCALES,
+  templateDef,
+  activeText,
+  overrides,
+  clearTemplateCache,
+  render,
+  sampleVars,
+  unknownVars,
+  missingRequired,
+  getLocaleMode,
+  setLocaleMode,
+  type Locale,
+  type TemplateDef,
+} from "../lib/email/templates.js";
+import { senderStatus, EMAIL_LOG_DAYS } from "../lib/email/delivery.js";
+import { KINDS, reachOf, targetCount } from "../lib/announcements/index.js";
 import {
   decryptSecret,
   encryptSecret,
@@ -107,6 +128,7 @@ import {
   stripeEnabled,
   stripeMode,
   syncSubscriptionPrice,
+  workspacePage,
 } from "../lib/billing/stripe.js";
 import { DEFAULT_LADDER, ladderSteps, loadLadder, runBillingLadder, saveLadder } from "../lib/billing/dunning.js";
 import { BACKUP_CHECK_JOB, BACKUP_CHECK_MAX_DAYS, BILLING_LADDER_JOB, runJob } from "../lib/billing/jobs.js";
@@ -427,6 +449,7 @@ async function shell(req: MasterRequest, active: string) {
   }).length;
   const openTickets = await prisma.supportTicket.count({ where: { status: "open" } });
   const opsIssues = await opsIssueCount();
+  const emailProblems = await emailProblemCount();
   const signupPending = await prisma.signupRequest.count({ where: { verifiedAt: null, expiresAt: { gt: new Date() } } }).catch(() => 0);
   const nav = [
     { key: "central", label: "Central", href: "/master", icon: "M3 12l9-8 9 8M5 10v10h14V10" },
@@ -440,7 +463,8 @@ async function shell(req: MasterRequest, active: string) {
     { key: "planos", label: "Planos e preços", href: "/master/planos", icon: "M4 4h7l9 9-7 7-9-9zM8 8h.01", hidden: !can(req.master!.role, "billing_full") },
     { key: "recursos", label: "Recursos por plano", href: "/master/recursos", icon: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6M17 14v6", hidden: !can(req.master!.role, "billing_full") },
     { key: "vencimentos", label: "Vencimentos", href: "/master/vencimentos", icon: "M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 13v3l2 1", badge: overdue || null, group: can(req.master!.role, "billing_full") ? undefined : "FINANCEIRO" },
-    { key: "operacao", label: "Operação", href: "/master/operacao", icon: "M22 12h-4l-3 9L9 3l-3 9H2", group: "SISTEMA", badge: opsIssues || null },
+    { key: "comunicacao", label: "Comunicação", href: "/master/comunicacao", icon: "M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13", group: "SISTEMA", badge: emailProblems || null },
+    { key: "operacao", label: "Operação", href: "/master/operacao", icon: "M22 12h-4l-3 9L9 3l-3 9H2", badge: opsIssues || null },
     { key: "equipe", label: "Equipe e segurança", href: "/master/equipe", icon: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4" },
     { key: "auditoria", label: "Auditoria", href: "/master/auditoria", icon: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" },
   ].filter((n) => !n.hidden);
@@ -563,6 +587,13 @@ masterRouter.get(
       for (const sv of ops.down) queue.unshift({ tone: "danger", title: `${sv.name} fora do ar`, sub: sv.detail.slice(0, 90), cta: "Ver", href: "/master/operacao", primary: true });
       if (ops.lateJobs.length) queue.push({ tone: "warn", title: ops.lateJobs.length === 1 ? `Job com problema: ${ops.lateJobs[0].label}` : `${ops.lateJobs.length} jobs com problema`, sub: ops.lateJobs.map((j) => `${j.label} (${j.lastOk === false ? "falhou" : "atrasado"})`).slice(0, 3).join(", "), cta: "Ver", href: "/master/operacao#jobs" });
       if (ops.newErrors.length) queue.push({ tone: "warn", title: `${ops.newErrors.length} erro(s) novo(s) nas últimas 24 h`, sub: ops.newErrors[0].message.slice(0, 90), cta: "Ver", href: "/master/operacao#erros" });
+    }
+    // Comunicação: e-mails that bounced, e-mail not going out, urgent notice on the air.
+    const comms = await commsProblems().catch(() => null);
+    if (comms) {
+      if (comms.consoleInProd) queue.unshift({ tone: "danger", title: "Os e-mails não estão saindo", sub: "E-mail em modo console: configure o Resend no Railway", cta: "Ver", href: "/master/comunicacao?aba=remetente", primary: true });
+      if (comms.bounced) queue.push({ tone: "warn", title: `${comms.bounced} e-mail(s) voltaram ou viraram spam nos últimos 7 dias`, sub: "Os endereços ficam bloqueados até você liberar", cta: "Ver", href: "/master/comunicacao?aba=envios&status=problema" });
+      if (comms.urgent) queue.push({ tone: "info", title: `Aviso urgente no ar: ${comms.urgent.title}`, sub: "As empresas não conseguem fechar esse aviso", cta: "Ver", href: "/master/comunicacao" });
     }
     if (lastLadder && lastLadder.ok === false) {
       queue.unshift({ tone: "danger", title: "A régua de cobrança falhou na última execução", sub: (lastLadder.error || "").slice(0, 90), cta: "Ver", href: "/master/vencimentos", primary: true });
@@ -1022,13 +1053,12 @@ masterRouter.post(
     if (parsed.data.notify) {
       const owner = (await loadOrg(org.id))?.ownerEmail;
       if (owner) {
-        await emailProvider
-          .send({
-            to: owner,
-            subject: org.status === "trial" ? "Your ObraMate trial was extended" : "Your ObraMate due date was updated",
-            text: `Hi,\n\nYour ObraMate ${org.status === "trial" ? "trial" : "plan"} for ${org.name} now runs until ${new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(next)}.\n\n— The ObraMate team`,
-          })
-          .catch(() => undefined);
+        const full = await loadOrg(org.id);
+        await sendPlatformEmail(org.status === "trial" ? "trial_extended" : "due_date_changed", {
+          to: owner,
+          organizationId: org.id,
+          vars: { name: firstName(full?.ownerName && full.ownerName !== "—" ? full.ownerName : "there"), company: org.name, date: dateVar(next) },
+        }).catch(() => undefined);
       }
     }
     ok(res, `${org.name}: novo vencimento ${shortDate(next)}${parsed.data.notify ? ". Dono avisado por e-mail." : "."}`);
@@ -1177,21 +1207,25 @@ masterRouter.post(
 async function sendReminder(org: NonNullable<Awaited<ReturnType<typeof loadOrg>>>): Promise<number> {
   const to = org.billingContactEmail || org.ownerEmail;
   if (!to) return 0;
-  const when = org.due ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Denver" }).format(org.due) : null;
-  const subject =
-    org.status === "trial"
-      ? org.days != null && org.days < 0
-        ? "Your ObraMate trial has ended"
-        : "Your ObraMate trial is ending soon"
-      : org.days != null && org.days < 0
-        ? "Your ObraMate payment is overdue"
-        : "Your ObraMate plan renews soon";
-  const text =
-    org.status === "trial"
-      ? `Hi ${org.ownerName},\n\nYour ObraMate trial for ${org.name} ${org.days != null && org.days < 0 ? "ended" : "ends"}${when ? ` on ${when}` : ""}. Reply to this e-mail to keep your account active.\n\n— The ObraMate team`
-      : `Hi ${org.ownerName},\n\nYour ObraMate ${planLabel(org.plan)} plan for ${org.name} (${org.priceText}) ${org.days != null && org.days < 0 ? "was due" : "renews"}${when ? ` on ${when}` : ""}. Reply to this e-mail if you need anything.\n\n— The ObraMate team`;
-  await emailProvider.send({ to, subject, text }).catch(() => undefined);
-  return 1;
+  const late = org.days != null && org.days < 0;
+  const key = org.status === "trial" ? (late ? "trial_ended" : "trial_ending") : late ? "payment_overdue" : "renewal_soon";
+  const left = Math.max(0, org.days ?? 0);
+  const cycle = org.billingCycle === "annual";
+  const amount = money(org.priceCents);
+  const out = await sendPlatformEmail(key, {
+    to,
+    organizationId: org.id,
+    vars: {
+      name: org.billingContactEmail ? { en: "there", pt: "equipe" } : firstName(org.ownerName),
+      company: org.name,
+      date: org.due ? dateVar(org.due) : { en: "soon", pt: "em breve" },
+      ends_in: left <= 1 ? { en: "tomorrow", pt: "amanhã" } : { en: `in ${left} days`, pt: `em ${left} dias` },
+      link: workspacePage(org.slug),
+      plan: planLabel(org.plan),
+      price: { en: `${amount}/${cycle ? "year" : "month"}`, pt: `${amount}/${cycle ? "ano" : "mês"}` },
+    },
+  }).catch(() => null);
+  return out && !out.skipped ? 1 : 0;
 }
 
 masterRouter.post(
@@ -1242,13 +1276,19 @@ masterRouter.post(
     }
     const to = org.billingContactEmail || org.ownerEmail;
     if (to && req.body?.send !== "0") {
-      await emailProvider
-        .send({
-          to,
-          subject: `Subscribe to ObraMate — ${org.name}`,
-          text: `Hi ${org.ownerName.split(" ")[0] || "there"},\n\nHere is the secure link to subscribe to ObraMate (${planLabel(org.plan)}, ${org.priceText === "—" ? money(org.priceCents) : org.priceText}) for ${org.name}:\n${url}\n\nThe link expires in 24 hours. Reply to this e-mail if you have any questions.\n\n— The ObraMate team`,
-        })
-        .catch(() => undefined);
+      const cycle = org.billingCycle === "annual";
+      const amount = money(org.priceCents);
+      await sendPlatformEmail("payment_link", {
+        to,
+        organizationId: org.id,
+        vars: {
+          name: org.billingContactEmail && to === org.billingContactEmail ? { en: "there", pt: "equipe" } : firstName(org.ownerName),
+          company: org.name,
+          plan: planLabel(org.plan),
+          price: { en: `${amount}/${cycle ? "year" : "month"}`, pt: `${amount}/${cycle ? "ano" : "mês"}` },
+          link: url,
+        },
+      }).catch(() => undefined);
     }
     await audit(req, actor(req), "billing.checkout_link", { type: "organization", id: org.id, label: org.name, meta: { emailedTo: to || null } });
     ok(res, to ? `Link de pagamento enviado para ${to}.` : "Link de pagamento criado.", {
@@ -2086,13 +2126,16 @@ masterRouter.post(
       },
     });
     if (body && t.createdByUser?.email) {
-      await emailProvider
-        .send({
-          to: t.createdByUser.email,
-          subject: `Re: ${t.subject}`,
-          text: `Olá, ${t.createdByUser.name.split(" ")[0]}.\n\n${body}\n\n—\nEquipe ObraMate\nPara responder, abra Configurações › Ajuda e suporte no ObraMate${close ? " (o ticket foi marcado como resolvido; responder reabre)." : "."}`,
-        })
-        .catch(() => undefined);
+      await sendPlatformEmail("support_reply", {
+        to: t.createdByUser.email,
+        organizationId: t.organizationId,
+        vars: {
+          name: firstName(t.createdByUser.name),
+          subject: t.subject,
+          message: body,
+          status_note: close ? { en: "We marked the ticket as solved; replying opens it again.", pt: "Marcamos o ticket como resolvido; responder reabre." } : "",
+        },
+      }).catch(() => undefined);
     }
     await audit(req, actor(req), body ? "support.reply" : "support.close", { type: "ticket", id: t.id, label: `${t.subject} · ${t.organization.name}`, meta: { close } });
     ok(res, body ? (close ? "Resposta enviada e ticket resolvido." : "Resposta enviada. A empresa recebe por e-mail e vê no ObraMate.") : "Ticket resolvido.");
@@ -2269,6 +2312,7 @@ const AUDIT_CATS: [string, string, string[]][] = [
   ["usuarios", "Usuários", ["user."]],
   ["equipe", "Equipe", ["team."]],
   ["exportacoes", "Exportações", ["export."]],
+  ["comunicacao", "Comunicação", ["comms."]],
 ];
 
 const AUDIT_TEXT: Record<string, string> = {
@@ -2291,6 +2335,15 @@ const AUDIT_TEXT: Record<string, string> = {
   "tenant.suspend": "Suspendeu a empresa",
   "support.start": "Entrou como suporte",
   "ops.job_run": "Rodou um job na mão",
+  "comms.announcement_create": "Publicou aviso no app",
+  "comms.announcement_update": "Editou aviso no app",
+  "comms.announcement_end": "Tirou aviso do ar",
+  "comms.template_save": "Editou modelo de e-mail",
+  "comms.template_reset": "Restaurou modelo de e-mail",
+  "comms.template_test": "Enviou e-mail de teste",
+  "comms.locale": "Mudou o idioma dos e-mails",
+  "comms.block": "Bloqueou endereço de e-mail",
+  "comms.unblock": "Liberou endereço de e-mail",
   "ops.maintenance_on": "Ligou o modo manutenção",
   "ops.maintenance_off": "Desligou o modo manutenção",
   "ops.maintenance_schedule": "Programou manutenção",
@@ -3261,6 +3314,467 @@ async function featuresForRecord(organizationId: string) {
   };
 }
 
+
+// ---------------------------------------------------------------------------
+// Comunicação: avisos no app, modelos de e-mail, envios, remetente
+// ---------------------------------------------------------------------------
+
+const EMAIL_STATUS: Record<string, Pill & { hint: string }> = {
+  console: { label: "Modo teste", tone: "muted", hint: "E-mail em modo console: só apareceu no log do servidor" },
+  sent: { label: "Enviado", tone: "soft", hint: "O Resend aceitou; esperando o servidor do destinatário" },
+  delayed: { label: "Atrasado", tone: "warn", hint: "O servidor do destinatário está demorando; o Resend tenta de novo" },
+  delivered: { label: "Entregue", tone: "ink", hint: "Chegou na caixa do destinatário" },
+  opened: { label: "Aberto", tone: "ink", hint: "O destinatário abriu" },
+  clicked: { label: "Clicou", tone: "ink", hint: "O destinatário clicou num link" },
+  bounced: { label: "Voltou", tone: "danger", hint: "Endereço não existe ou recusou. Fica bloqueado" },
+  complained: { label: "Spam", tone: "danger", hint: "O destinatário marcou como spam. Fica bloqueado" },
+  failed: { label: "Falhou", tone: "danger", hint: "Não saiu do sistema" },
+  blocked: { label: "Bloqueado", tone: "warn", hint: "Não enviado: endereço na lista de bloqueados" },
+};
+const EMAIL_STATUS_FILTERS: [string, string, string[] | null][] = [
+  ["todos", "Todos", null],
+  ["entregues", "Entregues", ["delivered", "opened", "clicked"]],
+  ["enviados", "A caminho", ["sent", "delayed"]],
+  ["problema", "Com problema", ["bounced", "complained", "failed", "blocked"]],
+];
+const EMAIL_CATEGORY: Record<string, string> = { platform: "ObraMate → empresa", company: "Empresa → clientes", internal: "Equipe interna" };
+const ANN_KIND: Record<string, Pill> = { info: { label: "Informação", tone: "soft" }, maintenance: { label: "Manutenção", tone: "warn" }, urgent: { label: "Urgente", tone: "danger" } };
+
+let emailCountCache: { at: number; n: number } | null = null;
+/** Bounces / spam complaints in the last 7 days (menu badge). */
+async function emailProblemCount(): Promise<number> {
+  if (emailCountCache && Date.now() - emailCountCache.at < 60_000) return emailCountCache.n;
+  const n = await prisma.platformEmailLog.count({ where: { status: { in: ["bounced", "complained"] }, createdAt: { gte: new Date(Date.now() - 7 * 86400e3) } } }).catch(() => 0);
+  emailCountCache = { at: Date.now(), n };
+  return n;
+}
+
+async function commsProblems() {
+  const now = new Date();
+  const [bounced, urgent] = await Promise.all([
+    emailProblemCount(),
+    prisma.platformAnnouncement.findFirst({ where: { kind: "urgent", startsAt: { lte: now }, endedAt: null, OR: [{ endsAt: null }, { endsAt: { gt: now } }] }, select: { title: true } }),
+  ]);
+  const consoleInProd = process.env.NODE_ENV === "production" && !getEmailTransportStatus().ready;
+  return { bounced, urgent, consoleInProd };
+}
+
+/** ISO → "YYYY-MM-DDTHH:mm" on the Denver wall clock (datetime-local value). */
+function isoToDenverLocal(d: Date | null): string {
+  if (!d) return "";
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Denver", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d).replace(" ", "T");
+}
+
+function annState(a: { startsAt: Date; endsAt: Date | null; endedAt: Date | null }, now = new Date()): { key: "live" | "scheduled" | "ended"; pill: Pill } {
+  if (a.endedAt || (a.endsAt && a.endsAt <= now)) return { key: "ended", pill: { label: "Encerrado", tone: "muted" } };
+  if (a.startsAt > now) return { key: "scheduled", pill: { label: "Programado", tone: "soft" } };
+  return { key: "live", pill: { label: "No ar", tone: "ink" } };
+}
+
+masterRouter.get(
+  "/comunicacao",
+  h(async (req, res) => {
+    const tab = ["avisos", "modelos", "envios", "remetente"].includes(String(req.query.aba)) ? String(req.query.aba) : "avisos";
+    const data: Record<string, unknown> = { tab, canComms: can(req.master!.role, "comms_manage") };
+    const now = new Date();
+
+    if (tab === "avisos") {
+      const [rows, orgs] = await Promise.all([
+        prisma.platformAnnouncement.findMany({ orderBy: { startsAt: "desc" }, take: 60 }),
+        prisma.organization.findMany({ where: { status: { not: "canceled" } }, select: { id: true, name: true, plan: true, status: true }, orderBy: { name: "asc" } }),
+      ]);
+      const reach = await reachOf(rows.map((r) => r.id));
+      const orgName = new Map(orgs.map((o) => [o.id, o.name]));
+      const items = await Promise.all(
+        rows.map(async (a) => {
+          const st = annState(a, now);
+          const r = reach.get(a.id)!;
+          const names = a.organizationIds.map((id) => orgName.get(id) ?? "empresa removida");
+          return {
+            id: a.id,
+            title: a.title,
+            body: a.body,
+            kind: a.kind,
+            kindPill: ANN_KIND[a.kind] ?? ANN_KIND.info,
+            state: st.key,
+            statePill: st.pill,
+            audience: a.audience,
+            plans: a.plans,
+            organizationIds: a.organizationIds,
+            audienceText:
+              a.audience === "plans"
+                ? `Planos: ${a.plans.map((p) => planLabel(p)).join(", ")}`
+                : a.audience === "companies"
+                  ? `${names.length} empresa(s): ${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}`
+                  : "Todas as empresas",
+            target: st.key === "ended" ? null : await targetCount(a),
+            period: `${dateTimeLabel(a.startsAt)} → ${a.endedAt ? `tirado do ar ${dateTimeLabel(a.endedAt)}` : a.endsAt ? dateTimeLabel(a.endsAt) : "até tirar do ar"}`,
+            seen: r.seen,
+            closed: r.closed,
+            companies: r.companies,
+            linkUrl: a.linkUrl,
+            linkLabel: a.linkLabel,
+            startsLocal: isoToDenverLocal(a.startsAt),
+            endsLocal: isoToDenverLocal(a.endsAt),
+            by: a.createdByName,
+          };
+        }),
+      );
+      data.live = items.filter((i) => i.state === "live");
+      data.scheduled = items.filter((i) => i.state === "scheduled");
+      data.ended = items.filter((i) => i.state === "ended").slice(0, 15);
+      data.kinds = KINDS;
+      data.planOpts = Object.keys(PLAN_LABEL).map((k) => ({ key: k, label: planLabel(k), count: orgs.filter((o) => o.plan === k && o.status !== "suspended").length }));
+      data.orgOpts = orgs.filter((o) => o.status !== "suspended").map((o) => ({ id: o.id, name: o.name, plan: planLabel(o.plan) }));
+      data.totalOrgs = await targetCount({ audience: "all", plans: [], organizationIds: [] });
+    }
+
+    if (tab === "modelos") {
+      const ov = await overrides();
+      const groups = ["Conta", "Cobrança", "Suporte"].map((g) => ({
+        name: g,
+        items: TEMPLATES.filter((t) => t.group === g).map((t) => ({
+          key: t.key,
+          name: t.name,
+          when: t.when,
+          langs: LOCALES.map((l) => {
+            const o = ov.get(`${t.key}:${l.key}`);
+            return { key: l.key, label: l.label, edited: !!o, by: o?.updatedByName, at: o ? shortDate(o.updatedAt) : null };
+          }),
+        })),
+      }));
+      const sentByKey = await prisma.platformEmailLog.groupBy({ by: ["templateKey"], where: { category: "platform", createdAt: { gte: new Date(Date.now() - 30 * 86400e3) } }, _count: { _all: true } });
+      data.groups = groups;
+      data.sent30 = Object.fromEntries(sentByKey.map((r) => [r.templateKey ?? "", r._count._all]));
+      data.localeMode = await getLocaleMode();
+    }
+
+    if (tab === "envios") {
+      const fKey = EMAIL_STATUS_FILTERS.some(([k]) => k === req.query.status) ? String(req.query.status) : "todos";
+      const statuses = EMAIL_STATUS_FILTERS.find(([k]) => k === fKey)![2];
+      const cat = String(req.query.tipo || "");
+      const q = String(req.query.q || "").trim().toLowerCase().slice(0, 120);
+      const org = String(req.query.empresa || "");
+      const where: Record<string, unknown> = {};
+      if (statuses) where.status = { in: statuses };
+      if (cat in EMAIL_CATEGORY) where.category = cat;
+      if (/^[0-9a-f-]{36}$/i.test(org)) where.organizationId = org;
+      if (q) where.OR = [{ toEmail: { contains: q, mode: "insensitive" } }, { subject: { contains: q, mode: "insensitive" } }];
+      const since7 = new Date(Date.now() - 7 * 86400e3);
+      const [rows, total7, counts7, blockedRows] = await Promise.all([
+        prisma.platformEmailLog.findMany({ where, orderBy: { createdAt: "desc" }, take: 150 }),
+        prisma.platformEmailLog.count({ where: { createdAt: { gte: since7 } } }),
+        prisma.platformEmailLog.groupBy({ by: ["status"], where: { createdAt: { gte: since7 } }, _count: { _all: true } }),
+        prisma.emailSuppression.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+      ]);
+      const c = Object.fromEntries(counts7.map((r) => [r.status, r._count._all])) as Record<string, number>;
+      const sum = (ks: string[]) => ks.reduce((n, k) => n + (c[k] ?? 0), 0);
+      const real = total7 - sum(["console", "blocked"]);
+      const orgIds = [...new Set(rows.map((r) => r.organizationId).filter(Boolean))] as string[];
+      const orgNames = new Map((await prisma.organization.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } })).map((o) => [o.id, o.name]));
+      const tplName = new Map(TEMPLATES.map((t) => [t.key, t.name]));
+      data.kpis = {
+        total: total7,
+        delivered: real ? Math.round((sum(["delivered", "opened", "clicked"]) / real) * 100) : null,
+        opened: real ? Math.round((sum(["opened", "clicked"]) / real) * 100) : null,
+        problems: sum(["bounced", "complained", "failed"]),
+        blocked: c.blocked ?? 0,
+        console: c.console ?? 0,
+      };
+      data.filters = EMAIL_STATUS_FILTERS.map(([k, label]) => ({ key: k, label, active: k === fKey }));
+      data.cats = Object.entries(EMAIL_CATEGORY).map(([k, label]) => ({ key: k, label, active: k === cat }));
+      data.q = q;
+      data.cat = cat;
+      data.statusKey = fKey;
+      data.orgFilter = /^[0-9a-f-]{36}$/i.test(org) ? { id: org, name: orgNames.get(org) ?? (await prisma.organization.findUnique({ where: { id: org }, select: { name: true } }))?.name ?? "empresa" } : null;
+      data.rows = rows.map((r) => {
+        const st = EMAIL_STATUS[r.status] ?? { label: r.status, tone: "muted", hint: "" };
+        const events = (Array.isArray(r.events) ? (r.events as { type: string; at: string }[]) : []).map((e) => `${EMAIL_STATUS[e.type]?.label ?? e.type} ${dateTimeLabel(new Date(e.at))}`);
+        return {
+          when: dateTimeLabel(r.createdAt),
+          to: r.toEmail,
+          subject: r.subject,
+          kind: r.templateKey ? tplName.get(r.templateKey) ?? (r.templateKey === "master_access" ? "Acesso ao Master" : r.templateKey === "ops_alert" ? "Alerta de serviço" : r.templateKey) : EMAIL_CATEGORY[r.category] ?? r.category,
+          category: EMAIL_CATEGORY[r.category] ?? r.category,
+          org: r.organizationId ? { id: r.organizationId, name: orgNames.get(r.organizationId) ?? "empresa" } : null,
+          status: st,
+          error: r.error,
+          trail: events.join(" · "),
+        };
+      });
+      data.blocked = blockedRows.map((b) => ({ email: b.email, reason: b.reason === "complaint" ? "Marcou como spam" : b.reason === "manual" ? `Bloqueado à mão${b.createdByName ? ` por ${b.createdByName}` : ""}` : "Voltou (bounce)", detail: b.detail, when: shortDate(b.createdAt) }));
+      data.days = EMAIL_LOG_DAYS;
+    }
+
+    if (tab === "remetente") {
+      const st = await senderStatus(String(req.query.checar || "") === "1");
+      data.sender = { ...st, lastEventText: st.webhook.lastEventAt ? dateTimeLabel(new Date(st.webhook.lastEventAt)) : null, checkedText: dateTimeLabel(new Date(st.checkedAt)) };
+      data.webhookUrl = `${env.APP_BASE_URL.replace(/\/$/, "")}/webhooks/resend`;
+      data.localeMode = await getLocaleMode();
+    }
+
+    page(res, "comunicacao", await shell(req, "comunicacao"), data);
+  }),
+);
+
+const announcementSchema = z.object({
+  kind: z.enum(["info", "maintenance", "urgent"]),
+  title: z.string().trim().min(3, "Escreva um título.").max(80),
+  body: z.string().trim().max(400).optional().default(""),
+  audience: z.enum(["all", "plans", "companies"]),
+  plans: z.union([z.string(), z.array(z.string())]).optional(),
+  orgs: z.union([z.string(), z.array(z.string())]).optional(),
+  linkUrl: z.string().trim().max(500).optional().default(""),
+  linkLabel: z.string().trim().max(30).optional().default(""),
+  startsAt: z.string().optional().default(""),
+  endsAt: z.string().optional().default(""),
+});
+const asArray = (v: string | string[] | undefined) => (v == null ? [] : Array.isArray(v) ? v : [v]).map((x) => String(x).trim()).filter(Boolean);
+
+/** Validates the form; returns data for Prisma or a message. */
+async function announcementData(body: unknown, current?: { startsAt: Date }): Promise<{ data: Record<string, unknown> } | { error: string }> {
+  const parsed = announcementSchema.safeParse(body);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message || "Confira os campos." };
+  const d = parsed.data;
+  const plans = asArray(d.plans).filter((p) => p in PLAN_LABEL);
+  const orgIds = asArray(d.orgs).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (d.audience === "plans" && !plans.length) return { error: "Escolha pelo menos um plano." };
+  if (d.audience === "companies" && !orgIds.length) return { error: "Escolha pelo menos uma empresa." };
+  if (d.linkUrl && !/^(https:\/\/|\/)[^\s<>"]+$/.test(d.linkUrl)) return { error: "O link precisa começar com https:// (ou / para uma tela do ObraMate)." };
+  const startsAt = d.startsAt ? denverLocalToIso(d.startsAt) : null;
+  if (d.startsAt && !startsAt) return { error: "Data de início inválida." };
+  const endsAt = d.endsAt ? denverLocalToIso(d.endsAt) : null;
+  if (d.endsAt && !endsAt) return { error: "Data de fim inválida." };
+  const start = startsAt ? new Date(startsAt) : current?.startsAt ?? new Date();
+  if (endsAt && new Date(endsAt) <= start) return { error: "O fim precisa ser depois do início." };
+  if (endsAt && new Date(endsAt) <= new Date()) return { error: "O fim precisa ser no futuro." };
+  return {
+    data: {
+      kind: d.kind,
+      title: d.title,
+      body: d.body,
+      audience: d.audience,
+      plans: d.audience === "plans" ? plans : [],
+      organizationIds: d.audience === "companies" ? orgIds : [],
+      linkUrl: d.linkUrl || null,
+      linkLabel: d.linkUrl ? d.linkLabel || "Saiba mais" : null,
+      startsAt: start,
+      endsAt: endsAt ? new Date(endsAt) : null,
+    },
+  };
+}
+
+function stepUpWhenWide(req: MasterRequest, res: Response, next: NextFunction) {
+  // An urgent notice for every company is the loudest thing the Master can do: confirm with 2FA.
+  if (String(req.body?.kind) === "urgent" && String(req.body?.audience) === "all") return requireStepUp(req, res, next);
+  next();
+}
+
+masterRouter.post(
+  "/comunicacao/avisos",
+  requireCap("comms_manage"),
+  stepUpWhenWide,
+  h(async (req, res) => {
+    const r = await announcementData(req.body);
+    if ("error" in r) return fail(res, 400, r.error);
+    const a = await prisma.platformAnnouncement.create({ data: { ...(r.data as never as object), createdById: req.master!.id, createdByName: req.master!.name } as never });
+    const target = await targetCount(a);
+    await audit(req, actor(req), "comms.announcement_create", { type: "announcement", id: a.id, label: a.title, meta: { kind: a.kind, audience: a.audience, target } }, a.kind === "urgent" && a.audience === "all");
+    const scheduled = a.startsAt > new Date();
+    ok(res, scheduled ? `Aviso programado para ${dateTimeLabel(a.startsAt)} · ${target} empresa(s).` : `Aviso no ar para ${target} empresa(s). Aparece na próxima tela que abrirem.`);
+  }),
+);
+
+masterRouter.post(
+  "/comunicacao/avisos/:id",
+  requireCap("comms_manage"),
+  stepUpWhenWide,
+  h(async (req, res) => {
+    const cur = await prisma.platformAnnouncement.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+    if (!cur) return fail(res, 404, "Aviso não encontrado.");
+    if (annState(cur).key === "ended") return fail(res, 400, "Esse aviso já foi encerrado. Crie um novo.");
+    const r = await announcementData(req.body, cur);
+    if ("error" in r) return fail(res, 400, r.error);
+    const a = await prisma.platformAnnouncement.update({ where: { id: cur.id }, data: r.data as never });
+    await audit(req, actor(req), "comms.announcement_update", { type: "announcement", id: a.id, label: a.title, meta: { kind: a.kind, audience: a.audience } });
+    ok(res, "Aviso atualizado.");
+  }),
+);
+
+masterRouter.post(
+  "/comunicacao/avisos/:id/encerrar",
+  requireCap("comms_manage"),
+  h(async (req, res) => {
+    const cur = await prisma.platformAnnouncement.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+    if (!cur) return fail(res, 404, "Aviso não encontrado.");
+    if (cur.endedAt) return ok(res, "Esse aviso já estava fora do ar.");
+    await prisma.platformAnnouncement.update({ where: { id: cur.id }, data: { endedAt: new Date() } });
+    await audit(req, actor(req), "comms.announcement_end", { type: "announcement", id: cur.id, label: cur.title });
+    ok(res, "Aviso tirado do ar. Some da tela das empresas na próxima página.");
+  }),
+);
+
+// ----- Modelos de e-mail -----
+
+masterRouter.get(
+  "/comunicacao/modelos/:key",
+  h(async (req, res) => {
+    const def = templateDef(String(req.params.key));
+    if (!def) return void res.status(404).render("master/error", { title: "Modelo não encontrado", message: "Esse modelo de e-mail não existe." });
+    const lang = (String(req.query.lang) === "pt" ? "pt" : "en") as Locale;
+    const text = await activeText(def.key, lang);
+    const other = await activeText(def.key, lang === "pt" ? "en" : "pt");
+    const preview = render(text, sampleVars(def), lang);
+    const last = await prisma.platformEmailLog.findFirst({ where: { templateKey: def.key }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+    const sent30 = await prisma.platformEmailLog.count({ where: { templateKey: def.key, createdAt: { gte: new Date(Date.now() - 30 * 86400e3) } } });
+    page(res, "modelo-email", await shell(req, "comunicacao"), {
+      def,
+      lang,
+      langs: LOCALES,
+      text: { subject: text.subject, body: text.body, button: text.button ?? "" },
+      edited: text.edited,
+      editedBy: text.updatedByName ?? null,
+      editedAt: text.updatedAt ? dateTimeLabel(text.updatedAt) : null,
+      otherEdited: other.edited,
+      defaults: def.defaults[lang],
+      hasButton: def.vars.some((v) => v.key === "link"),
+      previewHtml: preview.html,
+      previewSubject: preview.subject,
+      canComms: can(req.master!.role, "comms_manage"),
+      me: req.master!,
+      lastSent: last ? dateTimeLabel(last.createdAt) : null,
+      sent30,
+      localeMode: await getLocaleMode(),
+    });
+  }),
+);
+
+const templateSchema = z.object({
+  lang: z.enum(["en", "pt"]),
+  subject: z.string().trim().min(3, "Escreva o assunto.").max(160),
+  body: z.string().trim().min(10, "Escreva o texto do e-mail.").max(4000),
+  button: z.string().trim().max(40).optional().default(""),
+});
+
+function checkTemplate(def: TemplateDef, t: { subject: string; body: string; button?: string }): string | null {
+  const unknown = unknownVars(def, t.subject, t.body);
+  if (unknown.length) return `Variável que não existe neste e-mail: ${unknown.map((u) => `{{${u}}}`).join(", ")}.`;
+  const missing = missingRequired(def, t);
+  if (missing.length) {
+    return missing.includes("link")
+      ? "Este e-mail precisa do link: mantenha a linha {{button}} (com o texto do botão preenchido) ou escreva {{link}} no texto."
+      : `Este e-mail precisa de ${missing.map((m) => `{{${m}}}`).join(", ")} no texto.`;
+  }
+  return null;
+}
+
+masterRouter.post(
+  "/comunicacao/modelos/:key/previa",
+  h(async (req, res) => {
+    const def = templateDef(String(req.params.key));
+    if (!def) return fail(res, 404, "Modelo não encontrado.");
+    const lang = (String(req.body?.lang) === "pt" ? "pt" : "en") as Locale;
+    const t = { subject: String(req.body?.subject || ""), body: String(req.body?.body || ""), button: String(req.body?.button || "") || undefined };
+    const out = render(t, sampleVars(def), lang);
+    res.json({ ok: true, subject: out.subject, html: out.html, problem: checkTemplate(def, t) });
+  }),
+);
+
+masterRouter.post(
+  "/comunicacao/modelos/:key",
+  requireCap("comms_manage"),
+  h(async (req, res) => {
+    const def = templateDef(String(req.params.key));
+    if (!def) return fail(res, 404, "Modelo não encontrado.");
+    const parsed = templateSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, parsed.error.issues[0]?.message || "Confira os campos.");
+    const d = parsed.data;
+    const problem = checkTemplate(def, { subject: d.subject, body: d.body, button: d.button });
+    if (problem) return fail(res, 400, problem);
+    const dflt = def.defaults[d.lang];
+    const same = dflt.subject === d.subject && dflt.body.replace(/\r\n/g, "\n") === d.body.replace(/\r\n/g, "\n") && (dflt.button ?? "") === d.button;
+    if (same) {
+      await prisma.platformEmailTemplate.deleteMany({ where: { key: def.key, locale: d.lang } });
+    } else {
+      const data = { subject: d.subject, body: d.body.replace(/\r\n/g, "\n"), buttonLabel: d.button || null, updatedById: req.master!.id, updatedByName: req.master!.name };
+      await prisma.platformEmailTemplate.upsert({ where: { key_locale: { key: def.key, locale: d.lang } }, create: { key: def.key, locale: d.lang, ...data }, update: data });
+    }
+    clearTemplateCache();
+    await audit(req, actor(req), "comms.template_save", { type: "email_template", label: `${def.name} (${d.lang === "pt" ? "português" : "inglês"})`, meta: { key: def.key, lang: d.lang, subject: d.subject } });
+    ok(res, same ? "Igual ao padrão — voltou para o texto padrão." : "Modelo salvo. Os próximos e-mails já saem com o texto novo.");
+  }),
+);
+
+masterRouter.post(
+  "/comunicacao/modelos/:key/teste",
+  requireCap("comms_manage"),
+  h(async (req, res) => {
+    const def = templateDef(String(req.params.key));
+    if (!def) return fail(res, 404, "Modelo não encontrado.");
+    const parsed = templateSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, parsed.error.issues[0]?.message || "Confira os campos.");
+    const d = parsed.data;
+    const out = render({ subject: d.subject, body: d.body, button: d.button || undefined }, sampleVars(def), d.lang);
+    const sent = await emailProvider
+      .send({ to: req.master!.email, subject: `[Teste] ${out.subject}`, text: out.text, html: out.html, meta: { category: "internal", template: def.key, organizationId: null } })
+      .catch((e: unknown) => ({ error: e instanceof Error ? e.message : "Falha ao enviar" }));
+    if ("error" in sent) return fail(res, 502, `Não enviou: ${sent.error}`);
+    await audit(req, actor(req), "comms.template_test", { type: "email_template", label: def.name, meta: { key: def.key, lang: d.lang } });
+    ok(res, sent.transport === "resend" ? `Teste enviado para ${req.master!.email} (texto da tela, mesmo sem salvar).` : `Modo console: o teste foi para o log do servidor, não para ${req.master!.email}.`, { warn: sent.transport !== "resend" });
+  }),
+);
+
+masterRouter.post(
+  "/comunicacao/modelos/:key/padrao",
+  requireCap("comms_manage"),
+  h(async (req, res) => {
+    const def = templateDef(String(req.params.key));
+    if (!def) return fail(res, 404, "Modelo não encontrado.");
+    const lang = String(req.body?.lang) === "pt" ? "pt" : "en";
+    const r = await prisma.platformEmailTemplate.deleteMany({ where: { key: def.key, locale: lang } });
+    clearTemplateCache();
+    if (r.count) await audit(req, actor(req), "comms.template_reset", { type: "email_template", label: `${def.name} (${lang === "pt" ? "português" : "inglês"})`, meta: { key: def.key, lang } });
+    ok(res, r.count ? "Texto padrão restaurado." : "Já estava no texto padrão.");
+  }),
+);
+
+masterRouter.post(
+  "/comunicacao/idioma",
+  requireCap("comms_manage"),
+  h(async (req, res) => {
+    const mode = String(req.body?.mode) === "company" ? "company" : "en";
+    await setLocaleMode(mode);
+    await audit(req, actor(req), "comms.locale", { type: "setting", label: "Idioma dos e-mails", meta: { mode } });
+    ok(res, mode === "company" ? "E-mails saem no idioma de cada empresa (português ou inglês)." : "E-mails saem sempre em inglês.");
+  }),
+);
+
+// ----- Bloqueados -----
+
+masterRouter.post(
+  "/comunicacao/bloqueados",
+  requireCap("comms_manage"),
+  h(async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(res, 400, "E-mail inválido.");
+    await prisma.emailSuppression.upsert({ where: { email }, create: { email, reason: "manual", detail: String(req.body?.note || "").trim().slice(0, 200) || null, createdByName: req.master!.name }, update: {} });
+    await audit(req, actor(req), "comms.block", { type: "email", label: email });
+    ok(res, `${email} bloqueado. O sistema não envia mais nada para esse endereço.`);
+  }),
+);
+
+masterRouter.post(
+  "/comunicacao/bloqueados/liberar",
+  requireCap("comms_manage"),
+  h(async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const r = await prisma.emailSuppression.deleteMany({ where: { email } });
+    if (!r.count) return fail(res, 404, "Esse endereço não estava bloqueado.");
+    emailCountCache = null;
+    await audit(req, actor(req), "comms.unblock", { type: "email", label: email });
+    ok(res, `${email} liberado. Se voltar de novo, é bloqueado de novo.`);
+  }),
+);
 
 // Unknown paths inside /master
 masterRouter.use((req, res) => {

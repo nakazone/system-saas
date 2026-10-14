@@ -8,6 +8,7 @@ import { supportBanner } from "../support/session.js";
 import { getMaintenance, upcomingNotice } from "../ops/maintenance.js";
 import { FEATURES, LIMITS, getEntitlements, getUsage, hiddenPages } from "../features/index.js";
 import { prisma } from "../prisma.js";
+import { announcementsForApp, dismissAnnouncement } from "../announcements/index.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { daysUntil, money, planLabel, cyclePriceCents, shortDate } from "../../master/lib.js";
 import { plans } from "../../master/plans.js";
@@ -154,6 +155,7 @@ accountBillingRouter.get("/api/account/status", async (req: AuthedRequest, res, 
         support: supportBanner(req),
         hidden_pages: await hiddenPages(org.id),
         maintenance_notice: upcomingNotice(await getMaintenance()),
+        announcements: await announcementsForApp(org, req.user.id, { track: !req.session?.support }).catch(() => []),
       },
     });
   } catch (error) {
@@ -186,6 +188,19 @@ async function legalForApp(organizationId: string) {
     docs: legalDocuments().map((d) => ({ key: d.key, title: d.title, url: base + d.path, version: d.version, pending: pending.includes(d.key) })),
   };
 }
+
+accountBillingRouter.post("/api/account/announcements/:id/dismiss", async (req: AuthedRequest, res, next) => {
+  try {
+    if (!req.user || !req.organizationId) return void res.status(401).json({ success: false });
+    if (req.session?.support) return void res.json({ success: true, support: true });
+    const r = await dismissAnnouncement(String(req.params.id), req.user.id, req.organizationId);
+    if (r === "not_found") return void res.status(404).json({ success: false });
+    if (r === "urgent") return void res.status(400).json({ success: false, error: "Este aviso não pode ser fechado." });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
 
 accountBillingRouter.post("/api/account/legal/accept", async (req: AuthedRequest, res, next) => {
   try {

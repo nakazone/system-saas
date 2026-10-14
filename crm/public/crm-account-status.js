@@ -40,7 +40,13 @@
       ".om-sup__x{flex-shrink:0;border:0;border-radius:9px;height:30px;padding:0 12px;background:#fff;color:#a4401b;font:800 12.5px 'Plus Jakarta Sans',system-ui,sans-serif;cursor:pointer}" +
       "html.om-support body{padding-top:var(--om-sup-h,46px) !important}html.om-support{outline:4px solid #a4401b;outline-offset:-4px}" +
       ".om-sup-toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:2147483001;background:#211d1a;color:#fff;border-radius:12px;padding:10px 14px;font:600 13.5px/1.4 'Plus Jakarta Sans',system-ui,sans-serif;max-width:min(92vw,460px);box-shadow:0 12px 30px rgba(0,0,0,.25)}" +
-      "@media (max-width:640px){.om-sup{padding:8px 10px;font-size:12px}.om-sup__tag{display:none}}";
+      "@media (max-width:640px){.om-sup{padding:8px 10px;font-size:12px}.om-sup__tag{display:none}}" +
+      ".om-ann-wrap{display:flex;flex-direction:column;gap:8px;margin:12px 16px 0}.om-ann-wrap .om-acct{margin:0;align-items:flex-start}" +
+      ".om-ann__ico{flex-shrink:0;width:22px;height:22px;margin-top:1px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font:800 13px/1 'Plus Jakarta Sans',system-ui,sans-serif}" +
+      ".om-acct--info .om-ann__ico{background:#ebe1d3;color:#c1652f}.om-acct--warn .om-ann__ico{background:#f6dfae;color:#7a5200}.om-acct--danger .om-ann__ico{background:#e8792c;color:#fff}" +
+      ".om-ann__t{display:block;font-weight:800}.om-ann__b{display:block;font-weight:500;margin-top:2px;white-space:pre-line}.om-acct--danger .om-ann__b{color:#f1e9df}" +
+      ".om-ann .om-acct__cta{align-self:center}.om-ann .om-acct__x{align-self:flex-start;margin-top:-2px}" +
+      "@media (max-width:640px){.om-ann-wrap{margin:8px 10px 0}}";
     document.head.appendChild(st);
   }
 
@@ -257,6 +263,68 @@
     host.insertBefore(el, host.firstChild);
   }
 
+  // Avisos da plataforma (Master › Comunicação). Urgent ones can't be closed; closing is saved per user.
+  var ANN_TONE = { info: "info", maintenance: "warn", urgent: "danger" };
+  var ANN_ICO = { info: "i", maintenance: "!", urgent: "!" };
+  function renderAnnouncements(list, inSupport) {
+    var old = document.getElementById("omAnnouncements");
+    if (old) old.remove();
+    list = (list || []).filter(function (a) { return a && a.id; });
+    if (!list.length) return;
+    css();
+    var wrap = document.createElement("div");
+    wrap.id = "omAnnouncements";
+    wrap.className = "om-ann-wrap";
+    list.forEach(function (a) {
+      var el = document.createElement("div");
+      el.className = "om-acct om-ann om-acct--" + (ANN_TONE[a.kind] || "info");
+      el.setAttribute("role", a.kind === "urgent" ? "alert" : "status");
+      el.setAttribute("data-ann", a.id);
+      var ico = document.createElement("span");
+      ico.className = "om-ann__ico";
+      ico.setAttribute("aria-hidden", "true");
+      ico.textContent = ANN_ICO[a.kind] || "i";
+      el.appendChild(ico);
+      var t = document.createElement("span");
+      t.className = "om-acct__text";
+      var b = document.createElement("span");
+      b.className = "om-ann__t";
+      b.textContent = a.title;
+      t.appendChild(b);
+      if (a.body) {
+        var p = document.createElement("span");
+        p.className = "om-ann__b";
+        p.textContent = a.body;
+        t.appendChild(p);
+      }
+      el.appendChild(t);
+      if (a.link_url && /^(https?:\/\/|\/)/.test(a.link_url)) {
+        var l = document.createElement("a");
+        l.className = "om-acct__cta";
+        l.href = a.link_url;
+        if (/^https?:/.test(a.link_url)) { l.target = "_blank"; l.rel = "noopener"; }
+        l.textContent = a.link_label || "Saiba mais";
+        el.appendChild(l);
+      }
+      if (a.dismissible && !inSupport) {
+        var x = document.createElement("button");
+        x.className = "om-acct__x";
+        x.type = "button";
+        x.setAttribute("aria-label", "Fechar aviso");
+        x.textContent = "×";
+        x.onclick = function () {
+          el.remove();
+          if (!wrap.children.length) wrap.remove();
+          origFetch("/api/account/announcements/" + encodeURIComponent(a.id) + "/dismiss", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(function () {});
+        };
+        el.appendChild(x);
+      }
+      wrap.appendChild(el);
+    });
+    var host = document.querySelector(".dashboard-main") || document.querySelector("main") || document.body;
+    host.insertBefore(wrap, host.firstChild);
+  }
+
   // Uncaught browser errors go to Master › Operação (max 5 per page; noise ignored).
   var errSent = 0;
   var IGNORE = /^(Script error\.?|ResizeObserver loop|Non-Error promise rejection)/i;
@@ -350,6 +418,7 @@
         renderSupport(j.data.support || null);
         hidePages(j.data.hidden_pages || []);
         renderMaintenance(j.data.maintenance_notice || null);
+        renderAnnouncements(j.data.announcements || [], !!j.data.support);
         document.documentElement.classList.toggle("om-read-only", state.mode === "read_only");
         renderBanner();
         legalModal(j.data.legal);
@@ -357,7 +426,7 @@
       .catch(function () {});
   }
 
-  window.__omAccount = { reload: load, readOnlyModal: readOnlyModal, state: state, hidePages: hidePages };
+  window.__omAccount = { reload: load, readOnlyModal: readOnlyModal, state: state, hidePages: hidePages, renderAnnouncements: renderAnnouncements };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", load);
   else load();
   window.addEventListener("hashchange", renderBanner);

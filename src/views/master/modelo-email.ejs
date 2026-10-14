@@ -1,0 +1,54 @@
+<%- include('_top', { pageTitle: def.name }) %>
+<div class="page-head">
+  <div>
+    <a class="cm-back" href="/master/comunicacao?aba=modelos">‹ Modelos de e-mail</a>
+    <h1><%= def.name %></h1>
+    <div class="page-sub"><%= def.when %></div>
+  </div>
+  <div class="cm-tpl-stats muted"><span><b class="num"><%= sent30 %></b> enviado(s) em 30 dias</span><% if (lastSent) { %><span>último <%= lastSent %></span><% } %></div>
+</div>
+
+<nav class="cm-tabs cm-lang-tabs" aria-label="Idioma">
+  <% langs.forEach(function (l) { %><a href="?lang=<%= l.key %>" aria-current="<%= l.key === lang ? 'page' : 'false' %>"><%= l.label %></a><% }) %>
+  <span class="cm-lang-note muted"><%= localeMode === 'en' ? 'Hoje os e-mails saem sempre em inglês' : 'Hoje cada empresa recebe no idioma dela' %> · <a href="/master/comunicacao?aba=modelos">mudar</a></span>
+</nav>
+
+<div class="cm-editor">
+  <form class="card card-pad cm-edit-form" data-action action="/master/comunicacao/modelos/<%= def.key %>" data-tpl-form data-preview-url="/master/comunicacao/modelos/<%= def.key %>/previa">
+    <input type="hidden" name="lang" value="<%= lang %>">
+    <div class="cm-edit-state">
+      <% if (edited) { %><span class="pill pill-sm tone-ink">Editado</span><small class="muted">por <%= editedBy %> · <%= editedAt %></small><% } else { %><span class="pill pill-sm tone-muted">Texto padrão</span><% } %>
+    </div>
+    <label class="field">Assunto<input class="input" name="subject" required maxlength="160" value="<%= text.subject %>" <%= canComms ? '' : 'readonly' %> data-tpl-field></label>
+    <label class="field">Texto<textarea class="input cm-body" name="body" required maxlength="4000" rows="12" <%= canComms ? '' : 'readonly' %> data-tpl-field data-tpl-body><%= text.body %></textarea></label>
+    <% if (hasButton) { %>
+      <label class="field">Texto do botão<input class="input" name="button" maxlength="40" value="<%= text.button %>" <%= canComms ? '' : 'readonly' %> data-tpl-field><small class="muted">O botão abre o link do e-mail ({{link}}) e fica onde está a linha {{button}}.</small></label>
+    <% } %>
+    <div class="cm-vars">
+      <span class="cm-legend">Variáveis <small class="muted">— clique para inserir no texto</small></span>
+      <div class="chips">
+        <% def.vars.forEach(function (v) { %><button class="chip no-count cm-var" type="button" data-var="<%= v.key %>" title="<%= v.label %>" <%= canComms ? '' : 'disabled' %>>{{<%= v.key %>}} <small><%= v.label %></small></button><% }) %>
+        <% if (hasButton) { %><button class="chip no-count cm-var" type="button" data-var="button" title="Lugar do botão" <%= canComms ? '' : 'disabled' %>>{{button}} <small>Botão</small></button><% } %>
+      </div>
+      <small class="muted">Linha em branco = novo parágrafo. Comece com “~ ” para uma nota pequena em cinza.<% if (def.required.length) { %> Obrigatório: <%= def.required.map(function (r) { return '{{' + r + '}}'; }).join(', ') %><%= def.required.indexOf('link') >= 0 ? ' (ou o botão)' : '' %>.<% } %></small>
+    </div>
+    <p class="op-err cm-problem" data-tpl-problem hidden></p>
+    <% if (canComms) { %>
+      <div class="cm-edit-actions">
+        <button class="btn btn-dark" type="submit">Salvar</button>
+        <button class="btn btn-soft" type="submit" formaction="/master/comunicacao/modelos/<%= def.key %>/teste" data-tpl-test>Enviar teste para <%= me.email %></button>
+        <% if (edited) { %><button class="btn btn-soft" type="submit" formaction="/master/comunicacao/modelos/<%= def.key %>/padrao" data-tpl-reset data-confirm="Voltar este e-mail para o texto padrão? A sua edição em <%= lang === 'pt' ? 'português' : 'inglês' %> é apagada.">Restaurar padrão</button><% } %>
+      </div>
+    <% } %>
+  </form>
+
+  <section class="cm-preview">
+    <div class="cm-mail-head">
+      <span class="cm-legend">Prévia com dados de exemplo</span>
+      <div class="cm-mail-meta"><span class="muted">De</span><b>ObraMate</b><span class="muted">Assunto</span><b data-tpl-subject><%= previewSubject %></b></div>
+    </div>
+    <iframe class="cm-mail" title="Prévia do e-mail" sandbox="allow-same-origin" srcdoc="<%= previewHtml %>" data-tpl-frame></iframe>
+  </section>
+</div>
+<script src="/assets/master/comms.js?v=20261015-cm1" defer></script>
+<%- include('_bottom') %>
