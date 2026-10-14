@@ -34,6 +34,8 @@ model PlatformAdmin {
   lastLoginIp  String?
   failedLoginCount Int  @default(0)
   lockedUntil  DateTime?
+  /// Locked by "não fui eu" on a login alert: only a new access link (master:link / invite again) unlocks.
+  securityLockedAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -438,6 +440,37 @@ model CancellationEvent {
 
   @@index([requestedAt])
   @@index([organizationId])
+}
+
+/// Every sign-in and failed attempt — Master team and company users (kept 180 days).
+model LoginEvent {
+  id             String    @id @default(uuid()) @db.Uuid
+  /// master | user
+  kind           String
+  adminId        String?   @db.Uuid
+  userId         String?   @db.Uuid
+  organizationId String?   @db.Uuid
+  email          String
+  success        Boolean
+  /// wrong_password | wrong_2fa | locked | blocked | recovery_code | …
+  reason         String?
+  /// totp | recovery | password
+  method         String?
+  ip             String?
+  userAgent      String?
+  device         String?
+  country        String?
+  /// sha256 of the device cookie (Master) — new device = never seen for this account in 180 days
+  deviceId       String?
+  newDevice      Boolean   @default(false)
+  /// "Não fui eu" link sent in the login alert (sha256), single use
+  alertTokenHash String?   @unique
+  alertUsedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 /// Daily snapshot of the business numbers (taken after midnight America/Denver). History for Métricas.

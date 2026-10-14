@@ -18,8 +18,8 @@
       <% }) %>
     </nav>
     <div class="me">
-      <span class="me-av"><%= meInitials %></span>
-      <span class="me-text"><b><%= me.name %></b><small><%= meRole %> · 2FA ativo</small></span>
+      <a class="me-link" href="/master/seguranca" title="Minha segurança: sessões e acessos" <% if (active === 'seguranca') { %>aria-current="page"<% } %>><span class="me-av"><%= meInitials %></span>
+      <span class="me-text"><b><%= me.name %></b><small><%= meRole %> · sessões e acessos</small></span></a>
       <form method="post" action="/master/sair"><button class="icon-btn-dark" type="submit" aria-label="Sair" title="Sair"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button></form>
     </div>
   </aside>

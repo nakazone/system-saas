@@ -7,11 +7,13 @@
   <div class="tr head cols-equipe"><span>MEMBRO</span><span>PAPEL</span><span>2FA</span><span>ÚLTIMO ACESSO</span><span></span></div>
   <% members.forEach(function (m) { %>
     <div class="tr cols-equipe">
-      <span class="t-main"><span class="av round" style="width:34px;height:34px;background:<%= m.avatarBg %>"><%= m.initials %></span><span class="col"><b><%= m.name %><%= m.you ? ' (você)' : '' %></b><small><%= m.email %></small></span></span>
+      <span class="t-main"><span class="av round" style="width:34px;height:34px;background:<%= m.avatarBg %>"><%= m.initials %></span><span class="col"><b><%= m.name %><%= m.you ? ' (você)' : '' %><% if (m.locked) { %> <span class="pill pill-sm tone-danger">Travada</span><% } %></b><small><%= m.email %></small></span></span>
       <span><span class="pill <%= m.role === 'MASTER' ? '' : 'tone-soft' %>" style="<%= m.role === 'MASTER' ? 'background:var(--ink);color:var(--accent-soft)' : '' %>"><%= m.roleLabel %></span></span>
       <span class="hide-m" style="font-size:13px;font-weight:600;color:<%= m.status === 'invited' ? 'var(--warn)' : 'var(--ink)' %>"><%= m.twofa %></span>
       <span class="hide-m" style="font-size:13px;font-weight:600;color:var(--ink-2)"><%= m.last %></span>
       <span class="right" style="display:flex;gap:6px;justify-content:flex-end">
+        <% if (m.you || canTeam) { %><a class="btn btn-soft btn-sm" href="/master/seguranca<%= m.you ? '' : '?membro=' + m.id %>">Acessos</a><% } %>
+        <% if (canTeam && !m.you && m.locked) { %><form data-action action="/master/equipe/<%= m.id %>/destravar" data-stepup="Destravar <%= m.name %>"><button class="btn btn-dark btn-sm" type="submit">Destravar</button></form><% } %>
         <% if (canTeam && !m.you && m.role !== 'MASTER') { %>
           <% if (m.status === 'invited') { %><form data-action action="/master/equipe/<%= m.id %>/reenviar"><button class="btn btn-soft btn-sm" type="submit">Reenviar convite</button></form><% } %>
           <form data-action action="/master/equipe/<%= m.id %>/remover" data-stepup="Remover <%= m.name %> da equipe" data-confirm="Remover <%= m.name %> da equipe?"><button class="btn btn-soft btn-sm" type="submit" style="color:var(--danger)">Remover</button></form>

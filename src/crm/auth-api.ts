@@ -2,6 +2,7 @@ import { Router } from "express";
 import { passwordResetRouter } from "./password-reset.js";
 import { applyFeaturePermissions } from "../lib/features/index.js";
 import { z } from "zod";
+import { fromRequest, recordUserLogin } from "../lib/security/login-events.js";
 import { prisma } from "../lib/prisma.js";
 import { verifyPassword, hashPassword } from "../lib/auth/password.js";
 import { storage } from "../lib/storage/index.js";
@@ -211,16 +212,19 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
       });
 
       if (!user || user.status !== "active" || ["canceled", "suspended"].includes(user.organization.status)) {
+        if (user) await recordUserLogin({ ...fromRequest(req), email, userId: user.id, organizationId: user.organizationId, success: false, reason: user.status !== "active" ? "blocked" : "company_closed" });
         res.status(401).json({ success: false, error: "Invalid email or password." });
         return;
       }
 
       const ok = await verifyPassword(password, user.passwordHash);
       if (!ok) {
+        await recordUserLogin({ ...fromRequest(req), email, userId: user.id, organizationId: user.organizationId, success: false, reason: "wrong_password" });
         res.status(401).json({ success: false, error: "Invalid email or password." });
         return;
       }
 
+      await recordUserLogin({ ...fromRequest(req), email, userId: user.id, organizationId: user.organizationId, success: true });
       await establishSession(req, user, res);
       return;
     }
@@ -241,6 +245,7 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
     }
 
     if (matches.length === 0) {
+      for (const c of candidates) await recordUserLogin({ ...fromRequest(req), email, userId: c.id, organizationId: c.organizationId, success: false, reason: "wrong_password" });
       res.status(401).json({ success: false, error: "Invalid email or password." });
       return;
     }
@@ -259,6 +264,7 @@ crmAuthRouter.post("/api/auth/login", async (req: TenantRequest, res, next) => {
       return;
     }
 
+    await recordUserLogin({ ...fromRequest(req), email, userId: matches[0]!.id, organizationId: matches[0]!.organizationId, success: true });
     await establishSession(req, matches[0]!, res);
   } catch (error) {
     next(error);

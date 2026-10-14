@@ -1,0 +1,42 @@
+<%- include('_top', { pageTitle: 'Minha segurança' }) %>
+<div class="page-head">
+  <div>
+    <% if (!mine) { %><a class="cm-back" href="/master/equipe">‹ Equipe e segurança</a><% } %>
+    <h1><%= mine ? 'Minha segurança' : 'Acessos de ' + who.name %></h1>
+    <div class="page-sub"><%= mine ? 'Aparelhos com sessão aberta na sua conta e o histórico de entradas. Cada aparelho novo gera um e-mail com o botão “não fui eu”.' : who.email + ' · ' + who.roleLabel %></div>
+  </div>
+  <% if (mine && sessions.length > 1) { %><form data-action action="/master/seguranca/sessoes/outras" data-confirm="Sair de todos os outros aparelhos? Este aqui continua."><button class="btn btn-dark" type="submit">Sair de todos os outros</button></form><% } %>
+  <% if (!mine && sessions.length && canTeam) { %><form data-action action="/master/seguranca/membro/<%= who.id %>/sessoes" data-stepup="Encerrar as sessões de <%= who.name %>"><button class="btn btn-dark" type="submit">Encerrar todas as sessões</button></form><% } %>
+</div>
+
+<% if (who.locked) { %><div class="note-box note-warn dp-msg"><b>Conta travada por segurança</b> em <%= who.locked %> (alguém clicou em “não fui eu”). <%= mine ? '' : 'Destrave em Equipe e segurança: a pessoa recebe um link novo para criar senha e 2FA.' %></div><% } %>
+
+<div class="section-title"><h2>Sessões abertas</h2><small class="muted">Uma sessão sai sozinha depois de 30 min parada ou 12 h no total</small></div>
+<section class="table">
+  <div class="tr head cols-sess"><span>APARELHO</span><span>IP</span><span>ENTROU</span><span>ÚLTIMO USO</span><span></span></div>
+  <% sessions.forEach(function (s) { %>
+    <div class="tr cols-sess">
+      <span class="op-name"><b><%= s.device %></b><% if (s.current) { %><small><span class="pill pill-sm tone-ink">Este aparelho</span></small><% } %></span>
+      <span class="hide-m mono"><%= s.ip %></span>
+      <span class="hide-m"><%= s.loginText %></span>
+      <span><%= s.lastText %><% if (s.stale) { %><small class="muted" style="display:block">parada — sai sozinha</small><% } %></span>
+      <span class="right"><% if (!s.current && (mine || canTeam)) { %><form data-action action="/master/seguranca/sessoes/<%= encodeURIComponent(s.sid) %>/encerrar<%= mine ? '' : '?membro=' + who.id %>" data-confirm="Encerrar a sessão em <%= s.device %>?"><button class="btn btn-soft btn-sm" type="submit">Encerrar</button></form><% } %></span>
+    </div>
+  <% }) %>
+  <% if (!sessions.length) { %><div class="empty" style="padding:20px;text-align:center">Nenhuma sessão aberta.</div><% } %>
+</section>
+
+<div class="section-title"><h2>Histórico de entradas</h2><small class="muted">Últimas 50 · guardamos <%= days %> dias · entradas e tentativas que falharam</small></div>
+<section class="table">
+  <div class="tr head cols-hist"><span>QUANDO</span><span>O QUE</span><span>APARELHO</span><span>IP</span></div>
+  <% history.forEach(function (h) { %>
+    <div class="tr cols-hist <%= h.success ? '' : 'is-fail' %>">
+      <span class="muted strong"><%= h.whenText %></span>
+      <span><span class="hist-dot <%= h.success ? 'ok' : 'bad' %>" aria-hidden="true"></span><%= h.text %><% if (h.newDevice) { %> <span class="pill pill-sm tone-warn">aparelho novo · alerta enviado</span><% } %></span>
+      <span class="hide-m"><%= h.device %></span>
+      <span class="hide-m mono"><%= h.ip %><%= h.country ? ' · ' + h.country : '' %></span>
+    </div>
+  <% }) %>
+  <% if (!history.length) { %><div class="empty" style="padding:20px;text-align:center">Nada registrado ainda. Começa a contar com este deploy.</div><% } %>
+</section>
+<%- include('_bottom') %>

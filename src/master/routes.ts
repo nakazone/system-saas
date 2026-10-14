@@ -29,6 +29,17 @@ import {
 import { senderStatus, EMAIL_LOG_DAYS } from "../lib/email/delivery.js";
 import { KINDS, reachOf, targetCount } from "../lib/announcements/index.js";
 import { storage } from "../lib/storage/index.js";
+import {
+  recordMasterFailure,
+  recordMasterLogin,
+  findAlert,
+  lockFromAlert,
+  loginHistory,
+  masterSessions,
+  endMasterSession,
+  endOtherMasterSessions,
+  LOGIN_HISTORY_DAYS,
+} from "../lib/security/login-events.js";
 import { applyCoupon, archiveCoupon, couponState, couponText, createCoupon, getRetentionCode, removeCoupon, setRetentionCode, type CouponState } from "../lib/billing/coupons.js";
 import { cardExpiresAt, cardText, expiringCards, forecast, forecastBuckets, syncCard } from "../lib/billing/cards.js";
 import { CANCEL_REASONS, REASON_LABEL, recordMasterCancel } from "../lib/billing/cancel.js";
@@ -60,6 +71,8 @@ import {
   throttled,
   wantsJson,
   type MasterRequest,
+  IDLE_MS,
+  ABSOLUTE_MS,
 } from "./auth.js";
 import {
   endOrgSessions,
@@ -213,7 +226,12 @@ masterRouter.post(
     }
     if (!emailIn || !password) return authView(res, "login", { email: emailIn, error: "Digite e-mail e senha." }, 400);
     const admin = await prisma.platformAdmin.findUnique({ where: { email: emailIn } });
+    if (admin?.securityLockedAt) {
+      await recordMasterFailure(admin, emailIn, "security_locked", req);
+      return authView(res, "login", { email: emailIn, error: "Conta travada por segurança (alguém clicou em “não fui eu”). Peça ao Master um novo link de acesso — ou, se você é o Master, rode npm run master:link no Railway." }, 423);
+    }
     if (admin?.lockedUntil && admin.lockedUntil > new Date()) {
+      await recordMasterFailure(admin, emailIn, "locked", req);
       return authView(res, "login", { email: emailIn, error: "Conta bloqueada por tentativas erradas. Tente de novo em alguns minutos." }, 429);
     }
     const valid = !!admin && admin.status === "active" && !!admin.passwordHash && (await verifyPassword(password, admin.passwordHash));
@@ -226,6 +244,7 @@ masterRouter.post(
           data: { failedLoginCount: n, lockedUntil: n >= 10 ? new Date(Date.now() + 30 * 60_000) : null },
         });
         await audit(req, { id: admin.id, name: admin.name }, "auth.password_failed", { type: "admin", id: admin.id, label: admin.email });
+        await recordMasterFailure(admin, emailIn, "wrong_password", req);
       }
       return authView(res, "login", { email: emailIn, error: generic }, 401);
     }
@@ -263,8 +282,9 @@ async function completeLogin(req: MasterRequest, res: Response, adminId: string,
     data: { lastLoginAt: new Date(), lastLoginIp: clientIp(req) || null, failedLoginCount: 0, lockedUntil: null },
   });
   const now = Date.now();
-  req.session.master = { adminId, stage: "full", loginAt: now, lastSeen: now, stepUpAt: now };
-  await audit(req, { id: admin.id, name: admin.name }, "auth.login", { type: "admin", id: admin.id, label: admin.email, meta: { method } });
+  const login = await recordMasterLogin(admin, method, req, res);
+  req.session.master = { adminId, stage: "full", loginAt: now, lastSeen: now, stepUpAt: now, ip: clientIp(req).slice(0, 80), device: login.device };
+  await audit(req, { id: admin.id, name: admin.name }, "auth.login", { type: "admin", id: admin.id, label: admin.email, meta: { method, newDevice: login.newDevice, device: login.device } });
   req.session.save(() => res.redirect("/master"));
 }
 
@@ -292,6 +312,7 @@ masterRouter.post(
       }
       if (used < 0) {
         noteFailure(keys);
+        await recordMasterFailure(admin, admin.email, "wrong_recovery", req);
         return authView(res, "twofa", { email: admin.email, mode, error: "Código de recuperação inválido." }, 401);
       }
       const left = hashes.filter((_, i) => i !== used);
@@ -304,6 +325,7 @@ masterRouter.post(
     if (!verifyTotp(secret, String(req.body?.code || ""))) {
       noteFailure(keys);
       await audit(req, { id: admin.id, name: admin.name }, "auth.2fa_failed", { type: "admin", id: admin.id, label: admin.email });
+      await recordMasterFailure(admin, admin.email, "wrong_2fa", req);
       return authView(res, "twofa", { email: admin.email, mode, error: "Código incorreto. Confira o horário do celular e tente de novo." }, 401);
     }
     clearFailures(keys);
@@ -347,7 +369,8 @@ masterRouter.post(
     });
     await audit(req, { id: admin.id, name: admin.name }, "auth.2fa_enabled", { type: "admin", id: admin.id, label: admin.email });
     const now = Date.now();
-    req.session.master = { adminId: admin.id, stage: "full", loginAt: now, lastSeen: now, stepUpAt: now };
+    const login = await recordMasterLogin(admin, "setup", req, res);
+    req.session.master = { adminId: admin.id, stage: "full", loginAt: now, lastSeen: now, stepUpAt: now, ip: clientIp(req).slice(0, 80), device: login.device };
     await prisma.platformAdmin.update({ where: { id: admin.id }, data: { lastLoginAt: new Date(), lastLoginIp: clientIp(req) || null } });
     req.session.save(() => authView(res, "twofa-setup", { email: admin.email, qrSvg: null, secret: null, codes }));
   }),
@@ -390,6 +413,7 @@ masterRouter.post(
         recoveryCodeHashes: [],
         failedLoginCount: 0,
         lockedUntil: null,
+        securityLockedAt: null,
       },
     });
     await audit(req, { id: admin.id, name }, "auth.activated", { type: "admin", id: admin.id, label: admin.email });
@@ -416,6 +440,45 @@ masterRouter.post(
 // =============================================================================
 // Everything below needs a full sign-in
 // =============================================================================
+
+// "Não fui eu" from the login alert e-mail (no login needed: the link is the proof).
+masterRouter.get(
+  "/nao-fui-eu/:token",
+  h(async (req, res) => {
+    const ev = await findAlert(String(req.params.token));
+    if (!ev) return authView(res, "nao-fui-eu", { state: "invalid" }, 410);
+    authView(res, "nao-fui-eu", {
+      state: "confirm",
+      token: String(req.params.token),
+      email: ev.email,
+      device: ev.device ?? "aparelho desconhecido",
+      ip: ev.ip ?? "—",
+      when: ev.createdAt.toLocaleString("pt-BR", { timeZone: "America/Denver", dateStyle: "short", timeStyle: "short" }),
+    });
+  }),
+);
+
+masterRouter.post(
+  "/nao-fui-eu/:token",
+  h(async (req, res) => {
+    const ev = await findAlert(String(req.params.token));
+    if (!ev) return authView(res, "nao-fui-eu", { state: "invalid" }, 410);
+    const r = await lockFromAlert(ev.id);
+    if (!r) return authView(res, "nao-fui-eu", { state: "invalid" }, 410);
+    const admin = await prisma.platformAdmin.findUnique({ where: { id: r.adminId }, select: { id: true, name: true, email: true, role: true } });
+    await audit(req, { id: admin?.id ?? null, name: admin?.name ?? "—" }, "auth.not_me", { type: "admin", id: r.adminId, label: admin?.email ?? ev.email, meta: { sessions: r.sessions, ip: ev.ip, device: ev.device } });
+    // Tell the Master too when it was someone else's account.
+    if (admin && admin.role !== "MASTER") {
+      const master = await prisma.platformAdmin.findFirst({ where: { role: "MASTER", status: "active" }, select: { email: true } });
+      if (master) {
+        await emailProvider
+          .send({ to: master.email, subject: `[ObraMate] ${admin.name} travou a conta (não fui eu)`, text: `${admin.name} (${admin.email}) disse que não reconhece um acesso de ${ev.device} (IP ${ev.ip}). As sessões foram encerradas e a conta travada. Para destravar: Equipe e segurança › Destravar.`, meta: { category: "internal", template: "master_login_alert", organizationId: null } })
+          .catch(() => undefined);
+      }
+    }
+    req.session.destroy(() => authView(res, "nao-fui-eu", { state: "done", sessions: r.sessions, email: admin?.email ?? ev.email, isMaster: admin?.role === "MASTER" }));
+  }),
+);
 
 masterRouter.use(requireMaster);
 
@@ -599,6 +662,11 @@ masterRouter.get(
       if (ops.lateJobs.length) queue.push({ tone: "warn", title: ops.lateJobs.length === 1 ? `Job com problema: ${ops.lateJobs[0].label}` : `${ops.lateJobs.length} jobs com problema`, sub: ops.lateJobs.map((j) => `${j.label} (${j.lastOk === false ? "falhou" : "atrasado"})`).slice(0, 3).join(", "), cta: "Ver", href: "/master/operacao#jobs" });
       if (ops.newErrors.length) queue.push({ tone: "warn", title: `${ops.newErrors.length} erro(s) novo(s) nas últimas 24 h`, sub: ops.newErrors[0].message.slice(0, 90), cta: "Ver", href: "/master/operacao#erros" });
     }
+    // Segurança: wrong passwords / codes on the Master in the last 24 h.
+    const masterFails = await prisma.loginEvent.count({ where: { kind: "master", success: false, createdAt: { gte: new Date(Date.now() - 86400e3) } } }).catch(() => 0);
+    if (masterFails >= 5) queue.unshift({ tone: "danger", title: `${masterFails} tentativas erradas de entrar no Master em 24 h`, sub: "Confira o histórico de acessos da equipe", cta: "Ver", href: "/master/seguranca", primary: true });
+    const locked = await prisma.platformAdmin.findMany({ where: { securityLockedAt: { not: null }, status: "active" }, select: { name: true } }).catch(() => []);
+    if (locked.length) queue.unshift({ tone: "danger", title: `Conta travada por “não fui eu”: ${locked.map((l) => l.name).join(", ")}`, sub: "Destrave em Equipe e segurança (manda link novo de senha e 2FA)", cta: "Ver", href: "/master/equipe", primary: true });
     // Cobrança: disputes, companies that asked to cancel, cards expiring in 15 days.
     const openDisp = await prisma.platformDispute.findMany({ where: { status: { in: OPEN_DISPUTE } }, orderBy: { evidenceDueBy: "asc" }, take: 5 }).catch(() => []);
     if (openDisp.length) {
@@ -1544,6 +1612,9 @@ masterRouter.get(
       canManage: can(req.master!.role, "users_manage"),
       canSupport: can(req.master!.role, "support_enter") && !!org && org.status !== "suspended" && org.status !== "canceled",
       supportSessions: await supportSessionsFor({ userId: u.id }, 4),
+      logins: (await loginHistory({ userId: u.id }, 50)).map((l) => ({ ...l, whenText: dateTimeLabel(l.when) })),
+      loginFails: await prisma.loginEvent.count({ where: { userId: u.id, success: false, createdAt: { gte: new Date(Date.now() - 7 * 86400e3) } } }),
+      showAllLogins: req.query.logins === "todos",
     };
     if (req.query.partial) return void res.render("master/_usuario", { ...data, partial: true });
     page(res, "usuario", await shell(req, "usuarios"), { ...data, partial: false });
@@ -2249,6 +2320,7 @@ masterRouter.get(
           twofa: m.totpEnabledAt ? "App autenticador" : m.status === "invited" ? "Configura no 1º acesso" : "Pendente",
           last: m.status === "invited" ? `convite enviado ${shortDate(m.updatedAt)}` : m.lastLoginAt ? dateTimeLabel(m.lastLoginAt) : "nunca entrou",
           recovery: Array.isArray(m.recoveryCodeHashes) ? (m.recoveryCodeHashes as unknown[]).length : 0,
+          locked: !!m.securityLockedAt,
           initials: initials(m.name),
           avatarBg: m.role === "MASTER" ? "#f3b98f" : avatarBg(m.id),
         };
@@ -2383,6 +2455,9 @@ const AUDIT_CATS: [string, string, string[]][] = [
 
 const AUDIT_TEXT: Record<string, string> = {
   "auth.login": "Entrou (senha + 2FA)",
+  "auth.sessions_ended": "Encerrou sessões do Master",
+  "auth.not_me": "Clicou em “não fui eu” e travou a conta",
+  "auth.unlocked": "Destravou conta (link novo enviado)",
   "auth.logout": "Saiu",
   "auth.password_failed": "Senha errada",
   "auth.2fa_failed": "Código 2FA errado",
@@ -4535,6 +4610,92 @@ async function cancelReasons(months: number) {
     recent: real.slice(0, 8).map((r) => ({ org: r.orgName, orgId: r.organizationId, reason: REASON_LABEL[r.reasonKey] ?? r.reasonKey, comment: r.comment, when: shortDate(r.requestedAt), source: r.source === "company" ? "pela empresa" : r.source === "master" ? "pelo Master" : r.source === "stripe" ? "no Stripe" : "régua" })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Segurança: minhas sessões, histórico de login, destravar
+// ---------------------------------------------------------------------------
+
+async function securityData(adminId: string, currentSid: string | null) {
+  const [sessions, history] = await Promise.all([masterSessions(adminId, currentSid, IDLE_MS, ABSOLUTE_MS), loginHistory({ adminId }, 50)]);
+  return {
+    sessions: sessions.map((s) => ({ ...s, loginText: dateTimeLabel(s.loginAt), lastText: s.current ? "agora" : dateTimeLabel(s.lastSeen) })),
+    history: history.map((h) => ({ ...h, whenText: dateTimeLabel(h.when) })),
+    days: LOGIN_HISTORY_DAYS,
+  };
+}
+
+masterRouter.get(
+  "/seguranca",
+  h(async (req, res) => {
+    const memberId = String(req.query.membro || "");
+    const mine = !memberId || memberId === req.master!.id;
+    if (!mine && !can(req.master!.role, "team_manage")) return void res.status(403).render("master/error", { title: "Sem permissão", message: "Só o Master vê os acessos da equipe." });
+    const who = await prisma.platformAdmin.findUnique({ where: { id: mine ? req.master!.id : memberId } }).catch(() => null);
+    if (!who) return void res.status(404).render("master/error", { title: "Pessoa não encontrada", message: "Essa pessoa não está na equipe." });
+    page(res, "seguranca", await shell(req, "seguranca"), {
+      mine,
+      canTeam: can(req.master!.role, "team_manage"),
+      who: { id: who.id, name: who.name, email: who.email, roleLabel: ROLE_LABEL[normalizeRole(who.role)], locked: who.securityLockedAt ? dateTimeLabel(who.securityLockedAt) : null },
+      ...(await securityData(who.id, mine ? req.sessionID : null)),
+    });
+  }),
+);
+
+masterRouter.post(
+  "/seguranca/sessoes/outras",
+  h(async (req, res) => {
+    const live = (await masterSessions(req.master!.id, req.sessionID, IDLE_MS, ABSOLUTE_MS)).filter((x) => !x.current).length;
+    await endOtherMasterSessions(req.master!.id, req.sessionID);
+    const n = live;
+    await audit(req, actor(req), "auth.sessions_ended", { type: "admin", id: req.master!.id, label: req.master!.email, meta: { sessions: n, others: true } });
+    ok(res, n ? `${n} sessão(ões) encerrada(s). Só este aparelho continua.` : "Não havia outras sessões.");
+  }),
+);
+
+masterRouter.post(
+  "/seguranca/sessoes/:sid/encerrar",
+  h(async (req, res) => {
+    const memberId = String(req.query.membro || "");
+    const target = memberId && memberId !== req.master!.id ? memberId : req.master!.id;
+    if (target !== req.master!.id && !can(req.master!.role, "team_manage")) return fail(res, 403, "Só o Master encerra sessões da equipe.");
+    const sid = String(req.params.sid);
+    if (sid === req.sessionID) return fail(res, 400, "Para sair deste aparelho, use o botão Sair.");
+    const n = await endMasterSession(target, sid);
+    if (!n) return fail(res, 404, "Essa sessão já tinha terminado.");
+    await audit(req, actor(req), "auth.sessions_ended", { type: "admin", id: target, label: target === req.master!.id ? req.master!.email : "membro da equipe", meta: { sessions: 1 } });
+    ok(res, "Sessão encerrada. O aparelho precisa entrar de novo.");
+  }),
+);
+
+masterRouter.post(
+  "/seguranca/membro/:id/sessoes",
+  requireCap("team_manage"),
+  requireStepUp,
+  h(async (req, res) => {
+    const m = await prisma.platformAdmin.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+    if (!m) return fail(res, 404, "Pessoa não encontrada.");
+    const n = await prisma.$executeRaw`DELETE FROM "session" WHERE sess->'master'->>'adminId' = ${m.id} AND sid <> ${req.sessionID}`;
+    await audit(req, actor(req), "auth.sessions_ended", { type: "admin", id: m.id, label: m.email, meta: { sessions: n } }, true);
+    ok(res, `${n} sessão(ões) de ${m.name} encerrada(s).`);
+  }),
+);
+
+masterRouter.post(
+  "/equipe/:id/destravar",
+  requireCap("team_manage"),
+  requireStepUp,
+  h(async (req, res) => {
+    const m = await prisma.platformAdmin.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+    if (!m) return fail(res, 404, "Pessoa não encontrada.");
+    if (!m.securityLockedAt) return fail(res, 400, "Essa conta não está travada.");
+    const link = await issueActivation(m.id);
+    await sendActivationEmail(m.email, m.name, link, "reset");
+    await audit(req, actor(req), "auth.unlocked", { type: "admin", id: m.id, label: m.email }, true);
+    ok(res, `Link novo enviado para ${m.email}. A conta destrava quando a pessoa criar senha e 2FA novos.`, {
+      reveal: { title: `Link de acesso · ${m.name}`, value: link, note: "Vale 48 h, uma vez. Também foi por e-mail." },
+    });
+  }),
+);
 
 // Unknown paths inside /master
 masterRouter.use((req, res) => {

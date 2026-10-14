@@ -1,0 +1,15 @@
+<%- include('_auth-top') %>
+<% if (state === 'invalid') { %>
+  <div><h2>Link inválido ou já usado</h2><p class="lead">O link vale por 7 dias e só uma vez. Se você acha que alguém entrou na sua conta, avise o Master agora — ou, se você é o Master, rode <b>npm run master:link</b> no Railway para trocar senha e 2FA.</p></div>
+<% } else if (state === 'done') { %>
+  <div><h2>Conta travada</h2><p class="lead">Derrubamos <%= sessions %> sessão(ões) aberta(s) e travamos a conta <b><%= email %></b>. Ninguém entra até um novo link de acesso ser usado.</p></div>
+  <div class="alert alert-info">Próximo passo: <%= isMaster ? 'rode npm run master:link no Railway. O link novo pede senha nova e um novo 2FA (escaneie o QR de novo).' : 'peça ao Master para mandar um novo link de acesso (Equipe e segurança › Destravar). Você vai criar senha e 2FA novos.' %></div>
+<% } else { %>
+  <div><div class="step">ALERTA DE ACESSO</div><h2>Não foi você?</h2><p class="lead">Entraram na conta <b><%= email %></b> em <b><%= device %></b> (IP <%= ip %>) em <%= when %>.</p></div>
+  <div class="alert alert-error">Ao confirmar, todas as sessões dessa conta são encerradas e a conta fica travada até um novo link de acesso ser usado (senha e 2FA novos).</div>
+  <form method="post" action="/master/nao-fui-eu/<%= token %>">
+    <button class="btn btn-danger btn-block" type="submit">Não fui eu — travar a conta agora</button>
+  </form>
+  <a class="btn btn-soft btn-block" href="/master">Fui eu, está tudo certo</a>
+<% } %>
+<%- include('_auth-bottom') %>

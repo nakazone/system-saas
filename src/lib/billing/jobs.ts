@@ -9,6 +9,7 @@ import { env } from "../../config/env.js";
 import { cleanupEmailLog, EMAIL_LOG_CLEANUP_JOB } from "../email/delivery.js";
 import { cleanupExports, EXPORTS_CLEANUP_JOB } from "../data/export.js";
 import { CARD_EXPIRING_JOB, sendCardExpiringEmails } from "./cards.js";
+import { LOGIN_CLEANUP_JOB, cleanupLoginHistory } from "../security/login-events.js";
 import { SCHEDULED_CANCEL_JOB, applyScheduledCancellations } from "./cancel.js";
 
 /** Runs a background job and records it in JobRun (shown in the Master). */
@@ -102,6 +103,7 @@ export async function serviceChecksWithAlert() {
 
 registerJob({ name: SERVICE_CHECKS_JOB, label: "Checagem dos serviços", intervalMs: 15 * 60e3, run: serviceChecksWithAlert });
 registerJob({ name: DAILY_METRICS_JOB, label: "Foto diária das métricas", intervalMs: DAY_MS, run: metricsRun });
+registerJob({ name: LOGIN_CLEANUP_JOB, label: "Limpeza do histórico de login (180 dias)", intervalMs: DAY_MS, run: () => cleanupLoginHistory() });
 registerJob({ name: CARD_EXPIRING_JOB, label: "Aviso de cartão vencendo (15 dias antes)", intervalMs: DAY_MS, run: () => sendCardExpiringEmails() });
 registerJob({ name: SCHEDULED_CANCEL_JOB, label: "Cancelamentos agendados (fim do período)", intervalMs: DAY_MS, run: () => applyScheduledCancellations() });
 registerJob({ name: EXPORTS_CLEANUP_JOB, label: "Exportações: apagar arquivos com mais de 7 dias", intervalMs: 3600e3, run: () => cleanupExports() });
@@ -114,6 +116,7 @@ if (process.env.BILLING_LADDER !== "off") registerJob({ name: BILLING_LADDER_JOB
  *  - metrics snapshot once a day (first check after midnight, America/Denver);
  *  - e-mail send log trimmed to 90 days once a day;
  *  - company exports older than 7 days deleted every hour;
+ *  - login history trimmed to 180 days once a day;
  *  - scheduled cancellations (no Stripe) applied once a day; card-expiring e-mails after 06:00;
  *  - billing ladder once a day after 06:00 (off with BILLING_LADDER=off).
  */
@@ -131,6 +134,11 @@ export function startPlatformJobs(): void {
       if (await metricsDue()) await trackRun(DAILY_METRICS_JOB, () => runJob(DAILY_METRICS_JOB, "schedule", async () => ({ processed: (await takeSnapshot()).paying })));
     } catch (error) {
       console.error("[jobs] metrics snapshot failed", error);
+    }
+    try {
+      if (await dailyDue(LOGIN_CLEANUP_JOB)) await trackRun(LOGIN_CLEANUP_JOB, () => cleanupLoginHistory());
+    } catch (error) {
+      console.error("[jobs] login history cleanup failed", error);
     }
     try {
       if (await dailyDue(SCHEDULED_CANCEL_JOB)) await trackRun(SCHEDULED_CANCEL_JOB, () => applyScheduledCancellations());

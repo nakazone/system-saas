@@ -20,6 +20,9 @@ export type MasterSession = {
   stepUpAt?: number;
   /** TOTP secret during enrollment (never stored in DB until confirmed) */
   pendingTotp?: string;
+  /** Shown in "Minhas sessões" */
+  ip?: string;
+  device?: string;
 };
 
 declare module "express-session" {
@@ -162,9 +165,9 @@ export async function requireMaster(req: MasterRequest, res: Response, next: Nex
     }
     const admin = await prisma.platformAdmin.findUnique({
       where: { id: s.adminId },
-      select: { id: true, name: true, email: true, role: true, status: true, totpEnabledAt: true },
+      select: { id: true, name: true, email: true, role: true, status: true, totpEnabledAt: true, securityLockedAt: true },
     });
-    if (!admin || admin.status !== "active" || !admin.totpEnabledAt) {
+    if (!admin || admin.status !== "active" || !admin.totpEnabledAt || admin.securityLockedAt) {
       delete req.session.master;
       return deny(req, res, 401, "not_signed_in", "Entre para continuar.");
     }

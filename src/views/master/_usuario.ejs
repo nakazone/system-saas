@@ -49,6 +49,17 @@
   </section>
   <% } %>
   <section class="d-sec">
+    <h3>Histórico de login <small class="muted" style="font-weight:600;font-size:12px">últimas <%= logins.length %> · <%= loginFails %> falha(s) em 7 dias</small></h3>
+    <div class="d-hist">
+      <% logins.slice(0, showAllLogins ? 50 : 8).forEach(function (l) { %>
+        <div class="d-line"><span class="hist-dot <%= l.success ? 'ok' : 'bad' %>" aria-hidden="true"></span><span class="muted" style="width:110px"><%= l.whenText %></span><span style="flex:1;min-width:0"><%= l.text %><small class="muted" style="display:block"><%= l.device %> · <%= l.ip %><%= l.country ? ' · ' + l.country : '' %></small></span></div>
+      <% }) %>
+      <% if (!logins.length) { %><p class="muted" style="margin:4px 0">Nenhum login registrado ainda (começa a contar com este deploy).</p><% } %>
+      <% if (!showAllLogins && logins.length > 8) { %><a class="btn btn-soft btn-sm" style="align-self:flex-start;margin-top:6px" href="/master/usuarios/<%= u.id %>?logins=todos">Ver os <%= logins.length %></a><% } %>
+    </div>
+  </section>
+
+  <section class="d-sec">
     <h3>Histórico no Master</h3>
     <% lastAudit.forEach(function (a) { %><div class="d-line"><span class="muted" style="width:110px"><%= dateTimeLabel(a.at) %></span><span style="flex:1"><%= a.action.replace('user.', '').replace('_', ' ') %></span><span class="muted"><%= a.actorName %></span></div><% }) %>
     <% if (!lastAudit.length) { %><p class="muted" style="margin:4px 0">Nenhuma ação feita pelo Master neste usuário.</p><% } %>
