@@ -22,7 +22,7 @@
   <div class="tr head cols-clientes"><span>EMPRESA</span><span>PLANO</span><span>STATUS</span><span>VENCIMENTO</span><span class="right">VALOR</span><span>DONO</span><span class="right">USUÁRIOS</span></div>
   <% rows.forEach(function (o) { %>
     <a class="tr cols-clientes" href="/master/clientes/<%= o.id %>" data-ficha="<%= o.id %>">
-      <span class="t-main"><span class="av" style="background:<%= o.avatarBg %>"><%= o.initials %></span><span class="col"><b><%= o.name %></b><small><%= o.slug %></small></span></span>
+      <span class="t-main"><span class="av" style="background:<%= o.avatarBg %>"><%= o.initials %></span><span class="col"><b><%= o.name %></b><small><%= o.slug %><% if (o.health && o.status !== 'canceled') { %> · <span class="hl-chip tone-<%= o.health.band %>">saúde <%= o.health.score %></span><% } %></small></span></span>
       <span class="stack"><b style="font-size:13px"><%= o.planText %></b><small><%= o.cycleText %></small></span>
       <span class="hide-m"><span class="pill tone-<%= o.pill.tone %>"><%= o.pill.label %></span></span>
       <span class="stack"><span class="pill pill-sm tone-<%= o.chip.tone %>"><%= o.chip.label %></span><small><%= o.due ? (o.status === 'trial' ? (o.overdue ? 'trial acabou ' : 'fim do trial ') : (o.overdue ? 'venceu ' : 'renova ')) + o.dueLabel : (o.status === 'canceled' ? (o.cancelReason || '—') : 'definir data') %></small></span>

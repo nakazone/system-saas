@@ -71,6 +71,29 @@
     <% } %>
   </section>
 
+  <% if (health) { %>
+  <section class="d-sec">
+    <h3>Saúde e onboarding</h3>
+    <div class="hl-top">
+      <div class="hl-score tone-<%= health.band %>"><b class="num"><%= health.score %></b><small><%= health.bandLabel %></small></div>
+      <div class="hl-parts">
+        <% health.parts.forEach(function (pt) { %>
+          <div class="hl-part"><div class="hl-part-top"><span><%= pt.label %></span><b class="num"><%= pt.points %>/<%= pt.max %></b></div><div class="use-track"><i style="width:<%= Math.round(pt.points / pt.max * 100) %>%"></i></div><small><%= pt.note %></small></div>
+        <% }) %>
+      </div>
+    </div>
+    <div class="hl-meta muted">
+      <span>Último uso: <b><%= health.lastActive ? shortDate(health.lastActive) : 'sem registro' %></b></span>
+      <span>Usuários ativos em 30 dias: <b><%= health.activeUsers30 %></b></span>
+    </div>
+    <ol class="hl-steps">
+      <% health.steps.forEach(function (st) { %>
+        <li class="<%= st.done ? 'done' : '' %>"><span class="hl-check" aria-hidden="true"><%= st.done ? '✓' : '' %></span><span><%= st.label %></span><small><%= st.done ? (st.at ? shortDate(st.at) : 'feito') : 'falta' %></small></li>
+      <% }) %>
+    </ol>
+  </section>
+  <% } %>
+
   <section class="d-sec">
     <h3>Contatos <% if (canBilling) { %><button class="btn btn-soft btn-sm" type="button" data-open="dlg-faturamento"><%= o.billingContactEmail ? 'Editar financeiro' : '+ Financeiro' %></button><% } %></h3>
     <div class="d-line">
@@ -99,6 +122,18 @@
       </div>
     <% } %>
     <a class="btn btn-soft btn-sm" style="margin-top:8px" href="/master/contatos?c=<%= id %>:owner">Registrar conversa</a>
+  </section>
+
+  <section class="d-sec">
+    <h3>Dados da empresa <% if (canBilling) { %><button class="btn btn-soft btn-sm" type="button" data-open="dlg-dados">Editar</button><% } %></h3>
+    <div class="kv kv-compact">
+      <div><span>Razão social</span><b><%= details.legalName || '—' %></b></div>
+      <div><span>Telefone</span><b><%= details.contactPhone || '—' %></b></div>
+      <div><span>E-mail</span><b><%= details.contactEmail || '—' %></b></div>
+      <div><span>Endereço</span><b><%= [details.addressLine1, details.city, details.state, details.postalCode].filter(Boolean).join(', ') || '—' %></b></div>
+      <div><span>Licença</span><b><%= details.licenseNumber ? details.licenseNumber + (details.licenseState ? ' · ' + details.licenseState : '') : '—' %></b></div>
+      <div><span>Fuso e idioma</span><b><%= ((timezones.find(function (t) { return t.id === details.timezone; }) || {}).label || details.timezone) %> · <%= details.defaultLocale %></b></div>
+    </div>
   </section>
 
   <section class="d-sec">
@@ -202,6 +237,17 @@
     </form>
   </section>
 
+  <section class="d-sec">
+    <h3>Linha do tempo <a class="btn btn-soft btn-sm" href="/master/auditoria?empresa=<%= id %>">Auditoria</a></h3>
+    <ol class="tl">
+      <% timeline.items.forEach(function (it) { %>
+        <li class="tl-<%= it.kind %>"><span class="tl-dot" aria-hidden="true"></span><div><b><%= it.title %></b><% if (it.sub) { %><small><%= it.sub %></small><% } %></div><time><%= it.when %></time></li>
+      <% }) %>
+    </ol>
+    <% if (!timeline.items.length) { %><p class="muted" style="margin:6px 0">Nada registrado ainda.</p><% } %>
+    <% if (timeline.truncated) { %><a class="btn btn-soft btn-sm" href="/master/clientes/<%= id %>?linha=tudo">Ver tudo (<%= timeline.total %>)</a><% } %>
+  </section>
+
   <% if (canSuspend && o.status !== 'canceled') { %>
     <button class="btn btn-danger" type="button" data-open="dlg-cancelar" style="align-self:flex-start">Cancelar empresa</button>
   <% } %>
@@ -232,6 +278,50 @@
         <label class="field">Até (opcional)<input class="input" type="date" name="endsAt" min="<%= todayYmd %>"></label>
       </div>
       <button class="btn btn-dark btn-block" type="submit">Salvar exceção</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
+<% if (canBilling) { %>
+<dialog id="dlg-dados" aria-labelledby="t-dd">
+  <div class="modal modal-wide">
+    <div class="modal-head"><div><h2 id="t-dd">Dados da empresa · <%= o.name %></h2><p>O mesmo cadastro de Configurações da empresa. Fica na auditoria o que mudou.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/clientes/<%= id %>/dados">
+      <div class="form-row">
+        <label class="field">Nome<input class="input" name="name" required maxlength="120" value="<%= details.name || '' %>"></label>
+        <label class="field">Razão social<input class="input" name="legalName" maxlength="160" value="<%= details.legalName || '' %>"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">E-mail da empresa<input class="input" type="email" name="contactEmail" maxlength="200" value="<%= details.contactEmail || '' %>"></label>
+        <label class="field">Telefone<input class="input" name="contactPhone" maxlength="40" value="<%= details.contactPhone || '' %>"></label>
+      </div>
+      <label class="field">Endereço<input class="input" name="addressLine1" maxlength="200" value="<%= details.addressLine1 || '' %>"></label>
+      <div class="form-row">
+        <label class="field">Complemento<input class="input" name="addressLine2" maxlength="200" value="<%= details.addressLine2 || '' %>"></label>
+        <label class="field">Cidade<input class="input" name="city" maxlength="100" value="<%= details.city || '' %>"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Estado<input class="input" name="state" maxlength="40" value="<%= details.state || '' %>"></label>
+        <label class="field">ZIP<input class="input" name="postalCode" maxlength="20" value="<%= details.postalCode || '' %>"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Fuso
+          <select class="input" name="timezone"><% timezones.forEach(function (t) { %><option value="<%= t.id %>" <%= t.id === details.timezone ? 'selected' : '' %>><%= t.label %></option><% }) %><% if (!timezones.some(function (t) { return t.id === details.timezone; })) { %><option value="" selected disabled>Hoje: <%= details.timezone %> (escolha um)</option><% } %></select>
+        </label>
+        <label class="field">Idioma
+          <select class="input" name="defaultLocale"><% [['pt-BR','Português'],['en','English'],['es','Español']].forEach(function (l) { %><option value="<%= l[0] %>" <%= l[0] === details.defaultLocale ? 'selected' : '' %>><%= l[1] %></option><% }) %></select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label class="field">Licença<input class="input" name="licenseNumber" maxlength="80" value="<%= details.licenseNumber || '' %>"></label>
+        <label class="field">Estado da licença<input class="input" name="licenseState" maxlength="40" value="<%= details.licenseState || '' %>"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Site<input class="input" name="website" maxlength="200" value="<%= details.website || '' %>"></label>
+        <label class="field">Logo (URL https)<input class="input" name="logoUrl" maxlength="500" value="<%= details.logoUrl || '' %>"></label>
+      </div>
+      <button class="btn btn-dark btn-block" type="submit">Salvar dados</button>
     </form>
   </div>
 </dialog>

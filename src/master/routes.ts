@@ -74,6 +74,8 @@ import {
 import { createOrganizationWithAdmin, validateSlug } from "../modules/organizations/service.js";
 import { legalPromptEnabled, legalStatus, setLegalPrompt } from "../lib/legal/acceptance.js";
 import { createSupportSession, endSupportSession, SUPPORT_DURATIONS } from "../lib/support/session.js";
+import { healthOf, invalidateHealth, type OrgHealth } from "./health.js";
+import { US_TIMEZONES } from "../modules/organizations/signup.js";
 import {
   CORE_MODULES,
   FEATURES,
@@ -532,6 +534,20 @@ masterRouter.get(
     } else if (Date.now() - lastBackup.startedAt.getTime() > BACKUP_CHECK_MAX_DAYS * 86400e3) {
       queue.push({ tone: "muted", title: `Backup testado há mais de ${BACKUP_CHECK_MAX_DAYS} dias`, sub: `Último teste ${shortDate(lastBackup.startedAt)}`, cta: "Testar de novo", href: "/master/equipe#backup" });
     }
+    // Ficha 360°: companies stuck at the start of onboarding, and companies at risk.
+    const healthAll = await healthOf();
+    const nameOf = new Map(orgs.map((o) => [o.id, o.name]));
+    const stuck = [...healthAll.values()].filter((h) => {
+      const o = orgs.find((x) => x.id === h.organizationId);
+      return !!o && ["trial", "active"].includes(o.status) && h.stepsDone <= 1 && Date.now() - o.createdAt.getTime() > 3 * 86400e3;
+    });
+    if (stuck.length) {
+      queue.push({ tone: "warn", title: stuck.length === 1 ? `${nameOf.get(stuck[0].organizationId)} parou no começo do onboarding` : `${stuck.length} empresas pararam no começo do onboarding`, sub: stuck.slice(0, 3).map((h) => nameOf.get(h.organizationId)).join(", ") + (stuck.length > 3 ? "…" : "") + " · 3+ dias sem passar do 1º passo", cta: "Abrir", href: `/master/clientes/${stuck[0].organizationId}` });
+    }
+    const risk = [...healthAll.values()].filter((h) => h.band === "risk");
+    if (risk.length) {
+      queue.push({ tone: "warn", title: `${risk.length} empresa(s) com saúde em risco`, sub: risk.slice(0, 3).map((h) => `${nameOf.get(h.organizationId)} (${h.score})`).join(", ") + (risk.length > 3 ? "…" : ""), cta: "Ver", href: "/master/clientes?filtro=risco" });
+    }
     if (lastLadder && lastLadder.ok === false) {
       queue.unshift({ tone: "danger", title: "A régua de cobrança falhou na última execução", sub: (lastLadder.error || "").slice(0, 90), cta: "Ver", href: "/master/vencimentos", primary: true });
     }
@@ -577,6 +593,7 @@ const CLIENT_FILTERS: [string, string, (o: Awaited<ReturnType<typeof loadOrgs>>[
   ["trial", "Trial", (o) => o.status === "trial"],
   ["atraso", "Em atraso", (o) => o.overdue || o.status === "past_due" || o.status === "read_only"],
   ["30dias", "Vencem em 30 dias", (o) => o.days != null && o.days >= 0 && o.days <= 30],
+  ["risco", "Em risco", (o) => (o as { health?: OrgHealth }).health?.band === "risk"],
   ["suspensas", "Suspensas", (o) => o.status === "suspended"],
   ["canceladas", "Canceladas", (o) => o.status === "canceled"],
 ];
@@ -584,7 +601,8 @@ const CLIENT_FILTERS: [string, string, (o: Awaited<ReturnType<typeof loadOrgs>>[
 masterRouter.get(
   "/clientes",
   h(async (req, res) => {
-    const orgs = await loadOrgs();
+    const health = await healthOf();
+    const orgs = (await loadOrgs()).map((o) => ({ ...o, health: health.get(o.id) ?? null }));
     const filter = CLIENT_FILTERS.find((f) => f[0] === req.query.filtro) ?? CLIENT_FILTERS[0];
     const q = String(req.query.q || "").trim().toLowerCase();
     const sort = ["venc", "nome", "valor"].includes(String(req.query.ordem)) ? String(req.query.ordem) : "venc";
@@ -749,6 +767,10 @@ masterRouter.get(
       canSupport: can(req.master!.role, "support_enter"),
       supportSessions: await supportSessionsFor({ organizationId: org.id }),
       rec: await featuresForRecord(org.id),
+      health: (await healthOf(org.id)).get(org.id) ?? null,
+      timeline: await timelineFor(org.id, req.query.linha === "tudo" ? 200 : 25),
+      details: await companyDetails(org.id),
+      timezones: US_TIMEZONES,
       supportUsers: await prisma.user.findMany({
         where: { organizationId: org.id, status: "active" },
         select: { id: true, name: true, role: { select: { key: true, name: true } } },
@@ -2252,6 +2274,7 @@ const AUDIT_TEXT: Record<string, string> = {
   "tenant.bulk_reminder": "Enviou lembretes em massa",
   "tenant.suspend": "Suspendeu a empresa",
   "support.start": "Entrou como suporte",
+  "tenant.details": "Editou os dados da empresa",
   "feature.state": "Mudou um módulo para todas as empresas",
   "plan.features": "Mudou o que o plano inclui",
   "feature.override": "Criou exceção de módulo",
@@ -2304,9 +2327,15 @@ masterRouter.get(
   "/auditoria",
   h(async (req, res) => {
     const cat = AUDIT_CATS.find((c) => c[0] === req.query.filtro) ?? AUDIT_CATS[0];
-    const where = cat[2].length ? { OR: cat[2].map((p) => (p.endsWith(".") ? { action: { startsWith: p } } : { action: p })) } : {};
+    const empresaId = typeof req.query.empresa === "string" && /^[0-9a-f-]{36}$/i.test(req.query.empresa) ? req.query.empresa : null;
+    const empresa = empresaId ? await prisma.organization.findUnique({ where: { id: empresaId }, select: { id: true, name: true } }) : null;
+    const where = {
+      ...(cat[2].length ? { OR: cat[2].map((p) => (p.endsWith(".") ? { action: { startsWith: p } } : { action: p })) } : {}),
+      ...(empresa ? { targetId: empresa.id } : {}),
+    };
     const rows = await prisma.platformAuditLog.findMany({ where, orderBy: { at: "desc" }, take: 300 });
     page(res, "auditoria", await shell(req, "auditoria"), {
+      empresa,
       filter: cat[0],
       filters: AUDIT_CATS.map((c) => ({ key: c[0], label: c[1] })),
       rows: rows.map((r) => ({
@@ -2329,6 +2358,11 @@ function describeAudit(action: string, meta: Record<string, unknown> | null): st
   if (action === "tenant.extend" || action === "tenant.set_due_date") return `até ${shortDate(new Date(String(meta.to)))} · ${meta.reason ?? ""}`;
   if (action === "auth.login") return meta.method === "recovery" ? "com código de recuperação" : "";
   if (action === "team.invite") return ROLE_LABEL[normalizeRole(String(meta.role))];
+  // Edits that record what changed show "before → after".
+  if (Array.isArray(meta.changes)) return (meta.changes as unknown[]).map(String).slice(0, 6).join(" · ");
+  if (action === "feature.override") return `${String(meta.feature)} ${meta.enabled ? "ligado" : "desligado"} · ${meta.reason ?? ""}`;
+  if (action === "feature.state") return `${meta.from} → ${meta.to}`;
+  if (action === "support.start") return `${meta.user ?? ""} · ${meta.minutes ?? ""} min · ${meta.reason ?? ""}`;
   return "";
 }
 
@@ -2583,6 +2617,134 @@ masterRouter.post(
     const row = await prisma.signupRequest.findUnique({ where: { id }, select: { email: true, organizationName: true } });
     await audit(req, actor(req), "signup.resend", { type: "signup", id, label: row?.organizationName || id, meta: { email: row?.email } });
     ok(res, `Link de confirmação reenviado para ${row?.email}.`);
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Ficha 360°: linha do tempo, dados da empresa
+// ---------------------------------------------------------------------------
+
+type TimelineItem = { at: Date; when: string; kind: "product" | "money" | "support" | "master" | "billing" | "account"; title: string; sub?: string };
+
+const DUNNING_TEXT: Record<string, string> = { email: "e-mail enviado", state: "status mudou", skipped: "pulado" };
+
+/** Everything that happened to a company, newest first: product firsts, payments, tickets, support, ladder and Master actions. */
+export async function timelineFor(organizationId: string, take = 25): Promise<{ items: TimelineItem[]; total: number; truncated: boolean }> {
+  const [org, health, payments, tickets, sessions, dunning, legal, audits, signup] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: organizationId }, select: { createdAt: true } }),
+    healthOf(organizationId).then((m) => m.get(organizationId) ?? null),
+    prisma.platformPayment.findMany({ where: { organizationId }, orderBy: { paidAt: "desc" }, take: 60 }),
+    prisma.supportTicket.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 40, select: { createdAt: true, subject: true, status: true } }),
+    prisma.supportSession.findMany({ where: { organizationId, startedAt: { not: null } }, orderBy: { createdAt: "desc" }, take: 40 }),
+    prisma.dunningStep.findMany({ where: { organizationId }, orderBy: { sentAt: "desc" }, take: 60 }),
+    prisma.legalAcceptance.findMany({ where: { organizationId }, orderBy: { acceptedAt: "desc" }, take: 30 }),
+    prisma.platformAuditLog.findMany({ where: { targetId: organizationId }, orderBy: { at: "desc" }, take: 150 }),
+    prisma.signupRequest.findFirst({ where: { organizationId }, select: { verifiedAt: true } }),
+  ]);
+  const items: Omit<TimelineItem, "when">[] = [];
+  if (org) items.push({ at: org.createdAt, kind: "account", title: signup ? "Conta criada pelo site" : "Conta criada", sub: signup ? "e-mail confirmado" : undefined });
+  if (health?.firstActive) items.push({ at: health.firstActive, kind: "product", title: "Primeiro uso registrado", sub: "contagem de uso começou com a ficha 360°" });
+  for (const st of health?.steps ?? []) if (st.done && st.at) items.push({ at: st.at, kind: "product", title: st.label });
+  for (const p of payments) {
+    const amount = money(p.amountCents);
+    const title = p.status === "failed" ? `Pagamento recusado · ${amount}` : p.status === "refunded" ? `Pagamento estornado · ${amount}` : `Pagamento · ${amount}`;
+    items.push({ at: p.paidAt, kind: "money", title, sub: [METHOD_LABEL[p.method] ?? p.method, p.failureReason].filter(Boolean).join(" · ") || undefined });
+  }
+  for (const t of tickets) items.push({ at: t.createdAt, kind: "support", title: `Ticket: ${t.subject}`, sub: t.status === "closed" ? "resolvido" : t.status === "waiting" ? "respondido" : "aberto" });
+  for (const ss of sessions) items.push({ at: ss.startedAt!, kind: "support", title: `${ss.adminName} entrou como suporte`, sub: `como ${ss.userName} · ${ss.reason}` });
+  for (const d of dunning) items.push({ at: d.sentAt, kind: "billing", title: `Régua: ${d.step}`, sub: [DUNNING_TEXT[d.action] ?? d.action, d.detail].filter(Boolean).join(" · ") });
+  const legalSeen = new Set<string>();
+  for (const l of legal) {
+    const k = `${l.acceptedAt.toISOString().slice(0, 16)}`;
+    if (legalSeen.has(k)) continue;
+    legalSeen.add(k);
+    items.push({ at: l.acceptedAt, kind: "account", title: "Aceitou Termos, Privacidade e DPA", sub: [l.userName || l.userEmail, l.source === "signup" ? "no cadastro" : "no app"].filter(Boolean).join(" · ") });
+  }
+  for (const a of audits) {
+    if (a.action === "support.start") continue; // shown from the session itself
+    items.push({ at: a.at, kind: "master", title: AUDIT_TEXT[a.action] ?? a.action, sub: a.actorName });
+  }
+  items.sort((x, y) => y.at.getTime() - x.at.getTime());
+  return {
+    items: items.slice(0, take).map((i) => ({ ...i, when: dateTimeLabel(i.at) })),
+    total: items.length,
+    truncated: items.length > take,
+  };
+}
+
+const DETAIL_FIELDS = {
+  name: "Nome",
+  legalName: "Razão social",
+  contactEmail: "E-mail da empresa",
+  contactPhone: "Telefone",
+  website: "Site",
+  addressLine1: "Endereço",
+  addressLine2: "Complemento",
+  city: "Cidade",
+  state: "Estado",
+  postalCode: "ZIP",
+  timezone: "Fuso",
+  defaultLocale: "Idioma",
+  licenseNumber: "Licença",
+  licenseState: "Estado da licença",
+  logoUrl: "Logo (URL)",
+} as const;
+type DetailKey = keyof typeof DETAIL_FIELDS;
+
+async function companyDetails(organizationId: string) {
+  const o = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: Object.fromEntries(Object.keys(DETAIL_FIELDS).map((k) => [k, true])) as Record<DetailKey, true>,
+  });
+  return (o ?? {}) as Record<DetailKey, string | null>;
+}
+
+const detailsSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  legalName: z.string().trim().max(160).optional().default(""),
+  contactEmail: z.union([z.literal(""), z.string().trim().email().max(200)]).optional().default(""),
+  contactPhone: z.string().trim().max(40).optional().default(""),
+  website: z.string().trim().max(200).optional().default(""),
+  addressLine1: z.string().trim().max(200).optional().default(""),
+  addressLine2: z.string().trim().max(200).optional().default(""),
+  city: z.string().trim().max(100).optional().default(""),
+  state: z.string().trim().max(40).optional().default(""),
+  postalCode: z.string().trim().max(20).optional().default(""),
+  timezone: z.string().trim().max(60),
+  defaultLocale: z.enum(["pt-BR", "en", "es"]),
+  licenseNumber: z.string().trim().max(80).optional().default(""),
+  licenseState: z.string().trim().max(40).optional().default(""),
+  logoUrl: z.union([z.literal(""), z.string().trim().url().max(500).refine((u) => u.startsWith("https://"), "https")]).optional().default(""),
+});
+
+masterRouter.post(
+  "/clientes/:id/dados",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const parsed = detailsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const f = String(parsed.error.issues[0]?.path[0] ?? "");
+      return fail(res, 400, `Confira: ${DETAIL_FIELDS[f as DetailKey] ?? "os campos"}.`);
+    }
+    if (!US_TIMEZONES.some((t) => t.id === parsed.data.timezone)) return fail(res, 400, "Escolha um fuso da lista.");
+    const before = await companyDetails(org.id);
+    const next: Record<string, string | null> = {};
+    const changes: string[] = [];
+    for (const k of Object.keys(DETAIL_FIELDS) as DetailKey[]) {
+      const v = (parsed.data as Record<string, string>)[k];
+      const val = v === "" && k !== "name" ? null : v;
+      if ((before[k] ?? null) !== val) {
+        next[k] = val;
+        changes.push(`${DETAIL_FIELDS[k]}: ${before[k] || "—"} → ${val || "—"}`);
+      }
+    }
+    if (!changes.length) return ok(res, "Nada mudou.");
+    await prisma.organization.update({ where: { id: org.id }, data: next });
+    await audit(req, actor(req), "tenant.details", { type: "org", id: org.id, label: org.name, meta: { changes } });
+    invalidateHealth();
+    ok(res, `Dados de ${parsed.data.name} salvos (${changes.length} campo(s)).`);
   }),
 );
 

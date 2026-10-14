@@ -1,7 +1,8 @@
 <%- include('_top', { pageTitle: 'Auditoria' }) %>
 <div class="page-head"><div><h1>Auditoria</h1><div class="page-sub">Registro permanente · não pode ser editado nem apagado, nem pelo Master · últimos 300</div></div></div>
+<% if (empresa) { %><div class="note-box" style="display:flex;align-items:center;gap:10px">Só o que a plataforma fez em <b><%= empresa.name %></b>.<a class="btn btn-soft btn-sm" href="/master/auditoria?filtro=<%= filter %>" style="margin-left:auto">Ver tudo</a></div><% } %>
 <div class="chips" style="flex:none">
-  <% filters.forEach(function (f) { %><a class="chip no-count" href="?filtro=<%= f.key %>" aria-current="<%= f.key === filter %>"><%= f.label %></a><% }) %>
+  <% filters.forEach(function (f) { %><a class="chip no-count" href="?filtro=<%= f.key %><%= empresa ? '&empresa=' + empresa.id : '' %>" aria-current="<%= f.key === filter %>"><%= f.label %></a><% }) %>
 </div>
 <section class="table">
   <div class="tr head cols-auditoria"><span>QUANDO</span><span>QUEM</span><span>AÇÃO</span><span>ALVO</span><span>IP</span></div>
