@@ -1,0 +1,157 @@
+/* Meu Perfil widgets inside Configurações */
+.cfg .mp-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #EEF0F3;
+}
+
+.cfg .mp-av {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: none;
+  background: #F1F3F5;
+  display: grid;
+  place-items: center;
+  border: 1px solid #E5E7EB;
+}
+
+.cfg .mp-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cfg .mp-av img[hidden],
+.cfg .mp-av__init[hidden] {
+  display: none !important;
+}
+
+.cfg .mp-av__init {
+  font-size: 20px;
+  font-weight: 700;
+  color: #667085;
+}
+
+.cfg .mp-identity__meta {
+  flex: 1;
+  min-width: 140px;
+}
+
+.cfg .mp-identity__meta b {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.cfg .mp-identity__meta span {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: #667085;
+}
+
+.cfg .mp-identity__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.cfg .mp-langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cfg .mp-langs button {
+  height: 34px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #E5E7EB;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #221E1A;
+  cursor: pointer;
+}
+
+.cfg .mp-langs button:hover {
+  box-shadow: 0 0 0 1px #D0D5DD;
+}
+
+.cfg .mp-langs button.is-on {
+  background: #221E1A;
+  color: #fff;
+  box-shadow: none;
+}
+
+.cfg .mp-meta {
+  margin: 0;
+  display: grid;
+  gap: 0;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #F7F8FA;
+}
+
+.cfg .mp-meta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid #EEF0F3;
+  font-size: 13px;
+}
+
+.cfg .mp-meta div:last-child {
+  border-bottom: 0;
+}
+
+.cfg .mp-meta dt {
+  color: #667085;
+  font-weight: 500;
+}
+
+.cfg .mp-meta dd {
+  margin: 0;
+  font-weight: 650;
+  text-align: right;
+  color: #221E1A;
+}
+
+.cfg .mp-flash {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 550;
+}
+
+.cfg .mp-flash--err {
+  background: #FDF0E6;
+  color: #B4561A;
+}
+
+.cfg .mp-flash--ok {
+  background: #EEF1EC;
+  color: #536249;
+}
+
+.cfg .cfg-field--static {
+  background: #F7F8FA;
+}
+
+.cfg .cfg-field--static input:disabled {
+  color: #667085;
+  cursor: default;
+}

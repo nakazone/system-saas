@@ -1,9 +1,85 @@
 (function () {
   const $ = (id) => document.getElementById(id);
 
+  const SECTIONS = ["perfil", "idioma", "senha", "conta"];
+  const DEFAULT_SECTION = "perfil";
+
   let profile = null;
   let pendingAvatarDataUrl = null;
   let clearAvatar = false;
+
+  function isMobileNav() {
+    return window.matchMedia("(max-width: 1023px)").matches;
+  }
+
+  function showSection(key, opts) {
+    const root = $("mpRoot");
+    if (!root) return;
+    const section = SECTIONS.indexOf(key) >= 0 ? key : DEFAULT_SECTION;
+    const mobile = isMobileNav();
+    const goIndex = mobile && !(opts && opts.forceSection) && (!key || key === "index");
+
+    if (goIndex) {
+      root.dataset.view = "index";
+      root.querySelectorAll(".mp-section").forEach((el) => {
+        el.hidden = true;
+      });
+      root.querySelectorAll(".mp-nav__item").forEach((el) => el.classList.remove("is-active"));
+      return;
+    }
+
+    root.dataset.view = "section";
+    root.querySelectorAll(".mp-section").forEach((el) => {
+      el.hidden = el.getAttribute("data-section") !== section;
+    });
+    root.querySelectorAll(".mp-nav__item").forEach((el) => {
+      el.classList.toggle("is-active", el.getAttribute("data-nav") === section);
+    });
+  }
+
+  function routeFromHash() {
+    const raw = String(location.hash || "")
+      .replace(/^#/, "")
+      .toLowerCase()
+      .split(/[/?&]/)[0];
+    if (!raw) {
+      if (isMobileNav()) {
+        showSection("index");
+      } else {
+        showSection(DEFAULT_SECTION, { forceSection: true });
+        if (location.hash !== "#" + DEFAULT_SECTION) {
+          history.replaceState(null, "", "#" + DEFAULT_SECTION);
+        }
+      }
+      return;
+    }
+    showSection(raw, { forceSection: true });
+  }
+
+  function bindNav() {
+    document.querySelectorAll(".mp-nav__item[data-nav]").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        const key = a.getAttribute("data-nav");
+        if (!key) return;
+        e.preventDefault();
+        if (location.hash !== "#" + key) location.hash = key;
+        else showSection(key, { forceSection: true });
+      });
+    });
+    $("mpBack")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      history.replaceState(null, "", location.pathname + location.search);
+      showSection("index");
+    });
+    window.addEventListener("hashchange", routeFromHash);
+    window.addEventListener("resize", () => {
+      const view = $("mpRoot")?.dataset.view;
+      if (!isMobileNav() && view === "index") {
+        showSection(DEFAULT_SECTION, { forceSection: true });
+        if (!location.hash) history.replaceState(null, "", "#" + DEFAULT_SECTION);
+      }
+    });
+  }
 
   function initials(name) {
     const parts = String(name || "")
@@ -181,6 +257,9 @@
       location.href = "/login.html";
       return;
     }
+
+    bindNav();
+    routeFromHash();
 
     $("mpDadosForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();

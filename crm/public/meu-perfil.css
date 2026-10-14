@@ -1,60 +1,200 @@
-/* Meu Perfil — tokens e padrões do design-system / Configurações / Equipe */
+/* Meu Perfil — shell lateral como Configurações + campos do design-system */
 .mp {
-  --mp-ink: var(--color-text-primary, var(--plab-ink, #221E1A));
-  --mp-muted: var(--color-text-secondary, var(--plab-muted, #667085));
-  --mp-faint: var(--color-text-muted, var(--plab-faint, #98A2B3));
-  --mp-line: var(--color-border, var(--plab-line, #E5E7EB));
-  --mp-soft: var(--color-surface-tertiary, var(--plab-soft, #F1F3F5));
-  --mp-bg: var(--color-surface-secondary, var(--plab-bg, #F7F8FA));
-  --mp-accent: var(--color-accent, var(--plab-accent, #E7792C));
-  --mp-accent-deep: var(--color-accent-hover, var(--plab-accent-deep, #B4561A));
-  --mp-radius: var(--mod-radius, 12px);
+  --mp-ink: var(--color-text-primary, #221E1A);
+  --mp-muted: var(--color-text-secondary, #667085);
+  --mp-faint: var(--color-text-muted, #98A2B3);
+  --mp-line: var(--color-border, #E5E7EB);
+  --mp-soft: var(--color-surface-tertiary, #F1F3F5);
+  --mp-bg: var(--color-surface-secondary, #F7F8FA);
+  --mp-accent: var(--color-accent, #E7792C);
+  --mp-accent-deep: var(--color-accent-hover, #B4561A);
+  --mp-rail: 260px;
+
+  display: grid;
+  grid-template-columns: var(--mp-rail) minmax(0, 1fr);
   width: 100%;
-  max-width: 720px;
-  margin-left: auto;
-  margin-right: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-bottom: 96px;
+  max-width: none;
+  margin: 0;
+  min-height: calc(100vh - 150px);
+  border-radius: 22px;
+  box-shadow: 0 0 0 1px var(--mp-line);
+  background: linear-gradient(
+    90deg,
+    #FAFBFC 0,
+    #FAFBFC var(--mp-rail),
+    #E5E7EB var(--mp-rail),
+    #E5E7EB calc(var(--mp-rail) + 1px),
+    #fff calc(var(--mp-rail) + 1px)
+  );
   color: var(--mp-ink);
   font-family: var(--plab-font, "Plus Jakarta Sans", system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+.mp svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* —— Left rail —— */
+.mp-nav {
+  padding: 20px 12px 28px;
+  position: sticky;
+  top: calc(var(--crm-topbar-height, 56px) + 12px);
+  align-self: start;
+  max-height: calc(100vh - var(--crm-topbar-height, 56px) - 40px);
+  overflow-y: auto;
+}
+
+.mp-nav__title {
+  margin: 0 0 4px 6px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.mp-nav__lead {
+  margin: 0 0 14px 6px;
+  font-size: 13px;
+  color: var(--mp-muted);
+  line-height: 1.35;
+}
+
+.mp-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mp-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  color: var(--mp-ink) !important;
+  text-decoration: none !important;
+  min-width: 0;
+}
+
+.mp-nav__item:hover {
+  background: var(--mp-soft);
+}
+
+.mp-nav__item.is-active {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--mp-line);
+}
+
+.mp-nav__item.is-active .mp-nav__ico {
+  background: var(--mp-ink);
+  color: #fff;
+}
+
+.mp-nav__ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--mp-soft);
+  color: var(--mp-ink);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.mp-nav__ico svg {
+  width: 17px;
+  height: 17px;
+}
+
+.mp-nav__txt {
+  min-width: 0;
+}
+
+.mp-nav__txt b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.mp-nav__txt small {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  color: var(--mp-muted);
+  font-weight: 500;
+}
+
+/* —— Main —— */
+.mp-main {
+  padding: 24px 32px 120px;
+  min-width: 0;
+}
+
+.mp-back {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--mp-muted) !important;
+  text-decoration: none !important;
+}
+
+.mp-back svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mp-areahd {
+  margin: 0 0 16px;
+  max-width: 720px;
+}
+
+.mp-areahd h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.mp-areahd p {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--mp-muted);
+  line-height: 1.45;
+}
+
+.mp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 720px;
+}
+
+.mp-section[hidden] {
+  display: none !important;
 }
 
 .mp-card {
   background: #fff;
-  border: 1px solid var(--mp-line);
-  border-radius: 16px;
+  border: 0;
+  border-radius: 18px;
   padding: 18px 20px;
-  box-shadow: 0 1px 2px rgba(33, 29, 26, 0.04);
+  box-shadow: 0 0 0 1px var(--mp-line);
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.mp-card__head {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.mp-card__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--mp-ink);
-}
-
-.mp-card__desc {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--mp-muted);
-}
-
-/* Identity row */
+/* Identity */
 .mp-identity {
   display: flex;
   align-items: center;
@@ -62,7 +202,6 @@
   flex-wrap: wrap;
   padding-bottom: 4px;
   border-bottom: 1px solid #EEF0F3;
-  margin-bottom: 2px;
 }
 
 .mp-av {
@@ -126,7 +265,7 @@
   color: var(--mp-faint);
 }
 
-/* Fields — floating-label boxes like Configurações */
+/* Fields */
 .mp-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -199,21 +338,13 @@
   background: var(--mp-bg);
 }
 
-.mp-field small {
-  font-size: 12px;
-  color: var(--mp-faint);
-  margin-top: 2px;
-}
-
 .mp-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 2px;
 }
 
-/* Language pills — same language as Configurações tabs */
 .mp-langs {
   display: flex;
   flex-wrap: wrap;
@@ -245,7 +376,6 @@
   box-shadow: none;
 }
 
-/* Account meta */
 .mp-meta {
   margin: 0;
   display: grid;
@@ -319,25 +449,89 @@
   color: #536249;
 }
 
-@media (max-width: 1024px) {
-  /* Título já aparece no mobile-app-header */
-  body.om-app .crm-page:has(.mp) .crm-page-header {
+/* Mobile: index = nav list; section = content + back */
+@media (max-width: 1023px) {
+  .mp {
+    --mp-rail: 0px;
+    display: block;
+    background: transparent !important;
+    box-shadow: none;
+    border-radius: 0;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .mp-nav {
+    position: static;
+    max-height: none;
+    padding: 4px 0 24px;
+  }
+
+  .mp-nav__title {
+    font-size: 30px;
+    margin-left: 2px;
+  }
+
+  .mp-nav__lead {
+    margin-left: 2px;
+  }
+
+  .mp-nav__list {
+    margin-top: 6px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 0 0 1px var(--mp-line);
+    overflow: hidden;
+    gap: 0;
+  }
+
+  .mp-nav__item {
+    border-radius: 0;
+    padding: 12px 14px;
+    border-bottom: 1px solid #EEF0F3;
+  }
+
+  .mp-nav__item:last-child {
+    border-bottom: 0;
+  }
+
+  .mp-nav__item.is-active {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .mp-nav__item.is-active .mp-nav__ico {
+    background: var(--mp-soft);
+    color: var(--mp-ink);
+  }
+
+  .mp-main {
+    padding: 4px 0 140px;
+  }
+
+  .mp-back {
+    display: inline-flex;
+  }
+
+  .mp[data-view="index"] .mp-main {
     display: none;
   }
-}
 
-@media (max-width: 640px) {
-  .mp-grid {
-    grid-template-columns: 1fr;
+  .mp[data-view="section"] .mp-nav {
+    display: none;
+  }
+
+  .mp-areahd h2 {
+    font-size: 27px;
   }
 
   .mp-card {
     padding: 16px;
-    border-radius: 14px;
+    border-radius: 16px;
   }
 
-  .mp-identity {
-    align-items: flex-start;
+  .mp-grid {
+    grid-template-columns: 1fr;
   }
 
   .mp-actions {
@@ -347,19 +541,4 @@
   .mp-actions .btn {
     flex: 1;
   }
-}
-
-/* Coluna centrada — header + formulário no mesmo eixo */
-body.dashboard-app-body .dashboard-main > .crm-page:has(.mp) {
-  max-width: var(--crm-page-max, 1280px);
-  margin-left: auto;
-  margin-right: auto;
-}
-
-body.om-app .crm-page:has(.mp) .crm-page-header {
-  width: 100%;
-  max-width: 720px;
-  margin-left: auto;
-  margin-right: auto;
-  margin-bottom: 1rem;
 }

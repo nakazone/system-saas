@@ -21,7 +21,8 @@
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-push.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="configuracoes.css?v=20261016-cb1" />
-  <link rel="stylesheet" href="configuracoes-v2.css?v=20261009-cfg1" />
+  <link rel="stylesheet" href="configuracoes-v2.css?v=20261014-perfil5" />
+  <link rel="stylesheet" href="cfg-meu-perfil.css?v=20261014-perfil5" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -75,7 +76,7 @@
             <section class="cfg-section" data-section="visao-geral" hidden>
               <header class="cfg-head">
                 <h2 class="cfg-title">Configurações</h2>
-                <p class="cfg-lead">Tudo o que a sua empresa ajusta no ObraMate, em 7 áreas.</p>
+                <p class="cfg-lead">A sua conta e o que a empresa ajusta no ObraMate.</p>
               </header>
               <div id="cfgAlerts"></div>
               <article class="cfg-card cfg-setup" id="cfgSetup">
@@ -922,6 +923,104 @@
               </article>
             </section>
 
+            <!-- ---------- Meu Perfil (utilizador) ---------- -->
+            <section class="cfg-section" data-section="meu-perfil" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Meu Perfil</h2>
+                <p class="cfg-lead">Foto, dados, idioma e senha da sua conta.</p>
+              </header>
+
+              <article class="cfg-card" data-sub="mp-perfil">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Perfil</h3>
+                    <p class="cfg-card__desc">Como a equipe o vê no CRM. O e-mail é o login e só muda em Equipe.</p>
+                  </div>
+                </div>
+                <div class="mp-identity">
+                  <div class="mp-av" id="mpAv" aria-hidden="true">
+                    <img id="mpAvImg" alt="" hidden />
+                    <span class="mp-av__init" id="mpAvInit">—</span>
+                  </div>
+                  <div class="mp-identity__meta">
+                    <b id="mpHeroName">—</b>
+                    <span id="mpHeroMeta">—</span>
+                  </div>
+                  <div class="mp-identity__acts">
+                    <label class="btn btn-secondary cfg-btn-sm" for="mpAvatarInput">Trocar foto</label>
+                    <button type="button" class="btn btn-secondary cfg-btn-sm" id="mpAvatarClear" hidden>Remover</button>
+                    <input type="file" id="mpAvatarInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+                  </div>
+                </div>
+                <p class="cfg-hint">JPG, PNG, WebP ou GIF · máx. 2,5 MB</p>
+                <p class="mp-flash mp-flash--err" id="mpAvatarErr" hidden></p>
+                <p class="mp-flash mp-flash--ok" id="mpAvatarOk" hidden></p>
+                <form id="mpDadosForm" class="cfg-form" novalidate autocomplete="on">
+                  <div class="cfg-grid2">
+                    <div class="cfg-field"><label for="mpName">Nome</label><input id="mpName" name="name" type="text" maxlength="120" required autocomplete="name" /></div>
+                    <div class="cfg-field"><label for="mpPhone">Telefone</label><input id="mpPhone" name="phone" type="tel" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="(303) 555-0142" /></div>
+                  </div>
+                  <div class="cfg-field cfg-field--static"><label for="mpEmail">E-mail (login)</label><input id="mpEmail" type="email" readonly disabled autocomplete="username" /></div>
+                  <div class="cfg-field"><label for="mpRoute">Ponto de partida</label><textarea id="mpRoute" name="route_start_address" maxlength="500" rows="2" placeholder="Endereço habitual para o mapa de rotas do dia"></textarea></div>
+                  <div class="cfg-row cfg-row--end">
+                    <button type="submit" class="btn btn-primary" id="mpDadosSave">Guardar</button>
+                  </div>
+                </form>
+                <p class="mp-flash mp-flash--err" id="mpDadosErr" hidden></p>
+                <p class="mp-flash mp-flash--ok" id="mpDadosOk" hidden></p>
+              </article>
+
+              <article class="cfg-card" data-sub="mp-idioma">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Idioma</h3>
+                    <p class="cfg-card__desc">Interface neste aparelho. Não altera a conta na empresa.</p>
+                  </div>
+                </div>
+                <div class="mp-langs" role="group" aria-label="Idioma">
+                  <button type="button" data-locale="pt" class="is-on">Português</button>
+                  <button type="button" data-locale="en">English</button>
+                  <button type="button" data-locale="es">Español</button>
+                </div>
+              </article>
+
+              <article class="cfg-card" data-sub="mp-senha">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Senha</h3>
+                    <p class="cfg-card__desc">Mínimo 8 caracteres.</p>
+                  </div>
+                </div>
+                <form id="mpSenhaForm" class="cfg-form" novalidate autocomplete="off">
+                  <div class="cfg-field"><label for="mpCurPass">Senha atual</label><input id="mpCurPass" type="password" required autocomplete="current-password" /></div>
+                  <div class="cfg-grid2">
+                    <div class="cfg-field"><label for="mpNewPass">Nova senha</label><input id="mpNewPass" type="password" required minlength="8" autocomplete="new-password" /></div>
+                    <div class="cfg-field"><label for="mpNewPass2">Confirmar</label><input id="mpNewPass2" type="password" required minlength="8" autocomplete="new-password" /></div>
+                  </div>
+                  <div class="cfg-row cfg-row--end">
+                    <button type="submit" class="btn btn-primary" id="mpSenhaSave">Alterar senha</button>
+                  </div>
+                </form>
+                <p class="mp-flash mp-flash--err" id="mpSenhaErr" hidden></p>
+                <p class="mp-flash mp-flash--ok" id="mpSenhaOk" hidden></p>
+              </article>
+
+              <article class="cfg-card" data-sub="mp-conta">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Conta</h3>
+                    <p class="cfg-card__desc">Só leitura. Cargo e permissões vêm da empresa.</p>
+                  </div>
+                </div>
+                <dl class="mp-meta">
+                  <div><dt>Cargo</dt><dd id="mpMetaRole">—</dd></div>
+                  <div><dt>Conta desde</dt><dd id="mpMetaCreated">—</dd></div>
+                  <div><dt>Última atualização</dt><dd id="mpMetaUpdated">—</dd></div>
+                </dl>
+                <p class="cfg-hint" style="margin-top:8px">Gestão de utilizadores em <a href="equipe.html">Equipe</a>.</p>
+              </article>
+            </section>
+
             <!-- ---------- Suporte ---------- -->
             <section class="cfg-section" data-section="suporte" hidden>
               <header class="cfg-head">
@@ -1029,7 +1128,6 @@
     </div>
   </div>
 
-
   <div class="cfg-modal" id="cfgCancelModal" role="dialog" aria-modal="true" aria-labelledby="cfgCancelTitle" hidden>
     <div class="cfg-modal__scrim" data-close="cfgCancelModal"></div>
     <div class="cfg-modal__box cfg-modal__box--wide cfg-cancel">
@@ -1069,13 +1167,16 @@
       </section>
     </div>
   </div>
+  <script src="crm-i18n.js?v=20261014-perfil5"></script>
   <script src="crm-shell.js?v=20261014-f2"></script>
   <script src="crm-shared-nav.js?v=20261014-perfil1"></script>
+  <script src="crm-account-menu.js?v=20261014-perfil5"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pwa-install.js?v=20260923-pwa"></script>
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261016-cb1"></script>
+  <script src="cfg-meu-perfil.js?v=20261014-perfil5"></script>
+  <script src="configuracoes.js?v=20261016-perfil5"></script>
 </body>
 </html>

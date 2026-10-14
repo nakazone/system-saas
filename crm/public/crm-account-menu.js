@@ -41,7 +41,7 @@
       '<div class="crm-account-menu__header">' +
       '<span class="crm-account-menu__email" id="crmAccountMenuEmail"></span>' +
       "</div>" +
-      '<a class="crm-account-menu__item" href="meu-perfil.html" data-account-action="account">' +
+      '<a class="crm-account-menu__item" href="configuracoes.html#mp-perfil" data-account-action="account">' +
       '<span data-i18n="menu.account">' +
       t("menu.account") +
       "</span></a>" +

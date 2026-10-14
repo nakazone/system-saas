@@ -19,11 +19,23 @@
    * section = in-page; href = existing page elsewhere in the app.
    */
   /*
-   * 7 áreas › subgrupos. Cada subgrupo mostra uma seção antiga inteira ou só alguns cartões dela
+   * Áreas › subgrupos. Cada subgrupo mostra uma seção antiga inteira ou só alguns cartões dela
    * (cartões marcados com data-sub no HTML). section = seção antiga (carrega/salva como antes);
    * href = página fora daqui.
    */
   const AREAS = [
+    {
+      id: "meu-perfil",
+      label: "Meu Perfil",
+      icon: "user",
+      desc: "Foto, dados, idioma e senha",
+      subs: [
+        { id: "mp-perfil", label: "Perfil", section: "meu-perfil", perm: null, desc: "Nome, telefone, foto e ponto de partida das rotas.", keywords: "meu perfil nome telefone foto avatar e-mail email rota partida senha conta" },
+        { id: "mp-idioma", label: "Idioma", section: "meu-perfil", perm: null, desc: "Idioma da interface neste aparelho.", keywords: "idioma language português english español" },
+        { id: "mp-senha", label: "Senha", section: "meu-perfil", perm: null, desc: "Alterar a senha de acesso ao CRM.", keywords: "senha password segurança alterar" },
+        { id: "mp-conta", label: "Conta", section: "meu-perfil", perm: null, desc: "Cargo e datas da sua conta.", keywords: "conta cargo role desde atualização" },
+      ],
+    },
     {
       id: "empresa",
       label: "Empresa",
@@ -121,10 +133,12 @@
     "categorias-servico": "categorias",
     "instalar-app": "app",
     "alertas-push": "app",
+    "meu-perfil": "mp-perfil",
   };
   /** Passo do progresso (Início) → subgrupo. */
   const STEP_SUB = { logo: "marca", contact: "perfil", address: "perfil", license: "licenca", terms: "cliente", pricing: "tabela", team: "usuarios", push: "app" };
   const AREA_ICONS = {
+    user: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>',
     doc: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h4"/></svg>',
     chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.4A8 8 0 1121 12z"/></svg>',
@@ -3698,6 +3712,12 @@
     if (id === "folha") return loadFolhaSettings();
     if (id === "app") return syncInstalledNote();
     if (id === "plano") return loadBilling();
+    if (id === "meu-perfil") {
+      if (window.__cfgMeuPerfil && typeof window.__cfgMeuPerfil.load === "function") {
+        return window.__cfgMeuPerfil.load();
+      }
+      return;
+    }
     if (id === "suporte" && !loaded.has("suporte")) {
       loaded.add("suporte");
       return loadSupportHistory();

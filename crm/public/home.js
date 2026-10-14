@@ -62,7 +62,7 @@
       }
       av.title = name || "Meu perfil";
       if (!av.getAttribute("href") || /configuracoes/i.test(av.getAttribute("href") || "")) {
-        av.setAttribute("href", "meu-perfil.html");
+        av.setAttribute("href", "configuracoes.html#mp-perfil");
       }
     }
   }
