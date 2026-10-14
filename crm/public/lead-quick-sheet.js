@@ -624,12 +624,13 @@
   }
 
   function applyLqsVisitWhere(where) {
+    try {
+      global.localStorage?.removeItem(VISIT_WHERE_PREF_KEY);
+    } catch (_) {}
     if (where === 'apple') {
-      setVisitWherePref('apple');
       openLqsScheduleVisitInDeviceCalendar();
       return;
     }
-    setVisitWherePref('system');
     openLqsScheduleVisitModal();
   }
 
@@ -668,7 +669,7 @@
       '<button type="button" class="lead-quick-sheet__close lqs-visit-modal__close-btn" data-lqs-visit-where-close aria-label="Fechar">&times;</button>' +
       '</header>' +
       '<div class="modal-body">' +
-      '<p class="form-hint" style="margin:0 0 14px;color:#667085;font-size:14px;line-height:1.45">Onde quer criar esta visita? A escolha fica lembrada neste aparelho.</p>' +
+      '<p class="form-hint" style="margin:0 0 14px;color:#667085;font-size:14px;line-height:1.45">Onde quer criar esta visita?</p>' +
       '<div style="display:flex;flex-direction:column;gap:10px">' +
       '<button type="button" class="lead-quick-sheet__edit-save lqs-visit-modal__btn-submit" data-lqs-visit-where="system" style="width:100%">Na Agenda ObraMate</button>' +
       '<button type="button" class="lead-quick-sheet__edit-cancel lqs-visit-modal__btn-cancel" data-lqs-visit-where="apple" style="width:100%">No Apple Calendar</button>' +
@@ -694,12 +695,11 @@
     if (typeof global.sfPrefetchLeadVisitIcs === 'function') {
       void global.sfPrefetchLeadVisitIcs(sheetLeadId);
     }
-    const force = opts && opts.force;
-    const pref = !force ? getVisitWherePref() : '';
-    if (pref === 'apple' || pref === 'system') {
-      applyLqsVisitWhere(pref);
-      return;
-    }
+    void opts;
+    // Always show both destinations so Agenda ObraMate stays reachable after Apple tests.
+    try {
+      global.localStorage?.removeItem(VISIT_WHERE_PREF_KEY);
+    } catch (_) {}
     const root = ensureLqsVisitWhereModal();
     root.classList.add('active');
     root.setAttribute('aria-hidden', 'false');

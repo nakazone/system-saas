@@ -925,21 +925,14 @@
 
   function openVisitWhereChooser(opts) {
     if (typeof window.sfPrefetchLeadVisitIcs === 'function') void window.sfPrefetchLeadVisitIcs(S.id);
-    const force = opts && opts.force;
-    const pref = !force ? getVisitWherePref() : '';
-    if (pref === 'apple') {
-      setVisitWherePref('apple');
-      openVisitInAppleCalendar();
-      return;
-    }
-    if (pref === 'system') {
-      setVisitWherePref('system');
-      void openVisitModal(null, { system: true });
-      return;
-    }
+    // Always show both destinations — a remembered "apple" pref was hiding Agenda ObraMate.
+    void opts;
+    try {
+      localStorage.removeItem(VISIT_WHERE_PREF_KEY);
+    } catch (_) {}
     openModal(
       'Agendar visita',
-      `<p class="lp-hint" style="margin-top:0">Onde quer criar esta visita? A escolha fica lembrada neste aparelho.</p>
+      `<p class="lp-hint" style="margin-top:0">Onde quer criar esta visita?</p>
       <div class="lp-form__acts" style="flex-direction:column;align-items:stretch;gap:10px">
         <button type="button" class="lp-btn lp-btn--pri" data-lp-visit-where="system">Na Agenda ObraMate</button>
         <button type="button" class="lp-btn" data-lp-visit-where="apple">No Apple Calendar</button>
@@ -1173,11 +1166,7 @@
     if ((el = t.closest('[data-lp-visit-where]'))) {
       const where = el.getAttribute('data-lp-visit-where');
       closeModal();
-      if (where === 'apple') {
-        setVisitWherePref('apple');
-        return openVisitInAppleCalendar();
-      }
-      setVisitWherePref('system');
+      if (where === 'apple') return openVisitInAppleCalendar();
       return openVisitModal(null, { system: true });
     }
     if ((el = t.closest('[data-lp-device-cal]'))) {
