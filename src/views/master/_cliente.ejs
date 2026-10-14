@@ -228,6 +228,30 @@
     </p>
   </section>
 
+  <section class="d-sec" id="dados">
+    <h3>Dados e privacidade
+      <span class="dp-h3-actions"><% if (canExport) { %><form data-action action="/master/clientes/<%= id %>/exportar" data-stepup="Exportar todos os dados de <%= o.name %>" style="display:inline"><button class="btn btn-soft btn-sm" type="submit" <%= dataRec.busy ? 'disabled' : '' %>><%= dataRec.busy ? 'Gerando…' : 'Exportar tudo' %></button></form><% } %>
+      <% if (canDataDelete) { %><a class="btn btn-soft btn-sm" href="/master/privacidade/pessoa?empresa=<%= id %>">Excluir uma pessoa</a><% } %></span>
+    </h3>
+    <% dataRec.requests.forEach(function (r) { %>
+      <div class="d-line"><span class="pill pill-sm tone-<%= r.days < 0 ? 'danger' : r.days <= 7 ? 'warn' : 'soft' %>"><%= r.kind %></span><span style="flex:1;min-width:0"><%= r.requester %></span><a class="muted" href="/master/privacidade"><%= r.days < 0 ? 'atrasado ' + (-r.days) + ' d' : 'vence em ' + r.days + ' d' %></a></div>
+    <% }) %>
+    <% dataRec.exports.forEach(function (e) { %>
+      <div class="d-line">
+        <span class="pill pill-sm tone-<%= e.pill.tone %>"><%= e.pill.label %></span>
+        <span style="flex:1;min-width:0"><%= e.when %> · <%= e.size %><small class="muted" style="display:block"><%= e.expires || e.summary %></small></span>
+        <% if (e.downloadable && canExport) { %><a class="btn btn-soft btn-sm" href="/master/privacidade/exportacoes/<%= e.id %>/baixar">Baixar</a><form data-action action="/master/privacidade/exportacoes/<%= e.id %>/link" data-stepup="Link de download para <%= o.name %>"><button class="btn btn-soft btn-sm" type="submit">Link</button></form><% } %>
+      </div>
+    <% }) %>
+    <% if (!dataRec.exports.length && !dataRec.requests.length) { %><p class="muted" style="margin:6px 0;font-size:13px">Nenhuma exportação nem pedido de privacidade. “Exportar tudo” gera um ZIP com todas as tabelas e arquivos (fica 7 dias).</p><% } %>
+    <% if (canDataDelete && o.status === 'canceled') { %>
+      <div class="dp-del-box">
+        <div><b>Excluir de vez</b><small class="muted"><%= dataRec.check.canDelete ? 'Liberado' + (dataRec.check.requestText ? ' · ' + dataRec.check.requestText : ' · cancelada há ' + dataRec.check.canceledDays + ' dias') : dataRec.check.blockers.join(' ') %></small></div>
+        <button class="btn btn-danger btn-sm" type="button" data-open="dlg-excluir" <%= dataRec.check.canDelete ? '' : 'disabled' %>>Excluir empresa</button>
+      </div>
+    <% } %>
+  </section>
+
   <section class="d-sec">
     <h3>Notas internas</h3>
     <% notes.forEach(function (n) { %><div class="note-card"><p><%= n.body %></p><small><%= n.authorName %> · <%= dateTimeLabel(n.createdAt) %></small></div><% }) %>
@@ -467,6 +491,27 @@
       </label>
       <label class="check-line" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:600;margin:4px 0 12px"><input type="checkbox" name="ignoreLimit" value="1" style="margin-top:2px"> Cadastrar mesmo passando do limite de usuários do plano</label>
       <button class="btn btn-dark btn-block" type="submit">Cadastrar usuário</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
+
+<% if (canDataDelete && o.status === 'canceled' && dataRec.check.canDelete) { %>
+<dialog id="dlg-excluir" aria-labelledby="t-del">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-del">Excluir <%= o.name %> de vez</h2><p>Apaga todos os dados e arquivos da empresa. Não dá para desfazer. Fica só o comprovante e a auditoria.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <ul class="dp-checks">
+      <li class="ok">Cancelada<%= dataRec.check.canceledDays != null ? ' há ' + dataRec.check.canceledDays + ' dia(s)' : '' %><%= dataRec.check.requestText ? ' · ' + dataRec.check.requestText : '' %></li>
+      <li class="<%= dataRec.check.exportText ? 'ok' : 'warn' %>"><%= dataRec.check.exportText || 'Sem exportação nos últimos 90 dias' %></li>
+    </ul>
+    <form data-action action="/master/clientes/<%= id %>/excluir" data-stepup="Excluir <%= o.name %> de vez">
+      <% if (!dataRec.check.exportText) { %>
+        <label class="field">Por que não vai exportar antes?<input class="input" name="skipExport" required maxlength="300" placeholder="Ex.: a empresa recusou a cópia por e-mail em 10/10"></label>
+      <% } %>
+      <label class="field">Motivo<input class="input" name="reason" required maxlength="300" placeholder="Ex.: pedido formal de exclusão · cancelada há 90+ dias"></label>
+      <label class="field">Digite <%= o.slug %> para confirmar<input class="input" name="confirm" required autocomplete="off"></label>
+      <button class="btn btn-danger btn-block" type="submit">Excluir tudo de vez</button>
     </form>
   </div>
 </dialog>

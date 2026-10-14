@@ -28,6 +28,11 @@ import {
 } from "../lib/email/templates.js";
 import { senderStatus, EMAIL_LOG_DAYS } from "../lib/email/delivery.js";
 import { KINDS, reachOf, targetCount } from "../lib/announcements/index.js";
+import { storage } from "../lib/storage/index.js";
+import { EXPORT_DAYS, createDownloadLink, exportFileName, isDownloadable, requestExport, revokeDownloadLink } from "../lib/data/export.js";
+import { findPerson, erasePerson, maskSubject, normalizeSubject, subjectHash } from "../lib/data/erase.js";
+import { deleteCompany, deletionCheck, sumCounts } from "../lib/data/delete-company.js";
+import { KIND_LABEL, OPEN_STATUSES, PRIVACY_DAYS, daysLeft, dueFrom, privacyAttention } from "../lib/data/privacy.js";
 import {
   decryptSecret,
   encryptSecret,
@@ -450,6 +455,7 @@ async function shell(req: MasterRequest, active: string) {
   const openTickets = await prisma.supportTicket.count({ where: { status: "open" } });
   const opsIssues = await opsIssueCount();
   const emailProblems = await emailProblemCount();
+  const dataProblems = await dataProblemCount();
   const signupPending = await prisma.signupRequest.count({ where: { verifiedAt: null, expiresAt: { gt: new Date() } } }).catch(() => 0);
   const nav = [
     { key: "central", label: "Central", href: "/master", icon: "M3 12l9-8 9 8M5 10v10h14V10" },
@@ -465,6 +471,7 @@ async function shell(req: MasterRequest, active: string) {
     { key: "vencimentos", label: "Vencimentos", href: "/master/vencimentos", icon: "M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 13v3l2 1", badge: overdue || null, group: can(req.master!.role, "billing_full") ? undefined : "FINANCEIRO" },
     { key: "comunicacao", label: "Comunicação", href: "/master/comunicacao", icon: "M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13", group: "SISTEMA", badge: emailProblems || null },
     { key: "operacao", label: "Operação", href: "/master/operacao", icon: "M22 12h-4l-3 9L9 3l-3 9H2", badge: opsIssues || null },
+    { key: "privacidade", label: "Privacidade", href: "/master/privacidade", icon: "M12 3c4.4 0 8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3V6c0-1.7 3.6-3 8-3zM4 6c0 1.7 3.6 3 8 3s8-1.3 8-3M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3", badge: dataProblems || null },
     { key: "equipe", label: "Equipe e segurança", href: "/master/equipe", icon: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4" },
     { key: "auditoria", label: "Auditoria", href: "/master/auditoria", icon: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" },
   ].filter((n) => !n.hidden);
@@ -588,6 +595,14 @@ masterRouter.get(
       if (ops.lateJobs.length) queue.push({ tone: "warn", title: ops.lateJobs.length === 1 ? `Job com problema: ${ops.lateJobs[0].label}` : `${ops.lateJobs.length} jobs com problema`, sub: ops.lateJobs.map((j) => `${j.label} (${j.lastOk === false ? "falhou" : "atrasado"})`).slice(0, 3).join(", "), cta: "Ver", href: "/master/operacao#jobs" });
       if (ops.newErrors.length) queue.push({ tone: "warn", title: `${ops.newErrors.length} erro(s) novo(s) nas últimas 24 h`, sub: ops.newErrors[0].message.slice(0, 90), cta: "Ver", href: "/master/operacao#erros" });
     }
+    // Dados e privacidade: requests near the deadline, failed exports.
+    const due = await privacyAttention().catch(() => []);
+    const late = due.filter((r) => r.days < 0);
+    if (late.length) queue.unshift({ tone: "danger", title: late.length === 1 ? `Pedido de privacidade atrasado: ${late[0].requesterName}` : `${late.length} pedidos de privacidade atrasados`, sub: "O prazo é de 30 dias desde o recebimento", cta: "Ver", href: "/master/privacidade", primary: true });
+    const soon = due.filter((r) => r.days >= 0);
+    if (soon.length) queue.push({ tone: "warn", title: soon.length === 1 ? `Pedido de privacidade vence em ${soon[0].days} dia(s)` : `${soon.length} pedidos de privacidade vencem em 7 dias`, sub: soon.slice(0, 3).map((r) => `${r.requesterName}${r.orgName ? ` (${r.orgName})` : ""}`).join(", "), cta: "Ver", href: "/master/privacidade" });
+    const failedExports = await prisma.dataExport.findMany({ where: { status: "failed", finishedAt: { gte: new Date(Date.now() - 86400e3) } }, select: { orgName: true, error: true }, take: 3 }).catch(() => []);
+    if (failedExports.length) queue.push({ tone: "warn", title: `Exportação falhou: ${failedExports[0].orgName}`, sub: (failedExports[0].error || "").slice(0, 90), cta: "Ver", href: "/master/privacidade?aba=exportacoes" });
     // Comunicação: e-mails that bounced, e-mail not going out, urgent notice on the air.
     const comms = await commsProblems().catch(() => null);
     if (comms) {
@@ -825,6 +840,9 @@ masterRouter.get(
         take: 100,
       }),
       signupOrigin: await prisma.signupRequest.findFirst({ where: { organizationId: org.id }, select: { createdAt: true, verifiedAt: true, ip: true, inviteId: true } }),
+      dataRec: await dataForRecord(org.id),
+      canExport: can(req.master!.role, "export"),
+      canDataDelete: can(req.master!.role, "data_delete"),
     };
     if (req.query.partial) return void res.render("master/_cliente", { ...data, partial: true });
     page(res, "cliente", await shell(req, "clientes"), { ...data, partial: false });
@@ -2313,6 +2331,7 @@ const AUDIT_CATS: [string, string, string[]][] = [
   ["equipe", "Equipe", ["team."]],
   ["exportacoes", "Exportações", ["export."]],
   ["comunicacao", "Comunicação", ["comms."]],
+  ["dados", "Dados e privacidade", ["data.", "privacy."]],
 ];
 
 const AUDIT_TEXT: Record<string, string> = {
@@ -2335,6 +2354,14 @@ const AUDIT_TEXT: Record<string, string> = {
   "tenant.suspend": "Suspendeu a empresa",
   "support.start": "Entrou como suporte",
   "ops.job_run": "Rodou um job na mão",
+  "data.export_requested": "Gerou exportação da empresa",
+  "data.export_downloaded": "Baixou exportação da empresa",
+  "data.export_link": "Criou link de download para a empresa",
+  "data.export_link_revoked": "Cancelou link de download",
+  "data.person_erased": "Excluiu dados de uma pessoa",
+  "data.company_deleted": "Excluiu a empresa de vez",
+  "privacy.request_created": "Registrou pedido de privacidade",
+  "privacy.request_updated": "Atualizou pedido de privacidade",
   "comms.announcement_create": "Publicou aviso no app",
   "comms.announcement_update": "Editou aviso no app",
   "comms.announcement_end": "Tirou aviso do ar",
@@ -3773,6 +3800,445 @@ masterRouter.post(
     emailCountCache = null;
     await audit(req, actor(req), "comms.unblock", { type: "email", label: email });
     ok(res, `${email} liberado. Se voltar de novo, é bloqueado de novo.`);
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Dados e privacidade: exportar empresa, pedidos de privacidade, excluir pessoa / empresa
+// ---------------------------------------------------------------------------
+
+const EXPORT_STATUS: Record<string, Pill> = {
+  queued: { label: "Na fila", tone: "soft" },
+  running: { label: "Gerando…", tone: "soft" },
+  ready: { label: "Pronta", tone: "ink" },
+  failed: { label: "Falhou", tone: "danger" },
+  expired: { label: "Expirou", tone: "muted" },
+};
+const PRIVACY_STATUS: Record<string, Pill> = {
+  received: { label: "Recebido", tone: "warn" },
+  in_progress: { label: "Em andamento", tone: "soft" },
+  done: { label: "Concluído", tone: "ink" },
+  rejected: { label: "Recusado", tone: "muted" },
+};
+
+function sizeText(n: bigint | number | null): string {
+  if (n == null) return "—";
+  const b = Number(n);
+  if (b < 1024 * 1024) return `${Math.max(1, Math.round(b / 1024))} KB`;
+  if (b < 1024 ** 3) return `${(b / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+  return `${(b / 1024 ** 3).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} GB`;
+}
+
+function exportView(e: Awaited<ReturnType<typeof prisma.dataExport.findFirstOrThrow>>) {
+  const now = new Date();
+  const left = e.expiresAt ? Math.max(0, Math.ceil((e.expiresAt.getTime() - now.getTime()) / 86400e3)) : null;
+  return {
+    id: e.id,
+    org: { id: e.organizationId, name: e.orgName, slug: e.orgSlug },
+    status: e.status,
+    pill: EXPORT_STATUS[e.status] ?? { label: e.status, tone: "muted" },
+    when: dateTimeLabel(e.createdAt),
+    by: e.requestedByName,
+    reason: e.reason,
+    size: sizeText(e.sizeBytes),
+    summary: e.status === "ready" || e.status === "expired" ? `${e.tables} tabelas · ${e.rows.toLocaleString("pt-BR")} linhas · ${e.files} arquivo(s)${e.filesMissing ? ` · ${e.filesMissing} faltando no storage` : ""}` : e.error || "",
+    expires: e.status === "ready" && left != null ? (left <= 1 ? "expira amanhã" : `expira em ${left} dias`) : null,
+    downloadable: isDownloadable(e, now),
+    hasLink: !!e.linkTokenHash && isDownloadable(e, now),
+    downloads: e.downloads,
+    lastDownload: e.lastDownloadAt ? dateTimeLabel(e.lastDownloadAt) : null,
+  };
+}
+
+let privacyCountCache: { at: number; n: number } | null = null;
+/** Requests due within 7 days or late + exports that failed in 24 h (menu badge). */
+async function dataProblemCount(): Promise<number> {
+  if (privacyCountCache && Date.now() - privacyCountCache.at < 60_000) return privacyCountCache.n;
+  const [due, failed] = await Promise.all([
+    privacyAttention().catch(() => []),
+    prisma.dataExport.count({ where: { status: "failed", finishedAt: { gte: new Date(Date.now() - 86400e3) } } }).catch(() => 0),
+  ]);
+  privacyCountCache = { at: Date.now(), n: due.length + failed };
+  return privacyCountCache.n;
+}
+
+/** Info for the company record (Dados e privacidade). */
+async function dataForRecord(organizationId: string) {
+  const [exports, check, requests] = await Promise.all([
+    prisma.dataExport.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 3 }),
+    deletionCheck(organizationId),
+    prisma.privacyRequest.findMany({ where: { organizationId, status: { in: OPEN_STATUSES } }, orderBy: { dueAt: "asc" }, take: 5 }),
+  ]);
+  return {
+    exports: exports.map(exportView),
+    busy: exports.some((e) => e.status === "queued" || e.status === "running"),
+    check: {
+      ...check,
+      exportText: check.exportReady ? `Exportação de ${shortDate(check.exportReady.createdAt)}` : null,
+      requestText: check.request ? `Pedido formal recebido ${shortDate(check.request.receivedAt)}` : null,
+    },
+    requests: requests.map((r) => ({ id: r.id, kind: KIND_LABEL[r.kind] ?? r.kind, days: daysLeft(r.dueAt), requester: r.requesterName })),
+  };
+}
+
+masterRouter.get(
+  "/privacidade",
+  h(async (req, res) => {
+    const tab = ["pedidos", "exportacoes", "exclusoes"].includes(String(req.query.aba)) ? String(req.query.aba) : "pedidos";
+    const data: Record<string, unknown> = {
+      tab,
+      canPrivacy: can(req.master!.role, "privacy_manage"),
+      canExport: can(req.master!.role, "export"),
+      canDelete: can(req.master!.role, "data_delete"),
+      days: PRIVACY_DAYS,
+      exportDays: EXPORT_DAYS,
+    };
+    if (tab === "pedidos") {
+      const show = String(req.query.ver) === "fechados" ? "fechados" : "abertos";
+      const rows = await prisma.privacyRequest.findMany({
+        where: { status: show === "abertos" ? { in: OPEN_STATUSES } : { notIn: OPEN_STATUSES } },
+        orderBy: show === "abertos" ? { dueAt: "asc" } : { closedAt: "desc" },
+        take: 100,
+      });
+      const [openCount, closedCount, lastExports] = await Promise.all([
+        prisma.privacyRequest.count({ where: { status: { in: OPEN_STATUSES } } }),
+        prisma.privacyRequest.count({ where: { status: { notIn: OPEN_STATUSES } } }),
+        prisma.dataExport.findMany({ where: { privacyRequestId: { in: rows.map((r) => r.id) } }, orderBy: { createdAt: "desc" } }),
+      ]);
+      const deletions = await prisma.dataDeletion.findMany({ where: { privacyRequestId: { in: rows.map((r) => r.id) } }, select: { id: true, privacyRequestId: true, kind: true, createdAt: true } });
+      data.show = show;
+      data.openCount = openCount;
+      data.closedCount = closedCount;
+      data.requests = rows.map((r) => {
+        const d = daysLeft(r.dueAt);
+        const exp = lastExports.find((e) => e.privacyRequestId === r.id);
+        const del = deletions.find((x) => x.privacyRequestId === r.id);
+        return {
+          id: r.id,
+          kind: r.kind,
+          kindLabel: KIND_LABEL[r.kind] ?? r.kind,
+          subjectType: r.subjectType,
+          subjectText: r.subjectType === "company" ? "A empresa inteira" : [r.subjectEmail, r.subjectPhone].filter(Boolean).join(" · ") || "Pessoa (sem contato informado)",
+          org: r.organizationId ? { id: r.organizationId, name: r.orgName ?? "empresa" } : null,
+          requester: `${r.requesterName} · ${r.requesterEmail}`,
+          details: r.details,
+          status: r.status,
+          pill: PRIVACY_STATUS[r.status] ?? { label: r.status, tone: "muted" },
+          open: OPEN_STATUSES.includes(r.status),
+          received: shortDate(r.receivedAt),
+          due: shortDate(r.dueAt),
+          dueText: !OPEN_STATUSES.includes(r.status) ? `fechado ${r.closedAt ? shortDate(r.closedAt) : ""}` : d < 0 ? `atrasado ${-d} dia(s)` : d === 0 ? "vence hoje" : `vence em ${d} dia(s)`,
+          dueTone: !OPEN_STATUSES.includes(r.status) ? "muted" : d < 0 ? "danger" : d <= 7 ? "warn" : "soft",
+          response: r.response,
+          by: r.createdByName,
+          handledBy: r.handledByName,
+          export: exp ? exportView(exp) : null,
+          deletion: del ? { id: del.id, when: shortDate(del.createdAt) } : null,
+          personHref: r.organizationId && (r.subjectEmail || r.subjectPhone) ? `/master/privacidade/pessoa?empresa=${r.organizationId}${r.subjectEmail ? `&email=${encodeURIComponent(r.subjectEmail)}` : ""}${r.subjectPhone ? `&telefone=${encodeURIComponent(r.subjectPhone)}` : ""}&pedido=${r.id}` : null,
+        };
+      });
+      data.orgOpts = await prisma.organization.findMany({ select: { id: true, name: true, status: true }, orderBy: { name: "asc" } });
+    }
+    if (tab === "exportacoes") {
+      const rows = await prisma.dataExport.findMany({ orderBy: { createdAt: "desc" }, take: 60 });
+      data.exports = rows.map(exportView);
+      data.anyRunning = rows.some((r) => r.status === "queued" || r.status === "running");
+    }
+    if (tab === "exclusoes") {
+      const rows = await prisma.dataDeletion.findMany({ orderBy: { createdAt: "desc" }, take: 60 });
+      data.deletions = rows.map((d) => ({
+        id: d.id,
+        kind: d.kind,
+        title: d.kind === "company" ? d.orgName : `${d.subjectMasked} · ${d.orgName}`,
+        kindLabel: d.kind === "company" ? "Empresa inteira" : "Dados de uma pessoa",
+        rows: sumCounts(d.counts as Record<string, number>),
+        files: d.filesDeleted,
+        when: dateTimeLabel(d.createdAt),
+        by: d.performedByName,
+        reason: d.reason,
+      }));
+    }
+    page(res, "privacidade", await shell(req, "privacidade"), data);
+  }),
+);
+
+const privacySchema = z.object({
+  kind: z.enum(["access", "correction", "deletion", "other"]),
+  subjectType: z.enum(["company", "person"]),
+  organizationId: z.string().trim().optional().default(""),
+  requesterName: z.string().trim().min(2, "Quem pediu?").max(120),
+  requesterEmail: z.string().trim().toLowerCase().email("E-mail de quem pediu inválido."),
+  subjectEmail: z.string().trim().toLowerCase().max(200).optional().default(""),
+  subjectPhone: z.string().trim().max(40).optional().default(""),
+  details: z.string().trim().max(4000).optional().default(""),
+  receivedAt: z.string().optional().default(""),
+});
+
+masterRouter.post(
+  "/privacidade/pedidos",
+  requireCap("privacy_manage"),
+  h(async (req, res) => {
+    const parsed = privacySchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, parsed.error.issues[0]?.message || "Confira os campos.");
+    const d = parsed.data;
+    const org = /^[0-9a-f-]{36}$/i.test(d.organizationId) ? await prisma.organization.findUnique({ where: { id: d.organizationId }, select: { id: true, name: true } }) : null;
+    if (d.subjectType === "company" && !org) return fail(res, 400, "Escolha a empresa.");
+    if (d.subjectEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.subjectEmail)) return fail(res, 400, "E-mail da pessoa inválido.");
+    const received = /^\d{4}-\d{2}-\d{2}$/.test(d.receivedAt) ? new Date(`${d.receivedAt}T12:00:00-06:00`) : new Date();
+    if (received > new Date(Date.now() + 86400e3)) return fail(res, 400, "A data do pedido não pode ser no futuro.");
+    const r = await prisma.privacyRequest.create({
+      data: {
+        organizationId: org?.id ?? null,
+        orgName: org?.name ?? null,
+        kind: d.kind,
+        subjectType: d.subjectType,
+        requesterName: d.requesterName,
+        requesterEmail: d.requesterEmail,
+        subjectEmail: d.subjectType === "person" ? d.subjectEmail || null : null,
+        subjectPhone: d.subjectType === "person" ? d.subjectPhone || null : null,
+        details: d.details || null,
+        receivedAt: received,
+        dueAt: dueFrom(received),
+        createdByName: req.master!.name,
+      },
+    });
+    privacyCountCache = null;
+    await audit(req, actor(req), "privacy.request_created", { type: "privacy_request", id: r.id, label: `${KIND_LABEL[r.kind]} · ${r.requesterName}`, meta: { organizationId: org?.id ?? null, subjectType: r.subjectType } });
+    ok(res, `Pedido registrado. Prazo: ${shortDate(r.dueAt)} (${PRIVACY_DAYS} dias).`);
+  }),
+);
+
+masterRouter.post(
+  "/privacidade/pedidos/:id",
+  requireCap("privacy_manage"),
+  h(async (req, res) => {
+    const r = await prisma.privacyRequest.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+    if (!r) return fail(res, 404, "Pedido não encontrado.");
+    const status = String(req.body?.status || "");
+    if (!["received", "in_progress", "done", "rejected"].includes(status)) return fail(res, 400, "Situação inválida.");
+    const response = String(req.body?.response || "").trim().slice(0, 4000);
+    if ((status === "done" || status === "rejected") && !response) return fail(res, 400, "Escreva a resposta dada (fica guardada como prova).");
+    const closing = !OPEN_STATUSES.includes(status);
+    await prisma.privacyRequest.update({
+      where: { id: r.id },
+      data: { status, response: response || r.response, handledByName: req.master!.name, closedAt: closing ? r.closedAt ?? new Date() : null },
+    });
+    privacyCountCache = null;
+    await audit(req, actor(req), "privacy.request_updated", { type: "privacy_request", id: r.id, label: `${KIND_LABEL[r.kind]} · ${r.requesterName}`, meta: { from: r.status, to: status } });
+    ok(res, closing ? "Pedido fechado. A resposta fica guardada." : "Pedido atualizado.");
+  }),
+);
+
+// ----- Exportar empresa -----
+
+masterRouter.post(
+  "/clientes/:id/exportar",
+  requireCap("export"),
+  requireStepUp,
+  h(async (req, res) => {
+    const org = await prisma.organization.findUnique({ where: { id: String(req.params.id) }, select: { id: true, name: true } }).catch(() => null);
+    if (!org) return fail(res, 404, "Empresa não encontrada.");
+    const pedido = String(req.body?.pedido || "");
+    const r = await requestExport({
+      organizationId: org.id,
+      requestedById: req.master!.id,
+      requestedByName: req.master!.name,
+      reason: String(req.body?.reason || "").trim().slice(0, 200) || null,
+      privacyRequestId: /^[0-9a-f-]{36}$/i.test(pedido) ? pedido : null,
+    });
+    if (r.alreadyRunning) return ok(res, "Já tem uma exportação dessa empresa sendo gerada.", { warn: true });
+    if (/^[0-9a-f-]{36}$/i.test(pedido)) await prisma.privacyRequest.updateMany({ where: { id: pedido, status: "received" }, data: { status: "in_progress", handledByName: req.master!.name } });
+    await audit(req, actor(req), "data.export_requested", { type: "organization", id: org.id, label: org.name, meta: { exportId: r.export.id } }, true);
+    ok(res, "Exportação começou. Leva de segundos a alguns minutos; aparece em Dados e privacidade › Exportações.");
+  }),
+);
+
+async function exportOr404(req: MasterRequest, res: Response) {
+  const e = await prisma.dataExport.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+  if (!e) fail(res, 404, "Exportação não encontrada.");
+  return e;
+}
+
+masterRouter.get(
+  "/privacidade/exportacoes/:id/baixar",
+  requireCap("export"),
+  h(async (req, res) => {
+    const e = await prisma.dataExport.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+    if (!e || !isDownloadable(e)) return void res.status(404).render("master/error", { title: "Exportação indisponível", message: "Essa exportação não existe ou já expirou. Gere outra na ficha da empresa." });
+    const stream = await storage.getStream(e.fileKey!);
+    if (!stream) return void res.status(404).render("master/error", { title: "Arquivo não encontrado", message: "O arquivo não está mais no storage. Gere outra exportação." });
+    await audit(req, actor(req), "data.export_downloaded", { type: "organization", id: e.organizationId, label: e.orgName, meta: { exportId: e.id, by: "master" } });
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${exportFileName(e)}"`);
+    if (e.sizeBytes) res.setHeader("Content-Length", String(e.sizeBytes));
+    stream.pipe(res);
+  }),
+);
+
+masterRouter.post(
+  "/privacidade/exportacoes/:id/link",
+  requireCap("export"),
+  requireStepUp,
+  h(async (req, res) => {
+    const e = await exportOr404(req, res);
+    if (!e) return;
+    if (!isDownloadable(e)) return fail(res, 400, "Essa exportação não está pronta ou já expirou.");
+    const url = await createDownloadLink(e.id);
+    await audit(req, actor(req), "data.export_link", { type: "organization", id: e.organizationId, label: e.orgName, meta: { exportId: e.id } }, true);
+    ok(res, "Link criado.", {
+      reveal: {
+        title: `Link para ${e.orgName} baixar os dados`,
+        value: url,
+        note: `Qualquer pessoa com o link baixa o arquivo até ${dateTimeLabel(e.expiresAt)}. Mande só para o contato certo. Criar outro link cancela este.`,
+      },
+    });
+  }),
+);
+
+masterRouter.post(
+  "/privacidade/exportacoes/:id/link/cancelar",
+  requireCap("export"),
+  h(async (req, res) => {
+    const e = await exportOr404(req, res);
+    if (!e) return;
+    await revokeDownloadLink(e.id);
+    await audit(req, actor(req), "data.export_link_revoked", { type: "organization", id: e.organizationId, label: e.orgName, meta: { exportId: e.id } });
+    ok(res, "Link cancelado. Quem tiver o link antigo não baixa mais.");
+  }),
+);
+
+// ----- Excluir dados de uma pessoa -----
+
+const ERASE_KEYS = ["leads", "customers", "field_quotes", "jobs", "builders", "employees", "temp_workers", "users", "messages"];
+
+masterRouter.get(
+  "/privacidade/pessoa",
+  h(async (req, res) => {
+    const orgId = String(req.query.empresa || "");
+    const org = /^[0-9a-f-]{36}$/i.test(orgId) ? await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true, name: true, slug: true } }) : null;
+    const email = String(req.query.email || "").trim();
+    const phone = String(req.query.telefone || "").trim();
+    const pedido = /^[0-9a-f-]{36}$/i.test(String(req.query.pedido || "")) ? String(req.query.pedido) : "";
+    let error: string | null = null;
+    let categories: Awaited<ReturnType<typeof findPerson>> | null = null;
+    let masked = "";
+    if (org && (email || phone)) {
+      const s = normalizeSubject(email, phone);
+      if ("error" in s) error = s.error;
+      else {
+        categories = await findPerson(org.id, s);
+        masked = maskSubject(s);
+      }
+    }
+    page(res, "pessoa", await shell(req, "privacidade"), {
+      org,
+      email,
+      phone,
+      pedido,
+      error,
+      categories,
+      masked,
+      total: categories ? categories.reduce((n, c) => n + c.count, 0) : 0,
+      orgOpts: await prisma.organization.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+      canDelete: can(req.master!.role, "data_delete"),
+    });
+  }),
+);
+
+masterRouter.post(
+  "/privacidade/pessoa",
+  requireCap("data_delete"),
+  requireStepUp,
+  h(async (req, res) => {
+    const orgId = String(req.body?.organizationId || "");
+    const org = /^[0-9a-f-]{36}$/i.test(orgId) ? await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true, name: true, slug: true } }) : null;
+    if (!org) return fail(res, 404, "Empresa não encontrada.");
+    const s = normalizeSubject(String(req.body?.email || ""), String(req.body?.phone || ""));
+    if ("error" in s) return fail(res, 400, s.error);
+    if (String(req.body?.confirm || "").trim().toUpperCase() !== "EXCLUIR") return fail(res, 400, "Digite EXCLUIR para confirmar.");
+    const reason = String(req.body?.reason || "").trim().slice(0, 300);
+    if (!reason) return fail(res, 400, "Escreva o motivo (ex.: pedido do cliente por e-mail em 10/10).");
+    const raw = req.body?.cats;
+    const cats = (Array.isArray(raw) ? raw : raw ? [raw] : []).map(String).filter((c) => ERASE_KEYS.includes(c));
+    if (!cats.length) {
+      const found = (await findPerson(org.id, s)).reduce((n, c) => n + c.count, 0);
+      if (found) return fail(res, 400, "Marque pelo menos um grupo.");
+    }
+    let counts: Record<string, number>;
+    try {
+      counts = await erasePerson(org.id, s, cats);
+    } catch (error) {
+      return fail(res, 400, error instanceof Error ? error.message : "Não deu certo.");
+    }
+    const pedido = /^[0-9a-f-]{36}$/i.test(String(req.body?.pedido || "")) ? String(req.body.pedido) : null;
+    const receipt = await prisma.dataDeletion.create({
+      data: {
+        kind: "person",
+        organizationId: org.id,
+        orgName: org.name,
+        orgSlug: org.slug,
+        subjectMasked: maskSubject(s),
+        subjectHash: subjectHash(s),
+        counts,
+        reason,
+        privacyRequestId: pedido,
+        performedById: req.master!.id,
+        performedByName: req.master!.name,
+      },
+    });
+    if (pedido) await prisma.privacyRequest.updateMany({ where: { id: pedido, status: "received" }, data: { status: "in_progress", handledByName: req.master!.name } });
+    await audit(req, actor(req), "data.person_erased", { type: "organization", id: org.id, label: `${maskSubject(s)} · ${org.name}`, meta: { receiptId: receipt.id, counts } }, true);
+    const total = sumCounts(counts);
+    ok(res, total ? `Pronto: ${total} registro(s) anonimizados. Comprovante gerado.` : "Nada encontrado para apagar. Comprovante gerado mesmo assim.", { redirect: `/master/privacidade/exclusoes/${receipt.id}` });
+  }),
+);
+
+// ----- Excluir empresa de vez -----
+
+masterRouter.post(
+  "/clientes/:id/excluir",
+  requireCap("data_delete"),
+  requireStepUp,
+  h(async (req, res) => {
+    const org = await prisma.organization.findUnique({ where: { id: String(req.params.id) }, select: { id: true, name: true } }).catch(() => null);
+    if (!org) return fail(res, 404, "Empresa não encontrada.");
+    try {
+      const { receipt, filesError } = await deleteCompany({
+        organizationId: org.id,
+        confirmSlug: String(req.body?.confirm || ""),
+        reason: String(req.body?.reason || "").slice(0, 300),
+        exportSkippedWhy: String(req.body?.skipExport || "").slice(0, 300) || null,
+        performedById: req.master!.id,
+        performedByName: req.master!.name,
+      });
+      if (receipt.privacyRequestId) {
+        await prisma.privacyRequest.updateMany({ where: { id: receipt.privacyRequestId, status: "received" }, data: { status: "in_progress", handledByName: req.master!.name } });
+        privacyCountCache = null;
+      }
+      await audit(req, actor(req), "data.company_deleted", { type: "organization", id: org.id, label: org.name, meta: { receiptId: receipt.id, rows: sumCounts(receipt.counts as Record<string, number>), files: receipt.filesDeleted, filesError } }, true);
+      ok(res, filesError ? `Dados apagados, mas os arquivos deram erro: ${filesError}` : `${org.name} foi excluída de vez. Comprovante gerado.`, { warn: !!filesError, redirect: `/master/privacidade/exclusoes/${receipt.id}` });
+    } catch (error) {
+      return fail(res, 400, error instanceof Error ? error.message : "Não deu certo.");
+    }
+  }),
+);
+
+masterRouter.get(
+  "/privacidade/exclusoes/:id",
+  h(async (req, res) => {
+    const d = await prisma.dataDeletion.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+    if (!d) return void res.status(404).render("master/error", { title: "Comprovante não encontrado", message: "Esse comprovante não existe." });
+    const counts = Object.entries(d.counts as Record<string, number>).sort((a, b) => b[1] - a[1]);
+    const exp = d.exportId ? await prisma.dataExport.findUnique({ where: { id: d.exportId }, select: { createdAt: true } }) : null;
+    res.render("master/comprovante", {
+      title: "Deletion certificate",
+      d,
+      counts,
+      total: sumCounts(d.counts as Record<string, number>),
+      when: d.createdAt.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "long", timeStyle: "short" }),
+      exportWhen: exp ? exp.createdAt.toLocaleDateString("en-US", { timeZone: "America/Denver", dateStyle: "long" }) : null,
+      product: env.PRODUCT_NAME,
+    });
   }),
 );
 

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Deletion certificate · <%= d.orgName %></title>
+<style>
+  :root { --ink:#211d1a; --muted:#6e655c; --line:#e7dfd3; --bg:#f7f4ee; --accent:#c1652f; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif; }
+  .bar { max-width:760px; margin:0 auto; padding:16px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .bar a, .bar button { font:700 14px/1 inherit; font-family:inherit; color:var(--ink); background:#fff; border:0; box-shadow:inset 0 0 0 1px var(--line); border-radius:10px; padding:10px 14px; text-decoration:none; cursor:pointer; }
+  .bar button { background:var(--ink); color:#fff; box-shadow:none; }
+  .doc { max-width:760px; margin:0 auto 40px; background:#fff; border-radius:18px; box-shadow:0 1px 0 var(--line); padding:36px 40px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:17px; }
+  .brand i { width:22px; height:22px; border-radius:6px; background:var(--accent); display:inline-block; }
+  h1 { font-size:26px; margin:22px 0 4px; letter-spacing:-.01em; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  dl { display:grid; grid-template-columns:200px 1fr; gap:8px 18px; margin:0 0 26px; }
+  dt { color:var(--muted); font-weight:600; }
+  dd { margin:0; font-weight:700; overflow-wrap:anywhere; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:26px 0 10px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:7px 0; border-top:1px solid var(--line); }
+  td.n { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
+  tfoot td { font-weight:800; border-top:2px solid var(--ink); }
+  .note { margin-top:26px; font-size:13px; color:var(--muted); }
+  .id { font-family:ui-monospace,Menlo,monospace; font-size:12.5px; }
+  @media (max-width:640px) { .doc { padding:24px 18px; border-radius:0; } dl { grid-template-columns:1fr; gap:2px; } dd { margin-bottom:8px; } }
+  @media print { body { background:#fff; } .bar { display:none; } .doc { box-shadow:none; padding:0; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <a href="/master/privacidade?aba=exclusoes">‹ Back to Master</a>
+  <button type="button" onclick="window.print()">Print / save as PDF</button>
+</div>
+<main class="doc">
+  <div class="brand"><i></i><%= product %></div>
+  <h1>Data deletion certificate</h1>
+  <p class="sub"><%= d.kind === 'company' ? 'All data of this company was permanently deleted from ' + product + '.' : 'The personal data of one person was permanently removed from this company\'s account.' %></p>
+  <dl>
+    <dt>Certificate ID</dt><dd class="id"><%= d.id %></dd>
+    <dt>Company</dt><dd><%= d.orgName %> (<%= d.orgSlug %>)</dd>
+    <% if (d.kind === 'person') { %><dt>Person</dt><dd><%= d.subjectMasked %></dd><% } %>
+    <dt>Date</dt><dd><%= when %> (Mountain Time)</dd>
+    <dt>Performed by</dt><dd><%= d.performedByName %>, <%= product %></dd>
+    <dt>Reason</dt><dd><%= d.reason %></dd>
+    <% if (d.kind === 'company') { %>
+      <dt>Data copy</dt><dd><%= exportWhen ? 'Full export generated on ' + exportWhen + ' before deletion' : 'No export: ' + (d.exportSkippedWhy || '—') %></dd>
+      <dt>Files deleted</dt><dd><%= d.filesDeleted %> (photos, documents, receipts, logos)</dd>
+    <% } %>
+  </dl>
+
+  <h2><%= d.kind === 'company' ? 'Records deleted' : 'Records anonymized' %></h2>
+  <table>
+    <tbody>
+      <% counts.forEach(function (c) { %><tr><td><%= c[0] %></td><td class="n"><%= c[1].toLocaleString('en-US') %></td></tr><% }) %>
+      <% if (!counts.length) { %><tr><td colspan="2">No records were found for this person.</td></tr><% } %>
+    </tbody>
+    <tfoot><tr><td>Total</td><td class="n"><%= total.toLocaleString('en-US') %></td></tr></tfoot>
+  </table>
+
+  <p class="note">
+    <% if (d.kind === 'company') { %>
+      Database records and stored files were deleted. Encrypted database backups kept by our hosting provider expire on their normal schedule and are not restored except to recover from a disaster. Payment records kept by Stripe follow Stripe's own retention for tax and fraud purposes. This certificate does not contain any of the deleted data.
+    <% } else { %>
+      Name, contact details, addresses and notes were removed or replaced with "Removed person". Amounts on quotes, jobs, invoices and payroll were kept without identifying the person, as the company may need them for tax records. This certificate shows the e-mail/phone only in masked form.
+    <% } %>
+  </p>
+</main>
+</body>
+</html>
