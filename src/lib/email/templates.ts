@@ -298,6 +298,49 @@ TEMPLATES.push(
   },
 );
 
+TEMPLATES.push(
+  {
+    key: "card_expiring",
+    name: "Cartão vencendo",
+    when: "15 dias antes de o cartão da assinatura vencer, quando ele vence antes da próxima cobrança.",
+    group: "Cobrança",
+    vars: [NAME, COMPANY, { key: "card", label: "Cartão", sample: "Visa •••• 4242" }, DATE, { key: "next_charge", label: "Próxima cobrança", sample: { en: "Nov 3, 2026", pt: "3 de nov. de 2026" } }, { key: "amount", label: "Valor", sample: "$299" }, LINK("Página do plano")],
+    required: ["link"],
+    defaults: {
+      en: {
+        subject: "Your card for ObraMate expires soon",
+        body: "Hi {{name}},\n\nThe card on file for {{company}} ({{card}}) expires on {{date}}, before your next payment of {{amount}} on {{next_charge}}. Update it so your account keeps running without interruption.\n\n{{button}}\n\n~ In ObraMate, open Settings › Plan & billing and click \"Card, receipts and cancellation\".",
+        button: "Update card",
+      },
+      pt: {
+        subject: "O cartão do seu ObraMate vence em breve",
+        body: "Olá, {{name}},\n\nO cartão cadastrado da {{company}} ({{card}}) vence em {{date}}, antes da próxima cobrança de {{amount}} em {{next_charge}}. Atualize para a conta continuar sem interrupção.\n\n{{button}}\n\n~ No ObraMate, abra Configurações › Plano e cobrança e clique em \"Cartão, recibos e cancelamento\".",
+        button: "Atualizar cartão",
+      },
+    },
+  },
+  {
+    key: "cancel_confirmed",
+    name: "Cancelamento confirmado",
+    when: "Para o administrador que cancelou a assinatura pelo ObraMate.",
+    group: "Cobrança",
+    vars: [NAME, COMPANY, DATE, LINK("Página do plano")],
+    required: [],
+    defaults: {
+      en: {
+        subject: "Your ObraMate subscription was canceled",
+        body: "Hi {{name}},\n\nWe canceled the ObraMate subscription for {{company}}. You keep full access until {{date}} and you won't be charged again.\n\nChanged your mind? You can keep your subscription any time before that date.\n\n{{button}}\n\n~ After that date your data stays saved for 90 days in case you come back.",
+        button: "Keep my subscription",
+      },
+      pt: {
+        subject: "Sua assinatura do ObraMate foi cancelada",
+        body: "Olá, {{name}},\n\nCancelamos a assinatura do ObraMate da {{company}}. Você continua com acesso completo até {{date}} e não será cobrado de novo.\n\nMudou de ideia? Dá para manter a assinatura a qualquer momento antes dessa data.\n\n{{button}}\n\n~ Depois dessa data seus dados ficam guardados por 90 dias, caso você volte.",
+        button: "Manter minha assinatura",
+      },
+    },
+  },
+);
+
 export const TEMPLATE_KEYS = TEMPLATES.map((t) => t.key);
 export function templateDef(key: string): TemplateDef | undefined {
   return TEMPLATES.find((t) => t.key === key);

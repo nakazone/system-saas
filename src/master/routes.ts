@@ -29,6 +29,9 @@ import {
 import { senderStatus, EMAIL_LOG_DAYS } from "../lib/email/delivery.js";
 import { KINDS, reachOf, targetCount } from "../lib/announcements/index.js";
 import { storage } from "../lib/storage/index.js";
+import { applyCoupon, archiveCoupon, couponState, couponText, createCoupon, getRetentionCode, removeCoupon, setRetentionCode, type CouponState } from "../lib/billing/coupons.js";
+import { cardExpiresAt, cardText, expiringCards, forecast, forecastBuckets, syncCard } from "../lib/billing/cards.js";
+import { CANCEL_REASONS, REASON_LABEL, recordMasterCancel } from "../lib/billing/cancel.js";
 import { EXPORT_DAYS, createDownloadLink, exportFileName, isDownloadable, requestExport, revokeDownloadLink } from "../lib/data/export.js";
 import { findPerson, erasePerson, maskSubject, normalizeSubject, subjectHash } from "../lib/data/erase.js";
 import { deleteCompany, deletionCheck, sumCounts } from "../lib/data/delete-company.js";
@@ -467,6 +470,7 @@ async function shell(req: MasterRequest, active: string) {
     { key: "metricas", label: "Métricas", href: "/master/metricas", icon: "M4 20V10M10 20V4M16 20v-7M22 20H2", group: "FINANCEIRO", hidden: !can(req.master!.role, "billing_full") },
     { key: "pagamentos", label: "Pagamentos", href: "/master/pagamentos", icon: "M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM2 10h20M6 15h4", hidden: !can(req.master!.role, "billing_full") },
     { key: "planos", label: "Planos e preços", href: "/master/planos", icon: "M4 4h7l9 9-7 7-9-9zM8 8h.01", hidden: !can(req.master!.role, "billing_full") },
+    { key: "cupons", label: "Cupons", href: "/master/cupons", icon: "M20 12V8a2 2 0 0 0-2-2H4v4a2 2 0 0 1 0 4v4h14a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4zM9 9l6 6M9.5 14.5h.01M14.5 9.5h.01", hidden: !can(req.master!.role, "billing_full") },
     { key: "recursos", label: "Recursos por plano", href: "/master/recursos", icon: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6M17 14v6", hidden: !can(req.master!.role, "billing_full") },
     { key: "vencimentos", label: "Vencimentos", href: "/master/vencimentos", icon: "M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 13v3l2 1", badge: overdue || null, group: can(req.master!.role, "billing_full") ? undefined : "FINANCEIRO" },
     { key: "comunicacao", label: "Comunicação", href: "/master/comunicacao", icon: "M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13", group: "SISTEMA", badge: emailProblems || null },
@@ -595,6 +599,16 @@ masterRouter.get(
       if (ops.lateJobs.length) queue.push({ tone: "warn", title: ops.lateJobs.length === 1 ? `Job com problema: ${ops.lateJobs[0].label}` : `${ops.lateJobs.length} jobs com problema`, sub: ops.lateJobs.map((j) => `${j.label} (${j.lastOk === false ? "falhou" : "atrasado"})`).slice(0, 3).join(", "), cta: "Ver", href: "/master/operacao#jobs" });
       if (ops.newErrors.length) queue.push({ tone: "warn", title: `${ops.newErrors.length} erro(s) novo(s) nas últimas 24 h`, sub: ops.newErrors[0].message.slice(0, 90), cta: "Ver", href: "/master/operacao#erros" });
     }
+    // Cobrança: disputes, companies that asked to cancel, cards expiring in 15 days.
+    const openDisp = await prisma.platformDispute.findMany({ where: { status: { in: OPEN_DISPUTE } }, orderBy: { evidenceDueBy: "asc" }, take: 5 }).catch(() => []);
+    if (openDisp.length) {
+      const d0 = openDisp[0];
+      queue.unshift({ tone: "danger", title: openDisp.length === 1 ? `Disputa de ${money(d0.amountCents)}${d0.orgName ? ` · ${d0.orgName}` : ""}` : `${openDisp.length} disputas abertas`, sub: d0.evidenceDueBy ? `Responder no Stripe até ${shortDate(d0.evidenceDueBy)}` : "Responder no Stripe", cta: "Ver", href: "/master/pagamentos?aba=disputas", primary: true });
+    }
+    const asked = await prisma.organization.findMany({ where: { cancelAtPeriodEnd: true, cancelRequestedAt: { gte: new Date(Date.now() - 14 * 86400e3) }, status: { not: "canceled" } }, select: { id: true, name: true, cancelReasonKey: true, currentPeriodEnd: true, trialEndsAt: true }, take: 5 }).catch(() => []);
+    for (const a of asked) queue.push({ tone: "warn", title: `${a.name} pediu cancelamento`, sub: `${REASON_LABEL[a.cancelReasonKey ?? ""] ?? "sem motivo"} · acesso até ${shortDate(a.currentPeriodEnd ?? a.trialEndsAt)} — dá tempo de conversar`, cta: "Abrir", href: `/master/clientes/${a.id}` });
+    const cardsSoon = (await expiringCards().catch(() => [])).filter((c) => c.daysToExp <= 15);
+    if (cardsSoon.length) queue.push({ tone: "muted", title: `${cardsSoon.length} cartão(ões) vencem antes da próxima cobrança`, sub: cardsSoon.slice(0, 3).map((c) => c.name).join(", ") + " · a empresa recebe e-mail", cta: "Ver", href: "/master/pagamentos?aba=previsao" });
     // Dados e privacidade: requests near the deadline, failed exports.
     const due = await privacyAttention().catch(() => []);
     const late = due.filter((r) => r.days < 0);
@@ -841,6 +855,7 @@ masterRouter.get(
       }),
       signupOrigin: await prisma.signupRequest.findFirst({ where: { organizationId: org.id }, select: { createdAt: true, verifiedAt: true, ip: true, inviteId: true } }),
       dataRec: await dataForRecord(org.id),
+      billx: await billingForRecord(org),
       canExport: can(req.master!.role, "export"),
       canDataDelete: can(req.master!.role, "data_delete"),
     };
@@ -1390,7 +1405,9 @@ masterRouter.post(
         return fail(res, 502, "O Stripe não cancelou a assinatura. Nada foi alterado; tente de novo.");
       }
     }
-    await prisma.organization.update({ where: { id: org.id }, data: { status: "canceled", canceledAt: new Date(), cancelReason: reason || null, cancelAtPeriodEnd: false } });
+    const reasonKey = REASON_LABEL[String(req.body?.reasonKey || "")] ? String(req.body.reasonKey) : "other";
+    await prisma.organization.update({ where: { id: org.id }, data: { status: "canceled", canceledAt: new Date(), cancelReason: `${REASON_LABEL[reasonKey]}${reason ? `: ${reason}` : ""}`, cancelReasonKey: reasonKey, cancelAtPeriodEnd: false } });
+    if (!org.cancelRequestedAt) await recordMasterCancel(org, reasonKey, reason || null, req.master!.name);
     const killed = await endOrgSessions(org.id);
     await audit(req, actor(req), "tenant.cancel", { type: "organization", id: org.id, label: org.name, meta: { from: org.status, reason, sessionsEnded: killed, stripe: !!stripeNote } }, true);
     ok(res, `${org.name} cancelada.${stripeNote}`, { warn: true });
@@ -1821,8 +1838,19 @@ masterRouter.get(
   "/pagamentos",
   requireCap("billing_full"),
   h(async (req, res) => {
-    const tab = ["todos", "falhas", "estornados"].includes(String(req.query.aba)) ? String(req.query.aba) : "todos";
-    const [all, orgs] = await Promise.all([loadPayments({}, 500), loadOrgs()]);
+    const tab = ["todos", "falhas", "estornados", "disputas", "previsao"].includes(String(req.query.aba)) ? String(req.query.aba) : "todos";
+    const [all, orgs, disputes] = await Promise.all([loadPayments({}, 500), loadOrgs(), prisma.platformDispute.findMany({ orderBy: [{ closedAt: { sort: "desc", nulls: "first" } }, { evidenceDueBy: "asc" }], take: 100 })]);
+    const openDisputes = disputes.filter((d) => OPEN_DISPUTE.includes(d.status));
+    let previsao: Record<string, unknown> | null = null;
+    if (tab === "previsao") {
+      const rows = await forecast(90);
+      const cards = await expiringCards();
+      previsao = {
+        buckets: forecastBuckets(rows).map((b) => ({ ...b, totalText: money(b.total), okText: money(b.ok), expiringText: money(b.expiring), noneText: money(b.none), okPct: b.total ? Math.round((b.ok / b.total) * 100) : 0, expPct: b.total ? Math.round((b.expiring / b.total) * 100) : 0 })),
+        next: rows.filter((r) => r.date.getTime() <= Date.now() + 30 * 86400e3).map((r) => ({ ...r, dateText: shortDate(r.date), amountText: money(r.amountCents), kindText: r.kind === "first_charge" ? "1ª cobrança (fim do teste)" : "renovação" })),
+        cards: cards.map((c) => ({ id: c.id, name: c.name, card: cardText(c), expText: shortDate(c.exp), nextText: c.next ? shortDate(c.next) : "—", amountText: money(c.amountCents), days: c.daysToExp })),
+      };
+    }
     const monthStart = startOfMonthInTz();
     const paidMonth = all.filter((p) => p.status === "paid" && p.paidAt >= monthStart);
     const failedOpen = all.filter((p) => p.status === "failed");
@@ -1832,10 +1860,29 @@ masterRouter.get(
     page(res, "pagamentos", await shell(req, "pagamentos"), {
       rows: tab === "estornados" ? all.filter((p) => p.status === "refunded") : tab === "falhas" ? failedOpen : all,
       tab,
+      previsao,
+      disputes: disputes.map((d) => {
+        const days = d.evidenceDueBy ? Math.ceil((d.evidenceDueBy.getTime() - Date.now()) / 86400e3) : null;
+        return {
+          id: d.id,
+          org: d.organizationId ? { id: d.organizationId, name: d.orgName ?? "empresa" } : null,
+          amountText: money(d.amountCents),
+          reason: DISPUTE_REASON[d.reason] ?? d.reason,
+          pill: DISPUTE_STATUS[d.status] ?? { label: d.status, tone: "muted" },
+          open: OPEN_DISPUTE.includes(d.status),
+          due: d.evidenceDueBy ? shortDate(d.evidenceDueBy) : "—",
+          dueText: OPEN_DISPUTE.includes(d.status) && days != null ? (days < 0 ? "prazo passou" : days === 0 ? "prazo hoje" : `${days} dia(s) para responder`) : d.closedAt ? `encerrada ${shortDate(d.closedAt)}` : "",
+          urgent: OPEN_DISPUTE.includes(d.status) && days != null && days <= 3,
+          when: shortDate(d.createdAt),
+          stripeUrl: `https://dashboard.stripe.com/${stripeMode() === "live" ? "" : "test/"}disputes/${d.id}`,
+        };
+      }),
       tabs: [
         { key: "todos", label: "Todos", count: all.length },
         { key: "falhas", label: "Cobranças recusadas", count: failedOpen.length },
         { key: "estornados", label: "Estornados", count: all.filter((p) => p.status === "refunded").length },
+        { key: "disputas", label: "Disputas", count: openDisputes.length },
+        { key: "previsao", label: "Previsão e cartões", count: null },
       ],
       stripe: { mode: stripeMode(), webhook: !!process.env.STRIPE_WEBHOOK_SECRET },
       canCharge: can(req.master!.role, "billing_manage"),
@@ -2354,6 +2401,17 @@ const AUDIT_TEXT: Record<string, string> = {
   "tenant.suspend": "Suspendeu a empresa",
   "support.start": "Entrou como suporte",
   "ops.job_run": "Rodou um job na mão",
+  "coupon.create": "Criou cupom",
+  "coupon.archive": "Arquivou cupom",
+  "coupon.apply": "Aplicou cupom na empresa",
+  "coupon.remove": "Tirou cupom da empresa",
+  "coupon.retention": "Mudou a oferta para quem vai cancelar",
+  "tenant.cancel_requested": "Empresa pediu cancelamento",
+  "tenant.cancel_undone": "Empresa desistiu de cancelar",
+  "tenant.retention_accepted": "Empresa aceitou oferta para ficar",
+  "tenant.cancel_effective": "Cancelamento agendado entrou em vigor",
+  "billing.card_expiring_email": "Aviso de cartão vencendo enviado",
+  "payment.dispute_closed": "Disputa encerrada",
   "data.export_requested": "Gerou exportação da empresa",
   "data.export_downloaded": "Baixou exportação da empresa",
   "data.export_link": "Criou link de download para a empresa",
@@ -2936,8 +2994,10 @@ masterRouter.get(
     const lastStart = lastMove ? lastMove.startMrr : 0;
     const delta = lastMove && lastStart ? Math.round((lastMove.netCents / lastStart) * 1000) / 10 : null;
     const estimatedMonths = shown.filter((p) => p.estimated).length;
+    const cancels = await cancelReasons(12);
     page(res, "metricas", await shell(req, "metricas"), {
       months,
+      cancels,
       tiles: [
         { label: "MRR", value: money(cur.mrrCents), note: delta == null ? "sem mês anterior" : `${delta >= 0 ? "+" : ""}${delta.toLocaleString("pt-BR")}% vs ${prev.label}`, hero: true, tone: delta == null ? "" : delta >= 0 ? "up" : "down" },
         { label: "ARR", value: money(cur.mrrCents * 12), note: "MRR × 12" },
@@ -4241,6 +4301,240 @@ masterRouter.get(
     });
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Cobrança: cupons, cartões, disputas, previsão, cancelamentos
+// ---------------------------------------------------------------------------
+
+const COUPON_STATE: Record<CouponState, Pill> = {
+  active: { label: "Ativo", tone: "ink" },
+  expired: { label: "Expirou", tone: "muted" },
+  used_up: { label: "Esgotado", tone: "muted" },
+  archived: { label: "Arquivado", tone: "muted" },
+};
+const DISPUTE_STATUS: Record<string, Pill> = {
+  warning_needs_response: { label: "Aviso · responder", tone: "danger" },
+  needs_response: { label: "Responder", tone: "danger" },
+  warning_under_review: { label: "Em análise", tone: "warn" },
+  under_review: { label: "Em análise", tone: "warn" },
+  won: { label: "Ganha", tone: "ink" },
+  lost: { label: "Perdida", tone: "muted" },
+  warning_closed: { label: "Encerrada", tone: "muted" },
+  charge_refunded: { label: "Estornada", tone: "muted" },
+};
+const DISPUTE_REASON: Record<string, string> = {
+  fraudulent: "Fraude (não reconhece)",
+  product_not_received: "Não recebeu",
+  product_unacceptable: "Insatisfeito",
+  subscription_canceled: "Diz que cancelou",
+  duplicate: "Cobrança duplicada",
+  credit_not_processed: "Reembolso não feito",
+  unrecognized: "Não reconhece",
+  general: "Geral",
+};
+const OPEN_DISPUTE = ["warning_needs_response", "needs_response", "warning_under_review", "under_review"];
+
+/** Card, coupon and cancel info for the company record. */
+async function billingForRecord(o: Awaited<ReturnType<typeof loadOrg>>) {
+  const coupons = (await prisma.coupon.findMany({ where: { active: true }, orderBy: { createdAt: "desc" } }))
+    .filter((c) => couponState(c) === "active" && (!c.plans.length || c.plans.includes(o!.plan)))
+    .map((c) => ({ code: c.code, name: c.name, text: couponText(c), plansText: c.plans.length ? c.plans.map((p) => planLabel(p)).join(", ") : "" }));
+  const current = o!.couponCode ? await prisma.coupon.findUnique({ where: { code: o!.couponCode } }) : null;
+  const exp = cardExpiresAt(o!);
+  const next = o!.status === "trial" ? o!.trialEndsAt : o!.currentPeriodEnd;
+  return {
+    card: cardText(o!),
+    cardWarn: !!(exp && next && exp < next && o!.stripeSubscriptionId),
+    coupon: o!.couponCode ? { code: o!.couponCode, text: current ? couponText(current) : "" } : null,
+    coupons,
+    reasons: CANCEL_REASONS.map((r) => ({ key: r.key, label: r.pt })),
+    cancelReason: o!.cancelReasonKey ? REASON_LABEL[o!.cancelReasonKey] ?? o!.cancelReasonKey : null,
+  };
+}
+
+masterRouter.post(
+  "/clientes/:id/cupom",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const code = String(req.body?.code || "").trim();
+    try {
+      if (!code) {
+        const before = org.couponCode;
+        const viaStripe = await removeCoupon(org.id);
+        await audit(req, actor(req), "coupon.remove", { type: "organization", id: org.id, label: org.name, meta: { code: before, stripe: viaStripe } });
+        return ok(res, `Cupom tirado de ${org.name}.`);
+      }
+      const r = await applyCoupon(org.id, code);
+      await audit(req, actor(req), "coupon.apply", { type: "organization", id: org.id, label: org.name, meta: { code: r.coupon.code, stripe: r.viaStripe } });
+      ok(res, r.viaStripe ? `${r.coupon.code} aplicado na assinatura de ${org.name} (${couponText(r.coupon)}).` : `${r.coupon.code} anotado para ${org.name}. Vale no Stripe quando a empresa assinar.`);
+    } catch (error) {
+      if (error instanceof BillingError) return fail(res, 400, error.message);
+      console.error("[master] coupon failed", error);
+      return fail(res, 502, "O Stripe não respondeu. Tente de novo.");
+    }
+  }),
+);
+
+masterRouter.post(
+  "/clientes/:id/cartao",
+  requireCap("billing_manage"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    try {
+      const has = await syncCard(org.id);
+      ok(res, has ? "Cartão atualizado a partir do Stripe." : "O Stripe não tem cartão padrão para essa empresa.", { warn: !has });
+    } catch {
+      fail(res, 502, "O Stripe não respondeu. Tente de novo.");
+    }
+  }),
+);
+
+// ----- Cupons -----
+
+masterRouter.get(
+  "/cupons",
+  requireCap("billing_full"),
+  h(async (req, res) => {
+    const rows = await prisma.coupon.findMany({ orderBy: [{ active: "desc" }, { createdAt: "desc" }] });
+    const using = await prisma.organization.groupBy({ by: ["couponCode"], where: { couponCode: { not: null }, status: { not: "canceled" } }, _count: { _all: true } });
+    const usingMap = new Map(using.map((u) => [u.couponCode, u._count._all]));
+    const retention = await getRetentionCode();
+    const events = await prisma.cancellationEvent.findMany({ where: { offerShown: true, requestedAt: { gte: new Date(Date.now() - 90 * 86400e3) } }, select: { offerAccepted: true } });
+    page(res, "cupons", await shell(req, "cupons"), {
+      canEdit: can(req.master!.role, "plans_manage"),
+      stripeOn: stripeEnabled(),
+      coupons: rows.map((c) => {
+        const st = couponState(c);
+        return {
+          code: c.code,
+          name: c.name,
+          text: couponText(c),
+          state: st,
+          pill: COUPON_STATE[st],
+          uses: `${c.timesRedeemed}${c.maxRedemptions ? ` de ${c.maxRedemptions}` : ""}`,
+          inUse: usingMap.get(c.code) ?? 0,
+          expires: c.expiresAt ? shortDate(c.expiresAt) : "sem validade",
+          plans: c.plans.length ? c.plans.map((p) => planLabel(p)).join(", ") : "todos os planos",
+          stripe: !!c.stripeCouponId,
+          by: c.createdByName,
+          when: shortDate(c.createdAt),
+          retention: c.code === retention,
+        };
+      }),
+      retention,
+      retentionStats: { shown: events.length, accepted: events.filter((e) => e.offerAccepted).length },
+      planOpts: planOptions(),
+    });
+  }),
+);
+
+const couponSchema = z.object({
+  code: z.string().trim().min(3).max(30),
+  name: z.string().trim().min(2, "Dê um nome.").max(60),
+  kind: z.enum(["percent", "amount"]),
+  value: z.coerce.number().positive("Valor do desconto?"),
+  duration: z.enum(["once", "repeating", "forever"]),
+  months: z.coerce.number().int().optional(),
+  maxRedemptions: z.string().optional().default(""),
+  expiresAt: z.string().optional().default(""),
+  plans: z.union([z.string(), z.array(z.string())]).optional(),
+});
+
+masterRouter.post(
+  "/cupons",
+  requireCap("plans_manage"),
+  requireStepUp,
+  h(async (req, res) => {
+    const parsed = couponSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, parsed.error.issues[0]?.message || "Confira os campos.");
+    const d = parsed.data;
+    const plans = (Array.isArray(d.plans) ? d.plans : d.plans ? [d.plans] : []).filter((p) => p in PLAN_LABEL);
+    const expires = /^\d{4}-\d{2}-\d{2}$/.test(d.expiresAt) ? new Date(`${d.expiresAt}T23:59:59-06:00`) : null;
+    try {
+      const c = await createCoupon(
+        {
+          code: d.code,
+          name: d.name,
+          percentOff: d.kind === "percent" ? Math.round(d.value) : null,
+          amountOffCents: d.kind === "amount" ? Math.round(d.value * 100) : null,
+          duration: d.duration,
+          durationMonths: d.duration === "repeating" ? d.months ?? null : null,
+          maxRedemptions: d.maxRedemptions ? Number(d.maxRedemptions) : null,
+          expiresAt: expires,
+          plans: plans.length === Object.keys(PLAN_LABEL).length ? [] : plans,
+        },
+        req.master!.name,
+      );
+      await audit(req, actor(req), "coupon.create", { type: "coupon", id: c.id, label: c.code, meta: { text: couponText(c), stripe: !!c.stripeCouponId } }, true);
+      ok(res, `Cupom ${c.code} criado${c.stripeCouponId ? " e espelhado no Stripe" : " (Stripe desligado: só vale aplicado pelo Master)"}.`);
+    } catch (error) {
+      if (error instanceof BillingError) return fail(res, 400, error.message);
+      console.error("[master] coupon create failed", error);
+      return fail(res, 502, "O Stripe recusou o cupom. Nada foi criado.");
+    }
+  }),
+);
+
+masterRouter.post(
+  "/cupons/:code/arquivar",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    const code = String(req.params.code);
+    try {
+      await archiveCoupon(code);
+      if ((await getRetentionCode()) === code) await setRetentionCode(null);
+      await audit(req, actor(req), "coupon.archive", { type: "coupon", label: code });
+      ok(res, `Cupom ${code} arquivado. Quem já tem o desconto continua com ele.`);
+    } catch (error) {
+      if (error instanceof BillingError) return fail(res, 400, error.message);
+      return fail(res, 502, "O Stripe não respondeu. Tente de novo.");
+    }
+  }),
+);
+
+masterRouter.post(
+  "/cupons/retencao",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    const code = String(req.body?.code || "").trim();
+    if (code) {
+      const c = await prisma.coupon.findUnique({ where: { code } });
+      if (!c || couponState(c) !== "active") return fail(res, 400, "Escolha um cupom ativo.");
+      if (!c.stripeCouponId) return fail(res, 400, "A oferta só funciona com cupom espelhado no Stripe.");
+    }
+    await setRetentionCode(code || null);
+    await audit(req, actor(req), "coupon.retention", { type: "setting", label: "Oferta para quem vai cancelar", meta: { code: code || null } });
+    ok(res, code ? `Quem for cancelar vê a oferta ${code} antes de confirmar.` : "Oferta desligada: o cancelamento vai direto para a confirmação.");
+  }),
+);
+
+/** Cancellations of the last N months by reason (company, Master, Stripe, ladder). */
+async function cancelReasons(months: number) {
+  const since = new Date(Date.now() - months * 30.5 * 86400e3);
+  const rows = await prisma.cancellationEvent.findMany({ where: { requestedAt: { gte: since } }, orderBy: { requestedAt: "desc" } });
+  const real = rows.filter((r) => !r.offerAccepted && !r.undoneAt);
+  const by = new Map<string, { count: number; mrr: number }>();
+  for (const r of real) {
+    const b = by.get(r.reasonKey) ?? { count: 0, mrr: 0 };
+    b.count++;
+    b.mrr += r.mrrCents;
+    by.set(r.reasonKey, b);
+  }
+  const max = Math.max(1, ...[...by.values()].map((b) => b.count));
+  const offered = rows.filter((r) => r.offerShown);
+  return {
+    total: real.length,
+    mrrLost: money(real.reduce((a, r) => a + r.mrrCents, 0)),
+    reasons: [...by.entries()].sort((a, b) => b[1].count - a[1].count).map(([k, b]) => ({ label: REASON_LABEL[k] ?? k, count: b.count, mrr: money(b.mrr), pct: Math.round((b.count / Math.max(1, real.length)) * 100), bar: Math.round((b.count / max) * 100) })),
+    saved: offered.filter((r) => r.offerAccepted).length,
+    offered: offered.length,
+    undone: rows.filter((r) => r.undoneAt && !r.offerAccepted).length,
+    recent: real.slice(0, 8).map((r) => ({ org: r.orgName, orgId: r.organizationId, reason: REASON_LABEL[r.reasonKey] ?? r.reasonKey, comment: r.comment, when: shortDate(r.requestedAt), source: r.source === "company" ? "pela empresa" : r.source === "master" ? "pelo Master" : r.source === "stripe" ? "no Stripe" : "régua" })),
+  };
+}
 
 // Unknown paths inside /master
 masterRouter.use((req, res) => {

@@ -41,6 +41,13 @@ const orgSelect = {
   cancelAtPeriodEnd: true,
   readOnlySince: true,
   dunningPausedUntil: true,
+  couponCode: true,
+  cardBrand: true,
+  cardLast4: true,
+  cardExpMonth: true,
+  cardExpYear: true,
+  cancelReasonKey: true,
+  cancelRequestedAt: true,
   createdAt: true,
   _count: { select: { users: true } },
 } as const;

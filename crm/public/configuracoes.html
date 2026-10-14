@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-push.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="configuracoes.css?v=20261014-rec1" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261016-cb1" />
   <link rel="stylesheet" href="configuracoes-v2.css?v=20261009-cfg1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -890,8 +890,14 @@
                 </div>
                 <div class="cfg-usage" id="billUsage" hidden></div>
                 <p class="cfg-hint" id="billNotIncluded" hidden></p>
+                <p class="cfg-bill-meta" id="billMeta" hidden></p>
+                <div class="cfg-bill-sched" id="billScheduled" hidden>
+                  <span id="billScheduledText"></span>
+                  <button type="button" class="btn btn-primary cfg-btn-sm" id="btnBillKeep">Manter assinatura</button>
+                </div>
                 <div class="cfg-row">
-                  <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnBillPortal" hidden>Cartão, recibos e cancelamento</button>
+                  <button type="button" class="btn btn-secondary cfg-btn-sm" id="btnBillPortal" hidden>Cartão e recibos</button>
+                  <button type="button" class="cfg-link-btn" id="btnBillCancel" hidden>Cancelar assinatura</button>
                 </div>
                 <p class="cfg-hint" id="billNoAdmin" hidden>Só administradores da empresa mudam o plano ou o cartão.</p>
               </article>
@@ -1023,6 +1029,46 @@
     </div>
   </div>
 
+
+  <div class="cfg-modal" id="cfgCancelModal" role="dialog" aria-modal="true" aria-labelledby="cfgCancelTitle" hidden>
+    <div class="cfg-modal__scrim" data-close="cfgCancelModal"></div>
+    <div class="cfg-modal__box cfg-modal__box--wide cfg-cancel">
+      <div class="cfg-cancel__steps" aria-hidden="true"><i data-step-dot="1"></i><i data-step-dot="2"></i><i data-step-dot="3"></i></div>
+      <section data-cancel-step="1">
+        <h3 id="cfgCancelTitle">Por que você quer cancelar?</h3>
+        <p>Sua resposta vai direto para a equipe do ObraMate e ajuda a melhorar o sistema.</p>
+        <div class="cfg-cancel__reasons" id="cfgCancelReasons"></div>
+        <div class="cfg-field"><label for="cfgCancelComment">Quer contar mais? <span class="cfg-muted">(opcional)</span></label><textarea id="cfgCancelComment" data-crm-rich="off" rows="3" maxlength="1000" placeholder="O que faltou, o que poderia ser melhor…"></textarea></div>
+        <div class="cfg-row cfg-row--end">
+          <button type="button" class="btn btn-secondary" data-close="cfgCancelModal">Voltar</button>
+          <button type="button" class="btn btn-primary" id="cfgCancelNext1" disabled>Continuar</button>
+        </div>
+      </section>
+      <section data-cancel-step="2" hidden>
+        <p class="cfg-cancel__eyebrow">Antes de ir</p>
+        <h3>Fique com <span id="cfgCancelOfferText"></span></h3>
+        <p>O desconto entra na próxima cobrança, sem precisar fazer nada. Você pode cancelar depois, quando quiser.</p>
+        <div class="cfg-row cfg-row--stack">
+          <button type="button" class="btn btn-primary" id="cfgCancelAccept">Quero o desconto e continuar</button>
+          <button type="button" class="btn btn-secondary" id="cfgCancelNext2">Não, quero cancelar</button>
+        </div>
+      </section>
+      <section data-cancel-step="3" hidden>
+        <h3>Confirmar o cancelamento</h3>
+        <ul class="cfg-cancel__facts">
+          <li id="cfgCancelUntil"></li>
+          <li>Não haverá novas cobranças.</li>
+          <li>Seus dados ficam guardados por 90 dias, caso você volte. Até lá dá para pedir uma cópia de tudo.</li>
+          <li>Mudou de ideia? É só clicar em “Manter assinatura” aqui antes dessa data.</li>
+        </ul>
+        <p class="cfg-err" id="cfgCancelError" hidden></p>
+        <div class="cfg-row cfg-row--end">
+          <button type="button" class="btn btn-secondary" data-close="cfgCancelModal">Manter assinatura</button>
+          <button type="button" class="btn btn-danger" id="cfgCancelConfirm">Cancelar assinatura</button>
+        </div>
+      </section>
+    </div>
+  </div>
   <script src="crm-shell.js?v=20261014-perfil1"></script>
   <script src="crm-shared-nav.js?v=20261014-perfil1"></script>
   <script src="crm-toast.js"></script>
@@ -1030,6 +1076,6 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="configuracoes.js?v=20261014-rec1"></script>
+  <script src="configuracoes.js?v=20261016-cb1"></script>
 </body>
 </html>

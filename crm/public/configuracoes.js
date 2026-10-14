@@ -3096,6 +3096,16 @@
     $("btnBillCheckout").textContent =
       d.status === "trial" ? "Assinar agora (cobra só no fim do teste)" : d.status === "read_only" ? "Assinar e liberar a conta" : "Assinar";
     $("btnBillPortal").hidden = !d.can_manage_billing || !d.has_customer;
+    const meta = [];
+    if (d.card) meta.push(esc(d.card));
+    if (d.coupon) meta.push("Cupom " + esc(d.coupon.code) + " · " + esc(d.coupon.text));
+    $("billMeta").hidden = !meta.length;
+    $("billMeta").innerHTML = meta.map((m) => "<span>" + m + "</span>").join("");
+    const cancellable = d.can_manage_billing && ["trial", "active", "past_due", "read_only"].includes(d.status) && !d.cancel_at_period_end && (d.has_subscription || d.status !== "trial" || d.trial_ends_at);
+    $("btnBillCancel").hidden = !cancellable;
+    $("billScheduled").hidden = !d.cancel_at_period_end;
+    $("btnBillKeep").hidden = !d.can_manage_billing;
+    if (d.cancel_at_period_end) $("billScheduledText").textContent = "Cancelamento agendado. Você usa normalmente até " + fmtDay(d.current_period_end || d.trial_ends_at) + ".";
     $("billNoAdmin").hidden = d.can_manage_billing;
     $("billStripeOff").hidden = d.stripe_enabled || !d.can_manage_billing;
     $("btnBillCheckout").disabled = !d.stripe_enabled;
@@ -3137,6 +3147,21 @@
           btn.textContent = label;
         }
       });
+      $("btnBillCancel").addEventListener("click", openCancel);
+      $("btnBillKeep").addEventListener("click", async () => {
+        const btn = $("btnBillKeep");
+        btn.disabled = true;
+        try {
+          await billingPost("/api/billing/cancel/undo");
+          notify("Assinatura mantida. Que bom que você fica!", "success");
+          await loadBilling();
+        } catch (err) {
+          notify(err.message, "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      bindCancel();
       $("btnBillPortal").addEventListener("click", async () => {
         try {
           const j = await billingPost("/api/billing/portal");
@@ -3153,6 +3178,88 @@
     } catch (err) {
       notify("Não foi possível carregar o plano.", "error");
     }
+  }
+
+  // Cancel subscription: reason → retention offer (when there is one) → confirm.
+  const cancelState = { opts: null, reason: null };
+  function cancelStep(n) {
+    document.querySelectorAll("[data-cancel-step]").forEach((sec) => (sec.hidden = sec.getAttribute("data-cancel-step") !== String(n)));
+    document.querySelectorAll("[data-step-dot]").forEach((dot) => dot.classList.toggle("is-on", Number(dot.getAttribute("data-step-dot")) <= n));
+  }
+  async function openCancel() {
+    try {
+      const j = await api("/api/billing/cancel");
+      cancelState.opts = j.data;
+    } catch (err) {
+      notify("Não foi possível abrir o cancelamento.", "error");
+      return;
+    }
+    const o = cancelState.opts;
+    if (!o.can_cancel) {
+      notify(o.scheduled ? "O cancelamento já está agendado." : "Não há assinatura para cancelar.", "error");
+      return;
+    }
+    cancelState.reason = null;
+    $("cfgCancelComment").value = "";
+    $("cfgCancelError").hidden = true;
+    $("cfgCancelReasons").innerHTML = o.reasons
+      .map((r) => `<label><input type="radio" name="cancelReason" value="${esc(r.key)}" /> ${esc(r.label)}</label>`)
+      .join("");
+    $("cfgCancelReasons").querySelectorAll("input").forEach((i) =>
+      i.addEventListener("change", () => {
+        cancelState.reason = i.value;
+        $("cfgCancelNext1").disabled = false;
+      }),
+    );
+    $("cfgCancelNext1").disabled = true;
+    $("cfgCancelUntil").textContent = o.access_until ? "Você continua usando tudo até " + fmtDay(o.access_until) + "." : "A conta é cancelada agora (não há período pago em aberto).";
+    document.querySelectorAll("[data-step-dot]").forEach((dot) => (dot.hidden = !o.offer && dot.getAttribute("data-step-dot") === "2"));
+    cancelStep(1);
+    openCfgModal("cfgCancelModal");
+  }
+  let cancelBound = false;
+  function bindCancel() {
+    if (cancelBound) return;
+    cancelBound = true;
+    $("cfgCancelNext1").addEventListener("click", () => {
+      const o = cancelState.opts;
+      if (o.offer) {
+        $("cfgCancelOfferText").textContent = o.offer.text_pt;
+        cancelStep(2);
+      } else cancelStep(3);
+    });
+    $("cfgCancelNext2").addEventListener("click", () => cancelStep(3));
+    $("cfgCancelAccept").addEventListener("click", async () => {
+      const btn = $("cfgCancelAccept");
+      btn.disabled = true;
+      try {
+        await billingPost("/api/billing/retention/accept", { reason: cancelState.reason });
+        closeCfgModal("cfgCancelModal");
+        notify("Desconto aplicado: " + cancelState.opts.offer.text_pt + ". Obrigado por ficar!", "success");
+        await loadBilling();
+      } catch (err) {
+        notify(err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $("cfgCancelConfirm").addEventListener("click", async () => {
+      const btn = $("cfgCancelConfirm");
+      btn.disabled = true;
+      btn.textContent = "Cancelando…";
+      try {
+        await billingPost("/api/billing/cancel", { reason: cancelState.reason, comment: $("cfgCancelComment").value, offer_shown: !!cancelState.opts.offer });
+        closeCfgModal("cfgCancelModal");
+        notify("Assinatura cancelada. Enviamos a confirmação por e-mail.", "success");
+        await loadBilling();
+      } catch (err) {
+        $("cfgCancelError").textContent = err.message;
+        $("cfgCancelError").hidden = false;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Cancelar assinatura";
+      }
+    });
   }
 
   // ---------------------------------------------------------------- app / support
@@ -3544,7 +3651,7 @@
 
     document.addEventListener("click", (e) => {
       const closeId = e.target.closest?.("[data-close]")?.getAttribute("data-close");
-      if (closeId === "cfgRoleModal" || closeId === "cfgCatalogModal") {
+      if (closeId === "cfgRoleModal" || closeId === "cfgCatalogModal" || closeId === "cfgCancelModal") {
         closeCfgModal(closeId);
         return;
       }
@@ -3637,6 +3744,7 @@
         if (!$("cfgLeaveModal").hidden) closeLeaveModal();
         else if ($("cfgRoleModal") && !$("cfgRoleModal").hidden) closeCfgModal("cfgRoleModal");
         else if ($("cfgCatalogModal") && !$("cfgCatalogModal").hidden) closeCfgModal("cfgCatalogModal");
+        else if ($("cfgCancelModal") && !$("cfgCancelModal").hidden) closeCfgModal("cfgCancelModal");
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s" && dirtySection()) {
         e.preventDefault();

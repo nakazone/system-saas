@@ -12,8 +12,69 @@
   <% kpis.forEach(function (k) { %><div class="kpi <%= k.danger ? 'danger' : '' %>"><span class="kpi-label"><%= k.label %></span><span class="kpi-value"><%= k.value %></span><span class="kpi-note"><%= k.note %></span></div><% }) %>
 </div>
 <div class="chips" style="flex:none">
-  <% tabs.forEach(function (t) { %><a class="chip" href="?aba=<%= t.key %>" aria-current="<%= t.key === tab %>"><%= t.label %><span class="n"><%= t.count %></span></a><% }) %>
+  <% tabs.forEach(function (t) { %><a class="chip" href="?aba=<%= t.key %>" aria-current="<%= t.key === tab %>"><%= t.label %><% if (t.count != null) { %><span class="n"><%= t.count %></span><% } %></a><% }) %>
 </div>
+<% if (tab === 'disputas') { %>
+  <p class="muted dp-note">Disputa (chargeback) é quando a empresa contesta a cobrança no banco. O Stripe tira o valor na hora e você tem um prazo para mandar provas (contrato, uso do sistema, e-mails). A resposta é feita no Stripe; aqui você acompanha o prazo e o resultado.</p>
+  <section class="table">
+    <div class="tr head cols-disp"><span>EMPRESA</span><span>VALOR</span><span>MOTIVO</span><span>PRAZO</span><span>SITUAÇÃO</span><span></span></div>
+    <% disputes.forEach(function (d) { %>
+      <div class="tr cols-disp">
+        <span class="op-name"><% if (d.org) { %><a class="strong" href="/master/clientes/<%= d.org.id %>" data-ficha="<%= d.org.id %>"><%= d.org.name %></a><% } else { %><b>Sem empresa</b><% } %><small class="muted">aberta <%= d.when %></small></span>
+        <span class="num strong"><%= d.amountText %></span>
+        <span class="hide-m"><%= d.reason %></span>
+        <span><%= d.due %><small class="<%= d.urgent ? 'op-err' : 'muted' %>" style="display:block;font-weight:700"><%= d.dueText %></small></span>
+        <span><span class="pill pill-sm tone-<%= d.pill.tone %>"><%= d.pill.label %></span></span>
+        <span class="right"><a class="btn btn-soft btn-sm" href="<%= d.stripeUrl %>" target="_blank" rel="noopener"><%= d.open ? 'Responder no Stripe' : 'Ver no Stripe' %></a></span>
+      </div>
+    <% }) %>
+    <% if (!disputes.length) { %><div class="empty" style="text-align:center;padding:28px">Nenhuma disputa. 🎉 Quando acontecer, você recebe um e-mail na hora.</div><% } %>
+  </section>
+<% } else if (tab === 'previsao') { %>
+  <p class="muted dp-note">Quanto deve entrar pelas renovações e pelo fim dos testes com cartão cadastrado. Preço de tabela de cada empresa (antes de cupons). Empresas com cancelamento agendado ficam de fora.</p>
+  <div class="fc-grid">
+    <% previsao.buckets.forEach(function (b) { %>
+      <section class="card card-pad fc-card">
+        <span class="kpi-label">Próximos <%= b.days %> dias</span>
+        <span class="kpi-value num"><%= b.totalText %></span>
+        <div class="fc-bar" aria-hidden="true"><i class="ok" style="width:<%= b.okPct %>%"></i><i class="exp" style="width:<%= b.expPct %>%"></i></div>
+        <dl class="fc-legend">
+          <div><dt><i class="ok"></i>Cartão em dia</dt><dd class="num"><%= b.okText %></dd></div>
+          <div><dt><i class="exp"></i>Cartão vence antes</dt><dd class="num"><%= b.expiringText %></dd></div>
+          <div><dt><i></i>Sem cartão (manual)</dt><dd class="num"><%= b.noneText %></dd></div>
+        </dl>
+        <small class="muted"><%= b.count %> cobrança(s)</small>
+      </section>
+    <% }) %>
+  </div>
+  <div class="section-title"><h2>Cartões vencendo</h2><small class="muted">Vencem antes da próxima cobrança · a empresa recebe e-mail 15 dias antes, com o link para trocar</small></div>
+  <section class="table">
+    <div class="tr head cols-fc-card"><span>EMPRESA</span><span>CARTÃO</span><span>VENCE</span><span>PRÓXIMA COBRANÇA</span></div>
+    <% previsao.cards.forEach(function (c) { %>
+      <div class="tr cols-fc-card">
+        <a class="strong" href="/master/clientes/<%= c.id %>" data-ficha="<%= c.id %>"><%= c.name %></a>
+        <span><%= c.card %></span>
+        <span class="<%= c.days <= 15 ? 'op-err strong' : '' %>"><%= c.expText %><%= c.days < 0 ? ' · já venceu' : '' %></span>
+        <span class="hide-m"><%= c.nextText %> · <%= c.amountText %></span>
+      </div>
+    <% }) %>
+    <% if (!previsao.cards.length) { %><div class="empty" style="text-align:center;padding:20px">Nenhum cartão vencendo antes da próxima cobrança.</div><% } %>
+  </section>
+  <div class="section-title"><h2>Próximos 30 dias</h2></div>
+  <section class="table">
+    <div class="tr head cols-fc-next"><span>DATA</span><span>EMPRESA</span><span>TIPO</span><span>CARTÃO</span><span class="right">VALOR</span></div>
+    <% previsao.next.forEach(function (r) { %>
+      <div class="tr cols-fc-next">
+        <span class="muted strong"><%= r.dateText %></span>
+        <a class="strong" href="/master/clientes/<%= r.id %>" data-ficha="<%= r.id %>"><%= r.name %></a>
+        <span class="hide-m"><%= r.kindText %><%= r.couponCode ? ' · cupom ' + r.couponCode : '' %></span>
+        <span class="hide-m"><span class="pill pill-sm tone-<%= r.card === 'ok' ? 'ink' : r.card === 'expiring' ? 'warn' : 'muted' %>"><%= r.card === 'ok' ? 'em dia' : r.card === 'expiring' ? 'vence antes' : 'manual' %></span></span>
+        <span class="right num strong"><%= r.amountText %></span>
+      </div>
+    <% }) %>
+    <% if (!previsao.next.length) { %><div class="empty" style="text-align:center;padding:20px">Nenhuma cobrança prevista nos próximos 30 dias.</div><% } %>
+  </section>
+<% } else { %>
 <section class="table">
   <div class="tr head cols-pagamentos"><span>DATA</span><span>EMPRESA</span><span>PERÍODO</span><span>MÉTODO</span><span class="right">VALOR</span><span>STATUS</span><span></span></div>
   <% rows.forEach(function (p) { %>
@@ -37,4 +98,5 @@
   <% }) %>
   <% if (!rows.length) { %><div class="empty" style="text-align:center;padding:28px">Nenhum pagamento ainda. Registre pela ficha da empresa (Clientes → empresa → Registrar pagamento).</div><% } %>
 </section>
+<% } %>
 <%- include('_bottom') %>

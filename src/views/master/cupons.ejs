@@ -1,0 +1,80 @@
+<%- include('_top', { pageTitle: 'Cupons' }) %>
+<div class="page-head">
+  <div><h1>Cupons</h1><div class="page-sub">Descontos que a empresa digita no pagamento ou que você aplica na ficha. Criados aqui e espelhados no Stripe.</div></div>
+  <% if (canEdit) { %><button class="btn btn-dark" type="button" data-open="dlg-cupom-novo"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Novo cupom</button><% } %>
+</div>
+<% if (!stripeOn) { %><div class="note-box note-warn dp-msg">Stripe desligado: cupons criados agora não entram no pagamento online; só servem anotados na ficha. Crie de novo depois de ligar o Stripe.</div><% } %>
+
+<section class="card card-pad cp-retention">
+  <div>
+    <h3 class="op-h3">Oferta para quem vai cancelar</h3>
+    <p class="muted op-p">Quando uma empresa clica em “Cancelar assinatura” no ObraMate, ela vê esta oferta antes de confirmar. Aceitou, o desconto entra na assinatura e nada é cancelado.<% if (retentionStats.shown) { %> Nos últimos 90 dias: mostrada <%= retentionStats.shown %>x, aceita <%= retentionStats.accepted %>x.<% } %></p>
+  </div>
+  <form data-action action="/master/cupons/retencao" class="cp-retention-form">
+    <select class="input" name="code" aria-label="Cupom da oferta" <%= canEdit ? '' : 'disabled' %>>
+      <option value="">Sem oferta</option>
+      <% coupons.filter(function (c) { return c.state === 'active' && c.stripe; }).forEach(function (c) { %><option value="<%= c.code %>" <%= c.retention ? 'selected' : '' %>><%= c.code %> · <%= c.text %></option><% }) %>
+    </select>
+    <% if (canEdit) { %><button class="btn btn-soft" type="submit">Salvar</button><% } %>
+  </form>
+</section>
+
+<section class="table">
+  <div class="tr head cols-cupons"><span>CUPOM</span><span>DESCONTO</span><span>USOS</span><span>VALE ATÉ</span><span>SITUAÇÃO</span><span></span></div>
+  <% coupons.forEach(function (c) { %>
+    <div class="tr cols-cupons <%= c.state === 'active' ? '' : 'is-resolved' %>">
+      <span class="op-name"><b class="cp-code"><%= c.code %></b><small class="muted"><%= c.name %> · <%= c.plans %><%= c.stripe ? '' : ' · fora do Stripe' %></small></span>
+      <span class="strong"><%= c.text %></span>
+      <span class="num"><%= c.uses %><small class="muted" style="display:block"><%= c.inUse %> empresa(s) com ele</small></span>
+      <span class="hide-m"><%= c.expires %></span>
+      <span><span class="pill pill-sm tone-<%= c.pill.tone %>"><%= c.pill.label %></span><% if (c.retention) { %> <span class="pill pill-sm tone-warn">oferta</span><% } %></span>
+      <span class="right"><% if (canEdit && c.state !== 'archived') { %><form data-action action="/master/cupons/<%= c.code %>/arquivar" data-confirm="Arquivar <%= c.code %>? Ninguém mais consegue usar; quem já tem continua com o desconto."><button class="btn btn-soft btn-sm" type="submit">Arquivar</button></form><% } %></span>
+    </div>
+  <% }) %>
+  <% if (!coupons.length) { %><div class="empty" style="text-align:center;padding:28px">Nenhum cupom ainda. Exemplos: FUNDADOR (30% para sempre), VOLTA30 (30% por 3 meses), PRIMEIROMES ($50 na primeira cobrança).</div><% } %>
+</section>
+
+<% if (canEdit) { %>
+<dialog id="dlg-cupom-novo" aria-labelledby="t-cn">
+  <div class="modal modal-wide">
+    <div class="modal-head"><div><h2 id="t-cn">Novo cupom</h2><p>O desconto não muda depois de criado (regra do Stripe). Para mudar, arquive e crie outro.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/cupons" data-stepup="Criar cupom de desconto" data-coupon-form>
+      <div class="form-row">
+        <label class="field">Código<input class="input cp-code-input" name="code" required maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,29}" placeholder="FUNDADOR"><small class="muted">É o que a empresa digita no pagamento</small></label>
+        <label class="field">Nome interno<input class="input" name="name" required maxlength="60" placeholder="Fundadores do beta"></label>
+      </div>
+      <fieldset class="cm-fs"><legend class="cm-legend">Desconto</legend>
+        <div class="cp-value">
+          <div class="seg-pick">
+            <label><input type="radio" name="kind" value="percent" checked><span>%</span></label>
+            <label><input type="radio" name="kind" value="amount"><span>$ fixo</span></label>
+          </div>
+          <input class="input num" name="value" type="number" min="1" step="1" required placeholder="30" aria-label="Valor do desconto">
+        </div>
+      </fieldset>
+      <fieldset class="cm-fs"><legend class="cm-legend">Por quanto tempo</legend>
+        <div class="seg-pick">
+          <label><input type="radio" name="duration" value="once" checked><span>Só na 1ª cobrança</span></label>
+          <label><input type="radio" name="duration" value="repeating"><span>Alguns meses</span></label>
+          <label><input type="radio" name="duration" value="forever"><span>Para sempre</span></label>
+        </div>
+        <label class="field" data-months hidden>Meses<input class="input num" name="months" type="number" min="1" max="36" value="3"></label>
+      </fieldset>
+      <div class="form-row">
+        <label class="field">Limite de usos (opcional)<input class="input num" name="maxRedemptions" type="number" min="1" placeholder="sem limite"></label>
+        <label class="field">Vale até (opcional)<input class="input" name="expiresAt" type="date"></label>
+      </div>
+      <fieldset class="cm-fs"><legend class="cm-legend">Planos</legend>
+        <div class="cp-plans">
+          <% planOpts.forEach(function (p) { %><label class="check"><input type="checkbox" name="plans" value="<%= p.key %>" checked> <%= p.label %></label><% }) %>
+        </div>
+      </fieldset>
+      <p class="cp-preview" data-coupon-preview></p>
+      <button class="btn btn-dark btn-block" type="submit">Criar cupom</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
+<script src="/assets/master/comms.js?v=20261016-cb1" defer></script>
+<%- include('_bottom') %>

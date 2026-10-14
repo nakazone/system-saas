@@ -71,6 +71,20 @@
   </section>
 
   <section class="card card-pad mx-card mx-wide">
+    <div class="mx-head"><div><h2>Motivos de cancelamento</h2><small class="muted">Últimos 12 meses · <%= cancels.total %> cancelamento(s) · <%= cancels.mrrLost %>/mês perdidos<%= cancels.offered ? ' · oferta mostrada ' + cancels.offered + 'x, ' + cancels.saved + ' ficaram' : '' %><%= cancels.undone ? ' · ' + cancels.undone + ' desistiram de cancelar' : '' %></small></div></div>
+    <% if (cancels.total) { %>
+      <table class="mx-reasons"><thead><tr><th>MOTIVO</th><th class="num">EMPRESAS</th><th class="num">%</th><th class="num">MRR PERDIDO</th></tr></thead><tbody>
+        <% cancels.reasons.forEach(function (r) { %><tr><td><span class="mx-reason-bar" style="width:<%= Math.max(4, r.bar * 0.6) %>px"></span><%= r.label %></td><td class="num"><%= r.count %></td><td class="num"><%= r.pct %>%</td><td class="num"><%= r.mrr %></td></tr><% }) %>
+      </tbody></table>
+      <details class="mx-table"><summary>Últimos cancelamentos</summary>
+        <table><thead><tr><th>Quando</th><th>Empresa</th><th>Motivo</th><th>Comentário</th></tr></thead><tbody>
+          <% cancels.recent.forEach(function (r) { %><tr><td><%= r.when %></td><td><%= r.org %></td><td><%= r.reason %> <small class="muted">(<%= r.source %>)</small></td><td><%= r.comment || '—' %></td></tr><% }) %>
+        </tbody></table>
+      </details>
+    <% } else { %><p class="muted" style="margin:6px 0">Nenhum cancelamento registrado ainda. Começa a contar com este deploy (cancelamentos pela empresa, pelo Master, no Stripe e pela régua).</p><% } %>
+  </section>
+
+  <section class="card card-pad mx-card mx-wide">
     <div class="mx-head"><div><h2>Usuários ativos por dia</h2><small class="muted">Pessoas das empresas que usaram o CRM em cada dia (suporte não conta)<%= trackingSince ? ' · medindo desde ' + trackingSince.split('-').reverse().slice(0, 2).join('/') : ' · começa a contar com este deploy' %></small></div></div>
     <div class="mx-chart mx-short" id="chartDaily" role="img" aria-label="Usuários ativos por dia"></div>
   </section>
