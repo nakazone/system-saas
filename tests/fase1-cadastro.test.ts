@@ -8,6 +8,7 @@ import { PrismaClient } from "@prisma/client";
 import { createApp } from "../src/app.js";
 import { createOrganizationWithAdmin } from "../src/modules/organizations/service.js";
 import { setSignupMode } from "../src/modules/organizations/signup.js";
+import { setLegalPrompt } from "../src/lib/legal/acceptance.js";
 import { email as emailProvider, type EmailMessage } from "../src/lib/email/index.js";
 import { backupRestoreCheck, recordBackupCheck } from "../scripts/backup-restore-check.js";
 
@@ -200,6 +201,12 @@ describe("Fase 1 — cadastro, termos, senha e backup", () => {
     const li = await login(adminEmail, "password12345", a.organization.id);
     expect(li.status).toBe(200);
 
+    // Off by default: nothing is asked until the Master turns it on.
+    await setLegalPrompt(false);
+    const off = await json("GET", "/api/account/status", undefined, li.cookie);
+    expect(off.json.data.legal.pending).toEqual([]);
+    await setLegalPrompt(true);
+
     const st = await json("GET", "/api/account/status", undefined, li.cookie);
     expect(st.status).toBe(200);
     expect(st.json.data.legal.first_time).toBe(true);
@@ -212,6 +219,7 @@ describe("Fase 1 — cadastro, termos, senha e backup", () => {
     const rows = await prisma.legalAcceptance.findMany({ where: { organizationId: a.organization.id } });
     expect(rows).toHaveLength(3);
     expect(rows.every((r) => r.source === "in_app" && r.userEmail === adminEmail)).toBe(true);
+    await setLegalPrompt(false);
   });
 
   it("esqueci minha senha: mesma resposta para qualquer e-mail, link de uso único e sessões encerradas", async () => {

@@ -66,3 +66,20 @@ export async function legalStatus(organizationId: string): Promise<LegalStatusRo
 export async function pendingLegal(organizationId: string): Promise<LegalKey[]> {
   return (await legalStatus(organizationId)).filter((r) => !r.upToDate).map((r) => r.document);
 }
+
+/* In-app prompt for companies that already exist (off until the Master turns it on in Cadastros). */
+const PROMPT_KEY = "platform.legal_prompt";
+
+export async function legalPromptEnabled(): Promise<boolean> {
+  const row = await prisma.systemSetting.findUnique({ where: { key: PROMPT_KEY } }).catch(() => null);
+  try {
+    return row ? (JSON.parse(row.value) as { enabled?: boolean }).enabled === true : false;
+  } catch {
+    return false;
+  }
+}
+
+export async function setLegalPrompt(enabled: boolean): Promise<void> {
+  const value = JSON.stringify({ enabled });
+  await prisma.systemSetting.upsert({ where: { key: PROMPT_KEY }, create: { key: PROMPT_KEY, value }, update: { value } });
+}

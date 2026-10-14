@@ -545,3 +545,6 @@ dialog.cmdk-dialog { margin-top: 0; }
 .backup-how code { font-size: 12.5px; background: #f1ebe1; padding: 1px 5px; border-radius: 6px; }
 .backup-hist { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; font-weight: 600; color: var(--ink-3, #6e655c); }
 .backup-hist span { background: #f3efe6; border-radius: 999px; padding: 3px 9px; }
+.cad-prompt { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: #f6f1e8; }
+.cad-prompt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; }
+.cad-prompt-text small { font-size: 12.5px; font-weight: 600; color: var(--ink-3, #6e655c); margin-top: 2px; }

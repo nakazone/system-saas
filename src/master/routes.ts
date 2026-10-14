@@ -72,7 +72,7 @@ import {
   type Pill,
 } from "./lib.js";
 import { createOrganizationWithAdmin, validateSlug } from "../modules/organizations/service.js";
-import { legalStatus } from "../lib/legal/acceptance.js";
+import { legalPromptEnabled, legalStatus, setLegalPrompt } from "../lib/legal/acceptance.js";
 import { currentLegalVersions, legalDocuments } from "../lib/legal/documents.js";
 import { signupMode, setSignupMode, resendSignup } from "../modules/organizations/signup.js";
 import { formatPersonName } from "../lib/name.js";
@@ -2332,6 +2332,7 @@ masterRouter.get(
     const confirmed = requests.filter((r) => r.verifiedAt).length;
     page(res, "cadastros", await shell(req, "cadastros"), {
       mode,
+      legalPrompt: await legalPromptEnabled(),
       canMode: can(req.master!.role, "plans_manage"),
       canInvite: can(req.master!.role, "billing_manage"),
       canResend: can(req.master!.role, "users_manage"),
@@ -2358,6 +2359,18 @@ masterRouter.get(
       appBase: env.APP_BASE_URL.replace(/\/$/, ""),
       plans: planOptions(),
     });
+  }),
+);
+
+masterRouter.post(
+  "/cadastros/termos-no-app",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    const enabled = String(req.body?.enabled || "") === "1";
+    const before = await legalPromptEnabled();
+    await setLegalPrompt(enabled);
+    await audit(req, actor(req), "legal.prompt", { type: "setting", label: "Pedir aceite dos termos no app", meta: { from: before, to: enabled } });
+    ok(res, enabled ? "Os admins das empresas vão ver o pedido de aceite ao abrir o app." : "Pedido de aceite no app desligado.");
   }),
 );
 

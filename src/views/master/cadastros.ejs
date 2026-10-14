@@ -8,7 +8,7 @@
   <div class="kpi dark"><span class="kpi-label">Iniciados · 30 dias</span><span class="kpi-value num"><%= stats.started %></span><span class="kpi-note">preencheram o formulário</span></div>
   <div class="kpi"><span class="kpi-label">Confirmados</span><span class="kpi-value num"><%= stats.confirmed %></span><span class="kpi-note"><%= stats.rate == null ? '—' : stats.rate + '% confirmam o e-mail' %></span></div>
   <div class="kpi <%= stats.pending ? 'warn' : '' %>"><span class="kpi-label">Aguardando e-mail</span><span class="kpi-value num"><%= stats.pending %></span><span class="kpi-note">link vale 48 horas</span></div>
-  <div class="kpi <%= legalMissing ? 'warn' : '' %>"><span class="kpi-label">Sem aceite dos termos atuais</span><span class="kpi-value num"><%= legalMissing %><small class="muted" style="font-size:15px"> / <%= legalTotal %></small></span><span class="kpi-note">o admin vê o pedido no app</span></div>
+  <div class="kpi <%= legalMissing ? 'warn' : '' %>"><span class="kpi-label">Sem aceite dos termos atuais</span><span class="kpi-value num"><%= legalMissing %><small class="muted" style="font-size:15px"> / <%= legalTotal %></small></span><span class="kpi-note"><%= legalPrompt ? 'o admin vê o pedido no app' : 'pedido no app desligado' %></span></div>
 </div>
 
 <div class="cad-grid">
@@ -32,7 +32,12 @@
 
   <section class="card card-pad">
     <div class="card-head"><h2>Documentos legais</h2></div>
-    <p class="muted cad-sub">Aceitos no cadastro. Ao mudar a versão no código, os admins aceitam de novo ao abrir o app.</p>
+    <p class="muted cad-sub">Empresas novas aceitam no cadastro. As que já existem só veem o pedido no app quando você ligar abaixo; depois, mudar a versão no código pede o aceite de novo.</p>
+    <form data-action action="/master/cadastros/termos-no-app" class="cad-prompt" <%= canMode ? '' : 'inert' %>>
+      <input type="hidden" name="enabled" value="<%= legalPrompt ? '0' : '1' %>">
+      <span class="cad-prompt-text"><b>Pedir aceite no app</b><small><%= legalPrompt ? 'Ligado: admins sem aceite veem o pedido ao abrir o app.' : 'Desligado. Revise os textos e defina LEGAL_ENTITY_NAME antes de ligar.' %></small></span>
+      <button class="btn btn-sm <%= legalPrompt ? 'btn-soft' : 'btn-primary' %>" type="submit"><%= legalPrompt ? 'Desligar' : 'Ligar' %></button>
+    </form>
     <div class="cad-docs">
       <% legal.forEach(function (d) { %>
         <a class="cad-doc" href="<%= appBase + d.path %>" target="_blank" rel="noopener"><b><%= d.title %></b><small>Versão <%= d.version %> · abrir ↗</small></a>

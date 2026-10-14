@@ -1,7 +1,7 @@
 import { Router, type NextFunction, type Response } from "express";
 import { z } from "zod";
 import { env } from "../../config/env.js";
-import { pendingLegal, recordLegalAcceptance } from "../legal/acceptance.js";
+import { legalPromptEnabled, pendingLegal, recordLegalAcceptance } from "../legal/acceptance.js";
 import { legalDocuments } from "../legal/documents.js";
 import { requestIp } from "../security/db-rate-limit.js";
 import { prisma } from "../prisma.js";
@@ -155,6 +155,7 @@ accountBillingRouter.get("/api/account/status", async (req: AuthedRequest, res, 
 
 /** Terms / Privacy / DPA the company admin still has to accept (links are absolute: tenant hosts have no /terms). */
 async function legalForApp(organizationId: string) {
+  if (!(await legalPromptEnabled())) return { pending: [] };
   const pending = await pendingLegal(organizationId);
   if (!pending.length) return { pending: [] };
   const base = env.APP_BASE_URL.replace(/\/$/, "");
