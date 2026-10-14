@@ -14,13 +14,11 @@ import { recordActivity } from "../../lib/activity/record.js";
 import { notifyNewLeadPush } from "../../lib/push/notify.js";
 import { formatUsPhone } from "../../lib/phone.js";
 import { formatPersonName } from "../../lib/name.js";
-import { takeRate } from "../../lib/security/db-rate-limit.js";
+import { HOUR, takeRate } from "../../lib/security/db-rate-limit.js";
 import { parseReferralSettings } from "../../lib/referrals/settings.js";
 import { param } from "../../lib/http/params.js";
 
 export const publicReferralRouter = Router();
-
-const HOUR = 60 * 60 * 1000;
 
 async function resolveReferral(slug: string, code: string) {
   const org = await prisma.organization.findFirst({
