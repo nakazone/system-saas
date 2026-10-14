@@ -548,3 +548,12 @@ dialog.cmdk-dialog { margin-top: 0; }
 .cad-prompt { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: #f6f1e8; }
 .cad-prompt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; }
 .cad-prompt-text small { font-size: 12.5px; font-weight: 600; color: var(--ink-3, #6e655c); margin-top: 2px; }
+
+/* Entrar como suporte */
+.btn-support { background: #fff; color: #a4401b; box-shadow: inset 0 0 0 1.5px #efc2b3; gap: 6px; }
+.btn-support:hover { background: #fff6f2; }
+.sup-line { align-items: flex-start; }
+.sup-dot { width: 9px; height: 9px; border-radius: 50%; background: #cfc6b8; margin-top: 6px; flex-shrink: 0; }
+.sup-dot.live { background: #a4401b; box-shadow: 0 0 0 4px rgba(164, 64, 27, .15); }
+.sup-meta { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--ink-3, #6e655c); }
+.sup-rules { margin: 4px 0 14px; padding: 10px 12px 10px 28px; border-radius: 12px; background: #f6f1e8; font-size: 12.5px; font-weight: 600; line-height: 1.5; color: var(--ink-2, #3d3630); }

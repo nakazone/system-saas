@@ -23,6 +23,9 @@
         <button class="btn" type="button" data-open="dlg-plano">Mudar plano</button>
       <% } %>
     <% } %>
+    <% if (canSupport && o.status !== 'suspended' && o.status !== 'canceled') { %>
+      <button class="btn btn-support" type="button" data-open="dlg-suporte"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Entrar como suporte</button>
+    <% } %>
     <% if (canSuspend) { %>
       <% if (o.status === 'suspended' || o.status === 'canceled') { %>
         <form data-action action="/master/clientes/<%= id %>/reativar" data-stepup="Reativar <%= o.name %>" style="flex:1;display:flex"><button class="btn" type="submit" style="width:100%">Reativar</button></form>
@@ -114,6 +117,19 @@
     <% if (!users.length) { %><p class="muted" style="margin:6px 0">Nenhum usuário.</p><% } %>
   </section>
 
+  <% if (canSupport && supportSessions.length) { %>
+  <section class="d-sec">
+    <h3>Sessões de suporte</h3>
+    <% supportSessions.forEach(function (ss) { %>
+      <div class="d-line sup-line">
+        <span class="sup-dot <%= ss.live ? 'live' : '' %>" aria-hidden="true"></span>
+        <span style="flex:1;min-width:0"><b><%= ss.admin %></b> <span class="muted" style="font-weight:600">como <%= ss.user %> · <%= ss.when %></span><small class="sup-meta"><%= ss.reason %> · <%= ss.status %></small></span>
+        <% if (ss.live || ss.waiting) { %><form data-action action="/master/suporte-sessoes/<%= ss.id %>/encerrar"><button class="btn btn-soft btn-sm" type="submit">Encerrar</button></form><% } %>
+      </div>
+    <% }) %>
+  </section>
+  <% } %>
+
   <% if (showMoney) { %>
   <section class="d-sec">
     <h3>Pagamentos <a class="btn btn-soft btn-sm" href="/master/pagamentos">Todos</a></h3>
@@ -169,6 +185,8 @@
 </div>
 
 <% if (canBilling) { %>
+
+<% if (canSupport) { %><%- include('_suporte-dlg', { sOrgId: id, sOrgName: o.name, sUsers: supportUsers, sUser: null, sTicketId: '', sReason: '' }) %><% } %>
 <dialog id="dlg-assinatura" aria-labelledby="t-as">
   <div class="modal">
     <div class="modal-head"><div><h2 id="t-as">Editar assinatura</h2><p>Controle total: status, plano, ciclo, preço e datas.</p></div>

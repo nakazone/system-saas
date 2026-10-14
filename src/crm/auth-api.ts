@@ -13,7 +13,7 @@ import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 export const crmAuthRouter = Router();
 crmAuthRouter.use(passwordResetRouter);
 
-function buildPermissionKeys(user: {
+export function buildPermissionKeys(user: {
   role: {
     key: string;
     permissions: { permission: { key: string } }[];

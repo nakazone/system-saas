@@ -419,6 +419,7 @@ model Organization {
   supportTickets     SupportTicket[]
   platformPayments   PlatformPayment[]
   legalAcceptances   LegalAcceptance[]
+  supportSessions    SupportSession[]
   platformNotes      PlatformNote[]
   platformContactLogs PlatformContactLog[]
   pushSubscriptions  PushSubscription[]
@@ -1885,6 +1886,36 @@ model CommunicationLog {
 // ---------------------------------------------------------------------------
 // Support (tenant → platform)
 // ---------------------------------------------------------------------------
+
+/// "Entrar como suporte": a platform admin opens a company's CRM as one of its users.
+/// Read-only in this version; payroll and employee data stay hidden.
+model SupportSession {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  adminId        String       @db.Uuid
+  adminName      String
+  userId         String       @db.Uuid
+  userName       String
+  reason         String
+  mode           String       @default("read") // read (edit is a later phase)
+  ticketId       String?      @db.Uuid
+  tokenHash      String       @unique
+  tokenExpiresAt DateTime
+  startedAt      DateTime?
+  expiresAt      DateTime
+  endedAt        DateTime?
+  endedBy        String? // user | master | expired
+  ip             String?
+  userAgent      String?
+  views          Int          @default(0)
+  blocked        Int          @default(0)
+  lastPath       String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([adminId, createdAt])
+}
 
 model SupportTicket {
   id               String   @id @default(uuid()) @db.Uuid

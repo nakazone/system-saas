@@ -4,6 +4,7 @@ import { env } from "../../config/env.js";
 import { legalPromptEnabled, pendingLegal, recordLegalAcceptance } from "../legal/acceptance.js";
 import { legalDocuments } from "../legal/documents.js";
 import { requestIp } from "../security/db-rate-limit.js";
+import { supportBanner } from "../support/session.js";
 import { prisma } from "../prisma.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { daysUntil, money, planLabel, cyclePriceCents, shortDate } from "../../master/lib.js";
@@ -144,8 +145,9 @@ accountBillingRouter.get("/api/account/status", async (req: AuthedRequest, res, 
         status: org.status,
         mode: accountMode(org.status),
         banner: accountBanner(org),
-        can_manage_billing: canManageBilling(req),
-        legal: canManageBilling(req) ? await legalForApp(org.id) : null,
+        can_manage_billing: canManageBilling(req) && !req.session?.support,
+        legal: canManageBilling(req) && !req.session?.support ? await legalForApp(org.id) : null,
+        support: supportBanner(req),
       },
     });
   } catch (error) {

@@ -132,6 +132,8 @@
     btns.forEach(function (b) { b.disabled = true; });
     var url = form.getAttribute("action");
     var label = form.getAttribute("data-stepup") || "";
+    // Opened now (inside the click) so popup blockers allow it; pointed at the link when the server answers.
+    var tab = form.hasAttribute("data-new-tab") ? window.open("about:blank", "_blank") : null;
     function run() {
       return post(url, body).then(function (r) {
         if (r.status === 428) {
@@ -142,7 +144,12 @@
     }
     run().then(function (r) {
       btns.forEach(function (b) { b.disabled = false; });
+      if (!r || !(r.json && r.json.ok && r.json.open)) { if (tab) tab.close(); }
       if (!r) return;
+      if (tab && r.json && r.json.ok && r.json.open) {
+        try { tab.opener = null; } catch (e) { /* ignore */ }
+        tab.location.href = r.json.open;
+      }
       if (r.blob) {
         var a = document.createElement("a");
         a.href = URL.createObjectURL(r.blob);
@@ -161,6 +168,7 @@
       };
       if (j.reveal) reveal(j.reveal, go); else go();
     }).catch(function () {
+      if (tab) tab.close();
       btns.forEach(function (b) { b.disabled = false; });
       toast("Sem conexão. Tente de novo.", true);
     });

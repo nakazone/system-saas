@@ -34,7 +34,13 @@
       ".om-lg-new{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#fdf0d5;color:#3d2a00;font-size:11px;font-weight:800;vertical-align:1px}" +
       ".om-lg-check{display:flex;gap:10px;align-items:flex-start;font-size:14px;font-weight:600;line-height:1.45;margin:0 0 16px;cursor:pointer}.om-lg-check input{width:18px;height:18px;margin:1px 0 0;accent-color:#211d1a;flex-shrink:0}" +
       ".om-lg-err{color:#a4401b;font-size:13px;font-weight:600;margin:-6px 0 12px;display:none}" +
-      ".om-ro-card .om-lg-ok{background:#211d1a;color:#fff}.om-ro-card .om-lg-ok:disabled{opacity:.45;cursor:not-allowed}";
+      ".om-ro-card .om-lg-ok{background:#211d1a;color:#fff}.om-ro-card .om-lg-ok:disabled{opacity:.45;cursor:not-allowed}" +
+      ".om-sup{position:fixed;left:0;right:0;top:0;z-index:2147482000;display:flex;align-items:center;gap:12px;padding:8px 16px;background:#a4401b;color:#fff;font:700 13px/1.35 'Plus Jakarta Sans',system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.18)}" +
+      ".om-sup b{font-weight:800}.om-sup__t{flex:1;min-width:0}.om-sup__tag{background:rgba(255,255,255,.18);border-radius:999px;padding:2px 8px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;margin-right:8px}" +
+      ".om-sup__x{flex-shrink:0;border:0;border-radius:9px;height:30px;padding:0 12px;background:#fff;color:#a4401b;font:800 12.5px 'Plus Jakarta Sans',system-ui,sans-serif;cursor:pointer}" +
+      "html.om-support body{padding-top:var(--om-sup-h,46px) !important}html.om-support{outline:4px solid #a4401b;outline-offset:-4px}" +
+      ".om-sup-toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:2147483001;background:#211d1a;color:#fff;border-radius:12px;padding:10px 14px;font:600 13.5px/1.4 'Plus Jakarta Sans',system-ui,sans-serif;max-width:min(92vw,460px);box-shadow:0 12px 30px rgba(0,0,0,.25)}" +
+      "@media (max-width:640px){.om-sup{padding:8px 10px;font-size:12px}.om-sup__tag{display:none}}";
     document.head.appendChild(st);
   }
 
@@ -164,11 +170,92 @@
     chk.focus();
   }
 
+  // "Entrar como suporte": red bar on every page while ObraMate support is inside the account.
+  var supTimer = null;
+  function renderSupport(sup) {
+    var old = document.getElementById("omSupportBar");
+    if (old) old.remove();
+    if (supTimer) { clearInterval(supTimer); supTimer = null; }
+    document.documentElement.classList.toggle("om-support", !!sup);
+    if (!sup) return;
+    css();
+    var bar = document.createElement("div");
+    bar.id = "omSupportBar";
+    bar.className = "om-sup";
+    bar.setAttribute("role", "status");
+    var t = document.createElement("span");
+    t.className = "om-sup__t";
+    var end = new Date(sup.expires_at).getTime();
+    function text() {
+      var left = Math.max(0, Math.ceil((end - Date.now()) / 60000));
+      t.innerHTML = '<span class="om-sup__tag">Modo suporte</span>';
+      t.appendChild(document.createTextNode(sup.admin + " vendo como " + sup.user + " · só leitura · termina em " + left + " min"));
+      if (left <= 0) location.reload();
+    }
+    text();
+    supTimer = setInterval(text, 30000);
+    var x = document.createElement("button");
+    x.type = "button";
+    x.className = "om-sup__x";
+    x.textContent = "Sair do suporte";
+    x.onclick = function () {
+      x.disabled = true;
+      origFetch("/api/support-session/exit", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (j) {
+          if (j && j.restored) location.href = "/";
+          else document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font:600 16px system-ui;color:#211d1a;background:#f7f4ee">Sessão de suporte encerrada. Pode fechar esta aba.</div>';
+        });
+    };
+    bar.appendChild(t);
+    bar.appendChild(x);
+    document.body.appendChild(bar);
+    // Push down whatever the page pins to the top (app bar, sticky headers) so the red bar never hides it.
+    function offsetTopBars() {
+      var h = bar.offsetHeight || 46;
+      document.documentElement.style.setProperty("--om-sup-h", h + "px");
+      Array.prototype.forEach.call(document.body.querySelectorAll("*"), function (el) {
+        if (el === bar || bar.contains(el) || el.dataset.omSupShift) return;
+        var cs = getComputedStyle(el);
+        if ((cs.position === "fixed" || cs.position === "sticky") && parseFloat(cs.top) < h && cs.top !== "auto" && el.offsetHeight < window.innerHeight * 0.5) {
+          el.dataset.omSupShift = "1";
+          el.style.setProperty("top", (parseFloat(cs.top) + h) + "px", "important");
+        }
+      });
+    }
+    offsetTopBars();
+    setTimeout(offsetTopBars, 800);
+    setTimeout(offsetTopBars, 2500);
+  }
+
+  var toastTimer = null;
+  function supportToast(msg) {
+    var el = document.getElementById("omSupToast");
+    if (!el) {
+      css();
+      el = document.createElement("div");
+      el.id = "omSupToast";
+      el.className = "om-sup-toast";
+      el.setAttribute("role", "alert");
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.remove(); }, 4500);
+  }
+
   // Any write refused with 402 ACCOUNT_READ_ONLY shows the same explanation.
   var origFetch = window.fetch;
   if (origFetch) {
     window.fetch = function () {
       return origFetch.apply(this, arguments).then(function (res) {
+        if (res && (res.status === 403 || res.status === 401) && document.documentElement.classList.contains("om-support")) {
+          res.clone().json().then(function (j) {
+            if (!j) return;
+            if (j.error === "SUPPORT_READ_ONLY" || j.error === "SUPPORT_HIDDEN") supportToast(j.message);
+            else if (j.error === "SUPPORT_ENDED") location.reload();
+          }).catch(function () {});
+        }
         if (res && res.status === 402) {
           res.clone().json().then(function (j) {
             if (j && j.error === "ACCOUNT_READ_ONLY") readOnlyModal(j.message);
@@ -187,6 +274,7 @@
         state.mode = j.data.mode;
         state.banner = j.data.banner;
         state.canManage = !!j.data.can_manage_billing;
+        renderSupport(j.data.support || null);
         document.documentElement.classList.toggle("om-read-only", state.mode === "read_only");
         renderBanner();
         legalModal(j.data.legal);

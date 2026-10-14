@@ -115,7 +115,7 @@ export async function sessionCounts(): Promise<Map<string, number>> {
     const rows = await prisma.$queryRaw<{ uid: string; n: bigint }[]>`
       SELECT sess->>'userId' AS uid, COUNT(*)::bigint AS n
       FROM "session"
-      WHERE expire > NOW() AND sess->>'userId' IS NOT NULL
+      WHERE expire > NOW() AND sess->>'userId' IS NOT NULL AND sess->'support' IS NULL
       GROUP BY 1`;
     return new Map(rows.map((r) => [r.uid, Number(r.n)]));
   } catch {

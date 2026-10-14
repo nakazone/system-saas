@@ -1,0 +1,38 @@
+<%# "Entrar como suporte" dialog. Params: sOrgId, sOrgName, sUsers (list) or sUser ({id,name}), sTicketId, sReason. %>
+<dialog id="dlg-suporte" aria-labelledby="t-sup">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-sup">Entrar como suporte · <%= sOrgName %></h2><p>Abre o CRM da empresa em outra aba, só para ver. Nada pode ser alterado e a folha de pagamento fica escondida.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action data-new-tab action="/master/clientes/<%= sOrgId %>/suporte">
+      <% if (sTicketId) { %><input type="hidden" name="ticketId" value="<%= sTicketId %>"><% } %>
+      <% if (sUser) { %>
+        <input type="hidden" name="userId" value="<%= sUser.id %>">
+        <div class="field">Ver como<div class="input" style="display:flex;align-items:center;background:#f6f1e8"><b><%= sUser.name %></b></div></div>
+      <% } else if (!sUsers || !sUsers.length) { %>
+        <div class="field">Ver como<div class="input" style="display:flex;align-items:center;background:#f6f1e8"><b>Admin principal da empresa</b></div></div>
+      <% } else { %>
+        <label class="field">Ver como
+          <select class="input" name="userId">
+            <% var picked = false; (sUsers || []).forEach(function (u) { var sel = !picked && u.role && u.role.key === 'admin'; if (sel) picked = true; %><option value="<%= u.id %>" <%= sel ? 'selected' : '' %>><%= u.name %><%= u.role ? ' · ' + u.role.name : '' %></option><% }) %>
+          </select>
+        </label>
+      <% } %>
+      <label class="field">Motivo <small class="muted">(vai no e-mail para o admin da empresa)</small>
+        <textarea class="input" name="reason" rows="2" minlength="5" maxlength="500" required placeholder="Ex.: conferir por que a fatura INV-0042 não aparece"><%= sReason %></textarea>
+      </label>
+      <div class="field">Duração
+        <div class="seg-pick">
+          <label><input type="radio" name="minutes" value="30" checked><span>30 min</span></label>
+          <label><input type="radio" name="minutes" value="60"><span>60 min</span></label>
+        </div>
+      </div>
+      <ul class="sup-rules">
+        <li>Faixa vermelha no topo da tela o tempo todo, com botão para sair.</li>
+        <li>Os admins da empresa recebem um e-mail avisando (em inglês).</li>
+        <li>Fica na auditoria: quem, motivo, quantas telas e quanto tempo.</li>
+        <li>Se você também usa essa empresa neste navegador, sua sessão volta quando sair do suporte.</li>
+      </ul>
+      <button class="btn btn-primary btn-block" type="submit">Abrir em outra aba</button>
+    </form>
+  </div>
+</dialog>

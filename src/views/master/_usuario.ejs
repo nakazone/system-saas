@@ -36,6 +36,18 @@
     <a class="act" href="mailto:<%= u.email %>" style="text-decoration:none"><b>Mandar e-mail</b><small><%= u.email %></small></a>
   </div>
   <% } %>
+  <% if (canSupport && org && u.status === 'active') { %>
+    <button class="btn btn-support btn-block" type="button" data-open="dlg-suporte" style="margin-top:4px">Entrar como este usuário</button>
+    <%- include('_suporte-dlg', { sOrgId: org.id, sOrgName: org.name, sUsers: null, sUser: { id: u.id, name: u.name }, sTicketId: '', sReason: '' }) %>
+  <% } %>
+  <% if (supportSessions && supportSessions.length) { %>
+  <section class="d-sec">
+    <h3>Sessões de suporte como <%= u.name.split(' ')[0] %></h3>
+    <% supportSessions.forEach(function (ss) { %>
+      <div class="d-line sup-line"><span class="sup-dot <%= ss.live ? 'live' : '' %>" aria-hidden="true"></span><span style="flex:1;min-width:0"><b><%= ss.admin %></b> <span class="muted" style="font-weight:600">· <%= ss.when %></span><small class="sup-meta"><%= ss.reason %> · <%= ss.status %></small></span></div>
+    <% }) %>
+  </section>
+  <% } %>
   <section class="d-sec">
     <h3>Histórico no Master</h3>
     <% lastAudit.forEach(function (a) { %><div class="d-line"><span class="muted" style="width:110px"><%= dateTimeLabel(a.at) %></span><span style="flex:1"><%= a.action.replace('user.', '').replace('_', ' ') %></span><span class="muted"><%= a.actorName %></span></div><% }) %>

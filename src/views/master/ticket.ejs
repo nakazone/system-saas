@@ -30,6 +30,12 @@
       <h2 style="margin-bottom:8px">Empresa</h2>
       <a class="d-line" href="/master/clientes/<%= t.org.id %>" data-ficha="<%= t.org.id %>" style="padding:0"><b style="flex:1"><%= t.org.name %></b><span style="font-size:12px;font-weight:800;color:var(--accent-ink)">Abrir ficha</span></a>
       <% if (t.author) { %><div class="d-line" style="padding:8px 0 0"><span style="flex:1"><b><%= t.author.name %></b><br><small class="muted" style="font-weight:600"><%= t.author.email %></small></span><a class="btn btn-soft btn-sm" href="/master/usuarios/<%= t.author.id %>" data-usuario="<%= t.author.id %>">Usuário</a></div><% } %>
+      <% if (canSupport) { %>
+        <button class="btn btn-support btn-block" type="button" data-open="dlg-suporte" style="margin-top:10px"><%= supportUser ? 'Ver como ' + supportUser.name.split(' ')[0] : 'Entrar como suporte' %></button>
+      <% } %>
+      <% supportSessions.forEach(function (ss) { %>
+        <div class="d-line sup-line" style="padding:8px 0 0"><span class="sup-dot <%= ss.live ? 'live' : '' %>" aria-hidden="true"></span><span style="flex:1;min-width:0"><b><%= ss.admin %></b> <span class="muted" style="font-weight:600">· <%= ss.when %></span><small class="sup-meta"><%= ss.status %></small></span></div>
+      <% }) %>
     </section>
     <section class="card card-pad" style="display:flex;flex-direction:column;gap:10px">
       <h2>Andamento</h2>
@@ -47,4 +53,5 @@
     </section>
   </aside>
 </div>
+<% if (canSupport) { %><%- include('_suporte-dlg', { sOrgId: t.org.id, sOrgName: t.org.name, sUsers: null, sUser: supportUser, sTicketId: t.id, sReason: 'Ticket: ' + t.subject }) %><% } %>
 <%- include('_bottom') %>

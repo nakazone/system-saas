@@ -73,6 +73,7 @@ import {
 } from "./lib.js";
 import { createOrganizationWithAdmin, validateSlug } from "../modules/organizations/service.js";
 import { legalPromptEnabled, legalStatus, setLegalPrompt } from "../lib/legal/acceptance.js";
+import { createSupportSession, endSupportSession, SUPPORT_DURATIONS } from "../lib/support/session.js";
 import { currentLegalVersions, legalDocuments } from "../lib/legal/documents.js";
 import { signupMode, setSignupMode, resendSignup } from "../modules/organizations/signup.js";
 import { formatPersonName } from "../lib/name.js";
@@ -731,6 +732,14 @@ masterRouter.get(
       canUsers: can(req.master!.role, "users_manage"),
       showMoney: can(req.master!.role, "billing_full"),
       legal: await legalStatus(org.id),
+      canSupport: can(req.master!.role, "support_enter"),
+      supportSessions: await supportSessionsFor({ organizationId: org.id }),
+      supportUsers: await prisma.user.findMany({
+        where: { organizationId: org.id, status: "active" },
+        select: { id: true, name: true, role: { select: { key: true, name: true } } },
+        orderBy: [{ createdAt: "asc" }],
+        take: 100,
+      }),
       signupOrigin: await prisma.signupRequest.findFirst({ where: { organizationId: org.id }, select: { createdAt: true, verifiedAt: true, ip: true, inviteId: true } }),
     };
     if (req.query.partial) return void res.render("master/_cliente", { ...data, partial: true });
@@ -750,6 +759,79 @@ masterRouter.get(
       orderBy: { name: "asc" },
     });
     res.json({ ok: true, roles });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Entrar como suporte
+// ---------------------------------------------------------------------------
+
+/** Recent support sessions, shown on the company record, the user record and the ticket. */
+async function supportSessionsFor(where: { organizationId?: string; userId?: string; ticketId?: string }, take = 6) {
+  const rows = await prisma.supportSession.findMany({ where, orderBy: { createdAt: "desc" }, take });
+  const now = Date.now();
+  return rows.map((r) => {
+    const live = !!r.startedAt && !r.endedAt && r.expiresAt.getTime() > now;
+    const waiting = !r.startedAt && !r.endedAt && r.tokenExpiresAt.getTime() > now;
+    const mins = r.startedAt ? Math.max(1, Math.round(((r.endedAt ?? (live ? new Date() : r.expiresAt)).getTime() - r.startedAt.getTime()) / 60e3)) : 0;
+    return {
+      id: r.id,
+      live,
+      waiting,
+      admin: r.adminName,
+      user: r.userName,
+      reason: r.reason,
+      when: dateTimeLabel(r.createdAt),
+      status: live
+        ? `ativa · termina ${dateTimeLabel(r.expiresAt)}`
+        : waiting
+          ? "link ainda não aberto"
+          : !r.startedAt
+            ? "link não usado"
+            : `${mins} min · ${r.views} tela(s)${r.blocked ? ` · ${r.blocked} bloqueio(s)` : ""}${r.endedBy === "master" ? " · encerrada no Master" : r.endedBy === "user" ? " · saiu" : ""}`,
+    };
+  });
+}
+
+const supportSchema = z.object({
+  userId: z.string().uuid().optional().or(z.literal("")),
+  reason: z.string().trim().min(5).max(500),
+  minutes: z.coerce.number().int(),
+  ticketId: z.string().uuid().optional().or(z.literal("")),
+});
+
+masterRouter.post(
+  "/clientes/:id/suporte",
+  requireCap("support_enter"),
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const parsed = supportSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Escreva o motivo (o admin da empresa recebe por e-mail).");
+    const minutes = (SUPPORT_DURATIONS as readonly number[]).includes(parsed.data.minutes) ? parsed.data.minutes : 30;
+    const r = await createSupportSession({
+      admin: { id: req.master!.id, name: req.master!.name },
+      organizationId: org.id,
+      userId: parsed.data.userId || null,
+      reason: parsed.data.reason,
+      minutes,
+      ticketId: parsed.data.ticketId || null,
+    });
+    if (!r.ok) return fail(res, 400, r.message);
+    await audit(req, actor(req), "support.start", { type: "org", id: org.id, label: org.name, meta: { session: r.id, user: r.userName, minutes, reason: parsed.data.reason, mode: "read" } });
+    ok(res, `Suporte aberto em outra aba como ${r.userName} (só leitura, ${minutes} min).`, { open: r.url });
+  }),
+);
+
+masterRouter.post(
+  "/suporte-sessoes/:id/encerrar",
+  requireCap("support_enter"),
+  h(async (req, res) => {
+    const row = await prisma.supportSession.findUnique({ where: { id: String(req.params.id) }, include: { organization: { select: { id: true, name: true } } } });
+    if (!row) return fail(res, 404, "Sessão não encontrada.");
+    const ended = await endSupportSession(row.id, "master");
+    if (ended) await audit(req, actor(req), "support.end", { type: "org", id: row.organization.id, label: row.organization.name, meta: { session: row.id } });
+    ok(res, ended ? "Sessão de suporte encerrada. A aba sai na próxima tela." : "Essa sessão já tinha terminado.");
   }),
 );
 
@@ -1321,7 +1403,14 @@ masterRouter.get(
     if (!u) return void res.status(404).render("master/error", { title: "Usuário não encontrado", message: "Esse usuário não existe." });
     const org = await loadOrg(u.organizationId);
     const lastAudit = await prisma.platformAuditLog.findMany({ where: { targetType: "user", targetId: u.id }, orderBy: { at: "desc" }, take: 5 });
-    const data = { u, org, lastAudit, canManage: can(req.master!.role, "users_manage") };
+    const data = {
+      u,
+      org,
+      lastAudit,
+      canManage: can(req.master!.role, "users_manage"),
+      canSupport: can(req.master!.role, "support_enter") && !!org && org.status !== "suspended" && org.status !== "canceled",
+      supportSessions: await supportSessionsFor({ userId: u.id }, 4),
+    };
     if (req.query.partial) return void res.render("master/_usuario", { ...data, partial: true });
     page(res, "usuario", await shell(req, "usuarios"), { ...data, partial: false });
   }),
@@ -1881,7 +1970,7 @@ masterRouter.get(
       where: { id: String(req.params.id) },
       include: {
         organization: { select: { id: true, name: true, slug: true, status: true } },
-        createdByUser: { select: { id: true, name: true, email: true } },
+        createdByUser: { select: { id: true, name: true, email: true, status: true } },
         messages: { orderBy: { createdAt: "asc" } },
       },
     });
@@ -1904,6 +1993,9 @@ masterRouter.get(
         firstResponse: t.firstResponseAt ? dateTimeLabel(t.firstResponseAt) : null,
       },
       thread,
+      canSupport: can(req.master!.role, "support_enter") && !["suspended", "canceled"].includes(String((t.organization as { status?: string }).status ?? "")),
+      supportSessions: await supportSessionsFor({ ticketId: t.id }, 4),
+      supportUser: t.createdByUser && (t.createdByUser as { status?: string }).status === "active" ? { id: t.createdByUser.id, name: t.createdByUser.name } : null,
     });
   }),
 );
@@ -2138,6 +2230,20 @@ const AUDIT_TEXT: Record<string, string> = {
   "tenant.reminder": "Enviou lembrete de vencimento",
   "tenant.bulk_reminder": "Enviou lembretes em massa",
   "tenant.suspend": "Suspendeu a empresa",
+  "support.start": "Entrou como suporte",
+  "support.update": "Atualizou ticket de suporte",
+  "billing.charge_now": "Cobrou agora no Stripe",
+  "billing.checkout_link": "Gerou link de pagamento",
+  "ladder.config": "Configurou a régua de cobrança",
+  "ladder.run": "Rodou a régua de cobrança",
+  "legal.prompt": "Mudou o pedido de aceite dos termos no app",
+  "plan.create": "Criou plano",
+  "plan.update": "Editou plano",
+  "signup.invite": "Criou convite de cadastro",
+  "signup.invite_revoke": "Cancelou convite de cadastro",
+  "signup.mode": "Mudou o modo do cadastro",
+  "signup.resend": "Reenviou link de cadastro",
+  "support.end": "Encerrou sessão de suporte",
   "tenant.reactivate": "Reativou a empresa",
   "tenant.cancel": "Cancelou a empresa",
   "tenant.create": "Criou empresa",

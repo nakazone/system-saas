@@ -48,6 +48,7 @@ import { platformAdminRouter } from "./platform-admin/routes.js";
 import { masterRouter } from "./master/routes.js";
 import { stripeWebhookRouter } from "./lib/billing/webhook.js";
 import { accountBillingRouter, enforceAccountAccess } from "./lib/billing/access.js";
+import { supportEntryRouter, supportGuard, supportSessionApi } from "./lib/support/session.js";
 import { prisma } from "./lib/prisma.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
@@ -238,6 +239,8 @@ export function createApp() {
 
   // Master area of the platform owner (path-based so it works on any host).
   app.use("/master", masterRouter);
+  // "Entrar como suporte": single-use link from the Master, on the company's host.
+  app.use(supportEntryRouter);
 
   app.use(resolveTenant);
 
@@ -297,6 +300,9 @@ export function createApp() {
   app.use(requireTenant);
   app.use(bindTenantContext);
   app.use(loadSessionUser);
+  // Support sessions: read-only, payroll hidden, ends on time or from the Master.
+  app.use(supportGuard);
+  app.use(supportSessionApi);
   // Billing state: read-only companies cannot write; plan/payment API for the company.
   app.use(enforceAccountAccess);
   app.use(accountBillingRouter);
