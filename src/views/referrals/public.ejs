@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title><%= title %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: <%= (organization && organization.primaryColor) || '#1c1917' %>;
+      --accent: <%= (organization && organization.accentColor) || (organization && organization.primaryColor) || '#1f6b4a' %>;
+      --page: #f4f1ea;
+      --card: #fffdf8;
+      --line: #e4ddd0;
+      --muted: #6b6458;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent),
+        linear-gradient(180deg, #faf7f1 0%, var(--page) 55%, #ebe6dc 100%);
+    }
+    .wrap { max-width: 440px; margin: 0 auto; padding: 1.5rem 1.1rem 3rem; }
+    header { display: flex; align-items: center; gap: 0.85rem; margin-bottom: 1.35rem; }
+    .logo { width: 52px; height: 52px; border-radius: 14px; object-fit: cover; background: #ddd; }
+    .logo-fb {
+      width: 52px; height: 52px; border-radius: 14px; background: var(--ink); color: #fff;
+      display: grid; place-items: center; font-weight: 800; font-size: 1.2rem;
+    }
+    h1 { margin: 0; font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; }
+    .sub { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.88rem; line-height: 1.35; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 1.15rem 1.15rem 1.25rem;
+      box-shadow: 0 10px 30px rgba(28, 25, 23, 0.06);
+    }
+    .badge {
+      display: inline-block; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.55rem;
+    }
+    label { display: block; font-size: 0.78rem; font-weight: 700; margin: 0.85rem 0 0.35rem; }
+    input, textarea {
+      width: 100%; border: 1px solid var(--line); border-radius: 12px;
+      padding: 0.72rem 0.85rem; font: inherit; background: #fff; color: var(--ink);
+    }
+    input:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); border-color: var(--accent); }
+    .hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+    .err {
+      margin: 0 0 0.85rem; padding: 0.7rem 0.85rem; border-radius: 12px;
+      background: #fde8e6; color: #9b2c2c; font-size: 0.88rem; font-weight: 600;
+    }
+    .ok {
+      margin: 0; padding: 0.2rem 0; font-size: 1rem; font-weight: 700; line-height: 1.45;
+    }
+    button {
+      width: 100%; margin-top: 1.15rem; border: 0; border-radius: 12px;
+      padding: 0.85rem 1rem; font: inherit; font-weight: 800; cursor: pointer;
+      background: var(--accent); color: #fff;
+    }
+    button:active { transform: translateY(1px); }
+    .foot { margin-top: 1.25rem; text-align: center; font-size: 0.72rem; color: var(--muted); }
+  </style>
+  <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
+</head>
+<body>
+  <div class="wrap">
+    <% if (organization) { %>
+    <header>
+      <% if (organization.logoUrl) { %>
+        <img class="logo" src="<%= organization.logoUrl %>" alt="" />
+      <% } else { %>
+        <div class="logo-fb" aria-hidden="true"><%= String(organization.name || 'O').charAt(0).toUpperCase() %></div>
+      <% } %>
+      <div>
+        <h1><%= organization.name %></h1>
+        <p class="sub">Programa de indicações</p>
+      </div>
+    </header>
+    <% } %>
+
+    <div class="card">
+      <% if (mode === 'success') { %>
+        <span class="badge">Pronto</span>
+        <p class="ok"><%= success %></p>
+      <% } else if (mode === 'invalid' || mode === 'disabled') { %>
+        <span class="badge">Indicação</span>
+        <p class="err" style="margin:0"><%= error %></p>
+      <% } else { %>
+        <span class="badge">Indicação</span>
+        <h1 style="font-size:1.35rem;margin:0 0 0.35rem">
+          <%= referrer ? ('Indicado por ' + referrer.first_name) : 'Cadastro' %>
+        </h1>
+        <p class="sub" style="margin-bottom:0.5rem">
+          Preencha seus dados. A <%= organization ? organization.name : 'empresa' %> entra em contato para o orçamento.
+          <% if (settings && settings.percent) { %>
+            Quem indicou pode ganhar <%= settings.percent %>% de cashback quando o projeto for pago.
+          <% } %>
+        </p>
+        <% if (error) { %><p class="err"><%= error %></p><% } %>
+        <form method="post" action="">
+          <label for="name">Nome completo *</label>
+          <input id="name" name="name" required maxlength="255" autocomplete="name"
+            value="<%= (typeof form !== 'undefined' && form && form.name) ? form.name : '' %>" />
+
+          <label for="phone">Telefone *</label>
+          <input id="phone" name="phone" required maxlength="40" inputmode="tel" autocomplete="tel"
+            placeholder="(XXX) XXX-XXXX"
+            value="<%= (typeof form !== 'undefined' && form && form.phone) ? form.phone : '' %>" />
+
+          <label for="email">E-mail</label>
+          <input id="email" name="email" type="email" maxlength="255" autocomplete="email"
+            value="<%= (typeof form !== 'undefined' && form && form.email) ? form.email : '' %>" />
+
+          <label for="address">Endereço da obra</label>
+          <input id="address" name="address" maxlength="500" autocomplete="street-address"
+            placeholder="Rua, cidade…"
+            value="<%= (typeof form !== 'undefined' && form && form.address) ? form.address : '' %>" />
+
+          <label for="notes">Mensagem (opcional)</label>
+          <textarea id="notes" name="notes" rows="3" maxlength="2000"><%= (typeof form !== 'undefined' && form && form.notes) ? form.notes : '' %></textarea>
+
+          <button type="submit">Enviar cadastro</button>
+          <p class="hint">Ao enviar, você autoriza o contato da empresa sobre este pedido.</p>
+        </form>
+      <% } %>
+    </div>
+    <p class="foot">Powered by ObraMate</p>
+  </div>
+</body>
+</html>

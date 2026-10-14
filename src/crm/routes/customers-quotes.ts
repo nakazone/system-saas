@@ -1161,6 +1161,19 @@ customersQuotesRouter.post(
         if (existing) return existing;
         const lead = await tx.lead.findFirst({ where: { id: leadId } });
         if (!lead) return null;
+        const meta =
+          lead.metadata && typeof lead.metadata === "object" && !Array.isArray(lead.metadata)
+            ? (lead.metadata as Record<string, unknown>)
+            : {};
+        let referredByCustomerId: string | null = null;
+        const refRaw = meta.referred_by_customer_id;
+        if (typeof refRaw === "string" && refRaw) {
+          const referrer = await tx.customer.findFirst({
+            where: { id: refRaw, customerType: "particular" },
+            select: { id: true },
+          });
+          if (referrer) referredByCustomerId = referrer.id;
+        }
         return tx.customer.create({
           data: {
             organizationId: req.organizationId!,
@@ -1171,6 +1184,7 @@ customersQuotesRouter.post(
             notes: lead.notes,
             customerType: normalizeCustomerType(req.body?.customer_type || "particular"),
             pricingMode: normalizePricingMode(req.body?.pricing_mode),
+            referredByCustomerId,
           },
         });
       });

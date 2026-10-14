@@ -11,8 +11,9 @@ import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prism
 import { requireCrmAuth, dec } from "../http.js";
 import { canViewPricing } from "../../lib/pricing/visibility.js";
 import { formatUsPhone } from "../../lib/phone.js";
-import { referralBalance } from "../../lib/referrals/engine.js";
+import { ensureReferralCode, referralBalance } from "../../lib/referrals/engine.js";
 import { parseReferralSettings } from "../../lib/referrals/settings.js";
+import { publicBaseUrl } from "../../lib/http/public-url.js";
 
 export const customersOverviewRouter = Router();
 
@@ -364,16 +365,20 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
         referralBalance(tx, id),
         tx.organization.findUnique({
           where: { id: req.organizationId! },
-          select: { referralSettings: true },
+          select: { referralSettings: true, slug: true, name: true },
         }),
       ]);
-      return { data, c, properties, lead, referrer, referredCount, cashbackBalance, org };
+      let referralCode = (c as { referralCode?: string | null }).referralCode || null;
+      if (normType(c.customerType) === "particular" && !referralCode) {
+        referralCode = await ensureReferralCode(tx, req.organizationId!, c.id, c.name);
+      }
+      return { data, c, properties, lead, referrer, referredCount, cashbackBalance, org, referralCode };
     });
     if (!result) {
       res.status(404).json({ success: false, error: "Cliente não encontrado" });
       return;
     }
-    const { data, c, properties, lead, referrer, referredCount, cashbackBalance, org } = result;
+    const { data, c, properties, lead, referrer, referredCount, cashbackBalance, org, referralCode } = result;
     const stats = statsFor(data, showMoney).get(c.id) || null;
     const m = (n: number) => (showMoney ? round(n) : null);
 
@@ -475,10 +480,26 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
     ev.sort((a, b) => b.at.getTime() - a.at.getTime());
 
     const refSettings = parseReferralSettings(org?.referralSettings);
+    const isParticular = normType(c.customerType) === "particular";
+    let shareUrl: string | null = null;
+    let whatsappUrl: string | null = null;
+    let shareMessage: string | null = null;
+    if (isParticular && referralCode && org?.slug) {
+      const base = publicBaseUrl(req).replace(/\/$/, "");
+      shareUrl = `${base}/r/${encodeURIComponent(org.slug)}/${encodeURIComponent(referralCode)}`;
+      const first = String(c.name || "").trim().split(/\s+/)[0] || c.name;
+      shareMessage =
+        `Oi! Estou indicando a ${org.name}. ` +
+        `Cadastre-se por este link e eles entram em contato: ${shareUrl}` +
+        (refSettings.enabled && refSettings.percent
+          ? ` (eu ganho ${refSettings.percent}% de cashback quando o projeto for pago)`
+          : "");
+      whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+    }
     res.json({
       success: true,
       data: {
-        customer: baseCustomer(c),
+        customer: { ...baseCustomer(c), referral_code: referralCode },
         stats,
         lead: lead ? { id: lead.id, name: lead.name, status: lead.status, stage: lead.pipelineStage?.name ?? null } : null,
         jobs,
@@ -495,6 +516,10 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
             : null,
           referred_count: referredCount,
           cashback_balance: showMoney ? round(cashbackBalance) : null,
+          referral_code: referralCode,
+          share_url: shareUrl,
+          whatsapp_url: whatsappUrl,
+          share_message: shareMessage,
         },
       },
     });

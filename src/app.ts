@@ -21,6 +21,7 @@ import { publicEmailLogin } from "./modules/auth/public-login.js";
 import { usersRouter, invitationsRouter } from "./modules/users/routes.js";
 import { leadsRouter, pipelineRouter } from "./modules/leads/routes.js";
 import { publicReceiveLeadRouter } from "./modules/leads/public-receive.js";
+import { publicReferralRouter } from "./modules/referrals/public-routes.js";
 import { customersRouter } from "./modules/customers/routes.js";
 import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { invoicesRouter } from "./modules/invoices/routes.js";
@@ -246,6 +247,8 @@ export function createApp() {
 
   // Public LP / Meta lead intake (tenant via slug header/query/subdomain — no session)
   app.use(publicReceiveLeadRouter);
+  // Referral signup links: /r/:orgSlug/:code
+  app.use(publicReferralRouter);
 
   // Master area of the platform owner (path-based so it works on any host).
   app.use("/master", masterRouter);

@@ -14,6 +14,8 @@ import {
   referralBalance,
 } from "../../lib/referrals/engine.js";
 import { parseReferralSettings } from "../../lib/referrals/settings.js";
+import { publicBaseUrl } from "../../lib/http/public-url.js";
+import { prisma } from "../../lib/prisma.js";
 
 export const referralsRouter = Router();
 
@@ -212,6 +214,65 @@ referralsRouter.get(
         return;
       }
       res.json({ success: true, data: { balance: money(out.balance, showMoney) ?? 0 } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/** Shareable public signup link for a Particular referrer. */
+referralsRouter.get(
+  "/api/customers/:id/referral-link",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const org = await prisma.organization.findUniqueOrThrow({
+        where: { id: req.organizationId! },
+        select: { slug: true, name: true, referralSettings: true },
+      });
+      const settings = parseReferralSettings(org.referralSettings);
+      const out = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const c = await tx.customer.findFirst({
+          where: { id },
+          select: { id: true, name: true, customerType: true, referralCode: true },
+        });
+        if (!c) return null;
+        if (String(c.customerType || "").toLowerCase() !== "particular") {
+          return { error: "Só Particular tem link de indicação." } as const;
+        }
+        const code = await ensureReferralCode(tx, req.organizationId!, c.id, c.name);
+        return { customer: c, code } as const;
+      });
+      if (!out) {
+        res.status(404).json({ success: false, error: "Cliente não encontrado" });
+        return;
+      }
+      if ("error" in out) {
+        res.status(400).json({ success: false, error: out.error });
+        return;
+      }
+      const base = publicBaseUrl(req).replace(/\/$/, "");
+      const url = `${base}/r/${encodeURIComponent(org.slug)}/${encodeURIComponent(out.code)}`;
+      const first = String(out.customer.name || "").trim().split(/\s+/)[0] || out.customer.name;
+      const message =
+        `Oi! Estou indicando a ${org.name}. ` +
+        `Cadastre-se por este link e eles entram em contato: ${url}` +
+        (settings.enabled && settings.percent
+          ? ` (eu ganho ${settings.percent}% de cashback quando o projeto for pago 😊)`
+          : "");
+      res.json({
+        success: true,
+        data: {
+          enabled: settings.enabled,
+          percent: settings.percent,
+          referral_code: out.code,
+          url,
+          whatsapp_url: `https://wa.me/?text=${encodeURIComponent(message)}`,
+          message,
+          referrer_name: first,
+        },
+      });
     } catch (error) {
       next(error);
     }

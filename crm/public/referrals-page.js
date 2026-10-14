@@ -32,7 +32,7 @@
       const s = j.data.settings || {};
       const rewards = j.data.rewards || [];
       banner.innerHTML = s.enabled
-        ? `<span><b>Programa ativo</b> · ${esc(String(s.percent))}% do valor da fatura paga</span>
+        ? `<span><b>Programa ativo</b> · ${esc(String(s.percent))}% do valor da fatura paga · link público no cadastro do Particular</span>
            <a href="configuracoes.html#indicacoes">Configurar</a>`
         : `<span><b>Programa desativado</b> — ative em Configurações para começar a creditar cashback.</span>
            <a href="configuracoes.html#indicacoes">Ativar agora</a>`;

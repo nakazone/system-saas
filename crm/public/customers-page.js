@@ -430,6 +430,18 @@
     const ref = detail.referrals || {};
     const refBy = ref.referred_by;
     const bal = ref.cashback_balance;
+    const shareActs =
+      ref.share_url && String(c.customer_type || "").toLowerCase() === "particular"
+        ? `<div class="cx-acts" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.65rem">
+            <button type="button" class="cx-btn" data-copy-ref>Copiar link</button>
+            ${
+              ref.whatsapp_url
+                ? `<a class="cx-btn cx-btn--pri" href="${esc(ref.whatsapp_url)}" target="_blank" rel="noopener">WhatsApp</a>`
+                : ""
+            }
+          </div>
+          <p class="cx-hint" style="margin-top:0.45rem;word-break:break-all">Código <b>${esc(ref.referral_code || "")}</b><br />${esc(ref.share_url)}</p>`
+        : "";
     const referralBox = `<section class="cx-box"><h3>Indicações${canEdit ? '<button type="button" class="cx-lnk" data-edit>Editar</button>' : ""}</h3>
       <dl class="cx-kv">
         <dt>Indicado por</dt><dd>${
@@ -450,6 +462,7 @@
           ref.program_enabled && ref.percent != null ? ` · ${esc(String(ref.percent))}% do projeto` : ""
         }</dd>
       </dl>
+      ${shareActs}
       <p class="cx-hint" style="margin-top:0.5rem"><a href="referrals.html">Ver programa de indicações</a></p>
     </section>`;
 
@@ -948,6 +961,15 @@
       }
       if (e.target.closest("[data-edit]")) {
         if (detail) openForm(detail.customer.id);
+        return;
+      }
+      if (e.target.closest("[data-copy-ref]")) {
+        const url = detail && detail.referrals && detail.referrals.share_url;
+        if (url && navigator.clipboard) {
+          navigator.clipboard.writeText(url).then(() => notify("Link de indicação copiado.", "success"));
+        } else if (url) {
+          notify(url, "info");
+        }
         return;
       }
       if (e.target.closest("[data-prices]")) {
