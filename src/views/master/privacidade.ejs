@@ -1,0 +1,174 @@
+<%- include('_top', { pageTitle: 'Dados e privacidade' }) %>
+<div class="page-head">
+  <div><h1>Dados e privacidade</h1><div class="page-sub">Pedidos de cópia, correção e exclusão de dados (prazo de <%= days %> dias), exportações das empresas e comprovantes de exclusão.</div></div>
+  <div class="row-actions">
+    <% if (canDelete) { %><a class="btn btn-soft" href="/master/privacidade/pessoa">Excluir dados de uma pessoa</a><% } %>
+    <% if (tab === 'pedidos' && canPrivacy) { %><button class="btn btn-dark" type="button" data-open="dlg-pedido"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Registrar pedido</button><% } %>
+  </div>
+</div>
+
+<nav class="cm-tabs" aria-label="Seções">
+  <% [['pedidos','Pedidos'],['exportacoes','Exportações'],['exclusoes','Exclusões']].forEach(function (t) { %>
+    <a href="/master/privacidade?aba=<%= t[0] %>" aria-current="<%= tab === t[0] ? 'page' : 'false' %>"><%= t[1] %></a>
+  <% }) %>
+</nav>
+
+<% if (tab === 'pedidos') { %>
+  <div class="toolbar dp-toolbar">
+    <div class="chips">
+      <a class="chip" href="?aba=pedidos" aria-current="<%= show === 'abertos' %>">Abertos<span class="n"><%= openCount %></span></a>
+      <a class="chip" href="?aba=pedidos&ver=fechados" aria-current="<%= show === 'fechados' %>">Fechados<span class="n"><%= closedCount %></span></a>
+    </div>
+  </div>
+
+  <% requests.forEach(function (r) { %>
+    <article class="card dp-req <%= r.open ? 'is-open' : '' %> due-<%= r.dueTone %>">
+      <div class="dp-req-main">
+        <div class="cm-ann-top">
+          <span class="pill pill-sm tone-<%= r.pill.tone %>"><%= r.pill.label %></span>
+          <span class="pill pill-sm tone-soft"><%= r.kindLabel %></span>
+          <span class="muted cm-ann-aud"><%= r.org ? r.org.name : 'Sem empresa' %> · <%= r.subjectText %></span>
+        </div>
+        <h3><%= r.requester %></h3>
+        <% if (r.details) { %><p><%= r.details %></p><% } %>
+        <% if (r.response) { %><div class="dp-resp"><b>Resposta:</b> <%= r.response %></div><% } %>
+        <div class="cm-ann-meta muted">
+          <span>Recebido <%= r.received %></span><span>Prazo <%= r.due %></span><span>registrado por <%= r.by %></span><% if (r.handledBy) { %><span>tratado por <%= r.handledBy %></span><% } %>
+          <% if (r.export) { %><span>Exportação: <%= r.export.pill.label.toLowerCase() %><%= r.export.expires ? ' · ' + r.export.expires : '' %></span><% } %>
+          <% if (r.deletion) { %><a href="/master/privacidade/exclusoes/<%= r.deletion.id %>">Comprovante de exclusão (<%= r.deletion.when %>)</a><% } %>
+        </div>
+      </div>
+      <div class="dp-req-side">
+        <span class="dp-due dp-due--<%= r.dueTone %>"><%= r.dueText %></span>
+        <% if (r.open) { %>
+          <div class="dp-req-actions">
+            <% if (r.kind === 'access' && r.org && canExport) { %>
+              <% if (r.export && r.export.downloadable) { %>
+                <form data-action action="/master/privacidade/exportacoes/<%= r.export.id %>/link" data-stepup="Link de download para <%= r.org.name %>"><button class="btn btn-soft btn-sm" type="submit">Link para a empresa</button></form>
+              <% } else { %>
+                <form data-action action="/master/clientes/<%= r.org.id %>/exportar" data-stepup="Exportar todos os dados de <%= r.org.name %>"><input type="hidden" name="pedido" value="<%= r.id %>"><input type="hidden" name="reason" value="Pedido de cópia dos dados"><button class="btn btn-soft btn-sm" type="submit">Gerar exportação</button></form>
+              <% } %>
+            <% } %>
+            <% if (r.kind === 'deletion' && r.subjectType === 'person' && r.personHref && canDelete) { %><a class="btn btn-soft btn-sm" href="<%= r.personHref %>">Excluir dados da pessoa</a><% } %>
+            <% if (r.kind === 'deletion' && r.subjectType === 'company' && r.org) { %><a class="btn btn-soft btn-sm" href="/master/clientes/<%= r.org.id %>#dados">Abrir ficha</a><% } %>
+            <% if ((r.kind === 'correction' || r.kind === 'other') && r.org) { %><a class="btn btn-soft btn-sm" href="/master/clientes/<%= r.org.id %>">Abrir ficha</a><% } %>
+            <% if (r.kind === 'access' && r.subjectType === 'person' && r.personHref) { %><a class="btn btn-soft btn-sm" href="<%= r.personHref %>">Ver o que existe</a><% } %>
+            <% if (canPrivacy) { %><button class="btn btn-dark btn-sm" type="button" data-open="dlg-upd-<%= r.id %>">Atualizar</button><% } %>
+          </div>
+        <% } %>
+      </div>
+    </article>
+    <% if (canPrivacy && r.open) { %>
+      <dialog id="dlg-upd-<%= r.id %>" aria-labelledby="t-upd-<%= r.id %>">
+        <div class="modal">
+          <div class="modal-head"><div><h2 id="t-upd-<%= r.id %>">Atualizar pedido</h2><p><%= r.kindLabel %> · <%= r.requester %></p></div>
+            <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+          <form data-action action="/master/privacidade/pedidos/<%= r.id %>">
+            <div class="seg-pick">
+              <% [['received','Recebido'],['in_progress','Em andamento'],['done','Concluído'],['rejected','Recusado']].forEach(function (s) { %>
+                <label><input type="radio" name="status" value="<%= s[0] %>" <%= r.status === s[0] ? 'checked' : '' %>><span><%= s[1] %></span></label>
+              <% }) %>
+            </div>
+            <label class="field">Resposta dada à pessoa <small class="muted">obrigatória para concluir ou recusar — fica guardada como prova</small><textarea class="input" name="response" rows="4" maxlength="4000" placeholder="Ex.: Enviamos o link com a cópia dos dados em 12/10 para ana@empresa.com."><%= r.response || '' %></textarea></label>
+            <button class="btn btn-dark btn-block" type="submit">Salvar</button>
+          </form>
+        </div>
+      </dialog>
+    <% } %>
+  <% }) %>
+  <% if (!requests.length) { %>
+    <section class="card card-pad cm-empty">
+      <div><b><%= show === 'abertos' ? 'Nenhum pedido aberto.' : 'Nenhum pedido fechado ainda.' %></b><p class="muted">Quando uma empresa — ou um cliente dela — pedir uma cópia, correção ou exclusão de dados (por e-mail, telefone ou ticket), registre aqui. O prazo de <%= days %> dias começa na data do pedido.</p></div>
+      <% if (canPrivacy && show === 'abertos') { %><button class="btn btn-dark" type="button" data-open="dlg-pedido">Registrar pedido</button><% } %>
+    </section>
+  <% } %>
+
+  <% if (canPrivacy) { %>
+  <dialog id="dlg-pedido" aria-labelledby="t-ped">
+    <div class="modal modal-wide">
+      <div class="modal-head"><div><h2 id="t-ped">Registrar pedido de privacidade</h2><p>Prazo para responder: <%= days %> dias a partir da data do pedido.</p></div>
+        <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <form data-action action="/master/privacidade/pedidos" data-pedido-form>
+        <fieldset class="cm-fs"><legend class="cm-legend">O que a pessoa pediu</legend>
+          <div class="seg-pick">
+            <label><input type="radio" name="kind" value="access" checked><span>Cópia dos dados</span></label>
+            <label><input type="radio" name="kind" value="deletion"><span>Exclusão</span></label>
+            <label><input type="radio" name="kind" value="correction"><span>Correção</span></label>
+            <label><input type="radio" name="kind" value="other"><span>Outro</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="cm-fs"><legend class="cm-legend">Sobre quem</legend>
+          <div class="seg-pick">
+            <label><input type="radio" name="subjectType" value="company" checked><span>A empresa inteira</span></label>
+            <label><input type="radio" name="subjectType" value="person"><span>Uma pessoa (cliente, funcionário…)</span></label>
+          </div>
+        </fieldset>
+        <label class="field">Empresa
+          <select class="input" name="organizationId">
+            <option value="">— nenhuma / não sei —</option>
+            <% orgOpts.forEach(function (o) { %><option value="<%= o.id %>"><%= o.name %><%= o.status === 'canceled' ? ' (cancelada)' : '' %></option><% }) %>
+          </select>
+        </label>
+        <div class="form-row" data-person-only hidden>
+          <label class="field">E-mail da pessoa<input class="input" type="email" name="subjectEmail" maxlength="200"></label>
+          <label class="field">Telefone da pessoa<input class="input" name="subjectPhone" maxlength="40"></label>
+        </div>
+        <div class="form-row">
+          <label class="field">Quem pediu<input class="input" name="requesterName" required maxlength="120" placeholder="Nome"></label>
+          <label class="field">E-mail de quem pediu<input class="input" type="email" name="requesterEmail" required maxlength="200"></label>
+        </div>
+        <div class="form-row">
+          <label class="field">Data do pedido<input class="input" type="date" name="receivedAt"><small class="muted">Vazio = hoje</small></label>
+          <span></span>
+        </div>
+        <label class="field">Detalhes (opcional)<textarea class="input" name="details" rows="3" maxlength="4000" placeholder="Como chegou o pedido, o que exatamente pediram…"></textarea></label>
+        <button class="btn btn-dark btn-block" type="submit">Registrar</button>
+      </form>
+    </div>
+  </dialog>
+  <% } %>
+<% } %>
+
+<% if (tab === 'exportacoes') { %>
+  <p class="muted dp-note">Cada exportação é um ZIP com uma planilha (CSV) por tabela e todas as fotos e arquivos da empresa. Senhas e links secretos nunca saem. O arquivo fica <%= exportDays %> dias e depois é apagado sozinho. Para gerar, abra a ficha da empresa › Dados e privacidade.</p>
+  <section class="table">
+    <div class="tr head cols-dp-exp"><span>EMPRESA</span><span>PEDIDA</span><span>TAMANHO</span><span>SITUAÇÃO</span><span></span></div>
+    <% exports.forEach(function (e) { %>
+      <div class="tr cols-dp-exp">
+        <span class="op-name"><a class="strong" href="/master/clientes/<%= e.org.id %>" data-ficha="<%= e.org.id %>"><%= e.org.name %></a><small class="muted"><%= e.summary %></small><% if (e.downloads || e.hasLink) { %><small class="muted"><%= e.hasLink ? 'link ativo para a empresa' : '' %><%= e.hasLink && e.downloads ? ' · ' : '' %><%= e.downloads ? 'baixado ' + e.downloads + 'x (último ' + e.lastDownload + ')' : '' %></small><% } %></span>
+        <span class="hide-m"><%= e.when %><small class="muted" style="display:block">por <%= e.by %></small></span>
+        <span class="num hide-m"><%= e.size %></span>
+        <span><span class="pill pill-sm tone-<%= e.pill.tone %>"><%= e.pill.label %></span><% if (e.expires) { %><small class="muted" style="display:block;margin-top:3px"><%= e.expires %></small><% } %></span>
+        <span class="right dp-exp-actions">
+          <% if (e.downloadable && canExport) { %>
+            <a class="btn btn-soft btn-sm" href="/master/privacidade/exportacoes/<%= e.id %>/baixar">Baixar</a>
+            <% if (e.hasLink) { %>
+              <form data-action action="/master/privacidade/exportacoes/<%= e.id %>/link/cancelar" data-confirm="Cancelar o link? Quem tiver o link não baixa mais."><button class="btn btn-soft btn-sm" type="submit">Cancelar link</button></form>
+            <% } %>
+            <form data-action action="/master/privacidade/exportacoes/<%= e.id %>/link" data-stepup="Link de download para <%= e.org.name %>"><button class="btn btn-soft btn-sm" type="submit"><%= e.hasLink ? 'Novo link' : 'Link para a empresa' %></button></form>
+          <% } %>
+        </span>
+      </div>
+    <% }) %>
+    <% if (!exports.length) { %><div class="empty" style="padding:20px;text-align:center">Nenhuma exportação ainda.</div><% } %>
+  </section>
+  <% if (anyRunning) { %><script>setTimeout(function () { location.reload(); }, 5000);</script><% } %>
+<% } %>
+
+<% if (tab === 'exclusoes') { %>
+  <p class="muted dp-note">Cada exclusão gera um comprovante com o que foi apagado (quantidade por tipo de dado, arquivos, quem fez e por quê). O comprovante não guarda os dados apagados — da pessoa, só o e-mail/telefone mascarado.</p>
+  <section class="table">
+    <div class="tr head cols-dp-del"><span>EXCLUSÃO</span><span>QUANDO</span><span>REGISTROS</span><span></span></div>
+    <% deletions.forEach(function (d) { %>
+      <div class="tr cols-dp-del">
+        <span class="op-name"><b><%= d.title %></b><small class="muted"><span class="pill pill-sm tone-<%= d.kind === 'company' ? 'danger' : 'soft' %>"><%= d.kindLabel %></span> <%= d.reason %></small></span>
+        <span class="hide-m"><%= d.when %><small class="muted" style="display:block">por <%= d.by %></small></span>
+        <span class="num"><%= d.rows %><%= d.files ? ' · ' + d.files + ' arq.' : '' %></span>
+        <span class="right"><a class="btn btn-soft btn-sm" href="/master/privacidade/exclusoes/<%= d.id %>">Comprovante</a></span>
+      </div>
+    <% }) %>
+    <% if (!deletions.length) { %><div class="empty" style="padding:20px;text-align:center">Nenhuma exclusão feita.</div><% } %>
+  </section>
+<% } %>
+<script src="/assets/master/comms.js?v=20261015-dp1" defer></script>
+<%- include('_bottom') %>

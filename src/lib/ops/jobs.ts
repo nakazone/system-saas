@@ -74,6 +74,9 @@ export async function runJobNow(name: string): Promise<{ ok: true; processed: nu
   }
 }
 
+/** Server start: a job that never ran is only "late" once the server has been up for 2× its interval. */
+const BOOT_AT = Date.now();
+
 export type JobView = {
   name: string;
   label: string;
@@ -133,7 +136,7 @@ export async function jobsOverview(now = new Date()): Promise<JobView[]> {
       lastProcessed: r?.lastProcessed ?? null,
       runs: r?.runs ?? 0,
       failures: r?.failures ?? 0,
-      late: !!intervalSec && (!last || now.getTime() - last.getTime() > 2 * intervalSec * 1000),
+      late: !!intervalSec && (last ? now.getTime() - last.getTime() > 2 * intervalSec * 1000 : now.getTime() - BOOT_AT > 2 * intervalSec * 1000),
       running: running.has(name),
       canRun: !!def,
     };

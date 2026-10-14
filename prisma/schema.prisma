@@ -285,6 +285,94 @@ model EmailSuppression {
   createdByName String?
 }
 
+/// Copy of all of a company's data (ZIP with CSVs + files). No FK: survives the company's deletion.
+model DataExport {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @db.Uuid
+  orgName          String
+  orgSlug          String
+  /// queued | running | ready | failed | expired
+  status           String    @default("queued")
+  reason           String?
+  privacyRequestId String?   @db.Uuid
+  requestedById    String?   @db.Uuid
+  requestedByName  String
+  fileKey          String?
+  sizeBytes        BigInt?
+  tables           Int       @default(0)
+  rows             Int       @default(0)
+  files            Int       @default(0)
+  filesMissing     Int       @default(0)
+  error            String?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  expiresAt        DateTime?
+  /// sha256 of the download link token sent to the company (null = no link)
+  linkTokenHash    String?   @unique
+  linkCreatedAt    DateTime?
+  downloads        Int       @default(0)
+  lastDownloadAt   DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([status])
+}
+
+/// Access / correction / deletion requests (CCPA and similar), answered within 30 days.
+model PrivacyRequest {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String?   @db.Uuid
+  orgName        String?
+  /// access | correction | deletion | other
+  kind           String
+  /// company (the whole account) | person (one client, employee or user)
+  subjectType    String    @default("person")
+  requesterName  String
+  requesterEmail String
+  subjectEmail   String?
+  subjectPhone   String?
+  details        String?   @db.Text
+  /// received | in_progress | done | rejected
+  status         String    @default("received")
+  receivedAt     DateTime  @default(now())
+  dueAt          DateTime
+  response       String?   @db.Text
+  closedAt       DateTime?
+  createdByName  String
+  handledByName  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, dueAt])
+  @@index([organizationId])
+}
+
+/// Proof of a permanent deletion (company or one person). Holds counts, never the deleted data.
+model DataDeletion {
+  id               String   @id @default(uuid()) @db.Uuid
+  /// company | person
+  kind             String
+  organizationId   String   @db.Uuid
+  orgName          String
+  orgSlug          String
+  /// person: masked e-mail / phone (j***@gmail.com · ***-1234)
+  subjectMasked    String?
+  /// person: sha256 of the normalized e-mail/phone, to answer "was X deleted?"
+  subjectHash      String?
+  /// { "Lead": 3, "Customer": 1, … } rows deleted or anonymized
+  counts           Json
+  filesDeleted     Int      @default(0)
+  reason           String
+  privacyRequestId String?  @db.Uuid
+  exportId         String?  @db.Uuid
+  exportSkippedWhy String?
+  performedById    String?  @db.Uuid
+  performedByName  String
+  createdAt        DateTime @default(now())
+
+  @@index([organizationId])
+}
+
 /// Daily snapshot of the business numbers (taken after midnight America/Denver). History for Métricas.
 model PlatformDailyMetric {
   day        String   @id // YYYY-MM-DD (America/Denver)

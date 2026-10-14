@@ -1,0 +1,58 @@
+<%- include('_top', { pageTitle: 'Excluir dados de uma pessoa' }) %>
+<div class="page-head">
+  <div>
+    <a class="cm-back" href="/master/privacidade">‹ Dados e privacidade</a>
+    <h1>Excluir dados de uma pessoa</h1>
+    <div class="page-sub">Para quando um cliente, funcionário ou usuário de uma empresa pede para apagar os dados dele. Nome, contato, endereço e anotações somem; valores de orçamentos, jobs, faturas e folha ficam (a empresa pode precisar deles para impostos), sem dizer de quem eram.</div>
+  </div>
+</div>
+
+<form class="card card-pad dp-find" method="get" action="/master/privacidade/pessoa">
+  <% if (pedido) { %><input type="hidden" name="pedido" value="<%= pedido %>"><% } %>
+  <label class="field">Empresa
+    <select class="input" name="empresa" required>
+      <option value="">Escolha a empresa</option>
+      <% orgOpts.forEach(function (o) { %><option value="<%= o.id %>" <%= org && org.id === o.id ? 'selected' : '' %>><%= o.name %></option><% }) %>
+    </select>
+  </label>
+  <label class="field">E-mail da pessoa<input class="input" type="email" name="email" value="<%= email %>" placeholder="cliente@exemplo.com"></label>
+  <label class="field">Telefone<input class="input" name="telefone" value="<%= phone %>" placeholder="(303) 555-0142"></label>
+  <button class="btn btn-dark" type="submit">Procurar</button>
+</form>
+
+<% if (error) { %><div class="note-box note-warn dp-msg"><%= error %></div><% } %>
+
+<% if (categories) { %>
+  <div class="section-title"><h2>Encontrado em <%= org.name %> para <%= masked %></h2><small class="muted"><%= total %> registro(s) no total</small></div>
+  <% if (!total) { %>
+    <section class="card card-pad"><b>Nada encontrado com esse e-mail ou telefone.</b><p class="muted op-p" style="margin-top:6px">Confira se a pessoa usou outro e-mail ou número com a empresa. Se precisar registrar a resposta, gere o comprovante assim mesmo (fica registrado que nada foi encontrado).</p></section>
+  <% } %>
+  <form data-action action="/master/privacidade/pessoa" data-stepup="Excluir dados de <%= masked %> em <%= org.name %>" class="dp-erase" data-erase-form>
+    <input type="hidden" name="organizationId" value="<%= org.id %>">
+    <input type="hidden" name="email" value="<%= email %>">
+    <input type="hidden" name="phone" value="<%= phone %>">
+    <input type="hidden" name="pedido" value="<%= pedido %>">
+    <section class="table">
+      <% categories.forEach(function (c) { %>
+        <label class="tr cols-dp-cat <%= c.count ? '' : 'is-zero' %>">
+          <span><input class="cbx" type="checkbox" name="cats" value="<%= c.key %>" <%= c.count && !c.blocked ? 'checked' : '' %> <%= !c.count || c.blocked || !canDelete ? 'disabled' : '' %>></span>
+          <span class="op-name"><b><%= c.label %></b><small class="muted"><%= c.what %></small><% if (c.samples.length) { %><small><%= c.samples.join(' · ') %></small><% } %><% if (c.blocked) { %><small class="op-err"><%= c.blocked %></small><% } %></span>
+          <span class="num strong"><%= c.count %></span>
+        </label>
+      <% }) %>
+    </section>
+    <p class="muted dp-note">Não entram aqui: fotos de obra (são da empresa) e mensagens do chat interno da equipe. A assinatura do orçamento aprovado fica como prova do contrato.</p>
+    <% if (canDelete) { %>
+      <div class="card card-pad dp-confirm">
+        <label class="field">Motivo<input class="input" name="reason" required maxlength="300" placeholder="Ex.: pedido do cliente por e-mail em 12/10, encaminhado pela empresa"></label>
+        <label class="field">Digite EXCLUIR para confirmar<input class="input" name="confirm" required autocomplete="off" placeholder="EXCLUIR"></label>
+        <button class="btn btn-danger" type="submit">Excluir e gerar comprovante</button>
+        <small class="muted">Não dá para desfazer. Pede o código do autenticador.</small>
+      </div>
+    <% } else { %>
+      <div class="note-box note-warn">Só o Master pode excluir dados.</div>
+    <% } %>
+  </form>
+<% } %>
+<script src="/assets/master/comms.js?v=20261015-dp1" defer></script>
+<%- include('_bottom') %>

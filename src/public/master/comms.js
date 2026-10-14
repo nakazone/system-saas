@@ -120,6 +120,32 @@
     }
   }
 
+  // ---------- Privacy request form: person fields only for "Uma pessoa" ----------
+  $$("form[data-pedido-form]").forEach(function (form) {
+    var box = $("[data-person-only]", form);
+    var sync = function () {
+      var p = form.querySelector('input[name="subjectType"]:checked');
+      if (box) box.hidden = !p || p.value !== "person";
+    };
+    form.addEventListener("change", sync);
+    sync();
+  });
+
+  // ---------- Erase form: the button says how many groups are marked ----------
+  $$("form[data-erase-form]").forEach(function (form) {
+    var btn = form.querySelector("button[type=submit]");
+    if (!btn) return;
+    var base = btn.textContent;
+    var sync = function () {
+      var n = $$('input[name="cats"]:checked', form).length;
+      var any = $$('input[name="cats"]:not([disabled])', form).length;
+      btn.textContent = any ? (n ? base + " (" + n + " grupo" + (n > 1 ? "s" : "") + ")" : "Marque um grupo") : base;
+      btn.disabled = any > 0 && n === 0;
+    };
+    form.addEventListener("change", sync);
+    sync();
+  });
+
   // ---------- Copy code ----------
   $$("[data-copy]").forEach(function (el) {
     el.title = "Clique para copiar";
