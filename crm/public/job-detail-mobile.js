@@ -795,7 +795,11 @@
           await setStatus("in_progress");
           window.crmToast?.success?.("Job iniciado");
         } else if (action === "complete") {
-          if (!confirm("Marcar o job como concluído?")) return;
+          const label = job?.title || (window.JobsInfo && job ? window.JobsInfo.client(job) : "");
+          const ok = window.crmConfirm?.completeJob
+            ? await window.crmConfirm.completeJob(label)
+            : confirm("Marcar o job como concluído?");
+          if (!ok) return;
           await setStatus("completed");
           window.crmToast?.success?.("Job concluído");
         } else if (action === "schedule") {

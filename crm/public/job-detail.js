@@ -230,7 +230,11 @@
     if (act === "schedule") return openSection("schedule");
     if (act === "start") return setStatus("in_progress", "Job iniciado.");
     if (act === "complete") {
-      if (!confirm("Marcar o job como concluído?")) return;
+      const label = job?.title || clientName();
+      const ok = window.crmConfirm?.completeJob
+        ? await window.crmConfirm.completeJob(label)
+        : confirm("Marcar o job como concluído?");
+      if (!ok) return;
       return setStatus("completed", "Job concluído.");
     }
   }

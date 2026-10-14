@@ -928,9 +928,14 @@
           } finally {
             btn.disabled = false;
           }
-        } else if (act === "start") await setStatus(id, "in_progress", "Job iniciado.");
+        }         else if (act === "start") await setStatus(id, "in_progress", "Job iniciado.");
         else if (act === "complete") {
-          if (!confirm("Marcar o job como concluído?")) return;
+          const wo = all.find((w) => String(w.id) === String(id)) || detailWo;
+          const label = wo?.title || (wo ? I().client(wo) : "");
+          const ok = window.crmConfirm?.completeJob
+            ? await window.crmConfirm.completeJob(label)
+            : confirm("Marcar o job como concluído?");
+          if (!ok) return;
           await setStatus(id, "completed", "Job concluído.");
         }
       } catch (err) {

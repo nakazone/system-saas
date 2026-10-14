@@ -365,7 +365,14 @@
       location.href = `job-detail.html?id=${encodeURIComponent(id)}`;
       return;
     }
-    if (status === "completed" && !confirm("Marcar o job como concluído?")) return;
+    if (status === "completed") {
+      const wo = allJobs.find((w) => String(w.id) === String(id));
+      const label = wo?.title || (wo ? clientLabel(wo) : "");
+      const ok = window.crmConfirm?.completeJob
+        ? await window.crmConfirm.completeJob(label)
+        : confirm("Marcar o job como concluído?");
+      if (!ok) return;
+    }
     try {
       await fetch(`/api/work-orders/${id}`, {
         credentials: "include",
