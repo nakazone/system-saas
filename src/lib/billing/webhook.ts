@@ -3,7 +3,11 @@ import type Stripe from "stripe";
 import { prisma } from "../prisma.js";
 import { getStripe } from "./stripe.js";
 import { systemAudit } from "./audit.js";
-import { PLAN_LABEL } from "../../master/lib.js";
+import { PLAN_LABEL, monthlyCents } from "../../master/lib.js";
+import { syncCard } from "./cards.js";
+import { couponCodeFromStripe } from "./coupons.js";
+import { env } from "../../config/env.js";
+import { email as emailProvider } from "../email/index.js";
 
 /**
  * POST /webhooks/stripe — must be mounted BEFORE express.json() (needs the raw body).
@@ -106,6 +110,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<string | n
         },
       });
       await systemAudit("stripe.checkout_completed", { type: "organization", id: org.id, label: org.name, meta: { plan, cycle } });
+      await syncCard(org.id).catch(() => false);
       return org.id;
     }
 
@@ -133,7 +138,15 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<string | n
         // Reminders/read-only are applied by the daily billing job from the due date.
         if (org.status === "active" || org.status === "trial") data.status = "past_due";
       }
+      // Coupon typed in the checkout (or applied by the Master) — keep the code on the company.
+      const subCoupon = (sub as Stripe.Subscription & { discount?: { coupon?: { id?: string } } | null }).discount?.coupon?.id ?? null;
+      const code = await couponCodeFromStripe(subCoupon);
+      if (code !== org.couponCode && (code || !subCoupon)) {
+        data.couponCode = code;
+        if (code) await prisma.coupon.update({ where: { code }, data: { timesRedeemed: { increment: 1 } } }).catch(() => undefined);
+      }
       await prisma.organization.update({ where: { id: org.id }, data });
+      await syncCard(org.id).catch(() => false);
       if (event.type === "customer.subscription.created" || org.status !== data.status) {
         await systemAudit("stripe.subscription", { type: "organization", id: org.id, label: org.name, meta: { stripeStatus: sub.status, from: org.status, to: data.status ?? org.status } });
       }
@@ -151,6 +164,12 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<string | n
         data: { status: "canceled", canceledAt: new Date(), cancelReason: org.cancelReason || (reason ? `Stripe: ${reason}` : "Assinatura cancelada no Stripe"), cancelAtPeriodEnd: false },
       });
       await prisma.$executeRaw`DELETE FROM "session" WHERE sess->>'organizationId' = ${org.id}`.catch(() => 0);
+      if (!org.cancelRequestedAt) {
+        // Canceled outside the ObraMate flow (portal, Stripe dashboard, unpaid): still counts in the reasons report.
+        await prisma.cancellationEvent.create({
+          data: { organizationId: org.id, orgName: org.name, source: "stripe", reasonKey: org.cancelReasonKey || (sub.cancellation_details?.reason === "payment_failed" ? "not_paid" : "other"), comment: sub.cancellation_details?.comment || sub.cancellation_details?.feedback || null, mrrCents: monthlyCents(org), byName: "Stripe" },
+        });
+      }
       await systemAudit("stripe.subscription_canceled", { type: "organization", id: org.id, label: org.name, meta: { reason } });
       return org.id;
     }
@@ -246,15 +265,60 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<string | n
       return pay.organizationId;
     }
 
-    case "charge.dispute.created": {
+    case "charge.dispute.created":
+    case "charge.dispute.updated":
+    case "charge.dispute.closed": {
       const d = event.data.object as Stripe.Dispute;
-      const pay = await prisma.platformPayment.findFirst({ where: { stripeChargeId: idOf(d.charge) } });
-      if (!pay) return null;
-      await prisma.platformNote.create({
-        data: { organizationId: pay.organizationId, authorName: "Stripe", body: `Disputa (chargeback) aberta: $${(d.amount / 100).toFixed(2)} · motivo ${d.reason}. Responder no Stripe até ${d.evidence_details?.due_by ? new Date(d.evidence_details.due_by * 1000).toISOString().slice(0, 10) : "o prazo"}.` },
-      });
-      await systemAudit("payment.dispute", { type: "organization", id: pay.organizationId, label: null, meta: { amountCents: d.amount, reason: d.reason } });
-      return pay.organizationId;
+      const chargeId = idOf(d.charge);
+      const pay = chargeId ? await prisma.platformPayment.findFirst({ where: { stripeChargeId: chargeId }, include: { organization: { select: { name: true } } } }) : null;
+      const closed = ["won", "lost", "warning_closed", "charge_refunded"].includes(d.status);
+      const row = {
+        organizationId: pay?.organizationId ?? null,
+        orgName: pay?.organization.name ?? null,
+        paymentId: pay?.id ?? null,
+        chargeId,
+        amountCents: d.amount,
+        reason: d.reason,
+        status: d.status,
+        evidenceDueBy: fromUnix(d.evidence_details?.due_by),
+        closedAt: closed ? new Date() : null,
+      };
+      const before = await prisma.platformDispute.findUnique({ where: { id: d.id } });
+      await prisma.platformDispute.upsert({ where: { id: d.id }, create: { id: d.id, ...row }, update: { ...row, closedAt: closed ? before?.closedAt ?? new Date() : null } });
+      if (!before) {
+        await systemAudit("payment.dispute", { type: "organization", id: pay?.organizationId ?? null, label: pay?.organization.name ?? null, meta: { amountCents: d.amount, reason: d.reason, dueBy: row.evidenceDueBy?.toISOString() ?? null } });
+        const master = await prisma.platformAdmin.findFirst({ where: { role: "MASTER", status: "active" }, select: { email: true } });
+        if (master) {
+          await emailProvider
+            .send({
+              to: master.email,
+              subject: `[ObraMate] Disputa (chargeback) de $${(d.amount / 100).toFixed(2)}${pay ? ` · ${pay.organization.name}` : ""}`,
+              text: [
+                `Uma cobrança foi contestada no banco${pay ? ` por ${pay.organization.name}` : ""}.`,
+                `Valor: $${(d.amount / 100).toFixed(2)} · motivo: ${d.reason}`,
+                row.evidenceDueBy ? `Prazo para mandar provas no Stripe: ${row.evidenceDueBy.toISOString().slice(0, 10)}` : "",
+                "",
+                `${env.APP_BASE_URL.replace(/\/$/, "")}/master/pagamentos?aba=disputas`,
+              ].join("\n"),
+              meta: { category: "internal", template: "dispute_alert", organizationId: null },
+            })
+            .catch(() => undefined);
+        }
+      } else if (closed && !before.closedAt) {
+        await systemAudit("payment.dispute_closed", { type: "organization", id: pay?.organizationId ?? null, label: pay?.organization.name ?? null, meta: { status: d.status } });
+      }
+      return pay?.organizationId ?? null;
+    }
+
+    case "payment_method.attached":
+    case "payment_method.updated":
+    case "customer.updated": {
+      const obj = event.data.object as Stripe.PaymentMethod | Stripe.Customer;
+      const customer = "object" in obj && obj.object === "customer" ? obj.id : idOf((obj as Stripe.PaymentMethod).customer);
+      const org = await findOrg({ customer });
+      if (!org) return null;
+      await syncCard(org.id).catch(() => false);
+      return org.id;
     }
 
     default:

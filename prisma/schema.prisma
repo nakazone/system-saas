@@ -373,6 +373,73 @@ model DataDeletion {
   @@index([organizationId])
 }
 
+/// Discount codes (Master › Cupons), mirrored in Stripe as coupon + promotion code.
+model Coupon {
+  id                    String    @id @default(uuid()) @db.Uuid
+  code                  String    @unique
+  name                  String
+  percentOff            Int?
+  amountOffCents        Int?
+  /// once | repeating | forever
+  duration              String
+  durationMonths        Int?
+  maxRedemptions        Int?
+  expiresAt             DateTime?
+  /// Empty = every plan
+  plans                 String[]  @default([])
+  active                Boolean   @default(true)
+  stripeCouponId        String?
+  stripePromotionCodeId String?
+  timesRedeemed         Int       @default(0)
+  createdByName         String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+/// Chargebacks opened against ObraMate charges (from the Stripe webhook).
+model PlatformDispute {
+  id             String    @id
+  organizationId String?   @db.Uuid
+  orgName        String?
+  paymentId      String?   @db.Uuid
+  chargeId       String?
+  amountCents    Int
+  reason         String
+  /// warning_needs_response | needs_response | under_review | won | lost | …
+  status         String
+  evidenceDueBy  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  closedAt       DateTime?
+
+  @@index([status])
+  @@index([organizationId])
+}
+
+/// Every cancellation (asked by the company, done by the Master or by Stripe). Survives company deletion.
+model CancellationEvent {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  orgName        String
+  /// company | master | stripe
+  source         String
+  reasonKey      String
+  comment        String?
+  /// Monthly value lost (cents) when it was asked
+  mrrCents       Int       @default(0)
+  requestedAt    DateTime  @default(now())
+  /// When access ends (period end) — null = right away
+  effectiveAt    DateTime?
+  offerShown     Boolean   @default(false)
+  offerAccepted  Boolean   @default(false)
+  /// The company changed its mind before the end of the period
+  undoneAt       DateTime?
+  byName         String?
+
+  @@index([requestedAt])
+  @@index([organizationId])
+}
+
 /// Daily snapshot of the business numbers (taken after midnight America/Denver). History for Métricas.
 model PlatformDailyMetric {
   day        String   @id // YYYY-MM-DD (America/Denver)
@@ -626,6 +693,18 @@ model Organization {
   readOnlySince    DateTime?
   /// Billing reminders paused for this company until this date
   dunningPausedUntil DateTime?
+  /// price | missing_feature | closed | competitor | not_used | other (Master › Métricas)
+  cancelReasonKey  String?
+  /// When the company asked to cancel at the end of the period
+  cancelRequestedAt DateTime?
+  /// Coupon applied to the subscription (code from Coupon)
+  couponCode       String?
+  /// Default card in Stripe (never the number): brand, last 4, expiry
+  cardBrand        String?
+  cardLast4        String?
+  cardExpMonth     Int?
+  cardExpYear      Int?
+  cardSyncedAt     DateTime?
   /// Feature flags per org, e.g. { "job_media": true }
   featureFlags     Json?
   // --- Company details (Configurações › Dados da empresa) ---

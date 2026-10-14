@@ -146,6 +146,27 @@
     sync();
   });
 
+  // ---------- New coupon: months field + live preview ----------
+  $$("form[data-coupon-form]").forEach(function (form) {
+    var months = $("[data-months]", form);
+    var out = $("[data-coupon-preview]", form);
+    var code = form.querySelector('[name="code"]');
+    var sync = function () {
+      var get = function (n) { var el = form.querySelector('[name="' + n + '"]:checked') || form.querySelector('[name="' + n + '"]'); return el ? el.value : ""; };
+      var dur = get("duration");
+      if (months) months.hidden = dur !== "repeating";
+      if (code) code.value = code.value.toUpperCase().replace(/\s+/g, "");
+      var v = Number(get("value")) || 0;
+      var off = get("kind") === "percent" ? v + "% de desconto" : "$" + v + " de desconto";
+      var m = Number(form.querySelector('[name="months"]').value) || 0;
+      var when = dur === "once" ? "na primeira cobrança" : dur === "forever" ? "em todas as cobranças" : "por " + m + (m === 1 ? " mês" : " meses");
+      if (out) out.textContent = v ? (code && code.value ? code.value + ": " : "") + off + " " + when + "." : "";
+    };
+    form.addEventListener("input", sync);
+    form.addEventListener("change", sync);
+    sync();
+  });
+
   // ---------- Copy code ----------
   $$("[data-copy]").forEach(function (el) {
     el.title = "Clique para copiar";

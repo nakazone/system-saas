@@ -48,6 +48,9 @@
       <% if (o.readOnlySince) { %><div><span>Só leitura desde</span><b class="danger"><%= shortDate(o.readOnlySince) %></b></div><% } %>
       <div><span>Cobrança</span><b><%= o.stripeSubscriptionId ? ('Cartão no Stripe' + (o.cancelAtPeriodEnd ? ' · cancela no fim do período' : '')) : (o.stripeCustomerId ? 'Cliente no Stripe, sem assinatura' : 'Manual (Zelle, cheque…)') %></b></div>
       <% if (o.dunningPausedUntil && o.dunningPausedUntil > new Date()) { %><div><span>Régua</span><b>pausada até <%= shortDate(o.dunningPausedUntil) %></b></div><% } %>
+      <% if (billx.card) { %><div><span>Cartão</span><b class="<%= billx.cardWarn ? 'danger' : '' %>"><%= billx.card %><%= billx.cardWarn ? ' · vence antes da próxima cobrança' : '' %></b></div><% } %>
+      <div><span>Cupom</span><b><%= billx.coupon ? billx.coupon.code + ' · ' + billx.coupon.text : 'nenhum' %></b></div>
+      <% if (o.cancelAtPeriodEnd && o.cancelRequestedAt) { %><div><span>Cancelamento</span><b class="danger">pedido pela empresa em <%= shortDate(o.cancelRequestedAt) %><%= billx.cancelReason ? ' · ' + billx.cancelReason : '' %></b></div><% } %>
     </div>
     <% if (canBilling && o.status !== 'canceled') { %>
     <div class="row-actions" style="margin-top:10px">
@@ -57,6 +60,9 @@
       <% if (o.stripeSubscriptionId && ['past_due', 'read_only', 'suspended'].indexOf(o.status) >= 0) { %>
         <form data-action action="/master/clientes/<%= id %>/cobrar" data-confirm="Tentar cobrar agora no cartão de <%= o.name %>?" style="display:flex"><button class="btn btn-sm btn-dark" type="submit">Cobrar agora no cartão</button></form>
       <% } %>
+      <% if (billx.coupons.length || o.couponCode) { %><button class="btn btn-sm btn-soft" type="button" data-open="dlg-cupom"><%= o.couponCode ? 'Trocar cupom' : 'Aplicar cupom' %></button><% } %>
+      <% if (o.couponCode) { %><form data-action action="/master/clientes/<%= id %>/cupom" data-confirm="Tirar o cupom <%= o.couponCode %> de <%= o.name %>? As próximas cobranças voltam ao preço cheio." style="display:flex"><input type="hidden" name="code" value=""><button class="btn btn-sm btn-soft" type="submit">Tirar cupom</button></form><% } %>
+      <% if (o.stripeSubscriptionId && stripeOn) { %><form data-action action="/master/clientes/<%= id %>/cartao" style="display:flex"><button class="btn btn-sm btn-soft" type="submit" title="Ler de novo o cartão no Stripe">Atualizar cartão</button></form><% } %>
       <% if (o.dunningPausedUntil && o.dunningPausedUntil > new Date()) { %>
         <form data-action action="/master/clientes/<%= id %>/pausar-regua" style="display:flex"><input type="hidden" name="days" value="0"><button class="btn btn-sm btn-soft" type="submit">Retomar régua</button></form>
       <% } else if (o.status !== 'active' || o.overdue) { %>
@@ -465,7 +471,12 @@
     <div class="modal-head"><div><h2 id="t-cc">Cancelar <%= o.name %></h2><p>Os usuários perdem o acesso na hora. Os dados ficam guardados e dá para reativar depois.</p></div>
       <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <form data-action action="/master/clientes/<%= id %>/cancelar" data-stepup="Cancelar <%= o.name %>">
-      <label class="field">Motivo<input class="input" name="reason" maxlength="200" placeholder="Ex.: achou caro, fechou a empresa…"></label>
+      <label class="field">Motivo
+        <select class="input" name="reasonKey" required>
+          <% billx.reasons.forEach(function (r) { %><option value="<%= r.key %>"><%= r.label %></option><% }) %>
+        </select>
+      </label>
+      <label class="field">Detalhe (opcional)<input class="input" name="reason" maxlength="200" placeholder="Ex.: achou caro para 2 usuários"></label>
       <label class="field">Digite <%= o.slug %> para confirmar<input class="input" name="confirm" required autocomplete="off"></label>
       <button class="btn btn-danger btn-block" type="submit">Cancelar empresa</button>
     </form>
@@ -512,6 +523,22 @@
       <label class="field">Motivo<input class="input" name="reason" required maxlength="300" placeholder="Ex.: pedido formal de exclusão · cancelada há 90+ dias"></label>
       <label class="field">Digite <%= o.slug %> para confirmar<input class="input" name="confirm" required autocomplete="off"></label>
       <button class="btn btn-danger btn-block" type="submit">Excluir tudo de vez</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
+
+<% if (canBilling && (billx.coupons.length || o.couponCode)) { %>
+<dialog id="dlg-cupom" aria-labelledby="t-cup">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-cup">Cupom para <%= o.name %></h2><p><%= o.stripeSubscriptionId ? 'Aplicado na assinatura do Stripe a partir da próxima cobrança.' : 'Sem assinatura no Stripe: fica anotado na ficha e vale quando a empresa assinar pelo link.' %></p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/clientes/<%= id %>/cupom">
+      <div class="seg-pick cards">
+        <% billx.coupons.forEach(function (c, i) { %><label><input type="radio" name="code" value="<%= c.code %>" <%= (o.couponCode ? c.code === o.couponCode : i === 0) ? 'checked' : '' %>><span><b><%= c.code %> · <%= c.name %></b><small><%= c.text %><%= c.plansText ? ' · ' + c.plansText : '' %></small></span></label><% }) %>
+      </div>
+      <% if (!billx.coupons.length) { %><p class="muted">Nenhum cupom ativo que valha para o plano <%= o.planText %>. Crie em Cupons.</p><% } %>
+      <button class="btn btn-dark btn-block" type="submit" <%= billx.coupons.length ? '' : 'disabled' %>>Aplicar cupom</button>
     </form>
   </div>
 </dialog>

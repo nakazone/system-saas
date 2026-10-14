@@ -241,6 +241,11 @@ export async function runBillingLadder(now = new Date(), opts: { dryRun?: boolea
             ...(status === "canceled" ? { canceledAt: now, cancelReason: isTrial ? "Teste terminou sem assinatura" : "Pagamento não feito" } : {}),
           },
         });
+        if (status === "canceled") {
+          await prisma.cancellationEvent
+            .create({ data: { organizationId: org.id, orgName: org.name, source: "system", reasonKey: isTrial ? "trial_ended" : "not_paid", mrrCents: 0, byName: "Régua de cobrança" } })
+            .catch(() => undefined);
+        }
         if (status === "suspended" || status === "canceled") {
           await prisma.$executeRaw`DELETE FROM "session" WHERE sess->>'organizationId' = ${org.id}`.catch(() => 0);
         }

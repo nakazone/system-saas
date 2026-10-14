@@ -13,6 +13,9 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { daysUntil, money, planLabel, cyclePriceCents, shortDate } from "../../master/lib.js";
 import { plans } from "../../master/plans.js";
 import { BillingError, createCheckoutUrl, createPortalUrl, stripeEnabled } from "./stripe.js";
+import { acceptOffer, cancelOptions, requestCancel, undoCancel } from "./cancel.js";
+import { cardText } from "./cards.js";
+import { couponText } from "./coupons.js";
 
 /**
  * What a company can do right now, from its billing state.
@@ -132,6 +135,11 @@ async function loadBillingOrg(id: string) {
       stripeCustomerId: true,
       cancelAtPeriodEnd: true,
       readOnlySince: true,
+      couponCode: true,
+      cardBrand: true,
+      cardLast4: true,
+      cardExpMonth: true,
+      cardExpYear: true,
       _count: { select: { users: true } },
     },
   });
@@ -240,6 +248,8 @@ accountBillingRouter.get("/api/billing/summary", async (req: AuthedRequest, res,
         trial_ends_at: org.trialEndsAt?.toISOString() ?? null,
         current_period_end: org.currentPeriodEnd?.toISOString() ?? null,
         cancel_at_period_end: org.cancelAtPeriodEnd,
+        card: cardText(org),
+        coupon: org.couponCode ? await couponForApp(org.couponCode) : null,
         has_subscription: !!org.stripeSubscriptionId,
         has_customer: !!org.stripeCustomerId,
         users: org._count.users,
@@ -272,6 +282,11 @@ accountBillingRouter.get("/api/billing/summary", async (req: AuthedRequest, res,
   }
 });
 
+async function couponForApp(code: string) {
+  const c = await prisma.coupon.findUnique({ where: { code } }).catch(() => null);
+  return c ? { code: c.code, text: couponText(c) } : { code, text: "desconto aplicado" };
+}
+
 const checkoutSchema = z.object({
   plan: z.string().trim().toLowerCase().optional(),
   cycle: z.enum(["monthly", "annual"]).optional(),
@@ -297,6 +312,57 @@ accountBillingRouter.post("/api/billing/checkout", async (req: AuthedRequest, re
   try {
     const url = await createCheckoutUrl(req.organizationId, { plan: parsed.data.plan, cycle: parsed.data.cycle, createdBy: req.user.email });
     res.json({ success: true, url });
+  } catch (error) {
+    billingFail(res, error);
+  }
+});
+
+accountBillingRouter.get("/api/billing/cancel", async (req: AuthedRequest, res) => {
+  if (!req.user || !req.organizationId) return void res.status(401).json({ success: false });
+  if (!canManageBilling(req)) return void res.status(403).json({ success: false, message: "Só administradores cancelam a assinatura." });
+  try {
+    res.json({ success: true, data: await cancelOptions(req.organizationId) });
+  } catch (error) {
+    billingFail(res, error);
+  }
+});
+
+const cancelSchema = z.object({
+  reason: z.string().trim().min(1),
+  comment: z.string().trim().max(1000).optional().default(""),
+  offer_shown: z.boolean().optional().default(false),
+});
+
+accountBillingRouter.post("/api/billing/cancel", async (req: AuthedRequest, res) => {
+  if (!req.user || !req.organizationId) return void res.status(401).json({ success: false });
+  if (!canManageBilling(req) || req.session?.support) return void res.status(403).json({ success: false, message: "Só administradores cancelam a assinatura." });
+  const parsed = cancelSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return void res.status(400).json({ success: false, message: "Escolha um motivo." });
+  try {
+    const r = await requestCancel({ organizationId: req.organizationId, reasonKey: parsed.data.reason, comment: parsed.data.comment, offerShown: parsed.data.offer_shown, by: { name: req.user.name, email: req.user.email } });
+    res.json({ success: true, access_until: r.until?.toISOString() ?? null });
+  } catch (error) {
+    billingFail(res, error);
+  }
+});
+
+accountBillingRouter.post("/api/billing/cancel/undo", async (req: AuthedRequest, res) => {
+  if (!req.user || !req.organizationId) return void res.status(401).json({ success: false });
+  if (!canManageBilling(req) || req.session?.support) return void res.status(403).json({ success: false, message: "Só administradores mexem na assinatura." });
+  try {
+    await undoCancel(req.organizationId, { name: req.user.name, email: req.user.email });
+    res.json({ success: true });
+  } catch (error) {
+    billingFail(res, error);
+  }
+});
+
+accountBillingRouter.post("/api/billing/retention/accept", async (req: AuthedRequest, res) => {
+  if (!req.user || !req.organizationId) return void res.status(401).json({ success: false });
+  if (!canManageBilling(req) || req.session?.support) return void res.status(403).json({ success: false, message: "Só administradores mexem na assinatura." });
+  try {
+    const offer = await acceptOffer(req.organizationId, String(req.body?.reason || "other"), { name: req.user.name, email: req.user.email });
+    res.json({ success: true, text: couponText(offer) });
   } catch (error) {
     billingFail(res, error);
   }
