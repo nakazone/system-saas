@@ -5,6 +5,7 @@ import { env } from "../config/env.js";
 import { hashPassword } from "../lib/auth/password.js";
 import { sendPlatformEmail, firstName, dateTimeVar } from "../lib/email/templates.js";
 import { newToken, hashToken, takeRate, requestIp, HOUR } from "../lib/security/db-rate-limit.js";
+import { newPasswordProblem } from "../lib/auth/password-policy.js";
 
 /**
  * "Forgot password" for company users (CRM login).
@@ -104,6 +105,10 @@ passwordResetRouter.post("/api/auth/reset-password", async (req, res, next) => {
     if (!row) return void res.status(410).json({ success: false, error: "This link expired or was already used. Ask for a new one." });
     if (parsed.data.password.toLowerCase() === row.user.email.toLowerCase()) {
       return void res.status(400).json({ success: false, error: "Choose a password that is not your e-mail." });
+    }
+    // Same rules as every other password screen (blocks the default passwords published in the repo).
+    if (newPasswordProblem(parsed.data.password, { email: row.user.email })) {
+      return void res.status(400).json({ success: false, error: "This password is too common. Choose a different one." });
     }
     // Claim the token first so it cannot be used twice in parallel.
     const claimed = await prisma.passwordResetToken.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: new Date() } });

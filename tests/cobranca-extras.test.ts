@@ -62,7 +62,7 @@ afterAll(async () => {
 });
 
 async function newOrg(tag: string, data: Record<string, unknown> = {}) {
-  const a = await createOrganizationWithAdmin({ organizationName: `${tag} ${suffix}`, slug: `${tag}-${suffix}`, adminName: "Ana Admin", adminEmail: `${tag}-${suffix}@example.com`, password: "password12345", plan: "professional" });
+  const a = await createOrganizationWithAdmin({ organizationName: `${tag} ${suffix}`, slug: `${tag}-${suffix}`, adminName: "Ana Admin", adminEmail: `${tag}-${suffix}@example.com`, password: "Test-Passw0rd-2026", plan: "professional" });
   await prisma.organization.update({ where: { id: a.organization.id }, data: data as never });
   return { id: a.organization.id, admin: a.admin };
 }
@@ -245,7 +245,7 @@ describe.skipIf(!privileged)("Master e CRM (HTTP)", () => {
   it("CRM: admin vê opções, cancela e mantém pela API", async () => {
     const o = await newOrg("crm", { status: "active", currentPeriodEnd: new Date(Date.now() + 20 * DAY) });
     const host = `crm-${suffix}.localhost`;
-    const login = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Host: host }, body: JSON.stringify({ email: `crm-${suffix}@example.com`, password: "password12345", organizationId: o.id }) });
+    const login = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Host: host }, body: JSON.stringify({ email: `crm-${suffix}@example.com`, password: "Test-Passw0rd-2026", organizationId: o.id }) });
     expect(login.status).toBe(200);
     const cookie = cookieOf(login);
     const j = async (p: string, body?: unknown) => {

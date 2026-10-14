@@ -23,6 +23,7 @@ const REFRESH_BELOW_MS = 3 * 24 * 60 * 60 * 1000;
 /** Scripts the pages before login need (login, change password, public quote page, PWA). */
 const ANONYMOUS_SCRIPTS = new Set([
   "/om-device.js",
+  "/om-reload.js",
   "/crm-toast.js",
   "/saas-branding.js",
   "/quote-signature-auto.js",
@@ -94,7 +95,15 @@ export function issueCodeCookie(req: AuthedRequest, res: Response, next: NextFun
 }
 
 /** HTML screens that may be shown before login (the rest send the visitor to the login page). */
-const ANONYMOUS_PAGES = new Set(["/login", "/login.html", "/change-password.html", "/change-password"]);
+const ANONYMOUS_PAGES = new Set([
+  "/login",
+  "/login.html",
+  "/change-password.html",
+  "/change-password",
+  "/forgot-password.html",
+  "/reset-password.html",
+  "/offline.html",
+]);
 
 export function gateCrmPages(req: AuthedRequest, res: Response, next: NextFunction): void {
   if (req.method !== "GET" && req.method !== "HEAD") {

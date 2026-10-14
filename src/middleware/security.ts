@@ -138,6 +138,7 @@ const PUBLIC_INPUT_PATHS = [
   /^\/t\//,
   /^\/f\//,
   /^\/invitations\//,
+  /^\/signup(\/|$)/,
 ];
 
 /**

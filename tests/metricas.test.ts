@@ -58,7 +58,7 @@ describe.skipIf(!privileged)("Métricas — foto diária e funil", () => {
   });
 
   it("foto diária grava MRR e empresas pagando, e pode ser refeita no mesmo dia", async () => {
-    const a = await createOrganizationWithAdmin({ organizationName: `Paga ${suffix}`, slug: `paga-${suffix}`, adminName: "Pia Paga", adminEmail: `pia-${suffix}@example.com`, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Paga ${suffix}`, slug: `paga-${suffix}`, adminName: "Pia Paga", adminEmail: `pia-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     await prisma.organization.update({ where: { id: a.organization.id }, data: { status: "active", plan: "starter", billingCycle: "monthly", planPriceCents: 4200 } });
     const s1 = await takeSnapshot(new Date(), "2099-01-01");
     expect((s1.orgMrr as Record<string, number>)[a.organization.id]).toBe(4200);
@@ -69,7 +69,7 @@ describe.skipIf(!privileged)("Métricas — foto diária e funil", () => {
   });
 
   it("funil: ativou = orçamento enviado em até 7 dias; pagou = pagamento confirmado", async () => {
-    const b = await createOrganizationWithAdmin({ organizationName: `Funil ${suffix}`, slug: `funil-${suffix}`, adminName: "Fred Funil", adminEmail: `fred-${suffix}@example.com`, password: "password12345" });
+    const b = await createOrganizationWithAdmin({ organizationName: `Funil ${suffix}`, slug: `funil-${suffix}`, adminName: "Fred Funil", adminEmail: `fred-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     const before = (await trialFunnel(12)).totals;
     await prisma.quote.create({ data: { organizationId: b.organization.id, number: 1, title: "First", status: "sent" } });
     await prisma.platformPayment.create({ data: { organizationId: b.organization.id, amountCents: 12900, paidAt: new Date(), method: "zelle", source: "manual", status: "paid" } });

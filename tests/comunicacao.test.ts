@@ -81,7 +81,7 @@ describe("Envio: registro, bloqueio e idioma", () => {
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    const a = await createOrganizationWithAdmin({ organizationName: `Comms Co ${suffix}`, slug: `comms-${suffix}`, adminName: "Ana Lima", adminEmail: owner, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Comms Co ${suffix}`, slug: `comms-${suffix}`, adminName: "Ana Lima", adminEmail: owner, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     await prisma.organization.update({ where: { id: orgId }, data: { defaultLocale: "pt-BR" } });
   });
@@ -204,8 +204,8 @@ describe("Avisos no app", () => {
   const ids: string[] = [];
 
   beforeAll(async () => {
-    const a = await createOrganizationWithAdmin({ organizationName: `Aviso A ${suffix}`, slug: `aviso-a-${suffix}`, adminName: "A A", adminEmail: `a-${suffix}@example.com`, password: "password12345", plan: "professional" });
-    const b = await createOrganizationWithAdmin({ organizationName: `Aviso B ${suffix}`, slug: `aviso-b-${suffix}`, adminName: "B B", adminEmail: `b-${suffix}@example.com`, password: "password12345", plan: "starter" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Aviso A ${suffix}`, slug: `aviso-a-${suffix}`, adminName: "A A", adminEmail: `a-${suffix}@example.com`, password: "Test-Passw0rd-2026", plan: "professional" });
+    const b = await createOrganizationWithAdmin({ organizationName: `Aviso B ${suffix}`, slug: `aviso-b-${suffix}`, adminName: "B B", adminEmail: `b-${suffix}@example.com`, password: "Test-Passw0rd-2026", plan: "starter" });
     orgA = a.organization.id;
     orgB = b.organization.id;
     userA = a.admin.id;

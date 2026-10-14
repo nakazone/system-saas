@@ -175,11 +175,11 @@ describe.skipIf(!privileged)("Segurança do Master (HTTP)", () => {
     for (const p of DEFAULT_PERMISSIONS) {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
-    const a = await createOrganizationWithAdmin({ organizationName: `Seg Co ${suffix}`, slug: `seg-${suffix}`, adminName: "Uma Pessoa", adminEmail: `user-${suffix}@example.com`, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Seg Co ${suffix}`, slug: `seg-${suffix}`, adminName: "Uma Pessoa", adminEmail: `user-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     const login = (pw: string) =>
       fetch(`${base}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": IPHONE }, body: JSON.stringify({ email: `user-${suffix}@example.com`, password: pw, organizationId: a.organization.id }) });
     expect((await login("errada")).status).toBe(401);
-    expect((await login("password12345")).status).toBe(200);
+    expect((await login("Test-Passw0rd-2026")).status).toBe(200);
     const ev = await prisma.loginEvent.findMany({ where: { userId: a.admin.id }, orderBy: { createdAt: "asc" } });
     expect(ev.map((e) => [e.success, e.reason, e.device])).toEqual([
       [false, "wrong_password", "Chrome · iPhone"],

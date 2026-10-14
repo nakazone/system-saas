@@ -21,10 +21,10 @@ describe.skipIf(!privileged)("Ficha 360° — uso, onboarding, saúde e linha do
   let idleOrgId = "";
 
   beforeAll(async () => {
-    const a = await createOrganizationWithAdmin({ organizationName: `Ficha ${suffix}`, slug: `ficha-${suffix}`, adminName: "Fran Admin", adminEmail: `fran-${suffix}@example.com`, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Ficha ${suffix}`, slug: `ficha-${suffix}`, adminName: "Fran Admin", adminEmail: `fran-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     adminId = a.admin.id;
-    const b = await createOrganizationWithAdmin({ organizationName: `Parada ${suffix}`, slug: `parada-${suffix}`, adminName: "Ivy Idle", adminEmail: `ivy-${suffix}@example.com`, password: "password12345" });
+    const b = await createOrganizationWithAdmin({ organizationName: `Parada ${suffix}`, slug: `parada-${suffix}`, adminName: "Ivy Idle", adminEmail: `ivy-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     idleOrgId = b.organization.id;
     // Old, unpaid-free company that never used the system.
     await prisma.organization.update({ where: { id: idleOrgId }, data: { createdAt: new Date(Date.now() - 40 * 86400e3), status: "active" } });

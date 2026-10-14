@@ -70,7 +70,7 @@ describe("Recursos por plano — limites e IA", () => {
 
   beforeAll(async () => {
     await prisma.plan.create({ data: { key: planKey, name: "Plano de teste", monthlyCents: 100, annualCents: 1000, visible: false, features: { chat: false, payroll: false }, limits: { users: 1, ai_month: 2, photos_month: 0 } } });
-    const a = await createOrganizationWithAdmin({ organizationName: `Recursos ${suffix}`, slug: `rec-${suffix}`, adminName: "Pat Admin", adminEmail: `pat-${suffix}@example.com`, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Recursos ${suffix}`, slug: `rec-${suffix}`, adminName: "Pat Admin", adminEmail: `pat-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     await prisma.organization.update({ where: { id: orgId }, data: { plan: planKey } });
     invalidateEntitlements(orgId);
@@ -134,7 +134,7 @@ describe.skipIf(!privileged)("Recursos por plano — no CRM", () => {
 
   beforeAll(async () => {
     await prisma.plan.create({ data: { key: planKey, name: "Plano CRM", monthlyCents: 100, annualCents: 1000, visible: false, features: { chat: false }, limits: { users: 1 } } });
-    const a = await createOrganizationWithAdmin({ organizationName: `CRM ${suffix}`, slug: `crm-${suffix}`, adminName: "Chris Admin", adminEmail: email, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `CRM ${suffix}`, slug: `crm-${suffix}`, adminName: "Chris Admin", adminEmail: email, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     await prisma.organization.update({ where: { id: orgId }, data: { plan: planKey } });
     invalidateEntitlements(orgId);
@@ -153,7 +153,7 @@ describe.skipIf(!privileged)("Recursos por plano — no CRM", () => {
   });
 
   it("módulo fora do plano: API e página 403, permissões e links somem; exceção devolve", async () => {
-    const li = await req("POST", "/api/auth/login", "", { email, password: "password12345", organizationId: orgId });
+    const li = await req("POST", "/api/auth/login", "", { email, password: "Test-Passw0rd-2026", organizationId: orgId });
     expect(li.status).toBe(200);
     const c = li.cookie;
     const chat = await req("GET", "/api/chat/conversations", c);
@@ -174,8 +174,8 @@ describe.skipIf(!privileged)("Recursos por plano — no CRM", () => {
   });
 
   it("limite de usuários bloqueia só o cadastro de usuário, com mensagem clara", async () => {
-    const li = await req("POST", "/api/auth/login", "", { email, password: "password12345", organizationId: orgId });
-    const r = await req("POST", "/api/users", li.cookie, { name: "Second Person", email: `second-${suffix}@example.com`, password: "password12345" });
+    const li = await req("POST", "/api/auth/login", "", { email, password: "Test-Passw0rd-2026", organizationId: orgId });
+    const r = await req("POST", "/api/users", li.cookie, { name: "Second Person", email: `second-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     expect(r.status).toBe(403);
     expect(r.json.code).toBe("LIMIT_REACHED");
     expect(r.json.error).toContain("até 1 usuários");

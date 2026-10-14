@@ -172,7 +172,7 @@ describe("Fase 1 — cadastro, termos, senha e backup", () => {
     expect(await prisma.signupRequest.count({ where: { slug: `bot-${suffix}` } })).toBe(0);
 
     // Address of an existing company.
-    await createOrganizationWithAdmin({ organizationName: `Taken ${suffix}`, slug: `taken-${suffix}`, adminName: "T", adminEmail: `t-${suffix}@example.com`, password: "password12345" });
+    await createOrganizationWithAdmin({ organizationName: `Taken ${suffix}`, slug: `taken-${suffix}`, adminName: "T", adminEmail: `t-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     const taken = await form("/signup", signupForm("taken"), { ip: "203.0.113.10" });
     expect(taken.status).toBe(400);
     expect(taken.html).toContain("already taken");
@@ -203,9 +203,9 @@ describe("Fase 1 — cadastro, termos, senha e backup", () => {
 
   it.skipIf(!privileged)("empresa antiga sem aceite: o admin vê o pedido e aceita (até em só leitura)", async () => {
     const adminEmail = `legal-${suffix}@example.com`;
-    const a = await createOrganizationWithAdmin({ organizationName: `Legal ${suffix}`, slug: `legal-${suffix}`, adminName: "Lee Admin", adminEmail, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Legal ${suffix}`, slug: `legal-${suffix}`, adminName: "Lee Admin", adminEmail, password: "Test-Passw0rd-2026" });
     await prisma.organization.update({ where: { id: a.organization.id }, data: { status: "read_only" } });
-    const li = await login(adminEmail, "password12345", a.organization.id);
+    const li = await login(adminEmail, "Test-Passw0rd-2026", a.organization.id);
     expect(li.status).toBe(200);
 
     // Off by default: nothing is asked until the Master turns it on.

@@ -68,7 +68,7 @@ describe("Exportar, excluir pessoa e excluir empresa", () => {
       await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
     }
     slug = `dados-${suffix}`;
-    const a = await createOrganizationWithAdmin({ organizationName: `Dados Co ${suffix}`, slug, adminName: "Ana Admin", adminEmail: `admin-${suffix}@example.com`, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Dados Co ${suffix}`, slug, adminName: "Ana Admin", adminEmail: `admin-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     adminId = a.admin.id;
     await withTenantTransaction(orgId, async (tx) => {
@@ -214,7 +214,7 @@ describe.skipIf(!privileged)("Master › Privacidade (HTTP)", () => {
 
   beforeAll(async () => {
     resetThrottle();
-    const a = await createOrganizationWithAdmin({ organizationName: `Priv Co ${suffix}`, slug: `priv-${suffix}`, adminName: "Pat Admin", adminEmail: `pat-${suffix}@example.com`, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Priv Co ${suffix}`, slug: `priv-${suffix}`, adminName: "Pat Admin", adminEmail: `pat-${suffix}@example.com`, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     await withTenantTransaction(orgId, (tx) => tx.lead.create({ data: { organizationId: orgId, name: "Mary Client", email: `mary-${suffix}@example.com` } as never }));
     await prisma.$executeRaw`UPDATE "PlatformAdmin" SET role = 'ADMIN' WHERE role = 'MASTER'`;

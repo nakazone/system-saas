@@ -68,7 +68,7 @@ describe.skipIf(!privileged)("Entrar como suporte", () => {
       return { ok: true, transport: "console" };
     });
     adminEmail = `owner-${suffix}@example.com`;
-    const a = await createOrganizationWithAdmin({ organizationName: `Suporte ${suffix}`, slug: `sup-${suffix}`, adminName: "Olivia Owner", adminEmail, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `Suporte ${suffix}`, slug: `sup-${suffix}`, adminName: "Olivia Owner", adminEmail, password: "Test-Passw0rd-2026" });
     orgId = a.organization.id;
     adminId = a.admin.id;
     const staffRole = await prisma.role.findFirst({ where: { organizationId: orgId, key: { not: "admin" } }, select: { id: true } });
@@ -133,7 +133,7 @@ describe.skipIf(!privileged)("Entrar como suporte", () => {
   });
 
   it("ver como outro usuário e, ao sair, volta a sessão que o navegador já tinha", async () => {
-    const login = await req("POST", "/api/auth/login", "", { email: adminEmail, password: "password12345", organizationId: orgId });
+    const login = await req("POST", "/api/auth/login", "", { email: adminEmail, password: "Test-Passw0rd-2026", organizationId: orgId });
     expect(login.status).toBe(200);
     const own = login.cookie;
 

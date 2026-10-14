@@ -83,14 +83,14 @@ describe.skipIf(!privileged)("Master fase 1 — planos, só leitura, régua, Str
 
   async function newOrg(key: string, status: string, data: Record<string, unknown> = {}) {
     const email = `${key}-${suffix}@example.com`;
-    const a = await createOrganizationWithAdmin({ organizationName: `${key} ${suffix}`, slug: `${key}-${suffix}`, adminName: "Owner Person", adminEmail: email, password: "password12345" });
+    const a = await createOrganizationWithAdmin({ organizationName: `${key} ${suffix}`, slug: `${key}-${suffix}`, adminName: "Owner Person", adminEmail: email, password: "Test-Passw0rd-2026" });
     await prisma.organization.update({ where: { id: a.organization.id }, data: { status, ...data } });
     orgs[key] = { id: a.organization.id, email, cookie: "" };
     return orgs[key];
   }
   async function login(key: string) {
     const o = orgs[key];
-    const r = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: o.email, password: "password12345", organizationId: o.id }), redirect: "manual" });
+    const r = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: o.email, password: "Test-Passw0rd-2026", organizationId: o.id }), redirect: "manual" });
     o.cookie = cookieOf(r);
     return o.cookie;
   }

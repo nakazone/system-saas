@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { env } from "../../config/env.js";
 import { hashPassword } from "../../lib/auth/password.js";
+import { newPasswordProblem } from "../../lib/auth/password-policy.js";
 import { sendPlatformEmail, firstName } from "../../lib/email/templates.js";
 import { newToken, hashToken, takeRate, HOUR, DAY } from "../../lib/security/db-rate-limit.js";
 import { currentLegalVersions, type LegalKey } from "../../lib/legal/documents.js";
@@ -126,6 +127,9 @@ export async function requestSignup(raw: unknown, ctx: { ip: string; userAgent?:
   if (slugError) return { ok: false, status: 400, error: { field: "slug", message: slugError.replace(/^Slug/, "The workspace address") } };
   if (d.password.toLowerCase() === d.adminEmail || d.password.toLowerCase().includes(d.slug)) {
     return { ok: false, status: 400, error: { field: "password", message: "Choose a password that is not your e-mail or company name." } };
+  }
+  if (newPasswordProblem(d.password, { email: d.adminEmail })) {
+    return { ok: false, status: 400, error: { field: "password", message: "This password is too common. Choose a different one." } };
   }
   if (await prisma.organization.findUnique({ where: { slug: d.slug }, select: { id: true } })) {
     return { ok: false, status: 400, error: { field: "slug", message: "This workspace address is already taken. Try another one." } };
