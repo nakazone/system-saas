@@ -1,6 +1,7 @@
 import { prisma } from "../prisma.js";
 import { PLATFORM_TZ, ymdInTz } from "../../master/lib.js";
 import { runBillingLadder } from "./dunning.js";
+import { takeSnapshot } from "../../master/metrics.js";
 
 /** Runs a background job and records it in JobRun (shown in the Master). */
 export async function runJob<T>(name: string, trigger: "schedule" | "manual", fn: () => Promise<T & { processed?: number }>): Promise<T> {
@@ -39,17 +40,34 @@ export async function ladderDue(now = new Date()): Promise<boolean> {
   return !last || ymdInTz(last.startedAt) !== ymdInTz(now);
 }
 
+export const DAILY_METRICS_JOB = "daily-metrics";
+
+/** True when today's metrics snapshot (platform time) has not been taken by the job yet. */
+export async function metricsDue(now = new Date()): Promise<boolean> {
+  const last = await prisma.jobRun.findFirst({ where: { name: DAILY_METRICS_JOB, ok: true }, orderBy: { startedAt: "desc" }, select: { startedAt: true } });
+  return !last || ymdInTz(last.startedAt) !== ymdInTz(now);
+}
+
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
-/** Checks every 15 min; runs the billing ladder once a day after 06:00 (America/Denver). */
+/**
+ * Checks every 15 min:
+ *  - metrics snapshot once a day (first check after midnight, America/Denver);
+ *  - billing ladder once a day after 06:00 (off with BILLING_LADDER=off).
+ */
 export function startPlatformJobs(): void {
-  if (timer || process.env.NODE_ENV === "test" || process.env.BILLING_LADDER === "off") return;
+  if (timer || process.env.NODE_ENV === "test") return;
   const tick = async () => {
     if (running) return;
     running = true;
     try {
-      if (await ladderDue()) await runJob(BILLING_LADDER_JOB, "schedule", () => runBillingLadder());
+      if (await metricsDue()) await runJob(DAILY_METRICS_JOB, "schedule", async () => ({ processed: (await takeSnapshot()).paying }));
+    } catch (error) {
+      console.error("[jobs] metrics snapshot failed", error);
+    }
+    try {
+      if (process.env.BILLING_LADDER !== "off" && (await ladderDue())) await runJob(BILLING_LADDER_JOB, "schedule", () => runBillingLadder());
     } catch (error) {
       console.error("[jobs] billing ladder failed", error);
     } finally {

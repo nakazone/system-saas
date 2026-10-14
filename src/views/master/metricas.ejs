@@ -1,0 +1,81 @@
+<%- include('_top', { pageTitle: 'Métricas' }) %>
+<div class="page-head">
+  <div><h1>Métricas</h1><div class="page-sub">Receita recorrente, entradas e saídas, churn, funil de teste e uso do produto. Foto diária gravada à meia-noite de Denver.</div></div>
+</div>
+
+<div class="mx-filters" role="group" aria-label="Período dos gráficos de receita">
+  <span class="mx-filter-label">Período</span>
+  <% [6, 12, 24].forEach(function (m) { %><a class="chip no-count" href="?meses=<%= m %>" aria-current="<%= m === months %>"><%= m %> meses</a><% }) %>
+</div>
+
+<section class="mx-tiles">
+  <% tiles.forEach(function (t) { %>
+    <div class="kpi <%= t.hero ? 'dark mx-hero' : '' %>">
+      <span class="kpi-label"><%= t.label %></span>
+      <span class="kpi-value num"><%= t.value %></span>
+      <span class="kpi-note <%= t.tone ? 'mx-' + t.tone : '' %>"><%= t.note %></span>
+    </div>
+  <% }) %>
+</section>
+
+<% if (estimatedMonths) { %>
+  <div class="note-box mx-note"><b><%= estimatedMonths %> mês(es) estimado(s)</b> a partir dos pagamentos registrados (antes da primeira foto diária). As barras claras são estimativas; a partir de agora cada mês usa a foto real.</div>
+<% } %>
+
+<div class="mx-grid">
+  <section class="card card-pad mx-card mx-wide">
+    <div class="mx-head"><div><h2>MRR por mês</h2><small class="muted">Soma das assinaturas ativas e atrasadas em valor mensal (anual ÷ 12)</small></div></div>
+    <div class="mx-chart" id="chartMrr" role="img" aria-label="MRR por mês"></div>
+    <details class="mx-table"><summary>Ver tabela</summary>
+      <table><thead><tr><th>Mês</th><th>MRR</th><th>Empresas pagando</th><th>Fonte</th></tr></thead><tbody>
+        <% chart.mrr.slice().reverse().forEach(function (p) { %><tr><td><%= p.label %></td><td class="num"><%= money(p.value) %></td><td class="num"><%= p.paying %></td><td><%= p.estimated ? 'estimado pelos pagamentos' : 'foto diária' %></td></tr><% }) %>
+      </tbody></table>
+    </details>
+  </section>
+
+  <section class="card card-pad mx-card mx-wide">
+    <div class="mx-head"><div><h2>Movimento do MRR</h2><small class="muted">Entrou = novas, upgrades e quem voltou · Saiu = downgrades e cancelamentos</small></div>
+      <div class="mx-legend"><span><i class="key-rect" style="background:#3d6aa8"></i>Entrou</span><span><i class="key-rect" style="background:#c1652f"></i>Saiu</span></div></div>
+    <div class="mx-chart" id="chartMove" role="img" aria-label="Movimento do MRR por mês"></div>
+    <details class="mx-table" open><summary>Detalhe por mês</summary>
+      <table><thead><tr><th>Mês</th><th>Novas</th><th>Upgrade</th><th>Voltaram</th><th>Downgrade</th><th>Canceladas</th><th>Líquido</th><th>MRR no fim</th><th>Churn (empresas · receita)</th></tr></thead><tbody>
+        <% movement.forEach(function (m) { %><tr><td><%= m.label %><%= m.estimated ? '*' : '' %></td><td class="num"><%= m.newText %></td><td class="num"><%= m.expansionText %></td><td class="num"><%= m.reactivationText %></td><td class="num"><%= m.contractionText %></td><td class="num"><%= m.churnText %><%= m.churnedCompanies ? ' (' + m.churnedCompanies + ')' : '' %></td><td class="num strong"><%= m.netText %></td><td class="num"><%= m.endText %></td><td class="num"><%= m.logoChurn %> · <%= m.revenueChurn %></td></tr><% }) %>
+      </tbody></table>
+      <% if (estimatedMonths) { %><small class="muted">* estimado pelos pagamentos</small><% } %>
+    </details>
+  </section>
+
+  <section class="card card-pad mx-card">
+    <div class="mx-head"><div><h2>Funil de teste · 12 semanas</h2><small class="muted">Ativou = enviou um orçamento em até 7 dias · Pagou = tem pagamento confirmado</small></div></div>
+    <div class="mx-funnel">
+      <% var ft = funnel.totals; [['Cadastros', ft.signups, null], ['Ativaram', ft.activated, ft.signups], ['Pagaram', ft.paid, ft.signups]].forEach(function (r) { var w = ft.signups ? Math.round(r[1] / ft.signups * 100) : 0; %>
+        <div class="mx-funnel-row"><span class="mx-funnel-label"><%= r[0] %></span><span class="mx-funnel-track"><i style="width:<%= Math.max(r[1] ? 2 : 0, w) %>%"></i></span><b class="num"><%= r[1] %></b><small class="num"><%= r[2] ? w + '%' : '' %></small></div>
+      <% }) %>
+    </div>
+    <details class="mx-table"><summary>Por semana de cadastro</summary>
+      <table><thead><tr><th>Semana</th><th>Cadastros</th><th>Ativaram</th><th>Pagaram</th></tr></thead><tbody>
+        <% funnel.weeks.slice().reverse().forEach(function (w) { %><tr><td><%= w.label %></td><td class="num"><%= w.signups %></td><td class="num"><%= w.activated %></td><td class="num"><%= w.paid %></td></tr><% }) %>
+      </tbody></table>
+    </details>
+  </section>
+
+  <section class="card card-pad mx-card">
+    <div class="mx-head"><div><h2>Uso por módulo</h2><small class="muted">% das <%= usageBase %> empresas em funcionamento que criaram algo no módulo</small></div>
+      <div class="mx-legend"><span><i class="key-rect" style="background:#3d6aa8"></i>30 dias</span><span><i class="key-rect" style="background:#c1652f"></i>7 dias</span></div></div>
+    <div class="mx-chart" id="chartModules" role="img" aria-label="Uso por módulo"></div>
+    <details class="mx-table"><summary>Ver tabela</summary>
+      <table><thead><tr><th>Módulo</th><th>30 dias</th><th>7 dias</th></tr></thead><tbody>
+        <% usage.forEach(function (m) { %><tr><td><%= m.name %></td><td class="num"><%= m.pct30 %>% (<%= m.d30 %>)</td><td class="num"><%= m.pct7 %>% (<%= m.d7 %>)</td></tr><% }) %>
+      </tbody></table>
+    </details>
+  </section>
+
+  <section class="card card-pad mx-card mx-wide">
+    <div class="mx-head"><div><h2>Usuários ativos por dia</h2><small class="muted">Pessoas das empresas que usaram o CRM em cada dia (suporte não conta)<%= trackingSince ? ' · medindo desde ' + trackingSince.split('-').reverse().slice(0, 2).join('/') : ' · começa a contar com este deploy' %></small></div></div>
+    <div class="mx-chart mx-short" id="chartDaily" role="img" aria-label="Usuários ativos por dia"></div>
+  </section>
+</div>
+
+<script type="application/json" id="mx-data"><%- JSON.stringify(chart).replace(/</g, '\\u003c') %></script>
+<script src="/assets/master/metrics.js?v=20261014-mx3" defer></script>
+<%- include('_bottom') %>
