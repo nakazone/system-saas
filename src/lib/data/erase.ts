@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { inTenant } from "./tables.js";
+import { hasSessionTable, inTenant } from "./tables.js";
 
 /**
  * Excluir os dados de uma pessoa (cliente final, funcionário, usuário) dentro de uma empresa.
@@ -41,7 +41,7 @@ export function subjectHash(s: Subject): string {
 function match(s: Subject, emailCol: string | null, phoneCol: string | null): Prisma.Sql {
   const parts: Prisma.Sql[] = [];
   if (s.email && emailCol) parts.push(Prisma.sql`lower(trim(${Prisma.raw(emailCol)})) = ${s.email}`);
-  if (s.phone && phoneCol) parts.push(Prisma.sql`right(regexp_replace(coalesce(${Prisma.raw(phoneCol)}, ''), '\\D', '', 'g'), ${s.phone.length}) = ${s.phone}`);
+  if (s.phone && phoneCol) parts.push(Prisma.sql`right(regexp_replace(coalesce(${Prisma.raw(phoneCol)}, ''), '\\D', '', 'g'), ${s.phone.length}::int) = ${s.phone}`);
   if (!parts.length) return Prisma.sql`false`;
   return Prisma.join(parts, " OR ", "(", ")");
 }
@@ -191,7 +191,7 @@ export async function erasePerson(organizationId: string, s: Subject, categories
           const n = await tx.$executeRaw`UPDATE "User" SET name = 'Removed user', email = ${`removed-${id}@deleted.obramate.invalid`}, phone = NULL, "avatarUrl" = NULL, "passwordHash" = ${crypto.randomBytes(32).toString("hex")}, status = 'disabled', "routeStartAddress" = NULL, "updatedAt" = now() WHERE id = ${id}::uuid`;
           add("User", n);
         }
-        await tx.$executeRaw`DELETE FROM "session" WHERE sess->>'userId' = ANY(${f.users}::text[])`.catch(() => 0);
+        if (await hasSessionTable(tx)) await tx.$executeRaw`DELETE FROM "session" WHERE sess->>'userId' = ANY(${f.users}::text[])`;
       }
       if (want.has("messages")) {
         add("CommunicationLog", await tx.$executeRaw`UPDATE "CommunicationLog" SET "toAddress" = 'removed', subject = NULL, body = '' WHERE ${org} AND (${match(s, '"toAddress"', '"toAddress"')} OR "customerId" = ANY(${C}))`);

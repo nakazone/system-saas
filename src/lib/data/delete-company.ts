@@ -1,6 +1,6 @@
 import { prisma } from "../prisma.js";
 import { storage } from "../storage/index.js";
-import { KEEP_ON_DELETE, countRows, inTenant, orgTables, quoteIdent } from "./tables.js";
+import { KEEP_ON_DELETE, countRows, hasSessionTable, inTenant, orgTables, quoteIdent } from "./tables.js";
 
 /**
  * Excluir uma empresa de vez.
@@ -77,7 +77,7 @@ export async function deleteCompany(input: {
       }
       await tx.$executeRaw`UPDATE "PlatformAnnouncement" SET "organizationIds" = array_remove("organizationIds", ${org.id}::uuid) WHERE ${org.id}::uuid = ANY("organizationIds")`;
       await tx.$executeRaw`UPDATE "ErrorGroup" SET "lastOrgId" = NULL, "lastUserId" = NULL WHERE "lastOrgId" = ${org.id}::uuid`;
-      await tx.$executeRaw`DELETE FROM "session" WHERE sess->>'organizationId' = ${org.id} OR sess->>'userId' = ANY(${userIds}::text[])`;
+      if (await hasSessionTable(tx)) await tx.$executeRaw`DELETE FROM "session" WHERE sess->>'organizationId' = ${org.id} OR sess->>'userId' = ANY(${userIds}::text[])`;
     },
     600_000,
   );

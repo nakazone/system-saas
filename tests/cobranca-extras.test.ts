@@ -45,6 +45,10 @@ beforeAll(async () => {
     await prisma.permission.upsert({ where: { key: p.key }, create: { key: p.key, group: p.group, description: p.description }, update: {} });
   }
   setStripeClientForTests(fakeStripe);
+  // Alerts go to the Master: make sure there is one (fresh CI database has none).
+  if (!(await prisma.platformAdmin.findFirst({ where: { role: "MASTER", status: "active" } }))) {
+    await prisma.platformAdmin.create({ data: { email: `master-cb-${suffix}@example.com`, name: "Master CB", role: "MASTER", status: "active", passwordHash: "x" } }).catch(() => undefined);
+  }
   emailProvider.send = async (m) => {
     sent.push(m);
     return realSend(m);

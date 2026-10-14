@@ -79,3 +79,9 @@ export async function countRows(organizationId: string, opts: { skip?: Set<strin
     return out;
   });
 }
+
+/** The express-session table is created by the app at runtime; tests and fresh databases may not have it. */
+export async function hasSessionTable(tx: Prisma.TransactionClient): Promise<boolean> {
+  const r = await tx.$queryRaw<{ ok: boolean }[]>`SELECT to_regclass('public.session') IS NOT NULL AS ok`;
+  return !!r[0]?.ok;
+}

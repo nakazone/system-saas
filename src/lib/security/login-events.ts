@@ -194,7 +194,7 @@ export async function lockFromAlert(eventId: string): Promise<{ adminId: string;
   if (!ev?.adminId || ev.alertUsedAt) return null;
   await prisma.loginEvent.update({ where: { id: ev.id }, data: { alertUsedAt: new Date() } });
   await prisma.platformAdmin.update({ where: { id: ev.adminId }, data: { securityLockedAt: new Date() } });
-  const sessions = await prisma.$executeRaw`DELETE FROM "session" WHERE sess->'master'->>'adminId' = ${ev.adminId}`;
+  const sessions = await prisma.$executeRaw`DELETE FROM "session" WHERE sess->'master'->>'adminId' = ${ev.adminId}`.catch(() => 0);
   return { adminId: ev.adminId, sessions };
 }
 
