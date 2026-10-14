@@ -150,6 +150,25 @@ model OrgFeatureOverride {
   @@unique([organizationId, featureKey])
 }
 
+/// Daily snapshot of the business numbers (taken after midnight America/Denver). History for Métricas.
+model PlatformDailyMetric {
+  day        String   @id // YYYY-MM-DD (America/Denver)
+  mrrCents   Int
+  paying     Int
+  trial      Int
+  pastDue    Int
+  readOnly   Int
+  suspended  Int
+  canceled   Int
+  dau        Int      @default(0)
+  wau        Int      @default(0)
+  mau        Int      @default(0)
+  /// { organizationId: monthly cents } for paying companies — used for MRR movement
+  orgMrr     Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 /// One row per user per day they used the CRM (America/Denver day). Feeds usage frequency and health.
 model ActiveDay {
   userId         String   @db.Uuid

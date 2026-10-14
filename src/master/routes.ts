@@ -75,6 +75,7 @@ import { createOrganizationWithAdmin, validateSlug } from "../modules/organizati
 import { legalPromptEnabled, legalStatus, setLegalPrompt } from "../lib/legal/acceptance.js";
 import { createSupportSession, endSupportSession, SUPPORT_DURATIONS } from "../lib/support/session.js";
 import { healthOf, invalidateHealth, type OrgHealth } from "./health.js";
+import { activeUsersDaily, activeUsersNow, ensureTodaySnapshot, moduleUsage, movementFrom, mrrByMonth, trialFunnel } from "./metrics.js";
 import { US_TIMEZONES } from "../modules/organizations/signup.js";
 import {
   CORE_MODULES,
@@ -429,7 +430,8 @@ async function shell(req: MasterRequest, active: string) {
     { key: "cadastros", label: "Cadastros", href: "/master/cadastros", icon: "M15 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M8.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM19 8v6M22 11h-6", badge: signupPending || null },
     { key: "suporte", label: "Suporte", href: "/master/suporte", icon: "M21 12a8 8 0 0 1-11.8 7L4 20l1.2-4.6A8 8 0 1 1 21 12zM9 10h6M9 14h4", badge: openTickets || null },
     { key: "contatos", label: "Contatos", href: "/master/contatos", icon: "M5 4h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5zM5 4v18M12 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM8.5 17a3.5 3.5 0 0 1 7 0" },
-    { key: "pagamentos", label: "Pagamentos", href: "/master/pagamentos", icon: "M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM2 10h20M6 15h4", group: "FINANCEIRO", hidden: !can(req.master!.role, "billing_full") },
+    { key: "metricas", label: "Métricas", href: "/master/metricas", icon: "M4 20V10M10 20V4M16 20v-7M22 20H2", group: "FINANCEIRO", hidden: !can(req.master!.role, "billing_full") },
+    { key: "pagamentos", label: "Pagamentos", href: "/master/pagamentos", icon: "M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM2 10h20M6 15h4", hidden: !can(req.master!.role, "billing_full") },
     { key: "planos", label: "Planos e preços", href: "/master/planos", icon: "M4 4h7l9 9-7 7-9-9zM8 8h.01", hidden: !can(req.master!.role, "billing_full") },
     { key: "recursos", label: "Recursos por plano", href: "/master/recursos", icon: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6M17 14v6", hidden: !can(req.master!.role, "billing_full") },
     { key: "vencimentos", label: "Vencimentos", href: "/master/vencimentos", icon: "M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 13v3l2 1", badge: overdue || null, group: can(req.master!.role, "billing_full") ? undefined : "FINANCEIRO" },
@@ -2617,6 +2619,69 @@ masterRouter.post(
     const row = await prisma.signupRequest.findUnique({ where: { id }, select: { email: true, organizationName: true } });
     await audit(req, actor(req), "signup.resend", { type: "signup", id, label: row?.organizationName || id, meta: { email: row?.email } });
     ok(res, `Link de confirmação reenviado para ${row?.email}.`);
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Métricas do negócio
+// ---------------------------------------------------------------------------
+
+const pctText = (v: number | null) => (v == null ? "—" : `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`);
+
+masterRouter.get(
+  "/metricas",
+  requireCap("billing_full"),
+  h(async (req, res) => {
+    const months = [6, 12, 24].includes(Number(req.query.meses)) ? Number(req.query.meses) : 12;
+    await ensureTodaySnapshot();
+    // One extra month at the start so the first month has a movement.
+    const points = await mrrByMonth(months + 1);
+    const shown = points.slice(1);
+    const movement = movementFrom(points);
+    const [funnel, usage, daily, users] = await Promise.all([trialFunnel(12), moduleUsage(), activeUsersDaily(30), activeUsersNow()]);
+    const cur = shown[shown.length - 1];
+    const prev = shown[shown.length - 2];
+    const lastMove = movement[movement.length - 1];
+    const prevMove = movement[movement.length - 2];
+    // Same rule as the movement: compare like with like (snapshot vs snapshot, or both rebuilt from payments).
+    const lastStart = lastMove ? lastMove.startMrr : 0;
+    const delta = lastMove && lastStart ? Math.round((lastMove.netCents / lastStart) * 1000) / 10 : null;
+    const estimatedMonths = shown.filter((p) => p.estimated).length;
+    page(res, "metricas", await shell(req, "metricas"), {
+      months,
+      tiles: [
+        { label: "MRR", value: money(cur.mrrCents), note: delta == null ? "sem mês anterior" : `${delta >= 0 ? "+" : ""}${delta.toLocaleString("pt-BR")}% vs ${prev.label}`, hero: true, tone: delta == null ? "" : delta >= 0 ? "up" : "down" },
+        { label: "ARR", value: money(cur.mrrCents * 12), note: "MRR × 12" },
+        { label: "Empresas pagando", value: String(cur.paying), note: `${lastMove ? lastMove.churnedCompanies : 0} ${lastMove && lastMove.churnedCompanies === 1 ? "saiu" : "saíram"} em ${cur.label}` },
+        { label: `Churn em ${cur.label}`, value: pctText(lastMove?.logoChurnPct ?? null), note: `receita ${pctText(lastMove?.revenueChurnPct ?? null)}${prevMove ? ` · ${prevMove.label}: ${pctText(prevMove.logoChurnPct)}` : ""}` },
+        { label: "Usuários ativos (30 dias)", value: String(users.mau), note: `${users.wau} na semana · ${users.dau} hoje` },
+      ],
+      estimatedMonths,
+      chart: {
+        mrr: shown.map((p) => ({ label: p.label, ym: p.ym, value: p.mrrCents, estimated: p.estimated, paying: p.paying })),
+        movement: movement.map((m) => ({ label: m.label, in: m.newCents + m.expansionCents + m.reactivationCents, out: m.contractionCents + m.churnCents, net: m.netCents, estimated: m.estimated })),
+        modules: usage.modules.map((m) => ({ label: m.name, d30: m.pct30, d7: m.pct7, n30: m.d30, n7: m.d7 })),
+        daily: daily.map((d) => ({ label: d.label, value: d.users })),
+        funnel: funnel.totals,
+      },
+      // Months before the first payment carry no information; the table starts at the first month with revenue.
+      movement: movement.slice(Math.max(0, movement.findIndex((m) => m.startMrr || m.endMrr || m.netCents))).map((m) => ({
+        ...m,
+        newText: money(m.newCents),
+        expansionText: money(m.expansionCents),
+        reactivationText: money(m.reactivationCents),
+        contractionText: money(m.contractionCents),
+        churnText: money(m.churnCents),
+        netText: `${m.netCents >= 0 ? "+" : "−"}${money(Math.abs(m.netCents))}`,
+        endText: money(m.endMrr),
+        logoChurn: pctText(m.logoChurnPct),
+        revenueChurn: pctText(m.revenueChurnPct),
+      })).reverse(),
+      funnel,
+      usageBase: usage.base,
+      usage: usage.modules,
+      trackingSince: (await prisma.activeDay.findFirst({ orderBy: { day: "asc" }, select: { day: true } }))?.day ?? null,
+    });
   }),
 );
 
