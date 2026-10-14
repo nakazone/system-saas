@@ -108,11 +108,8 @@ export function buildLeadVisitLocation(lead) {
 }
 
 /**
- * Descricao do evento:
- * Cliente / Tel / Email / Address / Lead #
- * linha em branco
- * ----------------------------------
- * (notas extras abaixo, se houver)
+ * Descricao do evento (Apple / Google Calendar):
+ * Cliente / Tel / Email / Endereco / Origem — sem UUID.
  */
 export function buildLeadVisitDescription(lead) {
   const lines = [];
@@ -122,11 +119,11 @@ export function buildLeadVisitDescription(lead) {
   if (lead?.phone) lines.push('Tel: ' + String(lead.phone).trim());
   if (lead?.email) lines.push('Email: ' + String(lead.email).trim());
   const address = buildLeadVisitLocation(lead);
-  if (address) lines.push('Address: ' + address);
-  if (lead?.id != null && lead.id !== '') lines.push('Lead #' + String(lead.id));
+  if (address) lines.push('Endereco: ' + address);
+  const origin = resolveLeadCalendarOriginLabel(lead);
+  if (origin) lines.push('Origem: ' + origin);
 
   let out = lines.join('\n');
-  out += '\n\n' + CALENDAR_DESC_SEPARATOR;
 
   const extra = [];
   const msg = lead?.message ? String(lead.message).trim() : '';
@@ -134,7 +131,7 @@ export function buildLeadVisitDescription(lead) {
   const notes = lead?.notes ? String(lead.notes).trim() : '';
   if (notes && notes !== msg) extra.push(notes);
   if (extra.length) {
-    out += '\n\n' + extra.join('\n\n');
+    out += (out ? '\n\n' : '') + CALENDAR_DESC_SEPARATOR + '\n\n' + extra.join('\n\n');
   }
 
   return out;

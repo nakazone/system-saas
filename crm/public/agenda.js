@@ -32,6 +32,20 @@
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
     return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
   };
+  /**
+   * Local wall-clock from date + time inputs.
+   * Avoid `new Date('YYYY-MM-DDTHH:mm')` — Safari/iOS often treat that as UTC and shift the hour.
+   */
+  const parseLocalDateTime = (dateStr, timeStr) => {
+    const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || '').trim());
+    if (!dm) return null;
+    const tm = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(timeStr || '00:00').trim());
+    const hh = tm ? Number(tm[1]) : 0;
+    const mm = tm ? Number(tm[2]) : 0;
+    const ss = tm && tm[3] != null ? Number(tm[3]) : 0;
+    const d = new Date(Number(dm[1]), Number(dm[2]) - 1, Number(dm[3]), hh, mm, ss, 0);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
   const hm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   const fmtTime = (d) => {
     const h = d.getHours();
@@ -1445,9 +1459,10 @@
           const st = valOf('start') || hm(ev.start);
           const en = valOf('end') || hm(ev.end);
           if (!date || !st) throw new Error('Informe data e horário.');
-          let start = new Date(`${date}T${st}`);
-          let end = new Date(`${date}T${en}`);
-          if (!(end > start)) end = new Date(start.getTime() + 3600e3);
+          let start = parseLocalDateTime(date, st);
+          let end = parseLocalDateTime(date, en);
+          if (!start) throw new Error('Data inválida.');
+          if (!end || !(end > start)) end = new Date(start.getTime() + 3600e3);
           body.scheduled_start = start.toISOString();
           body.scheduled_end = end.toISOString();
         }
@@ -1470,11 +1485,12 @@
           const st = valOf('start') || hm(ev.start);
           let en = valOf('end');
           if (!date || !st) throw new Error('Informe data e horário.');
-          const start = new Date(`${date}T${st}`);
+          const start = parseLocalDateTime(date, st);
+          if (!start) throw new Error('Data inválida.');
           let end = en
-            ? new Date(`${date}T${en}`)
+            ? parseLocalDateTime(date, en)
             : new Date(start.getTime() + (type === 'visit' ? 3600e3 : Math.max(3600e3, ev.end - ev.start)));
-          if (!(end > start)) end = new Date(start.getTime() + 3600e3);
+          if (!end || !(end > start)) end = new Date(start.getTime() + 3600e3);
           body.scheduled_start = start.toISOString();
           body.scheduled_end = end.toISOString();
         }
@@ -1983,8 +1999,10 @@
     } else {
       const st = fd.get('start');
       if (!st) throw new Error('Informe data e horário.');
-      start = new Date(`${date}T${st}`);
-      end = fd.get('end') ? new Date(`${date}T${fd.get('end')}`) : new Date(start.getTime() + 3600e3);
+      start = parseLocalDateTime(date, st);
+      if (!start) throw new Error('Data inválida.');
+      end = fd.get('end') ? parseLocalDateTime(date, fd.get('end')) : new Date(start.getTime() + 3600e3);
+      if (!end || Number.isNaN(end.getTime())) end = new Date(start.getTime() + 3600e3);
       if (end <= start) end = new Date(end.getTime() + DAY);
     }
     const location = String(fd.get('location') || '').trim() || null;
@@ -2043,7 +2061,7 @@
               (data && data.title) ||
               (kind === 'visit'
                 ? data && data.lead_name
-                  ? `Visita — ${data.lead_name}`
+                  ? `Visita - ${data.lead_name}`
                   : 'Visita'
                 : 'Compromisso'),
             scheduled_start: (data && data.scheduled_start) || start.toISOString(),
@@ -2960,10 +2978,10 @@
         const en = String(fd.get('end') || '');
         if (title.length < 2) return toast('Dê um título ao compromisso.', 'error');
         if (!date || !stT) return toast('Informe data e horário.', 'error');
-        let start = new Date(`${date}T${stT}`);
-        let end = en ? new Date(`${date}T${en}`) : new Date(start.getTime() + 3600e3);
-        if (Number.isNaN(start.getTime())) return toast('Data inválida.', 'error');
-        if (!(end > start)) end = new Date(start.getTime() + 3600e3);
+        let start = parseLocalDateTime(date, stT);
+        let end = en ? parseLocalDateTime(date, en) : start ? new Date(start.getTime() + 3600e3) : null;
+        if (!start || Number.isNaN(start.getTime())) return toast('Data inválida.', 'error');
+        if (!end || Number.isNaN(end.getTime()) || !(end > start)) end = new Date(start.getTime() + 3600e3);
         const ok = openDraftInDeviceCalendar({
           title,
           start,

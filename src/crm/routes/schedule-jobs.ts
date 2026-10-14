@@ -28,6 +28,10 @@ import { formatPersonName } from "../../lib/name.js";
 import { storage } from "../../lib/storage/index.js";
 import { signIcsAccessToken } from "../../lib/schedule/signed-ics-token.js";
 import { buildSingleEventIcs, meetingStatusToIcs } from "../../lib/schedule/ics.js";
+import {
+  buildMeetingCalendarDescription,
+  buildMeetingCalendarSummary,
+} from "../../lib/schedule/lead-visit-ics.js";
 
 const WO_SECTORS = ["installation", "sand_finish"] as const;
 
@@ -1490,6 +1494,9 @@ scheduleJobsRouter.get(
           organizationId: req.organizationId!,
           ...fieldMeetingScope(req.user),
         },
+        include: {
+          lead: { select: { id: true, name: true, phone: true, email: true, notes: true, metadata: true } },
+        },
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Compromisso não encontrado" });
@@ -1502,22 +1509,57 @@ scheduleJobsRouter.get(
         res.json({ success: true, data: { url: publicUrl } });
         return;
       }
-      const descParts = [
-        row.notes ? String(row.notes).trim() : "",
-        row.leadId ? `Lead: ${row.leadId}` : "",
-      ].filter(Boolean);
+      const leadMeta =
+        row.lead?.metadata && typeof row.lead.metadata === "object" && !Array.isArray(row.lead.metadata)
+          ? (row.lead.metadata as Record<string, unknown>)
+          : {};
+      const metaStr = (key: string) => {
+        const v = leadMeta[key];
+        return v != null && String(v).trim() ? String(v).trim() : null;
+      };
+      const leadForCal = row.lead
+        ? {
+            name: row.lead.name,
+            phone: formatUsPhone(row.lead.phone),
+            email: row.lead.email,
+            notes: row.lead.notes,
+            address: metaStr("address"),
+            address_line1: metaStr("address_line1") || metaStr("address"),
+            address_line2: metaStr("address_line2"),
+            city: metaStr("city"),
+            zipcode: metaStr("zipcode"),
+            message: metaStr("message"),
+            form_type: metaStr("form_type"),
+            marketing_platform: metaStr("marketing_platform"),
+            utm_source: metaStr("utm_source"),
+            utm_medium: metaStr("utm_medium"),
+            landing_page: metaStr("landing_page"),
+            gclid: metaStr("gclid"),
+            fbclid: metaStr("fbclid"),
+          }
+        : null;
+      const summary = buildMeetingCalendarSummary({
+        title: row.title,
+        leadName: row.lead?.name,
+        isVisit: Boolean(row.leadId),
+      });
+      const description = buildMeetingCalendarDescription({
+        notes: row.notes,
+        location: row.location,
+        lead: leadForCal,
+      });
       const ics = buildSingleEventIcs(
         {
           uid: `meeting-${row.id}@obramate.com`,
-          summary: row.title || "Compromisso",
-          description: descParts.join("\n") || undefined,
-          location: row.location,
+          summary,
+          description: description || undefined,
+          location: row.location || leadForCal?.address_line1 || leadForCal?.address || undefined,
           start: row.scheduledStart,
           end: row.scheduledEnd,
           stamp: row.updatedAt || new Date(),
           status: meetingStatusToIcs(row.status),
         },
-        { name: row.title || "ObraMate" },
+        { name: summary || "ObraMate" },
       );
       res.setHeader("Content-Type", "text/calendar; charset=utf-8");
       res.setHeader("Content-Disposition", 'inline; filename="meeting.ics"');

@@ -81,11 +81,11 @@
     if (lead && lead.phone) lines.push('Tel: ' + String(lead.phone).trim());
     if (lead && lead.email) lines.push('Email: ' + String(lead.email).trim());
     var address = buildLeadVisitLocation(lead);
-    if (address) lines.push('Address: ' + address);
-    if (lead && lead.id != null && lead.id !== '') lines.push('Lead #' + String(lead.id));
+    if (address) lines.push('Endereco: ' + address);
+    var origin = resolveLeadCalendarOriginLabel(lead);
+    if (origin) lines.push('Origem: ' + origin);
 
     var out = lines.join('\n');
-    out += '\n\n' + CALENDAR_DESC_SEPARATOR;
 
     var extra = [];
     var msg = lead && lead.message ? String(lead.message).trim() : '';
@@ -93,7 +93,7 @@
     var notes = lead && lead.notes ? String(lead.notes).trim() : '';
     if (notes && notes !== msg) extra.push(notes);
     if (extra.length) {
-      out += '\n\n' + extra.join('\n\n');
+      out += (out ? '\n\n' : '') + CALENDAR_DESC_SEPARATOR + '\n\n' + extra.join('\n\n');
     }
 
     return out;

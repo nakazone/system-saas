@@ -146,8 +146,8 @@ export function buildLeadVisitLocation(lead: LeadVisitCalendarLead | null | unde
 }
 
 /**
- * Cliente / Tel / Email / Address / Lead #
- * blank line + separator + optional notes
+ * Practical contact card for Apple / Google Calendar notes.
+ * Avoids UUIDs and fancy punctuation (calendar apps often show "?" for em dashes).
  */
 export function buildLeadVisitDescription(lead: LeadVisitCalendarLead | null | undefined): string {
   const lines: string[] = [];
@@ -157,11 +157,12 @@ export function buildLeadVisitDescription(lead: LeadVisitCalendarLead | null | u
   if (lead?.phone) lines.push("Tel: " + String(lead.phone).trim());
   if (lead?.email) lines.push("Email: " + String(lead.email).trim());
   const address = buildLeadVisitLocation(lead);
-  if (address) lines.push("Address: " + address);
-  if (lead?.id != null && lead.id !== "") lines.push("Lead #" + String(lead.id));
+  if (address) lines.push("Endereco: " + address);
+
+  const origin = resolveLeadCalendarOriginLabel(lead);
+  if (origin) lines.push("Origem: " + origin);
 
   let out = lines.join("\n");
-  out += "\n\n" + CALENDAR_DESC_SEPARATOR;
 
   const extra: string[] = [];
   const msg = lead?.message ? String(lead.message).trim() : "";
@@ -169,10 +170,82 @@ export function buildLeadVisitDescription(lead: LeadVisitCalendarLead | null | u
   const notes = lead?.notes ? String(lead.notes).trim() : "";
   if (notes && notes !== msg) extra.push(notes);
   if (extra.length) {
-    out += "\n\n" + extra.join("\n\n");
+    out += (out ? "\n\n" : "") + CALENDAR_DESC_SEPARATOR + "\n\n" + extra.join("\n\n");
   }
 
   return out;
+}
+
+export type MeetingCalendarLead = {
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  notes?: string | null;
+  address?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  zipcode?: string | null;
+  zip?: string | null;
+  message?: string | null;
+  source?: string | null;
+  form_type?: string | null;
+  marketing_platform?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  landing_page?: string | null;
+  gclid?: string | null;
+  fbclid?: string | null;
+};
+
+/** Title safe for Apple Calendar (ASCII hyphen, not em dash). */
+export function buildMeetingCalendarSummary(opts: {
+  title?: string | null;
+  leadName?: string | null;
+  isVisit?: boolean;
+}): string {
+  const leadName = String(opts.leadName || "").trim();
+  if (opts.isVisit && leadName) return `Visita - ${leadName}`;
+  const raw = String(opts.title || "").trim() || (opts.isVisit ? "Visita" : "Compromisso");
+  return raw
+    .replace(/\u2014|\u2013/g, "-")
+    .replace(/\s*-\s*/g, " - ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Notes for a saved meeting/visit in Apple Calendar.
+ * Prefer lead contact card; append visit notes. Never put lead UUIDs in the body.
+ */
+export function buildMeetingCalendarDescription(opts: {
+  notes?: string | null;
+  location?: string | null;
+  lead?: MeetingCalendarLead | null;
+}): string {
+  const lead = opts.lead || null;
+  const visitNotes = String(opts.notes || "").trim();
+  const location = String(opts.location || "").trim();
+
+  if (lead && (lead.name || lead.phone || lead.email || lead.address || lead.address_line1)) {
+    const card = buildLeadVisitDescription({
+      ...lead,
+      address: lead.address_line1 || lead.address || location || null,
+      notes: null,
+      message: lead.message || null,
+    });
+    const parts = [card];
+    if (visitNotes) parts.push(CALENDAR_DESC_SEPARATOR, "Notas da visita:", visitNotes);
+    else if (lead.notes && String(lead.notes).trim()) {
+      parts.push(CALENDAR_DESC_SEPARATOR, String(lead.notes).trim());
+    }
+    return parts.filter(Boolean).join("\n\n");
+  }
+
+  const lines: string[] = [];
+  if (location) lines.push("Local: " + location);
+  if (visitNotes) lines.push(visitNotes);
+  return lines.join("\n\n");
 }
 
 export function buildLeadVisitIcs(

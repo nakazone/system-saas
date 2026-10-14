@@ -827,7 +827,7 @@ dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), asy
         const meeting = await tx.meeting.create({
           data: {
             organizationId: req.organizationId!,
-            title: `Visita — ${existing.name}`,
+            title: `Visita - ${existing.name}`,
             leadId: existing.id,
             status: "scheduled",
             scheduledStart: start,
@@ -955,7 +955,7 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
               await tx.meeting.update({
                 where: { id: meetingId },
                 data: {
-                  title: `Visita — ${lead.name}`,
+                  title: `Visita - ${lead.name}`,
                   leadId: lead.id,
                   scheduledStart: start,
                   scheduledEnd: end,
@@ -974,7 +974,7 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
             const meeting = await tx.meeting.create({
               data: {
                 organizationId: req.organizationId!,
-                title: `Visita — ${lead.name}`,
+                title: `Visita - ${lead.name}`,
                 leadId: lead.id,
                 status: "scheduled",
                 scheduledStart: start,

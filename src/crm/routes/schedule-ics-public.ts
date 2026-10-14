@@ -6,7 +6,11 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
-import { buildLeadVisitIcs } from "../../lib/schedule/lead-visit-ics.js";
+import {
+  buildLeadVisitIcs,
+  buildMeetingCalendarDescription,
+  buildMeetingCalendarSummary,
+} from "../../lib/schedule/lead-visit-ics.js";
 import { buildSingleEventIcs, meetingStatusToIcs } from "../../lib/schedule/ics.js";
 import { verifyIcsAccessToken } from "../../lib/schedule/signed-ics-token.js";
 import { safeTimeZone } from "../../lib/time/zoned.js";
@@ -84,27 +88,61 @@ scheduleIcsPublicRouter.get("/meeting/:token.ics", async (req, res, next) => {
     }
     const row = await prisma.meeting.findFirst({
       where: { id: verified.entityId, organizationId: verified.organizationId },
+      include: {
+        lead: { select: { id: true, name: true, phone: true, email: true, notes: true, metadata: true } },
+      },
     });
     if (!row) {
       res.status(404).type("text/plain").send("Compromisso não encontrado");
       return;
     }
-    const descParts = [
-      row.notes ? String(row.notes).trim() : "",
-      row.leadId ? `Lead: ${row.leadId}` : "",
-    ].filter(Boolean);
+    const leadMeta =
+      row.lead?.metadata && typeof row.lead.metadata === "object" && !Array.isArray(row.lead.metadata)
+        ? (row.lead.metadata as Record<string, unknown>)
+        : {};
+    const leadForCal = row.lead
+      ? {
+          name: row.lead.name,
+          phone: formatUsPhone(row.lead.phone),
+          email: row.lead.email,
+          notes: row.lead.notes,
+          address: metaStr(leadMeta, "address"),
+          address_line1: metaStr(leadMeta, "address_line1") || metaStr(leadMeta, "address"),
+          address_line2: metaStr(leadMeta, "address_line2"),
+          city: metaStr(leadMeta, "city"),
+          zipcode: metaStr(leadMeta, "zipcode"),
+          message: metaStr(leadMeta, "message"),
+          form_type: metaStr(leadMeta, "form_type"),
+          marketing_platform: metaStr(leadMeta, "marketing_platform"),
+          utm_source: metaStr(leadMeta, "utm_source"),
+          utm_medium: metaStr(leadMeta, "utm_medium"),
+          landing_page: metaStr(leadMeta, "landing_page"),
+          gclid: metaStr(leadMeta, "gclid"),
+          fbclid: metaStr(leadMeta, "fbclid"),
+        }
+      : null;
+    const summary = buildMeetingCalendarSummary({
+      title: row.title,
+      leadName: row.lead?.name,
+      isVisit: Boolean(row.leadId),
+    });
+    const description = buildMeetingCalendarDescription({
+      notes: row.notes,
+      location: row.location,
+      lead: leadForCal,
+    });
     const ics = buildSingleEventIcs(
       {
         uid: `meeting-${row.id}@obramate.com`,
-        summary: row.title || "Compromisso",
-        description: descParts.join("\n") || undefined,
-        location: row.location,
+        summary,
+        description: description || undefined,
+        location: row.location || leadForCal?.address_line1 || leadForCal?.address || undefined,
         start: row.scheduledStart,
         end: row.scheduledEnd,
         stamp: row.updatedAt || new Date(),
         status: meetingStatusToIcs(row.status),
       },
-      { name: row.title || "ObraMate" },
+      { name: summary || "ObraMate" },
     );
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
     res.setHeader("Content-Disposition", 'inline; filename="meeting.ics"');
