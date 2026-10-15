@@ -18,9 +18,12 @@ import {
   isCouponApplyStage,
   parseLeadMessageSettings,
 } from "../../lib/settings/lead-messages.js";
-import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { resolveLeadStage } from "../../lib/dashboard/stages.js";
+import {
+  createDiscountedQuoteCopy,
+  pickSourceQuoteForDiscount,
+} from "../../lib/quotes/discounted-copy.js";
 
 export const dashboardLeadsRouter = Router();
 
@@ -1195,8 +1198,8 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
 });
 
 /**
- * Apply the configured coupon percent to the lead's latest open quote.
- * Used when sending SMS/email with [coupon] from Quote Sent / Follow-Up / StandBy.
+ * Create a discounted *copy* of the lead's latest open quote (original unchanged)
+ * and return a public link for SMS/email with [coupon].
  */
 dashboardLeadsRouter.post(
   "/api/leads/:id/apply-coupon-discount",
@@ -1232,7 +1235,12 @@ dashboardLeadsRouter.post(
 
         const org = await tx.organization.findUniqueOrThrow({
           where: { id: orgId },
-          select: { leadMessageSettings: true },
+          select: {
+            leadMessageSettings: true,
+            quoteNumberPrefix: true,
+            quoteNextNumber: true,
+            quoteValidityDays: true,
+          },
         });
         const settings = parseLeadMessageSettings(org.leadMessageSettings);
         if (!settings.coupon_enabled) {
@@ -1247,89 +1255,43 @@ dashboardLeadsRouter.post(
           where: { leadId },
           orderBy: { updatedAt: "desc" },
           take: 12,
-          include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+          select: {
+            id: true,
+            status: true,
+            payload: true,
+            updatedAt: true,
+          },
         });
-        const quote = quotes.find((q) => OPEN_QUOTE_STATUSES.has(normalizeQuoteStatus(q.status)));
+        const quote = pickSourceQuoteForDiscount(quotes, OPEN_QUOTE_STATUSES, normalizeQuoteStatus);
         if (!quote) {
           return { error: "no_quote" as const };
         }
 
-        const currentType = quote.discountType === "percentage" ? "percent" : quote.discountType;
-        const currentVal = Number(quote.discountValue) || 0;
-        if (currentType === "percent" && Math.abs(currentVal - percent) < 0.001) {
-          return {
-            ok: true as const,
-            unchanged: true,
-            quote_id: quote.id,
-            discount_percent: percent,
-            total: Number(quote.total),
-          };
-        }
-
-        const lines = (quote.lineItems || []).map((li) => ({
-          quantity: Number(li.quantity) || 0,
-          unitPrice: Number(li.unitPrice) || 0,
-          unitCost: Number(li.unitCost) || 0,
-          amount: Number(li.amount) || undefined,
-          isOptional: li.isOptional,
-          isSelected: li.isSelected,
-          optionGroupId: li.optionGroupId,
-        }));
-        const subtotalFromLines = lines.length
-          ? undefined
-          : Number(quote.subtotal) || 0;
-        const totals = lines.length
-          ? calculateQuoteTotals({
-              lines,
-              selectedOptionGroupId: quote.selectedOptionGroupId,
-              discountType: "percent",
-              discountValue: percent,
-              taxRate: Number(quote.taxRate) || 0,
-            })
-          : (() => {
-              const sub = subtotalFromLines!;
-              const discountAmount = Math.round(sub * (percent / 100) * 100) / 100;
-              const after = Math.max(0, Math.round((sub - discountAmount) * 100) / 100);
-              const taxRate = Number(quote.taxRate) || 0;
-              // Keep existing tax if taxRate is 0 (legacy quotes often store tax_total directly).
-              const taxTotal =
-                taxRate > 0
-                  ? Math.round(after * (taxRate / 100) * 100) / 100
-                  : Number(quote.taxTotal) || 0;
-              return {
-                subtotal: sub,
-                discountAmount,
-                taxTotal,
-                total: Math.round((after + taxTotal) * 100) / 100,
-              };
-            })();
-
-        const payload =
-          quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
-            ? { ...(quote.payload as Record<string, unknown>) }
-            : {};
-        payload.discount_type = "percentage";
-        payload.discount_value = percent;
-
-        const updated = await tx.quote.update({
-          where: { id: quote.id },
-          data: {
-            discountType: "percent",
-            discountValue: new Prisma.Decimal(percent),
-            subtotal: new Prisma.Decimal(totals.subtotal),
-            taxTotal: new Prisma.Decimal(totals.taxTotal),
-            total: new Prisma.Decimal(totals.total),
-            payload: payload as Prisma.InputJsonValue,
-          },
-          select: { id: true, total: true, discountValue: true },
+        const copy = await createDiscountedQuoteCopy(tx, {
+          organizationId: orgId,
+          sourceQuoteId: quote.id,
+          discountType: "percent",
+          discountValue: percent,
+          actorUserId: req.user?.id ?? null,
+          titleSuffix: ` (−${percent}%)`,
+          quoteNumberPrefix: org.quoteNumberPrefix,
+          quoteNextNumber: org.quoteNextNumber,
+          quoteValidityDays: org.quoteValidityDays,
+          markSent: true,
         });
+        if (!copy) {
+          return { error: "no_quote" as const };
+        }
 
         return {
           ok: true as const,
           unchanged: false,
-          quote_id: updated.id,
+          quote_id: copy.quoteId,
+          source_quote_id: copy.sourceQuoteId,
           discount_percent: percent,
-          total: Number(updated.total),
+          total: copy.total,
+          public_raw_token: copy.publicRawToken,
+          quote_number: copy.quoteNumber,
         };
       });
 
@@ -1358,13 +1320,18 @@ dashboardLeadsRouter.post(
         return;
       }
 
+      const publicUrl = `${publicBaseUrl(req)}/public/quotes/${result.public_raw_token}`;
+
       res.json({
         success: true,
         data: {
           quote_id: result.quote_id,
+          source_quote_id: result.source_quote_id,
+          quote_number: result.quote_number,
           discount_percent: result.discount_percent,
           total: result.total,
-          unchanged: !!result.unchanged,
+          public_url: publicUrl,
+          unchanged: false,
         },
       });
     } catch (error) {

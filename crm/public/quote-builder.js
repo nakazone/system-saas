@@ -2721,6 +2721,54 @@
     return isLikelyQuotePublicUrl(url) ? url : '';
   }
 
+  /**
+   * When the builder has a discount, create a *copy* with that discount and keep
+   * this quote at full price so the original remains viewable.
+   * @returns {Promise<{ quote_id: string, public_url: string, quote_number?: string }|null>}
+   */
+  async function prepareDiscountedShareIfNeeded() {
+    const dtEl = $('discountType');
+    const dvEl = $('discountValue');
+    const dt = dtEl ? dtEl.value : 'percentage';
+    const dv = parseFloat(dvEl && dvEl.value) || 0;
+    if (!(dv > 0) || !quoteId) return null;
+
+    const keepDt = dt;
+    const keepDv = dv;
+    if (dvEl) dvEl.value = '0';
+    recalc();
+    const saved = await saveQuote();
+    if (dvEl) {
+      if (dtEl) dtEl.value = keepDt;
+      dvEl.value = String(keepDv);
+      recalc();
+    }
+    if (saved === false) {
+      throw new Error('Salve o orçamento antes de enviar com desconto.');
+    }
+
+    const discType = keepDt === 'fixed' ? 'fixed' : 'percent';
+    const r = await api(`/api/quotes/${quoteId}/share-discounted-copy`, {
+      method: 'POST',
+      body: JSON.stringify({
+        discount_type: discType,
+        discount_value: keepDv,
+        mark_sent: true,
+      }),
+    });
+    const data = r && r.data ? r.data : r;
+    if (!data || !data.public_url) {
+      throw new Error('Não foi possível criar o orçamento com desconto.');
+    }
+    return {
+      quote_id: String(data.quote_id),
+      public_url: String(data.public_url).trim(),
+      quote_number: data.quote_number != null ? String(data.quote_number) : undefined,
+      total: data.total,
+      discount_value: data.discount_value,
+    };
+  }
+
   /** Customer-facing SMS / WhatsApp templates from Configurações › Orçamentos. */
   let quoteShareMessages = {
     sms_body:
@@ -3264,7 +3312,25 @@
       }
       const lid = getCurrentQuoteLeadId();
       if (lid) body.lead_id = lid;
-      const r = await api(`/api/quotes/${quoteId}/email-preview`, {
+      let targetId = quoteId;
+      try {
+        const share = await prepareDiscountedShareIfNeeded();
+        if (share && share.quote_id) {
+          targetId = share.quote_id;
+          body._discounted_share = true;
+          body._share_quote_id = share.quote_id;
+          if (share.public_url) body._share_public_url = share.public_url;
+        }
+      } catch (shareErr) {
+        showQuoteNotify({
+          type: 'error',
+          title: 'Desconto',
+          message: shareErr.message || 'Não foi possível criar o orçamento com desconto.',
+          ms: 10000,
+        });
+        return;
+      }
+      const r = await api(`/api/quotes/${targetId}/email-preview`, {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -3324,15 +3390,23 @@
         delete body.extra_emails;
         delete body.cc;
       }
-      const r = await api(`/api/quotes/${quoteId}/send-email`, {
+      const sendId =
+        pendingEmailSendBody && pendingEmailSendBody._share_quote_id
+          ? String(pendingEmailSendBody._share_quote_id)
+          : quoteId;
+      const sendBody = { ...body };
+      delete sendBody._discounted_share;
+      delete sendBody._share_quote_id;
+      delete sendBody._share_public_url;
+      const r = await api(`/api/quotes/${sendId}/send-email`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify(sendBody),
       });
       closeEmailPreviewModal();
-      if (r.public_url) applyPublicUrlToDom(r.public_url);
+      if (r.public_url && sendId === quoteId) applyPublicUrlToDom(r.public_url);
       const how = r.transport === 'smtp' ? 'SMTP' : r.transport === 'resend' ? 'Resend' : 'servidor';
       updateEmailSentBadge(r.email_sent_at || new Date().toISOString());
-      if (r.email_sent_at == null) {
+      if (r.email_sent_at == null && sendId === quoteId) {
         try {
           const fresh = await api(`/api/quotes/${quoteId}`);
           if (fresh.data?.email_sent_at) updateEmailSentBadge(fresh.data.email_sent_at);
@@ -3340,9 +3414,11 @@
           /* badge já atualizado com data local */
         }
       }
-      const statusEl = $('status');
-      if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
-      startQuoteViewPolling();
+      if (sendId === quoteId) {
+        const statusEl = $('status');
+        if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
+        startQuoteViewPolling();
+      }
       const ccNote = extras.length ? ` (CC: ${extras.join(', ')})` : '';
       const movedNote =
         r.lead_moved === true
@@ -3350,10 +3426,14 @@
           : r.lead_move_reason === 'no_lead'
             ? ' (Lead do Kanban não associado a este orçamento.)'
             : '';
+      const copyNote =
+        pendingEmailSendBody && pendingEmailSendBody._discounted_share
+          ? ' Foi enviado um novo orçamento com desconto; o original permanece sem alteração.'
+          : '';
       showQuoteNotify({
         type: 'success',
         title: 'E-mail enviado',
-        message: `E-mail enviado para ${to}${ccNote} (${how}) — só com link seguro. Você será avisado quando o cliente abrir o link ou baixar o PDF.${movedNote}`,
+        message: `E-mail enviado para ${to}${ccNote} (${how}) — só com link seguro. Você será avisado quando o cliente abrir o link ou baixar o PDF.${movedNote}${copyNote}`,
       });
     } catch (e) {
       const raw = e.message || '';
@@ -3389,10 +3469,28 @@
       return;
     }
     let publicUrl = '';
+    let discountedShare = false;
     try {
-      publicUrl = await issueQuotePublicUrl({ markSent: true });
-    } catch (_) {
-      /* try legacy / cached link below */
+      const share = await prepareDiscountedShareIfNeeded();
+      if (share && share.public_url) {
+        publicUrl = share.public_url;
+        discountedShare = true;
+      }
+    } catch (shareErr) {
+      showQuoteNotify({
+        type: 'error',
+        title: 'Desconto',
+        message: shareErr.message || 'Não foi possível criar o orçamento com desconto.',
+        ms: 10000,
+      });
+      return;
+    }
+    if (!publicUrl) {
+      try {
+        publicUrl = await issueQuotePublicUrl({ markSent: true });
+      } catch (_) {
+        /* try legacy / cached link below */
+      }
     }
     if (!publicUrl) {
       publicUrl = await resolveQuotePublicUrl();
@@ -3420,6 +3518,14 @@
     if (!href) {
       qbToast('Não foi possível abrir a app de mensagens.', 'error');
       return;
+    }
+    if (discountedShare) {
+      showQuoteNotify({
+        type: 'success',
+        title: 'Novo orçamento com desconto',
+        message: 'O SMS usa o link do orçamento com desconto. O original permanece sem alteração.',
+        ms: 8000,
+      });
     }
     window.location.href = href;
   }

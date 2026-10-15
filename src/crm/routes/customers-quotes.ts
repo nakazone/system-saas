@@ -22,6 +22,7 @@ import { documentAddressLine, documentLicenseLine } from "../../lib/settings/org
 import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
 import { storage } from "../../lib/storage/index.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
+import { createDiscountedQuoteCopy } from "../../lib/quotes/discounted-copy.js";
 import { sendCustomerEmail } from "../../lib/email/index.js";
 import {
   buildQuoteAccessEmailHtml,
@@ -2097,6 +2098,83 @@ customersQuotesRouter.post(
         preview: true,
         ...payload,
         public_url: publicUrl,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Clone quote with a discount and issue a public link — source quote is not modified.
+ * Used when sending SMS/email with a discount so the original remains viewable.
+ */
+customersQuotesRouter.post(
+  "/api/quotes/:id/share-discounted-copy",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!asOptionalUuid(id)) {
+        res.status(400).json({ success: false, error: "ID inválido" });
+        return;
+      }
+      const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<
+        string,
+        unknown
+      >;
+      const rawType = String(body.discount_type || body.discountType || "percent").toLowerCase();
+      const discountType = rawType === "fixed" ? "fixed" : "percent";
+      const discountValue = Number(body.discount_value ?? body.discountValue ?? 0);
+      if (!(discountValue > 0)) {
+        res.status(400).json({ success: false, error: "Informe um desconto maior que zero." });
+        return;
+      }
+      const markSent =
+        body.mark_sent === true ||
+        body.mark_sent === 1 ||
+        body.mark_sent === "1" ||
+        body.mark_sent === undefined;
+
+      const defaults = await loadQuoteOrgDefaults(req.organizationId!);
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const src = await tx.quote.findFirst({ where: { id }, select: { id: true } });
+        if (!src) return null;
+        return createDiscountedQuoteCopy(tx, {
+          organizationId: req.organizationId!,
+          sourceQuoteId: id,
+          discountType,
+          discountValue,
+          actorUserId: req.user?.id ?? null,
+          titleSuffix:
+            discountType === "percent"
+              ? ` (−${Math.min(100, discountValue)}%)`
+              : " (desconto)",
+          quoteNumberPrefix: defaults.quoteNumberPrefix,
+          quoteNextNumber: defaults.quoteNextNumber,
+          quoteValidityDays: defaults.quoteValidityDays,
+          markSent: !!markSent,
+        });
+      });
+
+      if (!result) {
+        res.status(404).json({ success: false, error: "Orçamento não encontrado" });
+        return;
+      }
+
+      const publicUrl = `${publicBaseUrl(req)}/public/quotes/${result.publicRawToken}`;
+      res.status(201).json({
+        success: true,
+        data: {
+          quote_id: result.quoteId,
+          quote_number: result.quoteNumber,
+          source_quote_id: result.sourceQuoteId,
+          discount_type: result.discountType,
+          discount_value: result.discountValue,
+          total: result.total,
+          public_url: publicUrl,
+        },
       });
     } catch (error) {
       next(error);

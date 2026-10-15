@@ -641,12 +641,60 @@
     focusStep();
   }
 
+  let optsActive = -1;
+
+  function syncOptsHighlight() {
+    const box = document.getElementById('qpeOpts');
+    if (!box) return;
+    const buttons = Array.from(box.querySelectorAll('[data-pick], [data-pick-new]'));
+    buttons.forEach((btn, i) => {
+      const on = i === optsActive;
+      btn.classList.toggle('is-on', on);
+      btn.classList.toggle('is-kb', on);
+      if (on) btn.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function moveOptsActive(delta) {
+    const box = document.getElementById('qpeOpts');
+    if (!box) return false;
+    const buttons = Array.from(box.querySelectorAll('[data-pick], [data-pick-new]'));
+    if (!buttons.length) return false;
+    if (optsActive < 0) optsActive = delta > 0 ? 0 : buttons.length - 1;
+    else optsActive = (optsActive + delta + buttons.length) % buttons.length;
+    syncOptsHighlight();
+    return true;
+  }
+
+  function selectOptsActive() {
+    const box = document.getElementById('qpeOpts');
+    if (!box || optsActive < 0) return false;
+    const buttons = Array.from(box.querySelectorAll('[data-pick], [data-pick-new]'));
+    const btn = buttons[optsActive];
+    if (!btn) return false;
+    if (btn.hasAttribute('data-pick-new')) {
+      draft.row = null;
+      draft.query = null;
+      draft.base = 0;
+      goStep(2);
+      return true;
+    }
+    const id = btn.getAttribute('data-pick');
+    const r = B().catalog().find((x) => String(x.id) === id);
+    if (r) {
+      pickRow(r);
+      return true;
+    }
+    return false;
+  }
+
   function onStepInput(e) {
     const t = e.target;
     if (t.id === 'qpeQ') {
       draft.query = t.value;
       draft.name = t.value;
       draft.row = null;
+      optsActive = -1;
       const box = document.getElementById('qpeOpts');
       if (box) box.innerHTML = optsHtml(t.value);
       syncFooter();
@@ -788,6 +836,29 @@
     E.qpeWrap.addEventListener('scroll', hideDD, { passive: true });
     E.qpeSteps.addEventListener('input', onStepInput);
     E.qpeSteps.addEventListener('keydown', (e) => {
+      if (step === 1 && e.target && e.target.id === 'qpeQ') {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          moveOptsActive(e.key === 'ArrowDown' ? 1 : -1);
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (optsActive >= 0 && selectOptsActive()) return;
+          const q = String(draft.query || '').trim().toLowerCase();
+          const exact = q && B().catalog().find((x) => String(x.name || '').trim().toLowerCase() === q);
+          const list = draft.query ? B().filterCatalog(draft.query) : [];
+          if (exact) pickRow(exact);
+          else if (list.length === 1) pickRow(list[0]);
+          else if (hasName()) goStep(2);
+          return;
+        }
+        if (e.key === 'Escape') {
+          optsActive = -1;
+          syncOptsHighlight();
+          return;
+        }
+      }
       if (e.key !== 'Enter' || e.target.matches('textarea')) return;
       e.preventDefault();
       if (step === 1) {

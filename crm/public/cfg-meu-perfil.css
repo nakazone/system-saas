@@ -193,7 +193,21 @@
   color: #98A2B3;
 }
 
+/* Keep file inputs activatable via <label for> (Safari ignores some hidden inputs). */
+.cfg .mp-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .cfg .mp-sig__acts {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

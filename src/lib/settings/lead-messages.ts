@@ -35,7 +35,7 @@ export type LeadMessageSettings = {
   coupon_enabled: boolean;
   coupon_code: string | null;
   coupon_label: string | null;
-  /** Percent discount applied to the lead's open quote when sending with [coupon]. */
+  /** Percent discount applied to a *copy* of the lead's open quote when sending with [coupon] (original unchanged). */
   coupon_percent: number;
   /** Supports [code] and [label] placeholders. */
   coupon_sms_line: string | null;

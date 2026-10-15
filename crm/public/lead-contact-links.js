@@ -443,11 +443,25 @@
       const j = await res.json().catch(() => ({}));
       if (res.ok && j.success) {
         const pct = j.data && j.data.discount_percent != null ? j.data.discount_percent : remoteSettings.coupon_percent;
-        if (!j.data?.unchanged && typeof global.crmToast?.success === 'function') {
-          global.crmToast.success(`Desconto de ${pct}% aplicado ao orçamento.`);
-        } else if (!j.data?.unchanged && typeof global.crmNotify === 'function') {
-          global.crmNotify(`Desconto de ${pct}% aplicado ao orçamento.`, 'success');
+        const publicUrl = j.data && j.data.public_url ? String(j.data.public_url).trim() : '';
+        if (publicUrl) {
+          let body = String(option.body || '');
+          if (!body.includes(publicUrl)) {
+            body = (body + '\n\n' + publicUrl).replace(/\n{3,}/g, '\n\n').trim();
+            option.body = body;
+            const href = String(option.href || '');
+            if (/^sms:/i.test(href) && lead.phone) {
+              option.href = buildSmsHref(lead.phone, body);
+            } else if (/^mailto:/i.test(href) && lead.email) {
+              option.href = buildMailtoHref(lead.email, option.subject || defaultLeadEmailSubject(lead), body);
+            }
+          }
         }
+        const msg = publicUrl
+          ? `Novo orçamento com ${pct}% de desconto criado. O original permanece intacto.`
+          : `Desconto de ${pct}% aplicado ao orçamento.`;
+        if (typeof global.crmToast?.success === 'function') global.crmToast.success(msg);
+        else if (typeof global.crmNotify === 'function') global.crmNotify(msg, 'success');
       } else if (res.status !== 404 && (j.error || !res.ok)) {
         if (typeof global.crmToast?.error === 'function') global.crmToast.error(j.error || 'Não foi possível aplicar o desconto.');
         else if (typeof global.crmNotify === 'function') global.crmNotify(j.error || 'Não foi possível aplicar o desconto.', 'error');

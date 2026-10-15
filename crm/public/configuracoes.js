@@ -28,9 +28,10 @@
       id: "meu-perfil",
       label: "Meu Perfil",
       icon: "user",
-      desc: "Foto, dados, idioma e senha",
+      desc: "Foto, assinatura, idioma e senha",
       subs: [
         { id: "mp-perfil", label: "Perfil", section: "meu-perfil", perm: null, desc: "Nome, telefone, foto e ponto de partida das rotas.", keywords: "meu perfil nome telefone foto avatar e-mail email rota partida senha conta" },
+        { id: "mp-assinatura", label: "Assinatura", section: "meu-perfil", perm: null, desc: "Assinatura por imagem nos orçamentos quando você é o responsável.", keywords: "assinatura signature orçamento quote pdf imagem" },
         { id: "mp-idioma", label: "Idioma", section: "meu-perfil", perm: null, desc: "Idioma da interface neste aparelho.", keywords: "idioma language português english español" },
         { id: "mp-senha", label: "Senha", section: "meu-perfil", perm: null, desc: "Alterar a senha de acesso ao CRM.", keywords: "senha password segurança alterar" },
         { id: "mp-conta", label: "Conta", section: "meu-perfil", perm: null, desc: "Cargo e datas da sua conta.", keywords: "conta cargo role desde atualização" },
