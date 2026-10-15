@@ -7858,9 +7858,9 @@ body.lead-quick-sheet-open {
 }
 
 .kanban-card--open-sheet { cursor: grab; }
-.kanban-card--ghost { opacity: 0.45; }
-.kanban-card--chosen { cursor: grabbing; box-shadow: 0 10px 28px rgba(28, 25, 23, 0.18); }
-.kanban-card--drag { opacity: 0.95; }
+.kanban-card--ghost { opacity: 0.38; }
+.kanban-card--chosen { cursor: grabbing; box-shadow: 0 16px 36px -14px rgba(28, 25, 23, 0.28); }
+.kanban-card--drag { opacity: 0.98; box-shadow: 0 24px 52px -18px rgba(28, 25, 23, 0.42); }
 
 /* Lead sheet: visit modal (mesmo formato visual que o painel do lead) + priority ice/fire */
 .lqs-visit-modal.modal {

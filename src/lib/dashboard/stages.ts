@@ -118,11 +118,12 @@ export function canonicalStagesFor(stages: StageRow[]): DashboardStage[] {
       exact ||
       stages.find((s) => canonicalStageSlug(s.slug) === slug) ||
       stages.find((s) => canonicalStageSlug(s.name) === slug);
+    const dbColor = row?.color && /^#[0-9a-fA-F]{3,8}$/.test(String(row.color).trim()) ? String(row.color).trim() : null;
     return {
       slug,
       id: row?.id ?? null,
       name: row?.name ?? null,
-      color: CANONICAL_STAGE_COLORS[slug],
+      color: dbColor || CANONICAL_STAGE_COLORS[slug],
       order: index + 1,
     };
   });

@@ -637,21 +637,41 @@
     }
   }
 
-  function leadCard(lead, ov) {
+  function stageColor(col) {
+    const c = col && col.color ? String(col.color).trim() : "";
+    if (/^#[0-9a-fA-F]{3,8}$/.test(c)) return c;
+    return STAGE_TONES[col?.slug] || "#98A2B3";
+  }
+
+  function leadCard(lead, ov, tone) {
     const flag = lead.uncontacted
       ? `<span class="omd-lead__flag${Date.now() - Date.parse(lead.created_at) < 30 * 60000 ? " is-sla" : ""}" title="Sem contato ainda"></span>`
       : "";
     const summary = lead.summary || lead.source || "";
     const value =
       lead.value != null && lead.value > 0
-        ? `<span class="omd-lead__value">${esc(D.moneyCompact(lead.value))}</span>`
-        : '<span class="omd-lead__value is-empty">Sem valor</span>';
+        ? `<div class="omd-lead__val">${esc(D.moneyCompact(lead.value))}</div>`
+        : "";
+    const owner = lead.owner_name
+      ? `<span class="omd-lead__owner" title="Dono: ${esc(lead.owner_name)}">${esc(
+          String(lead.owner_name)
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((p) => p[0])
+            .join("")
+            .toUpperCase() || "—",
+        )}</span>`
+      : '<span class="omd-lead__owner omd-lead__owner--none" title="Sem dono">—</span>';
     const canEdit = can("leads.edit") || can("pipeline.manage") || (session && session.user && session.user.role === "admin");
-    return `<article class="omd-lead${canEdit ? " omd-lead--draggable" : ""}" data-lead-id="${esc(lead.id)}" data-href="lead-detail.html?id=${encodeURIComponent(lead.id)}" tabindex="0" role="link">
-      ${flag}
-      <p class="omd-lead__name">${esc(lead.name)}</p>
+    return `<article class="omd-lead${canEdit ? " omd-lead--draggable" : ""}" style="--stage-color:${esc(tone || "#98A2B3")}" data-lead-id="${esc(lead.id)}" data-href="lead-detail.html?id=${encodeURIComponent(lead.id)}" tabindex="0" role="link">
+      <div class="omd-lead__r1">
+        <p class="omd-lead__name">${esc(lead.name)}</p>
+        ${flag}
+      </div>
+      ${value}
       ${summary ? `<p class="omd-lead__sum">${esc(summary)}</p>` : ""}
-      <div class="omd-lead__foot">${value}<span class="omd-lead__ago">${esc(D.ago(lead.created_at))}</span></div>
+      <div class="omd-lead__foot">${owner}<span class="omd-lead__ago">${esc(D.ago(lead.created_at))}</span></div>
     </article>`;
   }
 
@@ -733,20 +753,24 @@
       omdSortables.push(
         Sortable.create(el, {
           group: "omd-pipeline",
-          animation: 160,
+          animation: 280,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
           draggable: ".omd-lead[data-lead-id]",
           filter: "button, a, .omd-col__empty, .omd-col__more, .omd-col__add",
           preventOnFilter: false,
           forceFallback: true,
           fallbackOnBody: true,
-          fallbackTolerance: 4,
-          emptyInsertThreshold: 40,
+          fallbackTolerance: 6,
+          emptyInsertThreshold: 48,
+          swapThreshold: 0.65,
+          invertSwap: true,
           delay: 120,
           delayOnTouchOnly: true,
-          touchStartThreshold: 6,
+          touchStartThreshold: 5,
           ghostClass: "omd-lead--ghost",
           chosenClass: "omd-lead--chosen",
           dragClass: "omd-lead--drag",
+          fallbackClass: "omd-lead--drag",
           onStart() {
             omdSuppressLeadClick = true;
           },
@@ -779,7 +803,7 @@
     });
   }
 
-  /** Início uses the neutral palette for stages (DB stage colors stay on the Leads Kanban). */
+  /** Fallback when overview board has no stage color (same defaults as Leads Kanban). */
   const STAGE_TONES = {
     new_lead: "#D0D5DD",
     contacted: "#98A2B3",
@@ -788,11 +812,6 @@
     stand_by: "#EAECF0",
     won: "#221E1A",
   };
-  function stageTone(col) {
-    if (STAGE_TONES[col.slug]) return STAGE_TONES[col.slug];
-    if (/^follow_up/.test(String(col.slug || ""))) return "#221E1A";
-    return "#98A2B3";
-  }
 
   function renderPipeline() {
     const card = $("omdPipeCard");
@@ -820,7 +839,7 @@
         .filter((c) => c.value > 0)
         .map(
           (c) =>
-            `<i style="flex:${c.value};background:${esc(stageTone(c))}" title="${esc(D.stageLabel(c.slug, c.name))}: ${esc(
+            `<i style="flex:${c.value};background:${esc(stageColor(c))}" title="${esc(D.stageLabel(c.slug, c.name))}: ${esc(
               D.money(c.value),
             )}"></i>`,
         )
@@ -834,15 +853,16 @@
     $("omdBoard").innerHTML = board
       .map((col) => {
         const label = D.stageLabel(col.slug, col.name);
-        const cards = col.leads.map((l) => leadCard(l, overview)).join("");
+        const tone = stageColor(col);
+        const cards = col.leads.map((l) => leadCard(l, overview, tone)).join("");
         const more =
           col.count > col.leads.length
             ? `<a class="omd-col__more" href="leads.html">Ver todos os ${col.count} →</a>`
             : "";
         const add = col.slug === "new_lead" && canCreate ? '<button type="button" class="omd-col__add" data-omd-new>+ Adicionar lead</button>' : "";
-        return `<section class="omd-col${col.slug === "won" ? " is-closed" : ""}" data-stage-slug="${esc(col.slug)}" aria-label="${esc(label)}">
+        return `<section class="omd-col${col.slug === "won" ? " is-closed" : ""}" data-stage-slug="${esc(col.slug)}" style="--stage-color:${esc(tone)}" aria-label="${esc(label)}">
           <header class="omd-col__head">
-            <span class="omd-col__dot${col.slug === "stand_by" ? " is-hollow" : ""}" style="background:${esc(stageTone(col))}"></span>
+            <span class="omd-col__dot${col.slug === "stand_by" ? " is-hollow" : ""}" style="background:${esc(tone)}"></span>
             <h3 class="omd-col__name">${esc(label)}</h3>
             <span class="omd-col__count">${col.count}</span>
           </header>

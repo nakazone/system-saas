@@ -171,10 +171,10 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
   box-shadow: 0 0 0 1px var(--lb-line), 0 1px 2px rgba(16, 24, 40, .04) !important;
   padding: 14px 12px 9px !important;
   cursor: pointer;
-  transition: box-shadow .15s;
+  transition: box-shadow .2s cubic-bezier(.22, 1, .36, 1), opacity .2s ease;
   text-align: left;
   overflow: hidden;
-  transform: none !important;
+  /* Do not lock transform — Sortable needs it for soft FLIP swaps between columns. */
 }
 .lb .lb-card::before {
   content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px;
@@ -291,9 +291,39 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
 .om-sig--hot { color: #B4561A; font-weight: 600; }
 .om-sig--ok { color: #536249; font-weight: 600; }
 
-/* arrastar (Sortable) */
-.lb .sortable-ghost { opacity: .4; }
-.lb .sortable-chosen .lb-card, .lb .lb-card.sortable-chosen { box-shadow: 0 0 0 1px #D0D5DD, 0 14px 30px -12px rgba(16, 24, 40, .35) !important; }
+/* arrastar (Sortable) — ghost na coluna + clone flutuante suave */
+.lb .kanban-card--ghost,
+.lb .lb-card.kanban-card--ghost,
+.lb .sortable-ghost {
+  opacity: .38 !important;
+  box-shadow: none !important;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 14%, #fff) !important;
+  border-radius: 14px !important;
+}
+.lb .kanban-card--chosen,
+.lb .lb-card.kanban-card--chosen,
+.lb .sortable-chosen {
+  cursor: grabbing;
+  box-shadow: 0 0 0 1px #D0D5DD, 0 16px 36px -14px rgba(16, 24, 40, .38) !important;
+}
+.lb .kanban-card--drag,
+.lb .sortable-fallback,
+.sortable-fallback.kanban-card--drag,
+.sortable-fallback.lb-card {
+  opacity: .98 !important;
+  cursor: grabbing !important;
+  box-shadow: 0 24px 52px -18px rgba(16, 24, 40, .48), 0 0 0 1px rgba(231, 121, 44, .35) !important;
+  border-radius: 14px !important;
+  z-index: 10050 !important;
+  pointer-events: none;
+}
+.lb .kanban-column-cards .sortable-ghost {
+  min-height: 64px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lb .lb-card,
+  .lb .kanban-card.lb-card { transition: none; }
+}
 
 /* iPad e janelas menores */
 @media (max-width: 1279px) {

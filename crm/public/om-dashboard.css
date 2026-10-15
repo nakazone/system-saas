@@ -1065,87 +1065,130 @@ a.omd-kpi:hover {
   overscroll-behavior-x: contain;
 }
 
+/* Mesmo padrão visual do Kanban de Leads: colunas pastel + cards brancos com barra de etapa */
 .omd-board {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(196px, 1fr);
-  gap: 0.75rem;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 12px;
+  width: max-content;
+  min-width: 100%;
 }
 
 .omd-col {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0;
+  flex: 0 0 236px;
+  width: 236px;
   min-width: 0;
-  padding: 0.65rem;
-  border-radius: 14px;
-  background: #F7F8FA;
-  border: 1px solid #f0ece6;
+  max-width: 236px;
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 10%, #EEF0F3);
+  border: 0;
   scroll-snap-align: start;
+  overflow: hidden;
 }
 
 .omd-col__head {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.1rem 0.15rem 0;
+  gap: 7px;
+  padding: 6px 6px 4px;
 }
 
 .omd-col__dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.omd-col__dot.is-hollow {
+  background: transparent !important;
+  box-shadow: inset 0 0 0 2px var(--stage-color, #98A2B3);
 }
 
 .omd-col__name {
   margin: 0;
   flex: 1;
   min-width: 0;
-  font-size: 0.82rem;
-  font-weight: 800;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--omd-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .omd-col__count {
-  padding: 0.1rem 0.45rem;
+  padding: 1px 7px;
   border-radius: 999px;
   background: #fff;
-  border: 1px solid var(--omd-line);
-  font-size: 0.72rem;
-  font-weight: 800;
+  border: 0;
+  font-size: 12px;
+  font-weight: 650;
   color: var(--omd-muted);
+  line-height: 1.5;
 }
 
 .omd-col__value {
-  margin: -0.25rem 0 0.1rem 1.35rem;
-  font-size: 0.74rem;
+  margin: 0 0 8px;
+  padding: 0 6px 0 21px;
+  font-size: 12px;
   font-weight: 650;
   color: var(--omd-muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .omd-col__cards {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  min-height: 2.5rem;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 40px;
+  max-height: min(52vh, 520px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   flex: 1;
+}
+
+.omd-col__cards > .omd-lead,
+.omd-col__cards > * {
+  flex: 0 0 auto;
 }
 
 .omd-lead {
   position: relative;
   display: block;
-  padding: 0.65rem 0.7rem;
-  border-radius: 12px;
-  border: 1px solid var(--omd-line);
+  padding: 14px 12px 9px;
+  border-radius: 14px;
+  border: 0;
   background: #fff;
+  box-shadow: 0 0 0 1px #EAECF0, 0 1px 2px rgba(16, 24, 40, 0.04);
   text-decoration: none;
   color: var(--omd-ink);
   cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  overflow: hidden;
+  transition: box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+}
+
+.omd-lead::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  background: var(--stage-color, #98A2B3);
+  border-radius: 14px 14px 0 0;
 }
 
 .omd-lead--draggable {
@@ -1157,38 +1200,61 @@ a.omd-kpi:hover {
 }
 
 .omd-lead:hover {
-  border-color: #dcd6cf;
-  box-shadow: 0 6px 16px rgba(28, 25, 23, 0.08);
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px #D0D5DD, 0 6px 16px -10px rgba(16, 24, 40, 0.25);
 }
 
 .omd-lead--ghost {
-  opacity: 0.45;
-  border-style: dashed;
+  opacity: 0.38 !important;
+  box-shadow: none !important;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 14%, #fff) !important;
 }
 
 .omd-lead--chosen {
-  box-shadow: 0 10px 22px rgba(28, 25, 23, 0.14);
-  border-color: var(--omd-accent, #E7792C);
+  cursor: grabbing;
+  box-shadow: 0 0 0 1px #D0D5DD, 0 16px 36px -14px rgba(16, 24, 40, 0.38);
 }
 
-.omd-lead--drag {
-  opacity: 0.95;
+.omd-lead--drag,
+.sortable-fallback.omd-lead--drag {
+  opacity: 0.98 !important;
+  cursor: grabbing !important;
+  box-shadow: 0 24px 52px -18px rgba(16, 24, 40, 0.48), 0 0 0 1px rgba(231, 121, 44, 0.35) !important;
+  z-index: 10050 !important;
+  pointer-events: none;
+}
+
+.omd-lead__r1 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
 }
 
 .omd-lead__name {
   margin: 0;
-  padding-right: 0.9rem;
-  font-size: 0.86rem;
-  font-weight: 750;
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.omd-lead__val {
+  margin-top: 7px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .omd-lead__sum {
-  margin: 0.2rem 0 0;
-  font-size: 0.76rem;
+  margin: 6px 0 0;
+  font-size: 12px;
   line-height: 1.35;
   color: var(--omd-muted);
   display: -webkit-box;
@@ -1200,40 +1266,55 @@ a.omd-kpi:hover {
 .omd-lead__foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
-  font-size: 0.74rem;
+  gap: 6px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #EAECF0;
+  font-size: 11.5px;
+  color: #98A2B3;
+  min-height: 28px;
 }
 
-.omd-lead__value {
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+.omd-lead__owner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--omd-ink);
+  color: #fff;
+  display: inline-grid;
+  place-items: center;
+  font-size: 8.5px;
+  font-weight: 700;
+  flex: none;
 }
 
-.omd-lead__value.is-empty {
-  color: var(--omd-faint);
-  font-weight: 600;
+.omd-lead__owner--none {
+  background: #F1F3F5;
+  color: #98A2B3;
 }
 
 .omd-lead__ago {
-  color: var(--omd-faint);
-  font-weight: 600;
+  color: #98A2B3;
+  font-weight: 550;
   white-space: nowrap;
+  margin-left: auto;
 }
 
 .omd-lead__flag {
-  position: absolute;
-  top: 0.72rem;
-  right: 0.65rem;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--omd-danger);
+  flex: none;
 }
 
 .omd-lead__flag.is-sla {
   animation: omdPulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .omd-lead { transition: none; }
+  .omd-lead__flag.is-sla { animation: none; }
 }
 
 .omd-col__more,
@@ -1280,8 +1361,8 @@ a.omd-kpi:hover {
 }
 
 .omd-col.is-closed {
-  background: #f6f8f5;
-  border-color: #e8eee6;
+  /* Won keeps pastel from --stage-color; slightly quieter empty state */
+  opacity: 1;
 }
 
 /* —— Skeletons —— */

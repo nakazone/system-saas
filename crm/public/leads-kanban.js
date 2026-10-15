@@ -825,7 +825,8 @@ function initKanbanSortables() {
         kanbanSortables.push(
             Sortable.create(el, {
                 group: 'leads-kanban',
-                animation: 160,
+                animation: 280,
+                easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
                 draggable: '.kanban-card[data-lead-id]:not([data-lead-id=""])',
                 filter: '.btn-lead-delete-kanban, button, a, .kanban-column-empty, .lead-quote-icons',
                 preventOnFilter: false,
@@ -833,14 +834,17 @@ function initKanbanSortables() {
                 // fails to commit the drop (card snaps back). Use Sortable's fallback.
                 forceFallback: true,
                 fallbackOnBody: true,
-                fallbackTolerance: 4,
+                fallbackTolerance: 6,
                 emptyInsertThreshold: 48,
-                delay: 140,
+                swapThreshold: 0.65,
+                invertSwap: true,
+                delay: 120,
                 delayOnTouchOnly: true,
-                touchStartThreshold: 6,
+                touchStartThreshold: 5,
                 ghostClass: 'kanban-card--ghost',
                 chosenClass: 'kanban-card--chosen',
                 dragClass: 'kanban-card--drag',
+                fallbackClass: 'kanban-card--drag',
                 onStart() {
                     kanbanSuppressCardClick = true;
                 },
