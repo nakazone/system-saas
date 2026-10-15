@@ -2616,6 +2616,11 @@
         credit_validity_days: j.data?.credit_validity_days ?? null,
       };
       fillReferralsSettings(state.referrals.snapshot);
+      try {
+        sessionStorage.removeItem("crm_shared_nav_html_v2");
+        sessionStorage.removeItem("crm_shared_nav_meta_v2");
+      } catch (_) {}
+      window.__crmReferralProgramEnabled = !!state.referrals.snapshot.enabled;
       notify("Programa de indicações salvo.", "success");
       updateSavebar();
       return true;

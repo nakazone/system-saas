@@ -73,7 +73,7 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
           include: { permissions: { include: { permission: true } } },
         },
         permissions: { include: { permission: true } },
-        organization: { select: { id: true, slug: true, name: true } },
+        organization: { select: { id: true, slug: true, name: true, referralSettings: true } },
       },
     });
 
@@ -92,6 +92,13 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
       req.session.workspaceSlug = user.organization.slug;
     }
 
+    const referralSettings = user.organization?.referralSettings;
+    const referralEnabled =
+      referralSettings != null &&
+      typeof referralSettings === "object" &&
+      !Array.isArray(referralSettings) &&
+      (referralSettings as Record<string, unknown>).enabled === true;
+
     res.json({
       success: true,
       authenticated: true,
@@ -99,6 +106,7 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
         id: user.organization?.id || organizationId,
         slug: user.organization?.slug || req.session.workspaceSlug || null,
         name: user.organization?.name || null,
+        referral_program_enabled: referralEnabled,
       },
       user: {
         id: user.id,

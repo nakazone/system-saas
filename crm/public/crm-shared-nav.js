@@ -121,6 +121,7 @@
             perm: 'customers.view',
             page: '',
             iconKey: 'customers',
+            feature: 'referrals',
           },
         ],
       },
@@ -223,7 +224,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261012-nav1';
+  const NAV_STRUCTURE_VERSION = '20261015-ref1';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
@@ -292,6 +293,7 @@
           role: String(role || ''),
           permHash: (Array.isArray(perms) ? perms : []).slice().sort().join(','),
           navVersion: NAV_STRUCTURE_VERSION,
+          referralEnabled: window.__crmReferralProgramEnabled === true,
         }),
       );
     } catch (_) {}
@@ -372,6 +374,12 @@
     return keys.has(perm);
   }
 
+  function featureOk(item) {
+    if (!item || !item.feature) return true;
+    if (item.feature === 'referrals') return window.__crmReferralProgramEnabled === true;
+    return true;
+  }
+
   function createSidebarLink(item, file, page) {
     const a = document.createElement('a');
     const onDashboard = file === 'dashboard.html';
@@ -420,8 +428,9 @@
     const page = pageParam();
     getSidebarGroups(role).forEach((group) => {
       const visible = group.items.filter((item) => {
+        if (!featureOk(item)) return false;
         if (item.type === 'dropdown' && Array.isArray(item.children)) {
-          return item.children.some((ch) => canSee(ch.perm, role, keys, ch.permAny));
+          return item.children.some((ch) => featureOk(ch) && canSee(ch.perm, role, keys, ch.permAny));
         }
         return canSee(item.perm, role, keys, item.permAny);
       });
@@ -542,6 +551,7 @@
     let user = null;
     let perms = [];
     let role = '';
+    let referralEnabled = false;
     try {
       const r = await fetch('/api/auth/session', { credentials: 'include' });
       const j = await r.json();
@@ -549,6 +559,7 @@
         user = j.user;
         perms = Array.isArray(j.user.permissions) ? j.user.permissions : [];
         role = j.user.role || '';
+        referralEnabled = !!(j.organization && j.organization.referral_program_enabled);
       }
     } catch (_) {}
 
@@ -556,6 +567,7 @@
     window.__crmUserRole = role;
     window.__crmPalettePerms = perms;
     window.__crmPaletteRole = role;
+    window.__crmReferralProgramEnabled = referralEnabled;
 
     const keys = new Set(perms);
     const file = currentFile();
@@ -569,7 +581,8 @@
         metaOk =
           m.navVersion === NAV_STRUCTURE_VERSION &&
           m.role === String(role || '') &&
-          m.permHash === permHash;
+          m.permHash === permHash &&
+          m.referralEnabled === referralEnabled;
       } catch (_) {}
       // Keep painted menu if perms match OR session failed (avoid wiping into empty nav)
       if (metaOk || !user) {
@@ -615,7 +628,7 @@
     inner.appendChild(brand);
 
     getMainNav(role).forEach((item) => {
-      if (!canSee(item.perm, role, keys, item.permAny)) return;
+      if (!featureOk(item) || !canSee(item.perm, role, keys, item.permAny)) return;
       const a = document.createElement('a');
       a.href = item.href;
       a.className = 'crm-shared-nav__link' + (linkActive(item, file, page) ? ' crm-shared-nav__link--active' : '');
