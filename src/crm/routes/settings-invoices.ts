@@ -97,6 +97,17 @@ settingsInvoicesRouter.patch(
         data: { invoiceSettings: nextSettings as Prisma.InputJsonValue },
       });
 
+      const changes: Record<string, { from: unknown; to: unknown }> = {};
+      if (p.share_messages !== undefined) {
+        changes.shareMessages = { from: before.settings.share_messages, to: p.share_messages };
+      }
+      if (p.payment_date_default !== undefined) {
+        changes.paymentDateDefault = {
+          from: before.settings.payment_date_default,
+          to: p.payment_date_default,
+        };
+      }
+
       await withTenantTransaction(orgId, (tx) =>
         recordActivity(tx, {
           organizationId: orgId,
@@ -105,16 +116,7 @@ settingsInvoicesRouter.patch(
           actorType: "user",
           actorId: req.user!.id,
           action: "settings.invoices_updated",
-          changes: {
-            shareMessages:
-              p.share_messages !== undefined
-                ? { from: before.settings.share_messages, to: p.share_messages }
-                : undefined,
-            paymentDateDefault:
-              p.payment_date_default !== undefined
-                ? { from: before.settings.payment_date_default, to: p.payment_date_default }
-                : undefined,
-          },
+          changes,
         }),
       );
 
