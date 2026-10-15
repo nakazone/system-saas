@@ -340,7 +340,7 @@
           <select class="input" name="timezone"><% timezones.forEach(function (t) { %><option value="<%= t.id %>" <%= t.id === details.timezone ? 'selected' : '' %>><%= t.label %></option><% }) %><% if (!timezones.some(function (t) { return t.id === details.timezone; })) { %><option value="" selected disabled>Hoje: <%= details.timezone %> (escolha um)</option><% } %></select>
         </label>
         <label class="field">Idioma
-          <select class="input" name="defaultLocale"><% [['pt-BR','Português'],['en','English'],['es','Español']].forEach(function (l) { %><option value="<%= l[0] %>" <%= l[0] === details.defaultLocale ? 'selected' : '' %>><%= l[1] %></option><% }) %></select>
+          <select class="input" name="defaultLocale"><% [['pt-BR','Português (Brasil)'],['en','English (US)'],['es','Español (España)']].forEach(function (l) { %><option value="<%= l[0] %>" <%= l[0] === details.defaultLocale ? 'selected' : '' %>><%= l[1] %></option><% }) %></select>
         </label>
       </div>
       <div class="form-row">

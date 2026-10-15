@@ -10,10 +10,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import express, { type Response, type Router } from "express";
+import express, { type Request, type Response, type Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { crmAuthRouter } from "./auth-api.js";
 import { crmApiRouter } from "./api.js";
+import { i18nCrmRouter } from "../lib/i18n/routes.js";
+import { i18nVersion, orgDefaultUiLocale } from "../lib/i18n/index.js";
+import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -69,17 +72,52 @@ function safePublicHtmlPath(urlPath: string): string | null {
   return full;
 }
 
-function injectBranding(html: string): string {
-  if (html.includes("data-saas-branding-css")) return html;
-  if (/<\/head>/i.test(html)) {
-    return html.replace(/<\/head>/i, `    ${BRANDING_INJECT}\n</head>`);
-  }
-  return `${BRANDING_INJECT}\n${html}`;
+/**
+ * Pages that are not translated: the builder (partner) portal and the client's quote
+ * page stay in English, like every document the client receives.
+ */
+const NO_I18N_PAGES = /^(builder-(portal|login|calendar|project|projects|referrals|profile|pricing|messages|gallery|history|estimate-request|estimate-requests|calculator|calculator-share|forgot-password|reset-password|change-password)|quote-public|estimate-view)\.html$/;
+
+/** Bump when crm/public/crm-i18n.js changes (the dictionary version is added to it). */
+const I18N_ENGINE_VER = "20261018-e1";
+
+function i18nInject(file: string, version: string, orgLocale: string | null | undefined): string {
+  if (NO_I18N_PAGES.test(path.basename(file))) return "";
+  // Without a company (apex login) the browser language decides.
+  const boot = JSON.stringify({ v: version, locale: orgLocale === undefined ? null : orgDefaultUiLocale(orgLocale) }).replace(/</g, "\\u003c");
+  // Not deferred: it must run before the body is parsed so nothing shows untranslated.
+  return `<script>window.__OM_I18N=${boot}</script>\n    <script src="/crm-i18n.js?v=${I18N_ENGINE_VER}.${encodeURIComponent(version)}" data-om-i18n></script>`;
 }
 
-function sendCrmHtml(res: Response, filename: string) {
+function injectBranding(html: string, extra = ""): string {
+  if (html.includes("data-saas-branding-css")) return html;
+  const block = extra ? `${BRANDING_INJECT}\n    ${extra}` : BRANDING_INJECT;
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `    ${block}\n</head>`);
+  }
+  return `${block}\n${html}`;
+}
+
+async function renderCrmHtml(req: Request, full: string): Promise<string> {
+  const org = (req as TenantRequest).organization;
+  const extra = i18nInject(full, await i18nVersion().catch(() => "0"), org ? org.defaultLocale ?? null : undefined);
+  // Pages that load crm-i18n.js themselves would load it twice; the engine guards it, but skip the tag.
+  const html = fs.readFileSync(full, "utf8").replace(/<script[^>]+src="crm-i18n\.js[^"]*"[^>]*><\/script>\s*/g, "");
+  return injectBranding(html, extra);
+}
+
+/** Login / password pages served outside the CRM router: only the language script. */
+export async function crmHtmlWithLanguage(req: Request, full: string): Promise<string> {
+  const org = (req as TenantRequest).organization;
+  const extra = i18nInject(full, await i18nVersion().catch(() => "0"), org ? org.defaultLocale ?? null : undefined);
+  const html = fs.readFileSync(full, "utf8");
+  if (!extra) return html;
+  return /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `    ${extra}\n</head>`) : `${extra}\n${html}`;
+}
+
+async function sendCrmHtml(req: Request, res: Response, filename: string) {
   const full = path.join(CRM_PUBLIC_DIR, filename);
-  const html = injectBranding(fs.readFileSync(full, "utf8"));
+  const html = await renderCrmHtml(req, full);
   res.setHeader("Cache-Control", "no-store, max-age=0");
   res.type("html").send(html);
 }
@@ -88,6 +126,7 @@ export function createCrmRouter(): Router {
   const router = express.Router();
 
   router.use(crmAuthRouter);
+  router.use(i18nCrmRouter);
   router.use(crmApiRouter);
 
   // SF logo / brand assets (SaaS CSS remains available via a second /assets mount)
@@ -105,13 +144,13 @@ export function createCrmRouter(): Router {
   });
 
   // Início = /dashboard (pipeline board). Legacy SPA only when ?page= is set.
-  router.get(["/dashboard", "/dashboard.html"], requireAuth, (req, res, next) => {
+  router.get(["/dashboard", "/dashboard.html"], requireAuth, async (req, res, next) => {
     try {
       if (req.query.page) {
-        sendCrmHtml(res, "dashboard.html");
+        await sendCrmHtml(req, res, "dashboard.html");
         return;
       }
-      sendCrmHtml(res, "pipeline-lab.html");
+      await sendCrmHtml(req, res, "pipeline-lab.html");
     } catch (error) {
       next(error);
     }
@@ -142,8 +181,8 @@ export function createCrmRouter(): Router {
     );
   }
 
-  // Inject tenant branding into CRM HTML shells
-  router.use((req, res, next) => {
+  // Inject tenant branding (and the interface language) into CRM HTML shells
+  router.use(async (req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") {
       next();
       return;
@@ -154,7 +193,7 @@ export function createCrmRouter(): Router {
       return;
     }
     try {
-      const html = injectBranding(fs.readFileSync(full, "utf8"));
+      const html = await renderCrmHtml(req, full);
       res.setHeader("Cache-Control", "no-store, max-age=0");
       res.type("html").send(html);
     } catch (error) {

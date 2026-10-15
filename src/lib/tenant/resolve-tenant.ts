@@ -18,6 +18,8 @@ export type TenantRequest = Request & {
     contactPhone: string | null;
     /** IANA timezone (dashboard "today" / "this month" boundaries). */
     timezone?: string | null;
+    /** Company default language ("pt-BR" | "en" | "es"). */
+    defaultLocale?: string | null;
   };
   isPlatformAdminHost?: boolean;
   isPublicHost?: boolean;
@@ -86,6 +88,7 @@ async function loadOrganizationBySlug(slug: string) {
       contactEmail: true,
       contactPhone: true,
       timezone: true,
+      defaultLocale: true,
     },
   });
 }
@@ -104,6 +107,7 @@ async function loadOrganizationById(id: string) {
       contactEmail: true,
       contactPhone: true,
       timezone: true,
+      defaultLocale: true,
     },
   });
 }

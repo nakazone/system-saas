@@ -30,6 +30,22 @@ import { senderStatus, EMAIL_LOG_DAYS } from "../lib/email/delivery.js";
 import { KINDS, reachOf, targetCount } from "../lib/announcements/index.js";
 import { storage } from "../lib/storage/index.js";
 import {
+  UI_LOCALES,
+  UI_LOCALE_LABEL,
+  UI_LOCALE_SHORT,
+  applyTerms,
+  baseDictionary,
+  baseText,
+  buildBundle,
+  bumpI18n,
+  normKey,
+  normalizeUiLocale,
+  orgDefaultUiLocale,
+  phraseOverrides,
+  previewText,
+  type UiLocale,
+} from "../lib/i18n/index.js";
+import {
   recordMasterFailure,
   recordMasterLogin,
   findAlert,
@@ -537,6 +553,7 @@ async function shell(req: MasterRequest, active: string) {
     { key: "recursos", label: "Recursos por plano", href: "/master/recursos", icon: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 17h6M17 14v6", hidden: !can(req.master!.role, "billing_full") },
     { key: "vencimentos", label: "Vencimentos", href: "/master/vencimentos", icon: "M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 13v3l2 1", badge: overdue || null, group: can(req.master!.role, "billing_full") ? undefined : "FINANCEIRO" },
     { key: "comunicacao", label: "Comunicação", href: "/master/comunicacao", icon: "M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13", group: "SISTEMA", badge: emailProblems || null },
+    { key: "idiomas", label: "Idiomas", href: "/master/idiomas", icon: "M4 5h9M8.5 3v2M6 5c.6 3.3 3 6 6 7.5M11 5c-.8 3.6-3.6 6.6-7 8M13 21l4.5-10L22 21M14.6 17.5h4.8" },
     { key: "operacao", label: "Operação", href: "/master/operacao", icon: "M22 12h-4l-3 9L9 3l-3 9H2", badge: opsIssues || null },
     { key: "privacidade", label: "Privacidade", href: "/master/privacidade", icon: "M12 3c4.4 0 8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3V6c0-1.7 3.6-3 8-3zM4 6c0 1.7 3.6 3 8 3s8-1.3 8-3M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3", badge: dataProblems || null },
     { key: "equipe", label: "Equipe e segurança", href: "/master/equipe", icon: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4" },
@@ -2450,6 +2467,7 @@ const AUDIT_CATS: [string, string, string[]][] = [
   ["equipe", "Equipe", ["team."]],
   ["exportacoes", "Exportações", ["export."]],
   ["comunicacao", "Comunicação", ["comms."]],
+  ["idiomas", "Idiomas", ["i18n."]],
   ["dados", "Dados e privacidade", ["data.", "privacy."]],
 ];
 
@@ -2477,6 +2495,13 @@ const AUDIT_TEXT: Record<string, string> = {
   "support.start": "Entrou como suporte",
   "ops.job_run": "Rodou um job na mão",
   "coupon.create": "Criou cupom",
+  "i18n.term_create": "Criou troca de palavra (Idiomas)",
+  "i18n.term_update": "Editou troca de palavra (Idiomas)",
+  "i18n.term_delete": "Excluiu troca de palavra (Idiomas)",
+  "i18n.term_on": "Ligou troca de palavra (Idiomas)",
+  "i18n.term_off": "Desligou troca de palavra (Idiomas)",
+  "i18n.phrase_save": "Editou frase do sistema (Idiomas)",
+  "i18n.phrase_reset": "Voltou frase ao padrão (Idiomas)",
   "coupon.archive": "Arquivou cupom",
   "coupon.apply": "Aplicou cupom na empresa",
   "coupon.remove": "Tirou cupom da empresa",
@@ -4694,6 +4719,315 @@ masterRouter.post(
     ok(res, `Link novo enviado para ${m.email}. A conta destrava quando a pessoa criar senha e 2FA novos.`, {
       reveal: { title: `Link de acesso · ${m.name}`, value: link, note: "Vale 48 h, uma vez. Também foi por e-mail." },
     });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Idiomas (interface languages: term swaps and phrase edits)
+// ---------------------------------------------------------------------------
+
+const I18N_PAGE_SIZE = 50;
+
+function i18nLocaleParam(v: unknown): UiLocale {
+  return normalizeUiLocale(v) ?? "pt";
+}
+
+masterRouter.get(
+  "/idiomas",
+  requireCap("view"),
+  h(async (req, res) => {
+    const tab = ["termos", "frases", "testar"].includes(String(req.query.aba)) ? String(req.query.aba) : "termos";
+    const locale = i18nLocaleParam(req.query.idioma);
+    const [terms, phrases, userLocales, orgLocales] = await Promise.all([
+      prisma.i18nTerm.findMany({ orderBy: [{ locale: "asc" }, { find: "asc" }] }),
+      phraseOverrides(),
+      prisma.user.groupBy({ by: ["uiLocale"], where: { status: "active" }, _count: { _all: true } }).catch(() => []),
+      prisma.organization.groupBy({ by: ["defaultLocale"], where: { status: { not: "canceled" } }, _count: { _all: true } }).catch(() => []),
+    ]);
+    const { entries } = baseDictionary();
+
+    const perLocale = UI_LOCALES.map((loc) => {
+      const users = userLocales.filter((u) => normalizeUiLocale(u.uiLocale) === loc).reduce((a, u) => a + u._count._all, 0);
+      const companies = orgLocales.filter((o) => orgDefaultUiLocale(o.defaultLocale) === loc).reduce((a, o) => a + o._count._all, 0);
+      return {
+        key: loc,
+        label: UI_LOCALE_LABEL[loc],
+        short: UI_LOCALE_SHORT[loc],
+        users,
+        companies,
+        terms: terms.filter((t) => t.locale === loc && t.active).length,
+        phrases: phrases.filter((p) => p.locale === loc).length,
+      };
+    });
+    const usersOnCompanyDefault = userLocales.filter((u) => !normalizeUiLocale(u.uiLocale)).reduce((a, u) => a + u._count._all, 0);
+
+    const termRows = terms
+      .filter((t) => t.locale === locale)
+      .map((t) => ({
+        id: t.id,
+        find: t.find,
+        replace: t.replace,
+        findPlural: t.findPlural,
+        replacePlural: t.replacePlural,
+        matchCase: t.matchCase,
+        active: t.active,
+        note: t.note,
+        by: t.updatedByName,
+        when: dateTimeLabel(t.updatedAt),
+      }));
+
+    // Frases: dictionary texts (+ texts the Master added) with the value in each language.
+    const q = String(req.query.q || "").trim();
+    const onlyEdited = req.query.editadas === "1";
+    const pageNo = Math.max(1, Number(req.query.p) || 1);
+    const edits = new Map<string, Map<string, (typeof phrases)[number]>>();
+    for (const p of phrases) {
+      if (!edits.has(p.source)) edits.set(p.source, new Map());
+      edits.get(p.source)!.set(p.locale, p);
+    }
+    let phraseRows: { source: string; values: Record<UiLocale, string>; base: Record<UiLocale, string>; edited: UiLocale[]; custom: boolean }[] = [];
+    if (tab === "frases") {
+      const seen = new Set<string>();
+      const all: { k: string; entry?: (typeof entries)[number] }[] = [];
+      for (const src of edits.keys()) if (!baseDictionary().byKey.has(src)) { all.push({ k: src }); seen.add(src); }
+      for (const e of entries) all.push({ k: e.k, entry: e });
+      const needle = q.toLocaleLowerCase("pt-BR");
+      for (const row of all) {
+        const ed = edits.get(row.k);
+        if (onlyEdited && !ed) continue;
+        const baseVals = {} as Record<UiLocale, string>;
+        const values = {} as Record<UiLocale, string>;
+        for (const loc of UI_LOCALES) {
+          baseVals[loc] = baseText(row.entry, row.k, loc);
+          values[loc] = ed?.get(loc)?.text ?? baseVals[loc];
+        }
+        if (needle && ![row.k, ...Object.values(values)].some((v) => v.toLocaleLowerCase("pt-BR").includes(needle))) continue;
+        phraseRows.push({
+          source: row.k,
+          values,
+          base: baseVals,
+          edited: ed ? ([...ed.keys()] as UiLocale[]) : [],
+          custom: !row.entry,
+        });
+      }
+      // Edited first, then shorter texts (menus and buttons) before long sentences.
+      phraseRows.sort((a, b) => (b.edited.length ? 1 : 0) - (a.edited.length ? 1 : 0) || a.source.length - b.source.length);
+    }
+    const totalPhrases = phraseRows.length;
+    const pages = Math.max(1, Math.ceil(totalPhrases / I18N_PAGE_SIZE));
+    phraseRows = phraseRows.slice((pageNo - 1) * I18N_PAGE_SIZE, pageNo * I18N_PAGE_SIZE);
+
+    page(res, "idiomas", await shell(req, "idiomas"), {
+      tab,
+      locale,
+      locales: perLocale,
+      usersOnCompanyDefault,
+      canEdit: can(req.master!.role, "i18n_manage"),
+      terms: termRows,
+      phrases: phraseRows,
+      totalPhrases,
+      dictionarySize: entries.length,
+      q,
+      onlyEdited,
+      pageNo: Math.min(pageNo, pages),
+      pages,
+    });
+  }),
+);
+
+const i18nTermSchema = z.object({
+  locale: z.enum(UI_LOCALES),
+  find: z.string().trim().min(1, "Escreva a palavra que aparece hoje.").max(80),
+  replace: z.string().trim().min(1, "Escreva por qual palavra trocar.").max(80),
+  findPlural: z.string().trim().max(80).optional().default(""),
+  replacePlural: z.string().trim().max(80).optional().default(""),
+  matchCase: z.union([z.literal("on"), z.literal("1"), z.literal("true"), z.literal("")]).optional(),
+  note: z.string().trim().max(200).optional().default(""),
+});
+
+function termData(d: z.infer<typeof i18nTermSchema>) {
+  const fp = d.findPlural || "";
+  const rp = d.replacePlural || "";
+  return {
+    locale: d.locale,
+    find: d.find,
+    replace: d.replace,
+    findPlural: fp && rp ? fp : null,
+    replacePlural: fp && rp ? rp : null,
+    matchCase: !!d.matchCase,
+    note: d.note || null,
+  };
+}
+
+masterRouter.post(
+  "/idiomas/termos",
+  requireCap("i18n_manage"),
+  h(async (req, res) => {
+    const parsed = i18nTermSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, parsed.error.issues[0]?.message || "Confira os campos.");
+    const data = termData(parsed.data);
+    if ((parsed.data.findPlural && !parsed.data.replacePlural) || (!parsed.data.findPlural && parsed.data.replacePlural)) {
+      return fail(res, 400, "Preencha o plural dos dois lados (ou deixe os dois vazios).");
+    }
+    if (data.find.toLocaleLowerCase() === data.replace.toLocaleLowerCase() && !data.matchCase) return fail(res, 400, "A palavra nova é igual à de hoje.");
+    const dup = await prisma.i18nTerm.findFirst({ where: { locale: data.locale, find: { equals: data.find, mode: "insensitive" } } });
+    if (dup) return fail(res, 400, `Já existe uma troca para “${dup.find}” em ${UI_LOCALE_LABEL[data.locale as UiLocale]}. Edite a que existe.`);
+    const t = await prisma.i18nTerm.create({ data: { ...data, updatedById: req.master!.id, updatedByName: req.master!.name } });
+    await bumpI18n();
+    await audit(req, actor(req), "i18n.term_create", { type: "i18n", id: t.id, label: `${UI_LOCALE_SHORT[t.locale as UiLocale]} · ${t.find} → ${t.replace}`, meta: data });
+    ok(res, `Troca salva: “${t.find}” → “${t.replace}” em ${UI_LOCALE_LABEL[t.locale as UiLocale]}. Vale na próxima tela que cada pessoa abrir.`);
+  }),
+);
+
+masterRouter.post(
+  "/idiomas/termos/:id",
+  requireCap("i18n_manage"),
+  h(async (req, res) => {
+    const t = await prisma.i18nTerm.findUnique({ where: { id: String(req.params.id) } }).catch(() => null);
+    if (!t) return fail(res, 404, "Troca não encontrada.");
+    const label = `${UI_LOCALE_SHORT[t.locale as UiLocale]} · ${t.find} → ${t.replace}`;
+    const op = String(req.body?.op || "save");
+    if (op === "delete") {
+      await prisma.i18nTerm.delete({ where: { id: t.id } });
+      await bumpI18n();
+      await audit(req, actor(req), "i18n.term_delete", { type: "i18n", id: t.id, label });
+      return ok(res, `Troca “${t.find}” excluída. O texto volta ao normal na próxima tela.`);
+    }
+    if (op === "toggle") {
+      const u = await prisma.i18nTerm.update({ where: { id: t.id }, data: { active: !t.active, updatedById: req.master!.id, updatedByName: req.master!.name } });
+      await bumpI18n();
+      await audit(req, actor(req), u.active ? "i18n.term_on" : "i18n.term_off", { type: "i18n", id: t.id, label });
+      return ok(res, u.active ? `Troca “${t.find}” ligada.` : `Troca “${t.find}” desligada.`);
+    }
+    const parsed = i18nTermSchema.safeParse({ ...req.body, locale: t.locale });
+    if (!parsed.success) return fail(res, 400, parsed.error.issues[0]?.message || "Confira os campos.");
+    if ((parsed.data.findPlural && !parsed.data.replacePlural) || (!parsed.data.findPlural && parsed.data.replacePlural)) {
+      return fail(res, 400, "Preencha o plural dos dois lados (ou deixe os dois vazios).");
+    }
+    const data = termData(parsed.data);
+    const dup = await prisma.i18nTerm.findFirst({ where: { locale: t.locale, id: { not: t.id }, find: { equals: data.find, mode: "insensitive" } } });
+    if (dup) return fail(res, 400, `Já existe outra troca para “${dup.find}”.`);
+    await prisma.i18nTerm.update({ where: { id: t.id }, data: { ...data, updatedById: req.master!.id, updatedByName: req.master!.name } });
+    await bumpI18n();
+    await audit(req, actor(req), "i18n.term_update", {
+      type: "i18n",
+      id: t.id,
+      label,
+      meta: { before: { find: t.find, replace: t.replace, findPlural: t.findPlural, replacePlural: t.replacePlural, matchCase: t.matchCase }, after: data },
+    });
+    ok(res, `Troca “${data.find}” → “${data.replace}” atualizada.`);
+  }),
+);
+
+/** How many interface texts a term would change, with a few before → after examples. */
+masterRouter.get(
+  "/idiomas/termos/alcance",
+  requireCap("view"),
+  h(async (req, res) => {
+    const locale = i18nLocaleParam(req.query.idioma);
+    const find = String(req.query.find || "").trim().slice(0, 80);
+    const replace = String(req.query.replace || "").trim().slice(0, 80);
+    const findPlural = String(req.query.findPlural || "").trim().slice(0, 80);
+    const replacePlural = String(req.query.replacePlural || "").trim().slice(0, 80);
+    const matchCase = req.query.matchCase === "1";
+    if (!find) return void res.json({ ok: true, count: 0, examples: [] });
+    const { bundle } = await buildBundle(locale);
+    const { entries } = baseDictionary();
+    const rule = [{ f: find, r: replace || find, fp: findPlural || null, rp: replacePlural || null, c: matchCase }];
+    const candidates: { before: string; after: string }[] = [];
+    let count = 0;
+    const seen = new Set<string>();
+    for (const e of entries) {
+      const shown = (bundle.exact[e.k] ?? e[locale] ?? e.k).replace(/\{\d+\}/g, "…");
+      if (seen.has(shown)) continue;
+      seen.add(shown);
+      const after = applyTerms(shown, rule);
+      if (after === shown) continue;
+      count += 1;
+      if (shown.length <= 70 && /^[A-Za-zÀ-ÿ]/.test(shown)) candidates.push({ before: shown, after });
+    }
+    // Menus and buttons first: short texts that start with a word.
+    const examples = candidates.sort((a, b) => a.before.length - b.before.length).filter((_, i, all) => i % Math.max(1, Math.floor(all.length / 6)) === 0).slice(0, 6);
+    res.json({ ok: true, count, examples });
+  }),
+);
+
+const i18nPhraseSchema = z.object({
+  source: z.string().max(400),
+  pt: z.string().max(1000).optional(),
+  en: z.string().max(1000).optional(),
+  es: z.string().max(1000).optional(),
+  custom: z.string().optional(),
+});
+
+masterRouter.post(
+  "/idiomas/frases",
+  requireCap("i18n_manage"),
+  h(async (req, res) => {
+    const parsed = i18nPhraseSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 400, "Confira os campos.");
+    const source = normKey(parsed.data.source);
+    if (!source) return fail(res, 400, "Escreva o texto como aparece hoje no sistema.");
+    const entry = baseDictionary().byKey.get(source);
+    const isNew = parsed.data.custom === "1";
+    if (isNew && entry) return fail(res, 400, "Esse texto já está na lista de frases. Procure por ele e edite.");
+    const srcPh = new Set(source.match(/\{\d+\}/g) || []);
+    const changes: Record<string, { from: string; to: string }> = {};
+    for (const loc of UI_LOCALES) {
+      const raw = parsed.data[loc];
+      if (raw === undefined) continue;
+      const text = raw.replace(/\s+/g, " ").trim();
+      const def = baseText(entry, source, loc);
+      for (const ph of text.match(/\{\d+\}/g) || []) if (!srcPh.has(ph)) return fail(res, 400, `${UI_LOCALE_SHORT[loc]}: ${ph} não existe no texto original.`);
+      const current = await prisma.i18nPhrase.findUnique({ where: { source_locale: { source, locale: loc } } });
+      const before = current?.text ?? def;
+      if (!text || (text === def && !isNew)) {
+        if (current) {
+          await prisma.i18nPhrase.delete({ where: { source_locale: { source, locale: loc } } });
+          changes[loc] = { from: before, to: def };
+        }
+        continue;
+      }
+      if (text === before && current) continue;
+      await prisma.i18nPhrase.upsert({
+        where: { source_locale: { source, locale: loc } },
+        create: { source, locale: loc, text, custom: !entry, updatedById: req.master!.id, updatedByName: req.master!.name },
+        update: { text, custom: !entry, updatedById: req.master!.id, updatedByName: req.master!.name },
+      });
+      changes[loc] = { from: before, to: text };
+    }
+    if (!Object.keys(changes).length) return ok(res, "Nada mudou.");
+    await bumpI18n();
+    await audit(req, actor(req), "i18n.phrase_save", { type: "i18n", label: source.slice(0, 80), meta: changes });
+    ok(res, `Frase salva em ${Object.keys(changes).map((l) => UI_LOCALE_SHORT[l as UiLocale]).join(", ")}. Vale na próxima tela que cada pessoa abrir.`);
+  }),
+);
+
+masterRouter.post(
+  "/idiomas/frases/padrao",
+  requireCap("i18n_manage"),
+  h(async (req, res) => {
+    const source = normKey(String(req.body?.source || ""));
+    const n = await prisma.i18nPhrase.deleteMany({ where: { source } });
+    if (!n.count) return ok(res, "Essa frase já estava no padrão.");
+    await bumpI18n();
+    await audit(req, actor(req), "i18n.phrase_reset", { type: "i18n", label: source.slice(0, 80), meta: { languages: n.count } });
+    ok(res, baseDictionary().byKey.has(source) ? "Frase de volta ao texto padrão nos três idiomas." : "Frase removida.");
+  }),
+);
+
+masterRouter.post(
+  "/idiomas/testar",
+  requireCap("view"),
+  h(async (req, res) => {
+    const text = String(req.body?.text || "").slice(0, 2000);
+    const lines = text.split(/\n/);
+    const out: Record<string, string[]> = { pt: [], en: [], es: [] };
+    for (const line of lines) {
+      const r = await previewText(line);
+      for (const loc of UI_LOCALES) out[loc]!.push(line.trim() ? r[loc] : "");
+    }
+    res.json({ ok: true, result: { pt: out.pt!.join("\n"), en: out.en!.join("\n"), es: out.es!.join("\n") } });
   }),
 );
 
