@@ -110,6 +110,11 @@
 .jb-field input { padding: 0.55rem 0.65rem; border: 1px solid #E5E7EB; border-radius: 10px; font: inherit; font-weight: 400; color: #221E1A; }
 .jb-dialog__foot { display: flex; justify-content: flex-end; gap: 0.5rem; padding-top: 0.25rem; }
 .jb-err { color: #B4561A; font-size: 0.84rem; margin: -0.35rem 0 0.75rem; }
+.jb-inline { margin-top: 4px; }
+.jb-inline__t { margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #667085; }
+.jb-inline .jb-opts { margin-bottom: 0.7rem; }
+.jb-inline .jb-field { margin-bottom: 0.7rem; }
+.jb-inline__go { width: 100%; height: 40px !important; }
 
 @media (max-width: 640px) {
   .jb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }

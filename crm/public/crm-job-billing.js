@@ -188,78 +188,147 @@
     return dlg;
   }
 
+  /** Kind radios: deposit / custom / full|final — same choices everywhere (overview + Serviços). */
+  function kindOptsHtml(b, ids) {
+    const pctId = ids?.pct || "jbPct";
+    const amtId = ids?.amt || "jbAmt";
+    const name = ids?.name || "jbKind";
+    const remaining = Number(b.remaining_to_invoice) || 0;
+    const total = Number(b.services_total) || 0;
+    const first = !(Number(b.invoiced_total) > 0);
+    const mainKind = first ? "full" : "final";
+    const mainLabel = first ? "Valor total" : "Saldo restante";
+    const mainDesc = first ? "Todos os serviços do job" : "O que ainda falta faturar";
+    // First invoice defaults to deposit (Nova fatura); later invoices default to remaining balance.
+    const deposit = first
+      ? `<label class="jb-opt"><input type="radio" name="${name}" value="deposit" checked />
+        <span class="jb-opt__t">Depósito<span class="jb-opt__d">Percentual do total do job (${esc(money(total))})</span></span>
+        <span><input class="jb-opt__inp" type="number" id="${pctId}" min="1" max="100" step="1" value="50" aria-label="Percentual" /> %</span></label>`
+      : "";
+    return {
+      first,
+      mainKind,
+      remaining,
+      total,
+      pctId,
+      amtId,
+      name,
+      html: `${deposit}
+      <label class="jb-opt"><input type="radio" name="${name}" value="custom" />
+        <span class="jb-opt__t">Outro valor<span class="jb-opt__d">Parcela livre (até ${esc(money(remaining))})</span></span>
+        <span>$ <input class="jb-opt__inp" type="number" id="${amtId}" min="0.01" step="0.01" max="${remaining.toFixed(2)}" placeholder="0.00" aria-label="Valor" /></span></label>
+      <label class="jb-opt"><input type="radio" name="${name}" value="${mainKind}"${first ? "" : " checked"} />
+        <span class="jb-opt__t">${mainLabel}<span class="jb-opt__d">${mainDesc}</span></span>
+        <span class="jb-opt__v">${esc(money(remaining))}</span></label>`,
+    };
+  }
+
+  function bindKindInputs(root, pctId, amtId) {
+    const scope = root || document;
+    [pctId || "jbPct", amtId || "jbAmt"].forEach((id) => {
+      const el = scope.querySelector(`#${id}`);
+      if (!el) return;
+      const select = () => {
+        const radio = el.closest(".jb-opt")?.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+      };
+      el.addEventListener("focus", select);
+      el.addEventListener("input", select);
+    });
+  }
+
+  async function submitInvoice(opts, form, errEl, defaultKind, ids) {
+    const name = ids?.name || "jbKind";
+    const kind = form.querySelector(`input[name="${name}"]:checked`)?.value || defaultKind;
+    const dueEl = form.querySelector("[data-jb-due]") || form.querySelector('input[type="date"]');
+    const body = { invoice_type: kind, due_date: dueEl?.value || null };
+    if (kind === "deposit") body.deposit_pct = Number(form.querySelector(`#${ids?.pct || "jbPct"}`)?.value) || 0;
+    if (kind === "custom") body.custom_amount = Number(form.querySelector(`#${ids?.amt || "jbAmt"}`)?.value) || 0;
+    const btn = form.querySelector('[type="submit"]');
+    if (btn) btn.disabled = true;
+    if (errEl) errEl.hidden = true;
+    try {
+      const j = await api(`/api/work-orders/${encodeURIComponent(opts.jobId)}/invoices`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      notify(`Fatura ${j.data?.invoice_number || ""} criada.`, "success");
+      window.location.href = j.redirect || `invoices.html?id=${encodeURIComponent(j.data.id)}&new=1`;
+    } catch (ex) {
+      if (errEl) {
+        errEl.textContent = ex.message || "Erro ao criar fatura";
+        errEl.hidden = false;
+      } else {
+        notify(ex.message || "Erro ao criar fatura", "error");
+      }
+      if (btn) btn.disabled = false;
+    }
+  }
+
   /** opts: { jobId, billing, jobStatus } — creates the invoice and opens it. */
   function openDialog(opts) {
     ensureCss();
     const dlg = ensureDialog();
     const b = opts.billing || {};
-    const remaining = Number(b.remaining_to_invoice) || 0;
-    const total = Number(b.services_total) || 0;
-    const first = !(Number(b.invoiced_total) > 0);
-    document.getElementById("jbTitle").textContent = first ? "Faturar job" : "Faturar saldo do job";
-    document.getElementById("jbSub").textContent = first
-      ? `Os serviços do job (${money(total)}) entram na fatura com quantidade e preço da tabela.`
-      : `Já faturado ${money(b.invoiced_total)} de ${money(total)}. Falta faturar ${money(remaining)}.`;
-    const mainKind = first ? "full" : "final";
-    const mainLabel = first ? "Valor total" : "Saldo restante";
-    const mainDesc = first ? "Todos os serviços do job" : "Serviços do job menos o que já foi faturado";
-    document.getElementById("jbOpts").innerHTML = `
-      <label class="jb-opt"><input type="radio" name="jbKind" value="${mainKind}" checked />
-        <span class="jb-opt__t">${mainLabel}<span class="jb-opt__d">${mainDesc}</span></span>
-        <span class="jb-opt__v">${esc(money(remaining))}</span></label>
-      ${
-        first
-          ? `<label class="jb-opt"><input type="radio" name="jbKind" value="deposit" />
-        <span class="jb-opt__t">Depósito<span class="jb-opt__d">Percentual do total do job</span></span>
-        <span><input class="jb-opt__inp" type="number" id="jbPct" min="1" max="100" step="1" value="50" aria-label="Percentual" /> %</span></label>`
-          : ""
-      }
-      <label class="jb-opt"><input type="radio" name="jbKind" value="custom" />
-        <span class="jb-opt__t">Outro valor<span class="jb-opt__d">Parcela livre (até ${esc(money(remaining))})</span></span>
-        <span>$ <input class="jb-opt__inp" type="number" id="jbAmt" min="0.01" step="0.01" max="${remaining.toFixed(2)}" placeholder="0.00" aria-label="Valor" /></span></label>`;
+    const ids = { pct: "jbPct", amt: "jbAmt", name: "jbKind" };
+    const packed = kindOptsHtml(b, ids);
+    document.getElementById("jbTitle").textContent = packed.first ? "Faturar job" : "Faturar saldo do job";
+    document.getElementById("jbSub").textContent = packed.first
+      ? `Escolha o valor. Os serviços (${money(packed.total)}) entram na fatura com preço da tabela.`
+      : `Já faturado ${money(b.invoiced_total)} de ${money(packed.total)}. Falta faturar ${money(packed.remaining)}.`;
+    document.getElementById("jbOpts").innerHTML = packed.html;
     const due = new Date(Date.now() + 1 * 86400000);
-    document.getElementById("jbDue").value = due.toISOString().slice(0, 10);
+    const dueInput = document.getElementById("jbDue");
+    dueInput.value = due.toISOString().slice(0, 10);
+    dueInput.setAttribute("data-jb-due", "1");
     const err = document.getElementById("jbErr");
     err.hidden = true;
-
-    // Typing in an option's input selects that option.
-    ["jbPct", "jbAmt"].forEach((id) => {
-      const inp = document.getElementById(id);
-      if (!inp) return;
-      inp.addEventListener("focus", () => {
-        const radio = inp.closest(".jb-opt")?.querySelector('input[type="radio"]');
-        if (radio) radio.checked = true;
-      });
-    });
+    bindKindInputs(dlg, ids.pct, ids.amt);
 
     const form = document.getElementById("jbForm");
     form.onsubmit = async (e) => {
       e.preventDefault();
-      const kind = form.querySelector('input[name="jbKind"]:checked')?.value || mainKind;
-      const body = { invoice_type: kind, due_date: document.getElementById("jbDue").value || null };
-      if (kind === "deposit") body.deposit_pct = Number(document.getElementById("jbPct")?.value) || 0;
-      if (kind === "custom") body.custom_amount = Number(document.getElementById("jbAmt")?.value) || 0;
-      const btn = document.getElementById("jbSubmit");
-      btn.disabled = true;
-      err.hidden = true;
-      try {
-        const j = await api(`/api/work-orders/${encodeURIComponent(opts.jobId)}/invoices`, {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-        notify(`Fatura ${j.data?.invoice_number || ""} criada.`, "success");
-        window.location.href =
-          j.redirect || `invoices.html?id=${encodeURIComponent(j.data.id)}&new=1`;
-      } catch (ex) {
-        err.textContent = ex.message || "Erro ao criar fatura";
-        err.hidden = false;
-      } finally {
-        btn.disabled = false;
-      }
+      await submitInvoice(opts, form, err, packed.first ? "deposit" : "final", ids);
     };
     dlg.classList.add("is-open");
     document.getElementById("jbBackdrop").classList.add("is-open");
   }
 
-  window.JobBilling = { chip, money, mountCard, openDialog, load };
+  /**
+   * Inline picker for Visão geral (same options as the dialog — deposit / custom / total).
+   * opts: { jobId, billing, jobStatus }
+   */
+  function mountPicker(el, opts) {
+    if (!el) return;
+    ensureCss();
+    const b = opts.billing || {};
+    if (!(Number(b.remaining_to_invoice) > 0.004) || opts.jobStatus === "canceled") {
+      el.innerHTML = "";
+      return;
+    }
+    const ids = { pct: "jdBillPct", amt: "jdBillAmt", name: "jdBillKind" };
+    const packed = kindOptsHtml(b, ids);
+    const due = new Date(Date.now() + 1 * 86400000);
+    const dueVal = due.toISOString().slice(0, 10);
+    el.innerHTML = `
+      <form class="jb-inline" id="jdBillForm">
+        <p class="jb-inline__t">Faturar — escolha o valor</p>
+        <div class="jb-opts">${packed.html}</div>
+        <label class="jb-field">Vencimento
+          <input type="date" data-jb-due value="${dueVal}" />
+        </label>
+        <p class="jb-err" id="jdBillErr" hidden></p>
+        <button type="submit" class="btn btn-primary btn-sm jb-inline__go">Criar fatura</button>
+      </form>`;
+    bindKindInputs(el, ids.pct, ids.amt);
+    const form = el.querySelector("#jdBillForm");
+    const err = el.querySelector("#jdBillErr");
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      await submitInvoice(opts, form, err, packed.first ? "deposit" : "final", ids);
+    };
+  }
+
+  window.JobBilling = { chip, money, mountCard, openDialog, mountPicker, load };
 })();

@@ -202,7 +202,7 @@
     }
     if (canInvoice && b) {
       if (b.remaining_to_invoice > 0.004) {
-        return { label: `Faturar ${money0(b.remaining_to_invoice)}`, act: "invoice" };
+        return { label: "Faturar…", act: "invoice" };
       }
       if (b.open_balance > 0.004) {
         const list = billing.data || [];
@@ -465,19 +465,21 @@
               .join("")}</ul>`
           : ""
       }
-      ${(() => {
-        const invoiceBtn =
-          canInvoice && b.remaining_to_invoice > 0.004 && job.status !== "canceled"
-            ? `<button type="button" class="jd-btn jd-btn--pri jd-btn--block" data-primary="invoice">${
-                b.invoiced_total > 0 ? "Faturar saldo" : "Faturar"
-              } ${money0(b.remaining_to_invoice)}</button>`
-            : "";
-        const completeBtn =
-          canManage && job.status !== "completed" && job.status !== "canceled"
-            ? `<button type="button" class="jd-btn jd-btn--block" data-primary="complete">Marcar como concluído</button>`
-            : "";
-        return invoiceBtn || completeBtn ? `<div class="jd-money-acts">${invoiceBtn}${completeBtn}</div>` : "";
-      })()}`;
+      ${
+        canInvoice && b.remaining_to_invoice > 0.004 && job.status !== "canceled"
+          ? `<div class="jd-money-acts" id="jdMoneyInvoice"></div>`
+          : ""
+      }
+      ${
+        canManage && job.status !== "completed" && job.status !== "canceled"
+          ? `<div class="jd-money-acts"><button type="button" class="jd-btn jd-btn--block" data-primary="complete">Marcar como concluído</button></div>`
+          : ""
+      }`;
+    // Same value picker as Serviços e Fatura (depósito / outro / total) — not a one-click full invoice.
+    const pick = $("jdMoneyInvoice");
+    if (pick && window.JobBilling?.mountPicker) {
+      window.JobBilling.mountPicker(pick, { jobId, billing: b, jobStatus: job.status });
+    }
   }
 
   // ---------------------------------------------------------------- after the job (review, caption, report, portfolio)
@@ -936,7 +938,8 @@
   async function refreshBilling() {
     if (!canBill || !window.JobBilling) return;
     try {
-      billing = await window.JobBilling.load(jobId);
+      const j = await window.JobBilling.load(jobId);
+      billing = { billing: j.billing, data: j.data || [] };
     } catch (_) {
       billing = null;
     }
