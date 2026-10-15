@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title><%= productName %> · Manifesto</title>
+  <link rel="icon" type="image/png" href="/assets/obramateLogoSmallTransp.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/css/lab-manifesto.css?v=20261015-lab1" />
+</head>
+<body class="man">
+  <nav class="lab-switch" aria-label="Lab rooms">
+    <a href="/lab">Lab</a>
+    <a href="/lab/cinema">Cinema</a>
+    <a href="/lab/demo">Demo</a>
+    <a class="is-on" href="/lab/manifesto">Manifesto</a>
+    <a href="/">Prod</a>
+  </nav>
+
+  <main class="man-frame">
+    <p class="man-brand reveal"><%= productName %></p>
+    <h1 class="reveal d1">Stop running your flooring company in pieces.</h1>
+    <p class="man-line reveal d2">One system. Lead to paid.</p>
+    <div class="man-cta reveal d3">
+      <a href="/signup" class="man-btn">Start free trial</a>
+      <a href="/pricing" class="man-link">Pricing</a>
+    </div>
+  </main>
+
+  <footer class="man-foot">
+    <span>Lab experiment · not production home</span>
+    <a href="/lab">All rooms</a>
+  </footer>
+</body>
+</html>

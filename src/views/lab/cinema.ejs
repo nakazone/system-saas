@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title><%= productName %> · Cinema</title>
+  <link rel="icon" type="image/png" href="/assets/obramateLogoSmallTransp.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/css/lab-cinema.css?v=20261015-lab1" />
+</head>
+<body class="cin">
+  <nav class="cin-switch" aria-label="Lab rooms">
+    <a href="/lab">Lab</a>
+    <a class="is-on" href="/lab/cinema">Cinema</a>
+    <a href="/lab/demo">Demo</a>
+    <a href="/lab/manifesto">Manifesto</a>
+    <a href="/">Prod</a>
+  </nav>
+
+  <section class="cin-hero">
+    <div class="cin-plate" aria-hidden="true"></div>
+    <div class="cin-grain" aria-hidden="true"></div>
+    <div class="cin-veil" aria-hidden="true"></div>
+
+    <header class="cin-brand">
+      <img src="/assets/obramate-logo.png" alt="<%= productName %>" />
+    </header>
+
+    <div class="cin-copy">
+      <p class="cin-eyebrow">Built on real installs</p>
+      <h1>From the first measure<br />to the last payment.</h1>
+      <p class="cin-sub">One workspace for flooring companies — office and field, finally on the same page.</p>
+      <a class="cin-cta" href="/signup">Start free trial</a>
+    </div>
+
+    <aside class="cin-reel" aria-hidden="true">
+      <div class="cin-frame is-on" data-i="0"><span>Quote sent</span><b>Rivera · LVP</b></div>
+      <div class="cin-frame" data-i="1"><span>Crew on site</span><b>Job #42 · Campo</b></div>
+      <div class="cin-frame" data-i="2"><span>Balance due</span><b>Invoice · collect</b></div>
+    </aside>
+  </section>
+
+  <section class="cin-strip">
+    <p>No dashboards in the first breath. Just the work — then the product.</p>
+    <a href="/signup">Start <%= typeof trialDays !== 'undefined' ? trialDays : 30 %>-day trial</a>
+  </section>
+
+  <script src="/assets/js/lab-cinema.js?v=20261015-lab1" defer></script>
+</body>
+</html>

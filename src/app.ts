@@ -272,17 +272,35 @@ export function createApp() {
       next();
       return;
     }
+    const labLocals = () => ({
+      title: env.PRODUCT_NAME,
+      organization: null,
+      productName: env.PRODUCT_NAME,
+      appRootDomain: env.APP_ROOT_DOMAIN,
+      appBaseUrl: env.APP_BASE_URL,
+      subdomainTenants: subdomainTenantsSupported(),
+      estimateRules: DEFAULT_ESTIMATE_RULES,
+      landingPage: true,
+    });
+    // Marketing lab — three alternate landing experiments (production `/` unchanged).
+    if (req.path === "/lab" || req.path === "/lab/") {
+      res.render("lab/index", { ...labLocals(), title: `${env.PRODUCT_NAME} · Lab` });
+      return;
+    }
+    if (req.path === "/lab/cinema") {
+      res.render("lab/cinema", { ...labLocals(), title: `${env.PRODUCT_NAME} · Lab Cinema` });
+      return;
+    }
+    if (req.path === "/lab/demo") {
+      res.render("lab/demo", { ...labLocals(), title: `${env.PRODUCT_NAME} · Lab Demo` });
+      return;
+    }
+    if (req.path === "/lab/manifesto") {
+      res.render("lab/manifesto", { ...labLocals(), title: `${env.PRODUCT_NAME} · Lab Manifesto` });
+      return;
+    }
     if (req.path === "/" || req.path === "") {
-      res.render("landing", {
-        title: env.PRODUCT_NAME,
-        organization: null,
-        productName: env.PRODUCT_NAME,
-        appRootDomain: env.APP_ROOT_DOMAIN,
-        appBaseUrl: env.APP_BASE_URL,
-        subdomainTenants: subdomainTenantsSupported(),
-        estimateRules: DEFAULT_ESTIMATE_RULES,
-        landingPage: true,
-      });
+      res.render("landing", labLocals());
       return;
     }
     organizationsRouter(req, res, next);

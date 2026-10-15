@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title><%= productName %> · Demo</title>
+  <link rel="icon" type="image/png" href="/assets/obramateLogoSmallTransp.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/css/lab-demo.css?v=20261015-lab1" />
+</head>
+<body class="demo">
+  <nav class="lab-switch" aria-label="Lab rooms">
+    <a href="/lab">Lab</a>
+    <a href="/lab/cinema">Cinema</a>
+    <a class="is-on" href="/lab/demo">Demo</a>
+    <a href="/lab/manifesto">Manifesto</a>
+    <a href="/">Prod</a>
+  </nav>
+
+  <header class="demo-top">
+    <img src="/assets/obramate-logo.png" alt="<%= productName %>" class="demo-logo" />
+    <p class="demo-prompt" id="prompt">Drag a lead to <b>Won</b> — then faturar the job.</p>
+    <a class="demo-trial" href="/signup" id="trialBtn" hidden>Start free trial →</a>
+  </header>
+
+  <main class="demo-shell">
+    <section class="demo-board" aria-label="Pipeline demo">
+      <div class="demo-col" data-stage="0"><h3>New <em>0</em></h3></div>
+      <div class="demo-col" data-stage="1"><h3>Quote <em>0</em></h3></div>
+      <div class="demo-col" data-stage="2"><h3>Job <em>0</em></h3></div>
+      <div class="demo-col demo-col--won" data-stage="3"><h3>Won <em>0</em></h3></div>
+    </section>
+
+    <aside class="demo-side" id="side" hidden>
+      <h2>Faturar job</h2>
+      <p class="demo-side-sub" id="sideSub">Choose an amount — same idea as in the product.</p>
+      <label class="demo-opt"><input type="radio" name="kind" value="deposit" checked /><span>Depósito 50%</span><b id="depAmt">$2,140</b></label>
+      <label class="demo-opt"><input type="radio" name="kind" value="custom" /><span>Outro valor</span><input class="demo-amt" type="number" id="customAmt" min="1" step="1" value="1000" /></label>
+      <label class="demo-opt"><input type="radio" name="kind" value="full" /><span>Valor total</span><b id="fullAmt">$4,280</b></label>
+      <button type="button" class="demo-go" id="createInv">Criar fatura</button>
+      <p class="demo-done" id="done" hidden></p>
+    </aside>
+  </main>
+
+  <footer class="demo-foot">
+    <span>This is a playground — nothing is saved.</span>
+    <a href="/signup">Ready? Start free trial</a>
+  </footer>
+
+  <script src="/assets/js/lab-demo.js?v=20261015-lab1" defer></script>
+</body>
+</html>

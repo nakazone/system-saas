@@ -52,7 +52,7 @@ const ALWAYS_OPEN: RegExp[] = [
   /^\/assets\//,
   /\.(css|js|map|png|jpg|jpeg|gif|svg|webp|ico|woff2?|webmanifest)$/i,
 ];
-const MARKETING = new Set(["/", "/pricing", "/terms", "/privacy", "/dpa"]);
+const MARKETING = new Set(["/", "/pricing", "/terms", "/privacy", "/dpa", "/lab", "/lab/cinema", "/lab/demo", "/lab/manifesto"]);
 
 function untilText(until: string | null, lang: "pt" | "en"): string {
   if (!until) return "";
