@@ -1,12 +1,17 @@
 /**
  * Script para definir senha do admin
- * Uso: railway run node database/set-admin-password.js
+ * Uso: ADMIN_NEW_PASSWORD='...' railway run node database/set-admin-password.js
+ * (a senha nunca fica escrita no código)
  */
 import bcrypt from 'bcryptjs';
 import mysql from 'mysql2/promise';
 
 async function setAdminPassword() {
-  const password = '@@Senior123';
+  const password = process.env.ADMIN_NEW_PASSWORD;
+  if (!password || password.length < 12) {
+    console.error('Defina ADMIN_NEW_PASSWORD (12+ caracteres).');
+    process.exit(1);
+  }
   
   // Railway MySQL: para conexão externa, use DATABASE_PUBLIC_URL ou TCP Proxy
   let host, port, user, password_db, database;

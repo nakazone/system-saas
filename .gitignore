@@ -10,3 +10,17 @@ uploads/
 *.tsbuildinfo
 
 /data/
+
+# Never commit secrets or customer data (also enforced in CI: scripts/check-sensitive-files.mjs)
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.dump
+*.sql.gz
+*.bak
+*.sqlite
+*.db
+backups/
+exports/

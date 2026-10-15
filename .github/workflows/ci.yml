@@ -53,6 +53,8 @@ jobs:
           psql -h localhost -U postgres -d flooring_saas_test -c "GRANT CONNECT ON DATABASE flooring_saas_test TO app_user;"
           psql -h localhost -U postgres -d flooring_saas_test -c "GRANT USAGE, CREATE ON SCHEMA public TO app_user;"
           psql -h localhost -U postgres -d flooring_saas_test -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;"
+      - name: No secrets or customer data in the repo
+        run: node scripts/check-sensitive-files.mjs
       - name: Lint
         run: npm run lint
       - name: Test

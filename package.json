@@ -17,6 +17,7 @@
     "db:backfill-chat-channels": "tsx scripts/backfill-chat-job-channels.ts",
     "db:migrate-senior-floors": "tsx scripts/migrate-senior-floors-tenant.ts",
     "lint": "tsc --noEmit",
+    "check:sensitive": "node scripts/check-sensitive-files.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "check:domain": "node scripts/check-obramate-domain.mjs",
