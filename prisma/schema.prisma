@@ -873,6 +873,8 @@ model User {
   name               String
   phone              String?
   avatarUrl          String?
+  /// Personal signature image for quotes/PDFs when this user is the salesperson.
+  signatureUrl       String?
   roleId             String?  @db.Uuid
   role               Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
   status             String   @default("active") // active | invited | suspended | disabled

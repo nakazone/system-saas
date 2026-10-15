@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="crm-push.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="configuracoes.css?v=20261016-cb1" />
   <link rel="stylesheet" href="configuracoes-v2.css?v=20261014-perfil5" />
-  <link rel="stylesheet" href="cfg-meu-perfil.css?v=20261014-perfil5" />
+  <link rel="stylesheet" href="cfg-meu-perfil.css?v=20261015-sig1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -559,7 +559,7 @@
 
                 <article class="cfg-card">
                   <h3 class="cfg-card__title">Cupom / oferta</h3>
-                  <p class="cfg-card__desc">Código editável inserido nas mensagens com o token <code>[coupon]</code>. Não aplica desconto automático no orçamento.</p>
+                  <p class="cfg-card__desc">Inclui nas mensagens com <code>[coupon]</code> e, ao enviar em Quote Sent / Follow-Up / StandBy, aplica o % no orçamento do lead.</p>
                   <label class="cfg-check" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.85rem">
                     <input type="checkbox" id="lm_coupon_enabled" />
                     Incluir cupom nas mensagens
@@ -570,14 +570,18 @@
                       <input id="lm_coupon_code" maxlength="40" placeholder="SAVE10" />
                     </div>
                     <div class="cfg-field">
-                      <label for="lm_coupon_label">Descrição da oferta</label>
-                      <input id="lm_coupon_label" maxlength="120" placeholder="10% off your flooring project" />
+                      <label for="lm_coupon_percent">Desconto no orçamento (%)</label>
+                      <input id="lm_coupon_percent" type="number" min="0" max="100" step="0.5" placeholder="10" />
                     </div>
+                  </div>
+                  <div class="cfg-field">
+                    <label for="lm_coupon_label">Descrição da oferta</label>
+                    <input id="lm_coupon_label" maxlength="120" placeholder="10% off your flooring project" />
                   </div>
                   <div class="cfg-field">
                     <label for="lm_coupon_line">Linha da mensagem</label>
                     <textarea id="lm_coupon_line" rows="2" maxlength="500" placeholder="Special offer: use code [code] for [label]."></textarea>
-                    <p class="cfg-hint">Use <code>[code]</code> e <code>[label]</code>. Substitui <code>[coupon]</code> no texto das mensagens.</p>
+                    <p class="cfg-hint">Use <code>[code]</code> e <code>[label]</code>. Só aparece em Quote Sent, Follow-Up e StandBy.</p>
                   </div>
                 </article>
 
@@ -1041,6 +1045,29 @@
                 <p class="mp-flash mp-flash--ok" id="mpDadosOk" hidden></p>
               </article>
 
+              <article class="cfg-card" data-sub="mp-assinatura">
+                <div class="cfg-card__head">
+                  <div>
+                    <h3 class="cfg-card__title">Assinatura no orçamento</h3>
+                    <p class="cfg-card__desc">Aparece no Quote e no PDF quando você é o responsável. Suba uma imagem (PNG, JPG ou WebP).</p>
+                  </div>
+                </div>
+                <div class="mp-sig">
+                  <div class="mp-sig__preview" id="mpSigPreview">
+                    <img id="mpSigImg" alt="Assinatura" hidden />
+                    <span class="mp-sig__empty" id="mpSigEmpty">Nenhuma assinatura</span>
+                  </div>
+                  <div class="mp-sig__acts">
+                    <label class="btn btn-secondary cfg-btn-sm" for="mpSigInput">Subir imagem</label>
+                    <button type="button" class="btn btn-secondary cfg-btn-sm" id="mpSigClear" hidden>Remover</button>
+                    <input type="file" id="mpSigInput" accept="image/jpeg,image/png,image/webp" hidden />
+                  </div>
+                </div>
+                <p class="cfg-hint">PNG, JPG ou WebP · máx. 1,5 MB · fundo transparente funciona melhor</p>
+                <p class="mp-flash mp-flash--err" id="mpSigErr" hidden></p>
+                <p class="mp-flash mp-flash--ok" id="mpSigOk" hidden></p>
+              </article>
+
               <article class="cfg-card" data-sub="mp-idioma">
                 <div class="cfg-card__head">
                   <div>
@@ -1247,7 +1274,7 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="cfg-meu-perfil.js?v=20261014-perfil5"></script>
-  <script src="configuracoes.js?v=20261015-paydate1"></script>
+  <script src="cfg-meu-perfil.js?v=20261015-sig1"></script>
+  <script src="configuracoes.js?v=20261015-coupon1"></script>
 </body>
 </html>

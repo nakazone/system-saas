@@ -47,7 +47,9 @@ function toPublicPayload(settings: LeadMessageSettings, orgName: string) {
     coupon_enabled: settings.coupon_enabled,
     coupon_code: settings.coupon_code,
     coupon_label: settings.coupon_label,
+    coupon_percent: settings.coupon_percent,
     coupon_sms_line: settings.coupon_sms_line,
+    coupon_apply_stages: serialized.coupon_apply_stages,
     stages: serialized.stages,
     tokens: ["[name]", "[company]", "[coupon]"],
   };
@@ -141,6 +143,10 @@ settingsLeadMessagesRouter.put(
               ? String(p.coupon_label).trim() || null
               : null
             : defaults.coupon_label,
+        coupon_percent:
+          p.coupon_percent !== undefined
+            ? Math.min(100, Math.max(0, Number(p.coupon_percent) || 0))
+            : defaults.coupon_percent,
         coupon_sms_line:
           p.coupon_sms_line !== undefined
             ? p.coupon_sms_line

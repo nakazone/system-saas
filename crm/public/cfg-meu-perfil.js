@@ -8,6 +8,8 @@
   let profile = null;
   let pendingAvatarDataUrl = null;
   let clearAvatar = false;
+  let pendingSigDataUrl = null;
+  let clearSignature = false;
   let bound = false;
 
   function initials(name) {
@@ -101,6 +103,45 @@
     if ($("mpMetaCreated")) $("mpMetaCreated").textContent = fmtDate(p.created_at);
     if ($("mpMetaUpdated")) $("mpMetaUpdated").textContent = fmtDate(p.updated_at);
     setAvatarUi(name, p.avatar_url);
+    setSigUi(p.signature_url);
+  }
+
+  function setSigUi(url) {
+    const img = $("mpSigImg");
+    const empty = $("mpSigEmpty");
+    const clearBtn = $("mpSigClear");
+    if (!img || !empty) return;
+    const src = pendingSigDataUrl || (!clearSignature && url) || "";
+    if (src) {
+      img.src = src;
+      img.hidden = false;
+      empty.hidden = true;
+    } else {
+      img.removeAttribute("src");
+      img.hidden = true;
+      empty.hidden = false;
+    }
+    if (clearBtn) clearBtn.hidden = !(src || (url && !clearSignature));
+  }
+
+  async function saveSignature() {
+    clearMsgs("mpSigErr", "mpSigOk");
+    if (!pendingSigDataUrl && !clearSignature) return;
+    try {
+      const body = clearSignature
+        ? { clear_signature: true }
+        : { signature_data_url: pendingSigDataUrl };
+      const j = await api("/api/me", { method: "PATCH", body: JSON.stringify(body) });
+      pendingSigDataUrl = null;
+      clearSignature = false;
+      const input = $("mpSigInput");
+      if (input) input.value = "";
+      paint(j.data);
+      showMsg($("mpSigOk"), "Assinatura atualizada.", true);
+      if (typeof window.crmNotify === "function") window.crmNotify("Assinatura atualizada.", "success");
+    } catch (e) {
+      showMsg($("mpSigErr"), e.message || "Falha ao guardar a assinatura.", true);
+    }
   }
 
   function syncLocaleSeg() {
@@ -231,6 +272,38 @@
       if (input) input.value = "";
       setAvatarUi(profile?.name || "", null);
       await saveAvatar();
+    });
+
+    $("mpSigInput")?.addEventListener("change", async (e) => {
+      clearMsgs("mpSigErr", "mpSigOk");
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (!String(file.type || "").startsWith("image/") || String(file.type).includes("svg")) {
+        showMsg($("mpSigErr"), "Escolha PNG, JPG ou WebP.", true);
+        return;
+      }
+      if (file.size > 1.5 * 1024 * 1024) {
+        showMsg($("mpSigErr"), "A assinatura deve ter menos de 1,5 MB.", true);
+        return;
+      }
+      try {
+        pendingSigDataUrl = await readFileAsDataUrl(file);
+        clearSignature = false;
+        setSigUi(profile?.signature_url);
+        await saveSignature();
+      } catch (err) {
+        showMsg($("mpSigErr"), err.message || "Falha ao ler a imagem.", true);
+      }
+    });
+
+    $("mpSigClear")?.addEventListener("click", async () => {
+      clearMsgs("mpSigErr", "mpSigOk");
+      pendingSigDataUrl = null;
+      clearSignature = true;
+      const input = $("mpSigInput");
+      if (input) input.value = "";
+      setSigUi(null);
+      await saveSignature();
     });
 
     document.querySelectorAll(".mp-langs [data-locale]").forEach((btn) => {

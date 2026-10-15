@@ -155,3 +155,47 @@
   color: #667085;
   cursor: default;
 }
+
+.cfg .mp-sig {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.cfg .mp-sig__preview {
+  width: min(320px, 100%);
+  min-height: 88px;
+  border-radius: 12px;
+  border: 1px dashed #D0D5DD;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  padding: 10px 14px;
+  box-sizing: border-box;
+}
+
+.cfg .mp-sig__preview img {
+  max-width: 100%;
+  max-height: 72px;
+  object-fit: contain;
+  display: block;
+}
+
+.cfg .mp-sig__preview img[hidden],
+.cfg .mp-sig__empty[hidden] {
+  display: none !important;
+}
+
+.cfg .mp-sig__empty {
+  font-size: 13px;
+  font-weight: 550;
+  color: #98A2B3;
+}
+
+.cfg .mp-sig__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}

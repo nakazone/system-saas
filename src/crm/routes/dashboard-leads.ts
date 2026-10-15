@@ -14,8 +14,17 @@ import { safeTimeZone, startOfZonedDay, startOfZonedMonth } from "../../lib/time
 import { signIcsAccessToken } from "../../lib/schedule/signed-ics-token.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { buildLeadVisitIcs } from "../../lib/schedule/lead-visit-ics.js";
+import {
+  isCouponApplyStage,
+  parseLeadMessageSettings,
+} from "../../lib/settings/lead-messages.js";
+import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
+import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
+import { resolveLeadStage } from "../../lib/dashboard/stages.js";
 
 export const dashboardLeadsRouter = Router();
+
+const OPEN_QUOTE_STATUSES = new Set(["draft", "sent", "viewed", "changes_requested"]);
 
 type LeadMeta = {
   address?: string | null;
@@ -1152,6 +1161,185 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
     next(error);
   }
 });
+
+/**
+ * Apply the configured coupon percent to the lead's latest open quote.
+ * Used when sending SMS/email with [coupon] from Quote Sent / Follow-Up / StandBy.
+ */
+dashboardLeadsRouter.post(
+  "/api/leads/:id/apply-coupon-discount",
+  requireCrmAuth,
+  requireCrmPermission("leads.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const leadId = String(req.params.id);
+      const orgId = req.organizationId!;
+
+      const result = await withTenantTransaction(orgId, async (tx) => {
+        const lead = await tx.lead.findFirst({
+          where: { id: leadId },
+          include: { pipelineStage: { select: { slug: true } } },
+        });
+        if (!lead) return { error: "not_found" as const };
+
+        const stages = await tx.pipelineStage.findMany({
+          where: { isActive: true },
+          select: { id: true, slug: true, name: true, color: true, order: true, isClosed: true },
+        });
+        const stageSlug = resolveLeadStage(
+          {
+            status: lead.status,
+            pipelineStageId: lead.pipelineStageId,
+            stageSlug: lead.pipelineStage?.slug ?? null,
+          },
+          stages,
+        );
+        if (!isCouponApplyStage(stageSlug)) {
+          return { error: "wrong_stage" as const, stage: stageSlug };
+        }
+
+        const org = await tx.organization.findUniqueOrThrow({
+          where: { id: orgId },
+          select: { leadMessageSettings: true },
+        });
+        const settings = parseLeadMessageSettings(org.leadMessageSettings);
+        if (!settings.coupon_enabled) {
+          return { error: "coupon_off" as const };
+        }
+        const percent = Math.min(100, Math.max(0, Number(settings.coupon_percent) || 0));
+        if (percent <= 0) {
+          return { error: "no_percent" as const };
+        }
+
+        const quotes = await tx.quote.findMany({
+          where: { leadId },
+          orderBy: { updatedAt: "desc" },
+          take: 12,
+          include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+        });
+        const quote = quotes.find((q) => OPEN_QUOTE_STATUSES.has(normalizeQuoteStatus(q.status)));
+        if (!quote) {
+          return { error: "no_quote" as const };
+        }
+
+        const currentType = quote.discountType === "percentage" ? "percent" : quote.discountType;
+        const currentVal = Number(quote.discountValue) || 0;
+        if (currentType === "percent" && Math.abs(currentVal - percent) < 0.001) {
+          return {
+            ok: true as const,
+            unchanged: true,
+            quote_id: quote.id,
+            discount_percent: percent,
+            total: Number(quote.total),
+          };
+        }
+
+        const lines = (quote.lineItems || []).map((li) => ({
+          quantity: Number(li.quantity) || 0,
+          unitPrice: Number(li.unitPrice) || 0,
+          unitCost: Number(li.unitCost) || 0,
+          amount: Number(li.amount) || undefined,
+          isOptional: li.isOptional,
+          isSelected: li.isSelected,
+          optionGroupId: li.optionGroupId,
+        }));
+        const subtotalFromLines = lines.length
+          ? undefined
+          : Number(quote.subtotal) || 0;
+        const totals = lines.length
+          ? calculateQuoteTotals({
+              lines,
+              selectedOptionGroupId: quote.selectedOptionGroupId,
+              discountType: "percent",
+              discountValue: percent,
+              taxRate: Number(quote.taxRate) || 0,
+            })
+          : (() => {
+              const sub = subtotalFromLines!;
+              const discountAmount = Math.round(sub * (percent / 100) * 100) / 100;
+              const after = Math.max(0, Math.round((sub - discountAmount) * 100) / 100);
+              const taxRate = Number(quote.taxRate) || 0;
+              // Keep existing tax if taxRate is 0 (legacy quotes often store tax_total directly).
+              const taxTotal =
+                taxRate > 0
+                  ? Math.round(after * (taxRate / 100) * 100) / 100
+                  : Number(quote.taxTotal) || 0;
+              return {
+                subtotal: sub,
+                discountAmount,
+                taxTotal,
+                total: Math.round((after + taxTotal) * 100) / 100,
+              };
+            })();
+
+        const payload =
+          quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
+            ? { ...(quote.payload as Record<string, unknown>) }
+            : {};
+        payload.discount_type = "percentage";
+        payload.discount_value = percent;
+
+        const updated = await tx.quote.update({
+          where: { id: quote.id },
+          data: {
+            discountType: "percent",
+            discountValue: new Prisma.Decimal(percent),
+            subtotal: new Prisma.Decimal(totals.subtotal),
+            taxTotal: new Prisma.Decimal(totals.taxTotal),
+            total: new Prisma.Decimal(totals.total),
+            payload: payload as Prisma.InputJsonValue,
+          },
+          select: { id: true, total: true, discountValue: true },
+        });
+
+        return {
+          ok: true as const,
+          unchanged: false,
+          quote_id: updated.id,
+          discount_percent: percent,
+          total: Number(updated.total),
+        };
+      });
+
+      if (result.error === "not_found") {
+        res.status(404).json({ success: false, error: "Lead não encontrado" });
+        return;
+      }
+      if (result.error === "wrong_stage") {
+        res.status(409).json({
+          success: false,
+          error: "Cupom só aplica em Quote Sent, Follow-Up ou StandBy.",
+          stage: result.stage,
+        });
+        return;
+      }
+      if (result.error === "coupon_off") {
+        res.status(409).json({ success: false, error: "Cupom desativado nas configurações." });
+        return;
+      }
+      if (result.error === "no_percent") {
+        res.status(409).json({ success: false, error: "Defina o percentual do cupom nas configurações." });
+        return;
+      }
+      if (result.error === "no_quote") {
+        res.status(404).json({ success: false, error: "Nenhum orçamento aberto ligado a este lead." });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          quote_id: result.quote_id,
+          discount_percent: result.discount_percent,
+          total: result.total,
+          unchanged: !!result.unchanged,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 dashboardLeadsRouter.put("/api/leads/:id", requireCrmPermission("leads.edit"), async (req: AuthedRequest, res, next) => {
   try {

@@ -113,8 +113,19 @@
     return FALLBACK_COMPANY;
   }
 
-  function resolveCouponLine() {
+  const COUPON_APPLY_STAGES = ['quote_sent', 'follow_up_1', 'stand_by'];
+
+  function isCouponApplyStage(slug) {
+    const list =
+      remoteSettings && Array.isArray(remoteSettings.coupon_apply_stages) && remoteSettings.coupon_apply_stages.length
+        ? remoteSettings.coupon_apply_stages
+        : COUPON_APPLY_STAGES;
+    return list.includes(String(slug || '').trim());
+  }
+
+  function resolveCouponLine(leadStage) {
     if (!remoteSettings || !remoteSettings.coupon_enabled) return '';
+    if (leadStage != null && leadStage !== '' && !isCouponApplyStage(leadStage)) return '';
     const code = remoteSettings.coupon_code || '';
     const label = remoteSettings.coupon_label || '';
     const line = String(remoteSettings.coupon_sms_line || DEFAULT_COUPON_LINE).trim();
@@ -137,7 +148,8 @@
 
   function fillSmsTemplate(template, lead) {
     const company = resolveCompanyName();
-    const coupon = resolveCouponLine();
+    const stage = resolveLeadStageSlug(lead);
+    const coupon = resolveCouponLine(stage);
     let out = String(template)
       .replace(/\[name\]/gi, leadFirstName(lead))
       .replace(/\[company\]/gi, company)
@@ -175,7 +187,11 @@
       coupon_enabled: !!data.coupon_enabled,
       coupon_code: data.coupon_code || null,
       coupon_label: data.coupon_label || null,
+      coupon_percent: data.coupon_percent != null ? Number(data.coupon_percent) : 10,
       coupon_sms_line: data.coupon_sms_line || null,
+      coupon_apply_stages: Array.isArray(data.coupon_apply_stages)
+        ? data.coupon_apply_stages
+        : COUPON_APPLY_STAGES.slice(),
       stages: map,
     };
   }
@@ -407,6 +423,40 @@
    * @param {object} lead
    * @param {{ href: string, on_send_action?: { set_priority?: string }|null }} option
    */
+  async function applyCouponDiscountIfNeeded(lead, option) {
+    const leadId = leadIdOf(lead);
+    if (!leadId || !remoteSettings || !remoteSettings.coupon_enabled) return;
+    const slug = resolveLeadStageSlug(lead);
+    if (!isCouponApplyStage(slug)) return;
+    const couponLine = resolveCouponLine(slug);
+    if (!couponLine) return;
+    // After fillSmsTemplate, [coupon] is already replaced — require the offer line in the body.
+    const filledBody = String(option.body || '');
+    if (!filledBody.includes(couponLine)) return;
+    try {
+      const res = await fetch('/api/leads/' + encodeURIComponent(leadId) + '/apply-coupon-discount', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: '{}',
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.success) {
+        const pct = j.data && j.data.discount_percent != null ? j.data.discount_percent : remoteSettings.coupon_percent;
+        if (!j.data?.unchanged && typeof global.crmToast?.success === 'function') {
+          global.crmToast.success(`Desconto de ${pct}% aplicado ao orçamento.`);
+        } else if (!j.data?.unchanged && typeof global.crmNotify === 'function') {
+          global.crmNotify(`Desconto de ${pct}% aplicado ao orçamento.`, 'success');
+        }
+      } else if (res.status !== 404 && (j.error || !res.ok)) {
+        if (typeof global.crmToast?.error === 'function') global.crmToast.error(j.error || 'Não foi possível aplicar o desconto.');
+        else if (typeof global.crmNotify === 'function') global.crmNotify(j.error || 'Não foi possível aplicar o desconto.', 'error');
+      }
+    } catch (_) {
+      /* still open the native link */
+    }
+  }
+
   async function navigateWithSendAction(lead, option) {
     if (!option || !option.href) return;
     const action = option.on_send_action;
@@ -422,6 +472,7 @@
     }
 
     if (leadId) {
+      await applyCouponDiscountIfNeeded(lead, option);
       if (Object.keys(patch).length) {
         try {
           const res = await fetch('/api/leads/' + encodeURIComponent(leadId), {

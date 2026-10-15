@@ -16,6 +16,7 @@ import {
   formatQuoteNumber,
   parseDateInput,
   parseQuoteSettings,
+  resolveOwnerSignatureForQuote,
 } from "../../lib/settings/quotes.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
@@ -197,7 +198,7 @@ async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
         property: {
           select: { line1: true, line2: true, city: true, state: true, postalCode: true, label: true },
         },
-        salesperson: { select: { name: true, email: true } },
+        salesperson: { select: { name: true, email: true, signatureUrl: true } },
         paymentSchedule: { include: { items: { orderBy: { sortOrder: "asc" } } } },
         lineItems: { orderBy: { sortOrder: "asc" } },
         rooms: { orderBy: { sortOrder: "asc" } },
@@ -296,11 +297,7 @@ async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
     signatureUrl: quote.signatureUrl,
     signedByName: quote.signedByName,
     signedAt: quote.signedAt,
-    ownerSignature: {
-      name: qs.owner_signature.name,
-      title: qs.owner_signature.title,
-      imageUrl: qs.owner_signature.image_url,
-    },
+    ownerSignature: resolveOwnerSignatureForQuote(qs.owner_signature, quote.salesperson),
     inclusions: qs.inclusions,
   };
 

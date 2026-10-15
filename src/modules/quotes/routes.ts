@@ -12,7 +12,12 @@ import { email } from "../../lib/email/index.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
-import { computeNextQuoteNumber, formatQuoteNumber, parseQuoteSettings } from "../../lib/settings/quotes.js";
+import {
+  computeNextQuoteNumber,
+  formatQuoteNumber,
+  parseQuoteSettings,
+  resolveOwnerSignatureForQuote,
+} from "../../lib/settings/quotes.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { runScheduleTriggers, seedDefaultPaymentTemplates, ensureInvoicesOnApprove } from "../../lib/payments/engine.js";
@@ -915,11 +920,7 @@ quotesRouter.get(
         signatureUrl: quote.signatureUrl,
         signedByName: quote.signedByName,
         signedAt: quote.signedAt,
-        ownerSignature: {
-          name: qs.owner_signature.name,
-          title: qs.owner_signature.title,
-          imageUrl: qs.owner_signature.image_url,
-        },
+        ownerSignature: resolveOwnerSignatureForQuote(qs.owner_signature, quote.salesperson),
         inclusions: qs.inclusions,
       });
       res.setHeader("Content-Type", "application/pdf");

@@ -21,6 +21,13 @@ export type LeadStageMessages = {
   templates: LeadMessageTemplate[];
 };
 
+/** Stages where [coupon] appears in messages and applying the offer updates the quote. */
+export const COUPON_APPLY_STAGES: readonly CanonicalStage[] = [
+  "quote_sent",
+  "follow_up_1",
+  "stand_by",
+];
+
 export type LeadMessageSettings = {
   company_name: string | null;
   default_email_subject: string | null;
@@ -28,6 +35,8 @@ export type LeadMessageSettings = {
   coupon_enabled: boolean;
   coupon_code: string | null;
   coupon_label: string | null;
+  /** Percent discount applied to the lead's open quote when sending with [coupon]. */
+  coupon_percent: number;
   /** Supports [code] and [label] placeholders. */
   coupon_sms_line: string | null;
   stages: Record<CanonicalStage, LeadStageMessages>;
@@ -79,14 +88,31 @@ const QUOTE_SENT_EXTRA: LeadMessageTemplate[] = [
     body:
       "Hello [name], thank you for your time today. I've sent email and attached the quote PDF with the options we discussed. Thank you!",
   },
+  {
+    id: "quote_sent_offer",
+    label: "Orçamento enviado — oferta",
+    body:
+      "Hello [name], just sharing a special offer while you review the quote.\n\n[coupon]\n\nHappy to answer any questions.",
+  },
+];
+
+const STAND_BY_EXTRA: LeadMessageTemplate[] = [
+  {
+    id: "stand_by_offer",
+    label: "Em espera — oferta",
+    body:
+      "Hello [name], whenever you're ready to move forward on your flooring project, this offer is still available:\n\n[coupon]\n\nJust reply and we'll pick up from there.",
+  },
 ];
 
 function templatesForStage(slug: CanonicalStage): LeadMessageTemplate[] {
-  if (slug === "quote_sent") return [...QUOTE_SENT_EXTRA, ...NEW_LEAD_TEMPLATES.map((t) => ({ ...t, on_send_action: t.on_send_action ? { ...t.on_send_action } : null }))];
-  return NEW_LEAD_TEMPLATES.map((t) => ({
+  const base = NEW_LEAD_TEMPLATES.map((t) => ({
     ...t,
     on_send_action: t.on_send_action ? { ...t.on_send_action } : null,
   }));
+  if (slug === "quote_sent") return [...QUOTE_SENT_EXTRA, ...base];
+  if (slug === "stand_by") return [...STAND_BY_EXTRA, ...base];
+  return base;
 }
 
 export function defaultLeadMessageSettings(): LeadMessageSettings {
@@ -103,9 +129,15 @@ export function defaultLeadMessageSettings(): LeadMessageSettings {
     coupon_enabled: false,
     coupon_code: "SAVE10",
     coupon_label: "10% off your flooring project",
+    coupon_percent: 10,
     coupon_sms_line: DEFAULT_COUPON_SMS_LINE,
     stages,
   };
+}
+
+export function isCouponApplyStage(slug: string | null | undefined): boolean {
+  const s = String(slug || "").trim();
+  return (COUPON_APPLY_STAGES as readonly string[]).includes(s);
 }
 
 function asStr(v: unknown, max = 500): string | null {
@@ -164,9 +196,16 @@ function parseStage(raw: unknown, fallback: LeadStageMessages): LeadStageMessage
   };
 }
 
-/** Resolve [coupon] replacement text (empty when coupon disabled). */
-export function resolveCouponLine(settings: LeadMessageSettings): string {
+/**
+ * Resolve [coupon] replacement text.
+ * Empty when coupon disabled, or when leadStage is set and not Quote Sent / Follow-Up / StandBy.
+ */
+export function resolveCouponLine(
+  settings: LeadMessageSettings,
+  leadStage?: string | null,
+): string {
   if (!settings.coupon_enabled) return "";
+  if (leadStage != null && leadStage !== "" && !isCouponApplyStage(leadStage)) return "";
   const code = settings.coupon_code || "";
   const label = settings.coupon_label || "";
   const line = (settings.coupon_sms_line || DEFAULT_COUPON_SMS_LINE).trim();
@@ -176,6 +215,12 @@ export function resolveCouponLine(settings: LeadMessageSettings): string {
     .replace(/\[label\]/gi, label)
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function parseCouponPercent(raw: unknown, fallback: number): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(n * 100) / 100));
 }
 
 /** Merge persisted JSON with built-in defaults (missing stages keep defaults). */
@@ -197,6 +242,7 @@ export function parseLeadMessageSettings(raw: unknown): LeadMessageSettings {
     coupon_enabled: typeof o.coupon_enabled === "boolean" ? o.coupon_enabled : defaults.coupon_enabled,
     coupon_code: asStr(o.coupon_code, 40) ?? defaults.coupon_code,
     coupon_label: asStr(o.coupon_label, 120) ?? defaults.coupon_label,
+    coupon_percent: parseCouponPercent(o.coupon_percent, defaults.coupon_percent),
     coupon_sms_line: asStr(o.coupon_sms_line, 500) ?? defaults.coupon_sms_line,
     stages,
   };
@@ -238,6 +284,7 @@ export const leadMessageSettingsPutSchema = z.object({
   coupon_enabled: z.boolean().optional(),
   coupon_code: z.string().trim().max(40).nullable().optional(),
   coupon_label: z.string().trim().max(120).nullable().optional(),
+  coupon_percent: z.number().min(0).max(100).optional(),
   coupon_sms_line: z.string().trim().max(500).nullable().optional(),
   stages: stagesObjectSchema,
 });
@@ -249,7 +296,9 @@ export function serializeLeadMessageSettings(settings: LeadMessageSettings) {
     coupon_enabled: settings.coupon_enabled,
     coupon_code: settings.coupon_code,
     coupon_label: settings.coupon_label,
+    coupon_percent: settings.coupon_percent,
     coupon_sms_line: settings.coupon_sms_line,
+    coupon_apply_stages: [...COUPON_APPLY_STAGES],
     stages: CANONICAL_STAGE_ORDER.map((slug) => ({
       slug,
       label: LEAD_STAGE_LABELS_PT[slug],

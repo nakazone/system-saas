@@ -18,7 +18,7 @@ import {
   resolveQuoteTermsItems,
 } from "../../lib/quotes/client-document.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
-import { parseQuoteSettings } from "../../lib/settings/quotes.js";
+import { parseQuoteSettings, resolveOwnerSignatureForQuote } from "../../lib/settings/quotes.js";
 import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
 import { persistQuoteTotals, quoteDetailInclude, recomputeTotalsFromQuote } from "./service.js";
 import { applyQuoteTransition } from "./service.js";
@@ -160,7 +160,7 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
       organizationAddress: documentAddressLine(quote.organization),
       organizationLicense: documentLicenseLine(quote.organization),
       organizationWebsite: orgFull?.website || null,
-      ownerSignature: qs.owner_signature,
+      ownerSignature: resolveOwnerSignatureForQuote(qs.owner_signature, quote.salesperson),
       quote,
       token,
       clientView: clientViewFlags(quote.clientView),
@@ -554,11 +554,7 @@ publicQuotesRouter.get("/quotes/:token/pdf", async (req, res, next) => {
       signatureUrl: quote.signatureUrl,
       signedByName: quote.signedByName,
       signedAt: quote.signedAt,
-      ownerSignature: {
-        name: qs.owner_signature.name,
-        title: qs.owner_signature.title,
-        imageUrl: qs.owner_signature.image_url,
-      },
+      ownerSignature: resolveOwnerSignatureForQuote(qs.owner_signature, quote.salesperson),
       inclusions: qs.inclusions,
     });
     res.setHeader("Content-Type", "application/pdf");

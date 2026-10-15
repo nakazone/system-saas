@@ -352,6 +352,7 @@ function mePayload(user: {
   name: string;
   phone: string | null;
   avatarUrl: string | null;
+  signatureUrl: string | null;
   mustChangePassword: boolean;
   routeStartAddress: string | null;
   role: { key: string; name: string } | null;
@@ -364,6 +365,7 @@ function mePayload(user: {
     name: user.name,
     phone: user.phone || null,
     avatar_url: user.avatarUrl || null,
+    signature_url: user.signatureUrl || null,
     role: user.role?.key ?? "staff",
     role_name: user.role?.name ?? null,
     must_change_password: user.mustChangePassword,
@@ -379,6 +381,7 @@ const meSelect = {
   name: true,
   phone: true,
   avatarUrl: true,
+  signatureUrl: true,
   mustChangePassword: true,
   routeStartAddress: true,
   createdAt: true,
@@ -413,7 +416,27 @@ const patchMeSchema = z.object({
   route_start_address: z.union([z.string().trim().max(500), z.literal(""), z.null()]).optional(),
   clear_avatar: z.boolean().optional(),
   avatar_data_url: z.string().max(3_500_000).optional(),
+  clear_signature: z.boolean().optional(),
+  signature_data_url: z.string().max(2_000_000).optional(),
 });
+
+function parseImageDataUrl(dataUrl: string, maxBytes: number): { contentType: string; body: Buffer; ext: string } | { error: string } {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) return { error: "Imagem inválida" };
+  const contentType = match[1]!;
+  if (!contentType.startsWith("image/")) return { error: "O ficheiro deve ser uma imagem" };
+  if (contentType.includes("svg")) return { error: "SVG não é suportado" };
+  const body = Buffer.from(match[2]!, "base64");
+  if (body.length > maxBytes) return { error: `A imagem deve ter menos de ${(maxBytes / (1024 * 1024)).toFixed(1)} MB` };
+  const ext = contentType.includes("png")
+    ? "png"
+    : contentType.includes("webp")
+      ? "webp"
+      : contentType.includes("gif")
+        ? "gif"
+        : "jpg";
+  return { contentType, body, ext };
+}
 
 crmAuthRouter.patch("/api/me", async (req: AuthedRequest, res, next) => {
   try {
@@ -440,6 +463,7 @@ crmAuthRouter.patch("/api/me", async (req: AuthedRequest, res, next) => {
       phone?: string | null;
       routeStartAddress?: string | null;
       avatarUrl?: string | null;
+      signatureUrl?: string | null;
     } = {};
     if (parsed.data.name !== undefined) data.name = parsed.data.name;
     if (parsed.data.phone !== undefined) {
@@ -454,31 +478,26 @@ crmAuthRouter.patch("/api/me", async (req: AuthedRequest, res, next) => {
     if (parsed.data.clear_avatar) {
       data.avatarUrl = null;
     } else if (parsed.data.avatar_data_url?.startsWith("data:")) {
-      const match = /^data:([^;]+);base64,(.+)$/.exec(parsed.data.avatar_data_url);
-      if (!match) {
-        res.status(400).json({ success: false, error: "Foto inválida" });
+      const img = parseImageDataUrl(parsed.data.avatar_data_url, 2.5 * 1024 * 1024);
+      if ("error" in img) {
+        res.status(400).json({ success: false, error: img.error === "Imagem inválida" ? "Foto inválida" : img.error });
         return;
       }
-      const contentType = match[1]!;
-      if (!contentType.startsWith("image/")) {
-        res.status(400).json({ success: false, error: "A foto deve ser uma imagem" });
-        return;
-      }
-      const body = Buffer.from(match[2]!, "base64");
-      if (body.length > 2.5 * 1024 * 1024) {
-        res.status(400).json({ success: false, error: "A foto deve ter menos de 2,5 MB" });
-        return;
-      }
-      const ext = contentType.includes("png")
-        ? "png"
-        : contentType.includes("webp")
-          ? "webp"
-          : contentType.includes("gif")
-            ? "gif"
-            : "jpg";
-      const key = `users/${req.organizationId}/${existing.id}/avatar-${Date.now()}.${ext}`;
-      const stored = await storage.upload({ key, body, contentType });
+      const key = `users/${req.organizationId}/${existing.id}/avatar-${Date.now()}.${img.ext}`;
+      const stored = await storage.upload({ key, body: img.body, contentType: img.contentType });
       data.avatarUrl = stored.url;
+    }
+    if (parsed.data.clear_signature) {
+      data.signatureUrl = null;
+    } else if (parsed.data.signature_data_url?.startsWith("data:")) {
+      const img = parseImageDataUrl(parsed.data.signature_data_url, 1.5 * 1024 * 1024);
+      if ("error" in img) {
+        res.status(400).json({ success: false, error: img.error === "Imagem inválida" ? "Assinatura inválida" : img.error });
+        return;
+      }
+      const key = `users/${req.organizationId}/${existing.id}/signature-${Date.now()}.${img.ext}`;
+      const stored = await storage.upload({ key, body: img.body, contentType: img.contentType });
+      data.signatureUrl = stored.url;
     }
 
     if (!Object.keys(data).length) {

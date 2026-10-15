@@ -2253,6 +2253,7 @@
         coupon_enabled: !!state.leadMsg.snapshot.coupon_enabled,
         coupon_code: state.leadMsg.snapshot.coupon_code || null,
         coupon_label: state.leadMsg.snapshot.coupon_label || null,
+        coupon_percent: Number(state.leadMsg.snapshot.coupon_percent ?? 10),
         coupon_sms_line: state.leadMsg.snapshot.coupon_sms_line || null,
         stages: snapStages,
       };
@@ -2268,6 +2269,7 @@
     const coupon_enabled = !!$("lm_coupon_enabled")?.checked;
     const coupon_code = String($("lm_coupon_code")?.value || "").trim() || null;
     const coupon_label = String($("lm_coupon_label")?.value || "").trim() || null;
+    const coupon_percent = Math.min(100, Math.max(0, Number($("lm_coupon_percent")?.value || 0)));
     const coupon_sms_line = String($("lm_coupon_line")?.value || "").trim() || null;
     const stages = {};
     const list = state.leadMsg.draft?.stages || state.leadMsg.snapshot?.stages || [];
@@ -2310,6 +2312,7 @@
       coupon_enabled,
       coupon_code,
       coupon_label,
+      coupon_percent,
       coupon_sms_line,
       stages,
     };
@@ -2352,6 +2355,7 @@
     if ($("lm_subject")) $("lm_subject").value = data.default_email_subject || "";
     if ($("lm_coupon_enabled")) $("lm_coupon_enabled").checked = !!data.coupon_enabled;
     if ($("lm_coupon_code")) $("lm_coupon_code").value = data.coupon_code || "";
+    if ($("lm_coupon_percent")) $("lm_coupon_percent").value = data.coupon_percent != null ? String(data.coupon_percent) : "10";
     if ($("lm_coupon_label")) $("lm_coupon_label").value = data.coupon_label || "";
     if ($("lm_coupon_line")) $("lm_coupon_line").value = data.coupon_sms_line || "";
     $("lmStageTabs").innerHTML = stages
@@ -2379,6 +2383,7 @@
       coupon_enabled: body.coupon_enabled,
       coupon_code: body.coupon_code,
       coupon_label: body.coupon_label,
+      coupon_percent: body.coupon_percent,
       coupon_sms_line: body.coupon_sms_line,
       stages: stagesArr,
       tokens: state.leadMsg.draft?.tokens || ["[name]", "[company]", "[coupon]"],

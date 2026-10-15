@@ -22,6 +22,43 @@ export type OwnerSignature = {
   updated_at: string | null;
 };
 
+export type OwnerSignatureForQuote = {
+  name: string | null;
+  title: string | null;
+  imageUrl: string | null;
+  use_auto?: boolean;
+  has_image?: boolean;
+  image_url?: string | null;
+};
+
+/**
+ * Prefer the salesperson's personal signature (Meu Perfil); fall back to company owner signature.
+ */
+export function resolveOwnerSignatureForQuote(
+  orgSig: OwnerSignature,
+  salesperson?: { name?: string | null; signatureUrl?: string | null } | null,
+): OwnerSignatureForQuote {
+  const personalUrl = salesperson?.signatureUrl ? String(salesperson.signatureUrl).trim() : "";
+  if (personalUrl) {
+    return {
+      name: (salesperson?.name && String(salesperson.name).trim()) || orgSig.name,
+      title: orgSig.title,
+      imageUrl: personalUrl,
+      image_url: personalUrl,
+      has_image: true,
+      use_auto: false,
+    };
+  }
+  return {
+    name: orgSig.name,
+    title: orgSig.title,
+    imageUrl: orgSig.image_url,
+    image_url: orgSig.image_url,
+    has_image: Boolean(orgSig.image_url),
+    use_auto: orgSig.use_auto,
+  };
+}
+
 /** Customer-facing texts when sharing a quote (SMS / WhatsApp). Placeholders: [name] [company] [quote_number] [link] */
 export type QuoteShareMessages = {
   sms_body: string;
