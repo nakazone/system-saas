@@ -260,7 +260,11 @@
         </div>
 
         <div class="inv-row2">
-          <label class="inv-field"><span>Data do pagamento</span><input type="date" id="payDate" required /></label>
+          <label class="inv-field">
+            <span>Data do pagamento</span>
+            <input type="date" id="payDate" required />
+            <div class="inv-quick" id="payDateQuick" style="margin-top:0.45rem"></div>
+          </label>
           <label class="inv-field"><span>Referência <em>opcional</em></span><input type="text" id="payRef" maxlength="120" placeholder="Nº do cheque, confirmação…" /></label>
         </div>
 
@@ -394,7 +398,7 @@
   <script src="crm-shell.js?v=20261014-f2"></script>
   <script src="om-gestures.js?v=20261013-rl6"></script>
   <script src="crm-pdf-viewer.js?v=20261002-pdfclose"></script>
-  <script src="invoice-page.js?v=20261014-ref1"></script>
+  <script src="invoice-page.js?v=20261015-paydate1"></script>
   <script src="invoices-page.js?v=20261012-inv5"></script>
 </body>
 </html>

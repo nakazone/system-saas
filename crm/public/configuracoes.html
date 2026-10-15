@@ -505,6 +505,36 @@
               </form>
             </section>
 
+            <!-- ---------- Baixa de fatura ---------- -->
+            <section class="cfg-section" data-section="faturas-baixa" hidden>
+              <header class="cfg-head">
+                <h2 class="cfg-title">Baixa de fatura</h2>
+                <p class="cfg-lead">Defina a data sugerida ao registrar um pagamento. Você ainda pode trocar na hora da baixa.</p>
+              </header>
+              <form id="invoicePaymentDateForm" class="cfg-form" novalidate autocomplete="off">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Data padrão do pagamento</h3>
+                  <p class="cfg-card__desc">Usada ao abrir o modal de baixa. No modal também há atalhos Hoje / Vencimento.</p>
+                  <div class="cfg-opts" style="margin-top:0.85rem" role="radiogroup" aria-label="Data padrão do pagamento">
+                    <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin:0 0 0.65rem">
+                      <input type="radio" name="inv_pay_date_default" id="inv_pay_date_today" value="today" style="margin-top:0.2rem" />
+                      <span>
+                        <strong style="display:block;font-weight:800">Data de hoje</strong>
+                        <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Registra o pagamento no dia em que você dá a baixa.</span>
+                      </span>
+                    </label>
+                    <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin:0">
+                      <input type="radio" name="inv_pay_date_default" id="inv_pay_date_due" value="due_date" style="margin-top:0.2rem" />
+                      <span>
+                        <strong style="display:block;font-weight:800">Data de vencimento do invoice</strong>
+                        <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Usa o vencimento da fatura. Se não houver vencimento, cai para hoje.</span>
+                      </span>
+                    </label>
+                  </div>
+                </article>
+              </form>
+            </section>
+
             <!-- ---------- Mensagens para Leads ---------- -->
             <section class="cfg-section" data-section="mensagens-fase" hidden>
               <header class="cfg-head">
@@ -1218,6 +1248,6 @@
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="cfg-meu-perfil.js?v=20261014-perfil5"></script>
-  <script src="configuracoes.js?v=20261015-refnav1"></script>
+  <script src="configuracoes.js?v=20261015-paydate1"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 /**
- * Configurações › Mensagens das Faturas — SMS ao enviar o link da invoice.
- * Placeholders: [name] [company] [invoice_number] [amount] [balance] [due_date] [link]
+ * Configurações › Faturas — SMS de envio + regra de data na baixa.
+ * Placeholders SMS: [name] [company] [invoice_number] [amount] [balance] [due_date] [link]
  */
 import { z } from "zod";
 
@@ -8,8 +8,12 @@ export type InvoiceShareMessages = {
   sms_body: string;
 };
 
+/** Default date suggested when recording a payment (baixa). */
+export type InvoicePaymentDateDefault = "today" | "due_date";
+
 export type InvoiceSettings = {
   share_messages: InvoiceShareMessages;
+  payment_date_default: InvoicePaymentDateDefault;
 };
 
 export const DEFAULT_INVOICE_SHARE_MESSAGES: InvoiceShareMessages = {
@@ -28,10 +32,15 @@ export function parseInvoiceShareMessages(raw: unknown): InvoiceShareMessages {
   return { sms_body: sms };
 }
 
+export function parsePaymentDateDefault(raw: unknown): InvoicePaymentDateDefault {
+  return raw === "due_date" ? "due_date" : "today";
+}
+
 export function parseInvoiceSettings(raw: unknown): InvoiceSettings {
   const o = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   return {
     share_messages: parseInvoiceShareMessages(o.share_messages),
+    payment_date_default: parsePaymentDateDefault(o.payment_date_default),
   };
 }
 
@@ -42,6 +51,7 @@ export const invoiceSettingsPatchSchema = z
         sms_body: z.string().trim().min(1, "Indique o texto do SMS").max(SHARE_SMS_MAX),
       })
       .optional(),
+    payment_date_default: z.enum(["today", "due_date"]).optional(),
   })
   .strict();
 

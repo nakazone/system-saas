@@ -1,5 +1,5 @@
 /**
- * Configurações › Mensagens das Faturas (SMS).
+ * Configurações › Faturas (SMS de envio + data padrão na baixa).
  *
  *   GET   /api/settings/invoices   settings.manage | invoices.view
  *   PATCH /api/settings/invoices   settings.manage
@@ -37,6 +37,7 @@ async function loadInvoiceConfig(organizationId: string) {
     settings,
     data: {
       share_messages: settings.share_messages,
+      payment_date_default: settings.payment_date_default,
       company_name: org.name || null,
       tokens: ["[name]", "[company]", "[invoice_number]", "[amount]", "[balance]", "[due_date]", "[link]"],
       defaults: DEFAULT_INVOICE_SHARE_MESSAGES,
@@ -78,14 +79,17 @@ settingsInvoicesRouter.patch(
       const orgId = req.organizationId!;
       const before = await loadInvoiceConfig(orgId);
       const p = parsed.data;
-      if (!p.share_messages) {
+      if (p.share_messages === undefined && p.payment_date_default === undefined) {
         res.json({ success: true, data: before.data });
         return;
       }
 
       const nextSettings = {
         ...before.settings,
-        share_messages: p.share_messages,
+        ...(p.share_messages !== undefined ? { share_messages: p.share_messages } : {}),
+        ...(p.payment_date_default !== undefined
+          ? { payment_date_default: p.payment_date_default }
+          : {}),
       };
 
       await prisma.organization.update({
@@ -102,7 +106,14 @@ settingsInvoicesRouter.patch(
           actorId: req.user!.id,
           action: "settings.invoices_updated",
           changes: {
-            shareMessages: { from: before.settings.share_messages, to: p.share_messages },
+            shareMessages:
+              p.share_messages !== undefined
+                ? { from: before.settings.share_messages, to: p.share_messages }
+                : undefined,
+            paymentDateDefault:
+              p.payment_date_default !== undefined
+                ? { from: before.settings.payment_date_default, to: p.payment_date_default }
+                : undefined,
           },
         }),
       );

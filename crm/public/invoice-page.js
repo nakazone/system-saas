@@ -45,6 +45,59 @@
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
+  function dayLocal(d) {
+    if (d == null || d === '') return null;
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+    const x = dateObj(d);
+    if (!x) return null;
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  }
+
+  let paymentDateDefault = 'today';
+  let paymentDateSettingsLoaded = false;
+  async function ensurePaymentDateSettings() {
+    if (paymentDateSettingsLoaded) return paymentDateDefault;
+    paymentDateSettingsLoaded = true;
+    try {
+      const j = await api('/api/settings/invoices');
+      paymentDateDefault = j.data && j.data.payment_date_default === 'due_date' ? 'due_date' : 'today';
+    } catch (_) {
+      paymentDateDefault = 'today';
+    }
+    return paymentDateDefault;
+  }
+
+  function setPayDateValue(day) {
+    const el = $('payDate');
+    if (!el || !day) return;
+    el.value = day;
+    // Allow due date even if it is after "today" (rare); otherwise keep past/today free.
+    const today = todayLocal();
+    el.max = day > today ? day : today;
+  }
+
+  function renderPayDateQuick() {
+    const host = $('payDateQuick');
+    if (!host) return;
+    const today = todayLocal();
+    const due = dayLocal(inv && inv.due_date);
+    const chips = [{ key: 'today', label: 'Hoje', day: today }];
+    if (due) chips.push({ key: 'due', label: 'Vencimento', day: due });
+    host.innerHTML = chips
+      .map(
+        (c) =>
+          `<button type="button" class="inv-chip-btn" data-pay-day="${c.day}" data-pay-day-key="${c.key}">${c.label}${
+            c.key === 'due' ? ` <small>${fdate(c.day)}</small>` : ''
+          }</button>`,
+      )
+      .join('');
+    host.querySelectorAll('[data-pay-day]').forEach((b) =>
+      b.addEventListener('click', () => {
+        setPayDateValue(b.getAttribute('data-pay-day'));
+        syncPay();
+      }),
+    );
+  }
   function toast(msg, type) {
     if (window.crmToast) window.crmToast[type === 'error' ? 'error' : type === 'info' ? 'info' : 'success'](msg);
     else alert(msg);
@@ -621,8 +674,6 @@
     $('payFullAmount').textContent = money(inv.remaining_amount);
     document.querySelector(`input[name="payMode"][value="${mode === 'partial' ? 'partial' : 'full'}"]`).checked = true;
     $('payAmount').value = '';
-    $('payDate').value = todayLocal();
-    $('payDate').max = todayLocal();
     $('payRef').value = '';
     $('payNotes').value = '';
     const email = inv.client && inv.client.email;
@@ -649,6 +700,11 @@
         syncPay();
       }),
     );
+    await ensurePaymentDateSettings();
+    const dueDay = dayLocal(inv.due_date);
+    const preferDue = paymentDateDefault === 'due_date' && dueDay;
+    setPayDateValue(preferDue ? dueDay : todayLocal());
+    renderPayDateQuick();
     await syncCashbackPayMethod();
     syncPay();
     openModal('payModal');

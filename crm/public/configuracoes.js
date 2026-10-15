@@ -69,6 +69,7 @@
         { id: "msg-leads", label: "Leads por fase", section: "mensagens-fase", perm: "settings.manage", desc: "E-mails e SMS de cada fase do pipeline, com o cupom.", keywords: "mensagem email e-mail sms template fase pipeline lead novo visita follow-up cupom coupon gelo" },
         { id: "msg-orcamento", label: "Envio do orçamento", section: "mensagens-orcamento", perm: "settings.manage", desc: "SMS e WhatsApp ao enviar o orçamento e o follow-up depois que o cliente abriu.", keywords: "sms whatsapp mensagem orçamento quote enviar link follow-up" },
         { id: "msg-fatura", label: "Envio da fatura", section: "mensagens-faturas", perm: "settings.manage", desc: "SMS ao enviar o link da fatura.", keywords: "sms mensagem invoice fatura enviar link" },
+        { id: "faturas-baixa", label: "Baixa de fatura", section: "faturas-baixa", perm: "settings.manage", desc: "Data padrão ao registrar um pagamento (hoje ou vencimento).", keywords: "baixa pagamento fatura invoice data vencimento hoje due date" },
         { id: "automacoes", label: "Automações", section: "automacoes-leads", perm: "settings.manage", desc: "Mover leads automaticamente no pipeline.", keywords: "automação follow-up quote sent estágio dias pipeline lead" },
         { id: "indicacoes", label: "Indicações", section: "indicacoes", perm: "settings.manage", desc: "Cashback para Particular quando a fatura do indicado é paga.", keywords: "indicação referral cashback comissão particular percentual projeto fatura" },
       ],
@@ -128,6 +129,7 @@
     orcamentos: "numeracao",
     "mensagens-orcamento": "msg-orcamento",
     "mensagens-faturas": "msg-fatura",
+    "faturas-baixa": "faturas-baixa",
     "mensagens-fase": "msg-leads",
     "automacoes-leads": "automacoes",
     "regras-estimativa": "regras",
@@ -417,6 +419,7 @@
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
     if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
     if (id === "mensagens-faturas") return invoiceShareMessagesDirty() ? 1 : 0;
+    if (id === "faturas-baixa") return invoicePaymentDateDirty() ? 1 : 0;
     if (id === "mensagens-fase") return leadMsgDirty() ? 1 : 0;
     if (id === "automacoes-leads") return leadAutoDirty() ? 1 : 0;
     if (id === "jobs") return jobsDirty() ? 1 : 0;
@@ -667,6 +670,7 @@
     if (state.current === "orcamentos") return saveQuotes();
     if (state.current === "mensagens-orcamento") return saveQuoteShareMessages();
     if (state.current === "mensagens-faturas") return saveInvoiceShareMessages();
+    if (state.current === "faturas-baixa") return saveInvoicePaymentDate();
     if (state.current === "mensagens-fase") return saveLeadMessages();
     if (state.current === "automacoes-leads") return saveLeadAutomations();
     if (state.current === "jobs") return saveJobsSettings();
@@ -683,6 +687,7 @@
     if (state.current === "orcamentos") discardQuotes();
     if (state.current === "mensagens-orcamento") discardQuoteShareMessages();
     if (state.current === "mensagens-faturas") discardInvoiceShareMessages();
+    if (state.current === "faturas-baixa") discardInvoicePaymentDate();
     if (state.current === "mensagens-fase") discardLeadMessages();
     if (state.current === "automacoes-leads") discardLeadAutomations();
     if (state.current === "jobs") discardJobsSettings();
@@ -1866,21 +1871,56 @@
     return comparable(readInvoiceShareMessages()) !== comparable(state.invoices.snapshot.share_messages || {});
   }
 
-  async function loadInvoiceShareMessages(force) {
+  function readInvoicePaymentDateDefault() {
+    const due = $("inv_pay_date_due");
+    if (due && due.checked) return "due_date";
+    return "today";
+  }
+
+  function fillInvoicePaymentDateDefault(data) {
+    const v = data && data.payment_date_default === "due_date" ? "due_date" : "today";
+    if ($("inv_pay_date_today")) $("inv_pay_date_today").checked = v === "today";
+    if ($("inv_pay_date_due")) $("inv_pay_date_due").checked = v === "due_date";
+  }
+
+  function invoicePaymentDateDirty() {
+    if (!state.invoices.loaded || !state.invoices.snapshot) return false;
+    return readInvoicePaymentDateDefault() !== (state.invoices.snapshot.payment_date_default || "today");
+  }
+
+  function rememberInvoiceSnapshot(data) {
+    const src = data || state.invoices.data || {};
+    state.invoices.snapshot = {
+      share_messages: src.share_messages || readInvoiceShareMessages(),
+      payment_date_default: src.payment_date_default === "due_date" ? "due_date" : "today",
+    };
+  }
+
+  async function loadInvoiceSettings(force) {
     if (state.invoices.loaded && !force) {
       fillInvoiceShareMessages(state.invoices.data);
+      fillInvoicePaymentDateDefault(state.invoices.data);
       return;
     }
     try {
       const j = await api("/api/settings/invoices");
       state.invoices.data = j.data;
       fillInvoiceShareMessages(j.data);
-      state.invoices.snapshot = { share_messages: readInvoiceShareMessages() };
+      fillInvoicePaymentDateDefault(j.data);
+      rememberInvoiceSnapshot(j.data);
       state.invoices.loaded = true;
       updateSavebar();
     } catch (err) {
-      notify(err.message || "Não foi possível carregar as mensagens das faturas.", "error");
+      notify(err.message || "Não foi possível carregar as configurações de faturas.", "error");
     }
+  }
+
+  async function loadInvoiceShareMessages(force) {
+    return loadInvoiceSettings(force);
+  }
+
+  async function loadInvoicePaymentDate(force) {
+    return loadInvoiceSettings(force);
   }
 
   async function saveInvoiceShareMessages() {
@@ -1899,9 +1939,33 @@
       });
       state.invoices.data = j.data;
       fillInvoiceShareMessages(j.data);
-      state.invoices.snapshot = { share_messages: readInvoiceShareMessages() };
+      fillInvoicePaymentDateDefault(j.data);
+      rememberInvoiceSnapshot(j.data);
       state.invoices.loaded = true;
       notify("Mensagem de SMS das faturas salva.", "success");
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+      updateSavebar();
+    }
+  }
+
+  async function saveInvoicePaymentDate() {
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/invoices", {
+        method: "PATCH",
+        body: JSON.stringify({ payment_date_default: readInvoicePaymentDateDefault() }),
+      });
+      state.invoices.data = j.data;
+      fillInvoiceShareMessages(j.data);
+      fillInvoicePaymentDateDefault(j.data);
+      rememberInvoiceSnapshot(j.data);
+      state.invoices.loaded = true;
+      notify("Regra de data na baixa salva.", "success");
       return true;
     } catch (err) {
       notify(err.message || "Não foi possível salvar.", "error");
@@ -1919,6 +1983,15 @@
     }
   }
 
+  function discardInvoicePaymentDate() {
+    if (state.invoices.data) fillInvoicePaymentDateDefault(state.invoices.data);
+    else if (state.invoices.snapshot) {
+      fillInvoicePaymentDateDefault({
+        payment_date_default: state.invoices.snapshot.payment_date_default,
+      });
+    }
+  }
+
   function bindInvoiceShareMessagesUi() {
     const form = $("invoiceShareForm");
     if (!form) return;
@@ -1931,6 +2004,15 @@
       syncInvoiceShareMsgCounts();
       updateSavebar();
     });
+    const payForm = $("invoicePaymentDateForm");
+    if (payForm && payForm.dataset.bound !== "1") {
+      payForm.dataset.bound = "1";
+      payForm.addEventListener("change", () => updateSavebar());
+      payForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        saveInvoicePaymentDate();
+      });
+    }
     $("btnInvShareMsgDefaults")?.addEventListener("click", () => {
       const sms = $("inv_sms_body");
       const hasCustom = sms && sms.value.trim() && sms.value.trim() !== INV_SHARE_MSG_DEFAULTS.sms_body;
@@ -3799,6 +3881,7 @@
     if (id === "orcamentos") return loadQuotes();
     if (id === "mensagens-orcamento") return loadQuotes();
     if (id === "mensagens-faturas") return loadInvoiceShareMessages();
+    if (id === "faturas-baixa") return loadInvoicePaymentDate();
     if (id === "mensagens-fase") return loadLeadMessages();
     if (id === "automacoes-leads") return loadLeadAutomations();
     if (id === "jobs") return loadJobsSettings();
