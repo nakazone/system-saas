@@ -25,7 +25,7 @@ describe("jobs — billing math (pure)", () => {
     expect(paid).toMatchObject({ billing_status: "paid", invoiced_total: 1000, invoice_count: 1 });
   });
 
-  it("itemizes full/final invoices from the job lines and nets out earlier invoices", () => {
+  it("itemizes every job invoice from service lines (deposit/final same list as full)", () => {
     const job = {
       number: 7,
       title: "Smith townhomes",
@@ -34,13 +34,15 @@ describe("jobs — billing math (pure)", () => {
         { serviceName: "Stairs", quantitySqft: 12, unitPrice: 45, lineTotal: 540 },
       ],
     };
+    const services = ["LVP install\nHallway only", "Stairs"];
     const full = jobInvoiceLines({ kind: "full", label: "Full payment", amount: 2220, job, invoicedBefore: 0 });
-    expect(full.map((l) => l.description)).toEqual(["LVP install\nHallway only", "Stairs"]);
+    expect(full.map((l) => l.description)).toEqual(services);
     const final = jobInvoiceLines({ kind: "final", label: "Final balance", amount: 1554, job, invoicedBefore: 666 });
-    expect(final.at(-1)).toMatchObject({ description: "Less: previously invoiced", amount: -666 });
-    expect(final.reduce((s, l) => s + l.amount, 0)).toBeCloseTo(1554, 2);
+    expect(final.map((l) => l.description)).toEqual(services);
+    expect(final.reduce((s, l) => s + l.amount, 0)).toBeCloseTo(2220, 2);
     const dep = jobInvoiceLines({ kind: "deposit", label: "Deposit (30%)", amount: 666, job, invoicedBefore: 0 });
-    expect(dep).toEqual([{ description: "Deposit (30%) — Job #7 · Smith townhomes", quantity: 1, unitPrice: 666, amount: 666 }]);
+    expect(dep.map((l) => l.description)).toEqual(services);
+    expect(dep.reduce((s, l) => s + l.amount, 0)).toBeCloseTo(2220, 2);
   });
 
   it("speaks about the job, not a quote, in amount errors", () => {
@@ -188,9 +190,18 @@ describe.skipIf(!privileged)("jobs — ordem de serviço → fatura (HTTP)", () 
     expect(dep.status, JSON.stringify(dep.json)).toBe(201);
     expect(dep.json.data.amount).toBe(666);
     expect(dep.json.billing).toMatchObject({ billing_status: "partially_invoiced", remaining_to_invoice: 1554 });
-    // Faturar marks the job completed even without field start/finish.
+    // Issuing an invoice does not auto-complete the job (deposit before field start is common).
     const afterBill = await call(admin, "GET", `/api/work-orders/${job.id}`);
-    expect(afterBill.json.data.status).toBe("completed");
+    expect(afterBill.json.data.status).not.toBe("completed");
+    const depDetail = await call(admin, "GET", `/api/quote-invoices/${dep.json.data.id}`);
+    expect(depDetail.json.data.line_items.map((l: { description: string }) => l.description)).toEqual([
+      "LVP install",
+      "Stairs",
+    ]);
+    expect(depDetail.json.data.services_total).toBe(2220);
+    expect(depDetail.json.data.amount).toBe(666);
+    expect(depDetail.json.data.email_sent_at).toBeNull();
+    expect(depDetail.json.data.sent_to).toBeNull();
 
     // The services can't be cut below what was already billed, and the job can't be canceled.
     const cut = await call(admin, "PUT", `/api/work-orders/${job.id}`, {
@@ -212,8 +223,9 @@ describe.skipIf(!privileged)("jobs — ordem de serviço → fatura (HTTP)", () 
     expect(detail.json.data.line_items.map((l: { description: string }) => l.description)).toEqual([
       "LVP install",
       "Stairs",
-      "Less: previously invoiced",
     ]);
+    expect(detail.json.data.services_total).toBe(2220);
+    expect(detail.json.data.amount).toBe(1554);
     expect(detail.json.data.sibling_invoices).toHaveLength(1);
     // Itemized job invoice: the amount is edited through the job, not on the invoice.
     expect((await call(admin, "PATCH", `/api/quote-invoices/${fin.json.data.id}`, { amount: 1000 })).status).toBe(409);

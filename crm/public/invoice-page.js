@@ -145,6 +145,8 @@
 
     const open = inv.remaining_amount > 0.004 && inv.status !== 'void';
     const isDraft = inv.status === 'draft';
+    // Job invoices are issued as "sent" without e-mail — only sent_to / email_sent_at means mailed.
+    const emailSent = Boolean(inv.sent_to || inv.email_sent_at);
     // Receive payment only after the invoice left draft — sending ≠ paid.
     const canPay = inv.can.record_payment && open && !isDraft;
     const canSend = inv.can.manage && inv.status !== 'void';
@@ -153,13 +155,14 @@
     $('btnAddPayment').hidden = !canPay;
     $('btnSend').hidden = !canSend;
     $('btnSendMobile').hidden = !canSend;
-    $('btnSendLabel').textContent = isDraft ? 'Enviar' : 'Reenviar';
-    $('btnSendMobile').textContent = isDraft ? 'Enviar' : 'Reenviar';
-    // Draft: Enviar is the primary action. After send: Receber pagamento is primary.
-    $('btnSend').className = isDraft ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
-    $('btnReceive').className = isDraft ? 'inv-btn inv-btn--secondary' : 'inv-btn inv-btn--primary';
-    $('btnSendMobile').className = isDraft ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
-    $('btnReceiveMobile').className = isDraft ? 'inv-btn inv-btn--secondary' : 'inv-btn inv-btn--primary';
+    $('btnSendLabel').textContent = emailSent ? 'Reenviar' : 'Enviar';
+    $('btnSendMobile').textContent = emailSent ? 'Reenviar' : 'Enviar';
+    // Never e-mailed: Enviar is primary. After a real send: Receber pagamento is primary.
+    const sendPrimary = canSend && !emailSent;
+    $('btnSend').className = sendPrimary ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
+    $('btnReceive').className = !sendPrimary && canPay ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
+    $('btnSendMobile').className = sendPrimary ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
+    $('btnReceiveMobile').className = !sendPrimary && canPay ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
     $('invMobileBar').hidden = !canPay && !canSend;
 
     const menu = $('moreMenu');
@@ -205,7 +208,11 @@
     const c = inv.client || {};
     const who = c.name || 'o cliente';
     const phone = c.phone ? String(c.phone).replace(/[^\d+]/g, '') : '';
-    const sentTxt = inv.issued_at ? `Enviada ${fdate(inv.issued_at, { year: undefined })}` : 'Enviada';
+    const emailSent = Boolean(inv.sent_to || inv.email_sent_at);
+    const sentAt = inv.email_sent_at || (emailSent ? inv.issued_at : null);
+    const sentTxt = emailSent
+      ? `Enviada por e-mail ${fdate(sentAt, { year: undefined })}`
+      : 'Ainda não enviada por e-mail';
     const seen = inv.viewed_at ? `vista ${fdate(inv.viewed_at, { year: undefined })}` : 'ainda não aberta';
     let title = '';
     let text = '';
@@ -214,10 +221,16 @@
       box.hidden = true;
       return;
     }
-    if (inv.status === 'draft') {
+    if (inv.status === 'draft' || !emailSent) {
       title = 'Enviar ao cliente';
-      text = `Rascunho de ${money(inv.amount)}. ${who} ainda não recebeu esta fatura.`;
+      text =
+        inv.status === 'draft'
+          ? `Rascunho de ${money(inv.amount)}. ${who} ainda não recebeu esta fatura.`
+          : `Fatura de ${money(inv.amount)} emitida, mas o e-mail ainda não foi enviado a ${who}.`;
       if (inv.can.manage) btns.push(['send', 'Enviar fatura', true]);
+      if (inv.can.record_payment && inv.status !== 'draft' && inv.remaining_amount > 0.004) {
+        btns.push(['pay', 'Receber pagamento', false]);
+      }
     } else if (inv.display_status === 'overdue') {
       title = `Cobrar ${who}`;
       text = `Venceu há ${plural(inv.days_overdue, 'dia', 'dias')}. ${sentTxt}, ${seen}.`;
@@ -968,7 +981,7 @@
     $('sendMsg').value = '';
     $('sendLink').value = inv.public_url || '';
     $('btnMarkSent').hidden = inv.status !== 'draft';
-    $('sendSubmit').textContent = inv.status === 'draft' ? 'Enviar e-mail' : 'Reenviar e-mail';
+    $('sendSubmit').textContent = inv.sent_to || inv.email_sent_at ? 'Reenviar e-mail' : 'Enviar e-mail';
     updateSms();
     openModal('sendModal');
   }

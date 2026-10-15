@@ -14,8 +14,8 @@ import { computeNewInvoiceAmount } from "./core.js";
 import { stripLockbox } from "../../modules/work-orders/public-ticket.js";
 
 /**
- * Invoicing means the work is done for office purposes — mark the job completed even if
- * field start/finish was never used. No-op when already completed or canceled.
+ * Explicitly mark a job completed (office status). Used by the "Marcar concluído" action —
+ * issuing an invoice no longer auto-completes the job (deposits often precede field work).
  */
 export async function markWorkOrderCompletedForInvoice(
   tx: TenantPrisma,
@@ -44,7 +44,7 @@ export async function markWorkOrderCompletedForInvoice(
     action: "status_changed",
     changes: {
       status: { from: job.status, to: "completed" },
-      reason: { from: null, to: input.reason || "invoice_issued" },
+      reason: { from: null, to: input.reason || "marked_completed" },
     },
   });
   await ensureJobChatChannel(tx, input.organizationId, job.id);
@@ -148,34 +148,10 @@ function invoiceLineDescription(li: JobLine): string {
 }
 
 /**
- * Invoice lines for a job invoice. When the invoice closes the job (full / final), the client
- * sees every service with quantity and table price; a final after earlier invoices subtracts
- * what was already billed. Deposits and custom amounts are a single line pointing at the job.
+ * Invoice lines for a job invoice — same idea as quote invoices: always list every service
+ * with qty and table price. Partial / deposit amounts show as Balance Due on this invoice
+ * (invoice.amount), not by collapsing to a single summary row.
  */
-function balanceInvoiceLines(
-  lines: InvoiceLineDraft[],
-  amount: number,
-  invoicedBefore: number,
-): InvoiceLineDraft[] {
-  const out = [...lines];
-  if (cents(invoicedBefore) > 0) {
-    const less = -money(cents(invoicedBefore));
-    out.push({ description: "Less: previously invoiced", quantity: 1, unitPrice: less, amount: less });
-  }
-  // Rounding / partial-billing guard: lines must add up to the invoice amount.
-  const sumC = out.reduce((s, l) => s + cents(l.amount), 0);
-  const diffC = cents(amount) - sumC;
-  if (diffC !== 0) {
-    const adj = money(diffC);
-    const description =
-      diffC < 0 && cents(invoicedBefore) === 0
-        ? "Less: not due on this invoice"
-        : "Adjustment";
-    out.push({ description, quantity: 1, unitPrice: adj, amount: adj });
-  }
-  return out;
-}
-
 export function jobInvoiceLines(params: {
   kind: string;
   label: string;
@@ -183,19 +159,17 @@ export function jobInvoiceLines(params: {
   job: { number: number | null; title: string; lineItems: JobLine[] };
   invoicedBefore: number;
 }): InvoiceLineDraft[] {
-  const { kind, label, amount, job, invoicedBefore } = params;
+  const { label, amount, job } = params;
   const ref = jobRef(job);
-  const itemize = (kind === "full" || kind === "final") && job.lineItems.length > 0;
-  if (!itemize) {
+  if (!job.lineItems.length) {
     return [{ description: `${label} — ${ref}`, quantity: 1, unitPrice: amount, amount }];
   }
-  const lines: InvoiceLineDraft[] = job.lineItems.map((li) => ({
+  return job.lineItems.map((li) => ({
     description: invoiceLineDescription(li),
     quantity: Number(li.quantitySqft) || 0,
     unitPrice: Number(li.unitPrice) || 0,
     amount: money(cents(li.lineTotal)),
   }));
-  return balanceInvoiceLines(lines, amount, invoicedBefore);
 }
 
 type QuoteServiceLine = {
@@ -323,7 +297,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
   const amount = new Prisma.Decimal(calc.amount.toFixed(2));
   const jobNotesForInvoice = stripLockbox(job.notes).slice(0, 4000) || null;
   // Job "Faturar" issues the invoice immediately so Invoices shows it as Enviada/faturada
-  // (not stuck in Rascunho). E-mail to the client is a separate Reenviar step.
+  // (not stuck in Rascunho). E-mail to the client is a separate Enviar step (sentTo).
   const issuedAt = new Date();
   const inv = await tx.quoteInvoice.create({
     data: {
@@ -382,12 +356,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     changes: { invoice: { from: null, to: invoiceNumber } },
   });
 
-  await markWorkOrderCompletedForInvoice(tx, {
-    organizationId: input.organizationId,
-    workOrderId: job.id,
-    actorId: input.actorId,
-    reason: "invoice_issued",
-  });
+  // Do not auto-complete the job — deposits often precede field start. Use "Marcar concluído".
 
   const billing = jobBilling(servicesTotal, [...job.invoices, { amount: calc.amount, status: "sent", receipts: [] }]);
   return {

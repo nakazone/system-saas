@@ -225,7 +225,15 @@
       : `<button type="button" class="jd-btn jd-btn--pri" data-primary="${esc(a.act)}">${esc(a.label)}</button>`;
   }
   async function runPrimary(act) {
-    if (act === "invoice") return window.JobBilling.openDialog({ jobId, billing: billing.billing, jobStatus: job.status });
+    if (act === "invoice") {
+      // Same path as Serviços e Fatura: refresh billing then open JobBilling dialog.
+      if (!window.JobBilling) return;
+      try {
+        const j = await window.JobBilling.load(jobId);
+        billing = { billing: j.billing, data: j.data || [] };
+      } catch (_) {}
+      return window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status });
+    }
     if (act === "services") return openSection("services");
     if (act === "schedule") return openSection("schedule");
     if (act === "start") return setStatus("in_progress", "Job iniciado.");
@@ -457,7 +465,19 @@
               .join("")}</ul>`
           : ""
       }
-      ${canInvoice && b.remaining_to_invoice > 0.004 && job.status !== "canceled" ? `<button type="button" class="jd-btn jd-btn--block" data-primary="invoice">Faturar ${money0(b.remaining_to_invoice)}</button>` : ""}`;
+      ${(() => {
+        const invoiceBtn =
+          canInvoice && b.remaining_to_invoice > 0.004 && job.status !== "canceled"
+            ? `<button type="button" class="jd-btn jd-btn--pri jd-btn--block" data-primary="invoice">${
+                b.invoiced_total > 0 ? "Faturar saldo" : "Faturar"
+              } ${money0(b.remaining_to_invoice)}</button>`
+            : "";
+        const completeBtn =
+          canManage && job.status !== "completed" && job.status !== "canceled"
+            ? `<button type="button" class="jd-btn jd-btn--block" data-primary="complete">Marcar como concluído</button>`
+            : "";
+        return invoiceBtn || completeBtn ? `<div class="jd-money-acts">${invoiceBtn}${completeBtn}</div>` : "";
+      })()}`;
   }
 
   // ---------------------------------------------------------------- after the job (review, caption, report, portfolio)

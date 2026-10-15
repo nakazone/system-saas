@@ -142,7 +142,9 @@ function listItem(inv: ListRow, now: Date) {
     days_overdue: m.daysOverdue,
     due_date: inv.dueDate,
     issued_at: inv.issuedAt,
-    email_sent_at: inv.issuedAt,
+    // Job invoices are created as status "sent" without e-mailing; only sentTo means mail went out.
+    email_sent_at: inv.sentTo ? inv.issuedAt : null,
+    sent_to: inv.sentTo || null,
     viewed_at: inv.viewedAt,
     paid_at: inv.paidAt,
     created_at: inv.createdAt,
@@ -229,6 +231,8 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
     days_overdue: m.daysOverdue,
     due_date: inv.dueDate,
     issued_at: inv.issuedAt,
+    // Same signal as the list: issued ≠ e-mailed. Job "Faturar" sets issuedAt without sending.
+    email_sent_at: inv.sentTo ? inv.issuedAt : null,
     viewed_at: inv.viewedAt,
     paid_at: inv.paidAt,
     voided_at: inv.voidedAt,

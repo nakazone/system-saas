@@ -5,7 +5,7 @@ import { recordActivity } from "../activity/record.js";
 import { issuePublicAccessToken } from "../quotes/public-token.js";
 import { documentAddressLine, documentLicenseLine } from "../settings/organization.js";
 import { computeInvoiceMoney, invoiceKindLabel, storedStatusAfterPayments } from "./core.js";
-import { quoteInvoiceLines, quoteReferenceNoteOf, selectedQuoteServiceLines } from "./job.js";
+import { jobInvoiceLines, quoteInvoiceLines, quoteReferenceNoteOf, selectedQuoteServiceLines } from "./job.js";
 import { buildInvoicePdf, type DocClient, type DocOrg, type InvoicePdfInput, type ReceiptPdfInput } from "./pdf.js";
 
 export { quoteReferenceNoteOf };
@@ -59,7 +59,10 @@ export const invoiceDetailInclude = {
       scheduledStart: true,
       builderId: true,
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
-      lineItems: { select: { lineTotal: true } },
+      lineItems: {
+        select: { serviceName: true, notes: true, quantitySqft: true, unitPrice: true, lineTotal: true },
+        orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
+      },
       invoices: { select: siblingInvoiceSelect },
     },
   },
@@ -213,8 +216,8 @@ export function contractSummaryOf(inv: InvoiceDetail): {
 }
 
 /**
- * Quote invoices always show contracted services from the quote (never "Less: not due…"
- * balancing rows). Job invoices and invoices without quote services keep stored lines.
+ * Quote / job invoices always show contracted services (never a single deposit summary row).
+ * Partial amounts are reflected in invoice.amount / Balance Due, not by collapsing lines.
  */
 export function resolvedInvoiceLines(inv: InvoiceDetail): {
   description: string;
@@ -230,19 +233,31 @@ export function resolvedInvoiceLines(inv: InvoiceDetail): {
     unitPrice: Number(l.unitPrice),
     amount: Number(l.amount),
   }));
-  const quote = inv.quote;
-  if (!quote) return stored;
-  const selected = selectedQuoteServiceLines(quote.lineItems || []);
-  if (selected.length === 0) return stored;
-
   const kind = String(inv.invoiceType || "other");
-  return quoteInvoiceLines({
-    kind,
-    label: invoiceKindLabel(kind),
-    amount: Number(inv.amount) || 0,
-    quote,
-    invoicedBefore: 0,
-  });
+  const quote = inv.quote;
+  if (quote) {
+    const selected = selectedQuoteServiceLines(quote.lineItems || []);
+    if (selected.length > 0) {
+      return quoteInvoiceLines({
+        kind,
+        label: invoiceKindLabel(kind),
+        amount: Number(inv.amount) || 0,
+        quote,
+        invoicedBefore: 0,
+      });
+    }
+  }
+  const wo = inv.workOrder;
+  if (wo?.lineItems?.length) {
+    return jobInvoiceLines({
+      kind,
+      label: invoiceKindLabel(kind),
+      amount: Number(inv.amount) || 0,
+      job: wo,
+      invoicedBefore: 0,
+    });
+  }
+  return stored;
 }
 
 /** Sum of contracted service amounts shown on the invoice (Total Services). */
@@ -250,6 +265,10 @@ export function servicesTotalOf(inv: InvoiceDetail): number {
   const lines = resolvedInvoiceLines(inv);
   const sum = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
   if (sum > 0) return Math.round(sum * 100) / 100;
+  if (inv.workOrder?.lineItems?.length) {
+    const jobSum = inv.workOrder.lineItems.reduce((s, li) => s + (Number(li.lineTotal) || 0), 0);
+    if (jobSum > 0) return Math.round(jobSum * 100) / 100;
+  }
   return Math.round((Number(inv.quote?.total) || Number(inv.amount) || 0) * 100) / 100;
 }
 

@@ -139,20 +139,31 @@
   }
   /** Próximo passo curto para a linha (a fatura aberta mostra o cartão completo). */
   function nextStep(i) {
-    const sent = i.email_sent_at || i.issued_at;
+    const emailed = Boolean(i.email_sent_at || i.sent_to);
+    const sent = i.email_sent_at || (emailed ? i.issued_at : null);
     switch (i.display_status) {
       case 'draft':
         return { t: 'Enviar ao cliente', hot: false };
       case 'overdue':
-        return { t: `Cobrar · ${i.viewed_at ? `vista ${dshort(i.viewed_at)}` : sent ? `enviada ${dshort(sent)}, não abriu` : 'não abriu'}`, hot: true };
+        return {
+          t: `Cobrar · ${
+            i.viewed_at
+              ? `vista ${dshort(i.viewed_at)}`
+              : emailed
+                ? `enviada ${dshort(sent)}, não abriu`
+                : 'e-mail não enviado'
+          }`,
+          hot: true,
+        };
       case 'paid':
         return { t: `${money(i.amount, 0)} recebido`, hot: false };
       case 'void':
         return { t: 'Anulada', hot: false };
       default:
+        if (!emailed) return { t: 'Enviar ao cliente', hot: false };
         if (i.paid_amount > 0) return { t: `Receber saldo ${money(i.remaining_amount, 0)}`, hot: false };
         if (i.viewed_at) return { t: `Vista ${dshort(i.viewed_at)} · aguardando`, hot: false };
-        return { t: sent ? `Enviada ${dshort(sent)} · não abriu` : 'Aguardando pagamento', hot: false };
+        return { t: `Enviada ${dshort(sent)} · não abriu`, hot: false };
     }
   }
 

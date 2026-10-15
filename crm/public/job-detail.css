@@ -111,6 +111,8 @@
 .jd-warn { margin: 0 0 10px; color: var(--jd-terra-d); font-weight: 700; font-size: 13px; }
 .jd-row-end { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .jd-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.jd-money-acts { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.jd-money-acts .jd-btn--block { width: 100%; }
 
 /* facts */
 .jd-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 14px 18px; }

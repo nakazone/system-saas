@@ -1849,6 +1849,10 @@
     const customerId = card?.customerId || st.customerId;
     if (!customerId) return;
     const code = String(raw || "").trim().slice(0, 80);
+    const input = $("jmClientCode");
+    // Preserve caret — do not remount the client block while typing.
+    const selStart = input && document.activeElement === input ? input.selectionStart : null;
+    const selEnd = input && document.activeElement === input ? input.selectionEnd : null;
     try {
       const r = await api(`/api/customers/${encodeURIComponent(customerId)}`, {
         method: "PUT",
@@ -1863,11 +1867,22 @@
           c.display_name = code ? `${c.name} - ${code}` : c.name;
         }
       }
-      if (!st.pickerOpen) renderClient();
+      // Update the name label in place; keep the ID input (and focus) intact.
+      const nameEl = $("jmClient")?.querySelector(".jm-picked__txt b");
+      if (nameEl) {
+        const fresh = clientCard();
+        const tag = fresh ? TYPE_LABEL[fresh.type] || fresh.type : "";
+        nameEl.innerHTML = `${esc(fresh?.name || "")} <span class="jm-tag">${esc(tag)}</span>`;
+      }
       if (!st.titleTouched) {
         st.title = autoTitle();
         const titleEl = $("jobTitle");
         if (titleEl && !st.moreOpen) titleEl.value = st.title;
+      }
+      if (input && selStart != null) {
+        try {
+          input.setSelectionRange(selStart, selEnd ?? selStart);
+        } catch (_) {}
       }
     } catch (err) {
       notify(err.message || "Não foi possível salvar o ID do cliente", "error");
