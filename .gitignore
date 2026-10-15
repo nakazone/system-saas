@@ -10,3 +10,4 @@ uploads/
 *.tsbuildinfo
 
 /data/
+i18n-missing.tsv

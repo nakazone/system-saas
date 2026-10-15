@@ -978,3 +978,60 @@ textarea.cm-body { min-height: 260px; font-family: ui-monospace, "SF Mono", Menl
   .cols-sess { grid-template-columns: minmax(0, 1fr) auto 96px; }
   .cols-hist { grid-template-columns: auto minmax(0, 1fr); }
 }
+
+/* ---------- Idiomas ---------- */
+.i18-langs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.25fr); gap: 14px; margin: 0 0 18px; align-items: start; }
+.i18-lang { background: #fff; box-shadow: inset 0 0 0 1px var(--line); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: inherit; }
+a.i18-lang:hover { box-shadow: inset 0 0 0 1.5px #d9d1c5; }
+.i18-lang.is-on { box-shadow: inset 0 0 0 2px var(--ink); }
+.i18-lang > b { font-size: 16px; font-weight: 800; }
+.i18-lang--note { background: var(--sunken); box-shadow: none; }
+.i18-code { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .04em; padding: 3px 8px; border-radius: 8px; background: var(--ink); color: #fff; }
+.i18-stats { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-2); }
+.i18-stats b { font-weight: 800; }
+.i18-edits { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 6px; }
+.i18-note { font-size: 12.5px; font-weight: 600; line-height: 1.45; }
+.i18-explain { margin: 0 0 14px; max-width: 900px; }
+.cols-i18t { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, .9fr) auto; }
+.cols-i18f { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; position: relative; }
+.i18-word { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.i18-word small { flex-basis: 100%; font-weight: 600; }
+.i18-arrow { color: var(--muted); font-weight: 800; }
+.i18-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.i18-actions form { margin: 0; }
+.i18-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 22px 20px; }
+.i18-reach { font-size: 13px; line-height: 1.45; background: var(--sunken); border-radius: 12px; padding: 0 14px; }
+.i18-reach:not(:empty) { padding: 10px 14px; }
+.i18-reach p { margin: 0 0 6px; }
+.i18-reach ul { margin: 0; padding-left: 18px; }
+.i18-reach li { margin: 2px 0; }
+.i18-del { margin-top: 8px; }
+.i18-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 8px; }
+.i18-filter .input { flex: 1 1 320px; height: 44px; }
+.i18-count { margin: 0 0 12px; font-size: 13px; font-weight: 600; }
+.i18-prow { cursor: pointer; }
+.i18-prow:hover:not([disabled]) { background: var(--sunken); }
+.i18-cell { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.i18-cell.is-edited { font-weight: 800; }
+.i18-cell.is-edited::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: middle; }
+.i18-was { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); text-decoration: line-through; }
+.i18-custom { position: absolute; right: 12px; top: 8px; }
+.i18-pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 14px 0; font-size: 13px; font-weight: 700; }
+.i18-source { display: flex; flex-direction: column; gap: 4px; background: var(--sunken); border-radius: 12px; padding: 10px 14px; font-size: 14px; }
+.i18-source span { font-size: 12px; font-weight: 700; }
+.i18-ta { min-height: 60px !important; }
+.i18-test { display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
+.i18-test > .btn { align-self: flex-start; }
+.i18-test-out { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.i18-test-out > div { background: var(--sunken); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.i18-test-out pre { margin: 0; font: inherit; font-size: 14px; white-space: pre-wrap; line-height: 1.5; }
+@media (max-width: 1100px) {
+  .i18-langs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .i18-langs { grid-template-columns: 1fr; }
+  .cols-i18t { grid-template-columns: minmax(0, 1fr) auto; }
+  .cols-i18f { grid-template-columns: 1fr !important; }
+  .cols-i18f .i18-cell:not(:first-child)::after { content: none; }
+  .i18-test-out { grid-template-columns: 1fr; }
+}

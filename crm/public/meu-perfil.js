@@ -354,12 +354,10 @@
     document.querySelectorAll(".mp-langs [data-locale]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const code = btn.getAttribute("data-locale");
-        if (window.CrmI18n) window.CrmI18n.setLocale(code);
-        syncLocaleSeg();
-        if (window.CrmI18n) window.CrmI18n.apply(document);
-        if (typeof window.crmNotify === "function") {
-          window.crmNotify("Idioma atualizado neste aparelho.", "success");
-        }
+        if (window.CrmI18n && window.CrmI18n.getLocale() === code) return;
+        // Saved on the account (all devices) and the page reloads in the new language.
+        if (window.CrmI18n && window.CrmI18n.switchTo) window.CrmI18n.switchTo(code);
+        else syncLocaleSeg();
       });
     });
 

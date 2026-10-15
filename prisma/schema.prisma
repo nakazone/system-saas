@@ -881,6 +881,8 @@ model User {
   mustChangePassword Boolean  @default(false)
   /// Usual start address for day route maps (home / shop / yard).
   routeStartAddress  String?
+  /// Interface language chosen by the user (pt | en | es). Null = company default.
+  uiLocale           String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -3300,4 +3302,41 @@ model SupportTicketMessage {
 
   @@index([ticketId, createdAt])
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Interface languages (Master › Idiomas)
+// ---------------------------------------------------------------------------
+
+/// Word/expression swap in one interface language, e.g. pt: "Orçamento" → "Quote".
+model I18nTerm {
+  id            String   @id @default(uuid()) @db.Uuid
+  locale        String // pt | en | es
+  find          String
+  replace       String
+  findPlural    String?
+  replacePlural String?
+  matchCase     Boolean  @default(false)
+  active        Boolean  @default(true)
+  note          String?
+  updatedById   String?  @db.Uuid
+  updatedByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([locale])
+}
+
+/// Edited translation of one interface text (missing row = text from dictionary.json).
+model I18nPhrase {
+  source        String
+  locale        String // pt | en | es
+  text          String   @db.Text
+  /// true when the text isn't in the base dictionary (added by the Master)
+  custom        Boolean  @default(false)
+  updatedById   String?  @db.Uuid
+  updatedByName String
+  updatedAt     DateTime @updatedAt
+
+  @@id([source, locale])
 }

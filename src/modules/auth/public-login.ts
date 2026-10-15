@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import express from "express";
 import path from "node:path";
 import { crmAuthRouter } from "../../crm/auth-api.js";
-import { CRM_PUBLIC_DIR } from "../../crm/mount.js";
+import { CRM_PUBLIC_DIR, crmHtmlWithLanguage } from "../../crm/mount.js";
 
 const loginStatic = express.static(CRM_PUBLIC_DIR, {
   index: false,
@@ -26,7 +26,12 @@ export function publicEmailLogin(
   }
 
   if (p === "/login.html" || p === "/forgot-password.html" || p === "/reset-password.html") {
-    res.sendFile(path.join(CRM_PUBLIC_DIR, p.slice(1)));
+    crmHtmlWithLanguage(req, path.join(CRM_PUBLIC_DIR, p.slice(1)))
+      .then((html) => {
+        res.setHeader("Cache-Control", "no-store, max-age=0");
+        res.type("html").send(html);
+      })
+      .catch(next);
     return;
   }
 

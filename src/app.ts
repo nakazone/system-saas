@@ -60,6 +60,7 @@ import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
 import { CRM_ASSETS_DIR, CRM_PUBLIC_DIR } from "./crm/mount.js";
 import { getLocalFileStorage } from "./lib/storage/index.js";
+import { i18nPublicRouter } from "./lib/i18n/routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PgSession = connectPgSimple(session);
@@ -249,6 +250,8 @@ export function createApp() {
   app.use(publicReceiveLeadRouter);
   // Referral signup links: /r/:orgSlug/:code
   app.use(publicReferralRouter);
+  // Interface language dictionary for the CRM screens (public, cached by version).
+  app.use(i18nPublicRouter);
 
   // Master area of the platform owner (path-based so it works on any host).
   app.use("/master", masterRouter);

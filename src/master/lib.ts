@@ -37,7 +37,8 @@ export type Capability =
   | "ops_manage"
   | "comms_manage"
   | "privacy_manage"
-  | "data_delete";
+  | "data_delete"
+  | "i18n_manage";
 
 export const CAPABILITIES: { key: Capability; label: string }[] = [
   { key: "view", label: "Ver empresas, usuários e contatos" },
@@ -54,11 +55,12 @@ export const CAPABILITIES: { key: Capability; label: string }[] = [
   { key: "comms_manage", label: "Comunicação: avisos no app e modelos de e-mail" },
   { key: "privacy_manage", label: "Pedidos de privacidade (registrar e responder)" },
   { key: "data_delete", label: "Excluir dados de uma pessoa ou uma empresa de vez" },
+  { key: "i18n_manage", label: "Idiomas: trocar palavras e frases do sistema" },
 ];
 
 const MATRIX: Record<PlatformRole, Capability[]> = {
-  MASTER: ["view", "billing_full", "billing_manage", "refund", "users_manage", "tenants_suspend", "export", "team_manage", "plans_manage", "support_enter", "ops_manage", "comms_manage", "privacy_manage", "data_delete"],
-  ADMIN: ["view", "billing_full", "billing_manage", "users_manage", "tenants_suspend", "support_enter", "ops_manage", "comms_manage", "privacy_manage"],
+  MASTER: ["view", "billing_full", "billing_manage", "refund", "users_manage", "tenants_suspend", "export", "team_manage", "plans_manage", "support_enter", "ops_manage", "comms_manage", "privacy_manage", "data_delete", "i18n_manage"],
+  ADMIN: ["view", "billing_full", "billing_manage", "users_manage", "tenants_suspend", "support_enter", "ops_manage", "comms_manage", "privacy_manage", "i18n_manage"],
   FINANCE: ["view", "billing_full", "billing_manage"],
   SUPPORT: ["view", "users_manage", "support_enter"],
   READONLY: ["view"],
