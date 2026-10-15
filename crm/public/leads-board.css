@@ -267,6 +267,26 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
   overflow: hidden;
 }
 .lb-card__next .om-sig { max-width: 100%; }
+.lb-card__note {
+  margin-top: 7px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  background: #F8F5F0;
+  color: #44403C;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.lb-card__note--change {
+  background: #FFF4EB;
+  color: #9A3412;
+  box-shadow: inset 0 0 0 1px rgba(231, 121, 44, 0.28);
+}
 .lb-card__ft span { white-space: nowrap; }
 .lb-card__ft { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--lb-line); font-size: 11.5px; color: var(--lb-ink3); min-height: 32px; }
 .lb-owner { width: 20px; height: 20px; border-radius: 50%; background: var(--lb-ink); color: #fff; display: inline-grid; place-items: center; font-size: 8.5px; font-weight: 700; flex: none; }
@@ -291,34 +311,55 @@ html body .lb .kanban-column-count { background: #fff !important; color: var(--l
 .om-sig--hot { color: #B4561A; font-weight: 600; }
 .om-sig--ok { color: #536249; font-weight: 600; }
 
-/* arrastar (Sortable) — ghost na coluna + clone flutuante suave */
+/* arrastar (Sortable) — placeholder limpo + clone flutuante com inércia */
+body.lb-dnd-active {
+  cursor: grabbing !important;
+  user-select: none;
+}
+body.lb-dnd-active .lb .lb-card {
+  transition: none !important;
+}
 .lb .kanban-card--ghost,
 .lb .lb-card.kanban-card--ghost,
 .lb .sortable-ghost {
-  opacity: .38 !important;
+  opacity: 1 !important;
+  color: transparent !important;
   box-shadow: none !important;
-  background: color-mix(in srgb, var(--stage-color, #98A2B3) 14%, #fff) !important;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 18%, #EEF0F3) !important;
   border-radius: 14px !important;
+  outline: 2px dashed color-mix(in srgb, var(--stage-color, #98A2B3) 55%, #98A2B3) !important;
+  outline-offset: -2px;
+}
+.lb .kanban-card--ghost > *,
+.lb .lb-card.kanban-card--ghost > *,
+.lb .sortable-ghost > * {
+  visibility: hidden !important;
 }
 .lb .kanban-card--chosen,
 .lb .lb-card.kanban-card--chosen,
 .lb .sortable-chosen {
   cursor: grabbing;
-  box-shadow: 0 0 0 1px #D0D5DD, 0 16px 36px -14px rgba(16, 24, 40, .38) !important;
+  opacity: 0.92;
 }
 .lb .kanban-card--drag,
 .lb .sortable-fallback,
 .sortable-fallback.kanban-card--drag,
 .sortable-fallback.lb-card {
-  opacity: .98 !important;
+  /* Do not set transform here — Sortable fallback positions the clone with translate3d. */
+  opacity: 1 !important;
   cursor: grabbing !important;
-  box-shadow: 0 24px 52px -18px rgba(16, 24, 40, .48), 0 0 0 1px rgba(231, 121, 44, .35) !important;
+  box-shadow:
+    0 32px 64px -18px rgba(16, 24, 40, .55),
+    0 0 0 1.5px rgba(231, 121, 44, .45) !important;
   border-radius: 14px !important;
   z-index: 10050 !important;
   pointer-events: none;
+  background: #fff !important;
+  filter: saturate(1.05);
 }
-.lb .kanban-column-cards .sortable-ghost {
-  min-height: 64px;
+.lb .kanban-column-cards .sortable-ghost,
+.lb .kanban-column-cards .kanban-card--ghost {
+  min-height: 72px;
 }
 @media (prefers-reduced-motion: reduce) {
   .lb .lb-card,
@@ -385,6 +426,21 @@ html body .lb .kanban-column-title { width: 100%; }
 .mleads .mleads-card__name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mleads .mleads-card__pri { width: 7px; height: 7px; border-radius: 50%; background: #E7792C; flex: none; }
 .mleads .mleads-card__next { margin: 3px 0 0; }
+.mleads .mleads-card__note {
+  margin: 5px 0 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #F8F5F0;
+  color: #44403C;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
 .mleads .mleads-card__stage { margin: 4px 0 0; display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 550; color: #98A2B3; }
 .mleads .mleads-card__value { font-size: 15px; font-weight: 700; }
 .mleads .mleads-card__ago { font-size: 11.5px; color: #98A2B3; }

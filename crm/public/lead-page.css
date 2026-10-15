@@ -152,6 +152,30 @@ body.om-app .dashboard-main.lp-main { background: #F7F8FA; }
 .lp-next__t { margin: 0 0 3px; font-size: 18px; font-weight: 650; line-height: 1.3; letter-spacing: -.01em; }
 .lp-next__s { margin: 0 0 14px; font-size: 13px; color: #98A2B3; line-height: 1.4; }
 .lp-next--warn .lp-next__s { color: #F4B184; }
+.lp-change-note {
+  margin: 10px 0 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #FFF4EB;
+  border-left: 3px solid #E7792C;
+  color: #7C2D12;
+}
+.lp-change-note__lbl {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #B4561A;
+  margin-bottom: 4px;
+}
+.lp-change-note p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .lp-next__acts { display: flex; gap: 8px; }
 .lp-next__acts .lp-btn { flex: 1; }
 

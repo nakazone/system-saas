@@ -1203,24 +1203,42 @@ a.omd-kpi:hover {
   box-shadow: 0 0 0 1px #D0D5DD, 0 6px 16px -10px rgba(16, 24, 40, 0.25);
 }
 
+body.omd-dnd-active {
+  cursor: grabbing !important;
+  user-select: none;
+}
+body.omd-dnd-active .omd-lead {
+  transition: none !important;
+}
+
 .omd-lead--ghost {
-  opacity: 0.38 !important;
+  opacity: 1 !important;
+  color: transparent !important;
   box-shadow: none !important;
-  background: color-mix(in srgb, var(--stage-color, #98A2B3) 14%, #fff) !important;
+  background: color-mix(in srgb, var(--stage-color, #98A2B3) 18%, #EEF0F3) !important;
+  outline: 2px dashed color-mix(in srgb, var(--stage-color, #98A2B3) 55%, #98A2B3) !important;
+  outline-offset: -2px;
+  min-height: 64px;
+}
+.omd-lead--ghost > * {
+  visibility: hidden !important;
 }
 
 .omd-lead--chosen {
   cursor: grabbing;
-  box-shadow: 0 0 0 1px #D0D5DD, 0 16px 36px -14px rgba(16, 24, 40, 0.38);
+  opacity: 0.92;
 }
 
 .omd-lead--drag,
 .sortable-fallback.omd-lead--drag {
-  opacity: 0.98 !important;
+  /* Do not set transform — Sortable fallback uses translate3d for position. */
+  opacity: 1 !important;
   cursor: grabbing !important;
-  box-shadow: 0 24px 52px -18px rgba(16, 24, 40, 0.48), 0 0 0 1px rgba(231, 121, 44, 0.35) !important;
+  box-shadow: 0 32px 64px -18px rgba(16, 24, 40, 0.55), 0 0 0 1.5px rgba(231, 121, 44, 0.45) !important;
   z-index: 10050 !important;
   pointer-events: none;
+  background: #fff !important;
+  filter: saturate(1.05);
 }
 
 .omd-lead__r1 {

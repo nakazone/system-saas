@@ -62,6 +62,24 @@
     return q && q.quote_number ? 'Q-' + String(q.quote_number).replace(/^Q-?/i, '') : 'Orçamento';
   }
 
+  /** First useful line from notes or intake message (skips CEP / address-only lines). */
+  function noteText(lead, maxLen) {
+    const raw = String((lead && (lead.notes || lead.message || lead.followup_notes)) || '')
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .find((s) => s && !/^CEP:/i.test(s) && !/^Endereço:/i.test(s) && !/^Indicação de /i.test(s));
+    if (!raw) return '';
+    const max = maxLen != null ? maxLen : 100;
+    return raw.length > max ? raw.slice(0, max - 1) + '…' : raw;
+  }
+
+  function clip(text, maxLen) {
+    const s = String(text || '').trim();
+    if (!s) return '';
+    const max = maxLen != null ? maxLen : 72;
+    return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  }
+
   /**
    * @param {object} lead  linha de /api/leads
    * @param {object|null} quote  resumo de /api/leads/quote-engagement-summary
@@ -77,14 +95,29 @@
     const fuAt = lead.followup_due_at ? new Date(lead.followup_due_at).getTime() : NaN;
     if (!Number.isNaN(fuAt) && fuAt < now) {
       const d = daysSince(lead.followup_due_at);
-      return { tone: 'hot', icon: 'flag', text: 'Follow-up atrasado' + (d ? ` · ${d} ${d === 1 ? 'dia' : 'dias'}` : '') };
+      const fuNote = clip(lead.followup_notes || lead.followup_title, 48);
+      return {
+        tone: 'hot',
+        icon: 'flag',
+        text:
+          'Follow-up atrasado' +
+          (d ? ` · ${d} ${d === 1 ? 'dia' : 'dias'}` : '') +
+          (fuNote ? ' · ' + fuNote : ''),
+      };
     }
     if (lead.next_visit_at) return { tone: 'ok', icon: 'cal', text: 'Visita ' + when(lead.next_visit_at, true) };
 
     if (quote) {
       const st = String(quote.status || 'draft');
       if (st === 'approved' || st === 'accepted' || st === 'converted') return { tone: 'ok', icon: 'check', text: quoteLabel(quote) + ' aprovado' };
-      if (st === 'changes_requested') return { tone: 'hot', icon: 'doc', text: 'Pediu alterações no ' + quoteLabel(quote) };
+      if (st === 'changes_requested') {
+        const req = clip(quote.change_request_note, 64);
+        return {
+          tone: 'hot',
+          icon: 'doc',
+          text: req ? 'Alteração: ' + req : 'Pediu alterações no ' + quoteLabel(quote),
+        };
+      }
       if (quote.viewed_at) return { tone: '', icon: 'eye', text: 'Visto ' + when(quote.viewed_at, false) };
       if (st === 'sent' || quote.email_sent_at) {
         const d = daysSince(quote.email_sent_at || quote.created_at);
@@ -93,7 +126,14 @@
       }
       if (st === 'draft') return { tone: '', icon: 'doc', text: quoteLabel(quote) + ' em rascunho' };
     }
-    if (!Number.isNaN(fuAt)) return { tone: '', icon: 'flag', text: 'Follow-up ' + when(lead.followup_due_at, true) };
+    if (!Number.isNaN(fuAt)) {
+      const fuNote = clip(lead.followup_notes || lead.followup_title, 48);
+      return {
+        tone: '',
+        icon: 'flag',
+        text: 'Follow-up ' + when(lead.followup_due_at, true) + (fuNote ? ' · ' + fuNote : ''),
+      };
+    }
 
     if (slug === 'new_lead') {
       const d = daysSince(lead.created_at);
@@ -135,5 +175,5 @@
       .replace(/</g, '&lt;')}</span></span>`;
   }
 
-  global.omLeadSignals = { nextStep, value, money, initials, html, icon, when, daysSince };
+  global.omLeadSignals = { nextStep, value, money, initials, html, icon, when, daysSince, noteText, clip };
 })(window);

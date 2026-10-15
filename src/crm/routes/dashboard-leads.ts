@@ -102,7 +102,7 @@ function leadAgenda(meta: LeadMeta) {
     if (st !== "scheduled" || Number.isNaN(t) || t < now) continue;
     if (!visit || t < new Date(visit.at).getTime()) visit = { at, address: v.address ? String(v.address) : null };
   }
-  let followup: { due: string | null; title: string } | null = null;
+  let followup: { due: string | null; title: string; notes: string | null } | null = null;
   for (const raw of Array.isArray(meta.followups) ? meta.followups : []) {
     if (!raw || typeof raw !== "object") continue;
     const f = raw as Record<string, unknown>;
@@ -110,9 +110,24 @@ function leadAgenda(meta: LeadMeta) {
     const due = f.due_date ? String(f.due_date) : null;
     const t = due ? new Date(due).getTime() : Infinity;
     const cur = followup && followup.due ? new Date(followup.due).getTime() : Infinity;
-    if (!followup || t < cur) followup = { due, title: String(f.title || "Follow-up") };
+    if (!followup || t < cur) {
+      const desc = f.description != null ? String(f.description).trim() : "";
+      followup = {
+        due,
+        title: String(f.title || "Follow-up"),
+        notes: desc || null,
+      };
+    }
   }
   return { visit, followup };
+}
+
+/** Prefer DB notes; fall back to intake `message` so system-created leads always surface text. */
+function resolveLeadNotes(notes: string | null | undefined, meta: LeadMeta): string | null {
+  const fromNotes = notes != null && String(notes).trim() ? String(notes).trim() : "";
+  if (fromNotes) return fromNotes;
+  const fromMsg = meta.message != null && String(meta.message).trim() ? String(meta.message).trim() : "";
+  return fromMsg || null;
 }
 
 function mapLead(l: {
@@ -139,6 +154,9 @@ function mapLead(l: {
   const agenda = leadAgenda(meta);
   // Prefer explicit lead.status (set by visit/automation) over stale pipeline join
   const statusSlug = (l.status && String(l.status).trim()) || l.pipelineStage?.slug || "";
+  const metaFields = Object.fromEntries(
+    META_TEXT_KEYS.map((k) => [k, meta[k] != null && meta[k] !== "" ? String(meta[k]) : null]),
+  );
   return {
     id: l.id,
     name: l.name,
@@ -146,7 +164,7 @@ function mapLead(l: {
     phone: formatUsPhone(l.phone),
     source: l.source,
     status: statusSlug,
-    notes: l.notes,
+    notes: resolveLeadNotes(l.notes, meta),
     address: meta.address ?? null,
     zipcode: meta.zipcode ?? null,
     priority: meta.priority ?? "medium",
@@ -161,7 +179,7 @@ function mapLead(l: {
     owner_name: l.owner?.name ?? null,
     created_at: l.createdAt.toISOString(),
     updated_at: l.updatedAt.toISOString(),
-    ...Object.fromEntries(META_TEXT_KEYS.map((k) => [k, meta[k] != null && meta[k] !== "" ? String(meta[k]) : null])),
+    ...metaFields,
     tags: cleanTags(meta.tags),
     loss_reason_id: l.lossReasonId ?? null,
     loss_reason_name: l.lossReason?.name ?? null,
@@ -172,6 +190,7 @@ function mapLead(l: {
     next_visit_address: agenda.visit?.address ?? null,
     followup_due_at: agenda.followup?.due ?? null,
     followup_title: agenda.followup?.title ?? null,
+    followup_notes: agenda.followup?.notes ?? null,
   };
 }
 
@@ -273,7 +292,17 @@ dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmPermis
       const quotes = await tx.quote.findMany({
         where: { leadId: { not: null }, status: { not: "archived" } },
         orderBy: { createdAt: "desc" },
-        select: { leadId: true, quoteNumber: true, total: true, status: true, viewedAt: true, signedAt: true, payload: true, createdAt: true },
+        select: {
+          leadId: true,
+          quoteNumber: true,
+          total: true,
+          status: true,
+          viewedAt: true,
+          signedAt: true,
+          payload: true,
+          createdAt: true,
+          changeRequestNote: true,
+        },
         take: 5000,
       });
       const out: Record<string, Record<string, unknown>> = {};
@@ -296,6 +325,7 @@ dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmPermis
           viewed_at: q.viewedAt ? q.viewedAt.toISOString() : null,
           signed_at: q.signedAt ? q.signedAt.toISOString() : null,
           created_at: q.createdAt.toISOString(),
+          change_request_note: q.changeRequestNote || null,
         };
       }
       return out;
@@ -1102,6 +1132,8 @@ dashboardLeadsRouter.post("/api/leads", requireCrmPermission("leads.create"), as
     if (["low", "medium", "high"].includes(priority)) meta.priority = priority;
     if (parsed.data.zipcode) meta.zipcode = parsed.data.zipcode.trim();
     if (parsed.data.address) meta.address = parsed.data.address.trim();
+    // Persist intake message in metadata so UIs that read `message` still work.
+    if (parsed.data.message) meta.message = String(parsed.data.message).trim();
 
     const result = await withTenantTransaction(req.organizationId!, async (tx) => {
       if (parsed.data.check_duplicates) {

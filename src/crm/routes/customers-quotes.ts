@@ -527,6 +527,7 @@ function mapQuote(q: {
   discountType: string | null;
   discountValue: unknown;
   notes: string | null;
+  changeRequestNote?: string | null;
   terms: string | null;
   serviceType: string | null;
   customerId: string | null;
@@ -611,6 +612,7 @@ function mapQuote(q: {
     discount_type: q.discountType === "percent" ? "percentage" : q.discountType || "percentage",
     discount_value: dec(q.discountValue),
     notes: q.notes,
+    change_request_note: q.changeRequestNote ?? null,
     terms: q.terms,
     terms_conditions: q.terms,
     service_type: q.serviceType,

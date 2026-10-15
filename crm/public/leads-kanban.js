@@ -253,9 +253,10 @@ function resolveStageForLead(lead) {
     return pipelineStages[0];
 }
 
-/** Atualiza lead em memoria e re-renderiza colunas (apos PUT do painel). */
-function patchKanbanLeadCache(updatedLead) {
+/** Merge lead into in-memory cache. Soft mode skips full board rebuild (keeps DnD FLIP intact). */
+function patchKanbanLeadCache(updatedLead, opts) {
     if (!updatedLead || updatedLead.id == null) return;
+    const soft = Boolean(opts && opts.soft);
     const nid = kanbanLeadId(updatedLead.id);
     if (!nid) return;
     const idx = allLeads.findIndex((l) => kanbanLeadId(l.id) === nid);
@@ -277,9 +278,55 @@ function patchKanbanLeadCache(updatedLead) {
         }
         allLeads.push(row);
     }
+    if (soft) {
+        syncKanbanColumnMetaFromCache();
+        try {
+            renderLeadsBoardSummary();
+        } catch (_) {}
+        syncKanbanLostToggleUi();
+        return;
+    }
     renderKanbanBoard();
     syncKanbanLostToggleUi();
     renderLeadsMobilePipeline();
+}
+
+/** Update column counts/values without destroying cards (post-DnD). */
+function syncKanbanColumnMetaFromCache() {
+    const board = document.getElementById('kanbanBoard');
+    if (!board) return;
+    getKanbanBoardStages().forEach((stage) => {
+        const stageLeads = allLeads.filter((lead) => leadMatchesKanbanColumn(lead, stage) && lbLeadPasses(lead));
+        const total = stageLeads.length;
+        const stageValue = stageLeads.reduce((s, l) => s + lbLeadAmount(l), 0);
+        const slug = String(stage.slug || '');
+        const col = Array.from(board.querySelectorAll('.kanban-column')).find(
+            (el) => el.getAttribute('data-stage-slug') === slug,
+        );
+        if (!col) return;
+        const countEl = col.querySelector('.kanban-column-count');
+        if (countEl) countEl.textContent = String(total);
+        let valEl = col.querySelector('.kanban-column-value');
+        const moneyTxt =
+            stageValue > 0
+                ? window.omLeadSignals
+                    ? window.omLeadSignals.money(stageValue)
+                    : '$' + Math.round(stageValue)
+                : '';
+        if (moneyTxt) {
+            if (!valEl) {
+                const header = col.querySelector('.kanban-column-header');
+                if (header) {
+                    valEl = document.createElement('span');
+                    valEl.className = 'kanban-column-value';
+                    header.appendChild(valEl);
+                }
+            }
+            if (valEl) valEl.textContent = moneyTxt;
+        } else if (valEl) {
+            valEl.remove();
+        }
+    });
 }
 
 /** Pipeline stage colors (azul / laranja / verde… — same defaults as PIPELINE_V9_KANBAN_DEFAULTS). */
@@ -825,8 +872,8 @@ function initKanbanSortables() {
         kanbanSortables.push(
             Sortable.create(el, {
                 group: 'leads-kanban',
-                animation: 280,
-                easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                animation: 360,
+                easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
                 draggable: '.kanban-card[data-lead-id]:not([data-lead-id=""])',
                 filter: '.btn-lead-delete-kanban, button, a, .kanban-column-empty, .lead-quote-icons',
                 preventOnFilter: false,
@@ -834,19 +881,26 @@ function initKanbanSortables() {
                 // fails to commit the drop (card snaps back). Use Sortable's fallback.
                 forceFallback: true,
                 fallbackOnBody: true,
-                fallbackTolerance: 6,
-                emptyInsertThreshold: 48,
-                swapThreshold: 0.65,
+                fallbackTolerance: 4,
+                emptyInsertThreshold: 56,
+                swapThreshold: 0.5,
                 invertSwap: true,
-                delay: 120,
+                direction: 'vertical',
+                scroll: true,
+                bubbleScroll: true,
+                scrollSensitivity: 72,
+                scrollSpeed: 18,
+                delay: 90,
                 delayOnTouchOnly: true,
-                touchStartThreshold: 5,
+                touchStartThreshold: 4,
                 ghostClass: 'kanban-card--ghost',
                 chosenClass: 'kanban-card--chosen',
                 dragClass: 'kanban-card--drag',
                 fallbackClass: 'kanban-card--drag',
-                onStart() {
+                onStart(evt) {
                     kanbanSuppressCardClick = true;
+                    document.body.classList.add('lb-dnd-active');
+                    if (evt && evt.item) evt.item.classList.add('kanban-card--lifting');
                 },
                 async onAdd(evt) {
                     const card = evt.item;
@@ -872,7 +926,9 @@ function initKanbanSortables() {
                         await loadKanbanBoard();
                     }
                 },
-                onEnd() {
+                onEnd(evt) {
+                    document.body.classList.remove('lb-dnd-active');
+                    if (evt && evt.item) evt.item.classList.remove('kanban-card--lifting');
                     setTimeout(() => {
                         kanbanSuppressCardClick = false;
                     }, 50);
@@ -1019,6 +1075,22 @@ function renderKanbanCard(lead) {
     const name = escapeKanbanHtml(lead.name || 'Sem nome');
     const val = sig ? sig.value(lead, quote) : { amount: parseFloat(lead.estimated_value) || null, sub: '' };
     const next = sig ? sig.nextStep(lead, quote, days) : null;
+    const note =
+        sig && typeof sig.noteText === 'function'
+            ? sig.noteText(lead, 110)
+            : String(lead.notes || lead.message || '')
+                  .split(/\r?\n/)
+                  .map((s) => s.trim())
+                  .find((s) => s && !/^CEP:/i.test(s)) || '';
+    const changeNote =
+        quote && String(quote.status || '') === 'changes_requested'
+            ? String(quote.change_request_note || '').trim()
+            : '';
+    const noteShow = changeNote
+        ? changeNote.length > 110
+            ? changeNote.slice(0, 109) + '…'
+            : changeNote
+        : note;
     const pri = String(lead.priority || 'medium');
     const originLogo =
         kanbanOriginLogoHtml(lead) ||
@@ -1043,6 +1115,7 @@ function renderKanbanCard(lead) {
             </div>
             ${val.amount ? `<div class="lb-card__val">${escapeKanbanHtml(sig ? sig.money(val.amount) : '$' + val.amount)}${val.sub ? `<small>${escapeKanbanHtml(val.sub)}</small>` : ''}</div>` : ''}
             ${next && sig ? `<div class="lb-card__next">${sig.html(next)}</div>` : ''}
+            ${noteShow ? `<div class="lb-card__note${changeNote ? ' lb-card__note--change' : ''}" title="${escapeKanbanHtml(noteShow)}">${escapeKanbanHtml(noteShow)}</div>` : ''}
             <div class="lb-card__ft">${owner}<span>${escapeKanbanHtml(daysTxt)}</span><span class="lb-card__qa">${quick}</span></div>
         </div>
     `;
@@ -1638,6 +1711,17 @@ function renderLeadsMobileCard(lead, stage, stages) {
       ${val ? `<span class="lcard__value">${escapeKanbanHtml(val)}</span>` : '<span></span>'}
       ${flagHtml}
     </div>
+    ${(() => {
+      const sigN = window.omLeadSignals;
+      const n =
+        sigN && typeof sigN.noteText === 'function'
+          ? sigN.noteText(lead, 90)
+          : String(lead.notes || lead.message || '')
+                .split(/\r?\n/)
+                .map((s) => s.trim())
+                .find((s) => s && !/^CEP:/i.test(s)) || '';
+      return n ? `<div class="lcard__note">${escapeKanbanHtml(n)}</div>` : '';
+    })()}
   </div>
 </article>`;
 }

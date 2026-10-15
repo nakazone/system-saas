@@ -753,26 +753,33 @@
       omdSortables.push(
         Sortable.create(el, {
           group: "omd-pipeline",
-          animation: 280,
-          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          animation: 360,
+          easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
           draggable: ".omd-lead[data-lead-id]",
           filter: "button, a, .omd-col__empty, .omd-col__more, .omd-col__add",
           preventOnFilter: false,
           forceFallback: true,
           fallbackOnBody: true,
-          fallbackTolerance: 6,
-          emptyInsertThreshold: 48,
-          swapThreshold: 0.65,
+          fallbackTolerance: 4,
+          emptyInsertThreshold: 56,
+          swapThreshold: 0.5,
           invertSwap: true,
-          delay: 120,
+          direction: "vertical",
+          scroll: true,
+          bubbleScroll: true,
+          scrollSensitivity: 72,
+          scrollSpeed: 18,
+          delay: 90,
           delayOnTouchOnly: true,
-          touchStartThreshold: 5,
+          touchStartThreshold: 4,
           ghostClass: "omd-lead--ghost",
           chosenClass: "omd-lead--chosen",
           dragClass: "omd-lead--drag",
           fallbackClass: "omd-lead--drag",
-          onStart() {
+          onStart(evt) {
             omdSuppressLeadClick = true;
+            document.body.classList.add("omd-dnd-active");
+            if (evt && evt.item) evt.item.classList.add("omd-lead--lifting");
           },
           async onAdd(evt) {
             const card = evt.item;
@@ -791,9 +798,16 @@
               return;
             }
             notify("Lead atualizado no pipeline.", "success");
-            await refresh(true);
+            // Soft sync: keep Sortable FLIP; defer full refresh until drag UI settles.
+            setTimeout(() => {
+              if (!document.body.classList.contains("omd-dnd-active")) {
+                void refresh(true);
+              }
+            }, 520);
           },
-          onEnd() {
+          onEnd(evt) {
+            document.body.classList.remove("omd-dnd-active");
+            if (evt && evt.item) evt.item.classList.remove("omd-lead--lifting");
             setTimeout(() => {
               omdSuppressLeadClick = false;
             }, 50);
@@ -1081,10 +1095,13 @@
   }
 
   function noteSnippet(lead) {
-    const note = String(lead.notes || "")
+    if (window.omLeadSignals && typeof window.omLeadSignals.noteText === "function") {
+      return window.omLeadSignals.noteText(lead, 100);
+    }
+    const note = String(lead.notes || lead.message || lead.followup_notes || "")
       .split(/\r?\n/)
       .map((s) => s.trim())
-      .find((s) => s && !/^CEP:/i.test(s));
+      .find((s) => s && !/^CEP:/i.test(s) && !/^Endereço:/i.test(s));
     if (!note) return "";
     return note.length > 100 ? note.slice(0, 99) + "…" : note;
   }
@@ -1557,10 +1574,7 @@
         const amount = v.amount || 0;
         const amountSub = v.sub === "estimado" ? "estimado" : v.sub;
         const sigHtml = sig ? sig.html(sig.nextStep(lead, q, daysInStage(lead))) : "";
-        const val = amount;
-        const src = lead.source ? String(lead.source) : "";
         const note = noteSnippet(lead);
-        const sub = note || src || "Lead";
         const hasPhone = Boolean(telHref(lead.phone));
         const hasEmail = Boolean(lead.email && String(lead.email).includes("@"));
         const hasNext = Boolean(nextStageFor(lead));
@@ -1601,6 +1615,7 @@
                 String(lead.priority || "") === "high" ? '<i class="mleads-card__pri" aria-label="Alta prioridade"></i>' : ""
               }</p>
               ${sigHtml ? `<p class="mleads-card__next">${sigHtml}</p>` : ""}
+              ${note ? `<p class="mleads-card__note">${esc(note)}</p>` : ""}
               ${
                 isAll && leadStage
                   ? `<p class="mleads-card__stage"><span class="mleads-tag__dot" style="background:${esc(leadStage.color || "#98A2B3")}"></span>${esc(stageLabel(leadStage))}</p>`

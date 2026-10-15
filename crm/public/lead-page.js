@@ -469,7 +469,16 @@
     if (fu) return { title: fu.title || 'Follow-up', sub: fu.due_date ? 'Para ' + fmtDate(fu.due_date, true) : 'Sem data', btn: { label: 'Marcar como feito', attr: `data-lp-fu-done="${esc(fu.id)}"` } };
     const st = quoteStatus(q);
     if (st === 'draft') return { title: `Enviar o ${quoteLabel(q)}`, sub: `${money(q.total)} · ainda em rascunho`, btn: { label: 'Abrir orçamento', href: quoteHref(q) } };
-    if (st === 'changes_requested') return { title: 'Cliente pediu alterações', sub: `${quoteLabel(q)} · ajuste e reenvie`, btn: { label: 'Abrir orçamento', href: quoteHref(q) } };
+    if (st === 'changes_requested') {
+      const req = String(q.change_request_note || '').trim();
+      return {
+        title: 'Cliente pediu alterações',
+        sub: req || `${quoteLabel(q)} · ajuste e reenvie`,
+        btn: { label: 'Abrir orçamento', href: quoteHref(q) },
+        warn: true,
+        changeNote: req,
+      };
+    }
     if (['approved', 'accepted', 'converted'].includes(st)) return { title: 'Orçamento aprovado', sub: 'Mova o lead para Ganho.', btn: { label: 'Marcar como ganho', attr: 'data-lp-stage="won"' } };
     return {
       title: 'Acompanhar o ' + quoteLabel(q),
@@ -484,7 +493,10 @@
     const btn = b.href
       ? `<a class="lp-btn lp-btn--pri lp-btn--block" href="${esc(b.href)}" ${b.attr || ''}>${esc(b.label)}</a>`
       : `<button type="button" class="lp-btn lp-btn--pri lp-btn--block" ${b.attr || ''}>${esc(b.label)}</button>`;
-    return `<div class="lp-card lp-next${n.warn ? ' lp-next--warn' : ''}"><h3 class="lp-h3">Próximo passo</h3><p class="lp-next__t">${esc(n.title)}</p><p class="lp-next__s">${esc(n.sub || '')}</p><div class="lp-next__acts">${btn}</div></div>`;
+    const changeBlock = n.changeNote
+      ? `<blockquote class="lp-change-note" cite="cliente"><span class="lp-change-note__lbl">Pedido do cliente</span><p>${esc(n.changeNote)}</p></blockquote>`
+      : '';
+    return `<div class="lp-card lp-next${n.warn ? ' lp-next--warn' : ''}"><h3 class="lp-h3">Próximo passo</h3><p class="lp-next__t">${esc(n.title)}</p>${changeBlock}<p class="lp-next__s">${esc(n.changeNote ? 'Ajuste o orçamento e reenvie.' : n.sub || '')}</p><div class="lp-next__acts">${btn}</div></div>`;
   }
 
   function detailsCardHtml() {
@@ -595,8 +607,8 @@
       ${qualHtml()}
       ${detailsCardHtml()}
       ${L.message ? `<div class="lp-card"><h3 class="lp-h3">Mensagem do cliente</h3><p class="lp-quote">${esc(L.message)}</p></div>` : ''}
-      <div class="lp-card"><h3 class="lp-h3">Notas internas <span class="lp-saved" id="lpNotesSaved" hidden>Salvo</span></h3>
-        <textarea class="lp-textarea" id="lpNotes" rows="3" placeholder="O que a equipe precisa saber sobre este lead…">${esc(L.notes || '')}</textarea>
+      <div class="lp-card"><h3 class="lp-h3">Notas <span class="lp-saved" id="lpNotesSaved" hidden>Salvo</span></h3>
+        <textarea class="lp-textarea" id="lpNotes" rows="3" placeholder="O que a equipe precisa saber sobre este lead…">${esc(L.notes || L.message || '')}</textarea>
         <div class="lp-form__acts lp-form__acts--end"><button type="button" class="lp-btn lp-btn--sm lp-btn--ink" data-lp-notes-save hidden>Salvar notas</button></div>
       </div>
       ${
@@ -681,9 +693,31 @@
       out.push({ at: q.created_at, icon: '📄', title: quoteLabel(q) + ' criado', body: [quoteTitle(q), money(q.total)].filter(Boolean).join(' · '), href: quoteHref(q) });
       if (q.email_sent_at) out.push({ at: q.email_sent_at, icon: '📤', title: quoteLabel(q) + ' enviado ao cliente', body: money(q.total), href: quoteHref(q) });
       if (q.viewed_at) out.push({ at: q.viewed_at, icon: '👁', title: quoteLabel(q) + ' visualizado pelo cliente', body: '', href: quoteHref(q) });
+      if (String(q.status || '') === 'changes_requested' && q.change_request_note) {
+        out.push({
+          at: q.updated_at || q.viewed_at || q.created_at,
+          icon: '📝',
+          title: quoteLabel(q) + ' — cliente pediu alterações',
+          body: String(q.change_request_note),
+          href: quoteHref(q),
+        });
+      }
       if (q.signed_at) out.push({ at: q.signed_at, icon: '✍️', title: quoteLabel(q) + ' aprovado e assinado', body: money(q.total), href: quoteHref(q) });
     });
-    out.push({ at: L.created_at, icon: '✨', title: 'Lead criado' + (L.source ? ' · ' + L.source : ''), body: L.message ? '“' + String(L.message).slice(0, 140) + (String(L.message).length > 140 ? '…' : '') + '”' : '' });
+    const createdBody = L.message
+      ? '“' + String(L.message).slice(0, 140) + (String(L.message).length > 140 ? '…' : '') + '”'
+      : L.notes
+        ? String(L.notes)
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .find((s) => s && !/^CEP:/i.test(s)) || ''
+        : '';
+    out.push({
+      at: L.created_at,
+      icon: '✨',
+      title: 'Lead criado' + (L.source ? ' · ' + L.source : ''),
+      body: createdBody ? (createdBody.startsWith('“') ? createdBody : '“' + createdBody.slice(0, 140) + (createdBody.length > 140 ? '…' : '') + '”') : '',
+    });
     return out.filter((x) => x.at).sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }
 

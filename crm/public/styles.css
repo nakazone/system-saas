@@ -2476,13 +2476,13 @@ input.score-auto {
     margin-bottom: var(--spacing-sm);
     box-shadow: var(--shadow);
     cursor: default;
-    transition: var(--transition);
+    /* Avoid transition:all — it fights Sortable FLIP (transform) during DnD. */
+    transition: box-shadow 0.2s ease, opacity 0.2s ease;
     border-left: 3px solid var(--primary-color);
 }
 
 .kanban-card:hover {
     box-shadow: var(--shadow-lg);
-    transform: translateY(-2px);
 }
 
 .kanban-card-header {

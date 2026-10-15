@@ -73,6 +73,7 @@ export type LeadRow = {
   source: string | null;
   status: string | null;
   notes: string | null;
+  message?: string | null;
   pipelineStageId: string | null;
   stageSlug: string | null;
   ownerName: string | null;
@@ -102,6 +103,7 @@ export type QuoteRow = {
   validUntil: Date | null;
   updatedAt: Date;
   createdAt: Date;
+  changeRequestNote?: string | null;
 };
 
 export type InvoiceRow = {
@@ -174,6 +176,8 @@ export type AttentionItem = {
   label?: string | null;
   source?: string | null;
   viewed?: boolean;
+  /** Optional free-text detail (e.g. client change-request note). */
+  detail?: string | null;
 };
 
 export type LeadPreview = {
@@ -276,11 +280,11 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function summaryLine(notes: string | null): string | null {
-  const first = String(notes || "")
+function summaryLine(notes: string | null, message?: string | null): string | null {
+  const first = String(notes || message || "")
     .split(/\r?\n/)
     .map((s) => s.trim())
-    .find((s) => s && !/^CEP:/i.test(s));
+    .find((s) => s && !/^CEP:/i.test(s) && !/^Endereço:/i.test(s));
   if (!first) return null;
   return first.length > 90 ? `${first.slice(0, 89)}…` : first;
 }
@@ -370,7 +374,7 @@ export function buildLeadSection(
         stage,
         value,
         source: lead.source,
-        summary: summaryLine(lead.notes),
+        summary: summaryLine(lead.notes, lead.message),
         owner_name: lead.ownerName,
         created_at: lead.createdAt.toISOString(),
         last_contacted_at: lead.lastContactedAt ? lead.lastContactedAt.toISOString() : null,
@@ -556,6 +560,7 @@ export function buildQuoteSection(
     }
 
     if (status === "changes_requested") {
+      const req = q.changeRequestNote != null ? String(q.changeRequestNote).trim() : "";
       attention.push({
         key: `quote_changes:${q.id}`,
         kind: "quote_changes",
@@ -565,6 +570,11 @@ export function buildQuoteSection(
         at: q.updatedAt.toISOString(),
         amount,
         label,
+        detail: req
+          ? req.length > 120
+            ? `${req.slice(0, 119)}…`
+            : req
+          : undefined,
       });
       continue;
     }
@@ -857,6 +867,7 @@ export async function loadDashboardOverview(
     // Only the columns the dashboard needs — avoids loading every lead's full metadata JSON.
     const leads = await tx.$queryRaw<RawLead[]>`
       SELECT l.id, l.name, l.phone, l.source, l.status, l.notes,
+             NULLIF(TRIM(l.metadata->>'message'), '') AS message,
              l."pipelineStageId", ps.slug AS "stageSlug", u.name AS "ownerName",
              l.metadata->>'estimated_value' AS "estimatedValue",
              CASE WHEN jsonb_typeof(l.metadata->'followups') = 'array'
@@ -900,6 +911,7 @@ export async function loadDashboardOverview(
         validUntil: true,
         updatedAt: true,
         createdAt: true,
+        changeRequestNote: true,
         customer: { select: { name: true } },
       },
     });

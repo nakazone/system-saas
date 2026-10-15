@@ -151,6 +151,18 @@ body.qb-dashboard-inner .qb-items-foot__add:hover { border-color: var(--q-terra)
 .qb-next { background: var(--q-ink); color: #fff; border-radius: 16px; padding: 16px; }
 .qb-next b { display: block; font-size: 16px; font-weight: 800; margin-bottom: 3px; }
 .qb-next p { margin: 0 0 12px; font-size: 13.5px; color: rgba(255, 255, 255, 0.75); font-weight: 600; line-height: 1.45; }
+.qb-next .qb-change-note {
+  display: block;
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 244, 235, 0.14);
+  border-left: 3px solid #E7792C;
+  color: #FFE8D6;
+  font-weight: 650;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .qb-next .btn { width: 100%; justify-content: center; height: 44px; border-radius: 11px; font-weight: 800; font-size: 14.5px; background: var(--q-terra); border: 0; color: #fff; display: inline-flex; align-items: center; text-decoration: none; }
 .qb-next .btn:hover { background: var(--q-terrad); }
 .qb-next .btn + .btn, .qb-next .btn + a.btn { margin-top: 8px; }

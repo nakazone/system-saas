@@ -308,7 +308,8 @@
     let cta = '';
     if (g === 'changes') {
       t = 'Cliente pediu alterações';
-      p = 'Ajuste os serviços na folha e reenvie.';
+      const req = String(q.change_request_note || '').trim();
+      p = req || 'Ajuste os serviços na folha e reenvie.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&services=1">Editar serviços</a>`;
       if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
         cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;

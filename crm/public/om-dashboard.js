@@ -299,7 +299,11 @@
           ...base,
           icon: icon("edit"),
           title: `Alterações pedidas · ${name}`,
-          detail: bits(`Quote ${it.label || ""}`.trim(), amount, "cliente pediu mudanças"),
+          detail: bits(
+            `Quote ${it.label || ""}`.trim(),
+            amount,
+            it.detail || "cliente pediu mudanças",
+          ),
           cta: "Revisar",
         };
       case "quote_expiring": {

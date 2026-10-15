@@ -924,12 +924,35 @@
     else if (kind === 'error') alert(msg);
   }
 
-  function maybeRefreshKanban(updatedLead) {
+  let kanbanSoftReloadTimer = null;
+
+  /**
+   * Sync Kanban after lead mutations.
+   * Soft mode (active DnD): patch cache only — never wipe the board mid-animation.
+   * @param {object|null} updatedLead
+   * @param {{ soft?: boolean }} [opts]
+   */
+  function maybeRefreshKanban(updatedLead, opts) {
     try {
+      const soft =
+        Boolean(opts && opts.soft) ||
+        document.body.classList.contains('lb-dnd-active') ||
+        document.body.classList.contains('omd-dnd-active');
       if (updatedLead && typeof global.patchKanbanLeadCache === 'function') {
-        global.patchKanbanLeadCache(updatedLead);
+        global.patchKanbanLeadCache(updatedLead, soft ? { soft: true } : undefined);
       }
-      // Always reload board after visit/stage moves so UUID + slug aliases stay in sync
+      if (soft) {
+        // Quiet background sync after Sortable FLIP finishes — avoids snap/jump.
+        clearTimeout(kanbanSoftReloadTimer);
+        kanbanSoftReloadTimer = setTimeout(() => {
+          if (document.body.classList.contains('lb-dnd-active') || document.body.classList.contains('omd-dnd-active')) {
+            return;
+          }
+          if (typeof global.loadKanbanBoard === 'function') void global.loadKanbanBoard();
+          else if (typeof global.loadCRMKanban === 'function') void global.loadCRMKanban();
+        }, 520);
+        return;
+      }
       if (typeof global.loadKanbanBoard === 'function') void global.loadKanbanBoard();
       else if (typeof global.loadCRMKanban === 'function') void global.loadCRMKanban();
     } catch (_) {}
@@ -1828,7 +1851,7 @@
             <h3>Notas</h3>
             <button type="button" class="lqs-link" data-lqs-save-notes>Guardar</button>
           </div>
-          <textarea class="lqs-notes" data-lqs-notes maxlength="8000" placeholder="Nota interna para a equipa…">${escapeHtml(lead.notes || '')}</textarea>
+          <textarea class="lqs-notes" data-lqs-notes maxlength="8000" placeholder="Nota interna para a equipa…">${escapeHtml(lead.notes || lead.message || '')}</textarea>
         </section>
 
         <div class="lqs-tabs" role="tablist">

@@ -1191,6 +1191,22 @@
     color: var(--sf-text-muted);
   }
 
+  .lcard__note {
+    margin-top: 8px;
+    padding: 7px 9px;
+    border-radius: 9px;
+    background: #F8F5F0;
+    color: #44403C;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+  }
+
   .lead-quick-sheet__panel {
     left: 0;
     right: 0;

@@ -5753,6 +5753,7 @@
       pdf_viewed_at: q.pdf_viewed_at || null,
       signed_at: q.signed_at || null,
       work_order_id: q.work_order_id || null,
+      change_request_note: q.change_request_note || null,
     };
     startQuoteViewPolling();
     updatePreviewHeader();
@@ -6398,7 +6399,15 @@
   }
 
   // ---------------------------------------------------------------- painel (status, andamento, próximo passo)
-  let qbMeta = { created_at: null, email_sent_at: null, viewed_at: null, pdf_viewed_at: null, signed_at: null, work_order_id: null };
+  let qbMeta = {
+    created_at: null,
+    email_sent_at: null,
+    viewed_at: null,
+    pdf_viewed_at: null,
+    signed_at: null,
+    work_order_id: null,
+    change_request_note: null,
+  };
   let qbDirtyFlag = false;
   /** When true, next navigation skips the unsaved-changes guard. */
   let qbLeaveAllow = false;
@@ -6408,6 +6417,7 @@
     draft: ['Rascunho', 'draft'],
     sent: ['Enviado', 'sent'],
     viewed: ['Visto', 'viewed'],
+    changes_requested: ['Alteração pedida', 'changes'],
     approved: ['Aprovado', 'approved'],
     accepted: ['Aceito', 'approved'],
     rejected: ['Recusado', 'rejected'],
@@ -6624,6 +6634,9 @@
       { on: Boolean(qbMeta.work_order_id), label: 'Job criado', at: null, href: qbMeta.work_order_id ? `job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}` : null },
     ];
     if (status === 'rejected') steps.splice(3, 2, { on: true, label: 'Recusado pelo cliente', at: null, bad: true });
+    if (status === 'changes_requested') {
+      steps.splice(3, 0, { on: true, label: 'Alteração pedida', at: null, bad: true });
+    }
     const nowIdx = steps.findIndex((x) => !x.on);
     const prog = $('qbProgress');
     if (prog) {
@@ -6680,6 +6693,13 @@
       title = 'Cliente recusou';
       text = 'Duplique para mandar uma nova versão com outro preço ou escopo.';
       btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnDup">Duplicar como nova versão</button>';
+    } else if (status === 'changes_requested') {
+      const req = String(qbMeta.change_request_note || '').trim();
+      title = 'Cliente pediu alterações';
+      text = req
+        ? `<span class="qb-change-note">${escapeHtmlText(req)}</span>`
+        : 'O cliente pediu mudanças — ajuste os serviços e reenvie.';
+      btn = `<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Ajustar e reenviar</button>${invoiceAlt}`;
     } else if (qbMeta.work_order_id) {
       title = 'Job criado';
       text = canInvoice
