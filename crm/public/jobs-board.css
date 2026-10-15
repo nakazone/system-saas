@@ -151,6 +151,10 @@
 .jx-steps li.is-ok i { background: var(--jx-ink); }
 .jx-steps li.is-cur { color: var(--jx-ink); }
 .jx-steps li.is-cur i { background: var(--jx-or); }
+.jx-steps li.is-btn { cursor: pointer; border-radius: 6px; outline: none; transition: color .15s ease; }
+.jx-steps li.is-btn:hover { color: var(--jx-ink); }
+.jx-steps li.is-btn:hover i { background: var(--jx-or); opacity: .85; }
+.jx-steps li.is-btn:focus-visible { box-shadow: 0 0 0 2px rgba(231,121,44,.35); }
 .jx-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .jx-kpis > div { background: var(--jx-bg); border-radius: 14px; padding: 9px 11px; min-width: 0; }
 .jx-kpis span { display: block; font-size: 11px; font-weight: 550; color: var(--jx-ink2); }

@@ -680,7 +680,19 @@
     const p = primary(wo);
     const phone = wo.customer?.phone ? String(wo.customer.phone).replace(/[^\d+]/g, "") : "";
     const s = J.step(wo);
-    const steps = J.STEP_NAMES.map((n, i) => `<li class="${s < 0 ? "" : i < s ? "is-ok" : i === s ? "is-cur" : ""}"><i></i>${n}</li>`).join("");
+    const steps = J.STEP_NAMES.map((n, i) => {
+      const cls = s < 0 ? "" : i < s ? "is-ok" : i === s ? "is-cur" : "";
+      const st = J.statusForStep(i);
+      const clickable = canManage && s >= 0 && (st || (i === 3 && canBill));
+      const tip = st
+        ? `Mover para ${n}`
+        : i === 3
+          ? "Faturar"
+          : i === 4
+            ? "Pagamento nas faturas"
+            : n;
+      return `<li class="${cls}${clickable ? " is-btn" : ""}"${clickable ? ` role="button" tabindex="0" data-jx-step="${i}" title="${J.esc(tip)}" aria-label="${J.esc(tip)}"` : ""}><i></i>${n}</li>`;
+    }).join("");
     const team = J.team(wo);
     const kpis = [["Total do job", J.money0(wo.services_total), `${(wo.line_items || []).length} serviço${(wo.line_items || []).length === 1 ? "" : "s"}`]];
     if (canBill && b) {
@@ -859,6 +871,31 @@
     await load();
   }
 
+  async function applyStep(idx) {
+    if (!canManage || !selId || Number.isNaN(idx)) return;
+    const J = I();
+    const wo = detailWo && String(detailWo.id) === String(selId) ? detailWo : all.find((w) => String(w.id) === String(selId));
+    if (!wo || wo.status === "canceled") return;
+    const status = J.statusForStep(idx);
+    if (status) {
+      if (J.atStatus(wo, status)) return;
+      if (status === "completed") {
+        const label = wo.title || J.client(wo);
+        const ok = window.crmConfirm?.completeJob
+          ? await window.crmConfirm.completeJob(label)
+          : confirm("Marcar o job como concluído?");
+        if (!ok) return;
+      }
+      await setStatus(selId, status, J.STATUS_STEP_MSG[status] || "Status atualizado.");
+      return;
+    }
+    if (idx === 3 && canBill) {
+      openFaturar(wo);
+      return;
+    }
+    if (idx === 4) notify("Registre o pagamento nas faturas do job.", "info");
+  }
+
   function bind() {
     $("jxTiles").addEventListener("click", (e) => {
       const t = e.target.closest("[data-jx-filter]");
@@ -914,6 +951,16 @@
         renderDetail();
         return;
       }
+      const stepEl = e.target.closest("[data-jx-step]");
+      if (stepEl) {
+        e.preventDefault();
+        try {
+          await applyStep(Number(stepEl.getAttribute("data-jx-step")));
+        } catch (err) {
+          notify(err.message || "Erro", "error");
+        }
+        return;
+      }
       const b = e.target.closest("[data-jx-act]");
       if (!b) return;
       const act = b.getAttribute("data-jx-act");
@@ -962,6 +1009,13 @@
       } catch (err) {
         notify(err.message || "Erro", "error");
       }
+    });
+    $("jxDetail").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const stepEl = e.target.closest("[data-jx-step]");
+      if (!stepEl) return;
+      e.preventDefault();
+      applyStep(Number(stepEl.getAttribute("data-jx-step"))).catch((err) => notify(err.message || "Erro", "error"));
     });
     $("btnNewJob")?.addEventListener("click", () => {
       // Jobs nascem de Quotes: abre o builder para montar o orçamento e depois transformar.

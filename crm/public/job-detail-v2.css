@@ -64,6 +64,10 @@
 .jd-step.is-cur small, .jd-step.is-ok small { color: var(--jd-ink-2); }
 .jd-step.is-canceled { color: #B4561A; }
 .jd-step.is-canceled i { background: #FDF0E6; }
+.jd-step.is-btn { cursor: pointer; border-radius: 6px; outline: none; transition: color .15s ease; }
+.jd-step.is-btn:hover { color: var(--jd-ink); }
+.jd-step.is-btn:hover i { background: var(--jd-terra); }
+.jd-step.is-btn:focus-visible { box-shadow: 0 0 0 2px rgba(231,121,44,.35); }
 
 /* abas — underline laranja como jx-tabs */
 .jd-tabs {

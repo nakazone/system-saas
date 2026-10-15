@@ -104,6 +104,9 @@ body.om-device-mobile.job-detail-app .jcm-jd__type { margin-top: 4px; font-size:
 .jmx-steps li.is-ok, .jmx-steps li.is-cur { color: #221E1A; }
 .jmx-steps li.is-ok i { background: #221E1A; }
 .jmx-steps li.is-cur i { background: #E7792C; }
+.jmx-steps li.is-btn { cursor: pointer; border-radius: 6px; outline: none; -webkit-tap-highlight-color: transparent; }
+.jmx-steps li.is-btn:active i { background: #E7792C; opacity: .9; }
+.jmx-steps li.is-btn:focus-visible { box-shadow: 0 0 0 2px rgba(231,121,44,.35); }
 .jmx-circ { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .jmx-circ a { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #221E1A !important; text-decoration: none !important; }
 .jmx-circ a span { width: 100%; height: 48px; border-radius: 14px; background: #fff; box-shadow: 0 0 0 1px #E5E7EB; display: grid; place-items: center; }

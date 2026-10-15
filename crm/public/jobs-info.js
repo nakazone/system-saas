@@ -83,6 +83,23 @@
     return 5;
   }
   const STEP_NAMES = ["Agendado", "Em campo", "Concluído", "Faturado", "Pago"];
+  /** Status do job ao clicar nas 3 primeiras barras. Índices 3–4 são cobrança. */
+  const STATUS_BY_STEP = ["scheduled", "in_progress", "completed"];
+  const STATUS_STEP_MSG = {
+    scheduled: "Job movido para Agendado.",
+    in_progress: "Job iniciado.",
+    completed: "Job concluído.",
+  };
+
+  function statusForStep(i) {
+    return STATUS_BY_STEP[i] || null;
+  }
+
+  /** Já está no status alvo da barra (sem chamar a API de novo). */
+  function atStatus(wo, status) {
+    if (!wo || !status) return true;
+    return wo.status === status;
+  }
 
   function stageLabel(wo) {
     if (wo.status === "canceled") return "Cancelado";
@@ -160,6 +177,7 @@
   }
 
   window.JobsInfo = {
-    esc, money, money0, client, displayName, isActive, late, step, STEP_NAMES, stageLabel, progHtml, bill, dateRange, dayShort, isToday, initials, team,
+    esc, money, money0, client, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
+    statusForStep, atStatus, stageLabel, progHtml, bill, dateRange, dayShort, isToday, initials, team,
   };
 })();

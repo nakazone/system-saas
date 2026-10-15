@@ -80,6 +80,8 @@
 .jd-step.is-cur small { color: var(--jd-terra-d); }
 .jd-step.is-canceled { color: #B4561A; }
 .jd-step.is-canceled i { border-color: #e7b3aa; }
+.jd-step.is-btn { cursor: pointer; outline: none; }
+.jd-step.is-btn:focus-visible { box-shadow: 0 0 0 2px rgba(231,121,44,.35); border-radius: 8px; }
 
 /* tabs */
 .jd-tabs { display: flex; gap: 2px; margin: 18px 0 0; border-bottom: 1px solid var(--jd-line); overflow-x: auto; scrollbar-width: none; position: sticky; top: 0; z-index: 20; background: var(--crm-chrome-bg, #f3f0ea); }

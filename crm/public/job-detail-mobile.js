@@ -439,7 +439,19 @@
       const st = J.step(wo);
       const names = ["Agendado", "Campo", "Concluído", "Faturado", "Pago"];
       stepsEl.hidden = st < 0;
-      stepsEl.innerHTML = names.map((n, i) => `<li class="${i < st ? "is-ok" : i === st ? "is-cur" : ""}"><i></i>${n}</li>`).join("");
+      stepsEl.innerHTML = names
+        .map((n, i) => {
+          const cls = i < st ? "is-ok" : i === st ? "is-cur" : "";
+          const status = J.statusForStep(i);
+          const clickable = canManage && st >= 0 && (status || (i === 3 && canBill));
+          const tip = status ? `Mover para ${n}` : i === 3 ? "Faturar" : i === 4 ? "Pagamento nas faturas" : n;
+          return `<li class="${cls}${clickable ? " is-btn" : ""}"${
+            clickable
+              ? ` role="button" tabindex="0" data-mob-step="${i}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}"`
+              : ""
+          }><i></i>${n}</li>`;
+        })
+        .join("");
     }
     const when = $("jobMobWhen");
     if (when) when.textContent = wo.scheduled_start ? `${J ? J.dateRange(wo) : fmtDay(wo.scheduled_start)} · ${fmtTimeRange(wo.scheduled_start, wo.scheduled_end)}` : "Sem data";
@@ -719,6 +731,30 @@
     render();
   }
 
+  async function applyMobStep(idx) {
+    if (!canManage || !job || job.status === "canceled" || Number.isNaN(idx)) return;
+    const J = window.JobsInfo;
+    const status = J?.statusForStep?.(idx);
+    if (status) {
+      if (J.atStatus(job, status)) return;
+      if (status === "completed") {
+        const label = job.title || (J ? J.client(job) : "");
+        const ok = window.crmConfirm?.completeJob
+          ? await window.crmConfirm.completeJob(label)
+          : confirm("Marcar o job como concluído?");
+        if (!ok) return;
+      }
+      await setStatus(status);
+      window.crmToast?.success?.(J.STATUS_STEP_MSG?.[status] || "Status atualizado.");
+      return;
+    }
+    if (idx === 3 && canBill && window.JobBilling) {
+      window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status });
+      return;
+    }
+    if (idx === 4) window.crmToast?.info?.("Registre o pagamento nas faturas do job.");
+  }
+
   function openServicesModal() {
     if (!canManage || !jobId || !window.__crmJobModal) return;
     window.__crmJobModal
@@ -811,6 +847,23 @@
     }
     $("jobMobCta")?.addEventListener("click", () => runMobCta($("jobMobCta").dataset.action));
     $("jobMobCtaSecondary")?.addEventListener("click", () => runMobCta($("jobMobCtaSecondary").dataset.action));
+    $("jobMobSteps")?.addEventListener("click", (e) => {
+      const stepEl = e.target.closest("[data-mob-step]");
+      if (!stepEl) return;
+      e.preventDefault();
+      applyMobStep(Number(stepEl.getAttribute("data-mob-step"))).catch((err) =>
+        window.crmToast?.error?.(err.message || "Erro"),
+      );
+    });
+    $("jobMobSteps")?.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const stepEl = e.target.closest("[data-mob-step]");
+      if (!stepEl) return;
+      e.preventDefault();
+      applyMobStep(Number(stepEl.getAttribute("data-mob-step"))).catch((err) =>
+        window.crmToast?.error?.(err.message || "Erro"),
+      );
+    });
     $("jobMobPhotosQuick")?.addEventListener("click", (e) => {
       e.preventDefault();
       detTab = "fotos";

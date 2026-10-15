@@ -257,6 +257,29 @@
     renderAll();
   }
 
+  async function applyStep(idx) {
+    if (!canManage || !job || job.status === "canceled" || Number.isNaN(idx)) return;
+    const J = window.JobsInfo;
+    const status = J?.statusForStep?.(idx);
+    if (status) {
+      if (J.atStatus(job, status)) return;
+      if (status === "completed") {
+        const label = job.title || clientName();
+        const ok = window.crmConfirm?.completeJob
+          ? await window.crmConfirm.completeJob(label)
+          : confirm("Marcar o job como concluído?");
+        if (!ok) return;
+      }
+      await setStatus(status, J.STATUS_STEP_MSG?.[status] || "Status atualizado.");
+      return;
+    }
+    if (idx === 3 && canBill && window.JobBilling) {
+      window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status });
+      return;
+    }
+    if (idx === 4) notify("Registre o pagamento nas faturas do job.", "info");
+  }
+
   // ---------------------------------------------------------------- steps
   function renderSteps() {
     if (job.status === "canceled") {
@@ -306,10 +329,16 @@
         seen = true;
       }
     });
+    const J = window.JobsInfo;
     $("jdSteps").innerHTML = steps
-      .map(
-        (s, i) => `<li class="jd-step${s.state ? ` is-${s.state}` : ""}"><i>${s.state === "ok" ? "✓" : i + 1}</i><span>${esc(s.label)}${s.sub ? `<small>${esc(s.sub)}</small>` : ""}</span></li>`,
-      )
+      .map((s, i) => {
+        const st = J?.statusForStep?.(i);
+        const clickable = canManage && (st || (i === 3 && canBill));
+        const tip = st ? `Mover para ${s.label}` : i === 3 ? "Faturar" : i === 4 ? "Pagamento nas faturas" : s.label;
+        return `<li class="jd-step${s.state ? ` is-${s.state}` : ""}${clickable ? " is-btn" : ""}"${
+          clickable ? ` role="button" tabindex="0" data-jd-step="${i}" title="${esc(tip)}" aria-label="${esc(tip)}"` : ""
+        }><i>${s.state === "ok" ? "✓" : i + 1}</i><span>${esc(s.label)}${s.sub ? `<small>${esc(s.sub)}</small>` : ""}</span></li>`;
+      })
       .join("");
   }
 
@@ -1030,6 +1059,13 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeMenu();
     });
+    $("jdSteps")?.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const stepEl = e.target.closest("[data-jd-step]");
+      if (!stepEl) return;
+      e.preventDefault();
+      applyStep(Number(stepEl.getAttribute("data-jd-step"))).catch((err) => notify(err.message || "Erro", "error"));
+    });
     $("jdStatusMenu").addEventListener("click", () => {
       renderStatusMenu();
       $("jdStatusList").hidden = !$("jdStatusList").hidden;
@@ -1049,6 +1085,16 @@
 
     root.addEventListener("click", async (e) => {
       const t = e.target;
+      const stepEl = t.closest("[data-jd-step]");
+      if (stepEl) {
+        e.preventDefault();
+        try {
+          await applyStep(Number(stepEl.getAttribute("data-jd-step")));
+        } catch (err) {
+          notify(err.message || "Erro", "error");
+        }
+        return;
+      }
       const go = t.closest("[data-goto]");
       if (go) {
         e.preventDefault();
