@@ -167,12 +167,17 @@
   function useSwipeDelete() {
     return window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
   }
-  function billHref(wo) {
-    return `invoices.html?new=1&job=${encodeURIComponent(wo.id)}`;
-  }
   function canFaturar(wo) {
     const b = wo.billing;
     return canInvoice && wo.status !== "canceled" && b && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value";
+  }
+  /** Same popup as Serviços → Faturar job (depósito / outro / total). */
+  function openFaturar(wo) {
+    if (!wo || !window.JobBilling?.openDialog) {
+      location.href = `job-detail.html?id=${encodeURIComponent(wo?.id || "")}&faturar=1`;
+      return;
+    }
+    window.JobBilling.openDialog({ jobId: wo.id, billing: wo.billing, jobStatus: wo.status });
   }
   function rowHtml(wo) {
     const J = I();
@@ -193,7 +198,7 @@
       return `<article class="om-swipe jx-swipe" data-jx-swipe="${J.esc(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
         <a class="om-swipe__act--edit" href="${href}">Abrir</a>
-        ${showBill ? `<a class="om-swipe__act--open" href="${billHref(wo)}">Faturar</a>` : ""}
+        ${showBill ? `<button type="button" class="om-swipe__act--open" data-jx-faturar="${J.esc(wo.id)}">Faturar</button>` : ""}
         <button type="button" class="om-swipe__act--delete" data-jx-delete="${J.esc(wo.id)}" data-jx-label="${J.esc(wo.title || J.client(wo))}">Excluir</button>
       </div>
       <div class="om-swipe__body">${body}</div>
@@ -278,7 +283,12 @@
       if (wo.status === "in_progress") return { label: "Concluir job", act: "complete" };
       if (!wo.scheduled_start && wo.status !== "completed") return { label: "Agendar", act: "schedule" };
     }
-    if (canFaturar(wo)) return { label: `Faturar ${I().money0(b.remaining_to_invoice)}`, href: billHref(wo) };
+    if (canFaturar(wo)) {
+      return {
+        label: `${b.invoiced_total > 0 ? "Faturar saldo" : "Faturar job"} ${I().money0(b.remaining_to_invoice)}`,
+        act: "invoice",
+      };
+    }
     return null;
   }
 
@@ -369,7 +379,7 @@
           <dt>Faturado</dt><dd>${J.money(wo.billing.invoiced_total)}</dd>
           <dt>Recebido</dt><dd>${J.money(wo.billing.paid_total)}</dd>
           <dt>A faturar</dt><dd>${J.money(wo.billing.remaining_to_invoice)}</dd>
-        </dl>${canFaturar(wo) ? `<a class="jx-btn jx-btn--pri" style="margin-top:10px" href="${billHref(wo)}">Faturar ${J.money0(wo.billing.remaining_to_invoice)}</a>` : ""}</div>`
+        </dl>${canFaturar(wo) ? `<button type="button" class="jx-btn jx-btn--pri" style="margin-top:10px" data-jx-act="invoice">${wo.billing.invoiced_total > 0 ? "Faturar saldo" : "Faturar job"} ${J.money0(wo.billing.remaining_to_invoice)}</button>` : ""}</div>`
       : "";
     return `<div class="jx-cols">
       <div>
@@ -857,6 +867,14 @@
       render();
     });
     $("jxRows").addEventListener("click", (e) => {
+      const fat = e.target.closest("[data-jx-faturar]");
+      if (fat) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = fat.getAttribute("data-jx-faturar");
+        openFaturar(all.find((w) => String(w.id) === String(id)));
+        return;
+      }
       if (e.target.closest("[data-jx-delete], .om-swipe__actions")) return;
       const a = e.target.closest("[data-jx-id]");
       if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
@@ -928,7 +946,10 @@
           } finally {
             btn.disabled = false;
           }
-        }         else if (act === "start") await setStatus(id, "in_progress", "Job iniciado.");
+        }         else if (act === "invoice") {
+          const wo = detailWo && String(detailWo.id) === String(id) ? detailWo : all.find((w) => String(w.id) === String(id));
+          openFaturar(wo);
+        } else if (act === "start") await setStatus(id, "in_progress", "Job iniciado.");
         else if (act === "complete") {
           const wo = all.find((w) => String(w.id) === String(id)) || detailWo;
           const label = wo?.title || (wo ? I().client(wo) : "");

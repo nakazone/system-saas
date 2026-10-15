@@ -178,7 +178,7 @@
               ? `<a class="jmx-b jmx-b--or" href="campo/ticket.html?id=${encodeURIComponent(wo.id)}">Campo</a>`
               : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
           : canInvoice && wo.status === "completed" && b && b.remaining_to_invoice > 0.004
-            ? `<a class="jmx-b jmx-b--or" href="invoices.html?new=1&job=${encodeURIComponent(wo.id)}">Faturar</a>`
+            ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="invoice" data-id="${escapeHtml(wo.id)}">Faturar ${escapeHtml(compactMoney(b.remaining_to_invoice))}</button>`
             : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
     const stage = J ? J.stageLabel(wo) : statusPt(wo.status);
     const when = wo.status === "completed" ? `concluído ${J ? J.dayShort(wo.scheduled_end || wo.scheduled_start) : ""}` : J ? J.dateRange(wo) : fmtDay(wo.scheduled_start);
@@ -322,6 +322,15 @@
         e.stopPropagation();
         const id = btn.getAttribute("data-id");
         const action = btn.getAttribute("data-job-action");
+        if (action === "invoice") {
+          const wo = allJobs.find((j) => String(j.id) === String(id));
+          if (window.JobBilling?.openDialog && wo) {
+            window.JobBilling.openDialog({ jobId: wo.id, billing: wo.billing, jobStatus: wo.status });
+          } else {
+            location.href = `job-detail.html?id=${encodeURIComponent(id)}&faturar=1`;
+          }
+          return;
+        }
         updateStatus(id, action === "complete" ? "completed" : "in_progress");
       });
     });
