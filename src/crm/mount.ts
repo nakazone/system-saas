@@ -79,7 +79,7 @@ function safePublicHtmlPath(urlPath: string): string | null {
 const NO_I18N_PAGES = /^(builder-(portal|login|calendar|project|projects|referrals|profile|pricing|messages|gallery|history|estimate-request|estimate-requests|calculator|calculator-share|forgot-password|reset-password|change-password)|quote-public|estimate-view)\.html$/;
 
 /** Bump when crm/public/crm-i18n.js changes (the dictionary version is added to it). */
-const I18N_ENGINE_VER = "20261018-e1";
+const I18N_ENGINE_VER = "20261018-e2";
 
 function i18nInject(file: string, version: string, orgLocale: string | null | undefined): string {
   if (NO_I18N_PAGES.test(path.basename(file))) return "";

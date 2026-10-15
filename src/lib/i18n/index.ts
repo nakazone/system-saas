@@ -247,10 +247,19 @@ function compilePatterns(list: [string, string][]): CompiledPattern[] {
 /** Same lookup as crm-i18n.js (without the date words): exact text, pattern, then "·" parts. */
 export function translateWith(bundle: Pick<Bundle, "exact" | "patterns">, key: string, compiled = compilePatterns(bundle.patterns)): string | null {
   const exactOf = (t: string) => (Object.prototype.hasOwnProperty.call(bundle.exact, t) ? bundle.exact[t]! : null);
+  let depth = 0;
   const inner = (v: string): string | null => {
     const t = v.trim();
     if (!t) return v;
-    const hit = exactOf(t);
+    let hit = exactOf(t);
+    if (hit == null && depth < 2) {
+      depth += 1;
+      try {
+        hit = byPattern(t, true);
+      } finally {
+        depth -= 1;
+      }
+    }
     if (hit != null) return v.replace(t, hit);
     if (t.includes("·")) {
       let changed = false;
