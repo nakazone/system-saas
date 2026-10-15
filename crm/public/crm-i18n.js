@@ -150,11 +150,13 @@
     return hit == null ? null : hit;
   }
 
-  /** A value captured by a pattern: known text, or parts split by "·". */
+  var depth = 0;
+  /** A value captured by a pattern: known text, another pattern, or parts split by "·". */
   function inner(v, inDoc) {
     var t = v.trim();
     if (!t) return v;
     var hit = exactOf(t, inDoc);
+    if (hit == null && depth < 2) { depth += 1; try { hit = byPattern(t, inDoc, true); } finally { depth -= 1; } }
     if (hit != null) return v.replace(t, hit);
     if (t.indexOf("·") >= 0) {
       var changed = false;

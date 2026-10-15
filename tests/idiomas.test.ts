@@ -82,6 +82,8 @@ describe("Busca da tradução (igual ao navegador)", () => {
     expect(translateWith(bundle, "até hoje")).toBe("until today");
     expect(translateWith(bundle, "Orçamentos enviados")).toBeNull(); // would come out half translated
     expect(translateWith(bundle, "Semana · Instalação")).toBe("Semana · Installation");
+    const nested = { exact: {}, patterns: [["{0} leads abertos", "{0} open leads"], ["{0} · {1} em negociação", "{0} · {1} in negotiation"]] as [string, string][] };
+    expect(translateWith(nested, "0 leads abertos · $0 em negociação")).toBe("0 open leads · $0 in negotiation");
   });
 });
 
