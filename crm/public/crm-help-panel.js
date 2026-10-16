@@ -1,10 +1,11 @@
 /**
- * Help Center slide-over: search, problem solver, tutorials, modules, support.
+ * Interactive Help Center slide-over (top-bar ?).
+ * Home hub + context + checklist + solve/tutorials + inline support tickets.
  */
 (function () {
   var PANEL_ID = "crmHelpPanel";
   var BACKDROP_ID = "crmHelpBackdrop";
-  var state = { tab: "solve", view: "list", detail: null, query: "" };
+  var state = { tab: "home", view: "list", detail: null, query: "", supportStatus: "" };
 
   function C() {
     return window.CrmHelpContent || null;
@@ -47,6 +48,7 @@
       '" role="dialog" aria-modal="true" aria-labelledby="crmHelpPanelTitle" hidden>' +
       '<div class="crm-help-panel__header">' +
       '<div class="crm-help-panel__intro">' +
+      '<p class="crm-help-panel__eyebrow">ObraMate</p>' +
       '<h2 id="crmHelpPanelTitle">' +
       esc(u.title) +
       "</h2>" +
@@ -63,14 +65,14 @@
       '<div class="crm-help-panel__search-wrap">' +
       '<input type="search" class="crm-help-panel__search" id="crmHelpSearch" placeholder="' +
       esc(u.searchPh) +
-      '" autocomplete="off" />' +
+      '" autocomplete="off" enterkeyhint="search" />' +
       "</div>" +
       '<nav class="crm-help-panel__tabs" role="tablist" aria-label="' +
       esc(u.title) +
       '">' +
+      tabBtn("home", u.tabHome) +
       tabBtn("solve", u.tabSolve) +
       tabBtn("tutorials", u.tabTutorials) +
-      tabBtn("modules", u.tabModules) +
       tabBtn("support", u.tabSupport) +
       "</nav>" +
       '<div class="crm-help-panel__body" id="crmHelpBody"></div>' +
@@ -125,8 +127,10 @@
     state.tab = tab;
     state.view = "list";
     state.detail = null;
+    state.supportStatus = "";
     syncTabs();
     render();
+    if (tab === "support") loadSupportHistory();
   }
 
   function openDetail(kind, id) {
@@ -139,100 +143,6 @@
     state.view = "list";
     state.detail = null;
     render();
-  }
-
-  function moduleHref(mod, fallback) {
-    if (fallback) return fallback;
-    return mod ? mod.href : "#";
-  }
-
-  function renderProblemDetail(p) {
-    var c = C();
-    var u = ui();
-    var mod = c.moduleById(p.moduleId);
-    var href = p.href || moduleHref(mod);
-    var steps = (p.steps && (p.steps[loc()] || p.steps.pt)) || [];
-    var html =
-      '<button type="button" class="crm-help-panel__back" data-crm-help-back>' +
-      esc(u.back) +
-      "</button>" +
-      '<h3 class="crm-help-panel__detail-title">' +
-      esc(pick(p.title)) +
-      "</h3>" +
-      (mod
-        ? '<p class="crm-help-panel__meta">' + esc(pick(mod.title)) + "</p>"
-        : "") +
-      '<p class="crm-help-panel__section-label">' +
-      esc(u.stepsLabel) +
-      "</p>" +
-      '<ol class="crm-help-panel__steps">';
-    steps.forEach(function (s) {
-      html += "<li>" + esc(s) + "</li>";
-    });
-    html += "</ol>";
-    html +=
-      '<a class="crm-help-panel__btn crm-help-panel__btn--block" href="' +
-      esc(href) +
-      '" data-crm-help-nav>' +
-      esc(u.goModule) +
-      "</a>";
-    if (p.extraLinks && p.extraLinks.length) {
-      html += '<p class="crm-help-panel__section-label">' + esc(u.related) + "</p>";
-      html += '<div class="crm-help-panel__cards">';
-      p.extraLinks.forEach(function (l) {
-        html +=
-          '<a class="crm-help-panel__card crm-help-panel__card--compact" href="' +
-          esc(l.href) +
-          '" data-crm-help-nav><strong>' +
-          esc(pick(l.label)) +
-          "</strong></a>";
-      });
-      html += "</div>";
-    }
-    return html;
-  }
-
-  function renderTutorialDetail(t) {
-    var u = ui();
-    var steps = (t.steps && (t.steps[loc()] || t.steps.pt)) || [];
-    var html =
-      '<button type="button" class="crm-help-panel__back" data-crm-help-back>' +
-      esc(u.back) +
-      "</button>" +
-      '<div class="crm-help-panel__badge-row">' +
-      '<span class="crm-help-panel__badge">' +
-      esc(levelLabel(t.level)) +
-      "</span>" +
-      '<span class="crm-help-panel__duration">' +
-      esc(pick(t.duration)) +
-      "</span>" +
-      "</div>" +
-      '<h3 class="crm-help-panel__detail-title">' +
-      esc(pick(t.title)) +
-      "</h3>" +
-      '<p class="crm-help-panel__detail-sum">' +
-      esc(pick(t.summary)) +
-      "</p>" +
-      '<p class="crm-help-panel__section-label">' +
-      esc(u.stepsLabel) +
-      "</p>" +
-      '<ol class="crm-help-panel__steps crm-help-panel__steps--linked">';
-    steps.forEach(function (s) {
-      var text = typeof s === "string" ? s : s.text;
-      var href = typeof s === "string" ? null : s.href;
-      if (href) {
-        html +=
-          '<li><a href="' +
-          esc(href) +
-          '" data-crm-help-nav>' +
-          esc(text) +
-          "</a></li>";
-      } else {
-        html += "<li>" + esc(text) + "</li>";
-      }
-    });
-    html += "</ol>";
-    return html;
   }
 
   function levelLabel(level) {
@@ -297,27 +207,443 @@
     );
   }
 
+  function chip(label, attrs) {
+    return (
+      '<button type="button" class="crm-help-panel__chip" ' +
+      attrs +
+      ">" +
+      esc(label) +
+      "</button>"
+    );
+  }
+
+  function renderHome() {
+    var c = C();
+    var u = ui();
+    var ctx = c.contextualItems();
+    var html = "";
+
+    if (ctx.module || ctx.problems.length || ctx.tutorials.length) {
+      html += '<section class="crm-help-panel__block crm-help-panel__block--context">';
+      html +=
+        '<div class="crm-help-panel__block-head"><span>' +
+        esc(u.hereNow) +
+        "</span>" +
+        (ctx.module
+          ? '<a class="crm-help-panel__block-link" href="' +
+            esc(ctx.module.href) +
+            '" data-crm-help-nav>' +
+            esc(pick(ctx.module.title)) +
+            "</a>"
+          : "") +
+        "</div>";
+      html += '<p class="crm-help-panel__hint crm-help-panel__hint--tight">' + esc(u.hereHint) + "</p>";
+      html += '<div class="crm-help-panel__chips">';
+      ctx.problems.forEach(function (p) {
+        html += chip(pick(p.title), 'data-crm-help-problem="' + esc(p.id) + '"');
+      });
+      ctx.tutorials.forEach(function (t) {
+        html += chip(pick(t.title), 'data-crm-help-tutorial="' + esc(t.id) + '"');
+      });
+      html += "</div></section>";
+    }
+
+    html += renderChecklist();
+
+    html += '<section class="crm-help-panel__block">';
+    html += '<p class="crm-help-panel__section-label">' + esc(u.quickTitle) + "</p>";
+    html += '<div class="crm-help-panel__quick">';
+    html +=
+      '<button type="button" class="crm-help-panel__quick-btn" data-crm-help-tab="solve"><strong>' +
+      esc(u.tabSolve) +
+      "</strong><span>" +
+      esc(u.solveHint) +
+      "</span></button>";
+    html +=
+      '<button type="button" class="crm-help-panel__quick-btn" data-crm-help-tab="tutorials"><strong>' +
+      esc(u.tabTutorials) +
+      "</strong><span>" +
+      esc(u.tutorialsHint) +
+      "</span></button>";
+    html +=
+      '<button type="button" class="crm-help-panel__quick-btn" data-crm-help-tab="support"><strong>' +
+      esc(u.tabSupport) +
+      "</strong><span>" +
+      esc(u.supportHint) +
+      "</span></button>";
+    html += "</div></section>";
+
+    html += '<section class="crm-help-panel__block">';
+    html +=
+      '<div class="crm-help-panel__block-head"><span>' +
+      esc(u.tabModules) +
+      '</span><button type="button" class="crm-help-panel__block-link" data-crm-help-show-modules>' +
+      esc(u.seeAll) +
+      "</button></div>";
+    html += '<div class="crm-help-panel__modules-scroll">';
+    c.MODULES.slice(0, 8).forEach(function (m) {
+      html +=
+        '<a class="crm-help-panel__mod-pill" href="' +
+        esc(m.href) +
+        '" data-crm-help-nav>' +
+        esc(pick(m.title)) +
+        "</a>";
+    });
+    html += "</div></section>";
+
+    return html;
+  }
+
+  function renderChecklist() {
+    var c = C();
+    var u = ui();
+    var map = c.loadChecklistState();
+    var items = c.CHECKLIST || [];
+    var done = 0;
+    items.forEach(function (it) {
+      if (map[it.id]) done++;
+    });
+    if (done >= items.length) return "";
+
+    var html =
+      '<section class="crm-help-panel__block crm-help-panel__block--check">' +
+      '<div class="crm-help-panel__block-head"><span>' +
+      esc(u.checklistTitle) +
+      '</span><span class="crm-help-panel__progress">' +
+      done +
+      " " +
+      esc(u.checklistProgress) +
+      " " +
+      items.length +
+      "</span></div>" +
+      '<div class="crm-help-panel__progress-bar" aria-hidden="true"><i style="width:' +
+      Math.round((done / items.length) * 100) +
+      '%"></i></div>' +
+      '<ul class="crm-help-panel__check">';
+
+    items.forEach(function (it) {
+      var on = !!map[it.id];
+      html +=
+        '<li class="crm-help-panel__check-item' +
+        (on ? " is-done" : "") +
+        '">' +
+        '<button type="button" class="crm-help-panel__check-toggle" data-crm-help-check="' +
+        esc(it.id) +
+        '" aria-pressed="' +
+        (on ? "true" : "false") +
+        '" title="' +
+        esc(on ? u.markUndo : u.markDone) +
+        '">' +
+        (on ? "✓" : "") +
+        "</button>" +
+        '<a href="' +
+        esc(it.href) +
+        '" data-crm-help-nav>' +
+        esc(pick(it.label)) +
+        "</a>" +
+        "</li>";
+    });
+    html += "</ul></section>";
+    return html;
+  }
+
+  function renderSupport() {
+    var u = ui();
+    var page = C().currentPageFile() || location.pathname;
+    var status =
+      state.supportStatus === "ok"
+        ? '<p class="crm-help-panel__flash is-ok">' + esc(u.supportOk) + "</p>"
+        : state.supportStatus === "err"
+          ? '<p class="crm-help-panel__flash is-err">' + esc(u.supportErr) + "</p>"
+          : "";
+
+    return (
+      '<p class="crm-help-panel__hint">' +
+      esc(u.supportHint) +
+      "</p>" +
+      status +
+      '<form class="crm-help-panel__form" id="crmHelpSupportForm" autocomplete="off">' +
+      '<label class="crm-help-panel__field"><span>' +
+      esc(u.supportCat) +
+      '</span><select name="category" id="crmHelpCat">' +
+      '<option value="question">' +
+      esc(u.catQuestion) +
+      "</option>" +
+      '<option value="suggestion">' +
+      esc(u.catSuggestion) +
+      "</option>" +
+      '<option value="bug">' +
+      esc(u.catBug) +
+      "</option>" +
+      '<option value="other">' +
+      esc(u.catOther) +
+      "</option>" +
+      "</select></label>" +
+      '<label class="crm-help-panel__field"><span>' +
+      esc(u.supportSubject) +
+      '</span><input name="subject" id="crmHelpSubject" required maxlength="160" /></label>' +
+      '<label class="crm-help-panel__field"><span>' +
+      esc(u.supportMessage) +
+      '</span><textarea name="body" id="crmHelpBodyMsg" rows="4" required maxlength="7800"></textarea></label>' +
+      '<p class="crm-help-panel__ctx-note">' +
+      esc(page) +
+      "</p>" +
+      '<div class="crm-help-panel__form-actions">' +
+      '<button type="submit" class="crm-help-panel__btn" id="crmHelpSendBtn">' +
+      esc(u.supportTicket) +
+      "</button>" +
+      '<a class="crm-help-panel__btn crm-help-panel__btn--ghost" href="mailto:support@obramate.com">' +
+      esc(u.supportEmail) +
+      "</a>" +
+      "</div>" +
+      "</form>" +
+      '<p class="crm-help-panel__section-label">' +
+      esc(u.supportHistory) +
+      "</p>" +
+      '<div id="crmHelpTicketList" class="crm-help-panel__tickets"><p class="crm-help-panel__hint">' +
+      esc(u.supportEmptyHist) +
+      "</p></div>"
+    );
+  }
+
+  function loadSupportHistory() {
+    var list = document.getElementById("crmHelpTicketList");
+    if (!list) return;
+    var u = ui();
+    fetch("/api/support/tickets", { credentials: "include", cache: "no-store" })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (j) {
+        var rows = (j && j.data) || [];
+        if (!rows.length) {
+          list.innerHTML =
+            '<p class="crm-help-panel__hint">' + esc(u.supportEmptyHist) + "</p>";
+          return;
+        }
+        var cats = {
+          question: u.catQuestion,
+          suggestion: u.catSuggestion,
+          bug: u.catBug,
+          other: u.catOther,
+        };
+        list.innerHTML = rows
+          .slice(0, 8)
+          .map(function (t) {
+            var when = t.created_at
+              ? new Date(t.created_at).toLocaleString(loc() === "en" ? "en-US" : "pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })
+              : "";
+            var st =
+              t.status === "closed"
+                ? loc() === "en"
+                  ? "Resolved"
+                  : "Resolvido"
+                : t.status === "waiting"
+                  ? loc() === "en"
+                    ? "Replied"
+                    : "Respondido"
+                  : loc() === "en"
+                    ? "Open"
+                    : "Aberto";
+            return (
+              '<article class="crm-help-panel__ticket">' +
+              '<div class="crm-help-panel__ticket-meta"><span>' +
+              esc(st) +
+              "</span><span>" +
+              esc(cats[t.category] || t.category || "") +
+              "</span><span>" +
+              esc(when) +
+              "</span></div>" +
+              "<strong>" +
+              esc(t.subject) +
+              "</strong>" +
+              "<p>" +
+              esc(t.body) +
+              "</p>" +
+              "</article>"
+            );
+          })
+          .join("");
+      })
+      .catch(function () {});
+  }
+
+  function submitSupport(e) {
+    e.preventDefault();
+    var u = ui();
+    var subjectEl = document.getElementById("crmHelpSubject");
+    var bodyEl = document.getElementById("crmHelpBodyMsg");
+    var catEl = document.getElementById("crmHelpCat");
+    var btn = document.getElementById("crmHelpSendBtn");
+    if (!subjectEl || !bodyEl || !btn) return;
+    var subject = subjectEl.value.trim();
+    var body = bodyEl.value.trim();
+    if (!subject || !body) {
+      (subject ? bodyEl : subjectEl).focus();
+      return;
+    }
+    var page = C().currentPageFile() || location.pathname;
+    var payloadBody = body + "\n\n---\nPágina: " + page + "\nURL: " + location.href;
+    btn.disabled = true;
+    btn.textContent = u.supportSending;
+    fetch("/api/support/tickets", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: (catEl && catEl.value) || "question",
+        subject: subject,
+        body: payloadBody,
+      }),
+    })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, j: j };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error((res.j && res.j.error) || "fail");
+        subjectEl.value = "";
+        bodyEl.value = "";
+        if (catEl) catEl.value = "question";
+        state.supportStatus = "ok";
+        render();
+        loadSupportHistory();
+      })
+      .catch(function () {
+        state.supportStatus = "err";
+        render();
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.textContent = u.supportTicket;
+      });
+  }
+
+  function renderProblemDetail(p) {
+    var c = C();
+    var u = ui();
+    var mod = c.moduleById(p.moduleId);
+    var href = p.href || (mod && mod.href) || "#";
+    var steps = (p.steps && (p.steps[loc()] || p.steps.pt)) || [];
+    var html =
+      '<button type="button" class="crm-help-panel__back" data-crm-help-back>' +
+      esc(u.back) +
+      "</button>" +
+      '<h3 class="crm-help-panel__detail-title">' +
+      esc(pick(p.title)) +
+      "</h3>" +
+      (mod ? '<p class="crm-help-panel__meta">' + esc(pick(mod.title)) + "</p>" : "") +
+      '<p class="crm-help-panel__section-label">' +
+      esc(u.stepsLabel) +
+      "</p>" +
+      '<ol class="crm-help-panel__steps">';
+    steps.forEach(function (s) {
+      html += "<li>" + esc(s) + "</li>";
+    });
+    html += "</ol>";
+    if (p.helpTab === "support") {
+      html +=
+        '<button type="button" class="crm-help-panel__btn crm-help-panel__btn--block" data-crm-help-tab="support">' +
+        esc(u.tabSupport) +
+        "</button>";
+    } else {
+      html +=
+        '<a class="crm-help-panel__btn crm-help-panel__btn--block" href="' +
+        esc(href) +
+        '" data-crm-help-nav>' +
+        esc(u.goModule) +
+        "</a>";
+    }
+    if (p.extraLinks && p.extraLinks.length) {
+      html += '<p class="crm-help-panel__section-label">' + esc(u.related) + "</p>";
+      html += '<div class="crm-help-panel__cards">';
+      p.extraLinks.forEach(function (l) {
+        if (l.helpTab) {
+          html +=
+            '<button type="button" class="crm-help-panel__card crm-help-panel__card--compact" data-crm-help-tab="' +
+            esc(l.helpTab) +
+            '"><strong>' +
+            esc(pick(l.label)) +
+            "</strong></button>";
+        } else {
+          html +=
+            '<a class="crm-help-panel__card crm-help-panel__card--compact" href="' +
+            esc(l.href) +
+            '" data-crm-help-nav><strong>' +
+            esc(pick(l.label)) +
+            "</strong></a>";
+        }
+      });
+      html += "</div>";
+    }
+    return html;
+  }
+
+  function renderTutorialDetail(t) {
+    var u = ui();
+    var steps = (t.steps && (t.steps[loc()] || t.steps.pt)) || [];
+    var html =
+      '<button type="button" class="crm-help-panel__back" data-crm-help-back>' +
+      esc(u.back) +
+      "</button>" +
+      '<div class="crm-help-panel__badge-row">' +
+      '<span class="crm-help-panel__badge">' +
+      esc(levelLabel(t.level)) +
+      "</span>" +
+      '<span class="crm-help-panel__duration">' +
+      esc(pick(t.duration)) +
+      "</span>" +
+      "</div>" +
+      '<h3 class="crm-help-panel__detail-title">' +
+      esc(pick(t.title)) +
+      "</h3>" +
+      '<p class="crm-help-panel__detail-sum">' +
+      esc(pick(t.summary)) +
+      "</p>" +
+      '<p class="crm-help-panel__section-label">' +
+      esc(u.stepsLabel) +
+      "</p>" +
+      '<ol class="crm-help-panel__steps crm-help-panel__steps--linked">';
+    steps.forEach(function (s) {
+      var text = typeof s === "string" ? s : s.text;
+      var href = typeof s === "string" ? null : s.href;
+      if (href) {
+        html +=
+          '<li><a href="' + esc(href) + '" data-crm-help-nav>' + esc(text) + "</a></li>";
+      } else {
+        html += "<li>" + esc(text) + "</li>";
+      }
+    });
+    html += "</ol>";
+    return html;
+  }
+
   function renderSearchResults(q) {
     var c = C();
     var u = ui();
     var res = c.searchAll(q, loc());
     var html = '<p class="crm-help-panel__hint">' + esc(u.results) + "</p>";
-    var empty =
-      !res.problems.length && !res.tutorials.length && !res.modules.length;
+    var empty = !res.problems.length && !res.tutorials.length && !res.modules.length;
     if (empty) {
       return (
         html +
         '<p class="crm-help-panel__empty">' +
         esc(u.empty) +
         "</p>" +
-        '<a class="crm-help-panel__btn" href="configuracoes.html#suporte" data-crm-help-nav>' +
-        esc(u.supportTicket) +
-        "</a>"
+        '<button type="button" class="crm-help-panel__btn" data-crm-help-tab="support">' +
+        esc(u.tabSupport) +
+        "</button>"
       );
     }
     if (res.problems.length) {
-      html += '<p class="crm-help-panel__section-label">' + esc(u.tabSolve) + "</p>";
-      html += '<div class="crm-help-panel__list">';
+      html +=
+        '<p class="crm-help-panel__section-label">' +
+        esc(u.tabSolve) +
+        '</p><div class="crm-help-panel__list">';
       res.problems.forEach(function (p) {
         html += problemRow(p);
       });
@@ -325,8 +651,9 @@
     }
     if (res.tutorials.length) {
       html +=
-        '<p class="crm-help-panel__section-label">' + esc(u.tabTutorials) + "</p>";
-      html += '<div class="crm-help-panel__list">';
+        '<p class="crm-help-panel__section-label">' +
+        esc(u.tabTutorials) +
+        '</p><div class="crm-help-panel__list">';
       res.tutorials.forEach(function (t) {
         html += tutorialRow(t);
       });
@@ -334,8 +661,9 @@
     }
     if (res.modules.length) {
       html +=
-        '<p class="crm-help-panel__section-label">' + esc(u.tabModules) + "</p>";
-      html += '<div class="crm-help-panel__cards">';
+        '<p class="crm-help-panel__section-label">' +
+        esc(u.tabModules) +
+        '</p><div class="crm-help-panel__cards">';
       res.modules.forEach(function (m) {
         html += moduleCard(m);
       });
@@ -344,11 +672,32 @@
     return html;
   }
 
+  function renderModulesAll() {
+    var c = C();
+    var u = ui();
+    var html =
+      '<button type="button" class="crm-help-panel__back" data-crm-help-back-home>' +
+      esc(u.back) +
+      "</button>" +
+      '<p class="crm-help-panel__hint">' +
+      esc(u.modulesHint) +
+      '</p><div class="crm-help-panel__cards">';
+    c.MODULES.forEach(function (m) {
+      html += moduleCard(m);
+    });
+    html += "</div>";
+    return html;
+  }
+
   function renderList() {
     var c = C();
     var u = ui();
     var q = state.query.trim();
     if (q) return renderSearchResults(q);
+
+    if (state.view === "modules") return renderModulesAll();
+
+    if (state.tab === "home") return renderHome();
 
     if (state.tab === "solve") {
       var html = '<p class="crm-help-panel__hint">' + esc(u.solveHint) + "</p>";
@@ -370,37 +719,9 @@
       return th;
     }
 
-    if (state.tab === "modules") {
-      var mh = '<p class="crm-help-panel__hint">' + esc(u.modulesHint) + "</p>";
-      mh += '<div class="crm-help-panel__cards">';
-      c.MODULES.forEach(function (m) {
-        mh += moduleCard(m);
-      });
-      mh += "</div>";
-      return mh;
-    }
+    if (state.tab === "support") return renderSupport();
 
-    return (
-      '<p class="crm-help-panel__hint">' +
-      esc(u.supportHint) +
-      "</p>" +
-      '<div class="crm-help-panel__contact">' +
-      "<h3>" +
-      esc(u.supportTitle) +
-      "</h3>" +
-      "<p>" +
-      esc(u.supportBody) +
-      "</p>" +
-      '<div class="crm-help-panel__contact-actions">' +
-      '<a class="crm-help-panel__btn" href="configuracoes.html#suporte" data-crm-help-nav>' +
-      esc(u.supportTicket) +
-      "</a>" +
-      '<a class="crm-help-panel__btn crm-help-panel__btn--ghost" href="mailto:support@obramate.com">' +
-      esc(u.supportEmail) +
-      "</a>" +
-      "</div>" +
-      "</div>"
-    );
+    return renderHome();
   }
 
   function render() {
@@ -410,29 +731,25 @@
 
     if (state.view === "detail" && state.detail) {
       if (state.detail.kind === "problem") {
-        var p = null;
-        for (var i = 0; i < c.PROBLEMS.length; i++) {
-          if (c.PROBLEMS[i].id === state.detail.id) {
-            p = c.PROBLEMS[i];
-            break;
-          }
-        }
+        var p = c.problemById(state.detail.id);
         body.innerHTML = p ? renderProblemDetail(p) : renderList();
         return;
       }
       if (state.detail.kind === "tutorial") {
-        var t = null;
-        for (var j = 0; j < c.TUTORIALS.length; j++) {
-          if (c.TUTORIALS[j].id === state.detail.id) {
-            t = c.TUTORIALS[j];
-            break;
-          }
-        }
+        var t = c.tutorialById(state.detail.id);
         body.innerHTML = t ? renderTutorialDetail(t) : renderList();
         return;
       }
     }
     body.innerHTML = renderList();
+    if (state.tab === "support" && state.view === "list" && !state.query) {
+      loadSupportHistory();
+      var form = document.getElementById("crmHelpSupportForm");
+      if (form && !form.dataset.bound) {
+        form.dataset.bound = "1";
+        form.addEventListener("submit", submitSupport);
+      }
+    }
   }
 
   function refreshChrome() {
@@ -451,9 +768,9 @@
     }
     if (closeBtn) closeBtn.setAttribute("aria-label", u.close);
     var labels = {
+      home: u.tabHome,
       solve: u.tabSolve,
       tutorials: u.tabTutorials,
-      modules: u.tabModules,
       support: u.tabSupport,
     };
     panel.querySelectorAll("[data-crm-help-tab]").forEach(function (btn) {
@@ -466,6 +783,7 @@
     opts = opts || {};
     var els = ensure();
     if (opts.tab) state.tab = opts.tab;
+    else if (!opts.problem && !opts.tutorial) state.tab = "home";
     if (opts.query != null) state.query = String(opts.query);
     if (opts.problem) {
       state.tab = "solve";
@@ -527,18 +845,12 @@
     btn.setAttribute("aria-haspopup", "dialog");
     btn.setAttribute("aria-controls", PANEL_ID);
     btn.setAttribute("aria-expanded", "false");
-    if (btn.tagName === "A") {
-      btn.addEventListener("click", function (e) {
-        e.preventDefault();
-        if (isOpen()) close();
-        else open();
-      });
-    } else {
-      btn.addEventListener("click", function () {
-        if (isOpen()) close();
-        else open();
-      });
+    function toggle(e) {
+      if (e) e.preventDefault();
+      if (isOpen()) close();
+      else open();
     }
+    btn.addEventListener("click", toggle);
   }
 
   function refresh() {
@@ -558,12 +870,32 @@
         return;
       }
       var tab = t.closest("[data-crm-help-tab]");
-      if (tab) {
+      if (tab && tab.closest("#" + PANEL_ID)) {
         setTab(tab.getAttribute("data-crm-help-tab"));
         return;
       }
       if (t.closest("[data-crm-help-back]")) {
         backToList();
+        return;
+      }
+      if (t.closest("[data-crm-help-back-home]")) {
+        state.view = "list";
+        state.tab = "home";
+        state.detail = null;
+        syncTabs();
+        render();
+        return;
+      }
+      if (t.closest("[data-crm-help-show-modules]")) {
+        state.view = "modules";
+        state.detail = null;
+        render();
+        return;
+      }
+      var check = t.closest("[data-crm-help-check]");
+      if (check) {
+        C().toggleChecklistItem(check.getAttribute("data-crm-help-check"));
+        render();
         return;
       }
       var prob = t.closest("[data-crm-help-problem]");
@@ -577,7 +909,6 @@
         return;
       }
       if (t.closest("[data-crm-help-nav]")) {
-        // allow navigation; close panel shortly after
         window.setTimeout(close, 120);
       }
     });
@@ -599,6 +930,15 @@
       refreshChrome();
       if (isOpen()) render();
     });
+
+    // Deep-link: #help, #help-support, #help-tutorials
+    try {
+      var hash = (location.hash || "").replace(/^#/, "");
+      if (hash === "help" || hash === "help-home") open({ tab: "home" });
+      else if (hash === "help-support" || hash === "suporte") open({ tab: "support" });
+      else if (hash === "help-tutorials") open({ tab: "tutorials" });
+      else if (hash === "help-solve") open({ tab: "solve" });
+    } catch (_) {}
   }
 
   if (document.readyState === "loading") {

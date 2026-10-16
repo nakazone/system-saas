@@ -8,7 +8,7 @@
   <script>
     // "Ajustes" moved to Configurações. Keep old links (and #suporte, #instalar-app…) working.
     (function () {
-      var map = { "#suporte": "#suporte", "#instalar-app": "#app", "#alertas-push": "#app" };
+      var map = { "#suporte": "#suporte", "#help-support": "#suporte", "#instalar-app": "#app", "#alertas-push": "#app" };
       var hash = map[location.hash] || "#visao-geral";
       location.replace("configuracoes.html" + hash);
     })();

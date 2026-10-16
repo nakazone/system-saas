@@ -219,7 +219,7 @@
       },
       extraLinks: [
         { href: "configuracoes.html#mensagens-orcamento", label: { pt: "Mensagens de orçamento", en: "Quote messages" } },
-        { href: "configuracoes.html#suporte", label: { pt: "Abrir ticket", en: "Open ticket" } },
+        { href: "#help-support", label: { pt: "Abrir ticket", en: "Open ticket" }, helpTab: "support" },
       ],
     },
     {
@@ -420,22 +420,57 @@
       tags: ["erro", "bug", "travou", "suporte", "ticket"],
       title: { pt: "Algo não está funcionando / preciso de suporte", en: "Something is broken / I need support" },
       moduleId: "settings",
-      href: "configuracoes.html#suporte",
+      helpTab: "support",
       steps: {
         pt: [
           "Anote a tela e o que tentou fazer.",
-          "Abra Configurações › Ajuda e suporte.",
-          "Envie um ticket com categoria Bug e detalhes.",
+          "Na aba Suporte desta Central, envie um ticket (categoria Bug).",
+          "Inclua o máximo de detalhe — a tela atual já entra no ticket.",
           "Ou escreva para support@obramate.com.",
         ],
         en: [
           "Note the screen and what you tried.",
-          "Open Settings › Help & support.",
-          "Send a ticket with Bug category and details.",
+          "In this Help Center’s Support tab, send a Bug ticket.",
+          "Include details — the current page is added automatically.",
           "Or email support@obramate.com.",
         ],
       },
     },
+  ];
+
+  /** Map current page filename → contextual help */
+  var PAGE_CONTEXT = {
+    "home.html": { moduleId: "home", problems: ["new-lead", "send-quote"], tutorials: ["getting-started"] },
+    "dashboard.html": { moduleId: "home", problems: ["new-lead", "send-quote"], tutorials: ["getting-started"] },
+    "leads.html": { moduleId: "leads", problems: ["new-lead", "schedule-visit", "send-quote"], tutorials: ["lead-to-quote"] },
+    "lead-detail.html": { moduleId: "leads", problems: ["new-lead", "send-quote", "schedule-visit"], tutorials: ["lead-to-quote"] },
+    "schedule.html": { moduleId: "schedule", problems: ["schedule-visit", "new-lead"], tutorials: ["lead-to-quote"] },
+    "customers.html": { moduleId: "customers", problems: ["new-lead", "send-quote"], tutorials: ["lead-to-quote"] },
+    "quotes.html": { moduleId: "quotes", problems: ["send-quote", "quote-not-received", "start-job"], tutorials: ["lead-to-quote", "quote-to-job"] },
+    "quote-builder.html": { moduleId: "quotes", problems: ["send-quote", "price-table", "quote-not-received"], tutorials: ["lead-to-quote", "brand-setup"] },
+    "jobs.html": { moduleId: "jobs", problems: ["start-job", "invoice-job", "photos"], tutorials: ["quote-to-job", "billing"] },
+    "job-detail.html": { moduleId: "jobs", problems: ["start-job", "invoice-job", "photos", "payroll"], tutorials: ["quote-to-job", "billing"] },
+    "invoices.html": { moduleId: "invoices", problems: ["invoice-job", "finance-cash"], tutorials: ["billing"] },
+    "invoice.html": { moduleId: "invoices", problems: ["invoice-job", "finance-cash"], tutorials: ["billing"] },
+    "finance.html": { moduleId: "finance", problems: ["finance-cash", "invoice-job"], tutorials: ["billing"] },
+    "financial.html": { moduleId: "finance", problems: ["finance-cash", "invoice-job"], tutorials: ["billing"] },
+    "folha.html": { moduleId: "payroll", problems: ["payroll"], tutorials: ["field-hours"] },
+    "payroll-module.html": { moduleId: "payroll", problems: ["payroll"], tutorials: ["field-hours"] },
+    "job-media-board.html": { moduleId: "obracam", problems: ["photos", "start-job"], tutorials: ["quote-to-job"] },
+    "chat.html": { moduleId: "chat", problems: ["start-job", "new-lead"], tutorials: ["getting-started"] },
+    "builder-pricing-admin.html": { moduleId: "pricing", problems: ["price-table", "send-quote"], tutorials: ["brand-setup", "lead-to-quote"] },
+    "relatorios.html": { moduleId: "reports", problems: ["reports", "finance-cash"], tutorials: ["billing"] },
+    "equipe.html": { moduleId: "team", problems: ["invite-team"], tutorials: ["getting-started"] },
+    "configuracoes.html": { moduleId: "settings", problems: ["branding", "invite-team", "bug"], tutorials: ["brand-setup", "getting-started"] },
+  };
+
+  var CHECKLIST = [
+    { id: "team", href: "equipe.html", label: { pt: "Convidar a equipe", en: "Invite the team" } },
+    { id: "pricing", href: "builder-pricing-admin.html", label: { pt: "Montar Tabela de Valor", en: "Set up Price table" } },
+    { id: "lead", href: "leads.html?new=1", label: { pt: "Cadastrar o primeiro lead", en: "Add the first lead" } },
+    { id: "quote", href: "quotes.html", label: { pt: "Enviar um orçamento", en: "Send a quote" } },
+    { id: "job", href: "jobs.html", label: { pt: "Abrir uma obra", en: "Open a job" } },
+    { id: "invoice", href: "invoices.html", label: { pt: "Emitir uma fatura", en: "Send an invoice" } },
   ];
 
   var TUTORIALS = [
@@ -588,61 +623,107 @@
   var UI = {
     pt: {
       title: "Central de Ajuda",
-      lead: "Resolva dúvidas rápido, aprenda com tutoriais e vá direto ao módulo certo.",
+      lead: "Pergunte, siga um tutorial ou fale com o suporte — sem sair da tela.",
       close: "Fechar ajuda",
-      searchPh: "Buscar: orçamento, fatura, folha, lead…",
+      searchPh: "O que você precisa? Ex.: enviar orçamento…",
+      tabHome: "Início",
       tabSolve: "Resolver",
       tabTutorials: "Tutoriais",
       tabModules: "Módulos",
       tabSupport: "Suporte",
-      solveHint: "O que você precisa fazer agora?",
+      hereNow: "Nesta tela",
+      hereHint: "Sugestões para onde você está agora.",
+      checklistTitle: "Primeiros passos",
+      checklistDone: "Concluído",
+      checklistProgress: "de",
+      quickTitle: "Atalhos",
+      solveHint: "Escolha o que descreve melhor o seu caso.",
       tutorialsHint: "Guias curtos, passo a passo.",
-      modulesHint: "Mapa rápido de onde cada coisa fica.",
-      supportHint: "Não encontrou? Fale com a gente.",
+      modulesHint: "Para onde ir em um toque.",
+      supportHint: "Conte o que aconteceu — já incluímos a tela atual.",
       goModule: "Ir para o módulo",
       openSteps: "Ver passos",
+      markDone: "Marcar como feito",
+      markUndo: "Desfazer",
       back: "Voltar",
       stepsLabel: "Passos",
       related: "Também útil",
-      empty: "Nenhum resultado. Tente outras palavras ou abra um ticket.",
-      supportTitle: "Falar com o suporte",
-      supportBody: "Descreva o problema em Configurações › Ajuda e suporte, ou envie um e-mail.",
-      supportTicket: "Abrir ticket",
-      supportEmail: "Enviar e-mail",
+      empty: "Nada encontrado. Tente outras palavras ou fale com o suporte.",
+      supportTitle: "Enviar mensagem",
+      supportBody: "Respondemos no e-mail da sua conta.",
+      supportTicket: "Enviar",
+      supportEmail: "E-mail",
+      supportCat: "Tipo",
+      supportSubject: "Assunto",
+      supportMessage: "Mensagem",
+      supportSending: "Enviando…",
+      supportOk: "Mensagem enviada. Respondemos pelo seu e-mail.",
+      supportErr: "Não foi possível enviar. Tente de novo.",
+      supportHistory: "Suas mensagens",
+      supportEmptyHist: "Nenhum ticket ainda.",
+      catQuestion: "Dúvida",
+      catSuggestion: "Sugestão",
+      catBug: "Problema / bug",
+      catOther: "Outro",
       levelStart: "Começar",
       levelCore: "Fluxo principal",
       levelOps: "Operação",
       levelSetup: "Configuração",
       results: "Resultados",
+      seeAll: "Ver tudo",
+      openPage: "Abrir módulo",
     },
     en: {
       title: "Help Center",
-      lead: "Solve issues fast, learn with tutorials, and jump to the right module.",
+      lead: "Ask, follow a tutorial, or contact support — without leaving the page.",
       close: "Close help",
-      searchPh: "Search: quote, invoice, payroll, lead…",
+      searchPh: "What do you need? e.g. send a quote…",
+      tabHome: "Home",
       tabSolve: "Solve",
       tabTutorials: "Tutorials",
       tabModules: "Modules",
       tabSupport: "Support",
-      solveHint: "What do you need to do right now?",
+      hereNow: "On this screen",
+      hereHint: "Suggestions for where you are now.",
+      checklistTitle: "Getting started",
+      checklistDone: "Done",
+      checklistProgress: "of",
+      quickTitle: "Shortcuts",
+      solveHint: "Pick what best matches your case.",
       tutorialsHint: "Short step-by-step guides.",
-      modulesHint: "Quick map of where everything lives.",
-      supportHint: "Still stuck? Reach out.",
+      modulesHint: "Jump to the right place.",
+      supportHint: "Tell us what happened — we include the current page.",
       goModule: "Go to module",
       openSteps: "See steps",
+      markDone: "Mark as done",
+      markUndo: "Undo",
       back: "Back",
       stepsLabel: "Steps",
       related: "Also useful",
-      empty: "No results. Try other words or open a ticket.",
-      supportTitle: "Contact support",
-      supportBody: "Describe the issue in Settings › Help & support, or send an email.",
-      supportTicket: "Open ticket",
-      supportEmail: "Send email",
+      empty: "Nothing found. Try other words or contact support.",
+      supportTitle: "Send a message",
+      supportBody: "We reply to your account email.",
+      supportTicket: "Send",
+      supportEmail: "Email",
+      supportCat: "Type",
+      supportSubject: "Subject",
+      supportMessage: "Message",
+      supportSending: "Sending…",
+      supportOk: "Message sent. We’ll reply by email.",
+      supportErr: "Couldn’t send. Please try again.",
+      supportHistory: "Your messages",
+      supportEmptyHist: "No tickets yet.",
+      catQuestion: "Question",
+      catSuggestion: "Suggestion",
+      catBug: "Bug / issue",
+      catOther: "Other",
       levelStart: "Getting started",
       levelCore: "Core flow",
       levelOps: "Operations",
       levelSetup: "Setup",
       results: "Results",
+      seeAll: "See all",
+      openPage: "Open module",
     },
   };
 
@@ -704,14 +785,83 @@
     return { problems: problems, tutorials: tutorials, modules: modules };
   }
 
+  function currentPageFile() {
+    try {
+      var parts = (location.pathname || "").split("/");
+      return parts[parts.length - 1] || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function pageContext() {
+    var file = currentPageFile();
+    return PAGE_CONTEXT[file] || null;
+  }
+
+  function problemById(id) {
+    for (var i = 0; i < PROBLEMS.length; i++) {
+      if (PROBLEMS[i].id === id) return PROBLEMS[i];
+    }
+    return null;
+  }
+
+  function tutorialById(id) {
+    for (var i = 0; i < TUTORIALS.length; i++) {
+      if (TUTORIALS[i].id === id) return TUTORIALS[i];
+    }
+    return null;
+  }
+
+  function contextualItems() {
+    var ctx = pageContext();
+    if (!ctx) return { module: null, problems: [], tutorials: [] };
+    return {
+      module: moduleById(ctx.moduleId),
+      problems: (ctx.problems || []).map(problemById).filter(Boolean),
+      tutorials: (ctx.tutorials || []).map(tutorialById).filter(Boolean),
+    };
+  }
+
+  var CHECK_KEY = "crm_help_checklist_v1";
+
+  function loadChecklistState() {
+    try {
+      return JSON.parse(localStorage.getItem(CHECK_KEY) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveChecklistState(map) {
+    try {
+      localStorage.setItem(CHECK_KEY, JSON.stringify(map || {}));
+    } catch (_) {}
+  }
+
+  function toggleChecklistItem(id) {
+    var map = loadChecklistState();
+    map[id] = !map[id];
+    saveChecklistState(map);
+    return !!map[id];
+  }
+
   window.CrmHelpContent = {
     MODULES: MODULES,
     PROBLEMS: PROBLEMS,
     TUTORIALS: TUTORIALS,
+    CHECKLIST: CHECKLIST,
     UI: UI,
     locale: locale,
     pick: pick,
     moduleById: moduleById,
+    problemById: problemById,
+    tutorialById: tutorialById,
     searchAll: searchAll,
+    pageContext: pageContext,
+    contextualItems: contextualItems,
+    currentPageFile: currentPageFile,
+    loadChecklistState: loadChecklistState,
+    toggleChecklistItem: toggleChecklistItem,
   };
 })();

@@ -31,8 +31,9 @@
     { id: 'settings-quote-messages', label: 'Mensagens do Orçamento', sub: 'Configurações · SMS e WhatsApp do quote', href: 'configuracoes.html#mensagens-orcamento', perm: 'settings.manage' },
     { id: 'settings-lead-messages', label: 'Mensagens para Leads', sub: 'Configurações · e-mails do pipeline', href: 'configuracoes.html#mensagens-fase', perm: 'settings.manage' },
     { id: 'settings-lead-automations', label: 'Automações de Leads', sub: 'Configurações · Quote Sent → Follow-up', href: 'configuracoes.html#automacoes-leads', perm: 'settings.manage' },
-    { id: 'support', label: 'Ajuda / suporte', sub: 'Resolver problemas e contato', href: '#help', perm: null },
+    { id: 'support', label: 'Central de Ajuda', sub: 'Início, tutoriais e suporte', href: '#help', perm: null },
     { id: 'tutorials', label: 'Tutoriais', sub: 'Guias passo a passo do ObraMate', href: '#help-tutorials', perm: null },
+    { id: 'help-ticket', label: 'Falar com suporte', sub: 'Abrir ticket na Central de Ajuda', href: '#help-support', perm: null },
     { id: 'install', label: 'Instalar app', sub: 'Baixar no dispositivo', href: '#pwa-install', perm: null },
   ];
 
@@ -154,12 +155,20 @@
       return;
     }
     if (href === '#help') {
-      if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === 'function') window.__crmHelpPanel.open();
+      if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === 'function') {
+        window.__crmHelpPanel.open({ tab: 'home' });
+      }
       return;
     }
     if (href === '#help-tutorials') {
       if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === 'function') {
         window.__crmHelpPanel.open({ tab: 'tutorials' });
+      }
+      return;
+    }
+    if (href === '#help-support') {
+      if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === 'function') {
+        window.__crmHelpPanel.open({ tab: 'support' });
       }
       return;
     }

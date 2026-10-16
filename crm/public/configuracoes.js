@@ -1,6 +1,6 @@
 /**
  * Configurações — settings hub (etapa 1: Visão geral, Dados da empresa, Marca,
- * App e alertas, Ajuda e suporte). Sections are hash-routed: #empresa, #marca…
+ * App e alertas). Sections are hash-routed: #empresa, #marca…
  */
 (function () {
   "use strict";
@@ -114,12 +114,11 @@
     },
     {
       id: "sistema",
-      label: "App e suporte",
+      label: "App",
       icon: "bell",
-      desc: "Instalar, alertas e ajuda",
+      desc: "Instalar e alertas",
       subs: [
         { id: "app", label: "App e alertas", section: "app", perm: null, desc: "Use o ObraMate como aplicativo e receba avisos neste dispositivo.", keywords: "instalar app celular notificação push alerta dispositivo" },
-        { id: "suporte", label: "Ajuda e suporte", section: "suporte", perm: null, desc: "Dúvidas, sugestões ou problemas direto para a equipe ObraMate.", keywords: "suporte ajuda dúvida problema bug sugestão contato" },
       ],
     },
   ];
@@ -137,6 +136,7 @@
     "categorias-servico": "categorias",
     "instalar-app": "app",
     "alertas-push": "app",
+    suporte: "app",
     "meu-perfil": "mp-perfil",
   };
   /** Passo do progresso (Início) → subgrupo. */
@@ -202,7 +202,6 @@
     ["Cores da marca", "marca", "brandPresets"],
     ["Instalar app", "app", null],
     ["Alertas no celular", "app", null],
-    ["Falar com o suporte", "suporte", "supportSubject"],
   ];
 
   const US_STATES = [
@@ -3518,7 +3517,10 @@
   }
 
   function bindSupport() {
-    $("supportForm").addEventListener("submit", async (e) => {
+    /* Ticket UI moved to Help Center panel (?). Legacy #suporte opens the panel. */
+    const form = $("supportForm");
+    if (!form) return;
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const subject = $("supportSubject").value.trim();
       const body = $("supportBody").value.trim();
@@ -3547,6 +3549,18 @@
         btn.textContent = "Enviar mensagem";
       }
     });
+  }
+
+  function openHelpFromLegacyHash() {
+    const raw = decodeURIComponent((location.hash || "").replace(/^#/, ""));
+    if (raw !== "suporte" && raw !== "help-support" && raw !== "help") return;
+    const openPanel = () => {
+      if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === "function") {
+        window.__crmHelpPanel.open({ tab: raw === "help" ? "home" : "support" });
+      }
+    };
+    openPanel();
+    window.setTimeout(openPanel, 400);
   }
 
   // ---------------------------------------------------------------- cargos + catalog
@@ -3906,10 +3920,6 @@
       }
       return;
     }
-    if (id === "suporte" && !loaded.has("suporte")) {
-      loaded.add("suporte");
-      return loadSupportHistory();
-    }
   }
 
   async function loadSession() {
@@ -3932,22 +3942,6 @@
   function bindShell() {
     $("cfgSave").addEventListener("click", () => saveCurrent());
     $("cfgDiscard").addEventListener("click", () => discardCurrent());
-    const openHelpSolve = $("cfgOpenHelpSolve");
-    if (openHelpSolve) {
-      openHelpSolve.addEventListener("click", () => {
-        if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === "function") {
-          window.__crmHelpPanel.open({ tab: "solve" });
-        }
-      });
-    }
-    const openHelpTutorials = $("cfgOpenHelpTutorials");
-    if (openHelpTutorials) {
-      openHelpTutorials.addEventListener("click", () => {
-        if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === "function") {
-          window.__crmHelpPanel.open({ tab: "tutorials" });
-        }
-      });
-    }
     bindLeadMessagesUi();
     bindLeadAutomationsUi();
     bindJobsSettingsUi();
@@ -4031,6 +4025,7 @@
     }
     renderNav();
     show(routeFromHash());
+    openHelpFromLegacyHash();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
