@@ -236,7 +236,6 @@
   function renderList() {
     const rows = visibleRows();
     const host = $("jxRows");
-    $("jxCount").textContent = `${rows.length} job${rows.length === 1 ? "" : "s"}`;
     if (!rows.length) {
       host.innerHTML = `<p class="jx-empty">${all.length ? "Nenhum job neste filtro." : 'Nenhum job ainda. Crie um orçamento em <a href="quote-builder.html">Quotes</a> e transforme em job.'}</p>`;
       return rows;
@@ -849,10 +848,7 @@
       if (qs.get("sort") === "oldest") sortDir = "oldest";
       if (qs.get("id")) selId = qs.get("id");
       const sortEl = $("jxSort");
-      if (sortEl) {
-        sortEl.value = sortDir;
-        sortEl.closest(".jx-sel")?.classList.toggle("is-on", sortDir !== "newest");
-      }
+      if (sortEl) sortEl.value = sortDir;
     }
     render();
     if (selId) {
@@ -944,7 +940,6 @@
     });
     $("jxSort")?.addEventListener("change", (e) => {
       sortDir = e.target.value === "oldest" ? "oldest" : "newest";
-      e.target.closest(".jx-sel")?.classList.toggle("is-on", sortDir !== "newest");
       const params = new URLSearchParams(location.search);
       if (sortDir === "oldest") params.set("sort", "oldest");
       else params.delete("sort");
