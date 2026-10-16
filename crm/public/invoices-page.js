@@ -209,7 +209,8 @@
     } catch (_) {}
     renderTiles();
     renderList();
-    if (isWide() && !visible().some((i) => String(i.id) === String(selId))) {
+    // Keep the open invoice when changing tabs; only auto-pick the first row when nothing is selected.
+    if (isWide() && !selId) {
       const first = $('invRows').querySelector('[data-inv-id]');
       if (first) select(first.getAttribute('data-inv-id'), true);
     }
@@ -695,18 +696,18 @@
 
     await load();
     loadBillableTotal();
-    if (selId && all.some((i) => String(i.id) === String(selId))) {
+    if (selId) {
+      // Deep-link from Faturar / e-mail: always open *this* invoice — never fall back to the first row.
       const inv = all.find((i) => String(i.id) === String(selId));
-      if (!inTab(inv, tab)) tab = 'all';
+      if (inv && !inTab(inv, tab)) tab = 'all';
+      if (inv && !inPeriod(inv)) {
+        periodAll = true;
+        syncPeriodUrl();
+        renderPeriodBar();
+      }
       renderTiles();
       renderList();
-      // invoice-page.js já abre a fatura do ?id= (com ?action=pay|send); aqui só arruma a tela
-      const narrow = !isWide();
-      $('invSplit').classList.toggle('is-detail', narrow);
-      document.body.classList.toggle('ix-detail-open', narrow);
-      $('ixBlank').hidden = true;
-      $('invPage').hidden = false;
-      $('invRows').querySelectorAll('[data-inv-id]').forEach((a) => a.classList.toggle('is-on', a.getAttribute('data-inv-id') === String(selId)));
+      select(selId, false);
     } else if (isWide()) {
       const first = $('invRows').querySelector('[data-inv-id]');
       if (first) select(first.getAttribute('data-inv-id'), true);

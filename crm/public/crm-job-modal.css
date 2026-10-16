@@ -299,7 +299,9 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
   width: 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   padding: 8px 12px; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; color: inherit;
 }
-.jm-svc-dd__opt:hover, .jm-svc-dd__opt:focus-visible { background: var(--jm-terra-soft); outline: none; }
+.jm-svc-dd__opt:hover, .jm-svc-dd__opt:focus-visible,
+.jm-svc-dd__opt.is-on, .jm-svc-dd__opt.is-kb { background: var(--jm-terra-soft); outline: none; }
+.jm-svc-dd__manual.is-on, .jm-svc-dd__manual.is-kb { background: var(--jm-terra-soft); }
 .jm-svc-dd__opt b { font-size: 13px; font-weight: 700; }
 .jm-svc-dd__opt small { flex: none; font-size: 12px; color: var(--jm-muted); font-weight: 700; }
 .jm-svc-dd__empty { margin: 0; padding: 10px 12px; font-size: 12.5px; color: var(--jm-muted); }

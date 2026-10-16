@@ -253,7 +253,12 @@
         body: JSON.stringify(body),
       });
       notify(`Fatura ${j.data?.invoice_number || ""} criada.`, "success");
-      window.location.href = j.redirect || `invoices.html?id=${encodeURIComponent(j.data.id)}&new=1`;
+      const invId = j.data?.id;
+      window.location.href =
+        j.redirect ||
+        (invId
+          ? `invoices.html?id=${encodeURIComponent(invId)}&new=1&period=all`
+          : "invoices.html");
     } catch (ex) {
       if (errEl) {
         errEl.textContent = ex.message || "Erro ao criar fatura";

@@ -11,6 +11,7 @@
   let canInvoice = false;
   let filter = "all";
   let source = "";
+  let sortDir = "newest";
   let q = "";
   let selId = null;
   let firstLoad = true;
@@ -110,9 +111,8 @@
   }
 
   function sortRows(rows) {
-    // Newest jobs first (by creation).
     const t = (wo) => new Date(wo.created_at || 0).getTime();
-    return rows.sort((a, b) => t(b) - t(a));
+    return rows.sort((a, b) => (sortDir === "oldest" ? t(a) - t(b) : t(b) - t(a)));
   }
 
   // ---------------------------------------------------------------- top
@@ -846,7 +846,13 @@
       const bmap = { to_invoice: "toinvoice", awaiting_payment: "receivable", paid: "done" };
       if (qs.get("billing") && bmap[qs.get("billing")]) filter = bmap[qs.get("billing")];
       if (qs.get("filter")) filter = qs.get("filter");
+      if (qs.get("sort") === "oldest") sortDir = "oldest";
       if (qs.get("id")) selId = qs.get("id");
+      const sortEl = $("jxSort");
+      if (sortEl) {
+        sortEl.value = sortDir;
+        sortEl.closest(".jx-sel")?.classList.toggle("is-on", sortDir !== "newest");
+      }
     }
     render();
     if (selId) {
@@ -932,6 +938,16 @@
       const params = new URLSearchParams(location.search);
       if (source) params.set("source", source);
       else params.delete("source");
+      const qs = params.toString();
+      history.replaceState(null, "", qs ? `${location.pathname}?${qs}` : location.pathname);
+      render();
+    });
+    $("jxSort")?.addEventListener("change", (e) => {
+      sortDir = e.target.value === "oldest" ? "oldest" : "newest";
+      e.target.closest(".jx-sel")?.classList.toggle("is-on", sortDir !== "newest");
+      const params = new URLSearchParams(location.search);
+      if (sortDir === "oldest") params.set("sort", "oldest");
+      else params.delete("sort");
       const qs = params.toString();
       history.replaceState(null, "", qs ? `${location.pathname}?${qs}` : location.pathname);
       render();

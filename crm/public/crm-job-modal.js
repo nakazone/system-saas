@@ -1251,12 +1251,12 @@
               ? matches
                   .map((item) => {
                     const rate = priceFor(item);
-                    return `<button type="button" class="jm-svc-dd__opt" role="option" data-act="panel-pick" data-id="${esc(item.id)}"><b>${esc(item.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(item.unit))}` : esc(unitLabel(item.unit))}</small></button>`;
+                    return `<button type="button" class="jm-svc-dd__opt" role="option" tabindex="-1" data-act="panel-pick" data-id="${esc(item.id)}"><b>${esc(item.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(item.unit))}` : esc(unitLabel(item.unit))}</small></button>`;
                   })
                   .join("")
               : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`
           }
-          <button type="button" class="jm-svc-dd__manual" data-act="panel-manual">+ Serviço manual (fora da tabela)</button>
+          <button type="button" class="jm-svc-dd__manual" tabindex="-1" data-act="panel-manual">+ Serviço manual (fora da tabela)</button>
         </div>`
       : "";
     const editing = p.i != null;
@@ -2550,6 +2550,7 @@
         st.svcPanel.query = t.value;
         st.svcPanel.name = t.value;
         st.svcPanel.open = true;
+        st.svcPanel.kb = -1;
         // Lightweight dropdown refresh (keep caret)
         const pick = t.closest(".jm-svc-pick");
         if (pick) {
@@ -2569,11 +2570,11 @@
               ? matches
                   .map((p) => {
                     const rate = priceFor(p);
-                    return `<button type="button" class="jm-svc-dd__opt" role="option" data-act="panel-pick" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(p.unit))}` : esc(unitLabel(p.unit))}</small></button>`;
+                    return `<button type="button" class="jm-svc-dd__opt" role="option" tabindex="-1" data-act="panel-pick" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(p.unit))}` : esc(unitLabel(p.unit))}</small></button>`;
                   })
                   .join("")
               : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`) +
-            `<button type="button" class="jm-svc-dd__manual" data-act="panel-manual">+ Serviço manual (fora da tabela)</button>`;
+            `<button type="button" class="jm-svc-dd__manual" tabindex="-1" data-act="panel-manual">+ Serviço manual (fora da tabela)</button>`;
         }
         return;
       }
@@ -2710,11 +2711,119 @@
     }
   }
 
+  function svcDdButtons() {
+    return Array.from($("jmSvc")?.querySelectorAll(".jm-svc-dd [data-act='panel-pick'], .jm-svc-dd [data-act='panel-manual']") || []);
+  }
+
+  function syncSvcDdHighlight(active) {
+    svcDdButtons().forEach((btn, i) => {
+      const on = i === active;
+      btn.classList.toggle("is-on", on);
+      btn.classList.toggle("is-kb", on);
+      if (on) btn.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  function moveSvcDdActive(delta) {
+    const buttons = svcDdButtons();
+    if (!buttons.length || !st?.svcPanel) return false;
+    let cur = buttons.findIndex((b) => b.classList.contains("is-kb") || b.classList.contains("is-on"));
+    if (cur < 0) cur = delta > 0 ? 0 : buttons.length - 1;
+    else cur = (cur + delta + buttons.length) % buttons.length;
+    syncSvcDdHighlight(cur);
+    st.svcPanel.kb = cur;
+    return true;
+  }
+
+  function selectSvcDdActive() {
+    const buttons = svcDdButtons();
+    if (!buttons.length || !st?.svcPanel) return false;
+    let ix = typeof st.svcPanel.kb === "number" ? st.svcPanel.kb : -1;
+    if (ix < 0) ix = buttons.findIndex((b) => b.classList.contains("is-kb") || b.classList.contains("is-on"));
+    if (ix < 0) ix = 0;
+    const btn = buttons[ix];
+    if (!btn) return false;
+    btn.click();
+    return true;
+  }
+
+  function focusSvcField(f) {
+    const el = $("jmSvc")?.querySelector(`[data-f="${f}"]`);
+    if (el) {
+      el.focus();
+      try {
+        if (el.select) el.select();
+      } catch (_) {}
+    }
+  }
+
   function onKey(e) {
     if (!st) return;
-    if (e.key === "Enter" && e.target.closest?.("[data-svc-editor]")) {
+    const inSvc = e.target.closest?.("[data-svc-editor]");
+    if (inSvc && (e.key === "ArrowDown" || e.key === "ArrowUp") && e.target.getAttribute?.("data-f") === "panel-q") {
+      if (st.svcPanel && !st.svcPanel.open) {
+        st.svcPanel.open = true;
+        renderServices();
+        setTimeout(() => {
+          $("jmSvcName")?.focus();
+          moveSvcDdActive(e.key === "ArrowDown" ? 1 : -1);
+        }, 0);
+      } else {
+        e.preventDefault();
+        moveSvcDdActive(e.key === "ArrowDown" ? 1 : -1);
+      }
+      return;
+    }
+    // Tab: Nome → Qtd → Preço → Adicionar (skip description; dropdown options are tabindex=-1).
+    if (inSvc && e.key === "Tab" && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      const f = e.target.getAttribute?.("data-f");
+      if (f === "panel-q" && !e.shiftKey) {
+        e.preventDefault();
+        if (st.svcPanel?.open && svcDdButtons().length) {
+          if (typeof st.svcPanel.kb !== "number" || st.svcPanel.kb < 0) {
+            st.svcPanel.kb = 0;
+            syncSvcDdHighlight(0);
+          }
+          selectSvcDdActive();
+          setTimeout(() => focusSvcField("panel-qty"), 30);
+          return;
+        }
+        focusSvcField("panel-qty");
+        return;
+      }
+      if (f === "panel-qty" && !e.shiftKey) {
+        e.preventDefault();
+        focusSvcField("panel-price");
+        return;
+      }
+      if (f === "panel-qty" && e.shiftKey) {
+        e.preventDefault();
+        focusSvcField("panel-q");
+        return;
+      }
+      if (f === "panel-price" && !e.shiftKey) {
+        e.preventDefault();
+        $("jmSvc")?.querySelector('[data-act="svc-save"]')?.focus();
+        return;
+      }
+      if (f === "panel-price" && e.shiftKey) {
+        e.preventDefault();
+        focusSvcField("panel-qty");
+        return;
+      }
+    }
+    if (e.key === "Enter" && inSvc) {
       if (e.target.tagName === "TEXTAREA") return;
       e.preventDefault();
+      if (e.target.getAttribute?.("data-f") === "panel-q" && st.svcPanel?.open && svcDdButtons().length) {
+        if (typeof st.svcPanel.kb !== "number" || st.svcPanel.kb < 0) {
+          st.svcPanel.kb = 0;
+          syncSvcDdHighlight(0);
+        }
+        selectSvcDdActive();
+        setTimeout(() => focusSvcField("panel-qty"), 30);
+        return;
+      }
       $("jmSvc")?.querySelector('[data-act="svc-save"]')?.click();
       return;
     }
