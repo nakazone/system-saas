@@ -1,7 +1,7 @@
 <% const displayProductName = (typeof productName !== 'undefined' && productName) ? productName : 'ObraMate'; %>
 <% const isLandingPage = typeof landingPage !== 'undefined' && landingPage; %>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= isLandingPage ? 'pt-BR' : 'en' %>">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
@@ -14,8 +14,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <% if (isLandingPage) { %>
-  <meta name="description" content="ObraMate is the operating system for flooring companies — leads, quotes, jobs, field crews, invoices, and payroll in one workspace. Start a free trial." />
-  <link rel="stylesheet" href="/assets/css/landing.css?v=20261015-site1" />
+  <meta name="description" content="ObraMate — mais controle para a sua empresa de flooring. Leads, orçamentos, obras, equipe e financeiro num só sistema. Comece o teste grátis." />
+  <link rel="stylesheet" href="/assets/css/landing.css?v=20261016-site2" />
   <style>:root { --brand: #E7792C; --brand-deep: #B64B10; }</style>
   <% } else { %>
   <link rel="stylesheet" href="/assets/css/app.css?v=20261014-su1" />

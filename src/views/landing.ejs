@@ -1,19 +1,22 @@
 <%- include('partials/header') %>
+<% const days = typeof trialDays !== 'undefined' ? trialDays : 30; %>
 
 <div class="progress" id="progress" aria-hidden="true"></div>
 
 <header class="nav" id="nav">
   <div class="wrap nav-in">
-    <a href="/" class="logo" aria-label="<%= productName %> home">
-      <img src="/assets/obramate-logo.png" alt="<%= productName %>" width="140" height="32" />
+    <a href="/" class="logo" aria-label="<%= productName %>">
+      <img src="/assets/obramateLogoSmallTransp.png" alt="" width="28" height="28" />
+      <span><%= productName %></span>
     </a>
     <nav class="nav-links" id="links">
-      <a href="#product">Product</a>
-      <a href="#calculator">Estimator</a>
-      <a href="#how">How it works</a>
-      <a href="/pricing">Pricing</a>
-      <a href="/login.html">Sign in</a>
-      <a href="/signup" class="btn btn-primary">Start free trial</a>
+      <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#planos">Planos</a>
+      <a href="#depoimentos">Depoimentos</a>
+      <a href="#recursos">Recursos</a>
+      <a href="#contato">Contato</a>
+      <a href="/login.html" class="nav-signin">Entrar</a>
+      <a href="/signup" class="btn btn-primary">Começar agora</a>
     </nav>
     <button type="button" class="burger" id="burger" aria-label="Menu" aria-expanded="false" aria-controls="links">
       <span></span><span></span><span></span>
@@ -22,294 +25,336 @@
 </header>
 
 <main>
-  <!-- Hero: one composition — brand, headline, proof line, CTAs, product stage -->
-  <section class="hero">
+  <!-- Hero -->
+  <section class="hero" id="topo">
     <div class="hero-bg" aria-hidden="true"></div>
     <div class="wrap hero-grid">
       <div class="hero-copy">
-        <p class="brand-mark reveal"><%= productName %></p>
-        <h1 class="reveal d1">The operating system for flooring companies</h1>
-        <p class="lead reveal d2">From first lead to paid invoice — quotes, jobs, field crews, and cash in one workspace built for installers.</p>
-        <div class="cta-row reveal d3">
-          <a href="/signup" class="btn btn-primary">
-            Start <%= typeof trialDays !== 'undefined' ? trialDays : 30 %>-day free trial
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
-          </a>
-          <a href="#product" class="btn btn-ghost">See how it works</a>
+        <h1 class="reveal">Mais controle para a sua empresa de <em>flooring</em>.</h1>
+        <p class="lead reveal d1">Leads, orçamentos, obras, equipe e financeiro — tudo num só lugar, feito para quem instala piso de verdade.</p>
+        <div class="cta-row reveal d2">
+          <a href="/signup" class="btn btn-primary">Começar agora</a>
+          <a href="#como-funciona" class="btn btn-ghost-light">Ver como funciona</a>
         </div>
-        <ul class="trust-line reveal d3">
-          <li>No credit card</li>
-          <li>Your company data isolated</li>
-          <li>Office + field in sync</li>
-        </ul>
       </div>
 
-      <div class="hero-stage reveal d2" aria-hidden="true">
-        <div class="stage-shell">
-          <div class="stage-bar">
-            <i></i><i></i><i></i>
-            <span>yourcompany.<%= appRootDomain %></span>
-          </div>
-          <div class="stage-flow" id="stageFlow">
-            <article class="stage-card is-on" data-step="0">
-              <span class="stage-k">Lead</span>
-              <strong>Rivera Residence</strong>
-              <p>LVP · Living + hall</p>
-              <em>$4,280 estimated</em>
-            </article>
-            <article class="stage-card" data-step="1">
-              <span class="stage-k">Quote</span>
-              <strong>Q-184 sent</strong>
-              <p>Tabela · waste 8%</p>
-              <em>Client viewing…</em>
-            </article>
-            <article class="stage-card" data-step="2">
-              <span class="stage-k">Job #42</span>
-              <strong>Install in progress</strong>
-              <p>Crew · ObraCam photos</p>
-              <em>Deposit paid</em>
-            </article>
-            <article class="stage-card" data-step="3">
-              <span class="stage-k">Invoice</span>
-              <strong>INV-091 · Balance due</strong>
-              <p>Services + deposit applied</p>
-              <em class="ok">Ready to collect</em>
-            </article>
-          </div>
-          <div class="stage-rail">
-            <span class="is-on" data-rail="0">Sell</span>
-            <span data-rail="1">Quote</span>
-            <span data-rail="2">Field</span>
-            <span data-rail="3">Paid</span>
+      <div class="hero-visual reveal d1" aria-hidden="true">
+        <div class="hero-fox"><%- include('partials/om-fox', { pose: 'point' }) %></div>
+        <div class="dash">
+          <aside class="dash-rail">
+            <i></i><i></i><i></i><i></i><i></i>
+          </aside>
+          <div class="dash-body">
+            <header class="dash-head">
+              <strong>Boa tarde!</strong>
+              <span>Visão geral</span>
+            </header>
+            <div class="dash-kpis">
+              <div><small>Leads</small><b>24</b></div>
+              <div><small>Orçamentos</small><b>12</b></div>
+              <div><small>Obras</small><b>8</b></div>
+              <div><small>Faturamento</small><b>$48k</b></div>
+            </div>
+            <div class="dash-list">
+              <p>Projetos recentes</p>
+              <div class="dash-row"><span>Rivera · LVP</span><em class="tag-on">Em andamento</em></div>
+              <div class="dash-row"><span>Chen · Hardwood</span><em class="tag-sent">Orçamento enviado</em></div>
+              <div class="dash-row"><span>Park · Stairs</span><em class="tag-on">Em andamento</em></div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <section class="strip" aria-label="What you run in ObraMate">
-    <div class="wrap strip-in">
-      <span>Leads</span>
-      <span>Quotes</span>
-      <span>Jobs</span>
-      <span>Invoices</span>
-      <span>Campo</span>
-      <span>ObraCam</span>
-      <span>Folha</span>
-      <span>Builders</span>
+    <div class="wrap hero-benefits reveal d3">
+      <div class="hb"><span class="hb-ico" aria-hidden="true">◎</span>Organize seus leads</div>
+      <div class="hb"><span class="hb-ico" aria-hidden="true">▣</span>Crie orçamentos profissionais</div>
+      <div class="hb"><span class="hb-ico" aria-hidden="true">⌂</span>Acompanhe as obras</div>
+      <div class="hb"><span class="hb-ico" aria-hidden="true">↗</span>Aumente seu lucro</div>
     </div>
   </section>
 
-  <!-- Outcome: one problem, one system -->
-  <section class="block" id="why">
-    <div class="wrap why-grid">
-      <div class="reveal">
-        <span class="eyebrow">Why <%= productName %></span>
-        <h2>Stop running the company across chats, spreadsheets, and memory</h2>
-      </div>
-      <div class="why-list reveal d1">
-        <div>
-          <h3>Sell with your real prices</h3>
-          <p>Tabela de Valores, waste, and markups feed every quote and job — not a one-off estimate in a notebook.</p>
-        </div>
-        <div>
-          <h3>Run the job, not the chaos</h3>
-          <p>Schedule crews, open Campo tickets, collect ObraCam photos, and keep the office in the loop.</p>
-        </div>
-        <div>
-          <h3>Get paid without losing the thread</h3>
-          <p>Deposit, progress, or full invoices from the job. Send the link, record baixa, close the balance.</p>
-        </div>
+  <!-- Social proof -->
+  <section class="proof" aria-label="Empresas que usam ObraMate">
+    <div class="wrap proof-in">
+      <p>Mais de <strong>500+</strong> empresas de flooring já confiam no <%= productName %>.</p>
+      <div class="proof-logos">
+        <span>Denver Floors</span>
+        <span>Summit Flooring</span>
+        <span>Premier Floors</span>
+        <span>Alpine Hardwood</span>
+        <span>Metro LVP</span>
       </div>
     </div>
   </section>
 
-  <!-- Product tour -->
-  <section class="block" id="product">
+  <!-- Features -->
+  <section class="block features" id="funcionalidades">
     <div class="wrap">
-      <div class="head reveal">
-        <span class="eyebrow">Product</span>
-        <h2>One flow from lead to cash</h2>
-        <p class="sub">What flooring companies actually use day to day — not a generic “project tool” with flooring bolted on.</p>
+      <div class="feat-head">
+        <div class="reveal">
+          <h2>Tudo que sua empresa precisa em <em>um só sistema</em>.</h2>
+          <p class="sub">Do primeiro lead ao pagamento final — vendas, campo e financeiro no mesmo fluxo.</p>
+          <a href="#recursos" class="btn btn-primary">Conheça todas as funcionalidades</a>
+        </div>
+        <div class="feat-fox reveal d1" aria-hidden="true"><%- include('partials/om-fox', { pose: 'run' }) %></div>
       </div>
 
-      <div class="tour">
-        <div class="tabs reveal" id="tabs" role="tablist" aria-label="Product areas">
-          <button type="button" class="tab active" role="tab" aria-selected="true" data-i="0">
-            <span class="tt">Sell <b>Leads & Quotes</b></span>
-            <span class="desc">Pipeline, proposals, and public quote links with your brand.</span>
-          </button>
-          <button type="button" class="tab" role="tab" aria-selected="false" data-i="1">
-            <span class="tt">Deliver <b>Jobs & Campo</b></span>
-            <span class="desc">Jobs, schedule, field tickets, hours, and ObraCam photos.</span>
-          </button>
-          <button type="button" class="tab" role="tab" aria-selected="false" data-i="2">
-            <span class="tt">Collect <b>Invoices</b></span>
-            <span class="desc">Deposit or full from the job — e-mail the client and record payment.</span>
-          </button>
-          <button type="button" class="tab" role="tab" aria-selected="false" data-i="3">
-            <span class="tt">Operate <b>Team & money</b></span>
-            <span class="desc">Roles, Folha, fluxo de caixa, builders, and referrals.</span>
-          </button>
-        </div>
-
-        <div class="stage reveal d1" id="productStage">
-          <div class="pane show" data-pane="0">
-            <div class="mock">
-              <header><span>Pipeline</span><em>This week</em></header>
-              <div class="row"><i class="dot d-muted"></i>New · Website form<span>2m</span></div>
-              <div class="row"><i class="dot d-blue"></i>Contacted · Measure booked<span>Maria</span></div>
-              <div class="row"><i class="dot d-brand"></i>Quote Q-184 sent<span>$4,280</span></div>
-              <div class="row"><i class="dot d-ok"></i>Won · Converted to job<span>Today</span></div>
-            </div>
-          </div>
-          <div class="pane" data-pane="1">
-            <div class="mock">
-              <header><span>Job #42</span><em>In field</em></header>
-              <div class="row">Client · Rivera Residence<span>LVP</span></div>
-              <div class="row">Crew · Assigned<span>Campo open</span></div>
-              <div class="row">ObraCam · Before / during<span>12 photos</span></div>
-              <div class="row">Hours logged<span>6.5 h</span></div>
-            </div>
-          </div>
-          <div class="pane" data-pane="2">
-            <div class="mock">
-              <header><span>Faturar job</span><em>Choose amount</em></header>
-              <div class="row hi">Depósito 50%<span>$2,140</span></div>
-              <div class="row">Outro valor<span>Custom</span></div>
-              <div class="row">Valor total<span>$4,280</span></div>
-              <div class="row"><b>Services listed on the invoice</b><span>Total Services</span></div>
-            </div>
-          </div>
-          <div class="pane" data-pane="3">
-            <div class="mock">
-              <header><span>Operations</span><em>Office</em></header>
-              <div class="row">Roles & invites<span>Admin · Sales · Crew</span></div>
-              <div class="row">Folha · field hours<span>Payroll ready</span></div>
-              <div class="row">Fluxo · cash position<span>This week</span></div>
-              <div class="row">Builders · Tabela<span>B2B pricing</span></div>
-            </div>
-          </div>
-        </div>
+      <div class="feat-grid" id="recursos">
+        <article class="feat reveal">
+          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></span>
+          <h3>Leads e Clientes</h3>
+          <p>Pipeline claro, follow-ups e cadastro de particulares e builders.</p>
+        </article>
+        <article class="feat reveal d1">
+          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/><path d="M8 7h6M8 11h6"/></svg></span>
+          <h3>Orçamentos profissionais</h3>
+          <p>Tabela de Valores, PDF e link seguro para o cliente assinar.</p>
+        </article>
+        <article class="feat reveal d2">
+          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21V12h6v9"/></svg></span>
+          <h3>Projetos e obras</h3>
+          <p>Jobs, status, Campo e fotos ObraCam em cada obra.</p>
+        </article>
+        <article class="feat reveal d3">
+          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+          <h3>Financeiro</h3>
+          <p>Fature depósito, saldo ou total e registre o recebimento.</p>
+        </article>
+        <article class="feat reveal">
+          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></span>
+          <h3>Equipe</h3>
+          <p>Cargos, convites e Folha para escritório e campo.</p>
+        </article>
+        <article class="feat reveal d1">
+          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></span>
+          <h3>Relatórios</h3>
+          <p>Veja o que vender, o que falta faturar e o que entra.</p>
+        </article>
+        <article class="feat reveal d2">
+          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+          <h3>Agenda</h3>
+          <p>Visitas, jobs e compromissos no mesmo calendário.</p>
+        </article>
+        <article class="feat reveal d3">
+          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          <h3>E muito mais…</h3>
+          <p>Builders, indicações, chat interno e app de campo.</p>
+        </article>
       </div>
     </div>
   </section>
 
-  <!-- Live calculator — conversion tool -->
-  <section class="block calc-block" id="calculator">
+  <!-- Story / video -->
+  <section class="story-block" id="historia">
+    <div class="wrap story-grid">
+      <div class="story-copy reveal">
+        <div class="story-fox" aria-hidden="true"><%- include('partials/om-fox', { pose: 'laptop' }) %></div>
+        <h2>Um sistema feito por quem entende de <em>flooring</em>.</h2>
+        <p>Nascido no dia a dia de instalação — leads, equipes, fotos e recebimento — aberto para outras empresas de piso.</p>
+        <a href="#como-funciona" class="btn btn-primary">Nossa história</a>
+      </div>
+      <div class="story-video reveal d1">
+        <button type="button" class="video-card" id="videoPlay" aria-label="Ver como o ObraMate funciona">
+          <span class="video-badge">Veja como o <%= productName %> funciona na prática</span>
+          <span class="video-play" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="block how" id="como-funciona">
     <div class="wrap">
       <div class="head center reveal">
-        <span class="eyebrow">Live estimator</span>
-        <h2>Feel the quote before you sign up</h2>
-        <p class="sub">Same waste and markup ideas your workspace can tune. Change the area — watch the total move.</p>
+        <h2>Como funciona?</h2>
+        <p class="sub">Em poucos passos, sua empresa já está mais organizada e produtiva.</p>
       </div>
-      <div class="calc reveal">
-        <div class="calc-in">
-          <div class="lbl">Flooring type</div>
-          <div class="types" id="types"></div>
-          <div class="lbl">Area <span>sq ft</span></div>
-          <div class="area-box"><input type="number" id="area" value="350" min="10" max="5000" aria-label="Area in square feet" /><span>sqft</span></div>
-          <input type="range" id="areaR" min="10" max="3000" step="10" value="350" aria-label="Area slider" />
-          <div class="presets">
-            <button type="button" data-a="150">Bedroom · 150</button>
-            <button type="button" data-a="350">Living · 350</button>
-            <button type="button" data-a="900">Main floor · 900</button>
-            <button type="button" data-a="2000">Whole house · 2,000</button>
-          </div>
-          <details class="adv">
-            <summary>Adjust waste & markups</summary>
-            <div class="knobs" id="knobs"></div>
-          </details>
-        </div>
-        <div class="calc-out">
-          <div class="out-top"><small id="outType">Hardwood · 350 sqft</small></div>
-          <div class="total" id="total">$0</div>
-          <div class="per" id="per">$0.00 per sqft installed</div>
-          <div class="stack"><div id="sMat"></div><div id="sLab"></div></div>
-          <div class="lines">
-            <div class="line"><span>Billable area (incl. waste)</span><strong id="billable">0</strong></div>
-            <div class="line"><span><i class="i-mat"></i>Material</span><strong id="mat">$0</strong></div>
-            <div class="line"><span><i class="i-lab"></i>Labor</span><strong id="lab">$0</strong></div>
-          </div>
-          <p class="note">Illustrative defaults. In <%= productName %>, each company sets its own Tabela and rules.</p>
-          <a href="/signup" class="btn btn-primary btn-block">Save real quotes — start free</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="block" id="how">
-    <div class="wrap">
-      <div class="head center reveal">
-        <span class="eyebrow">How it works</span>
-        <h2>Live in minutes, not months</h2>
-      </div>
-      <ol class="steps" id="steps">
-        <li class="step reveal"><span class="n">1</span><h3>Create your company</h3><p>Name, subdomain, and you as admin. No card required.</p></li>
-        <li class="step reveal d1"><span class="n">2</span><h3>Invite the team</h3><p>Sales, office, and crew — with roles that stick.</p></li>
-        <li class="step reveal d2"><span class="n">3</span><h3>Run the next job</h3><p>Quote → schedule → Campo → invoice → paid.</p></li>
+      <ol class="steps">
+        <li class="reveal"><span class="n">1</span><h3>Crie sua conta</h3><p>Empresa, subdomínio e você como admin — sem cartão.</p></li>
+        <li class="reveal d1"><span class="n">2</span><h3>Configure sua empresa</h3><p>Tabela de Valores, equipe e preferências do documento.</p></li>
+        <li class="reveal d2"><span class="n">3</span><h3>Comece a usar</h3><p>Lead → orçamento → obra → fatura, no mesmo fluxo.</p></li>
+        <li class="reveal d3"><span class="n">4</span><h3>Cresça com o <%= productName %></h3><p>Mais jobs sob controle, menos planilha e WhatsApp solto.</p></li>
       </ol>
-      <blockquote class="story reveal">
-        <p><%= productName %> grew out of a real flooring installer’s day-to-day — leads, crews, photos, and getting paid — opened for other flooring companies.</p>
-      </blockquote>
+      <div class="center reveal"><a href="/signup" class="btn btn-outline">Ver passo a passo completo</a></div>
     </div>
   </section>
 
-  <section class="block" id="faq">
-    <div class="wrap faq-grid">
-      <div>
-        <div class="head reveal" style="margin-bottom:1.25rem">
-          <span class="eyebrow">FAQ</span>
-          <h2>Straight answers</h2>
-        </div>
-        <div class="reveal" id="faqs"></div>
-      </div>
-      <aside class="price-card reveal d1" id="price">
-        <span class="tag">Start here</span>
-        <h3>Free trial</h3>
-        <p class="amt"><%= typeof trialDays !== 'undefined' ? trialDays : 30 %> <small>days · no card</small></p>
-        <ul>
-          <li>Leads, quotes &amp; customers</li>
-          <li>Jobs, schedule &amp; Campo</li>
-          <li>Invoices &amp; payments</li>
-          <li>ObraCam, Folha &amp; team roles</li>
-        </ul>
-        <a href="/signup" class="btn btn-primary btn-block">Start free trial</a>
-        <a href="/pricing" class="more">See pricing →</a>
-      </aside>
-    </div>
-  </section>
-
-  <section class="final-wrap">
+  <!-- Testimonials -->
+  <section class="testimonials" id="depoimentos">
     <div class="wrap">
-      <div class="final reveal">
-        <img src="/assets/obramate-logo.png" alt="<%= productName %>" class="final-logo" width="160" height="36" />
-        <h2>Your next install should already be in <%= productName %></h2>
-        <p><%= typeof trialDays !== 'undefined' ? trialDays : 30 %> days free. Office and field on the same page.</p>
-        <div class="cta-row">
-          <a href="/signup" class="btn btn-primary">Start free trial</a>
-          <a href="/login.html" class="btn btn-ghost">Sign in</a>
-        </div>
+      <div class="testi-head reveal">
+        <h2>O que nossos clientes dizem.</h2>
+        <a href="#depoimentos" class="link-more">Ver mais depoimentos</a>
       </div>
-      <footer class="site-foot">
-        <nav>
-          <a href="/pricing">Pricing</a>
-          <a href="/signup">Start free trial</a>
-          <a href="/login.html">Sign in</a>
-          <a href="/terms">Terms</a>
-          <a href="/privacy">Privacy</a>
-        </nav>
-        <span>© <%= new Date().getFullYear() %> <%= productName %></span>
-      </footer>
+      <div class="testi-grid">
+        <article class="testi reveal">
+          <p>“Antes eu perdia orçamento no WhatsApp. Agora o cliente abre o link, assina e a obra já nasce no sistema.”</p>
+          <footer>
+            <span class="avatar" aria-hidden="true">MR</span>
+            <div><strong>Marcos Ribeiro</strong><small>Denver, CO</small></div>
+            <span class="stars" aria-label="5 de 5">★★★★★</span>
+          </footer>
+        </article>
+        <article class="testi reveal d1">
+          <p>“A equipe de campo vê o job no celular, manda foto e o escritório fatura no mesmo dia. Mudou o ritmo.”</p>
+          <footer>
+            <span class="avatar" aria-hidden="true">AL</span>
+            <div><strong>Ana Lopes</strong><small>Aurora, CO</small></div>
+            <span class="stars" aria-label="5 de 5">★★★★★</span>
+          </footer>
+        </article>
+        <article class="testi reveal d2">
+          <p>“Tabela de Valores nos orçamentos acabou com o ‘eu acho que cobramos X’. Preço certo, margem certa.”</p>
+          <footer>
+            <span class="avatar" aria-hidden="true">JS</span>
+            <div><strong>James Soto</strong><small>Lakewood, CO</small></div>
+            <span class="stars" aria-label="5 de 5">★★★★★</span>
+          </footer>
+        </article>
+      </div>
     </div>
   </section>
+
+  <!-- Pricing -->
+  <section class="block pricing" id="planos">
+    <div class="wrap">
+      <div class="head center reveal">
+        <h2>Planos que acompanham o seu crescimento.</h2>
+        <div class="bill-toggle" role="group" aria-label="Periodicidade">
+          <button type="button" class="is-on" data-bill="month" id="billMonth">Mensal</button>
+          <button type="button" data-bill="year" id="billYear">Anual <em>Economize 2 meses</em></button>
+        </div>
+      </div>
+      <div class="price-grid">
+        <article class="price-card reveal">
+          <h3>Essencial</h3>
+          <p class="amt" data-month="$49" data-year="$39"><b>$49</b><small>/mês</small></p>
+          <ul>
+            <li>Até 3 usuários</li>
+            <li>Leads, orçamentos e jobs</li>
+            <li>Faturas e agenda</li>
+            <li>App de campo</li>
+          </ul>
+          <a href="/signup" class="btn btn-outline btn-block">Começar agora</a>
+        </article>
+        <article class="price-card is-featured reveal d1">
+          <span class="badge">Mais escolhido</span>
+          <h3>Profissional</h3>
+          <p class="amt" data-month="$99" data-year="$82"><b>$99</b><small>/mês</small></p>
+          <ul>
+            <li>Até 10 usuários</li>
+            <li>Tudo do Essencial</li>
+            <li>Folha, builders e ObraCam</li>
+            <li>Relatórios e indicações</li>
+          </ul>
+          <a href="/signup" class="btn btn-primary btn-block">Começar agora</a>
+        </article>
+        <article class="price-card reveal d2">
+          <h3>Empresarial</h3>
+          <p class="amt" data-month="$149" data-year="$124"><b>$149</b><small>/mês</small></p>
+          <ul>
+            <li>Usuários ilimitados*</li>
+            <li>Tudo do Profissional</li>
+            <li>Onboarding guiado</li>
+            <li>Suporte prioritário</li>
+          </ul>
+          <a href="mailto:hello@obramate.com" class="btn btn-outline btn-block">Falar com um especialista</a>
+        </article>
+      </div>
+      <p class="price-note reveal"><%= days %> dias de teste grátis em qualquer plano. Sem cartão para começar.</p>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="block faq" id="faq">
+    <div class="wrap faq-grid">
+      <div class="reveal">
+        <h2>Perguntas frequentes</h2>
+        <a href="#faq" class="btn btn-outline">Ver todas as perguntas</a>
+      </div>
+      <div class="faq-list reveal d1" id="faqs">
+        <details open>
+          <summary>O que é o <%= productName %>?</summary>
+          <p>É o sistema operacional para empresas de flooring: leads, orçamentos, obras, campo, faturas e equipe num só lugar.</p>
+        </details>
+        <details>
+          <summary>Preciso pagar alguma taxa de instalação?</summary>
+          <p>Não. Você cria a conta, configura a empresa e começa. O teste de <%= days %> dias não pede cartão.</p>
+        </details>
+        <details>
+          <summary>Funciona no celular da equipe de campo?</summary>
+          <p>Sim. O Campo abre o job do dia, fotos ObraCam e horas — sincronizado com o escritório.</p>
+        </details>
+        <details>
+          <summary>Posso usar minha Tabela de Valores?</summary>
+          <p>Sim. Os preços da tabela alimentam orçamentos e serviços do job, com margem e desperdício configuráveis.</p>
+        </details>
+        <details>
+          <summary>Meus dados ficam isolados?</summary>
+          <p>Cada empresa tem o próprio workspace e subdomínio. Os dados não se misturam com outras empresas.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="final" id="contato">
+    <div class="wrap final-in reveal">
+      <div class="final-fox" aria-hidden="true"><%- include('partials/om-fox', { pose: 'wave' }) %></div>
+      <div>
+        <h2>Pronto para levar sua empresa de flooring para o <em>próximo nível</em>?</h2>
+        <a href="/signup" class="btn btn-primary">Começar agora</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-foot">
+    <div class="wrap foot-grid">
+      <div class="foot-brand">
+        <span class="foot-logo">
+          <img src="/assets/obramateLogoSmallTransp.png" alt="" width="24" height="24" />
+          <%= productName %>
+        </span>
+        <p>O sistema para empresas de flooring.</p>
+      </div>
+      <div>
+        <h4>Produto</h4>
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#planos">Planos</a>
+        <a href="/signup">Começar agora</a>
+      </div>
+      <div>
+        <h4>Recursos</h4>
+        <a href="#como-funciona">Como funciona</a>
+        <a href="#faq">FAQ</a>
+        <a href="/pricing">Preços</a>
+      </div>
+      <div>
+        <h4>Empresa</h4>
+        <a href="/login.html">Entrar</a>
+        <a href="/terms">Termos</a>
+        <a href="/privacy">Privacidade</a>
+      </div>
+      <div>
+        <h4>Siga o <%= productName %></h4>
+        <div class="social">
+          <a href="#" aria-label="Instagram">IG</a>
+          <a href="#" aria-label="YouTube">YT</a>
+          <a href="#" aria-label="LinkedIn">in</a>
+          <a href="#" aria-label="Facebook">f</a>
+        </div>
+      </div>
+    </div>
+    <div class="wrap foot-bottom">
+      <span>© <%= new Date().getFullYear() %> <%= productName %></span>
+      <span class="lang">Português · English</span>
+    </div>
+  </footer>
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script>
-  window.__ESTIMATE_RULES__ = <%- JSON.stringify(estimateRules) %>;
-</script>
-<script src="/assets/js/landing.js?v=20261015-site1" defer></script>
+<script src="/assets/js/landing.js?v=20261016-site2" defer></script>
 
 <%- include('partials/footer') %>

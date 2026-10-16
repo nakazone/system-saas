@@ -1,0 +1,55 @@
+<%# Stylized ObraMate fox mascot — poses: point | run | laptop | wave %>
+<% const pose = typeof pose !== 'undefined' ? pose : 'point'; %>
+<svg class="om-fox om-fox--<%= pose %>" viewBox="0 0 200 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <!-- hard hat -->
+  <ellipse cx="100" cy="52" rx="48" ry="18" fill="#E7792C"/>
+  <path d="M52 58c8-28 88-28 96 0H52z" fill="#EF8A44"/>
+  <rect x="88" y="38" width="24" height="8" rx="2" fill="#F4A261"/>
+  <!-- head -->
+  <ellipse cx="100" cy="88" rx="42" ry="38" fill="#E7792C"/>
+  <!-- ears -->
+  <path d="M62 62l-18-28 28 12z" fill="#E7792C"/>
+  <path d="M138 62l18-28-28 12z" fill="#E7792C"/>
+  <path d="M62 62l-10-16 16 8z" fill="#FFF4EC"/>
+  <path d="M138 62l10-16-16 8z" fill="#FFF4EC"/>
+  <!-- snout -->
+  <ellipse cx="100" cy="102" rx="18" ry="14" fill="#FFF4EC"/>
+  <ellipse cx="100" cy="98" rx="6" ry="4" fill="#221E1A"/>
+  <!-- eyes -->
+  <circle cx="84" cy="84" r="5" fill="#221E1A"/>
+  <circle cx="116" cy="84" r="5" fill="#221E1A"/>
+  <circle cx="85.5" cy="82.5" r="1.6" fill="#fff"/>
+  <circle cx="117.5" cy="82.5" r="1.6" fill="#fff"/>
+  <!-- smile -->
+  <path d="M92 108c4 6 12 6 16 0" stroke="#221E1A" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- body / shirt -->
+  <path d="M58 130c8 48 76 48 84 0l-10 70H68L58 130z" fill="#F4A261"/>
+  <path d="M70 128c6 22 54 22 60 0v8c-8 28-52 28-60 0v-8z" fill="#221E1A"/>
+  <rect x="88" y="132" width="24" height="36" rx="4" fill="#355C59"/>
+  <!-- arms by pose -->
+  <% if (pose === 'point') { %>
+  <path d="M58 140c-28 8-42 28-40 40" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="20" cy="178" r="10" fill="#E7792C"/>
+  <path d="M142 140c18 4 28 18 30 32" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
+  <% } else if (pose === 'run') { %>
+  <path d="M55 145c-22-18-30-8-34 6" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
+  <path d="M145 145c24-10 36 6 28 22" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
+  <rect x="28" y="168" width="36" height="22" rx="6" fill="#221E1A"/>
+  <% } else if (pose === 'laptop') { %>
+  <path d="M58 148c-8 16-4 28 8 32" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
+  <path d="M142 148c8 16 4 28-8 32" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
+  <rect x="62" y="172" width="76" height="10" rx="2" fill="#4A423C"/>
+  <rect x="70" y="152" width="60" height="28" rx="3" fill="#221E1A"/>
+  <rect x="74" y="156" width="52" height="20" rx="2" fill="#E8DED1"/>
+  <% } else { %>
+  <path d="M58 140c-20-24-8-40 6-36" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
+  <path d="M142 140c20-24 8-40-6-36" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="48" cy="108" r="9" fill="#E7792C"/>
+  <circle cx="152" cy="108" r="9" fill="#E7792C"/>
+  <% } %>
+  <!-- legs -->
+  <path d="M78 198v18" stroke="#E7792C" stroke-width="12" stroke-linecap="round"/>
+  <path d="M122 198v18" stroke="#E7792C" stroke-width="12" stroke-linecap="round"/>
+  <ellipse cx="78" cy="216" rx="12" ry="5" fill="#221E1A"/>
+  <ellipse cx="122" cy="216" rx="12" ry="5" fill="#221E1A"/>
+</svg>
