@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261015-refnav1";
+  const SHELL_VER = "20261016-help1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1026,8 +1026,21 @@
     if (!window.openCrmCommandPalette) {
       jobs.push(ensureScript(`crm-command-palette.js?v=${SHELL_VER}`).catch(() => {}));
     }
-    if (!document.querySelector('script[src*="crm-help-panel.js"]')) {
-      jobs.push(ensureScript(`crm-help-panel.js?v=${SHELL_VER}`).catch(() => {}));
+    if (!window.CrmHelpContent && !document.querySelector('script[src*="crm-help-content.js"]')) {
+      jobs.push(
+        ensureScript(`crm-help-content.js?v=${SHELL_VER}`)
+          .then(function () {
+            if (!document.querySelector('script[src*="crm-help-panel.js"]')) {
+              return ensureScript(`crm-help-panel.js?v=${SHELL_VER}`);
+            }
+            if (window.__crmHelpPanel && typeof window.__crmHelpPanel.refresh === "function") {
+              window.__crmHelpPanel.refresh();
+            }
+          })
+          .catch(function () {})
+      );
+    } else if (!document.querySelector('script[src*="crm-help-panel.js"]')) {
+      jobs.push(ensureScript(`crm-help-panel.js?v=${SHELL_VER}`).catch(function () {}));
     }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
       jobs.push(ensureScript("saas-branding.js?v=20261002-branddoc1").catch(() => {}));

@@ -76,6 +76,9 @@
       localStorage.setItem(STORAGE_KEY, locale);
     } catch (_) {}
     document.documentElement.lang = locale === "pt" ? "pt-BR" : locale;
+    try {
+      document.dispatchEvent(new CustomEvent("crm:localechange", { detail: { locale: locale } }));
+    } catch (_) {}
     return locale;
   }
 

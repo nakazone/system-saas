@@ -3932,6 +3932,22 @@
   function bindShell() {
     $("cfgSave").addEventListener("click", () => saveCurrent());
     $("cfgDiscard").addEventListener("click", () => discardCurrent());
+    const openHelpSolve = $("cfgOpenHelpSolve");
+    if (openHelpSolve) {
+      openHelpSolve.addEventListener("click", () => {
+        if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === "function") {
+          window.__crmHelpPanel.open({ tab: "solve" });
+        }
+      });
+    }
+    const openHelpTutorials = $("cfgOpenHelpTutorials");
+    if (openHelpTutorials) {
+      openHelpTutorials.addEventListener("click", () => {
+        if (window.__crmHelpPanel && typeof window.__crmHelpPanel.open === "function") {
+          window.__crmHelpPanel.open({ tab: "tutorials" });
+        }
+      });
+    }
     bindLeadMessagesUi();
     bindLeadAutomationsUi();
     bindJobsSettingsUi();
