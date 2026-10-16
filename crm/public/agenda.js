@@ -1019,7 +1019,11 @@
     if (e.type === 'visit' && m.lead) return { name: m.lead.name, phone: m.lead.phone, email: m.lead.email, href: `lead-detail.html?id=${encodeURIComponent(m.lead.id)}`, hrefLabel: 'Abrir lead' };
     if (e.type === 'job') {
       const c = m.customer || {};
-      const name = c.name || (m.builder && (m.builder.company || m.builder.name)) || m.source_name;
+      const name =
+        c.display_name ||
+        c.name ||
+        (m.builder && (m.builder.company || m.builder.name)) ||
+        m.source_name;
       return { name, phone: c.phone, email: c.email, href: `job-detail.html?id=${encodeURIComponent(e.id)}`, hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}` };
     }
     const c = m.customer;

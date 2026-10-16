@@ -1844,10 +1844,24 @@
     });
   }
 
+  /** True when the job title looks auto-built from a client display label (+ optional street). */
+  function titleLooksAutoFrom(label) {
+    const t = String(st.title || "").trim();
+    const lbl = String(label || "").trim();
+    if (!lbl) return !t;
+    if (!t) return true;
+    if (t === lbl) return true;
+    if (t.startsWith(lbl + " — ")) return true;
+    const street = String(st.address || "").split(",")[0].trim();
+    if (street && t === `${lbl} — ${street}`) return true;
+    return false;
+  }
+
   async function saveClientCode(raw) {
     const card = clientCard();
     const customerId = card?.customerId || st.customerId;
     if (!customerId) return;
+    const prevLabel = String(card?.name || "").trim();
     const code = String(raw || "").trim().slice(0, 80);
     const input = $("jmClientCode");
     // Preserve caret — do not remount the client block while typing.
@@ -1868,16 +1882,45 @@
         }
       }
       // Update the name label in place; keep the ID input (and focus) intact.
+      const fresh = clientCard();
       const nameEl = $("jmClient")?.querySelector(".jm-picked__txt b");
       if (nameEl) {
-        const fresh = clientCard();
         const tag = fresh ? TYPE_LABEL[fresh.type] || fresh.type : "";
         nameEl.innerHTML = `${esc(fresh?.name || "")} <span class="jm-tag">${esc(tag)}</span>`;
       }
-      if (!st.titleTouched) {
-        st.title = autoTitle();
+      const newLabel = String(fresh?.name || "").trim();
+      let titleChanged = false;
+      // Existing jobs open with titleTouched=true — still rewrite when the title
+      // was the previous auto "Nome - ID — rua" so the Agenda updates.
+      if (newLabel && prevLabel !== newLabel && (!st.titleTouched || titleLooksAutoFrom(prevLabel))) {
+        st.title = autoTitle() || newLabel;
+        titleChanged = true;
         const titleEl = $("jobTitle");
         if (titleEl && !st.moreOpen) titleEl.value = st.title;
+      }
+      // Persist title so the Calendar item updates without requiring "Salvar".
+      if (st.id && titleChanged && String(st.title || "").trim().length >= 2) {
+        try {
+          const jr = await api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
+            method: "PUT",
+            body: JSON.stringify({ title: st.title }),
+          });
+          const data = jr?.data || { id: st.id, title: st.title, number: st.number };
+          savedListeners.forEach((fn) => {
+            try {
+              fn(data, { created: false, clientCode: true });
+            } catch (_) {}
+          });
+        } catch (persistErr) {
+          notify(persistErr.message || "ID salvo, mas o título na agenda não atualizou.", "warning");
+        }
+      } else if (st.id && prevLabel !== newLabel) {
+        // Title kept custom — still refresh Agenda meta (display_name / client_code).
+        savedListeners.forEach((fn) => {
+          try {
+            fn({ id: st.id, title: st.title, number: st.number }, { created: false, clientCode: true });
+          } catch (_) {}
+        });
       }
       if (input && selStart != null) {
         try {
