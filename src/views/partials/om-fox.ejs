@@ -1,6 +1,6 @@
 <%# Stylized ObraMate fox mascot — poses: point | run | laptop | wave %>
-<% const pose = typeof pose !== 'undefined' ? pose : 'point'; %>
-<svg class="om-fox om-fox--<%= pose %>" viewBox="0 0 200 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+<% const foxPose = (typeof pose !== 'undefined' && pose) ? String(pose) : 'point'; %>
+<svg class="om-fox om-fox--<%= foxPose %>" viewBox="0 0 200 220" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
   <!-- hard hat -->
   <ellipse cx="100" cy="52" rx="48" ry="18" fill="#E7792C"/>
   <path d="M52 58c8-28 88-28 96 0H52z" fill="#EF8A44"/>
@@ -27,15 +27,15 @@
   <path d="M70 128c6 22 54 22 60 0v8c-8 28-52 28-60 0v-8z" fill="#221E1A"/>
   <rect x="88" y="132" width="24" height="36" rx="4" fill="#355C59"/>
   <!-- arms by pose -->
-  <% if (pose === 'point') { %>
+  <% if (foxPose === 'point') { %>
   <path d="M58 140c-28 8-42 28-40 40" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
   <circle cx="20" cy="178" r="10" fill="#E7792C"/>
   <path d="M142 140c18 4 28 18 30 32" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
-  <% } else if (pose === 'run') { %>
+  <% } else if (foxPose === 'run') { %>
   <path d="M55 145c-22-18-30-8-34 6" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
   <path d="M145 145c24-10 36 6 28 22" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
   <rect x="28" y="168" width="36" height="22" rx="6" fill="#221E1A"/>
-  <% } else if (pose === 'laptop') { %>
+  <% } else if (foxPose === 'laptop') { %>
   <path d="M58 148c-8 16-4 28 8 32" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
   <path d="M142 148c8 16 4 28-8 32" stroke="#E7792C" stroke-width="14" stroke-linecap="round"/>
   <rect x="62" y="172" width="76" height="10" rx="2" fill="#4A423C"/>
