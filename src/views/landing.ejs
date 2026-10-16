@@ -39,7 +39,7 @@
       </div>
 
       <div class="hero-visual reveal d1" aria-hidden="true">
-        <div class="hero-fox"><%- include('partials/om-fox', { pose: 'point' }) %></div>
+        <img class="hero-mate" src="/assets/img/mascot/mate-hero.png" alt="" width="140" height="347" decoding="async" />
         <div class="dash">
           <aside class="dash-rail">
             <i></i><i></i><i></i><i></i><i></i>
@@ -97,7 +97,9 @@
           <p class="sub">Do primeiro lead ao pagamento final — vendas, campo e financeiro no mesmo fluxo.</p>
           <a href="#recursos" class="btn btn-primary">Conheça todas as funcionalidades</a>
         </div>
-        <div class="feat-fox reveal d1" aria-hidden="true"><%- include('partials/om-fox', { pose: 'run' }) %></div>
+        <div class="feat-mate reveal d1" aria-hidden="true">
+          <img src="/assets/img/mascot/mate-run.png" alt="" width="182" height="208" decoding="async" />
+        </div>
       </div>
 
       <div class="feat-grid" id="recursos">
@@ -148,13 +150,15 @@
   <!-- Story / video -->
   <section class="story-block" id="historia">
     <div class="wrap story-grid">
-      <div class="story-copy reveal">
-        <div class="story-fox" aria-hidden="true"><%- include('partials/om-fox', { pose: 'laptop' }) %></div>
+      <div class="story-mate reveal" aria-hidden="true">
+        <img src="/assets/img/mascot/mate-laptop.png" alt="" width="132" height="192" decoding="async" />
+      </div>
+      <div class="story-copy reveal d1">
         <h2>Um sistema feito por quem entende de <em>flooring</em>.</h2>
         <p>Nascido no dia a dia de instalação — leads, equipes, fotos e recebimento — aberto para outras empresas de piso.</p>
         <a href="#como-funciona" class="btn btn-primary">Nossa história</a>
       </div>
-      <div class="story-video reveal d1">
+      <div class="story-video reveal d2">
         <button type="button" class="video-card" id="videoPlay" aria-label="Ver como o ObraMate funciona">
           <span class="video-badge">Veja como o <%= productName %> funciona na prática</span>
           <span class="video-play" aria-hidden="true"></span>
@@ -301,10 +305,13 @@
   <!-- Final CTA -->
   <section class="final" id="contato">
     <div class="wrap final-in reveal">
-      <div class="final-fox" aria-hidden="true"><%- include('partials/om-fox', { pose: 'wave' }) %></div>
-      <div>
+      <div class="final-mate" aria-hidden="true">
+        <img src="/assets/img/mascot/mate-thumbs.png" alt="" width="144" height="134" decoding="async" />
+      </div>
+      <div class="final-copy">
         <h2>Pronto para levar sua empresa de flooring para o <em>próximo nível</em>?</h2>
         <a href="/signup" class="btn btn-primary">Começar agora</a>
+        <p class="final-note">Sem cartão de crédito · Configuração em minutos</p>
       </div>
     </div>
   </section>
@@ -355,6 +362,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="/assets/js/landing.js?v=20261016-site2" defer></script>
+<script src="/assets/js/landing.js?v=20261016-mate2" defer></script>
 
 <%- include('partials/footer') %>
