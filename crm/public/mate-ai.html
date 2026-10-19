@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="crm-shell.css" />
   <link rel="stylesheet" href="obramate-app.css" />
   <link rel="stylesheet" href="om-mobile-nav.css" />
-  <link rel="stylesheet" href="mate-ai.css?v=20261019-mvp1" />
+  <link rel="stylesheet" href="mate-ai.css?v=20261019-agent1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed">
   <header class="mobile-app-header" id="mobileAppHeader">
@@ -58,49 +58,57 @@
           <div>
             <p class="mate-ai-eyebrow">ObraMate · Assistente</p>
             <h1>Mate AI</h1>
-            <p>Descreva o Quote por texto ou voz. O Mate AI busca o cliente e os preços da tabela da sua empresa.</p>
+            <p>Fale ou digite o que precisa. O Mate AI entende o pedido, encontra o cliente, os serviços e o job na sua empresa e prepara tudo para você revisar.</p>
           </div>
         </header>
 
         <section class="mate-ai-card" aria-labelledby="mateAiInputTitle">
           <div class="mate-ai-card__heading">
             <div>
-              <h2 id="mateAiInputTitle">O que você precisa orçar?</h2>
-              <p>Inclua o nome do cliente e a quantidade e unidade de cada serviço.</p>
+              <h2 id="mateAiInputTitle">O que você precisa fazer?</h2>
+              <p>Crie Quotes com cliente, serviços e quantidades, ou emita a invoice de um job.</p>
             </div>
           </div>
           <form id="mateAiForm">
             <label class="mate-ai-label" for="mateAiCommand">Comando</label>
-            <textarea id="mateAiCommand" name="command" maxlength="500" rows="5" placeholder="Crie um Quote para Maria Silva com 1000 sqft de Hardwood Installation, remoção de 500 sqft de Carpet Removal e 1500 sqft de Sand & Finish." required></textarea>
+            <textarea id="mateAiCommand" name="command" maxlength="500" rows="5" placeholder="Ex.: Criar um quote para o John Smith, instalação de 1350 pés de madeira e tirar 400 pés de carpete." required></textarea>
             <div class="mate-ai-input-tools">
               <div class="mate-ai-voice-controls">
                 <button type="button" class="mate-ai-button mate-ai-button--secondary" id="mateAiMicButton">
                   <span aria-hidden="true">🎙</span>
-                  <span id="mateAiMicLabel">Falar comando</span>
+                  <span id="mateAiMicLabel">Gravar comando</span>
                 </button>
                 <label class="mate-ai-language">
                   <span>Idioma da voz</span>
                   <select id="mateAiVoiceLanguage" aria-label="Idioma para reconhecimento de voz">
+                    <option value="auto">Automático</option>
                     <option value="pt-BR">Português</option>
                     <option value="en-US">English</option>
+                    <option value="es-US">Español</option>
                   </select>
                 </label>
               </div>
-              <span id="mateAiVoiceStatus" class="mate-ai-voice-status" aria-live="polite">A transcrição usa o recurso de voz do navegador; edite o texto antes de continuar.</span>
+              <span id="mateAiVoiceStatus" class="mate-ai-voice-status" aria-live="polite">Toque em gravar, fale e toque de novo para terminar. O Mate AI já busca tudo em seguida.</span>
             </div>
-            <p class="mate-ai-example"><strong>Exemplo:</strong> “Quote para Maria Silva com 1000 sqft de Hardwood Installation e 500 sqft de Carpet Removal.”</p>
+            <div class="mate-ai-examples">
+              <strong>Experimente:</strong>
+              <button type="button" class="mate-ai-chip" data-example>Criar um quote para o John Smith, instalação de 1350 pés de madeira</button>
+              <button type="button" class="mate-ai-chip" data-example>Emitir a invoice do job 1042 com vencimento sexta que vem</button>
+              <button type="button" class="mate-ai-chip" data-example>Fatura de depósito de 30% para o trabalho da Maria</button>
+            </div>
             <div class="mate-ai-form-actions">
-              <button type="submit" class="mate-ai-button mate-ai-button--primary" id="mateAiPreviewButton">Buscar e revisar</button>
+              <button type="submit" class="mate-ai-button mate-ai-button--primary" id="mateAiPreviewButton">Entender e revisar</button>
             </div>
           </form>
           <div class="mate-ai-message" id="mateAiMessage" role="status" aria-live="polite" hidden></div>
+          <div class="mate-ai-clarify" id="mateAiClarify" hidden></div>
         </section>
 
         <section class="mate-ai-card mate-ai-review" id="mateAiPreview" aria-labelledby="mateAiReviewTitle" hidden>
           <div class="mate-ai-card__heading">
             <div>
               <p class="mate-ai-eyebrow">Revisão antes de criar</p>
-              <h2 id="mateAiReviewTitle">Confira cliente, serviços e preços</h2>
+              <h2 id="mateAiReviewTitle">Confira antes de criar</h2>
             </div>
             <span class="mate-ai-expiry" id="mateAiExpiry"></span>
           </div>
@@ -108,19 +116,19 @@
           <div class="mate-ai-review-confirm">
             <label class="mate-ai-check">
               <input type="checkbox" id="mateAiReviewed" />
-              <span>Revisei o cliente, as medidas e os preços.</span>
+              <span id="mateAiReviewedLabel">Revisei o cliente, as medidas e os preços.</span>
             </label>
             <button type="button" class="mate-ai-button mate-ai-button--primary" id="mateAiCreateButton" disabled>Criar Quote em rascunho</button>
           </div>
-          <p class="mate-ai-safe-note">Este passo cria somente um rascunho. O Mate AI não envia o Quote ao cliente.</p>
+          <p class="mate-ai-safe-note" id="mateAiSafeNote">Este passo cria somente um rascunho. O Mate AI não envia o Quote ao cliente.</p>
         </section>
 
         <section class="mate-ai-card mate-ai-success" id="mateAiSuccess" aria-live="polite" hidden>
-          <p class="mate-ai-eyebrow">Rascunho criado</p>
+          <p class="mate-ai-eyebrow" id="mateAiSuccessEyebrow">Rascunho criado</p>
           <h2 id="mateAiSuccessTitle"></h2>
           <p id="mateAiSuccessDetail"></p>
           <a class="mate-ai-button mate-ai-button--primary" id="mateAiOpenQuote" href="#">Abrir e revisar Quote</a>
-          <p class="mate-ai-safe-note">O rascunho não foi enviado. Revise-o no editor e use o fluxo normal de envio quando estiver pronto.</p>
+          <p class="mate-ai-safe-note" id="mateAiSuccessNote">O rascunho não foi enviado. Revise-o no editor e use o fluxo normal de envio quando estiver pronto.</p>
         </section>
       </div>
     </main>
@@ -132,6 +140,6 @@
   <script src="crm-shared-nav.js?v=20261019-mateai1"></script>
   <script src="crm-shell.js"></script>
   <script src="om-mobile-nav.js"></script>
-  <script src="mate-ai.js?v=20261019-mvp1"></script>
+  <script src="mate-ai.js?v=20261019-agent1"></script>
 </body>
 </html>
