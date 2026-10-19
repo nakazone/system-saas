@@ -25,12 +25,12 @@
   <link rel="stylesheet" href="styles.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-shell.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="obramate-app.css?v=20261019-logout1" />
+  <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="om-native-app.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="agenda-mais.css?v=20261019-logout1" />
+  <link rel="stylesheet" href="agenda-mais.css?v=20261019-logout2" />
   <link rel="manifest" href="/manifest.json?v=20260930-native2" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
@@ -232,6 +232,19 @@
             </span>
           </button>
         </div>
+
+        <p class="mais-section-label">Conta</p>
+        <div class="om-mod-grid">
+          <button type="button" class="om-mod-card om-mod-card--danger" id="maisLogoutCard" data-crm-logout>
+            <span class="om-mod-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+            </span>
+            <span>
+              <p class="om-mod-card__title" data-i18n="menu.logout">Sair da conta</p>
+              <p class="om-mod-card__sub">Encerrar sessão neste aparelho</p>
+            </span>
+          </button>
+        </div>
       </div>
     </main>
   </div>
@@ -241,8 +254,8 @@
   <script src="saas-branding.js"></script>
   <script src="om-device.js?v=20261013-badge1"></script>
   <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
-  <script src="crm-shell.js?v=20261019-logout1"></script>
+  <script src="crm-shell.js?v=20261019-logout2"></script>
   <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
-  <script src="mais.js?v=20261014-perfil1"></script>
+  <script src="mais.js?v=20261019-logout2"></script>
 </body>
 </html>

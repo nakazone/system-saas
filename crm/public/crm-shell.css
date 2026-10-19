@@ -775,6 +775,34 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
     gap: 0.5rem;
   }
 
+  .mobile-app-header__logout {
+    flex-shrink: 0;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 40px;
+    padding: 0 0.7rem;
+    border: none;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-app-header__logout svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.85;
+  }
+
   .mobile-app-header .notification-bell-wrap--mobile {
     position: relative;
     top: auto;
