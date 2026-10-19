@@ -682,7 +682,7 @@
           <% if (!readOnly && !signed) { %>
             <div class="qp-sign-cta no-print">
               <p class="qp-sign-cta__text">Ready to proceed? Review the terms above, then sign to approve this quote.</p>
-              <button type="button" class="qp-btn qp-btn--primary" data-qp-open-sign onclick="try{if(event)event.preventDefault();}catch(e){}if(window.__qpOpenSign){window.__qpOpenSign(event);return false;}var p=document.getElementById('qpSignPanel');if(p){p.classList.add('is-open');p.style.display='block';try{p.scrollIntoView(true);}catch(e2){}}else{alert('Open this link in Safari or Chrome to sign.');}return false;">Sign</button>
+              <button type="button" class="qp-btn qp-btn--primary" data-qp-open-sign onclick="window.__qpOpenSign(event);return false;">Sign</button>
             </div>
           <% } %>
 
@@ -775,9 +775,9 @@
     </label>
     <p id="qpSignError" class="qp-alert qp-alert-error" hidden style="margin:0 0 12px;"></p>
     <div class="qp-sign-panel__actions">
-      <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear" onclick="if(window.__qpClearSign)window.__qpClearSign();return false;">Clear</button>
-      <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel" onclick="if(window.__qpCloseSign)window.__qpCloseSign();else{var p=document.getElementById('qpSignPanel');if(p){p.classList.remove('is-open');p.style.display='none';}}return false;">Cancel</button>
-      <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit" onclick="if(window.__qpSubmitSign)window.__qpSubmitSign();else alert('Please wait for the page to finish loading and try again.');return false;">Approve quote</button>
+      <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear" onclick="window.__qpClearSign();return false;">Clear</button>
+      <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel" onclick="window.__qpCloseSign();return false;">Cancel</button>
+      <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit" onclick="window.__qpSubmitSign();return false;">Approve quote</button>
     </div>
   </div>
   <% } %>
@@ -785,45 +785,64 @@
   <div class="qp-actions no-print" id="quoteActions">
     <a class="qp-btn qp-btn--outline" href="/public/quotes/<%= token %>/pdf" target="_blank" rel="noopener noreferrer">Download PDF</a>
     <% if (!readOnly && !signed) { %>
-      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove" data-qp-open-sign onclick="try{if(event)event.preventDefault();}catch(e){}if(window.__qpOpenSign){window.__qpOpenSign(event);return false;}var p=document.getElementById('qpSignPanel');if(p){p.classList.add('is-open');p.style.display='block';try{p.scrollIntoView(true);}catch(e2){}}else{alert('Open this link in Safari or Chrome to sign.');}return false;">Sign</button>
+      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove" data-qp-open-sign onclick="window.__qpOpenSign(event);return false;">Sign</button>
     <% } %>
   </div>
 
   <script>
-    /* Early stub so Sign works even if later scripts fail to load */
+    /* Sign/approve handlers — defined immediately so Approve quote never depends on later scripts */
     (function () {
-      function showPanel() {
-        var p = document.getElementById('qpSignPanel');
-        if (!p) return false;
-        p.classList.add('is-open');
-        p.style.display = 'block';
-        try { p.scrollIntoView(true); } catch (e) {}
-        return true;
-      }
-      window.__qpOpenSign = function (e) {
-        try { if (e && e.preventDefault) e.preventDefault(); } catch (err) {}
-        if (!showPanel()) alert('Could not open the signature panel.');
-        return false;
-      };
-      window.__qpCloseSign = function () {
-        var p = document.getElementById('qpSignPanel');
-        if (p) { p.classList.remove('is-open'); p.style.display = 'none'; }
-      };
-    })();
-  </script>
-  <script src="/quote-signature-auto.js?v=20261019-sign3"></script>
-  <script>
-    (function () {
-      var readOnly = <%= readOnly ? 'true' : 'false' %>;
-      var token = <%= JSON.stringify(token) %>;
-      var defaultName = <%= JSON.stringify((quote.customer && quote.customer.name) || '') %>;
+      var defaultName = <%- JSON.stringify((quote.customer && quote.customer.name) || '') %>;
+      var pad = null;
+      var padBound = false;
 
-      function money(n) {
-        return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      function $(id) { return document.getElementById(id); }
+
+      function showSignError(msg) {
+        var el = $('qpSignError');
+        if (!el) { alert(msg); return; }
+        el.textContent = msg;
+        el.hidden = false;
+      }
+      function clearSignError() {
+        var el = $('qpSignError');
+        if (el) { el.hidden = true; el.textContent = ''; }
       }
 
-      function createPad(canvas) {
+      function drawNameOnCanvas(canvas, name) {
+        var text = String(name || '').trim();
+        if (text.length < 2 || !canvas) return false;
+        try {
+          if (window.QuoteSignatureAuto && window.QuoteSignatureAuto.renderAutoSignatureOnCanvas) {
+            if (window.QuoteSignatureAuto.renderAutoSignatureOnCanvas(canvas, text)) return true;
+          }
+        } catch (e1) {}
+        try {
+          var ctx = canvas.getContext('2d');
+          if (!ctx) return false;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#1a2036';
+          var fontSize = 36;
+          ctx.font = 'italic ' + fontSize + 'px cursive';
+          while (fontSize > 14 && ctx.measureText(text).width > canvas.width - 32) {
+            fontSize -= 1;
+            ctx.font = 'italic ' + fontSize + 'px cursive';
+          }
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'center';
+          ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+          return true;
+        } catch (e2) {
+          return false;
+        }
+      }
+
+      function ensurePad() {
+        var canvas = $('qpSignCanvas');
+        if (!canvas) return null;
+        if (pad) return pad;
         var ctx = canvas.getContext('2d');
+        if (!ctx) return null;
         var drawing = false;
         var hasStroke = false;
         ctx.strokeStyle = '#1a2036';
@@ -832,10 +851,10 @@
         ctx.lineJoin = 'round';
         function pos(e) {
           var r = canvas.getBoundingClientRect();
-          var t = e.touches ? e.touches[0] : e;
+          var t = (e.touches && e.touches[0]) ? e.touches[0] : e;
           return {
-            x: (t.clientX - r.left) * (canvas.width / r.width),
-            y: (t.clientY - r.top) * (canvas.height / r.height),
+            x: (t.clientX - r.left) * (canvas.width / Math.max(r.width, 1)),
+            y: (t.clientY - r.top) * (canvas.height / Math.max(r.height, 1)),
           };
         }
         function start(e) {
@@ -844,159 +863,144 @@
           var p = pos(e);
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
-          e.preventDefault();
+          if (e.preventDefault) e.preventDefault();
         }
         function move(e) {
           if (!drawing) return;
           var p = pos(e);
           ctx.lineTo(p.x, p.y);
           ctx.stroke();
-          e.preventDefault();
+          if (e.preventDefault) e.preventDefault();
         }
         function end() { drawing = false; }
-        canvas.addEventListener('mousedown', start);
-        canvas.addEventListener('mousemove', move);
-        window.addEventListener('mouseup', end);
-        canvas.addEventListener('touchstart', start, { passive: false });
-        canvas.addEventListener('touchmove', move, { passive: false });
-        canvas.addEventListener('touchend', end);
-
-        function drawName(name) {
-          var text = String(name || '').trim();
-          if (text.length < 2) return false;
-          if (window.QuoteSignatureAuto && window.QuoteSignatureAuto.renderAutoSignatureOnCanvas(canvas, text)) {
-            return true;
-          }
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = '#1a2036';
-          var fontSize = 36;
-          ctx.font = 'italic ' + fontSize + 'px "Brush Script MT", "Segoe Script", cursive';
-          while (fontSize > 14 && ctx.measureText(text).width > canvas.width - 32) {
-            fontSize -= 1;
-            ctx.font = 'italic ' + fontSize + 'px "Brush Script MT", "Segoe Script", cursive';
-          }
-          ctx.textBaseline = 'middle';
-          ctx.textAlign = 'center';
-          ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-          return true;
+        if (!padBound) {
+          padBound = true;
+          canvas.addEventListener('mousedown', start, false);
+          canvas.addEventListener('mousemove', move, false);
+          window.addEventListener('mouseup', end, false);
+          canvas.addEventListener('touchstart', start, false);
+          canvas.addEventListener('touchmove', move, false);
+          canvas.addEventListener('touchend', end, false);
         }
-
-        return {
+        pad = {
           clear: function () { ctx.clearRect(0, 0, canvas.width, canvas.height); hasStroke = false; },
           isEmpty: function () { return !hasStroke; },
           renderFromName: function (name) {
-            var ok = drawName(name);
+            var ok = drawNameOnCanvas(canvas, name);
             hasStroke = !!ok;
             return ok;
           },
           toDataURL: function () { return canvas.toDataURL('image/png'); },
         };
+        return pad;
       }
 
-      var pad = null;
-      var panel = document.getElementById('qpSignPanel');
-      var canvas = document.getElementById('qpSignCanvas');
-      var nameInput = document.getElementById('qpSignerName');
-
-      function showSignError(msg) {
-        var el = document.getElementById('qpSignError');
-        if (!el) { alert(msg); return; }
-        el.textContent = msg;
-        el.hidden = false;
-      }
-      function clearSignError() {
-        var el = document.getElementById('qpSignError');
-        if (el) { el.hidden = true; el.textContent = ''; }
-      }
-
-      function openSign(e) {
-        if (e && e.preventDefault) e.preventDefault();
-        if (!panel || !canvas) {
+      window.__qpOpenSign = function (e) {
+        try { if (e && e.preventDefault) e.preventDefault(); } catch (err) {}
+        var panel = $('qpSignPanel');
+        if (!panel) {
           alert('Could not open the signature panel. Please refresh and try again.');
           return false;
         }
+        clearSignError();
+        var nameInput = $('qpSignerName');
+        var p = ensurePad();
+        if (p) p.clear();
+        if (nameInput) {
+          if (!nameInput.value && defaultName) nameInput.value = defaultName;
+          var n = String(nameInput.value || '').trim();
+          if (p && n.length >= 2) p.renderFromName(n);
+        }
+        panel.classList.add('is-open');
+        panel.style.display = 'block';
+        try { panel.scrollIntoView(true); } catch (e2) {}
+        setTimeout(function () {
+          if (nameInput) try { nameInput.focus(); } catch (e3) {}
+        }, 80);
+        return false;
+      };
+
+      window.__qpCloseSign = function () {
+        var panel = $('qpSignPanel');
+        if (panel) {
+          panel.classList.remove('is-open');
+          panel.style.display = 'none';
+        }
+        clearSignError();
+        return false;
+      };
+
+      window.__qpClearSign = function () {
+        var p = ensurePad();
+        if (p) p.clear();
+        return false;
+      };
+
+      window.__qpSubmitSign = function () {
         try {
           clearSignError();
-          if (!pad) pad = createPad(canvas);
-          pad.clear();
-          if (nameInput) {
-            if (!nameInput.value && defaultName) nameInput.value = defaultName;
-            var n = String(nameInput.value || '').trim();
-            if (n.length >= 2) pad.renderFromName(n);
+          var nameInput = $('qpSignerName');
+          var name = (nameInput && String(nameInput.value || '').trim()) || '';
+          if (name.length < 2) { showSignError('Please enter your full name.'); return false; }
+          var terms = $('qpAcceptTerms');
+          if (!terms || !terms.checked) {
+            showSignError('Please accept the terms and conditions.');
+            return false;
           }
-          panel.classList.add('is-open');
-          panel.style.display = 'block';
-          try {
-            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          } catch (_) {
-            try { panel.scrollIntoView(true); } catch (__) {}
+          var p = ensurePad();
+          if (!p) { showSignError('Signature pad unavailable. Please refresh the page.'); return false; }
+          if (p.isEmpty()) p.renderFromName(name);
+          if (p.isEmpty()) { showSignError('Please add your signature.'); return false; }
+          var form = $('quotePublicForm');
+          var signedByName = $('signedByName');
+          var signatureDataUrl = $('signatureDataUrl');
+          var acceptTerms = $('acceptTerms');
+          if (!form || !signedByName || !signatureDataUrl || !acceptTerms) {
+            showSignError('Form not found. Please refresh the page.');
+            return false;
           }
-          setTimeout(function () {
-            if (nameInput) try { nameInput.focus(); } catch (_) {}
-          }, 80);
+          signedByName.value = name;
+          signatureDataUrl.value = p.toDataURL();
+          acceptTerms.value = 'on';
+          var btn = $('qpSignSubmit');
+          if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+          form.submit();
         } catch (err) {
-          console.error(err);
-          alert('Error opening the signature panel. Please refresh and try again.');
+          showSignError('Could not submit. Please try again.');
+          try { console.error(err); } catch (e4) {}
         }
         return false;
-      }
+      };
 
-      function closeSign() {
-        if (!panel) return;
-        panel.classList.remove('is-open');
-        panel.style.display = 'none';
-        clearSignError();
-      }
-
-      function clearSign() {
-        if (pad) pad.clear();
-      }
-
-      function submitSign() {
-        clearSignError();
-        var name = (nameInput && String(nameInput.value || '').trim()) || '';
-        if (name.length < 2) { showSignError('Please enter your full name.'); return; }
-        var terms = document.getElementById('qpAcceptTerms');
-        if (!terms || !terms.checked) {
-          showSignError('Please accept the terms and conditions.');
-          return;
-        }
-        if (!pad) pad = createPad(canvas);
-        if (pad.isEmpty()) pad.renderFromName(name);
-        if (pad.isEmpty()) { showSignError('Please add your signature.'); return; }
-        var form = document.getElementById('quotePublicForm');
-        if (!form) { showSignError('Form not found. Please refresh the page.'); return; }
-        var signedByName = document.getElementById('signedByName');
-        var signatureDataUrl = document.getElementById('signatureDataUrl');
-        var acceptTerms = document.getElementById('acceptTerms');
-        if (!signedByName || !signatureDataUrl || !acceptTerms) {
-          showSignError('Form is incomplete. Please refresh the page.');
-          return;
-        }
-        signedByName.value = name;
-        signatureDataUrl.value = pad.toDataURL();
-        acceptTerms.value = 'on';
-        var btn = document.getElementById('qpSignSubmit');
-        if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
-        form.submit();
-      }
-
-      window.__qpOpenSign = openSign;
-      window.__qpCloseSign = closeSign;
-      window.__qpClearSign = clearSign;
-      window.__qpSubmitSign = submitSign;
-
-      if (nameInput) {
+      var nameInputEl = $('qpSignerName');
+      if (nameInputEl) {
         var debounceTimer = null;
-        nameInput.addEventListener('input', function () {
+        nameInputEl.addEventListener('input', function () {
           clearTimeout(debounceTimer);
           debounceTimer = setTimeout(function () {
-            if (!pad) return;
-            var n = String(nameInput.value || '').trim();
-            if (n.length >= 2) pad.renderFromName(n);
-            else pad.clear();
+            var p = pad;
+            if (!p) return;
+            var n = String(nameInputEl.value || '').trim();
+            if (n.length >= 2) p.renderFromName(n);
+            else p.clear();
           }, 250);
-        });
+        }, false);
+      }
+    })();
+  </script>
+  <script src="/quote-signature-auto.js?v=20261019-sign4"></script>
+  <script>
+    /* Totals recalculation + optional GPS — independent of sign/approve */
+    (function () {
+      var readOnly = <%= readOnly ? 'true' : 'false' %>;
+      var token = <%- JSON.stringify(token) %>;
+
+      function money(n) {
+        try {
+          return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        } catch (e) {
+          return '$' + Number(n || 0).toFixed(2);
+        }
       }
 
       function recalc() {
@@ -1007,24 +1011,26 @@
         var checks = document.querySelectorAll('.opt-check:checked');
         for (var i = 0; i < checks.length; i++) selectedOptionalIds.push(checks[i].value);
         try {
-          fetch('/public/quotes/' + encodeURIComponent(token) + '/recalculate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ selectedOptionGroupId: selectedOptionGroupId, selectedOptionalIds: selectedOptionalIds }),
-          }).then(function (res) { return res.json(); }).then(function (json) {
-            if (json.success && json.data) {
-              var t = money(json.data.total);
-              var totalEl = document.getElementById('totalDisplay');
-              var summaryEl = document.getElementById('summaryTotal');
-              var subEl = document.getElementById('subtotalDisplay');
-              var taxEl = document.getElementById('taxDisplay');
-              if (totalEl) totalEl.textContent = t;
-              if (summaryEl) summaryEl.textContent = t;
-              if (subEl && json.data.subtotal != null) subEl.textContent = money(json.data.subtotal);
-              if (taxEl && json.data.taxTotal != null) taxEl.textContent = money(json.data.taxTotal);
-            }
-          }).catch(function () {});
-        } catch (_) {}
+          if (typeof fetch === 'function') {
+            fetch('/public/quotes/' + encodeURIComponent(token) + '/recalculate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ selectedOptionGroupId: selectedOptionGroupId, selectedOptionalIds: selectedOptionalIds }),
+            }).then(function (res) { return res.json(); }).then(function (json) {
+              if (json.success && json.data) {
+                var t = money(json.data.total);
+                var totalEl = document.getElementById('totalDisplay');
+                var summaryEl = document.getElementById('summaryTotal');
+                var subEl = document.getElementById('subtotalDisplay');
+                var taxEl = document.getElementById('taxDisplay');
+                if (totalEl) totalEl.textContent = t;
+                if (summaryEl) summaryEl.textContent = t;
+                if (subEl && json.data.subtotal != null) subEl.textContent = money(json.data.subtotal);
+                if (taxEl && json.data.taxTotal != null) taxEl.textContent = money(json.data.taxTotal);
+              }
+            }).catch(function () {});
+          }
+        } catch (e) {}
         var rows = document.querySelectorAll('#quotePublicForm [data-id]');
         for (var r = 0; r < rows.length; r++) {
           var el = rows[r];
@@ -1042,24 +1048,26 @@
       }
       var optInputs = document.querySelectorAll('input[name="selectedOptionGroupId"], .opt-check');
       for (var o = 0; o < optInputs.length; o++) {
-        optInputs[o].addEventListener('change', recalc);
+        optInputs[o].addEventListener('change', recalc, false);
       }
       if (!readOnly) recalc();
 
-      if (navigator.geolocation && !readOnly) {
-        navigator.geolocation.getCurrentPosition(
-          function (pos) {
-            var lat = document.getElementById('approvedLat');
-            var lng = document.getElementById('approvedLng');
-            var acc = document.getElementById('approvedGpsAccuracyM');
-            if (lat) lat.value = String(pos.coords.latitude);
-            if (lng) lng.value = String(pos.coords.longitude);
-            if (acc) acc.value = String(pos.coords.accuracy || '');
-          },
-          function () {},
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-        );
-      }
+      try {
+        if (navigator.geolocation && !readOnly) {
+          navigator.geolocation.getCurrentPosition(
+            function (pos) {
+              var lat = document.getElementById('approvedLat');
+              var lng = document.getElementById('approvedLng');
+              var acc = document.getElementById('approvedGpsAccuracyM');
+              if (lat) lat.value = String(pos.coords.latitude);
+              if (lng) lng.value = String(pos.coords.longitude);
+              if (acc) acc.value = String(pos.coords.accuracy || '');
+            },
+            function () {},
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+          );
+        }
+      } catch (e) {}
     })();
   </script>
 </body>
