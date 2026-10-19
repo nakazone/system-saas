@@ -332,9 +332,45 @@
       <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>
       <span class="nav-item__label">Recolher</span>
     </button>
+    <button type="button" class="nav-item sidebar-footer-link sidebar-logout-link" id="logoutBtn" aria-label="Sair" title="Sair">
+      <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      <span class="nav-item__label" data-i18n="menu.logout">Sair</span>
+    </button>
   </div>
 </aside>
 <div class="mobile-overlay" id="mobileOverlay"></div>`;
+
+  const SIDEBAR_COLLAPSE_HTML = `
+    <button type="button" class="nav-item sidebar-footer-link sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="false" aria-label="Recolher menu lateral" title="Recolher menu">
+      <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>
+      <span class="nav-item__label">Recolher</span>
+    </button>`;
+
+  const SIDEBAR_LOGOUT_HTML = `
+    <button type="button" class="nav-item sidebar-footer-link sidebar-logout-link" id="logoutBtn" aria-label="Sair" title="Sair">
+      <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      <span class="nav-item__label" data-i18n="menu.logout">Sair</span>
+    </button>`;
+
+  async function performLogout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch (_) {}
+    window.location.href = "/login.html";
+  }
+
+  function bindLogoutControls(root) {
+    const scope = root || document;
+    const buttons = scope.querySelectorAll("#logoutBtn, #mobileMoreLogout, [data-crm-logout]");
+    buttons.forEach((btn) => {
+      if (!btn || btn.dataset.crmShellLogoutBound === "1") return;
+      btn.dataset.crmShellLogoutBound = "1";
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        performLogout();
+      });
+    });
+  }
 
   function isAuthPage() {
     const f = (location.pathname || "").split("/").pop() || "";
@@ -691,16 +727,27 @@
       footer.className = "sidebar-footer";
       sidebar.appendChild(footer);
     }
-    // Configurações lives in the shared nav; footer keeps Recolher only.
+    // Configurações lives in the shared nav; footer keeps Recolher + Sair (mobile).
     const settingsDup = footer.querySelector("#sidebarSettingsLink");
     if (settingsDup) settingsDup.remove();
     if (!footer.querySelector("#sidebarCollapseBtn")) {
-      footer.innerHTML = `
-        <button type="button" class="nav-item sidebar-footer-link sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="false" aria-label="Recolher menu lateral" title="Recolher menu">
-          <svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>
-          <span class="nav-item__label">Recolher</span>
-        </button>`;
+      footer.insertAdjacentHTML("beforeend", SIDEBAR_COLLAPSE_HTML);
     }
+    // Prefer a labeled footer logout over a tiny icon in the user bar (often wiped/hidden).
+    let logoutBtn = footer.querySelector("#logoutBtn");
+    if (!logoutBtn) {
+      const legacyLogout = sidebar.querySelector("#logoutBtn");
+      if (legacyLogout && !legacyLogout.classList.contains("sidebar-logout-link")) {
+        legacyLogout.remove();
+      }
+      footer.insertAdjacentHTML("beforeend", SIDEBAR_LOGOUT_HTML);
+      logoutBtn = footer.querySelector("#logoutBtn");
+    } else if (!logoutBtn.classList.contains("sidebar-logout-link")) {
+      logoutBtn.insertAdjacentHTML("afterend", SIDEBAR_LOGOUT_HTML);
+      logoutBtn.remove();
+      logoutBtn = footer.querySelector("#logoutBtn");
+    }
+    bindLogoutControls(footer);
 
     if (!document.getElementById("mobileOverlay")) {
       const ov = document.createElement("div");
@@ -1183,6 +1230,7 @@
     ensureTopbar();
     ensureMobileHeader();
     ensureSidebarStructure(getSidebar());
+    bindLogoutControls(document);
     ensureTopbarUtilities();
     ensureBackButtons();
     if (!isField) {

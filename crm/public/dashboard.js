@@ -766,8 +766,11 @@ if (mobileMoreSheetEl) {
 
 document.getElementById('mobileMoreBackdrop')?.addEventListener('click', () => closeMobileMoreSheet());
 
-document.getElementById('mobileMoreLogout')?.addEventListener('click', () => {
-    document.getElementById('logoutBtn')?.click();
+document.getElementById('mobileMoreLogout')?.addEventListener('click', async () => {
+    try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (_) {}
+    window.location.href = '/login.html';
 });
 
 function openSfFabSheet() {
