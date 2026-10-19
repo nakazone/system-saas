@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Mate AI | ObraMate</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="mobile-design-system.css" />
+  <link rel="stylesheet" href="crm-shared-nav.css" />
+  <link rel="stylesheet" href="crm-shell.css" />
+  <link rel="stylesheet" href="obramate-app.css" />
+  <link rel="stylesheet" href="om-mobile-nav.css" />
+  <link rel="stylesheet" href="mate-ai.css?v=20261019-mvp1" />
+</head>
+<body class="dashboard-app-body om-app sidebar-collapsed">
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" />
+      <h1 class="mobile-app-header__title">Mate AI</h1>
+    </div>
+  </header>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/favicon-192.png" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" />
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <main class="dashboard-main">
+      <div class="mate-ai-page">
+        <header class="mate-ai-heading">
+          <div>
+            <p class="mate-ai-eyebrow">ObraMate · Assistente</p>
+            <h1>Mate AI</h1>
+            <p>Descreva o Quote por texto ou voz. O Mate AI busca o cliente e os preços da tabela da sua empresa.</p>
+          </div>
+        </header>
+
+        <section class="mate-ai-card" aria-labelledby="mateAiInputTitle">
+          <div class="mate-ai-card__heading">
+            <div>
+              <h2 id="mateAiInputTitle">O que você precisa orçar?</h2>
+              <p>Inclua o nome do cliente e a quantidade e unidade de cada serviço.</p>
+            </div>
+          </div>
+          <form id="mateAiForm">
+            <label class="mate-ai-label" for="mateAiCommand">Comando</label>
+            <textarea id="mateAiCommand" name="command" maxlength="500" rows="5" placeholder="Crie um Quote para Maria Silva com 1000 sqft de Hardwood Installation, remoção de 500 sqft de Carpet Removal e 1500 sqft de Sand & Finish." required></textarea>
+            <div class="mate-ai-input-tools">
+              <div class="mate-ai-voice-controls">
+                <button type="button" class="mate-ai-button mate-ai-button--secondary" id="mateAiMicButton">
+                  <span aria-hidden="true">🎙</span>
+                  <span id="mateAiMicLabel">Falar comando</span>
+                </button>
+                <label class="mate-ai-language">
+                  <span>Idioma da voz</span>
+                  <select id="mateAiVoiceLanguage" aria-label="Idioma para reconhecimento de voz">
+                    <option value="pt-BR">Português</option>
+                    <option value="en-US">English</option>
+                  </select>
+                </label>
+              </div>
+              <span id="mateAiVoiceStatus" class="mate-ai-voice-status" aria-live="polite">A transcrição usa o recurso de voz do navegador; edite o texto antes de continuar.</span>
+            </div>
+            <p class="mate-ai-example"><strong>Exemplo:</strong> “Quote para Maria Silva com 1000 sqft de Hardwood Installation e 500 sqft de Carpet Removal.”</p>
+            <div class="mate-ai-form-actions">
+              <button type="submit" class="mate-ai-button mate-ai-button--primary" id="mateAiPreviewButton">Buscar e revisar</button>
+            </div>
+          </form>
+          <div class="mate-ai-message" id="mateAiMessage" role="status" aria-live="polite" hidden></div>
+        </section>
+
+        <section class="mate-ai-card mate-ai-review" id="mateAiPreview" aria-labelledby="mateAiReviewTitle" hidden>
+          <div class="mate-ai-card__heading">
+            <div>
+              <p class="mate-ai-eyebrow">Revisão antes de criar</p>
+              <h2 id="mateAiReviewTitle">Confira cliente, serviços e preços</h2>
+            </div>
+            <span class="mate-ai-expiry" id="mateAiExpiry"></span>
+          </div>
+          <div id="mateAiPreviewContent"></div>
+          <div class="mate-ai-review-confirm">
+            <label class="mate-ai-check">
+              <input type="checkbox" id="mateAiReviewed" />
+              <span>Revisei o cliente, as medidas e os preços.</span>
+            </label>
+            <button type="button" class="mate-ai-button mate-ai-button--primary" id="mateAiCreateButton" disabled>Criar Quote em rascunho</button>
+          </div>
+          <p class="mate-ai-safe-note">Este passo cria somente um rascunho. O Mate AI não envia o Quote ao cliente.</p>
+        </section>
+
+        <section class="mate-ai-card mate-ai-success" id="mateAiSuccess" aria-live="polite" hidden>
+          <p class="mate-ai-eyebrow">Rascunho criado</p>
+          <h2 id="mateAiSuccessTitle"></h2>
+          <p id="mateAiSuccessDetail"></p>
+          <a class="mate-ai-button mate-ai-button--primary" id="mateAiOpenQuote" href="#">Abrir e revisar Quote</a>
+          <p class="mate-ai-safe-note">O rascunho não foi enviado. Revise-o no editor e use o fluxo normal de envio quando estiver pronto.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js"></script>
+  <script src="saas-branding.js"></script>
+  <script src="crm-shared-nav.js?v=20261019-mateai1"></script>
+  <script src="crm-shell.js"></script>
+  <script src="om-mobile-nav.js"></script>
+  <script src="mate-ai.js?v=20261019-mvp1"></script>
+</body>
+</html>

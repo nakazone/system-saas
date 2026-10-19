@@ -117,6 +117,14 @@ export function createCrmRouter(): Router {
     }
   });
 
+  router.get(["/mate-ai", "/mate-ai.html"], requireAuth, (_req, res, next) => {
+    try {
+      sendCrmHtml(res, "mate-ai.html");
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Keep ?view=list (and any other query) so tablet Lista → list shell still works.
   router.get("/pipeline-lab.html", requireAuth, (req, res) => {
     const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";

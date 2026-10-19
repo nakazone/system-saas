@@ -129,6 +129,7 @@
         label: null,
         items: [
           { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+          { href: 'mate-ai.html', label: 'Mate AI', perm: 'quotes.create', page: '', iconKey: 'quotes' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
           { href: 'invoices.html', label: 'Invoices', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
         ],
@@ -337,6 +338,7 @@
     if (base === 'referrals.html') return file === 'referrals.html';
     if (base === 'leads.html') return file === 'leads.html' || file === 'lead-detail.html';
     if (base === 'quotes.html') return file === 'quotes.html' || file === 'quote-builder.html';
+    if (base === 'mate-ai.html') return file === 'mate-ai.html';
     if (base === 'invoices.html') return file === 'invoices.html' || file === 'invoice.html';
     if (base === 'builder-pricing-admin.html') {
       return file === 'builder-pricing-admin.html' || file === 'quote-catalog.html';
