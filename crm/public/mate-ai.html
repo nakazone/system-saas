@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="crm-shell.css" />
   <link rel="stylesheet" href="obramate-app.css" />
   <link rel="stylesheet" href="om-mobile-nav.css" />
-  <link rel="stylesheet" href="mate-ai.css?v=20261019-agent1" />
+  <link rel="stylesheet" href="mate-ai.css?v=20261019-voice3" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed">
   <header class="mobile-app-header" id="mobileAppHeader">
@@ -59,6 +59,7 @@
             <p class="mate-ai-eyebrow">ObraMate · Assistente</p>
             <h1>Mate AI</h1>
             <p>Fale ou digite o que precisa. O Mate AI entende o pedido, encontra o cliente, os serviços e o job na sua empresa e prepara tudo para você revisar.</p>
+            <p class="mate-ai-mode" id="mateAiMode" hidden></p>
           </div>
         </header>
 
@@ -71,7 +72,7 @@
           </div>
           <form id="mateAiForm">
             <label class="mate-ai-label" for="mateAiCommand">Comando</label>
-            <textarea id="mateAiCommand" name="command" maxlength="500" rows="5" placeholder="Ex.: Criar um quote para o John Smith, instalação de 1350 pés de madeira e tirar 400 pés de carpete." required></textarea>
+            <textarea id="mateAiCommand" name="command" data-crm-rich="off" maxlength="500" rows="5" placeholder="Ex.: Criar um quote para o John Smith, instalação de 1350 pés de madeira e tirar 400 pés de carpete." required></textarea>
             <div class="mate-ai-input-tools">
               <div class="mate-ai-voice-controls">
                 <button type="button" class="mate-ai-button mate-ai-button--secondary" id="mateAiMicButton">
@@ -81,7 +82,6 @@
                 <label class="mate-ai-language">
                   <span>Idioma da voz</span>
                   <select id="mateAiVoiceLanguage" aria-label="Idioma para reconhecimento de voz">
-                    <option value="auto">Automático</option>
                     <option value="pt-BR">Português</option>
                     <option value="en-US">English</option>
                     <option value="es-US">Español</option>
@@ -140,6 +140,6 @@
   <script src="crm-shared-nav.js?v=20261019-mateai1"></script>
   <script src="crm-shell.js"></script>
   <script src="om-mobile-nav.js"></script>
-  <script src="mate-ai.js?v=20261019-voice2"></script>
+  <script src="mate-ai.js?v=20261019-voice3"></script>
 </body>
 </html>

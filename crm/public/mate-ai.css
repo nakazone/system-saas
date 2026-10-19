@@ -611,3 +611,35 @@
 @media (prefers-reduced-motion: reduce) {
   #mateAiMicButton.is-listening { animation: none; }
 }
+
+.mate-ai-message.is-fresh {
+  animation: mate-ai-flash 0.6s ease-out;
+}
+
+@keyframes mate-ai-flash {
+  0% { transform: translateY(-3px); box-shadow: 0 0 0 3px rgba(86, 112, 86, 0.25); }
+  100% { transform: none; box-shadow: none; }
+}
+
+.mate-ai-mode {
+  display: inline-block;
+  margin-top: 12px !important;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fff7e6;
+  color: #7a5a12 !important;
+  font-size: 13px !important;
+}
+
+.mate-ai-mode[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mate-ai-message.is-fresh { animation: none; }
+}
+
+/* Keep the last card clear of the floating bottom navigation. */
+.mate-ai-page {
+  padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+}
