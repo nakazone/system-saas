@@ -507,6 +507,11 @@ body.om-app .dashboard-main {
     display: none !important;
   }
 
+  /* Desktop: logout lives in the top-bar account menu */
+  body.om-app #dashboardSidebar .sidebar-logout-link {
+    display: none !important;
+  }
+
   /* Inline Cadastro panel when expanded */
   body.om-app:not(.sidebar-collapsed) #dashboardSidebar .sidebar-nav-dropdown__panel {
     display: none;
@@ -861,6 +866,32 @@ body.om-app .om-dock__btn svg { width: 16px; height: 16px; }
 
   body.om-app #dashboardSidebar .sidebar-footer {
     margin-top: auto !important;
+  }
+
+  /* Mobile drawer: always show a clear Log out action */
+  body.om-app #dashboardSidebar .sidebar-logout-link {
+    display: flex !important;
+    width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    color: #b91c1c !important;
+    cursor: pointer;
+    padding: 0 0.5rem 0 var(--om-icon-inset, 1rem) !important;
+    font: inherit;
+    margin-top: 0.25rem;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-logout-link svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.75;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-logout-link .nav-item__label {
+    display: inline !important;
+    font-weight: 650;
   }
 }
 
