@@ -306,6 +306,18 @@ export function planFromRules(command: string): { ok: true; plan: MateAiPlan } |
 
 /* ───────────────────────── entry point ───────────────────────── */
 
+/** Fast, inexpensive current model for short JSON extraction (gpt-4o/4.1 leave the API in Jan 2027). */
+export const MATE_AI_DEFAULT_MODEL = "gpt-6-luna";
+export const MATE_AI_DEFAULT_TRANSCRIBE_MODEL = "gpt-transcribe";
+
+export function mateAiChatModel(): string {
+  return process.env.MATE_AI_MODEL?.trim() || MATE_AI_DEFAULT_MODEL;
+}
+
+export function mateAiTranscribeModel(): string {
+  return process.env.MATE_AI_TRANSCRIBE_MODEL?.trim() || MATE_AI_DEFAULT_TRANSCRIBE_MODEL;
+}
+
 export async function interpretMateAiCommand(command: string, ctx: InterpretContext): Promise<InterpretResult> {
   const text = String(command || "").trim();
   const { date, weekday } = todayInTimezone(ctx.timezone, ctx.now);
@@ -317,11 +329,13 @@ export async function interpretMateAiCommand(command: string, ctx: InterpretCont
   }
 
   const refs = catalogRefs(ctx.catalog);
-  const ai = await aiChatJson({
-    system: buildInterpretSystemPrompt({ today: date, weekday, timezone: ctx.timezone, refs }),
-    user: text,
-    timeoutMs: 30_000,
-  });
+  const system = buildInterpretSystemPrompt({ today: date, weekday, timezone: ctx.timezone, refs });
+  let ai = await aiChatJson({ system, user: text, timeoutMs: 30_000, model: mateAiChatModel() });
+  if (!ai.ok && ai.status && [400, 403, 404].includes(ai.status) && /model/i.test(ai.error)) {
+    // Model not available for this key/provider: use the account's default chat model.
+    console.warn("[mate-ai] model " + mateAiChatModel() + " unavailable, using default:", ai.error);
+    ai = await aiChatJson({ system, user: text, timeoutMs: 30_000 });
+  }
 
   if (!ai.ok) {
     console.warn("[mate-ai] interpreter unavailable, using local reader:", ai.error);

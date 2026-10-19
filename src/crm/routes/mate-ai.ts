@@ -28,6 +28,7 @@ import {
 import {
   interpretMateAiCommand,
   mateAiPlanSchema,
+  mateAiTranscribeModel,
   todayInTimezone,
   validDueDate,
   type MateAiInvoicePlan,
@@ -829,11 +830,27 @@ mateAiRouter.post(
         ]);
         return [...new Set([...catalog.map((c) => c.name), ...customers.map((c) => c.name)])];
       });
-      const prompt = ("ObraMate, Quote, invoice, sqft, " + vocabulary.join(", ")).slice(0, 900);
       const language = ["pt", "en", "es"].includes(String(raw.language)) ? String(raw.language) : undefined;
+      const model = mateAiTranscribeModel();
+      const newGen = /^gpt-(live-)?transcribe/i.test(model);
+      // gpt-transcribe takes exact keywords; older models only a free-text prompt.
+      const prompt = newGen
+        ? language === "en"
+          ? "Command for a flooring CRM: quotes, invoices, jobs, square feet."
+          : "Pedido para o CRM de pisos ObraMate: quotes, invoices, jobs, pés quadrados (sqft)."
+        : ("ObraMate, Quote, invoice, sqft, " + vocabulary.join(", ")).slice(0, 900);
+      const languages = language ? [language, ...(language === "en" ? [] : ["en"])] : ["pt", "en"];
 
       const result = await runWithTenant(organizationId, () =>
-        aiTranscribeAudio({ body: parsed.body, contentType: parsed.contentType, language, prompt }),
+        aiTranscribeAudio({
+          body: parsed.body,
+          contentType: parsed.contentType,
+          model,
+          language,
+          languages,
+          prompt,
+          keywords: ["Quote", "invoice", "sqft", "job", ...vocabulary],
+        }),
       );
       if (!result.ok) {
         res.status(502).json({ success: false, error: result.error, fallback: "browser" });

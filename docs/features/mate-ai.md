@@ -39,3 +39,16 @@ All reads and writes run through the tenant transaction helper. The raw command 
 - Up to 8 services per Quote, 500 characters per command, 2 decimal places per quantity, 8 MB / 60 s of audio.
 - Units: square feet, linear feet, fixed, each, box, step and hour. Values are not converted; when the spoken unit differs from the catalog unit the user must confirm the service.
 - Job invoices only (quote-based invoices and other actions — scheduling, sending, payments — are next steps).
+
+## Configuration
+
+Only `OPENAI_API_KEY` is required (or `JOB_MEDIA_AI_API_KEY`, which takes precedence). Without it Mate AI runs in basic mode (local reader + browser speech recognition).
+
+| Variable | Default | Used for |
+| --- | --- | --- |
+| `MATE_AI_MODEL` | `gpt-6-luna` | Reading commands. Falls back to the account default chat model if unavailable. |
+| `MATE_AI_TRANSCRIBE_MODEL` | `gpt-transcribe` | Voice. Sends the catalog and recent customer names as `keywords[]` and `languages[]` (pt, en). Retries once with `whisper-1` if the model is rejected. |
+
+GPT-5/GPT-6 models get no custom `temperature`. The company plan must include the **IA** feature and have `ai_month` quota left; each command and each recording counts as one use.
+
+Note: `gpt-4o`, `gpt-4o-mini` and `gpt-4.1` leave the OpenAI API on 2027-01-14; `whisper-1` and the `gpt-4o-*-transcribe` models on 2027-02-26. Other AI features still default to `gpt-4o-mini` / `whisper-1` through `OPENAI_CHAT_MODEL` / `JOB_MEDIA_WHISPER_MODEL`.
