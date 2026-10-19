@@ -301,3 +301,127 @@ export function cleanKeywords(words: string[] | undefined, max = 120): string[] 
   }
   return [...out];
 }
+
+/* ───────────────────────── multi-turn chat with tools ───────────────────────── */
+
+export type AiToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
+
+export type AiTurn =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: string | null; tool_calls?: AiToolCall[] }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+export type AiTool = {
+  type: "function";
+  function: { name: string; description: string; parameters: Record<string, unknown> };
+};
+
+export type AiChatTurnResult =
+  | { ok: true; content: string; toolCalls: AiToolCall[]; model: string; tokensIn: number | null; tokensOut: number | null }
+  | AiErrorResult;
+
+export type AiErrorLog = { at: string; model: string; status: number | null; message: string; context: string };
+
+let lastAiError: AiErrorLog | null = null;
+
+/** Last provider error seen by this process (for the admin diagnostics in Mate AI). */
+export function getLastAiError(): AiErrorLog | null {
+  return lastAiError;
+}
+
+export function noteAiError(context: string, model: string, status: number | null | undefined, message: string): void {
+  lastAiError = { at: new Date().toISOString(), model, status: status ?? null, message: String(message || "").slice(0, 500), context };
+  console.warn(`[ai] ${context} failed with ${model} (${status ?? "-"}): ${lastAiError.message}`);
+}
+
+/** GPT-5/GPT-6 accept reasoning_effort; with tools on Chat Completions it must be "none". */
+function isReasoningFamily(model: string): boolean {
+  return /^(gpt-5|gpt-6|o\d)/i.test(model.trim());
+}
+
+/**
+ * One chat turn (optionally with tools). Parameters a model rejects (temperature, response_format,
+ * reasoning_effort) are dropped and the call retried once each, so a model change never breaks it.
+ */
+export async function aiChatTurn(params: {
+  messages: AiTurn[];
+  model?: string;
+  tools?: AiTool[];
+  toolChoice?: "auto" | "required";
+  json?: boolean;
+  timeoutMs?: number;
+  /** Count this call against the company's AI quota (false for follow-up tool rounds). */
+  countUse?: boolean;
+}): Promise<AiChatTurnResult> {
+  const key = aiApiKey();
+  if (!key) return { ok: false, error: "AI is not configured. Set OPENAI_API_KEY (or JOB_MEDIA_AI_API_KEY).", provider: "none" };
+  if (params.countUse !== false) {
+    const blocked = await takeAiUse();
+    if (blocked) return { ok: false, error: blocked, provider: "none" };
+  }
+  const model = params.model?.trim() || chatModel();
+  const body: Record<string, unknown> = { model, messages: params.messages };
+  if (params.tools?.length) {
+    body.tools = params.tools;
+    body.tool_choice = params.toolChoice || "auto";
+    if (isReasoningFamily(model)) body.reasoning_effort = "none";
+  } else if (params.json) {
+    body.response_format = { type: "json_object" };
+  }
+  if (modelAcceptsTemperature(model)) body.temperature = 0.2;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 45_000);
+  try {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await fetch(`${aiBaseUrl()}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify(body),
+      });
+      const raw = (await res.json().catch(() => ({}))) as {
+        error?: { message?: string; param?: string; code?: string };
+        choices?: { message?: { content?: string | null; tool_calls?: AiToolCall[] } }[];
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+        model?: string;
+      };
+      if (!res.ok) {
+        const msg = raw.error?.message || `AI HTTP ${res.status}`;
+        const where = `${raw.error?.param || ""} ${msg}`.toLowerCase();
+        if (res.status === 400) {
+          const drop = ["temperature", "response_format", "reasoning_effort"].find((p) => p in body && where.includes(p));
+          if (drop) {
+            delete body[drop];
+            continue;
+          }
+        }
+        return { ok: false, error: msg, status: res.status, provider: "openai_compatible" };
+      }
+      const message = raw.choices?.[0]?.message || {};
+      return {
+        ok: true,
+        content: String(message.content || ""),
+        toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : [],
+        model: raw.model || model,
+        tokensIn: raw.usage?.prompt_tokens ?? null,
+        tokensOut: raw.usage?.completion_tokens ?? null,
+      };
+    }
+    return { ok: false, error: "AI request kept being rejected", provider: "openai_compatible" };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "AI request failed";
+    return { ok: false, error: /abort/i.test(msg) ? "AI request timed out" : msg, provider: "openai_compatible" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Host of the AI provider (no path or secrets), for diagnostics. */
+export function aiProviderHost(): string {
+  try {
+    return new URL(aiBaseUrl()).host;
+  } catch {
+    return "?";
+  }
+}

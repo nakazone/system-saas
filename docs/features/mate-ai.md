@@ -48,3 +48,10 @@ Only `OPENAI_API_KEY` is required (or `JOB_MEDIA_AI_API_KEY`, which takes preced
 GPT-5/GPT-6 models get no custom `temperature`. The company plan must include the **IA** feature and have `ai_month` quota left; each command and each recording counts as one use.
 
 Note: `gpt-4o`, `gpt-4o-mini` and `gpt-4.1` leave the OpenAI API on 2027-01-14; `whisper-1` and the `gpt-4o-*-transcribe` models on 2027-02-26. Other AI features still default to `gpt-4o-mini` / `whisper-1` through `OPENAI_CHAT_MODEL` / `JOB_MEDIA_WHISPER_MODEL`.
+
+## Conversa reativa (out/2026)
+
+- **Item pendente**: o painel envia em `pending` o último card / pergunta / erro ainda aberto (`action`, `args`, `status`, `summary`). Uma resposta solta ("é 1 dólar por sq ft", "muda pra 1500") completa esse item — o modelo devolve a MESMA ação com os args completos.
+- **Consultas antes de responder**: o modelo pode chamar ferramentas somente-leitura (`find_customers`, `find_leads`, `find_jobs`, `find_quotes`, `find_invoices`, `find_prices`) por até 4 rodadas e termina com `propose_action` ou `reply`. Se o provedor recusar tools, cai para JSON mode, depois para o modelo padrão, e só então para a leitura local.
+- **Preço que falta**: linha de Quote sem preço na Tabela vira pergunta (`items.N.unit_price`). O preço informado vale só para aquele Quote (`priceOverride`) e, depois de criado, o Mate oferece **Salvar preço na Tabela** (`pricing.set`, permissão `builders.edit`; coluna pelo tipo do cliente).
+- **Diagnóstico**: `GET /api/mate-ai/diagnostics?probe=1` (admin) mostra provedor, modelo, último erro e testa JSON mode e tools mode. Quando a IA falha, administradores veem o motivo no painel em vez de uma resposta genérica.

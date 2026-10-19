@@ -74,6 +74,8 @@ const tokenLineSchema = z.object({
   unit: z.string().min(1).max(100),
   quantity: z.number().positive().max(1_000_000),
   unitPrice: z.number().positive().max(MAX_QUOTE_TOTAL),
+  /** Price given by the user in the conversation instead of the table. */
+  priceOverride: z.boolean().optional(),
 });
 
 const previewTokenSchema = z.object({
@@ -315,6 +317,7 @@ export async function previewQuote(req: AuthedRequest, tx: TenantPrisma, plan: M
     unitPrice: number;
     amount: number;
     spoken: string;
+    priceOverride: boolean;
   }> = [];
   const issues: Issue[] = [];
 
@@ -384,13 +387,14 @@ export async function previewQuote(req: AuthedRequest, tx: TenantPrisma, plan: M
       unit: (itemUnit as MateAiQuotePlan["items"][number]["unit"]) ?? null,
     };
 
-    const rate = resolveCustomerUnitPrice(item, customer);
+    const override = typeof spec.unit_price === "number" && spec.unit_price > 0 ? spec.unit_price : null;
+    const rate = override ?? resolveCustomerUnitPrice(item, customer);
     const price = priceForPreview(rate, spec.quantity);
     if (!price) {
       issues.push({
         line: index + 1,
         code: "price_missing",
-        message: "Não há um preço positivo configurado para “" + item.name + "” neste cliente.",
+        message: "“" + item.name + "” não tem preço na Tabela de Valores para este cliente. Qual o preço por " + (normalizeMateAiUnit(item.unit) || item.unit).replace("_", " ") + "?",
       });
       continue;
     }
@@ -406,6 +410,7 @@ export async function previewQuote(req: AuthedRequest, tx: TenantPrisma, plan: M
       unitPrice: price.unitPrice,
       amount: price.amount,
       spoken: said,
+      priceOverride: override != null,
     });
   }
 
@@ -450,6 +455,7 @@ export async function previewQuote(req: AuthedRequest, tx: TenantPrisma, plan: M
       unit: line.unit,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
+      ...(line.priceOverride ? { priceOverride: true } : {}),
     })),
   };
 
@@ -1057,9 +1063,11 @@ mateAiRouter.post(
           ) {
             return { status: "stale" as const };
           }
-          const currentPrice = resolveCustomerUnitPrice(item, customer);
-          if (currentPrice == null || Math.round(currentPrice * 100) / 100 !== expected.unitPrice) {
-            return { status: "stale" as const };
+          if (!expected.priceOverride) {
+            const currentPrice = resolveCustomerUnitPrice(item, customer);
+            if (currentPrice == null || Math.round(currentPrice * 100) / 100 !== expected.unitPrice) {
+              return { status: "stale" as const };
+            }
           }
           const amount = Math.round(expected.quantity * expected.unitPrice * 100) / 100;
           if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_QUOTE_TOTAL) return { status: "stale" as const };

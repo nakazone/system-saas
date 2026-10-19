@@ -36,6 +36,7 @@ describe.skipIf(!privileged)("Mate AI phase 1 actions (tenant database required)
   const saved = { key: process.env.OPENAI_API_KEY, url: process.env.OPENAI_BASE_URL };
   let nextPick: Record<string, unknown> = { action: "none", reply: "?" };
   const seen: string[] = [];
+  const toolBodies: Array<Record<string, any>> = [];
 
   async function login(): Promise<string> {
     const r = await fetch(base + "/api/auth/login", {
@@ -96,6 +97,7 @@ describe.skipIf(!privileged)("Mate AI phase 1 actions (tenant database required)
       await tx.customer.create({ data: { organizationId: org, name: "Mike Torres", customerType: "particular" } });
       await tx.quoteCatalogItem.create({ data: { organizationId: org, name: "Hardwood Installation", serviceType: "installation", unitType: "sq ft", unitPrice: 5, active: true } });
       await tx.crew.create({ data: { organizationId: org, name: "Equipe Carlos" } });
+      await tx.quoteCatalogItem.create({ data: { organizationId: org, name: "Carpet Removal", serviceType: "removal", unitType: "sq ft", unitPrice: 0, active: true } });
       const job = await tx.workOrder.create({
         data: {
           organizationId: org,
@@ -118,11 +120,28 @@ describe.skipIf(!privileged)("Mate AI phase 1 actions (tenant database required)
         const system = String(body.messages?.[0]?.content || "");
         seen.push(system);
         let pick = { ...nextPick } as Record<string, any>;
-        if (pick.action === "quote.create") {
+        if (pick.action === "quote.create" && !pick.args?.items) {
           const ref = system.split("\n").find((l) => l.includes("| Hardwood Installation |"))?.split(" | ")[0];
           pick = { ...pick, args: { ...pick.args, items: [{ service_ref: ref, service_text: "madeira", quantity: 1350, unit: "sq_ft" }] } };
         }
+        // "@Name" stands for the catalog ref the model reads from the prompt (S1, S2…).
+        if (Array.isArray(pick.args?.items)) {
+          const refOf = (name: string) => system.split("\n").find((l) => l.includes("| " + name + " |"))?.split(" | ")[0];
+          pick = { ...pick, args: { ...pick.args, items: pick.args.items.map((i: any) => (String(i.service_ref || "").startsWith("@") ? { ...i, service_ref: refOf(i.service_ref.slice(1)) } : i)) } };
+        }
         res.setHeader("Content-Type", "application/json");
+        if (Array.isArray(body.tools)) {
+          toolBodies.push(body);
+          const toolMsgs = (body.messages || []).filter((m: { role: string }) => m.role === "tool");
+          const names = body.tools.map((t: { function: { name: string } }) => t.function.name);
+          let call: { name: string; arguments: unknown };
+          if (pick.lookup && !toolMsgs.length && names.includes(pick.lookup.name)) call = pick.lookup;
+          else if (pick.action === "none") call = { name: "reply", arguments: { message: pick.reply } };
+          else call = { name: "propose_action", arguments: { action: pick.action, args: pick.args || {} } };
+          const tool_calls = [{ id: "call_" + toolBodies.length, type: "function", function: { name: call.name, arguments: JSON.stringify(call.arguments) } }];
+          res.end(JSON.stringify({ choices: [{ message: { content: null, tool_calls } }], usage: {} }));
+          return;
+        }
         res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(pick) } }], usage: {} }));
       });
     });
@@ -313,6 +332,55 @@ describe.skipIf(!privileged)("Mate AI phase 1 actions (tenant database required)
     const forged = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(body!, "base64url").toString()), a: "payment.record" })).toString("base64url");
     expect((await post("/api/mate-ai/execute", { token: forged + "." + sig })).status).toBe(400);
     expect((await post("/api/mate-ai/act", { action: "nope", args: {} })).status).toBe(404);
+  });
+
+  it("asks for a missing price, takes the follow-up answer, and offers to save it", async () => {
+    // Turn 1: the service exists but has no price for this customer.
+    nextPick = {
+      action: "quote.create",
+      args: { customer: "John Smith", items: [{ service_ref: "@Carpet Removal", service_text: "remoção de carpete", quantity: 978, unit: "sq_ft" }] },
+      reply: null,
+      lookup: { name: "find_prices", arguments: { service: "carpet removal" } },
+    };
+    const first = await post("/api/mate-ai/act", { text: "quote pro john com remoção de 978 pés de carpete" });
+    expect(first.json.type, JSON.stringify(first.json)).toBe("clarify");
+    expect(first.json.clarify.question).toContain("Carpet Removal");
+    expect(first.json.clarify.search.path).toBe("items.0.unit_price");
+    // The model looked the price up before answering, and saw the result.
+    const lookedUp = toolBodies.at(-1)!.messages.find((m: { role: string }) => m.role === "tool");
+    expect(String(lookedUp?.content)).toContain("Carpet Removal");
+
+    // Turn 2: free text "é um dólar por sq ft" — the open item goes to the model, which completes it.
+    nextPick = {
+      action: "quote.create",
+      args: { ...first.json.args, items: [{ ...first.json.args.items[0], unit_price: "$1.00" }] },
+      reply: null,
+    };
+    const pending = { action: first.json.action, args: first.json.args, status: "clarify", summary: first.json.clarify.question };
+    const second = await post("/api/mate-ai/act", { text: "é um dólar por square foot", pending });
+    expect(String(toolBodies.at(-1)!.messages[0].content)).toContain("remoção de carpete");
+    expect(second.json.type, JSON.stringify(second.json)).toBe("card");
+    expect(second.json.card.sections[0].rows[0]).toEqual(["Carpet Removal", "978 sq ft", "$1.00", "$978.00"]);
+
+    const exec = await post("/api/mate-ai/execute", second.json.card.confirm.exec.body);
+    expect(exec.status, JSON.stringify(exec.json)).toBe(200);
+    const next = exec.json.result.next;
+    expect(next).toMatchObject({ action: "pricing.set" });
+
+    // Saving the price writes the Tabela de Valores (particular column for John).
+    const save = await run(next.action, next.args);
+    expect(save.prep.card.subtitle).toContain("Particular");
+    expect(save.exec.result.title).toBe("Preço de Carpet Removal salvo");
+    const row = await withTenantTransaction(org, (tx) => tx.pricingItem.findFirst({ where: { name: "Carpet Removal" } }));
+    expect(Number(row?.priceParticular)).toBe(1);
+  });
+
+  it("explains AI failures to admins through diagnostics", async () => {
+    const d = await get("/api/mate-ai/diagnostics?probe=1");
+    expect(d.status, JSON.stringify(d.json)).toBe(200);
+    expect(d.json).toMatchObject({ configured: true });
+    expect(d.json.json_mode.ok).toBe(true);
+    expect(d.json.tools_mode.ok).toBe(true);
   });
 
   it("replies instead of acting when nothing fits", async () => {

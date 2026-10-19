@@ -5,12 +5,13 @@
  * actions themselves against the tenant's data, and nothing changes before a confirmation.
  */
 import { z } from "zod";
-import { aiChatJson, isAiConfigured } from "../ai/client.js";
+import { aiChatJson, aiChatTurn, isAiConfigured, noteAiError, type AiTool, type AiTurn } from "../ai/client.js";
 import type { MateAiCatalogItem } from "./command.js";
 import { normalizeMateAiUnit } from "./command.js";
 import { catalogRefs, mateAiChatModel, todayInTimezone, validDueDate } from "./interpret.js";
 import { foldText, interpretLocally, parseSpokenDate, type LocalCustomer } from "./local.js";
 import type { ActionDef } from "./actions/types.js";
+import { LOOKUP_TOOLS } from "./lookups.js";
 
 /* ───────────────────────── registry ───────────────────────── */
 
@@ -52,8 +53,21 @@ export type MemoryLine = z.infer<typeof memorySchema>[number];
 export type ScreenSummary = { type: string; id: string; label: string } | null;
 
 export type AgentPick =
-  | { kind: "action"; action: string; args: Record<string, unknown>; source: "ai" | "rules"; reply?: string }
-  | { kind: "reply"; reply: string; source: "ai" | "rules" };
+  | { kind: "action"; action: string; args: Record<string, unknown>; source: "ai" | "rules"; reply?: string; aiError?: string }
+  | { kind: "reply"; reply: string; source: "ai" | "rules"; aiError?: string };
+
+/** The last card / question / error shown and not yet confirmed: follow-ups refer to it. */
+export const pendingSchema = z
+  .object({
+    action: z.string().max(60),
+    args: z.record(z.string(), z.unknown()),
+    status: z.enum(["card", "clarify", "error", "answer"]),
+    summary: z.string().max(600).default(""),
+  })
+  .nullable()
+  .optional();
+
+export type Pending = z.infer<typeof pendingSchema>;
 
 /* ───────────────────────── prompt ───────────────────────── */
 
@@ -72,6 +86,8 @@ export function buildAgentPrompt(p: {
   screen: ScreenSummary;
   memory: MemoryLine[];
   userName?: string;
+  pending?: Pending;
+  tools?: boolean;
 }): string {
   const refs = catalogRefs(p.catalog)
     .map(({ ref, item }) => `${ref} | ${item.name.slice(0, 80)} | ${normalizeMateAiUnit(item.unit) || item.unit}`)
@@ -108,13 +124,35 @@ export function buildAgentPrompt(p: {
     "",
     "Quote items shape: items: [{\"service_ref\": \"S3\"|null, \"service_text\": \"user's words\", \"quantity\": 1350, \"unit\": \"sq_ft\"}].",
     "",
-    "If the message is a greeting, unclear, or not supported, use action \"none\" and write a SHORT reply in the user's language saying what you can do.",
+    pendingBlock(p.pending),
+    "Quote items may carry unit_price (dollars per unit) when the user states a price for a line — e.g. \"a remoção de carpete é 1 dólar o pé\" → that line's unit_price: 1.",
     "If something essential is missing, still choose the action with what you have — the system will ask.",
-    "",
-    'Return ONLY JSON: {"action": "<name>|none", "args": {…}, "reply": string|null}',
+    ...(p.tools
+      ? [
+          "",
+          "You can look things up before deciding (find_customers, find_jobs, find_quotes, find_invoices, find_leads, find_prices). Use them when the request depends on data (which quote, a price, who owes, a past job). Do not look up what the system resolves anyway (a clear customer name for a new quote).",
+          "Finish with exactly one call: propose_action (an action from the list with its args) or reply (a short message in the user's language — answers to questions you looked up, a greeting, or what you can do).",
+        ]
+      : [
+          "",
+          "If the message is a greeting, unclear, or not supported, use action \"none\" and write a SHORT reply in the user's language saying what you can do.",
+          'Return ONLY JSON: {"action": "<name>|none", "args": {…}, "reply": string|null}',
+        ]),
   ]
     .filter((l) => l !== "")
     .join("\n");
+}
+
+function pendingBlock(pending: Pending): string {
+  if (!pending) return "";
+  const args = JSON.stringify(pending.args).slice(0, 3500);
+  return [
+    "",
+    `OPEN ITEM — the last thing shown to the user, not confirmed yet: action ${pending.action}, state ${pending.status}${pending.summary ? `: "${pending.summary}"` : ""}.`,
+    `Its current args: ${args}`,
+    "If the user's message continues, corrects or answers this item (a price, a quantity, a date, a name, \"sim\", \"não, 1500\", \"o preço é 1 dólar\", \"tira a remoção\", \"pro Mike também\"), propose the SAME action with the COMPLETE updated args: copy every existing arg and change only what they said.",
+    "If the message is a new, unrelated request, ignore the open item.",
+  ].join("\n");
 }
 
 /* ───────────────────────── model output → pick ───────────────────────── */
@@ -155,6 +193,7 @@ function mapItems(raw: unknown, catalog: MateAiCatalogItem[]): Array<Record<stri
       catalog_source: item?.source ?? (typeof o.catalog_source === "string" ? o.catalog_source : null),
       quantity: round2(qty),
       unit: unit && ["sq_ft", "linear_ft", "fixed", "each", "box", "step", "hour"].includes(unit) ? unit : null,
+      ...(toNumber(o.unit_price) != null && toNumber(o.unit_price)! > 0 ? { unit_price: round2(toNumber(o.unit_price)!) } : {}),
     });
   }
   return out;
@@ -216,60 +255,159 @@ export function pickLocally(text: string, ctx: { today: string; catalog: MateAiC
 
 /* ───────────────────────── entry ───────────────────────── */
 
-export async function pickAction(
-  text: string,
-  ctx: {
-    actions: ActionDef[];
-    catalog: MateAiCatalogItem[];
-    customers: LocalCustomer[];
-    timezone: string;
-    screen: ScreenSummary;
-    memory: MemoryLine[];
-    userName?: string;
-  },
-): Promise<AgentPick> {
+export type AgentCtx = {
+  actions: ActionDef[];
+  catalog: MateAiCatalogItem[];
+  customers: LocalCustomer[];
+  timezone: string;
+  screen: ScreenSummary;
+  memory: MemoryLine[];
+  pending?: Pending;
+  userName?: string;
+  /** Runs a read-only lookup tool inside the tenant. */
+  lookup?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+};
+
+const MAX_TOOL_ROUNDS = 4;
+
+function terminalTools(actions: ActionDef[]): AiTool[] {
+  return [
+    {
+      type: "function",
+      function: {
+        name: "propose_action",
+        description: "Finish: prepare ONE action for the user to confirm. args follow the action's arg list.",
+        parameters: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: actions.map((a) => a.name) },
+            args: { type: "object", description: "Arguments for the action", additionalProperties: true },
+          },
+          required: ["action", "args"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "reply",
+        description: "Finish with a short message to the user (answer, greeting, or what you can do). No action.",
+        parameters: { type: "object", properties: { message: { type: "string" } }, required: ["message"] },
+      },
+    },
+  ];
+}
+
+function historyTurns(memory: MemoryLine[]): AiTurn[] {
+  return memory.slice(-10).map((m) =>
+    m.role === "user"
+      ? { role: "user" as const, content: m.text }
+      : { role: "assistant" as const, content: m.text + (m.entity ? ` [${m.entity.type} ${m.entity.id}]` : "") },
+  );
+}
+
+function parseArgs(raw: string): Record<string, unknown> {
+  try {
+    const v = JSON.parse(raw || "{}");
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+const WHAT_I_DO =
+  "Posso criar e editar Quotes, emitir e enviar invoices, registrar pagamentos, cuidar de leads, clientes, jobs e agenda, salvar preços e responder sobre o sistema. O que você precisa?";
+
+function finish(action: string, args: Record<string, unknown>, ctx: AgentCtx, today: string, source: "ai" | "rules"): AgentPick {
+  const allowed = new Set(ctx.actions.map((a) => a.name));
+  if (!allowed.has(action)) {
+    if (getAction(action)) return { kind: "reply", reply: "Você não tem permissão para isso. Peça a um administrador.", source };
+    return { kind: "reply", reply: WHAT_I_DO, source };
+  }
+  return { kind: "action", action, args: normalizeArgs(action, args, ctx.catalog, today), source };
+}
+
+/** Conversation with read-only lookups; ends in one proposed action or a reply. */
+async function converseWithTools(text: string, ctx: AgentCtx, today: string, weekday: string, model: string): Promise<AgentPick | { error: string; status?: number }> {
+  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: [], userName: ctx.userName, pending: ctx.pending, tools: true });
+  const tools = [...LOOKUP_TOOLS, ...terminalTools(ctx.actions)];
+  const messages: AiTurn[] = [{ role: "system", content: system }, ...historyTurns(ctx.memory), { role: "user", content: text }];
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const last = round === MAX_TOOL_ROUNDS - 1;
+    const res = await aiChatTurn({
+      messages,
+      model,
+      tools: last ? terminalTools(ctx.actions) : tools,
+      toolChoice: "required",
+      timeoutMs: 40_000,
+      countUse: round === 0,
+    });
+    if (!res.ok) return { error: res.error, status: res.status };
+    if (!res.toolCalls.length) {
+      // Some models answer in text even when a tool is required.
+      const content = res.content.trim();
+      if (!content) return { kind: "reply", reply: WHAT_I_DO, source: "ai" };
+      const json = parseArgs(content.replace(/^```(?:json)?|```$/g, ""));
+      if (typeof json.action === "string" && json.action !== "none") return finish(json.action, (json.args as Record<string, unknown>) || {}, ctx, today, "ai");
+      return { kind: "reply", reply: String(json.reply || content).slice(0, 1200), source: "ai" };
+    }
+    const terminal = res.toolCalls.find((c) => c.function.name === "propose_action" || c.function.name === "reply");
+    if (terminal) {
+      const a = parseArgs(terminal.function.arguments);
+      if (terminal.function.name === "reply") return { kind: "reply", reply: String(a.message || WHAT_I_DO).slice(0, 1200), source: "ai" };
+      const args = a.args && typeof a.args === "object" ? (a.args as Record<string, unknown>) : {};
+      return finish(String(a.action || ""), args, ctx, today, "ai");
+    }
+    messages.push({ role: "assistant", content: res.content || null, tool_calls: res.toolCalls.slice(0, 4) });
+    for (const call of res.toolCalls.slice(0, 4)) {
+      const out = ctx.lookup ? await ctx.lookup(call.function.name, parseArgs(call.function.arguments)) : { error: "lookups unavailable" };
+      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(out).slice(0, 6000) });
+    }
+  }
+  return { kind: "reply", reply: "Não consegui decidir. Pode dizer de outro jeito?", source: "ai" };
+}
+
+/** Older single-shot JSON mode (models/providers without tools). */
+async function pickWithJson(text: string, ctx: AgentCtx, today: string, weekday: string, model: string): Promise<AgentPick | { error: string; status?: number }> {
+  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: ctx.memory, userName: ctx.userName, pending: ctx.pending });
+  const ai = await aiChatJson({ system, user: text, timeoutMs: 30_000, model });
+  if (!ai.ok) return { error: ai.error, status: ai.status };
+  const parsed = pickSchema.safeParse(parseArgs(ai.text));
+  if (!parsed.success) return { kind: "reply", reply: WHAT_I_DO, source: "ai" };
+  if (parsed.data.action === "none") return { kind: "reply", reply: parsed.data.reply || WHAT_I_DO, source: "ai" };
+  return finish(parsed.data.action, parsed.data.args, ctx, today, "ai");
+}
+
+export async function pickAction(text: string, ctx: AgentCtx): Promise<AgentPick> {
   const { date, weekday } = todayInTimezone(ctx.timezone);
   const allowed = new Set(ctx.actions.map((a) => a.name));
-  const local = () => {
+  const local = (aiError?: string): AgentPick => {
     const p = pickLocally(text, { today: date, catalog: ctx.catalog, customers: ctx.customers });
-    if (p.kind === "action" && !allowed.has(p.action)) {
-      return { kind: "reply" as const, reply: "Você não tem permissão para isso.", source: "rules" as const };
-    }
-    return p;
+    if (p.kind === "action" && !allowed.has(p.action)) return { kind: "reply", reply: "Você não tem permissão para isso.", source: "rules", aiError };
+    return { ...p, aiError };
   };
   if (!isAiConfigured()) return local();
 
-  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today: date, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: ctx.memory, userName: ctx.userName });
-  let ai = await aiChatJson({ system, user: text, timeoutMs: 30_000, model: mateAiChatModel() });
-  if (!ai.ok && ai.status && [400, 403, 404].includes(ai.status) && /model/i.test(ai.error)) {
-    ai = await aiChatJson({ system, user: text, timeoutMs: 30_000 });
-  }
-  if (!ai.ok) {
-    console.warn("[mate-ai] agent model unavailable, using local reader:", ai.error);
-    if (/plano|limite/i.test(ai.error)) return { kind: "reply", reply: ai.error, source: "rules" };
-    const p = local();
-    return p.kind === "action" ? { ...p, reply: "A IA não respondeu; usei a leitura básica do pedido." } : p;
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(ai.text);
-  } catch {
-    return local();
-  }
-  const parsed = pickSchema.parse(raw);
-  if (parsed.action === "none" || !allowed.has(parsed.action)) {
-    if (parsed.action !== "none" && getAction(parsed.action)) {
-      return { kind: "reply", reply: "Você não tem permissão para isso. Peça a um administrador.", source: "ai" };
+  const primary = mateAiChatModel();
+  const attempts: Array<{ mode: "tools" | "json"; model: string | undefined }> = [
+    { mode: "tools", model: primary },
+    { mode: "json", model: primary },
+    { mode: "json", model: undefined },
+  ];
+  let lastError = "";
+  for (const at of attempts) {
+    const model = at.model || "";
+    const r = at.mode === "tools" ? await converseWithTools(text, ctx, date, weekday, model || primary) : await pickWithJson(text, ctx, date, weekday, model);
+    if (!("error" in r)) return r;
+    lastError = r.error;
+    noteAiError("mate-ai " + at.mode, model || "default", r.status, r.error);
+    if (/plano|limite|quota|insufficient_quota|billing/i.test(r.error)) {
+      return { kind: "reply", reply: /plano|limite/i.test(r.error) ? r.error : "A conta da OpenAI está sem crédito. Adicione saldo em platform.openai.com › Billing.", source: "rules", aiError: r.error };
     }
-    return {
-      kind: "reply",
-      reply:
-        parsed.reply ||
-        "Posso criar e editar Quotes, emitir e enviar invoices, registrar pagamentos, cuidar de leads, clientes, jobs e agenda, e responder sobre faturamento. O que você precisa?",
-      source: "ai",
-    };
+    if (r.status === 401) return { ...local(r.error), reply: "A chave da OpenAI foi recusada (401); usei a leitura básica." } as AgentPick;
   }
-  return { kind: "action", action: parsed.action, args: normalizeArgs(parsed.action, parsed.args, ctx.catalog, date), source: "ai", reply: parsed.reply || undefined };
+  const fallback = local(lastError);
+  return fallback.kind === "action" ? { ...fallback, reply: "A IA não respondeu; usei a leitura básica do pedido." } : fallback;
 }
 
 /** Applies a clarification choice or a card edit: dot paths ("items.0.catalog_item_id") → value. */
