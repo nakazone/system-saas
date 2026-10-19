@@ -682,7 +682,7 @@
           <% if (!readOnly && !signed) { %>
             <div class="qp-sign-cta no-print">
               <p class="qp-sign-cta__text">Ready to proceed? Review the terms above, then sign to approve this quote.</p>
-              <button type="button" class="qp-btn qp-btn--primary" data-qp-open-sign onclick="try{if(event)event.preventDefault();}catch(e){}if(window.__qpOpenSign){window.__qpOpenSign(event);return false;}var p=document.getElementById('qpSignPanel');if(p){p.classList.add('is-open');p.style.display='block';try{p.scrollIntoView(true);}catch(e2){}}else{alert('Abra este link no Safari ou Chrome para assinar.');}return false;">Assinar</button>
+              <button type="button" class="qp-btn qp-btn--primary" data-qp-open-sign onclick="try{if(event)event.preventDefault();}catch(e){}if(window.__qpOpenSign){window.__qpOpenSign(event);return false;}var p=document.getElementById('qpSignPanel');if(p){p.classList.add('is-open');p.style.display='block';try{p.scrollIntoView(true);}catch(e2){}}else{alert('Open this link in Safari or Chrome to sign.');}return false;">Sign</button>
             </div>
           <% } %>
 
@@ -761,23 +761,23 @@
 
   <% if (!readOnly && !signed) { %>
   <div class="qp-sign-panel no-print" id="qpSignPanel" aria-labelledby="qpSignTitle">
-    <h2 id="qpSignTitle" class="qp-sign-panel__title">Aprovar e assinar</h2>
-    <p class="qp-sign-panel__sub">A assinatura é gerada automaticamente a partir do seu nome. Pode desenhar por cima para personalizar.</p>
-    <label class="qp-sign-field" for="qpSignerName">Nome completo</label>
-    <input type="text" id="qpSignerName" class="qp-sign-input" autocomplete="name" placeholder="Seu nome completo" value="<%= cust.name || '' %>" />
-    <label class="qp-sign-field" for="qpSignCanvas">Assinatura</label>
+    <h2 id="qpSignTitle" class="qp-sign-panel__title">Approve &amp; sign</h2>
+    <p class="qp-sign-panel__sub">Your signature is generated automatically from your name. You can draw over it to personalize.</p>
+    <label class="qp-sign-field" for="qpSignerName">Your full name</label>
+    <input type="text" id="qpSignerName" class="qp-sign-input" autocomplete="name" placeholder="Full name" value="<%= cust.name || '' %>" />
+    <label class="qp-sign-field" for="qpSignCanvas">Your signature</label>
     <div class="qp-sign-canvas-wrap">
-      <canvas id="qpSignCanvas" width="520" height="140" aria-label="Desenhe sua assinatura"></canvas>
+      <canvas id="qpSignCanvas" width="520" height="140" aria-label="Draw your signature"></canvas>
     </div>
     <label class="qp-sign-panel__terms">
       <input type="checkbox" id="qpAcceptTerms" />
-      <span>Aceito os termos e condições desta proposta.</span>
+      <span>I accept the terms and conditions in this quote.</span>
     </label>
     <p id="qpSignError" class="qp-alert qp-alert-error" hidden style="margin:0 0 12px;"></p>
     <div class="qp-sign-panel__actions">
-      <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear" onclick="if(window.__qpClearSign)window.__qpClearSign();return false;">Limpar</button>
-      <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel" onclick="if(window.__qpCloseSign)window.__qpCloseSign();else{var p=document.getElementById('qpSignPanel');if(p){p.classList.remove('is-open');p.style.display='none';}}return false;">Cancelar</button>
-      <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit" onclick="if(window.__qpSubmitSign)window.__qpSubmitSign();else alert('Aguarde a página carregar e tente de novo.');return false;">Aprovar proposta</button>
+      <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear" onclick="if(window.__qpClearSign)window.__qpClearSign();return false;">Clear</button>
+      <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel" onclick="if(window.__qpCloseSign)window.__qpCloseSign();else{var p=document.getElementById('qpSignPanel');if(p){p.classList.remove('is-open');p.style.display='none';}}return false;">Cancel</button>
+      <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit" onclick="if(window.__qpSubmitSign)window.__qpSubmitSign();else alert('Please wait for the page to finish loading and try again.');return false;">Approve quote</button>
     </div>
   </div>
   <% } %>
@@ -785,12 +785,12 @@
   <div class="qp-actions no-print" id="quoteActions">
     <a class="qp-btn qp-btn--outline" href="/public/quotes/<%= token %>/pdf" target="_blank" rel="noopener noreferrer">Download PDF</a>
     <% if (!readOnly && !signed) { %>
-      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove" data-qp-open-sign onclick="try{if(event)event.preventDefault();}catch(e){}if(window.__qpOpenSign){window.__qpOpenSign(event);return false;}var p=document.getElementById('qpSignPanel');if(p){p.classList.add('is-open');p.style.display='block';try{p.scrollIntoView(true);}catch(e2){}}else{alert('Abra este link no Safari ou Chrome para assinar.');}return false;">Assinar</button>
+      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove" data-qp-open-sign onclick="try{if(event)event.preventDefault();}catch(e){}if(window.__qpOpenSign){window.__qpOpenSign(event);return false;}var p=document.getElementById('qpSignPanel');if(p){p.classList.add('is-open');p.style.display='block';try{p.scrollIntoView(true);}catch(e2){}}else{alert('Open this link in Safari or Chrome to sign.');}return false;">Sign</button>
     <% } %>
   </div>
 
   <script>
-    /* Early stub so Assinar works even if later scripts fail to load */
+    /* Early stub so Sign works even if later scripts fail to load */
     (function () {
       function showPanel() {
         var p = document.getElementById('qpSignPanel');
@@ -802,7 +802,7 @@
       }
       window.__qpOpenSign = function (e) {
         try { if (e && e.preventDefault) e.preventDefault(); } catch (err) {}
-        if (!showPanel()) alert('Não foi possível abrir a assinatura.');
+        if (!showPanel()) alert('Could not open the signature panel.');
         return false;
       };
       window.__qpCloseSign = function () {
@@ -912,7 +912,7 @@
       function openSign(e) {
         if (e && e.preventDefault) e.preventDefault();
         if (!panel || !canvas) {
-          alert('Não foi possível abrir a assinatura. Atualize a página e tente de novo.');
+          alert('Could not open the signature panel. Please refresh and try again.');
           return false;
         }
         try {
@@ -936,7 +936,7 @@
           }, 80);
         } catch (err) {
           console.error(err);
-          alert('Erro ao abrir a assinatura. Atualize a página e tente de novo.');
+          alert('Error opening the signature panel. Please refresh and try again.');
         }
         return false;
       }
@@ -965,12 +965,12 @@
         if (pad.isEmpty()) pad.renderFromName(name);
         if (pad.isEmpty()) { showSignError('Please add your signature.'); return; }
         var form = document.getElementById('quotePublicForm');
-        if (!form) { showSignError('Formulário não encontrado. Atualize a página.'); return; }
+        if (!form) { showSignError('Form not found. Please refresh the page.'); return; }
         var signedByName = document.getElementById('signedByName');
         var signatureDataUrl = document.getElementById('signatureDataUrl');
         var acceptTerms = document.getElementById('acceptTerms');
         if (!signedByName || !signatureDataUrl || !acceptTerms) {
-          showSignError('Formulário incompleto. Atualize a página.');
+          showSignError('Form is incomplete. Please refresh the page.');
           return;
         }
         signedByName.value = name;
