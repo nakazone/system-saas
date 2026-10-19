@@ -17,6 +17,8 @@
     "db:migrate-senior-floors": "tsx scripts/migrate-senior-floors-tenant.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
+    "i18n:missing": "tsx scripts/i18n-missing.ts",
+    "i18n:merge": "tsx scripts/i18n-merge.ts",
     "test:watch": "vitest",
     "check:domain": "node scripts/check-obramate-domain.mjs",
     "master:link": "tsx scripts/master-link.ts",

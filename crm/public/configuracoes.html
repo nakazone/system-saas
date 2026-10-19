@@ -195,10 +195,10 @@
                   <div class="cfg-grid2">
                     <div class="cfg-field"><label for="f_timezone">Fuso horário</label><select id="f_timezone" data-key="timezone"></select></div>
                     <div class="cfg-field"><label for="f_default_locale">Idioma padrão da equipe</label>
-                      <select id="f_default_locale" data-key="default_locale">
+                      <select id="f_default_locale" data-key="default_locale" data-no-i18n>
                         <option value="pt-BR">Português (Brasil)</option>
-                        <option value="en">English</option>
-                        <option value="es">Español</option>
+                        <option value="en">English (US)</option>
+                        <option value="es">Español (España)</option>
                       </select>
                     </div>
                   </div>
@@ -1072,13 +1072,13 @@
                 <div class="cfg-card__head">
                   <div>
                     <h3 class="cfg-card__title">Idioma</h3>
-                    <p class="cfg-card__desc">Interface neste aparelho. Não altera a conta na empresa.</p>
+                    <p class="cfg-card__desc">Idioma do sistema na sua conta, em todos os aparelhos. Orçamentos, faturas e e-mails ao cliente continuam em inglês.</p>
                   </div>
                 </div>
                 <div class="mp-langs" role="group" aria-label="Idioma">
-                  <button type="button" data-locale="pt" class="is-on">Português</button>
-                  <button type="button" data-locale="en">English</button>
-                  <button type="button" data-locale="es">Español</button>
+                  <button type="button" data-locale="pt" class="is-on" data-no-i18n>Português (Brasil)</button>
+                  <button type="button" data-locale="en" data-no-i18n>English (US)</button>
+                  <button type="button" data-locale="es" data-no-i18n>Español (España)</button>
                 </div>
               </article>
 
@@ -1239,7 +1239,7 @@
     </div>
   </div>
   <script src="crm-i18n.js?v=20261014-perfil5"></script>
-  <script src="crm-shell.js?v=20261016-help2"></script>
+  <script src="crm-shell.js?v=20261019-i18n2"></script>
   <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
   <script src="crm-account-menu.js?v=20261014-perfil5"></script>
   <script src="crm-toast.js"></script>
@@ -1247,7 +1247,7 @@
   <script src="crm-push.js?v=20260923-push"></script>
   <script src="crm-address-autocomplete.js?v=20261005-addr3"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="cfg-meu-perfil.js?v=20261015-sig2"></script>
+  <script src="cfg-meu-perfil.js?v=20261019-i18n2"></script>
   <script src="configuracoes.js?v=20261016-help2"></script>
 </body>
 </html>

@@ -1,0 +1,180 @@
+<%- include('_top', { pageTitle: 'Idiomas' }) %>
+<div class="page-head">
+  <div><h1>Idiomas</h1><div class="page-sub">O sistema das empresas em Português, English e Español. Troque palavras e frases em cada idioma — vale para todas as empresas, na próxima tela que cada pessoa abrir.</div></div>
+  <% if (canEdit && tab === 'termos') { %><button class="btn btn-dark" type="button" data-open="dlg-term-new" data-term-open><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nova troca</button><% } %>
+  <% if (canEdit && tab === 'frases') { %><button class="btn btn-dark" type="button" data-phrase-new><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nova frase</button><% } %>
+</div>
+
+<section class="i18-langs" aria-label="Idiomas">
+  <% locales.forEach(function (l) { %>
+    <a class="i18-lang <%= l.key === locale && tab !== 'testar' ? 'is-on' : '' %>" href="/master/idiomas?aba=<%= tab === 'testar' ? 'termos' : tab %>&idioma=<%= l.key %>">
+      <span class="i18-code"><%= l.short %></span>
+      <b><%= l.label %></b>
+      <span class="i18-stats">
+        <span><b class="num"><%= l.users %></b> usuário(s) escolheram</span>
+        <span><b class="num"><%= l.companies %></b> empresa(s) com padrão</span>
+      </span>
+      <span class="i18-edits"><%= l.terms %> troca(s) de palavra · <%= l.phrases %> frase(s) editada(s)</span>
+    </a>
+  <% }) %>
+  <div class="i18-lang i18-lang--note">
+    <span class="i18-code">?</span>
+    <b>Quem escolhe</b>
+    <span class="muted i18-note">Cada pessoa em Meu perfil › Idioma. Sem escolha, vale o idioma padrão da empresa (<b><%= usersOnCompanyDefault %></b> usuário(s) hoje). Documentos e e-mails ao cliente seguem em inglês.</span>
+  </div>
+</section>
+
+<nav class="cm-tabs" aria-label="Seções de idiomas">
+  <% [['termos','Trocar palavras'],['frases','Frases'],['testar','Testar um texto']].forEach(function (t) { %>
+    <a href="/master/idiomas?aba=<%= t[0] %>&idioma=<%= locale %>" aria-current="<%= tab === t[0] ? 'page' : 'false' %>"><%= t[1] %></a>
+  <% }) %>
+</nav>
+
+<% if (tab === 'termos') { %>
+  <% var cur = locales.find(function (l) { return l.key === locale; }); %>
+  <div class="note-box tone-info i18-explain">
+    Troca uma palavra ou expressão em <b>todo</b> o sistema em <b><%= cur.label %></b>, inclusive no plural e mantendo maiúscula/minúscula. Ex.: em Português, <b>Orçamento → Quote</b> e <b>Orçamentos → Quotes</b> faz “Novo orçamento” virar “Novo quote”. Só troca a palavra inteira (“orçamentos” não vira “quotes” se o plural não estiver preenchido).
+  </div>
+
+  <section class="table">
+    <div class="tr head cols-i18t"><span>HOJE APARECE</span><span>PASSA A APARECER</span><span>PLURAL</span><span>EDITADO</span><span></span></div>
+    <% terms.forEach(function (t) { %>
+      <div class="tr cols-i18t <%= t.active ? '' : 'is-resolved' %>">
+        <span class="i18-word"><b><%= t.find %></b><% if (t.note) { %><small class="muted"><%= t.note %></small><% } %></span>
+        <span class="i18-word"><span class="i18-arrow" aria-hidden="true">→</span><b><%= t.replace %></b><% if (t.matchCase) { %> <span class="pill pill-sm tone-soft">exato</span><% } %><% if (!t.active) { %> <span class="pill pill-sm tone-muted">desligada</span><% } %></span>
+        <span class="hide-m"><% if (t.findPlural) { %><%= t.findPlural %> → <b><%= t.replacePlural %></b><% } else { %><span class="muted">—</span><% } %></span>
+        <span class="hide-m muted"><%= t.when %><br><small><%= t.by %></small></span>
+        <span class="right i18-actions">
+          <% if (canEdit) { %>
+            <button class="btn btn-soft btn-sm" type="button" data-open="dlg-term-<%= t.id %>" data-term-open>Editar</button>
+            <form data-action action="/master/idiomas/termos/<%= t.id %>"><input type="hidden" name="op" value="toggle"><button class="btn btn-soft btn-sm" type="submit"><%= t.active ? 'Desligar' : 'Ligar' %></button></form>
+          <% } %>
+        </span>
+      </div>
+    <% }) %>
+    <% if (!terms.length) { %>
+      <div class="empty i18-empty">
+        <b>Nenhuma troca em <%= cur.label %>.</b>
+        <% if (canEdit) { %>
+          <% if (locale === 'pt') { %>
+            <span>Quer que apareça “Quote” em vez de “Orçamento”?</span>
+            <button class="btn btn-soft btn-sm" type="button" data-open="dlg-term-new" data-term-open data-prefill='{"find":"Orçamento","replace":"Quote","findPlural":"Orçamentos","replacePlural":"Quotes"}'>Criar Orçamento → Quote</button>
+          <% } else { %>
+            <span>Use “Nova troca” para mudar uma palavra em todo o sistema.</span>
+          <% } %>
+        <% } %>
+      </div>
+    <% } %>
+  </section>
+
+  <% if (canEdit) { %>
+    <% function termDialog(t) { var isNew = !t.id; %>
+    <dialog id="dlg-term-<%= isNew ? 'new' : t.id %>" aria-labelledby="t-term-<%= t.id || 'new' %>">
+      <div class="modal modal-wide">
+        <div class="modal-head"><div><h2 id="t-term-<%= t.id || 'new' %>"><%= isNew ? 'Nova troca' : 'Editar troca' %> · <%= cur.label %></h2><p>Vale para todas as empresas que usam o sistema em <%= cur.label %>.</p></div>
+          <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <form data-action action="/master/idiomas/termos<%= isNew ? '' : '/' + t.id %>" data-term-form data-locale="<%= locale %>">
+          <input type="hidden" name="locale" value="<%= locale %>">
+          <div class="form-row">
+            <label class="field">Hoje aparece<input class="input" name="find" required maxlength="80" value="<%= t.find || '' %>" placeholder="<%= locale === 'pt' ? 'Orçamento' : locale === 'en' ? 'Quote' : 'Presupuesto' %>" autocomplete="off"></label>
+            <label class="field">Passa a aparecer<input class="input" name="replace" required maxlength="80" value="<%= t.replace || '' %>" placeholder="<%= locale === 'pt' ? 'Quote' : locale === 'en' ? 'Estimate' : 'Cotización' %>" autocomplete="off"></label>
+          </div>
+          <div class="form-row">
+            <label class="field">Plural hoje <small class="muted">(opcional)</small><input class="input" name="findPlural" maxlength="80" value="<%= t.findPlural || '' %>" placeholder="<%= locale === 'pt' ? 'Orçamentos' : locale === 'en' ? 'Quotes' : 'Presupuestos' %>" autocomplete="off"></label>
+            <label class="field">Plural novo <small class="muted">(opcional)</small><input class="input" name="replacePlural" maxlength="80" value="<%= t.replacePlural || '' %>" placeholder="<%= locale === 'pt' ? 'Quotes' : locale === 'en' ? 'Estimates' : 'Cotizaciones' %>" autocomplete="off"></label>
+          </div>
+          <label class="check"><input type="checkbox" name="matchCase" value="on" <%= t.matchCase ? 'checked' : '' %>> Escrever exatamente assim <small class="muted">(sem ajustar maiúsculas; só troca quando estiver escrito igual)</small></label>
+          <label class="field">Nota interna <small class="muted">(opcional)</small><input class="input" name="note" maxlength="200" value="<%= t.note || '' %>" placeholder="Por que trocamos"></label>
+          <div class="i18-reach" data-term-reach aria-live="polite"></div>
+          <button class="btn btn-dark btn-block" type="submit"><%= isNew ? 'Salvar troca' : 'Salvar' %></button>
+        </form>
+        <% if (!isNew) { %>
+          <form data-action action="/master/idiomas/termos/<%= t.id %>" data-confirm="Excluir a troca “<%= t.find %> → <%= t.replace %>”? O texto volta ao normal." class="i18-del">
+            <input type="hidden" name="op" value="delete"><button class="btn btn-soft btn-block" type="submit">Excluir troca</button>
+          </form>
+        <% } %>
+      </div>
+    </dialog>
+    <% } %>
+    <% termDialog({}); terms.forEach(termDialog); %>
+  <% } %>
+<% } %>
+
+<% if (tab === 'frases') { %>
+  <form class="i18-filter" method="get" action="/master/idiomas">
+    <input type="hidden" name="aba" value="frases"><input type="hidden" name="idioma" value="<%= locale %>">
+    <input class="input" type="search" name="q" value="<%= q %>" placeholder="Buscar em qualquer idioma — ex.: Salvar, Invoice, Nómina" aria-label="Buscar frase">
+    <label class="check"><input type="checkbox" name="editadas" value="1" <%= onlyEdited ? 'checked' : '' %> data-autosubmit> Só as editadas</label>
+    <button class="btn btn-soft" type="submit">Buscar</button>
+  </form>
+  <p class="muted i18-count"><%= totalPhrases %> de <%= dictionarySize %> textos<%= q ? ' com “' + q + '”' : '' %>. Clique numa linha para editar. Use para corrigir uma tradução específica; para trocar uma palavra em todo lugar, use “Trocar palavras”.</p>
+
+  <section class="table">
+    <div class="tr head cols-i18f"><span>PORTUGUÊS</span><span>ENGLISH</span><span>ESPAÑOL</span></div>
+    <% phrases.forEach(function (p) { %>
+      <button class="tr cols-i18f i18-prow" type="button" <%= canEdit ? '' : 'disabled' %> data-phrase='<%= JSON.stringify({ source: p.source, values: p.values, base: p.base, edited: p.edited, custom: p.custom }) %>'>
+        <% ['pt','en','es'].forEach(function (loc) { %>
+          <span class="i18-cell <%= p.edited.indexOf(loc) >= 0 ? 'is-edited' : '' %>">
+            <%= p.values[loc] %>
+            <% if (p.edited.indexOf(loc) >= 0) { %><small class="i18-was">antes: <%= p.base[loc] %></small><% } %>
+          </span>
+        <% }) %>
+        <% if (p.custom) { %><span class="pill pill-sm tone-info i18-custom">adicionada</span><% } %>
+      </button>
+    <% }) %>
+    <% if (!phrases.length) { %><div class="empty" style="text-align:center;padding:28px"><%= onlyEdited ? 'Nenhuma frase editada ainda.' : 'Nada encontrado. Se o texto não está na lista, use “Nova frase”.' %></div><% } %>
+  </section>
+  <% if (pages > 1) { %>
+    <nav class="i18-pager" aria-label="Páginas">
+      <% var base = '/master/idiomas?aba=frases&idioma=' + locale + (q ? '&q=' + encodeURIComponent(q) : '') + (onlyEdited ? '&editadas=1' : ''); %>
+      <% if (pageNo > 1) { %><a class="btn btn-soft btn-sm" href="<%= base %>&p=<%= pageNo - 1 %>">‹ Anterior</a><% } %>
+      <span class="muted">Página <%= pageNo %> de <%= pages %></span>
+      <% if (pageNo < pages) { %><a class="btn btn-soft btn-sm" href="<%= base %>&p=<%= pageNo + 1 %>">Próxima ›</a><% } %>
+    </nav>
+  <% } %>
+
+  <% if (canEdit) { %>
+  <dialog id="dlg-phrase" aria-labelledby="t-phrase">
+    <div class="modal modal-wide">
+      <div class="modal-head"><div><h2 id="t-phrase" data-phrase-title>Editar frase</h2><p data-phrase-sub>Vazio = volta ao texto padrão daquele idioma.</p></div>
+        <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <form data-action action="/master/idiomas/frases" data-phrase-form>
+        <input type="hidden" name="custom" value="0">
+        <label class="field" data-phrase-source-field>Texto como aparece hoje no sistema
+          <input class="input" name="source" maxlength="400" required autocomplete="off">
+          <small class="muted">Copie exatamente da tela. Partes que mudam (nomes, números) viram {0}, {1}…</small>
+        </label>
+        <div class="i18-source" data-phrase-source-view></div>
+        <% [['pt','Português (Brasil)'],['en','English (US)'],['es','Español (España)']].forEach(function (l) { %>
+          <label class="field"><%= l[1] %>
+            <textarea class="input i18-ta" name="<%= l[0] %>" rows="2" maxlength="1000"></textarea>
+            <small class="muted" data-default="<%= l[0] %>"></small>
+          </label>
+        <% }) %>
+        <button class="btn btn-dark btn-block" type="submit">Salvar frase</button>
+      </form>
+      <form data-action action="/master/idiomas/frases/padrao" data-phrase-reset class="i18-del" data-confirm="Voltar esta frase ao texto padrão nos três idiomas?">
+        <input type="hidden" name="source"><button class="btn btn-soft btn-block" type="submit">Voltar ao padrão</button>
+      </form>
+    </div>
+  </dialog>
+  <% } %>
+<% } %>
+
+<% if (tab === 'testar') { %>
+  <section class="card card-pad i18-test">
+    <label class="field">Cole textos do sistema (um por linha)
+      <textarea class="input" rows="5" data-test-input placeholder="Novo orçamento&#10;Salvar alterações&#10;Enviar ao cliente"></textarea>
+    </label>
+    <button class="btn btn-dark" type="button" data-test-run>Ver nos três idiomas</button>
+    <div class="i18-test-out" data-test-out hidden>
+      <div><span class="i18-code">PT-BR</span><pre data-out="pt"></pre></div>
+      <div><span class="i18-code">EN-US</span><pre data-out="en"></pre></div>
+      <div><span class="i18-code">ES-ES</span><pre data-out="es"></pre></div>
+    </div>
+    <p class="muted">Mostra o resultado com as trocas de palavras e as frases editadas que estão valendo agora.</p>
+  </section>
+<% } %>
+
+<script src="/assets/master/idiomas.js?v=20261018-i1" defer></script>
+<%- include('_bottom') %>

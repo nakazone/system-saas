@@ -201,8 +201,8 @@
         e.preventDefault();
         e.stopPropagation();
         var next = langBtn.getAttribute("data-locale");
-        if (window.CrmI18n) window.CrmI18n.setLocale(next);
-        window.location.reload();
+        if (window.CrmI18n && window.CrmI18n.switchTo) window.CrmI18n.switchTo(next);
+        else window.location.reload();
         return;
       }
 
