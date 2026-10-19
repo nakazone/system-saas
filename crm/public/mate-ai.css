@@ -1,0 +1,421 @@
+.mate-ai-page {
+  box-sizing: border-box;
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 42px);
+  color: #20251f;
+}
+
+.mate-ai-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin: 0 0 22px;
+}
+
+.mate-ai-heading h1,
+.mate-ai-card h2 {
+  margin: 0;
+  color: #20251f;
+  letter-spacing: -0.035em;
+}
+
+.mate-ai-heading h1 {
+  font-size: clamp(28px, 4vw, 38px);
+  line-height: 1.1;
+}
+
+.mate-ai-heading p:not(.mate-ai-eyebrow) {
+  max-width: 660px;
+  margin: 10px 0 0;
+  color: #626960;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.mate-ai-eyebrow {
+  margin: 0 0 8px;
+  color: #567056;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.mate-ai-card {
+  box-sizing: border-box;
+  margin-top: 18px;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid #e4e3dc;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(34, 39, 30, 0.05);
+}
+
+.mate-ai-card__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.mate-ai-card__heading h2,
+.mate-ai-success h2 {
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.mate-ai-card__heading p {
+  margin: 6px 0 0;
+  color: #687067;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mate-ai-label {
+  display: block;
+  margin: 0 0 8px;
+  color: #353b34;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#mateAiCommand {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  padding: 14px 15px;
+  border: 1px solid #d9ddd4;
+  border-radius: 12px;
+  background: #fbfcfa;
+  color: #20251f;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+#mateAiCommand:focus,
+.mate-ai-language select:focus {
+  outline: 3px solid rgba(97, 127, 83, 0.2);
+  border-color: #718c60;
+}
+
+.mate-ai-input-tools,
+.mate-ai-voice-controls,
+.mate-ai-form-actions,
+.mate-ai-review-confirm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mate-ai-input-tools {
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.mate-ai-voice-controls {
+  flex-wrap: wrap;
+}
+
+.mate-ai-language {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666d65;
+  font-size: 12px;
+}
+
+.mate-ai-language select {
+  padding: 8px 30px 8px 10px;
+  border: 1px solid #d9ddd4;
+  border-radius: 9px;
+  background: #fff;
+  color: #30372f;
+  font: inherit;
+  font-size: 13px;
+}
+
+.mate-ai-voice-status,
+.mate-ai-example,
+.mate-ai-safe-note,
+.mate-ai-expiry {
+  color: #747a72;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mate-ai-voice-status {
+  max-width: 400px;
+  text-align: right;
+}
+
+.mate-ai-example {
+  margin: 14px 0 0;
+}
+
+.mate-ai-example strong {
+  color: #515b4e;
+}
+
+.mate-ai-form-actions {
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.mate-ai-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.mate-ai-button:focus-visible {
+  outline: 3px solid rgba(97, 127, 83, 0.3);
+  outline-offset: 2px;
+}
+
+.mate-ai-button--primary {
+  background: #536d4d;
+  color: #fff;
+}
+
+.mate-ai-button--primary:hover:not(:disabled) {
+  background: #435b3f;
+}
+
+.mate-ai-button--secondary {
+  border-color: #d9ddd4;
+  background: #fff;
+  color: #354333;
+}
+
+.mate-ai-button--secondary:hover:not(:disabled) {
+  background: #f3f6f0;
+  border-color: #c4cebc;
+}
+
+.mate-ai-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.mate-ai-message {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #f0cfb4;
+  border-radius: 10px;
+  background: #fff8f2;
+  color: #8a4c28;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mate-ai-message[data-kind="success"] {
+  border-color: #d2e2cb;
+  background: #f3f8f0;
+  color: #3c5c36;
+}
+
+.mate-ai-message[data-kind="info"] {
+  border-color: #d6e1e9;
+  background: #f5f9fc;
+  color: #3f5b6d;
+}
+
+.mate-ai-review[hidden],
+.mate-ai-success[hidden],
+.mate-ai-message[hidden] {
+  display: none;
+}
+
+.mate-ai-expiry {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f1f3ef;
+}
+
+.mate-ai-customer {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: #f5f7f3;
+  color: #394136;
+  font-size: 14px;
+}
+
+.mate-ai-customer strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #777f74;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mate-ai-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e7e9e4;
+  border-radius: 12px;
+}
+
+.mate-ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.mate-ai-table th,
+.mate-ai-table td {
+  padding: 12px 13px;
+  border-bottom: 1px solid #eceee9;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mate-ai-table th {
+  background: #f8f9f6;
+  color: #697166;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.mate-ai-table td:first-child,
+.mate-ai-table th:first-child {
+  white-space: normal;
+}
+
+.mate-ai-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.mate-ai-service-description {
+  margin-top: 4px;
+  color: #71786e;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.mate-ai-totals {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 330px);
+  margin: 16px 0 0 auto;
+}
+
+.mate-ai-total-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: #626960;
+  font-size: 13px;
+}
+
+.mate-ai-total-row--grand {
+  padding-top: 10px;
+  border-top: 1px solid #e6e9e2;
+  color: #253023;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.mate-ai-review-confirm {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-top: 22px;
+  padding-top: 17px;
+  border-top: 1px solid #eceee9;
+}
+
+.mate-ai-check {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #41493e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.mate-ai-check input {
+  width: 17px;
+  height: 17px;
+  margin: 1px 0 0;
+  accent-color: #536d4d;
+}
+
+.mate-ai-safe-note {
+  margin: 14px 0 0;
+}
+
+.mate-ai-success {
+  border-color: #d2e2cb;
+}
+
+.mate-ai-success h2 {
+  margin: 0;
+}
+
+.mate-ai-success > p:not(.mate-ai-eyebrow) {
+  margin: 8px 0 16px;
+  color: #636c61;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 680px) {
+  .mate-ai-page {
+    padding: 22px 14px 36px;
+  }
+
+  .mate-ai-card {
+    border-radius: 14px;
+  }
+
+  .mate-ai-input-tools,
+  .mate-ai-review-confirm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mate-ai-voice-controls {
+    justify-content: space-between;
+  }
+
+  .mate-ai-voice-status {
+    max-width: none;
+    text-align: left;
+  }
+
+  .mate-ai-form-actions .mate-ai-button,
+  .mate-ai-review-confirm .mate-ai-button {
+    width: 100%;
+  }
+
+  .mate-ai-expiry {
+    font-size: 10px;
+  }
+
+  .mate-ai-table th,
+  .mate-ai-table td {
+    padding: 10px 9px;
+  }
+}
