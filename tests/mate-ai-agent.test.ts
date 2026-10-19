@@ -32,6 +32,8 @@ describe.skipIf(!privileged)("Mate AI agent (tenant database required)", () => {
   let jobNumber = 0;
   const seenPrompts: string[] = [];
   const transcriptionRequests: string[] = [];
+  const chatBodies: Array<Record<string, unknown>> = [];
+  let rejectNewTranscribe = false;
   const saved = { key: process.env.OPENAI_API_KEY, url: process.env.OPENAI_BASE_URL };
 
   /** Plays the model: reads the catalog refs from the system prompt like the real model would. */
@@ -133,10 +135,16 @@ describe.skipIf(!privileged)("Mate AI agent (tenant database required)", () => {
         if (String(req.url).endsWith("/audio/transcriptions")) {
           transcriptionRequests.push(raw);
           res.setHeader("Content-Type", "application/json");
+          if (rejectNewTranscribe && raw.includes('name="model"\r\n\r\ngpt-transcribe')) {
+            res.statusCode = 404;
+            res.end(JSON.stringify({ error: { message: "The model `gpt-transcribe` does not exist" } }));
+            return;
+          }
           res.end(JSON.stringify({ text: "criar um quote pro jon smith, instalação de 1350 pés de madeira" }));
           return;
         }
         const body = JSON.parse(raw || "{}");
+        chatBodies.push(body);
         const system = String(body.messages?.[0]?.content || "");
         const user = String(body.messages?.[1]?.content || "");
         seenPrompts.push(system);
@@ -177,6 +185,9 @@ describe.skipIf(!privileged)("Mate AI agent (tenant database required)", () => {
     expect(preview.json.items).toHaveLength(1);
     expect(preview.json.items[0]).toMatchObject({ name: "Agent Hardwood Installation", quantity: 1350, unitPrice: 4.5, amount: 6075 });
     expect(seenPrompts.at(-1)).toContain("Agent Hardwood Installation | sq_ft");
+    // Current model by default; GPT-6 models take no custom temperature.
+    expect(chatBodies.at(-1)).toMatchObject({ model: "gpt-6-luna", response_format: { type: "json_object" } });
+    expect(chatBodies.at(-1)).not.toHaveProperty("temperature");
 
     const created = await post("/api/mate-ai/quote-drafts", { preview_token: preview.json.preview_token, confirmed_review: true });
     expect(created.status).toBe(201);
@@ -250,7 +261,20 @@ describe.skipIf(!privileged)("Mate AI agent (tenant database required)", () => {
     expect(response.json.text).toContain("1350");
     const sent = transcriptionRequests.at(-1) || "";
     expect(sent).toContain('filename="voice.webm"');
-    expect(sent).toContain("Agent Hardwood Installation");
+    expect(sent).toMatch(/name="model"\r\n\r\ngpt-transcribe\r\n/);
+    expect(sent).toMatch(/name="keywords\[\]"\r\n\r\nAgent Hardwood Installation\r\n/);
+    expect(sent).toMatch(/name="languages\[\]"\r\n\r\npt\r\n/);
+    expect(sent).not.toMatch(/name="language"\r\n/);
+
+    // Account without gpt-transcribe: retried once with whisper-1 and the singular language hint.
+    rejectNewTranscribe = true;
+    const before = transcriptionRequests.length;
+    const fallback = await post("/api/mate-ai/transcribe", { data_url: "data:audio/webm;base64," + audio, language: "pt" });
+    rejectNewTranscribe = false;
+    expect(fallback.status).toBe(200);
+    expect(transcriptionRequests.length).toBe(before + 2);
+    expect(transcriptionRequests.at(-1)).toMatch(/name="model"\r\n\r\nwhisper-1\r\n/);
+    expect(transcriptionRequests.at(-1)).toMatch(/name="language"\r\n\r\npt\r\n/);
 
     const safari = await post("/api/mate-ai/transcribe", { data_url: "data:audio/mp4;base64," + audio });
     expect(safari.status).toBe(200);
