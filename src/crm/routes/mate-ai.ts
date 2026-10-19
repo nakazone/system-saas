@@ -327,7 +327,7 @@ async function previewQuote(req: AuthedRequest, tx: TenantPrisma, plan: MateAiQu
         (candidate) => candidate.id === spec.catalog_item_id && (!spec.catalog_source || candidate.source === spec.catalog_source),
       );
     }
-    if (!item && spec.service_text) {
+    if (!item && spec.service_text && !spec.candidates?.length) {
       const lexical = spec.unit ? matchPricingService(spec.service_text, spec.unit, catalogItems) : { status: "not_found" as const };
       if (lexical.status === "matched") item = lexical.item;
       else if (lexical.status === "ambiguous") {
@@ -342,7 +342,10 @@ async function previewQuote(req: AuthedRequest, tx: TenantPrisma, plan: MateAiQu
       }
     }
     if (!item) {
-      const options = similarCatalogItems(spec.service_text, catalogItems);
+      const guessed = (spec.candidates || [])
+        .map((c) => catalogItems.find((candidate) => candidate.id === c.id && candidate.source === c.source))
+        .filter((c): c is MateAiCatalogItem => Boolean(c));
+      const options = guessed.length ? guessed : similarCatalogItems(spec.service_text, catalogItems);
       const sameUnit = spec.unit ? catalogItems.filter((c) => normalizeMateAiUnit(c.unit) === spec.unit) : [];
       const offered = options.length ? options : sameUnit.slice(0, 8);
       issues.push({
@@ -661,8 +664,18 @@ mateAiRouter.post(
 
       const context = await withTenantTransaction(organizationId, async (tx) => {
         const org = await tx.organization.findFirstOrThrow({ where: { id: organizationId }, select: { timezone: true } });
-        const catalog = await loadCatalog(tx, organizationId);
-        return { timezone: org.timezone || "America/New_York", catalog };
+        const [catalog, customers] = await Promise.all([
+          loadCatalog(tx, organizationId),
+          body.data.command
+            ? tx.customer.findMany({
+                where: { organizationId },
+                select: { id: true, name: true, company: true },
+                orderBy: { updatedAt: "desc" },
+                take: 3000,
+              })
+            : Promise.resolve([]),
+        ]);
+        return { timezone: org.timezone || "America/New_York", catalog, customers };
       });
       const today = todayInTimezone(context.timezone).date;
 
@@ -674,7 +687,7 @@ mateAiRouter.post(
       } else {
         // Run the interpreter inside the tenant context so AI usage is counted for this company.
         const interpreted = await runWithTenant(organizationId, () =>
-          interpretMateAiCommand(body.data.command!, { timezone: context.timezone, catalog: context.catalog }),
+          interpretMateAiCommand(body.data.command!, { timezone: context.timezone, catalog: context.catalog, customers: context.customers }),
         );
         if (!interpreted.ok) {
           res.status(422).json({ success: false, error: messageForParseError(interpreted.error), interpreted_by: interpreted.source });

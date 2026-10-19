@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { aiChatJson, isAiConfigured } from "../ai/client.js";
 import { normalizeMateAiUnit, parseMateAiCommand, type MateAiCatalogItem } from "./command.js";
+import { interpretLocally, type LocalCustomer } from "./local.js";
 
 export const MATE_AI_UNITS = ["sq_ft", "linear_ft", "fixed", "each", "box", "step", "hour"] as const;
 export const MATE_AI_INVOICE_TYPES = ["auto", "full", "final", "deposit", "progress", "custom"] as const;
@@ -20,6 +21,11 @@ const quoteItemSchema = z.object({
   catalog_source: z.enum(["quote-catalog", "pricing"]).nullable().optional(),
   quantity: z.number().positive().max(1_000_000),
   unit: z.enum(MATE_AI_UNITS).nullable().optional(),
+  /** Ranked catalog guesses to offer first when the service is not certain. */
+  candidates: z
+    .array(z.object({ id: z.string().uuid(), source: z.enum(["quote-catalog", "pricing"]) }))
+    .max(8)
+    .optional(),
 });
 
 export const quotePlanSchema = z.object({
@@ -55,6 +61,8 @@ export type InterpretContext = {
   timezone: string;
   now?: Date;
   catalog: MateAiCatalogItem[];
+  /** Company customers, used by the local reader to find names inside the sentence. */
+  customers?: LocalCustomer[];
 };
 
 /* ───────────────────────── dates ───────────────────────── */
@@ -300,12 +308,14 @@ export function planFromRules(command: string): { ok: true; plan: MateAiPlan } |
 
 export async function interpretMateAiCommand(command: string, ctx: InterpretContext): Promise<InterpretResult> {
   const text = String(command || "").trim();
+  const { date, weekday } = todayInTimezone(ctx.timezone, ctx.now);
+  const local = () => interpretLocally(text, { today: date, catalog: ctx.catalog, customers: ctx.customers || [] });
+
   if (!isAiConfigured()) {
-    const rules = planFromRules(text);
-    return rules.ok ? { ...rules, source: "rules" } : { ok: false, error: rules.error, source: "rules" };
+    const result = local();
+    return result.ok ? { ...result, source: "rules" } : { ok: false, error: result.error, source: "rules" };
   }
 
-  const { date, weekday } = todayInTimezone(ctx.timezone, ctx.now);
   const refs = catalogRefs(ctx.catalog);
   const ai = await aiChatJson({
     system: buildInterpretSystemPrompt({ today: date, weekday, timezone: ctx.timezone, refs }),
@@ -314,18 +324,18 @@ export async function interpretMateAiCommand(command: string, ctx: InterpretCont
   });
 
   if (!ai.ok) {
-    console.warn("[mate-ai] interpreter unavailable, using rules:", ai.error);
-    const rules = planFromRules(text);
-    return rules.ok
-      ? { ...rules, source: "rules", warning: "A IA não respondeu; usei a leitura simples do comando." }
-      : { ok: false, error: ai.error.includes("plano") || ai.error.includes("limite") ? ai.error : rules.error, source: "rules" };
+    console.warn("[mate-ai] interpreter unavailable, using local reader:", ai.error);
+    const result = local();
+    if (result.ok) return { ...result, source: "rules", warning: "A IA não respondeu; usei a leitura básica do pedido." };
+    return { ok: false, error: /plano|limite/i.test(ai.error) ? ai.error : result.error, source: "rules" };
   }
 
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(ai.text);
   } catch {
-    return { ok: false, error: "Não consegui entender o comando. Tente de novo.", source: "ai" };
+    const result = local();
+    return result.ok ? { ...result, source: "rules" } : { ok: false, error: "Não consegui entender o comando. Tente de novo.", source: "ai" };
   }
   const result = planFromModelOutput(parsedJson, refs, date);
   return result.ok ? { ...result, source: "ai" } : { ok: false, error: result.error, source: "ai" };

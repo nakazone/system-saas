@@ -37,6 +37,16 @@
     message.textContent = text || "";
     message.dataset.kind = kind || "error";
     message.hidden = !text;
+    if (text) {
+      // Re-trigger the highlight even when the same message comes back, so every click visibly responds.
+      message.classList.remove("is-fresh");
+      void message.offsetWidth;
+      message.classList.add("is-fresh");
+      const rect = message.getBoundingClientRect();
+      if (rect.top < 60 || rect.bottom > window.innerHeight - 110) {
+        message.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
   }
 
   function money(value) {
@@ -102,7 +112,7 @@
     resetPreview();
     clearClarify();
     successSection.hidden = true;
-    setMessage("", "");
+    setMessage(payload.plan ? "Atualizando…" : "Lendo o pedido…", "info");
     previewButton.disabled = true;
     previewButton.textContent = payload.plan ? "Atualizando…" : "Entendendo o pedido…";
     try {
@@ -111,7 +121,7 @@
       if (data.status === "ready") {
         if (data.action === "invoice") renderInvoicePreview(data);
         else renderQuotePreview(data);
-        const via = data.interpreted_by === "ai" ? "Entendido pelo Mate AI. " : "";
+        const via = data.interpreted_by === "ai" ? "Entendido pelo Mate AI. " : "Entendido. ";
         setMessage((data.warning ? data.warning + " " : "") + via + "Revise antes de confirmar.", "info");
       } else {
         renderClarification(data);
@@ -602,15 +612,33 @@
     micLabel.textContent = on ? "Parar e enviar" : "Gravar comando";
   }
 
+  try {
+    const savedLang = window.localStorage.getItem("mateAiVoiceLang");
+    if (savedLang && voiceLanguage.querySelector('option[value="' + savedLang + '"]')) voiceLanguage.value = savedLang;
+  } catch (_e) {}
+  voiceLanguage.addEventListener("change", function () {
+    try {
+      window.localStorage.setItem("mateAiVoiceLang", voiceLanguage.value);
+    } catch (_e) {}
+  });
+
   function languageHint() {
     const value = voiceLanguage.value || "auto";
     return value === "auto" ? null : value.slice(0, 2);
   }
 
+  /** Browser recognition needs a concrete language; "auto" would follow the computer (often English). */
+  function browserLanguage() {
+    const value = voiceLanguage.value;
+    if (value && value !== "auto") return value;
+    const page = (document.documentElement.lang || "").toLowerCase();
+    return page.startsWith("en") ? "en-US" : page.startsWith("es") ? "es-US" : "pt-BR";
+  }
+
   function useTranscript(text) {
     commandInput.value = text;
     commandInput.dispatchEvent(new Event("input", { bubbles: true }));
-    voiceStatus.textContent = "Transcrição: você pode corrigir o texto e tocar em “Entender e revisar” de novo.";
+    voiceStatus.textContent = "Ouvi: “" + text + "”. Se algo saiu errado, corrija o texto e toque em “Entender e revisar”.";
     runPreview({ command: text });
   }
 
@@ -686,42 +714,58 @@
     reader.readAsDataURL(blob);
   }
 
+  let finalTranscript = "";
+  let recognitionHadText = false;
+
   function startBrowserRecognition() {
     if (!recognition) {
       recognition = new SpeechRecognition();
-      recognition.interimResults = false;
+      recognition.continuous = true;
+      recognition.interimResults = true;
       recognition.maxAlternatives = 1;
       recognition.onstart = function () {
         setListening(true);
-        voiceStatus.textContent = "Ouvindo… fale o pedido.";
+        finalTranscript = "";
+        recognitionHadText = false;
+        voiceStatus.textContent = "Ouvindo… fale o pedido inteiro e toque em “Parar e enviar”.";
       };
       recognition.onresult = function (event) {
-        const transcript = Array.from(event.results || [])
-          .map(function (result) {
-            return result[0] && result[0].transcript ? result[0].transcript : "";
-          })
-          .join(" ")
-          .trim();
-        if (transcript) useTranscript(transcript);
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const text = result[0] && result[0].transcript ? result[0].transcript : "";
+          if (result.isFinal) finalTranscript += (finalTranscript ? " " : "") + text.trim();
+          else interim += text;
+        }
+        const live = (finalTranscript + " " + interim).replace(/\s+/g, " ").trim();
+        if (live) {
+          recognitionHadText = true;
+          commandInput.value = live;
+        }
       };
       recognition.onerror = function (event) {
-        voiceStatus.textContent =
-          event.error === "not-allowed"
-            ? "O navegador bloqueou o microfone. Libere a permissão ou digite o comando."
-            : "Não foi possível transcrever a fala. Tente novamente ou digite o comando.";
+        if (event.error === "no-speech") {
+          voiceStatus.textContent = "Não ouvi nada. Fale mais perto do microfone e tente de novo.";
+        } else if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          voiceStatus.textContent = "O navegador bloqueou o microfone. Libere a permissão ou digite o comando.";
+        } else if (event.error !== "aborted") {
+          voiceStatus.textContent = "Não foi possível transcrever a fala (" + event.error + "). Tente de novo ou digite o comando.";
+        }
       };
       recognition.onend = function () {
         setListening(false);
+        const text = commandInput.value.trim();
+        if (recognitionHadText && text) useTranscript(text);
       };
     }
-    const value = voiceLanguage.value;
-    recognition.lang = value && value !== "auto" ? value : navigator.language || "pt-BR";
+    recognition.lang = browserLanguage();
     try {
       recognition.start();
     } catch (_error) {
-      voiceStatus.textContent = "O microfone já está ativo. Aguarde a transcrição terminar.";
+      voiceStatus.textContent = "O microfone já está ativo. Toque em “Parar e enviar”.";
     }
   }
+
 
   if (!canRecord && !SpeechRecognition) {
     micButton.disabled = true;
@@ -734,6 +778,12 @@
       return response.ok ? response.json() : null;
     })
     .then(function (data) {
+      const modeNote = document.getElementById("mateAiMode");
+      if (data && data.ai === false && modeNote) {
+        modeNote.textContent =
+          "Modo básico: a IA ainda não está ativa nesta conta. Funciona melhor com frases diretas — cliente, serviço e quantidade.";
+        modeNote.hidden = false;
+      }
       if (data && data.server_voice === false) {
         serverVoice = false;
         if (!SpeechRecognition) {
