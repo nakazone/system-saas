@@ -19,9 +19,20 @@ export type QuoteEvent =
 
 /** Normalize legacy CRM statuses to Phase 2 vocabulary. */
 export function normalizeQuoteStatus(status: string): QuoteStatus {
-  if (status === "accepted" || status === "invoiced") return "approved";
-  if (status === "rejected") return "archived";
-  return status as QuoteStatus;
+  const s = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (s === "accepted" || s === "invoiced") return "approved";
+  if (s === "rejected") return "archived";
+  // Legacy CRM marked opened links as "viewed" — still open for client signature.
+  if (s === "viewed" || s === "created") return "sent";
+  return s as QuoteStatus;
+}
+
+/** Statuses where the client may still sign / approve via the public link. */
+export function isClientSignableQuoteStatus(status: string): boolean {
+  const s = normalizeQuoteStatus(status);
+  return s === "sent" || s === "changes_requested";
 }
 
 const TRANSITIONS: Record<QuoteStatus, Partial<Record<QuoteEvent, QuoteStatus>>> = {

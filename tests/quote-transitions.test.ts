@@ -44,6 +44,15 @@ describe("transitionQuote", () => {
     expect(normalizeQuoteStatus("accepted")).toBe("approved");
     expect(normalizeQuoteStatus("rejected")).toBe("archived");
     expect(normalizeQuoteStatus("invoiced")).toBe("approved");
+    expect(normalizeQuoteStatus("viewed")).toBe("sent");
+    expect(normalizeQuoteStatus("Viewed")).toBe("sent");
+    expect(normalizeQuoteStatus("created")).toBe("sent");
+  });
+
+  it("allows approve after legacy viewed status", () => {
+    const result = transitionQuote("viewed", "approve");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.next).toBe("approved");
   });
 });
 
