@@ -43,6 +43,7 @@ import { referralsRouter } from "./routes/referrals.js";
 import { reportsHubRouter } from "./routes/reports-hub.js";
 import { fieldQuotesRouter } from "./routes/field-quotes.js";
 import { mateAiRouter } from "./routes/mate-ai.js";
+import { mateAiAgentRouter } from "./routes/mate-ai-agent.js";
 
 export const crmApiRouter = Router();
 
@@ -69,6 +70,7 @@ crmApiRouter.use(invoicesCrmRouter);
 crmApiRouter.use(customersOverviewRouter);
 crmApiRouter.use(customersQuotesRouter);
 crmApiRouter.use(mateAiRouter);
+crmApiRouter.use(mateAiAgentRouter);
 crmApiRouter.use(fieldQuotesRouter);
 crmApiRouter.use(buildersPricingRouter);
 crmApiRouter.use(constructionPayrollRouter);

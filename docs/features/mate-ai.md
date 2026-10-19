@@ -1,44 +1,40 @@
-# Mate AI: voice and text actions
+# Mate AI: the assistant on every screen
 
-Mate AI turns a spoken or typed request into a reviewed action inside the active company:
+Mate AI turns what people say or type into actions inside the active company. It lives in a panel available on every office screen (floating button, the **Mate AI** button in the top bar, or Ctrl/⌘ + J) and on the full page `/mate-ai`. Nothing changes until the user confirms a card, and nothing reaches a customer without a second, explicit check.
 
-- **Quote**: "Criar um quote para o John Smith, instalação de 1350 pés de madeira e tirar 400 pés de carpete"
-- **Job invoice**: "Emitir a invoice do job 1042 com vencimento sexta que vem", "Fatura de depósito de 30% para o trabalho da Maria"
+## Actions (phase 1)
 
-Nothing is created until the user reviews the preview and confirms. Nothing is e-mailed to the client.
+| Area | Action | Example | Confirm |
+| --- | --- | --- | --- |
+| Quotes | `quote.create` | "Quote pro John, 1350 pés de madeira" | Draft quote card (lines editable) |
+| | `quote.edit` | "Adiciona 14 degraus no quote do John e dá 10% de desconto" | Opens the Quote Builder with the change applied; user saves |
+| | `quote.send` | "Manda o quote do John por e-mail / SMS / link" | Send card with recipient check |
+| Invoices | `invoice.job` | "Invoice do job 1042 para sexta" | Money card |
+| | `invoice.quote` | "Fatura o depósito de 50% do quote do John" | Money card |
+| | `invoice.send` | "Manda a invoice 3012 por e-mail" | Send card with recipient check |
+| Payments | `payment.record` | "O John pagou 2 mil em cheque hoje" | Money card (balance before/after) |
+| Leads | `lead.create`, `lead.stage` | "Novo lead: Ana, 720 555 0101…", "Move a Ana para visita, quinta 10h" | Card; stage + visit |
+| Customers | `customer.create` | "Cadastra o cliente Roberto Alves, builder" | Card (duplicate warning) |
+| Jobs | `job.create`, `job.schedule`, `job.status`, `job.note` | "Agenda o job 1042 segunda 7h com a equipe do Carlos" | Card; undo 30 s for schedule/status/note |
+| Answers | `agenda.list`, `money.summary`, `customer.balance`, `jobs.uninvoiced`, `quotes.followup`, `invoices.overdue` | "O que tem amanhã?", "Quanto faturei este mês?" | Read-only answer; rows carry a follow-up action |
+
+Proactive suggestions (`GET /api/mate-ai/suggestions`): completed jobs without invoice, overdue invoices, quotes opened by the customer without an answer, approved quotes without a job.
 
 ## How it works
 
-1. **Voice** — the browser records audio (MediaRecorder) and `POST /api/mate-ai/transcribe` transcribes it on the server (Whisper-compatible API). The request is biased with the company's catalog and recent customer names so they come out spelled like in the CRM. If server transcription is unavailable, the page falls back to the browser's speech recognition.
-2. **Understanding** — `POST /api/mate-ai/preview` with `command` sends the text to the LLM (`src/lib/mate-ai/interpret.ts`) together with today's date in the company timezone and the company's service catalog (as short refs `S1…Sn`). The model returns intent, customer, services (by catalog ref), quantities, units, job reference, invoice type and due date. The output is validated with zod; refs that are not in the catalog are dropped. The model never sees prices and never chooses IDs directly.
-3. **Resolution** — customers and jobs are matched against the database with accent- and typo-tolerant fuzzy matching (`src/lib/mate-ai/match.ts`). When two candidates are close, the response lists them and the page shows them as tappable choices. Services fall back to lexical matching and, when still unclear, the page offers similar catalog items and the full catalog.
-4. **Picks without a new AI call** — every preview returns a `plan`. The page edits it (chosen `customer_id`, `catalog_item_id`, `job_id`, invoice type, amount, due date) and calls `/api/mate-ai/preview` with `plan` instead of `command`. The server re-validates everything.
-5. **Confirm** — previews return a short-lived signed token (10 minutes):
-   - `POST /api/mate-ai/quote-drafts` creates a draft Quote (unchanged behaviour: catalog, customer and prices are re-checked).
-   - `POST /api/mate-ai/invoices` issues the job invoice through the same `createJobInvoice` used by the Jobs screen, after re-checking the job's services total and what was already invoiced. The preview id is stored on the invoice payload to block replays.
+- `POST /api/mate-ai/act` with `text`: the model (`MATE_AI_MODEL`, default `gpt-6-luna`) receives only the actions this user may use, the screen the user is on, the last turns of the conversation and the service catalog as refs; it returns one action and its arguments. Without AI, a local reader handles quotes, job invoices and the questions above.
+- The action's `prepare` resolves records against the tenant (typo-tolerant), prices from the company tables, and returns a **card** (with a signed 10-minute token), a **question** with tappable options, an **answer**, or an error. Choices and card edits call `/act` again with `action + args + patch` — no new AI call.
+- `POST /api/mate-ai/execute` runs a confirmed card once (replay-protected), **through the same HTTP routes the screens use, as the same user** (`src/lib/mate-ai/internal-api.ts`), so permissions, validation, numbering, notifications and activity are identical to a click. The change is logged as `mate_ai.action` on the record.
+- `POST /api/mate-ai/undo` reverts reversible actions within 30 s (schedule, status, note, lead stage).
+- Actions live in `src/lib/mate-ai/actions/*` (registry in `src/lib/mate-ai/agent.ts`, routes in `src/crm/routes/mate-ai-agent.ts`). A new action is one `ActionDef` with `prepare`, `execute` and optional `undo`.
 
-If AI is not configured (`OPENAI_API_KEY`) or the call fails, quotes fall back to the original rule-based parser.
+## Panel
 
-## Permissions
-
-- Quotes: `quotes.create`, `customers.view`, `pricing.view`
-- Invoices: `invoices.view`, `invoices.manage`
-
-The preview endpoint checks the permissions for the action it detected. AI calls count toward the company's `ai_month` usage and respect the `ai` plan feature.
-
-## Invoice types
-
-`auto` (full when nothing was invoiced yet, otherwise the remaining balance), `full`, `final`, `deposit` (with %), `progress` and `custom` (with a dollar amount). Without a spoken date the due date defaults to tomorrow, as in the Jobs screen.
+`crm/public/mate-panel.js` + `.css`, loaded by `crm-shell.js` on office screens (not the field crew app). Desktop: side panel that keeps the page usable. Phone: bottom sheet. The record in the URL (job, quote, invoice, lead, customer) becomes the context chip with quick actions. Voice: tap the mic, or press and hold the floating button. The conversation is kept per tab for the day.
 
 ## Data and logging
 
-All reads and writes run through the tenant transaction helper. The raw command and audio are not stored. A quote preview adds a `mate_ai.quote_previewed` customer activity event; created quotes and invoices carry `source: mate_ai` in their payload.
-
-## Limits
-
-- Up to 8 services per Quote, 500 characters per command, 2 decimal places per quantity, 8 MB / 60 s of audio.
-- Units: square feet, linear feet, fixed, each, box, step and hour. Values are not converted; when the spoken unit differs from the catalog unit the user must confirm the service.
-- Job invoices only (quote-based invoices and other actions — scheduling, sending, payments — are next steps).
+All reads and writes run through the tenant transaction helper. The raw command and audio are not stored. Created quotes and invoices carry `source: mate_ai`; every executed action adds a `mate_ai.action` activity event on its record.
 
 ## Configuration
 

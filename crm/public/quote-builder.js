@@ -5765,6 +5765,62 @@
     }
   }
 
+  /**
+   * Mate AI prepared a change (added lines and/or a discount) for this quote: apply it here so the
+   * user reviews it in the editor and saves through the normal path.
+   */
+  function applyMateAiEdit(qid) {
+    let pending = null;
+    try {
+      const key = 'mateAi.quoteEdit:' + qid;
+      const raw = sessionStorage.getItem(key);
+      if (raw) {
+        pending = JSON.parse(raw);
+        sessionStorage.removeItem(key);
+      }
+    } catch (_) {}
+    try {
+      const u = new URL(location.href);
+      u.searchParams.delete('mate_edit');
+      history.replaceState(null, '', u.pathname + u.search + u.hash);
+    } catch (_) {}
+    if (!pending || !pending.ops || Date.now() - Number(pending.at || 0) > 10 * 60 * 1000) return;
+    const ops = pending.ops;
+    const added = Array.isArray(ops.add_items) ? ops.add_items : [];
+    added.forEach((it) => {
+      const rate = Number(it.rate) || 0;
+      items.push({
+        item_type: 'service',
+        name: String(it.name || ''),
+        description: String(it.description || ''),
+        unit_type: String(it.unit_type || 'sq_ft'),
+        quantity: Number(it.quantity) || 0,
+        rate,
+        notes: null,
+        service_type: normalizeServiceType(it.service_type),
+        catalog_customer_notes: it.catalog_customer_notes || null,
+        service_catalog_id: normalizeCatalogId(it.service_catalog_id),
+        pricing_item_id: it.pricing_item_id != null ? String(it.pricing_item_id) : null,
+        product_id: null,
+        cost_price: null,
+        markup_percentage: null,
+        sell_price: Number(it.sell_price != null ? it.sell_price : rate) || 0,
+        estimateAuto: false,
+      });
+    });
+    if (ops.discount && typeof ops.discount === 'object') {
+      $('discountType').value = ops.discount.type === 'fixed' ? 'fixed' : 'percentage';
+      $('discountValue').value = Number(ops.discount.value) || 0;
+    }
+    renderItems();
+    recalc();
+    qbMarkDirty();
+    const parts = [];
+    if (added.length) parts.push(added.length + ' serviço(s) adicionado(s)');
+    if (ops.discount) parts.push('desconto aplicado');
+    qbToast('Mate AI: ' + parts.join(' e ') + '. Revise e salve.', 'info');
+  }
+
   async function loadQuote(id) {
     const qid = String(id || '').trim();
     if (!qid || qid === 'NaN') return;
@@ -6145,6 +6201,7 @@
     }
     if (qid) {
       await Promise.all([loadQuote(qid), loadQuoteShareSettings()]);
+      if (params.get('mate_edit') === '1') applyMateAiEdit(qid);
     } else {
       items = [];
       loadedQuoteLeadId = null;

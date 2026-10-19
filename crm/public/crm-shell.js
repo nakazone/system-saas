@@ -1042,6 +1042,11 @@
     } else if (!document.querySelector('script[src*="crm-help-panel.js"]')) {
       jobs.push(ensureScript(`crm-help-panel.js?v=${SHELL_VER}`).catch(function () {}));
     }
+    // Mate AI panel on every office screen (field crew app excluded).
+    if (!window.__mateAiPanel && !document.body.classList.contains("func-app") && !document.querySelector('script[src*="mate-panel.js"]')) {
+      ensureStylesheet("mate-panel.css?v=20261019-f1");
+      jobs.push(ensureScript("mate-panel.js?v=20261019-f1").catch(() => {}));
+    }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
       jobs.push(ensureScript("saas-branding.js?v=20261002-branddoc1").catch(() => {}));
     }
