@@ -22,7 +22,7 @@ import { parseQuoteSettings, resolveOwnerSignatureForQuote } from "../../lib/set
 import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
 import { persistQuoteTotals, quoteDetailInclude, recomputeTotalsFromQuote } from "./service.js";
 import { applyQuoteTransition } from "./service.js";
-import { normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
+import { isClientSignableQuoteStatus, normalizeQuoteStatus } from "../../lib/quotes/transitions.js";
 import { ensureInvoicesOnApprove } from "../../lib/payments/engine.js";
 import { ensureWorkOrderOnApprove } from "../../lib/work-orders/from-quote.js";
 import { cancelPendingMessages } from "../../lib/automations/schedule.js";
@@ -146,8 +146,7 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
       return;
     }
 
-    const status = normalizeQuoteStatus(quote.status);
-    const readOnly = !["sent", "changes_requested"].includes(status);
+    const readOnly = !isClientSignableQuoteStatus(quote.status);
     const orgFull = await prisma.organization.findUnique({
       where: { id: ref.organizationId },
       select: { quoteSettings: true, website: true },
@@ -282,7 +281,10 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
       signedByName: z.string().min(1).max(120),
       signatureDataUrl: z.string().min(32),
       acceptTerms: z.string().optional(),
-      selectedOptionGroupId: z.string().uuid().optional().or(z.literal("")),
+      selectedOptionGroupId: z.preprocess(
+        (v) => (v === "" || v == null ? undefined : Array.isArray(v) ? v[0] : v),
+        z.string().uuid().optional(),
+      ),
       selectedOptionalIds: z.union([z.string(), z.array(z.string())]).optional(),
       approvedLat: z.union([z.string(), z.number()]).optional(),
       approvedLng: z.union([z.string(), z.number()]).optional(),
@@ -329,9 +331,14 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
         include: { lineItems: true, salesperson: true, organization: true, customer: true },
       });
       if (!quote) throw new Error("Quote not found");
-      const status = normalizeQuoteStatus(quote.status);
-      if (!["sent", "changes_requested"].includes(status)) {
+      if (!isClientSignableQuoteStatus(quote.status)) {
         throw new Error("Quote cannot be approved in its current status");
+      }
+      // Heal legacy "viewed" / mixed-case statuses so the transition machine accepts approve.
+      const normalized = normalizeQuoteStatus(quote.status);
+      if (quote.status !== normalized) {
+        await tx.quote.update({ where: { id: quote.id }, data: { status: normalized } });
+        quote.status = normalized;
       }
 
       const selectedSet = new Set(selectedOptionalIds);
