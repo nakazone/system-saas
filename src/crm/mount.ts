@@ -156,9 +156,9 @@ export function createCrmRouter(): Router {
     }
   });
 
-  router.get(["/mate-ai", "/mate-ai.html"], requireAuth, (_req, res, next) => {
+  router.get(["/mate-ai", "/mate-ai.html"], requireAuth, async (req, res, next) => {
     try {
-      sendCrmHtml(res, "mate-ai.html");
+      await sendCrmHtml(req, res, "mate-ai.html");
     } catch (error) {
       next(error);
     }
