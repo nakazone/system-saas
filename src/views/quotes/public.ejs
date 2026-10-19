@@ -212,7 +212,6 @@
       flex-wrap: wrap;
     }
     .qp-sign-cta__text { margin: 0; font-size: 12px; color: var(--qp-primary-muted); flex: 1; min-width: 180px; }
-    body.qp-sign-open { overflow: hidden; }
     @media (max-width: 640px) {
       .qp-inclex { display: block; }
       .qp-addon { grid-template-columns: 22px minmax(0, 1fr); }
@@ -292,34 +291,34 @@
       max-width: var(--qp-page-w); margin: 16px auto 0; text-align: center;
       font-size: 14px; font-weight: 600; color: #166534;
     }
-    .qp-sign-modal {
-      position: fixed; inset: 0; z-index: 10050;
-      display: none; align-items: center; justify-content: center;
-      padding: 16px; box-sizing: border-box;
+    /* Inline sign panel (not position:fixed — in-app email browsers break overlays) */
+    .qp-sign-panel {
+      display: none;
+      max-width: var(--qp-page-w);
+      margin: 16px auto 100px;
+      padding: 18px 16px 20px;
+      background: #fff;
+      border: 1px solid var(--qp-rule);
+      border-radius: 12px;
+      box-shadow: 0 8px 28px rgba(26,32,54,0.1);
     }
-    .qp-sign-modal.is-open,
-    .qp-sign-modal:not([hidden]) { display: flex !important; }
-    .qp-sign-modal[hidden]:not(.is-open) { display: none !important; }
-    .qp-sign-modal__backdrop { position: absolute; inset: 0; background: rgba(26,32,54,0.5); }
-    .qp-sign-modal__panel {
-      position: relative; z-index: 1; width: min(560px, calc(100vw - 24px));
-      background: #fff; border-radius: 12px; padding: 22px 24px 20px;
-      box-shadow: 0 16px 48px rgba(26,32,54,0.2); max-height: 92vh; overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    body.qp-sign-open .qp-actions { visibility: hidden; pointer-events: none; }
-    .qp-sign-modal__title { margin: 0 0 6px; font-size: 18px; }
-    .qp-sign-modal__sub { margin: 0 0 16px; font-size: 13px; color: var(--qp-muted); }
+    .qp-sign-panel.is-open { display: block; }
+    .qp-sign-panel__title { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
+    .qp-sign-panel__sub { margin: 0 0 16px; font-size: 13px; color: var(--qp-muted); }
     .qp-sign-field { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--qp-primary-muted); }
     .qp-sign-input {
       width: 100%; margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--qp-rule);
-      border-radius: 8px; font-size: 14px;
+      border-radius: 8px; font-size: 16px; box-sizing: border-box;
     }
     .qp-sign-canvas-wrap {
       border: 1px solid var(--qp-rule); border-radius: 8px; background: #fff; margin-bottom: 14px; overflow: hidden;
     }
     .qp-sign-canvas-wrap canvas { display: block; width: 100%; height: 140px; touch-action: none; }
-    .qp-sign-modal__actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    .qp-sign-panel__actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    .qp-sign-panel__terms {
+      display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin-bottom: 14px; line-height: 1.4;
+    }
+    .qp-sign-panel__terms input { margin-top: 2px; flex-shrink: 0; width: 18px; height: 18px; }
     .qp-changes { max-width: var(--qp-page-w); margin: 18px auto 0; }
     .qp-changes details {
       background: #fff; border-radius: 10px; padding: 12px 14px; border: 1px solid var(--qp-rule);
@@ -683,7 +682,7 @@
           <% if (!readOnly && !signed) { %>
             <div class="qp-sign-cta no-print">
               <p class="qp-sign-cta__text">Ready to proceed? Review the terms above, then sign to approve this quote.</p>
-              <button type="button" class="qp-btn qp-btn--primary" data-qp-open-sign>Assinar</button>
+              <button type="button" class="qp-btn qp-btn--primary" data-qp-open-sign onclick="try{if(event)event.preventDefault();}catch(e){}if(window.__qpOpenSign){window.__qpOpenSign(event);return false;}var p=document.getElementById('qpSignPanel');if(p){p.classList.add('is-open');p.style.display='block';try{p.scrollIntoView(true);}catch(e2){}}else{alert('Abra este link no Safari ou Chrome para assinar.');}return false;">Assinar</button>
             </div>
           <% } %>
 
@@ -760,82 +759,101 @@
     <% } %>
   </div>
 
-  <div class="qp-actions no-print" id="quoteActions">
-    <a class="qp-btn qp-btn--outline" href="/public/quotes/<%= token %>/pdf" target="_blank" rel="noopener noreferrer">Download PDF</a>
-    <% if (!readOnly && !signed) { %>
-      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove" data-qp-open-sign>Assinar</button>
-    <% } %>
-  </div>
-
   <% if (!readOnly && !signed) { %>
-  <div class="qp-sign-modal" id="qpSignModal" hidden role="dialog" aria-modal="true" aria-labelledby="qpSignTitle">
-    <div class="qp-sign-modal__backdrop" id="qpSignBackdrop"></div>
-    <div class="qp-sign-modal__panel">
-      <h2 id="qpSignTitle" class="qp-sign-modal__title">Approve &amp; sign</h2>
-      <p class="qp-sign-modal__sub">A assinatura é gerada automaticamente a partir do seu nome. Pode desenhar por cima para personalizar.</p>
-      <label class="qp-sign-field" for="qpSignerName">Your full name</label>
-      <input type="text" id="qpSignerName" class="qp-sign-input" autocomplete="name" placeholder="Full name" value="<%= cust.name || '' %>" />
-      <label class="qp-sign-field" for="qpSignCanvas">Your signature</label>
-      <div class="qp-sign-canvas-wrap">
-        <canvas id="qpSignCanvas" width="520" height="140" aria-label="Draw your signature"></canvas>
-      </div>
-      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:14px;">
-        <input type="checkbox" id="qpAcceptTerms" />
-        <span>I accept the terms and conditions in this quote.</span>
-      </label>
-      <p id="qpSignError" class="qp-alert qp-alert-error" hidden style="margin:0 0 12px;"></p>
-      <div class="qp-sign-modal__actions">
-        <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear">Clear</button>
-        <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel">Cancel</button>
-        <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit">Approve quote</button>
-      </div>
+  <div class="qp-sign-panel no-print" id="qpSignPanel" aria-labelledby="qpSignTitle">
+    <h2 id="qpSignTitle" class="qp-sign-panel__title">Aprovar e assinar</h2>
+    <p class="qp-sign-panel__sub">A assinatura é gerada automaticamente a partir do seu nome. Pode desenhar por cima para personalizar.</p>
+    <label class="qp-sign-field" for="qpSignerName">Nome completo</label>
+    <input type="text" id="qpSignerName" class="qp-sign-input" autocomplete="name" placeholder="Seu nome completo" value="<%= cust.name || '' %>" />
+    <label class="qp-sign-field" for="qpSignCanvas">Assinatura</label>
+    <div class="qp-sign-canvas-wrap">
+      <canvas id="qpSignCanvas" width="520" height="140" aria-label="Desenhe sua assinatura"></canvas>
+    </div>
+    <label class="qp-sign-panel__terms">
+      <input type="checkbox" id="qpAcceptTerms" />
+      <span>Aceito os termos e condições desta proposta.</span>
+    </label>
+    <p id="qpSignError" class="qp-alert qp-alert-error" hidden style="margin:0 0 12px;"></p>
+    <div class="qp-sign-panel__actions">
+      <button type="button" class="qp-btn qp-btn--outline" id="qpSignClear" onclick="if(window.__qpClearSign)window.__qpClearSign();return false;">Limpar</button>
+      <button type="button" class="qp-btn qp-btn--outline" id="qpSignCancel" onclick="if(window.__qpCloseSign)window.__qpCloseSign();else{var p=document.getElementById('qpSignPanel');if(p){p.classList.remove('is-open');p.style.display='none';}}return false;">Cancelar</button>
+      <button type="button" class="qp-btn qp-btn--primary" id="qpSignSubmit" onclick="if(window.__qpSubmitSign)window.__qpSubmitSign();else alert('Aguarde a página carregar e tente de novo.');return false;">Aprovar proposta</button>
     </div>
   </div>
   <% } %>
 
-  <script src="/quote-signature-auto.js?v=20261019-sign1"></script>
+  <div class="qp-actions no-print" id="quoteActions">
+    <a class="qp-btn qp-btn--outline" href="/public/quotes/<%= token %>/pdf" target="_blank" rel="noopener noreferrer">Download PDF</a>
+    <% if (!readOnly && !signed) { %>
+      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove" data-qp-open-sign onclick="try{if(event)event.preventDefault();}catch(e){}if(window.__qpOpenSign){window.__qpOpenSign(event);return false;}var p=document.getElementById('qpSignPanel');if(p){p.classList.add('is-open');p.style.display='block';try{p.scrollIntoView(true);}catch(e2){}}else{alert('Abra este link no Safari ou Chrome para assinar.');}return false;">Assinar</button>
+    <% } %>
+  </div>
+
+  <script>
+    /* Early stub so Assinar works even if later scripts fail to load */
+    (function () {
+      function showPanel() {
+        var p = document.getElementById('qpSignPanel');
+        if (!p) return false;
+        p.classList.add('is-open');
+        p.style.display = 'block';
+        try { p.scrollIntoView(true); } catch (e) {}
+        return true;
+      }
+      window.__qpOpenSign = function (e) {
+        try { if (e && e.preventDefault) e.preventDefault(); } catch (err) {}
+        if (!showPanel()) alert('Não foi possível abrir a assinatura.');
+        return false;
+      };
+      window.__qpCloseSign = function () {
+        var p = document.getElementById('qpSignPanel');
+        if (p) { p.classList.remove('is-open'); p.style.display = 'none'; }
+      };
+    })();
+  </script>
+  <script src="/quote-signature-auto.js?v=20261019-sign3"></script>
   <script>
     (function () {
-      const readOnly = <%= readOnly ? 'true' : 'false' %>;
-      const token = <%= JSON.stringify(token) %>;
-      const defaultName = <%= JSON.stringify((quote.customer && quote.customer.name) || '') %>;
+      var readOnly = <%= readOnly ? 'true' : 'false' %>;
+      var token = <%= JSON.stringify(token) %>;
+      var defaultName = <%= JSON.stringify((quote.customer && quote.customer.name) || '') %>;
 
       function money(n) {
         return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       }
 
       function createPad(canvas) {
-        const ctx = canvas.getContext('2d');
-        let drawing = false;
-        let hasStroke = false;
+        var ctx = canvas.getContext('2d');
+        var drawing = false;
+        var hasStroke = false;
         ctx.strokeStyle = '#1a2036';
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        const pos = (e) => {
-          const r = canvas.getBoundingClientRect();
-          const t = e.touches ? e.touches[0] : e;
+        function pos(e) {
+          var r = canvas.getBoundingClientRect();
+          var t = e.touches ? e.touches[0] : e;
           return {
             x: (t.clientX - r.left) * (canvas.width / r.width),
             y: (t.clientY - r.top) * (canvas.height / r.height),
           };
-        };
-        const start = (e) => {
+        }
+        function start(e) {
           drawing = true;
           hasStroke = true;
-          const p = pos(e);
+          var p = pos(e);
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           e.preventDefault();
-        };
-        const move = (e) => {
+        }
+        function move(e) {
           if (!drawing) return;
-          const p = pos(e);
+          var p = pos(e);
           ctx.lineTo(p.x, p.y);
           ctx.stroke();
           e.preventDefault();
-        };
-        const end = () => { drawing = false; };
+        }
+        function end() { drawing = false; }
         canvas.addEventListener('mousedown', start);
         canvas.addEventListener('mousemove', move);
         window.addEventListener('mouseup', end);
@@ -844,14 +862,14 @@
         canvas.addEventListener('touchend', end);
 
         function drawName(name) {
-          const text = String(name || '').trim();
+          var text = String(name || '').trim();
           if (text.length < 2) return false;
           if (window.QuoteSignatureAuto && window.QuoteSignatureAuto.renderAutoSignatureOnCanvas(canvas, text)) {
             return true;
           }
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.fillStyle = '#1a2036';
-          let fontSize = 36;
+          var fontSize = 36;
           ctx.font = 'italic ' + fontSize + 'px "Brush Script MT", "Segoe Script", cursive';
           while (fontSize > 14 && ctx.measureText(text).width > canvas.width - 32) {
             fontSize -= 1;
@@ -864,41 +882,38 @@
         }
 
         return {
-          clear() { ctx.clearRect(0, 0, canvas.width, canvas.height); hasStroke = false; },
-          isEmpty() { return !hasStroke; },
-          renderFromName(name) {
-            const ok = drawName(name);
+          clear: function () { ctx.clearRect(0, 0, canvas.width, canvas.height); hasStroke = false; },
+          isEmpty: function () { return !hasStroke; },
+          renderFromName: function (name) {
+            var ok = drawName(name);
             hasStroke = !!ok;
             return ok;
           },
-          toDataURL() { return canvas.toDataURL('image/png'); },
+          toDataURL: function () { return canvas.toDataURL('image/png'); },
         };
       }
 
-      let pad = null;
-      const modal = document.getElementById('qpSignModal');
-      const canvas = document.getElementById('qpSignCanvas');
-      const nameInput = document.getElementById('qpSignerName');
+      var pad = null;
+      var panel = document.getElementById('qpSignPanel');
+      var canvas = document.getElementById('qpSignCanvas');
+      var nameInput = document.getElementById('qpSignerName');
 
       function showSignError(msg) {
-        const el = document.getElementById('qpSignError');
+        var el = document.getElementById('qpSignError');
         if (!el) { alert(msg); return; }
         el.textContent = msg;
         el.hidden = false;
       }
       function clearSignError() {
-        const el = document.getElementById('qpSignError');
+        var el = document.getElementById('qpSignError');
         if (el) { el.hidden = true; el.textContent = ''; }
       }
 
-      function openModal(e) {
-        if (e) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        if (!modal || !canvas) {
+      function openSign(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (!panel || !canvas) {
           alert('Não foi possível abrir a assinatura. Atualize a página e tente de novo.');
-          return;
+          return false;
         }
         try {
           clearSignError();
@@ -906,77 +921,54 @@
           pad.clear();
           if (nameInput) {
             if (!nameInput.value && defaultName) nameInput.value = defaultName;
-            const n = nameInput.value.trim();
+            var n = String(nameInput.value || '').trim();
             if (n.length >= 2) pad.renderFromName(n);
           }
-          modal.hidden = false;
-          modal.removeAttribute('hidden');
-          modal.classList.add('is-open');
-          modal.setAttribute('aria-hidden', 'false');
-          document.body.classList.add('qp-sign-open');
-          try { modal.scrollIntoView({ block: 'center' }); } catch (_) {}
-          setTimeout(() => nameInput && nameInput.focus(), 50);
+          panel.classList.add('is-open');
+          panel.style.display = 'block';
+          try {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } catch (_) {
+            try { panel.scrollIntoView(true); } catch (__) {}
+          }
+          setTimeout(function () {
+            if (nameInput) try { nameInput.focus(); } catch (_) {}
+          }, 80);
         } catch (err) {
           console.error(err);
           alert('Erro ao abrir a assinatura. Atualize a página e tente de novo.');
         }
+        return false;
       }
-      function closeModal() {
-        if (!modal) return;
-        modal.classList.remove('is-open');
-        modal.hidden = true;
-        modal.setAttribute('hidden', '');
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('qp-sign-open');
+
+      function closeSign() {
+        if (!panel) return;
+        panel.classList.remove('is-open');
+        panel.style.display = 'none';
         clearSignError();
       }
 
-      window.__qpOpenSign = openModal;
+      function clearSign() {
+        if (pad) pad.clear();
+      }
 
-      document.addEventListener('click', function (e) {
-        const t = e.target;
-        if (!t || !t.closest) return;
-        if (t.closest('#btnApprove, [data-qp-open-sign]')) {
-          openModal(e);
-          return;
-        }
-        if (t.closest('#qpSignBackdrop') || t.closest('#qpSignCancel')) {
-          closeModal();
-          return;
-        }
-        if (t.closest('#qpSignClear')) {
-          if (pad) pad.clear();
-          return;
-        }
-      });
-
-      let debounceTimer = null;
-      nameInput?.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          if (!pad) return;
-          const n = nameInput.value.trim();
-          if (n.length >= 2) pad.renderFromName(n);
-          else pad.clear();
-        }, 250);
-      });
-
-      document.getElementById('qpSignSubmit')?.addEventListener('click', () => {
+      function submitSign() {
         clearSignError();
-        const name = (nameInput && nameInput.value.trim()) || '';
+        var name = (nameInput && String(nameInput.value || '').trim()) || '';
         if (name.length < 2) { showSignError('Please enter your full name.'); return; }
-        if (!document.getElementById('qpAcceptTerms')?.checked) {
+        var terms = document.getElementById('qpAcceptTerms');
+        if (!terms || !terms.checked) {
           showSignError('Please accept the terms and conditions.');
           return;
         }
         if (!pad) pad = createPad(canvas);
         if (pad.isEmpty()) pad.renderFromName(name);
         if (pad.isEmpty()) { showSignError('Please add your signature.'); return; }
-        const form = document.getElementById('quotePublicForm');
+        var form = document.getElementById('quotePublicForm');
         if (!form) { showSignError('Formulário não encontrado. Atualize a página.'); return; }
-        const signedByName = document.getElementById('signedByName');
-        const signatureDataUrl = document.getElementById('signatureDataUrl');
-        const acceptTerms = document.getElementById('acceptTerms');
+        var signedByName = document.getElementById('signedByName');
+        var signatureDataUrl = document.getElementById('signatureDataUrl');
+        var acceptTerms = document.getElementById('acceptTerms');
         if (!signedByName || !signatureDataUrl || !acceptTerms) {
           showSignError('Formulário incompleto. Atualize a página.');
           return;
@@ -984,62 +976,87 @@
         signedByName.value = name;
         signatureDataUrl.value = pad.toDataURL();
         acceptTerms.value = 'on';
-        const btn = document.getElementById('qpSignSubmit');
+        var btn = document.getElementById('qpSignSubmit');
         if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
         form.submit();
-      });
+      }
 
-      async function recalc() {
+      window.__qpOpenSign = openSign;
+      window.__qpCloseSign = closeSign;
+      window.__qpClearSign = clearSign;
+      window.__qpSubmitSign = submitSign;
+
+      if (nameInput) {
+        var debounceTimer = null;
+        nameInput.addEventListener('input', function () {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(function () {
+            if (!pad) return;
+            var n = String(nameInput.value || '').trim();
+            if (n.length >= 2) pad.renderFromName(n);
+            else pad.clear();
+          }, 250);
+        });
+      }
+
+      function recalc() {
         if (readOnly) return;
-        const selectedOptionGroupId = document.querySelector('input[name="selectedOptionGroupId"]:checked')?.value || null;
-        const selectedOptionalIds = [...document.querySelectorAll('.opt-check:checked')].map((el) => el.value);
+        var selectedEl = document.querySelector('input[name="selectedOptionGroupId"]:checked');
+        var selectedOptionGroupId = selectedEl ? selectedEl.value : null;
+        var selectedOptionalIds = [];
+        var checks = document.querySelectorAll('.opt-check:checked');
+        for (var i = 0; i < checks.length; i++) selectedOptionalIds.push(checks[i].value);
         try {
-          const res = await fetch('/public/quotes/' + encodeURIComponent(token) + '/recalculate', {
+          fetch('/public/quotes/' + encodeURIComponent(token) + '/recalculate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ selectedOptionGroupId, selectedOptionalIds }),
-          });
-          const json = await res.json();
-          if (json.success && json.data) {
-            const t = money(json.data.total);
-            const totalEl = document.getElementById('totalDisplay');
-            const summaryEl = document.getElementById('summaryTotal');
-            const subEl = document.getElementById('subtotalDisplay');
-            const taxEl = document.getElementById('taxDisplay');
-            if (totalEl) totalEl.textContent = t;
-            if (summaryEl) summaryEl.textContent = t;
-            if (subEl && json.data.subtotal != null) subEl.textContent = money(json.data.subtotal);
-            if (taxEl && json.data.taxTotal != null) taxEl.textContent = money(json.data.taxTotal);
-          }
+            body: JSON.stringify({ selectedOptionGroupId: selectedOptionGroupId, selectedOptionalIds: selectedOptionalIds }),
+          }).then(function (res) { return res.json(); }).then(function (json) {
+            if (json.success && json.data) {
+              var t = money(json.data.total);
+              var totalEl = document.getElementById('totalDisplay');
+              var summaryEl = document.getElementById('summaryTotal');
+              var subEl = document.getElementById('subtotalDisplay');
+              var taxEl = document.getElementById('taxDisplay');
+              if (totalEl) totalEl.textContent = t;
+              if (summaryEl) summaryEl.textContent = t;
+              if (subEl && json.data.subtotal != null) subEl.textContent = money(json.data.subtotal);
+              if (taxEl && json.data.taxTotal != null) taxEl.textContent = money(json.data.taxTotal);
+            }
+          }).catch(function () {});
         } catch (_) {}
-        document.querySelectorAll('#quotePublicForm [data-id]').forEach((el) => {
-          const group = el.dataset.group;
-          const optional = el.dataset.optional === '1';
-          let show = true;
+        var rows = document.querySelectorAll('#quotePublicForm [data-id]');
+        for (var r = 0; r < rows.length; r++) {
+          var el = rows[r];
+          var group = el.getAttribute('data-group');
+          var optional = el.getAttribute('data-optional') === '1';
+          var show = true;
           if (group && selectedOptionGroupId && group !== selectedOptionGroupId) show = false;
           el.style.display = show ? '' : 'none';
           if (optional) {
-            const cb = el.querySelector('.opt-check');
-            el.classList.toggle('is-dim', !!(cb && !cb.checked));
+            var cb = el.querySelector('.opt-check');
+            if (cb && !cb.checked) el.classList.add('is-dim');
+            else el.classList.remove('is-dim');
           }
-        });
+        }
       }
-      document.querySelectorAll('input[name="selectedOptionGroupId"], .opt-check').forEach((el) => {
-        el.addEventListener('change', recalc);
-      });
+      var optInputs = document.querySelectorAll('input[name="selectedOptionGroupId"], .opt-check');
+      for (var o = 0; o < optInputs.length; o++) {
+        optInputs[o].addEventListener('change', recalc);
+      }
       if (!readOnly) recalc();
 
       if (navigator.geolocation && !readOnly) {
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = document.getElementById('approvedLat');
-            const lng = document.getElementById('approvedLng');
-            const acc = document.getElementById('approvedGpsAccuracyM');
+          function (pos) {
+            var lat = document.getElementById('approvedLat');
+            var lng = document.getElementById('approvedLng');
+            var acc = document.getElementById('approvedGpsAccuracyM');
             if (lat) lat.value = String(pos.coords.latitude);
             if (lng) lng.value = String(pos.coords.longitude);
             if (acc) acc.value = String(pos.coords.accuracy || '');
           },
-          () => {},
+          function () {},
           { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
         );
       }
