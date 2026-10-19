@@ -795,14 +795,35 @@
     document.body.appendChild(container);
   }
 
+  function ensureMobileHeaderLogout() {
+    const header = document.getElementById("mobileAppHeader");
+    if (!header) return;
+    if (header.querySelector("#mobileHeaderLogout, [data-crm-logout]")) {
+      bindLogoutControls(header);
+      return;
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "mobileHeaderLogout";
+    btn.className = "mobile-app-header__logout";
+    btn.setAttribute("data-crm-logout", "");
+    btn.setAttribute("aria-label", "Sair");
+    btn.title = "Sair";
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>' +
+      '<span data-i18n="menu.logout">Sair</span>';
+    header.appendChild(btn);
+    bindLogoutControls(header);
+  }
+
   function ensureMobileHeader() {
-    if (document.getElementById("mobileAppHeader")) return;
-    const h = document.createElement("header");
-    h.className = "mobile-app-header";
-    h.id = "mobileAppHeader";
-    const title =
-      document.title.split("|")[0].split("—")[0].split("-")[0].trim() || "ObraMate";
-    h.innerHTML = `
+    if (!document.getElementById("mobileAppHeader")) {
+      const h = document.createElement("header");
+      h.className = "mobile-app-header";
+      h.id = "mobileAppHeader";
+      const title =
+        document.title.split("|")[0].split("—")[0].split("-")[0].trim() || "ObraMate";
+      h.innerHTML = `
       <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
         <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
       </button>
@@ -810,9 +831,11 @@
         <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
         <h1 class="mobile-app-header__title">${title.replace(/</g, "")}</h1>
       </div>`;
-    const topbar = document.getElementById("crmTopbar");
-    if (topbar) topbar.after(h);
-    else document.body.insertBefore(h, document.body.firstChild);
+      const topbar = document.getElementById("crmTopbar");
+      if (topbar) topbar.after(h);
+      else document.body.insertBefore(h, document.body.firstChild);
+    }
+    ensureMobileHeaderLogout();
   }
 
   function initCollapse() {

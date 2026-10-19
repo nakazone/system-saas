@@ -417,6 +417,25 @@ body.mais-app.om-app .dashboard-main.mais-main {
   flex-shrink: 0;
 }
 
+.mais .om-mod-card--danger {
+  border-color: rgba(185, 28, 28, 0.28);
+  background: rgba(185, 28, 28, 0.05);
+  color: #991b1b;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.mais .om-mod-card--danger .om-mod-card__title {
+  color: #991b1b;
+}
+
+.mais .om-mod-card--danger .om-mod-card__icon {
+  color: #b91c1c;
+  background: rgba(185, 28, 28, 0.1);
+}
+
 .mais-section-label {
   margin: 0 0 0.65rem;
   font-size: 0.72rem;

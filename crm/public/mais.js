@@ -102,7 +102,13 @@
     }
 
     $("maisLogout")?.addEventListener("click", () => logout());
+    $("maisLogoutCard")?.addEventListener("click", () => logout());
     $("logoutBtn")?.addEventListener("click", () => logout());
+    document.querySelectorAll("[data-crm-logout]").forEach((el) => {
+      if (el.dataset.maisLogoutBound === "1") return;
+      el.dataset.maisLogoutBound = "1";
+      el.addEventListener("click", () => logout());
+    });
     $("maisRefreshApp")?.addEventListener("click", (e) => {
       e.preventDefault();
       if (typeof window.__crmHardRefresh === "function") {

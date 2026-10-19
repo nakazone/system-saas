@@ -869,19 +869,23 @@ body.om-app .om-dock__btn svg { width: 16px; height: 16px; }
   }
 
   /* Mobile drawer: always show a clear Log out action */
-  body.om-app #dashboardSidebar .sidebar-logout-link {
+  body.om-app #dashboardSidebar .sidebar-logout-link,
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-logout-link {
     display: flex !important;
     width: 100% !important;
     border: none !important;
-    background: transparent !important;
+    background: rgba(185, 28, 28, 0.06) !important;
     color: #b91c1c !important;
     cursor: pointer;
-    padding: 0 0.5rem 0 var(--om-icon-inset, 1rem) !important;
+    padding: 0.65rem 0.75rem !important;
     font: inherit;
-    margin-top: 0.25rem;
+    margin-top: 0.35rem;
+    border-radius: 10px;
+    box-sizing: border-box;
   }
 
-  body.om-app #dashboardSidebar .sidebar-logout-link svg {
+  body.om-app #dashboardSidebar .sidebar-logout-link svg,
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-logout-link svg {
     width: 20px;
     height: 20px;
     stroke: currentColor;
@@ -889,9 +893,24 @@ body.om-app .om-dock__btn svg { width: 16px; height: 16px; }
     stroke-width: 1.75;
   }
 
-  body.om-app #dashboardSidebar .sidebar-logout-link .nav-item__label {
+  body.om-app #dashboardSidebar .sidebar-logout-link .nav-item__label,
+  body.om-app.sidebar-collapsed #dashboardSidebar .sidebar-logout-link .nav-item__label {
     display: inline !important;
-    font-weight: 650;
+    font-weight: 700;
+  }
+
+  body.om-app #dashboardSidebar .sidebar-footer {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  body.om-app .mobile-app-header__logout {
+    display: inline-flex !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  body.om-app .mobile-app-header__logout {
+    display: none !important;
   }
 }
 
