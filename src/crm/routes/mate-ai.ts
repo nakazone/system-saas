@@ -5,7 +5,7 @@ import { z } from "zod";
 import { env } from "../../config/env.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { aiTranscribeAudio, isAiConfigured } from "../../lib/ai/client.js";
-import { parseDataUrl } from "../../lib/chat/attachments.js";
+import { hasFeature } from "../../lib/features/index.js";
 import { computeNewInvoiceAmount, invoiceKindLabel } from "../../lib/invoices/core.js";
 import { createJobInvoice, jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
@@ -751,6 +751,40 @@ mateAiRouter.post(
 );
 
 /**
+ * Audio data URLs from MediaRecorder carry codec parameters
+ * ("data:audio/webm;codecs=opus;base64,…"), which the generic attachment parser rejects.
+ */
+export function parseAudioDataUrl(dataUrl: string): { contentType: string; body: Buffer } | null {
+  const m = /^data:([a-z0-9.+-]+\/[a-z0-9.+-]+)((?:;[^;,]*)*?);base64,([A-Za-z0-9+/=_-]+)$/i.exec(String(dataUrl || "").trim());
+  if (!m || !/^audio\//i.test(m[1]!)) return null;
+  try {
+    const body = Buffer.from(m[3]!, "base64");
+    return body.length ? { contentType: m[1]!.toLowerCase(), body } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function serverVoiceStatus(organizationId: string): Promise<{ ok: boolean; reason?: string }> {
+  if (!isAiConfigured()) return { ok: false, reason: "not_configured" };
+  try {
+    if (!(await hasFeature(organizationId, "ai"))) return { ok: false, reason: "plan" };
+  } catch {
+    // Feature lookup problems should not hide the voice button.
+  }
+  return { ok: true };
+}
+
+mateAiRouter.get("/api/mate-ai/status", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const voice = await serverVoiceStatus(req.organizationId!);
+    res.json({ success: true, ai: isAiConfigured(), server_voice: voice.ok, reason: voice.reason || null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * Server-side transcription. Biased with the company's service and customer names so
  * "Hardwood", "Sand & Finish" and customer names come out spelled like in the CRM.
  */
@@ -759,13 +793,14 @@ mateAiRouter.post(
   requireCrmAuth,
   async (req: AuthedRequest, res, next) => {
     try {
-      if (!isAiConfigured()) {
-        res.status(503).json({ success: false, error: "Transcrição no servidor indisponível.", fallback: "browser" });
+      const voice = await serverVoiceStatus(req.organizationId!);
+      if (!voice.ok) {
+        res.status(503).json({ success: false, error: "Transcrição no servidor indisponível.", fallback: "browser", reason: voice.reason });
         return;
       }
       const raw = (req.body || {}) as Record<string, unknown>;
-      const parsed = parseDataUrl(String(raw.data_url || ""));
-      if (!parsed || !/^audio\//.test(parsed.contentType)) {
+      const parsed = parseAudioDataUrl(String(raw.data_url || ""));
+      if (!parsed) {
         res.status(400).json({ success: false, error: "Envie o áudio gravado." });
         return;
       }
