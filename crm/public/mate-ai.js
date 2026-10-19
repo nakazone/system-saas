@@ -635,6 +635,10 @@
     recorder.ondataavailable = function (event) {
       if (event.data && event.data.size) chunks.push(event.data);
     };
+    recorder.onerror = function () {
+      voiceStatus.textContent = "A gravação falhou. Tente de novo ou digite o comando.";
+      setListening(false);
+    };
     recorder.onstop = function () {
       stream.getTracks().forEach(function (track) {
         track.stop();
@@ -670,7 +674,8 @@
       } catch (error) {
         if (error.data && error.data.fallback === "browser" && SpeechRecognition) {
           serverVoice = false;
-          voiceStatus.textContent = "Transcrição do servidor indisponível. Toque em gravar de novo para usar o reconhecimento do navegador.";
+          voiceStatus.textContent = "Transcrição do servidor indisponível — usando o reconhecimento do navegador. Fale de novo.";
+          startBrowserRecognition();
         } else {
           voiceStatus.textContent = error.message || "Não foi possível transcrever. Tente de novo ou digite o comando.";
         }
@@ -722,6 +727,23 @@
     micButton.disabled = true;
     voiceStatus.textContent = "Gravação de voz não disponível neste navegador. Você ainda pode digitar o comando.";
   }
+
+  // Ask the server once whether it can transcribe; if not, go straight to the browser's recognition.
+  fetch("/api/mate-ai/status", { credentials: "same-origin" })
+    .then(function (response) {
+      return response.ok ? response.json() : null;
+    })
+    .then(function (data) {
+      if (data && data.server_voice === false) {
+        serverVoice = false;
+        if (!SpeechRecognition) {
+          micButton.disabled = true;
+          voiceStatus.textContent =
+            "A transcrição de voz não está ativa para esta empresa e este navegador não reconhece fala. Digite o comando.";
+        }
+      }
+    })
+    .catch(function () {});
 
   micButton.addEventListener("click", function () {
     if (listening) {

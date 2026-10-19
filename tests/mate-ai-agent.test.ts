@@ -31,6 +31,7 @@ describe.skipIf(!privileged)("Mate AI agent (tenant database required)", () => {
   let jobId = "";
   let jobNumber = 0;
   const seenPrompts: string[] = [];
+  const transcriptionRequests: string[] = [];
   const saved = { key: process.env.OPENAI_API_KEY, url: process.env.OPENAI_BASE_URL };
 
   /** Plays the model: reads the catalog refs from the system prompt like the real model would. */
@@ -129,6 +130,12 @@ describe.skipIf(!privileged)("Mate AI agent (tenant database required)", () => {
       let raw = "";
       req.on("data", (chunk) => (raw += chunk));
       req.on("end", () => {
+        if (String(req.url).endsWith("/audio/transcriptions")) {
+          transcriptionRequests.push(raw);
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ text: "criar um quote pro jon smith, instalação de 1350 pés de madeira" }));
+          return;
+        }
         const body = JSON.parse(raw || "{}");
         const system = String(body.messages?.[0]?.content || "");
         const user = String(body.messages?.[1]?.content || "");
@@ -231,6 +238,26 @@ describe.skipIf(!privileged)("Mate AI agent (tenant database required)", () => {
     );
     const stale = await post("/api/mate-ai/invoices", { preview_token: balance.json.preview_token, confirmed_review: true });
     expect(stale.status).toBe(409);
+  });
+
+  it("transcribes Chrome recordings (audio/webm;codecs=opus) with the company's vocabulary", async () => {
+    const status = await fetch(base + "/api/mate-ai/status", { headers: { Cookie: cookie } }).then((r) => r.json());
+    expect(status).toMatchObject({ success: true, server_voice: true });
+
+    const audio = Buffer.alloc(4000, 7).toString("base64");
+    const response = await post("/api/mate-ai/transcribe", { data_url: "data:audio/webm;codecs=opus;base64," + audio });
+    expect(response.status).toBe(200);
+    expect(response.json.text).toContain("1350");
+    const sent = transcriptionRequests.at(-1) || "";
+    expect(sent).toContain('filename="voice.webm"');
+    expect(sent).toContain("Agent Hardwood Installation");
+
+    const safari = await post("/api/mate-ai/transcribe", { data_url: "data:audio/mp4;base64," + audio });
+    expect(safari.status).toBe(200);
+    expect(transcriptionRequests.at(-1)).toContain('filename="voice.m4a"');
+
+    const notAudio = await post("/api/mate-ai/transcribe", { data_url: "data:text/plain;base64,aGVsbG8=" });
+    expect(notAudio.status).toBe(400);
   });
 
   it("explains what it can do when the request is not supported", async () => {
