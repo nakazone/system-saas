@@ -179,6 +179,22 @@
     return out.slice(-8);
   }
 
+  /** The newest card / question / error not yet confirmed or canceled: follow-ups refer to it. */
+  function pendingForRequest() {
+    for (var i = state.thread.length - 1; i >= 0; i--) {
+      var m = state.thread[i];
+      if (m.role === 'user' || m.kind === 'thinking') continue;
+      if (m.kind === 'done' || m.kind === 'reply' || m.canceled) return null;
+      if (!m.action || !m.args) return null;
+      if (m.kind === 'card' || m.kind === 'clarify' || m.kind === 'error' || m.kind === 'answer') {
+        var summary = m.kind === 'clarify' ? (m.clarify && m.clarify.question) || '' : m.kind === 'error' ? m.message || '' : (m.card && m.card.title) || '';
+        return { action: m.action, args: m.args, status: m.kind, summary: String(summary).slice(0, 580) };
+      }
+      return null;
+    }
+    return null;
+  }
+
   function screenForRequest() {
     return state.useScreen && state.screen ? state.screen : null;
   }
@@ -623,6 +639,7 @@
     var t = String(text || '').trim();
     if (!t || state.busy) return;
     if (!state.open && !inlineHost) open({ focus: false });
+    var pending = pendingForRequest();
     staleOpenCards();
     push({ role: 'user', text: t });
     var thinking = push({ role: 'mate', kind: 'thinking' });
@@ -630,9 +647,12 @@
     autoGrow();
     setBusy(true);
     try {
-      var r = await api('POST', API.act, { text: t, screen: screenForRequest(), memory: memory().slice(0, -1) });
+      var r = await api('POST', API.act, { text: t, screen: screenForRequest(), memory: memory().slice(0, -1), pending: pending });
       var m = fromResponse(r);
       replace(thinking.id, m);
+      if (r.ai_error) {
+        push({ role: 'mate', kind: 'error', message: 'A IA não respondeu (' + String(r.ai_error).slice(0, 220) + '). Usei a leitura básica. Só administradores veem este aviso.' });
+      }
       if (r.message && m.kind !== 'reply' && m.kind !== 'error') hint(r.message);
     } catch (err) {
       replace(thinking.id, { role: 'mate', kind: 'error', message: err.message || 'Não consegui agora. Tente de novo.' });

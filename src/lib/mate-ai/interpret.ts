@@ -19,8 +19,13 @@ const quoteItemSchema = z.object({
   service_text: z.string().trim().max(200).default(""),
   catalog_item_id: z.string().uuid().nullable().optional(),
   catalog_source: z.enum(["quote-catalog", "pricing"]).nullable().optional(),
-  quantity: z.number().positive().max(1_000_000),
+  quantity: z.coerce.number().positive().max(1_000_000),
   unit: z.enum(MATE_AI_UNITS).nullable().optional(),
+  /** Price per unit said by the user for this line (overrides the table; used when the table has none). */
+  unit_price: z.preprocess(
+    (v) => (v === "" || v == null ? null : typeof v === "string" ? Number(v.replace(/[$,\s]/g, "").replace(/,(\d{1,2})$/, ".$1")) : v),
+    z.number().positive().max(1_000_000).nullable(),
+  ).optional(),
   /** Ranked catalog guesses to offer first when the service is not certain. */
   candidates: z
     .array(z.object({ id: z.string().uuid(), source: z.enum(["quote-catalog", "pricing"]) }))

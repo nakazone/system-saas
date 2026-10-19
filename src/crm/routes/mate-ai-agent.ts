@@ -13,7 +13,11 @@ import { recordActivity, type ActivityEntityType } from "../../lib/activity/reco
 import { isAiConfigured } from "../../lib/ai/client.js";
 import { normalizeMateAiUnit } from "../../lib/mate-ai/command.js";
 import { mateAiPlanSchema, todayInTimezone } from "../../lib/mate-ai/interpret.js";
-import { applyPatch, canUse, getAction, listActions, memorySchema, pickAction, registerAction, type ScreenSummary } from "../../lib/mate-ai/agent.js";
+import { applyPatch, canUse, getAction, listActions, memorySchema, pendingSchema, pickAction, registerAction, type ScreenSummary } from "../../lib/mate-ai/agent.js";
+import { runLookup } from "../../lib/mate-ai/lookups.js";
+import { setPrice } from "../../lib/mate-ai/actions/pricing.js";
+import { aiChatTurn, aiProviderHost, getLastAiError } from "../../lib/ai/client.js";
+import { mateAiChatModel } from "../../lib/mate-ai/interpret.js";
 import { callInternalApi, internalError } from "../../lib/mate-ai/internal-api.js";
 import { signActionToken, verifyActionToken } from "../../lib/mate-ai/token.js";
 import { editQuote, sendQuote } from "../../lib/mate-ai/actions/quotes.js";
@@ -82,8 +86,21 @@ const quoteCreate: ActionDef = {
       };
     }
     if (r.status === "needs_clarification") {
-      const issue = r.issues.find((i) => i.options?.length) || r.issues[0];
+      const issue = r.issues.find((i) => i.options?.length) || r.issues.find((i) => i.code === "price_missing") || r.issues[0];
       if (!issue) return { kind: "error", message: "Não consegui montar o Quote.", args: plan };
+      if (issue.code === "price_missing" && issue.line >= 1) {
+        // Ask the price in the conversation; the answer becomes this line's unit price.
+        return {
+          kind: "clarify",
+          args: plan,
+          message: issue.message,
+          clarify: {
+            question: issue.message,
+            options: [],
+            search: { placeholder: "Preço em $ (ex.: 1.00)", path: `items.${issue.line - 1}.unit_price` },
+          },
+        };
+      }
       if (!issue.options?.length || issue.line < 1) return { kind: "error", message: issue.message, args: plan };
       const i = issue.line - 1;
       return {
@@ -126,10 +143,35 @@ const quoteCreate: ActionDef = {
               { label: "Total", value: money(r.totals.total), strong: true },
             ],
           },
+          ...(r.lines.some((l) => l.priceOverride)
+            ? [{
+                type: "note" as const,
+                tone: "warning" as const,
+                text:
+                  "Preço informado por você (não está na Tabela de Valores): " +
+                  r.lines.filter((l) => l.priceOverride).map((l) => `${l.name} ${money(l.unitPrice)}/${unitLabel(normalizeMateAiUnit(l.unit) || l.unit)}`).join(", ") + ".",
+              }]
+            : []),
           { type: "note", text: "Cria um rascunho. Nada é enviado ao cliente." },
         ],
         assumptions,
-        confirm: { label: "Criar Quote em rascunho", tone: "normal", exec: { endpoint: "/api/mate-ai/execute", body: { token: ctx.sign({ preview_token: r.previewToken, customer: r.customer.name }) } } },
+        confirm: {
+          label: "Criar Quote em rascunho",
+          tone: "normal",
+          exec: {
+            endpoint: "/api/mate-ai/execute",
+            body: {
+              token: ctx.sign({
+                preview_token: r.previewToken,
+                customer: r.customer.name,
+                customer_id: r.customer.id,
+                overrides: r.lines
+                  .filter((l) => l.priceOverride)
+                  .map((l) => ({ catalog_item_id: l.catalogItemId, catalog_source: l.catalogSource, pricing_item_id: l.pricingItemId, name: l.name, unit_price: l.unitPrice })),
+              }),
+            },
+          },
+        },
       },
     };
   },
@@ -147,7 +189,14 @@ const quoteCreate: ActionDef = {
       title: "Quote " + d.quote_number + " criado",
       detail: d.customer_name + " · " + d.item_count + " serviço(s) · " + money(d.total),
       links: [{ label: "Abrir no editor", href: "quote-builder.html?id=" + encodeURIComponent(d.id) }],
-      next: { label: "Enviar ao cliente", action: "quote.send", args: { quote_id: d.id } },
+      next:
+        Array.isArray(exec.overrides) && exec.overrides.length
+          ? {
+              label: "Salvar preço na Tabela",
+              action: "pricing.set",
+              args: { items: exec.overrides, customer_id: exec.customer_id },
+            }
+          : { label: "Enviar ao cliente", action: "quote.send", args: { quote_id: d.id } },
       entity: { type: "quote", id: d.id },
       memory: `Created draft quote ${d.quote_number} for ${d.customer_name} (${money(d.total)})`,
     };
@@ -268,6 +317,7 @@ const invoiceJob: ActionDef = {
 };
 
 for (const def of [
+  setPrice,
   quoteCreate,
   editQuote,
   sendQuote,
@@ -349,6 +399,7 @@ const actSchema = z
     patch: z.record(z.string(), z.unknown()).optional(),
     screen: screenSchema,
     memory: memorySchema.optional(),
+    pending: pendingSchema,
   })
   .refine((b) => Boolean(b.text || b.action), { message: "text or action required" });
 
@@ -370,6 +421,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
     let args: Record<string, unknown> = body.data.args || {};
     let interpretedBy: "ai" | "rules" | "user" = "user";
     let note: string | undefined;
+    let aiError: string | undefined;
 
     const prepared = await withTenantTransaction(organizationId, async (tx) => {
       const summary = await screenSummary(tx, screen);
@@ -388,6 +440,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
     });
 
     if (body.data.text) {
+      const pending = body.data.pending && allowed.some((a) => a.name === body.data.pending!.action) && JSON.stringify(body.data.pending.args).length < 12_000 ? body.data.pending : null;
       const pick = await pickAction(body.data.text, {
         actions: allowed,
         catalog: prepared.catalog,
@@ -395,11 +448,15 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
         timezone,
         screen: prepared.summary,
         memory: body.data.memory || [],
+        pending,
         userName: user.name || undefined,
+        lookup: (name, a) =>
+          withTenantTransaction(organizationId, (tx) => runLookup({ tx, timezone, catalog: prepared.catalog }, name, a)),
       });
       interpretedBy = pick.source;
+      aiError = pick.aiError && user.roleKey === "admin" ? pick.aiError : undefined;
       if (pick.kind === "reply") {
-        res.json({ success: true, type: "reply", message: pick.reply, interpreted_by: interpretedBy, screen: prepared.summary });
+        res.json({ success: true, type: "reply", message: pick.reply, interpreted_by: interpretedBy, screen: prepared.summary, ...(aiError ? { ai_error: aiError } : {}) });
         return;
       }
       action = pick.action;
@@ -443,6 +500,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
       message: result.kind === "error" ? result.message : result.message || note,
       interpreted_by: interpretedBy,
       screen: prepared.summary,
+      ...(aiError ? { ai_error: aiError } : {}),
     });
   } catch (error) {
     next(error);
@@ -670,6 +728,37 @@ mateAiAgentRouter.get("/api/mate-ai/context", requireCrmAuth, async (req: Authed
       lead: ["Agendar visita", "Marcar como perdido", "Criar Quote"],
     };
     res.json({ success: true, screen: summary, suggestions: summary ? chips[summary.type] || [] : [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ───────────────────────── /diagnostics (admins) ───────────────────────── */
+
+mateAiAgentRouter.get("/api/mate-ai/diagnostics", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (req.user?.roleKey !== "admin") {
+      res.status(403).json({ success: false, error: "Somente administradores." });
+      return;
+    }
+    const model = mateAiChatModel();
+    const out: Record<string, unknown> = { configured: isAiConfigured(), provider: aiProviderHost(), model, last_error: getLastAiError() };
+    if (isAiConfigured() && String(req.query.probe || "") === "1") {
+      const t0 = Date.now();
+      const plain = await aiChatTurn({ model, json: true, countUse: false, timeoutMs: 20_000, messages: [{ role: "system", content: 'Return JSON {"ok": true}.' }, { role: "user", content: "ping" }] });
+      out.json_mode = plain.ok ? { ok: true, model: plain.model, ms: Date.now() - t0 } : { ok: false, status: plain.status ?? null, error: plain.error };
+      const t1 = Date.now();
+      const tools = await aiChatTurn({
+        model,
+        countUse: false,
+        timeoutMs: 20_000,
+        toolChoice: "required",
+        tools: [{ type: "function", function: { name: "reply", description: "Reply", parameters: { type: "object", properties: { message: { type: "string" } }, required: ["message"] } } }],
+        messages: [{ role: "user", content: "Say hi with the reply tool." }],
+      });
+      out.tools_mode = tools.ok ? { ok: tools.toolCalls.length > 0, model: tools.model, ms: Date.now() - t1 } : { ok: false, status: tools.status ?? null, error: tools.error };
+    }
+    res.json({ success: true, ...out });
   } catch (error) {
     next(error);
   }
