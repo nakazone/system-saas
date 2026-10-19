@@ -154,7 +154,7 @@ describe.skipIf(!privileged)("Mate AI phase 1 actions (tenant database required)
     expect(prep.json.type).toBe("card");
     expect(prep.json.interpreted_by).toBe("ai");
     expect(prep.json.card.title).toBe("Criar Quote para John Smith");
-    expect(prep.json.card.sections[0].rows[0]).toEqual(["Hardwood Installation", "1,350 sq_ft", "$5.00", "$6,750.00"]);
+    expect(prep.json.card.sections[0].rows[0]).toEqual(["Hardwood Installation", "1,350 sq ft", "$5.00", "$6,750.00"]);
     expect(seen.at(-1)).toContain("- invoice.quote:");
 
     // Edit the quantity on the card: re-prepared from args, no new AI call.

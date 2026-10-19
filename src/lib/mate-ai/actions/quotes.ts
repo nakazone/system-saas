@@ -4,7 +4,7 @@ import { callInternalApi, internalError } from "../internal-api.js";
 import { builderUnit, loadMateAiCatalog, pickService } from "./catalog.js";
 import { quoteLabel, quoteStatusPt, resolveQuote } from "./resolve.js";
 import type { ActionDef, Clarify } from "./types.js";
-import { money, num, str } from "./types.js";
+import { money, num, str, unitLabel } from "./types.js";
 
 function builderLink(id: string) {
   return { label: "Abrir no editor", href: "quote-builder.html?id=" + encodeURIComponent(id) };
@@ -88,7 +88,7 @@ export const editQuote: ActionDef = {
         service_catalog_id: item.source === "quote-catalog" ? item.id : null,
         pricing_item_id: item.pricingItemId,
       });
-      rows.push([item.name, qty.toLocaleString("en-US") + " " + (normalizeMateAiUnit(item.unit) || item.unit), money(rate), money(amount)]);
+      rows.push([item.name, (qty.toLocaleString("en-US") + " " + unitLabel(normalizeMateAiUnit(item.unit) || item.unit)).trim(), money(rate), money(amount)]);
     }
 
     // Same math as the Quote Builder: discount on the subtotal, tax kept as entered.

@@ -165,3 +165,11 @@ export function uuidOrNull(v: unknown): string | null {
   const s = String(v ?? "").trim();
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? s : null;
 }
+
+const UNIT_LABELS: Record<string, string> = { sq_ft: "sq ft", linear_ft: "lin ft", each: "un", step: "degraus", box: "cx", hour: "h", fixed: "" };
+
+/** "sq_ft" → "sq ft" for cards. */
+export function unitLabel(unit: string | null | undefined): string {
+  const u = String(unit || "");
+  return u in UNIT_LABELS ? UNIT_LABELS[u]! : u.replace(/_/g, " ");
+}

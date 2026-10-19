@@ -34,7 +34,7 @@ import {
 } from "../../lib/mate-ai/actions/insights.js";
 import { jobCustomerName, jobLabel, quoteLabel } from "../../lib/mate-ai/actions/resolve.js";
 import type { ActionContext, ActionDef, Card, ExecuteContext, PrepareResult, ScreenContext } from "../../lib/mate-ai/actions/types.js";
-import { money } from "../../lib/mate-ai/actions/types.js";
+import { money, unitLabel } from "../../lib/mate-ai/actions/types.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth } from "../http.js";
@@ -114,7 +114,7 @@ const quoteCreate: ActionDef = {
             type: "table",
             columns: ["Serviço", "Qtd", "Preço", "Total"],
             align: ["left", "right", "right", "right"],
-            rows: r.lines.map((l) => [l.name, l.quantity.toLocaleString("en-US") + " " + (normalizeMateAiUnit(l.unit) || l.unit), money(l.unitPrice), money(l.amount)]),
+            rows: r.lines.map((l) => [l.name, (l.quantity.toLocaleString("en-US") + " " + unitLabel(normalizeMateAiUnit(l.unit) || l.unit)).trim(), money(l.unitPrice), money(l.amount)]),
             editColumn: 1,
             edits: r.lines.map((l, idx) => ({ path: `items.${idx}.quantity`, input: "number" as const, value: l.quantity })),
           },
