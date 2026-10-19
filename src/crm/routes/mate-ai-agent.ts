@@ -1,0 +1,676 @@
+/**
+ * Mate AI agent endpoints (panel on every screen):
+ *   POST /api/mate-ai/act       text → pick an action → prepare a card / question / answer
+ *                               (or action + args + patch → re-prepare without the AI)
+ *   POST /api/mate-ai/execute   run a confirmed card (signed token, once)
+ *   POST /api/mate-ai/undo      revert within 30 s (reversible actions only)
+ *   GET  /api/mate-ai/suggestions  proactive cards for the Início / panel
+ *   GET  /api/mate-ai/context   label for the record on screen
+ */
+import { Router, type Request } from "express";
+import { z } from "zod";
+import { recordActivity, type ActivityEntityType } from "../../lib/activity/record.js";
+import { isAiConfigured } from "../../lib/ai/client.js";
+import { normalizeMateAiUnit } from "../../lib/mate-ai/command.js";
+import { mateAiPlanSchema, todayInTimezone } from "../../lib/mate-ai/interpret.js";
+import { applyPatch, canUse, getAction, listActions, memorySchema, pickAction, registerAction, type ScreenSummary } from "../../lib/mate-ai/agent.js";
+import { callInternalApi, internalError } from "../../lib/mate-ai/internal-api.js";
+import { signActionToken, verifyActionToken } from "../../lib/mate-ai/token.js";
+import { editQuote, sendQuote } from "../../lib/mate-ai/actions/quotes.js";
+import { addJobNote, createJob, scheduleJob, setJobStatus } from "../../lib/mate-ai/actions/jobs.js";
+import { invoiceFromQuote, recordPayment, sendInvoice } from "../../lib/mate-ai/actions/money.js";
+import { createCustomer, createLead, moveLead } from "../../lib/mate-ai/actions/crm.js";
+import {
+  agendaList,
+  approvedWithoutJob,
+  customerBalance,
+  invoicesOverdue,
+  jobsToInvoice,
+  moneySummary,
+  overdueInvoices,
+  quotesFollowUp,
+  staleQuotes,
+  uninvoicedJobs,
+} from "../../lib/mate-ai/actions/insights.js";
+import { jobCustomerName, jobLabel, quoteLabel } from "../../lib/mate-ai/actions/resolve.js";
+import type { ActionContext, ActionDef, Card, ExecuteContext, PrepareResult, ScreenContext } from "../../lib/mate-ai/actions/types.js";
+import { money } from "../../lib/mate-ai/actions/types.js";
+import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import type { AuthedRequest } from "../../middleware/auth.js";
+import { requireCrmAuth } from "../http.js";
+import { loadCatalog, previewInvoice, previewQuote } from "./mate-ai.js";
+
+export const mateAiAgentRouter = Router();
+
+const EXEC_TTL_MS = 10 * 60 * 1000;
+const UNDO_TTL_MS = 30 * 1000;
+
+/* ───────────────────────── the two original actions, as registry actions ───────────────────────── */
+
+const quoteCreate: ActionDef = {
+  name: "quote.create",
+  description: "Create a new draft quote for a customer with service lines priced from the company's table.",
+  args: {
+    customer: "customer name as said",
+    items: "[{service_ref, service_text, quantity, unit}] — see the catalog below",
+  },
+  examples: ["Criar um quote para o John Smith, instalação de 1350 pés de madeira", "Quote for Maria with 800 sqft vinyl and 180 linear feet of baseboard"],
+  permissions: ["quotes.create", "customers.view", "pricing.view"],
+  async prepare(ctx, args) {
+    const items = Array.isArray(args.items) ? args.items : [];
+    if (!items.length) {
+      return {
+        kind: "error",
+        message: "Quais serviços e quantidades? Ex.: “1350 pés de instalação de madeira e 400 pés de remoção de carpete”.",
+        args,
+      };
+    }
+    const parsed = mateAiPlanSchema.safeParse({ action: "quote", ...args, items });
+    if (!parsed.success || parsed.data.action !== "quote") return { kind: "error", message: "Não entendi os serviços do Quote.", args };
+    const catalog = await loadCatalog(ctx.tx, ctx.organizationId);
+    const r = await previewQuote(ctx.req, ctx.tx, parsed.data, catalog);
+    const plan = (r.plan || parsed.data) as unknown as Record<string, unknown>;
+    if (r.status === "customer_missing" || r.status === "customer_ambiguous" || r.status === "customer_not_found") {
+      return {
+        kind: "clarify",
+        args: plan,
+        clarify: {
+          question: r.message,
+          options: r.candidates.map((c) => ({ label: c.name, detail: c.company || undefined, patch: { customer_id: c.id } })),
+          search: { placeholder: "Buscar cliente", path: "customer_query", clear: ["customer_id"] },
+        },
+      };
+    }
+    if (r.status === "needs_clarification") {
+      const issue = r.issues.find((i) => i.options?.length) || r.issues[0];
+      if (!issue) return { kind: "error", message: "Não consegui montar o Quote.", args: plan };
+      if (!issue.options?.length || issue.line < 1) return { kind: "error", message: issue.message, args: plan };
+      const i = issue.line - 1;
+      return {
+        kind: "clarify",
+        args: plan,
+        clarify: {
+          question: issue.message,
+          options: issue.options.map((o) => ({
+            label: o.name,
+            detail: o.unit,
+            patch: { [`items.${i}.catalog_item_id`]: o.id, [`items.${i}.catalog_source`]: o.source, [`items.${i}.unit`]: null, [`items.${i}.candidates`]: null },
+          })),
+        },
+      };
+    }
+    if (r.status !== "ready") return { kind: "error", message: "Não foi possível preparar o Quote.", args: plan };
+    const assumptions = r.lines
+      .filter((l) => l.spoken && l.spoken.trim().toLowerCase() !== l.name.toLowerCase())
+      .map((l) => ({ said: l.spoken, chosen: l.name }));
+    return {
+      kind: "card",
+      args: plan,
+      card: {
+        title: "Criar Quote para " + r.customer.name,
+        subtitle: r.customer.company || undefined,
+        sections: [
+          {
+            type: "table",
+            columns: ["Serviço", "Qtd", "Preço", "Total"],
+            align: ["left", "right", "right", "right"],
+            rows: r.lines.map((l) => [l.name, l.quantity.toLocaleString("en-US") + " " + (normalizeMateAiUnit(l.unit) || l.unit), money(l.unitPrice), money(l.amount)]),
+            editColumn: 1,
+            edits: r.lines.map((l, idx) => ({ path: `items.${idx}.quantity`, input: "number" as const, value: l.quantity })),
+          },
+          {
+            type: "totals",
+            rows: [
+              { label: "Subtotal", value: money(r.totals.subtotal) },
+              { label: `Tax (${Number(r.taxRate).toFixed(2)}%)`, value: money(r.totals.taxTotal) },
+              { label: "Total", value: money(r.totals.total), strong: true },
+            ],
+          },
+          { type: "note", text: "Cria um rascunho. Nada é enviado ao cliente." },
+        ],
+        assumptions,
+        confirm: { label: "Criar Quote em rascunho", tone: "normal", exec: { endpoint: "/api/mate-ai/execute", body: { token: ctx.sign({ preview_token: r.previewToken, customer: r.customer.name }) } } },
+      },
+    };
+  },
+  async execute(ctx, exec) {
+    const res = await callInternalApi<{ data?: { id: string; quote_number: string; total: number; customer_name: string; item_count: number } }>(
+      ctx.req,
+      "POST",
+      "/api/mate-ai/quote-drafts",
+      { preview_token: exec.preview_token, confirmed_review: true },
+    );
+    if (!res.ok || !res.json.data?.id) return { ok: false, status: res.status, error: internalError(res, "Não foi possível criar o Quote.") };
+    const d = res.json.data;
+    return {
+      ok: true,
+      title: "Quote " + d.quote_number + " criado",
+      detail: d.customer_name + " · " + d.item_count + " serviço(s) · " + money(d.total),
+      links: [{ label: "Abrir no editor", href: "quote-builder.html?id=" + encodeURIComponent(d.id) }],
+      next: { label: "Enviar ao cliente", action: "quote.send", args: { quote_id: d.id } },
+      entity: { type: "quote", id: d.id },
+      memory: `Created draft quote ${d.quote_number} for ${d.customer_name} (${money(d.total)})`,
+    };
+  },
+};
+
+const invoiceJob: ActionDef = {
+  name: "invoice.job",
+  description: "Issue an invoice for an existing JOB (work order): full, remaining balance, deposit % or a custom amount, with a due date.",
+  args: {
+    job: "job number like '1042', title or address; empty when only the customer was named or on the job screen",
+    customer: "customer name if said",
+    invoice_type: "auto | full | final | deposit | progress | custom",
+    deposit_pct: "number for deposits",
+    amount: "dollar amount for custom/progress",
+    due_date: "YYYY-MM-DD if said",
+  },
+  examples: ["Emitir a invoice do job 1042 para sexta", "Fatura de depósito de 30% para o trabalho da Maria"],
+  permissions: ["invoices.view", "invoices.manage"],
+  async prepare(ctx, args) {
+    const raw: Record<string, unknown> = { action: "invoice", job_query: "", customer_query: "", invoice_type: "auto", ...args };
+    if (!raw.job_id && !String(raw.job_query || "") && !String(raw.customer_query || "") && ctx.screen?.type === "job") raw.job_id = ctx.screen.id;
+    const parsed = mateAiPlanSchema.safeParse(raw);
+    if (!parsed.success || parsed.data.action !== "invoice") return { kind: "error", message: "Qual job devo faturar? Diga o número do job.", args };
+    if (!parsed.data.job_id && !parsed.data.job_query && !parsed.data.customer_query) {
+      return { kind: "clarify", args: parsed.data as unknown as Record<string, unknown>, clarify: { question: "Qual job devo faturar?", options: [], search: { placeholder: "Número do job, cliente ou endereço", path: "job_query", clear: ["job_id"] } } };
+    }
+    const r = await previewInvoice(ctx.req, ctx.tx, parsed.data, ctx.today);
+    const plan = (r.plan || parsed.data) as unknown as Record<string, unknown>;
+    if (r.status === "job_ambiguous" || r.status === "job_not_found") {
+      return {
+        kind: "clarify",
+        args: plan,
+        clarify: {
+          question: r.message,
+          options: r.candidates.map((j) => ({
+            label: (j.number != null ? "#" + j.number + " · " : "") + j.title,
+            detail: [j.customer_name, j.billing.billing_status_label, j.billing.remaining_to_invoice > 0 ? "falta " + money(j.billing.remaining_to_invoice) : null].filter(Boolean).join(" · "),
+            patch: { job_id: j.id },
+          })),
+          search: { placeholder: "Número do job, cliente ou endereço", path: "job_query", clear: ["job_id"] },
+        },
+      };
+    }
+    if (r.status !== "ready") return { kind: "error", message: r.message, args: plan };
+    const p = r.plan as Record<string, unknown>;
+    const type = String(p.invoice_type);
+    return {
+      kind: "card",
+      args: plan,
+      card: {
+        title: "Emitir invoice do job " + (r.job.number != null ? "#" + r.job.number + " · " : "") + r.job.title,
+        subtitle: r.job.customer_name || undefined,
+        badge: { text: "Dinheiro", tone: "accent" },
+        sections: [
+          {
+            type: "fields",
+            rows: [
+              {
+                label: "Tipo",
+                value: r.invoice.type_label + (type === "deposit" && p.deposit_pct ? ` (${p.deposit_pct}%)` : ""),
+                edit: {
+                  path: "invoice_type",
+                  input: "select",
+                  value: type,
+                  options: [
+                    { value: "full", label: "Valor total" },
+                    { value: "final", label: "Saldo restante" },
+                    { value: "deposit", label: "Depósito" },
+                    { value: "progress", label: "Parcial" },
+                    { value: "custom", label: "Valor específico" },
+                  ],
+                },
+              },
+              ...(type === "deposit" ? [{ label: "Depósito %", value: String(p.deposit_pct ?? ""), edit: { path: "deposit_pct", input: "number" as const, value: (p.deposit_pct as number) ?? null } }] : []),
+              ...(type === "progress" || type === "custom" ? [{ label: "Valor", value: money(Number(p.custom_amount || 0)), edit: { path: "custom_amount", input: "money" as const, value: (p.custom_amount as number) ?? null } }] : []),
+              {
+                label: "Vencimento",
+                value: r.invoice.due_date ? new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", weekday: "short", day: "2-digit", month: "short" }).format(new Date(r.invoice.due_date + "T12:00:00Z")) : "amanhã (padrão)",
+                edit: { path: "due_date", input: "date", value: r.invoice.due_date },
+              },
+            ],
+          },
+          {
+            type: "totals",
+            rows: [
+              { label: "Total dos serviços", value: money(r.job.billing.services_total) },
+              { label: "Já faturado", value: money(r.job.billing.invoiced_total) },
+              { label: "Esta invoice", value: money(r.invoice.amount), strong: true },
+            ],
+          },
+          { type: "note", text: "A invoice é emitida e aparece em Invoices. Nenhum e-mail é enviado." },
+        ],
+        confirm: { label: "Emitir invoice de " + money(r.invoice.amount), tone: "money", exec: { endpoint: "/api/mate-ai/execute", body: { token: ctx.sign({ preview_token: r.previewToken }) } } },
+        open: { label: "Abrir job", href: "job-detail.html?id=" + encodeURIComponent(r.job.id) },
+      },
+    };
+  },
+  async execute(ctx, exec) {
+    const res = await callInternalApi<{ data?: { id: string; invoice_number?: string; amount: number; due_date?: string } }>(
+      ctx.req,
+      "POST",
+      "/api/mate-ai/invoices",
+      { preview_token: exec.preview_token, confirmed_review: true },
+    );
+    if (!res.ok || !res.json.data?.id) return { ok: false, status: res.status, error: internalError(res, "Não foi possível emitir a invoice.") };
+    const d = res.json.data;
+    return {
+      ok: true,
+      title: "Invoice " + (d.invoice_number || "") + " emitida",
+      detail: money(d.amount),
+      links: [{ label: "Abrir invoice", href: "invoice.html?id=" + encodeURIComponent(d.id) }],
+      next: { label: "Enviar ao cliente", action: "invoice.send", args: { invoice_id: d.id } },
+      entity: { type: "invoice", id: d.id },
+      memory: `Issued invoice ${d.invoice_number || d.id} (${money(d.amount)})`,
+    };
+  },
+};
+
+for (const def of [
+  quoteCreate,
+  editQuote,
+  sendQuote,
+  invoiceJob,
+  invoiceFromQuote,
+  sendInvoice,
+  recordPayment,
+  createLead,
+  moveLead,
+  createCustomer,
+  createJob,
+  scheduleJob,
+  setJobStatus,
+  addJobNote,
+  agendaList,
+  moneySummary,
+  customerBalance,
+  jobsToInvoice,
+  quotesFollowUp,
+  invoicesOverdue,
+]) {
+  registerAction(def);
+}
+
+/* ───────────────────────── helpers ───────────────────────── */
+
+const screenSchema = z
+  .object({ type: z.enum(["customer", "lead", "job", "quote", "invoice"]), id: z.string().uuid() })
+  .nullable()
+  .optional();
+
+async function orgTimezone(organizationId: string): Promise<string> {
+  return withTenantTransaction(organizationId, async (tx) => {
+    const org = await tx.organization.findFirst({ where: { id: organizationId }, select: { timezone: true } });
+    return org?.timezone || "America/New_York";
+  });
+}
+
+async function screenSummary(tx: ActionContext["tx"], screen: ScreenContext): Promise<ScreenSummary> {
+  if (!screen) return null;
+  if (screen.type === "job") {
+    const j = await tx.workOrder.findFirst({
+      where: { id: screen.id },
+      select: { number: true, title: true, sourceName: true, customer: { select: { name: true, company: true } }, builder: { select: { firstName: true, lastName: true, company: true } } },
+    });
+    if (!j) return null;
+    const who = jobCustomerName(j);
+    return { type: "job", id: screen.id, label: "Job " + jobLabel(j) + (who ? " · " + who : "") };
+  }
+  if (screen.type === "quote") {
+    const q = await tx.quote.findFirst({ where: { id: screen.id }, select: { number: true, quoteNumber: true, title: true, customer: { select: { name: true } } } });
+    if (!q) return null;
+    return { type: "quote", id: screen.id, label: "Quote " + quoteLabel(q) + (q.customer ? " · " + q.customer.name : "") };
+  }
+  if (screen.type === "invoice") {
+    const i = await tx.quoteInvoice.findFirst({ where: { id: screen.id }, select: { invoiceNumber: true, customer: { select: { name: true } } } });
+    if (!i) return null;
+    return { type: "invoice", id: screen.id, label: "Invoice " + (i.invoiceNumber || "") + (i.customer ? " · " + i.customer.name : "") };
+  }
+  if (screen.type === "customer") {
+    const c = await tx.customer.findFirst({ where: { id: screen.id }, select: { name: true } });
+    return c ? { type: "customer", id: screen.id, label: "Cliente " + c.name } : null;
+  }
+  const l = await tx.lead.findFirst({ where: { id: screen.id }, select: { name: true } });
+  return l ? { type: "lead", id: screen.id, label: "Lead " + l.name } : null;
+}
+
+function cardOut(card: Card | undefined) {
+  return card;
+}
+
+/* ───────────────────────── /act ───────────────────────── */
+
+const actSchema = z
+  .object({
+    text: z.string().trim().min(1).max(600).optional(),
+    action: z.string().max(60).optional(),
+    args: z.record(z.string(), z.unknown()).optional(),
+    patch: z.record(z.string(), z.unknown()).optional(),
+    screen: screenSchema,
+    memory: memorySchema.optional(),
+  })
+  .refine((b) => Boolean(b.text || b.action), { message: "text or action required" });
+
+mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const body = actSchema.safeParse(req.body || {});
+    if (!body.success) {
+      res.status(400).json({ success: false, error: "Pedido inválido" });
+      return;
+    }
+    const organizationId = req.organizationId!;
+    const user = req.user!;
+    const timezone = await orgTimezone(organizationId);
+    const today = todayInTimezone(timezone).date;
+    const allowed = listActions().filter((a) => canUse(a, user));
+    let screen: ScreenContext = body.data.screen ?? null;
+
+    let action = body.data.action || "";
+    let args: Record<string, unknown> = body.data.args || {};
+    let interpretedBy: "ai" | "rules" | "user" = "user";
+    let note: string | undefined;
+
+    const prepared = await withTenantTransaction(organizationId, async (tx) => {
+      const summary = await screenSummary(tx, screen);
+      if (!summary) screen = null;
+
+      if (body.data.text) {
+        const [catalog, customers] = await Promise.all([
+          loadCatalog(tx, organizationId),
+          isAiConfigured()
+            ? Promise.resolve([])
+            : tx.customer.findMany({ where: { organizationId }, select: { id: true, name: true, company: true }, orderBy: { updatedAt: "desc" }, take: 3000 }),
+        ]);
+        return { summary, catalog, customers };
+      }
+      return { summary, catalog: [], customers: [] };
+    });
+
+    if (body.data.text) {
+      const pick = await pickAction(body.data.text, {
+        actions: allowed,
+        catalog: prepared.catalog,
+        customers: prepared.customers,
+        timezone,
+        screen: prepared.summary,
+        memory: body.data.memory || [],
+        userName: user.name || undefined,
+      });
+      interpretedBy = pick.source;
+      if (pick.kind === "reply") {
+        res.json({ success: true, type: "reply", message: pick.reply, interpreted_by: interpretedBy, screen: prepared.summary });
+        return;
+      }
+      action = pick.action;
+      args = pick.args;
+      note = pick.reply;
+    }
+
+    const def = getAction(action);
+    if (!def) {
+      res.status(404).json({ success: false, error: "Ação desconhecida." });
+      return;
+    }
+    if (!canUse(def, user)) {
+      res.status(403).json({ success: false, error: "Você não tem permissão para isso.", missing: def.permissions.filter((p) => !user.permissions.includes(p)) });
+      return;
+    }
+    if (body.data.patch) args = applyPatch(args, body.data.patch);
+
+    const result: PrepareResult = await withTenantTransaction(organizationId, async (tx) => {
+      const ctx: ActionContext = {
+        req,
+        tx,
+        organizationId,
+        userId: user.id,
+        timezone,
+        today,
+        screen,
+        sign: (exec) => signActionToken({ k: "exec", a: def.name, o: organizationId, u: user.id, e: exec, ttlMs: EXEC_TTL_MS }).token,
+      };
+      return def.prepare(ctx, args);
+    });
+
+    res.json({
+      success: true,
+      type: result.kind,
+      action: def.name,
+      read_only: Boolean(def.readOnly),
+      args: result.args ?? args,
+      ...(result.kind === "card" || result.kind === "answer" ? { card: cardOut(result.card) } : {}),
+      ...(result.kind === "clarify" ? { clarify: result.clarify } : {}),
+      message: result.kind === "error" ? result.message : result.message || note,
+      interpreted_by: interpretedBy,
+      screen: prepared.summary,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ───────────────────────── /execute ───────────────────────── */
+
+async function claim(organizationId: string, userId: string, tokenId: string, action: string): Promise<boolean> {
+  return withTenantTransaction(organizationId, async (tx) => {
+    await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))::text AS locked", tokenId);
+    const seen = await tx.activityEvent.findFirst({ where: { entityType: "mate_ai", entityId: tokenId }, select: { id: true } });
+    if (seen) return false;
+    await tx.activityEvent.create({
+      data: { organizationId, entityType: "mate_ai", entityId: tokenId, actorType: "user", actorId: userId, action: "mate_ai.executing", changes: { action: { from: null, to: action } } },
+    });
+    return true;
+  });
+}
+
+async function release(organizationId: string, tokenId: string) {
+  await withTenantTransaction(organizationId, (tx) => tx.activityEvent.deleteMany({ where: { entityType: "mate_ai", entityId: tokenId } }));
+}
+
+const ACTIVITY_TYPES = new Set<ActivityEntityType>(["quote", "invoice", "work_order", "lead", "customer"]);
+
+mateAiAgentRouter.post("/api/mate-ai/execute", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const token = verifyActionToken(String((req.body || {}).token || ""), "exec");
+    if (!token || token.o !== req.organizationId || token.u !== req.user!.id) {
+      res.status(400).json({ success: false, error: "Esta confirmação expirou. Peça de novo ao Mate AI." });
+      return;
+    }
+    const def = getAction(token.a);
+    if (!def?.execute) {
+      res.status(404).json({ success: false, error: "Ação desconhecida." });
+      return;
+    }
+    if (!canUse(def, req.user)) {
+      res.status(403).json({ success: false, error: "Você não tem permissão para isso." });
+      return;
+    }
+    const organizationId = req.organizationId!;
+    if (!(await claim(organizationId, req.user!.id, token.id, def.name))) {
+      res.status(409).json({ success: false, error: "Esta ação já foi feita." });
+      return;
+    }
+    const ctx: ExecuteContext = { req: req as AuthedRequest & Request, organizationId, userId: req.user!.id, timezone: await orgTimezone(organizationId) };
+    let result;
+    try {
+      result = await def.execute(ctx, token.e);
+    } catch (error) {
+      await release(organizationId, token.id);
+      throw error;
+    }
+    if (!result.ok) {
+      await release(organizationId, token.id);
+      res.status(result.status >= 400 ? result.status : 422).json({ success: false, error: result.error });
+      return;
+    }
+    const done = result;
+    await withTenantTransaction(organizationId, async (tx) => {
+      await tx.activityEvent.updateMany({
+        where: { entityType: "mate_ai", entityId: token.id },
+        data: { action: "mate_ai.executed", changes: { action: { from: null, to: def.name }, title: { from: null, to: done.title } } },
+      });
+      if (done.entity && ACTIVITY_TYPES.has(done.entity.type as ActivityEntityType)) {
+        await recordActivity(tx, {
+          organizationId,
+          entityType: done.entity.type as ActivityEntityType,
+          entityId: done.entity.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action: "mate_ai.action",
+          changes: { source: { from: null, to: "mate_ai" }, action: { from: null, to: def.name }, summary: { from: null, to: done.title } },
+        });
+      }
+    });
+    const undo = done.undo && def.undo ? signActionToken({ k: "undo", a: def.name, o: organizationId, u: req.user!.id, e: done.undo, ttlMs: UNDO_TTL_MS }) : null;
+    res.json({
+      success: true,
+      result: {
+        title: done.title,
+        detail: done.detail,
+        links: done.links || [],
+        next: done.next || null,
+        client: done.client || null,
+        memory: done.memory || done.title,
+        entity: done.entity || null,
+      },
+      undo_token: undo?.token || null,
+      undo_expires_at: undo ? new Date(undo.expiresAt).toISOString() : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ───────────────────────── /undo ───────────────────────── */
+
+mateAiAgentRouter.post("/api/mate-ai/undo", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const token = verifyActionToken(String((req.body || {}).token || ""), "undo");
+    if (!token || token.o !== req.organizationId || token.u !== req.user!.id) {
+      res.status(400).json({ success: false, error: "O tempo para desfazer acabou." });
+      return;
+    }
+    const def = getAction(token.a);
+    if (!def?.undo || !canUse(def, req.user)) {
+      res.status(403).json({ success: false, error: "Esta ação não pode ser desfeita aqui." });
+      return;
+    }
+    const organizationId = req.organizationId!;
+    if (!(await claim(organizationId, req.user!.id, token.id, def.name + ":undo"))) {
+      res.status(409).json({ success: false, error: "Já foi desfeito." });
+      return;
+    }
+    const result = await def.undo({ req: req as AuthedRequest & Request, organizationId, userId: req.user!.id, timezone: await orgTimezone(organizationId) }, token.e);
+    if (!result.ok) {
+      await release(organizationId, token.id);
+      res.status(result.status >= 400 ? result.status : 422).json({ success: false, error: result.error });
+      return;
+    }
+    res.json({ success: true, result: { title: result.title, memory: "Undid: " + result.title } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ───────────────────────── /suggestions ───────────────────────── */
+
+type Suggestion = { id: string; tone: "accent" | "warning" | "critical" | "neutral"; title: string; detail?: string; run: { label: string; action: string; args: Record<string, unknown> } };
+
+mateAiAgentRouter.get("/api/mate-ai/suggestions", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const user = req.user!;
+    const organizationId = req.organizationId!;
+    const timezone = await orgTimezone(organizationId);
+    const today = todayInTimezone(timezone).date;
+    const can = (name: string) => {
+      const def = getAction(name);
+      return Boolean(def && canUse(def, user));
+    };
+    const suggestions = await withTenantTransaction(organizationId, async (tx) => {
+      const ctx = { req, tx, organizationId, userId: user.id, timezone, today, screen: null, sign: () => "" } as ActionContext;
+      const out: Suggestion[] = [];
+      if (can("jobs.uninvoiced") && can("invoice.job")) {
+        const jobs = await uninvoicedJobs(ctx, 50);
+        if (jobs.length) {
+          const total = jobs.reduce((s, x) => s + x.b.remaining_to_invoice, 0);
+          out.push({
+            id: "uninvoiced",
+            tone: "accent",
+            title: `${jobs.length} job(s) concluído(s) sem invoice · ${money(total)}`,
+            detail: jobs.slice(0, 3).map((x) => jobLabel(x.j)).join(", "),
+            run: { label: "Ver e faturar", action: "jobs.uninvoiced", args: {} },
+          });
+        }
+      }
+      if (can("invoices.overdue")) {
+        const overdue = await overdueInvoices(ctx, 50);
+        if (overdue.length) {
+          const total = overdue.reduce((s, x) => s + x.m.balance, 0);
+          out.push({
+            id: "overdue",
+            tone: "critical",
+            title: `${money(total)} vencidos em ${overdue.length} invoice(s)`,
+            detail: overdue.slice(0, 3).map((x) => x.r.customer?.name || x.r.invoiceNumber).filter(Boolean).join(", "),
+            run: { label: "Ver vencidas", action: "invoices.overdue", args: {} },
+          });
+        }
+      }
+      if (can("quotes.followup")) {
+        const stale = (await staleQuotes(ctx, 5, 40)).filter((q) => q.viewedAt);
+        if (stale.length) {
+          const q = stale[0]!;
+          out.push({
+            id: "viewed-no-answer",
+            tone: "warning",
+            title:
+              stale.length === 1
+                ? `${q.customer?.name || "O cliente"} abriu o Quote ${q.quoteNumber || "#" + q.number} e não respondeu`
+                : `${stale.length} clientes abriram o Quote e não responderam`,
+            detail: stale.length === 1 ? money(Number(q.total)) : stale.slice(0, 3).map((x) => x.customer?.name).filter(Boolean).join(", "),
+            run: stale.length === 1 ? { label: "Reenviar", action: "quote.send", args: { quote_id: q.id } } : { label: "Ver Quotes", action: "quotes.followup", args: { days: 5 } },
+          });
+        }
+      }
+      if (can("job.create")) {
+        const approved = await approvedWithoutJob(ctx, 5);
+        for (const q of approved.slice(0, 2)) {
+          out.push({
+            id: "approved-" + q.id,
+            tone: "neutral",
+            title: `Quote ${q.quoteNumber || "#" + q.number} aprovado, sem job`,
+            detail: [q.customer?.name, money(Number(q.total))].filter(Boolean).join(" · "),
+            run: { label: "Criar job", action: "job.create", args: { quote_id: q.id } },
+          });
+        }
+      }
+      return out;
+    });
+    res.json({ success: true, data: suggestions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ───────────────────────── /context ───────────────────────── */
+
+mateAiAgentRouter.get("/api/mate-ai/context", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const parsed = screenSchema.safeParse({ type: req.query.type, id: req.query.id });
+    if (!parsed.success || !parsed.data) {
+      res.json({ success: true, screen: null });
+      return;
+    }
+    const screen = parsed.data;
+    const summary = await withTenantTransaction(req.organizationId!, (tx) => screenSummary(tx, screen));
+    const chips: Record<string, string[]> = {
+      job: ["Marcar como concluído", "Emitir invoice", "Agendar", "Adicionar nota"],
+      quote: ["Enviar ao cliente", "Dar desconto", "Emitir invoice de depósito", "Criar job"],
+      invoice: ["Enviar ao cliente", "Registrar pagamento"],
+      customer: ["Criar Quote", "Quanto deve?", "Criar job"],
+      lead: ["Agendar visita", "Marcar como perdido", "Criar Quote"],
+    };
+    res.json({ success: true, screen: summary, suggestions: summary ? chips[summary.type] || [] : [] });
+  } catch (error) {
+    next(error);
+  }
+});

@@ -146,7 +146,7 @@ export function verifyMateAiPreviewToken(token: string): PreviewToken | null {
   return verifySigned(token, previewTokenSchema);
 }
 
-function hasPermissions(req: AuthedRequest, keys: string[]): boolean {
+export function hasPermissions(req: AuthedRequest, keys: string[]): boolean {
   if (!req.user) return false;
   if (req.user.roleKey === "admin") return true;
   return keys.every((key) => req.user!.permissions.includes(key));
@@ -182,7 +182,7 @@ function priceForPreview(
 
 /* ───────────────────────── shared loaders ───────────────────────── */
 
-async function loadCatalog(tx: TenantPrisma, organizationId: string): Promise<MateAiCatalogItem[]> {
+export async function loadCatalog(tx: TenantPrisma, organizationId: string): Promise<MateAiCatalogItem[]> {
   const [quoteCatalogRows, pricingRows] = await Promise.all([
     tx.quoteCatalogItem.findMany({
       where: { organizationId, active: true },
@@ -254,7 +254,7 @@ type Issue = {
   options?: ReturnType<typeof catalogOption>[];
 };
 
-async function previewQuote(req: AuthedRequest, tx: TenantPrisma, plan: MateAiQuotePlan, catalogItems: MateAiCatalogItem[]) {
+export async function previewQuote(req: AuthedRequest, tx: TenantPrisma, plan: MateAiQuotePlan, catalogItems: MateAiCatalogItem[]) {
   const organizationId = req.organizationId!;
 
   // 1) Customer — chosen id, or fuzzy match on what was said.
@@ -522,7 +522,7 @@ function jobSummary(job: JobRow) {
   };
 }
 
-async function previewInvoice(req: AuthedRequest, tx: TenantPrisma, plan: MateAiInvoicePlan, today: string) {
+export async function previewInvoice(req: AuthedRequest, tx: TenantPrisma, plan: MateAiInvoicePlan, today: string) {
   const organizationId = req.organizationId!;
   let job: JobRow | null = plan.job_id
     ? await tx.workOrder.findFirst({ where: { id: plan.job_id, organizationId }, select: jobSelect })
