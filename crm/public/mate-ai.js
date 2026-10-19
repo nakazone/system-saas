@@ -4,19 +4,34 @@
   const previewButton = document.getElementById("mateAiPreviewButton");
   const previewSection = document.getElementById("mateAiPreview");
   const previewContent = document.getElementById("mateAiPreviewContent");
+  const reviewTitle = document.getElementById("mateAiReviewTitle");
   const expiryLabel = document.getElementById("mateAiExpiry");
   const message = document.getElementById("mateAiMessage");
+  const clarify = document.getElementById("mateAiClarify");
   const reviewed = document.getElementById("mateAiReviewed");
+  const reviewedLabel = document.getElementById("mateAiReviewedLabel");
   const createButton = document.getElementById("mateAiCreateButton");
+  const safeNote = document.getElementById("mateAiSafeNote");
   const successSection = document.getElementById("mateAiSuccess");
   const micButton = document.getElementById("mateAiMicButton");
   const micLabel = document.getElementById("mateAiMicLabel");
   const voiceStatus = document.getElementById("mateAiVoiceStatus");
   const voiceLanguage = document.getElementById("mateAiVoiceLanguage");
 
-  let previewToken = "";
-  let recognition = null;
-  let listening = false;
+  /** Current preview: { action, token } */
+  let current = null;
+  /** Last plan returned by the server — picks edit it and re-run the preview without the AI. */
+  let plan = null;
+  let busy = false;
+
+  /* ───────────── helpers ───────────── */
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = String(text);
+    return node;
+  }
 
   function setMessage(text, kind) {
     message.textContent = text || "";
@@ -25,103 +40,39 @@
   }
 
   function money(value) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 2,
-    }).format(Number(value || 0));
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(
+      Number(value || 0),
+    );
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(String(iso).slice(0, 10) + "T12:00:00");
+    return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
   }
 
   function addCell(row, text, heading) {
-    const cell = document.createElement(heading ? "th" : "td");
-    cell.textContent = String(text == null ? "" : text);
+    const cell = el(heading ? "th" : "td", null, text == null ? "" : text);
     row.appendChild(cell);
     return cell;
   }
 
   function addTotal(container, label, value, grand) {
-    const row = document.createElement("div");
-    row.className = grand ? "mate-ai-total-row mate-ai-total-row--grand" : "mate-ai-total-row";
-    const title = document.createElement("span");
-    title.textContent = label;
-    const amount = document.createElement("strong");
-    amount.textContent = money(value);
-    row.append(title, amount);
+    const row = el("div", grand ? "mate-ai-total-row mate-ai-total-row--grand" : "mate-ai-total-row");
+    row.append(el("span", null, label), el("strong", null, money(value)));
     container.appendChild(row);
   }
 
-  function showIssues(data) {
-    previewToken = "";
+  function resetPreview() {
+    current = null;
     previewSection.hidden = true;
-    const parts = [];
-    if (data.message) parts.push(data.message);
-    if (Array.isArray(data.candidates) && data.candidates.length) {
-      parts.push("Clientes encontrados: " + data.candidates.map((customer) => customer.name).join(", ") + ".");
-    }
-    if (Array.isArray(data.issues)) {
-      data.issues.forEach((issue) => {
-        let line = "Item " + issue.line + ": " + issue.message;
-        if (Array.isArray(issue.suggestions) && issue.suggestions.length) {
-          line += " Opções: " + issue.suggestions.join(", ") + ".";
-        }
-        parts.push(line);
-      });
-    }
-    setMessage(parts.join(" "), "error");
-  }
-
-  function renderPreview(data) {
-    previewContent.replaceChildren();
-    const customer = document.createElement("div");
-    customer.className = "mate-ai-customer";
-    const label = document.createElement("strong");
-    label.textContent = "Cliente";
-    const name = document.createElement("span");
-    name.textContent = data.customer.company
-      ? data.customer.name + " · " + data.customer.company
-      : data.customer.name;
-    customer.append(label, name);
-    previewContent.appendChild(customer);
-
-    const tableWrap = document.createElement("div");
-    tableWrap.className = "mate-ai-table-wrap";
-    const table = document.createElement("table");
-    table.className = "mate-ai-table";
-    const head = document.createElement("thead");
-    const headerRow = document.createElement("tr");
-    ["Serviço", "Quantidade", "Preço unitário", "Total"].forEach((value) => addCell(headerRow, value, true));
-    head.appendChild(headerRow);
-    table.appendChild(head);
-    const body = document.createElement("tbody");
-    data.items.forEach((item) => {
-      const row = document.createElement("tr");
-      const serviceCell = addCell(row, item.name, false);
-      if (item.description) {
-        const detail = document.createElement("div");
-        detail.className = "mate-ai-service-description";
-        detail.textContent = item.description;
-        serviceCell.appendChild(detail);
-      }
-      addCell(row, Number(item.quantity).toLocaleString("en-US") + " " + item.unit, false);
-      addCell(row, money(item.unitPrice), false);
-      addCell(row, money(item.amount), false);
-      body.appendChild(row);
-    });
-    table.appendChild(body);
-    tableWrap.appendChild(table);
-    previewContent.appendChild(tableWrap);
-
-    const totals = document.createElement("div");
-    totals.className = "mate-ai-totals";
-    addTotal(totals, "Subtotal", data.subtotal, false);
-    addTotal(totals, "Tax (" + Number(data.tax_rate || 0).toFixed(2) + "%)", data.tax_total, false);
-    addTotal(totals, "Total", data.total, true);
-    previewContent.appendChild(totals);
-    expiryLabel.textContent = "Prévia válida por 10 minutos";
-    previewSection.hidden = false;
     reviewed.checked = false;
     createButton.disabled = true;
-    previewToken = data.preview_token;
+  }
+
+  function clearClarify() {
+    clarify.replaceChildren();
+    clarify.hidden = true;
   }
 
   async function postJson(path, payload) {
@@ -134,119 +85,651 @@
     const data = await response.json().catch(function () {
       return {};
     });
-    if (!response.ok) throw new Error(data.error || "Não foi possível concluir a solicitação.");
+    if (!response.ok) {
+      const error = new Error(data.error || "Não foi possível concluir a solicitação.");
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
     return data;
   }
 
-  form.addEventListener("submit", async function (event) {
-    event.preventDefault();
-    previewToken = "";
-    previewSection.hidden = true;
+  /* ───────────── preview flow ───────────── */
+
+  async function runPreview(payload) {
+    if (busy) return;
+    busy = true;
+    resetPreview();
+    clearClarify();
     successSection.hidden = true;
     setMessage("", "");
     previewButton.disabled = true;
-    previewButton.textContent = "Buscando cliente e preços…";
+    previewButton.textContent = payload.plan ? "Atualizando…" : "Entendendo o pedido…";
     try {
-      const data = await postJson("/api/mate-ai/preview", { command: commandInput.value });
-      if (data.status !== "ready") {
-        showIssues(data);
-        return;
+      const data = await postJson("/api/mate-ai/preview", payload);
+      plan = data.plan || plan;
+      if (data.status === "ready") {
+        if (data.action === "invoice") renderInvoicePreview(data);
+        else renderQuotePreview(data);
+        const via = data.interpreted_by === "ai" ? "Entendido pelo Mate AI. " : "";
+        setMessage((data.warning ? data.warning + " " : "") + via + "Revise antes de confirmar.", "info");
+      } else {
+        renderClarification(data);
       }
-      renderPreview(data);
-      setMessage("Cliente e serviços encontrados na empresa atual. Revise os valores antes de criar o rascunho.", "info");
     } catch (error) {
       setMessage(error.message || "Não foi possível gerar a prévia.", "error");
     } finally {
+      busy = false;
       previewButton.disabled = false;
-      previewButton.textContent = "Buscar e revisar";
+      previewButton.textContent = "Entender e revisar";
     }
+  }
+
+  function rerunWithPlan(nextPlan) {
+    plan = nextPlan;
+    runPreview({ plan: nextPlan });
+  }
+
+  function clonePlan() {
+    return JSON.parse(JSON.stringify(plan));
+  }
+
+  /* ───────────── clarifications (tap to choose) ───────────── */
+
+  function choiceGroup(title, options) {
+    const group = el("div", "mate-ai-choice-group");
+    if (title) group.appendChild(el("p", "mate-ai-choice-title", title));
+    const list = el("div", "mate-ai-choices");
+    options.forEach(function (option) {
+      const button = el("button", "mate-ai-chip mate-ai-chip--choice");
+      button.type = "button";
+      button.appendChild(el("strong", null, option.label));
+      if (option.detail) button.appendChild(el("span", null, option.detail));
+      button.addEventListener("click", option.onPick);
+      list.appendChild(button);
+    });
+    group.appendChild(list);
+    return group;
+  }
+
+  function searchBox(placeholder, buttonLabel, onSubmit) {
+    const wrap = el("form", "mate-ai-inline-search");
+    const input = el("input");
+    input.type = "text";
+    input.placeholder = placeholder;
+    input.maxLength = 200;
+    const button = el("button", "mate-ai-button mate-ai-button--secondary", buttonLabel);
+    button.type = "submit";
+    wrap.append(input, button);
+    wrap.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (input.value.trim()) onSubmit(input.value.trim());
+    });
+    return wrap;
+  }
+
+  function catalogSelect(catalog, line) {
+    const wrap = el("label", "mate-ai-catalog-select");
+    wrap.appendChild(el("span", null, "Outro serviço do catálogo:"));
+    const select = el("select");
+    select.appendChild(new Option("Escolher…", ""));
+    (catalog || []).forEach(function (item) {
+      select.appendChild(new Option(item.name + " (" + item.unit + ")", item.source + "|" + item.id));
+    });
+    select.addEventListener("change", function () {
+      if (!select.value) return;
+      const parts = select.value.split("|");
+      pickService(line, { source: parts[0], id: parts[1] });
+    });
+    wrap.appendChild(select);
+    return wrap;
+  }
+
+  function pickService(line, option) {
+    const next = clonePlan();
+    const item = next.items[line - 1];
+    if (!item) return;
+    item.catalog_item_id = option.id;
+    item.catalog_source = option.source;
+    item.unit = null; // use the catalog unit
+    rerunWithPlan(next);
+  }
+
+  function renderClarification(data) {
+    clearClarify();
+    const parts = [];
+    if (data.message) parts.push(data.message);
+    setMessage(parts.join(" ") || "Preciso de mais uma informação.", "info");
+
+    if (data.action === "quote" && /^customer_/.test(data.status)) {
+      const candidates = data.candidates || [];
+      if (candidates.length) {
+        clarify.appendChild(
+          choiceGroup(
+            "Cliente",
+            candidates.map(function (customer) {
+              return {
+                label: customer.name,
+                detail: customer.company || "",
+                onPick: function () {
+                  const next = clonePlan();
+                  next.customer_id = customer.id;
+                  rerunWithPlan(next);
+                },
+              };
+            }),
+          ),
+        );
+      }
+      clarify.appendChild(
+        searchBox("Buscar outro cliente pelo nome", "Buscar", function (name) {
+          const next = clonePlan();
+          next.customer_id = null;
+          next.customer_query = name;
+          rerunWithPlan(next);
+        }),
+      );
+    }
+
+    if (data.action === "quote" && data.status === "needs_clarification") {
+      (data.issues || []).forEach(function (issue) {
+        const box = el("div", "mate-ai-issue");
+        box.appendChild(el("p", "mate-ai-choice-title", (issue.line ? "Item " + issue.line + ": " : "") + issue.message));
+        if (Array.isArray(issue.options) && issue.options.length) {
+          box.appendChild(
+            choiceGroup(
+              "",
+              issue.options.map(function (option) {
+                return {
+                  label: option.name,
+                  detail: option.unit,
+                  onPick: function () {
+                    pickService(issue.line, option);
+                  },
+                };
+              }),
+            ),
+          );
+        }
+        if (issue.line && data.catalog && data.catalog.length) box.appendChild(catalogSelect(data.catalog, issue.line));
+        clarify.appendChild(box);
+      });
+      if (data.customer) setMessage("Cliente: " + data.customer.name + ". Falta confirmar alguns serviços.", "info");
+    }
+
+    if (data.action === "invoice" && /^job_/.test(data.status)) {
+      const candidates = data.candidates || [];
+      if (candidates.length) {
+        clarify.appendChild(
+          choiceGroup(
+            "Job",
+            candidates.map(function (job) {
+              const ref = job.number != null ? "#" + job.number + " · " + job.title : job.title;
+              const detail = [job.customer_name, job.address, job.billing && job.billing.billing_status_label]
+                .filter(Boolean)
+                .join(" · ");
+              return {
+                label: ref,
+                detail: detail,
+                onPick: function () {
+                  const next = clonePlan();
+                  next.job_id = job.id;
+                  rerunWithPlan(next);
+                },
+              };
+            }),
+          ),
+        );
+      }
+      clarify.appendChild(
+        searchBox("Número do job, cliente ou endereço", "Buscar", function (text) {
+          const next = clonePlan();
+          next.job_id = null;
+          next.job_query = text;
+          next.customer_query = "";
+          rerunWithPlan(next);
+        }),
+      );
+    }
+
+    if (data.action === "invoice" && data.status === "needs_clarification" && data.job) {
+      // Show the job and the invoice settings so the user can fix type/amount/date right here.
+      renderInvoicePreview(Object.assign({}, data, { invoice: null }));
+    }
+
+    clarify.hidden = !clarify.childElementCount;
+  }
+
+  /* ───────────── quote preview ───────────── */
+
+  function renderQuotePreview(data) {
+    previewContent.replaceChildren();
+    reviewTitle.textContent = "Quote — confira cliente, serviços e preços";
+    const customer = el("div", "mate-ai-customer");
+    customer.append(
+      el("strong", null, "Cliente"),
+      el("span", null, data.customer.company ? data.customer.name + " · " + data.customer.company : data.customer.name),
+    );
+    const change = el("button", "mate-ai-link", "trocar");
+    change.type = "button";
+    change.addEventListener("click", function () {
+      const next = clonePlan();
+      next.customer_id = null;
+      resetPreview();
+      renderClarification({ action: "quote", status: "customer_not_found", plan: next, candidates: [], message: "Qual cliente?" });
+      plan = next;
+    });
+    customer.appendChild(change);
+    previewContent.appendChild(customer);
+
+    const tableWrap = el("div", "mate-ai-table-wrap");
+    const table = el("table", "mate-ai-table");
+    const head = el("thead");
+    const headerRow = el("tr");
+    ["Serviço", "Quantidade", "Preço unitário", "Total"].forEach(function (value) {
+      addCell(headerRow, value, true);
+    });
+    head.appendChild(headerRow);
+    table.appendChild(head);
+    const body = el("tbody");
+    data.items.forEach(function (item) {
+      const row = el("tr");
+      const serviceCell = addCell(row, item.name, false);
+      if (item.spoken && item.spoken.toLowerCase() !== item.name.toLowerCase()) {
+        serviceCell.appendChild(el("div", "mate-ai-service-spoken", "Você disse: “" + item.spoken + "”"));
+      }
+      if (item.description) serviceCell.appendChild(el("div", "mate-ai-service-description", item.description));
+      addCell(row, Number(item.quantity).toLocaleString("en-US") + " " + item.unit, false);
+      addCell(row, money(item.unitPrice), false);
+      addCell(row, money(item.amount), false);
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    tableWrap.appendChild(table);
+    previewContent.appendChild(tableWrap);
+
+    const totals = el("div", "mate-ai-totals");
+    addTotal(totals, "Subtotal", data.subtotal, false);
+    addTotal(totals, "Tax (" + Number(data.tax_rate || 0).toFixed(2) + "%)", data.tax_total, false);
+    addTotal(totals, "Total", data.total, true);
+    previewContent.appendChild(totals);
+
+    reviewedLabel.textContent = "Revisei o cliente, as medidas e os preços.";
+    createButton.textContent = "Criar Quote em rascunho";
+    safeNote.textContent = "Este passo cria somente um rascunho. O Mate AI não envia o Quote ao cliente.";
+    showReview({ action: "quote", token: data.preview_token });
+  }
+
+  /* ───────────── invoice preview ───────────── */
+
+  const INVOICE_TYPES = [
+    ["full", "Valor total"],
+    ["final", "Saldo restante"],
+    ["deposit", "Depósito / sinal (%)"],
+    ["progress", "Parcial (valor)"],
+    ["custom", "Valor específico"],
+  ];
+
+  function renderInvoicePreview(data) {
+    previewContent.replaceChildren();
+    reviewTitle.textContent = "Invoice — confira o job, o valor e o vencimento";
+    const job = data.job;
+
+    const jobBox = el("div", "mate-ai-customer");
+    jobBox.append(
+      el("strong", null, "Job"),
+      el("span", null, (job.number != null ? "#" + job.number + " · " : "") + job.title),
+    );
+    previewContent.appendChild(jobBox);
+    const meta = [job.customer_name, job.address].filter(Boolean).join(" · ");
+    if (meta) previewContent.appendChild(el("p", "mate-ai-job-meta", meta));
+
+    if (Array.isArray(data.lines) && data.lines.length) {
+      const tableWrap = el("div", "mate-ai-table-wrap");
+      const table = el("table", "mate-ai-table");
+      const head = el("thead");
+      const headerRow = el("tr");
+      ["Serviço do job", "Quantidade", "Preço unitário", "Total"].forEach(function (value) {
+        addCell(headerRow, value, true);
+      });
+      head.appendChild(headerRow);
+      table.appendChild(head);
+      const body = el("tbody");
+      data.lines.forEach(function (line) {
+        const row = el("tr");
+        addCell(row, line.name);
+        addCell(row, Number(line.quantity).toLocaleString("en-US"));
+        addCell(row, money(line.unit_price));
+        addCell(row, money(line.amount));
+        body.appendChild(row);
+      });
+      table.appendChild(body);
+      tableWrap.appendChild(table);
+      previewContent.appendChild(tableWrap);
+    }
+
+    const billing = job.billing || {};
+    const totals = el("div", "mate-ai-totals");
+    addTotal(totals, "Total dos serviços", billing.services_total, false);
+    addTotal(totals, "Já faturado", billing.invoiced_total, false);
+    if (data.invoice) addTotal(totals, "Esta invoice (" + data.invoice.type_label + ")", data.invoice.amount, true);
+    previewContent.appendChild(totals);
+
+    // Editable settings — changing any of them re-runs the preview with the same job.
+    const settings = el("div", "mate-ai-invoice-settings");
+    const typeLabel = el("label", null);
+    typeLabel.appendChild(el("span", null, "Tipo"));
+    const typeSelect = el("select");
+    INVOICE_TYPES.forEach(function (t) {
+      typeSelect.appendChild(new Option(t[1], t[0]));
+    });
+    typeSelect.value = (data.plan && data.plan.invoice_type !== "auto" && data.plan.invoice_type) || (data.invoice && data.invoice.type) || "full";
+    typeLabel.appendChild(typeSelect);
+
+    const valueLabel = el("label", null);
+    const valueTitle = el("span", null, "");
+    const valueInput = el("input");
+    valueInput.type = "number";
+    valueInput.min = "0";
+    valueInput.step = "0.01";
+    valueLabel.append(valueTitle, valueInput);
+
+    const dateLabel = el("label", null);
+    dateLabel.appendChild(el("span", null, "Vencimento"));
+    const dateInput = el("input");
+    dateInput.type = "date";
+    dateInput.value = (data.plan && data.plan.due_date) || "";
+    dateLabel.appendChild(dateInput);
+
+    function syncValueField() {
+      const type = typeSelect.value;
+      valueLabel.hidden = !(type === "deposit" || type === "progress" || type === "custom");
+      if (type === "deposit") {
+        valueTitle.textContent = "Percentual (%)";
+        valueInput.max = "100";
+        valueInput.value = (data.plan && data.plan.deposit_pct) || "";
+      } else {
+        valueTitle.textContent = "Valor ($)";
+        valueInput.removeAttribute("max");
+        valueInput.value = (data.plan && data.plan.custom_amount) || "";
+      }
+    }
+    syncValueField();
+
+    const apply = el("button", "mate-ai-button mate-ai-button--secondary", "Atualizar valores");
+    apply.type = "button";
+    apply.addEventListener("click", function () {
+      const next = clonePlan();
+      next.invoice_type = typeSelect.value;
+      const value = Number(valueInput.value);
+      next.deposit_pct = typeSelect.value === "deposit" && value > 0 ? value : null;
+      next.custom_amount = (typeSelect.value === "progress" || typeSelect.value === "custom") && value > 0 ? value : null;
+      next.due_date = dateInput.value || null;
+      rerunWithPlan(next);
+    });
+    typeSelect.addEventListener("change", syncValueField);
+
+    settings.append(typeLabel, valueLabel, dateLabel, apply);
+    previewContent.appendChild(settings);
+
+    if (data.invoice) {
+      previewContent.appendChild(
+        el(
+          "p",
+          "mate-ai-job-meta",
+          data.invoice.due_date
+            ? "Vencimento: " + formatDate(data.invoice.due_date)
+            : "Sem data informada — o vencimento padrão será amanhã.",
+        ),
+      );
+      reviewedLabel.textContent = "Revisei o job, o valor e o vencimento.";
+      createButton.textContent = "Emitir invoice";
+      safeNote.textContent =
+        "A invoice é emitida e aparece em Invoices. O Mate AI não envia e-mail ao cliente — use “Enviar” na invoice quando quiser.";
+      showReview({ action: "invoice", token: data.preview_token });
+    } else {
+      // Clarification mode: show settings but no confirm button.
+      previewSection.hidden = false;
+      expiryLabel.textContent = "";
+      reviewed.closest(".mate-ai-review-confirm").hidden = true;
+      safeNote.hidden = true;
+    }
+  }
+
+  function showReview(next) {
+    current = next;
+    expiryLabel.textContent = "Prévia válida por 10 minutos";
+    reviewed.closest(".mate-ai-review-confirm").hidden = false;
+    safeNote.hidden = false;
+    previewSection.hidden = false;
+    reviewed.checked = false;
+    createButton.disabled = true;
+    previewSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  /* ───────────── confirm ───────────── */
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    const command = commandInput.value.trim();
+    if (!command) return;
+    plan = null;
+    runPreview({ command: command });
   });
 
   reviewed.addEventListener("change", function () {
-    createButton.disabled = !reviewed.checked || !previewToken;
+    createButton.disabled = !reviewed.checked || !current;
   });
 
   commandInput.addEventListener("input", function () {
-    previewToken = "";
-    previewSection.hidden = true;
-    createButton.disabled = true;
+    resetPreview();
+    clearClarify();
+  });
+
+  document.querySelectorAll("[data-example]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      commandInput.value = button.textContent.trim();
+      commandInput.dispatchEvent(new Event("input", { bubbles: true }));
+      commandInput.focus();
+    });
   });
 
   createButton.addEventListener("click", async function () {
-    if (!previewToken || !reviewed.checked) return;
+    if (!current || !reviewed.checked) return;
+    const action = current.action;
+    const label = createButton.textContent;
     createButton.disabled = true;
-    createButton.textContent = "Criando rascunho…";
+    createButton.textContent = action === "invoice" ? "Emitindo…" : "Criando rascunho…";
     setMessage("", "");
     try {
-      const data = await postJson("/api/mate-ai/quote-drafts", {
-        preview_token: previewToken,
+      const data = await postJson(action === "invoice" ? "/api/mate-ai/invoices" : "/api/mate-ai/quote-drafts", {
+        preview_token: current.token,
         confirmed_review: true,
       });
-      previewToken = "";
-      previewSection.hidden = true;
-      document.getElementById("mateAiSuccessTitle").textContent = "Quote " + data.data.quote_number + " criado";
-      document.getElementById("mateAiSuccessDetail").textContent =
-        data.data.customer_name + " · " + data.data.item_count + " serviço(s) · " + money(data.data.total);
-      document.getElementById("mateAiOpenQuote").href =
-        "quote-builder.html?id=" + encodeURIComponent(data.data.id);
+      resetPreview();
+      const title = document.getElementById("mateAiSuccessTitle");
+      const detail = document.getElementById("mateAiSuccessDetail");
+      const link = document.getElementById("mateAiOpenQuote");
+      const eyebrow = document.getElementById("mateAiSuccessEyebrow");
+      const note = document.getElementById("mateAiSuccessNote");
+      if (action === "invoice") {
+        eyebrow.textContent = "Invoice emitida";
+        title.textContent = "Invoice " + (data.data.invoice_number || "") + " emitida";
+        detail.textContent =
+          money(data.data.amount) + (data.data.due_date ? " · vence " + formatDate(data.data.due_date) : "");
+        link.textContent = "Abrir invoice";
+        link.href = data.url || "invoices.html";
+        note.textContent = "Nenhum e-mail foi enviado ao cliente. Use “Enviar” na invoice quando estiver pronto.";
+        setMessage("Invoice emitida.", "success");
+      } else {
+        eyebrow.textContent = "Rascunho criado";
+        title.textContent = "Quote " + data.data.quote_number + " criado";
+        detail.textContent =
+          data.data.customer_name + " · " + data.data.item_count + " serviço(s) · " + money(data.data.total);
+        link.textContent = "Abrir e revisar Quote";
+        link.href = "quote-builder.html?id=" + encodeURIComponent(data.data.id);
+        note.textContent =
+          "O rascunho não foi enviado. Revise-o no editor e use o fluxo normal de envio quando estiver pronto.";
+        setMessage("Rascunho criado. Nenhuma mensagem foi enviada ao cliente.", "success");
+      }
       successSection.hidden = false;
-      setMessage("Rascunho criado. Nenhuma mensagem foi enviada ao cliente.", "success");
+      commandInput.value = "";
     } catch (error) {
-      setMessage(error.message || "Não foi possível criar o rascunho. Gere uma nova prévia.", "error");
-      createButton.disabled = !reviewed.checked || !previewToken;
+      setMessage(error.message || "Não foi possível concluir. Gere uma nova prévia.", "error");
+      createButton.disabled = !reviewed.checked || !current;
     } finally {
-      createButton.textContent = "Criar Quote em rascunho";
+      createButton.textContent = label;
     }
   });
 
+  /* ───────────── voice ───────────── */
+
+  // Preferred: record audio and transcribe on the server (better accuracy, knows your
+  // service and customer names). Fallback: the browser's own speech recognition.
+  const canRecord = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    micButton.disabled = true;
-    voiceStatus.textContent = "O reconhecimento de voz não está disponível neste navegador. Você ainda pode digitar ou colar o comando.";
-  } else {
-    recognition = new SpeechRecognition();
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = function () {
-      listening = true;
-      micButton.classList.add("is-listening");
-      micLabel.textContent = "Ouvindo…";
-      voiceStatus.textContent = "Fale o comando. Revise a transcrição antes de continuar.";
+  let serverVoice = canRecord;
+  let recorder = null;
+  let chunks = [];
+  let stream = null;
+  let recognition = null;
+  let listening = false;
+  let maxTimer = null;
+
+  function setListening(on) {
+    listening = on;
+    micButton.classList.toggle("is-listening", on);
+    micLabel.textContent = on ? "Parar e enviar" : "Gravar comando";
+  }
+
+  function languageHint() {
+    const value = voiceLanguage.value || "auto";
+    return value === "auto" ? null : value.slice(0, 2);
+  }
+
+  function useTranscript(text) {
+    commandInput.value = text;
+    commandInput.dispatchEvent(new Event("input", { bubbles: true }));
+    voiceStatus.textContent = "Transcrição: você pode corrigir o texto e tocar em “Entender e revisar” de novo.";
+    runPreview({ command: text });
+  }
+
+  function pickMimeType() {
+    const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+    for (let i = 0; i < types.length; i++) {
+      if (window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(types[i])) return types[i];
+    }
+    return "";
+  }
+
+  async function startRecording() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (_error) {
+      voiceStatus.textContent = "O navegador bloqueou o microfone. Libere a permissão ou digite o comando.";
+      return;
+    }
+    const mimeType = pickMimeType();
+    recorder = mimeType ? new MediaRecorder(stream, { mimeType: mimeType }) : new MediaRecorder(stream);
+    chunks = [];
+    recorder.ondataavailable = function (event) {
+      if (event.data && event.data.size) chunks.push(event.data);
     };
-    recognition.onresult = function (event) {
-      const transcript = Array.from(event.results || [])
-        .map(function (result) {
-          return result[0] && result[0].transcript ? result[0].transcript : "";
-        })
-        .join(" ")
-        .trim();
-      if (transcript) {
-        commandInput.value = transcript;
-        commandInput.dispatchEvent(new Event("input", { bubbles: true }));
-        voiceStatus.textContent = "Transcrição preenchida. Revise e corrija o texto antes de buscar.";
-      }
-    };
-    recognition.onerror = function (event) {
-      voiceStatus.textContent = event.error === "not-allowed"
-        ? "O navegador bloqueou o microfone. Libere a permissão ou digite o comando."
-        : "Não foi possível transcrever a fala. Tente novamente ou digite o comando.";
-    };
-    recognition.onend = function () {
-      listening = false;
-      micButton.classList.remove("is-listening");
-      micLabel.textContent = "Falar comando";
-    };
-    micButton.addEventListener("click", function () {
-      if (listening) {
-        recognition.stop();
+    recorder.onstop = function () {
+      stream.getTracks().forEach(function (track) {
+        track.stop();
+      });
+      clearTimeout(maxTimer);
+      setListening(false);
+      const blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || "audio/webm" });
+      if (blob.size < 1000) {
+        voiceStatus.textContent = "Não captei áudio. Tente de novo, falando perto do microfone.";
         return;
       }
-      recognition.lang = voiceLanguage.value;
-      try {
-        recognition.start();
-      } catch (_error) {
-        voiceStatus.textContent = "O microfone já está ativo. Aguarde a transcrição terminar.";
-      }
-    });
+      sendAudio(blob);
+    };
+    recorder.start();
+    setListening(true);
+    voiceStatus.textContent = "Gravando… fale o pedido e toque em “Parar e enviar”.";
+    maxTimer = setTimeout(function () {
+      if (recorder && recorder.state === "recording") recorder.stop();
+    }, 60000);
   }
+
+  function sendAudio(blob) {
+    voiceStatus.textContent = "Transcrevendo…";
+    micButton.disabled = true;
+    const reader = new FileReader();
+    reader.onloadend = async function () {
+      try {
+        const payload = { data_url: reader.result };
+        const lang = languageHint();
+        if (lang) payload.language = lang;
+        const data = await postJson("/api/mate-ai/transcribe", payload);
+        useTranscript(data.text);
+      } catch (error) {
+        if (error.data && error.data.fallback === "browser" && SpeechRecognition) {
+          serverVoice = false;
+          voiceStatus.textContent = "Transcrição do servidor indisponível. Toque em gravar de novo para usar o reconhecimento do navegador.";
+        } else {
+          voiceStatus.textContent = error.message || "Não foi possível transcrever. Tente de novo ou digite o comando.";
+        }
+      } finally {
+        micButton.disabled = false;
+      }
+    };
+    reader.readAsDataURL(blob);
+  }
+
+  function startBrowserRecognition() {
+    if (!recognition) {
+      recognition = new SpeechRecognition();
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onstart = function () {
+        setListening(true);
+        voiceStatus.textContent = "Ouvindo… fale o pedido.";
+      };
+      recognition.onresult = function (event) {
+        const transcript = Array.from(event.results || [])
+          .map(function (result) {
+            return result[0] && result[0].transcript ? result[0].transcript : "";
+          })
+          .join(" ")
+          .trim();
+        if (transcript) useTranscript(transcript);
+      };
+      recognition.onerror = function (event) {
+        voiceStatus.textContent =
+          event.error === "not-allowed"
+            ? "O navegador bloqueou o microfone. Libere a permissão ou digite o comando."
+            : "Não foi possível transcrever a fala. Tente novamente ou digite o comando.";
+      };
+      recognition.onend = function () {
+        setListening(false);
+      };
+    }
+    const value = voiceLanguage.value;
+    recognition.lang = value && value !== "auto" ? value : navigator.language || "pt-BR";
+    try {
+      recognition.start();
+    } catch (_error) {
+      voiceStatus.textContent = "O microfone já está ativo. Aguarde a transcrição terminar.";
+    }
+  }
+
+  if (!canRecord && !SpeechRecognition) {
+    micButton.disabled = true;
+    voiceStatus.textContent = "Gravação de voz não disponível neste navegador. Você ainda pode digitar o comando.";
+  }
+
+  micButton.addEventListener("click", function () {
+    if (listening) {
+      if (recorder && recorder.state === "recording") recorder.stop();
+      else if (recognition) recognition.stop();
+      return;
+    }
+    if (serverVoice && canRecord) startRecording();
+    else if (SpeechRecognition) startBrowserRecognition();
+  });
 })();

@@ -419,3 +419,195 @@
     padding: 10px 9px;
   }
 }
+
+/* ───────── Mate AI agent: examples, choices, invoice settings ───────── */
+
+.mate-ai-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  color: #626960;
+  font-size: 13px;
+}
+
+.mate-ai-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid #dcdcd3;
+  border-radius: 12px;
+  background: #f7f6f1;
+  color: #20251f;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mate-ai-chip:hover {
+  border-color: #567056;
+  background: #eef3ec;
+}
+
+.mate-ai-chip:focus-visible {
+  outline: 2px solid #567056;
+  outline-offset: 2px;
+}
+
+.mate-ai-chip--choice strong {
+  font-size: 14px;
+}
+
+.mate-ai-chip--choice span {
+  color: #626960;
+  font-size: 12px;
+}
+
+.mate-ai-clarify {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.mate-ai-clarify[hidden] {
+  display: none;
+}
+
+.mate-ai-choice-title {
+  margin: 0 0 8px;
+  color: #20251f;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mate-ai-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mate-ai-issue {
+  padding: 14px;
+  border: 1px solid #ece6d4;
+  border-radius: 14px;
+  background: #fffcf3;
+}
+
+.mate-ai-inline-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mate-ai-inline-search input,
+.mate-ai-catalog-select select,
+.mate-ai-invoice-settings select,
+.mate-ai-invoice-settings input {
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d0;
+  border-radius: 10px;
+  background: #fff;
+  color: #20251f;
+  font: inherit;
+  font-size: 14px;
+}
+
+.mate-ai-inline-search input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.mate-ai-catalog-select {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  color: #626960;
+  font-size: 13px;
+}
+
+.mate-ai-catalog-select select {
+  max-width: 100%;
+}
+
+.mate-ai-link {
+  margin-left: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #567056;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.mate-ai-service-spoken {
+  margin-top: 4px;
+  color: #8a8f86;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.mate-ai-job-meta {
+  margin: -6px 0 14px;
+  color: #626960;
+  font-size: 13px;
+}
+
+.mate-ai-invoice-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f7f6f1;
+}
+
+.mate-ai-invoice-settings label {
+  display: grid;
+  gap: 6px;
+  color: #626960;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mate-ai-invoice-settings label[hidden] {
+  display: none;
+}
+
+.mate-ai-review-confirm[hidden],
+.mate-ai-safe-note[hidden] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .mate-ai-invoice-settings label {
+    flex: 1 1 100%;
+  }
+}
+
+#mateAiMicButton.is-listening {
+  border-color: #b4483a;
+  background: #fbeceb;
+  color: #8f2f24;
+  animation: mate-ai-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes mate-ai-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(180, 72, 58, 0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(180, 72, 58, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #mateAiMicButton.is-listening { animation: none; }
+}

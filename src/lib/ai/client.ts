@@ -173,6 +173,8 @@ export async function aiTranscribeAudio(params: {
   body: Buffer;
   contentType: string;
   language?: string;
+  /** Vocabulary hint (names, product terms) to bias the transcription. */
+  prompt?: string;
   timeoutMs?: number;
 }): Promise<{ ok: true; text: string; model: string } | AiErrorResult> {
   const key = aiApiKey();
@@ -190,9 +192,21 @@ export async function aiTranscribeAudio(params: {
   const form = new FormData();
   const bytes = new Uint8Array(params.body);
   const blob = new Blob([bytes], { type: params.contentType || "audio/webm" });
-  form.append("file", blob, "voice.webm");
+  // The provider detects the format from the file extension (Safari records audio/mp4).
+  const ct = (params.contentType || "").toLowerCase();
+  const ext = ct.includes("mp4") || ct.includes("m4a") || ct.includes("aac")
+    ? "m4a"
+    : ct.includes("mpeg") || ct.includes("mp3")
+      ? "mp3"
+      : ct.includes("ogg")
+        ? "ogg"
+        : ct.includes("wav")
+          ? "wav"
+          : "webm";
+  form.append("file", blob, "voice." + ext);
   form.append("model", model);
   if (params.language) form.append("language", params.language);
+  if (params.prompt) form.append("prompt", params.prompt.slice(0, 900));
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 60_000);
