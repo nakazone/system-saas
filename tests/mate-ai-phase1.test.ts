@@ -98,6 +98,7 @@ describe.skipIf(!privileged)("Mate AI phase 1 actions (tenant database required)
       await tx.quoteCatalogItem.create({ data: { organizationId: org, name: "Hardwood Installation", serviceType: "installation", unitType: "sq ft", unitPrice: 5, active: true } });
       await tx.crew.create({ data: { organizationId: org, name: "Equipe Carlos" } });
       await tx.quoteCatalogItem.create({ data: { organizationId: org, name: "Carpet Removal", serviceType: "removal", unitType: "sq ft", unitPrice: 0, active: true } });
+      await tx.quoteCatalogItem.create({ data: { organizationId: org, name: "Stair Nosing", serviceType: "installation", unitType: "sq ft", unitPrice: 0, active: true } });
       const job = await tx.workOrder.create({
         data: {
           organizationId: org,
@@ -368,11 +369,67 @@ describe.skipIf(!privileged)("Mate AI phase 1 actions (tenant database required)
     expect(next).toMatchObject({ action: "pricing.set" });
 
     // Saving the price writes the Tabela de Valores (particular column for John).
-    const save = await run(next.action, next.args);
-    expect(save.prep.card.subtitle).toContain("Particular");
-    expect(save.exec.result.title).toBe("Preço de Carpet Removal salvo");
+    const save = { prep: (await post("/api/mate-ai/act", { action: next.action, args: next.args })).json };
+    expect(save.prep.card.subtitle).toBe("Preço especial de John Smith");
+    // Switch "Vale para" to the price table (Particular column) on the card before saving.
+    const toTable = await post("/api/mate-ai/act", { action: "pricing.set", args: save.prep.args, patch: { column: "particular" } });
+    expect(toTable.json.card.subtitle).toContain("Particular");
+    const saved = await post("/api/mate-ai/execute", toTable.json.card.confirm.exec.body);
+    expect(saved.json.result.title).toBe("Preço de Carpet Removal salvo");
     const row = await withTenantTransaction(org, (tx) => tx.pricingItem.findFirst({ where: { name: "Carpet Removal" } }));
     expect(Number(row?.priceParticular)).toBe(1);
+  });
+
+  it("creates and sends in one step when asked to send the open quote card", async () => {
+    nextPick = { action: "quote.create", args: { customer: "Mike Torres", items: [{ service_ref: "@Hardwood Installation", service_text: "madeira", quantity: 200, unit: "sq_ft" }] }, reply: null };
+    const card = await post("/api/mate-ai/act", { text: "quote pro mike com 200 pés de madeira" });
+    expect(card.json.type).toBe("card");
+
+    // "Agora envia esse quote por e-mail" while the card is still unconfirmed.
+    nextPick = { action: "quote.create", args: { ...card.json.args, send: "email", send_to: "mike@example.com" }, reply: null };
+    const pending = { action: card.json.action, args: card.json.args, status: "card", summary: card.json.card.title };
+    const both = await post("/api/mate-ai/act", { text: "agora envia esse quote por e-mail", pending });
+    expect(String(toolBodies.at(-1)!.messages[0].content)).toContain("PROPOSED");
+    expect(both.json.card.title).toBe("Criar e enviar Quote para Mike Torres");
+    expect(both.json.card.confirm).toMatchObject({ label: "Criar e enviar por e-mail", tone: "send", checkbox: "Enviar para mike@example.com" });
+
+    // Test e-mail runs in console mode: the quote is created and the failure is explained.
+    const exec = await post("/api/mate-ai/execute", both.json.card.confirm.exec.body);
+    expect(exec.status, JSON.stringify(exec.json)).toBe(200);
+    expect(exec.json.result.title).toMatch(/criado, mas não foi enviado$/);
+    expect(exec.json.result.detail).toContain("E-mail em modo console");
+    expect(exec.json.result.next).toMatchObject({ action: "quote.send", args: { channel: "email" } });
+    const created = await prisma.quote.findUniqueOrThrow({ where: { id: exec.json.result.entity.id } });
+    expect(Number(created.total)).toBe(1000);
+  });
+
+  it("asks the price of a line added to a quote and saves it for that customer", async () => {
+    const q = await prisma.quote.findFirstOrThrow({ where: { organizationId: org, customer: { name: "Mike Torres" }, total: 1000 } });
+    const ask = await post("/api/mate-ai/act", { action: "quote.edit", args: { quote_id: q.id, items: [{ service_text: "stair nosing", quantity: 40, unit: "sq_ft" }] } });
+    expect(ask.json.type, JSON.stringify(ask.json)).toBe("clarify");
+    expect(ask.json.clarify.question).toBe("“Stair Nosing” não tem preço para Mike Torres. Qual o preço por sq ft?");
+    const card = await post("/api/mate-ai/act", { action: "quote.edit", args: ask.json.args, patch: { [ask.json.clarify.search.path]: "0.80" } });
+    expect(card.json.card.sections[0].rows[0]).toEqual(["Stair Nosing", "40 sq ft", "$0.80", "$32.00"]);
+    const exec = await post("/api/mate-ai/execute", card.json.card.confirm.exec.body);
+    expect(exec.json.result.next).toMatchObject({ action: "pricing.set", args: { column: "customer" } });
+
+    const save = await run("pricing.set", exec.json.result.next.args);
+    expect(save.prep.card.subtitle).toBe("Preço especial de Mike Torres");
+    expect(save.exec.result.title).toBe("Preço de Stair Nosing salvo para Mike Torres");
+    const mike = await prisma.customer.findFirstOrThrow({ where: { organizationId: org, name: "Mike Torres" } });
+    expect(mike.pricingMode).toBe("custom");
+    expect(Object.values(mike.customPricingRates as Record<string, number>)).toContain(0.8);
+
+    // Next time the price comes from the customer, with no question.
+    const again = await post("/api/mate-ai/act", { action: "quote.edit", args: { quote_id: q.id, items: [{ service_text: "stair nosing", quantity: 10, unit: "sq_ft" }] } });
+    expect(again.json.card.sections[0].rows[0][2]).toBe("$0.80");
+  });
+
+  it("never sends an empty quote", async () => {
+    const empty = await withTenantTransaction(org, (tx) => tx.quote.create({ data: { organizationId: org, number: 9900, title: "Vazio", customerId: johnId } }));
+    const r = await post("/api/mate-ai/act", { action: "quote.send", args: { quote_id: empty.id, channel: "email" } });
+    expect(r.json.type).toBe("error");
+    expect(r.json.message).toContain("está vazio");
   });
 
   it("explains AI failures to admins through diagnostics", async () => {

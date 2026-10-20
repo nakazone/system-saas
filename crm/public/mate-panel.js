@@ -172,6 +172,14 @@
         out.push({ role: 'assistant', text: String(m.result.memory || m.result.title || '').slice(0, 380), entity: m.result.entity || null });
       } else if ((m.kind === 'reply' || m.kind === 'error') && m.message) {
         out.push({ role: 'assistant', text: String(m.message).slice(0, 380) });
+      } else if (m.kind === 'card' && m.card && m.card.confirm) {
+        // A proposal: say it is not done yet, and keep its args so "faz um novo com isso" can rebuild it.
+        var args = '';
+        try { args = JSON.stringify(m.args || {}); } catch (e) { args = ''; }
+        out.push({
+          role: 'assistant',
+          text: ('Proposed, NOT confirmed (does not exist yet): ' + m.card.title + ' · ' + (m.action || '') + ' ' + args).slice(0, 880),
+        });
       } else if ((m.kind === 'card' || m.kind === 'answer') && m.card) {
         out.push({ role: 'assistant', text: ('Showed: ' + m.card.title).slice(0, 380) });
       }

@@ -55,3 +55,11 @@ Note: `gpt-4o`, `gpt-4o-mini` and `gpt-4.1` leave the OpenAI API on 2027-01-14; 
 - **Consultas antes de responder**: o modelo pode chamar ferramentas somente-leitura (`find_customers`, `find_leads`, `find_jobs`, `find_quotes`, `find_invoices`, `find_prices`) por até 4 rodadas e termina com `propose_action` ou `reply`. Se o provedor recusar tools, cai para JSON mode, depois para o modelo padrão, e só então para a leitura local.
 - **Preço que falta**: linha de Quote sem preço na Tabela vira pergunta (`items.N.unit_price`). O preço informado vale só para aquele Quote (`priceOverride`) e, depois de criado, o Mate oferece **Salvar preço na Tabela** (`pricing.set`, permissão `builders.edit`; coluna pelo tipo do cliente).
 - **Diagnóstico**: `GET /api/mate-ai/diagnostics?probe=1` (admin) mostra provedor, modelo, último erro e testa JSON mode e tools mode. Quando a IA falha, administradores veem o motivo no painel em vez de uma resposta genérica.
+
+## Criar e enviar, preço por cliente (out/2026)
+
+- `quote.create` aceita `send` (`email` | `sms` | `link`) e `send_to`: um único "Criar e enviar" cria o Quote e envia pelo mesmo caminho do `quote.send`. Se o envio falhar, o Quote fica criado e o erro aparece, com "Tentar enviar de novo".
+- Card não confirmado entra no histórico como "Proposed, NOT confirmed" com seus args, e o item pendente avisa que ele ainda não existe. Assim "envia esse quote" cria e envia em vez de procurar Quotes antigos.
+- `quote.edit` pergunta o preço de uma linha sem preço (`items.N.unit_price`) em vez de mandar para o editor.
+- `pricing.set` com `column: "customer"` grava um preço especial só daquele cliente (`pricing_mode: custom` + `custom_pricing_rates`, via `PUT /api/customers/:id`, permissão `customers.edit`). Depois de um preço informado no Quote, o Mate oferece "Salvar preço" já nessa opção; o card permite trocar para a Tabela (Particular / Builder / Loja).
+- `quote.send` recusa Quote vazio ($0).

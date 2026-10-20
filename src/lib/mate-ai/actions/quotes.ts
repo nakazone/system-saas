@@ -21,7 +21,7 @@ export const editQuote: ActionDef = {
   args: {
     quote: "quote number, or empty to use the customer's open quote / current screen",
     customer: "customer name when the quote is identified by customer",
-    items: "lines to add: [{service_ref, service_text, quantity, unit}] like quote.create",
+    items: "lines to add: [{service_ref, service_text, quantity, unit, unit_price?}] like quote.create; unit_price when the user states the price",
     discount_type: "percent | fixed (optional)",
     discount_value: "number (optional): 10 for 10% or 500 for $500",
   },
@@ -40,7 +40,7 @@ export const editQuote: ActionDef = {
       where: { id: quote.id },
       select: {
         subtotal: true, discountType: true, discountValue: true, taxTotal: true, total: true, payload: true,
-        customer: { select: { customerType: true, pricingMode: true, customPricingRates: true } },
+        customer: { select: { id: true, name: true, customerType: true, pricingMode: true, customPricingRates: true } },
       },
     });
     if (!full) return { kind: "error", message: "Quote não encontrado.", args };
@@ -52,8 +52,9 @@ export const editQuote: ActionDef = {
     }
 
     const catalog = rawItems.length ? await loadMateAiCatalog(ctx.tx, ctx.organizationId) : [];
-    const customer = full.customer || { customerType: "particular", pricingMode: "table", customPricingRates: null };
+    const customer = full.customer || { id: null, name: "este cliente", customerType: "particular", pricingMode: "table", customPricingRates: null };
     const added: Array<Record<string, unknown>> = [];
+    const overrides: Array<Record<string, unknown>> = [];
     const rows: string[][] = [];
     for (let i = 0; i < rawItems.length && i < 8; i++) {
       const spec = rawItems[i]!;
@@ -72,8 +73,23 @@ export const editQuote: ActionDef = {
         return { kind: "clarify", clarify, args: { ...args, quote_id: quote.id } };
       }
       const item = picked.item;
-      const rate = resolveCustomerUnitPrice(item, customer) || 0;
-      if (rate <= 0) return { kind: "error", message: `“${item.name}” não tem preço para este cliente. Adicione no editor.`, args };
+      const said = num(spec.unit_price);
+      const rate = said != null && said > 0 ? round2(said) : resolveCustomerUnitPrice(item, customer) || 0;
+      if (rate <= 0) {
+        // Ask in the conversation; the answer becomes this line's price.
+        return {
+          kind: "clarify",
+          args: { ...args, quote_id: quote.id },
+          clarify: {
+            question: `“${item.name}” não tem preço para ${customer.name}. Qual o preço por ${unitLabel(normalizeMateAiUnit(item.unit) || item.unit) || "unidade"}?`,
+            options: [],
+            search: { placeholder: "Preço em $ (ex.: 0.80)", path: `items.${i}.unit_price` },
+          },
+        };
+      }
+      if (said != null && said > 0 && round2(said) !== round2(resolveCustomerUnitPrice(item, customer) || 0)) {
+        overrides.push({ catalog_item_id: item.id, catalog_source: item.source, pricing_item_id: item.pricingItemId, name: item.name, unit_price: rate });
+      }
       const amount = round2(qty * rate);
       added.push({
         item_type: "service",
@@ -105,7 +121,7 @@ export const editQuote: ActionDef = {
       add_items: added,
       ...(discountValue != null ? { discount: { type: dt, value: dv } } : {}),
     };
-    const exec = { quote_id: quote.id, label: quoteLabel(quote), ops, total };
+    const exec = { quote_id: quote.id, label: quoteLabel(quote), ops, total, overrides, customer_id: customer.id };
     return {
       kind: "card",
       args: { ...args, quote_id: quote.id },
@@ -124,6 +140,13 @@ export const editQuote: ActionDef = {
               { label: "Novo total (estimado)", value: money(total), strong: true },
             ],
           },
+          ...(overrides.length
+            ? [{
+                type: "note" as const,
+                tone: "warning" as const,
+                text: "Preço informado por você: " + overrides.map((o) => `${o.name} ${money(Number(o.unit_price))}`).join(", ") + ".",
+              }]
+            : []),
           { type: "note", text: "Abre o Quote no editor com a mudança aplicada; você revisa o imposto e salva." },
         ],
         confirm: { label: "Aplicar no Quote", tone: "normal", exec: { endpoint: "/api/mate-ai/execute", body: { token: ctx.sign(exec) } } },
@@ -145,6 +168,9 @@ export const editQuote: ActionDef = {
         href: "quote-builder.html?id=" + encodeURIComponent(String(exec.quote_id)) + "&mate_edit=1",
       },
       entity: { type: "quote", id: String(exec.quote_id) },
+      ...(Array.isArray(exec.overrides) && exec.overrides.length && exec.customer_id
+        ? { next: { label: "Salvar preço", action: "pricing.set", args: { items: exec.overrides, customer_id: exec.customer_id, column: "customer" } } }
+        : {}),
       memory: `Opened quote ${exec.label} in the editor with changes`,
     };
   },
@@ -163,6 +189,13 @@ export const sendQuote: ActionDef = {
     if (q.status === "clarify") return { kind: "clarify", clarify: q.clarify, args };
     if (q.status === "missing") return { kind: "error", message: q.message, args };
     const quote = q.row;
+    if (!(Number(quote.total) > 0)) {
+      return {
+        kind: "error",
+        message: `O Quote ${quoteLabel(quote)} está vazio (${money(Number(quote.total))}) e não deve ir para o cliente. Abra no editor ou peça um Quote novo — ex.: “cria e envia um quote pro ${quote.customer?.name || "cliente"} com …”.`,
+        args: { ...args, quote_id: quote.id },
+      };
+    }
     const channel = ["email", "sms", "link"].includes(str(args.channel)) ? str(args.channel) : "";
     const email = str(args.to, 200) || quote.customer?.email || quote.builder?.email || "";
     const phone = quote.customer?.phone || quote.builder?.phone || "";

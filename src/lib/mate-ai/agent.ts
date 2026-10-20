@@ -41,7 +41,7 @@ export const memorySchema = z
   .array(
     z.object({
       role: z.enum(["user", "assistant"]),
-      text: z.string().max(400),
+      text: z.string().max(900),
       entity: z.object({ type: z.string().max(40), id: z.string().uuid() }).nullable().optional(),
     }),
   )
@@ -126,6 +126,8 @@ export function buildAgentPrompt(p: {
     "",
     pendingBlock(p.pending),
     "Quote items may carry unit_price (dollars per unit) when the user states a price for a line — e.g. \"a remoção de carpete é 1 dólar o pé\" → that line's unit_price: 1.",
+    "History lines starting with \"Proposed, NOT confirmed\" are cards the user saw but did not confirm: they do not exist in the system. When the user refers to one (\"esse quote\", \"cria um novo com esse valor\", \"envia esse\"), re-propose that action with its args (adding send for quote.create when they ask to send) instead of searching existing records.",
+    "A price \"para esse cliente\" / \"pro Naka\" is a special price for that customer: on a quote line use unit_price; to save it use pricing.set with column customer.",
     "If something essential is missing, still choose the action with what you have — the system will ask.",
     ...(p.tools
       ? [
@@ -148,9 +150,16 @@ function pendingBlock(pending: Pending): string {
   const args = JSON.stringify(pending.args).slice(0, 3500);
   return [
     "",
-    `OPEN ITEM — the last thing shown to the user, not confirmed yet: action ${pending.action}, state ${pending.status}${pending.summary ? `: "${pending.summary}"` : ""}.`,
+    `OPEN ITEM — the last thing shown to the user: action ${pending.action}, state ${pending.status}${pending.summary ? `: "${pending.summary}"` : ""}.`,
+    pending.status === "card"
+      ? "IMPORTANT: this card was only PROPOSED. The user has NOT confirmed it, so it does NOT exist in the system yet (a quote card is not a quote yet — lookups will not find it)."
+      : "",
     `Its current args: ${args}`,
     "If the user's message continues, corrects or answers this item (a price, a quantity, a date, a name, \"sim\", \"não, 1500\", \"o preço é 1 dólar\", \"tira a remoção\", \"pro Mike também\"), propose the SAME action with the COMPLETE updated args: copy every existing arg and change only what they said.",
+    pending.action === "quote.create"
+      ? "If they ask to SEND this quote (\"envia por e-mail\", \"manda pro cliente\", \"esse quote você envia\"), propose quote.create again with the same args plus send: \"email\" (or \"sms\" / \"link\") — it creates and sends with one confirmation. Never pick an older existing quote for this."
+      : "",
+    "If they state a price for a customer or customer type (\"o preço para esse cliente é 80 cents\"), and the open item is a quote, put it as that line's unit_price; if they also want it saved, use pricing.set.",
     "If the message is a new, unrelated request, ignore the open item.",
   ].join("\n");
 }
@@ -214,6 +223,8 @@ export function normalizeArgs(action: string, args: Record<string, unknown>, cat
       customer_query: String(a.customer_query ?? a.customer ?? "").slice(0, 200),
       customer_id: typeof a.customer_id === "string" ? a.customer_id : null,
       items: a.items ?? [],
+      ...(["email", "sms", "link"].includes(String(a.send)) ? { send: a.send } : {}),
+      ...(typeof a.send_to === "string" && a.send_to.includes("@") ? { send_to: a.send_to.trim().slice(0, 200) } : {}),
     };
   }
   if (action === "invoice.job") {
