@@ -425,6 +425,38 @@ describe.skipIf(!privileged)("Mate AI phase 1 actions (tenant database required)
     expect(again.json.card.sections[0].rows[0][2]).toBe("$0.80");
   });
 
+  it("invoices the quote this conversation created, not another one of the same customer", async () => {
+    const mikes = await prisma.quote.findMany({ where: { organizationId: org, customer: { name: "Mike Torres" }, NOT: { status: "archived" } }, orderBy: { createdAt: "asc" } });
+    expect(mikes.length).toBeGreaterThan(1);
+    const older = mikes[0]!;
+    const newest = mikes.at(-1)!;
+
+    // The model only names the customer; the record from history decides.
+    nextPick = { action: "invoice.quote", args: { customer: "Mike Torres", invoice_type: "full" }, reply: null };
+    const memory = [
+      { role: "user", text: "cria um quote pro mike" },
+      { role: "assistant", text: "Created draft quote for Mike Torres", entity: { type: "quote", id: older.id } },
+    ];
+    const r = await post("/api/mate-ai/act", { text: "emite o invoice do último quote que você criou", memory });
+    expect(r.json.type, JSON.stringify(r.json)).toBe("card");
+    expect(r.json.args.quote_id).toBe(older.id);
+    expect(String(toolBodies.at(-1)!.messages[0].content)).toContain("[quote <id>]");
+    const quoteRow = r.json.card.sections[0].rows[0];
+    expect(quoteRow.label).toBe("Quote");
+    expect(quoteRow.value).toContain(older.quoteNumber || "#" + older.number);
+    expect(quoteRow.edit.options.map((o: { value: string }) => o.value)).toContain(newest.id);
+
+    // Switching the quote on the card.
+    const switched = await post("/api/mate-ai/act", { action: "invoice.quote", args: r.json.args, patch: { quote_id: newest.id } });
+    expect(switched.json.args.quote_id).toBe(newest.id);
+
+    // "o último quote" with nothing in history = the newest created.
+    const latest = await post("/api/mate-ai/act", { action: "invoice.quote", args: { customer: "Mike Torres", quote: "latest", invoice_type: "full" } });
+    expect(latest.json.args.quote_id).toBe(newest.id);
+    const ptLatest = await post("/api/mate-ai/act", { action: "invoice.quote", args: { customer: "Mike Torres", quote: "o último", invoice_type: "full" } });
+    expect(ptLatest.json.args.quote_id).toBe(newest.id);
+  });
+
   it("never sends an empty quote", async () => {
     const empty = await withTenantTransaction(org, (tx) => tx.quote.create({ data: { organizationId: org, number: 9900, title: "Vazio", customerId: johnId } }));
     const r = await post("/api/mate-ai/act", { action: "quote.send", args: { quote_id: empty.id, channel: "email" } });

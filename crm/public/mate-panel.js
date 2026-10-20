@@ -189,7 +189,7 @@
         out.push({ role: 'assistant', text: ('Showed: ' + m.card.title).slice(0, 380) });
       }
     });
-    return out.slice(-8);
+    return out.slice(-12);
   }
 
   /** The newest card / question / error not yet confirmed or canceled: follow-ups refer to it. */
