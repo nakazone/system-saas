@@ -1,11 +1,16 @@
 /**
- * Mate AI — panel available on every CRM screen.
+ * Mate AI — command bar available on every CRM screen (⌘J / Ctrl J, the topbar button, the
+ * "Mate AI" nav item, or the floating button on phones).
+ *
+ * Desktop: a centered bar over the dimmed page — type or talk at the top, the current step
+ * (card / question / answer) right under it, earlier turns folded away. Phone: a bottom sheet
+ * with the input at the bottom, next to the thumb and the keyboard.
  *
  * Talk or type → the server picks an action and returns a CARD to confirm, a QUESTION with
  * options, or an ANSWER. Cards are edited in place (each edit re-prepares on the server, no new
- * AI call), confirmed with one tap, and reversible actions offer "Desfazer" for 30 seconds.
+ * AI call), confirmed with one tap or Enter, and reversible actions offer "Desfazer" for 30 s.
  *
- * Page mode: when the page has #mateAiInline (mate-ai.html) the panel renders inside it.
+ * Page mode: when the page has #mateAiInline (mate-ai.html) the bar renders inside it.
  */
 (function () {
   'use strict';
@@ -22,7 +27,6 @@
     transcribe: '/api/mate-ai/transcribe',
   };
   var KEY_THREAD = 'mateAi.thread.v1';
-  var KEY_OPEN = 'mateAi.open.v1';
   var KEY_LANG = 'mateAiVoiceLang';
   var MAX_THREAD = 40;
 
@@ -141,6 +145,7 @@
     suggestions: null,
     suggestionsAt: 0,
     ai: null,
+    showHistory: false,
   };
 
   var today = new Date().toISOString().slice(0, 10);
@@ -211,28 +216,30 @@
 
   var fab = null;
   var backdrop = null;
+  var mac = /Mac|iPhone|iPad/.test(navigator.platform || '');
   var panel = document.createElement('section');
-  panel.className = 'mate-panel' + (inlineHost ? ' mate-panel--inline' : '');
+  panel.className = 'mate-pal' + (inlineHost ? ' mate-pal--inline' : '');
   panel.setAttribute('role', inlineHost ? 'region' : 'dialog');
   panel.setAttribute('aria-label', 'Mate AI');
+  if (!inlineHost) panel.setAttribute('aria-modal', 'true');
   panel.innerHTML =
-    '<header class="mate-head">' +
-    '<span class="mate-head__mark">' + ICON.spark + '</span>' +
-    '<div class="mate-head__title"><strong>Mate AI</strong><span id="mateHeadSub">Fale ou digite o que precisa</span></div>' +
-    '<button type="button" class="mate-icon-btn" data-mate="clear" title="Limpar conversa" aria-label="Limpar conversa">' + ICON.trash + '</button>' +
-    (inlineHost ? '' : '<button type="button" class="mate-icon-btn" data-mate="close" title="Fechar (Esc)" aria-label="Fechar">' + ICON.close + '</button>') +
-    '</header>' +
-    '<div class="mate-context" id="mateContext" hidden></div>' +
-    '<div class="mate-thread" id="mateThread" aria-live="polite"></div>' +
-    '<footer class="mate-compose">' +
-    '<div class="mate-compose__chips" id="mateChips"></div>' +
-    '<div class="mate-compose__row">' +
+    '<div class="mate-pal__grab" aria-hidden="true"></div>' +
+    '<div class="mate-pal__bar">' +
+    '<span class="mate-pal__mark" aria-hidden="true">' + ICON.spark + '</span>' +
+    '<div class="mate-pal__ctx" id="mateContext" hidden></div>' +
+    '<label class="mate-pal__field"><span class="mate-sr">Pedido para o Mate AI</span>' +
+    '<textarea id="mateInput" rows="1" maxlength="600" placeholder="Peça ao Mate… ex.: quote pro John, 1350 pés de madeira" data-crm-rich="off" enterkeyhint="send"></textarea></label>' +
     '<button type="button" class="mate-mic" id="mateMic" aria-label="Gravar pedido">' + ICON.mic + '</button>' +
-    '<label class="mate-compose__field"><span class="sr-only" style="position:absolute;left:-9999px">Pedido</span>' +
-    '<textarea id="mateInput" rows="1" maxlength="600" placeholder="Ex.: quote pro John, 1350 pés de madeira" data-crm-rich="off"></textarea></label>' +
     '<button type="button" class="mate-send" id="mateSend" aria-label="Enviar" disabled>' + ICON.send + '</button>' +
+    (inlineHost ? '' : '<button type="button" class="mate-icon-btn mate-pal__close" data-mate="close" title="Fechar (Esc)" aria-label="Fechar">' + ICON.close + '</button>') +
     '</div>' +
-    '<p class="mate-compose__hint" id="mateHint"></p>' +
+    '<p class="mate-pal__hint" id="mateHint" aria-live="polite"></p>' +
+    '<div class="mate-pal__chips" id="mateChips" hidden></div>' +
+    '<div class="mate-pal__body" id="mateThread" aria-live="polite"></div>' +
+    '<footer class="mate-pal__foot">' +
+    '<span class="mate-pal__keys" id="mateKeys"></span>' +
+    '<span class="mate-pal__mode" id="mateHeadSub"></span>' +
+    '<button type="button" class="mate-pal__link" data-mate="clear">Nova conversa</button>' +
     '</footer>';
 
   var threadEl = panel.querySelector('#mateThread');
@@ -243,6 +250,17 @@
   var chipsEl = panel.querySelector('#mateChips');
   var contextEl = panel.querySelector('#mateContext');
   var headSubEl = panel.querySelector('#mateHeadSub');
+  var keysEl = panel.querySelector('#mateKeys');
+
+  // Short placeholder on phones, where the long example wraps.
+  (function placeholder() {
+    var narrow = window.matchMedia ? window.matchMedia('(max-width: 719px)') : null;
+    function set() {
+      inputEl.placeholder = narrow && narrow.matches ? 'Peça ao Mate…' : 'Peça ao Mate… ex.: quote pro John, 1350 pés de madeira';
+    }
+    set();
+    if (narrow && narrow.addEventListener) narrow.addEventListener('change', set);
+  })();
 
   function mount() {
     if (inlineHost) {
@@ -259,6 +277,7 @@
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
 
+    // Phones only (CSS): tap opens, press and hold talks.
     fab = document.createElement('button');
     fab.type = 'button';
     fab.className = 'mate-fab';
@@ -267,7 +286,7 @@
     document.body.appendChild(fab);
     wireFab();
     addTopbarButton();
-    if (load(KEY_OPEN, false)) open({ focus: false });
+    followKeyboard();
   }
 
   function addTopbarButton() {
@@ -283,8 +302,7 @@
       btn.type = 'button';
       btn.id = 'mateTopbarBtn';
       btn.className = 'mate-topbar-btn';
-      var mac = /Mac|iPhone|iPad/.test(navigator.platform || '');
-      btn.innerHTML = ICON.spark + '<span>Mate AI</span><kbd>' + (mac ? '⌘J' : 'Ctrl J') + '</kbd>';
+      btn.innerHTML = ICON.spark + '<span>Peça ao Mate…</span><kbd>' + (mac ? '⌘J' : 'Ctrl J') + '</kbd>';
       btn.addEventListener('click', function () {
         toggle();
       });
@@ -292,21 +310,37 @@
     })();
   }
 
+  /** Phone: keep the sheet above the on-screen keyboard. */
+  function followKeyboard() {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    function sync() {
+      var covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      panel.style.setProperty('--mate-kb', covered + 'px');
+      panel.style.setProperty('--mate-vh', vv.height + 'px');
+    }
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    sync();
+  }
+
   /* ───────── open / close ───────── */
+
+  var lastFocus = null;
 
   function open(opts) {
     if (inlineHost) return;
+    if (!state.open) lastFocus = document.activeElement;
     state.open = true;
     panel.classList.add('is-open');
     document.body.classList.add('mate-open');
     if (backdrop) backdrop.hidden = false;
-    save(KEY_OPEN, true);
     render();
     loadStart();
     if (!opts || opts.focus !== false) {
       setTimeout(function () {
         inputEl.focus();
-      }, 260);
+      }, 40);
     }
   }
 
@@ -316,9 +350,9 @@
     panel.classList.remove('is-open');
     document.body.classList.remove('mate-open');
     if (backdrop) backdrop.hidden = true;
-    save(KEY_OPEN, false);
     stopVoice(true);
-    if (fab) fab.focus();
+    var back = lastFocus && document.contains(lastFocus) ? lastFocus : fab;
+    if (back && back.focus) back.focus();
   }
 
   function toggle() {
@@ -333,10 +367,26 @@
       else toggle();
       return;
     }
-    if (e.key === 'Escape' && state.open && !inlineHost && panel.contains(document.activeElement)) {
-      close();
+    if (e.key === 'Escape' && state.open && !inlineHost && !e.defaultPrevented) {
+      if (listening) stopVoice(true);
+      else close();
     }
   });
+
+  // The "Mate AI" item in the navigation opens the bar instead of leaving the page.
+  document.addEventListener(
+    'click',
+    function (e) {
+      if (inlineHost || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (!a || panel.contains(a)) return;
+      var href = a.getAttribute('href') || '';
+      if (!/(^|\/)mate-ai(\.html)?([?#].*)?$/i.test(href)) return;
+      e.preventDefault();
+      open();
+    },
+    true,
+  );
 
   /* ───────── start screen: context, suggestions, examples ───────── */
 
@@ -346,7 +396,7 @@
       api('GET', API.status)
         .then(function (s) {
           state.ai = Boolean(s.ai);
-          if (!s.ai) headSubEl.innerHTML = '<span class="mate-head__mode">Modo básico · IA não configurada</span>';
+          if (!s.ai) headSubEl.textContent = 'Modo básico · IA não configurada';
           voiceMode = s.server_voice === false ? 'browser' : 'server';
         })
         .catch(function (err) {
@@ -394,15 +444,16 @@
     }
     contextEl.hidden = false;
     contextEl.innerHTML = state.useScreen
-      ? '<span class="mate-context__label"><b>Nesta tela:</b> ' + esc(state.screenLabel) + '</span><button type="button" data-mate="ctx-off">não usar</button>'
-      : '<span class="mate-context__label"><b>Sem contexto</b></span><button type="button" data-mate="ctx-on">usar ' + esc(state.screenLabel) + '</button>';
+      ? '<button type="button" class="mate-ctx-chip" data-mate="ctx-off" title="Não usar esta tela no pedido">' + esc(state.screenLabel) + '<span aria-hidden="true">×</span></button>'
+      : '<button type="button" class="mate-ctx-chip is-off" data-mate="ctx-on" title="Usar esta tela no pedido">+ ' + esc(state.screenLabel) + '</button>';
   }
 
+  /** Suggestions for the record on screen, while nothing is waiting for an answer. */
   function renderChips() {
-    var chips = state.useScreen && state.screen && state.screenChips.length ? state.screenChips : [];
+    var chips = state.useScreen && state.screen && state.screenChips.length && !actionable() ? state.screenChips : [];
     chipsEl.innerHTML = chips
       .map(function (c) {
-        return '<button type="button" class="mate-chip" data-mate="say" data-text="' + esc(c) + '">' + esc(c) + '</button>';
+        return '<button type="button" class="mate-chip" data-mate="say" data-nav data-text="' + esc(c) + '">' + esc(c) + '</button>';
       })
       .join('');
     chipsEl.hidden = !chips.length;
@@ -410,42 +461,89 @@
 
   function startHtml() {
     var html = '<div class="mate-start">';
-    html += '<p class="mate-hello">Fale ou digite o que precisa. Eu preparo e você confirma — nada é enviado ao cliente sem o seu ok.</p>';
     var sug = state.suggestions || [];
     if (sug.length) {
-      html += '<h3>Para fazer agora</h3>';
+      html += '<h3>Para fazer agora</h3><div class="mate-rows">';
       sug.forEach(function (s, i) {
         html +=
-          '<button type="button" class="mate-sug mate-sug--' + esc(s.tone) + '" data-mate="sug" data-i="' + i + '">' +
-          '<span class="mate-sug__body"><strong>' + esc(s.title) + '</strong>' + (s.detail ? '<small>' + esc(s.detail) + '</small>' : '') + '</span>' +
-          '<span class="mate-sug__go">' + esc(s.run.label) + ' →</span></button>';
+          '<button type="button" class="mate-row mate-row--' + esc(s.tone) + '" data-mate="sug" data-nav data-i="' + i + '">' +
+          '<span class="mate-row__body"><strong>' + esc(s.title) + '</strong>' + (s.detail ? '<small>' + esc(s.detail) + '</small>' : '') + '</span>' +
+          '<span class="mate-row__go">' + esc(s.run.label) + '</span></button>';
       });
+      html += '</div>';
     }
-    html += '<h3>Experimente</h3><div class="mate-chips">';
+    html += '<h3>Experimente</h3><div class="mate-rows">';
     EXAMPLES.forEach(function (t) {
-      html += '<button type="button" class="mate-chip" data-mate="say" data-text="' + esc(t) + '">' + esc(t) + '</button>';
+      html += '<button type="button" class="mate-row mate-row--example" data-mate="say" data-nav data-text="' + esc(t) + '"><span class="mate-row__body">' + esc(t) + '</span><span class="mate-row__go" aria-hidden="true">↵</span></button>';
     });
-    html += '</div></div>';
+    html += '</div><p class="mate-hello">Eu preparo, você confirma — nada vai para o cliente sem o seu ok.</p></div>';
     return html;
   }
 
-  /* ───────── rendering ───────── */
+  /** The newest card waiting for a confirmation (Enter confirms it). */
+  function actionable() {
+    for (var i = state.thread.length - 1; i >= 0; i--) {
+      var m = state.thread[i];
+      if (m.role === 'user') return null;
+      if (m.kind === 'card' && m.card && m.card.confirm && !m.stale && !m.canceled) return m;
+    }
+    return null;
+  }
+
+  function lastUserIndex() {
+    for (var i = state.thread.length - 1; i >= 0; i--) if (state.thread[i].role === 'user') return i;
+    return -1;
+  }
+
+  function renderKeys() {
+    if (!keysEl) return;
+    var a = actionable();
+    var canEnter = a && !a.working && !(a.card.confirm.checkbox && !a.acked);
+    var parts = [];
+    if (canEnter) parts.push('<kbd>↵</kbd> ' + esc(a.card.confirm.label));
+    else parts.push('<kbd>↵</kbd> enviar');
+    if (state.thread.length) parts.push('<kbd>↑</kbd> repetir pedido');
+    if (!inlineHost) parts.push('<kbd>esc</kbd> fechar');
+    keysEl.innerHTML = parts.join('<span class="mate-dot-sep">·</span>');
+  }
 
   function render() {
     renderContext();
     renderChips();
+    renderKeys();
+    panel.classList.toggle('has-thread', state.thread.length > 0);
     if (!state.thread.length) {
       threadEl.innerHTML = startHtml();
+      threadEl.scrollTop = 0;
       return;
     }
-    threadEl.innerHTML = state.thread.map(renderMsg).join('');
+    // Only the current step is in view; earlier turns fold into "Conversa anterior".
+    var lu = Math.max(0, lastUserIndex());
+    var earlier = state.thread.slice(0, lu);
+    var current = state.thread.slice(lu);
+    var asks = earlier.filter(function (m) {
+      return m.role === 'user';
+    }).length;
+    var html = '';
+    if (earlier.length) {
+      html +=
+        '<button type="button" class="mate-history-toggle" data-mate="history" aria-expanded="' + (state.showHistory ? 'true' : 'false') + '">' +
+        (state.showHistory ? 'Ocultar conversa anterior' : 'Conversa anterior · ' + asks + (asks === 1 ? ' pedido' : ' pedidos')) +
+        '</button>';
+      if (state.showHistory) html += '<div class="mate-history">' + earlier.map(renderMsg).join('') + '</div>';
+    }
+    html += '<div class="mate-turn" id="mateTurn">' + current.map(renderMsg).join('') + '</div>';
+    threadEl.innerHTML = html;
     requestAnimationFrame(function () {
-      threadEl.scrollTop = threadEl.scrollHeight;
+      var turn = document.getElementById('mateTurn');
+      if (!turn) return;
+      // Keep the start of the current step visible; long answers scroll from there.
+      threadEl.scrollTop = state.showHistory ? turn.offsetTop - 8 : 0;
     });
   }
 
   function renderMsg(m) {
-    if (m.role === 'user') return '<div class="mate-msg mate-msg--user"><div class="mate-bubble">' + esc(m.text) + '</div></div>';
+    if (m.role === 'user') return '<div class="mate-msg mate-msg--user"><p class="mate-echo">' + esc(m.text) + '</p></div>';
     var inner = '';
     if (m.kind === 'thinking') inner = '<div class="mate-thinking" aria-label="Pensando"><i></i><i></i><i></i></div>';
     else if (m.kind === 'reply') inner = '<div class="mate-say">' + esc(m.message) + '</div>';
@@ -497,7 +595,7 @@
       html +=
         '<button type="button" class="mate-btn ' + (isSend ? 'mate-btn--send' : 'mate-btn--primary') + '" data-mate="confirm" data-msg="' + esc(m.id) + '"' +
         (confirm.checkbox && !m.acked ? ' disabled' : '') + (m.working ? ' disabled' : '') + '>' +
-        (m.working ? 'Fazendo…' : esc(confirm.label)) + '</button>';
+        (m.working ? 'Fazendo…' : esc(confirm.label) + (actionable() === m ? '<kbd class="mate-btn__kbd" aria-hidden="true">↵</kbd>' : '')) + '</button>';
       if (c.open) html += '<a class="mate-btn mate-btn--ghost" href="' + esc(safeHref(c.open.href)) + '">' + esc(c.open.label) + '</a>';
       html += '<button type="button" class="mate-btn mate-btn--quiet" data-mate="cancel" data-msg="' + esc(m.id) + '">Cancelar</button>';
       html += '</div>';
@@ -707,6 +805,7 @@
       if (done.undo) tickUndo(done.id);
       handleClient(res.client);
       state.suggestionsAt = 0;
+      if (state.open || inlineHost) inputEl.focus();
     } catch (err) {
       m.working = false;
       render();
@@ -851,7 +950,11 @@
     var what = el.getAttribute('data-mate');
     var m = el.hasAttribute('data-msg') ? find(el.getAttribute('data-msg')) : null;
     if (what === 'close') close();
-    else if (what === 'clear') {
+    else if (what === 'history') {
+      state.showHistory = !state.showHistory;
+      render();
+    } else if (what === 'clear') {
+      state.showHistory = false;
       state.thread = [];
       persist();
       render();
@@ -906,6 +1009,7 @@
         m.acked = el.checked;
         var btn = panel.querySelector('[data-mate="confirm"][data-msg="' + m.id + '"]');
         if (btn) btn.disabled = !el.checked;
+        renderKeys();
       }
     }
   });
@@ -934,10 +1038,47 @@
 
   inputEl.addEventListener('input', autoGrow);
   inputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    if (e.isComposing) return;
+    var empty = !inputEl.value.trim();
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      ask(inputEl.value);
+      if (!empty) {
+        ask(inputEl.value);
+        return;
+      }
+      var a = actionable();
+      if (a && !a.working && !(a.card.confirm.checkbox && !a.acked)) confirm(a);
+      return;
     }
+    if (e.key === 'ArrowUp' && empty) {
+      var lu = lastUserIndex();
+      if (lu >= 0) {
+        e.preventDefault();
+        inputEl.value = state.thread[lu].text || '';
+        autoGrow();
+        inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+      }
+      return;
+    }
+    if (e.key === 'ArrowDown' && empty) {
+      var first = panel.querySelector('[data-nav]');
+      if (first) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+
+  // Arrow keys move between suggestion rows; Up from the first row returns to the input.
+  panel.addEventListener('keydown', function (e) {
+    var el = e.target;
+    if (!el || !el.hasAttribute || !el.hasAttribute('data-nav')) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    var items = Array.prototype.slice.call(panel.querySelectorAll('[data-nav]'));
+    var i = items.indexOf(el);
+    e.preventDefault();
+    if (e.key === 'ArrowUp' && i <= 0) inputEl.focus();
+    else if (items[i + (e.key === 'ArrowDown' ? 1 : -1)]) items[i + (e.key === 'ArrowDown' ? 1 : -1)].focus();
   });
   sendEl.addEventListener('click', function () {
     ask(inputEl.value);
