@@ -100,6 +100,8 @@ export type ActionContext = {
   timezone: string;
   today: string;
   screen: ScreenContext;
+  /** Records from this conversation, newest first ("o último quote que você criou"). */
+  recent?: Array<{ type: string; id: string }>;
   /** Signs an execution payload for this action (10-minute token). */
   sign: (exec: Record<string, unknown>) => string;
 };

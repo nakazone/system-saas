@@ -28,10 +28,16 @@ function pick<T>(
   noun: string,
   option: (row: T) => { label: string; detail?: string; id: string },
   searchPath: string,
+  recent: string[] = [],
 ): Resolved<T> {
   const result = pickBest(ranked, { min: 50, margin: 10 });
   if (result.status === "matched") return { status: "ok", row: result.item };
   const candidates = result.candidates;
+  // Several close matches: the record this conversation just worked on wins.
+  for (const rid of recent) {
+    const hit = candidates.find(({ item }) => option(item).id === rid);
+    if (hit) return { status: "ok", row: hit.item };
+  }
   if (!candidates.length) {
     return {
       status: "clarify",
@@ -270,6 +276,7 @@ export async function resolveJob(ctx: ActionContext, args: Record<string, unknow
       detail: [jobCustomerName(j), j.address, j.scheduledStart ? fmtDay(j.scheduledStart, ctx.timezone) : null].filter(Boolean).join(" · "),
     }),
     "job",
+    recentOf(ctx, "job", "work_order"),
   );
 }
 
@@ -320,6 +327,31 @@ function quoteNumberFromQuery(query: string): { n: number | null; text: string |
   return { n: m ? Number(m[1]) : null, text };
 }
 
+const LATEST_RE = /[uú]ltim|\blatest\b|\blast\b|\brecente|mais novo|acab(ou|amos) de criar|(voc[eê]|vc) (criou|fez)|que (criou|criamos)/i;
+
+function nameMatches(query: string, name: string | null | undefined): boolean {
+  return nameSimilarity(query, [name]) >= 60;
+}
+
+/** The customer's other quotes, for a "Quote" picker on cards. */
+export async function customerQuoteOptions(ctx: ActionContext, customerId: string | null, timezone: string) {
+  if (!customerId) return [];
+  const rows = await ctx.tx.quote.findMany({
+    where: { customerId, NOT: { status: "archived" } },
+    select: { id: true, number: true, quoteNumber: true, title: true, total: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+  });
+  return rows.map((q) => ({
+    value: q.id,
+    label: (q.quoteNumber || "#" + q.number) + " · " + money(Number(q.total)) + " · " + fmtDay(q.createdAt, timezone),
+  }));
+}
+
+function recentOf(ctx: ActionContext, ...types: string[]): string[] {
+  return (ctx.recent || []).filter((r) => types.includes(r.type)).map((r) => r.id);
+}
+
 export async function resolveQuote(
   ctx: ActionContext,
   args: Record<string, unknown>,
@@ -333,7 +365,23 @@ export async function resolveQuote(
     if (row) return { status: "ok", row } as Resolved<Row>;
   }
   const query = str(args.quote, 200);
-  if (query) {
+  const recentIds = (ctx.recent || []).filter((r) => r.type === "quote").map((r) => r.id);
+  // "o último quote", "esse que você criou": the newest quote of this conversation, else the newest created.
+  if (LATEST_RE.test(query) || args.latest === true) {
+    for (const rid of recentIds) {
+      const row = await load(rid);
+      if (row && (!str(args.customer) || nameMatches(str(args.customer), row.customer?.name))) return { status: "ok", row } as Resolved<Row>;
+    }
+    const cust = str(args.customer) || uuidOrNull(args.customer_id) ? await resolveCustomer(ctx, { customer_id: args.customer_id, customer: args.customer }) : null;
+    if (cust && cust.status !== "ok") return cust as Resolved<Row>;
+    const row = await ctx.tx.quote.findFirst({
+      where: { ...(cust ? { customerId: cust.row.id } : {}), NOT: { status: "archived" } },
+      select: quoteSelect,
+      orderBy: { createdAt: "desc" },
+    });
+    if (row) return { status: "ok", row } as Resolved<Row>;
+  }
+  if (query && !LATEST_RE.test(query)) {
     const { n, text } = quoteNumberFromQuery(query);
     const row = await ctx.tx.quote.findFirst({
       where: { OR: [...(n != null ? [{ number: n }] : []), ...(text ? [{ quoteNumber: { equals: text, mode: "insensitive" as const } }] : [])] },
@@ -354,7 +402,7 @@ export async function resolveQuote(
   let rows = await ctx.tx.quote.findMany({
     where: { customerId: cust.row.id },
     select: quoteSelect,
-    orderBy: { updatedAt: "desc" },
+    orderBy: { createdAt: "desc" },
     take: 12,
   });
   rows = rows.filter((q) => {
@@ -370,13 +418,18 @@ export async function resolveQuote(
       message: `${cust.row.name} não tem Quote ${filter.approvedOnly ? "aprovado" : filter.openOnly ? "em aberto" : ""}`.trim() + ".",
     } as Resolved<Row>;
   }
+  // Several quotes: the one this conversation just worked on wins over asking.
+  for (const rid of recentIds) {
+    const hit = rows.find((q) => q.id === rid);
+    if (hit) return { status: "ok", row: hit } as Resolved<Row>;
+  }
   return {
     status: "clarify",
     clarify: {
       question: `${cust.row.name} tem ${rows.length} Quotes. Qual deles?`,
       options: rows.slice(0, 6).map((q) => ({
         label: quoteLabel(q),
-        detail: [quoteStatusPt(q.status), money(Number(q.total)), fmtDay(q.updatedAt, ctx.timezone)].join(" · "),
+        detail: [quoteStatusPt(q.status), money(Number(q.total)), "criado " + fmtDay(q.createdAt, ctx.timezone)].join(" · "),
         patch: { quote_id: q.id },
       })),
     },
@@ -410,7 +463,13 @@ export async function resolveInvoice(ctx: ActionContext, args: Record<string, un
     if (row) return { status: "ok", row } as Resolved<Row>;
   }
   const query = str(args.invoice, 200);
-  if (query) {
+  if (LATEST_RE.test(query) && !str(args.customer) && !uuidOrNull(args.customer_id)) {
+    for (const rid of recentOf(ctx, "invoice")) {
+      const row = await load(rid);
+      if (row) return { status: "ok", row } as Resolved<Row>;
+    }
+  }
+  if (query && !LATEST_RE.test(query)) {
     const m = query.match(/([A-Za-z]{2,5}-?\d{1,7})/);
     const n = query.match(/(\d{1,7})/)?.[1];
     const rows = await ctx.tx.quoteInvoice.findMany({
@@ -445,6 +504,11 @@ export async function resolveInvoice(ctx: ActionContext, args: Record<string, un
   if (!rows.length) {
     return { status: "missing", message: `${cust.row.name} não tem invoice${filter.openOnly ? " em aberto" : ""}.` } as Resolved<Row>;
   }
+  for (const rid of recentOf(ctx, "invoice")) {
+    const hit = rows.find((r) => r.id === rid);
+    if (hit) return { status: "ok", row: hit } as Resolved<Row>;
+  }
+  if (LATEST_RE.test(query)) return { status: "ok", row: rows[0]! } as Resolved<Row>;
   return {
     status: "clarify",
     clarify: {

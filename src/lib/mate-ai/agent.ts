@@ -126,6 +126,8 @@ export function buildAgentPrompt(p: {
     "",
     pendingBlock(p.pending),
     "Quote items may carry unit_price (dollars per unit) when the user states a price for a line — e.g. \"a remoção de carpete é 1 dólar o pé\" → that line's unit_price: 1.",
+    "History lines end with tags like [quote <id>], [invoice <id>], [job <id>], [customer <id>] for records created or changed in this conversation. When the user refers to one of them (\"o último quote\", \"esse quote\", \"o quote que você criou\", \"esse job\"), pass that exact id as quote_id / invoice_id / job_id / customer_id — the NEWEST tag of that type unless they say otherwise. Never pick another record of the same customer, and never invent ids.",
+    "If the user says \"o último quote\" and no tag fits, set quote: \"latest\" (with the customer if named) — never guess a number.",
     "History lines starting with \"Proposed, NOT confirmed\" are cards the user saw but did not confirm: they do not exist in the system. When the user refers to one (\"esse quote\", \"cria um novo com esse valor\", \"envia esse\"), re-propose that action with its args (adding send for quote.create when they ask to send) instead of searching existing records.",
     "A price \"para esse cliente\" / \"pro Naka\" is a special price for that customer: on a quote line use unit_price; to save it use pricing.set with column customer.",
     "If something essential is missing, still choose the action with what you have — the system will ask.",

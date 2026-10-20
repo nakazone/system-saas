@@ -545,6 +545,10 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
         timezone,
         today,
         screen,
+        recent: (body.data.memory || [])
+          .map((m) => m.entity)
+          .filter((e): e is { type: string; id: string } => Boolean(e && e.id))
+          .reverse(),
         sign: (exec) => signActionToken({ k: "exec", a: def.name, o: organizationId, u: user.id, e: exec, ttlMs: EXEC_TTL_MS }).token,
       };
       return def.prepare(ctx, args);

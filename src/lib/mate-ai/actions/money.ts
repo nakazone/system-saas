@@ -2,7 +2,7 @@ import { computeInvoiceMoney, computeNewInvoiceAmount, invoiceKindLabel, PAYMENT
 import { invoicedTotalForQuote } from "../../invoices/service.js";
 import { normalizeQuoteStatus } from "../../quotes/transitions.js";
 import { callInternalApi, internalError } from "../internal-api.js";
-import { quoteLabel, quoteStatusPt, resolveInvoice, resolveQuote } from "./resolve.js";
+import { quoteLabel, quoteStatusPt, resolveInvoice, resolveQuote, customerQuoteOptions } from "./resolve.js";
 import { addDays, fmtDate, isIsoDay } from "./time.js";
 import type { ActionDef, Clarify } from "./types.js";
 import { money, num, str } from "./types.js";
@@ -29,7 +29,8 @@ export const invoiceFromQuote: ActionDef = {
   description:
     "Issue an invoice from a quote (deposit %, full, remaining balance, progress or a custom amount). Use invoice.job when the user names a JOB instead of a quote.",
   args: {
-    quote: "quote number, or empty to use the customer's quote / current screen",
+    quote_id: "id of a quote seen earlier in this conversation ([quote <id>] in history) — use it when the user says 'esse quote', 'o último quote', 'o que você criou'",
+    quote: "quote number like Q-1007, or \"latest\" for the newest one; empty to use the customer's quote / current screen",
     customer: "customer name",
     invoice_type: "deposit | full | final | progress | custom",
     deposit_pct: "number for deposits (e.g. 50)",
@@ -78,6 +79,7 @@ export const invoiceFromQuote: ActionDef = {
     const calc = computeNewInvoiceAmount({ kind: type, quoteTotal: total, invoicedTotal: invoiced, depositPct, customAmount: amountArg });
     if (!calc.ok) return { kind: "error", message: calc.error, args: { ...args, quote_id: quote.id } };
     const due = isIsoDay(args.due_date) ? String(args.due_date) : null;
+    const quoteOptions = await customerQuoteOptions(ctx, quote.customerId, ctx.timezone);
     const exec = {
       quote_id: quote.id,
       label: quoteLabel(quote),
@@ -96,6 +98,14 @@ export const invoiceFromQuote: ActionDef = {
           {
             type: "fields",
             rows: [
+              {
+                // Always show which quote, with its total and date, and let the user switch.
+                label: "Quote",
+                value: (quote.quoteNumber || "#" + quote.number) + " · " + money(total) + " · criado " + fmtDate(new Intl.DateTimeFormat("en-CA", { timeZone: ctx.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(quote.createdAt)),
+                ...(quoteOptions.length > 1
+                  ? { edit: { path: "quote_id", input: "select" as const, value: quote.id, options: quoteOptions } }
+                  : {}),
+              },
               {
                 label: "Tipo",
                 value: invoiceKindLabel(calc.kind, "pt") + (type === "deposit" && depositPct != null ? ` (${depositPct}%)` : ""),
