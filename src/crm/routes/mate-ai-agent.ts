@@ -56,9 +56,15 @@ const quoteCreate: ActionDef = {
   description: "Create a new draft quote for a customer with service lines priced from the company's table.",
   args: {
     customer: "customer name as said",
-    items: "[{service_ref, service_text, quantity, unit}] — see the catalog below",
+    items: "[{service_ref, service_text, quantity, unit, unit_price?}] — see the catalog below",
+    send: "email | sms | link — ONLY when the user also asks to send it (\"cria e manda por e-mail\", or \"envia\" while this quote card is still open/unconfirmed). One confirmation creates and sends.",
+    send_to: "e-mail address if the user said a different one",
   },
-  examples: ["Criar um quote para o John Smith, instalação de 1350 pés de madeira", "Quote for Maria with 800 sqft vinyl and 180 linear feet of baseboard"],
+  examples: [
+    "Criar um quote para o John Smith, instalação de 1350 pés de madeira",
+    "Quote for Maria with 800 sqft vinyl and 180 linear feet of baseboard",
+    "Cria e envia por e-mail um quote pro Naka com 1375 pés de madeira",
+  ],
   permissions: ["quotes.create", "customers.view", "pricing.view"],
   async prepare(ctx, args) {
     const items = Array.isArray(args.items) ? args.items : [];
@@ -117,6 +123,19 @@ const quoteCreate: ActionDef = {
       };
     }
     if (r.status !== "ready") return { kind: "error", message: "Não foi possível preparar o Quote.", args: plan };
+    const send = ["email", "sms", "link"].includes(String(args.send || "")) ? String(args.send) : "";
+    if (send) plan.send = send;
+    if (args.send_to) plan.send_to = args.send_to;
+    const contact = await ctx.tx.customer.findFirst({ where: { id: r.customer.id }, select: { email: true, phone: true } });
+    const sendTo = String(args.send_to || contact?.email || "").trim();
+    if (send === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(sendTo)) {
+      return {
+        kind: "clarify",
+        args: plan,
+        clarify: { question: `${r.customer.name} não tem e-mail no cadastro. Para qual e-mail enviar o Quote?`, options: [], search: { placeholder: "email@exemplo.com", path: "send_to" } },
+      };
+    }
+    const sendLabel = send === "email" ? "por e-mail" : send === "sms" ? "por SMS" : "o link";
     const assumptions = r.lines
       .filter((l) => l.spoken && l.spoken.trim().toLowerCase() !== l.name.toLowerCase())
       .map((l) => ({ said: l.spoken, chosen: l.name }));
@@ -124,8 +143,9 @@ const quoteCreate: ActionDef = {
       kind: "card",
       args: plan,
       card: {
-        title: "Criar Quote para " + r.customer.name,
+        title: (send ? "Criar e enviar Quote para " : "Criar Quote para ") + r.customer.name,
         subtitle: r.customer.company || undefined,
+        badge: send && send !== "link" ? { text: "Vai para o cliente", tone: "warning" } : undefined,
         sections: [
           {
             type: "table",
@@ -152,12 +172,25 @@ const quoteCreate: ActionDef = {
                   r.lines.filter((l) => l.priceOverride).map((l) => `${l.name} ${money(l.unitPrice)}/${unitLabel(normalizeMateAiUnit(l.unit) || l.unit)}`).join(", ") + ".",
               }]
             : []),
-          { type: "note", text: "Cria um rascunho. Nada é enviado ao cliente." },
+          ...(send === "email"
+            ? [{ type: "fields" as const, rows: [{ label: "Enviar para", value: sendTo, edit: { path: "send_to", input: "text" as const, value: sendTo } }] }]
+            : []),
+          {
+            type: "note",
+            text: !send
+              ? "Cria um rascunho. Nada é enviado ao cliente."
+              : send === "email"
+                ? "Cria o Quote e envia o e-mail com o link para ver e aprovar. O Quote passa para “enviado”."
+                : send === "sms"
+                  ? "Cria o Quote, gera o link e abre o app de mensagens com o texto pronto."
+                  : "Cria o Quote e gera o link para você compartilhar.",
+          },
         ],
         assumptions,
         confirm: {
-          label: "Criar Quote em rascunho",
-          tone: "normal",
+          label: send ? "Criar e enviar " + sendLabel : "Criar Quote em rascunho",
+          tone: send && send !== "link" ? "send" : "normal",
+          checkbox: send === "email" ? "Enviar para " + sendTo : undefined,
           exec: {
             endpoint: "/api/mate-ai/execute",
             body: {
@@ -165,6 +198,9 @@ const quoteCreate: ActionDef = {
                 preview_token: r.previewToken,
                 customer: r.customer.name,
                 customer_id: r.customer.id,
+                send: send || null,
+                send_to: send === "email" ? sendTo : null,
+                phone: contact?.phone || null,
                 overrides: r.lines
                   .filter((l) => l.priceOverride)
                   .map((l) => ({ catalog_item_id: l.catalogItemId, catalog_source: l.catalogSource, pricing_item_id: l.pricingItemId, name: l.name, unit_price: l.unitPrice })),
@@ -184,21 +220,46 @@ const quoteCreate: ActionDef = {
     );
     if (!res.ok || !res.json.data?.id) return { ok: false, status: res.status, error: internalError(res, "Não foi possível criar o Quote.") };
     const d = res.json.data;
-    return {
-      ok: true,
+    const savePrice =
+      Array.isArray(exec.overrides) && exec.overrides.length
+        ? { label: "Salvar preço", action: "pricing.set", args: { items: exec.overrides, customer_id: exec.customer_id, column: "customer" } }
+        : null;
+    const created = {
+      ok: true as const,
       title: "Quote " + d.quote_number + " criado",
       detail: d.customer_name + " · " + d.item_count + " serviço(s) · " + money(d.total),
       links: [{ label: "Abrir no editor", href: "quote-builder.html?id=" + encodeURIComponent(d.id) }],
-      next:
-        Array.isArray(exec.overrides) && exec.overrides.length
-          ? {
-              label: "Salvar preço na Tabela",
-              action: "pricing.set",
-              args: { items: exec.overrides, customer_id: exec.customer_id },
-            }
-          : { label: "Enviar ao cliente", action: "quote.send", args: { quote_id: d.id } },
+      next: savePrice || { label: "Enviar ao cliente", action: "quote.send", args: { quote_id: d.id } },
       entity: { type: "quote", id: d.id },
       memory: `Created draft quote ${d.quote_number} for ${d.customer_name} (${money(d.total)})`,
+    };
+    if (!exec.send) return created;
+    // Same send path as quote.send; a failed send keeps the quote and says why.
+    const sent = await sendQuote.execute!(ctx, {
+      quote_id: d.id,
+      label: d.quote_number,
+      channel: exec.send,
+      to: exec.send_to,
+      phone: exec.phone,
+      who: d.customer_name,
+    });
+    if (!sent.ok) {
+      return {
+        ...created,
+        title: "Quote " + d.quote_number + " criado, mas não foi enviado",
+        detail: sent.error,
+        next: { label: "Tentar enviar de novo", action: "quote.send", args: { quote_id: d.id, channel: exec.send } },
+        memory: created.memory + "; sending failed: " + sent.error,
+      };
+    }
+    return {
+      ...sent,
+      title: exec.send === "email" ? "Quote " + d.quote_number + " criado e enviado" : sent.title,
+      detail: exec.send === "email" ? money(d.total) + " · para " + exec.send_to : sent.detail,
+      links: [...(sent.links || []), ...created.links].filter((l, i, all) => all.findIndex((x) => x.href === l.href) === i),
+      next: savePrice || undefined,
+      entity: created.entity,
+      memory: created.memory + "; " + (sent.memory || "sent"),
     };
   },
 };
