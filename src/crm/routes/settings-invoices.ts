@@ -38,6 +38,7 @@ async function loadInvoiceConfig(organizationId: string) {
     data: {
       share_messages: settings.share_messages,
       payment_date_default: settings.payment_date_default,
+      default_due_days: settings.default_due_days,
       company_name: org.name || null,
       tokens: ["[name]", "[company]", "[invoice_number]", "[amount]", "[balance]", "[due_date]", "[link]"],
       defaults: DEFAULT_INVOICE_SHARE_MESSAGES,
@@ -79,7 +80,7 @@ settingsInvoicesRouter.patch(
       const orgId = req.organizationId!;
       const before = await loadInvoiceConfig(orgId);
       const p = parsed.data;
-      if (p.share_messages === undefined && p.payment_date_default === undefined) {
+      if (p.share_messages === undefined && p.payment_date_default === undefined && p.default_due_days === undefined) {
         res.json({ success: true, data: before.data });
         return;
       }
@@ -90,6 +91,7 @@ settingsInvoicesRouter.patch(
         ...(p.payment_date_default !== undefined
           ? { payment_date_default: p.payment_date_default }
           : {}),
+        ...(p.default_due_days !== undefined ? { default_due_days: p.default_due_days } : {}),
       };
 
       await prisma.organization.update({
@@ -100,6 +102,9 @@ settingsInvoicesRouter.patch(
       const changes: Record<string, { from: unknown; to: unknown }> = {};
       if (p.share_messages !== undefined) {
         changes.shareMessages = { from: before.settings.share_messages, to: p.share_messages };
+      }
+      if (p.default_due_days !== undefined) {
+        changes.defaultDueDays = { from: before.settings.default_due_days, to: p.default_due_days };
       }
       if (p.payment_date_default !== undefined) {
         changes.paymentDateDefault = {

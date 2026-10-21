@@ -14,7 +14,22 @@ export type InvoicePaymentDateDefault = "today" | "due_date";
 export type InvoiceSettings = {
   share_messages: InvoiceShareMessages;
   payment_date_default: InvoicePaymentDateDefault;
+  /** Days from issue to the default due date (when no date is given). */
+  default_due_days: number;
 };
+
+export const DEFAULT_DUE_DAYS = 1;
+
+export function parseDefaultDueDays(raw: unknown): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 && n <= 120 ? n : DEFAULT_DUE_DAYS;
+}
+
+/** Default due date for a new invoice: issue day + the company's default days. */
+export function defaultDueDate(invoiceSettings: unknown, from = new Date()): Date {
+  const o = invoiceSettings && typeof invoiceSettings === "object" && !Array.isArray(invoiceSettings) ? (invoiceSettings as Record<string, unknown>) : {};
+  return new Date(from.getTime() + parseDefaultDueDays(o.default_due_days) * 86400000);
+}
 
 export const DEFAULT_INVOICE_SHARE_MESSAGES: InvoiceShareMessages = {
   sms_body:
@@ -41,6 +56,7 @@ export function parseInvoiceSettings(raw: unknown): InvoiceSettings {
   return {
     share_messages: parseInvoiceShareMessages(o.share_messages),
     payment_date_default: parsePaymentDateDefault(o.payment_date_default),
+    default_due_days: parseDefaultDueDays(o.default_due_days),
   };
 }
 
@@ -52,6 +68,7 @@ export const invoiceSettingsPatchSchema = z
       })
       .optional(),
     payment_date_default: z.enum(["today", "due_date"]).optional(),
+    default_due_days: z.number().int().min(0).max(120).optional(),
   })
   .strict();
 
