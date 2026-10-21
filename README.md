@@ -50,6 +50,7 @@ The staff product UI is the Senior Floors System (vendored under `crm/`), adapte
 
 - After **Find your workspace** → login, you land on `/dashboard.html` (SF CRM).
 - Plan: [docs/CRM_PORT_PLAN.md](docs/CRM_PORT_PLAN.md)
+- Mate Voice staging MVP: [docs/features/mate-voice.md](docs/features/mate-voice.md)
 - Phase 0 done: UI + `/api/auth/*` + minimal leads/dashboard APIs on Postgres.
 - Next phases port the remaining SF `/api/*` modules with `organization_id`.
 

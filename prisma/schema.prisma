@@ -855,6 +855,8 @@ model Organization {
   chatAttachments    ChatAttachment[]
   chatAuditLogs      ChatAuditLog[]
   chatMessageFlags   ChatMessageFlag[]
+  mateVoiceConversations MateVoiceConversation[]
+  mateVoiceMessages  MateVoiceMessage[]
   fieldQuotes        FieldQuote[]
   referralRewards    ReferralReward[]
   referralLedgerEntries ReferralLedgerEntry[]
@@ -919,6 +921,7 @@ model User {
   chatMentionsReceived ChatMessageMention[]
   chatAuditLogs ChatAuditLog[] @relation("ChatAuditActor")
   chatMessageFlagsAssigned ChatMessageFlag[] @relation("ChatMessageFlagAssignee")
+  mateVoiceConversationsCreated MateVoiceConversation[] @relation("MateVoiceConversationCreator")
   passwordResetTokens PasswordResetToken[]
 
   @@unique([organizationId, email])
@@ -1097,6 +1100,7 @@ model Lead {
   customers Customer[]
   siteAssessments SiteAssessment[]
   meetings  Meeting[]
+  mateVoiceConversations MateVoiceConversation[]
 
   @@index([organizationId])
   @@index([organizationId, pipelineStageId])
@@ -1156,6 +1160,7 @@ model Customer {
   communicationLogs CommunicationLog[]
   workOrders WorkOrder[]
   meetings   Meeting[]
+  mateVoiceConversations MateVoiceConversation[]
   referralRewardsAsReferrer ReferralReward[] @relation("ReferralRewardReferrer")
   referralRewardsAsReferred ReferralReward[] @relation("ReferralRewardReferred")
   referralLedgerEntries ReferralLedgerEntry[]
@@ -3344,4 +3349,41 @@ model I18nPhrase {
   updatedAt     DateTime @updatedAt
 
   @@id([source, locale])
+}
+
+/// Browser voice sessions with transcript-only history; raw audio is never stored.
+model MateVoiceConversation {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String?  @db.Uuid
+  createdBy      User?    @relation("MateVoiceConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  leadId         String?  @db.Uuid
+  lead           Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  title          String   @default("Conversa por voz")
+  status         String   @default("active") // active | completed | failed
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  endedAt        DateTime?
+  messages       MateVoiceMessage[]
+
+  @@index([organizationId, createdById, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([leadId])
+  @@index([customerId])
+}
+
+model MateVoiceMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId String   @db.Uuid
+  conversation   MateVoiceConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // user | assistant
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, conversationId, createdAt])
 }
