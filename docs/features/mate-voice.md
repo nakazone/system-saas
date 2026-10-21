@@ -28,6 +28,9 @@ The isolated local staging address is `http://localhost:3001/mate-voice`. Railwa
 ## MVP behavior
 
 - Authenticated staff can start and end an audio session from a browser with microphone access.
+- The browser session is a role-play/demo of the ObraMate software for flooring businesses; it is not an inbound phone or call-center connection.
+- The assistant can explain the public product workflow and features: leads and customers, quotes with Tabela de Valores, jobs and the Campo app, ObraCam photos, invoices, team and Folha, reports, schedule, builders, referrals, internal chat, and the field app. It must not describe ObraMate as a flooring installation service.
+- Pricing and trial details are omitted from the assistant instructions because the public pricing pages currently disagree. Prospects are directed to `hello@obramate.com` for current commercial terms; the browser demo does not transfer calls.
 - A short-lived OpenAI Realtime client secret is minted by the authenticated server endpoint. The browser connects through WebRTC.
 - Staff can search and link a lead or customer from their own organization. The assistant receives the selected name and basic CRM context but cannot update CRM records.
 - Each user's conversation history is private to that user within the tenant. Transcript-only messages are stored; audio is not.
