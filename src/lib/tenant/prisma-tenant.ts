@@ -103,6 +103,7 @@ const TENANT_MODELS = new Set([
   "ChatMessageFlag",
   "MateVoiceConversation",
   "MateVoiceMessage",
+  "MateAiConversation",
   "ReferralReward",
   "ReferralLedgerEntry",
 ]);

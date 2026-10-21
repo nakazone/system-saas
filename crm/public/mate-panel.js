@@ -25,8 +25,17 @@
     ctx: '/api/mate-ai/context',
     status: '/api/mate-ai/status',
     transcribe: '/api/mate-ai/transcribe',
+    catalog: '/api/mate-ai/catalog',
+    convs: '/api/mate-ai/conversations',
   };
-  var KEY_THREAD = 'mateAi.thread.v1';
+  var KEY_THREAD = 'mateAi.thread.v2';
+  var KEY_HIDDEN = 'mateAi.hidden.v1';
+  var KEY_CATALOG = 'mateAi.catalog.v1';
+  /** Reopening within this time offers "Continuar"; after it, the conversation is only in the history. */
+  var RESUME_MS = 15 * 60 * 1000;
+  /** Confirmation tokens last 10 min on the server; older cards can no longer be confirmed. */
+  var CARD_TTL_MS = 9 * 60 * 1000;
+  var MAX_TODO = 3;
   var KEY_LANG = 'mateAiVoiceLang';
   var MAX_THREAD = 40;
 
@@ -42,6 +51,7 @@
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   };
 
+  /** Used only when the catalog cannot be loaded. */
   var EXAMPLES = [
     'Criar um quote para o John Smith, 1350 pés de madeira',
     'O que tem amanhã?',
@@ -100,6 +110,53 @@
     } catch (_) {}
   }
 
+  function loadLocal(key, fallback) {
+    try {
+      var s = store('localStorage');
+      var raw = s && s.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function saveLocal(key, value) {
+    try {
+      var s = store('localStorage');
+      if (s) s.setItem(key, JSON.stringify(value));
+    } catch (_) {}
+  }
+
+  function newId() {
+    try {
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    } catch (_) {}
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = (Math.random() * 16) | 0;
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  }
+
+  /** Lowercase, no accents: "Lança" and "lanca" match. */
+  function fold(v) {
+    return String(v || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function ago(ts) {
+    var min = Math.max(0, Math.round((Date.now() - ts) / 60000));
+    if (min < 1) return 'agora';
+    if (min < 60) return 'há ' + min + ' min';
+    var h = Math.round(min / 60);
+    return h < 24 ? 'há ' + h + ' h' : 'há ' + Math.round(h / 24) + ' d';
+  }
+
+  function isPhone() {
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 719px)').matches);
+  }
+
   async function api(method, path, body) {
     var res = await fetch(path, {
       method: method,
@@ -150,27 +207,103 @@
     suggestionsAt: 0,
     ai: null,
     showHistory: false,
+    convId: newId(),
+    lastAt: 0,
+    resume: null,
+    view: 'thread',
+    history: null,
+    historyQ: '',
+    showCatalog: false,
+    catalog: null,
+    openModule: null,
+    typeahead: [],
   };
+  var isField = /\/campo\//.test(location.pathname);
 
-  var now0 = new Date();
-  var today = now0.getFullYear() + '-' + String(now0.getMonth() + 1).padStart(2, '0') + '-' + String(now0.getDate()).padStart(2, '0');
-  var saved = load(KEY_THREAD, null);
-  if (saved && saved.day === today && Array.isArray(saved.items)) {
-    state.thread = saved.items.filter(function (m) {
-      return m && m.kind !== 'thinking';
+  /** Cards older than the token's life can no longer be confirmed; undo windows that passed are gone. */
+  function revive(items) {
+    var now = Date.now();
+    return (items || [])
+      .filter(function (m) {
+        return m && m.kind !== 'thinking';
+      })
+      .map(function (m) {
+        if ((m.kind === 'card' || m.kind === 'clarify') && (!m.at || now - m.at > CARD_TTL_MS)) m.stale = true;
+        if (m.undo && !(Date.parse(m.undo.expires) > now)) m.undo = null;
+        m.working = false;
+        return m;
+      });
+  }
+
+  function hasAsk(items) {
+    return (items || []).some(function (m) {
+      return m.role === 'user';
     });
   }
 
+  // The bar always opens clean. A conversation from the last few minutes is offered as "Continuar".
+  (function restore() {
+    var saved = load(KEY_THREAD, null);
+    if (saved && saved.id && Array.isArray(saved.items) && hasAsk(saved.items) && Date.now() - (saved.at || 0) < RESUME_MS) {
+      state.resume = { id: saved.id, at: saved.at, items: revive(saved.items) };
+    }
+  })();
+
+  var syncTimer = null;
+
   function persist() {
-    var items = state.thread.slice(-MAX_THREAD).map(function (m) {
-      // Confirmation tokens expire; keep only what is safe to show after a reload.
-      if (m.kind === 'card' || m.kind === 'clarify') {
-        var copy = Object.assign({}, m, { stale: true });
-        return copy;
-      }
-      return m;
+    var items = state.thread.slice(-MAX_THREAD).filter(function (m) {
+      return m.kind !== 'thinking';
     });
-    save(KEY_THREAD, { day: today, items: items });
+    if (hasAsk(items)) save(KEY_THREAD, { id: state.convId, at: state.lastAt || Date.now(), items: items });
+    clearTimeout(syncTimer);
+    if (hasAsk(items)) syncTimer = setTimeout(syncServer, 1200);
+  }
+
+  /** Keeps the conversation in the account's history (the server drops confirmation tokens). */
+  function syncServer() {
+    var items = state.thread.slice(-MAX_THREAD).filter(function (m) {
+      return m.kind !== 'thinking';
+    });
+    if (!hasAsk(items)) return;
+    var id = state.convId;
+    api('PUT', API.convs + '/' + encodeURIComponent(id), { items: items })
+      .then(function () {
+        state.history = null;
+        try {
+          window.dispatchEvent(new CustomEvent('mate:saved', { detail: { id: id } }));
+        } catch (_) {}
+      })
+      .catch(function () {});
+  }
+
+  /** Starts a new conversation; the current one stays in the history (and in "Continuar" for a while). */
+  function freshStart() {
+    if (hasAsk(state.thread)) {
+      clearTimeout(syncTimer);
+      syncServer();
+      var recent = Date.now() - (state.lastAt || 0) < RESUME_MS;
+      state.resume = recent ? { id: state.convId, at: state.lastAt, items: state.thread.slice() } : null;
+    } else if (state.resume && Date.now() - (state.resume.at || 0) >= RESUME_MS) {
+      state.resume = null;
+    }
+    state.thread = [];
+    state.convId = newId();
+    state.showHistory = false;
+    state.view = 'thread';
+    state.typeahead = [];
+  }
+
+  function resumeConversation() {
+    var r = state.resume;
+    if (!r) return;
+    state.resume = null;
+    state.thread = revive(r.items);
+    state.convId = r.id;
+    state.lastAt = r.at || Date.now();
+    state.view = 'thread';
+    save(KEY_THREAD, { id: r.id, at: state.lastAt, items: state.thread });
+    render();
   }
 
   /** Short memory sent to the server for follow-ups ("agora manda por SMS"). */
@@ -241,12 +374,16 @@
     (inlineHost ? '' : '<button type="button" class="mate-icon-btn mate-pal__close" data-mate="close" title="Fechar (Esc)" aria-label="Fechar">' + ICON.close + '</button>') +
     '</div>' +
     '<p class="mate-pal__hint" id="mateHint" aria-live="polite"></p>' +
+    '<div class="mate-ahead" id="mateAhead" role="listbox" aria-label="Sugestões para completar" hidden></div>' +
     '<div class="mate-pal__chips" id="mateChips" hidden></div>' +
     '<div class="mate-pal__body" id="mateThread" aria-live="polite"></div>' +
     '<footer class="mate-pal__foot">' +
     '<span class="mate-pal__keys" id="mateKeys"></span>' +
     '<span class="mate-pal__mode" id="mateHeadSub"></span>' +
-    '<button type="button" class="mate-pal__link" data-mate="clear">Nova conversa</button>' +
+    '<span class="mate-pal__links">' +
+    '<button type="button" class="mate-pal__link mate-pal__new" data-mate="clear">Nova conversa</button>' +
+    '<button type="button" class="mate-pal__link" data-mate="history-open">Histórico</button>' +
+    '</span>' +
     '</footer>';
 
   var threadEl = panel.querySelector('#mateThread');
@@ -260,11 +397,14 @@
   var keysEl = panel.querySelector('#mateKeys');
   var camEl = panel.querySelector('#mateCam');
   var camFile = panel.querySelector('#mateCamFile');
+  var aheadEl = panel.querySelector('#mateAhead');
+  if (isField) panel.classList.add('mate-pal--field');
 
   // Short placeholder on phones, where the long example wraps.
   (function placeholder() {
     var narrow = window.matchMedia ? window.matchMedia('(max-width: 719px)') : null;
     function set() {
+      if (actionable()) return;
       inputEl.placeholder = narrow && narrow.matches ? 'Peça ao Mate…' : 'Peça ao Mate… ex.: quote pro John, 1350 pés de madeira';
     }
     set();
@@ -296,6 +436,15 @@
     wireFab();
     addTopbarButton();
     followKeyboard();
+    var liftTimer = null;
+    function liftSoon() {
+      clearTimeout(liftTimer);
+      liftTimer = setTimeout(liftFab, 120);
+    }
+    window.addEventListener('resize', liftSoon);
+    window.addEventListener('scroll', liftSoon, { passive: true });
+    setTimeout(liftFab, 600);
+    setTimeout(liftFab, 2000);
   }
 
   function addTopbarButton() {
@@ -339,7 +488,10 @@
 
   function open(opts) {
     if (inlineHost) return;
-    if (!state.open) lastFocus = document.activeElement;
+    if (!state.open) {
+      lastFocus = document.activeElement;
+      if (!opts || !opts.keep) freshStart();
+    }
     state.open = true;
     panel.classList.add('is-open');
     document.body.classList.add('mate-open');
@@ -426,6 +578,20 @@
         })
         .catch(function () {});
     }
+    if (!state.catalog) {
+      var cached = load(KEY_CATALOG, null);
+      if (cached && cached.at && now - cached.at < 10 * 60 * 1000 && cached.data) state.catalog = cached.data;
+      else {
+        state.catalog = { modules: [] };
+        api('GET', API.catalog)
+          .then(function (r) {
+            state.catalog = r.data || { modules: [] };
+            save(KEY_CATALOG, { at: Date.now(), data: state.catalog });
+            if (!state.thread.length && state.view === 'thread') render();
+          })
+          .catch(function () {});
+      }
+    }
     if (!state.suggestions || now - state.suggestionsAt > 60000) {
       state.suggestionsAt = now;
       api('GET', API.sug)
@@ -468,25 +634,281 @@
     chipsEl.hidden = !chips.length;
   }
 
+  /* ───────── start screen ───────── */
+
+  function hiddenToday() {
+    var h = loadLocal(KEY_HIDDEN, null);
+    var day = new Date().toDateString();
+    return h && h.day === day && Array.isArray(h.ids) ? h.ids : [];
+  }
+
+  function hideSuggestion(id) {
+    var ids = hiddenToday();
+    if (ids.indexOf(id) < 0) ids.push(id);
+    saveLocal(KEY_HIDDEN, { day: new Date().toDateString(), ids: ids.slice(-50) });
+  }
+
+  /** What to do now: at most 3, minus the ones hidden today. */
+  function todo() {
+    var hidden = hiddenToday();
+    return (state.suggestions || [])
+      .map(function (s, i) {
+        return { s: s, i: i };
+      })
+      .filter(function (x) {
+        return hidden.indexOf(x.s.id) < 0;
+      })
+      .slice(0, MAX_TODO);
+  }
+
+  /** Field crew: the three things of the day, one tap each. */
+  var FIELD_QUICK = [
+    { label: 'Cheguei no job', text: 'Cheguei no job', detail: 'Marca a chegada com a sua localização' },
+    { label: 'Lançar despesa com foto', camera: true, detail: 'Tire a foto do recibo e diga o valor' },
+    { label: 'Terminar o dia', text: 'Terminar o dia', detail: 'Fecha o seu dia de trabalho' },
+  ];
+
   function startHtml() {
     var html = '<div class="mate-start">';
-    var sug = state.suggestions || [];
-    if (sug.length) {
+    var r = state.resume;
+    if (r && Date.now() - (r.at || 0) < RESUME_MS) {
+      var users = r.items.filter(function (m) {
+        return m.role === 'user';
+      });
+      var last = users.length ? String(users[users.length - 1].text || '').replace(/^📷\s*/, '') : '';
+      html +=
+        '<button type="button" class="mate-resume" data-mate="resume" data-nav>' +
+        '<span class="mate-resume__label">Continuar</span>' +
+        '<span class="mate-resume__text">' + esc(last) + '</span>' +
+        '<span class="mate-resume__when">' + esc(ago(r.at)) + '</span></button>';
+    }
+    var rows = todo();
+    if (isField && !rows.length) {
       html += '<h3>Para fazer agora</h3><div class="mate-rows">';
-      sug.forEach(function (s, i) {
+      FIELD_QUICK.forEach(function (q, i) {
         html +=
-          '<button type="button" class="mate-row mate-row--' + esc(s.tone) + '" data-mate="sug" data-nav data-i="' + i + '">' +
-          '<span class="mate-row__body"><strong>' + esc(s.title) + '</strong>' + (s.detail ? '<small>' + esc(s.detail) + '</small>' : '') + '</span>' +
-          '<span class="mate-row__go">' + esc(s.run.label) + '</span></button>';
+          '<button type="button" class="mate-row mate-row--accent" data-mate="field" data-nav data-i="' + i + '">' +
+          '<span class="mate-row__body"><strong>' + esc(q.label) + '</strong><small>' + esc(q.detail) + '</small></span>' +
+          '<span class="mate-row__go" aria-hidden="true">›</span></button>';
       });
       html += '</div>';
+    } else if (rows.length) {
+      html += '<h3>Para fazer agora</h3><div class="mate-rows">';
+      rows.forEach(function (x) {
+        var s = x.s;
+        html +=
+          '<div class="mate-row-wrap">' +
+          '<button type="button" class="mate-row mate-row--' + esc(s.tone) + '" data-mate="sug" data-nav data-i="' + x.i + '">' +
+          '<span class="mate-row__body"><strong>' + esc(s.title) + '</strong>' + (s.detail ? '<small>' + esc(s.detail) + '</small>' : '') + '</span>' +
+          '<span class="mate-row__go">' + esc(s.run.label) + '</span></button>' +
+          '<button type="button" class="mate-row__hide" data-mate="sug-hide" data-id="' + esc(s.id) + '" title="Esconder até amanhã" aria-label="Esconder até amanhã">' + ICON.close + '</button>' +
+          '</div>';
+      });
+      html += '</div>';
+    } else if (state.suggestions && !r) {
+      html += '<p class="mate-empty">Nada urgente agora. Diga o que precisa ou toque no microfone.</p>';
     }
-    html += '<h3>Experimente</h3><div class="mate-rows">';
-    EXAMPLES.forEach(function (t) {
-      html += '<button type="button" class="mate-row mate-row--example" data-mate="say" data-nav data-text="' + esc(t) + '"><span class="mate-row__body">' + esc(t) + '</span><span class="mate-row__go" aria-hidden="true">↵</span></button>';
+    html += catalogHtml();
+    return html + '</div>';
+  }
+
+  function catalogModules() {
+    if (state.catalog && state.catalog.modules && state.catalog.modules.length) return state.catalog.modules;
+    return [{ key: 'exemplos', label: 'Exemplos', items: EXAMPLES.map(function (t) { return { text: t }; }) }];
+  }
+
+  /** "O que posso pedir?": closed by default; open, it lists what can be asked, by module. */
+  function catalogHtml() {
+    var mods = catalogModules();
+    var total = mods.reduce(function (n, m) {
+      return n + m.items.length;
+    }, 0);
+    var html =
+      '<div class="mate-catalog' + (state.showCatalog ? ' is-open' : '') + '">' +
+      '<button type="button" class="mate-catalog__toggle" data-mate="catalog" data-nav aria-expanded="' + (state.showCatalog ? 'true' : 'false') + '">' +
+      '<span>O que posso pedir?</span><small>' + total + ' exemplos</small><span class="mate-catalog__chev" aria-hidden="true">›</span></button>';
+    if (state.showCatalog) {
+      html += '<div class="mate-catalog__body">';
+      mods.forEach(function (m) {
+        var openM = state.openModule === m.key || mods.length === 1;
+        html +=
+          '<div class="mate-mod' + (openM ? ' is-open' : '') + '">' +
+          '<button type="button" class="mate-mod__head" data-mate="module" data-key="' + esc(m.key) + '" data-nav aria-expanded="' + (openM ? 'true' : 'false') + '">' +
+          '<span>' + esc(m.label) + '</span><small>' + m.items.length + '</small></button>';
+        if (openM) {
+          html += '<div class="mate-mod__items">';
+          m.items.forEach(function (it) {
+            html += '<button type="button" class="mate-ex" data-mate="fill" data-nav data-text="' + esc(it.text) + '">' + esc(it.text) + '</button>';
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+      html += '<p class="mate-hello">Toque num exemplo para editar e enviar. Eu preparo, você confirma: nada vai para o cliente sem o seu ok.</p></div>';
+    }
+    return html + '</div>';
+  }
+
+  /* ───────── history ───────── */
+
+  function loadHistory() {
+    var q = state.historyQ.trim();
+    api('GET', API.convs + '?limit=50' + (q ? '&q=' + encodeURIComponent(q) : ''))
+      .then(function (r) {
+        state.history = r.data || [];
+        if (state.view === 'history') renderHistoryList();
+      })
+      .catch(function () {
+        state.history = [];
+        if (state.view === 'history') renderHistoryList();
+      });
+  }
+
+  function dayLabel(iso) {
+    var d = new Date(iso);
+    var today = new Date();
+    var y = new Date();
+    y.setDate(today.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Hoje';
+    if (d.toDateString() === y.toDateString()) return 'Ontem';
+    return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  function historyListHtml(list) {
+    if (!list) return '<p class="mate-empty">Carregando…</p>';
+    if (!list.length) return '<p class="mate-empty">' + (state.historyQ ? 'Nenhuma conversa com essa busca.' : 'Suas conversas com o Mate aparecem aqui.') + '</p>';
+    var html = '';
+    var current = '';
+    list.forEach(function (c) {
+      var day = dayLabel(c.updated_at);
+      if (day !== current) {
+        current = day;
+        html += '<h3>' + esc(day) + '</h3>';
+      }
+      html +=
+        '<button type="button" class="mate-conv" data-mate="conv-open" data-nav data-id="' + esc(c.id) + '">' +
+        '<strong>' + esc(c.title) + '</strong>' +
+        '<small>' + esc(c.outcome || (c.turns + (c.turns === 1 ? ' pedido' : ' pedidos'))) + ' · ' + esc(new Date(c.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })) + '</small>' +
+        '</button>';
     });
-    html += '</div><p class="mate-hello">Eu preparo, você confirma — nada vai para o cliente sem o seu ok.</p></div>';
     return html;
+  }
+
+  function historyHtml() {
+    return (
+      '<div class="mate-hist">' +
+      '<div class="mate-hist__top"><button type="button" class="mate-pal__link" data-mate="history-close">‹ Voltar</button>' +
+      '<input class="mate-input mate-hist__q" id="mateHistQ" type="search" placeholder="Buscar nas conversas" value="' + esc(state.historyQ) + '" autocomplete="off"></div>' +
+      '<div class="mate-hist__list" id="mateHistList">' + historyListHtml(state.history) + '</div></div>'
+    );
+  }
+
+  function renderHistoryList() {
+    var host = panel.querySelector('#mateHistList');
+    if (host) host.innerHTML = historyListHtml(state.history);
+  }
+
+  function openHistory() {
+    state.view = 'history';
+    state.history = null;
+    render();
+    loadHistory();
+    var q = panel.querySelector('#mateHistQ');
+    if (q && !isPhone()) q.focus();
+  }
+
+  async function loadConversation(id) {
+    try {
+      var r = await api('GET', API.convs + '/' + encodeURIComponent(id));
+      if (hasAsk(state.thread) && state.convId !== id) syncServer();
+      state.thread = revive(r.data.items || []).map(function (m) {
+        if (m.kind === 'card' || m.kind === 'clarify') m.stale = true;
+        return m;
+      });
+      state.convId = r.data.id;
+      state.lastAt = Date.parse(r.data.updated_at) || Date.now();
+      state.resume = null;
+      state.view = 'thread';
+      state.showHistory = true;
+      if (!state.open && !inlineHost) open({ keep: true });
+      render();
+    } catch (err) {
+      hint(err.message || 'Não consegui abrir a conversa.');
+    }
+  }
+
+  /* ───────── typeahead ───────── */
+
+  function catalogItems() {
+    var out = [];
+    catalogModules().forEach(function (m) {
+      m.items.forEach(function (it) {
+        out.push({ text: it.text, module: m.label, f: fold(it.text) });
+      });
+    });
+    (state.screenChips || []).forEach(function (c) {
+      out.push({ text: c, module: 'Esta tela', f: fold(c) });
+    });
+    return out;
+  }
+
+  /** Up to 3 phrases that start like what is being typed. */
+  function updateAhead() {
+    var q = fold(inputEl.value).trim();
+    var words = q.split(/\s+/).filter(Boolean);
+    if (q.length < 2 || state.busy || state.view !== 'thread' || actionable()) {
+      state.typeahead = [];
+      renderAhead();
+      return;
+    }
+    var scored = [];
+    catalogItems().forEach(function (it) {
+      var tokens = it.f.split(/[^a-z0-9#$]+/).filter(Boolean);
+      var hits = 0;
+      words.forEach(function (w, i) {
+        var last = i === words.length - 1;
+        if (tokens.some(function (t) { return last ? t.indexOf(w) === 0 : t === w || t.indexOf(w) === 0; })) hits++;
+      });
+      if (hits === words.length && it.f !== q) scored.push({ it: it, score: (it.f.indexOf(q) === 0 ? 10 : 0) + hits - it.f.length / 200 });
+    });
+    scored.sort(function (a, b) {
+      return b.score - a.score;
+    });
+    var seen = {};
+    state.typeahead = scored
+      .map(function (x) { return x.it; })
+      .filter(function (it) {
+        if (seen[it.f]) return false;
+        seen[it.f] = true;
+        return true;
+      })
+      .slice(0, 3);
+    renderAhead();
+  }
+
+  function renderAhead() {
+    var list = state.typeahead || [];
+    aheadEl.hidden = !list.length;
+    aheadEl.innerHTML = list
+      .map(function (it, i) {
+        return (
+          '<button type="button" class="mate-ahead__item" role="option" data-mate="fill" data-nav data-text="' + esc(it.text) + '">' +
+          '<span>' + esc(it.text) + '</span><small>' + esc(it.module) + (i === 0 && !isPhone() ? ' · Tab' : '') + '</small></button>'
+        );
+      })
+      .join('');
+  }
+
+  function fillInput(text) {
+    inputEl.value = text;
+    autoGrow();
+    state.typeahead = [];
+    renderAhead();
+    inputEl.focus();
+    try {
+      inputEl.setSelectionRange(text.length, text.length);
+    } catch (_) {}
+    hint('Ajuste o pedido e envie.');
   }
 
   /** The newest card waiting for a confirmation (Enter confirms it). */
@@ -520,7 +942,21 @@
     renderContext();
     renderChips();
     renderKeys();
+    var a = actionable();
     panel.classList.toggle('has-thread', state.thread.length > 0);
+    panel.classList.toggle('has-card', Boolean(a));
+    panel.classList.toggle('is-full', Boolean(a) || state.view === 'history');
+    panel.classList.toggle('is-history', state.view === 'history');
+    inputEl.placeholder = a ? 'Ou diga outra coisa…' : isPhone() ? 'Peça ao Mate…' : 'Peça ao Mate… ex.: quote pro John, 1350 pés de madeira';
+    if (a) {
+      state.typeahead = [];
+      renderAhead();
+    }
+    if (state.view === 'history') {
+      threadEl.innerHTML = historyHtml();
+      threadEl.scrollTop = 0;
+      return;
+    }
     if (!state.thread.length) {
       threadEl.innerHTML = startHtml();
       threadEl.scrollTop = 0;
@@ -731,6 +1167,8 @@
 
   function push(m) {
     m.id = m.id || uid();
+    m.at = m.at || Date.now();
+    state.lastAt = Date.now();
     state.thread.push(m);
     if (state.thread.length > MAX_THREAD) state.thread = state.thread.slice(-MAX_THREAD);
     persist();
@@ -744,6 +1182,8 @@
     });
     if (i < 0) return push(m);
     m.id = id;
+    m.at = Date.now();
+    state.lastAt = Date.now();
     state.thread[i] = m;
     persist();
     render();
@@ -789,6 +1229,8 @@
     var thinking = push({ role: 'mate', kind: 'thinking' });
     inputEl.value = '';
     autoGrow();
+    state.typeahead = [];
+    renderAhead();
     setBusy(true);
     try {
       var r = await api('POST', API.act, { text: t, screen: screenForRequest(), memory: memory().slice(0, -1), pending: pending, attachment: photo || undefined });
@@ -846,6 +1288,15 @@
       if (done.undo) tickUndo(done.id);
       handleClient(res.client);
       state.suggestionsAt = 0;
+      try {
+        window.dispatchEvent(new CustomEvent('mate:done', { detail: { result: res } }));
+      } catch (_) {}
+      if (isPhone() && !inlineHost && !(res.client && res.client.type !== 'copy')) {
+        // Phone: back to the page; the result and "Desfazer" stay in a notice at the bottom.
+        close();
+        showToast(done);
+        return;
+      }
       if (state.open || inlineHost) inputEl.focus();
     } catch (err) {
       m.working = false;
@@ -1035,11 +1486,38 @@
       state.showHistory = !state.showHistory;
       render();
     } else if (what === 'clear') {
-      state.showHistory = false;
-      state.thread = [];
-      persist();
+      freshStart();
       render();
       loadStart();
+      inputEl.focus();
+    } else if (what === 'resume') resumeConversation();
+    else if (what === 'history-open') openHistory();
+    else if (what === 'history-close') {
+      state.view = 'thread';
+      render();
+      inputEl.focus();
+    } else if (what === 'conv-open') loadConversation(el.getAttribute('data-id'));
+    else if (what === 'catalog') {
+      state.showCatalog = !state.showCatalog;
+      render();
+      if (state.showCatalog) {
+        var cat = panel.querySelector('.mate-catalog');
+        if (cat && cat.scrollIntoView) cat.scrollIntoView({ block: 'nearest' });
+      }
+    } else if (what === 'module') {
+      var key = el.getAttribute('data-key');
+      state.openModule = state.openModule === key ? null : key;
+      render();
+      var head = panel.querySelector('[data-mate="module"][data-key="' + key + '"]');
+      if (head) head.focus();
+    } else if (what === 'fill') fillInput(el.getAttribute('data-text') || '');
+    else if (what === 'sug-hide') {
+      hideSuggestion(el.getAttribute('data-id'));
+      render();
+    } else if (what === 'field') {
+      var q = FIELD_QUICK[Number(el.getAttribute('data-i'))];
+      if (q && q.camera) camFile.click();
+      else if (q) ask(q.text);
     } else if (what === 'say') ask(el.getAttribute('data-text'));
     else if (what === 'sug') {
       var s = (state.suggestions || [])[Number(el.getAttribute('data-i'))];
@@ -1125,12 +1603,36 @@
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(140, inputEl.scrollHeight) + 'px';
     sendEl.disabled = state.busy || !inputEl.value.trim();
+    panel.classList.toggle('has-text', Boolean(inputEl.value.trim()));
   }
 
-  inputEl.addEventListener('input', autoGrow);
+  inputEl.addEventListener('input', function () {
+    autoGrow();
+    updateAhead();
+  });
+
+  var histTimer = null;
+  panel.addEventListener('input', function (e) {
+    if (!e.target || e.target.id !== 'mateHistQ') return;
+    state.historyQ = e.target.value;
+    clearTimeout(histTimer);
+    histTimer = setTimeout(loadHistory, 220);
+  });
   inputEl.addEventListener('keydown', function (e) {
     if (e.isComposing) return;
     var empty = !inputEl.value.trim();
+    if (e.key === 'Tab' && !e.shiftKey && state.typeahead && state.typeahead.length) {
+      e.preventDefault();
+      fillInput(state.typeahead[0].text);
+      return;
+    }
+    if (e.key === 'Escape' && state.typeahead && state.typeahead.length) {
+      e.preventDefault();
+      e.stopPropagation();
+      state.typeahead = [];
+      renderAhead();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!empty) {
@@ -1178,6 +1680,106 @@
   function hint(text, live) {
     hintEl.textContent = text || '';
     hintEl.classList.toggle('is-live', Boolean(live));
+  }
+
+  /* ───────── phone: result notice ───────── */
+
+  var toastEl = null;
+  var toastTimer = null;
+
+  function showToast(m) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'mate-toast';
+      toastEl.setAttribute('role', 'status');
+      document.body.appendChild(toastEl);
+      toastEl.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-toast]');
+        if (!b) return;
+        var what = b.getAttribute('data-toast');
+        var msg = find(toastEl.getAttribute('data-msg'));
+        if (what === 'undo' && msg) {
+          hideToast();
+          undo(msg).then(function () {
+            var last = state.thread[state.thread.length - 1];
+            if (last && (last.kind === 'reply' || last.kind === 'error')) showNote(last.message, last.kind === 'error');
+          });
+        } else if (what === 'next' && msg && msg.result && msg.result.next) {
+          hideToast();
+          msg.nextUsed = true;
+          open({ keep: true, focus: false });
+          push({ role: 'user', text: msg.result.next.label });
+          act(msg.result.next.action, msg.result.next.args);
+        } else if (what === 'close') hideToast();
+      });
+    }
+    var r = m.result || {};
+    toastEl.setAttribute('data-msg', m.id);
+    var links = (r.links || []).slice(0, 1).map(function (l) {
+      return '<a href="' + esc(safeHref(l.href)) + '">' + esc(l.label) + '</a>';
+    });
+    var html =
+      '<span class="mate-toast__icon">' + ICON.check + '</span>' +
+      '<div class="mate-toast__body"><strong>' + esc(r.title) + '</strong>' + (r.detail ? '<small>' + esc(r.detail) + '</small>' : '') +
+      '<div class="mate-toast__row">' + links.join('') +
+      (m.undo ? '<button type="button" data-toast="undo">Desfazer (<span data-left>' + Math.max(0, Math.ceil((Date.parse(m.undo.expires) - Date.now()) / 1000)) + '</span>)</button>' : '') +
+      (r.next ? '<button type="button" data-toast="next" class="is-primary">' + esc(r.next.label) + '</button>' : '') +
+      '</div></div><button type="button" class="mate-toast__x" data-toast="close" aria-label="Fechar">' + ICON.close + '</button>';
+    toastEl.innerHTML = html;
+    toastEl.classList.add('is-on');
+    liftFab();
+    clearTimeout(toastTimer);
+    var until = m.undo ? Date.parse(m.undo.expires) - Date.now() : r.next ? 15000 : 7000;
+    var tick = setInterval(function () {
+      var left = toastEl.querySelector('[data-left]');
+      var mm = find(m.id);
+      if (!left || !mm || !mm.undo) return clearInterval(tick);
+      var secs = Math.ceil((Date.parse(mm.undo.expires) - Date.now()) / 1000);
+      if (secs <= 0) {
+        clearInterval(tick);
+        var btn = toastEl.querySelector('[data-toast="undo"]');
+        if (btn) btn.remove();
+      } else left.textContent = secs;
+    }, 1000);
+    toastTimer = setTimeout(hideToast, Math.max(6000, until));
+  }
+
+  function showNote(text, bad) {
+    if (!toastEl) return;
+    toastEl.innerHTML = '<div class="mate-toast__body"><strong>' + esc(text || '') + '</strong></div><button type="button" class="mate-toast__x" data-toast="close" aria-label="Fechar">' + ICON.close + '</button>';
+    toastEl.classList.toggle('is-bad', Boolean(bad));
+    toastEl.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 5000);
+  }
+
+  function hideToast() {
+    if (toastEl) toastEl.classList.remove('is-on', 'is-bad');
+    clearTimeout(toastTimer);
+    liftFab();
+  }
+
+  /** The floating button rises above bars fixed at the bottom of the page (save, totals, tabs). */
+  function liftFab() {
+    if (!fab || !document.elementsFromPoint) return;
+    var lift = 0;
+    var x = window.innerWidth - 36;
+    var y = window.innerHeight - 6;
+    var els = document.elementsFromPoint(x, y) || [];
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el === fab || fab.contains(el) || el === toastEl || (toastEl && toastEl.contains(el)) || el === panel || panel.contains(el) || (backdrop && el === backdrop) || el === document.body || el === document.documentElement) continue;
+      for (var n = el; n && n !== document.body; n = n.parentElement) {
+        var pos = getComputedStyle(n).position;
+        if (pos === 'fixed' || pos === 'sticky') {
+          var rect = n.getBoundingClientRect();
+          if (rect.height < window.innerHeight * 0.4) lift = Math.max(lift, window.innerHeight - rect.top);
+          break;
+        }
+      }
+    }
+    if (toastEl && toastEl.classList.contains('is-on')) lift = Math.max(lift, window.innerHeight - toastEl.getBoundingClientRect().top);
+    document.documentElement.style.setProperty('--mate-fab-lift', lift ? lift + 8 + 'px' : '0px');
   }
 
   /* ───────── photo ───────── */
@@ -1449,6 +2051,20 @@
     ask: function (text) {
       open({ focus: false });
       ask(text);
+    },
+    fill: function (text) {
+      if (!state.open && !inlineHost) open();
+      fillInput(String(text || ''));
+    },
+    load: loadConversation,
+    newConversation: function () {
+      freshStart();
+      render();
+      loadStart();
+      inputEl.focus();
+    },
+    current: function () {
+      return state.convId;
     },
   };
 
