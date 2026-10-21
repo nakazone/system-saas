@@ -163,7 +163,7 @@ mateVoiceRouter.post("/api/mate-voice/conversations", requireCrmAuth, async (req
 mateVoiceRouter.post("/api/mate-voice/conversations/:id/token", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     if (!env.OPENAI_API_KEY) {
-      res.status(503).json({ success: false, error: "OPENAI_API_KEY não está configurada no staging." });
+      res.status(503).json({ success: false, error: "OPENAI_API_KEY não está configurada neste ambiente." });
       return;
     }
     const parsedId = conversationIdSchema.safeParse(req.params.id);

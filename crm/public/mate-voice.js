@@ -312,7 +312,7 @@
       headers: { Authorization: `Bearer ${ephemeralKey}`, "Content-Type": "application/sdp" },
       body: offer.sdp,
     });
-    if (!sdpResponse.ok) throw new Error("Não foi possível abrir a sessão Realtime. Verifique a configuração de voz do staging.");
+    if (!sdpResponse.ok) throw new Error("Não foi possível abrir a sessão Realtime. Verifique a configuração de voz do ambiente.");
     await state.peer.setRemoteDescription({ type: "answer", sdp: await sdpResponse.text() });
     await channelOpened;
   }
