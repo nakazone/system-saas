@@ -4,7 +4,7 @@ import { z } from "zod";
 import { env } from "../../config/env.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { createConversationSchema, transcriptMessageSchema } from "../../lib/mate-voice/contracts.js";
-import { createRealtimeClientSecret, type MateVoiceCrmContext } from "../../lib/mate-voice/realtime.js";
+import { createRealtimeClientSecret, type MateVoiceBusinessContext } from "../../lib/mate-voice/realtime.js";
 import { isMateVoiceEnabled } from "../../lib/mate-voice/staging.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
@@ -172,27 +172,57 @@ mateVoiceRouter.post("/api/mate-voice/conversations/:id/token", requireCrmAuth, 
       return;
     }
 
-    const context = await withTenantTransaction(req.organizationId!, async (tx): Promise<MateVoiceCrmContext | null | false> => {
+    const context = await withTenantTransaction(req.organizationId!, async (tx): Promise<MateVoiceBusinessContext | false> => {
       const conversation = await tx.mateVoiceConversation.findFirst({
         where: { id: parsedId.data, createdById: req.user!.id },
-        select: { id: true, leadId: true, customerId: true },
+        select: { id: true },
       });
       if (!conversation) return false;
-      if (conversation.leadId) {
-        const lead = await tx.lead.findFirst({
-          where: { id: conversation.leadId, organizationId: req.organizationId! },
-          select: { name: true, status: true },
-        });
-        return lead ? { kind: "lead", name: lead.name, status: lead.status } : null;
-      }
-      if (conversation.customerId) {
-        const customer = await tx.customer.findFirst({
-          where: { id: conversation.customerId, organizationId: req.organizationId! },
-          select: { name: true, company: true },
-        });
-        return customer ? { kind: "customer", name: customer.name, company: customer.company } : null;
-      }
-      return null;
+
+      const [organization, quoteServices, pricingServices] = await Promise.all([
+        tx.organization.findFirst({
+          where: { id: req.organizationId! },
+          select: { name: true, website: true, contactPhone: true, contactEmail: true, city: true, state: true },
+        }),
+        tx.quoteCatalogItem.findMany({
+          where: { organizationId: req.organizationId!, active: true },
+          select: { name: true, serviceType: true, unitType: true, description: true },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          take: 30,
+        }),
+        tx.pricingItem.findMany({
+          where: { organizationId: req.organizationId!, active: true, isVisible: true },
+          select: { name: true, category: true, unit: true, description: true },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          take: 30,
+        }),
+      ]);
+      if (!organization) return false;
+
+      const services = [
+        ...quoteServices.map((service) => ({
+          name: service.name,
+          category: service.serviceType,
+          unit: service.unitType,
+          description: service.description,
+        })),
+        ...pricingServices.map((service) => ({
+          name: service.name,
+          category: service.category,
+          unit: service.unit,
+          description: service.description,
+        })),
+      ];
+
+      return {
+        businessName: organization.name,
+        website: organization.website,
+        phone: organization.contactPhone,
+        email: organization.contactEmail,
+        city: organization.city,
+        state: organization.state,
+        services,
+      };
     });
     if (context === false) {
       res.status(404).json({ success: false, error: "Conversa não encontrada." });
