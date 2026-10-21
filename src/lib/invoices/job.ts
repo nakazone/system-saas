@@ -5,6 +5,7 @@
  * The invoice reuses the Faturas module (QuoteInvoice with quoteId = null, workOrderId set),
  * so payments, receipts, PDF, e-mail and the client link work exactly like quote invoices.
  */
+import { defaultDueDate } from "../settings/invoices.js";
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
@@ -271,7 +272,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     include: {
       lineItems: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
       invoices: { select: { amount: true, status: true, receipts: { select: { amount: true } } } },
-      organization: { select: { paymentInstructions: true } },
+      organization: { select: { paymentInstructions: true, invoiceSettings: true } },
     },
   });
   if (!job) return { ok: false, status: 404, error: "Job não encontrado" };
@@ -310,7 +311,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
       status: "sent",
       issuedAt,
       amount,
-      dueDate: input.dueDate || new Date(Date.now() + 1 * 86400000),
+      dueDate: input.dueDate || defaultDueDate(job.organization.invoiceSettings),
       notes: input.notes?.trim() || jobNotesForInvoice,
       paymentInstructions: input.paymentInstructions?.trim() || job.organization.paymentInstructions || null,
     },

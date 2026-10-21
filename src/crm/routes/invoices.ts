@@ -4,6 +4,7 @@
  * The invoice has its own module (invoices.html / invoice.html). Quotes only issue invoices;
  * everything after that (payments, receipts, sending, PDF with PAID stamp) happens here.
  */
+import { defaultDueDate } from "../../lib/settings/invoices.js";
 import { Router, type Response } from "express";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -703,7 +704,7 @@ invoicesCrmRouter.post(
         const invoiceNumber = await nextInvoiceNumber(tx, req.organizationId!);
         const amount = new Prisma.Decimal(calc.amount.toFixed(2));
         const due =
-          parseDate(b.due_date) || new Date(Date.now() + 1 * 86400000);
+          parseDate(b.due_date) || defaultDueDate(quote.organization.invoiceSettings);
         // Bill-to = builder/customer; quote "Nota / referência" only goes into invoice notes.
         const notes = b.notes?.trim() || quoteReferenceNoteOf(quote) || null;
         const inv = await tx.quoteInvoice.create({

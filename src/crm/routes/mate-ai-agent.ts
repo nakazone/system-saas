@@ -31,6 +31,10 @@ import { FIELD_ACTIONS } from "../../lib/mate-ai/actions/field.js";
 import { PAYROLL_ACTIONS } from "../../lib/mate-ai/actions/payroll.js";
 import { QUOTE_MORE_ACTIONS } from "../../lib/mate-ai/actions/quotes-more.js";
 import { FINANCE_ACTIONS } from "../../lib/mate-ai/actions/finance.js";
+import { PRICING_MORE_ACTIONS } from "../../lib/mate-ai/actions/pricing-more.js";
+import { MEDIA_CHAT_ACTIONS } from "../../lib/mate-ai/actions/media-chat.js";
+import { REPORT_SETTINGS_ACTIONS } from "../../lib/mate-ai/actions/reports-settings.js";
+import { EXTRA_ACTIONS } from "../../lib/mate-ai/actions/extras.js";
 import { addJobNote, createJob, scheduleJob, setJobStatus } from "../../lib/mate-ai/actions/jobs.js";
 import { invoiceFromQuote, recordPayment, sendInvoice } from "../../lib/mate-ai/actions/money.js";
 import { createCustomer, createLead, moveLead } from "../../lib/mate-ai/actions/crm.js";
@@ -346,7 +350,7 @@ const invoiceJob: ActionDef = {
               ...(type === "progress" || type === "custom" ? [{ label: "Valor", value: money(Number(p.custom_amount || 0)), edit: { path: "custom_amount", input: "money" as const, value: (p.custom_amount as number) ?? null } }] : []),
               {
                 label: "Vencimento",
-                value: r.invoice.due_date ? new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", weekday: "short", day: "2-digit", month: "short" }).format(new Date(r.invoice.due_date + "T12:00:00Z")) : "amanhã (padrão)",
+                value: r.invoice.due_date ? new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", weekday: "short", day: "2-digit", month: "short" }).format(new Date(r.invoice.due_date + "T12:00:00Z")) : "padrão das configurações",
                 edit: { path: "due_date", input: "date", value: r.invoice.due_date },
               },
             ],
@@ -397,6 +401,10 @@ for (const def of [
   ...PAYROLL_ACTIONS,
   ...QUOTE_MORE_ACTIONS,
   ...FINANCE_ACTIONS,
+  ...PRICING_MORE_ACTIONS,
+  ...MEDIA_CHAT_ACTIONS,
+  ...REPORT_SETTINGS_ACTIONS,
+  ...EXTRA_ACTIONS,
   setPrice,
   quoteCreate,
   editQuote,

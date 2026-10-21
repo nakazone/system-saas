@@ -6,6 +6,7 @@ import { startJobStartReminderJob } from "./lib/work-orders/start-reminder-job.j
 import { ensureMaster } from "./master/auth.js";
 import { refreshPlans } from "./master/plans.js";
 import { startPlatformJobs } from "./lib/billing/jobs.js";
+import { startDailyBriefJob } from "./lib/mate-ai/daily-brief.js";
 
 const app = createApp();
 const host = "0.0.0.0";
@@ -20,4 +21,5 @@ app.listen(env.PORT, host, () => {
   void ensureMaster();
   void refreshPlans();
   startPlatformJobs();
+  startDailyBriefJob();
 });
