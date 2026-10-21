@@ -60,8 +60,26 @@ describe("Realtime client secret", () => {
     const instructions = buildMateVoiceInstructions({ kind: "customer", name: "Cliente Exemplo", company: "Obra Ltda" });
     expect(instructions).toContain("Cliente Exemplo");
     expect(instructions).toContain("Obra Ltda");
-    expect(instructions).toContain("Não invente dados");
+    expect(instructions).toContain("Não invente fatos");
     expect(buildRealtimeSession(null).instructions).toContain("Nenhum contato do CRM");
+  });
+
+  it("positions Mate as an ObraMate product guide for flooring prospects", () => {
+    const instructions = buildMateVoiceInstructions(null);
+
+    expect(instructions).toContain("software para empresas de instalação de pisos (flooring)");
+    expect(instructions).toContain("a empresa não presta serviços de instalação de pisos");
+    expect(instructions).toContain("Tabela de Valores");
+    expect(instructions).toContain("Campo e fotos ObraCam");
+    expect(instructions).toContain("Não afirme que o Mate recebe ligações telefônicas");
+  });
+
+  it("does not make unsupported pricing claims or promise a live transfer", () => {
+    const instructions = buildMateVoiceInstructions(null);
+
+    expect(instructions).toContain("Não informe nem estime preços");
+    expect(instructions).toContain("hello@obramate.com");
+    expect(instructions).toContain("Não prometa transferir ou encaminhar a conversa automaticamente");
   });
 
   it("rejects failed or malformed client-secret responses", async () => {
