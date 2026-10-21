@@ -29,7 +29,11 @@ export type CardSection =
     }
   | { type: "totals"; rows: Array<{ label: string; value: string; strong?: boolean }> }
   | { type: "list"; items: ListItem[]; empty?: string }
-  | { type: "note"; text: string; tone?: Tone };
+  | { type: "note"; text: string; tone?: Tone }
+  /** Batch: rows with a checkbox each (all checked). Unchecked ids go back as `exclude` on confirm. */
+  | { type: "pick"; items: PickItem[] };
+
+export type PickItem = { id: string; title: string; detail?: string; meta?: string; tone?: Tone };
 
 export type ListItem = {
   title: string;
@@ -111,6 +115,8 @@ export type ExecuteContext = {
   organizationId: string;
   userId: string;
   timezone: string;
+  /** Batch cards: ids the user unchecked. Execute may only drop items, never add. */
+  exclude?: string[];
 };
 
 export type ExecuteResult =
@@ -129,7 +135,8 @@ export type ExecuteResult =
       /** Instruction for the browser after success (open editor with changes, copy a link). */
       client?:
         | { type: "quote_edit"; quote_id: string; ops: Record<string, unknown>; href: string }
-        | { type: "copy"; text: string };
+        | { type: "copy"; text: string }
+        | { type: "open"; href: string };
     }
   | { ok: false; status: number; error: string };
 
@@ -174,4 +181,40 @@ const UNIT_LABELS: Record<string, string> = { sq_ft: "sq ft", linear_ft: "lin ft
 export function unitLabel(unit: string | null | undefined): string {
   const u = String(unit || "");
   return u in UNIT_LABELS ? UNIT_LABELS[u]! : u.replace(/_/g, " ");
+}
+
+/** Items of a batch card the user kept checked. */
+export function kept<T extends { id: string }>(ctx: { exclude?: string[] }, items: T[]): T[] {
+  const out = new Set(ctx.exclude || []);
+  return items.filter((i) => !out.has(i.id));
+}
+
+/** Runs a batch one by one; a failure does not stop the rest. */
+export async function runEach<T>(items: T[], fn: (item: T) => Promise<{ ok: boolean; error?: string }>) {
+  const done: T[] = [];
+  const failed: Array<{ item: T; error: string }> = [];
+  for (const item of items) {
+    try {
+      const r = await fn(item);
+      if (r.ok) done.push(item);
+      else failed.push({ item, error: r.error || "falhou" });
+    } catch (e) {
+      failed.push({ item, error: e instanceof Error ? e.message : "falhou" });
+    }
+  }
+  return { done, failed };
+}
+
+export function plural(n: number, one: string, many: string): string {
+  return n + " " + (n === 1 ? one : many);
+}
+
+export function isEmail(v: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+}
+
+/** "2026-10-20" in the org's timezone. */
+export function dayIn(d: Date | string | null | undefined, tz: string): string | null {
+  if (!d) return null;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(typeof d === "string" ? new Date(d) : d);
 }

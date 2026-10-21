@@ -594,7 +594,7 @@
       }
       html +=
         '<button type="button" class="mate-btn ' + (isSend ? 'mate-btn--send' : 'mate-btn--primary') + '" data-mate="confirm" data-msg="' + esc(m.id) + '"' +
-        (confirm.checkbox && !m.acked ? ' disabled' : '') + (m.working ? ' disabled' : '') + '>' +
+        (confirm.checkbox && !m.acked ? ' disabled' : '') + (m.working || pickTotal(m) === 0 ? ' disabled' : '') + '>' +
         (m.working ? 'Fazendo…' : esc(confirm.label) + (actionable() === m ? '<kbd class="mate-btn__kbd" aria-hidden="true">↵</kbd>' : '')) + '</button>';
       if (c.open) html += '<a class="mate-btn mate-btn--ghost" href="' + esc(safeHref(c.open.href)) + '">' + esc(c.open.label) + '</a>';
       html += '<button type="button" class="mate-btn mate-btn--quiet" data-mate="cancel" data-msg="' + esc(m.id) + '">Cancelar</button>';
@@ -648,8 +648,34 @@
         );
       }).join('') + '</ul>';
     }
+    if (s.type === 'pick') {
+      var off = m.exclude || [];
+      var items2 = s.items || [];
+      var on = items2.filter(function (it) { return off.indexOf(it.id) < 0; }).length;
+      return (
+        '<div class="mate-pick__head"><span>' + on + ' de ' + items2.length + ' selecionados</span>' +
+        (m.stale ? '' : '<button type="button" class="mate-pal__link" data-mate="pick-all" data-msg="' + esc(m.id) + '">' + (on === items2.length ? 'Desmarcar todos' : 'Marcar todos') + '</button>') +
+        '</div><ul class="mate-pick">' +
+        items2.map(function (it) {
+          var checked = off.indexOf(it.id) < 0;
+          return (
+            '<li><label><input type="checkbox" data-mate="pick-item" data-msg="' + esc(m.id) + '" data-id="' + esc(it.id) + '"' + (checked ? ' checked' : '') + (m.stale ? ' disabled' : '') + '>' +
+            '<span class="mate-list__dot mate-list__dot--' + esc(it.tone || 'neutral') + '"></span>' +
+            '<span class="mate-list__body"><strong>' + esc(it.title) + '</strong>' + (it.detail || it.meta ? '<small>' + esc([it.detail, it.meta].filter(Boolean).join(' · ')) + '</small>' : '') + '</span></label></li>'
+          );
+        }).join('') +
+        '</ul>'
+      );
+    }
     if (s.type === 'note') return '<p class="mate-note mate-note--' + esc(s.tone || 'neutral') + '">' + esc(s.text) + '</p>';
     return '';
+  }
+
+  function pickTotal(m) {
+    var sec = ((m.card && m.card.sections) || []).find(function (x) { return x.type === 'pick'; });
+    if (!sec) return null;
+    var off = m.exclude || [];
+    return (sec.items || []).filter(function (it) { return off.indexOf(it.id) < 0; }).length;
   }
 
   function renderClarify(m) {
@@ -793,7 +819,9 @@
     m.working = true;
     render();
     try {
-      var r = await api('POST', m.card.confirm.exec.endpoint, m.card.confirm.exec.body);
+      var body = Object.assign({}, m.card.confirm.exec.body);
+      if (m.exclude && m.exclude.length) body.exclude = m.exclude.slice();
+      var r = await api('POST', m.card.confirm.exec.endpoint, body);
       var res = r.result || {};
       var done = {
         role: 'mate',
@@ -827,6 +855,12 @@
         navigator.clipboard.writeText(client.text);
         hint('Link copiado.');
       } catch (_) {}
+    }
+    if (client.type === 'open' && client.href) {
+      setTimeout(function () {
+        location.href = safeHref(client.href);
+      }, 500);
+      return;
     }
     if (client.type === 'quote_edit' && client.quote_id) {
       try {
@@ -950,7 +984,12 @@
     var what = el.getAttribute('data-mate');
     var m = el.hasAttribute('data-msg') ? find(el.getAttribute('data-msg')) : null;
     if (what === 'close') close();
-    else if (what === 'history') {
+    else if (what === 'pick-all' && m) {
+      var sec = (m.card.sections || []).find(function (x) { return x.type === 'pick'; });
+      var allIds = sec ? sec.items.map(function (it) { return it.id; }) : [];
+      m.exclude = (m.exclude || []).length ? [] : allIds;
+      render();
+    } else if (what === 'history') {
       state.showHistory = !state.showHistory;
       render();
     } else if (what === 'clear') {
@@ -1003,6 +1042,16 @@
 
   panel.addEventListener('change', function (e) {
     var el = e.target;
+    if (el && el.getAttribute && el.getAttribute('data-mate') === 'pick-item') {
+      var pm = find(el.getAttribute('data-msg'));
+      if (pm) {
+        var id = el.getAttribute('data-id');
+        pm.exclude = (pm.exclude || []).filter(function (x) { return x !== id; });
+        if (!el.checked) pm.exclude.push(id);
+        render();
+      }
+      return;
+    }
     if (el && el.getAttribute && el.getAttribute('data-mate') === 'ack') {
       var m = find(el.getAttribute('data-msg'));
       if (m) {

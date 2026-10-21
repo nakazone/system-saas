@@ -1046,6 +1046,47 @@ body.mate-open .mate-fab {
   margin-top: 10px;
 }
 
+/* ───────── batch picker ───────── */
+
+.mate-pick__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 6px;
+  color: var(--mate-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mate-pick {
+  max-height: 300px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--mate-line);
+  border-radius: 10px;
+}
+
+.mate-pick li + li {
+  border-top: 1px solid var(--mate-line);
+}
+
+.mate-pick label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.mate-pick input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--mate-ink);
+}
+
 /* ───────── start screen ───────── */
 
 .mate-start h3 {
