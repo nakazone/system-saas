@@ -12,6 +12,13 @@ import {
   isReceiptOcrConfigured,
 } from "../../lib/finance/receipt-ocr.js";
 
+/** A job id from the request, only if it exists in this company. */
+async function jobIdFor(tx: { workOrder: { findFirst: (a: { where: { id: string }; select: { id: true } }) => Promise<{ id: string } | null> } }, raw: unknown): Promise<string | null> {
+  const id = String(raw || "");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  return (await tx.workOrder.findFirst({ where: { id }, select: { id: true } }))?.id ?? null;
+}
+
 export const financeRouter = Router();
 
 function parseDateOnly(raw: unknown, fallback?: Date): Date | null {
@@ -563,6 +570,7 @@ financeRouter.post(
       const row = await withTenantTransaction(req.organizationId!, async (tx) =>
         tx.financeCost.create({
           data: {
+            workOrderId: await jobIdFor(tx, body.work_order_id),
             organizationId: req.organizationId!,
             description,
             category: String(body.category || "other"),
@@ -669,6 +677,7 @@ financeRouter.post(
       const row = await withTenantTransaction(req.organizationId!, async (tx) =>
         tx.financeCost.create({
           data: {
+            workOrderId: await jobIdFor(tx, body.work_order_id),
             organizationId: req.organizationId!,
             description,
             category,

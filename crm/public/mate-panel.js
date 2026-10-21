@@ -38,6 +38,7 @@
     stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
     send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>',
+    camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   };
 
@@ -65,6 +66,8 @@
     var h = String(href || '');
     if (/^(https?:|sms:|tel:|mailto:)/i.test(h)) return h;
     if (/^[a-z0-9_-]+\.html(\?[^\s"'<>]*)?$/i.test(h)) return h;
+    if (/^\/[a-z0-9_/-]+\.html(\?[^\s"'<>]*)?$/i.test(h) && h.indexOf('//') < 0) return h;
+    if (/^\/api\/[a-z-]+\/[0-9a-f-]{36}\/(invoice-pdf|paper|pdf)$/i.test(h)) return h;
     return '#';
   }
 
@@ -127,6 +130,7 @@
       'quote-builder.html': 'quote',
       'invoice.html': 'invoice',
       'customers.html': 'customer',
+      'ticket.html': 'job',
     };
     return map[file] ? { type: map[file], id: id } : null;
   }
@@ -229,6 +233,8 @@
     '<div class="mate-pal__ctx" id="mateContext" hidden></div>' +
     '<label class="mate-pal__field"><span class="mate-sr">Pedido para o Mate AI</span>' +
     '<textarea id="mateInput" rows="1" maxlength="600" placeholder="Peça ao Mate… ex.: quote pro John, 1350 pés de madeira" data-crm-rich="off" enterkeyhint="send"></textarea></label>' +
+    '<button type="button" class="mate-mic mate-cam" id="mateCam" aria-label="Anexar foto" title="Anexar foto (recibo, problema na obra)">' + ICON.camera + '</button>' +
+    '<input type="file" id="mateCamFile" accept="image/*" capture="environment" hidden>' +
     '<button type="button" class="mate-mic" id="mateMic" aria-label="Gravar pedido">' + ICON.mic + '</button>' +
     '<button type="button" class="mate-send" id="mateSend" aria-label="Enviar" disabled>' + ICON.send + '</button>' +
     (inlineHost ? '' : '<button type="button" class="mate-icon-btn mate-pal__close" data-mate="close" title="Fechar (Esc)" aria-label="Fechar">' + ICON.close + '</button>') +
@@ -251,6 +257,8 @@
   var contextEl = panel.querySelector('#mateContext');
   var headSubEl = panel.querySelector('#mateHeadSub');
   var keysEl = panel.querySelector('#mateKeys');
+  var camEl = panel.querySelector('#mateCam');
+  var camFile = panel.querySelector('#mateCamFile');
 
   // Short placeholder on phones, where the long example wraps.
   (function placeholder() {
@@ -772,14 +780,17 @@
     if (!t || state.busy) return;
     if (!state.open && !inlineHost) open({ focus: false });
     var pending = pendingForRequest();
+    var photo = state.attachment || null;
+    state.attachment = null;
+    camEl.classList.remove('is-on');
     staleOpenCards();
-    push({ role: 'user', text: t });
+    push({ role: 'user', text: (photo ? '📷 ' : '') + t });
     var thinking = push({ role: 'mate', kind: 'thinking' });
     inputEl.value = '';
     autoGrow();
     setBusy(true);
     try {
-      var r = await api('POST', API.act, { text: t, screen: screenForRequest(), memory: memory().slice(0, -1), pending: pending });
+      var r = await api('POST', API.act, { text: t, screen: screenForRequest(), memory: memory().slice(0, -1), pending: pending, attachment: photo || undefined });
       var m = fromResponse(r);
       replace(thinking.id, m);
       if (r.ai_error) {
@@ -821,6 +832,7 @@
     try {
       var body = Object.assign({}, m.card.confirm.exec.body);
       if (m.exclude && m.exclude.length) body.exclude = m.exclude.slice();
+      if (m.card.confirm.geo) body.geo = await whereAmI();
       var r = await api('POST', m.card.confirm.exec.endpoint, body);
       var res = r.result || {};
       var done = {
@@ -839,6 +851,35 @@
       render();
       push({ role: 'mate', kind: 'error', message: err.message || 'Não foi possível concluir.' });
     }
+  }
+
+  /** Device location for field day start/finish; null when denied or slow. */
+  function whereAmI() {
+    return new Promise(function (resolve) {
+      if (!navigator.geolocation) return resolve(null);
+      var done = false;
+      var timer = setTimeout(function () {
+        if (!done) {
+          done = true;
+          resolve(null);
+        }
+      }, 9000);
+      navigator.geolocation.getCurrentPosition(
+        function (p) {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy });
+        },
+        function () {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+      );
+    });
   }
 
   /** The confirmed action changed the record the user is looking at. */
@@ -1137,6 +1178,56 @@
     hintEl.textContent = text || '';
     hintEl.classList.toggle('is-live', Boolean(live));
   }
+
+  /* ───────── photo ───────── */
+
+  /** Shrinks a photo to 1600 px JPEG before it travels (receipts stay readable). */
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var max = 1600;
+        var k = Math.min(1, max / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * k);
+        c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error('Não consegui abrir a foto.'));
+      };
+      img.src = url;
+    });
+  }
+
+  camEl.addEventListener('click', function () {
+    if (state.attachment) {
+      state.attachment = null;
+      camEl.classList.remove('is-on');
+      hint('Foto removida.');
+      return;
+    }
+    camFile.click();
+  });
+  camFile.addEventListener('change', function () {
+    var f = camFile.files && camFile.files[0];
+    camFile.value = '';
+    if (!f) return;
+    shrink(f)
+      .then(function (dataUrl) {
+        state.attachment = dataUrl;
+        camEl.classList.add('is-on');
+        hint('Foto anexada. Diga o que fazer com ela (ex.: “lança esse recibo no job 1042”). Toque na câmera para tirar.');
+        inputEl.focus();
+      })
+      .catch(function (err) {
+        hint(err.message);
+      });
+  });
 
   /* ───────── voice ───────── */
 
