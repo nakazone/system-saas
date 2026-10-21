@@ -77,7 +77,7 @@ describe("Realtime client secret", () => {
   it("does not make unsupported pricing claims or promise a live transfer", () => {
     const instructions = buildMateVoiceInstructions(null);
 
-    expect(instructions).toContain("Não informe nem confirme preços");
+    expect(instructions).toContain("Não informe nem estime preços");
     expect(instructions).toContain("hello@obramate.com");
     expect(instructions).toContain("Não prometa transferir ou encaminhar a conversa automaticamente");
   });
