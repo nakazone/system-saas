@@ -392,7 +392,36 @@ async function pickWithJson(text: string, ctx: AgentCtx, today: string, weekday:
   return finish(parsed.data.action, parsed.data.args, ctx, today, "ai");
 }
 
+/**
+ * "hoje", "ontem", "amanhã" said by the user win over the date the model wrote. Models sometimes
+ * answer with the UTC day (in the evening in the US, UTC is already tomorrow), so the day is fixed
+ * here from the company's calendar. Only one relative word and no explicit date in the text.
+ */
+export function pinSpokenDay(text: string, action: string, args: Record<string, unknown>, today: string, actions: ActionDef[]): Record<string, unknown> {
+  const def = actions.find((a) => a.name === action);
+  const key = def ? (["date", "day"] as const).find((k) => k in (def.args || {})) : undefined;
+  if (!key) return args;
+  const t = foldText(text);
+  if (/\d{1,2}\s*\/\s*\d{1,2}|\bdia\s+\d{1,2}\b|\b(segunda|terca|quarta|quinta|sexta|sabado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(t)) return args;
+  const found = new Set<number>();
+  if (/\bdepois de amanha\b/.test(t)) found.add(2);
+  else if (/\bamanha\b|\btomorrow\b/.test(t)) found.add(1);
+  if (/\banteontem\b/.test(t)) found.add(-2);
+  else if (/\bontem\b|\byesterday\b|\bayer\b/.test(t)) found.add(-1);
+  if (/\bhoje\b|\btoday\b|\bhoy\b/.test(t)) found.add(0);
+  if (found.size !== 1) return args;
+  const d = new Date(today + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + [...found][0]!);
+  return { ...args, [key]: d.toISOString().slice(0, 10) };
+}
+
 export async function pickAction(text: string, ctx: AgentCtx): Promise<AgentPick> {
+  const pick = await pickActionRaw(text, ctx);
+  if (pick.kind !== "action") return pick;
+  return { ...pick, args: pinSpokenDay(text, pick.action, pick.args, todayInTimezone(ctx.timezone).date, ctx.actions) };
+}
+
+async function pickActionRaw(text: string, ctx: AgentCtx): Promise<AgentPick> {
   const { date, weekday } = todayInTimezone(ctx.timezone);
   const allowed = new Set(ctx.actions.map((a) => a.name));
   const local = (aiError?: string): AgentPick => {

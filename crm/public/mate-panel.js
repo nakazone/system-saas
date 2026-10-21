@@ -152,7 +152,8 @@
     showHistory: false,
   };
 
-  var today = new Date().toISOString().slice(0, 10);
+  var now0 = new Date();
+  var today = now0.getFullYear() + '-' + String(now0.getMonth() + 1).padStart(2, '0') + '-' + String(now0.getDate()).padStart(2, '0');
   var saved = load(KEY_THREAD, null);
   if (saved && saved.day === today && Array.isArray(saved.items)) {
     state.thread = saved.items.filter(function (m) {

@@ -73,7 +73,7 @@ export const folhaDay: ActionDef = {
     if ("clarify" in r) return { kind: "clarify", clarify: r.clarify, args };
     const emp = r.emp;
     const date = isIsoDay(args.date) ? String(args.date) : ctx.today;
-    if (date > ctx.today) return { kind: "error", message: "Não dá para lançar data futura.", args };
+    if (date > ctx.today) return { kind: "error", message: `Não dá para lançar data futura (${fmtDate(date)}; hoje é ${fmtDate(ctx.today)}).`, args };
     const specs = Array.isArray(args.jobs) ? (args.jobs as Array<Record<string, unknown>>).slice(0, 10) : [];
     const jobs: Array<{ work_order_id: string; sqft: number | null; label: string }> = [];
     for (const s of specs) {

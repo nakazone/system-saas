@@ -770,12 +770,12 @@ folhaAdminRouter.post("/api/folha/dias", requireCrmAuth, requireCrmPermission("p
       res.status(400).json({ success: false, error: "Informe funcionário e data." });
       return;
     }
-    const today = ymd(new Date());
+    const tz = await orgTz(req.organizationId!);
+    const today = ymd(workDateFor(new Date(), tz));
     if (b.data.date > today) {
       res.status(400).json({ success: false, error: "Não dá para lançar data futura." });
       return;
     }
-    const tz = await orgTz(req.organizationId!);
     const data = await withTenantTransaction(req.organizationId!, async (tx) =>
       createApprovedOfficeDay(tx, req.organizationId!, req.user!.id, tz, b.data),
     );
@@ -793,13 +793,13 @@ folhaAdminRouter.post("/api/folha/dias/lote", requireCrmAuth, requireCrmPermissi
       res.status(400).json({ success: false, error: "Informe funcionário e datas." });
       return;
     }
-    const today = ymd(new Date());
+    const tz = await orgTz(req.organizationId!);
+    const today = ymd(workDateFor(new Date(), tz));
     const dates = [...new Set(b.data.dates)].sort();
     if (dates.some((d) => d > today)) {
       res.status(400).json({ success: false, error: "Não dá para lançar data futura." });
       return;
     }
-    const tz = await orgTz(req.organizationId!);
     const results: { date: string; ok: boolean; id?: string; error?: string; code?: string }[] = [];
     let adjApplied = false;
     for (const date of dates) {
