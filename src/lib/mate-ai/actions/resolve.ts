@@ -177,6 +177,7 @@ export async function resolveLead(ctx: ActionContext, args: Record<string, unkno
     "lead",
     (l) => ({ id: l.id, label: l.name, detail: [l.phone, l.status].filter(Boolean).join(" · ") }),
     "lead",
+    recentOf(ctx, "lead"),
   );
 }
 
@@ -348,7 +349,7 @@ export async function customerQuoteOptions(ctx: ActionContext, customerId: strin
   }));
 }
 
-function recentOf(ctx: ActionContext, ...types: string[]): string[] {
+export function recentOf(ctx: ActionContext, ...types: string[]): string[] {
   return (ctx.recent || []).filter((r) => types.includes(r.type)).map((r) => r.id);
 }
 

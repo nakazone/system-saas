@@ -21,6 +21,11 @@ import { mateAiChatModel } from "../../lib/mate-ai/interpret.js";
 import { callInternalApi, internalError } from "../../lib/mate-ai/internal-api.js";
 import { signActionToken, verifyActionToken } from "../../lib/mate-ai/token.js";
 import { editQuote, sendQuote } from "../../lib/mate-ai/actions/quotes.js";
+import { INVOICE_MORE_ACTIONS } from "../../lib/mate-ai/actions/invoices-more.js";
+import { LEAD_MORE_ACTIONS } from "../../lib/mate-ai/actions/leads-more.js";
+import { CALENDAR_ACTIONS } from "../../lib/mate-ai/actions/calendar.js";
+import { JOB_MORE_ACTIONS } from "../../lib/mate-ai/actions/jobs-more.js";
+import { CUSTOMER_MORE_ACTIONS } from "../../lib/mate-ai/actions/customers-more.js";
 import { addJobNote, createJob, scheduleJob, setJobStatus } from "../../lib/mate-ai/actions/jobs.js";
 import { invoiceFromQuote, recordPayment, sendInvoice } from "../../lib/mate-ai/actions/money.js";
 import { createCustomer, createLead, moveLead } from "../../lib/mate-ai/actions/crm.js";
@@ -378,6 +383,11 @@ const invoiceJob: ActionDef = {
 };
 
 for (const def of [
+  ...INVOICE_MORE_ACTIONS,
+  ...LEAD_MORE_ACTIONS,
+  ...CALENDAR_ACTIONS,
+  ...JOB_MORE_ACTIONS,
+  ...CUSTOMER_MORE_ACTIONS,
   setPrice,
   quoteCreate,
   editQuote,
@@ -613,7 +623,10 @@ mateAiAgentRouter.post("/api/mate-ai/execute", requireCrmAuth, async (req: Authe
       res.status(409).json({ success: false, error: "Esta ação já foi feita." });
       return;
     }
-    const ctx: ExecuteContext = { req: req as AuthedRequest & Request, organizationId, userId: req.user!.id, timezone: await orgTimezone(organizationId) };
+    const exclude = Array.isArray((req.body || {}).exclude)
+      ? ((req.body as { exclude: unknown[] }).exclude.filter((x) => typeof x === "string").slice(0, 500) as string[])
+      : [];
+    const ctx: ExecuteContext = { req: req as AuthedRequest & Request, organizationId, userId: req.user!.id, timezone: await orgTimezone(organizationId), exclude };
     let result;
     try {
       result = await def.execute(ctx, token.e);
