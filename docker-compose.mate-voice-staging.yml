@@ -1,0 +1,45 @@
+name: obramate-mate-voice-staging
+
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:?Set secrets in .env.mate-voice-staging}
+      POSTGRES_DB: mate_voice_staging
+    volumes:
+      - mate_voice_staging_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mate_voice_staging"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.mate-voice-staging
+    env_file:
+      - .env.mate-voice-staging
+    environment:
+      NODE_ENV: development
+      APP_ENV: staging
+      MATE_VOICE_ENABLED: "true"
+      PORT: "3000"
+      APP_ROOT_DOMAIN: localhost
+      APP_BASE_URL: http://localhost:3001
+      DATABASE_URL: postgresql://app_user:${STAGING_APP_DB_PASSWORD:?Set STAGING_APP_DB_PASSWORD in .env.mate-voice-staging}@database:5432/mate_voice_staging?schema=public
+      MIGRATION_DATABASE_URL: postgresql://postgres:${STAGING_POSTGRES_PASSWORD:?Set STAGING_POSTGRES_PASSWORD in .env.mate-voice-staging}@database:5432/mate_voice_staging?schema=public
+      SESSION_SECRET: ${STAGING_SESSION_SECRET:?Set STAGING_SESSION_SECRET in .env.mate-voice-staging}
+      JWT_SECRET: ${STAGING_JWT_SECRET:?Set STAGING_JWT_SECRET in .env.mate-voice-staging}
+      STAGING_APP_DB_PASSWORD: ${STAGING_APP_DB_PASSWORD:?Set STAGING_APP_DB_PASSWORD in .env.mate-voice-staging}
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3001:3000"
+    command: ["sh", "-c", "DATABASE_URL=\"$$MIGRATION_DATABASE_URL\" node scripts/migrate-deploy.mjs && node scripts/staging-set-app-user-password.mjs && unset MIGRATION_DATABASE_URL STAGING_POSTGRES_PASSWORD STAGING_APP_DB_PASSWORD STAGING_SESSION_SECRET STAGING_JWT_SECRET && node dist/src/server.js"]
+    restart: unless-stopped
+
+volumes:
+  mate_voice_staging_data:

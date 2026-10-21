@@ -6,6 +6,10 @@ loadDotenv({ path: ".env", quiet: true });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  /** Deployment lane is separate from NODE_ENV; staging may run a production build. */
+  APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
+  MATE_VOICE_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  OPENAI_API_KEY: z.string().optional(),
   PORT: z.coerce.number().default(3000),
   PRODUCT_NAME: z.string().min(1).default("ObraMate"),
   APP_ROOT_DOMAIN: z.string().min(1),
