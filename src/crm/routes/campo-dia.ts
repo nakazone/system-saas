@@ -495,6 +495,46 @@ async function assertFinishable(
   }
 }
 
+/** A reimbursement during the day (gas, material), with its receipt; reviewed with the day. */
+const expenseBody = z.object({
+  amount: z.number().positive().max(100000),
+  description: z.string().max(300).optional().nullable(),
+  receipt_url: z.string().max(2000).optional().nullable(),
+  receipt_key: z.string().max(500).optional().nullable(),
+});
+
+campoDiaRouter.post("/api/campo/dia/despesas", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!guard(req, res)) return;
+    const b = expenseBody.safeParse(req.body || {});
+    if (!b.success) {
+      res.status(400).json({ success: false, error: "Informe o valor da despesa." });
+      return;
+    }
+    const tz = await orgTz(req.organizationId!);
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const now = new Date();
+      const emp = await ownEmployee(tx, req);
+      if (!emp) throw httpErr(409, "Seu usuário não está ligado à folha.", "NOT_LINKED");
+      const shift = await openDay(tx, req.user!.id, tz, now);
+      await attachExpensesToShift(tx, {
+        organizationId: req.organizationId!,
+        shiftId: shift.id,
+        employeeId: emp.id,
+        createdById: req.user!.id,
+        source: "employee",
+        status: "pending",
+        items: [{ kind: "reimbursement" as const, amount: b.data.amount, description: b.data.description ?? null, receipt_url: b.data.receipt_url ?? null, receipt_key: b.data.receipt_key ?? null }],
+      });
+      await flagShiftForExpenses(tx, shift.id);
+      return loadState(tx, req, tz, now);
+    });
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
 campoDiaRouter.post("/api/campo/dia/recibos", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     if (!guard(req, res)) return;

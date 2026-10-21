@@ -32,7 +32,8 @@ export function listActions(): ActionDef[] {
 export function canUse(def: ActionDef, user: { roleKey?: string | null; permissions: string[] } | undefined): boolean {
   if (!user) return false;
   if (user.roleKey === "admin") return true;
-  return def.permissions.every((p) => user.permissions.includes(p));
+  if (!def.permissions.every((p) => user.permissions.includes(p))) return false;
+  return !def.anyPermissions?.length || def.anyPermissions.some((p) => user.permissions.includes(p));
 }
 
 /* ───────────────────────── conversation ───────────────────────── */

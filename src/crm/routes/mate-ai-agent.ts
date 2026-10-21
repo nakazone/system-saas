@@ -22,10 +22,15 @@ import { callInternalApi, internalError } from "../../lib/mate-ai/internal-api.j
 import { signActionToken, verifyActionToken } from "../../lib/mate-ai/token.js";
 import { editQuote, sendQuote } from "../../lib/mate-ai/actions/quotes.js";
 import { INVOICE_MORE_ACTIONS } from "../../lib/mate-ai/actions/invoices-more.js";
+import { isImageDataUrl, putAttachment } from "../../lib/mate-ai/attachments.js";
 import { LEAD_MORE_ACTIONS } from "../../lib/mate-ai/actions/leads-more.js";
 import { CALENDAR_ACTIONS } from "../../lib/mate-ai/actions/calendar.js";
 import { JOB_MORE_ACTIONS } from "../../lib/mate-ai/actions/jobs-more.js";
 import { CUSTOMER_MORE_ACTIONS } from "../../lib/mate-ai/actions/customers-more.js";
+import { FIELD_ACTIONS } from "../../lib/mate-ai/actions/field.js";
+import { PAYROLL_ACTIONS } from "../../lib/mate-ai/actions/payroll.js";
+import { QUOTE_MORE_ACTIONS } from "../../lib/mate-ai/actions/quotes-more.js";
+import { FINANCE_ACTIONS } from "../../lib/mate-ai/actions/finance.js";
 import { addJobNote, createJob, scheduleJob, setJobStatus } from "../../lib/mate-ai/actions/jobs.js";
 import { invoiceFromQuote, recordPayment, sendInvoice } from "../../lib/mate-ai/actions/money.js";
 import { createCustomer, createLead, moveLead } from "../../lib/mate-ai/actions/crm.js";
@@ -388,6 +393,10 @@ for (const def of [
   ...CALENDAR_ACTIONS,
   ...JOB_MORE_ACTIONS,
   ...CUSTOMER_MORE_ACTIONS,
+  ...FIELD_ACTIONS,
+  ...PAYROLL_ACTIONS,
+  ...QUOTE_MORE_ACTIONS,
+  ...FINANCE_ACTIONS,
   setPrice,
   quoteCreate,
   editQuote,
@@ -471,6 +480,8 @@ const actSchema = z
     screen: screenSchema,
     memory: memorySchema.optional(),
     pending: pendingSchema,
+    /** A photo taken or picked in the panel (data URL), for actions that use one. */
+    attachment: z.string().max(17_000_000).optional(),
   })
   .refine((b) => Boolean(b.text || b.action), { message: "text or action required" });
 
@@ -510,9 +521,11 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
       return { summary, catalog: [], customers: [] };
     });
 
+    const photoId = isImageDataUrl(body.data.attachment) ? putAttachment(organizationId, user.id, body.data.attachment) : null;
+
     if (body.data.text) {
       const pending = body.data.pending && allowed.some((a) => a.name === body.data.pending!.action) && JSON.stringify(body.data.pending.args).length < 12_000 ? body.data.pending : null;
-      const pick = await pickAction(body.data.text, {
+      const pick = await pickAction(photoId ? body.data.text + "\n[O usuário anexou uma foto a este pedido.]" : body.data.text, {
         actions: allowed,
         catalog: prepared.catalog,
         customers: prepared.customers,
@@ -534,6 +547,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
       args = pick.args;
       note = pick.reply;
     }
+    if (photoId && getAction(action)?.acceptsPhoto) args = { ...args, photo_id: photoId };
 
     const def = getAction(action);
     if (!def) {
@@ -626,7 +640,12 @@ mateAiAgentRouter.post("/api/mate-ai/execute", requireCrmAuth, async (req: Authe
     const exclude = Array.isArray((req.body || {}).exclude)
       ? ((req.body as { exclude: unknown[] }).exclude.filter((x) => typeof x === "string").slice(0, 500) as string[])
       : [];
-    const ctx: ExecuteContext = { req: req as AuthedRequest & Request, organizationId, userId: req.user!.id, timezone: await orgTimezone(organizationId), exclude };
+    const g = (req.body || {}).geo as { lat?: unknown; lng?: unknown; accuracy?: unknown } | undefined;
+    const geo =
+      g && Number.isFinite(Number(g.lat)) && Number.isFinite(Number(g.lng)) && Math.abs(Number(g.lat)) <= 90 && Math.abs(Number(g.lng)) <= 180
+        ? { lat: Number(g.lat), lng: Number(g.lng), accuracy: Number.isFinite(Number(g.accuracy)) ? Number(g.accuracy) : null }
+        : null;
+    const ctx: ExecuteContext = { req: req as AuthedRequest & Request, organizationId, userId: req.user!.id, timezone: await orgTimezone(organizationId), exclude, geo };
     let result;
     try {
       result = await def.execute(ctx, token.e);

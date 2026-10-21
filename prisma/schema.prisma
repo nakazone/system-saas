@@ -2100,6 +2100,9 @@ model FinanceCost {
   amount         Decimal  @db.Decimal(12, 2)
   incurredOn     DateTime @db.Date
   vendorName     String?
+  /// Job this cost belongs to (material bought for a job), for job margin.
+  workOrderId    String?    @db.Uuid
+  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   projectId      String?  @db.Uuid
   /// manual | scan | import
   source         String   @default("manual")
@@ -2120,6 +2123,7 @@ model FinanceCost {
   @@index([organizationId])
   @@index([organizationId, incurredOn])
   @@index([organizationId, status])
+  @@index([workOrderId])
 }
 
 /// Cash outflow when a payroll period is paid / abated.
@@ -2494,6 +2498,7 @@ model WorkOrder {
   media       JobMedia[]
   reports     JobReport[]
   quotes      Quote[]
+  financeCosts FinanceCost[]
   invoices    QuoteInvoice[]
   inspections JobInspection[]
   measurements JobMeasurement[]

@@ -69,6 +69,8 @@ export type Card = {
     exec: { endpoint: string; body: Record<string, unknown> };
     /** Extra explicit check shown for sends, e.g. "Enviar para john@x.com". */
     checkbox?: string;
+    /** The browser sends its location with the confirmation (field day start/finish). */
+    geo?: boolean;
   };
   /** Secondary way to do it in the full screen. */
   open?: { label: string; href: string };
@@ -117,6 +119,8 @@ export type ExecuteContext = {
   timezone: string;
   /** Batch cards: ids the user unchecked. Execute may only drop items, never add. */
   exclude?: string[];
+  /** Device location sent with the confirmation, when the card asked for it. */
+  geo?: { lat: number; lng: number; accuracy: number | null } | null;
 };
 
 export type ExecuteResult =
@@ -149,6 +153,10 @@ export type ActionDef = {
   /** Examples of what users say (pt/en). */
   examples: string[];
   permissions: string[];
+  /** At least one of these too (field crew actions: any campo permission). */
+  anyPermissions?: string[];
+  /** Takes the photo attached to the request (`photo_id` in args). */
+  acceptsPhoto?: boolean;
   readOnly?: boolean;
   prepare: (ctx: ActionContext, args: Record<string, unknown>) => Promise<PrepareResult>;
   execute?: (ctx: ExecuteContext, exec: Record<string, unknown>) => Promise<ExecuteResult>;
@@ -218,3 +226,6 @@ export function dayIn(d: Date | string | null | undefined, tz: string): string |
   if (!d) return null;
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(typeof d === "string" ? new Date(d) : d);
 }
+
+/** Who can use the field app (same rule as the campo routes). */
+export const CAMPO_ANY = ["work_orders.view", "payroll.self", "schedule.view", "visits.view"];

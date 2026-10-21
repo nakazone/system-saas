@@ -1226,6 +1226,11 @@ body.mate-open .mate-fab {
   animation: mate-pulse 1.3s ease-in-out infinite;
 }
 
+.mate-cam.is-on {
+  background: var(--mate-accent);
+  color: #fff;
+}
+
 .mate-send {
   background: var(--mate-ink);
   color: #fff;
