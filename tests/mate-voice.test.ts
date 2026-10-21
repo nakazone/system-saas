@@ -62,6 +62,12 @@ describe("Realtime client secret", () => {
     expect(body.session.instructions).toContain("Denver");
     expect(body.session.audio.output.voice).toBe("marin");
     expect(body.session.audio.input.transcription).not.toHaveProperty("language");
+    expect(body.session.audio.input.turn_detection).toEqual({ type: "semantic_vad", eagerness: "low" });
+    expect(body.session.tools).toContainEqual(expect.objectContaining({
+      type: "function",
+      name: "wait_for_user",
+      parameters: { type: "object", properties: {}, required: [] },
+    }));
   });
 
   it("positions Mate as the tenant flooring company's customer-service assistant", () => {
@@ -84,6 +90,9 @@ describe("Realtime client secret", () => {
     expect(instructions).toContain("Não dê preços, faixas de preço ou estimativas");
     expect(instructions).toContain("não uma confirmação da área atendida");
     expect(instructions).toContain("não use nem revele dados desse registro");
+    expect(instructions).toContain("Não use um roteiro fixo nem transforme a conversa em um checklist");
+    expect(instructions).toContain("Não invente uma resposta para preencher o silêncio");
+    expect(instructions).toContain("Nunca adivinhe palavras, intenções ou respostas que a pessoa não deu");
   });
 
   it("does not infer services, pricing, CRM information, or authority from missing business data", () => {

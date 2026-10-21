@@ -265,6 +265,16 @@
       return;
     }
     if (event.type === "response.done") {
+      const waitCalls = (event.response?.output || []).filter((item) => item.type === "function_call" && item.name === "wait_for_user");
+      for (const call of waitCalls) {
+        // Resolve the no-op tool without requesting another response, so Mate stays quiet and listens.
+        if (state.channel?.readyState === "open" && call.call_id) {
+          state.channel.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: { type: "function_call_output", call_id: call.call_id, output: JSON.stringify({ status: "waiting" }) },
+          }));
+        }
+      }
       setCallStatus("connected", "Você está conectado", "Pode falar: o Mate está ouvindo.");
       return;
     }
