@@ -18,6 +18,7 @@ import { i18nCrmRouter } from "../lib/i18n/routes.js";
 import { i18nVersion, orgDefaultUiLocale } from "../lib/i18n/index.js";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
+import { isMateVoiceStagingEnabled } from "../lib/mate-voice/staging.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -125,6 +126,15 @@ async function sendCrmHtml(req: Request, res: Response, filename: string) {
 export function createCrmRouter(): Router {
   const router = express.Router();
 
+  // The static CRM HTML fallback would otherwise expose a staging-only shell by filename.
+  router.use((req, res, next) => {
+    if (!isMateVoiceStagingEnabled() && ["/mate-voice", "/mate-voice.html"].includes(req.path)) {
+      res.status(404).type("text").send("Not found");
+      return;
+    }
+    next();
+  });
+
   router.use(crmAuthRouter);
   router.use(i18nCrmRouter);
   router.use(crmApiRouter);
@@ -159,6 +169,18 @@ export function createCrmRouter(): Router {
   router.get(["/mate-ai", "/mate-ai.html"], requireAuth, async (req, res, next) => {
     try {
       await sendCrmHtml(req, res, "mate-ai.html");
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get(["/mate-voice", "/mate-voice.html"], requireAuth, async (req, res, next) => {
+    try {
+      if (!isMateVoiceStagingEnabled()) {
+        res.status(404).type("text").send("Not found");
+        return;
+      }
+      await sendCrmHtml(req, res, "mate-voice.html");
     } catch (error) {
       next(error);
     }

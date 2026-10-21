@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
+.env.mate-voice-staging
 *.log
 .DS_Store
 coverage/

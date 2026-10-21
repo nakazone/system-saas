@@ -43,6 +43,8 @@ import { referralsRouter } from "./routes/referrals.js";
 import { reportsHubRouter } from "./routes/reports-hub.js";
 import { fieldQuotesRouter } from "./routes/field-quotes.js";
 import { mateAiRouter } from "./routes/mate-ai.js";
+import { mateVoiceRouter } from "./routes/mate-voice.js";
+import { isMateVoiceStagingEnabled } from "../lib/mate-voice/staging.js";
 
 export const crmApiRouter = Router();
 
@@ -69,6 +71,7 @@ crmApiRouter.use(invoicesCrmRouter);
 crmApiRouter.use(customersOverviewRouter);
 crmApiRouter.use(customersQuotesRouter);
 crmApiRouter.use(mateAiRouter);
+if (isMateVoiceStagingEnabled()) crmApiRouter.use(mateVoiceRouter);
 crmApiRouter.use(fieldQuotesRouter);
 crmApiRouter.use(buildersPricingRouter);
 crmApiRouter.use(constructionPayrollRouter);
