@@ -52,7 +52,7 @@ import {
 } from "../../lib/payroll/shift-expenses.js";
 import { storage } from "../../lib/storage/index.js";
 import { randomUUID } from "node:crypto";
-import { notifyUsersPush } from "../../lib/push/notify.js";
+import { publishAppNotification } from "../../lib/notifications/publish.js";
 import { sendCustomerEmail } from "../../lib/email/index.js";
 import {
   buildConferenceEmailHtml,
@@ -548,12 +548,16 @@ folhaAdminRouter.post("/api/folha/dias/:id/devolver", requireCrmAuth, requireCrm
       });
       return { userId: s.userId, date: s.workDate, day: mapShift(await tx.campoShift.findFirstOrThrow({ where: { id: s.id }, include: shiftInclude }), tz) };
     });
-    if (out.userId) void notifyUsersPush(req.organizationId!, [out.userId], {
+    if (out.userId) void publishAppNotification({
+      organizationId: req.organizationId!,
+      type: "payroll.returned",
       title: `Dia ${dateLabel(out.date)} voltou para ajuste`,
       body: reason,
       url: "/campo/hoje.html",
       tag: `dia-${out.day.id}`,
-    }).catch(() => {});
+      dedupeKey: `dia-return-${out.day.id}-${Date.now()}`,
+      userIds: [out.userId],
+    });
     res.json({ success: true, data: out.day });
   } catch (error) {
     fail(res, error, next);
@@ -1458,12 +1462,16 @@ folhaAdminRouter.post("/api/folha/pagamentos", requireCrmAuth, requireCrmPermiss
     // Tell each employee with the app that the week was paid.
     for (const c of data.paid) {
       if (!c.user_id) continue;
-      void notifyUsersPush(req.organizationId!, [c.user_id], {
+      void publishAppNotification({
+        organizationId: req.organizationId!,
+        type: "payroll.paid",
         title: `Pagamento: ${c.amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}`,
         body: `${data.week}${c.method ? ` · ${methodLabel(c.method)}` : ""}`,
         url: "/campo/horas.html",
-        tag: `pagamento-${c.employee_id}`,
-      }).catch(() => {});
+        tag: `pagamento-${c.employee_id}-${data.week}`,
+        dedupeKey: `pagamento-${c.employee_id}-${data.week}`,
+        userIds: [c.user_id],
+      });
     }
     res.status(data.paid.length ? 201 : 200).json({ success: true, data: { ...data, paid: data.paid.map(({ user_id: _u, method: _m, ...p }) => p) } });
   } catch (error) {

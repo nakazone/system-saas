@@ -152,7 +152,7 @@
         notify('Alertas desativados neste dispositivo.', 'info');
       } else {
         await enablePush();
-        notify('Alertas ativados! Você receberá novos leads neste dispositivo.', 'success');
+        notify('Alertas ativados! Você receberá avisos do sistema neste dispositivo.', 'success');
       }
       await refreshStatus();
     } catch (err) {

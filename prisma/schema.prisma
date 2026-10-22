@@ -783,6 +783,7 @@ model Organization {
   customers          Customer[]
   properties         Property[]
   activityEvents     ActivityEvent[]
+  staffNotifications StaffNotification[]
   quotes             Quote[]
   estimateRules      EstimateRule[]
   partnerUsers       PartnerUser[]
@@ -901,6 +902,7 @@ model User {
   laborEntries LaborEntry[]
   supportTickets SupportTicket[] @relation("SupportTicketAuthor")
   pushSubscriptions PushSubscription[]
+  staffNotifications StaffNotification[]
   assignedWorkOrders WorkOrder[] @relation("WorkOrderAssignee")
   assignedMeetings Meeting[] @relation("MeetingAssignee")
   workOrderMemberships WorkOrderMember[]
@@ -3032,6 +3034,27 @@ model PushSubscription {
   @@index([organizationId])
   @@index([userId])
   @@index([organizationId, userId])
+}
+
+/// In-app inbox (bell) + the source of truth for what was pushed to the PWA.
+model StaffNotification {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String    @db.Uuid
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// lead.created | quote.approved | quote.signed | quote.changes_requested | quote.viewed | invoice.payment | job.assigned | job.updated | job.reminder | chat.message | chat.mention | payroll.returned | payroll.paid | visit.scheduled | mate.brief
+  type           String
+  title          String
+  body           String    @db.Text
+  url            String?
+  dedupeKey      String
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([organizationId, userId, dedupeKey])
+  @@index([organizationId, userId, createdAt])
+  @@index([organizationId, userId, readAt])
 }
 
 // ---------------------------------------------------------------------------

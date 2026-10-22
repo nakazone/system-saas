@@ -27,6 +27,7 @@ import {
   scheduleQuoteFollowUp,
 } from "../../lib/automations/schedule.js";
 import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
+import { publishAppNotification, quoteLabel } from "../../lib/notifications/publish.js";
 import {
   applyQuoteTransition,
   defaultClientViewJson,
@@ -565,10 +566,11 @@ quotesRouter.post(
         res.redirect(`/quotes/${param(req, "id")}?error=${encodeURIComponent("Approval note required")}`);
         return;
       }
-      await withTenantTransaction(req.organizationId!, async (tx) => {
+      const approved = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const quoteId = param(req, "id");
         await applyQuoteTransition(tx, {
           organizationId: req.organizationId!,
-          quoteId: param(req, "id"),
+          quoteId,
           event: "approve",
           actorType: "user",
           actorId: req.user!.id,
@@ -596,12 +598,28 @@ quotesRouter.post(
         });
         await moveLeadForQuoteEvent(tx, {
           organizationId: req.organizationId!,
-          quoteId: param(req, "id"),
+          quoteId,
           slug: "won",
           actorType: "user",
           actorId: req.user!.id,
         });
+        return tx.quote.findFirst({
+          where: { id: quoteId },
+          select: { id: true, number: true, quoteNumber: true, title: true },
+        });
       });
+      if (approved) {
+        void publishAppNotification({
+          organizationId: req.organizationId!,
+          type: "quote.approved",
+          title: "Quote aprovado",
+          body: `${req.user!.name} aprovou ${quoteLabel(approved)}.`,
+          url: `/quote-builder.html?id=${encodeURIComponent(approved.id)}`,
+          tag: `quote-approved-staff-${approved.id}`,
+          dedupeKey: `quote-approved-staff-${approved.id}`,
+          excludeUserId: req.user!.id,
+        });
+      }
       res.redirect(`/quotes/${param(req, "id")}?success=${encodeURIComponent("Marked approved")}`);
     } catch (error) {
       next(error);

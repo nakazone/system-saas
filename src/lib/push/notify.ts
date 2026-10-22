@@ -152,6 +152,22 @@ export async function notifyUsersPush(
   return { sent, pruned };
 }
 
+function publishInbox(input: {
+  organizationId: string;
+  type: string;
+  title: string;
+  body: string;
+  url: string;
+  tag: string;
+  dedupeKey: string;
+  userIds?: string[];
+  excludeUserId?: string;
+}): void {
+  void import("../notifications/publish.js")
+    .then((mod) => mod.publishAppNotification(input))
+    .catch((err) => console.error("[push] inbox", err));
+}
+
 export function notifyJobTeamPush(
   organizationId: string,
   job: { id: string; title: string; number?: number | null },
@@ -160,17 +176,18 @@ export function notifyJobTeamPush(
 ): void {
   const event = options?.event || "updated";
   const label = job.number != null ? `Job #${job.number}` : job.title || "Job";
-  void notifyUsersPush(
+  const title = event === "created" ? "Novo job atribuído" : "Job atualizado";
+  publishInbox({
     organizationId,
+    type: event === "created" ? "job.assigned" : "job.updated",
+    title,
+    body: `${label}${job.title && job.number != null ? ` — ${job.title}` : ""}`,
+    url: `/job-detail.html?id=${encodeURIComponent(job.id)}`,
+    tag: `job-${job.id}-${event}`,
+    dedupeKey: `job-${job.id}-${event}-${Date.now()}`,
     userIds,
-    {
-      title: event === "created" ? "Novo job atribuído" : "Job atualizado",
-      body: `${label}${job.title && job.number != null ? ` — ${job.title}` : ""}`,
-      url: `/job-detail.html?id=${encodeURIComponent(job.id)}`,
-      tag: `job-${job.id}`,
-    },
-    options,
-  ).catch((err) => console.error("[push] job team notify", err));
+    excludeUserId: options?.excludeUserId,
+  });
 }
 
 export function notifyNewLeadPush(
@@ -178,14 +195,14 @@ export function notifyNewLeadPush(
   lead: { id: string; name: string },
   options?: { excludeUserId?: string },
 ): void {
-  void notifyOrganizationPush(
+  publishInbox({
     organizationId,
-    {
-      title: "Novo lead",
-      body: lead.name ? `${lead.name} acabou de chegar` : "Um novo lead chegou no pipeline",
-      url: `/dashboard.html?page=leads`,
-      tag: `lead-${lead.id}`,
-    },
-    options,
-  ).catch((err) => console.error("[push] new lead notify", err));
+    type: "lead.created",
+    title: "Novo lead",
+    body: lead.name ? `${lead.name} acabou de chegar` : "Um novo lead chegou no pipeline",
+    url: "/dashboard.html?page=leads",
+    tag: `lead-${lead.id}`,
+    dedupeKey: `lead-${lead.id}`,
+    excludeUserId: options?.excludeUserId,
+  });
 }

@@ -14,6 +14,7 @@ import {
   scheduleVisitReminder,
 } from "../../lib/automations/schedule.js";
 import { prisma } from "../../lib/prisma.js";
+import { publishAppNotification } from "../../lib/notifications/publish.js";
 import { seedDefaultChecklistTemplates } from "../../lib/checklists/engine.js";
 import type { ChecklistField } from "../../lib/checklists/defaults.js";
 
@@ -229,6 +230,18 @@ visitsRouter.post(
         return visit.id;
       });
 
+      if (parsed.data.assignedUserId && parsed.data.assignedUserId !== req.user!.id) {
+        void publishAppNotification({
+          organizationId: req.organizationId!,
+          type: "visit.scheduled",
+          title: "Visita atribuída a você",
+          body: `${parsed.data.title || parsed.data.phase} · ${start.toLocaleString("en-US")}`,
+          url: `/schedule.html`,
+          tag: `visit-${visitId}`,
+          dedupeKey: `visit-${visitId}`,
+          userIds: [parsed.data.assignedUserId],
+        });
+      }
       res.redirect(`/visits/${visitId}?success=created`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed";

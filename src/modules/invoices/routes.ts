@@ -14,6 +14,7 @@ import {
   seedDefaultPaymentTemplates,
   validatePaymentSchedule,
 } from "../../lib/payments/engine.js";
+import { publishAppNotification, usd } from "../../lib/notifications/publish.js";
 
 export const invoicesRouter = Router();
 
@@ -134,8 +135,8 @@ invoicesRouter.post(
         res.redirect(`/invoices/${param(req, "id")}?error=invalid`);
         return;
       }
-      await withTenantTransaction(req.organizationId!, async (tx) => {
-        await recordInvoicePayment(tx, {
+      const paid = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const receipt = await recordInvoicePayment(tx, {
           organizationId: req.organizationId!,
           invoiceId: param(req, "id"),
           amount: parsed.data.amount,
@@ -145,7 +146,24 @@ invoicesRouter.post(
           paidAt: parsed.data.paidAt ? new Date(parsed.data.paidAt) : new Date(),
           actorId: req.user!.id,
         });
+        const invoice = await tx.quoteInvoice.findFirst({
+          where: { id: param(req, "id") },
+          select: { id: true, invoiceNumber: true, status: true },
+        });
+        return { receipt, invoice };
       });
+      if (paid.invoice) {
+        void publishAppNotification({
+          organizationId: req.organizationId!,
+          type: "invoice.payment",
+          title: paid.invoice.status === "paid" ? "Fatura quitada" : "Pagamento recebido",
+          body: `${usd(parsed.data.amount)} em fatura ${paid.invoice.invoiceNumber}${paid.invoice.status === "paid" ? " — paga por completo" : ""}.`,
+          url: `/invoice.html?id=${encodeURIComponent(paid.invoice.id)}`,
+          tag: `invoice-pay-${paid.receipt.id}`,
+          dedupeKey: `invoice-pay-${paid.receipt.id}`,
+          excludeUserId: req.user!.id,
+        });
+      }
       res.redirect(`/invoices/${param(req, "id")}?success=payment`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Payment failed";
