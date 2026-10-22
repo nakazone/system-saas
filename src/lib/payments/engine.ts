@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
 import { quoteInvoiceLines, quoteReferenceNoteOf } from "../invoices/job.js";
+import { quoteContractTotal } from "../quotes/discount.js";
 import {
   maybeCreditReferralOnInvoicePaid,
   redeemReferralCredit,
@@ -316,11 +317,11 @@ export async function runScheduleTriggers(
     });
     if (!project?.quote) return [];
     quoteId = project.quote.id;
-    quoteTotal = Number(project.quote.total);
+    quoteTotal = quoteContractTotal(project.quote);
   } else if (quoteId) {
     const quote = await tx.quote.findFirst({ where: { id: quoteId } });
     if (!quote) return [];
-    quoteTotal = Number(quote.total);
+    quoteTotal = quoteContractTotal(quote);
   } else {
     return [];
   }
@@ -505,7 +506,7 @@ export async function ensureInvoicesOnApprove(
 ): Promise<string[]> {
   const quote = await tx.quote.findFirst({ where: { id: params.quoteId } });
   if (!quote) return [];
-  const quoteTotal = Number(quote.total) || 0;
+  const quoteTotal = quoteContractTotal(quote);
   if (quoteTotal <= 0) return [];
 
   const existing = await tx.quoteInvoice.findMany({
@@ -621,7 +622,7 @@ export async function getQuoteInvoiceBalance(
   remaining_due: number;
 }> {
   const quote = await tx.quote.findFirst({ where: { id: quoteId } });
-  const quoteTotal = quote ? Number(quote.total) || 0 : 0;
+  const quoteTotal = quote ? quoteContractTotal(quote) : 0;
   const invoices = await tx.quoteInvoice.findMany({
     where: { quoteId, status: { not: "void" } },
     include: { receipts: true },

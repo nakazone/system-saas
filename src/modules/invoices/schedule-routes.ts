@@ -10,6 +10,7 @@ import {
   validatePaymentSchedule,
   fromCents,
 } from "../../lib/payments/engine.js";
+import { quoteContractTotal } from "../../lib/quotes/discount.js";
 
 export const paymentSchedulesRouter = Router();
 
@@ -58,7 +59,7 @@ paymentSchedulesRouter.post(
           organizationId: req.organizationId!,
           quoteId,
           items,
-          quoteTotal: Number(quote.total),
+          quoteTotal: quoteContractTotal(quote),
         });
       });
       res.redirect(`/quotes/${quoteId}?success=${encodeURIComponent("Payment schedule saved")}`);
@@ -84,7 +85,7 @@ paymentSchedulesRouter.post(
           organizationId: req.organizationId!,
           quoteId,
           templateId,
-          quoteTotal: Number(quote.total),
+          quoteTotal: quoteContractTotal(quote),
         });
       });
       res.redirect(`/quotes/${quoteId}?success=${encodeURIComponent("Template applied")}`);

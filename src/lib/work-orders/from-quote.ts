@@ -3,6 +3,7 @@
  * Idempotent: re-approving / re-saving approved quotes returns the existing job.
  */
 import { copyFieldQuoteToJob } from "../field-quote/job.js";
+import { discountLineLabel, readQuoteDiscount } from "../quotes/discount.js";
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
@@ -63,6 +64,90 @@ function resolveSourceType(quote: {
   return "particular";
 }
 
+const QUOTE_DISCOUNT_NOTE = "quote-discount";
+
+/** Keep the job total aligned with the quote discount (including jobs created before the discount was stored). */
+async function syncQuoteDiscountOntoJob(
+  tx: TenantPrisma,
+  organizationId: string,
+  workOrderId: string,
+  quote: { subtotal: unknown; discountType: string | null; discountValue: unknown; payload: unknown },
+): Promise<boolean> {
+  const discount = readQuoteDiscount(quote);
+  const lines = await tx.workOrderLineItem.findMany({
+    where: { workOrderId },
+    orderBy: { sortOrder: "asc" },
+  });
+  const existing = lines.find((li) => li.notes === QUOTE_DISCOUNT_NOTE || /^discount\b/i.test(li.serviceName));
+  if (!discount.amount || !discount.type) {
+    if (existing) {
+      await tx.workOrderLineItem.delete({ where: { id: existing.id } });
+      return true;
+    }
+    return false;
+  }
+  const data = {
+    serviceName: discountLineLabel(discount.type, discount.value).slice(0, 200),
+    notes: QUOTE_DISCOUNT_NOTE,
+    quantitySqft: new Prisma.Decimal(1),
+    unitPrice: new Prisma.Decimal(-discount.amount),
+    lineTotal: new Prisma.Decimal(-discount.amount),
+  };
+  if (existing) {
+    const same =
+      Math.round(Number(existing.lineTotal) * 100) === Math.round(-discount.amount * 100) &&
+      existing.serviceName === data.serviceName;
+    if (!same) {
+      await tx.workOrderLineItem.update({ where: { id: existing.id }, data });
+      return true;
+    }
+    return false;
+  }
+  await tx.workOrderLineItem.create({
+    data: {
+      organizationId,
+      workOrderId,
+      ...data,
+      sortOrder: lines.length + 1,
+    },
+  });
+  return true;
+}
+
+/** If this job came from a quote, copy that quote's discount onto the job lines. */
+export async function ensureQuoteDiscountOnJob(
+  tx: TenantPrisma,
+  organizationId: string,
+  workOrderId: string,
+): Promise<boolean> {
+  const quote = await tx.quote.findFirst({
+    where: { workOrderId },
+    select: { subtotal: true, discountType: true, discountValue: true, payload: true },
+  });
+  if (!quote) return false;
+  return syncQuoteDiscountOntoJob(tx, organizationId, workOrderId, quote);
+}
+
+/** Same heal for a jobs list, so totals match the quote without opening each job. */
+export async function ensureQuoteDiscountsOnJobs(
+  tx: TenantPrisma,
+  organizationId: string,
+  workOrderIds: string[],
+): Promise<string[]> {
+  if (!workOrderIds.length) return [];
+  const quotes = await tx.quote.findMany({
+    where: { workOrderId: { in: workOrderIds } },
+    select: { workOrderId: true, subtotal: true, discountType: true, discountValue: true, payload: true },
+  });
+  const changed: string[] = [];
+  for (const quote of quotes) {
+    if (!quote.workOrderId) continue;
+    const did = await syncQuoteDiscountOntoJob(tx, organizationId, quote.workOrderId, quote);
+    if (did) changed.push(quote.workOrderId);
+  }
+  return changed;
+}
+
 /**
  * Create (or return) the WorkOrder for an approved quote. Links Quote.workOrderId.
  */
@@ -88,6 +173,7 @@ export async function ensureWorkOrderOnApprove(
   if (quote.workOrderId) {
     const existing = await tx.workOrder.findFirst({ where: { id: quote.workOrderId } });
     if (existing) {
+      await syncQuoteDiscountOntoJob(tx, params.organizationId, existing.id, quote);
       return { id: existing.id, number: existing.number, created: false };
     }
   }
@@ -121,6 +207,7 @@ export async function ensureWorkOrderOnApprove(
   const number = await nextWorkOrderNumber(tx, params.organizationId);
 
   const selectedLines = quote.lineItems.filter((li) => !li.isOptional || li.isSelected);
+  const discount = readQuoteDiscount(quote);
 
   const wo = await tx.workOrder.create({
     data: {
@@ -154,12 +241,26 @@ export async function ensureWorkOrderOnApprove(
             organizationId: params.organizationId,
             pricingItemId,
             serviceName: String(li.name || li.description || "Serviço").slice(0, 200),
+            notes: null as string | null,
             quantitySqft: new Prisma.Decimal(qty),
             unitPrice: new Prisma.Decimal(unitPrice),
             lineTotal: new Prisma.Decimal(amount),
             sortOrder: li.sortOrder ?? idx,
           };
-        }),
+        }).concat(
+          discount.amount > 0 && discount.type
+            ? [{
+                organizationId: params.organizationId,
+                pricingItemId: null,
+                serviceName: discountLineLabel(discount.type, discount.value).slice(0, 200),
+                notes: "quote-discount",
+                quantitySqft: new Prisma.Decimal(1),
+                unitPrice: new Prisma.Decimal(-discount.amount),
+                lineTotal: new Prisma.Decimal(-discount.amount),
+                sortOrder: selectedLines.length + 1,
+              }]
+            : [],
+        ),
       },
     },
   });

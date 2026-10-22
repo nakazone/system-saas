@@ -50,6 +50,8 @@ import {
   quoteInvoiceLines,
   quoteReferenceNoteOf,
 } from "../../lib/invoices/job.js";
+import { quoteContractTotal } from "../../lib/quotes/discount.js";
+import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs } from "../../lib/work-orders/from-quote.js";
 import { invoiceEmail, receiptEmail } from "../../lib/invoices/email.js";
 import { parseInvoiceSettings } from "../../lib/settings/invoices.js";
 
@@ -172,6 +174,24 @@ function listItem(inv: ListRow, now: Date) {
 }
 
 async function loadDetail(tx: TenantPrisma, id: string) {
+  const inv = await tx.quoteInvoice.findFirst({ where: { id }, include: invoiceDetailInclude });
+  if (!inv) return inv;
+  let changed = false;
+  if (inv.workOrderId) {
+    changed = await ensureQuoteDiscountOnJob(tx, inv.organizationId, inv.workOrderId);
+  }
+  if (inv.quote && !["void", "paid", "partially_paid"].includes(inv.status) && inv.receipts.length === 0) {
+    const net = quoteContractTotal(inv.quote);
+    const current = Number(inv.amount);
+    if (net > 0 && current > net + 0.009) {
+      await tx.quoteInvoice.update({
+        where: { id: inv.id },
+        data: { amount: new Prisma.Decimal(net.toFixed(2)) },
+      });
+      changed = true;
+    }
+  }
+  if (!changed) return inv;
   return tx.quoteInvoice.findFirst({ where: { id }, include: invoiceDetailInclude });
 }
 
@@ -488,6 +508,11 @@ invoicesCrmRouter.get(
             quoteNumber: true,
             number: true,
             total: true,
+            subtotal: true,
+            taxTotal: true,
+            discountType: true,
+            discountValue: true,
+            payload: true,
             updatedAt: true,
             customer: { select: { name: true } },
             invoices: { where: { status: { not: "void" } }, select: { amount: true } },
@@ -498,7 +523,7 @@ invoicesCrmRouter.get(
       );
       const data = rows
         .map((r) => {
-          const total = dec(r.total);
+          const total = quoteContractTotal(r);
           const invoiced = r.invoices.reduce((s, i) => s + dec(i.amount), 0);
           return {
             id: r.id,
@@ -528,8 +553,23 @@ invoicesCrmRouter.get(
     try {
       const q = String(req.query.q || "").trim();
       const pinId = String(req.query.id || "").trim();
-      const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
-        tx.workOrder.findMany({
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const listed = await tx.workOrder.findMany({
+          where: {
+            status: { not: "canceled" },
+            lineItems: { some: {} },
+            ...(UUID_RE.test(pinId) ? { id: pinId } : {}),
+          },
+          select: { id: true },
+          orderBy: [{ updatedAt: "desc" }],
+          take: UUID_RE.test(pinId) ? 1 : 200,
+        });
+        await ensureQuoteDiscountsOnJobs(
+          tx,
+          req.organizationId!,
+          listed.map((row) => row.id),
+        );
+        return tx.workOrder.findMany({
           where: {
             status: { not: "canceled" },
             lineItems: { some: {} },
@@ -558,8 +598,8 @@ invoicesCrmRouter.get(
           },
           orderBy: [{ updatedAt: "desc" }],
           take: UUID_RE.test(pinId) ? 1 : 200,
-        }),
-      );
+        });
+      });
       const data = rows
         .map((r) => {
           const total = r.lineItems.reduce((acc, li) => acc + dec(li.lineTotal), 0);
@@ -604,7 +644,10 @@ invoicesCrmRouter.get(
       if (!UUID_RE.test(quoteId)) return badId(res);
       const now = new Date();
       const { quote, rows } = await withTenantTransaction(req.organizationId!, async (tx) => ({
-        quote: await tx.quote.findFirst({ where: { id: quoteId }, select: { total: true } }),
+        quote: await tx.quote.findFirst({
+          where: { id: quoteId },
+          select: { total: true, subtotal: true, taxTotal: true, discountType: true, discountValue: true, payload: true },
+        }),
         rows: await tx.quoteInvoice.findMany({
           where: { quoteId },
           orderBy: { createdAt: "asc" },
@@ -613,7 +656,7 @@ invoicesCrmRouter.get(
       }));
       if (!quote) return fail(res, 404, "Orçamento não encontrado");
       const data = rows.map((r) => listItem(r, now));
-      const quoteTotal = dec(quote.total);
+      const quoteTotal = quoteContractTotal(quote);
       const invoiced = data.filter((d) => d.status !== "void").reduce((s, d) => s + d.amount, 0);
       const paid = data.reduce((s, d) => s + d.paid_amount, 0);
       const paidRounded = Math.round(paid * 100) / 100;
@@ -694,7 +737,7 @@ invoicesCrmRouter.post(
         const invoicedTotal = await invoicedTotalForQuote(tx, quote.id);
         const calc = computeNewInvoiceAmount({
           kind,
-          quoteTotal: dec(quote.total),
+          quoteTotal: quoteContractTotal(quote),
           invoicedTotal,
           depositPct: b.deposit_pct,
           customAmount: b.custom_amount ?? b.amount,
@@ -763,7 +806,7 @@ invoicesCrmRouter.post(
             reason: "quote_invoice_issued",
           });
         }
-        return { inv, invoicedTotal: invoicedTotal + calc.amount, quoteTotal: dec(quote.total) } as const;
+        return { inv, invoicedTotal: invoicedTotal + calc.amount, quoteTotal: quoteContractTotal(quote) } as const;
       });
 
       if ("error" in result) return fail(res, result.status ?? 400, result.error!);

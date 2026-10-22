@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { Prisma } from "@prisma/client";
+import { discountFieldsFromBody, readQuoteDiscount } from "../../lib/quotes/discount.js";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
 import type { AuthedRequest } from "../../middleware/auth.js";
@@ -610,8 +611,11 @@ function mapQuote(q: {
     total: dec(q.total),
     total_amount: dec(q.total),
     tax_total: dec(q.taxTotal),
-    discount_type: q.discountType === "percent" ? "percentage" : q.discountType || "percentage",
-    discount_value: dec(q.discountValue),
+    discount_type: (() => {
+      const d = readQuoteDiscount(q);
+      return d.type === "fixed" ? "fixed" : "percentage";
+    })(),
+    discount_value: readQuoteDiscount(q).value,
     notes: q.notes,
     change_request_note: q.changeRequestNote ?? null,
     terms: q.terms,
@@ -1648,7 +1652,16 @@ customersQuotesRouter.post(
           0,
         );
         const tax = Number(body.tax_total || body.tax || 0);
-        const total = Number(body.total != null ? body.total : subtotal + tax);
+        const discount = discountFieldsFromBody(body);
+        const discountAmount = readQuoteDiscount({
+          subtotal,
+          discountType: discount.discountType,
+          discountValue: discount.discountValue,
+        }).amount;
+        const total =
+          discountAmount > 0
+            ? Math.round((subtotal - discountAmount + tax) * 100) / 100
+            : Number(body.total != null ? body.total : subtotal + tax);
         const customerId = asOptionalUuid(body.customer_id);
         const leadId = asOptionalUuid(body.lead_id);
         const builderId = asOptionalUuid(body.builder_id);
@@ -1673,6 +1686,8 @@ customersQuotesRouter.post(
             subtotal: new Prisma.Decimal(subtotal),
             taxTotal: new Prisma.Decimal(tax),
             total: new Prisma.Decimal(total),
+            discountType: discount.discountType,
+            discountValue: new Prisma.Decimal(discount.discountValue),
             notes: body.notes || null,
             terms: bodyTerms !== undefined ? bodyTerms : defaults.defaultQuoteTerms || null,
             serviceType: body.service_type || null,
@@ -1754,7 +1769,14 @@ customersQuotesRouter.put(
             0,
           );
           tax = Number(body.tax_total != null ? body.tax_total : tax);
-          total = Number(body.total != null ? body.total : subtotal + tax);
+          const discountAmount = readQuoteDiscount({
+            subtotal,
+            ...discountFieldsFromBody(body),
+          }).amount;
+          total =
+            discountAmount > 0
+              ? Math.round((subtotal - discountAmount + tax) * 100) / 100
+              : Number(body.total != null ? body.total : subtotal + tax);
           await tx.quoteLineItem.deleteMany({ where: { quoteId: id } });
           await tx.quoteLineItem.createMany({
             data: items.map((it: QuoteLineBody, idx: number) =>
@@ -1780,6 +1802,12 @@ customersQuotesRouter.put(
             subtotal: new Prisma.Decimal(subtotal),
             taxTotal: new Prisma.Decimal(tax),
             total: new Prisma.Decimal(total),
+            ...(body.discount_type !== undefined || body.discount_value !== undefined
+              ? {
+                  discountType: discountFieldsFromBody(body).discountType,
+                  discountValue: new Prisma.Decimal(discountFieldsFromBody(body).discountValue),
+                }
+              : {}),
             payload: body,
           },
           include: { customer: { select: { name: true } }, lineItems: { orderBy: { sortOrder: "asc" } } },
