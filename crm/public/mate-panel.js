@@ -2195,6 +2195,12 @@
       fillInput(String(text || ''));
     },
     load: loadConversation,
+    /** Prepare a suggestion's action as a card; nothing runs until the user confirms it. */
+    run: function (action, args) {
+      if (!action) return;
+      if (!state.open && !inlineHost) open({ focus: false });
+      act(String(action), args || {});
+    },
     newConversation: function () {
       freshStart();
       render();

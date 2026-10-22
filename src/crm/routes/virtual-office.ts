@@ -8,7 +8,7 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 export const virtualOfficeRouter = Router();
 
 const departments = ["central", "commercial", "operations", "finance"] as const;
-const avatars = ["avatar-1", "avatar-2", "avatar-3", "avatar-4", "avatar-5", "avatar-6"] as const;
+const avatars = Array.from({ length: 14 }, (_, index) => `avatar-${index + 1}`) as [string, ...string[]];
 const capabilities = [
   "office.summary",
   "office.recommendations",
@@ -31,7 +31,7 @@ const defaults = [
   {
     key: "mate",
     name: "Mate",
-    title: "Coordenador virtual",
+    title: "Gerente Geral",
     department: "central",
     avatarKey: "avatar-6",
     description: "Organiza as prioridades e conecta os setores da empresa.",

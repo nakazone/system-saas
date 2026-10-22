@@ -4,7 +4,7 @@
   const API_SUGGESTIONS = '/api/mate-ai/suggestions';
   const API_AGENTS = '/api/virtual-office/agents';
   const DEPARTMENTS = {
-    all: { label: 'Central', icon: '✦', href: 'mate-ai.html', link: 'Abrir Mate AI' },
+    all: { label: 'Coordenação', icon: '✦', href: 'mate-ai.html', link: 'Abrir Mate AI' },
     commercial: { label: 'Comercial', icon: '↗', href: 'quotes.html', link: 'Ver quotes' },
     operations: { label: 'Operações', icon: '⌂', href: 'jobs.html', link: 'Ver jobs' },
     finance: { label: 'Financeiro', icon: '$', href: 'invoices.html', link: 'Ver invoices' },
@@ -45,17 +45,29 @@
     { key: 'payments.view', label: 'Consultar recebimentos' },
     { key: 'payments.manage', label: 'Registrar recebimentos e enviar comprovantes' },
   ];
-  const FACE_IMAGES = {
-    'avatar-1': '/assets/virtual-office/avatar-1.jpg',
-    'avatar-2': '/assets/virtual-office/avatar-2.jpg',
-    'avatar-3': '/assets/virtual-office/avatar-3.jpg',
-    'avatar-4': '/assets/virtual-office/avatar-4.jpg',
-    'avatar-5': '/assets/virtual-office/avatar-5.jpg',
-    'avatar-6': '/assets/virtual-office/avatar-6.jpg',
-  };
+  const FACE_IMAGES = {};
+  for (let index = 1; index <= 14; index += 1) FACE_IMAGES[`avatar-${index}`] = `/assets/virtual-office/avatar-${index}.jpg`;
   const MATE_IMAGE = '/assets/img/mascot/mate-thumbs.png';
-  const requestedAgent = new URLSearchParams(location.search).get('agent') || 'mate';
-  const state = { suggestions: [], agents: [], filter: 'all', busy: false, canManage: false, activeAgentKey: /^[a-z0-9_-]{1,60}$/i.test(requestedAgent) ? requestedAgent.toLowerCase() : 'mate', contextRequest: 0 };
+  /** Rooms on the floor plan (960 × 520). Department rooms seat that department's employees. */
+  const ROOMS = [
+    { id: 'commercial', label: 'Comercial', x: 0, y: 0, w: 330, h: 236 },
+    { id: 'operations', label: 'Operações', x: 340, y: 0, w: 300, h: 236 },
+    { id: 'finance', label: 'Financeiro', x: 650, y: 0, w: 310, h: 236 },
+    { id: 'central', label: 'Sala do Mate', x: 0, y: 246, w: 300, h: 214, glass: true },
+    { id: 'approvals', label: 'Mesa de aprovações', x: 310, y: 246, w: 330, h: 214, glass: true },
+    { id: 'owner', label: 'Sua sala', x: 650, y: 246, w: 310, h: 214 },
+  ];
+  const ENTRANCE_POINT = { x: 480, y: 492 };
+  const ENTRANCE_KEY = 'om.office.entrance';
+  const query = new URLSearchParams(location.search);
+  const requestedAgent = query.get('agent') || 'mate';
+  const requestedSuggestion = query.get('sugestao') || '';
+  const state = {
+    suggestions: [], agents: [], busy: false, canManage: false, userName: '', userInitial: '', orgName: '',
+    activeAgentKey: /^[a-z0-9_-]{1,60}$/i.test(requestedAgent) ? requestedAgent.toLowerCase() : 'mate',
+    contextRequest: 0, entityShown: false, meetingShown: 0, meetingTimer: 0, bubbleTick: 0, suggestionRun: false,
+  };
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (selector, root) => (root || document).querySelector(selector);
   const $$ = (selector, root) => Array.from((root || document).querySelectorAll(selector));
 
@@ -82,6 +94,10 @@
     return node;
   }
 
+  function enabledAgents() {
+    return state.agents.filter((agent) => agent.enabled);
+  }
+
   function activeAgent() {
     return state.agents.find((agent) => agent.key === state.activeAgentKey && agent.enabled)
       || state.agents.find((agent) => agent.key === 'mate' && agent.enabled)
@@ -89,36 +105,41 @@
       || null;
   }
 
+  function deskTitle(agent) {
+    return agent.key === 'mate' ? `Sala do ${agent.name}` : `Mesa de ${agent.name}`;
+  }
+
+  function agentHref(agent, extra) {
+    const url = new URL('escritorio-ia.html', location.href);
+    url.searchParams.set('agent', agent.key);
+    Object.entries(extra || {}).forEach(([key, value]) => url.searchParams.set(key, value));
+    return `${url.pathname}${url.search}#officeDesk`;
+  }
+
   function renderActiveAgent() {
     const agent = activeAgent();
     if (!agent) return;
     if (agent.key !== state.activeAgentKey) {
-      const url = new URL(location.href);
-      url.searchParams.set('agent', agent.key);
-      location.replace(url.pathname + url.search + url.hash);
+      location.replace(agentHref(agent));
       return;
     }
-    state.activeAgentKey = agent.key;
     const avatar = $('#officeActiveAvatar');
     if (avatar) avatar.replaceChildren(makeFace(agent.avatarKey, agent.key));
-    setText('#officeActiveName', agent.name);
+    setText('#officeActiveName', deskTitle(agent));
     setText('#officeActiveTitle', agent.title || AGENT_DEPARTMENTS[agent.department] || 'Funcionário virtual');
-    setText('#officeActiveDepartment', (AGENT_DEPARTMENTS[agent.department] || 'ESCRITÓRIO').toUpperCase());
-    document.title = `${agent.name} · Escritório ObraMate`;
-    $$('.office-agent-card').forEach((card) => {
-      const selected = card.dataset.agentKey === agent.key;
-      card.classList.toggle('office-agent-card--selected', selected);
-      const link = $('.office-agent-card__select', card);
-      if (link) {
-        if (selected) link.setAttribute('aria-current', 'page');
-        else link.removeAttribute('aria-current');
-      }
-    });
+    setText('#officeActiveDepartment', `${agent.key === 'mate' ? 'GERÊNCIA' : 'MESA'} · ${(AGENT_DEPARTMENTS[agent.department] || 'ESCRITÓRIO').toUpperCase()}`);
+    const badge = $('#officeActiveBadge');
+    if (badge) badge.hidden = agent.key === 'mate';
+    const edit = $('#officeEditActive');
+    if (edit) edit.hidden = !state.canManage;
+    document.title = `${deskTitle(agent)} · Escritório ObraMate`;
   }
 
   function setCurrentEmpty() {
     const host = $('#officeCurrentWork');
     if (!host) return;
+    if (renderMeeting()) return;
+    setCurrentHeading(false);
     const empty = makeNode('div', 'office-current-empty');
     empty.append(
       makeNode('span', 'office-current-empty__icon', '✦'),
@@ -343,6 +364,7 @@
     if (!host) return;
     const request = ++state.contextRequest;
     if (!entity || !entity.id) { setCurrentEmpty(); return; }
+    setCurrentHeading(false);
     const type = entity.type === 'work_order' ? 'job' : String(entity.type || '');
     if (type === 'quote') {
       fetchContextRecord(request, `/api/quotes/${encodeURIComponent(entity.id)}`, renderQuoteRecord, 'Orçamento', entity);
@@ -378,17 +400,72 @@
 
   function onOfficeContext(event) {
     const entity = event?.detail?.entity || null;
+    state.entityShown = Boolean(entity && entity.id);
     showCurrentWork(entity);
   }
+
+  function setCurrentHeading(meeting) {
+    setText('#officeCurrentKicker', meeting ? 'REUNIÃO DO DIA' : 'CONTEXTO ATIVO');
+    setText('#officeCurrentTitle', meeting ? 'O que a equipe trouxe' : 'Trabalho em andamento');
+  }
+
+  /* ───────── who owns what ───────── */
 
   function departmentFor(suggestion) {
     return ACTION_DEPARTMENTS[suggestion?.run?.action] || 'all';
   }
 
-  function taskLabel(suggestion) {
-    const department = DEPARTMENTS[departmentFor(suggestion)];
-    return department ? department.label : 'Central';
+  function ownerFor(suggestion) {
+    const department = departmentFor(suggestion);
+    const wanted = department === 'all' ? 'central' : department;
+    return enabledAgents().find((agent) => agent.department === wanted)
+      || enabledAgents().find((agent) => agent.key === 'mate')
+      || null;
   }
+
+  function itemsFor(agent) {
+    const wanted = agent.department === 'central' ? 'all' : agent.department;
+    return state.suggestions.filter((item) => departmentFor(item) === wanted);
+  }
+
+  function needsYou(items) {
+    return items.some((item) => item.tone === 'critical' || item.tone === 'warning');
+  }
+
+  function shortText(text, max) {
+    const value = String(text || '').trim();
+    return value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value;
+  }
+
+  function plural(count, one, many) {
+    return `${count} ${count === 1 ? one : many}`;
+  }
+
+  function bubbleLines(agent) {
+    if (agent.key === 'mate') {
+      const total = state.suggestions.length;
+      return total ? [plural(total, 'papel na mesa', 'papéis na mesa'), 'Coordenando a equipe'] : ['Equipe em dia'];
+    }
+    const items = itemsFor(agent);
+    if (!items.length) return ['Em dia'];
+    const first = shortText(items[0].title, 30);
+    if (needsYou(items)) return ['Precisa de você', first];
+    return [plural(items.length, 'próximo passo', 'próximos passos'), first];
+  }
+
+  function seatTone(agent) {
+    if (agent.key === 'mate') return state.suggestions.length ? 'busy' : 'idle';
+    const items = itemsFor(agent);
+    if (needsYou(items)) return 'waiting';
+    return items.length ? 'busy' : 'idle';
+  }
+
+  function joinNames(names) {
+    if (names.length <= 1) return names.join('');
+    return `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+  }
+
+  /* ───────── summary ───────── */
 
   function updateTimestamp() {
     const now = new Date();
@@ -397,114 +474,445 @@
   }
 
   function renderCounts() {
-    const suggestions = state.suggestions;
-    const urgent = suggestions.filter((item) => item.tone === 'critical' || item.tone === 'warning').length;
-    setText('#officeSuggestionCount', String(suggestions.length));
+    const urgent = state.suggestions.filter((item) => item.tone === 'critical' || item.tone === 'warning').length;
+    const agents = enabledAgents();
+    setText('#officeSuggestionCount', String(state.suggestions.length));
     setText('#officeUrgentCount', String(urgent));
-    setText('#officeAgentCount', String(state.agents.filter((agent) => agent.enabled).length));
-
-    const counts = { all: suggestions.length, commercial: 0, operations: 0, finance: 0 };
-    suggestions.forEach((item) => {
-      const department = departmentFor(item);
-      if (counts[department] !== undefined) counts[department] += 1;
-    });
-    $$('[data-office-count]').forEach((el) => {
-      const key = el.getAttribute('data-office-count');
-      el.textContent = String(counts[key] || 0);
-      el.setAttribute('aria-label', `${counts[key] || 0} recomendações`);
-    });
+    setText('#officeAgentCount', String(agents.length));
+    const faces = $('#officeAgentFaces');
+    if (faces) faces.replaceChildren(...agents.slice(0, 4).map((agent) => makeFace(agent.avatarKey, agent.key)));
   }
 
-  function renderSceneAgents() {
-    $$('[data-office-filter]').forEach((station) => {
-      const filter = station.getAttribute('data-office-filter') || 'all';
-      const department = filter === 'all' ? 'central' : filter;
-      const agent = state.agents.find((item) => item.department === department && item.enabled);
-      const portrait = $('.office-station__avatar', station);
-      const label = $('.office-station__label', station);
-      if (portrait) {
-        portrait.replaceChildren(makeFace(agent?.avatarKey || 'avatar-1', agent?.key));
-        portrait.classList.toggle('office-station__avatar--unassigned', !agent);
-      }
-      if (label) {
-        const name = $('strong', label);
-        const title = $('small', label);
-        if (name) name.textContent = agent?.name || 'Sem responsável';
-        if (title) title.textContent = agent?.title || AGENT_DEPARTMENTS[department] || 'Setor';
-      }
-      station.setAttribute('aria-label', agent
-        ? `${agent.name}, ${agent.title}, ${AGENT_DEPARTMENTS[department] || 'setor'}. Filtrar recomendações.`
-        : `${AGENT_DEPARTMENTS[department] || 'Setor'} sem funcionário ativo. Filtrar recomendações.`);
-      station.dataset.officeAgentKey = agent?.key || '';
-    });
+  /* ───────── floor plan ───────── */
+
+  function roomById(id) {
+    return ROOMS.find((room) => room.id === id) || null;
   }
 
-  function makeAgentCard(agent) {
-    const card = document.createElement('article');
-    card.className = `office-agent-card${agent.enabled ? '' : ' office-agent-card--inactive'}${agent.key === state.activeAgentKey ? ' office-agent-card--selected' : ''}`;
-    card.dataset.agentKey = agent.key;
-    const portrait = document.createElement('div');
-    portrait.className = 'office-agent-card__portrait';
-    portrait.appendChild(makeFace(agent.avatarKey, agent.key));
-    const identity = document.createElement('div');
-    identity.className = 'office-agent-card__identity';
-    const name = document.createElement('strong');
-    name.className = 'office-agent-card__name';
-    name.textContent = agent.name;
-    const title = document.createElement('span');
-    title.className = 'office-agent-card__title';
-    title.textContent = agent.title;
-    const status = document.createElement('span');
-    status.className = 'office-agent-card__status';
-    status.textContent = agent.enabled ? 'Ativo' : 'Inativo';
-    identity.append(name, title, status);
-    const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : [];
-    const canChat = agent.enabled && capabilities.some((key) => key !== 'office.recommendations');
-    const select = document.createElement(canChat ? 'a' : 'div');
-    select.className = 'office-agent-card__select';
-    if (canChat) select.href = `escritorio-ia.html?agent=${encodeURIComponent(agent.key)}`;
-    select.append(portrait, identity);
-    card.appendChild(select);
-    if (canChat || state.canManage) {
-      const footer = document.createElement('div');
-      footer.className = 'office-agent-card__footer';
-      if (state.canManage) {
-        const edit = document.createElement('button');
-        edit.className = 'office-agent-card__edit';
-        edit.type = 'button';
-        edit.dataset.agentEdit = agent.key;
-        edit.textContent = 'Editar perfil';
-        footer.appendChild(edit);
-      }
-      card.appendChild(footer);
+  function doorPoint(room) {
+    return room ? { x: room.x + room.w / 2, y: room.y + room.h - 26 } : ENTRANCE_POINT;
+  }
+
+  function placeMe(point) {
+    const me = $('#officeMe');
+    if (!me) return;
+    me.style.left = `${point.x}px`;
+    me.style.top = `${point.y}px`;
+  }
+
+  function walkTo(room, href) {
+    placeMe(doorPoint(room));
+    if (!href) return;
+    if (reduceMotion) { location.href = href; return; }
+    window.setTimeout(() => { location.href = href; }, 650);
+  }
+
+  function makeSeat(agent, x, y) {
+    const tone = seatTone(agent);
+    const seat = makeNode('div', `office-seat office-seat--${tone}${agent.key === state.activeAgentKey ? ' office-seat--active' : ''}`);
+    seat.style.left = `${x}px`;
+    seat.style.top = `${y}px`;
+    const lines = bubbleLines(agent);
+    const bubble = makeNode('span', 'office-seat__bubble', lines[0]);
+    bubble.dataset.lines = lines.join('|');
+    const face = makeNode('a', 'office-seat__face');
+    face.href = agentHref(agent);
+    face.setAttribute('aria-label', `${deskTitle(agent)}, ${agent.title}. ${lines[0]}.`);
+    face.appendChild(makeFace(agent.avatarKey, agent.key));
+    if (agent.key !== 'mate') face.appendChild(makeNode('span', 'office-seat__ai', 'IA'));
+    face.addEventListener('click', (event) => {
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+      event.preventDefault();
+      walkTo(roomById(agent.department), face.href);
+    });
+    const desk = makeNode('span', 'office-seat__desk');
+    desk.setAttribute('aria-hidden', 'true');
+    seat.append(bubble, face, desk, makeNode('span', 'office-seat__name', agent.name));
+    return seat;
+  }
+
+  function makeRoom(room) {
+    const el = makeNode('div', `office-room office-room--${room.id}${room.glass ? ' office-room--glass' : ''}`);
+    el.style.left = `${room.x}px`;
+    el.style.top = `${room.y}px`;
+    el.style.width = `${room.w}px`;
+    el.style.height = `${room.h}px`;
+    const active = activeAgent();
+    if (active && active.department === room.id) el.classList.add('office-room--here');
+    const hit = makeNode('button', 'office-room__hit');
+    hit.type = 'button';
+    hit.dataset.room = room.id;
+    hit.setAttribute('aria-label', room.id === 'approvals' ? 'Ir para a mesa de aprovações' : `Ir para ${room.label}`);
+    el.append(hit, makeNode('span', 'office-room__label', room.label));
+    const door = makeNode('span', 'office-room__door');
+    door.setAttribute('aria-hidden', 'true');
+    el.appendChild(door);
+
+    if (room.id === 'approvals') {
+      const table = makeNode('div', 'office-table');
+      table.setAttribute('aria-hidden', 'true');
+      state.suggestions.slice(0, 5).forEach((item, index) => {
+        const paper = makeNode('span', 'office-table__paper');
+        paper.style.setProperty('--tilt', `${(index % 2 ? 1 : -1) * (3 + index)}deg`);
+        const owner = ownerFor(item);
+        if (owner) paper.appendChild(makeFace(owner.avatarKey, owner.key));
+        table.appendChild(paper);
+      });
+      const count = state.suggestions.length;
+      el.append(table, makeNode('span', `office-table__count${count ? '' : ' office-table__count--clear'}`, count ? plural(count, 'papel esperando você', 'papéis esperando você') : 'Mesa limpa'));
+      return el;
     }
-    return card;
+
+    if (room.id === 'owner') {
+      const seat = makeNode('div', 'office-seat office-seat--owner');
+      seat.style.left = `${room.w / 2}px`;
+      seat.style.top = `${room.h * 0.5}px`;
+      const face = makeNode('span', 'office-seat__face office-seat__face--owner', state.userInitial || '•');
+      face.setAttribute('aria-hidden', 'true');
+      const desk = makeNode('span', 'office-seat__desk');
+      desk.setAttribute('aria-hidden', 'true');
+      seat.append(face, desk, makeNode('span', 'office-seat__name', state.userName || 'Você'));
+      el.appendChild(seat);
+      return el;
+    }
+
+    const seated = enabledAgents().filter((agent) => agent.department === room.id);
+    if (!seated.length) {
+      el.appendChild(makeNode('span', 'office-room__empty', 'Sem funcionário neste setor'));
+      return el;
+    }
+    seated.forEach((agent, index) => {
+      const x = (room.w * (index + 1)) / (seated.length + 1);
+      el.appendChild(makeSeat(agent, x, room.h * 0.52));
+    });
+    return el;
   }
 
-  function renderAgents() {
-    const host = $('#officeAgents');
+  /** The plan is drawn at 960 × 520 and scaled down to fit narrower cards. */
+  function fitPlan() {
+    const scroll = $('.office-plan-scroll');
+    const plan = $('#officePlan');
+    if (!scroll || !plan) return;
+    const available = scroll.clientWidth - 28;
+    if (available <= 0) return;
+    const scale = Math.min(1, available / 960);
+    plan.style.transform = scale < 1 ? `scale(${scale})` : '';
+    scroll.style.height = `${Math.ceil(520 * scale) + 14}px`;
+  }
+
+  function renderPlan() {
+    const plan = $('#officePlan');
+    if (!plan) return;
+    plan.replaceChildren(...ROOMS.map(makeRoom));
+    const entrance = makeNode('span', 'office-plan__entrance', 'ENTRADA');
+    entrance.setAttribute('aria-hidden', 'true');
+    const me = makeNode('div', 'office-me');
+    me.id = 'officeMe';
+    me.setAttribute('aria-hidden', 'true');
+    me.append(makeNode('span', 'office-me__face', state.userInitial || '•'), makeNode('span', 'office-me__label', 'Você'));
+    plan.append(entrance, me);
+    const entranceOpen = !$('#officeEntrance')?.hidden;
+    const active = activeAgent();
+    placeMe(entranceOpen || !active ? ENTRANCE_POINT : doorPoint(roomById(active.department)));
+    fitPlan();
+  }
+
+  function renderCorridor() {
+    const list = $('#officeCorridor');
+    if (!list) return;
+    const rows = [];
+    ROOMS.filter((room) => room.id !== 'owner').forEach((room) => {
+      if (room.id === 'approvals') {
+        const li = makeNode('li');
+        const button = makeNode('button', 'office-corridor__item office-corridor__item--table');
+        button.type = 'button';
+        button.dataset.room = 'approvals';
+        const count = state.suggestions.length;
+        const copy = makeNode('span', 'office-corridor__copy');
+        copy.append(makeNode('strong', '', room.label), makeNode('small', '', count ? plural(count, 'papel esperando você', 'papéis esperando você') : 'Mesa limpa'));
+        button.append(makeNode('span', 'office-corridor__icon', String(count)), copy);
+        li.appendChild(button);
+        rows.push(li);
+        return;
+      }
+      enabledAgents().filter((agent) => agent.department === room.id).forEach((agent) => {
+        const li = makeNode('li');
+        const link = makeNode('a', `office-corridor__item office-corridor__item--${seatTone(agent)}`);
+        link.href = agentHref(agent);
+        const face = makeNode('span', 'office-corridor__face');
+        face.appendChild(makeFace(agent.avatarKey, agent.key));
+        const copy = makeNode('span', 'office-corridor__copy');
+        const title = makeNode('strong', '', room.label);
+        title.appendChild(makeNode('span', '', ` · ${agent.name}`));
+        copy.append(title, makeNode('small', '', bubbleLines(agent).join(' · ')));
+        link.append(face, copy);
+        li.appendChild(link);
+        rows.push(li);
+      });
+    });
+    list.replaceChildren(...rows);
+  }
+
+  function rotateBubbles() {
+    state.bubbleTick += 1;
+    $$('.office-seat__bubble').forEach((bubble) => {
+      const lines = String(bubble.dataset.lines || '').split('|').filter(Boolean);
+      if (lines.length > 1) bubble.textContent = lines[state.bubbleTick % lines.length];
+    });
+  }
+
+  function focusApprovals() {
+    const panel = $('#officeApprovals');
+    if (!panel) return;
+    placeMe(doorPoint(roomById('approvals')));
+    panel.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    panel.focus({ preventScroll: true });
+  }
+
+  function onRoomClick(event) {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const hit = target.closest('[data-room]');
+    if (!hit) return;
+    const roomId = hit.dataset.room;
+    if (roomId === 'approvals') { focusApprovals(); return; }
+    const room = roomById(roomId);
+    if (roomId === 'owner') { placeMe(doorPoint(room)); return; }
+    const agent = enabledAgents().find((item) => item.department === roomId);
+    if (agent) walkTo(room, agentHref(agent));
+    else placeMe(doorPoint(room));
+  }
+
+  /* ───────── entrance ───────── */
+
+  function todayKey() {
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+  }
+
+  function entranceSeenToday() {
+    try { return localStorage.getItem(ENTRANCE_KEY) === todayKey(); } catch (_) { return true; }
+  }
+
+  function showEntrance() {
+    const entrance = $('#officeEntrance');
+    if (!entrance) return;
+    const hour = new Date().getHours();
+    const hello = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+    const names = enabledAgents().filter((agent) => agent.key !== 'mate').map((agent) => agent.name);
+    const count = state.suggestions.length;
+    const team = names.length ? `${joinNames(names)} ${names.length === 1 ? 'já está na mesa' : 'já estão nas mesas'}.` : 'O escritório está pronto.';
+    const papers = count ? `Deixei ${plural(count, 'papel', 'papéis')} na mesa de aprovações para você.` : 'A mesa de aprovações está limpa.';
+    setText('#officeEntranceText', `${hello}${state.userName ? `, ${state.userName}` : ''}! ${team} ${papers}`);
+    entrance.classList.remove('is-leaving');
+    entrance.hidden = false;
+    placeMe(ENTRANCE_POINT);
+    $('#officeEnter')?.focus({ preventScroll: true });
+  }
+
+  function enterOffice() {
+    const entrance = $('#officeEntrance');
+    try { localStorage.setItem(ENTRANCE_KEY, todayKey()); } catch (_) {}
+    if (!entrance) return;
+    const finish = () => {
+      entrance.hidden = true;
+      const active = activeAgent();
+      placeMe(active ? doorPoint(roomById(active.department)) : ENTRANCE_POINT);
+    };
+    if (reduceMotion) { finish(); return; }
+    entrance.classList.add('is-leaving');
+    window.setTimeout(finish, 700);
+  }
+
+  /* ───────── mesa de aprovações ───────── */
+
+  function runSuggestion(item) {
+    if (!item?.run?.action) return;
+    let tries = 0;
+    const attempt = () => {
+      if (window.MateAI && typeof window.MateAI.run === 'function') {
+        window.MateAI.run(item.run.action, item.run.args || {});
+        $('#officeDesk')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        return;
+      }
+      tries += 1;
+      if (tries < 30) window.setTimeout(attempt, 100);
+    };
+    attempt();
+  }
+
+  function makeTask(item, index) {
+    const department = departmentFor(item);
+    const details = DEPARTMENTS[department] || DEPARTMENTS.all;
+    const tone = ['critical', 'warning', 'accent', 'neutral'].includes(item.tone) ? item.tone : 'neutral';
+    const owner = ownerFor(item);
+    const article = makeNode('article', `office-task office-task--${tone}`);
+    article.dataset.department = department;
+
+    const mark = makeNode('span', 'office-task__mark');
+    mark.setAttribute('aria-hidden', 'true');
+    if (owner) mark.appendChild(makeFace(owner.avatarKey, owner.key));
+    else mark.textContent = details.icon;
+
+    const body = makeNode('div', 'office-task__body');
+    body.append(
+      makeNode('div', 'office-task__meta', `${owner ? `${owner.name} deixou na mesa` : details.label} · ${TONE_LABELS[tone]}`),
+      makeNode('h3', 'office-task__title', String(item.title || 'Recomendação do Mate')),
+    );
+    if (item.detail) body.appendChild(makeNode('p', 'office-task__detail', String(item.detail)));
+
+    const actions = makeNode('div', 'office-task__actions');
+    if (owner && item.run?.action) {
+      const resolve = makeNode('button', 'office-task__resolve', `Resolver com ${owner.name}`);
+      resolve.type = 'button';
+      resolve.dataset.taskIndex = String(index);
+      actions.appendChild(resolve);
+    }
+    const link = makeNode('a', 'office-task__link', details.link);
+    link.href = details.href;
+    actions.appendChild(link);
+    body.appendChild(actions);
+
+    article.append(mark, body);
+    return article;
+  }
+
+  function renderTasks() {
+    const host = $('#officeTasks');
     if (!host) return;
-    host.replaceChildren();
     host.setAttribute('aria-busy', 'false');
-    if (!state.agents.length) {
-      const empty = document.createElement('div');
-      empty.className = 'office-empty';
-      const copy = document.createElement('span');
-      copy.textContent = 'Nenhum funcionário virtual configurado.';
-      empty.appendChild(copy);
-      host.appendChild(empty);
-    } else {
-      state.agents.forEach((agent) => host.appendChild(makeAgentCard(agent)));
+    const count = state.suggestions.length;
+    setText('#officeTasksTitle', count ? `${plural(count, 'papel', 'papéis')} esperando você` : 'Esperando você');
+    if (!count) {
+      const empty = makeNode('div', 'office-empty');
+      empty.append(makeNode('strong', '', 'Mesa limpa'), makeNode('span', '', 'Quando alguém da equipe precisar do seu OK, o papel aparece aqui.'));
+      host.replaceChildren(empty);
+      return;
     }
-    renderSceneAgents();
-    renderActiveAgent();
-    setText('#officeAgentCount', String(state.agents.filter((agent) => agent.enabled).length));
+    host.replaceChildren(...state.suggestions.map(makeTask));
+  }
+
+  function onTaskClick(event) {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest('[data-task-index]');
+    if (!button) return;
+    const item = state.suggestions[Number(button.dataset.taskIndex)];
+    const owner = ownerFor(item);
+    if (!item || !owner) return;
+    if (owner.key === state.activeAgentKey) runSuggestion(item);
+    else walkTo(roomById(owner.department), agentHref(owner, { sugestao: item.run.action }));
+  }
+
+  function runRequestedSuggestion() {
+    if (!requestedSuggestion || state.suggestionRun) return;
+    state.suggestionRun = true;
+    const item = state.suggestions.find((suggestion) => suggestion?.run?.action === requestedSuggestion);
+    const url = new URL(location.href);
+    url.searchParams.delete('sugestao');
+    history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    if (item) runSuggestion(item);
+  }
+
+  /* ───────── reunião do dia (na sala do Mate) ───────── */
+
+  function meetingReports() {
+    return enabledAgents().filter((agent) => agent.key !== 'mate').map((agent) => {
+      const items = itemsFor(agent);
+      const text = items.length
+        ? `${String(items[0].title || 'Tenho um próximo passo').trim()}${items.length > 1 ? `, e mais ${items.length - 1}` : ''}.`
+        : 'Tudo em dia por aqui.';
+      return { agent, text, waiting: needsYou(items) };
+    });
+  }
+
+  function renderMeeting() {
+    const agent = activeAgent();
+    const host = $('#officeCurrentWork');
+    if (!host || !agent || agent.key !== 'mate' || state.entityShown) return false;
+    setCurrentHeading(true);
+    const reports = meetingReports();
+    const wrap = makeNode('div', 'office-meeting');
+    if (!reports.length) {
+      wrap.appendChild(makeNode('p', 'office-meeting__intro', 'Ainda não há funcionários no escritório além do Mate.'));
+      host.replaceChildren(wrap);
+      return true;
+    }
+    const shown = Math.min(state.meetingShown, reports.length);
+    if (!shown) {
+      wrap.appendChild(makeNode('p', 'office-meeting__intro', `${plural(reports.length, 'pessoa trouxe', 'pessoas trouxeram')} novidades hoje. Cada uma fala em uma frase.`));
+      const start = makeNode('button', 'office-button office-button--dark office-meeting__start', 'Começar a reunião');
+      start.type = 'button';
+      start.dataset.meeting = 'start';
+      wrap.appendChild(start);
+      host.replaceChildren(wrap);
+      return true;
+    }
+    reports.slice(0, shown).forEach((report) => {
+      const row = makeNode('article', `office-meeting__report${report.waiting ? ' office-meeting__report--waiting' : ''}`);
+      const face = makeNode('span', 'office-meeting__face');
+      face.appendChild(makeFace(report.agent.avatarKey, report.agent.key));
+      const copy = makeNode('div', 'office-meeting__copy');
+      const who = makeNode('strong', '', report.agent.name);
+      who.appendChild(makeNode('small', '', report.agent.title));
+      const link = makeNode('a', 'office-meeting__link', 'Ir até a mesa');
+      link.href = agentHref(report.agent);
+      copy.append(who, makeNode('p', '', `“${report.text}”`), link);
+      row.append(face, copy);
+      wrap.appendChild(row);
+    });
+    if (shown >= reports.length) {
+      const waiting = reports.filter((report) => report.waiting).length;
+      wrap.appendChild(makeNode('p', 'office-meeting__wrap', waiting
+        ? `Ficaram ${plural(waiting, 'decisão', 'decisões')} com você. Está tudo na mesa de aprovações.`
+        : 'Nada urgente hoje. A equipe segue nos próximos passos.'));
+    }
+    host.replaceChildren(wrap);
+    return true;
+  }
+
+  function startMeeting() {
+    window.clearInterval(state.meetingTimer);
+    const total = meetingReports().length;
+    state.meetingShown = 1;
+    renderMeeting();
+    if (reduceMotion) { state.meetingShown = total; renderMeeting(); return; }
+    state.meetingTimer = window.setInterval(() => {
+      if (state.meetingShown >= total || state.entityShown) { window.clearInterval(state.meetingTimer); return; }
+      state.meetingShown += 1;
+      renderMeeting();
+    }, 1400);
+  }
+
+  /* ───────── editar perfil (crachá) ───────── */
+
+  function avatarOwners(exceptKey) {
+    const owners = {};
+    state.agents.forEach((agent) => { if (agent.key !== exceptKey && agent.key !== 'mate') owners[agent.avatarKey] = agent.name; });
+    return owners;
+  }
+
+  function updateBadge() {
+    const key = $('#agentKey')?.value;
+    const name = $('#agentName')?.value.trim() || 'Sem nome';
+    const title = $('#agentTitle')?.value.trim() || 'Cargo';
+    const department = AGENT_DEPARTMENTS[$('#agentDepartment')?.value] || 'Escritório';
+    const selected = $('.office-avatar-choice[aria-pressed="true"]')?.dataset.avatarKey
+      || state.agents.find((agent) => agent.key === key)?.avatarKey || 'avatar-1';
+    const photo = $('#agentBadgePhoto');
+    if (photo) photo.replaceChildren(makeFace(selected, key));
+    setText('#agentBadgeName', name);
+    setText('#agentBadgeTitle', title);
+    setText('#agentBadgeSeal', key === 'mate' ? `GERENTE GERAL · ${department.toUpperCase()}` : `ASSISTENTE DE IA · ${department.toUpperCase()}`);
+    setText('#agentBadgeOrg', state.orgName || 'ObraMate');
+    setText('#agentBadgeSignature', `${name} · ${title} (AI assistant) — ${state.orgName || 'ObraMate'}`);
   }
 
   function selectAvatar(avatarKey) {
     $$('.office-avatar-choice').forEach((button) => {
       button.setAttribute('aria-pressed', String(button.dataset.avatarKey === avatarKey));
     });
+    updateBadge();
   }
 
   function buildEditorChoices(agent) {
@@ -513,36 +921,35 @@
     if (avatars) {
       avatars.replaceChildren();
       if (agent.key === 'mate') {
-        const mateImage = document.createElement('div');
-        mateImage.className = 'office-avatar-choice office-avatar-choice--mate';
+        const mateImage = makeNode('div', 'office-avatar-choice office-avatar-choice--mate');
         mateImage.setAttribute('role', 'img');
         mateImage.setAttribute('aria-label', 'Mascote ObraMate');
         mateImage.appendChild(makeFace(agent.avatarKey, 'mate'));
         avatars.appendChild(mateImage);
-      } else Object.keys(FACE_IMAGES).forEach((avatarKey, index) => {
-        const button = document.createElement('button');
-        button.className = 'office-avatar-choice';
-        button.type = 'button';
-        button.dataset.avatarKey = avatarKey;
-        button.setAttribute('aria-label', `Rosto ${index + 1}`);
-        button.setAttribute('aria-pressed', String(agent.avatarKey === avatarKey));
-        button.appendChild(makeFace(avatarKey));
-        avatars.appendChild(button);
-      });
+      } else {
+        const owners = avatarOwners(agent.key);
+        Object.keys(FACE_IMAGES).forEach((avatarKey, index) => {
+          const button = makeNode('button', `office-avatar-choice${owners[avatarKey] ? ' office-avatar-choice--taken' : ''}`);
+          button.type = 'button';
+          button.dataset.avatarKey = avatarKey;
+          button.setAttribute('aria-label', owners[avatarKey] ? `Rosto ${index + 1}, em uso por ${owners[avatarKey]}` : `Rosto ${index + 1}`);
+          button.setAttribute('aria-pressed', String(agent.avatarKey === avatarKey));
+          button.appendChild(makeFace(avatarKey));
+          if (owners[avatarKey]) button.appendChild(makeNode('span', 'office-avatar-choice__taken', owners[avatarKey]));
+          avatars.appendChild(button);
+        });
+      }
     }
     if (capabilities) {
       capabilities.replaceChildren();
       CAPABILITY_OPTIONS.forEach((option) => {
-        const label = document.createElement('label');
-        label.className = 'office-capability-option';
+        const label = makeNode('label', 'office-capability-option');
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.name = 'capabilities';
         input.value = option.key;
         input.checked = (agent.capabilities || []).includes(option.key);
-        const text = document.createElement('span');
-        text.textContent = option.label;
-        label.append(input, text);
+        label.append(input, makeNode('span', '', option.label));
         capabilities.appendChild(label);
       });
     }
@@ -558,12 +965,15 @@
     $('#agentDepartment').value = agent.department;
     $('#agentDescription').value = agent.description;
     $('#agentEnabled').checked = Boolean(agent.enabled);
+    const fixed = agent.key === 'mate';
+    $('#agentName').readOnly = fixed;
     setText('#agentDialogTitle', `Editar perfil · ${agent.name}`);
     const error = $('#agentFormError');
     if (error) { error.hidden = true; error.textContent = ''; }
     buildEditorChoices(agent);
+    updateBadge();
     dialog.showModal();
-    $('#agentName').focus();
+    (fixed ? $('#agentTitle') : $('#agentName')).focus();
   }
 
   async function saveAgent(event) {
@@ -594,9 +1004,9 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.success === false) throw new Error(data.error || 'Não foi possível salvar o perfil.');
       state.agents = state.agents.map((agent) => agent.key === key ? data.data : agent);
-      renderAgents();
+      renderOffice();
       $('#agentDialog').close();
-      setText('#officeUpdated', 'Perfil salvo');
+      setText('#officeUpdated', `Perfil de ${data.data?.name || 'funcionário'} salvo`);
     } catch (err) {
       if (error) {
         error.hidden = false;
@@ -607,80 +1017,15 @@
     }
   }
 
-  function makeTask(item) {
-    const department = departmentFor(item);
-    const details = DEPARTMENTS[department] || DEPARTMENTS.all;
-    const tone = ['critical', 'warning', 'accent', 'neutral'].includes(item.tone) ? item.tone : 'neutral';
-    const article = document.createElement('article');
-    article.className = `office-task office-task--${tone}`;
-    article.dataset.department = department;
+  /* ───────── loading ───────── */
 
-    const mark = document.createElement('span');
-    mark.className = 'office-task__mark';
-    mark.setAttribute('aria-hidden', 'true');
-    mark.textContent = details.icon;
-
-    const body = document.createElement('div');
-    body.className = 'office-task__body';
-    const meta = document.createElement('div');
-    meta.className = 'office-task__meta';
-    meta.textContent = `${taskLabel(item)} · ${TONE_LABELS[tone]}`;
-    const title = document.createElement('h3');
-    title.className = 'office-task__title';
-    title.textContent = String(item.title || 'Recomendação do Mate');
-    body.append(meta, title);
-
-    if (item.detail) {
-      const detail = document.createElement('p');
-      detail.className = 'office-task__detail';
-      detail.textContent = String(item.detail);
-      body.appendChild(detail);
-    }
-
-    const link = document.createElement('a');
-    link.className = 'office-task__link';
-    link.href = details.href;
-    link.textContent = details.link;
-
-    article.append(mark, body, link);
-    return article;
-  }
-
-  function renderTasks() {
-    const host = $('#officeTasks');
-    if (!host) return;
-    host.replaceChildren();
-    host.setAttribute('aria-busy', 'false');
-    const filtered = state.filter === 'all'
-      ? state.suggestions
-      : state.suggestions.filter((item) => departmentFor(item) === state.filter);
-
-    if (!filtered.length) {
-      const empty = document.createElement('div');
-      empty.className = 'office-empty';
-      const title = document.createElement('strong');
-      title.textContent = state.filter === 'all' ? 'Tudo em ordem por aqui' : 'Nenhuma recomendação neste setor';
-      const copy = document.createElement('span');
-      copy.textContent = state.filter === 'all'
-        ? 'Quando o Mate encontrar um próximo passo, ele aparecerá neste painel.'
-        : 'O Mate não encontrou itens que precisem de revisão agora.';
-      empty.append(title, copy);
-      host.appendChild(empty);
-      return;
-    }
-
-    filtered.forEach((item) => host.appendChild(makeTask(item)));
-  }
-
-  function setFilter(filter) {
-    if (!DEPARTMENTS[filter]) return;
-    state.filter = filter;
-    $$('[data-office-filter]').forEach((button) => {
-      button.setAttribute('aria-pressed', String(button.getAttribute('data-office-filter') === filter));
-    });
-    const sectionTitle = filter === 'all' ? 'Recomendações do Mate' : `Recomendações · ${DEPARTMENTS[filter].label}`;
-    setText('#officeTasksTitle', sectionTitle);
+  function renderOffice() {
+    renderCounts();
+    renderActiveAgent();
+    renderPlan();
+    renderCorridor();
     renderTasks();
+    if (!state.entityShown) setCurrentEmpty();
   }
 
   async function loadSession() {
@@ -701,35 +1046,22 @@
     const userName = String(data.user?.name || '').trim().split(/\s+/)[0];
     const permissions = Array.isArray(data.user?.permissions) ? data.user.permissions : [];
     state.canManage = data.user?.role === 'admin' || permissions.includes('settings.manage');
+    state.userName = userName;
+    state.userInitial = userName ? userName.charAt(0).toUpperCase() : '';
+    state.orgName = data.organization?.name || '';
     setText('#officeWelcome', userName
-      ? `Olá, ${userName}. Converse com a equipe e acompanhe as ações no contexto da sua empresa.`
-      : 'Converse com a equipe e acompanhe as ações no contexto da sua empresa.');
-    setText('#officeOrgName', data.organization?.name || 'Escritório ObraMate');
+      ? `Olá, ${userName}. A equipe trabalha aqui; tudo o que vai para o cliente passa por você.`
+      : 'A equipe trabalha aqui; tudo o que vai para o cliente passa por você.');
+    setText('#officeOrgName', state.orgName || 'Escritório ObraMate');
   }
 
   async function loadAgents() {
-    try {
-      const response = await fetch(API_AGENTS, { credentials: 'include', cache: 'no-store' });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.success === false) {
-        throw new Error(data.error || 'Não foi possível carregar os funcionários virtuais.');
-      }
-      state.agents = Array.isArray(data.data) ? data.data : [];
-      renderAgents();
-      renderCounts();
-    } catch (error) {
-      const host = $('#officeAgents');
-      if (host) {
-        host.setAttribute('aria-busy', 'false');
-        const empty = document.createElement('div');
-        empty.className = 'office-empty';
-        const copy = document.createElement('span');
-        copy.textContent = String(error?.message || 'Não foi possível carregar a equipe.');
-        empty.appendChild(copy);
-        host.replaceChildren(empty);
-      }
-      throw error;
+    const response = await fetch(API_AGENTS, { credentials: 'include', cache: 'no-store' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) {
+      throw new Error(data.error || 'Não foi possível carregar os funcionários virtuais.');
     }
+    state.agents = Array.isArray(data.data) ? data.data : [];
   }
 
   async function loadSuggestions() {
@@ -742,11 +1074,9 @@
     state.suggestions = (Array.isArray(data.data) ? data.data : []).slice().sort((a, b) =>
       (priority[a.tone] ?? 4) - (priority[b.tone] ?? 4),
     );
-    renderCounts();
-    renderTasks();
   }
 
-  async function refresh() {
+  async function refresh(first) {
     if (state.busy) return;
     state.busy = true;
     document.body.classList.add('is-loading');
@@ -759,27 +1089,18 @@
     }
     try {
       await loadSession();
-      await Promise.all([loadSuggestions(), loadAgents()]);
+      const results = await Promise.allSettled([loadSuggestions(), loadAgents()]);
+      renderOffice();
       updateTimestamp();
+      if (first === true && !query.has('agent') && !entranceSeenToday()) showEntrance();
+      runRequestedSuggestion();
+      const failed = results.find((result) => result.status === 'rejected');
+      if (failed) throw failed.reason;
     } catch (err) {
       const message = String(err?.message || 'Erro ao carregar o escritório.');
-      if (!message.includes('Entre novamente') && !message.includes('troca de senha')) {
-        if (error) {
-          error.hidden = false;
-          error.textContent = message;
-        }
-        const host = $('#officeTasks');
-        if (host && !state.suggestions.length) {
-          host.replaceChildren();
-          const empty = document.createElement('div');
-          empty.className = 'office-empty';
-          const title = document.createElement('strong');
-          title.textContent = 'Não foi possível atualizar';
-          const copy = document.createElement('span');
-          copy.textContent = message;
-          empty.append(title, copy);
-          host.appendChild(empty);
-        }
+      if (!message.includes('Entre novamente') && !message.includes('troca de senha') && error) {
+        error.hidden = false;
+        error.textContent = message;
       }
     } finally {
       document.body.classList.remove('is-loading');
@@ -790,22 +1111,25 @@
 
   function bindControls() {
     window.addEventListener('mate:office-context', onOfficeContext);
-    if (window.__mateAiOfficeContext) showCurrentWork(window.__mateAiOfficeContext.entity || null);
-    $$('[data-office-filter]').forEach((button) => {
-      button.addEventListener('click', () => setFilter(button.getAttribute('data-office-filter')));
-    });
-    const refreshButton = $('#officeRefresh');
-    if (refreshButton) refreshButton.addEventListener('click', refresh);
-
-    const agents = $('#officeAgents');
-    if (agents) {
-      agents.addEventListener('click', (event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-        const button = target.closest('[data-agent-edit]');
-        if (button) openAgentEditor(button.dataset.agentEdit);
-      });
+    if (window.__mateAiOfficeContext) {
+      const entity = window.__mateAiOfficeContext.entity || null;
+      state.entityShown = Boolean(entity && entity.id);
+      showCurrentWork(entity);
     }
+    $('#officeRefresh')?.addEventListener('click', () => refresh(false));
+    $('#officePlan')?.addEventListener('click', onRoomClick);
+    $('#officeCorridor')?.addEventListener('click', onRoomClick);
+    $('#officeTasks')?.addEventListener('click', onTaskClick);
+    $('#officeEnter')?.addEventListener('click', enterOffice);
+    $('#officeReplayEntrance')?.addEventListener('click', showEntrance);
+    $('#officeEditActive')?.addEventListener('click', () => { const agent = activeAgent(); if (agent) openAgentEditor(agent.key); });
+    $('#officeCurrentWork')?.addEventListener('click', (event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-meeting="start"]')) startMeeting();
+    });
+    window.setInterval(rotateBubbles, 3200);
+    window.addEventListener('resize', fitPlan);
+
     const avatarChoices = $('#agentAvatarChoices');
     if (avatarChoices) {
       avatarChoices.addEventListener('click', (event) => {
@@ -815,6 +1139,10 @@
         if (button) selectAvatar(button.dataset.avatarKey);
       });
     }
+    ['#agentName', '#agentTitle', '#agentDepartment'].forEach((selector) => {
+      $(selector)?.addEventListener('input', updateBadge);
+      $(selector)?.addEventListener('change', updateBadge);
+    });
     const form = $('#agentForm');
     if (form) form.addEventListener('submit', saveAgent);
     const dialog = $('#agentDialog');
@@ -841,5 +1169,5 @@
   }
 
   bindControls();
-  refresh();
+  refresh(true);
 })();
