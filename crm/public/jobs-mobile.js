@@ -12,6 +12,8 @@
   let tabChosen = false;
   let role = "office";
   let isField = false;
+  let mobQ = "";
+  let loadSeq = 0;
 
   const $ = (id) => document.getElementById(id);
 
@@ -126,16 +128,21 @@
   }
 
   function tabFiltered(rows) {
+    const needle = mobQ.trim().toLowerCase();
+    const matched = needle && window.JobsInfo?.searchText
+      ? rows.filter((wo) => window.JobsInfo.searchText(wo).includes(needle))
+      : rows;
+    if (needle.length >= 2) return matched.filter((wo) => wo.status !== "canceled").sort(byCreatedDesc);
     let out;
     if (tab === "today") {
-      out = rows.filter(
+      out = matched.filter(
         (wo) =>
           isToday(wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
       );
-    } else if (tab === "active") out = rows.filter((wo) => isActive(wo) && wo.status !== "canceled");
-    else if (tab === "bill") out = rows.filter(toBill);
-    else if (tab === "done") out = rows.filter((wo) => wo.status === "completed");
-    else out = rows.slice();
+    } else if (tab === "active") out = matched.filter((wo) => isActive(wo) && wo.status !== "canceled");
+    else if (tab === "bill") out = matched.filter(toBill);
+    else if (tab === "done") out = matched.filter((wo) => wo.status === "completed");
+    else out = matched.slice();
     return out.sort(byCreatedDesc);
   }
 
@@ -192,7 +199,7 @@
         <a class="jmx-card__a" href="${detailHref}">
           <span class="jmx-card__r1"><span>${wo.number != null ? `Job #${escapeHtml(wo.number)} · ` : ""}${escapeHtml(stage)}</span>${lt ? `<em class="is-hot">${escapeHtml(lt.label)}</em>` : bl && wo.status === "completed" ? `<em class="${bl.cls === "ok" ? "is-ok" : ""}">${escapeHtml(bl.text)}</em>` : ""}</span>
           <b class="jmx-card__t">${escapeHtml(wo.title || `Job para ${clientLabel(wo)}`)}</b>
-          <span class="jmx-card__s">${escapeHtml(clientLabel(wo))} · ${escapeHtml(when)}</span>
+          <span class="jmx-card__s">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))} · ${escapeHtml(when)}</span>
           ${J ? J.progHtml(wo) : ""}
         </a>
         <div class="jmx-card__r3">
@@ -235,7 +242,7 @@
             <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
           </div>
           <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
-          <p class="jcm-job__client">${escapeHtml(clientLabel(wo))}</p>
+          <p class="jcm-job__client">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))}</p>
           ${
             wo.address
               ? `<p class="jcm-job__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></p>`
@@ -310,7 +317,12 @@
     const host = $("jobsMobList");
     if (!host) return;
     if (!rows.length) {
-      host.innerHTML = `<p class="jcm-empty">${isField ? "Nenhum job atribuído a você neste filtro." : "Nenhum job neste filtro."}</p>`;
+      const empty = mobQ
+        ? `Nenhum job para “${escapeHtml(mobQ)}”.`
+        : isField
+          ? "Nenhum job atribuído a você neste filtro."
+          : "Nenhum job neste filtro.";
+      host.innerHTML = `<p class="jcm-empty">${empty}</p>`;
       return;
     }
     host.innerHTML = rows.map((wo) => (isField ? renderFieldCard(wo) : renderOfficeCard(wo))).join("");
@@ -401,7 +413,12 @@
   }
 
   async function load() {
-    const j = await fetch("/api/work-orders", { credentials: "include" }).then((r) => r.json());
+    const seq = ++loadSeq;
+    const query = mobQ.trim();
+    const params = new URLSearchParams();
+    if (query.length >= 2) params.set("q", query);
+    const j = await fetch(`/api/work-orders${params.toString() ? `?${params}` : ""}`, { credentials: "include" }).then((r) => r.json());
+    if (seq !== loadSeq) return;
     if (!j.success && j.success !== undefined) throw new Error(j.error || "Erro");
     allJobs = j.data || [];
     render();
@@ -427,6 +444,14 @@
     });
     $("jobsMobAdd")?.addEventListener("click", () => {
       location.href = "quote-builder.html";
+    });
+    $("jobsMobQ")?.addEventListener("input", (e) => {
+      clearTimeout(e.target._t);
+      mobQ = e.target.value.trim();
+      render();
+      e.target._t = setTimeout(() => {
+        load().catch((err) => window.crmToast?.error?.(err.message || "Não foi possível buscar"));
+      }, 250);
     });
   }
 

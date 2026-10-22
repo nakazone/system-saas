@@ -198,6 +198,7 @@ function mapWorkOrder(wo: {
     notes: string | null;
     createdAt: Date;
   }[];
+  quotes?: { quoteNumber: string | null; title: string }[];
   lineItems?: {
     id: string;
     pricingItemId: string | null;
@@ -211,6 +212,7 @@ function mapWorkOrder(wo: {
   }[];
   invoices?: { amount: unknown; status: string; receipts?: { amount: unknown }[] }[];
 }) {
+  const linkedQuote = (wo.quotes || []).find((q) => q.quoteNumber) || wo.quotes?.[0] || null;
   const lineItems = (wo.lineItems || []).map((li) => ({
     id: li.id,
     pricing_item_id: li.pricingItemId,
@@ -227,6 +229,8 @@ function mapWorkOrder(wo: {
   return {
     id: wo.id,
     number: wo.number,
+    quote_number: linkedQuote?.quoteNumber || null,
+    quote_title: linkedQuote?.title || null,
     title: wo.title,
     status: wo.status,
     field_status: wo.fieldStatus ?? null,
@@ -410,6 +414,11 @@ const woInclude = {
     orderBy: { createdAt: "asc" as const },
   },
   tempWorkers: { orderBy: { createdAt: "asc" as const } },
+  quotes: {
+    select: { quoteNumber: true, title: true },
+    orderBy: { createdAt: "desc" as const },
+    take: 1,
+  },
   lineItems: {
     orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
     include: { pricingItem: { select: { unit: true } } },
@@ -650,13 +659,21 @@ scheduleJobsRouter.get(
       const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
 
       const fieldScope = fieldWorkOrderScope(req.user);
+      const jobNumber = /^#?\d{1,9}$/.test(q) ? Number(q.replace("#", "")) : null;
       const searchOr = q
         ? [
             { title: { contains: q, mode: "insensitive" as const } },
             { sourceName: { contains: q, mode: "insensitive" as const } },
             { address: { contains: q, mode: "insensitive" as const } },
             { customer: { name: { contains: q, mode: "insensitive" as const } } },
+            { customer: { company: { contains: q, mode: "insensitive" as const } } },
+            { customer: { address: { contains: q, mode: "insensitive" as const } } },
             { builder: { company: { contains: q, mode: "insensitive" as const } } },
+            { builder: { firstName: { contains: q, mode: "insensitive" as const } } },
+            { builder: { lastName: { contains: q, mode: "insensitive" as const } } },
+            { quotes: { some: { quoteNumber: { contains: q, mode: "insensitive" } } } },
+            { quotes: { some: { title: { contains: q, mode: "insensitive" } } } },
+            ...(jobNumber != null ? [{ number: jobNumber }] : []),
           ]
         : null;
 

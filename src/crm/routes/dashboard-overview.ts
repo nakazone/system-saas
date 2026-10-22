@@ -155,6 +155,9 @@ dashboardOverviewRouter.get("/api/search", requireCrmAuth, async (req: AuthedReq
               { title: { contains: q, mode: "insensitive" } },
               { quoteNumber: { contains: q, mode: "insensitive" } },
               { customer: { name: { contains: q, mode: "insensitive" } } },
+              { builder: { company: { contains: q, mode: "insensitive" } } },
+              { builder: { firstName: { contains: q, mode: "insensitive" } } },
+              { builder: { lastName: { contains: q, mode: "insensitive" } } },
               ...(asNumber != null ? [{ number: asNumber }] : []),
             ],
           },
@@ -192,20 +195,40 @@ dashboardOverviewRouter.get("/api/search", requireCrmAuth, async (req: AuthedReq
             OR: [
               { title: { contains: q, mode: "insensitive" } },
               { address: { contains: q, mode: "insensitive" } },
+              { sourceName: { contains: q, mode: "insensitive" } },
               { customer: { name: { contains: q, mode: "insensitive" } } },
+              { customer: { company: { contains: q, mode: "insensitive" } } },
+              { builder: { company: { contains: q, mode: "insensitive" } } },
+              { builder: { firstName: { contains: q, mode: "insensitive" } } },
+              { builder: { lastName: { contains: q, mode: "insensitive" } } },
+              { quotes: { some: { quoteNumber: { contains: q, mode: "insensitive" } } } },
+              { quotes: { some: { title: { contains: q, mode: "insensitive" } } } },
               ...(asNumber != null ? [{ number: asNumber }] : []),
             ],
           },
           orderBy: { updatedAt: "desc" },
           take,
-          select: { id: true, number: true, title: true, status: true, address: true },
+          select: {
+            id: true,
+            number: true,
+            title: true,
+            status: true,
+            address: true,
+            sourceName: true,
+            builder: { select: { company: true } },
+            quotes: { select: { quoteNumber: true }, orderBy: { createdAt: "desc" }, take: 1 },
+          },
         });
         for (const j of jobs) {
+          const quoteNo = j.quotes.find((qt) => qt.quoteNumber)?.quoteNumber || null;
           hits.push({
             type: "job",
             id: j.id,
             title: j.title,
-            subtitle: [j.number != null ? `Job #${j.number}` : null, j.address].filter(Boolean).join(" · ") || null,
+            subtitle:
+              [quoteNo, j.builder?.company || j.sourceName, j.number != null ? `Job #${j.number}` : null, j.address]
+                .filter(Boolean)
+                .join(" · ") || null,
             href: `job-detail.html?id=${encodeURIComponent(j.id)}`,
           });
         }

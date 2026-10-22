@@ -15,6 +15,21 @@ body.om-device-mobile.jobs-app.jcm-field .jcm-sub { display: block; font-size: 1
 .jcm-role { background: #EEF0F3; border-radius: 11px; padding: 3px; }
 .jcm-role__btn { font-weight: 600; font-size: 12.5px; border-radius: 9px; padding: 6px 10px; }
 .jcm-role__btn.is-active { box-shadow: 0 1px 2px rgba(16, 24, 40, .08); background: #fff; color: #221E1A; }
+.jcm-search { display: block; margin: 12px 0 0; }
+.jcm-search input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px #E5E7EB;
+  background: #fff;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 16px;
+  color: #221E1A;
+}
+.jcm-search input:focus { outline: none; box-shadow: 0 0 0 1px #E7792C, 0 0 0 4px rgba(231, 121, 44, .14); }
 
 /* números */
 .jmx-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
