@@ -124,6 +124,7 @@ export function buildAgentPrompt(p: {
     refs || "(empty)",
     "",
     "Quote items shape: items: [{\"service_ref\": \"S3\"|null, \"service_text\": \"user's words\", \"quantity\": 1350, \"unit\": \"sq_ft\"}].",
+    "When there is an existing quote in the current screen or recent conversation and the user changes its rate/price/quantity, use quote.edit with line_item plus unit_price/quantity. Do NOT run quote.create or search the service catalog for an edit. A unit-only reference like \"sqft\" is valid; the system will match the quote's line or ask which one if several match.",
     "",
     pendingBlock(p.pending),
     "Quote items may carry unit_price (dollars per unit) when the user states a price for a line — e.g. \"a remoção de carpete é 1 dólar o pé\" → that line's unit_price: 1.",
@@ -421,9 +422,29 @@ export async function pickAction(text: string, ctx: AgentCtx): Promise<AgentPick
   return { ...pick, args: pinSpokenDay(text, pick.action, pick.args, todayInTimezone(ctx.timezone).date, ctx.actions) };
 }
 
+function quoteRateFollowUp(text: string, ctx: AgentCtx): Extract<AgentPick, { kind: "action" }> | null {
+  if (ctx.pending?.action === "quote.create" && ctx.pending.status === "card") return null;
+  const folded = foldText(text);
+  const change = /\b(muda|mude|mudar|altera|altere|alterar|atualiza|atualize|atualizar|troca|troque|trocar|change|update|set|make)\b/.test(folded);
+  const price = /\b(preco|valor|price|rate|custa|cost)\b/.test(folded);
+  const sqft = /\b(sq\s*ft|sqft|square\s*(foot|feet|footage)|square\s*ft|pes?\s+quadrad[oa]s?)\b/.test(folded.replace(/_/g, " "));
+  if (!change || !price || !sqft) return null;
+  const amountMatch = folded.match(/\b(?:para|pra|por|to|at|em)\s*\$?\s*(\d+(?:[.,]\d{1,2})?)(?!\d)/) || folded.match(/\$\s*(\d+(?:[.,]\d{1,2})?)(?!\d)/);
+  if (!amountMatch) return null;
+  const rawAmount = amountMatch[1]!.replace(",", ".");
+  const unitPrice = Number(rawAmount);
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) return null;
+  const recentQuote = [...ctx.memory].reverse().find((line) => line.entity?.type === "quote")?.entity?.id;
+  const quoteId = ctx.screen?.type === "quote" ? ctx.screen.id : recentQuote;
+  if (!quoteId || !ctx.actions.some((action) => action.name === "quote.edit")) return null;
+  return { kind: "action", action: "quote.edit", args: { quote_id: quoteId, line_item: "sq ft", unit_price: unitPrice }, source: "rules" };
+}
+
 async function pickActionRaw(text: string, ctx: AgentCtx): Promise<AgentPick> {
   const { date, weekday } = todayInTimezone(ctx.timezone);
   const allowed = new Set(ctx.actions.map((a) => a.name));
+  const quoteEdit = quoteRateFollowUp(text, ctx);
+  if (quoteEdit && allowed.has(quoteEdit.action)) return quoteEdit;
   const local = (aiError?: string): AgentPick => {
     const p = pickLocally(text, { today: date, catalog: ctx.catalog, customers: ctx.customers });
     if (p.kind === "action" && !allowed.has(p.action)) return { kind: "reply", reply: "Você não tem permissão para isso.", source: "rules", aiError };

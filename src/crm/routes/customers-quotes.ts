@@ -1744,6 +1744,110 @@ customersQuotesRouter.post(
   },
 );
 
+customersQuotesRouter.patch(
+  "/api/quotes/:id/line-items/:lineId",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const quoteId = String(req.params.id || "");
+      const lineId = String(req.params.lineId || "");
+      if (!asOptionalUuid(quoteId) || !asOptionalUuid(lineId)) {
+        res.status(400).json({ success: false, error: "Quote ou serviço inválido." });
+        return;
+      }
+      const parsed = z.object({
+        unit_price: z.number().finite().min(0).max(1_000_000),
+        quantity: z.number().finite().gt(0).max(1_000_000),
+        expected_unit_price: z.number().finite().min(0).max(1_000_000),
+        expected_quantity: z.number().finite().gt(0).max(1_000_000),
+      }).safeParse(req.body || {});
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "Revise o novo preço e a quantidade." });
+        return;
+      }
+
+      const outcome = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const quote = await tx.quote.findFirst({
+          where: { id: quoteId, organizationId: req.organizationId! },
+          include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+        });
+        if (!quote) return { status: 404 as const, error: "Quote não encontrado." };
+        if (normalizeQuoteStatus(quote.status) !== "draft") {
+          return { status: 409 as const, error: "Este Quote não está mais em rascunho. Atualize a tela e revise o status antes de editar." };
+        }
+        const line = quote.lineItems.find((item) => item.id === lineId);
+        if (!line) return { status: 404 as const, error: "A linha do Quote não foi encontrada." };
+        const oldPrice = dec(line.unitPrice);
+        const oldQuantity = dec(line.quantity);
+        if (Math.round(oldPrice * 100) !== Math.round(parsed.data.expected_unit_price * 100) || Math.round(oldQuantity * 100) !== Math.round(parsed.data.expected_quantity * 100)) {
+          return { status: 409 as const, error: "Essa linha mudou desde a prévia. Peça novamente a alteração para revisar os valores atuais." };
+        }
+
+        const nextPrice = Math.round(parsed.data.unit_price * 100) / 100;
+        const nextQuantity = Math.round(parsed.data.quantity * 100) / 100;
+        const nextAmount = Math.round(nextPrice * nextQuantity * 100) / 100;
+        await tx.quoteLineItem.update({
+          where: { id: line.id },
+          data: {
+            unitPrice: new Prisma.Decimal(nextPrice),
+            quantity: new Prisma.Decimal(nextQuantity),
+            amount: new Prisma.Decimal(nextAmount),
+          },
+        });
+
+        const subtotal = Math.round(quote.lineItems.reduce((sum, item) => sum + (item.id === line.id ? nextAmount : dec(item.amount)), 0) * 100) / 100;
+        const discount = readQuoteDiscount({ ...quote, subtotal });
+        const tax = dec(quote.taxTotal);
+        const total = Math.max(0, Math.round((subtotal - discount.amount + tax) * 100) / 100);
+        const payload = quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
+          ? { ...(quote.payload as Record<string, unknown>) }
+          : {};
+        const payloadItems = Array.isArray(payload.items) ? [...payload.items] : null;
+        const payloadIndex = quote.lineItems.findIndex((item) => item.id === line.id);
+        if (payloadItems && payloadIndex >= 0 && payloadItems[payloadIndex] && typeof payloadItems[payloadIndex] === "object") {
+          payloadItems[payloadIndex] = {
+            ...(payloadItems[payloadIndex] as Record<string, unknown>),
+            quantity: nextQuantity,
+            unit_price: nextPrice,
+            rate: nextPrice,
+            sell_price: nextPrice,
+            amount: nextAmount,
+          };
+          payload.items = payloadItems;
+        }
+        await tx.quote.update({
+          where: { id: quote.id },
+          data: { subtotal: new Prisma.Decimal(subtotal), total: new Prisma.Decimal(total), payload: payload as Prisma.InputJsonValue },
+        });
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "quote",
+          entityId: quote.id,
+          actorType: "user",
+          actorId: req.user!.id,
+          action: "mate_ai.quote_line_updated",
+          changes: {
+            line: { from: line.name || line.description, to: line.name || line.description },
+            unit_price: { from: oldPrice, to: nextPrice },
+            quantity: { from: oldQuantity, to: nextQuantity },
+            total: { from: dec(quote.total), to: total },
+          },
+        });
+        const label = (line.name && line.name.trim()) || String(line.description || "Serviço").split("\n")[0] || "Serviço";
+        return { status: 200 as const, data: { quote_number: quote.quoteNumber || String(quote.number), line_name: label, unit_price: nextPrice, quantity: nextQuantity, subtotal, total } };
+      });
+      if (outcome.status !== 200) {
+        res.status(outcome.status).json({ success: false, error: outcome.error });
+        return;
+      }
+      res.json({ success: true, data: outcome.data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 customersQuotesRouter.put(
   "/api/quotes/:id/full",
   requireCrmAuth,

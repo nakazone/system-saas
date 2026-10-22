@@ -150,6 +150,7 @@ export const createMeeting: ActionDef = {
       title: `${exec.title} · ${fmtDateTime(new Date(String(exec.start)), ctx.timezone, Boolean(exec.all_day))}`,
       links: [scheduleLink],
       undo: id ? { meeting_id: id } : undefined,
+      ...(id ? { entity: { type: "meeting", id } } : {}),
       next: exec.lead_id && id ? { label: "Mandar convite", action: "visit.invite", args: { meeting_id: id } } : undefined,
       memory: `Scheduled "${exec.title}" on ${exec.start}`,
     };
@@ -157,7 +158,7 @@ export const createMeeting: ActionDef = {
   async undo(ctx, u) {
     const res = await callInternalApi(ctx.req, "DELETE", "/api/meetings/" + enc(String(u.meeting_id)));
     if (!res.ok) return { ok: false, status: res.status, error: internalError(res, "Não foi possível desfazer.") };
-    return { ok: true, title: "Compromisso cancelado" };
+    return { ok: true, title: "Compromisso cancelado", entity: { type: "meeting", id: String(u.meeting_id) } };
   },
 };
 
@@ -210,13 +211,14 @@ export const moveMeeting: ActionDef = {
       title: `${exec.title} → ${fmtDateTime(new Date(String(exec.start)), ctx.timezone, Boolean(exec.all_day))}`,
       links: [scheduleLink],
       undo: { meeting_id: exec.meeting_id, ...(exec.prev as Record<string, unknown>) },
+      entity: { type: "meeting", id: String(exec.meeting_id) },
       memory: `Moved "${exec.title}" to ${exec.start}`,
     };
   },
   async undo(ctx, u) {
     const res = await callInternalApi(ctx.req, "PUT", "/api/meetings/" + enc(String(u.meeting_id)), { scheduled_start: u.start, scheduled_end: u.end, all_day: u.all_day });
     if (!res.ok) return { ok: false, status: res.status, error: internalError(res, "Não foi possível desfazer.") };
-    return { ok: true, title: "Horário anterior restaurado" };
+    return { ok: true, title: "Horário anterior restaurado", entity: { type: "meeting", id: String(u.meeting_id) } };
   },
 };
 
@@ -248,12 +250,12 @@ export const cancelMeeting: ActionDef = {
   async execute(ctx, exec) {
     const res = await callInternalApi(ctx.req, "DELETE", "/api/meetings/" + enc(String(exec.meeting_id)));
     if (!res.ok) return { ok: false, status: res.status, error: internalError(res, "Não foi possível cancelar.") };
-    return { ok: true, title: `${exec.title} cancelado`, links: [scheduleLink], undo: { meeting_id: exec.meeting_id }, memory: `Canceled "${exec.title}"` };
+    return { ok: true, title: `${exec.title} cancelado`, links: [scheduleLink], undo: { meeting_id: exec.meeting_id }, entity: { type: "meeting", id: String(exec.meeting_id) }, memory: `Canceled "${exec.title}"` };
   },
   async undo(ctx, u) {
     const res = await callInternalApi(ctx.req, "PUT", "/api/meetings/" + enc(String(u.meeting_id)), { status: "scheduled" });
     if (!res.ok) return { ok: false, status: res.status, error: internalError(res, "Não foi possível desfazer.") };
-    return { ok: true, title: "Compromisso de volta na agenda" };
+    return { ok: true, title: "Compromisso de volta na agenda", entity: { type: "meeting", id: String(u.meeting_id) } };
   },
 };
 

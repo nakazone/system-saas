@@ -149,11 +149,24 @@ mateAiCentralRouter.get("/api/mate-ai/activity", requireCrmAuth, async (req: Aut
 /* ───────────────────────── conversations ───────────────────────── */
 
 const ID = z.string().uuid();
+const AGENT_KEY = z.string().regex(/^[a-z0-9_-]{1,60}$/i);
 
 const itemSchema = z.record(z.string(), z.unknown());
 const saveSchema = z.object({
   items: z.array(itemSchema).max(60),
+  agent_key: AGENT_KEY.optional(),
 });
+
+function conversationAgentKey(items: unknown): string | null {
+  if (!Array.isArray(items)) return null;
+  for (const item of items) {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const key = (item as Record<string, unknown>).agent_key;
+      if (typeof key === "string" && AGENT_KEY.safeParse(key).success) return key.toLowerCase();
+    }
+  }
+  return null;
+}
 
 /** Removes what must not be stored or replayed: confirmation and undo tokens, photos. */
 function sanitize(items: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
@@ -197,17 +210,26 @@ mateAiCentralRouter.get("/api/mate-ai/conversations", requireCrmAuth, async (req
   try {
     const q = foldText(String(req.query.q || "")).trim().slice(0, 80);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
+    const agentKeyResult = req.query.agent_key == null || req.query.agent_key === ""
+      ? null
+      : AGENT_KEY.safeParse(String(req.query.agent_key));
+    if (agentKeyResult && !agentKeyResult.success) {
+      res.status(400).json({ success: false, error: "Funcionário inválido." });
+      return;
+    }
+    const agentKey = agentKeyResult?.data.toLowerCase() || null;
     const rows = await withTenantTransaction(req.organizationId!, (tx) =>
       tx.mateAiConversation.findMany({
         where: { userId: req.user!.id, ...(q ? { searchText: { contains: q } } : {}) },
         orderBy: { updatedAt: "desc" },
-        take: limit,
-        select: { id: true, title: true, outcome: true, turns: true, createdAt: true, updatedAt: true },
+        take: agentKey ? Math.min(500, Math.max(100, limit * 5)) : limit,
+        select: { id: true, title: true, outcome: true, turns: true, items: true, createdAt: true, updatedAt: true },
       }),
     );
+    const filtered = rows.filter((row) => !agentKey || conversationAgentKey(row.items) === agentKey).slice(0, limit);
     res.json({
       success: true,
-      data: rows.map((r) => ({ id: r.id, title: r.title, outcome: r.outcome, turns: r.turns, created_at: r.createdAt.toISOString(), updated_at: r.updatedAt.toISOString() })),
+      data: filtered.map((r) => ({ id: r.id, title: r.title, outcome: r.outcome, turns: r.turns, agent_key: conversationAgentKey(r.items), created_at: r.createdAt.toISOString(), updated_at: r.updatedAt.toISOString() })),
     });
   } catch (error) {
     next(error);
@@ -228,6 +250,13 @@ mateAiCentralRouter.get("/api/mate-ai/conversations/:id", requireCrmAuth, async 
       res.status(404).json({ success: false, error: "Conversa não encontrada." });
       return;
     }
+    if (req.query.agent_key != null) {
+      const agentKey = AGENT_KEY.safeParse(String(req.query.agent_key));
+      if (!agentKey.success || conversationAgentKey(row.items) !== agentKey.data.toLowerCase()) {
+        res.status(404).json({ success: false, error: "Conversa não encontrada para este funcionário." });
+        return;
+      }
+    }
     res.json({ success: true, data: { id: row.id, title: row.title, items: row.items, updated_at: row.updatedAt.toISOString() } });
   } catch (error) {
     next(error);
@@ -242,7 +271,9 @@ mateAiCentralRouter.put("/api/mate-ai/conversations/:id", requireCrmAuth, async 
       res.status(400).json({ success: false, error: "Conversa inválida." });
       return;
     }
-    const items = sanitize(body.data.items as Array<Record<string, unknown>>);
+    const items = sanitize(body.data.items as Array<Record<string, unknown>>).map((item) =>
+      body.data.agent_key ? { ...item, agent_key: body.data.agent_key.toLowerCase() } : item,
+    );
     if (!items.some((m) => m.role === "user")) {
       res.json({ success: true, data: { id: id.data, saved: false } });
       return;
