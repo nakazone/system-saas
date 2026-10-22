@@ -116,6 +116,7 @@ async function findQuotes(ctx: LookupCtx, a: Record<string, unknown>) {
 async function findInvoices(ctx: LookupCtx, a: Record<string, unknown>) {
   const q = str(a.query);
   const customer = str(a.customer);
+  const status = str(a.status, 20);
   const n = q.match(/(\d{1,7})/)?.[1];
   const rows = await ctx.tx.quoteInvoice.findMany({
     where: {
@@ -124,15 +125,19 @@ async function findInvoices(ctx: LookupCtx, a: Record<string, unknown>) {
     },
     select: { id: true, invoiceNumber: true, status: true, amount: true, dueDate: true, receipts: { select: { amount: true } }, customer: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
-    take: 60,
+    take: status === "open" || status === "overdue" ? 300 : 60,
   });
-  const picked = customer && !n ? rank(rows, (r) => nameSimilarity(customer, [r.customer?.name])) : rows.slice(0, 6);
-  return {
-    rows: picked.map((r) => {
-      const m = computeInvoiceMoney(r);
-      return { id: r.id, number: r.invoiceNumber, customer: r.customer?.name ?? null, status: m.displayStatus, amount: m.amount, balance: m.balance, due: day(r.dueDate, ctx.timezone) };
-    }),
+  const out = (r: (typeof rows)[number]) => {
+    const m = computeInvoiceMoney(r);
+    return { id: r.id, number: r.invoiceNumber, customer: r.customer?.name ?? null, status: m.displayStatus, amount: m.amount, balance: m.balance, due: day(r.dueDate, ctx.timezone) };
   };
+  if (status === "open" || status === "overdue") {
+    // Every invoice with money still to receive (or only the overdue ones), with the total.
+    const matching = rows.map(out).filter((r) => r.balance > 0.005 && r.status !== "draft" && r.status !== "paid" && (status === "open" || r.status === "overdue"));
+    return { count: matching.length, total_balance: Math.round(matching.reduce((sum, r) => sum + r.balance, 0) * 100) / 100, rows: matching.slice(0, 15) };
+  }
+  const picked = customer && !n ? rank(rows, (r) => nameSimilarity(customer, [r.customer?.name])) : rows.slice(0, 6);
+  return { rows: picked.map(out) };
 }
 
 async function findPrices(ctx: LookupCtx, a: Record<string, unknown>) {
@@ -195,8 +200,8 @@ export const LOOKUP_TOOLS: AiTool[] = [
     type: "function",
     function: {
       name: "find_invoices",
-      description: "Search invoices by number or customer; shows amount, balance, status and due date.",
-      parameters: { type: "object", properties: { query: { type: "string", description: "invoice number" }, customer: { type: "string" } } },
+      description: "Search invoices by number or customer; shows amount, balance, status and due date. status \"open\" lists every invoice with a balance to receive and \"overdue\" only the overdue ones, with count and total.",
+      parameters: { type: "object", properties: { query: { type: "string", description: "invoice number" }, customer: { type: "string" }, status: { type: "string", enum: ["open", "overdue"] } } },
     },
   },
   {
