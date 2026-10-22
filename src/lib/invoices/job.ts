@@ -13,6 +13,7 @@ import { ensureJobChatChannel } from "../chat/job-channel.js";
 import { nextInvoiceNumber, seedDefaultPaymentTemplates } from "../payments/engine.js";
 import { computeNewInvoiceAmount } from "./core.js";
 import { stripLockbox } from "../../modules/work-orders/public-ticket.js";
+import { discountLineLabel, readQuoteDiscount } from "../quotes/discount.js";
 
 /**
  * Explicitly mark a job completed (office status). Used by the "Marcar concluído" action —
@@ -142,7 +143,8 @@ export function quoteReferenceNoteOf(quote: { payload?: unknown } | null | undef
 function invoiceLineDescription(li: JobLine): string {
   const name = String(li.serviceName || "Serviço").trim() || "Serviço";
   const note = String(li.notes || "").trim();
-  if (!note) return name;
+  // Internal marker for the quote discount row — not a client-facing note.
+  if (!note || note === "quote-discount") return name;
   // Newline: invoice UI + PDF render the second line as a description under the service.
   const combined = `${name}\n${note}`;
   return combined.length > 500 ? combined.slice(0, 497) + "…" : combined;
@@ -218,9 +220,9 @@ export function selectedQuoteServiceLines(lineItems: QuoteServiceLine[]): QuoteS
 }
 
 /**
- * Invoice lines for a quote invoice: every contracted service (same selection as the Quote PDF).
- * Partial invoices do not add "Less: …" rows — Total Services vs Balance Due on this invoice
- * is shown in the totals block instead.
+ * Invoice lines for a quote invoice: every contracted service (same selection as the Quote PDF)
+ * plus a negative Discount row when the quote has one. Total Services is then the net contract.
+ * Partial invoices keep that breakdown; Balance Due on this invoice stays invoice.amount.
  */
 export function quoteInvoiceLines(params: {
   kind: string;
@@ -230,6 +232,10 @@ export function quoteInvoiceLines(params: {
     title: string;
     quoteNumber?: string | null;
     number?: number | null;
+    subtotal?: unknown;
+    discountType?: string | null;
+    discountValue?: unknown;
+    payload?: unknown;
     lineItems: QuoteServiceLine[];
   };
   invoicedBefore: number;
@@ -242,12 +248,23 @@ export function quoteInvoiceLines(params: {
   if (selected.length === 0) {
     return [{ description: `${label} — ${ref}`, quantity: 1, unitPrice: amount, amount }];
   }
-  return selected.map((li) => ({
+  const lines = selected.map((li) => ({
     description: quoteServiceDescription(li),
     quantity: Number(li.quantity) || 0,
     unitPrice: Number(li.unitPrice) || 0,
     amount: money(cents(li.amount)),
   }));
+  const discount = readQuoteDiscount(quote);
+  if (discount.amount > 0 && discount.type) {
+    const signed = -discount.amount;
+    lines.push({
+      description: discountLineLabel(discount.type, discount.value),
+      quantity: 1,
+      unitPrice: signed,
+      amount: signed,
+    });
+  }
+  return lines;
 }
 
 export type CreateJobInvoiceInput = {
@@ -281,6 +298,13 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     return { ok: false, status: 422, error: "Escolha o cliente ou o builder do job antes de faturar." };
   }
 
+  const { ensureQuoteDiscountOnJob } = await import("../work-orders/from-quote.js");
+  await ensureQuoteDiscountOnJob(tx, input.organizationId, job.id);
+  const freshLines = await tx.workOrderLineItem.findMany({
+    where: { workOrderId: job.id },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  job.lineItems = freshLines;
   const servicesTotal = job.lineItems.reduce((s, li) => s + Number(li.lineTotal), 0);
   const before = jobBilling(servicesTotal, job.invoices);
   const calc = computeNewInvoiceAmount({

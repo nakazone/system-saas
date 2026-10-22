@@ -1,5 +1,6 @@
 import { computeInvoiceMoney, computeNewInvoiceAmount, invoiceKindLabel, PAYMENT_METHOD_LABELS, resolvePaymentAmount } from "../../invoices/core.js";
 import { invoicedTotalForQuote } from "../../invoices/service.js";
+import { quoteContractTotal } from "../../quotes/discount.js";
 import { normalizeQuoteStatus } from "../../quotes/transitions.js";
 import { callInternalApi, internalError } from "../internal-api.js";
 import { quoteLabel, quoteStatusPt, resolveInvoice, resolveQuote, customerQuoteOptions } from "./resolve.js";
@@ -50,7 +51,7 @@ export const invoiceFromQuote: ActionDef = {
     }
     let type = str(args.invoice_type).toLowerCase();
     const invoiced = await invoicedTotalForQuote(ctx.tx, quote.id);
-    const total = Number(quote.total);
+    const total = quoteContractTotal(quote);
     if (!INVOICE_TYPES.includes(type as (typeof INVOICE_TYPES)[number])) {
       if (invoiced > 0) type = "final";
       else {

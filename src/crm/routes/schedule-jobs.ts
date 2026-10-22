@@ -8,6 +8,7 @@ import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
+import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs } from "../../lib/work-orders/from-quote.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
 import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
@@ -214,7 +215,7 @@ function mapWorkOrder(wo: {
     id: li.id,
     pricing_item_id: li.pricingItemId,
     service_name: li.serviceName,
-    notes: li.notes || null,
+    notes: li.notes && li.notes !== "quote-discount" ? li.notes : null,
     quantity_sqft: dec(li.quantitySqft),
     unit_price: dec(li.unitPrice),
     line_total: dec(li.lineTotal),
@@ -439,7 +440,7 @@ const lineItemBody = z.object({
   pricing_item_id: z.string().uuid().optional().nullable(),
   service_name: z.string().min(1).max(200),
   quantity_sqft: z.number().min(0).max(1_000_000),
-  unit_price: z.number().min(0).max(1_000_000),
+  unit_price: z.number().min(-1_000_000).max(1_000_000),
   notes: z.string().max(2000).optional().nullable(),
 });
 
@@ -691,6 +692,30 @@ scheduleJobsRouter.get(
         orderBy: [{ createdAt: "desc" }],
         take: billingFilter ? 500 : 200,
       });
+      const changedIds = await withTenantTransaction(req.organizationId!, (tx) =>
+        ensureQuoteDiscountsOnJobs(
+          tx,
+          req.organizationId!,
+          rows.map((row) => row.id),
+        ),
+      );
+      if (changedIds.length) {
+        const freshLines = await prisma.workOrderLineItem.findMany({
+          where: { workOrderId: { in: changedIds }, organizationId: req.organizationId! },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          include: { pricingItem: { select: { unit: true } } },
+        });
+        const byJob = new Map<string, typeof freshLines>();
+        for (const line of freshLines) {
+          const list = byJob.get(line.workOrderId) || [];
+          list.push(line);
+          byJob.set(line.workOrderId, list);
+        }
+        for (const row of rows) {
+          const next = byJob.get(row.id);
+          if (next) row.lineItems = next;
+        }
+      }
       let data = rows.map(mapWorkOrder);
       if (billingFilter) {
         data = data.filter((wo) => {
@@ -763,9 +788,13 @@ scheduleJobsRouter.get(
   requireCrmPermission("work_orders.view"),
   async (req: AuthedRequest, res, next) => {
     try {
+      const jobId = String(req.params.id);
+      await withTenantTransaction(req.organizationId!, (tx) =>
+        ensureQuoteDiscountOnJob(tx, req.organizationId!, jobId),
+      );
       const row = await prisma.workOrder.findFirst({
         where: {
-          id: String(req.params.id),
+          id: jobId,
           organizationId: req.organizationId!,
           ...fieldWorkOrderScope(req.user),
         },
@@ -919,6 +948,9 @@ scheduleJobsRouter.post(
       await syncWorkOrderLineItems(req.organizationId!, row.id, d.line_items);
       await withTenantTransaction(req.organizationId!, async (tx) => {
         await ensureJobChatChannel(tx, req.organizationId!, row.id);
+        if (d.line_items !== undefined) {
+          await ensureQuoteDiscountOnJob(tx, req.organizationId!, row.id);
+        }
       });
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },
@@ -1112,6 +1144,9 @@ scheduleJobsRouter.put(
       await syncWorkOrderLineItems(req.organizationId!, row.id, d.line_items);
       await withTenantTransaction(req.organizationId!, async (tx) => {
         await ensureJobChatChannel(tx, req.organizationId!, row.id);
+        if (d.line_items !== undefined) {
+          await ensureQuoteDiscountOnJob(tx, req.organizationId!, row.id);
+        }
       });
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },

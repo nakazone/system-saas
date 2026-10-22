@@ -9,6 +9,7 @@ import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { computeInvoiceMoney, invoiceKindLabel } from "../../lib/invoices/core.js";
 import { createJobInvoice, jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
+import { ensureQuoteDiscountOnJob } from "../../lib/work-orders/from-quote.js";
 
 export const jobInvoicesRouter = Router();
 
@@ -33,8 +34,9 @@ jobInvoicesRouter.get(
         return;
       }
       const now = new Date();
-      const job = await withTenantTransaction(req.organizationId!, (tx) =>
-        tx.workOrder.findFirst({
+      const job = await withTenantTransaction(req.organizationId!, async (tx) => {
+        await ensureQuoteDiscountOnJob(tx, req.organizationId!, id);
+        return tx.workOrder.findFirst({
           where: { id },
           select: {
             id: true,
@@ -44,8 +46,8 @@ jobInvoicesRouter.get(
               include: { receipts: { select: { amount: true, paidAt: true } } },
             },
           },
-        }),
-      );
+        });
+      });
       if (!job) {
         res.status(404).json({ success: false, error: "Job não encontrado" });
         return;

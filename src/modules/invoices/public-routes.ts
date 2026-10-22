@@ -5,6 +5,7 @@ import { lookupPublicAccessToken } from "../../lib/quotes/public-token.js";
 import { prisma } from "../../lib/prisma.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { computeInvoiceMoney, paymentMethodLabel } from "../../lib/invoices/core.js";
+import { Prisma } from "@prisma/client";
 import {
   clientOf,
   contractSummaryOf,
@@ -17,15 +18,34 @@ import {
   resolvedInvoiceLines,
   servicesTotalOf,
 } from "../../lib/invoices/service.js";
+import { quoteContractTotal } from "../../lib/quotes/discount.js";
+import { ensureQuoteDiscountOnJob } from "../../lib/work-orders/from-quote.js";
 
 export const publicInvoicesRouter = Router();
 
 async function loadPublicInvoice(token: string) {
   const ref = await lookupPublicAccessToken(token);
   if (!ref || ref.entityType !== "invoice") return null;
-  const invoice = await withTenantTransaction(ref.organizationId, (tx) =>
-    tx.quoteInvoice.findFirst({ where: { id: ref.entityId }, include: invoiceDetailInclude }),
-  );
+  const invoice = await withTenantTransaction(ref.organizationId, async (tx) => {
+    const inv = await tx.quoteInvoice.findFirst({ where: { id: ref.entityId }, include: invoiceDetailInclude });
+    if (!inv) return null;
+    let changed = false;
+    if (inv.workOrderId) {
+      changed = await ensureQuoteDiscountOnJob(tx, inv.organizationId, inv.workOrderId);
+    }
+    if (inv.quote && !["void", "paid", "partially_paid"].includes(inv.status) && inv.receipts.length === 0) {
+      const net = quoteContractTotal(inv.quote);
+      if (net > 0 && Number(inv.amount) > net + 0.009) {
+        await tx.quoteInvoice.update({
+          where: { id: inv.id },
+          data: { amount: new Prisma.Decimal(net.toFixed(2)) },
+        });
+        changed = true;
+      }
+    }
+    if (!changed) return inv;
+    return tx.quoteInvoice.findFirst({ where: { id: ref.entityId }, include: invoiceDetailInclude });
+  });
   const organization = await prisma.organization.findUnique({ where: { id: ref.organizationId } });
   if (!invoice || invoice.status === "void" || invoice.status === "draft" || !organization) return null;
   return { ref, invoice, organization };
