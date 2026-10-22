@@ -28,7 +28,7 @@
     catalog: '/api/mate-ai/catalog',
     convs: '/api/mate-ai/conversations',
   };
-  var officePage = /\/escritorio-ia\.html$/i.test(location.pathname);
+  var officePage = /\/escritorio-ia(\.html)?$/i.test(location.pathname);
   var requestedAgent = new URLSearchParams(location.search).get('agent') || (officePage ? 'mate' : '');
   var agentKey = /^[a-z0-9_-]{1,60}$/i.test(requestedAgent) ? requestedAgent.toLowerCase() : '';
   var agentMode = Boolean(agentKey && document.getElementById('mateAiInline'));
@@ -458,7 +458,7 @@
     var narrow = window.matchMedia ? window.matchMedia('(max-width: 719px)') : null;
     function set() {
       if (actionable()) return;
-      if (agentMode && agentProfile) inputEl.placeholder = 'Peça uma tarefa para ' + agentProfile.name + '…';
+      if (agentMode && agentProfile) inputEl.placeholder = 'Fale com ' + agentProfile.name + '…';
       else inputEl.placeholder = narrow && narrow.matches ? 'Peça ao Mate…' : 'Peça ao Mate… ex.: quote pro John, 1350 pés de madeira';
     }
     set();
@@ -539,8 +539,8 @@
       document.title = name + ' | Escritório ObraMate';
       var label = panel.querySelector('.mate-sr');
       if (label) label.textContent = 'Pedido para ' + name;
-      inputEl.placeholder = 'Peça uma tarefa para ' + name + '…';
-      headSubEl.textContent = title + ' · revisão antes de executar';
+      inputEl.placeholder = 'Fale com ' + name + '…';
+      headSubEl.textContent = title + ' · pode falar do seu jeito';
       panel.setAttribute('aria-label', 'Conversa com ' + name);
       try { window.dispatchEvent(new CustomEvent('mate:agent-profile', { detail: { agent: agentProfile } })); } catch (_) {}
     } catch (_) {
@@ -822,7 +822,10 @@
       return html;
     }
     if (agentMode) {
-      html += '<h3>Experimente</h3><div class="mate-rows">';
+      var first = String(agentProfile.title || '').toLowerCase();
+      html += '<div class="mate-agent-hello"><strong>' + esc(agentProfile.name) + '</strong><p>Oi! Aqui é ' + esc(agentProfile.name) + (first ? ', ' + esc(first) : '') + '. Pode falar comigo do seu jeito: um pedido, uma pergunta ou só um oi.</p></div>';
+      examples = ['Tudo bem por aí?', 'O que tem na sua mesa hoje?'].concat(examples).slice(0, 6);
+      html += '<h3>Puxe assunto</h3><div class="mate-rows">';
       examples.forEach(function (t) {
         html += '<button type="button" class="mate-row mate-row--example" data-mate="say" data-nav data-text="' + esc(t) + '"><span class="mate-row__body">' + esc(t) + '</span><span class="mate-row__go" aria-hidden="true">↵</span></button>';
       });
@@ -1073,7 +1076,7 @@
     inputEl.placeholder = a
       ? 'Ou diga outra coisa…'
       : agentMode && agentProfile
-        ? 'Peça uma tarefa para ' + agentProfile.name + '…'
+        ? 'Fale com ' + agentProfile.name + '…'
         : isPhone()
           ? 'Peça ao Mate…'
           : 'Peça ao Mate… ex.: quote pro John, 1350 pés de madeira';

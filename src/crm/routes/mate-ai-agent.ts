@@ -14,7 +14,7 @@ import { recordActivity, type ActivityEntityType } from "../../lib/activity/reco
 import { isAiConfigured } from "../../lib/ai/client.js";
 import { normalizeMateAiUnit } from "../../lib/mate-ai/command.js";
 import { mateAiPlanSchema, todayInTimezone } from "../../lib/mate-ai/interpret.js";
-import { applyPatch, canUse, getAction, listActions, memorySchema, pendingSchema, pickAction, registerAction, type ScreenSummary } from "../../lib/mate-ai/agent.js";
+import { applyPatch, canUse, getAction, listActions, memorySchema, pendingSchema, pickAction, registerAction, type AgentPersona, type ScreenSummary } from "../../lib/mate-ai/agent.js";
 import { runLookup } from "../../lib/mate-ai/lookups.js";
 import { setPrice } from "../../lib/mate-ai/actions/pricing.js";
 import { aiChatTurn, aiProviderHost, getLastAiError } from "../../lib/ai/client.js";
@@ -527,6 +527,48 @@ const AGENT_ACTIONS: Record<string, readonly string[]> = {
   "payments.manage": ["payment.record", "receipt.send"],
 };
 
+const DEPARTMENT_LABELS: Record<string, string> = { central: "Coordenação", commercial: "Comercial", operations: "Operações", finance: "Financeiro" };
+/** Which office department each suggestion belongs to (same split as the office page). */
+const SUGGESTION_DEPARTMENTS: Record<string, string> = {
+  "quote.send": "commercial",
+  "quotes.followup": "commercial",
+  "job.create": "operations",
+  "invoices.overdue": "finance",
+  "jobs.uninvoiced": "finance",
+};
+
+/** The employee's voice: who they are, their colleagues and what is on their desk now. */
+async function agentPersona(
+  req: AuthedRequest,
+  agent: { key: string; name: string; title: string; department: string; description: string },
+): Promise<AgentPersona> {
+  const organizationId = req.organizationId!;
+  const [org, team, suggestions] = await Promise.all([
+    withTenantTransaction(organizationId, (tx) => tx.organization.findFirst({ where: { id: organizationId }, select: { name: true } })),
+    withTenantTransaction(organizationId, (tx) =>
+      tx.virtualAgent.findMany({ where: { organizationId, enabled: true }, select: { key: true, name: true, title: true, department: true } }),
+    ),
+    officeSuggestions(req).catch(() => [] as Suggestion[]),
+  ]);
+  const manager = agent.department === "central";
+  const mine = suggestions.filter((item) => manager || SUGGESTION_DEPARTMENTS[item.run.action] === agent.department);
+  return {
+    name: agent.name,
+    title: agent.title,
+    department: DEPARTMENT_LABELS[agent.department] || agent.department,
+    description: agent.description,
+    manager,
+    company: org?.name || undefined,
+    colleagues: team
+      .filter((member) => member.key !== agent.key)
+      .map((member) => `${member.name} (${member.title}, ${DEPARTMENT_LABELS[member.department] || member.department})`),
+    desk: mine.slice(0, 5).map((item) => {
+      const owner = manager ? DEPARTMENT_LABELS[SUGGESTION_DEPARTMENTS[item.run.action] || "central"] : "";
+      return `${owner ? `[${owner}] ` : ""}${item.title}${item.detail ? ` (${item.detail})` : ""}`;
+    }),
+  };
+}
+
 function agentCanUseAction(capabilities: unknown, action: string): boolean {
   if (!Array.isArray(capabilities)) return false;
   return capabilities.some((capability) =>
@@ -556,7 +598,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
       ? await withTenantTransaction(organizationId, (tx) =>
           tx.virtualAgent.findFirst({
             where: { organizationId, key: agentKey, enabled: true },
-            select: { key: true, name: true, capabilities: true },
+            select: { key: true, name: true, title: true, department: true, description: true, capabilities: true },
           }),
         )
       : null;
@@ -567,10 +609,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
     const timezone = await orgTimezone(organizationId);
     const today = todayInTimezone(timezone).date;
     const allowed = listActions().filter((a) => canUse(a, user) && (!agent || agentCanUseAction(agent.capabilities, a.name)));
-    if (body.data.text && agent && allowed.length === 0) {
-      res.json({ success: true, type: "reply", message: `${agent.name} ainda não tem ações disponíveis para sua conta. Peça ao administrador para revisar as capacidades do perfil e as permissões do CRM.` });
-      return;
-    }
+    const persona = agent && body.data.text ? await agentPersona(req, agent) : undefined;
     let screen: ScreenContext = body.data.screen ?? null;
 
     let action = body.data.action || "";
@@ -608,6 +647,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
         memory: body.data.memory || [],
         pending,
         userName: user.name || undefined,
+        persona,
         lookup: (name, a) =>
           withTenantTransaction(organizationId, (tx) => runLookup({ tx, timezone, catalog: prepared.catalog }, name, a)),
       });
@@ -835,8 +875,8 @@ mateAiAgentRouter.post("/api/mate-ai/undo", requireCrmAuth, async (req: AuthedRe
 
 type Suggestion = { id: string; tone: "accent" | "warning" | "critical" | "neutral"; title: string; detail?: string; run: { label: string; action: string; args: Record<string, unknown> } };
 
-mateAiAgentRouter.get("/api/mate-ai/suggestions", requireCrmAuth, async (req: AuthedRequest, res, next) => {
-  try {
+/** Proactive cards (Início, panel, office desks). Only what this user may act on. */
+async function officeSuggestions(req: AuthedRequest): Promise<Suggestion[]> {
     const user = req.user!;
     const organizationId = req.organizationId!;
     const timezone = await orgTimezone(organizationId);
@@ -904,6 +944,12 @@ mateAiAgentRouter.get("/api/mate-ai/suggestions", requireCrmAuth, async (req: Au
       }
       return out;
     });
+    return suggestions;
+}
+
+mateAiAgentRouter.get("/api/mate-ai/suggestions", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const suggestions = await officeSuggestions(req);
     res.json({ success: true, data: suggestions });
   } catch (error) {
     next(error);
