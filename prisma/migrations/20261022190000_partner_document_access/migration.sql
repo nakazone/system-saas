@@ -1,0 +1,8 @@
+ALTER TABLE "WorkOrder"
+  ADD COLUMN IF NOT EXISTS "deliveryAttachmentSharedWithPartners" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE "JobMedia"
+  ADD COLUMN IF NOT EXISTS "sharedWithPartners" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE "JobReport"
+  ADD COLUMN IF NOT EXISTS "sharedWithPartners" BOOLEAN NOT NULL DEFAULT false;

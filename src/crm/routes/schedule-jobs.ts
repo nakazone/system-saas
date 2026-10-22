@@ -173,6 +173,7 @@ function mapWorkOrder(wo: {
   deliveryAttachmentUrl?: string | null;
   deliveryAttachmentKey?: string | null;
   deliveryAttachmentName?: string | null;
+  deliveryAttachmentSharedWithPartners?: boolean;
   campoChecklist?: unknown;
   assignedUserId: string | null;
   crewId: string | null;
@@ -251,6 +252,7 @@ function mapWorkOrder(wo: {
           url: wo.deliveryAttachmentUrl,
           name: wo.deliveryAttachmentName || "Anexo",
           key: wo.deliveryAttachmentKey || null,
+          shared_with_partners: Boolean(wo.deliveryAttachmentSharedWithPartners),
         }
       : null,
     /** null = no checklist set for this job (Campo falls back to the default template). */
@@ -1118,15 +1120,19 @@ scheduleJobsRouter.put(
         d.scheduled_start !== undefined &&
         (existing.scheduledStart?.getTime() ?? null) !== (start?.getTime() ?? null);
 
-      const row = await prisma.workOrder.update({
-        where: { id: existing.id },
-        data: {
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const updated = await tx.workOrder.update({
+          where: { id: existing.id },
+          data: {
           ...(d.title !== undefined ? { title: d.title.trim() } : {}),
           ...(d.status !== undefined ? { status: d.status } : {}),
           ...(d.source_type !== undefined ? { sourceType: d.source_type } : {}),
           ...(d.source_name !== undefined ? { sourceName: d.source_name?.trim() || null } : {}),
           ...(d.customer_id !== undefined ? { customerId: d.customer_id || null } : {}),
           ...(d.builder_id !== undefined ? { builderId: d.builder_id || null } : {}),
+          ...(d.builder_id !== undefined && (d.builder_id || null) !== existing.builderId
+            ? { deliveryAttachmentSharedWithPartners: false }
+            : {}),
           ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
           // New address → forget the cached job location (re-geocoded on the next work day).
           ...(d.address !== undefined && (d.address?.trim() || null) !== existing.address
@@ -1142,6 +1148,7 @@ scheduleJobsRouter.put(
                 deliveryAttachmentUrl: null,
                 deliveryAttachmentKey: null,
                 deliveryAttachmentName: null,
+                deliveryAttachmentSharedWithPartners: false,
               }
             : {
                 ...(d.delivery_pickup_address !== undefined
@@ -1149,7 +1156,7 @@ scheduleJobsRouter.put(
                   : {}),
                 ...(d.delivery_notes !== undefined ? { deliveryNotes: d.delivery_notes?.trim() || null } : {}),
                 ...(d.clear_delivery_attachment
-                  ? { deliveryAttachmentUrl: null, deliveryAttachmentKey: null, deliveryAttachmentName: null }
+                  ? { deliveryAttachmentUrl: null, deliveryAttachmentKey: null, deliveryAttachmentName: null, deliveryAttachmentSharedWithPartners: false }
                   : {}),
               }),
           ...(d.campo_checklist !== undefined
@@ -1177,7 +1184,15 @@ scheduleJobsRouter.put(
           ...(scheduleChanged
             ? { startReminderSentAt: null, startNudgeSentAt: null }
             : {}),
-        },
+          },
+        });
+        if (d.builder_id !== undefined && (d.builder_id || null) !== existing.builderId) {
+          await Promise.all([
+            tx.jobMedia.updateMany({ where: { workOrderId: existing.id }, data: { sharedWithPartners: false } }),
+            tx.jobReport.updateMany({ where: { workOrderId: existing.id }, data: { sharedWithPartners: false } }),
+          ]);
+        }
+        return updated;
       });
       await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
       await syncWorkOrderLineItems(req.organizationId!, row.id, d.line_items);
@@ -1291,10 +1306,47 @@ scheduleJobsRouter.post(
           deliveryAttachmentUrl: stored.url,
           deliveryAttachmentKey: stored.key,
           deliveryAttachmentName: fileName || `anexo.${ext}`,
+          deliveryAttachmentSharedWithPartners: false,
         },
         include: woIncludeFor(req.user),
       });
       res.status(201).json({ success: true, data: mapWorkOrder(row) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+scheduleJobsRouter.patch(
+  "/api/work-orders/:id/delivery-attachment/share-with-partner",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const parsed = z.object({ shared_with_partners: z.boolean() }).safeParse(req.body || {});
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "Informe se o arquivo deve ser compartilhado." });
+        return;
+      }
+      const jobId = String(req.params.id);
+      const existing = await prisma.workOrder.findFirst({
+        where: { id: jobId, organizationId: req.organizationId!, status: { not: "canceled" } },
+        select: { id: true, builderId: true, deliveryAttachmentKey: true },
+      });
+      if (!existing) {
+        res.status(404).json({ success: false, error: "Job não encontrado" });
+        return;
+      }
+      if (parsed.data.shared_with_partners && (!existing.builderId || !existing.deliveryAttachmentKey)) {
+        res.status(409).json({ success: false, error: "Vincule um parceiro e anexe um arquivo antes de compartilhar." });
+        return;
+      }
+      const updated = await prisma.workOrder.update({
+        where: { id: existing.id },
+        data: { deliveryAttachmentSharedWithPartners: parsed.data.shared_with_partners },
+        select: { deliveryAttachmentSharedWithPartners: true },
+      });
+      res.json({ success: true, data: { shared_with_partners: updated.deliveryAttachmentSharedWithPartners } });
     } catch (error) {
       next(error);
     }

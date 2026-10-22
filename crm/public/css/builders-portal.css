@@ -1219,6 +1219,13 @@
   color: var(--bp-navy);
   font-family: Poppins, Inter, sans-serif;
 }
+.bp-help {
+  display: block;
+  margin: 6px 0 0 24px;
+  color: var(--bp-muted, #6b7280);
+  font-size: 12px;
+  line-height: 1.5;
+}
 @media (max-width: 900px) {
   .bp-pricing-sims__grid { grid-template-columns: 1fr; }
   .bp-pricing-sim-detail__total { text-align: left; }

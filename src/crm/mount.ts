@@ -77,7 +77,7 @@ function safePublicHtmlPath(urlPath: string): string | null {
  * Pages that are not translated: the builder (partner) portal and the client's quote
  * page stay in English, like every document the client receives.
  */
-const NO_I18N_PAGES = /^(builder-(portal|login|calendar|project|projects|referrals|profile|pricing|messages|gallery|history|estimate-request|estimate-requests|calculator|calculator-share|forgot-password|reset-password|change-password)|quote-public|estimate-view)\.html$/;
+const NO_I18N_PAGES = /^(builder-(portal|login|calendar|project|projects|referrals|profile|pricing|messages|gallery|history|estimate-request|estimate-requests|calculator|calculator-share|forgot-password|reset-password|change-password)|partner-(login|portal)|quote-public|estimate-view)\.html$/;
 
 /** Bump when crm/public/crm-i18n.js changes (the dictionary version is added to it). */
 const I18N_ENGINE_VER = "20261019-e3";

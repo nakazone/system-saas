@@ -23,6 +23,7 @@ export type JobMediaRow = {
   stage?: string | null;
   annotationsJson?: unknown;
   isPublic: boolean;
+  sharedWithPartners?: boolean;
   inPortfolio?: boolean;
   ocrJson?: unknown;
   clientUploadId?: string | null;
@@ -106,6 +107,7 @@ export function mapJobMedia(row: JobMediaRow) {
     stage: row.stage || null,
     annotations: row.annotationsJson ?? null,
     is_public: Boolean(row.isPublic),
+    shared_with_partners: Boolean(row.sharedWithPartners),
     in_portfolio: Boolean(row.inPortfolio),
     ocr: row.ocrJson ?? null,
     client_upload_id: row.clientUploadId || null,

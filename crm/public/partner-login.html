@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f8fa" />
+  <title>Portal do parceiro · ObraMate</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="partner-portal.css?v=20261022-1" />
+</head>
+<body class="partner-auth-page">
+  <main class="partner-auth-card">
+    <a class="partner-brand" href="/" aria-label="ObraMate">
+      <img src="/assets/obramate-logo.png" alt="" width="42" height="42" />
+      <span>ObraMate <small>Portal do parceiro</small></span>
+    </a>
+    <h1>Acompanhe seus projetos</h1>
+    <p class="partner-muted">Entre com o e-mail cadastrado pela empresa que trabalha com você.</p>
+    <form id="partnerLoginForm" class="partner-form">
+      <label for="partnerEmail">E-mail</label>
+      <input id="partnerEmail" name="email" type="email" autocomplete="username" required />
+      <label for="partnerPassword">Senha</label>
+      <input id="partnerPassword" name="password" type="password" autocomplete="current-password" required />
+      <div id="workspaceGroup" class="partner-workspace-field">
+        <label for="workspace">Código da empresa <span>(se solicitado)</span></label>
+        <input id="workspace" name="workspace" autocomplete="organization" placeholder="Ex.: minha-empresa" />
+        <small>Use o código que aparece no endereço do seu espaço ObraMate.</small>
+      </div>
+      <p id="partnerLoginError" class="partner-error" role="alert" hidden></p>
+      <button class="partner-button" id="partnerLoginButton" type="submit">Entrar no portal</button>
+    </form>
+    <p class="partner-footnote">Se você ainda não tem acesso, peça um convite ao contato da sua empresa.</p>
+  </main>
+  <script src="partner-login.js?v=20261022-1" defer></script>
+</body>
+</html>

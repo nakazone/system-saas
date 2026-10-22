@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f8fa" />
+  <title>Portal do parceiro · ObraMate</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="partner-portal.css?v=20261022-2" />
+</head>
+<body class="partner-portal-page">
+  <header class="partner-topbar">
+    <a class="partner-brand" href="partner-portal.html" aria-label="ObraMate">
+      <img src="/assets/obramate-logo.png" alt="" width="38" height="38" />
+      <span>ObraMate <small>Portal do parceiro</small></span>
+    </a>
+    <div class="partner-account">
+      <span id="partnerAccountName">Carregando…</span>
+      <button type="button" class="partner-link-button" id="partnerLogout">Sair</button>
+    </div>
+  </header>
+  <main class="partner-main">
+    <section class="partner-welcome">
+      <p class="partner-eyebrow">Seu espaço de trabalho</p>
+      <h1>Olá, <span id="partnerName">parceiro</span></h1>
+      <p id="partnerCompany" class="partner-muted"></p>
+    </section>
+
+    <section id="changePasswordPanel" class="partner-panel partner-change-password" hidden>
+      <p class="partner-eyebrow">Primeiro acesso</p>
+      <h2>Crie sua senha pessoal</h2>
+      <p class="partner-muted">Por segurança, troque a senha temporária antes de abrir seus projetos.</p>
+      <form id="changePasswordForm" class="partner-form partner-form-inline">
+        <div><label for="newPassword">Nova senha</label><input id="newPassword" type="password" minlength="10" autocomplete="new-password" required /></div>
+        <div><label for="confirmPassword">Confirme a nova senha</label><input id="confirmPassword" type="password" minlength="10" autocomplete="new-password" required /></div>
+        <p id="passwordError" class="partner-error" role="alert" hidden></p>
+        <button class="partner-button" id="changePasswordButton" type="submit">Salvar senha</button>
+      </form>
+    </section>
+
+    <nav id="partnerPortalTabs" class="partner-portal-tabs" role="tablist" aria-label="Navegação do portal" hidden>
+      <button type="button" id="partnerJobsTab" role="tab" aria-selected="true" aria-controls="partnerProjectsSection">Obras</button>
+      <button type="button" id="partnerDocumentsTab" role="tab" aria-selected="false" aria-controls="partnerDocumentsSection" tabindex="-1">Documentos</button>
+    </nav>
+
+    <section id="partnerProjectsSection" role="tabpanel" aria-labelledby="partnerJobsTab" hidden>
+      <div class="partner-section-heading">
+        <div><p class="partner-eyebrow">Atualizações compartilhadas</p><h2>Projetos e jobs</h2></div>
+        <span id="partnerItemCount" class="partner-count"></span>
+      </div>
+      <div id="partnerItems" class="partner-items" aria-live="polite"></div>
+    </section>
+
+    <section id="partnerDocumentsSection" role="tabpanel" aria-labelledby="partnerDocumentsTab" hidden>
+      <div class="partner-section-heading">
+        <div><p class="partner-eyebrow">Arquivos liberados pela equipe</p><h2>Documentos das obras</h2></div>
+        <span id="partnerDocumentCount" class="partner-count"></span>
+      </div>
+      <div class="partner-document-tools">
+        <label class="partner-document-search" for="partnerDocumentSearch">
+          <span>Buscar por obra ou documento</span>
+          <input id="partnerDocumentSearch" type="search" autocomplete="off" placeholder="Ex.: fotos da cozinha, relatório…" />
+        </label>
+        <div id="partnerDocumentFilters" class="partner-document-filters" role="group" aria-label="Filtrar documentos">
+          <button type="button" data-doc-filter="all" aria-pressed="true">Todos</button>
+          <button type="button" data-doc-filter="photo" aria-pressed="false">Fotos e vídeos</button>
+          <button type="button" data-doc-filter="report" aria-pressed="false">Relatórios</button>
+          <button type="button" data-doc-filter="file" aria-pressed="false">Arquivos</button>
+        </div>
+      </div>
+      <div id="partnerDocuments" class="partner-documents" aria-live="polite"></div>
+    </section>
+
+    <p id="partnerPortalError" class="partner-error partner-page-error" role="alert" hidden></p>
+  </main>
+  <script src="partner-portal.js?v=20261022-2" defer></script>
+</body>
+</html>

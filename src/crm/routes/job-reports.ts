@@ -166,6 +166,46 @@ jobReportsRouter.get(
   },
 );
 
+jobReportsRouter.patch(
+  "/api/work-orders/:id/media/:mediaId/partner-share",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const parsed = z.object({ shared_with_partners: z.boolean() }).safeParse(req.body || {});
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "Informe se a foto deve ser compartilhada." });
+        return;
+      }
+      const jobId = String(req.params.id);
+      const mediaId = String(req.params.mediaId);
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const wo = await tx.workOrder.findFirst({
+          where: { id: jobId, builderId: { not: null }, status: { not: "canceled" } },
+          select: { id: true },
+        });
+        if (!wo) throw Object.assign(new Error("Vincule um parceiro ativo a esta obra antes de compartilhar."), { status: 409 });
+        const media = await tx.jobMedia.findFirst({
+          where: { id: mediaId, workOrderId: jobId, deletedAt: null },
+        });
+        if (!media) throw Object.assign(new Error("Arquivo não encontrado"), { status: 404 });
+        return mapJobMedia(await tx.jobMedia.update({
+          where: { id: media.id },
+          data: { sharedWithPartners: parsed.data.shared_with_partners },
+        }));
+      });
+      res.json({ success: true, data });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Erro" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
 function parseDataUrl(dataUrl: string): { contentType: string; body: Buffer } | null {
   const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
   if (!match) return null;
@@ -503,6 +543,7 @@ jobReportsRouter.patch(
                 : undefined,
             isPublic: patch.isPublic,
             status: patch.status,
+            ...(patch.status === "draft" ? { sharedWithPartners: false } : {}),
             publishedAt:
               patch.status === "published"
                 ? new Date()
@@ -519,6 +560,52 @@ jobReportsRouter.patch(
       const err = error as { status?: number; message?: string };
       if (err?.status) {
         res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+jobReportsRouter.patch(
+  "/api/work-orders/:jobId/reports/:reportId/partner-share",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const parsed = z.object({ shared_with_partners: z.boolean() }).safeParse(req.body || {});
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "Informe se o relatório deve ser compartilhado." });
+        return;
+      }
+      const jobId = String(req.params.jobId);
+      const reportId = String(req.params.reportId);
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const job = await tx.workOrder.findFirst({
+          where: { id: jobId, builderId: { not: null }, status: { not: "canceled" } },
+          select: { id: true },
+        });
+        if (!job) throw Object.assign(new Error("Vincule um parceiro ativo a esta obra antes de compartilhar."), { status: 409 });
+        const report = await tx.jobReport.findFirst({
+          where: { id: reportId, workOrderId: jobId },
+          select: { id: true, status: true },
+        });
+        if (!report) throw Object.assign(new Error("Relatório não encontrado"), { status: 404 });
+        if (parsed.data.shared_with_partners && report.status !== "published") {
+          throw Object.assign(new Error("Publique o relatório antes de compartilhar com o parceiro."), { status: 409 });
+        }
+        const updated = await tx.jobReport.update({
+          where: { id: report.id },
+          data: { sharedWithPartners: parsed.data.shared_with_partners },
+          include: { author: { select: { name: true } } },
+        });
+        return mapJobReport(updated);
+      });
+      res.json({ success: true, data });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Erro" });
         return;
       }
       next(error);
