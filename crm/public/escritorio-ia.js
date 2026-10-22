@@ -852,8 +852,24 @@
     const rows = thread.map((message) => {
       const row = makeNode('div', `office-chat__msg office-chat__msg--${message.role}`);
       row.appendChild(makeNode('p', '', message.text));
+      if (message.card) {
+        const card = makeNode('div', 'office-chat__card');
+        if (message.card.title) card.appendChild(makeNode('strong', '', message.card.title));
+        if (message.card.rows.length) {
+          const list = makeNode('ul');
+          message.card.rows.forEach((item) => {
+            const li = makeNode('li');
+            li.appendChild(makeNode('span', '', item.title));
+            if (item.detail) li.appendChild(makeNode('small', '', item.detail));
+            list.appendChild(li);
+          });
+          card.appendChild(list);
+        }
+        if (message.card.more) card.appendChild(makeNode('small', 'office-chat__more', `e mais ${message.card.more}`));
+        row.appendChild(card);
+      }
       if (message.pedido) {
-        const open = makeNode('a', 'office-chat__open', 'Abrir na minha mesa');
+        const open = makeNode('a', 'office-chat__open', message.link || 'Abrir na minha mesa');
         open.href = agentHref(agent, { pedido: message.pedido });
         row.appendChild(open);
       }
@@ -954,6 +970,12 @@
       if (!response.ok || data.success === false) throw new Error(data.error || 'Não consegui responder agora.');
       if (data.type === 'reply') {
         reply.text = String(data.message || 'Certo!');
+      } else if ((data.type === 'answer' || data.read_only) && data.card) {
+        // Questions answered by a read-only lookup show the answer right here.
+        reply.card = summarizeCard(data.card);
+        reply.text = String(data.message || (reply.card.rows.length ? 'Olha o que eu achei:' : 'Não achei nada por aqui.'));
+        reply.pedido = message;
+        reply.link = 'Ver na mesa';
       } else {
         const heading = data.card?.title ? `“${data.card.title}”` : 'isso';
         reply.text = data.type === 'error'
@@ -972,6 +994,20 @@
       renderChat();
     }
     flashBubble(key, reply.text);
+  }
+
+  /** Compact text version of an answer card (lists, fields, totals, tables, notes). */
+  function summarizeCard(card) {
+    const rows = [];
+    (Array.isArray(card?.sections) ? card.sections : []).forEach((section) => {
+      if (section.type === 'list') (section.items || []).forEach((item) => rows.push({ title: String(item.title || ''), detail: [item.detail, item.meta].filter(Boolean).join(' · ') }));
+      else if (section.type === 'fields' || section.type === 'totals') (section.rows || []).forEach((item) => rows.push({ title: String(item.label || ''), detail: String(item.value ?? '') }));
+      else if (section.type === 'table') (section.rows || []).forEach((cells) => rows.push({ title: String(cells[0] || ''), detail: cells.slice(1).filter(Boolean).join(' · ') }));
+      else if (section.type === 'pick') (section.items || []).forEach((item) => rows.push({ title: String(item.title || ''), detail: [item.detail, item.meta].filter(Boolean).join(' · ') }));
+      else if (section.type === 'note' && section.text) rows.push({ title: String(section.text), detail: '' });
+    });
+    const clean = rows.filter((item) => item.title);
+    return { title: String(card?.title || ''), rows: clean.slice(0, 6), more: Math.max(0, clean.length - 6) };
   }
 
   function onChatChip(event) {

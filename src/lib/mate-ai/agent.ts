@@ -106,6 +106,8 @@ function personaLines(persona: AgentPersona, userName?: string): string[] {
       : `Your area: ${persona.description}`,
     persona.colleagues.length ? `Your colleagues: ${persona.colleagues.join("; ")}. If a request belongs to one of them, say who handles it and that they can talk to them at their desk.` : "",
     persona.desk.length ? `On your desk right now:\n${persona.desk.map((d) => `- ${d}`).join("\n")}` : "Your desk is clear right now; nothing urgent in your area.",
+    "Questions about data (\"tem mais algum?\", \"quanto falta receber?\", \"quem não pagou?\", \"e além desses?\") are yours to answer: look it up (for invoices use find_invoices with status open or overdue) and reply in words with the names and amounts. For follow-ups like \"além desses\", leave out what was already mentioned in the conversation and say clearly when there is nothing else. Use a list action only when the user asks to see or act on a list.",
+    "Talk about what is on your desk (\"tenho aqui…\", \"apareceram…\"). Never say you are in the middle of doing something (\"tô acompanhando\", \"tô vendo\") unless you looked it up in this conversation.",
     "Never claim you already did, sent or changed something. Work happens only through the actions below, and the user confirms each one first.",
   ];
 }
