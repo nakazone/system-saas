@@ -104,10 +104,7 @@
   function searchHit(wo) {
     if (!sourceMatches(wo)) return false;
     if (!q) return true;
-    const hay = [wo.title, wo.number != null ? `#${wo.number}` : "", String(wo.number || ""), I().client(wo), wo.address, wo.assigned_user?.name]
-      .join(" ")
-      .toLowerCase();
-    return hay.includes(q);
+    return I().searchText(wo).includes(q);
   }
 
   function sortRows(rows) {
@@ -189,7 +186,7 @@
     const body = `<a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
       <span class="jx-row__b">
         <span class="jx-row__l1"><b>${J.esc(wo.title || `Job para ${J.client(wo)}`)}</b><em>${canBill || canManage ? J.money0(wo.services_total) : ""}</em></span>
-        <span class="jx-row__l2"><span>${J.esc(J.client(wo))}${wo.number != null ? ` · #${J.esc(wo.number)}` : ""}</span>${sub}</span>
+        <span class="jx-row__l2"><span>${J.esc(J.findLine(wo))}</span>${sub}</span>
         <span class="jx-row__l3">${J.progHtml(wo)}<small>${J.esc(J.stageLabel(wo))}</small></span>
       </span>
     </a>`;
@@ -237,7 +234,12 @@
     const rows = visibleRows();
     const host = $("jxRows");
     if (!rows.length) {
-      host.innerHTML = `<p class="jx-empty">${all.length ? "Nenhum job neste filtro." : 'Nenhum job ainda. Crie um orçamento em <a href="quote-builder.html">Quotes</a> e transforme em job.'}</p>`;
+      const empty = q
+        ? `Nenhum job para “${I().esc(q)}”. Busque pelo builder, endereço, número do quote ou cliente.`
+        : all.length
+          ? "Nenhum job neste filtro."
+          : 'Nenhum job ainda. Crie um orçamento em <a href="quote-builder.html">Quotes</a> e transforme em job.';
+      host.innerHTML = `<p class="jx-empty">${empty}</p>`;
       return rows;
     }
     let html = "";
@@ -397,6 +399,8 @@
           <dl class="jx-kv">
             <dt>Start</dt><dd>${J.esc(J.dateRange(wo))}${wo.scheduled_start ? ` · ${new Date(wo.scheduled_start).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</dd>
             <dt>Endereço</dt><dd>${wo.address ? `<a href="${J.esc(maps)}" target="_blank" rel="noopener">${J.esc(wo.address)}</a>` : '<span class="jx-mu">Sem endereço</span>'}</dd>
+            ${wo.quote_number ? `<dt>Quote</dt><dd>${J.esc(wo.quote_number)}</dd>` : ""}
+            ${J.builderName(wo) ? `<dt>Builder</dt><dd>${J.esc(J.builderName(wo))}</dd>` : ""}
           </dl>
         </div>
       </div>
@@ -830,8 +834,14 @@
     if (narrow && id) window.scrollTo(0, 0);
   }
 
+  let loadSeq = 0;
   async function load() {
-    const j = await api("/api/work-orders");
+    const seq = ++loadSeq;
+    const query = q;
+    const params = new URLSearchParams();
+    if (query.length >= 2) params.set("q", query);
+    const j = await api(`/api/work-orders${params.toString() ? `?${params}` : ""}`);
+    if (seq !== loadSeq) return;
     all = j.data || [];
     // Keep detail cache aligned with the list so stage bars follow status changes.
     if (detailWo && selId) {
@@ -922,10 +932,11 @@
     });
     $("jxQ").addEventListener("input", (e) => {
       clearTimeout(e.target._t);
+      q = e.target.value.trim().toLowerCase();
+      render();
       e.target._t = setTimeout(() => {
-        q = e.target.value.trim().toLowerCase();
-        render();
-      }, 150);
+        load().catch((err) => notify(err.message, "error"));
+      }, 250);
     });
     $("jxSource").addEventListener("change", (e) => {
       source = e.target.value === "contractor" ? "builder" : e.target.value;

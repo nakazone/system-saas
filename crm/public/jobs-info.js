@@ -43,6 +43,46 @@
     return wo.builder?.company || wo.builder?.name || wo.source_name || "Sem cliente";
   }
 
+  function builderName(wo) {
+    return String(wo.builder?.company || wo.builder?.name || wo.source_name || "").trim();
+  }
+
+  /** One line that identifies the job: builder, quote number, job number, address. */
+  function findLine(wo) {
+    const who = client(wo);
+    const builder = builderName(wo);
+    const bits = [];
+    if (builder && builder.toLowerCase() !== String(who).toLowerCase()) bits.push(builder);
+    if (who) bits.push(who);
+    if (wo.quote_number) bits.push(wo.quote_number);
+    if (wo.number != null && wo.number !== "") bits.push(`#${wo.number}`);
+    if (wo.address) bits.push(wo.address);
+    return bits.filter(Boolean).join(" · ");
+  }
+
+  function searchText(wo) {
+    return [
+      wo.title,
+      wo.number,
+      wo.number != null ? `#${wo.number}` : "",
+      wo.quote_number,
+      wo.quote_title,
+      wo.address,
+      wo.source_name,
+      wo.notes,
+      client(wo),
+      builderName(wo),
+      wo.builder?.name,
+      wo.customer?.name,
+      wo.customer?.company,
+      wo.customer?.display_name,
+      wo.assigned_user?.name,
+    ]
+      .filter((v) => v != null && String(v).trim())
+      .join(" ")
+      .toLowerCase();
+  }
+
   function isActive(wo) {
     return wo.status === "draft" || wo.status === "scheduled" || wo.status === "in_progress";
   }
@@ -177,7 +217,7 @@
   }
 
   window.JobsInfo = {
-    esc, money, money0, client, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
+    esc, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
     statusForStep, atStatus, stageLabel, progHtml, bill, dateRange, dayShort, isToday, initials, team,
   };
 })();
