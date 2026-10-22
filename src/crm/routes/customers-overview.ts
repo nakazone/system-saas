@@ -347,7 +347,7 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
       const c = data.customers[0];
       if (!c) return null;
       const referredById = (c as { referredByCustomerId?: string | null }).referredByCustomerId ?? null;
-      const [properties, lead, referrer, referredCount, cashbackBalance, org] = await Promise.all([
+      const [properties, lead, referrer, referredCount, cashbackBalance, org, partnerUser] = await Promise.all([
         tx.property.findMany({ where: { customerId: id }, orderBy: { createdAt: "asc" } }),
         c.leadId
           ? tx.lead.findFirst({
@@ -367,18 +367,25 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
           where: { id: req.organizationId! },
           select: { referralSettings: true, slug: true, name: true },
         }),
+        normType(c.customerType) === "builder"
+          ? tx.partnerUser.findFirst({
+              where: { customerId: id },
+              orderBy: { createdAt: "asc" },
+              select: { status: true, email: true, lastLoginAt: true },
+            })
+          : null,
       ]);
       let referralCode = (c as { referralCode?: string | null }).referralCode || null;
       if (normType(c.customerType) === "particular" && !referralCode) {
         referralCode = await ensureReferralCode(tx, req.organizationId!, c.id, c.name);
       }
-      return { data, c, properties, lead, referrer, referredCount, cashbackBalance, org, referralCode };
+      return { data, c, properties, lead, referrer, referredCount, cashbackBalance, org, partnerUser, referralCode };
     });
     if (!result) {
       res.status(404).json({ success: false, error: "Cliente não encontrado" });
       return;
     }
-    const { data, c, properties, lead, referrer, referredCount, cashbackBalance, org, referralCode } = result;
+    const { data, c, properties, lead, referrer, referredCount, cashbackBalance, org, partnerUser, referralCode } = result;
     const stats = statsFor(data, showMoney).get(c.id) || null;
     const m = (n: number) => (showMoney ? round(n) : null);
 
@@ -499,6 +506,16 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
       success: true,
       data: {
         customer: { ...baseCustomer(c), referral_code: referralCode },
+        partner_access:
+          normType(c.customerType) === "builder"
+            ? {
+                status: partnerUser?.status || "none",
+                enabled: partnerUser?.status === "active",
+                email: partnerUser?.email || c.email,
+                last_login_at: partnerUser?.lastLoginAt || null,
+                login_url: `${publicBaseUrl(req).replace(/\/$/, "")}/partner-login.html${org?.slug ? `?workspace=${encodeURIComponent(org.slug)}` : ""}`,
+              }
+            : null,
         stats,
         lead: lead ? { id: lead.id, name: lead.name, status: lead.status, stage: lead.pipelineStage?.name ?? null } : null,
         jobs,

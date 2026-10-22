@@ -99,6 +99,9 @@
   function isOrg(t) {
     return t === "builder" || t === "loja";
   }
+  function isPartnerCustomer(t) {
+    return t === "builder" || t === "contractor";
+  }
   function phoneDigits(p) {
     let d = String(p || "").replace(/\D/g, "");
     if (d.length === 10) d = "1" + d;
@@ -407,6 +410,19 @@
     }
     const contact = `<section class="cx-box"><h3>Contato${canEdit ? '<button type="button" class="cx-lnk" data-edit>Editar</button>' : ""}</h3>
       <dl class="cx-kv">${kv.map(([k, v, raw]) => `<dt>${k}</dt><dd>${raw ? v : esc(v)}</dd>`).join("")}</dl></section>`;
+    const partner = detail.partner_access || {};
+    const partnerStatus = partner.status === "active" ? "Ativo" : partner.status === "suspended" ? "Suspenso" : "Sem acesso";
+    const partnerAccessBox = isPartnerCustomer(c.customer_type)
+      ? `<section class="cx-box"><h3>Portal do parceiro</h3>
+          <dl class="cx-kv"><dt>Acesso</dt><dd>${partnerStatus}</dd><dt>Login</dt><dd>${esc(partner.email || c.email || "—")}</dd>${partner.last_login_at ? `<dt>Último acesso</dt><dd>${esc(ago(partner.last_login_at) || new Date(partner.last_login_at).toLocaleDateString("pt-BR"))}</dd>` : ""}</dl>
+          <p class="cx-hint">O parceiro verá as obras vinculadas a este cliente e apenas os documentos liberados pela equipe.</p>
+          ${canEdit ? `<div class="cx-acts" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.65rem">
+            <a class="cx-btn" href="${esc(partner.login_url || "/partner-login.html")}" target="_blank" rel="noopener">Abrir login</a>
+            <button type="button" class="cx-btn cx-btn--pri" data-partner-access="${partner.enabled ? "disable" : "enable"}" ${!c.email ? "disabled title=\"Adicione um e-mail ao cadastro para liberar o portal\"" : ""}>${partner.enabled ? "Suspender acesso" : partner.status === "suspended" ? "Reativar acesso" : "Liberar acesso"}</button>
+            ${partner.enabled ? `<button type="button" class="cx-btn" data-partner-access="reset">Redefinir senha</button>` : ""}
+          </div>` : ""}
+        </section>`
+      : "";
     const prices = `<section class="cx-box"><h3>Preços${canEdit ? '<button type="button" class="cx-lnk" data-prices>Editar preços</button>' : ""}</h3>
       <div class="cx-prc">${ic("tag", 16)}<div><b>${c.pricing_mode === "custom" ? "Só deste cliente" : "Tabela de Valores"}</b><small>${
         c.pricing_mode === "custom"
@@ -481,7 +497,7 @@
 
     host.innerHTML = `<article class="cx-page">${head}
       <div class="cx-cols">
-        <div class="cx-col cx-col--info">${contact}${prices}${referralBox}${addrBox}${notes}${origin}</div>
+        <div class="cx-col cx-col--info">${contact}${partnerAccessBox}${prices}${referralBox}${addrBox}${notes}${origin}</div>
         <div class="cx-col">${jobs}${quotes}</div>
         <div class="cx-col">${invoices}${activity}</div>
       </div>
@@ -913,6 +929,37 @@
     location.href = "quote-builder.html";
   }
 
+  async function changePartnerAccess(button) {
+    if (!detail) return;
+    const customerId = detail.customer.id;
+    const action = button.getAttribute("data-partner-access");
+    if (action === "disable" && !confirm("Suspender o acesso ao portal para este parceiro?")) return;
+    if (action === "reset" && !confirm("Gerar uma nova senha temporária? O parceiro precisará trocá-la ao entrar.")) return;
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Salvando…";
+    try {
+      const response = await api(`/api/customers/${encodeURIComponent(customerId)}/partner-access`, {
+        method: "PUT",
+        body: JSON.stringify({ enabled: action !== "disable", reset_password: action === "reset" }),
+      });
+      const password = response.data?.temp_password;
+      if (password) {
+        const loginUrl = detail.partner_access?.login_url || `${location.origin}/partner-login.html`;
+        const message = `Acesso pronto. Login: ${loginUrl} · Senha temporária: ${password}. Repasse ao parceiro; ele trocará a senha ao entrar.`;
+        if (window.crmToast?.show) window.crmToast.show(message, { type: "success", durationMs: 16000 });
+        else notify(message, "success");
+      } else {
+        notify(action === "disable" ? "Acesso ao portal suspenso." : "Acesso ao portal atualizado.", "success");
+      }
+      await openDetail(customerId, { keepUrl: true });
+    } catch (error) {
+      notify(error.message || "Não foi possível atualizar o acesso ao portal.", "error");
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
+
   // ---------------------------------------------------------------- events
   function bind() {
     $("cxChips").addEventListener("click", (e) => {
@@ -961,6 +1008,11 @@
       }
       if (e.target.closest("[data-edit]")) {
         if (detail) openForm(detail.customer.id);
+        return;
+      }
+      const partnerAccessButton = e.target.closest("[data-partner-access]");
+      if (partnerAccessButton) {
+        void changePartnerAccess(partnerAccessButton);
         return;
       }
       if (e.target.closest("[data-copy-ref]")) {

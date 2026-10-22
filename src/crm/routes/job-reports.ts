@@ -181,10 +181,14 @@ jobReportsRouter.patch(
       const mediaId = String(req.params.mediaId);
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const wo = await tx.workOrder.findFirst({
-          where: { id: jobId, builderId: { not: null }, status: { not: "canceled" } },
-          select: { id: true },
+          where: { id: jobId, status: { not: "canceled" } },
+          select: { id: true, builderId: true, customer: { select: { customerType: true } } },
         });
-        if (!wo) throw Object.assign(new Error("Vincule um parceiro ativo a esta obra antes de compartilhar."), { status: 409 });
+        const customerType = String(wo?.customer?.customerType || "").toLowerCase();
+        if (!wo) throw Object.assign(new Error("Obra não encontrada."), { status: 404 });
+        if (parsed.data.shared_with_partners && !wo.builderId && !["builder", "contractor"].includes(customerType)) {
+          throw Object.assign(new Error("Vincule um parceiro ativo a esta obra antes de compartilhar."), { status: 409 });
+        }
         const media = await tx.jobMedia.findFirst({
           where: { id: mediaId, workOrderId: jobId, deletedAt: null },
         });
@@ -582,10 +586,14 @@ jobReportsRouter.patch(
       const reportId = String(req.params.reportId);
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const job = await tx.workOrder.findFirst({
-          where: { id: jobId, builderId: { not: null }, status: { not: "canceled" } },
-          select: { id: true },
+          where: { id: jobId, status: { not: "canceled" } },
+          select: { id: true, builderId: true, customer: { select: { customerType: true } } },
         });
-        if (!job) throw Object.assign(new Error("Vincule um parceiro ativo a esta obra antes de compartilhar."), { status: 409 });
+        const customerType = String(job?.customer?.customerType || "").toLowerCase();
+        if (!job) throw Object.assign(new Error("Obra não encontrada."), { status: 404 });
+        if (parsed.data.shared_with_partners && !job.builderId && !["builder", "contractor"].includes(customerType)) {
+          throw Object.assign(new Error("Vincule um parceiro ativo a esta obra antes de compartilhar."), { status: 409 });
+        }
         const report = await tx.jobReport.findFirst({
           where: { id: reportId, workOrderId: jobId },
           select: { id: true, status: true },

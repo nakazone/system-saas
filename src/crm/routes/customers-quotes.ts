@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { discountFieldsFromBody, readQuoteDiscount } from "../../lib/quotes/discount.js";
 import { z } from "zod";
 import { randomBytes } from "node:crypto";
+import { hashPassword } from "../../lib/auth/password.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../http.js";
@@ -1041,6 +1042,96 @@ customersQuotesRouter.get("/api/customers/by-lead/:leadId", requireCrmAuth, asyn
   }
 });
 
+customersQuotesRouter.put(
+  "/api/customers/:id/partner-access",
+  requireCrmAuth,
+  requireCrmPermission("customers.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const parsed = z
+        .object({ enabled: z.boolean(), reset_password: z.boolean().optional() })
+        .safeParse(req.body || {});
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "Informe se o acesso ao portal deve ficar ativo." });
+        return;
+      }
+      const customerId = String(req.params.id);
+      const enabled = parsed.data.enabled;
+      const resetPassword = enabled && parsed.data.reset_password === true;
+      const tempPassword = enabled ? randomBytes(12).toString("base64url") : null;
+      const passwordHash = tempPassword ? await hashPassword(tempPassword) : null;
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const customer = await tx.customer.findFirst({ where: { id: customerId } });
+        if (!customer) return { kind: "missing" as const };
+        if (!["builder", "contractor"].includes(customer.customerType.toLowerCase())) {
+          return { kind: "wrong_type" as const };
+        }
+        const linked = await tx.partnerUser.findMany({
+          where: { customerId },
+          orderBy: { createdAt: "asc" },
+          select: { id: true },
+        });
+        if (!enabled) {
+          await tx.partnerUser.updateMany({ where: { customerId }, data: { status: "suspended" } });
+          return { kind: "updated" as const, enabled: false, password: null };
+        }
+        const email = customer.email?.trim().toLowerCase();
+        if (!email) return { kind: "email_required" as const };
+        if (linked.length) {
+          if (resetPassword && passwordHash) {
+            await tx.partnerUser.updateMany({ where: { customerId }, data: { status: "active" } });
+            await tx.partnerUser.update({
+              where: { id: linked[0].id },
+              data: { email, passwordHash, mustChangePassword: true },
+            });
+          } else {
+            await tx.partnerUser.updateMany({ where: { customerId }, data: { status: "active" } });
+          }
+          return { kind: "updated" as const, enabled: true, password: resetPassword ? tempPassword : null };
+        }
+        const duplicate = await tx.partnerUser.findFirst({
+          where: { email: { equals: email, mode: "insensitive" } },
+          select: { id: true },
+        });
+        if (duplicate) return { kind: "email_conflict" as const };
+        if (!tempPassword || !passwordHash) return { kind: "email_required" as const };
+        await tx.partnerUser.create({
+          data: {
+            organizationId: req.organizationId!,
+            customerId,
+            email,
+            passwordHash,
+            name: customer.contactName?.trim() || customer.name,
+            companyName: customer.company || customer.name,
+            status: "active",
+            mustChangePassword: true,
+          },
+        });
+        return { kind: "updated" as const, enabled: true, password: tempPassword };
+      });
+      if (result.kind === "missing") {
+        res.status(404).json({ success: false, error: "Cliente não encontrado." });
+        return;
+      }
+      if (result.kind === "wrong_type") {
+        res.status(409).json({ success: false, error: "O portal está disponível para clientes do tipo Builder/Contractor." });
+        return;
+      }
+      if (result.kind === "email_required") {
+        res.status(400).json({ success: false, error: "Adicione um e-mail ao cadastro do cliente antes de liberar o portal." });
+        return;
+      }
+      if (result.kind === "email_conflict") {
+        res.status(409).json({ success: false, error: "Este e-mail já está vinculado a outra conta de parceiro." });
+        return;
+      }
+      res.json({ success: true, data: { enabled: result.enabled, ...(result.password ? { temp_password: result.password } : {}) } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 customersQuotesRouter.post(
   "/api/customers",
   requireCrmAuth,
@@ -1222,11 +1313,27 @@ customersQuotesRouter.put(
           return;
         }
       }
-      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const outcome = await withTenantTransaction(req.organizationId!, async (tx) => {
         const existing = await tx.customer.findFirst({ where: { id } });
-        if (!existing) return null;
+        if (!existing) return { kind: "missing" as const };
         const nextType =
           body.customer_type !== undefined ? normalizeCustomerType(body.customer_type) : existing.customerType;
+        const partnerUsers = await tx.partnerUser.findMany({
+          where: { customerId: id },
+          orderBy: { createdAt: "asc" },
+          select: { id: true },
+        });
+        const nextEmail = body.email !== undefined ? String(body.email || "").trim().toLowerCase() || null : existing.email;
+        if (partnerUsers.length && nextEmail) {
+          const duplicate = await tx.partnerUser.findFirst({
+            where: {
+              email: { equals: nextEmail, mode: "insensitive" },
+              id: { notIn: partnerUsers.map((user) => user.id) },
+            },
+            select: { id: true },
+          });
+          if (duplicate) return { kind: "partner_email_conflict" as const };
+        }
         const isOrgType = nextType === "builder";
         const dumpsterTouched =
           body.dumpster_status !== undefined || body.dumpster_notes !== undefined || body.customer_type !== undefined;
@@ -1242,7 +1349,7 @@ customersQuotesRouter.put(
           : body.storage_status !== undefined
             ? normalizeYnStatus(body.storage_status) || "unknown"
             : normalizeYnStatus(existing.storageStatus) || "unknown";
-        return tx.customer.update({
+        const row = await tx.customer.update({
           where: { id },
           data: {
             name: body.name !== undefined ? formatCustomerName(String(body.name), nextType) : undefined,
@@ -1284,12 +1391,33 @@ customersQuotesRouter.put(
             referredByCustomerId,
           },
         });
+        if (partnerUsers.length) {
+          if (!isOrgType) {
+            await tx.partnerUser.updateMany({ where: { customerId: id }, data: { status: "suspended" } });
+          } else if (nextEmail) {
+            await tx.partnerUser.updateMany({
+              where: { customerId: id },
+              data: {
+                email: nextEmail,
+                name: row.contactName?.trim() || row.name,
+                companyName: row.company || row.name,
+              },
+            });
+          } else {
+            await tx.partnerUser.updateMany({ where: { customerId: id }, data: { status: "suspended" } });
+          }
+        }
+        return { kind: "updated" as const, row };
       });
-      if (!row) {
+      if (outcome.kind === "missing") {
         res.status(404).json({ success: false, error: "Customer not found" });
         return;
       }
-      res.json({ success: true, data: mapCustomer(row), message: "Client updated" });
+      if (outcome.kind === "partner_email_conflict") {
+        res.status(409).json({ success: false, error: "Este e-mail já está vinculado a outra conta de parceiro." });
+        return;
+      }
+      res.json({ success: true, data: mapCustomer(outcome.row), message: "Client updated" });
     } catch (error) {
       next(error);
     }
