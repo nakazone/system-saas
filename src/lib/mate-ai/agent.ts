@@ -78,6 +78,52 @@ function argLines(def: ActionDef): string {
     .join("\n");
 }
 
+/** A named office employee answering in their own voice (virtual office). */
+export type AgentPersona = {
+  name: string;
+  title: string;
+  department: string;
+  description: string;
+  /** The general manager (the Mate) knows the whole office. */
+  manager: boolean;
+  company?: string;
+  /** "Lara (Assistente comercial, Comercial)". */
+  colleagues: string[];
+  /** What is on this employee's desk right now, from the office suggestions. */
+  desk: string[];
+};
+
+function personaLines(persona: AgentPersona, userName?: string): string[] {
+  const first = (userName || "").trim().split(/\s+/)[0] || "";
+  return [
+    `You are ${persona.name}, ${persona.title} (${persona.department}) on the team of ${persona.company || "this company"}, inside ObraMate's virtual office. ObraMate is a CRM for flooring installation companies in the USA.`,
+    "You are an AI assistant with a name and a face. If someone asks whether you are a real person, say plainly that you are the company's AI assistant.",
+    `Talk like a friendly coworker at the next desk: casual, warm and natural, first person, 1–3 short sentences, no lists unless asked, no emojis.${first ? ` The user is ${first}; use the name now and then.` : ""}`,
+    "Answer in the user's language. In Portuguese use everyday Brazilian Portuguese (\"oi\", \"tudo certo\", \"pode deixar\", \"bora\").",
+    "Small talk is welcome — greetings, \"tudo bem?\", thanks, \"como tá o dia?\", a joke, \"bom trabalho\": answer in character with a reply. When it fits, mention ONE concrete thing from your desk and offer to take care of it.",
+    persona.manager
+      ? "You are the general manager: you coordinate the team, know what is on everyone's desk and can say who should handle what."
+      : `Your area: ${persona.description}`,
+    persona.colleagues.length ? `Your colleagues: ${persona.colleagues.join("; ")}. If a request belongs to one of them, say who handles it and that they can talk to them at their desk.` : "",
+    persona.desk.length ? `On your desk right now:\n${persona.desk.map((d) => `- ${d}`).join("\n")}` : "Your desk is clear right now; nothing urgent in your area.",
+    "Never claim you already did, sent or changed something. Work happens only through the actions below, and the user confirms each one first.",
+  ];
+}
+
+/** Offline (no AI key) small talk in the employee's voice. */
+export function personaLocalReply(text: string, persona: AgentPersona, userName?: string): string | null {
+  const t = text.toLowerCase();
+  const first = (userName || "").trim().split(/\s+/)[0] || "";
+  const hi = first ? `Oi, ${first}!` : "Oi!";
+  const deskLine = persona.desk.length ? ` Por aqui tem ${persona.desk[0].replace(/\.$/, "")}. Quer que eu cuide disso?` : " Por aqui está tudo em dia.";
+  if (/^(oi|ol[aá]|e a[ií]|opa|bom dia|boa tarde|boa noite|hey|hi|hello|fala)\b/.test(t) || /tudo (bem|certo|bom)|como (vai|est[aá]|t[aá])/.test(t)) {
+    return `${hi} Tudo certo por aqui.${deskLine}`;
+  }
+  if (/obrigad|valeu|thanks|brigad/.test(t)) return `Imagina${first ? `, ${first}` : ""}! Qualquer coisa, é só chamar.`;
+  if (/(voc[eê]|vc) [eé] (uma )?(pessoa|humana|real|rob[oô]|ia)/.test(t)) return `Sou assistente de IA da empresa (${persona.title.toLowerCase()}). Mas pode falar comigo como com qualquer colega.`;
+  return null;
+}
+
 export function buildAgentPrompt(p: {
   actions: ActionDef[];
   catalog: MateAiCatalogItem[];
@@ -89,6 +135,7 @@ export function buildAgentPrompt(p: {
   userName?: string;
   pending?: Pending;
   tools?: boolean;
+  persona?: AgentPersona;
 }): string {
   const refs = catalogRefs(p.catalog)
     .map(({ ref, item }) => `${ref} | ${item.name.slice(0, 80)} | ${normalizeMateAiUnit(item.unit) || item.unit}`)
@@ -100,9 +147,11 @@ export function buildAgentPrompt(p: {
     ? p.memory.map((m) => `${m.role === "user" ? "User" : "Mate"}: ${m.text}${m.entity ? ` [${m.entity.type} ${m.entity.id}]` : ""}`).join("\n")
     : "(start of conversation)";
   return [
-    "You are Mate AI, the assistant inside ObraMate, a CRM for flooring installation companies in the USA.",
+    ...(p.persona ? personaLines(p.persona, p.userName) : ["You are Mate AI, the assistant inside ObraMate, a CRM for flooring installation companies in the USA."]),
     "People talk to you by voice or text in Portuguese, English or Spanish, often mixed, with transcription errors.",
-    "Pick exactly ONE action from the list for the user's last message and fill its args from what they said.",
+    p.persona
+      ? "When the user asks for work, pick exactly ONE action from the list and fill its args from what they said; for conversation, reply."
+      : "Pick exactly ONE action from the list for the user's last message and fill its args from what they said.",
     "Never invent prices, IDs, people or amounts. Resolving customers, jobs and prices is done by the system.",
     "",
     `Today is ${p.weekday}, ${p.today} (timezone ${p.timezone}). Resolve relative dates ("sexta", "amanhã", "next week", "dia 30") to YYYY-MM-DD.`,
@@ -141,7 +190,9 @@ export function buildAgentPrompt(p: {
         ]
       : [
           "",
-          "If the message is a greeting, unclear, or not supported, use action \"none\" and write a SHORT reply in the user's language saying what you can do.",
+          p.persona
+            ? "If the message is conversation (greeting, small talk, a question you can answer from your desk) or not supported, use action \"none\" and write the reply in character."
+            : "If the message is a greeting, unclear, or not supported, use action \"none\" and write a SHORT reply in the user's language saying what you can do.",
           'Return ONLY JSON: {"action": "<name>|none", "args": {…}, "reply": string|null}',
         ]),
   ]
@@ -281,6 +332,8 @@ export type AgentCtx = {
   userName?: string;
   /** Runs a read-only lookup tool inside the tenant. */
   lookup?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  /** Set when the user talks to a named office employee. */
+  persona?: AgentPersona;
 };
 
 const MAX_TOOL_ROUNDS = 4;
@@ -344,7 +397,7 @@ function finish(action: string, args: Record<string, unknown>, ctx: AgentCtx, to
 
 /** Conversation with read-only lookups; ends in one proposed action or a reply. */
 async function converseWithTools(text: string, ctx: AgentCtx, today: string, weekday: string, model: string): Promise<AgentPick | { error: string; status?: number }> {
-  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: [], userName: ctx.userName, pending: ctx.pending, tools: true });
+  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: [], userName: ctx.userName, pending: ctx.pending, tools: true, persona: ctx.persona });
   const tools = [...LOOKUP_TOOLS, ...terminalTools(ctx.actions)];
   const messages: AiTurn[] = [{ role: "system", content: system }, ...historyTurns(ctx.memory), { role: "user", content: text }];
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -384,7 +437,7 @@ async function converseWithTools(text: string, ctx: AgentCtx, today: string, wee
 
 /** Older single-shot JSON mode (models/providers without tools). */
 async function pickWithJson(text: string, ctx: AgentCtx, today: string, weekday: string, model: string): Promise<AgentPick | { error: string; status?: number }> {
-  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: ctx.memory, userName: ctx.userName, pending: ctx.pending });
+  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: ctx.memory, userName: ctx.userName, pending: ctx.pending, persona: ctx.persona });
   const ai = await aiChatJson({ system, user: text, timeoutMs: 30_000, model });
   if (!ai.ok) return { error: ai.error, status: ai.status };
   const parsed = pickSchema.safeParse(parseArgs(ai.text));
@@ -446,6 +499,8 @@ async function pickActionRaw(text: string, ctx: AgentCtx): Promise<AgentPick> {
   const quoteEdit = quoteRateFollowUp(text, ctx);
   if (quoteEdit && allowed.has(quoteEdit.action)) return quoteEdit;
   const local = (aiError?: string): AgentPick => {
+    const chat = ctx.persona ? personaLocalReply(text, ctx.persona, ctx.userName) : null;
+    if (chat) return { kind: "reply", reply: chat, source: "rules", aiError };
     const p = pickLocally(text, { today: date, catalog: ctx.catalog, customers: ctx.customers });
     if (p.kind === "action" && !allowed.has(p.action)) return { kind: "reply", reply: "Você não tem permissão para isso.", source: "rules", aiError };
     return { ...p, aiError };

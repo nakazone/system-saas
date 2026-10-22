@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261015-refnav1" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" />
   <link rel="stylesheet" href="mate-panel.css?v=20261022-officechat1" />
-  <link rel="stylesheet" href="escritorio-ia.css?v=20261022-officefloor1" />
+  <link rel="stylesheet" href="escritorio-ia.css?v=20261022-officechat2" />
 </head>
 <body class="dashboard-app-body office-page-body">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -111,7 +111,29 @@
                 <div class="office-plan" id="officePlan" role="group" aria-label="Planta do escritório"></div>
               </div>
               <ul class="office-corridor" id="officeCorridor" aria-label="Salas do escritório"></ul>
-              <p class="office-floor__note">Clique numa pessoa para ir até a mesa dela. Anel laranja: tem próximos passos. Anel grafite: precisa de você.</p>
+              <section class="office-chat" id="officeChat" role="dialog" aria-labelledby="officeChatName" hidden>
+                <header class="office-chat__head">
+                  <span class="office-chat__face" id="officeChatFace" aria-hidden="true"></span>
+                  <span class="office-chat__who">
+                    <strong id="officeChatName">—</strong>
+                    <small><span id="officeChatTitle">—</span> <span class="office-ai-badge" id="officeChatBadge">IA</span></small>
+                  </span>
+                  <a class="office-chat__desk" id="officeChatDesk" href="escritorio-ia.html">Abrir mesa</a>
+                  <button class="office-chat__close" id="officeChatClose" type="button" aria-label="Fechar conversa">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+                  </button>
+                </header>
+                <div class="office-chat__log" id="officeChatLog" aria-live="polite"></div>
+                <div class="office-chat__chips" id="officeChatChips"></div>
+                <form class="office-chat__form" id="officeChatForm" autocomplete="off">
+                  <label class="office-sr-only" for="officeChatInput">Mensagem</label>
+                  <input id="officeChatInput" maxlength="600" placeholder="Fale com…" />
+                  <button type="submit" aria-label="Enviar">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+                  </button>
+                </form>
+              </section>
+              <p class="office-floor__note">Clique em alguém para conversar ali mesmo. Anel laranja: tem próximos passos. Anel grafite: precisa de você.</p>
             </div>
 
             <aside class="office-approvals" id="officeApprovals" aria-labelledby="officeTasksTitle" tabindex="-1">
@@ -225,7 +247,7 @@
 
   <script src="crm-shell.js?v=20261022-inbox1"></script>
   <script src="crm-shared-nav.js?v=20261022-office3"></script>
-  <script src="mate-panel.js?v=20261022-officefloor1"></script>
-  <script src="escritorio-ia.js?v=20261022-officefloor1"></script>
+  <script src="mate-panel.js?v=20261022-officechat2"></script>
+  <script src="escritorio-ia.js?v=20261022-officechat2"></script>
 </body>
 </html>

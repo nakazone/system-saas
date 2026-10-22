@@ -48,16 +48,17 @@
   const FACE_IMAGES = {};
   for (let index = 1; index <= 14; index += 1) FACE_IMAGES[`avatar-${index}`] = `/assets/virtual-office/avatar-${index}.jpg`;
   const MATE_IMAGE = '/assets/img/mascot/mate-thumbs.png';
-  /** Rooms on the floor plan (960 × 520). Department rooms seat that department's employees. */
+  /** Floor plan in plan pixels: two rows of rooms with a corridor between them. */
+  const PLAN = { w: 960, h: 540 };
   const ROOMS = [
-    { id: 'commercial', label: 'Comercial', x: 0, y: 0, w: 330, h: 236 },
-    { id: 'operations', label: 'Operações', x: 340, y: 0, w: 300, h: 236 },
-    { id: 'finance', label: 'Financeiro', x: 650, y: 0, w: 310, h: 236 },
-    { id: 'central', label: 'Sala do Mate', x: 0, y: 246, w: 300, h: 214, glass: true },
-    { id: 'approvals', label: 'Mesa de aprovações', x: 310, y: 246, w: 330, h: 214, glass: true },
-    { id: 'owner', label: 'Sua sala', x: 650, y: 246, w: 310, h: 214 },
+    { id: 'commercial', label: 'Comercial', x: 16, y: 16, w: 300, h: 250, row: 'top' },
+    { id: 'operations', label: 'Operações', x: 330, y: 16, w: 300, h: 250, row: 'top' },
+    { id: 'finance', label: 'Financeiro', x: 644, y: 16, w: 300, h: 250, row: 'top' },
+    { id: 'central', label: 'Sala do Mate', x: 16, y: 300, w: 300, h: 224, row: 'bottom', glass: true },
+    { id: 'approvals', label: 'Mesa de aprovações', x: 330, y: 300, w: 300, h: 224, row: 'bottom', glass: true },
+    { id: 'owner', label: 'Sua sala', x: 644, y: 300, w: 300, h: 224, row: 'bottom' },
   ];
-  const ENTRANCE_POINT = { x: 480, y: 492 };
+  const ENTRANCE_POINT = { x: 36, y: 283 };
   const ENTRANCE_KEY = 'om.office.entrance';
   const query = new URLSearchParams(location.search);
   const requestedAgent = query.get('agent') || 'mate';
@@ -66,6 +67,7 @@
     suggestions: [], agents: [], busy: false, canManage: false, userName: '', userInitial: '', orgName: '',
     activeAgentKey: /^[a-z0-9_-]{1,60}$/i.test(requestedAgent) ? requestedAgent.toLowerCase() : 'mate',
     contextRequest: 0, entityShown: false, meetingShown: 0, meetingTimer: 0, bubbleTick: 0, suggestionRun: false,
+    chatKey: '', chatTyping: false, planScale: 1, pedidoRun: false,
   };
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (selector, root) => (root || document).querySelector(selector);
@@ -489,8 +491,12 @@
     return ROOMS.find((room) => room.id === id) || null;
   }
 
+  /** Doors open onto the corridor between the two rows. */
   function doorPoint(room) {
-    return room ? { x: room.x + room.w / 2, y: room.y + room.h - 26 } : ENTRANCE_POINT;
+    if (!room) return ENTRANCE_POINT;
+    return room.row === 'top'
+      ? { x: room.x + room.w / 2, y: room.y + room.h + 17 }
+      : { x: room.x + room.w / 2, y: room.y - 17 };
   }
 
   function placeMe(point) {
@@ -507,32 +513,79 @@
     window.setTimeout(() => { location.href = href; }, 650);
   }
 
+  function decor(className, x, y, extra) {
+    const node = makeNode('span', `office-decor ${className}`);
+    node.setAttribute('aria-hidden', 'true');
+    node.style.left = `${x}px`;
+    node.style.top = `${y}px`;
+    if (extra) Object.entries(extra).forEach(([key, value]) => { node.style[key] = value; });
+    return node;
+  }
+
+  function hello() {
+    const hour = new Date().getHours();
+    return hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  }
+
   function makeSeat(agent, x, y) {
     const tone = seatTone(agent);
     const seat = makeNode('div', `office-seat office-seat--${tone}${agent.key === state.activeAgentKey ? ' office-seat--active' : ''}`);
+    seat.dataset.agentKey = agent.key;
     seat.style.left = `${x}px`;
     seat.style.top = `${y}px`;
     const lines = bubbleLines(agent);
     const bubble = makeNode('span', 'office-seat__bubble', lines[0]);
     bubble.dataset.lines = lines.join('|');
-    const face = makeNode('a', 'office-seat__face');
-    face.href = agentHref(agent);
-    face.setAttribute('aria-label', `${deskTitle(agent)}, ${agent.title}. ${lines[0]}.`);
+    const chair = makeNode('span', 'office-seat__chair');
+    chair.setAttribute('aria-hidden', 'true');
+    const face = makeNode('button', 'office-seat__face');
+    face.type = 'button';
+    face.dataset.chat = agent.key;
+    face.setAttribute('aria-label', `Conversar com ${agent.name}, ${agent.title}. ${lines[0]}.`);
     face.appendChild(makeFace(agent.avatarKey, agent.key));
     if (agent.key !== 'mate') face.appendChild(makeNode('span', 'office-seat__ai', 'IA'));
-    face.addEventListener('click', (event) => {
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-      event.preventDefault();
-      walkTo(roomById(agent.department), face.href);
-    });
-    const desk = makeNode('span', 'office-seat__desk');
+    const desk = makeNode('span', `office-seat__desk${agent.key === 'mate' ? ' office-seat__desk--wide' : ''}`);
     desk.setAttribute('aria-hidden', 'true');
-    seat.append(bubble, face, desk, makeNode('span', 'office-seat__name', agent.name));
+    desk.append(makeNode('span', 'office-seat__monitor'), makeNode('span', 'office-seat__mug'));
+    const plate = makeNode('span', 'office-seat__plate');
+    plate.append(makeNode('strong', '', agent.name), makeNode('small', '', agent.title));
+    seat.append(bubble, chair, face, desk, plate);
+    seat.addEventListener('mouseenter', () => {
+      if (seat.classList.contains('is-talking')) return;
+      bubble.dataset.saved = bubble.textContent;
+      bubble.textContent = `Oi${state.userName ? `, ${state.userName}` : ''}!`;
+      seat.classList.add('is-greeting');
+    });
+    seat.addEventListener('mouseleave', () => {
+      if (bubble.dataset.saved) bubble.textContent = bubble.dataset.saved;
+      delete bubble.dataset.saved;
+      seat.classList.remove('is-greeting');
+    });
     return seat;
   }
 
+  function emptyDesk(x, y) {
+    const desk = makeNode('div', 'office-seat office-seat--empty');
+    desk.setAttribute('aria-hidden', 'true');
+    desk.style.left = `${x}px`;
+    desk.style.top = `${y}px`;
+    const chair = makeNode('span', 'office-seat__chair');
+    const surface = makeNode('span', 'office-seat__desk');
+    surface.appendChild(makeNode('span', 'office-seat__monitor'));
+    desk.append(chair, surface, makeNode('span', 'office-seat__plate office-seat__plate--empty', 'Mesa livre'));
+    return desk;
+  }
+
+  function roomCount(room) {
+    if (room.id === 'approvals' || room.id === 'owner') return null;
+    const seated = enabledAgents().filter((agent) => agent.department === room.id);
+    const items = room.id === 'central' ? state.suggestions : seated.flatMap((agent) => itemsFor(agent));
+    if (!items.length) return null;
+    return { count: items.length, waiting: room.id !== 'central' && needsYou(items) };
+  }
+
   function makeRoom(room) {
-    const el = makeNode('div', `office-room office-room--${room.id}${room.glass ? ' office-room--glass' : ''}`);
+    const el = makeNode('div', `office-room office-room--${room.id} office-room--${room.row}${room.glass ? ' office-room--glass' : ''}`);
     el.style.left = `${room.x}px`;
     el.style.top = `${room.y}px`;
     el.style.width = `${room.w}px`;
@@ -543,12 +596,21 @@
     hit.type = 'button';
     hit.dataset.room = room.id;
     hit.setAttribute('aria-label', room.id === 'approvals' ? 'Ir para a mesa de aprovações' : `Ir para ${room.label}`);
-    el.append(hit, makeNode('span', 'office-room__label', room.label));
+    const head = makeNode('span', 'office-room__head');
+    head.appendChild(makeNode('span', 'office-room__label', room.label));
+    const count = roomCount(room);
+    if (count) head.appendChild(makeNode('span', `office-room__count${count.waiting ? ' office-room__count--waiting' : ''}`, String(count.count)));
     const door = makeNode('span', 'office-room__door');
     door.setAttribute('aria-hidden', 'true');
-    el.appendChild(door);
+    el.append(hit, head, door);
+    if (room.row === 'top') {
+      const windows = makeNode('span', 'office-room__windows');
+      windows.setAttribute('aria-hidden', 'true');
+      el.appendChild(windows);
+    }
 
     if (room.id === 'approvals') {
+      el.append(decor('office-decor--chair', 46, 102), decor('office-decor--chair', 234, 102), decor('office-decor--chair', 106, 54), decor('office-decor--chair', 174, 54), decor('office-decor--chair', 106, 152), decor('office-decor--chair', 174, 152));
       const table = makeNode('div', 'office-table');
       table.setAttribute('aria-hidden', 'true');
       state.suggestions.slice(0, 5).forEach((item, index) => {
@@ -558,62 +620,81 @@
         if (owner) paper.appendChild(makeFace(owner.avatarKey, owner.key));
         table.appendChild(paper);
       });
-      const count = state.suggestions.length;
-      el.append(table, makeNode('span', `office-table__count${count ? '' : ' office-table__count--clear'}`, count ? plural(count, 'papel esperando você', 'papéis esperando você') : 'Mesa limpa'));
+      const total = state.suggestions.length;
+      el.append(table, makeNode('span', `office-table__count${total ? '' : ' office-table__count--clear'}`, total ? plural(total, 'papel esperando você', 'papéis esperando você') : 'Mesa limpa'));
       return el;
     }
 
     if (room.id === 'owner') {
+      el.append(decor('office-decor--plant', 268, 182), decor('office-decor--shelf', 24, 44));
       const seat = makeNode('div', 'office-seat office-seat--owner');
+      seat.setAttribute('aria-hidden', 'true');
       seat.style.left = `${room.w / 2}px`;
-      seat.style.top = `${room.h * 0.5}px`;
+      seat.style.top = '122px';
+      const chair = makeNode('span', 'office-seat__chair');
       const face = makeNode('span', 'office-seat__face office-seat__face--owner', state.userInitial || '•');
-      face.setAttribute('aria-hidden', 'true');
-      const desk = makeNode('span', 'office-seat__desk');
-      desk.setAttribute('aria-hidden', 'true');
-      seat.append(face, desk, makeNode('span', 'office-seat__name', state.userName || 'Você'));
+      const desk = makeNode('span', 'office-seat__desk office-seat__desk--wide');
+      desk.appendChild(makeNode('span', 'office-seat__monitor'));
+      const plate = makeNode('span', 'office-seat__plate');
+      plate.append(makeNode('strong', '', state.userName || 'Você'), makeNode('small', '', 'Sua mesa'));
+      seat.append(chair, face, desk, plate);
       el.appendChild(seat);
       return el;
     }
 
+    if (room.id === 'central') {
+      el.append(decor('office-decor--rug', 70, 64), decor('office-decor--armchair', 30, 158), decor('office-decor--armchair', 64, 168), decor('office-decor--plant', 266, 182));
+    } else {
+      el.append(decor('office-decor--plant', 266, 214));
+    }
+
     const seated = enabledAgents().filter((agent) => agent.department === room.id);
-    if (!seated.length) {
-      el.appendChild(makeNode('span', 'office-room__empty', 'Sem funcionário neste setor'));
+    if (room.id === 'central') {
+      seated.forEach((agent) => el.appendChild(makeSeat(agent, room.w / 2 + 20, 120)));
+      if (!seated.length) el.appendChild(makeNode('span', 'office-room__empty', 'Sem gerente'));
       return el;
     }
-    seated.forEach((agent, index) => {
-      const x = (room.w * (index + 1)) / (seated.length + 1);
-      el.appendChild(makeSeat(agent, x, room.h * 0.52));
-    });
+    const slots = Math.max(2, seated.length);
+    for (let index = 0; index < slots; index += 1) {
+      const x = (room.w * (index + 1)) / (slots + 1);
+      const agent = seated[index];
+      el.appendChild(agent ? makeSeat(agent, x, 134) : emptyDesk(x, 134));
+    }
     return el;
   }
 
-  /** The plan is drawn at 960 × 520 and scaled down to fit narrower cards. */
+  /** The plan is drawn at its full size and scaled down to fit narrower cards. */
   function fitPlan() {
     const scroll = $('.office-plan-scroll');
     const plan = $('#officePlan');
     if (!scroll || !plan) return;
     const available = scroll.clientWidth - 28;
     if (available <= 0) return;
-    const scale = Math.min(1, available / 960);
+    const scale = Math.min(1, available / PLAN.w);
+    state.planScale = scale;
     plan.style.transform = scale < 1 ? `scale(${scale})` : '';
-    scroll.style.height = `${Math.ceil(520 * scale) + 14}px`;
+    scroll.style.height = `${Math.ceil(PLAN.h * scale) + 14}px`;
+    positionChat();
   }
 
   function renderPlan() {
     const plan = $('#officePlan');
     if (!plan) return;
     plan.replaceChildren(...ROOMS.map(makeRoom));
+    const corridor = makeNode('span', 'office-plan__corridor');
+    corridor.setAttribute('aria-hidden', 'true');
     const entrance = makeNode('span', 'office-plan__entrance', 'ENTRADA');
     entrance.setAttribute('aria-hidden', 'true');
     const me = makeNode('div', 'office-me');
     me.id = 'officeMe';
     me.setAttribute('aria-hidden', 'true');
     me.append(makeNode('span', 'office-me__face', state.userInitial || '•'), makeNode('span', 'office-me__label', 'Você'));
+    plan.prepend(corridor);
     plan.append(entrance, me);
     const entranceOpen = !$('#officeEntrance')?.hidden;
     const active = activeAgent();
     placeMe(entranceOpen || !active ? ENTRANCE_POINT : doorPoint(roomById(active.department)));
+    if (state.chatKey) markTalking(state.chatKey);
     fitPlan();
   }
 
@@ -637,16 +718,17 @@
       }
       enabledAgents().filter((agent) => agent.department === room.id).forEach((agent) => {
         const li = makeNode('li');
-        const link = makeNode('a', `office-corridor__item office-corridor__item--${seatTone(agent)}`);
-        link.href = agentHref(agent);
+        const button = makeNode('button', `office-corridor__item office-corridor__item--${seatTone(agent)}`);
+        button.type = 'button';
+        button.dataset.chat = agent.key;
         const face = makeNode('span', 'office-corridor__face');
         face.appendChild(makeFace(agent.avatarKey, agent.key));
         const copy = makeNode('span', 'office-corridor__copy');
-        const title = makeNode('strong', '', room.label);
-        title.appendChild(makeNode('span', '', ` · ${agent.name}`));
+        const title = makeNode('strong', '', agent.name);
+        title.appendChild(makeNode('span', '', ` · ${room.label}`));
         copy.append(title, makeNode('small', '', bubbleLines(agent).join(' · ')));
-        link.append(face, copy);
-        li.appendChild(link);
+        button.append(face, copy, makeNode('span', 'office-corridor__talk', 'Conversar'));
+        li.appendChild(button);
         rows.push(li);
       });
     });
@@ -655,7 +737,8 @@
 
   function rotateBubbles() {
     state.bubbleTick += 1;
-    $$('.office-seat__bubble').forEach((bubble) => {
+    $$('.office-seat:not(.is-talking):not(.is-greeting) .office-seat__bubble').forEach((bubble) => {
+      if (bubble.dataset.flash) return;
       const lines = String(bubble.dataset.lines || '').split('|').filter(Boolean);
       if (lines.length > 1) bubble.textContent = lines[state.bubbleTick % lines.length];
     });
@@ -672,15 +755,255 @@
   function onRoomClick(event) {
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const chat = target.closest('[data-chat]');
+    if (chat) { openChat(chat.dataset.chat); return; }
     const hit = target.closest('[data-room]');
     if (!hit) return;
     const roomId = hit.dataset.room;
     if (roomId === 'approvals') { focusApprovals(); return; }
     const room = roomById(roomId);
-    if (roomId === 'owner') { placeMe(doorPoint(room)); return; }
+    placeMe(doorPoint(room));
     const agent = enabledAgents().find((item) => item.department === roomId);
-    if (agent) walkTo(room, agentHref(agent));
-    else placeMe(doorPoint(room));
+    if (agent) openChat(agent.key);
+  }
+
+  /* ───────── conversa rápida na mesa ───────── */
+
+  const CHAT_KEY = 'om.office.chat.';
+
+  function chatThread(key) {
+    try { return JSON.parse(sessionStorage.getItem(CHAT_KEY + key) || '[]'); } catch (_) { return []; }
+  }
+
+  function saveThread(key, thread) {
+    try { sessionStorage.setItem(CHAT_KEY + key, JSON.stringify(thread.slice(-20))); } catch (_) {}
+  }
+
+  function greetingFor(agent) {
+    const name = state.userName ? `, ${state.userName}` : '';
+    if (agent.key === 'mate') {
+      const total = state.suggestions.length;
+      return `${hello()}${name}! A equipe está toda nas mesas. ${total ? `Tem ${plural(total, 'papel', 'papéis')} te esperando na mesa de aprovações.` : 'Nada urgente hoje.'} Quer um resumo do dia?`;
+    }
+    const items = itemsFor(agent);
+    if (!items.length) return `Oi${name}! Tudo em dia aqui no ${(AGENT_DEPARTMENTS[agent.department] || 'setor').toLowerCase()}. Precisa de alguma coisa?`;
+    const first = String(items[0].title || '').trim();
+    if (needsYou(items)) return `${hello()}${name}! Que bom que passou aqui. ${first}. Quer que eu prepare?`;
+    return `Oi${name}! Tô com ${plural(items.length, 'coisa', 'coisas')} aqui: ${first}. Posso ajudar em algo?`;
+  }
+
+  function chipsFor(agent) {
+    const items = agent.key === 'mate' ? state.suggestions : itemsFor(agent);
+    const chips = [];
+    if (agent.key === 'mate') chips.push({ text: 'Me dá um resumo do dia' });
+    else if (items[0]?.run?.action) chips.push({ text: 'Pode preparar', run: items[0] });
+    chips.push({ text: 'Tudo bem por aí?' });
+    chips.push({ text: items.length ? 'Me explica melhor' : 'O que você faz por aqui?' });
+    return chips;
+  }
+
+  function seatOf(key) {
+    return $(`.office-seat[data-agent-key="${CSS.escape(key)}"]`);
+  }
+
+  function markTalking(key) {
+    $$('.office-seat.is-talking').forEach((seat) => seat.classList.remove('is-talking'));
+    const seat = key ? seatOf(key) : null;
+    if (seat) seat.classList.add('is-talking');
+  }
+
+  function flashBubble(key, text) {
+    const bubble = seatOf(key)?.querySelector('.office-seat__bubble');
+    if (!bubble) return;
+    bubble.textContent = shortText(text, 34);
+    bubble.dataset.flash = '1';
+    window.setTimeout(() => {
+      delete bubble.dataset.flash;
+      const lines = String(bubble.dataset.lines || '').split('|');
+      bubble.textContent = lines[0] || '';
+    }, 6000);
+  }
+
+  function positionChat() {
+    const chat = $('#officeChat');
+    const floor = $('.office-floor');
+    if (!chat || chat.hidden || !floor || !state.chatKey) return;
+    if (window.matchMedia('(max-width: 760px)').matches) { chat.style.left = ''; chat.style.top = ''; return; }
+    const seat = seatOf(state.chatKey);
+    if (!seat) return;
+    const seatBox = seat.getBoundingClientRect();
+    const floorBox = floor.getBoundingClientRect();
+    const width = chat.offsetWidth || 340;
+    const height = chat.offsetHeight || 420;
+    let left = seatBox.right - floorBox.left + 12;
+    if (left + width > floorBox.width - 8) left = seatBox.left - floorBox.left - width - 12;
+    left = Math.max(8, Math.min(left, floorBox.width - width - 8));
+    let top = seatBox.top - floorBox.top - 40;
+    top = Math.max(8, Math.min(top, floorBox.height - height - 8));
+    chat.style.left = `${left}px`;
+    chat.style.top = `${top}px`;
+  }
+
+  function renderChat() {
+    const agent = state.agents.find((item) => item.key === state.chatKey);
+    const log = $('#officeChatLog');
+    if (!agent || !log) return;
+    const thread = chatThread(agent.key);
+    const rows = thread.map((message) => {
+      const row = makeNode('div', `office-chat__msg office-chat__msg--${message.role}`);
+      row.appendChild(makeNode('p', '', message.text));
+      if (message.pedido) {
+        const open = makeNode('a', 'office-chat__open', 'Abrir na minha mesa');
+        open.href = agentHref(agent, { pedido: message.pedido });
+        row.appendChild(open);
+      }
+      return row;
+    });
+    if (state.chatTyping) {
+      const typing = makeNode('div', 'office-chat__msg office-chat__msg--assistant office-chat__typing');
+      typing.setAttribute('aria-label', `${agent.name} está digitando`);
+      typing.append(makeNode('span'), makeNode('span'), makeNode('span'));
+      rows.push(typing);
+    }
+    log.replaceChildren(...rows);
+    log.scrollTop = log.scrollHeight;
+    const chips = $('#officeChatChips');
+    if (chips) {
+      chips.replaceChildren(...chipsFor(agent).map((chip, index) => {
+        const button = makeNode('button', 'office-chat__chip', chip.text);
+        button.type = 'button';
+        button.dataset.chip = String(index);
+        return button;
+      }));
+      chips.hidden = state.chatTyping;
+    }
+  }
+
+  function openChat(key) {
+    const agent = state.agents.find((item) => item.key === key && item.enabled);
+    const chat = $('#officeChat');
+    if (!agent || !chat) return;
+    state.chatKey = agent.key;
+    const room = roomById(agent.department);
+    if (room && window.matchMedia('(min-width: 761px)').matches) placeMe(doorPoint(room));
+    const face = $('#officeChatFace');
+    if (face) face.replaceChildren(makeFace(agent.avatarKey, agent.key));
+    setText('#officeChatName', agent.name);
+    setText('#officeChatTitle', agent.title);
+    const badge = $('#officeChatBadge');
+    if (badge) badge.hidden = agent.key === 'mate';
+    const desk = $('#officeChatDesk');
+    if (desk) desk.href = agentHref(agent);
+    const input = $('#officeChatInput');
+    if (input) input.placeholder = `Fale com ${agent.name}…`;
+    chat.hidden = false;
+    markTalking(agent.key);
+    const thread = chatThread(agent.key);
+    const last = thread[thread.length - 1];
+    const stale = !last || Date.now() - (last.at || 0) > 30 * 60 * 1000;
+    if (stale) {
+      state.chatTyping = true;
+      renderChat();
+      positionChat();
+      window.setTimeout(() => {
+        if (state.chatKey !== agent.key) return;
+        const next = chatThread(agent.key);
+        next.push({ role: 'assistant', text: greetingFor(agent), at: Date.now() });
+        saveThread(agent.key, next);
+        state.chatTyping = false;
+        renderChat();
+        positionChat();
+      }, reduceMotion ? 0 : 650);
+    } else {
+      state.chatTyping = false;
+      renderChat();
+      positionChat();
+    }
+    input?.focus({ preventScroll: true });
+  }
+
+  function closeChat() {
+    const chat = $('#officeChat');
+    if (chat) chat.hidden = true;
+    state.chatKey = '';
+    state.chatTyping = false;
+    markTalking('');
+  }
+
+  async function sendChat(text) {
+    const agent = state.agents.find((item) => item.key === state.chatKey);
+    const message = String(text || '').trim();
+    if (!agent || !message || state.chatTyping) return;
+    const key = agent.key;
+    const thread = chatThread(key);
+    const memory = thread.slice(-8).map((item) => ({ role: item.role === 'user' ? 'user' : 'assistant', text: String(item.text).slice(0, 900) }));
+    thread.push({ role: 'user', text: message, at: Date.now() });
+    saveThread(key, thread);
+    state.chatTyping = true;
+    renderChat();
+    let reply = { role: 'assistant', text: '', at: Date.now() };
+    try {
+      const response = await fetch('/api/mate-ai/act', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message, agent_key: key, memory }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) throw new Error(data.error || 'Não consegui responder agora.');
+      if (data.type === 'reply') {
+        reply.text = String(data.message || 'Certo!');
+      } else {
+        const heading = data.card?.title ? `“${data.card.title}”` : 'isso';
+        reply.text = data.type === 'error'
+          ? String(data.message || 'Não consegui preparar isso.')
+          : `${data.message ? `${data.message} ` : ''}Preparei ${heading} na minha mesa. Dá uma olhada antes de eu seguir?`;
+        if (data.type !== 'error') reply.pedido = message;
+      }
+    } catch (error) {
+      reply.text = `Ih, travei aqui: ${String(error?.message || 'tente de novo em instantes.')}`;
+    }
+    const next = chatThread(key);
+    next.push(reply);
+    saveThread(key, next);
+    if (state.chatKey === key) {
+      state.chatTyping = false;
+      renderChat();
+    }
+    flashBubble(key, reply.text);
+  }
+
+  function onChatChip(event) {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest('[data-chip]');
+    const agent = state.agents.find((item) => item.key === state.chatKey);
+    if (!button || !agent) return;
+    const chip = chipsFor(agent)[Number(button.dataset.chip)];
+    if (!chip) return;
+    if (chip.run) { walkTo(roomById(agent.department), agentHref(agent, { sugestao: chip.run.run.action })); return; }
+    sendChat(chip.text);
+  }
+
+  function runRequestedPedido() {
+    const pedido = query.get('pedido');
+    if (!pedido || state.pedidoRun) return;
+    state.pedidoRun = true;
+    const url = new URL(location.href);
+    url.searchParams.delete('pedido');
+    history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    let tries = 0;
+    const attempt = () => {
+      if (window.MateAI && typeof window.MateAI.ask === 'function') {
+        window.MateAI.ask(pedido.slice(0, 600));
+        $('#officeDesk')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        return;
+      }
+      tries += 1;
+      if (tries < 30) window.setTimeout(attempt, 100);
+    };
+    attempt();
   }
 
   /* ───────── entrance ───────── */
@@ -1094,6 +1417,7 @@
       updateTimestamp();
       if (first === true && !query.has('agent') && !entranceSeenToday()) showEntrance();
       runRequestedSuggestion();
+      runRequestedPedido();
       const failed = results.find((result) => result.status === 'rejected');
       if (failed) throw failed.reason;
     } catch (err) {
@@ -1120,6 +1444,18 @@
     $('#officePlan')?.addEventListener('click', onRoomClick);
     $('#officeCorridor')?.addEventListener('click', onRoomClick);
     $('#officeTasks')?.addEventListener('click', onTaskClick);
+    $('#officeChatClose')?.addEventListener('click', closeChat);
+    $('#officeChatChips')?.addEventListener('click', onChatChip);
+    $('#officeChatForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const input = $('#officeChatInput');
+      const text = input ? input.value : '';
+      if (input) input.value = '';
+      sendChat(text);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.chatKey && !$('#agentDialog')?.open) closeChat();
+    });
     $('#officeEnter')?.addEventListener('click', enterOffice);
     $('#officeReplayEntrance')?.addEventListener('click', showEntrance);
     $('#officeEditActive')?.addEventListener('click', () => { const agent = activeAgent(); if (agent) openAgentEditor(agent.key); });
