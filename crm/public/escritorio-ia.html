@@ -11,7 +11,8 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261015-refnav1" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" />
-  <link rel="stylesheet" href="escritorio-ia.css?v=20261022-v4" />
+  <link rel="stylesheet" href="mate-panel.css?v=20261022-officechat1" />
+  <link rel="stylesheet" href="escritorio-ia.css?v=20261022-officechat1" />
 </head>
 <body class="dashboard-app-body office-page-body">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -55,7 +56,7 @@
           <div>
             <div class="office-eyebrow"><span class="office-eyebrow__dot" aria-hidden="true"></span> CENTRAL DE OPERAÇÕES</div>
             <h1>Escritório virtual</h1>
-            <p id="officeWelcome">Seu Mate acompanha as recomendações importantes para a operação.</p>
+            <p id="officeWelcome">Converse com seus funcionários e acompanhe as tarefas em andamento.</p>
           </div>
           <div class="office-header__actions">
             <span class="office-refresh-label" id="officeUpdated" aria-live="polite">Carregando dados…</span>
@@ -66,6 +67,44 @@
           </div>
         </header>
 
+        <section class="office-workspace" aria-label="Converse com a equipe do escritório">
+          <aside class="office-roster office-surface" aria-labelledby="officeRosterTitle">
+            <div class="office-roster__heading">
+              <span class="office-section-kicker">SEU TIME</span>
+              <h2 id="officeRosterTitle">Funcionários</h2>
+              <p>Escolha com quem quer falar.</p>
+            </div>
+            <div class="office-agent-grid" id="officeAgents" aria-live="polite" aria-busy="true">
+              <div class="office-loading"><span class="office-spinner" aria-hidden="true"></span> Carregando equipe…</div>
+            </div>
+          </aside>
+
+          <section class="office-conversation office-surface" aria-label="Conversa com o funcionário selecionado">
+            <header class="office-conversation__header">
+              <div class="office-active-avatar" id="officeActiveAvatar" aria-hidden="true"></div>
+              <div class="office-active-identity">
+                <span class="office-section-kicker" id="officeActiveDepartment">CENTRAL</span>
+                <h2 id="officeActiveName">Mate</h2>
+                <p id="officeActiveTitle">Coordenador do escritório</p>
+              </div>
+              <span class="office-online"><span aria-hidden="true"></span> Disponível</span>
+            </header>
+            <div id="mateAiInline" aria-live="polite"></div>
+          </section>
+
+          <aside class="office-current office-surface" aria-labelledby="officeCurrentTitle">
+            <div class="office-current__heading">
+              <span class="office-section-kicker">CONTEXTO ATIVO</span>
+              <h2 id="officeCurrentTitle">Trabalho em andamento</h2>
+            </div>
+            <div id="officeCurrentWork" aria-live="polite">
+              <div class="office-current-empty"><span class="office-current-empty__icon" aria-hidden="true">✦</span><strong>Nenhuma tarefa ativa</strong><p>Quando um funcionário criar ou atualizar algo, o registro aparecerá aqui para acompanhar a conversa.</p></div>
+            </div>
+          </aside>
+        </section>
+
+        <details class="office-secondary">
+          <summary>Visão geral e recomendações do escritório</summary>
         <section class="office-summary" aria-label="Resumo do escritório">
           <article class="office-summary-card office-summary-card--primary">
             <span class="office-summary-card__icon office-summary-card__icon--mate" aria-hidden="true"><img src="/assets/img/mascot/mate-thumbs.png" alt="" width="38" height="38" /></span>
@@ -127,20 +166,6 @@
           <p class="office-scene-card__note">Selecione um setor para ver as recomendações relacionadas.</p>
         </section>
 
-        <section class="office-team" aria-labelledby="officeTeamTitle">
-          <div class="office-team__heading">
-            <div>
-              <span class="office-section-kicker">PESSOAS DO ESCRITÓRIO</span>
-              <h2 id="officeTeamTitle">Conheça sua equipe virtual</h2>
-              <p id="officeTeamIntro">Veja o nome, o rosto, o setor e as capacidades de cada funcionário.</p>
-            </div>
-          </div>
-          <div class="office-agent-grid" id="officeAgents" aria-live="polite" aria-busy="true">
-            <div class="office-loading"><span class="office-spinner" aria-hidden="true"></span> Carregando equipe…</div>
-          </div>
-          <p class="office-team__note">As capacidades configuram o que cada agente poderá fazer. A execução de tarefas será conectada em uma próxima etapa.</p>
-        </section>
-
         <section class="office-work-area" aria-label="Recomendações e funções do escritório">
           <div class="office-panel office-tasks-panel">
             <div class="office-panel__head">
@@ -171,6 +196,7 @@
             <div class="office-permission-note"><span aria-hidden="true">✓</span> As recomendações usam os dados da sua empresa. Você revisa cada ação antes de executá-la.</div>
           </aside>
         </section>
+        </details>
         <p class="office-footnote" id="officeError" role="status" hidden></p>
       </div>
     </main>
@@ -221,6 +247,7 @@
 
   <script src="crm-shell.js?v=20261022-inbox1"></script>
   <script src="crm-shared-nav.js?v=20261022-office3"></script>
-  <script src="escritorio-ia.js?v=20261022-office4"></script>
+  <script src="mate-panel.js?v=20261022-officechat1"></script>
+  <script src="escritorio-ia.js?v=20261022-officechat1"></script>
 </body>
 </html>

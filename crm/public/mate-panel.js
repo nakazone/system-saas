@@ -28,7 +28,8 @@
     catalog: '/api/mate-ai/catalog',
     convs: '/api/mate-ai/conversations',
   };
-  var requestedAgent = new URLSearchParams(location.search).get('agent') || '';
+  var officePage = /\/escritorio-ia\.html$/i.test(location.pathname);
+  var requestedAgent = new URLSearchParams(location.search).get('agent') || (officePage ? 'mate' : '');
   var agentKey = /^[a-z0-9_-]{1,60}$/i.test(requestedAgent) ? requestedAgent.toLowerCase() : '';
   var agentMode = Boolean(agentKey && document.getElementById('mateAiInline'));
   var agentProfile = null;
@@ -289,7 +290,7 @@
     });
     if (!hasAsk(items)) return;
     var id = state.convId;
-    api('PUT', API.convs + '/' + encodeURIComponent(id), { items: items })
+    api('PUT', API.convs + '/' + encodeURIComponent(id), { items: items, agent_key: agentMode ? agentKey : undefined })
       .then(function () {
         state.history = null;
         try {
@@ -311,9 +312,11 @@
     }
     state.thread = [];
     state.convId = newId();
+    state.screen = detectScreen();
     state.showHistory = false;
     state.view = 'thread';
     state.typeahead = [];
+    publishOfficeContext(null);
   }
 
   function resumeConversation() {
@@ -324,6 +327,8 @@
     state.convId = r.id;
     state.lastAt = r.at || Date.now();
     state.view = 'thread';
+    state.screen = officeEntity(entityFromItems(state.thread)) || detectScreen();
+    publishOfficeContext(entityFromItems(state.thread));
     save(KEY_THREAD, { id: r.id, at: state.lastAt, items: state.thread });
     render();
   }
@@ -370,6 +375,32 @@
 
   function screenForRequest() {
     return state.useScreen && state.screen ? state.screen : null;
+  }
+
+  function entityFromItems(items) {
+    for (var i = (items || []).length - 1; i >= 0; i--) {
+      var message = items[i];
+      var entity = message && message.kind === 'done' && message.result && message.result.entity;
+      if (entity && entity.id && entity.type) return entity;
+      var args = message && (message.args || (message.card && message.card.args));
+      if (args && args.quote_id) return { type: 'quote', id: String(args.quote_id) };
+    }
+    return null;
+  }
+
+  function officeEntity(entity) {
+    if (!entity || !entity.id || !entity.type) return null;
+    return { type: entity.type === 'work_order' ? 'job' : String(entity.type), id: String(entity.id) };
+  }
+
+  function publishOfficeContext(entity) {
+    if (!officePage) return;
+    var active = officeEntity(entity || state.screen || entityFromItems(state.thread));
+    if (active) state.screen = active;
+    else if (!entity && !state.screen) state.screen = null;
+    var detail = { entity: active, agentKey: agentMode ? agentKey : null };
+    window.__mateAiOfficeContext = detail;
+    try { window.dispatchEvent(new CustomEvent('mate:office-context', { detail: detail })); } catch (_) {}
   }
 
   /* ───────── DOM ───────── */
@@ -436,6 +467,10 @@
 
   function mount() {
     if (inlineHost) {
+      if (agentMode && state.resume) {
+        state.screen = officeEntity(entityFromItems(state.resume.items));
+        publishOfficeContext(state.screen);
+      }
       inlineHost.appendChild(panel);
       state.open = true;
       render();
@@ -507,6 +542,7 @@
       inputEl.placeholder = 'Peça uma tarefa para ' + name + '…';
       headSubEl.textContent = title + ' · revisão antes de executar';
       panel.setAttribute('aria-label', 'Conversa com ' + name);
+      try { window.dispatchEvent(new CustomEvent('mate:agent-profile', { detail: { agent: agentProfile } })); } catch (_) {}
     } catch (_) {
       agentUnavailable = true;
       inputEl.disabled = true;
@@ -743,7 +779,7 @@
     }
     var html = '<div class="mate-start">';
     var r = state.resume;
-    if (!agentMode && r && Date.now() - (r.at || 0) < RESUME_MS) {
+    if (r && Date.now() - (r.at || 0) < RESUME_MS) {
       var users = r.items.filter(function (m) {
         return m.role === 'user';
       });
@@ -838,9 +874,9 @@
 
   function loadHistory() {
     var q = state.historyQ.trim();
-    api('GET', API.convs + '?limit=50' + (q ? '&q=' + encodeURIComponent(q) : ''))
+    api('GET', API.convs + '?limit=50' + (q ? '&q=' + encodeURIComponent(q) : '') + (agentMode ? '&agent_key=' + encodeURIComponent(agentKey) : ''))
       .then(function (r) {
-        state.history = r.data || [];
+        state.history = (r.data || []).filter(function (conversation) { return !agentMode || conversation.agent_key === agentKey; });
         if (state.view === 'history') renderHistoryList();
       })
       .catch(function () {
@@ -904,7 +940,7 @@
 
   async function loadConversation(id) {
     try {
-      var r = await api('GET', API.convs + '/' + encodeURIComponent(id));
+      var r = await api('GET', API.convs + '/' + encodeURIComponent(id) + (agentMode ? '?agent_key=' + encodeURIComponent(agentKey) : ''));
       if (hasAsk(state.thread) && state.convId !== id) syncServer();
       state.thread = revive(r.data.items || []).map(function (m) {
         if (m.kind === 'card' || m.kind === 'clarify') m.stale = true;
@@ -915,6 +951,8 @@
       state.resume = null;
       state.view = 'thread';
       state.showHistory = true;
+      state.screen = officeEntity(entityFromItems(state.thread)) || detectScreen();
+      publishOfficeContext(entityFromItems(state.thread));
       if (!state.open && !inlineHost) open({ keep: true });
       render();
     } catch (err) {
@@ -1062,11 +1100,15 @@
     }).length;
     var html = '';
     if (earlier.length) {
-      html +=
-        '<button type="button" class="mate-history-toggle" data-mate="history" aria-expanded="' + (state.showHistory ? 'true' : 'false') + '">' +
-        (state.showHistory ? 'Ocultar conversa anterior' : 'Conversa anterior · ' + asks + (asks === 1 ? ' pedido' : ' pedidos')) +
-        '</button>';
-      if (state.showHistory) html += '<div class="mate-history">' + earlier.map(renderMsg).join('') + '</div>';
+      if (agentMode) {
+        html += '<div class="mate-history mate-history--always">' + earlier.map(renderMsg).join('') + '</div>';
+      } else {
+        html +=
+          '<button type="button" class="mate-history-toggle" data-mate="history" aria-expanded="' + (state.showHistory ? 'true' : 'false') + '">' +
+          (state.showHistory ? 'Ocultar conversa anterior' : 'Conversa anterior · ' + asks + (asks === 1 ? ' pedido' : ' pedidos')) +
+          '</button>';
+        if (state.showHistory) html += '<div class="mate-history">' + earlier.map(renderMsg).join('') + '</div>';
+      }
     }
     html += '<div class="mate-turn" id="mateTurn">' + current.map(renderMsg).join('') + '</div>';
     threadEl.innerHTML = html;
@@ -1074,7 +1116,7 @@
       var turn = document.getElementById('mateTurn');
       if (!turn) return;
       // Keep the start of the current step visible; long answers scroll from there.
-      threadEl.scrollTop = state.showHistory ? turn.offsetTop - 8 : 0;
+      threadEl.scrollTop = agentMode ? threadEl.scrollHeight : state.showHistory ? turn.offsetTop - 8 : 0;
     });
   }
 
@@ -1375,6 +1417,8 @@
         result: res,
         undo: r.undo_token ? { token: r.undo_token, expires: r.undo_expires_at } : null,
       };
+      if (res.entity && res.entity.id && res.entity.type) state.screen = officeEntity(res.entity);
+      publishOfficeContext(res.entity || state.screen || entityFromItems(state.thread));
       replace(m.id, done);
       if (done.undo) tickUndo(done.id);
       handleClient(res.client);
@@ -1480,6 +1524,9 @@
     render();
     try {
       var r = await api('POST', API.undo, { token: token });
+      var result = r.result || {};
+      if (result.entity && result.entity.id && result.entity.type) state.screen = officeEntity(result.entity);
+      publishOfficeContext(result.entity || state.screen);
       push({ role: 'mate', kind: 'reply', message: (r.result && r.result.title) || 'Desfeito.' });
       if (m.result && touchesScreen(m.result.entity)) hint('Desfeito. Atualize a tela para ver.');
     } catch (err) {
