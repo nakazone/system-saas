@@ -416,8 +416,20 @@ body.mate-open .mate-fab {
   color: var(--mate-ink);
 }
 
-.mate-pal:not(.has-thread) .mate-pal__link {
-  visibility: hidden;
+.mate-pal__links {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.mate-pal__links .mate-pal__link {
+  margin-left: 0;
+}
+
+.mate-pal:not(.has-thread) .mate-pal__new,
+.mate-pal.is-history .mate-pal__links,
+.mc-col--main .mate-pal [data-mate="history-open"] {
+  display: none;
 }
 
 .mate-icon-btn {
@@ -1372,6 +1384,566 @@ body.mate-open .mate-fab {
   .mate-actions .mate-btn--primary,
   .mate-actions .mate-btn--send {
     flex: 1 1 100%;
+  }
+}
+
+/* ───────── start screen v2: continue, to-do, catalog ───────── */
+
+.mate-resume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--mate-line);
+  border-radius: 12px;
+  background: var(--mate-soft);
+  color: var(--mate-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mate-resume:hover,
+.mate-resume:focus-visible {
+  border-color: var(--mate-faint);
+  outline: none;
+}
+
+.mate-resume__label {
+  flex: none;
+  color: var(--mate-accent);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.mate-resume__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mate-resume__when {
+  flex: none;
+  color: var(--mate-faint);
+  font-size: 12px;
+}
+
+.mate-row-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.mate-row-wrap .mate-row {
+  padding-right: 40px;
+}
+
+.mate-row__hide {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mate-faint);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.mate-row__hide svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mate-row-wrap:hover .mate-row__hide,
+.mate-row__hide:focus-visible {
+  opacity: 1;
+}
+
+.mate-row__hide:hover {
+  background: var(--mate-soft-2);
+  color: var(--mate-ink);
+}
+
+.mate-row-wrap .mate-row__go {
+  margin-right: 4px;
+}
+
+.mate-empty {
+  margin: 4px 0 14px;
+  color: var(--mate-muted);
+  font-size: 13.5px;
+}
+
+.mate-catalog {
+  margin: 0 0 10px;
+  border: 1px solid var(--mate-line);
+  border-radius: 12px;
+}
+
+.mate-catalog__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--mate-ink);
+  font: 650 14px/1.2 inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mate-catalog__toggle:hover,
+.mate-catalog__toggle:focus-visible {
+  background: var(--mate-soft);
+  outline: none;
+}
+
+.mate-catalog__toggle small {
+  margin-left: auto;
+  color: var(--mate-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mate-catalog__chev {
+  color: var(--mate-faint);
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.mate-catalog.is-open .mate-catalog__chev {
+  transform: rotate(90deg);
+}
+
+.mate-catalog__body {
+  padding: 0 6px 8px;
+  border-top: 1px solid var(--mate-line);
+}
+
+.mate-mod__head {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 9px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--mate-soft-2);
+  background: none;
+  color: var(--mate-ink);
+  font: 600 13.5px/1.2 inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mate-mod__head small {
+  margin-left: auto;
+  color: var(--mate-faint);
+  font-size: 12px;
+}
+
+.mate-mod__head::after {
+  content: "›";
+  margin-left: 10px;
+  color: var(--mate-faint);
+  transition: transform 0.15s ease;
+}
+
+.mate-mod.is-open .mate-mod__head::after {
+  transform: rotate(90deg);
+}
+
+.mate-mod__items {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 8px;
+}
+
+.mate-ex {
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--mate-ink-2);
+  font: 13.5px/1.35 inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mate-ex:hover,
+.mate-ex:focus-visible {
+  background: var(--mate-soft-2);
+  color: var(--mate-ink);
+  outline: none;
+}
+
+.mate-catalog__body .mate-hello {
+  margin: 8px 6px 0;
+}
+
+/* ───────── typeahead ───────── */
+
+.mate-ahead {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--mate-line);
+}
+
+.mate-ahead[hidden] {
+  display: none;
+}
+
+.mate-ahead__item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--mate-ink);
+  font: 14px/1.3 inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mate-ahead__item:first-child {
+  background: var(--mate-soft);
+}
+
+.mate-ahead__item:hover,
+.mate-ahead__item:focus-visible {
+  background: var(--mate-soft-2);
+  outline: none;
+}
+
+.mate-ahead__item span {
+  flex: 1;
+  min-width: 0;
+}
+
+.mate-ahead__item small {
+  flex: none;
+  color: var(--mate-faint);
+  font-size: 11.5px;
+}
+
+/* ───────── history ───────── */
+
+.mate-hist__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.mate-hist__top .mate-pal__link {
+  flex: none;
+  margin: 0;
+}
+
+.mate-hist__q {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--mate-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mate-ink);
+  font: 14px/1 inherit;
+  font-family: inherit;
+}
+
+.mate-hist__q:focus {
+  border-color: var(--mate-faint);
+  outline: none;
+}
+
+.mate-hist__list h3 {
+  margin: 12px 0 4px;
+  color: var(--mate-muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mate-conv {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--mate-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mate-conv:hover,
+.mate-conv:focus-visible {
+  background: var(--mate-soft-2);
+  outline: none;
+}
+
+.mate-conv strong {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mate-conv small {
+  display: block;
+  margin-top: 2px;
+  color: var(--mate-muted);
+  font-size: 12px;
+}
+
+/* ───────── result notice (phone) ───────── */
+
+.mate-toast {
+  position: fixed;
+  right: 12px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  z-index: 1390;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 10px 12px 14px;
+  border: 1px solid var(--mate-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--mate-ink);
+  box-shadow: 0 12px 34px rgba(33, 29, 26, 0.22);
+  font-size: 14px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity 0.16s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+
+.mate-toast.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.16s ease, transform 0.18s ease, visibility 0s;
+}
+
+.mate-toast.is-bad {
+  border-color: var(--mate-bad-soft);
+}
+
+.mate-toast__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--mate-good-soft);
+  color: var(--mate-good);
+}
+
+.mate-toast__icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.mate-toast__body {
+  flex: 1;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.mate-toast__body strong {
+  display: block;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.mate-toast__body small {
+  display: block;
+  margin-top: 2px;
+  color: var(--mate-muted);
+  font-size: 12.5px;
+}
+
+.mate-toast__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mate-toast__row:empty {
+  display: none;
+}
+
+.mate-toast__row a,
+.mate-toast__row button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--mate-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--mate-ink);
+  font: 650 13px/1 inherit;
+  font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mate-toast__row .is-primary {
+  border-color: var(--mate-ink);
+  background: var(--mate-ink);
+  color: #fff;
+}
+
+.mate-toast__x {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--mate-faint);
+  cursor: pointer;
+}
+
+.mate-toast__x svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (min-width: 720px) {
+  .mate-toast {
+    right: 24px;
+    left: auto;
+    width: 380px;
+  }
+}
+
+/* ───────── phone: sheet heights, card in focus, field app ───────── */
+
+@media (max-width: 719px) {
+  .mate-fab {
+    bottom: calc(max(92px, var(--mate-fab-lift, 0px)) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Opens at the height of what it holds; a card or the history takes the whole screen. */
+  .mate-pal:not(.mate-pal--inline):not(.is-full) {
+    max-height: min(74dvh, calc(var(--mate-vh, 100dvh) - 36px));
+  }
+
+  .mate-pal:not(.mate-pal--inline).is-full {
+    height: calc(var(--mate-vh, 100dvh) - 36px);
+  }
+
+  .mate-pal:not(.mate-pal--inline) .mate-mic {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--mate-accent-soft);
+    color: var(--mate-accent);
+  }
+
+  .mate-pal:not(.mate-pal--inline) .mate-mic svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* The camera stays a small icon so the input keeps its width. */
+  .mate-pal:not(.mate-pal--inline) .mate-cam {
+    width: 40px;
+    height: 52px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--mate-muted);
+  }
+
+  .mate-pal:not(.mate-pal--inline) .mate-cam svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .mate-pal:not(.mate-pal--inline) .mate-pal__bar {
+    gap: 6px;
+  }
+
+  /* With a card open, its main button stays in reach above the input. */
+  .mate-pal.has-card .mate-card:not(.is-stale) .mate-actions {
+    position: sticky;
+    bottom: -6px;
+    z-index: 2;
+    margin: 12px -16px -6px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--mate-line);
+    background: #fff;
+  }
+
+  .mate-row__hide {
+    opacity: 1;
+  }
+
+  .mate-row,
+  .mate-catalog__toggle,
+  .mate-mod__head,
+  .mate-ex,
+  .mate-conv {
+    min-height: 44px;
+  }
+
+  .mate-pal:not(.mate-pal--inline) .mate-pal__foot {
+    justify-content: flex-end;
+  }
+
+  .mate-pal__links {
+    gap: 20px;
+  }
+
+  .mate-pal__links .mate-pal__link {
+    padding: 8px 0;
+    font-size: 13px;
+  }
+
+  /* Field app: bigger type, the microphone first. */
+  .mate-pal--field .mate-row__body {
+    font-size: 16px;
+  }
+
+  .mate-pal--field .mate-row {
+    min-height: 56px;
+  }
+
+  .mate-pal--field:not(.mate-pal--inline) .mate-mic {
+    width: 60px;
+    height: 60px;
   }
 }
 

@@ -7,6 +7,7 @@
  *   GET  /api/mate-ai/suggestions  proactive cards for the Início / panel
  *   GET  /api/mate-ai/context   label for the record on screen
  */
+import { Prisma } from "@prisma/client";
 import { Router, type Request } from "express";
 import { z } from "zod";
 import { recordActivity, type ActivityEntityType } from "../../lib/activity/record.js";
@@ -755,7 +756,17 @@ mateAiAgentRouter.post("/api/mate-ai/execute", requireCrmAuth, async (req: Authe
     await withTenantTransaction(organizationId, async (tx) => {
       await tx.activityEvent.updateMany({
         where: { entityType: "mate_ai", entityId: token.id },
-        data: { action: "mate_ai.executed", changes: { action: { from: null, to: def.name }, title: { from: null, to: done.title }, ...(token.agentKey ? { agent: { from: null, to: token.agentKey } } : {}) } },
+        data: {
+          action: "mate_ai.executed",
+          changes: {
+            action: { from: null, to: def.name },
+            title: { from: null, to: done.title },
+            detail: { from: null, to: done.detail ?? null },
+            links: { from: null, to: (done.links || []).slice(0, 3) },
+            entity: { from: null, to: done.entity ?? null },
+             ...(token.agentKey ? { agent: { from: null, to: token.agentKey } } : {}),
+           } as Prisma.InputJsonValue,
+        },
       });
       if (done.entity && ACTIVITY_TYPES.has(done.entity.type as ActivityEntityType)) {
         await recordActivity(tx, {

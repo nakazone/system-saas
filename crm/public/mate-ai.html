@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="crm-shell.css" />
   <link rel="stylesheet" href="obramate-app.css" />
   <link rel="stylesheet" href="om-mobile-nav.css" />
-  <link rel="stylesheet" href="mate-ai.css?v=20261019-f1" />
+  <link rel="stylesheet" href="mate-central.css?v=20261021-c1" />
   <link rel="stylesheet" href="mate-panel.css?v=20261022-agents1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed">
@@ -54,15 +54,61 @@
     <div class="mobile-overlay" id="mobileOverlay"></div>
 
     <main class="dashboard-main">
-      <div class="mate-ai-page">
-        <header class="mate-ai-heading">
-          <div>
-            <p class="mate-ai-eyebrow">ObraMate · Assistente</p>
-            <h1>Mate AI</h1>
-            <p>Fale ou digite o que precisa: Quotes, invoices, pagamentos, leads, clientes, jobs, agenda e perguntas sobre os números. O Mate AI prepara e você confirma. Em qualquer tela, abra pelo <strong>Peça ao Mate…</strong> no topo ou pelo atalho <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>J</kbd>. Com um card na tela, <kbd>Enter</kbd> confirma.</p>
-          </div>
+      <div class="mc-page" id="mateCentral">
+        <header class="mc-head">
+          <h1>Mate AI</h1>
+          <p>Peça, acompanhe o que o Mate fez e encontre conversas antigas. Em qualquer tela: <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>J</kbd>.</p>
         </header>
-        <div id="mateAiInline"></div>
+        <nav class="mc-tabs" role="tablist" aria-label="Seções do Mate AI">
+          <button type="button" role="tab" class="mc-tab is-on" data-tab="pedir" aria-selected="true">Pedir</button>
+          <button type="button" role="tab" class="mc-tab" data-tab="conversas" aria-selected="false">Conversas</button>
+          <button type="button" role="tab" class="mc-tab" data-tab="ajustes" aria-selected="false">Resumo</button>
+        </nav>
+        <div class="mc-grid">
+          <aside class="mc-col mc-col--convs" data-panel="conversas" aria-label="Conversas">
+            <div class="mc-box">
+              <div class="mc-box__head">
+                <h2>Conversas</h2>
+                <button type="button" class="mc-link" id="mcNew">Nova</button>
+              </div>
+              <input type="search" class="mc-search" id="mcQ" placeholder="Buscar nas conversas" autocomplete="off" />
+              <div class="mc-convs" id="mcConvs"><p class="mc-empty">Carregando…</p></div>
+            </div>
+          </aside>
+          <section class="mc-col mc-col--main" data-panel="pedir" aria-label="Pedir ao Mate">
+            <div id="mateAiInline"></div>
+            <div class="mc-box mc-done">
+              <div class="mc-box__head">
+                <h2>O que o Mate fez</h2>
+                <span class="mc-sub">últimos 2 dias</span>
+              </div>
+              <div id="mcActivity"><p class="mc-empty">Carregando…</p></div>
+            </div>
+          </section>
+          <aside class="mc-col mc-col--side" data-panel="ajustes" aria-label="Resumo diário">
+            <div class="mc-box">
+              <div class="mc-box__head"><h2>Resumo diário</h2></div>
+              <form class="mc-brief" id="mcBrief">
+                <label class="mc-switch"><input type="checkbox" name="enabled" /> <span>Receber o resumo do dia</span></label>
+                <div class="mc-brief__row">
+                  <label>Hora
+                    <select name="hour" id="mcHour"></select>
+                  </label>
+                </div>
+                <fieldset class="mc-brief__ch">
+                  <legend>Por</legend>
+                  <label><input type="checkbox" name="push" /> Notificação</label>
+                  <label><input type="checkbox" name="email" /> E-mail</label>
+                </fieldset>
+                <p class="mc-brief__msg" id="mcBriefMsg" aria-live="polite"></p>
+              </form>
+              <details class="mc-today" id="mcToday">
+                <summary>Ver o de hoje</summary>
+                <ul id="mcTodayList"></ul>
+              </details>
+            </div>
+          </aside>
+        </div>
       </div>
     </main>
   </div>
@@ -74,5 +120,6 @@
   <script src="crm-shell.js"></script>
   <script src="om-mobile-nav.js"></script>
   <script src="mate-panel.js?v=20261022-agents1"></script>
+  <script src="mate-central.js?v=20261021-c1"></script>
 </body>
 </html>

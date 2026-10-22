@@ -857,6 +857,7 @@ model Organization {
   chatAuditLogs      ChatAuditLog[]
   chatMessageFlags   ChatMessageFlag[]
   mateVoiceConversations MateVoiceConversation[]
+  mateAiConversations MateAiConversation[]
   mateVoiceMessages  MateVoiceMessage[]
   fieldQuotes        FieldQuote[]
   referralRewards    ReferralReward[]
@@ -947,6 +948,7 @@ model User {
   chatAuditLogs ChatAuditLog[] @relation("ChatAuditActor")
   chatMessageFlagsAssigned ChatMessageFlag[] @relation("ChatMessageFlagAssignee")
   mateVoiceConversationsCreated MateVoiceConversation[] @relation("MateVoiceConversationCreator")
+  mateAiConversations MateAiConversation[]
   passwordResetTokens PasswordResetToken[]
 
   @@unique([organizationId, email])
@@ -3432,4 +3434,23 @@ model MateVoiceMessage {
   createdAt      DateTime @default(now())
 
   @@index([organizationId, conversationId, createdAt])
+}
+
+model MateAiConversation {
+  id             String       @id @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  /// Plain text of the requests and results, for search.
+  searchText     String       @default("")
+  /// What came out of it ("Quote Q-1002 criado"), shown under the title.
+  outcome        String?
+  items          Json
+  turns          Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, userId, updatedAt])
 }
