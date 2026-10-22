@@ -43,6 +43,7 @@ export type JobReportRow = {
   nextStepsJson?: unknown;
   photoIds: unknown;
   isPublic: boolean;
+  sharedWithPartners?: boolean;
   source: string;
   modelUsed?: string | null;
   tokensIn?: number | null;
@@ -114,6 +115,7 @@ export function mapJobReport(row: JobReportRow) {
     next_steps: asStringList(row.nextStepsJson),
     photo_ids: asIdList(row.photoIds),
     is_public: Boolean(row.isPublic),
+    shared_with_partners: Boolean(row.sharedWithPartners),
     source: row.source,
     model_used: row.modelUsed || null,
     tokens_in: row.tokensIn ?? null,

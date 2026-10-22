@@ -46,8 +46,11 @@ const PUBLIC_AUTH_PATHS = new Set([
   "/api/auth/logout",
   "/forgot-password.html",
   "/reset-password.html",
+  "/partner-login.html",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
+  "/api/partner-auth/login",
+  "/api/partner-auth/session",
 ]);
 
 function extractSubdomain(host: string, rootDomain: string): string | null {

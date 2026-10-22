@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="css/builders-portal.css" />
+  <link rel="stylesheet" href="css/builders-portal.css?v=20261022-partner1" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
@@ -62,7 +62,7 @@
         <div class="bp-filters">
           <div><label class="bp-eyebrow">Busca</label><input type="search" id="filterSearch" placeholder="Nome ou empresa" /></div>
           <div><label class="bp-eyebrow">Tipo</label>
-            <select id="filterType"><option value="">Todos</option><option value="contractor">General Contractor</option><option value="architect">Architect</option><option value="designer">Interior Designer</option><option value="developer">Developer</option><option value="subcontractor">Subcontractor</option></select>
+            <select id="filterType"><option value="">Todos</option><option value="builder">Builder / Construtora</option><option value="contractor">Contractor</option><option value="architect">Architect</option><option value="designer">Interior Designer</option><option value="developer">Developer</option><option value="subcontractor">Subcontractor</option></select>
           </div>
           <div><label class="bp-eyebrow">Status</label>
             <select id="filterStatus"><option value="">Todos</option><option value="active">Ativo</option><option value="pending">Pendente</option><option value="inactive">Inativo</option></select>
@@ -70,7 +70,7 @@
         </div>
         <div class="bp-table-wrap">
           <table class="bp-table" id="buildersTable">
-            <thead><tr><th>#</th><th>Builder</th><th>Tipo</th><th>Empresa</th><th>Região</th><th>Projetos</th><th>Status</th><th>Último login</th><th>Ações</th></tr></thead>
+            <thead><tr><th>#</th><th>Builder / Contractor</th><th>Tipo</th><th>Empresa</th><th>Projetos / jobs</th><th>Status</th><th>Portal</th><th>Último acesso</th><th>Ações</th></tr></thead>
             <tbody id="buildersTbody"><tr><td colspan="9">A carregar…</td></tr></tbody>
           </table>
         </div>
@@ -88,12 +88,12 @@
         <div><label>Empresa / Studio</label><input name="company" /></div>
         <div><label>Website</label><input name="website" /></div>
         <div><label>Tipo</label>
-          <select name="type"><option value="contractor">General Contractor</option><option value="architect">Architect</option><option value="designer">Interior Designer</option><option value="developer">Developer</option><option value="subcontractor">Subcontractor</option></select>
+          <select name="type"><option value="builder">Builder / Construtora</option><option value="contractor">Contractor</option><option value="architect">Architect</option><option value="designer">Interior Designer</option><option value="developer">Developer</option><option value="subcontractor">Subcontractor</option></select>
         </div>
         <div><label>Status</label>
           <select name="status"><option value="pending">Pendente</option><option value="active">Ativo</option><option value="inactive">Inativo</option></select>
         </div>
-        <div class="bp-form-full"><label><input type="checkbox" name="portal_access" id="portalAccess" /> Criar acesso ao portal</label></div>
+        <div class="bp-form-full"><label><input type="checkbox" name="portal_access" id="portalAccess" /> Criar acesso ao portal</label><small class="bp-help">Gera uma senha temporária para o parceiro ver os projetos e jobs ligados a este cadastro. Ele precisará trocar a senha no primeiro acesso.</small></div>
         <div class="bp-form-full"><label>Nota interna</label><textarea name="internal_note" rows="3"></textarea></div>
         <div class="bp-form-full" style="display:flex;gap:8px;justify-content:flex-end">
           <button type="button" class="btn btn-secondary" id="modalCancel">Cancelar</button>
@@ -105,6 +105,6 @@
   <script src="crm-toast.js"></script>
   <script src="crm-shell.js?v=20261022-inbox1"></script>
   <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
-  <script src="builders.js?v=20260819-del-builder"></script>
+  <script src="builders.js?v=20261022-partner1"></script>
 </body>
 </html>

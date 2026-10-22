@@ -32,6 +32,9 @@ declare module "express-session" {
     userRole?: string;
     permissionKeys?: string[];
     mustChangePassword?: boolean;
+    /** Separate identity for a Builder / contractor partner portal session. */
+    partnerUserId?: string;
+    partnerOrganizationId?: string;
     /** Staged CSV import (Settings → Import). */
     importDraft?: {
       entity: "customers" | "leads";

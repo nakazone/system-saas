@@ -1041,23 +1041,28 @@ model Invitation {
 }
 
 // ---------------------------------------------------------------------------
-// External partner users (JWT auth — model prepared for later portal)
+// External partner accounts, each scoped to one Builder / contractor contact.
 // ---------------------------------------------------------------------------
 
 model PartnerUser {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  builderId      String?  @db.Uuid
+  builder        Builder? @relation(fields: [builderId], references: [id], onDelete: SetNull)
   email          String
   passwordHash   String
   name           String
   companyName    String?
   status         String   @default("active")
+  mustChangePassword Boolean @default(true)
+  lastLoginAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@unique([organizationId, email])
   @@index([organizationId])
+  @@index([organizationId, builderId])
 }
 
 // ---------------------------------------------------------------------------
@@ -1598,6 +1603,7 @@ model Builder {
   quotes   Quote[]
   projects Project[]
   workOrders WorkOrder[]
+  partnerUsers PartnerUser[]
 
   @@index([organizationId])
   @@index([organizationId, status])
@@ -2491,6 +2497,7 @@ model WorkOrder {
   deliveryAttachmentUrl  String?
   deliveryAttachmentKey  String?
   deliveryAttachmentName String?
+  deliveryAttachmentSharedWithPartners Boolean @default(false)
   /// [{ id, text, done }]
   campoChecklist Json?
   /// [{ id, url, createdAt }]
@@ -2578,6 +2585,7 @@ model JobMedia {
   stage            String?
   annotationsJson  Json?
   isPublic         Boolean   @default(false)
+  sharedWithPartners Boolean @default(false)
   /// Featured on org public portfolio page
   inPortfolio      Boolean   @default(false)
   /// OCR extract from labels / serial plates
@@ -2689,6 +2697,7 @@ model JobReport {
   nextStepsJson        Json?
   photoIds             Json
   isPublic             Boolean   @default(false)
+  sharedWithPartners   Boolean   @default(false)
   /// ai | manual
   source               String    @default("ai")
   modelUsed            String?

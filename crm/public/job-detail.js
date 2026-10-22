@@ -388,6 +388,11 @@
         delBits.push(
           `<p><small>Arquivo</small><a href="${esc(job.delivery_attachment.url)}" target="_blank" rel="noopener">${esc(job.delivery_attachment.name || "Anexo")}</a></p>`,
         );
+        if (canManage && job.builder_id && job.delivery_attachment.key) {
+          delBits.push(
+            `<button type="button" class="jd-mini" data-delivery-share data-on="${job.delivery_attachment.shared_with_partners ? "1" : "0"}" aria-pressed="${job.delivery_attachment.shared_with_partners ? "true" : "false"}">${job.delivery_attachment.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>`,
+          );
+        }
       }
       if (!job.delivery_pickup_address && !job.delivery_notes && !job.delivery_attachment?.url) {
         delBits.push(`<p>Retirar material da obra</p>`);
@@ -726,11 +731,16 @@
               canManage && !p.legacy
                 ? `<button type="button" class="jd-photo__port" data-port="${esc(p.id)}" data-on="${p.in_portfolio ? "1" : "0"}" title="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${p.in_portfolio ? "★" : "☆"}</button>`
                 : "";
+            const partnerShareBtn =
+              canManage && !p.legacy && job.builder_id
+                ? `<button type="button" class="jd-mini" data-partner-share="${esc(p.id)}" data-on="${p.shared_with_partners ? "1" : "0"}" aria-pressed="${p.shared_with_partners ? "true" : "false"}">${p.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>`
+                : "";
             return `<figure class="jd-photo">
               <a href="${esc(p.url)}" target="_blank" rel="noopener" data-view-photo="${esc(p.id)}"><img src="${esc(p.thumb_url || p.url)}" alt="${esc(p.caption || st || "Foto")}" loading="lazy" /></a>
               ${st ? `<span class="jd-photo__stage">${esc(st)}</span>` : ""}
               ${portBtn}
               <figcaption><span>${esc(p.caption || "")}</span></figcaption>
+              ${partnerShareBtn ? `<div class="jd-photo__share">${partnerShareBtn}</div>` : ""}
               <div class="jd-photo__loc">${locBits.join("")}</div>
             </figure>`;
           })
@@ -748,12 +758,13 @@
     $("jobReportBody").innerHTML = reports.length
       ? `<ul class="jd-reports">${reports
           .map(
-            (r) => `<li><div><b>${esc(r.title || "Relatório")}</b><small>${esc(r.status === "published" ? "Publicado" : "Rascunho")}${r.is_public ? " · no link do cliente" : ""}</small><p>${esc((r.summary || "").slice(0, 280))}</p></div>
+            (r) => `<li><div><b>${esc(r.title || "Relatório")}</b><small>${esc(r.status === "published" ? "Publicado" : "Rascunho")}${r.is_public ? " · no link do cliente" : ""}${r.shared_with_partners ? " · no portal do parceiro" : ""}</small><p>${esc((r.summary || "").slice(0, 280))}</p></div>
             <span class="jd-actions"><a class="jd-mini" href="/api/work-orders/${encodeURIComponent(jobId)}/reports/${encodeURIComponent(r.id)}/pdf" target="_blank" rel="noopener">PDF</a>
             ${
               canManage
                 ? `<button type="button" class="jd-mini" data-report="${esc(r.id)}" data-status="${r.status === "published" ? "draft" : "published"}">${r.status === "published" ? "Despublicar" : "Publicar"}</button>
-            <button type="button" class="jd-mini" data-report-pub="${esc(r.id)}" data-public="${r.is_public ? "0" : "1"}">${r.is_public ? "Tirar do link" : "Mostrar no link"}</button>`
+            <button type="button" class="jd-mini" data-report-pub="${esc(r.id)}" data-public="${r.is_public ? "0" : "1"}">${r.is_public ? "Tirar do link" : "Mostrar no link"}</button>
+            ${job.builder_id ? `<button type="button" class="jd-mini" data-report-partner="${esc(r.id)}" data-on="${r.shared_with_partners ? "1" : "0"}" aria-pressed="${r.shared_with_partners ? "true" : "false"}" ${r.status !== "published" ? "disabled title=\"Publique o relatório antes de compartilhar\"" : ""}>${r.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>` : ""}`
                 : ""
             }</span></li>`,
           )
@@ -1177,17 +1188,83 @@
         }
         return;
       }
-      const rep = t.closest("[data-report]");
-      const repPub = t.closest("[data-report-pub]");
-      if (rep || repPub) {
-        const id = rep ? rep.getAttribute("data-report") : repPub.getAttribute("data-report-pub");
-        const body = rep ? { status: rep.getAttribute("data-status") } : { is_public: repPub.getAttribute("data-public") === "1" };
+      const partnerShare = t.closest("[data-partner-share]");
+      if (partnerShare) {
+        const next = partnerShare.getAttribute("data-on") !== "1";
+        const originalLabel = partnerShare.textContent;
+        partnerShare.disabled = true;
+        partnerShare.textContent = "Salvando…";
         try {
-          const j = await api(`/api/work-orders/${jobId}/reports/${id}`, { method: "PATCH", body: JSON.stringify(body) });
-          reports = reports.map((r) => (r.id === j.data.id ? j.data : r));
-          renderReports();
+          const j = await api(`/api/work-orders/${jobId}/media/${partnerShare.getAttribute("data-partner-share")}/partner-share`, {
+            method: "PATCH",
+            body: JSON.stringify({ shared_with_partners: next }),
+          });
+          media = media.map((p) => (p.id === j.data.id ? j.data : p));
+          renderPhotos();
+          notify(next ? "Arquivo compartilhado com o parceiro." : "Arquivo removido do portal do parceiro.", "success");
         } catch (err) {
           notify(err.message, "error");
+        } finally {
+          if (partnerShare.isConnected) {
+            partnerShare.disabled = false;
+            partnerShare.textContent = originalLabel;
+          }
+        }
+        return;
+      }
+      const deliveryShare = t.closest("[data-delivery-share]");
+      if (deliveryShare) {
+        const next = deliveryShare.getAttribute("data-on") !== "1";
+        const originalLabel = deliveryShare.textContent;
+        deliveryShare.disabled = true;
+        deliveryShare.textContent = "Salvando…";
+        try {
+          await api(`/api/work-orders/${jobId}/delivery-attachment/share-with-partner`, {
+            method: "PATCH",
+            body: JSON.stringify({ shared_with_partners: next }),
+          });
+          job.delivery_attachment.shared_with_partners = next;
+          renderAttention();
+          notify(next ? "Arquivo compartilhado com o parceiro." : "Arquivo removido do portal do parceiro.", "success");
+        } catch (err) {
+          notify(err.message, "error");
+        } finally {
+          if (deliveryShare.isConnected) {
+            deliveryShare.disabled = false;
+            deliveryShare.textContent = originalLabel;
+          }
+        }
+        return;
+      }
+      const rep = t.closest("[data-report]");
+      const repPub = t.closest("[data-report-pub]");
+      const repShare = t.closest("[data-report-partner]");
+      if (rep || repPub || repShare) {
+        const id = rep ? rep.getAttribute("data-report") : repPub ? repPub.getAttribute("data-report-pub") : repShare.getAttribute("data-report-partner");
+        const body = rep
+          ? { status: rep.getAttribute("data-status") }
+          : repPub
+            ? { is_public: repPub.getAttribute("data-public") === "1" }
+            : { shared_with_partners: repShare.getAttribute("data-on") !== "1" };
+        const url = repShare
+          ? `/api/work-orders/${jobId}/reports/${id}/partner-share`
+          : `/api/work-orders/${jobId}/reports/${id}`;
+        if (repShare) {
+          repShare.disabled = true;
+          repShare.textContent = "Salvando…";
+        }
+        try {
+          const j = await api(url, { method: "PATCH", body: JSON.stringify(body) });
+          reports = reports.map((r) => (r.id === j.data.id ? j.data : r));
+          renderReports();
+          if (repShare) notify(body.shared_with_partners ? "Relatório compartilhado com o parceiro." : "Relatório removido do portal do parceiro.", "success");
+        } catch (err) {
+          notify(err.message, "error");
+        } finally {
+          if (repShare?.isConnected) {
+            repShare.disabled = false;
+            repShare.textContent = repShare.getAttribute("data-on") === "1" ? "Remover do portal do parceiro" : "Compartilhar com parceiro";
+          }
         }
         return;
       }

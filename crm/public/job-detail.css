@@ -238,8 +238,11 @@
 }
 .jd-photo__port:hover { background: rgba(33, 29, 26, 0.9); }
 .jd-photo__port[data-on="1"] { color: #fbbf24; background: rgba(33, 29, 26, 0.82); }
+.jd-mini[data-on="1"] { border-color: #8fb69b; color: #245b35; background: #f1f8f2; }
+.jd-mini:disabled { opacity: .55; cursor: not-allowed; }
 .jd-photo figcaption { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 8px 6px 10px; font-size: 12.5px; color: var(--jd-ink-2); }
 .jd-photo figcaption span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jd-photo__share { padding: 0 8px 6px; }
 .jd-photo__loc {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
   padding: 0 10px 8px; font-size: 11.5px; color: var(--jd-ink-2);
