@@ -10,6 +10,23 @@ import type { Readable } from "node:stream";
  */
 
 const MAX = 0xffffffff;
+const CRC32_TABLE = new Uint32Array(256);
+
+for (let i = 0; i < CRC32_TABLE.length; i++) {
+  let value = i;
+  for (let bit = 0; bit < 8; bit++) {
+    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  }
+  CRC32_TABLE[i] = value >>> 0;
+}
+
+function updateCrc32(data: Buffer, previous = 0): number {
+  let crc = (previous ^ 0xffffffff) >>> 0;
+  for (const byte of data) {
+    crc = (CRC32_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8)) >>> 0;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
 
 type Entry = { name: Buffer; crc: number; csize: number; usize: number; offset: number; method: number; time: number; date: number };
 
@@ -102,7 +119,7 @@ export class ZipWriter {
       })();
       for await (const raw of source) {
         const chunk = typeof raw === "string" ? Buffer.from(raw) : Buffer.from(raw);
-        crc = zlib.crc32(chunk, crc);
+        crc = updateCrc32(chunk, crc);
         usize += chunk.length;
         if (!deflate.write(chunk)) await new Promise((r) => deflate.once("drain", r));
       }
@@ -111,7 +128,7 @@ export class ZipWriter {
     } else {
       for await (const raw of source) {
         const chunk = typeof raw === "string" ? Buffer.from(raw) : Buffer.from(raw);
-        crc = zlib.crc32(chunk, crc);
+        crc = updateCrc32(chunk, crc);
         usize += chunk.length;
         csize += chunk.length;
         await this.write(chunk);

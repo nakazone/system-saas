@@ -862,6 +862,29 @@ model Organization {
   fieldQuotes        FieldQuote[]
   referralRewards    ReferralReward[]
   referralLedgerEntries ReferralLedgerEntry[]
+  virtualAgents      VirtualAgent[]
+}
+
+/// Digital employees configured for an organization's virtual office.
+/// Their capabilities are an allowlist for future task execution, not CRM permissions.
+model VirtualAgent {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Stable key used by workflows even when an employee's name or department changes.
+  key            String
+  name           String
+  title          String
+  department     String
+  avatarKey      String       @default("avatar-1")
+  description    String       @db.Text
+  capabilities   String[]     @default([])
+  enabled        Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, key])
+  @@index([organizationId, department, enabled])
 }
 
 // ---------------------------------------------------------------------------

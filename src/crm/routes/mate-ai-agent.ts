@@ -474,8 +474,22 @@ async function screenSummary(tx: ActionContext["tx"], screen: ScreenContext): Pr
   return l ? { type: "lead", id: screen.id, label: "Lead " + l.name } : null;
 }
 
-function cardOut(card: Card | undefined) {
-  return card;
+function cardOut(card: Card | undefined, agentCapabilities?: unknown) {
+  if (!card || agentCapabilities === undefined) return card;
+  const filterRuns = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(filterRuns);
+    if (!value || typeof value !== "object") return value;
+    const output: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (key === "run" && item && typeof item === "object") {
+        const action = String((item as Record<string, unknown>).action || "");
+        if (!agentCanUseAction(agentCapabilities, action)) continue;
+      }
+      output[key] = filterRuns(item);
+    }
+    return output;
+  };
+  return filterRuns(card) as Card;
 }
 
 /* ───────────────────────── /act ───────────────────────── */
@@ -484,6 +498,7 @@ const actSchema = z
   .object({
     text: z.string().trim().min(1).max(600).optional(),
     action: z.string().max(60).optional(),
+    agent_key: z.string().regex(/^[a-z0-9_-]{1,60}$/i).optional(),
     args: z.record(z.string(), z.unknown()).optional(),
     patch: z.record(z.string(), z.unknown()).optional(),
     screen: screenSchema,
@@ -494,6 +509,39 @@ const actSchema = z
   })
   .refine((b) => Boolean(b.text || b.action), { message: "text or action required" });
 
+/** Capabilities are an additional allowlist for a named office agent. CRM permissions still apply. */
+const AGENT_ACTIONS: Record<string, readonly string[]> = {
+  "office.summary": ["money.summary", "agenda.list", "invoices.overdue", "jobs.uninvoiced", "customer.balance", "quotes.followup"],
+  "leads.search": ["leads.new", "leads.stale"],
+  "customers.search": ["customer.overview"],
+  "quotes.prepare": ["quote.create", "quote.edit", "quotes.followup"],
+  "quotes.send": ["quote.send"],
+  "jobs.view": ["agenda.list"],
+  "jobs.manage": ["job.create", "job.status", "job.note"],
+  "schedule.view": ["agenda.list", "schedule.free"],
+  "schedule.manage": ["job.schedule", "meeting.create", "meeting.move", "meeting.cancel", "jobs.reschedule"],
+  "crews.view": ["schedule.free"],
+  "invoices.view": ["money.summary", "invoices.overdue", "jobs.uninvoiced", "customer.balance"],
+  "invoices.manage": ["invoice.quote", "invoice.job", "invoice.send", "invoice.remind", "invoice.due", "invoice.link"],
+  "payments.view": ["customer.balance", "money.summary"],
+  "payments.manage": ["payment.record", "receipt.send"],
+};
+
+function agentCanUseAction(capabilities: unknown, action: string): boolean {
+  if (!Array.isArray(capabilities)) return false;
+  return capabilities.some((capability) =>
+    typeof capability === "string" && AGENT_ACTIONS[capability]?.includes(action),
+  );
+}
+
+function agentCanUsePayload(capabilities: unknown, action: string, payload: unknown): boolean {
+  if (!agentCanUseAction(capabilities, action)) return false;
+  if (action === "quote.create" && payload && typeof payload === "object" && String((payload as Record<string, unknown>).send || "").trim()) {
+    return agentCanUseAction(capabilities, "quote.send");
+  }
+  return true;
+}
+
 mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const body = actSchema.safeParse(req.body || {});
@@ -503,9 +551,26 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
     }
     const organizationId = req.organizationId!;
     const user = req.user!;
+    const agentKey = body.data.agent_key;
+    const agent = agentKey
+      ? await withTenantTransaction(organizationId, (tx) =>
+          tx.virtualAgent.findFirst({
+            where: { organizationId, key: agentKey, enabled: true },
+            select: { key: true, name: true, capabilities: true },
+          }),
+        )
+      : null;
+    if (agentKey && !agent) {
+      res.status(404).json({ success: false, error: "Este funcionário virtual está inativo ou não existe mais." });
+      return;
+    }
     const timezone = await orgTimezone(organizationId);
     const today = todayInTimezone(timezone).date;
-    const allowed = listActions().filter((a) => canUse(a, user));
+    const allowed = listActions().filter((a) => canUse(a, user) && (!agent || agentCanUseAction(agent.capabilities, a.name)));
+    if (body.data.text && agent && allowed.length === 0) {
+      res.json({ success: true, type: "reply", message: `${agent.name} ainda não tem ações disponíveis para sua conta. Peça ao administrador para revisar as capacidades do perfil e as permissões do CRM.` });
+      return;
+    }
     let screen: ScreenContext = body.data.screen ?? null;
 
     let action = body.data.action || "";
@@ -567,7 +632,15 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
       res.status(403).json({ success: false, error: "Você não tem permissão para isso.", missing: def.permissions.filter((p) => !user.permissions.includes(p)) });
       return;
     }
+    if (agent && !agentCanUseAction(agent.capabilities, def.name)) {
+      res.status(403).json({ success: false, error: `${agent.name} não tem capacidade para executar essa ação.` });
+      return;
+    }
     if (body.data.patch) args = applyPatch(args, body.data.patch);
+    if (agent && !agentCanUsePayload(agent.capabilities, def.name, args)) {
+      res.status(403).json({ success: false, error: `${agent.name} pode preparar o orçamento, mas não tem capacidade para enviá-lo.` });
+      return;
+    }
 
     const result: PrepareResult = await withTenantTransaction(organizationId, async (tx) => {
       const ctx: ActionContext = {
@@ -582,7 +655,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
           .map((m) => m.entity)
           .filter((e): e is { type: string; id: string } => Boolean(e && e.id))
           .reverse(),
-        sign: (exec) => signActionToken({ k: "exec", a: def.name, o: organizationId, u: user.id, e: exec, ttlMs: EXEC_TTL_MS }).token,
+        sign: (exec) => signActionToken({ k: "exec", a: def.name, o: organizationId, u: user.id, e: exec, ...(agent ? { agentKey: agent.key } : {}), ttlMs: EXEC_TTL_MS }).token,
       };
       return def.prepare(ctx, args);
     });
@@ -593,7 +666,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
       action: def.name,
       read_only: Boolean(def.readOnly),
       args: result.args ?? args,
-      ...(result.kind === "card" || result.kind === "answer" ? { card: cardOut(result.card) } : {}),
+      ...(result.kind === "card" || result.kind === "answer" ? { card: cardOut(result.card, agent?.capabilities) } : {}),
       ...(result.kind === "clarify" ? { clarify: result.clarify } : {}),
       message: result.kind === "error" ? result.message : result.message || note,
       interpreted_by: interpretedBy,
@@ -607,13 +680,13 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
 
 /* ───────────────────────── /execute ───────────────────────── */
 
-async function claim(organizationId: string, userId: string, tokenId: string, action: string): Promise<boolean> {
+async function claim(organizationId: string, userId: string, tokenId: string, action: string, agentKey?: string): Promise<boolean> {
   return withTenantTransaction(organizationId, async (tx) => {
     await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))::text AS locked", tokenId);
     const seen = await tx.activityEvent.findFirst({ where: { entityType: "mate_ai", entityId: tokenId }, select: { id: true } });
     if (seen) return false;
     await tx.activityEvent.create({
-      data: { organizationId, entityType: "mate_ai", entityId: tokenId, actorType: "user", actorId: userId, action: "mate_ai.executing", changes: { action: { from: null, to: action } } },
+      data: { organizationId, entityType: "mate_ai", entityId: tokenId, actorType: "user", actorId: userId, action: "mate_ai.executing", changes: { action: { from: null, to: action }, ...(agentKey ? { agent: { from: null, to: agentKey } } : {}) } },
     });
     return true;
   });
@@ -642,7 +715,19 @@ mateAiAgentRouter.post("/api/mate-ai/execute", requireCrmAuth, async (req: Authe
       return;
     }
     const organizationId = req.organizationId!;
-    if (!(await claim(organizationId, req.user!.id, token.id, def.name))) {
+    if (token.agentKey) {
+      const agent = await withTenantTransaction(organizationId, (tx) =>
+        tx.virtualAgent.findFirst({
+          where: { organizationId, key: token.agentKey, enabled: true },
+          select: { name: true, capabilities: true },
+        }),
+      );
+      if (!agent || !agentCanUsePayload(agent.capabilities, def.name, token.e)) {
+        res.status(403).json({ success: false, error: "As capacidades desse funcionário mudaram. Prepare a ação novamente." });
+        return;
+      }
+    }
+    if (!(await claim(organizationId, req.user!.id, token.id, def.name, token.agentKey))) {
       res.status(409).json({ success: false, error: "Esta ação já foi feita." });
       return;
     }
@@ -679,7 +764,8 @@ mateAiAgentRouter.post("/api/mate-ai/execute", requireCrmAuth, async (req: Authe
             detail: { from: null, to: done.detail ?? null },
             links: { from: null, to: (done.links || []).slice(0, 3) },
             entity: { from: null, to: done.entity ?? null },
-          } as Prisma.InputJsonValue,
+             ...(token.agentKey ? { agent: { from: null, to: token.agentKey } } : {}),
+           } as Prisma.InputJsonValue,
         },
       });
       if (done.entity && ACTIVITY_TYPES.has(done.entity.type as ActivityEntityType)) {
@@ -690,7 +776,7 @@ mateAiAgentRouter.post("/api/mate-ai/execute", requireCrmAuth, async (req: Authe
           actorType: "user",
           actorId: req.user!.id,
           action: "mate_ai.action",
-          changes: { source: { from: null, to: "mate_ai" }, action: { from: null, to: def.name }, summary: { from: null, to: done.title } },
+          changes: { source: { from: null, to: "mate_ai" }, action: { from: null, to: def.name }, summary: { from: null, to: done.title }, ...(token.agentKey ? { agent: { from: null, to: token.agentKey } } : {}) },
         });
       }
     });

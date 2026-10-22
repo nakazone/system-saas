@@ -87,6 +87,22 @@ body.mate-open .mate-fab {
   display: none;
 }
 
+.mate-mic[hidden] {
+  display: none;
+}
+
+.mate-agent-back {
+  display: inline-flex;
+  margin-top: 0.35rem;
+  color: var(--mate-accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.mate-agent-back:hover { text-decoration: underline; }
+.mate-agent-back:focus-visible { outline: 3px solid rgba(231, 121, 44, 0.3); outline-offset: 3px; }
+
 .mate-topbar-btn {
   display: inline-flex;
   align-items: center;

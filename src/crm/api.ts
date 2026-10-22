@@ -48,6 +48,7 @@ import { mateAiAgentRouter } from "./routes/mate-ai-agent.js";
 import { mateAiExtrasRouter } from "./routes/mate-ai-extras.js";
 import { mateAiCentralRouter } from "./routes/mate-ai-central.js";
 import { mateVoiceRouter } from "./routes/mate-voice.js";
+import { virtualOfficeRouter } from "./routes/virtual-office.js";
 import { isMateVoiceEnabled } from "../lib/mate-voice/staging.js";
 
 export const crmApiRouter = Router();
@@ -78,6 +79,7 @@ crmApiRouter.use(customersQuotesRouter);
 crmApiRouter.use(mateAiRouter);
 crmApiRouter.use(mateAiAgentRouter);
 crmApiRouter.use(mateAiExtrasRouter);
+crmApiRouter.use(virtualOfficeRouter);
 crmApiRouter.use(mateAiCentralRouter);
 if (isMateVoiceEnabled()) crmApiRouter.use(mateVoiceRouter);
 crmApiRouter.use(fieldQuotesRouter);

@@ -174,6 +174,14 @@ export function createCrmRouter(): Router {
     }
   });
 
+  router.get(["/escritorio-ia", "/escritorio-ia.html"], requireAuth, async (req, res, next) => {
+    try {
+      await sendCrmHtml(req, res, "escritorio-ia.html");
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get(["/mate-voice", "/mate-voice.html"], requireAuth, async (req, res, next) => {
     try {
       if (!isMateVoiceEnabled()) {
