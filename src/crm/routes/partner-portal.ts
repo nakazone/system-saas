@@ -12,16 +12,29 @@ type PartnerRequest = TenantRequest & {
   partnerUser?: {
     id: string;
     organizationId: string;
-    builderId: string;
+    builderId: string | null;
+    customerId: string | null;
     email: string;
     name: string;
     companyName: string | null;
     mustChangePassword: boolean;
-    builder: { id: string; status: string; type: string; company: string | null };
+    builder: { id: string; status: string; type: string; company: string | null } | null;
+    customer: { id: string; customerType: string; name: string; company: string | null } | null;
   };
 };
 
 export const partnerPortalRouter = Router();
+
+function partnerJobScope(user: NonNullable<PartnerRequest["partnerUser"]>) {
+  const OR: Array<{ builderId?: string; customerId?: string }> = [];
+  if (user.builderId) OR.push({ builderId: user.builderId });
+  if (user.customerId) OR.push({ customerId: user.customerId });
+  return { OR };
+}
+
+function partnerCustomerIsActive(customer: NonNullable<PartnerRequest["partnerUser"]>["customer"]): boolean {
+  return Boolean(customer && ["builder", "contractor"].includes(customer.customerType.toLowerCase()));
+}
 
 async function saveSession(req: TenantRequest): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -48,25 +61,33 @@ async function requirePartnerAuth(
 
     const user = await withTenantTransaction(organizationId, (tx) =>
       tx.partnerUser.findFirst({
-        where: { id: partnerUserId, organizationId, status: "active", builderId: { not: null } },
+        where: {
+          id: partnerUserId,
+          organizationId,
+          status: "active",
+          OR: [{ builderId: { not: null } }, { customerId: { not: null } }],
+        },
         select: {
           id: true,
           organizationId: true,
           builderId: true,
+          customerId: true,
           email: true,
           name: true,
           companyName: true,
           mustChangePassword: true,
           builder: { select: { id: true, status: true, type: true, company: true } },
+          customer: { select: { id: true, customerType: true, name: true, company: true } },
         },
       }),
     );
-    if (!user?.builder || user.builder.status === "inactive") {
+    const builderIsActive = Boolean(user?.builder && user.builder.status !== "inactive");
+    if (!user || (!builderIsActive && !partnerCustomerIsActive(user.customer))) {
       res.status(401).json({ success: false, error: "Acesso ao portal desativado." });
       return;
     }
 
-    req.partnerUser = { ...user, builderId: user.builderId!, builder: user.builder! };
+    req.partnerUser = user;
     next();
   } catch (error) {
     next(error);
@@ -113,18 +134,20 @@ partnerPortalRouter.post("/api/partner-auth/login", async (req: TenantRequest, r
           passwordHash: true,
           status: true,
           builderId: true,
+          customerId: true,
           companyName: true,
           mustChangePassword: true,
           builder: { select: { id: true, status: true, company: true } },
+          customer: { select: { id: true, customerType: true, name: true, company: true } },
         },
       }),
     );
+    const builderIsActive = Boolean(user?.builder && user.builder.status !== "inactive");
+    const customerIsActive = partnerCustomerIsActive(user?.customer || null);
     if (
       !user ||
       user.status !== "active" ||
-      !user.builderId ||
-      !user.builder ||
-      user.builder.status === "inactive" ||
+      (!builderIsActive && !customerIsActive) ||
       !(await verifyPassword(parsed.data.password, user.passwordHash))
     ) {
       res.status(401).json({ success: false, error: "E-mail ou senha incorretos." });
@@ -149,7 +172,7 @@ partnerPortalRouter.post("/api/partner-auth/login", async (req: TenantRequest, r
       success: true,
       data: {
         name: user.name,
-        company_name: user.companyName,
+        company_name: user.companyName || user.builder?.company || user.customer?.company || user.customer?.name || null,
         must_change_password: user.mustChangePassword,
       },
     });
@@ -166,8 +189,8 @@ partnerPortalRouter.get("/api/partner-auth/session", requirePartnerAuth, (req: P
     data: {
       name: user.name,
       email: user.email,
-      company_name: user.companyName || user.builder.company,
-      partner_type: user.builder.type,
+      company_name: user.companyName || user.builder?.company || user.customer?.company || user.customer?.name || null,
+      partner_type: user.builder?.type || user.customer?.customerType || "builder",
       must_change_password: user.mustChangePassword,
     },
   });
@@ -213,7 +236,7 @@ partnerPortalRouter.get("/api/partner-portal/overview", requirePartnerAuth, asyn
     const data = await withTenantTransaction(user.organizationId, async (tx) => {
       const [projects, jobs] = await Promise.all([
         tx.project.findMany({
-          where: { organizationId: user.organizationId, builderId: user.builderId, deletedAt: null },
+          where: { organizationId: user.organizationId, ...partnerJobScope(user), deletedAt: null },
           select: { id: true, number: true, name: true, status: true, address: true, updatedAt: true },
           orderBy: { updatedAt: "desc" },
           take: 100,
@@ -221,7 +244,7 @@ partnerPortalRouter.get("/api/partner-portal/overview", requirePartnerAuth, asyn
         tx.workOrder.findMany({
           where: {
             organizationId: user.organizationId,
-            builderId: user.builderId,
+            ...partnerJobScope(user),
             status: { not: "canceled" },
           },
           select: {
@@ -282,7 +305,7 @@ partnerPortalRouter.get(
         const jobs = await tx.workOrder.findMany({
           where: {
             organizationId: user.organizationId,
-            builderId: user.builderId,
+            ...partnerJobScope(user),
             status: { not: "canceled" },
           },
           select: {
@@ -384,7 +407,7 @@ partnerPortalRouter.get(
           where: {
             id: media.workOrderId,
             organizationId: user.organizationId,
-            builderId: user.builderId,
+            ...partnerJobScope(user),
             status: { not: "canceled" },
           },
           select: { id: true, number: true },
@@ -426,7 +449,7 @@ partnerPortalRouter.get(
           where: {
             id: String(req.params.jobId),
             organizationId: user.organizationId,
-            builderId: user.builderId,
+            ...partnerJobScope(user),
             deliveryAttachmentSharedWithPartners: true,
             status: { not: "canceled" },
           },
@@ -477,7 +500,7 @@ partnerPortalRouter.get(
           where: {
             id: report.workOrderId,
             organizationId: user.organizationId,
-            builderId: user.builderId,
+            ...partnerJobScope(user),
             status: { not: "canceled" },
           },
           include: {

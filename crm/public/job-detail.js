@@ -388,7 +388,7 @@
         delBits.push(
           `<p><small>Arquivo</small><a href="${esc(job.delivery_attachment.url)}" target="_blank" rel="noopener">${esc(job.delivery_attachment.name || "Anexo")}</a></p>`,
         );
-        if (canManage && job.builder_id && job.delivery_attachment.key) {
+        if (canManage && hasPartnerPortal() && job.delivery_attachment.key) {
           delBits.push(
             `<button type="button" class="jd-mini" data-delivery-share data-on="${job.delivery_attachment.shared_with_partners ? "1" : "0"}" aria-pressed="${job.delivery_attachment.shared_with_partners ? "true" : "false"}">${job.delivery_attachment.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>`,
           );
@@ -595,7 +595,12 @@
 
   function isB2B() {
     const s = String(job.source_type || "").toLowerCase();
-    return s === "builder" || s === "contractor" || s === "loja" || Boolean(job.builder_id);
+    const customerType = String(job.customer_type || "").toLowerCase();
+    return s === "builder" || s === "contractor" || s === "loja" || Boolean(job.builder_id) || ["builder", "contractor", "loja"].includes(customerType);
+  }
+  function hasPartnerPortal() {
+    const customerType = String(job.customer_type || "").toLowerCase();
+    return Boolean(job.builder_id) || ["builder", "contractor"].includes(customerType);
   }
   async function loadProposals() {
     const card = $("jobProposalCard");
@@ -732,7 +737,7 @@
                 ? `<button type="button" class="jd-photo__port" data-port="${esc(p.id)}" data-on="${p.in_portfolio ? "1" : "0"}" title="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${p.in_portfolio ? "★" : "☆"}</button>`
                 : "";
             const partnerShareBtn =
-              canManage && !p.legacy && job.builder_id
+              canManage && !p.legacy && hasPartnerPortal()
                 ? `<button type="button" class="jd-mini" data-partner-share="${esc(p.id)}" data-on="${p.shared_with_partners ? "1" : "0"}" aria-pressed="${p.shared_with_partners ? "true" : "false"}">${p.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>`
                 : "";
             return `<figure class="jd-photo">
@@ -764,7 +769,7 @@
               canManage
                 ? `<button type="button" class="jd-mini" data-report="${esc(r.id)}" data-status="${r.status === "published" ? "draft" : "published"}">${r.status === "published" ? "Despublicar" : "Publicar"}</button>
             <button type="button" class="jd-mini" data-report-pub="${esc(r.id)}" data-public="${r.is_public ? "0" : "1"}">${r.is_public ? "Tirar do link" : "Mostrar no link"}</button>
-            ${job.builder_id ? `<button type="button" class="jd-mini" data-report-partner="${esc(r.id)}" data-on="${r.shared_with_partners ? "1" : "0"}" aria-pressed="${r.shared_with_partners ? "true" : "false"}" ${r.status !== "published" ? "disabled title=\"Publique o relatório antes de compartilhar\"" : ""}>${r.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>` : ""}`
+            ${hasPartnerPortal() ? `<button type="button" class="jd-mini" data-report-partner="${esc(r.id)}" data-on="${r.shared_with_partners ? "1" : "0"}" aria-pressed="${r.shared_with_partners ? "true" : "false"}" ${r.status !== "published" ? "disabled title=\"Publique o relatório antes de compartilhar\"" : ""}>${r.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>` : ""}`
                 : ""
             }</span></li>`,
           )

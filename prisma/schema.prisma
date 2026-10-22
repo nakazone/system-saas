@@ -1050,6 +1050,8 @@ model PartnerUser {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   builderId      String?  @db.Uuid
   builder        Builder? @relation(fields: [builderId], references: [id], onDelete: SetNull)
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
   email          String
   passwordHash   String
   name           String
@@ -1063,6 +1065,7 @@ model PartnerUser {
   @@unique([organizationId, email])
   @@index([organizationId])
   @@index([organizationId, builderId])
+  @@index([organizationId, customerId])
 }
 
 // ---------------------------------------------------------------------------
@@ -1191,6 +1194,7 @@ model Customer {
   scheduledMessages ScheduledMessage[]
   communicationLogs CommunicationLog[]
   workOrders WorkOrder[]
+  partnerUsers PartnerUser[]
   meetings   Meeting[]
   mateVoiceConversations MateVoiceConversation[]
   referralRewardsAsReferrer ReferralReward[] @relation("ReferralRewardReferrer")

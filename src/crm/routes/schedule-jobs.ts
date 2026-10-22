@@ -184,7 +184,7 @@ function mapWorkOrder(wo: {
   allDay?: boolean;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { id: string; name: string; clientCode?: string | null; email?: string | null; phone?: string | null } | null;
+  customer?: { id: string; name: string; clientCode?: string | null; customerType?: string | null; email?: string | null; phone?: string | null } | null;
   builder?: { id: string; firstName: string; lastName: string; company: string | null } | null;
   assignedUser?: { id: string; name: string } | null;
   crew?: { id: string; name: string; color: string | null } | null;
@@ -238,6 +238,7 @@ function mapWorkOrder(wo: {
     source_type: wo.sourceType,
     source_name: wo.sourceName,
     customer_id: wo.customerId,
+    customer_type: wo.customer?.customerType || null,
     builder_id: wo.builderId,
     address: wo.address,
     notes: wo.notes,
@@ -401,7 +402,7 @@ const relatedWoSelect = {
 } as const;
 
 const woInclude = {
-  customer: { select: { id: true, name: true, clientCode: true, email: true, phone: true } },
+  customer: { select: { id: true, name: true, clientCode: true, customerType: true, email: true, phone: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
@@ -1331,13 +1332,15 @@ scheduleJobsRouter.patch(
       const jobId = String(req.params.id);
       const existing = await prisma.workOrder.findFirst({
         where: { id: jobId, organizationId: req.organizationId!, status: { not: "canceled" } },
-        select: { id: true, builderId: true, deliveryAttachmentKey: true },
+        select: { id: true, builderId: true, deliveryAttachmentKey: true, customer: { select: { customerType: true } } },
       });
       if (!existing) {
         res.status(404).json({ success: false, error: "Job não encontrado" });
         return;
       }
-      if (parsed.data.shared_with_partners && (!existing.builderId || !existing.deliveryAttachmentKey)) {
+      const customerType = String(existing.customer?.customerType || "").toLowerCase();
+      const hasPartner = Boolean(existing.builderId) || ["builder", "contractor"].includes(customerType);
+      if (parsed.data.shared_with_partners && (!hasPartner || !existing.deliveryAttachmentKey)) {
         res.status(409).json({ success: false, error: "Vincule um parceiro e anexe um arquivo antes de compartilhar." });
         return;
       }
