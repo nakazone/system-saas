@@ -660,19 +660,41 @@ scheduleJobsRouter.get(
 
       const fieldScope = fieldWorkOrderScope(req.user);
       const jobNumber = /^#?\d{1,9}$/.test(q) ? Number(q.replace("#", "")) : null;
+      // Drop the first letter so a one-letter miss ("Invision") still matches "Envision".
+      const stem = q.length >= 5 ? q.slice(1) : "";
       const searchOr = q
         ? [
             { title: { contains: q, mode: "insensitive" as const } },
             { sourceName: { contains: q, mode: "insensitive" as const } },
+            ...(stem
+              ? [
+                  { title: { contains: stem, mode: "insensitive" as const } },
+                  { sourceName: { contains: stem, mode: "insensitive" as const } },
+                ]
+              : []),
             { address: { contains: q, mode: "insensitive" as const } },
             { customer: { name: { contains: q, mode: "insensitive" as const } } },
             { customer: { company: { contains: q, mode: "insensitive" as const } } },
+            ...(stem
+              ? [
+                  { customer: { name: { contains: stem, mode: "insensitive" as const } } },
+                  { customer: { company: { contains: stem, mode: "insensitive" as const } } },
+                ]
+              : []),
             { customer: { address: { contains: q, mode: "insensitive" as const } } },
             { builder: { company: { contains: q, mode: "insensitive" as const } } },
             { builder: { firstName: { contains: q, mode: "insensitive" as const } } },
             { builder: { lastName: { contains: q, mode: "insensitive" as const } } },
+            ...(stem
+              ? [
+                  { builder: { company: { contains: stem, mode: "insensitive" as const } } },
+                  { builder: { firstName: { contains: stem, mode: "insensitive" as const } } },
+                  { builder: { lastName: { contains: stem, mode: "insensitive" as const } } },
+                ]
+              : []),
             { quotes: { some: { quoteNumber: { contains: q, mode: "insensitive" } } } },
             { quotes: { some: { title: { contains: q, mode: "insensitive" } } } },
+            ...(stem ? [{ quotes: { some: { title: { contains: stem, mode: "insensitive" } } } }] : []),
             ...(jobNumber != null ? [{ number: jobNumber }] : []),
           ]
         : null;

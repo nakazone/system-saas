@@ -104,7 +104,9 @@
   function searchHit(wo) {
     if (!sourceMatches(wo)) return false;
     if (!q) return true;
-    return I().searchText(wo).includes(q);
+    const text = I().searchText(wo);
+    if (text.includes(q)) return true;
+    return q.length >= 5 && text.includes(q.slice(1));
   }
 
   function sortRows(rows) {
@@ -227,7 +229,15 @@
   }
 
   function visibleRows() {
-    return all.filter((w) => matchesFilter(w, filter) && searchHit(w));
+    const serverSearch = q.length >= 2 && q === fetchedQuery;
+    const rows = serverSearch
+      ? all.filter((w) => w.status !== "canceled")
+      : all.filter((w) => matchesFilter(w, filter) && searchHit(w));
+    if (selId && !rows.some((w) => String(w.id) === String(selId))) {
+      const pinned = all.find((w) => String(w.id) === String(selId));
+      if (pinned) return [pinned, ...rows];
+    }
+    return rows;
   }
 
   function renderList() {
@@ -235,7 +245,7 @@
     const host = $("jxRows");
     if (!rows.length) {
       const empty = q
-        ? `Nenhum job para “${I().esc(q)}”. Busque pelo builder, endereço, número do quote ou cliente.`
+        ? `Nenhum job para “${I().esc(q)}”. Abra o quote e use Abrir job, ou busque pelo builder, endereço ou número do quote.`
         : all.length
           ? "Nenhum job neste filtro."
           : 'Nenhum job ainda. Crie um orçamento em <a href="quote-builder.html">Quotes</a> e transforme em job.';
@@ -798,10 +808,17 @@
     renderTiles();
     const rows = renderList();
     const wide = window.matchMedia("(min-width: 1025px)").matches;
-    if (wide && !rows.some((w) => String(w.id) === String(selId))) {
+    const pinned = selId && all.some((w) => String(w.id) === String(selId));
+    if (wide && !pinned && !rows.some((w) => String(w.id) === String(selId))) {
       const first = $("jxRows").querySelector("[data-jx-id]");
       selId = first ? first.getAttribute("data-jx-id") : null;
       $("jxRows").querySelectorAll("[data-jx-id]").forEach((a) => a.classList.toggle("is-on", a.getAttribute("data-jx-id") === String(selId)));
+    } else if (selId) {
+      $("jxRows").querySelectorAll("[data-jx-id]").forEach((a) => a.classList.toggle("is-on", a.getAttribute("data-jx-id") === String(selId)));
+    }
+    if (scrollSel && selId) {
+      scrollSel = false;
+      $("jxRows").querySelector(".is-on")?.scrollIntoView({ block: "nearest" });
     }
     renderDetail();
   }
@@ -835,14 +852,42 @@
   }
 
   let loadSeq = 0;
+  /** Query the server already applied. Those rows are shown even if a tile or origin filter would hide them. */
+  let fetchedQuery = "";
+  let scrollSel = false;
   async function load() {
     const seq = ++loadSeq;
+    if (firstLoad) {
+      const qs = new URLSearchParams(location.search);
+      const bmap = { to_invoice: "toinvoice", awaiting_payment: "receivable", paid: "done" };
+      if (qs.get("billing") && bmap[qs.get("billing")]) filter = bmap[qs.get("billing")];
+      if (qs.get("filter")) filter = qs.get("filter");
+      if (qs.get("sort") === "oldest") sortDir = "oldest";
+      if (qs.get("id")) {
+        selId = qs.get("id");
+        filter = "all";
+        q = "";
+        scrollSel = true;
+        const box = $("jxQ");
+        if (box) box.value = "";
+      }
+    }
     const query = q;
     const params = new URLSearchParams();
     if (query.length >= 2) params.set("q", query);
     const j = await api(`/api/work-orders${params.toString() ? `?${params}` : ""}`);
     if (seq !== loadSeq) return;
+    fetchedQuery = query.length >= 2 ? query : "";
     all = j.data || [];
+    if (selId && !all.some((w) => String(w.id) === String(selId))) {
+      try {
+        const one = await api(`/api/work-orders/${encodeURIComponent(selId)}`);
+        if (seq !== loadSeq) return;
+        if (one.data) all = [one.data, ...all];
+      } catch (_) {
+        /* the list still renders; the detail fetch reports a missing job */
+      }
+    }
     // Keep detail cache aligned with the list so stage bars follow status changes.
     if (detailWo && selId) {
       const fresh = all.find((w) => String(w.id) === String(selId));
@@ -851,12 +896,6 @@
     }
     if (firstLoad) {
       firstLoad = false;
-      const qs = new URLSearchParams(location.search);
-      const bmap = { to_invoice: "toinvoice", awaiting_payment: "receivable", paid: "done" };
-      if (qs.get("billing") && bmap[qs.get("billing")]) filter = bmap[qs.get("billing")];
-      if (qs.get("filter")) filter = qs.get("filter");
-      if (qs.get("sort") === "oldest") sortDir = "oldest";
-      if (qs.get("id")) selId = qs.get("id");
       const sortEl = $("jxSort");
       if (sortEl) sortEl.value = sortDir;
     }

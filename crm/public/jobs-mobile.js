@@ -13,6 +13,7 @@
   let role = "office";
   let isField = false;
   let mobQ = "";
+  let fetchedMobQuery = "";
   let loadSeq = 0;
 
   const $ = (id) => document.getElementById(id);
@@ -129,9 +130,13 @@
 
   function tabFiltered(rows) {
     const needle = mobQ.trim().toLowerCase();
-    const matched = needle && window.JobsInfo?.searchText
-      ? rows.filter((wo) => window.JobsInfo.searchText(wo).includes(needle))
-      : rows;
+    const serverSearch = needle.length >= 2 && needle === fetchedMobQuery;
+    const matched = !needle || serverSearch
+      ? rows
+      : rows.filter((wo) => {
+          const text = window.JobsInfo?.searchText?.(wo) || "";
+          return text.includes(needle) || (needle.length >= 5 && text.includes(needle.slice(1)));
+        });
     if (needle.length >= 2) return matched.filter((wo) => wo.status !== "canceled").sort(byCreatedDesc);
     let out;
     if (tab === "today") {
@@ -318,7 +323,7 @@
     if (!host) return;
     if (!rows.length) {
       const empty = mobQ
-        ? `Nenhum job para “${escapeHtml(mobQ)}”.`
+        ? `Nenhum job para “${escapeHtml(mobQ)}”. Abra o quote e use Abrir job.`
         : isField
           ? "Nenhum job atribuído a você neste filtro."
           : "Nenhum job neste filtro.";
@@ -420,6 +425,7 @@
     const j = await fetch(`/api/work-orders${params.toString() ? `?${params}` : ""}`, { credentials: "include" }).then((r) => r.json());
     if (seq !== loadSeq) return;
     if (!j.success && j.success !== undefined) throw new Error(j.error || "Erro");
+    fetchedMobQuery = query.length >= 2 ? query.toLowerCase() : "";
     allJobs = j.data || [];
     render();
   }

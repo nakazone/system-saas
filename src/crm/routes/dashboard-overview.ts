@@ -148,6 +148,7 @@ dashboardOverviewRouter.get("/api/search", requireCrmAuth, async (req: AuthedReq
         }
       }
 
+      const stem = q.length >= 5 ? q.slice(1) : "";
       if (can("quotes.view")) {
         const quotes = await tx.quote.findMany({
           where: {
@@ -158,6 +159,15 @@ dashboardOverviewRouter.get("/api/search", requireCrmAuth, async (req: AuthedReq
               { builder: { company: { contains: q, mode: "insensitive" } } },
               { builder: { firstName: { contains: q, mode: "insensitive" } } },
               { builder: { lastName: { contains: q, mode: "insensitive" } } },
+              ...(stem
+                ? [
+                    { title: { contains: stem, mode: "insensitive" as const } },
+                    { customer: { name: { contains: stem, mode: "insensitive" as const } } },
+                    { builder: { company: { contains: stem, mode: "insensitive" as const } } },
+                    { builder: { firstName: { contains: stem, mode: "insensitive" as const } } },
+                    { builder: { lastName: { contains: stem, mode: "insensitive" as const } } },
+                  ]
+                : []),
               ...(asNumber != null ? [{ number: asNumber }] : []),
             ],
           },
@@ -203,6 +213,18 @@ dashboardOverviewRouter.get("/api/search", requireCrmAuth, async (req: AuthedReq
               { builder: { lastName: { contains: q, mode: "insensitive" } } },
               { quotes: { some: { quoteNumber: { contains: q, mode: "insensitive" } } } },
               { quotes: { some: { title: { contains: q, mode: "insensitive" } } } },
+              ...(stem
+                ? [
+                    { title: { contains: stem, mode: "insensitive" as const } },
+                    { sourceName: { contains: stem, mode: "insensitive" as const } },
+                    { customer: { name: { contains: stem, mode: "insensitive" as const } } },
+                    { customer: { company: { contains: stem, mode: "insensitive" as const } } },
+                    { builder: { company: { contains: stem, mode: "insensitive" as const } } },
+                    { builder: { firstName: { contains: stem, mode: "insensitive" as const } } },
+                    { builder: { lastName: { contains: stem, mode: "insensitive" as const } } },
+                    { quotes: { some: { title: { contains: stem, mode: "insensitive" as const } } } },
+                  ]
+                : []),
               ...(asNumber != null ? [{ number: asNumber }] : []),
             ],
           },
@@ -229,7 +251,7 @@ dashboardOverviewRouter.get("/api/search", requireCrmAuth, async (req: AuthedReq
               [quoteNo, j.builder?.company || j.sourceName, j.number != null ? `Job #${j.number}` : null, j.address]
                 .filter(Boolean)
                 .join(" · ") || null,
-            href: `job-detail.html?id=${encodeURIComponent(j.id)}`,
+            href: `jobs.html?id=${encodeURIComponent(j.id)}`,
           });
         }
       }
