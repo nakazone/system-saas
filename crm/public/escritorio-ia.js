@@ -45,57 +45,28 @@
     { key: 'payments.view', label: 'Consultar recebimentos' },
     { key: 'payments.manage', label: 'Registrar recebimentos e enviar comprovantes' },
   ];
-  const FACE_STYLES = {
-    'avatar-1': { skin: '#c98966', hair: '#30251f', shirt: '#426b77', background: '#dbe9e7', hairStyle: 'short' },
-    'avatar-2': { skin: '#cf916d', hair: '#34231f', shirt: '#ba6844', background: '#f2dfd2', hairStyle: 'long' },
-    'avatar-3': { skin: '#8d553c', hair: '#211b19', shirt: '#596f8a', background: '#dce4ef', hairStyle: 'curls' },
-    'avatar-4': { skin: '#e0ad8a', hair: '#9b5d3d', shirt: '#67825e', background: '#e6ebdc', hairStyle: 'bun' },
-    'avatar-5': { skin: '#b87958', hair: '#231d1b', shirt: '#78648b', background: '#e9e0ee', hairStyle: 'waves' },
-    'avatar-6': { skin: '#d49b76', hair: '#57504b', shirt: '#526c58', background: '#e4e6da', hairStyle: 'short' },
+  const FACE_IMAGES = {
+    'avatar-1': '/assets/virtual-office/avatar-1.jpg',
+    'avatar-2': '/assets/virtual-office/avatar-2.jpg',
+    'avatar-3': '/assets/virtual-office/avatar-3.jpg',
+    'avatar-4': '/assets/virtual-office/avatar-4.jpg',
+    'avatar-5': '/assets/virtual-office/avatar-5.jpg',
+    'avatar-6': '/assets/virtual-office/avatar-6.jpg',
   };
+  const MATE_IMAGE = '/assets/img/mascot/mate-thumbs.png';
   const state = { suggestions: [], agents: [], filter: 'all', busy: false, canManage: false };
   const $ = (selector, root) => (root || document).querySelector(selector);
   const $$ = (selector, root) => Array.from((root || document).querySelectorAll(selector));
 
-  function svgNode(name, attributes) {
-    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
-    Object.entries(attributes || {}).forEach(([key, value]) => node.setAttribute(key, String(value)));
-    return node;
-  }
-
-  function makeFace(avatarKey) {
-    const style = FACE_STYLES[avatarKey] || FACE_STYLES['avatar-1'];
-    const svg = svgNode('svg', { viewBox: '0 0 64 64', class: 'office-avatar-svg', 'aria-hidden': 'true', focusable: 'false' });
-    svg.appendChild(svgNode('circle', { cx: 32, cy: 32, r: 32, fill: style.background }));
-    svg.appendChild(svgNode('path', { d: 'M8 64c1-11 8-17 18-20h12c10 3 17 9 18 20', fill: style.shirt }));
-    if (style.hairStyle === 'long' || style.hairStyle === 'waves') {
-      svg.appendChild(svgNode('path', { d: 'M16 31c-2-15 5-24 16-24s19 9 16 25l-2 18-8 4H25l-8-5z', fill: style.hair }));
-    }
-    if (style.hairStyle === 'curls') {
-      [[18, 18, 8], [27, 11, 9], [38, 12, 9], [47, 20, 7], [15, 27, 6], [49, 29, 6]].forEach(([cx, cy, r]) => {
-        svg.appendChild(svgNode('circle', { cx, cy, r, fill: style.hair }));
-      });
-    }
-    if (style.hairStyle === 'bun') {
-      svg.appendChild(svgNode('circle', { cx: 43, cy: 9, r: 8, fill: style.hair }));
-    }
-    svg.appendChild(svgNode('rect', { x: 27, y: 38, width: 10, height: 13, rx: 4, fill: style.skin }));
-    svg.appendChild(svgNode('ellipse', { cx: 32, cy: 28, rx: 14, ry: 17, fill: style.skin }));
-    if (style.hairStyle === 'short') {
-      svg.appendChild(svgNode('path', { d: 'M18 27c0-13 5-21 15-21 10 0 15 8 14 21l-4-6c-3 2-7 3-12 2-4 0-8-2-10-4z', fill: style.hair }));
-    } else if (style.hairStyle === 'long' || style.hairStyle === 'waves') {
-      svg.appendChild(svgNode('path', { d: 'M18 26c0-13 5-19 14-19 10 0 15 7 15 18-5-2-8-6-10-10-4 5-10 8-19 11z', fill: style.hair }));
-    } else if (style.hairStyle === 'curls') {
-      svg.appendChild(svgNode('path', { d: 'M18 27c0-13 5-20 14-20 9 0 15 8 14 20l-5-5-4 3-5-4-5 4-5-3z', fill: style.hair }));
-    } else {
-      svg.appendChild(svgNode('path', { d: 'M18 27c0-13 5-19 14-19 7 0 12 4 14 12-5-1-8-4-10-7-4 5-9 7-18 8z', fill: style.hair }));
-    }
-    svg.appendChild(svgNode('path', { d: 'M23 28h4M37 28h4', fill: 'none', stroke: style.hair, 'stroke-width': 1.6, 'stroke-linecap': 'round' }));
-    svg.appendChild(svgNode('circle', { cx: 25, cy: 31, r: 1.25, fill: '#29231f' }));
-    svg.appendChild(svgNode('circle', { cx: 39, cy: 31, r: 1.25, fill: '#29231f' }));
-    svg.appendChild(svgNode('path', { d: 'M31 32l-1.4 5h3M27 41c3 2 7 2 10 0', fill: 'none', stroke: '#8b4e3e', 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
-    svg.appendChild(svgNode('path', { d: 'M25 47l7 5 7-5', fill: 'none', stroke: '#f7f2e9', 'stroke-width': 2 }));
-    return svg;
+  function makeFace(avatarKey, agentKey) {
+    const image = document.createElement('img');
+    image.className = `office-avatar-image${agentKey === 'mate' ? ' office-avatar-image--mate' : ''}`;
+    image.src = agentKey === 'mate' ? MATE_IMAGE : (FACE_IMAGES[avatarKey] || FACE_IMAGES['avatar-1']);
+    image.alt = '';
+    image.setAttribute('aria-hidden', 'true');
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    return image;
   }
 
   function capabilityLabel(key) {
@@ -149,7 +120,7 @@
       const portrait = $('.office-station__avatar', station);
       const label = $('.office-station__label', station);
       if (portrait) {
-        portrait.replaceChildren(makeFace(agent?.avatarKey || 'avatar-1'));
+        portrait.replaceChildren(makeFace(agent?.avatarKey || 'avatar-1', agent?.key));
         portrait.classList.toggle('office-station__avatar--unassigned', !agent);
       }
       if (label) {
@@ -172,7 +143,7 @@
     top.className = 'office-agent-card__top';
     const portrait = document.createElement('div');
     portrait.className = 'office-agent-card__portrait';
-    portrait.appendChild(makeFace(agent.avatarKey));
+    portrait.appendChild(makeFace(agent.avatarKey, agent.key));
     const identity = document.createElement('div');
     identity.className = 'office-agent-card__identity';
     const name = document.createElement('strong');
@@ -264,7 +235,14 @@
     const capabilities = $('#agentCapabilities');
     if (avatars) {
       avatars.replaceChildren();
-      Object.keys(FACE_STYLES).forEach((avatarKey, index) => {
+      if (agent.key === 'mate') {
+        const mateImage = document.createElement('div');
+        mateImage.className = 'office-avatar-choice office-avatar-choice--mate';
+        mateImage.setAttribute('role', 'img');
+        mateImage.setAttribute('aria-label', 'Mascote ObraMate');
+        mateImage.appendChild(makeFace(agent.avatarKey, 'mate'));
+        avatars.appendChild(mateImage);
+      } else Object.keys(FACE_IMAGES).forEach((avatarKey, index) => {
         const button = document.createElement('button');
         button.className = 'office-avatar-choice';
         button.type = 'button';
@@ -319,7 +297,7 @@
       name: $('#agentName').value.trim(),
       title: $('#agentTitle').value.trim(),
       department: $('#agentDepartment').value,
-      avatarKey: selectedAvatar || 'avatar-1',
+      avatarKey: selectedAvatar || state.agents.find((agent) => agent.key === key)?.avatarKey || 'avatar-1',
       description: $('#agentDescription').value.trim(),
       capabilities: $$('input[name="capabilities"]:checked').map((input) => input.value),
       enabled: $('#agentEnabled').checked,

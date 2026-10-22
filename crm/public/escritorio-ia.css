@@ -164,6 +164,14 @@
   color: #59634e;
 }
 
+.office-summary-card__icon--mate {
+  overflow: hidden;
+  padding: 0;
+  background: #fff4e6;
+}
+
+.office-summary-card__icon--mate img { width: 100%; height: 100%; object-fit: contain; }
+
 .office-summary-card__value,
 .office-summary-card__label {
   display: block;
@@ -353,6 +361,8 @@
 .office-station__avatar--commercial { background: #dbe7ef; color: #476984; }
 .office-station__avatar--operations { background: #e2e8d6; color: #5c7047; }
 .office-station__avatar--finance { background: #e8def0; color: #705386; }
+
+.office-station__avatar > .office-avatar-image { border-radius: 10px 10px 9px 9px; }
 
 .office-station__avatar span {
   display: grid;
@@ -713,7 +723,10 @@
 .office-agent-card--inactive { background: #f8f7f4; }
 .office-agent-card__top { display: flex; align-items: flex-start; gap: 0.68rem; }
 .office-agent-card__portrait { flex: 0 0 58px; width: 58px; height: 58px; overflow: hidden; border: 1px solid #e8e3dc; border-radius: 16px; background: #f3efe9; }
-.office-avatar-svg { display: block; width: 100%; height: 100%; }
+.office-avatar-image { display: block; width: 100%; height: 100%; object-fit: cover; }
+.office-avatar-choice .office-avatar-image { border-radius: 12px; }
+.office-avatar-image--mate { object-fit: contain; background: #fff4e6; }
+.office-avatar-choice--mate { cursor: default; opacity: 1; }
 .office-agent-card__identity { min-width: 0; flex: 1; }
 .office-agent-card__name { display: block; overflow: hidden; color: var(--office-ink); font-size: 0.88rem; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
 .office-agent-card__title { display: block; margin-top: 0.15rem; color: #6f685f; font-size: 0.7rem; line-height: 1.4; }

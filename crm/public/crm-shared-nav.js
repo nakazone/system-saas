@@ -12,8 +12,6 @@
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17.5 17.5 3l3.5 3.5L6.5 21z"/><path d="m7.5 13 1.8 1.8M10.5 10l1.8 1.8M13.5 7l1.8 1.8"/></svg>',
     dashboard:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>',
-    office:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/><path d="M10 21v-3h4v3"/></svg>',
     leads:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16l-6 7.5V20l-4-2v-6.5L4 4z"/></svg>',
     customers:
@@ -102,13 +100,6 @@
         label: null,
         items: [
           { href: '/dashboard', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
-          {
-            href: 'escritorio-ia.html',
-            label: 'Escritório IA',
-            permAny: ['quotes.view', 'work_orders.view', 'finance.view', 'invoices.view'],
-            page: '',
-            iconKey: 'office',
-          },
         ],
       },
       {
@@ -236,7 +227,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261022-office2';
+  const NAV_STRUCTURE_VERSION = '20261022-office3';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
