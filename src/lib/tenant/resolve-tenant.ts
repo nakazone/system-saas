@@ -53,6 +53,12 @@ const PUBLIC_AUTH_PATHS = new Set([
   "/api/partner-auth/session",
 ]);
 
+const PUBLIC_TENANTLESS_PARTNER_PATHS = new Set([
+  "/partner-login.html",
+  "/api/partner-auth/login",
+  "/api/partner-auth/session",
+]);
+
 function extractSubdomain(host: string, rootDomain: string): string | null {
   const hostname = host.split(":")[0]?.toLowerCase() ?? "";
   const root = rootDomain.toLowerCase();
@@ -272,6 +278,11 @@ export function requireTenant(
   next: NextFunction,
 ): void {
   if (!req.organizationId || !req.organization) {
+    if (req.isPublicHost && PUBLIC_TENANTLESS_PARTNER_PATHS.has(req.path)) {
+      next();
+      return;
+    }
+
     const wantsJson =
       String(req.path || "").startsWith("/api/") ||
       String(req.headers.accept || "").includes("application/json");
