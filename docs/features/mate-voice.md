@@ -1,6 +1,6 @@
 # Mate Voice (MVP)
 
-Mate Voice adds browser-based speech-to-speech conversations to the CRM. It uses OpenAI Realtime over WebRTC, gives each browser session a short-lived client secret from the server, and never sends the standard OpenAI API key to the browser. The selected lead/customer is read inside the active tenant and supplied as limited conversation context. Transcript messages are stored in the tenant database and the raw audio is not recorded.
+Mate Voice adds browser-based speech-to-speech conversations to the CRM. It uses OpenAI Realtime over WebRTC, gives each browser session a short-lived client secret from the server, and never sends the standard OpenAI API key to the browser. For each session, the server reads the active tenant's company identity and active service catalog inside the tenant boundary. Transcript messages are stored in the tenant database and the raw audio is not recorded.
 
 ## Environment control
 
@@ -28,8 +28,12 @@ The isolated local staging address is `http://localhost:3001/mate-voice`. Railwa
 ## MVP behavior
 
 - Authenticated staff can start and end an audio session from a browser with microphone access.
+- The browser session simulates a customer inquiry for flooring services offered by the tenant company; it is not an inbound phone or call-center connection.
+- The assistant receives the tenant's business name, website, contact phone/email, city/state, active quote-catalog services, and visible pricing-catalog service descriptions. It does not receive catalog rates, customer/lead details, or private CRM information.
+- The assistant can describe only services in the active tenant catalogs. A city/state is not treated as a service-area confirmation. Missing facts, prices, estimates, availability, warranties, and scheduling are referred to the company team for confirmation; the assistant cannot transfer, book, or promise a callback.
+- Staff can optionally link a lead or customer to a conversation to organize the CRM history. That record is not provided to the voice model.
 - A short-lived OpenAI Realtime client secret is minted by the authenticated server endpoint. The browser connects through WebRTC.
-- Staff can search and link a lead or customer from their own organization. The assistant receives the selected name and basic CRM context but cannot update CRM records.
+- Staff can search and link a lead or customer from their own organization for history organization. The model receives no identifying or other information from the selected CRM record, and cannot update CRM records.
 - Each user's conversation history is private to that user within the tenant. Transcript-only messages are stored; audio is not.
 - Realtime calls require a secure browser context (`https://` or `localhost`) and an available OpenAI project API key with Realtime access.
 

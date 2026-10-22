@@ -26,7 +26,12 @@
     status: '/api/mate-ai/status',
     transcribe: '/api/mate-ai/transcribe',
   };
-  var KEY_THREAD = 'mateAi.thread.v1';
+  var requestedAgent = new URLSearchParams(location.search).get('agent') || '';
+  var agentKey = /^[a-z0-9_-]{1,60}$/i.test(requestedAgent) ? requestedAgent.toLowerCase() : '';
+  var agentMode = Boolean(agentKey && document.getElementById('mateAiInline'));
+  var agentProfile = null;
+  var agentUnavailable = false;
+  var KEY_THREAD = 'mateAi.thread.v1' + (agentMode ? '.agent.' + agentKey : '');
   var KEY_LANG = 'mateAiVoiceLang';
   var MAX_THREAD = 40;
 
@@ -50,6 +55,23 @@
     'Novo lead: Ana, 720 555 0101, trocar carpete',
     'Quem está me devendo?',
   ];
+
+  function examplesForAgent(agent) {
+    var caps = Array.isArray(agent && agent.capabilities) ? agent.capabilities : [];
+    var examples = [];
+    if (caps.indexOf('leads.search') >= 0) examples.push('Quais leads precisam de retorno?');
+    if (caps.indexOf('customers.search') >= 0) examples.push('Me mostre o resumo de um cliente');
+    if (caps.indexOf('quotes.prepare') >= 0) examples.push('Criar um orçamento para um cliente');
+    if (caps.indexOf('quotes.send') >= 0) examples.push('Enviar o último orçamento por e-mail');
+    if (caps.indexOf('jobs.view') >= 0 || caps.indexOf('schedule.view') >= 0) examples.push('O que temos na agenda amanhã?');
+    if (caps.indexOf('jobs.manage') >= 0) examples.push('Atualizar o status do job 1042');
+    if (caps.indexOf('schedule.manage') >= 0) examples.push('Agendar o job 1042 para amanhã às 8h');
+    if (caps.indexOf('invoices.view') >= 0) examples.push('Quais invoices estão vencidas?');
+    if (caps.indexOf('invoices.manage') >= 0) examples.push('Enviar a invoice 3012 para o cliente');
+    if (caps.indexOf('payments.manage') >= 0) examples.push('Registrar um pagamento que recebemos hoje');
+    if (caps.indexOf('office.summary') >= 0) examples.push('Me dê um resumo da operação deste mês');
+    return examples.slice(0, 5);
+  }
 
   /* ───────── helpers ───────── */
 
@@ -265,7 +287,8 @@
   (function placeholder() {
     var narrow = window.matchMedia ? window.matchMedia('(max-width: 719px)') : null;
     function set() {
-      inputEl.placeholder = narrow && narrow.matches ? 'Peça ao Mate…' : 'Peça ao Mate… ex.: quote pro John, 1350 pés de madeira';
+      if (agentMode && agentProfile) inputEl.placeholder = 'Peça uma tarefa para ' + agentProfile.name + '…';
+      else inputEl.placeholder = narrow && narrow.matches ? 'Peça ao Mate…' : 'Peça ao Mate… ex.: quote pro John, 1350 pés de madeira';
     }
     set();
     if (narrow && narrow.addEventListener) narrow.addEventListener('change', set);
@@ -276,7 +299,15 @@
       inlineHost.appendChild(panel);
       state.open = true;
       render();
-      loadStart();
+      if (agentMode) {
+        panel.classList.add('mate-pal--agent');
+        panel.setAttribute('aria-label', 'Conversa com funcionária virtual');
+        micEl.hidden = true;
+        camEl.hidden = true;
+        loadAgentProfile().then(function () { render(); });
+      } else {
+        loadStart();
+      }
       return;
     }
     backdrop = document.createElement('div');
@@ -296,6 +327,44 @@
     wireFab();
     addTopbarButton();
     followKeyboard();
+  }
+
+  async function loadAgentProfile() {
+    try {
+      var r = await api('GET', '/api/virtual-office/agents');
+      agentProfile = (r.data || []).find(function (item) { return item.key === agentKey && item.enabled; }) || null;
+      if (!agentProfile) throw new Error('Perfil indisponível');
+      var name = String(agentProfile.name || 'Funcionária');
+      var title = String(agentProfile.title || 'Funcionária virtual');
+      var eyebrow = document.querySelector('.mate-ai-eyebrow');
+      var heading = document.querySelector('.mate-ai-heading h1');
+      var description = document.querySelector('.mate-ai-heading p:not(.mate-ai-eyebrow)');
+      var mobileHeading = document.querySelector('.mobile-app-header__title');
+      var headingBlock = document.querySelector('.mate-ai-heading > div');
+      if (eyebrow) eyebrow.textContent = 'ObraMate · Escritório virtual';
+      if (heading) heading.textContent = name;
+      if (description) description.textContent = title + '. Escreva a tarefa que precisa. Ações que afetam clientes ou registros aparecem para sua revisão antes da confirmação.';
+      if (mobileHeading) mobileHeading.textContent = name;
+      if (headingBlock && !headingBlock.querySelector('.mate-agent-back')) {
+        var back = document.createElement('a');
+        back.className = 'mate-agent-back';
+        back.href = 'escritorio-ia.html';
+        back.textContent = '← Voltar ao escritório virtual';
+        headingBlock.appendChild(back);
+      }
+      document.title = name + ' | Escritório ObraMate';
+      var label = panel.querySelector('.mate-sr');
+      if (label) label.textContent = 'Pedido para ' + name;
+      inputEl.placeholder = 'Peça uma tarefa para ' + name + '…';
+      headSubEl.textContent = title + ' · revisão antes de executar';
+      panel.setAttribute('aria-label', 'Conversa com ' + name);
+    } catch (_) {
+      agentUnavailable = true;
+      inputEl.disabled = true;
+      sendEl.disabled = true;
+      var description = document.querySelector('.mate-ai-heading p:not(.mate-ai-eyebrow)');
+      if (description) description.textContent = 'Este funcionário virtual está inativo ou indisponível. Volte ao escritório virtual para escolher outro.';
+    }
   }
 
   function addTopbarButton() {
@@ -469,8 +538,11 @@
   }
 
   function startHtml() {
+    if (agentMode && agentUnavailable) {
+      return '<div class="mate-start"><p class="mate-hello">Este funcionário está inativo ou indisponível. Volte ao escritório virtual para escolher outro.</p></div>';
+    }
     var html = '<div class="mate-start">';
-    var sug = state.suggestions || [];
+    var sug = agentMode ? [] : state.suggestions || [];
     if (sug.length) {
       html += '<h3>Para fazer agora</h3><div class="mate-rows">';
       sug.forEach(function (s, i) {
@@ -481,11 +553,16 @@
       });
       html += '</div>';
     }
+    var examples = agentMode ? agentProfile ? examplesForAgent(agentProfile) : [] : EXAMPLES;
+    if (agentMode && !agentProfile) {
+      html += '<p class="mate-hello">Carregando o perfil e as capacidades…</p></div>';
+      return html;
+    }
     html += '<h3>Experimente</h3><div class="mate-rows">';
-    EXAMPLES.forEach(function (t) {
+    examples.forEach(function (t) {
       html += '<button type="button" class="mate-row mate-row--example" data-mate="say" data-nav data-text="' + esc(t) + '"><span class="mate-row__body">' + esc(t) + '</span><span class="mate-row__go" aria-hidden="true">↵</span></button>';
     });
-    html += '</div><p class="mate-hello">Eu preparo, você confirma — nada vai para o cliente sem o seu ok.</p></div>';
+    html += '</div><p class="mate-hello">' + (agentMode ? esc(agentProfile.name) + ' prepara a ação; você revisa e confirma antes de enviar.' : 'Eu preparo, você confirma — nada vai para o cliente sem o seu ok.') + '</p></div>';
     return html;
   }
 
@@ -791,7 +868,7 @@
     autoGrow();
     setBusy(true);
     try {
-      var r = await api('POST', API.act, { text: t, screen: screenForRequest(), memory: memory().slice(0, -1), pending: pending, attachment: photo || undefined });
+      var r = await api('POST', API.act, { text: t, screen: screenForRequest(), memory: memory().slice(0, -1), pending: pending, attachment: photo || undefined, agent_key: agentMode ? agentKey : undefined });
       var m = fromResponse(r);
       replace(thinking.id, m);
       if (r.ai_error) {
@@ -817,7 +894,7 @@
     }
     setBusy(true);
     try {
-      var r = await api('POST', API.act, { action: action, args: args || {}, patch: patch || undefined, screen: screenForRequest() });
+      var r = await api('POST', API.act, { action: action, args: args || {}, patch: patch || undefined, screen: screenForRequest(), agent_key: agentMode ? agentKey : undefined });
       replace(thinking.id, fromResponse(r));
     } catch (err) {
       replace(thinking.id, { role: 'mate', kind: 'error', message: err.message || 'Não consegui agora.' });

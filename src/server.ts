@@ -9,7 +9,7 @@ import { startPlatformJobs } from "./lib/billing/jobs.js";
 import { startDailyBriefJob } from "./lib/mate-ai/daily-brief.js";
 
 const app = createApp();
-const host = "0.0.0.0";
+const host = process.env.HOST ?? "0.0.0.0";
 
 app.listen(env.PORT, host, () => {
   console.log(`Server listening on http://${host}:${env.PORT}`);
