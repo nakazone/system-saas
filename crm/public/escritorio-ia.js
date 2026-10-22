@@ -159,6 +159,33 @@
     card.appendChild(total);
   }
 
+  function addRecordContact(card, label, value, href) {
+    if (!value) return;
+    const row = makeNode('p', 'office-current-record__meta office-current-record__detail');
+    row.append(makeNode('span', '', `${label}: `));
+    if (href) {
+      const link = makeNode('a', 'office-current-contact', value);
+      link.href = href;
+      row.appendChild(link);
+    } else row.appendChild(document.createTextNode(value));
+    card.appendChild(row);
+  }
+
+  function addRelatedRecord(card, label, title, detail, href) {
+    const row = makeNode('div', 'office-current-related');
+    const copy = makeNode('div', 'office-current-related__copy');
+    copy.append(makeNode('span', '', label), makeNode('strong', '', title || label));
+    if (detail) copy.appendChild(makeNode('small', '', detail));
+    row.appendChild(copy);
+    if (href) {
+      const link = makeNode('a', 'office-current-related__link', 'Abrir');
+      link.href = href;
+      link.setAttribute('aria-label', `Abrir ${title || label}`);
+      row.appendChild(link);
+    }
+    card.appendChild(row);
+  }
+
   function addRecordLink(host, href, label) {
     if (!href) return;
     const link = makeNode('a', 'office-current-open', label || 'Abrir registro');
@@ -239,6 +266,58 @@
     host.replaceChildren(card);
   }
 
+  function renderLeadRecord(record, leadId) {
+    const host = $('#officeCurrentWork');
+    if (!host) return;
+    const card = makeNode('div', 'office-current-record');
+    const stage = record.pipeline_stage_name || record.status || 'Novo lead';
+    card.append(makeNode('span', 'office-current-record__kind', 'Comercial'), makeNode('h3', '', record.name || 'Lead'));
+    card.appendChild(makeNode('p', 'office-current-record__meta', [stage, record.owner_name ? `Responsável: ${record.owner_name}` : null, record.source ? `Origem: ${record.source}` : null].filter(Boolean).join(' · ')));
+    addRecordContact(card, 'Telefone', record.phone, record.phone ? `tel:${String(record.phone).replace(/[^+\d]/g, '')}` : null);
+    addRecordContact(card, 'E-mail', record.email, record.email ? `mailto:${encodeURIComponent(record.email)}` : null);
+    if (record.address) card.appendChild(makeNode('p', 'office-current-record__meta office-current-record__detail', record.address));
+    if (record.next_visit_at) addRelatedRecord(card, 'Próxima visita', formatDate(record.next_visit_at), record.next_visit_address || '', 'schedule.html');
+    if (record.followup_title || record.followup_due_at) {
+      const due = record.followup_due_at ? `Para ${formatDate(record.followup_due_at, { dateStyle: 'medium' })}` : 'Sem data definida';
+      addRelatedRecord(card, 'Follow-up', record.followup_title || 'Retorno pendente', [due, record.followup_notes].filter(Boolean).join(' · '), `lead-detail.html?id=${encodeURIComponent(leadId)}&tab=communication`);
+    }
+    if (record.notes) card.appendChild(makeNode('p', 'office-current-record__note', String(record.notes).slice(0, 260)));
+    addRecordLink(card, `lead-detail.html?id=${encodeURIComponent(leadId)}`, 'Abrir lead');
+    addRecordLink(card, `quote-builder.html?lead_id=${encodeURIComponent(leadId)}`, 'Preparar quote');
+    host.replaceChildren(card);
+  }
+
+  function renderCustomerRecord(record, customerId) {
+    const host = $('#officeCurrentWork');
+    if (!host) return;
+    const customer = record.customer || {};
+    const stats = record.stats || {};
+    const card = makeNode('div', 'office-current-record');
+    const typeLabels = { particular: 'Residencial', builder: 'Builder', contractor: 'Contractor', loja: 'Loja' };
+    const company = customer.company || customer.responsible_name;
+    card.append(makeNode('span', 'office-current-record__kind', 'Cliente'), makeNode('h3', '', customer.name || 'Cliente'));
+    card.appendChild(makeNode('p', 'office-current-record__meta', [typeLabels[customer.customer_type] || customer.customer_type, company ? `Contato: ${company}` : null, record.lead?.name ? `Origem: ${record.lead.name}` : null].filter(Boolean).join(' · ')));
+    addRecordContact(card, 'Telefone', customer.phone, customer.phone ? `tel:${String(customer.phone).replace(/[^+\d]/g, '')}` : null);
+    addRecordContact(card, 'E-mail', customer.email, customer.email ? `mailto:${encodeURIComponent(customer.email)}` : null);
+    if (customer.address) card.appendChild(makeNode('p', 'office-current-record__meta office-current-record__detail', customer.address));
+
+    const counts = [
+      Number(stats.jobs_active) ? `${stats.jobs_active} obra${Number(stats.jobs_active) === 1 ? '' : 's'} ativa${Number(stats.jobs_active) === 1 ? '' : 's'}` : null,
+      Number(stats.quotes_open) ? `${stats.quotes_open} quote${Number(stats.quotes_open) === 1 ? '' : 's'} em aberto` : null,
+    ].filter(Boolean);
+    if (counts.length) card.appendChild(makeNode('p', 'office-current-record__meta office-current-record__detail', counts.join(' · ')));
+    if (record.show_money && stats.open_balance != null) addRecordTotal(card, 'Saldo em aberto', stats.open_balance);
+
+    const activity = Array.isArray(record.activity) ? record.activity.slice(0, 3) : [];
+    if (activity.length) {
+      card.appendChild(makeNode('h4', 'office-current-related-heading', 'Atividade recente'));
+      activity.forEach((item) => addRelatedRecord(card, formatDate(item.at, { dateStyle: 'medium' }), item.title, item.detail || '', item.href || null));
+    }
+    addRecordLink(card, `customers.html?id=${encodeURIComponent(customerId)}`, 'Abrir cliente');
+    addRecordLink(card, `quote-builder.html?customer_id=${encodeURIComponent(customerId)}`, 'Novo quote');
+    host.replaceChildren(card);
+  }
+
   async function fetchContextRecord(request, path, render, fallbackLabel, entity) {
     const host = $('#officeCurrentWork');
     if (!host) return;
@@ -279,6 +358,14 @@
     }
     if (type === 'meeting') {
       fetchContextRecord(request, `/api/meetings/${encodeURIComponent(entity.id)}`, renderMeetingRecord, 'Agenda', entity);
+      return;
+    }
+    if (type === 'lead') {
+      fetchContextRecord(request, `/api/leads/${encodeURIComponent(entity.id)}`, renderLeadRecord, 'Lead', entity);
+      return;
+    }
+    if (type === 'customer') {
+      fetchContextRecord(request, `/api/customers/${encodeURIComponent(entity.id)}/overview`, renderCustomerRecord, 'Cliente', entity);
       return;
     }
     const labels = { job: ['Obra', `job-detail.html?id=${encodeURIComponent(entity.id)}`], invoice: ['Invoice', `invoice.html?id=${encodeURIComponent(entity.id)}`], lead: ['Lead', `lead-detail.html?id=${encodeURIComponent(entity.id)}`], customer: ['Cliente', `customers.html?id=${encodeURIComponent(entity.id)}`] };

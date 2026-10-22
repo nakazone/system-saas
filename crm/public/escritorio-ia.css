@@ -72,11 +72,19 @@
 .office-current-record h3 { margin: 0.55rem 0 0.18rem; color: var(--office-ink); font-size: 0.88rem; }
 .office-current-record__meta { margin: 0; color: var(--office-muted); font-size: 0.67rem; line-height: 1.5; }
 .office-current-record__detail { margin-top: 0.32rem; overflow-wrap: anywhere; }
+.office-current-contact { color: #82552f; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.office-current-related-heading { margin: 0.8rem 0 0.3rem; color: #756451; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.office-current-related { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.55rem 0; border-top: 1px solid #f0ece6; }
+.office-current-related__copy { display: grid; min-width: 0; gap: 0.12rem; color: var(--office-muted); font-size: 0.6rem; }
+.office-current-related__copy strong { overflow: hidden; color: #4d473f; font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
+.office-current-related__copy small { overflow: hidden; font-size: 0.6rem; text-overflow: ellipsis; white-space: nowrap; }
+.office-current-related__link { display: inline-flex; min-height: 44px; flex: none; align-items: center; padding: 0 0.55rem; border: 1px solid #e8e3dc; border-radius: 8px; color: #80502a; font-size: 0.7rem; font-weight: 700; text-decoration: none; }
+.office-current-record__note { max-height: 5.2em; overflow: hidden; margin: 0.6rem 0 0; color: #62594e; font-size: 0.66rem; line-height: 1.5; white-space: pre-line; }
 .office-current-lines { display: grid; gap: 0.4rem; margin: 0.65rem 0; padding: 0; list-style: none; }
 .office-current-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.3rem 0.5rem; padding: 0.5rem 0; border-top: 1px solid #f0ece6; color: #4d473f; font-size: 0.65rem; }
 .office-current-lines small { grid-column: 1 / -1; color: var(--office-muted); font-size: 0.6rem; }
 .office-current-total { display: flex; justify-content: space-between; gap: 0.5rem; padding-top: 0.65rem; border-top: 1px solid var(--office-line); color: #453b31; font-size: 0.7rem; font-weight: 750; }
-.office-current-open { display: inline-flex; min-height: 38px; align-items: center; margin-top: 0.7rem; padding: 0 0.65rem; border: 1px solid #dfc4a6; border-radius: 9px; background: #fff7ec; color: #80502a; font-size: 0.67rem; font-weight: 750; text-decoration: none; }
+.office-current-open { display: inline-flex; min-height: 44px; align-items: center; margin-top: 0.7rem; padding: 0 0.65rem; border: 1px solid #dfc4a6; border-radius: 9px; background: #fff7ec; color: #80502a; font-size: 0.72rem; font-weight: 750; text-decoration: none; }
 .office-current-open:hover { background: #ffeed8; }
 .office-secondary { margin: 0 0 1rem; border: 1px solid var(--office-line); border-radius: 14px; background: #fffefa; }
 .office-secondary > summary { min-height: 46px; padding: 0.85rem 1rem; color: #665b4e; font-size: 0.76rem; font-weight: 750; cursor: pointer; }
