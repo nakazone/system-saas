@@ -1,7 +1,7 @@
 /**
  * ObraMate — service worker (static cache + Campo offline + Web Push).
  */
-const CACHE = "om-static-v60";
+const CACHE = "om-static-v61";
 const API_CACHE = "om-api-v1";
 const BADGE_CACHE = "om-badge-v1";
 const BADGE_URL = "/__om_app_badge_count";
@@ -201,6 +201,11 @@ self.addEventListener("push", (event) => {
         tag: data.tag || "obramate",
         renotify: true,
         data: { url: data.url || "/home.html" },
+      }),
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+        clientList.forEach((client) => {
+          client.postMessage({ type: "om-push", title: data.title, body: data.body, url: data.url });
+        });
       }),
     ]),
   );

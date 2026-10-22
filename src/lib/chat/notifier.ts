@@ -2,7 +2,7 @@
  * Chat notification port — in-app mentions now; push/email plugged later.
  */
 
-import { notifyUsersPush } from "../push/notify.js";
+import { publishAppNotification } from "../notifications/publish.js";
 
 export type ChatNotifyEvent =
   | {
@@ -32,12 +32,17 @@ export class PushChatNotifier implements ChatNotifier {
   async notify(event: ChatNotifyEvent): Promise<void> {
     const title = event.type === "mention" ? "Nova menção" : "Nova mensagem";
     const url = `/chat.html?c=${encodeURIComponent(event.conversationId)}&m=${encodeURIComponent(event.messageId)}`;
-    await notifyUsersPush(event.organizationId, event.userIds, {
+    await publishAppNotification({
+      organizationId: event.organizationId,
+      type: event.type === "mention" ? "chat.mention" : "chat.message",
       title,
       body: event.preview.slice(0, 120),
       url,
-      tag: `chat-${event.conversationId}`,
-    }, event.excludeUserId ? { excludeUserId: event.excludeUserId } : undefined);
+      tag: `chat-${event.messageId}`,
+      dedupeKey: `chat-${event.messageId}-${event.type}`,
+      userIds: event.userIds,
+      excludeUserId: event.excludeUserId,
+    });
   }
 }
 

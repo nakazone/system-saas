@@ -996,7 +996,48 @@
     initCreateMenu();
   }
 
+  function ensureNotificationBell() {
+    if (!document.getElementById("notificationBellWrap")) {
+      const wrap = document.createElement("div");
+      wrap.className = "notification-bell-wrap";
+      wrap.id = "notificationBellWrap";
+      wrap.innerHTML = `
+        <button type="button" id="notificationBellBtn" class="notification-bell-btn" aria-label="Notificações" aria-expanded="false" aria-controls="notificationPanel" title="Notificações">
+          <span class="notification-bell-icon" aria-hidden="true">🔔</span>
+          <span id="notificationBellBadge" class="notification-bell-badge" hidden>0</span>
+        </button>
+        <div id="notificationPanel" class="notification-panel" role="region" aria-label="Lista de notificações" hidden>
+          <div class="notification-panel-header">
+            <h3 class="notification-panel-title">Notificações</h3>
+            <div class="notification-panel-actions">
+              <button type="button" class="btn-notification-text" id="notificationMarkAllRead">Marcar lidas</button>
+              <button type="button" class="btn-notification-text btn-notification-text--danger" id="notificationClearAll">Limpar</button>
+            </div>
+          </div>
+          <div class="crm-push-panel">
+            <p class="crm-push-panel__status" data-crm-push-status>Receba avisos mesmo com o app fechado.</p>
+            <button type="button" class="crm-push-panel__btn" data-crm-push-enable data-label-off="Ativar alertas no dispositivo" data-label-on="Alertas ativos — tocar para desativar">Ativar alertas no dispositivo</button>
+          </div>
+          <div id="notificationPanelList" class="notification-panel-list"></div>
+        </div>`;
+      const topRight = document.querySelector("#crmTopbar .crm-topbar__right");
+      const help = document.getElementById("crmTopbarHelpBtn");
+      if (topRight && help) topRight.insertBefore(wrap, help);
+      else if (topRight) topRight.appendChild(wrap);
+      else document.body.appendChild(wrap);
+    }
+    function ensureScript(src, marker) {
+      if ([...document.scripts].some((s) => (s.src || "").indexOf(marker) !== -1)) return;
+      const el = document.createElement("script");
+      el.src = src;
+      document.body.appendChild(el);
+    }
+    ensureScript("notification-center.js?v=20261022-inbox1", "notification-center.js");
+    ensureScript("crm-push.js?v=20261022-inbox1", "crm-push.js");
+  }
+
   function placeNotificationBell() {
+    ensureNotificationBell();
     const wrap = document.getElementById("notificationBellWrap");
     if (!wrap) return;
     const topRight = document.querySelector("#crmTopbar .crm-topbar__right");
@@ -1009,7 +1050,9 @@
       else if (!helpBtn && wrap.parentElement !== topRight) topRight.appendChild(wrap);
       wrap.classList.remove("notification-bell-wrap--mobile");
     } else if (mobileHeader && wrap.parentElement !== mobileHeader) {
-      mobileHeader.appendChild(wrap);
+      const logout = mobileHeader.querySelector(".mobile-app-header__logout");
+      if (logout) mobileHeader.insertBefore(wrap, logout);
+      else mobileHeader.appendChild(wrap);
       wrap.classList.add("notification-bell-wrap--mobile");
     }
   }

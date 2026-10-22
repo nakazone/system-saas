@@ -6,7 +6,7 @@
 import { computeInvoiceMoney } from "../invoices/core.js";
 import { prisma } from "../prisma.js";
 import { registerJob, trackRun } from "../ops/jobs.js";
-import { notifyUsersPush } from "../push/notify.js";
+import { publishAppNotification } from "../notifications/publish.js";
 import { sendCustomerEmail } from "../email/index.js";
 import { withTenantTransaction } from "../tenant/prisma-tenant.js";
 import { dayRange, localDay, localTime } from "./actions/time.js";
@@ -93,7 +93,16 @@ export async function sendDueBriefs(now = new Date()): Promise<{ sent: number }>
     if (!u) continue;
     const brief = await buildBrief(org, tz, now);
     if (prefs.channels.includes("push")) {
-      await notifyUsersPush(org, [user], { title: brief.title, body: brief.lines.join("\n").slice(0, 400), url: "/dashboard.html", tag: "mate-brief" }).catch(() => undefined);
+      await publishAppNotification({
+        organizationId: org,
+        type: "mate.brief",
+        title: brief.title,
+        body: brief.lines.join("\n").slice(0, 400),
+        url: "/dashboard.html",
+        tag: `mate-brief-${today}`,
+        dedupeKey: `mate-brief-${user}-${today}`,
+        userIds: [user],
+      }).catch(() => undefined);
     }
     if (prefs.channels.includes("email") && u.email) {
       await sendCustomerEmail({ to: u.email, subject: brief.title + " · " + today, text: brief.lines.map((l) => "• " + l).join("\n") + "\n\nAbra o ObraMate e peça ao Mate: “o que eu preciso fazer hoje?”" }).catch(() => undefined);

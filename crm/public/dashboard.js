@@ -274,14 +274,7 @@ fetch('/api/auth/session', { credentials: 'include' })
 // Popup toast no canto inferior – novo lead recebido
 function showNewLeadToast(count, message) {
     var msg = message || (count === 1 ? '1 novo lead. Contate em até 30 min!' : count + ' novos leads. Contate em até 30 min!');
-    if (typeof window.addCrmNotification === 'function') {
-        window.addCrmNotification({
-            title: count === 1 ? 'Novo lead recebido' : count + ' novos leads',
-            body: msg,
-            type: 'lead_new',
-            action: { kind: 'page', page: 'leads' },
-        });
-    }
+    if (typeof window.pullCrmNotifications === 'function') window.pullCrmNotifications();
     var container = document.getElementById('toastContainer');
     if (!container) return;
     var toast = document.createElement('div');

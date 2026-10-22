@@ -28,6 +28,7 @@ import { ensureWorkOrderOnApprove } from "../../lib/work-orders/from-quote.js";
 import { cancelPendingMessages } from "../../lib/automations/schedule.js";
 import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
 import { formatPersonName } from "../../lib/name.js";
+import { publishAppNotification, quoteLabel, usd } from "../../lib/notifications/publish.js";
 
 export const publicQuotesRouter = Router();
 
@@ -68,7 +69,8 @@ async function loadPublicQuote(organizationId: string, quoteId: string, tokenId:
     if (!quote) return null;
 
     const now = new Date();
-    if (!quote.viewedAt) {
+    const firstView = !quote.viewedAt;
+    if (firstView) {
       await tx.quote.update({ where: { id: quote.id }, data: { viewedAt: now } });
     }
     if (tokenId) {
@@ -88,7 +90,7 @@ async function loadPublicQuote(organizationId: string, quoteId: string, tokenId:
       action: "viewed",
     });
 
-    return quote;
+    return { quote, firstView };
   });
 }
 
@@ -136,7 +138,8 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
       return;
     }
 
-    const quote = await loadPublicQuote(ref.organizationId, ref.entityId, ref.tokenId);
+    const loaded = await loadPublicQuote(ref.organizationId, ref.entityId, ref.tokenId);
+    const quote = loaded?.quote;
     if (!quote) {
       res.status(404).render("errors/not-found", {
         title: "Quote not found",
@@ -144,6 +147,19 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
         organization: null,
       });
       return;
+    }
+
+    if (loaded.firstView) {
+      const who = quote.customer?.name ? `${quote.customer.name} abriu` : "O cliente abriu";
+      void publishAppNotification({
+        organizationId: ref.organizationId,
+        type: "quote.viewed",
+        title: "Cliente abriu a proposta",
+        body: `${who} ${quoteLabel(quote)}.`,
+        url: `/quote-builder.html?id=${encodeURIComponent(quote.id)}`,
+        tag: `quote-viewed-${quote.id}`,
+        dedupeKey: `quote-viewed-${quote.id}`,
+      });
     }
 
     const readOnly = !isClientSignableQuoteStatus(quote.status);
@@ -428,6 +444,17 @@ publicQuotesRouter.post("/quotes/:token/approve", async (req, res, _next) => {
       });
     }
 
+    const signedName = formatPersonName(parsed.data.signedByName);
+    void publishAppNotification({
+      organizationId: ref.organizationId,
+      type: "quote.signed",
+      title: "Quote aprovado e assinado",
+      body: `${signedName} aprovou e assinou ${quoteLabel(result.quote)}. Total ${usd(result.totals.total)}.`,
+      url: `/quote-builder.html?id=${encodeURIComponent(result.quote.id)}`,
+      tag: `quote-signed-${result.quote.id}`,
+      dedupeKey: `quote-signed-${result.quote.id}`,
+    });
+
     res.redirect(`/public/quotes/${token}?success=approved`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Approval failed";
@@ -452,7 +479,7 @@ publicQuotesRouter.post("/quotes/:token/request-changes", async (req, res, _next
     const quote = await withTenantTransaction(ref.organizationId, async (tx) => {
       const q = await tx.quote.findFirst({
         where: { id: ref.entityId },
-        include: { salesperson: true, organization: true },
+        include: { salesperson: true, organization: true, customer: { select: { name: true } } },
       });
       if (!q) throw new Error("Quote not found");
       await applyQuoteTransition(tx, {
@@ -476,6 +503,17 @@ publicQuotesRouter.post("/quotes/:token/request-changes", async (req, res, _next
         text: `Customer requested changes on quote #${quote.number}:\n\n${note}`,
       });
     }
+
+    const who = quote.customer?.name || "O cliente";
+    void publishAppNotification({
+      organizationId: ref.organizationId,
+      type: "quote.changes_requested",
+      title: "Cliente pediu alteração na proposta",
+      body: `${who}: ${note}`.slice(0, 400),
+      url: `/quote-builder.html?id=${encodeURIComponent(quote.id)}`,
+      tag: `quote-changes-${quote.id}`,
+      dedupeKey: `quote-changes-${quote.id}-${createHash("sha256").update(note).digest("hex").slice(0, 12)}`,
+    });
 
     res.redirect(`/public/quotes/${token}?success=changes`);
   } catch (error) {

@@ -16,6 +16,7 @@ import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { sendCustomerEmail } from "../../lib/email/index.js";
 import { nextInvoiceNumber, recordInvoicePayment, seedDefaultPaymentTemplates } from "../../lib/payments/engine.js";
+import { publishAppNotification, usd } from "../../lib/notifications/publish.js";
 import {
   computeInvoiceMoney,
   computeNewInvoiceAmount,
@@ -1346,12 +1347,24 @@ invoicesCrmRouter.post(
           return getQuoteInvoiceBalance(tx, quoteId);
         });
       }
+      const amount = dec(out.receipt.amount);
+      const invNo = data.invoice_number ? `fatura ${data.invoice_number}` : "fatura";
+      void publishAppNotification({
+        organizationId: req.organizationId!,
+        type: "invoice.payment",
+        title: out.invoicePaid ? "Fatura quitada" : "Pagamento recebido",
+        body: `${usd(Number(amount))} em ${invNo}${out.invoicePaid ? " — paga por completo" : ""}.`,
+        url: `/invoice.html?id=${encodeURIComponent(id)}`,
+        tag: `invoice-pay-${out.receipt.id}`,
+        dedupeKey: `invoice-pay-${out.receipt.id}`,
+        excludeUserId: req.user!.id,
+      });
       res.status(201).json({
         success: true,
         data: {
           id: out.receipt.id,
           receipt_number: out.receipt.receiptNumber,
-          amount: dec(out.receipt.amount),
+          amount,
           paid_at: out.receipt.paidAt,
           method: out.receipt.method,
         },

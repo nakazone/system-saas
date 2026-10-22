@@ -6,7 +6,7 @@ import { registerJob, trackRun } from "../ops/jobs.js";
 import { prisma } from "../prisma.js";
 import { withTenantTransaction } from "../tenant/prisma-tenant.js";
 import { parseAutomationSettings } from "../automations/settings.js";
-import { notifyUsersPush } from "../push/notify.js";
+import { publishAppNotification } from "../notifications/publish.js";
 import { recordActivity } from "../activity/record.js";
 import { teamUserIdsForJob } from "./team.js";
 import { safeTimeZone } from "../time/zoned.js";
@@ -108,7 +108,9 @@ export async function processDueJobStartReminders(now = new Date()): Promise<Job
 
           const userIds = teamUserIdsForJob(wo);
           if (userIds.length) {
-            await notifyUsersPush(org.id, userIds, {
+            await publishAppNotification({
+              organizationId: org.id,
+              type: "job.reminder",
               title: `${jobLabel(wo)} em breve`,
               body: jobBody({
                 ...wo,
@@ -117,6 +119,8 @@ export async function processDueJobStartReminders(now = new Date()): Promise<Job
               }),
               url: `/campo/ticket.html?id=${encodeURIComponent(wo.id)}`,
               tag: `job-start-reminder-${wo.id}`,
+              dedupeKey: `job-start-reminder-${wo.id}`,
+              userIds,
             });
           }
 
@@ -183,7 +187,9 @@ export async function processDueJobStartReminders(now = new Date()): Promise<Job
           if (settings.jobStartAtTimeNudgeEnabled) {
             const userIds = teamUserIdsForJob(wo);
             if (userIds.length) {
-              await notifyUsersPush(org.id, userIds, {
+              await publishAppNotification({
+                organizationId: org.id,
+                type: "job.reminder",
                 title: autoStarted ? `${jobLabel(wo)} — hora de começar` : `${jobLabel(wo)} começa agora`,
                 body: jobBody({
                   ...wo,
@@ -192,6 +198,8 @@ export async function processDueJobStartReminders(now = new Date()): Promise<Job
                 }),
                 url: `/campo/ticket.html?id=${encodeURIComponent(wo.id)}`,
                 tag: `job-start-nudge-${wo.id}`,
+                dedupeKey: `job-start-nudge-${wo.id}`,
+                userIds,
               });
             }
             await recordActivity(tx, {

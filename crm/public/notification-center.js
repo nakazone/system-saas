@@ -96,7 +96,7 @@
     const items = readAll().slice().reverse();
     if (items.length === 0) {
       listEl.innerHTML =
-        '<div class="notification-panel-empty">Nenhuma notificação guardada. Novos avisos de leads e alertas de marketing aparecem aqui.</div>';
+        '<div class="notification-panel-empty">Nenhuma notificação. Novos leads, propostas assinadas, alterações e pagamentos aparecem aqui.</div>';
       return;
     }
     listEl.innerHTML = items
@@ -131,6 +131,14 @@
         if (it) {
           it.read = true;
           writeAll(all);
+          if (it.serverId) {
+            fetch('/api/notifications/read', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: [it.serverId] }),
+            }).catch(function () {});
+          }
         }
         updateBellBadge();
         row.classList.remove('notification-item--unread');
@@ -172,6 +180,12 @@
     writeAll(items);
     updateBellBadge();
     renderList();
+    fetch('/api/notifications/read', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    }).catch(function () {});
   }
 
   function clearAll() {
@@ -179,6 +193,43 @@
     writeAll([]);
     updateBellBadge();
     renderList();
+    fetch('/api/notifications', { method: 'DELETE', credentials: 'include' }).catch(function () {});
+  }
+
+  function mergeServerItems(rows) {
+    const localOnly = readAll().filter(function (n) { return !n.serverId; });
+    const mapped = (rows || []).map(function (it) {
+      return {
+        id: 'srv-' + it.id,
+        serverId: it.id,
+        title: it.title || 'Notificação',
+        body: it.body || '',
+        type: it.type || 'info',
+        ts: it.createdAt ? new Date(it.createdAt).getTime() : Date.now(),
+        read: !!it.readAt,
+        action: it.url ? { kind: 'url', href: it.url } : null,
+      };
+    });
+    const merged = localOnly.concat(mapped);
+    merged.sort(function (a, b) { return a.ts - b.ts; });
+    writeAll(merged);
+    updateBellBadge();
+    if (panelOpen) renderList();
+  }
+
+  var pollTimer = null;
+  function pullServerNotifications() {
+    return fetch('/api/notifications', { credentials: 'include' })
+      .then(function (res) {
+        if (res.status === 401 || res.status === 403) return null;
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then(function (json) {
+        if (!json || !json.success || !json.data) return;
+        mergeServerItems(json.data.items || []);
+      })
+      .catch(function () {});
   }
 
   function onDocClick(e) {
@@ -215,6 +266,16 @@
     document.addEventListener('keydown', onKey);
 
     updateBellBadge();
+    pullServerNotifications();
+    if (!pollTimer) pollTimer = setInterval(pullServerNotifications, 20000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') pullServerNotifications();
+    });
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener('message', function (event) {
+        if (event.data && event.data.type === 'om-push') pullServerNotifications();
+      });
+    }
   }
 
   if (document.readyState === 'loading') {
@@ -225,4 +286,5 @@
 
   window.addCrmNotification = addCrmNotification;
   window.refreshNotificationBell = updateBellBadge;
+  window.pullCrmNotifications = pullServerNotifications;
 })();
