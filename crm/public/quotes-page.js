@@ -295,7 +295,10 @@
       .map(([l, at], i) => {
         const cls = i <= last ? 'is-done' : i === last + 1 && g !== 'expired' && g !== 'archived' ? 'is-next' : '';
         const when = i <= last && at && at !== 1 ? dm(at) : i === 4 && q.work_order_id ? 'criado' : '';
-        return `<li class="${cls}"><i></i><b>${l}</b><small>${esc(when)}</small></li>`;
+        const name = i === 4 && q.work_order_id
+          ? `<a href="jobs.html?id=${encodeURIComponent(q.work_order_id)}">Abrir job</a>`
+          : esc(l);
+        return `<li class="${cls}"><i></i><b>${name}</b><small>${esc(when)}</small></li>`;
       })
       .join('')}</ol>`;
   }
@@ -343,12 +346,12 @@
       p = 'Atualize a validade e reenvie se o cliente ainda tiver interesse.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}">Abrir e renovar</a>`;
     } else if (g === 'approved') {
-      t = q.work_order_id ? 'Criar Job' : 'Aprovado — virar job';
+      t = q.work_order_id ? 'Job criado' : 'Aprovado — virar job';
       p = q.work_order_id
-        ? 'Abra o job para preencher Start, Setor, Equipe e Campo.'
+        ? 'O job já existe. Abra-o na lista mesmo que a busca não encontre o nome.'
         : 'Transforme em job: cliente, endereço e serviços já vão preenchidos.';
       cta = q.work_order_id
-        ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?setup=${encodeURIComponent(q.work_order_id)}">Criar Job</a>`
+        ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?id=${encodeURIComponent(q.work_order_id)}">Abrir job</a>`
         : `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a>`;
       if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
         cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;

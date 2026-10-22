@@ -2015,20 +2015,33 @@
   function syncCreateJobButton() {
     const btn = $('btnCreateJob');
     if (!btn) return;
+    const open = Boolean(qbMeta.work_order_id);
     const can = canTransformToJob();
-    btn.disabled = !can;
-    btn.classList.toggle('hidden', Boolean(qbMeta.work_order_id));
-    btn.title = qbMeta.work_order_id
-      ? 'Job já criado'
-      : can
+    const full = btn.querySelector('.qb-action-bar__full');
+    const short = btn.querySelector('.qb-action-bar__short');
+    btn.classList.remove('hidden');
+    if (open) {
+      btn.disabled = false;
+      btn.title = 'Abrir o job deste orçamento';
+      if (full) full.textContent = 'Abrir job';
+      if (short) short.textContent = 'Abrir';
+    } else {
+      btn.disabled = !can;
+      btn.title = can
         ? 'Transformar em job sem enviar ao cliente'
         : 'Escolha o cliente e adicione serviços para transformar em job';
+      if (full && full.textContent !== 'A criar…') full.textContent = 'Transformar em job';
+      if (short && short.textContent !== '…') short.textContent = 'Job';
+    }
+    document.querySelectorAll('[data-qb-proxy="btnCreateJob"]').forEach((proxy) => {
+      proxy.textContent = open ? 'Abrir job' : 'Transformar em job';
+    });
   }
 
   /** Approve + create WorkOrder + open Job modal — no need to send the quote to the client. */
   async function transformQuoteToJob() {
     if (qbMeta.work_order_id) {
-      await openJobSetupFromQuote(qbMeta.work_order_id);
+      location.href = `jobs.html?id=${encodeURIComponent(qbMeta.work_order_id)}`;
       return;
     }
     if (!quoteHasClient()) {
@@ -6794,7 +6807,7 @@
       { on: Boolean(sent), label: qbMeta.email_sent_at ? 'Enviado por e-mail' : 'Enviado', at: qbMeta.email_sent_at },
       { on: Boolean(viewed), label: 'Aberto pelo cliente', at: qbMeta.viewed_at },
       { on: approved, label: qbMeta.signed_at ? 'Aprovado e assinado' : 'Aprovado', at: qbMeta.signed_at },
-      { on: Boolean(qbMeta.work_order_id), label: 'Job criado', at: null, href: qbMeta.work_order_id ? `job-detail.html?id=${encodeURIComponent(qbMeta.work_order_id)}` : null },
+      { on: Boolean(qbMeta.work_order_id), label: 'Job criado', at: null, href: qbMeta.work_order_id ? `jobs.html?id=${encodeURIComponent(qbMeta.work_order_id)}` : null },
     ];
     if (status === 'rejected') steps.splice(3, 2, { on: true, label: 'Recusado pelo cliente', at: null, bad: true });
     if (status === 'changes_requested') {
@@ -6803,7 +6816,7 @@
     const nowIdx = steps.findIndex((x) => !x.on);
     const prog = $('qbProgress');
     if (prog) {
-      const SHORT = { 'Enviado por e-mail': 'Enviado', 'Aberto pelo cliente': 'Aberto', 'Aprovado e assinado': 'Aprovado', 'Job criado': 'Job', 'Recusado pelo cliente': 'Recusado' };
+      const SHORT = { 'Enviado por e-mail': 'Enviado', 'Aberto pelo cliente': 'Aberto', 'Aprovado e assinado': 'Aprovado', 'Job criado': 'Abrir', 'Recusado pelo cliente': 'Recusado' };
       prog.innerHTML = `<ol class="qb-trk" aria-label="Andamento">${steps
         .map((x, i) => {
           const cls = x.bad ? 'is-bad' : x.on ? 'is-on' : i === nowIdx ? 'is-now' : '';
@@ -6866,11 +6879,11 @@
     } else if (qbMeta.work_order_id) {
       title = 'Job criado';
       text = canInvoice
-        ? `Complete a agenda/equipe no job ou fature ${money(left)}.`
-        : 'Complete Start, Setor, Equipe e Campo no job.';
+        ? `O job já existe. Abra-o na lista, ou fature ${money(left)}.`
+        : 'O job já existe. Abra-o na lista para ver agenda, equipe e faturamento.';
       btn = canInvoice
-        ? `${invoiceBtn}<button type="button" class="btn qb-next__alt" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Criar Job</button>`
-        : `<button type="button" class="btn btn-primary" data-qb-open-job="${escapeAttr(qbMeta.work_order_id)}">Criar Job</button>`;
+        ? `${invoiceBtn}<a class="btn qb-next__alt" href="jobs.html?id=${encodeURIComponent(qbMeta.work_order_id)}">Abrir job</a>`
+        : `<a class="btn btn-primary" href="jobs.html?id=${encodeURIComponent(qbMeta.work_order_id)}">Abrir job</a>`;
     } else if (approved && canInvoice && invoiced > 0.009) {
       title = 'Saldo a faturar';
       text = `Já faturado ${money(invoiced)}. Falta emitir ${money(left)} do orçamento.`;
@@ -6943,7 +6956,8 @@
       const openJobBtn = e.target.closest('[data-qb-open-job]');
       if (openJobBtn) {
         e.preventDefault();
-        void openJobSetupFromQuote(openJobBtn.getAttribute('data-qb-open-job'));
+        const wid = openJobBtn.getAttribute('data-qb-open-job');
+        if (wid) location.href = `jobs.html?id=${encodeURIComponent(wid)}`;
         return;
       }
       const createJobBtn = e.target.closest('[data-qb-create-job]');
