@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261015-refnav1" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" />
   <link rel="stylesheet" href="mate-panel.css?v=20261022-officechat1" />
-  <link rel="stylesheet" href="escritorio-ia.css?v=20261022-officecontext2" />
+  <link rel="stylesheet" href="escritorio-ia.css?v=20261022-officefloor1" />
 </head>
 <body class="dashboard-app-body office-page-body">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -55,8 +55,8 @@
         <header class="office-header">
           <div>
             <div class="office-eyebrow"><span class="office-eyebrow__dot" aria-hidden="true"></span> CENTRAL DE OPERAÇÕES</div>
-            <h1>Escritório virtual</h1>
-            <p id="officeWelcome">Converse com seus funcionários e acompanhe as tarefas em andamento.</p>
+            <h1>Escritório</h1>
+            <p id="officeWelcome">A equipe do escritório trabalha aqui. Tudo o que vai para o cliente passa por você.</p>
           </div>
           <div class="office-header__actions">
             <span class="office-refresh-label" id="officeUpdated" aria-live="polite">Carregando dados…</span>
@@ -67,26 +67,79 @@
           </div>
         </header>
 
-        <section class="office-workspace" aria-label="Converse com a equipe do escritório">
-          <aside class="office-roster office-surface" aria-labelledby="officeRosterTitle">
-            <div class="office-roster__heading">
-              <span class="office-section-kicker">SEU TIME</span>
-              <h2 id="officeRosterTitle">Funcionários</h2>
-              <p>Escolha com quem quer falar.</p>
-            </div>
-            <div class="office-agent-grid" id="officeAgents" aria-live="polite" aria-busy="true">
-              <div class="office-loading"><span class="office-spinner" aria-hidden="true"></span> Carregando equipe…</div>
-            </div>
-          </aside>
+        <section class="office-summary" aria-label="Resumo do escritório">
+          <article class="office-summary-card office-summary-card--primary">
+            <span class="office-summary-card__icon office-summary-card__icon--mate" aria-hidden="true"><img src="/assets/img/mascot/mate-thumbs.png" alt="" width="38" height="38" /></span>
+            <div><span class="office-summary-card__value" id="officeSuggestionCount">—</span><span class="office-summary-card__label">recomendações do Mate</span></div>
+          </article>
+          <article class="office-summary-card">
+            <span class="office-summary-card__icon office-summary-card__icon--warning" aria-hidden="true">!</span>
+            <div><span class="office-summary-card__value" id="officeUrgentCount">—</span><span class="office-summary-card__label">esperando você na mesa de aprovações</span></div>
+          </article>
+          <article class="office-summary-card">
+            <span class="office-summary-faces" id="officeAgentFaces" aria-hidden="true"></span>
+            <div><span class="office-summary-card__value" id="officeAgentCount">—</span><span class="office-summary-card__label">no escritório agora</span></div>
+          </article>
+        </section>
 
+        <section class="office-floor-card" aria-labelledby="officeFloorTitle">
+          <div class="office-floor-card__head">
+            <div>
+              <span class="office-section-kicker">SEU ESCRITÓRIO</span>
+              <h2 id="officeFloorTitle">Cada setor no seu lugar</h2>
+            </div>
+            <div class="office-floor-card__tools">
+              <button class="office-chip-button" id="officeReplayEntrance" type="button">Ver a entrada</button>
+              <span class="office-floor-card__meta" id="officeOrgName">Escritório ObraMate</span>
+            </div>
+          </div>
+
+          <div class="office-floor-layout">
+            <div class="office-floor">
+              <div class="office-entrance" id="officeEntrance" hidden>
+                <img class="office-entrance__photo" src="/assets/virtual-office/lobby.jpg" alt="Entrada do escritório: portas de vidro abertas e o balcão da recepção" />
+                <div class="office-entrance__card" role="dialog" aria-labelledby="officeEntranceName" aria-describedby="officeEntranceText">
+                  <div class="office-entrance__who">
+                    <img src="/assets/img/mascot/mate-thumbs.png" alt="" width="44" height="44" />
+                    <span><strong id="officeEntranceName">Mate</strong><small>Gerente Geral</small></span>
+                  </div>
+                  <p id="officeEntranceText">A equipe já está nas mesas.</p>
+                  <button class="office-button office-button--dark" id="officeEnter" type="button">Entrar no escritório</button>
+                </div>
+              </div>
+              <div class="office-plan-scroll">
+                <div class="office-plan" id="officePlan" role="group" aria-label="Planta do escritório"></div>
+              </div>
+              <ul class="office-corridor" id="officeCorridor" aria-label="Salas do escritório"></ul>
+              <p class="office-floor__note">Clique numa pessoa para ir até a mesa dela. Anel laranja: tem próximos passos. Anel grafite: precisa de você.</p>
+            </div>
+
+            <aside class="office-approvals" id="officeApprovals" aria-labelledby="officeTasksTitle" tabindex="-1">
+              <div class="office-panel__head">
+                <div>
+                  <span class="office-section-kicker">MESA DE APROVAÇÕES</span>
+                  <h2 id="officeTasksTitle">Esperando você</h2>
+                </div>
+                <a class="office-text-link" href="mate-ai.html">Abrir Mate AI <span aria-hidden="true">↗</span></a>
+              </div>
+              <div class="office-tasks" id="officeTasks" aria-live="polite" aria-busy="true">
+                <div class="office-loading"><span class="office-spinner" aria-hidden="true"></span> Carregando…</div>
+              </div>
+              <p class="office-approvals__note"><span aria-hidden="true">✓</span> Nada chega ao cliente sem o seu OK.</p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="office-workspace" id="officeDesk" aria-label="Mesa do funcionário selecionado">
           <section class="office-conversation office-surface" aria-label="Conversa com o funcionário selecionado">
             <header class="office-conversation__header">
               <div class="office-active-avatar" id="officeActiveAvatar" aria-hidden="true"></div>
               <div class="office-active-identity">
-                <span class="office-section-kicker" id="officeActiveDepartment">CENTRAL</span>
-                <h2 id="officeActiveName">Mate</h2>
-                <p id="officeActiveTitle">Coordenador do escritório</p>
+                <span class="office-section-kicker" id="officeActiveDepartment">COORDENAÇÃO</span>
+                <h2 id="officeActiveName">Sala do Mate</h2>
+                <p><span id="officeActiveTitle">Gerente Geral</span> <span class="office-ai-badge" id="officeActiveBadge" hidden>IA</span></p>
               </div>
+              <button class="office-button office-button--quiet" id="officeEditActive" type="button" hidden>Editar perfil</button>
               <span class="office-online"><span aria-hidden="true"></span> Disponível</span>
             </header>
             <div id="mateAiInline" aria-live="polite"></div>
@@ -94,7 +147,7 @@
 
           <aside class="office-current office-surface" aria-labelledby="officeCurrentTitle">
             <div class="office-current__heading">
-              <span class="office-section-kicker">CONTEXTO ATIVO</span>
+              <span class="office-section-kicker" id="officeCurrentKicker">CONTEXTO ATIVO</span>
               <h2 id="officeCurrentTitle">Trabalho em andamento</h2>
             </div>
             <div id="officeCurrentWork" aria-live="polite">
@@ -103,100 +156,6 @@
           </aside>
         </section>
 
-        <details class="office-secondary">
-          <summary>Visão geral e recomendações do escritório</summary>
-        <section class="office-summary" aria-label="Resumo do escritório">
-          <article class="office-summary-card office-summary-card--primary">
-            <span class="office-summary-card__icon office-summary-card__icon--mate" aria-hidden="true"><img src="/assets/img/mascot/mate-thumbs.png" alt="" width="38" height="38" /></span>
-            <div><span class="office-summary-card__value" id="officeSuggestionCount">—</span><span class="office-summary-card__label">recomendações do Mate</span></div>
-          </article>
-          <article class="office-summary-card">
-            <span class="office-summary-card__icon office-summary-card__icon--warning" aria-hidden="true">!</span>
-            <div><span class="office-summary-card__value" id="officeUrgentCount">—</span><span class="office-summary-card__label">pedem sua revisão</span></div>
-          </article>
-          <article class="office-summary-card">
-            <span class="office-summary-card__icon office-summary-card__icon--neutral" aria-hidden="true">⌂</span>
-            <div><span class="office-summary-card__value" id="officeAgentCount">—</span><span class="office-summary-card__label">funcionários ativos</span></div>
-          </article>
-        </section>
-
-        <section class="office-scene-card" aria-labelledby="officeSceneTitle">
-          <div class="office-scene-card__head">
-            <div>
-              <span class="office-section-kicker">SEU TIME DIGITAL</span>
-              <h2 id="officeSceneTitle">Cada setor no seu lugar</h2>
-            </div>
-            <span class="office-scene-card__meta" id="officeOrgName">Escritório ObraMate</span>
-          </div>
-
-          <div class="office-scene" aria-label="Visualização dos setores do escritório virtual">
-            <div class="office-scene__window" aria-hidden="true"><span></span><span></span><span></span></div>
-            <div class="office-scene__plant office-scene__plant--one" aria-hidden="true">♧</div>
-            <div class="office-scene__plant office-scene__plant--two" aria-hidden="true">♧</div>
-            <div class="office-scene__path" aria-hidden="true"></div>
-
-            <button class="office-station office-station--central" type="button" data-office-filter="all" aria-pressed="true">
-              <span class="office-station__avatar office-station__avatar--central" aria-hidden="true"><span>✦</span></span>
-              <span class="office-station__desk" aria-hidden="true"><span class="office-station__screen">OM</span><span class="office-station__surface"></span><span class="office-station__leg"></span></span>
-              <span class="office-station__label"><strong>Central</strong><small>Mate coordenador</small></span>
-              <span class="office-station__count" data-office-count="all">—</span>
-            </button>
-
-            <button class="office-station office-station--commercial" type="button" data-office-filter="commercial" aria-pressed="false">
-              <span class="office-station__avatar office-station__avatar--commercial" aria-hidden="true"><span>↗</span></span>
-              <span class="office-station__desk" aria-hidden="true"><span class="office-station__screen">CRM</span><span class="office-station__surface"></span><span class="office-station__leg"></span></span>
-              <span class="office-station__label"><strong>Comercial</strong><small>Leads e orçamentos</small></span>
-              <span class="office-station__count" data-office-count="commercial">—</span>
-            </button>
-
-            <button class="office-station office-station--operations" type="button" data-office-filter="operations" aria-pressed="false">
-              <span class="office-station__avatar office-station__avatar--operations" aria-hidden="true"><span>⌂</span></span>
-              <span class="office-station__desk" aria-hidden="true"><span class="office-station__screen">JOB</span><span class="office-station__surface"></span><span class="office-station__leg"></span></span>
-              <span class="office-station__label"><strong>Operações</strong><small>Obras e equipes</small></span>
-              <span class="office-station__count" data-office-count="operations">—</span>
-            </button>
-
-            <button class="office-station office-station--finance" type="button" data-office-filter="finance" aria-pressed="false">
-              <span class="office-station__avatar office-station__avatar--finance" aria-hidden="true"><span>$</span></span>
-              <span class="office-station__desk" aria-hidden="true"><span class="office-station__screen">$</span><span class="office-station__surface"></span><span class="office-station__leg"></span></span>
-              <span class="office-station__label"><strong>Financeiro</strong><small>Invoices e recebimentos</small></span>
-              <span class="office-station__count" data-office-count="finance">—</span>
-            </button>
-          </div>
-          <p class="office-scene-card__note">Selecione um setor para ver as recomendações relacionadas.</p>
-        </section>
-
-        <section class="office-work-area" aria-label="Recomendações e funções do escritório">
-          <div class="office-panel office-tasks-panel">
-            <div class="office-panel__head">
-              <div>
-                <span class="office-section-kicker">PRÓXIMOS PASSOS</span>
-                <h2 id="officeTasksTitle">Recomendações do Mate</h2>
-              </div>
-              <a class="office-text-link" href="mate-ai.html">Abrir Mate AI <span aria-hidden="true">↗</span></a>
-            </div>
-            <div class="office-tasks" id="officeTasks" aria-live="polite" aria-busy="true">
-              <div class="office-loading"><span class="office-spinner" aria-hidden="true"></span> Carregando recomendações…</div>
-            </div>
-          </div>
-
-          <aside class="office-panel office-roles-panel">
-            <div class="office-panel__head">
-              <div>
-                <span class="office-section-kicker">FUNÇÕES DO ESCRITÓRIO</span>
-                <h2>Como o time ajuda</h2>
-              </div>
-            </div>
-            <ul class="office-role-list">
-              <li><span class="office-role-list__icon office-role-list__icon--commercial" aria-hidden="true">↗</span><span><strong>Comercial</strong><small>Leads, quotes e follow-up</small></span></li>
-              <li><span class="office-role-list__icon office-role-list__icon--operations" aria-hidden="true">⌂</span><span><strong>Operações</strong><small>Jobs, agenda e equipes</small></span></li>
-              <li><span class="office-role-list__icon office-role-list__icon--finance" aria-hidden="true">$</span><span><strong>Financeiro</strong><small>Invoices e valores a receber</small></span></li>
-              <li><span class="office-role-list__icon office-role-list__icon--central" aria-hidden="true">✦</span><span><strong>Coordenação</strong><small>Resumo e próximos passos</small></span></li>
-            </ul>
-            <div class="office-permission-note"><span aria-hidden="true">✓</span> As recomendações usam os dados da sua empresa. Você revisa cada ação antes de executá-la.</div>
-          </aside>
-        </section>
-        </details>
         <p class="office-footnote" id="officeError" role="status" hidden></p>
       </div>
     </main>
@@ -214,6 +173,7 @@
         </button>
       </header>
       <input id="agentKey" name="key" type="hidden" />
+      <div class="office-agent-form__layout">
       <div class="office-agent-form__fields">
         <label class="office-field"><span>Nome</span><input id="agentName" name="name" required maxlength="80" /></label>
         <label class="office-field"><span>Cargo</span><input id="agentTitle" name="title" required maxlength="100" /></label>
@@ -228,6 +188,7 @@
         <label class="office-field office-field--full"><span>Apresentação</span><textarea id="agentDescription" name="description" rows="3" required maxlength="500"></textarea></label>
         <fieldset class="office-field office-field--full office-avatar-field">
           <legend>Rosto</legend>
+          <p class="office-avatar-note">Pessoas fictícias, feitas para o ObraMate. O selo de IA aparece sempre.</p>
           <div class="office-avatar-choices" id="agentAvatarChoices" role="group" aria-label="Escolher rosto do funcionário"></div>
         </fieldset>
         <fieldset class="office-field office-field--full office-capability-field">
@@ -236,6 +197,23 @@
           <div class="office-capability-list" id="agentCapabilities"></div>
         </fieldset>
         <label class="office-agent-enabled"><input id="agentEnabled" name="enabled" type="checkbox" /><span><strong>Funcionário ativo</strong><small>Agentes inativos continuam salvos, mas não aparecem como disponíveis.</small></span></label>
+      </div>
+      <aside class="office-badge-preview" aria-label="Prévia do crachá">
+        <span class="office-badge-preview__strap" aria-hidden="true"></span>
+        <div class="office-badge">
+          <div class="office-badge__top"><span class="office-badge__mark" aria-hidden="true"></span><span id="agentBadgeOrg">ObraMate</span></div>
+          <div class="office-badge__body">
+            <div class="office-badge__photo" id="agentBadgePhoto"></div>
+            <strong id="agentBadgeName">—</strong>
+            <span id="agentBadgeTitle">—</span>
+            <span class="office-badge__seal" id="agentBadgeSeal">ASSISTENTE DE IA</span>
+          </div>
+        </div>
+        <div class="office-badge-signature">
+          <span class="office-section-kicker">ASSINATURA PARA O CLIENTE</span>
+          <p id="agentBadgeSignature">—</p>
+        </div>
+      </aside>
       </div>
       <p class="office-agent-form__error" id="agentFormError" role="alert" hidden></p>
       <footer class="office-agent-dialog__actions">
@@ -247,7 +225,7 @@
 
   <script src="crm-shell.js?v=20261022-inbox1"></script>
   <script src="crm-shared-nav.js?v=20261022-office3"></script>
-  <script src="mate-panel.js?v=20261022-officechat1"></script>
-  <script src="escritorio-ia.js?v=20261022-officecontext2"></script>
+  <script src="mate-panel.js?v=20261022-officefloor1"></script>
+  <script src="escritorio-ia.js?v=20261022-officefloor1"></script>
 </body>
 </html>
