@@ -99,7 +99,7 @@ const listInclude = {
       builder: { select: { company: true, firstName: true, lastName: true, email: true } },
     },
   },
-  customer: { select: { name: true, email: true } },
+  customer: { select: { name: true, email: true, clientCode: true } },
   receipts: { select: { amount: true, paidAt: true } },
 } as const;
 
@@ -120,9 +120,11 @@ function listItem(inv: ListRow, now: Date) {
   const jobBuilderName = builderDisplayName(inv.workOrder?.builder);
   const isBuilderQuote = Boolean(inv.quote?.builderId);
   // Bill-to name: builder/customer — never quote.title (that used to be the reference note).
-  const customerName = isBuilderQuote
+  const clientCode = inv.customer?.clientCode != null ? String(inv.customer.clientCode).trim() : "";
+  const baseName = isBuilderQuote
     ? quoteBuilderName || inv.customer?.name || null
     : inv.customer?.name || quoteBuilderName || jobBuilderName || null;
+  const customerName = clientCode && baseName && !baseName.includes(clientCode) ? `${baseName} - ${clientCode}` : baseName;
   const payload =
     inv.quote?.payload && typeof inv.quote.payload === "object" && !Array.isArray(inv.quote.payload)
       ? (inv.quote.payload as Record<string, unknown>)
@@ -169,6 +171,7 @@ function listItem(inv: ListRow, now: Date) {
           : "Job"
         : null,
     customer_name: customerName,
+    client_code: clientCode || null,
     customer_email: inv.customer?.email || inv.quote?.builder?.email || inv.workOrder?.builder?.email || null,
   };
 }

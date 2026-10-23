@@ -185,7 +185,9 @@
         ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Concluir</button>`
         : wo.status === "scheduled" || wo.status === "draft"
           ? canManage
-            ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button><button type="button" class="jmx-b" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Já concluído</button>`
+            ? !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
+              ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="start-date" data-id="${escapeHtml(wo.id)}">Start Job</button>`
+              : `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button><button type="button" class="jmx-b" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Já concluído</button>`
             : wo.scheduled_start
               ? `<a class="jmx-b jmx-b--or" href="campo/ticket.html?id=${encodeURIComponent(wo.id)}">Campo</a>`
               : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
@@ -195,7 +197,8 @@
     const stage = J ? J.stageLabel(wo) : statusPt(wo.status);
     const when = wo.status === "completed" ? `concluído ${J ? J.dayShort(wo.scheduled_end || wo.scheduled_start) : ""}` : J ? J.dateRange(wo) : fmtDay(wo.scheduled_start);
     const bl = J ? J.bill(wo) : null;
-    return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
+    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
+    return `<article class="om-swipe jcm-job-swipe${undated ? " is-nodate" : ""}" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
         <a class="om-swipe__act--edit" href="${detailHref}">Abrir</a>
         ${canManage && wo.status !== "canceled" ? `<button type="button" class="om-swipe__act--delete" data-job-delete="${escapeHtml(wo.id)}" data-job-label="${escapeHtml(wo.title || clientLabel(wo))}">Excluir</button>` : `<a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>`}
@@ -205,6 +208,7 @@
           <span class="jmx-card__r1"><span>${wo.number != null ? `Job #${escapeHtml(wo.number)} · ` : ""}${escapeHtml(stage)}</span>${lt ? `<em class="is-hot">${escapeHtml(lt.label)}</em>` : bl && wo.status === "completed" ? `<em class="${bl.cls === "ok" ? "is-ok" : ""}">${escapeHtml(bl.text)}</em>` : ""}</span>
           <b class="jmx-card__t">${escapeHtml(wo.title || `Job para ${clientLabel(wo)}`)}</b>
           <span class="jmx-card__s">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))} · ${escapeHtml(when)}</span>
+          ${undated ? `<span class="jx-nodate">Sem data${wo.quote_number ? ` · quote ${escapeHtml(wo.quote_number)}` : ""}</span>` : ""}
           ${J ? J.progHtml(wo) : ""}
         </a>
         <div class="jmx-card__r3">
@@ -339,6 +343,11 @@
         e.stopPropagation();
         const id = btn.getAttribute("data-id");
         const action = btn.getAttribute("data-job-action");
+        if (action === "start-date") {
+          const wo = allJobs.find((j) => String(j.id) === String(id));
+          if (wo && window.__crmJobModal?.openStartDate) window.__crmJobModal.openStartDate(wo);
+          return;
+        }
         if (action === "invoice") {
           const wo = allJobs.find((j) => String(j.id) === String(id));
           if (window.JobBilling?.openDialog && wo) {
@@ -449,7 +458,7 @@
       });
     });
     $("jobsMobAdd")?.addEventListener("click", () => {
-      location.href = "quote-builder.html";
+      window.__crmJobModal?.openCreate({ allDay: true, openServices: true }).catch((e) => window.crmToast?.error?.(e.message || "Não foi possível abrir o job"));
     });
     $("jobsMobQ")?.addEventListener("input", (e) => {
       clearTimeout(e.target._t);

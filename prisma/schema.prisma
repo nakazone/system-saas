@@ -2555,6 +2555,8 @@ model WorkOrder {
   relatedChildren    WorkOrder[] @relation("WorkOrderRelated")
   scheduledStart DateTime?
   scheduledEnd   DateTime?
+  /// Second start when the job is Installation and Sand & Finish.
+  sandScheduledStart DateTime?
   /// All-day start (no specific clock time). Agenda renders in the all-day lane.
   allDay         Boolean   @default(false)
   /// Set when the pre-start push reminder was sent (dedupe).

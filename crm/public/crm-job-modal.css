@@ -655,3 +655,11 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 .jm-picked { border: 0; background: #F7F8FA; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 14px; }
 .jm-picked__txt b { font-weight: 650; }
 .jm-picked .jm-av { border-radius: 50%; }
+.jm-start { position: fixed; inset: 0; z-index: 12040; display: grid; place-items: center; padding: 20px; background: rgba(34, 30, 26, .45); }
+.jm-start[hidden] { display: none; }
+.jm-start__panel { width: min(420px, 100%); background: #fff; border-radius: 18px; padding: 18px 18px 16px; box-shadow: 0 24px 60px -28px rgba(16, 24, 40, .45); }
+.jm-start__x { position: absolute; } 
+.jm-start__panel { position: relative; }
+.jm-start__x { top: 10px; right: 12px; border: 0; background: transparent; font-size: 22px; line-height: 1; cursor: pointer; color: #221E1A; }
+.jm-start__panel .jm-field { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13px; font-weight: 650; }
+.jm-start__acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

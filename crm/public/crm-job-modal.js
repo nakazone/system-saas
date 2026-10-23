@@ -71,9 +71,10 @@
       addressTouched: false,
       date: "",
       time: "07:30",
-      /** All-day start — no clock time; agenda shows in the all-day lane. */
-      allDay: false,
-      /** null | installation | sand_finish */
+      /** Jobs are always all-day. The second date is the Sand & Finish start. */
+      allDay: true,
+      sandDate: "",
+      /** null | installation | sand_finish | both */
       sector: null,
       relatedWorkOrderId: null,
       relatedWorkOrder: null,
@@ -108,11 +109,11 @@
   }
 
   const SECTOR_OPTS = [
-    { id: "", label: "Geral" },
-    { id: "installation", label: "Instalação" },
-    { id: "sand_finish", label: "Lixa" },
+    { id: "installation", label: "Installation" },
+    { id: "sand_finish", label: "Sand & Finish" },
+    { id: "both", label: "Installation + Sand & Finish" },
   ];
-  const sectorLabel = (s) => SECTOR_OPTS.find((o) => o.id === (s || ""))?.label || "Geral";
+  const sectorLabel = (s) => SECTOR_OPTS.find((o) => o.id === (s || ""))?.label || "—";
 
   // ---------------------------------------------------------------- utils
   const $ = (id) => document.getElementById(id);
@@ -582,24 +583,25 @@
   }
 
   // ---------------------------------------------------------------- schedule (date + start only — duration stays open)
+  function dayFromYmd(value) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  }
   function computeRange() {
-    if (!st.date) return { start: null, end: null };
-    const [y, m, d] = st.date.split("-").map(Number);
-    if (st.allDay) {
-      const start = new Date(y, m - 1, d, 0, 0, 0, 0);
-      return { start, end: null };
-    }
-    const [hh, mm] = (st.time || "07:30").split(":").map(Number);
-    const start = new Date(y, m - 1, d, hh || 0, mm || 0, 0, 0);
+    const start = dayFromYmd(st.date);
     return { start, end: null };
   }
   function whenLabel() {
     const { start } = computeRange();
+    const sand = st.sector === "both" ? dayFromYmd(st.sandDate) : null;
+    const fmt = (d) => d.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
+    if (!start && !sand) return "Sem data";
+    if (st.sector === "both") {
+      return `Installation ${start ? fmt(start) : "sem data"} · Sand & Finish ${sand ? fmt(sand) : "sem data"}`;
+    }
     if (!start) return "Sem data";
-    const day = start.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
-    if (st.allDay) return `${day} · dia inteiro`;
-    const t = start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    return `${day} · ${t}`;
+    return `${fmt(start)} · dia inteiro`;
   }
 
   // ---------------------------------------------------------------- auto title
@@ -647,26 +649,23 @@
         <section class="jm-sec" data-job-section="schedule">
           <h3 class="jm-sec__t"><span class="jm-n">2</span>Start</h3>
           <div class="jm-when">
-            <label class="jm-field">Data<input type="date" id="jmDate" class="jm-in" /></label>
-            <label class="jm-field" id="jmTimeWrap">Início<input type="time" id="jmTime" class="jm-in" step="900" /></label>
+            <label class="jm-field" id="jmDateLabel">Data de início<input type="date" id="jmDate" class="jm-in" /></label>
+            <label class="jm-field" id="jmSandWrap" hidden>Início Sand & Finish<input type="date" id="jmSandDate" class="jm-in" /></label>
           </div>
-          <label class="jm-check jm-check--allday">
-            <input type="checkbox" id="jmAllDay" />
-            <span><strong>Dia inteiro</strong> — sem horário específico</span>
-          </label>
           <div class="jm-when" style="margin-top:10px">
             <label class="jm-field">Setor
               <select id="jmSector" class="jm-in">
-                <option value="">Geral</option>
-                <option value="installation">Instalação</option>
-                <option value="sand_finish">Lixa</option>
+                <option value="">Escolher</option>
+                <option value="installation">Installation</option>
+                <option value="sand_finish">Sand & Finish</option>
+                <option value="both">Installation + Sand & Finish</option>
               </select>
             </label>
-            <label class="jm-field" id="jmRelatedWrap" hidden>Job de Instalação
+            <label class="jm-field" id="jmRelatedWrap" hidden>Job de Installation
               <select id="jmRelated" class="jm-in"><option value="">—</option></select>
             </label>
           </div>
-          <p class="jm-hint">Data de início (e hora, se não for dia inteiro) — a duração fica aberta. Setor define em qual agenda de Jobs o evento aparece.</p>
+          <p class="jm-hint">Jobs são sempre o dia inteiro, sem horário. Installation + Sand & Finish pede duas datas de início.</p>
         </section>
 
         <section class="jm-sec" data-job-section="services">
@@ -902,10 +901,12 @@
 
   function renderWhen() {
     if ($("jmDate")) $("jmDate").value = st.date || "";
-    if ($("jmTime")) $("jmTime").value = st.time || "";
-    if ($("jmAllDay")) $("jmAllDay").checked = Boolean(st.allDay);
-    const timeWrap = $("jmTimeWrap");
-    if (timeWrap) timeWrap.hidden = Boolean(st.allDay);
+    const dateLbl = $("jmDateLabel");
+    if (dateLbl) dateLbl.firstChild.textContent = st.sector === "both" ? "Início Installation" : "Data de início";
+    const sandWrap = $("jmSandWrap");
+    if (sandWrap) sandWrap.hidden = st.sector !== "both";
+    if ($("jmSandDate")) $("jmSandDate").value = st.sandDate || "";
+    st.allDay = true;
     const sec = $("jmSector");
     if (sec) sec.value = st.sector || "";
     const wrap = $("jmRelatedWrap");
@@ -1186,7 +1187,7 @@
       await ensureQuoteServicesAssets();
       installJobQBBridge();
       const section =
-        st.sector === "sand_finish" ? "sand_finish" : st.sector === "installation" ? "installation" : null;
+        st.sector === "sand_finish" ? "sand_finish" : st.sector === "installation" || st.sector === "both" ? "installation" : null;
       const o = Object.assign({ section }, opts || {});
       if (o.focusPaper) window.OmQuoteServices.openDoc();
       else window.OmQuoteServices.openStep(o);
@@ -1774,11 +1775,11 @@
         start = new Date(pref);
       }
     }
-    if (o.allDay) st.allDay = true;
-    if (start && !Number.isNaN(start.getTime())) {
+    st.allDay = true;
+    if (o.openServices) {
+      st.date = "";
+    } else if (start && !Number.isNaN(start.getTime())) {
       st.date = ymd(start);
-      // A slot picked on the agenda at midnight means "that day", not 00:00.
-      if (!st.allDay && (start.getHours() || start.getMinutes())) st.time = hm(start);
     } else {
       const t = new Date();
       t.setDate(t.getDate() + 1);
@@ -1788,7 +1789,7 @@
       st.assigneeId = String(meId);
       st.members.add(String(meId));
     }
-    if (o.sector === "installation" || o.sector === "sand_finish") st.sector = o.sector;
+    if (o.sector === "installation" || o.sector === "sand_finish" || o.sector === "both") st.sector = o.sector;
     if (o.relatedWorkOrderId) {
       st.relatedWorkOrderId = String(o.relatedWorkOrderId);
       st.relatedWorkOrder = o.relatedWorkOrder || { id: st.relatedWorkOrderId, title: o.relatedTitle || "Job ligado", number: o.relatedNumber ?? null };
@@ -1817,6 +1818,11 @@
     }
     st.lines = [blankLine()];
     open();
+    if (o.openServices) {
+      setTimeout(() => {
+        if (st && !st.id) openJobServicesPopup().catch(() => {});
+      }, 180);
+    }
   }
 
   async function openScheduleLixaFrom(wo) {
@@ -1968,11 +1974,10 @@
     st.address = wo.address || "";
     st.addressTouched = true;
     const s = wo.scheduled_start ? new Date(wo.scheduled_start) : null;
-    st.allDay = Boolean(wo.all_day);
-    if (s) {
-      st.date = ymd(s);
-      if (!st.allDay) st.time = hm(s);
-    }
+    st.allDay = true;
+    if (s) st.date = ymd(s);
+    const sand = wo.sand_scheduled_start ? new Date(wo.sand_scheduled_start) : null;
+    st.sandDate = sand && !Number.isNaN(sand.getTime()) ? ymd(sand) : "";
     st.assigneeId = wo.assigned_user_id ? String(wo.assigned_user_id) : null;
     (wo.members || []).forEach((m) => st.members.add(String(m.user_id)));
     st.lines = (wo.line_items || []).map((li) =>
@@ -1999,7 +2004,7 @@
       ? wo.campo_checklist.map((c) => ({ id: c.id, text: c.text, photo: Boolean(c.photo_required), done: Boolean(c.done) }))
       : [];
     st.temps = Array.isArray(wo.temp_workers) ? wo.temp_workers : [];
-    st.sector = wo.sector === "installation" || wo.sector === "sand_finish" ? wo.sector : null;
+    st.sector = wo.sector === "installation" || wo.sector === "sand_finish" || wo.sector === "both" ? wo.sector : null;
     st.relatedWorkOrderId = wo.related_work_order_id || null;
     st.relatedWorkOrder = wo.related_work_order || null;
     st.relatedChildren = Array.isArray(wo.related_children) ? wo.related_children : [];
@@ -2055,8 +2060,9 @@
           };
         }),
       scheduled_start: start ? start.toISOString() : null,
-      scheduled_end: end ? end.toISOString() : null,
-      all_day: start ? Boolean(st.allDay) : false,
+      scheduled_end: null,
+      sand_scheduled_start: st.sector === "both" && dayFromYmd(st.sandDate) ? dayFromYmd(st.sandDate).toISOString() : null,
+      all_day: Boolean(start),
       status: st.id ? st.status : start ? "scheduled" : "draft",
       sector: st.sector || null,
       related_work_order_id: st.sector === "sand_finish" ? st.relatedWorkOrderId || null : null,
@@ -2073,7 +2079,7 @@
     if (st.section === "all") return full;
     const pick = {
       details: ["title", "source_type", "source_name", "customer_id", "builder_id", "address", "status"],
-      schedule: ["scheduled_start", "scheduled_end", "all_day", "sector", "related_work_order_id"],
+      schedule: ["scheduled_start", "scheduled_end", "sand_scheduled_start", "all_day", "sector", "related_work_order_id"],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
       campo: checklistEnabled
@@ -2094,6 +2100,9 @@
     const all = st.section === "all";
     if ((all || st.section === "details") && !st.customerId && !st.builderId && !(st.titleTouched && st.title.trim())) {
       return "Escolha para quem é o job (ou escreva um título em Editar).";
+    }
+    if ((all || st.section === "schedule") && st.sector === "both" && st.date && st.sandDate && st.date === st.sandDate) {
+      return "Installation e Sand & Finish precisam de datas diferentes.";
     }
     if ((all || st.section === "schedule") && body.scheduled_start && body.scheduled_end) {
       if (new Date(body.scheduled_end) <= new Date(body.scheduled_start)) return "O fim precisa ser depois do início.";
@@ -2606,15 +2615,11 @@
     switch (t.id) {
       case "jmDate":
         st.date = t.value;
+        st.allDay = true;
         renderSide();
         return;
-      case "jmTime":
-        st.time = t.value;
-        renderSide();
-        return;
-      case "jmAllDay":
-        st.allDay = Boolean(t.checked);
-        renderWhen();
+      case "jmSandDate":
+        st.sandDate = t.value;
         renderSide();
         return;
       case "jmNeedsDelivery":
@@ -2647,8 +2652,9 @@
         return;
       }
       case "jmSector":
-        st.sector = t.value === "installation" || t.value === "sand_finish" ? t.value : null;
+        st.sector = t.value === "installation" || t.value === "sand_finish" || t.value === "both" ? t.value : null;
         if (st.sector !== "sand_finish") st.relatedWorkOrderId = null;
+        if (st.sector !== "both") st.sandDate = "";
         ensureInstallOptions().then(() => {
           renderWhen();
           renderSide();
@@ -2954,10 +2960,92 @@
     bindOnce();
   })();
 
+  let startTarget = null;
+  function ensureStartDialog() {
+    if ($("jmStartBox")) return;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<div class="jm-start" id="jmStartBox" hidden>
+      <div class="jm-start__panel" role="dialog" aria-modal="true" aria-labelledby="jmStartHeading">
+        <button type="button" class="jm-start__x" id="jmStartClose" aria-label="Fechar">×</button>
+        <h2 id="jmStartHeading">Start Job</h2>
+        <p class="jm-hint" id="jmStartTitle"></p>
+        <label class="jm-field" id="jmStartDateLabel">Data de início<input type="date" id="jmStartDate" class="jm-in" /></label>
+        <label class="jm-field" id="jmStartSandWrap" hidden>Início Sand & Finish<input type="date" id="jmStartSand" class="jm-in" /></label>
+        <p class="jm-hint">O job fica o dia inteiro. Sem horário.</p>
+        <div class="jm-start__acts"><button type="button" class="jm-btn" id="jmStartCancel">Cancelar</button><button type="button" class="jm-btn jm-btn--pri" id="jmStartSave">Agendar</button></div>
+      </div>
+    </div>`;
+    document.body.appendChild(wrap.firstElementChild);
+    const close = () => {
+      $("jmStartBox").hidden = true;
+      startTarget = null;
+    };
+    $("jmStartClose").addEventListener("click", close);
+    $("jmStartCancel").addEventListener("click", close);
+    $("jmStartSave").addEventListener("click", () => {
+      saveStartDate().catch((err) => notify(err.message || "Não foi possível agendar.", "error"));
+    });
+  }
+  async function openStartDate(wo) {
+    if (!canManage) {
+      notify("Sem permissão para agendar jobs.", "error");
+      return;
+    }
+    if (!wo || !wo.id) return;
+    ensureStartDialog();
+    startTarget = wo;
+    const both = wo.sector === "both";
+    $("jmStartTitle").textContent = wo.title || "Job";
+    $("jmStartDateLabel").firstChild.textContent = both ? "Início Installation" : "Data de início";
+    $("jmStartSandWrap").hidden = !both;
+    $("jmStartDate").value = wo.scheduled_start ? ymd(new Date(wo.scheduled_start)) : "";
+    $("jmStartSand").value = wo.sand_scheduled_start ? ymd(new Date(wo.sand_scheduled_start)) : "";
+    $("jmStartBox").hidden = false;
+  }
+  async function saveStartDate() {
+    const wo = startTarget;
+    if (!wo) return;
+    const date = $("jmStartDate").value;
+    const sand = $("jmStartSand").value;
+    const both = wo.sector === "both";
+    if (!date && !(both && sand)) {
+      notify("Escolha a data de início.", "error");
+      return;
+    }
+    if (both && date && sand && date === sand) {
+      notify("Installation e Sand & Finish precisam de datas diferentes.", "error");
+      return;
+    }
+    const start = date ? dayFromYmd(date) : null;
+    const sandAt = both && sand ? dayFromYmd(sand) : null;
+    const body = {
+      scheduled_start: start ? start.toISOString() : null,
+      scheduled_end: null,
+      all_day: Boolean(start),
+      sand_scheduled_start: sandAt ? sandAt.toISOString() : null,
+    };
+    if ((wo.status === "draft" || !wo.status) && (start || sandAt)) body.status = "scheduled";
+    const btn = $("jmStartSave");
+    if (btn) btn.disabled = true;
+    try {
+      await api(`/api/work-orders/${encodeURIComponent(wo.id)}`, { method: "PUT", body: JSON.stringify(body) });
+      $("jmStartBox").hidden = true;
+      startTarget = null;
+      notify("Data do job agendada.", "success");
+      const data = { id: wo.id };
+      savedListeners.forEach((fn) => {
+        try { fn(data); } catch (_) {}
+      });
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   window.__crmJobModal = {
     ready,
     openCreate: (opts) => ready.then(() => openCreate(opts)),
     openEdit: (id, opts) => ready.then(() => openEdit(id, opts)),
+    openStartDate: (wo) => ready.then(() => openStartDate(wo)),
     openSection: (id, section) => ready.then(() => openEdit(id, { section: section || "all" })),
     openScheduleLixa: (wo) => ready.then(() => openScheduleLixaFrom(wo)),
     close: () => close(),

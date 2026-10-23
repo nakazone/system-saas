@@ -34,11 +34,11 @@ import {
   buildMeetingCalendarSummary,
 } from "../../lib/schedule/lead-visit-ics.js";
 
-const WO_SECTORS = ["installation", "sand_finish"] as const;
+const WO_SECTORS = ["installation", "sand_finish", "both"] as const;
 
 function normalizeWoSector(raw: unknown): string | null {
   const v = String(raw || "").trim().toLowerCase();
-  if (v === "installation" || v === "sand_finish") return v;
+  if (v === "installation" || v === "sand_finish" || v === "both") return v;
   return null;
 }
 
@@ -181,6 +181,7 @@ function mapWorkOrder(wo: {
   relatedWorkOrderId?: string | null;
   scheduledStart: Date | null;
   scheduledEnd: Date | null;
+  sandScheduledStart?: Date | null;
   allDay?: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -288,7 +289,8 @@ function mapWorkOrder(wo: {
     })),
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
     scheduled_end: wo.scheduledEnd?.toISOString() ?? null,
-    all_day: Boolean(wo.allDay),
+    sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
+    all_day: Boolean(wo.scheduledStart || wo.sandScheduledStart),
     created_at: wo.createdAt.toISOString(),
     updated_at: wo.updatedAt.toISOString(),
     customer: wo.customer
@@ -914,6 +916,7 @@ const workOrderBody = z.object({
   line_items: z.array(lineItemBody).max(50).optional(),
   scheduled_start: z.string().datetime().optional().nullable(),
   scheduled_end: z.string().datetime().optional().nullable(),
+  sand_scheduled_start: z.string().datetime().optional().nullable(),
   all_day: z.boolean().optional(),
 });
 
@@ -984,7 +987,11 @@ scheduleJobsRouter.post(
           relatedWorkOrderId: relatedId,
           scheduledStart: start,
           scheduledEnd: end,
-          allDay: start ? Boolean(d.all_day) : false,
+          sandScheduledStart:
+            normalizeWoSector(d.sector) === "both" && d.sand_scheduled_start
+              ? new Date(d.sand_scheduled_start)
+              : null,
+          allDay: Boolean(start),
         },
       });
       await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
@@ -1175,13 +1182,17 @@ scheduleJobsRouter.put(
           ...(d.sector !== undefined ? { sector: normalizeWoSector(d.sector) } : {}),
           ...(relatedResolved !== undefined ? { relatedWorkOrderId: relatedResolved } : {}),
           ...(d.scheduled_start !== undefined || d.scheduled_end !== undefined
-            ? { scheduledStart: start, scheduledEnd: end }
+            ? { scheduledStart: start, scheduledEnd: end, allDay: Boolean(start) }
             : {}),
-          ...(d.all_day !== undefined
-            ? { allDay: start ? Boolean(d.all_day) : false }
-            : d.scheduled_start !== undefined && !start
-              ? { allDay: false }
-              : {}),
+          ...(d.sand_scheduled_start !== undefined || (d.sector !== undefined && normalizeWoSector(d.sector) !== "both")
+            ? {
+                sandScheduledStart:
+                  (d.sector !== undefined ? normalizeWoSector(d.sector) : existing.sector) === "both" &&
+                  d.sand_scheduled_start
+                    ? new Date(d.sand_scheduled_start)
+                    : null,
+              }
+            : {}),
           // Re-arm start reminders when the start time moves.
           ...(scheduleChanged
             ? { startReminderSentAt: null, startNudgeSentAt: null }
@@ -1873,9 +1884,18 @@ scheduleJobsRouter.get(
           where: {
             organizationId: req.organizationId!,
             status: { not: "canceled" },
-            scheduledStart: { not: null, lte: to },
-            OR: [{ scheduledEnd: null }, { scheduledEnd: { gte: from } }],
-            ...fieldWorkOrderScope(req.user),
+            AND: [
+              {
+                OR: [
+                  {
+                    scheduledStart: { not: null, lte: to },
+                    OR: [{ scheduledEnd: null }, { scheduledEnd: { gte: from } }],
+                  },
+                  { sandScheduledStart: { gte: from, lte: to } },
+                ],
+              },
+              ...(shouldScopeJobsToSelf(req.user) && req.user?.id ? [myJobAccessWhere(req.user.id)] : []),
+            ],
           },
           include: woInclude,
           orderBy: { scheduledStart: "asc" },
@@ -1899,29 +1919,31 @@ scheduleJobsRouter.get(
 
       const sched = parseScheduleSettings(org?.scheduleSettings);
       const visitCalId = resolveVisitCalendarId(sched);
-      const events = [
-        ...workOrders.map((wo) => {
-          const startIso = wo.scheduledStart!.toISOString();
-          const allDay = Boolean(wo.allDay);
-          const endIso = wo.scheduledEnd
-            ? wo.scheduledEnd.toISOString()
-            : allDay
-              ? new Date(wo.scheduledStart!.getTime() + 24 * 60 * 60 * 1000).toISOString()
-              : new Date(wo.scheduledStart!.getTime() + 60 * 60 * 1000).toISOString();
-          const jobCal = resolveJobCalendar(sched, wo.sector);
+      const jobEvents = workOrders.flatMap((wo) => {
+        const slots: Array<{ at: Date; sand: boolean }> = [];
+        if (wo.scheduledStart) slots.push({ at: wo.scheduledStart, sand: false });
+        if (wo.sector === "both" && wo.sandScheduledStart) slots.push({ at: wo.sandScheduledStart, sand: true });
+        return slots.map(({ at, sand }) => {
+          const sector = sand ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector;
+          const jobCal = resolveJobCalendar(sched, sector);
+          const endIso = new Date(at.getTime() + 24 * 60 * 60 * 1000).toISOString();
+          const label = sand ? "Sand & Finish" : wo.sector === "both" ? "Installation" : "";
           return {
-            id: wo.id,
+            id: sand ? `${wo.id}:sand` : wo.id,
             type: "job" as const,
-            title: wo.title,
+            title: label ? `${wo.title} · ${label}` : wo.title,
             status: wo.status,
-            start: startIso,
+            start: at.toISOString(),
             end: endIso,
-            all_day: allDay,
+            all_day: true,
             calendar_id: jobCal.id,
-            color: resolveJobColor(sched, wo.crew?.color || null, wo.sector),
-            meta: mapWorkOrder(wo),
+            color: resolveJobColor(sched, wo.crew?.color || null, sector),
+            meta: { ...mapWorkOrder(wo), date_role: sand ? "sand" : "main" },
           };
-        }),
+        });
+      });
+      const events = [
+        ...jobEvents,
         ...meetings.map((m) => ({
           id: m.id,
           // A meeting booked from a lead is a site visit.

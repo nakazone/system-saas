@@ -267,8 +267,10 @@
     const nx = rowNext(q);
     const qn = q.quote_number || '';
     const on = String(st.sel) === String(q.id);
+    const idBit = q.client_code ? `ID ${q.client_code}` : '';
+    const jobBit = q.job_number != null ? `Job #${q.job_number}` : '';
     return `<a class="qs-row${on ? ' is-on' : ''}" role="listitem" href="quotes.html?id=${encodeURIComponent(q.id)}" data-id="${esc(q.id)}">
-      <span class="qs-row__b"><b>${esc(clientOf(q))}</b><small${nx.hot ? ' class="is-hot"' : ''}>${esc([qn, nx.text].filter(Boolean).join(' · '))}</small></span>
+      <span class="qs-row__b"><b>${esc(clientOf(q))}</b><small${nx.hot ? ' class="is-hot"' : ''}>${esc([qn, idBit, jobBit, nx.text].filter(Boolean).join(' · '))}</small></span>
       <span class="qs-row__v">${money(q.total_amount ?? q.total)}<small>${esc(shortStatus(q))}</small></span>
     </a>`;
   }

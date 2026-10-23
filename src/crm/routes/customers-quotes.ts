@@ -559,6 +559,7 @@ function mapQuote(q: {
   createdAt: Date;
   updatedAt: Date;
   customer?: { name: string; company?: string | null; clientCode?: string | null } | null;
+  workOrder?: { number: number | null } | null;
   builder?: {
     company?: string | null;
     firstName?: string | null;
@@ -637,6 +638,8 @@ function mapQuote(q: {
     service_type: q.serviceType,
     customer_id: q.customerId,
     customer_name: customerDisplayName(q.customer?.name, q.customer?.clientCode) || q.customer?.name || null,
+    client_code: q.customer?.clientCode != null ? String(q.customer.clientCode).trim() || null : null,
+    job_number: q.workOrder?.number ?? null,
     customer_company: q.customer?.company ?? null,
     lead_id: q.leadId,
     builder_id: q.builderId,
@@ -1513,6 +1516,7 @@ customersQuotesRouter.delete(
 function quoteListInclude() {
   return {
     customer: { select: { name: true, company: true, clientCode: true } },
+    workOrder: { select: { number: true } },
     builder: { select: { company: true, firstName: true, lastName: true } },
     property: { select: { line1: true, city: true, state: true, label: true } },
     lineItems: { orderBy: { sortOrder: "asc" as const } },

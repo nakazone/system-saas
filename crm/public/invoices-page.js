@@ -257,7 +257,7 @@
     const pct = Math.max(0, Math.min(100, Number(i.percent_paid) || 0));
     return `<a class="ix-row${String(i.id) === String(selId) ? ' is-on' : ''}" href="invoices.html?id=${encodeURIComponent(i.id)}" data-inv-id="${esc(i.id)}">
       <span class="ix-row__l1"><b>${esc(i.customer_name || '—')}</b><em>${money(open ? i.remaining_amount : i.amount, 0)}</em></span>
-      <span class="ix-row__l2"><span>${esc(i.invoice_number || '—')} · ${esc(i.source_ref || i.invoice_type_label || '')}</span><em class="${d.hot ? 'is-hot' : ''}">${esc(d.sub || d.main)}</em></span>
+      <span class="ix-row__l2"><span>${esc([i.invoice_number || '—', i.client_code ? `ID ${i.client_code}` : '', i.job_number != null && !String(i.source_ref || '').includes('Job #' + i.job_number) ? `Job #${i.job_number}` : '', i.source_ref || i.invoice_type_label || ''].filter(Boolean).join(' · '))}</span><em class="${d.hot ? 'is-hot' : ''}">${esc(d.sub || d.main)}</em></span>
       <span class="ix-row__l3"><span class="ix-next${n.hot ? ' is-hot' : ''}">${esc(n.t)}</span><span class="inv-chip ${cls}">${esc(label)}</span></span>
       ${pct > 0 && pct < 100 ? `<span class="ix-prog"><i style="width:${pct}%"></i></span>` : ''}
     </a>`;

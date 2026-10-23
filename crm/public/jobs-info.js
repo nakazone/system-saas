@@ -176,15 +176,21 @@
     return { text: "A faturar", cls: "" };
   }
 
+  function dayLabel(iso) {
+    if (!iso) return "";
+    const s = new Date(iso);
+    if (Number.isNaN(s.getTime())) return "";
+    return `${WD[s.getDay()]} ${s.getDate()} ${MO[s.getMonth()]}`;
+  }
   function dateRange(wo) {
+    const main = dayLabel(wo.scheduled_start);
+    const sand = wo.sector === "both" ? dayLabel(wo.sand_scheduled_start) : "";
+    if (wo.sector === "both") {
+      if (!main && !sand) return "Sem data";
+      return `Installation ${main || "sem data"} · Sand & Finish ${sand || "sem data"}`;
+    }
     if (!wo.scheduled_start) return "Sem data";
-    const s = new Date(wo.scheduled_start);
-    const e = wo.scheduled_end ? new Date(wo.scheduled_end) : null;
-    const day = `${WD[s.getDay()]} ${s.getDate()} ${MO[s.getMonth()]}`;
-    if (wo.all_day && (!e || s.toDateString() === e.toDateString())) return `${day} · dia inteiro`;
-    if (!e || s.toDateString() === e.toDateString()) return day;
-    if (s.getMonth() === e.getMonth()) return `${s.getDate()} – ${e.getDate()} ${MO[e.getMonth()]}`;
-    return `${s.getDate()} ${MO[s.getMonth()]} – ${e.getDate()} ${MO[e.getMonth()]}`;
+    return main;
   }
 
   function dayShort(iso) {

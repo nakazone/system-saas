@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20261015-tab1" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261023-job1" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="job-comms.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20261013-jvis1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261013-rl4" />
-  <link rel="stylesheet" href="jobs-board.css?v=20261015-sort1" />
+  <link rel="stylesheet" href="jobs-board.css?v=20261023-job1" />
   <link rel="stylesheet" href="partner-requests-shortcut.css?v=20261023-1" />
-  <link rel="stylesheet" href="jobs-mobile-v2.css?v=20261022-find1" />
+  <link rel="stylesheet" href="jobs-mobile-v2.css?v=20261023-job1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
   <script src="crm-field-gate.js?v=20261014-perfil1"></script>
@@ -95,7 +95,7 @@
             <h1 class="jcm-title">Jobs</h1>
             <p class="jcm-sub" id="jobsMobSub">—</p>
           </div>
-          <button type="button" class="jcm-icon-btn jcm-icon-btn--accent" id="jobsMobAdd" data-crm-permission="work_orders.manage" aria-label="Novo orçamento">
+          <button type="button" class="jcm-icon-btn jcm-icon-btn--accent" id="jobsMobAdd" data-crm-permission="work_orders.manage" aria-label="Novo job">
             <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           </button>
         </div>
@@ -119,12 +119,13 @@
           <div class="jx-head__acts">
             <a class="jx-btn" href="partner-requests-admin.html" data-crm-permission="work_orders.manage"><span>Pedidos de parceiros</span></a>
             <a class="jx-btn" href="schedule.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Agenda</span></a>
-            <button type="button" class="jx-btn jx-btn--pri" id="btnNewJob" data-crm-permission="work_orders.manage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Novo orçamento</span></button>
+            <button type="button" class="jx-btn jx-btn--pri" id="btnNewJob" data-crm-permission="work_orders.manage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>+ Job</span></button>
           </div>
         </div>
         <div class="jx-tiles" id="jxTiles" role="group" aria-label="Filtrar por etapa"></div>
         <div class="jx-split" id="jxSplit">
           <section class="jx-list" aria-label="Lista de jobs">
+            <div class="jx-cal" id="jxCal" aria-label="Semana"></div>
             <div class="jx-list__top">
               <label class="jx-search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="jxQ" placeholder="Builder, endereço, quote ou cliente" autocomplete="off" /></label>
               <div class="jx-list__bar">
@@ -162,12 +163,12 @@
   <script src="crm-shell.js?v=20261022-inbox1"></script>
   <script src="om-mobile-nav.js?v=20261012-jq1"></script>
   <script src="om-gestures.js?v=20261013-rl6"></script>
-  <script src="crm-job-modal.js?v=20261015-tab1"></script>
+  <script src="crm-job-modal.js?v=20261023-job1"></script>
   <script src="crm-job-billing.js?v=20261015-tab1"></script>
   <script src="crm-confirm.js?v=20261014-c1"></script>
   <script src="job-chat-comms.js?v=20260929-obranames1"></script>
-  <script src="jobs-info.js?v=20261022-find1"></script>
-  <script src="jobs-page.js?v=20261022-open1"></script>
-  <script src="jobs-mobile.js?v=20261022-open1"></script>
+  <script src="jobs-info.js?v=20261023-job1"></script>
+  <script src="jobs-page.js?v=20261023-job1"></script>
+  <script src="jobs-mobile.js?v=20261023-job1"></script>
 </body>
 </html>

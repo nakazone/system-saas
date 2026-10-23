@@ -1284,6 +1284,11 @@
     if (field === 'title') {
       return `<input type="text" class="ag-dtl__in ag-dtl__in--wide" ${common} value="${esc(e.title)}" maxlength="200" />`;
     }
+    if (field === 'when' && e.type === 'job') {
+      return `<div class="ag-dtl__when" data-ag-when-wrap>
+        <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
+      </div>`;
+    }
     if (field === 'when') {
       return `<div class="ag-dtl__when" data-ag-when-wrap>
         <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
@@ -1535,17 +1540,17 @@
           body.sector = sector === 'installation' || sector === 'sand_finish' ? sector : null;
         } else if (field === 'date' || field === 'start' || field === 'end') {
           const date = valOf('date');
-          const st = valOf('start') || hm(ev.start);
-          const en = valOf('end') || hm(ev.end);
-          if (!date || !st) throw new Error('Informe data e horário.');
-          let start = parseLocalDateTime(date, st);
-          let end = parseLocalDateTime(date, en);
+          if (!date) throw new Error('Informe a data.');
+          const start = parseLocalDateTime(date, '00:00');
           if (!start) throw new Error('Data inválida.');
-          if (!end || !(end > start)) end = new Date(start.getTime() + 3600e3);
-          body.scheduled_start = start.toISOString();
-          body.scheduled_end = end.toISOString();
+          if (ev.meta && ev.meta.date_role === 'sand') body.sand_scheduled_start = start.toISOString();
+          else {
+            body.scheduled_start = start.toISOString();
+            body.scheduled_end = null;
+          }
+          body.all_day = true;
         }
-        await api('/api/work-orders/' + encodeURIComponent(id), { method: 'PUT', body });
+        await api('/api/work-orders/' + encodeURIComponent(String(id).replace(/:sand$/, '')), { method: 'PUT', body });
       } else {
         const body = {};
         if (field === 'title' && type === 'meeting') {
@@ -1942,10 +1947,10 @@
       if (!window.__crmJobModal) return toast('Editor de job indisponível.', 'error');
       closePop();
       closeSheet();
-      if (ev) window.__crmJobModal.openEdit(ev.id).catch((e) => toast(e.message, 'error'));
+      if (ev) window.__crmJobModal.openEdit(String(ev.id).replace(/:sand$/, '')).catch((e) => toast(e.message, 'error'));
       else {
-        const createOpts = when ? { start: when instanceof Date ? when : new Date(when) } : {};
-        if (opts.sector === 'installation' || opts.sector === 'sand_finish') createOpts.sector = opts.sector;
+        const createOpts = when ? { start: when instanceof Date ? when : new Date(when), allDay: true } : { allDay: true };
+        if (opts.sector === 'installation' || opts.sector === 'sand_finish' || opts.sector === 'both') createOpts.sector = opts.sector;
         window.__crmJobModal.openCreate(createOpts).catch((e) => toast(e.message, 'error'));
       }
       return;
@@ -2368,16 +2373,20 @@
     if (!e || !day || !S.canManage) return;
     if (sameDay(e.start, day)) return;
     const ms = Math.max(15 * 60e3, (e.end && e.start ? e.end - e.start : 3600e3) || 3600e3);
-    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), e.start.getHours(), e.start.getMinutes(), 0, 0);
-    if (!e.allDay && !e.start.getHours() && !e.start.getMinutes()) start.setHours(9, 0, 0, 0);
-    const end = new Date(start.getTime() + ms);
-    const body = {
-      scheduled_start: start.toISOString(),
-      scheduled_end: end.toISOString(),
-    };
+    const start = e.type === 'job'
+      ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0)
+      : new Date(day.getFullYear(), day.getMonth(), day.getDate(), e.start.getHours(), e.start.getMinutes(), 0, 0);
+    if (e.type !== 'job' && !e.allDay && !e.start.getHours() && !e.start.getMinutes()) start.setHours(9, 0, 0, 0);
+    const end = new Date(start.getTime() + (e.type === 'job' ? 86400000 : ms));
+    const sand = e.type === 'job' && e.meta && e.meta.date_role === 'sand';
+    const body = sand
+      ? { sand_scheduled_start: start.toISOString(), all_day: true }
+      : e.type === 'job'
+        ? { scheduled_start: start.toISOString(), scheduled_end: null, all_day: true }
+        : { scheduled_start: start.toISOString(), scheduled_end: end.toISOString() };
     try {
       if (e.type === 'job') {
-        await api('/api/work-orders/' + encodeURIComponent(e.id), { method: 'PUT', body });
+        await api('/api/work-orders/' + encodeURIComponent(String(e.id).replace(/:sand$/, '')), { method: 'PUT', body });
       } else {
         await api('/api/meetings/' + encodeURIComponent(e.id), { method: 'PUT', body });
       }
@@ -2805,7 +2814,7 @@
         const m = e.meta || {};
         window.__crmJobModal
           .openScheduleLixa({
-            id: e.id,
+            id: String(e.id).replace(/:sand$/, ''),
             number: m.number,
             title: e.title,
             sector: m.sector,
@@ -2832,7 +2841,7 @@
         const e = findEv(el.dataset.agDelOk);
         el.disabled = true;
         try {
-          await api(e.type === 'job' ? '/api/work-orders/' + encodeURIComponent(e.id) : '/api/meetings/' + encodeURIComponent(e.id), { method: 'DELETE' });
+          await api(e.type === 'job' ? '/api/work-orders/' + encodeURIComponent(String(e.id).replace(/:sand$/, '')) : '/api/meetings/' + encodeURIComponent(e.id), { method: 'DELETE' });
           closeSheet();
           toast('Cancelado', 'success');
           await reload();
@@ -2923,7 +2932,7 @@
         try {
           const notes = String(ta.value || '').trim() || null;
           if (kind === 'job') {
-            await api('/api/work-orders/' + encodeURIComponent(id), { method: 'PUT', body: { notes } });
+            await api('/api/work-orders/' + encodeURIComponent(String(id).replace(/:sand$/, '')), { method: 'PUT', body: { notes } });
             const evn = findEv(id);
             if (evn) evn.meta.notes = notes;
           } else if (kind === 'meeting') {

@@ -23,6 +23,9 @@
   let commsCtl = null;
   let mediaCache = null;
   let fieldCache = null;
+  /** Sunday of the selected week, or null to show every week. */
+  let weekFilter = null;
+  let calCursor = new Date();
 
   const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Interno", other: "Outro" };
   const SVG = {
@@ -181,17 +184,22 @@
   function rowHtml(wo) {
     const J = I();
     const lt = J.late(wo);
-    const sub = lt ? `<em class="is-hot">${J.esc(lt.label)}</em>` : `<em>${J.esc(wo.status === "completed" ? `concluído ${J.dayShort(wo.scheduled_end || wo.scheduled_start)}` : J.dateRange(wo))}</em>`;
+    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
+    const when = undated ? "Sem data" : wo.status === "completed" ? `concluído ${J.dayShort(wo.scheduled_end || wo.scheduled_start)}` : J.dateRange(wo);
+    const sub = lt ? `<em class="is-hot">${J.esc(lt.label)}</em>` : `<em class="${undated ? "is-hot" : ""}">${J.esc(when)}</em>`;
     const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    const startBtn = undated && canManage ? `<button type="button" class="jx-start" data-jx-start="${J.esc(wo.id)}">Start Job</button>` : "";
     const showBill = canFaturar(wo);
     const showDel = canManage && wo.status !== "canceled";
-    const body = `<a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
+    const body = `<div class="jx-rowwrap${undated ? " is-nodate" : ""}">
+    <a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}${undated ? " is-nodate" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
       <span class="jx-row__b">
         <span class="jx-row__l1"><b>${J.esc(wo.title || `Job para ${J.client(wo)}`)}</b><em>${canBill || canManage ? J.money0(wo.services_total) : ""}</em></span>
         <span class="jx-row__l2"><span>${J.esc(J.findLine(wo))}</span>${sub}</span>
+        ${undated ? `<span class="jx-nodate">Sem data${wo.quote_number ? ` · veio do quote ${J.esc(wo.quote_number)}` : ""}</span>` : ""}
         <span class="jx-row__l3">${J.progHtml(wo)}<small>${J.esc(J.stageLabel(wo))}</small></span>
       </span>
-    </a>`;
+    </a>${startBtn}</div>`;
     // Swipe-to-delete only on touch / narrow — desktop list stays clean (no inline buttons).
     if (showDel && useSwipeDelete()) {
       return `<article class="om-swipe jx-swipe" data-jx-swipe="${J.esc(wo.id)}">
@@ -240,31 +248,106 @@
     return rows;
   }
 
+  function ymd(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function sod(d) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  function weekSunday(d) {
+    const x = sod(d);
+    x.setDate(x.getDate() - x.getDay());
+    return x;
+  }
+  function sameWeek(a, b) {
+    return ymd(weekSunday(a)) === ymd(weekSunday(b));
+  }
+  function jobAnchor(wo) {
+    const iso = wo.scheduled_start || (wo.sector === "both" ? wo.sand_scheduled_start : null);
+    if (!iso) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  function weekTitle(sunday) {
+    const end = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + 6);
+    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    const a = `${sunday.getDate()} ${mo[sunday.getMonth()]}`;
+    const b = `${end.getDate()} ${mo[end.getMonth()]}`;
+    return `${a} – ${b}`;
+  }
+  function renderWeekCal() {
+    const host = $("jxCal");
+    if (!host) return;
+    const y = calCursor.getFullYear();
+    const m = calCursor.getMonth();
+    const first = new Date(y, m, 1);
+    const start = weekSunday(first);
+    const days = [];
+    for (let i = 0; i < 42; i++) days.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+    const marked = new Set(all.map(jobAnchor).filter(Boolean).map((d) => ymd(d)));
+    const today = ymd(new Date());
+    const sel = weekFilter ? ymd(weekFilter) : "";
+    const label = calCursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    host.innerHTML = `<div class="jx-cal__bar"><button type="button" data-jx-cal="prev" aria-label="Mês anterior">‹</button><b>${I().esc(label)}</b><button type="button" data-jx-cal="next" aria-label="Próximo mês">›</button></div>
+      <div class="jx-cal__wd">${["D", "S", "T", "Q", "Q", "S", "S"].map((d) => `<span>${d}</span>`).join("")}</div>
+      <div class="jx-cal__days">${days
+        .map((d) => {
+          const on = ymd(weekSunday(d)) === sel;
+          const muted = d.getMonth() !== m;
+          const has = marked.has(ymd(d));
+          return `<button type="button" class="jx-cal__d${on ? " is-week" : ""}${muted ? " is-muted" : ""}${ymd(d) === today ? " is-today" : ""}${has ? " has-job" : ""}" data-jx-day="${ymd(d)}">${d.getDate()}</button>`;
+        })
+        .join("")}</div>
+      <button type="button" class="jx-cal__all${weekFilter ? "" : " is-on"}" data-jx-cal="all">Todas as semanas</button>`;
+  }
   function renderList() {
-    const rows = visibleRows();
+    renderWeekCal();
+    let rows = visibleRows();
+    if (weekFilter) {
+      rows = rows.filter((wo) => {
+        const d = jobAnchor(wo);
+        if (!d) return true;
+        return sameWeek(d, weekFilter);
+      });
+    }
     const host = $("jxRows");
     if (!rows.length) {
       const empty = q
         ? `Nenhum job para “${I().esc(q)}”. Abra o quote e use Abrir job, ou busque pelo builder, endereço ou número do quote.`
         : all.length
           ? "Nenhum job neste filtro."
-          : 'Nenhum job ainda. Crie um orçamento em <a href="quote-builder.html">Quotes</a> e transforme em job.';
+          : 'Nenhum job ainda. Use + Job ou aprove um quote.';
       host.innerHTML = `<p class="jx-empty">${empty}</p>`;
       return rows;
     }
+    const undated = rows.filter((w) => !jobAnchor(w));
+    const dated = rows.filter((w) => jobAnchor(w));
+    const weeks = new Map();
+    dated.forEach((wo) => {
+      const key = ymd(weekSunday(jobAnchor(wo)));
+      if (!weeks.has(key)) weeks.set(key, []);
+      weeks.get(key).push(wo);
+    });
+    const keys = [...weeks.keys()].sort((a, b) => (sortDir === "oldest" ? a.localeCompare(b) : b.localeCompare(a)));
     let html = "";
-    if (filter === "all" || filter === "done") {
-      GROUPS.forEach(([bk, label]) => {
-        const g = sortRows(rows.filter((w) => bucket(w) === bk));
-        if (!g.length) return;
-        const tot = g.reduce((s, w) => s + (Number(w.services_total) || 0), 0);
-        html += `<p class="jx-grp"><span>${label}</span><em>${g.length}${canBill ? ` · ${I().money0(tot)}` : ""}</em></p>${g.map(rowHtml).join("")}`;
-      });
-    } else {
-      html = sortRows(rows.slice()).map(rowHtml).join("");
+    if (undated.length) {
+      html += `<section class="jx-week jx-week--nodate"><p class="jx-grp"><span>Sem data</span><em>${undated.length}</em></p>${undated.map(rowHtml).join("")}</section>`;
     }
+    keys.forEach((key, i) => {
+      const g = sortRows(weeks.get(key));
+      const [yy, mm, dd] = key.split("-").map(Number);
+      html += `<section class="jx-week jx-week--${i % 2 ? "b" : "a"}"><p class="jx-grp"><span>${weekTitle(new Date(yy, mm - 1, dd))}</span><em>${g.length}</em></p>${g.map(rowHtml).join("")}</section>`;
+    });
     host.innerHTML = html;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.(host);
+    host.querySelectorAll("[data-jx-start]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const wo = all.find((w) => String(w.id) === String(btn.getAttribute("data-jx-start")));
+        if (wo && window.__crmJobModal?.openStartDate) window.__crmJobModal.openStartDate(wo);
+      });
+    });
     host.querySelectorAll("[data-jx-delete]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -289,6 +372,7 @@
     const b = wo.billing;
     // Field/ops status first — Faturar must not hide Iniciar/Concluir (incl. late jobs).
     if (canManage) {
+      if (!wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)) return { label: "Start Job", act: "start-date" };
       if (!(wo.line_items || []).length) return { label: "Adicionar serviços", act: "services" };
       if (wo.status === "draft" || wo.status === "scheduled") return { label: "Iniciar job", act: "start" };
       if (wo.status === "in_progress") return { label: "Concluir job", act: "complete" };
@@ -338,10 +422,8 @@
   }
 
   function startText(wo) {
-    if (!wo.scheduled_start) return { main: "Sem data", sub: "Ainda não agendado" };
-    const s = new Date(wo.scheduled_start);
-    const time = s.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    return { main: I().dateRange(wo), sub: `${time} · sem fim definido` };
+    if (!wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)) return { main: "Sem data", sub: "Ainda não agendado" };
+    return { main: I().dateRange(wo), sub: "Dia inteiro" };
   }
 
   function destroyDetailMounts() {
@@ -407,7 +489,7 @@
         }</div>
         <div class="jx-box"><h3>Obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="schedule">Agenda</button>` : ""}</h3>
           <dl class="jx-kv">
-            <dt>Start</dt><dd>${J.esc(J.dateRange(wo))}${wo.scheduled_start ? ` · ${new Date(wo.scheduled_start).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}</dd>
+            <dt>Start</dt><dd>${J.esc(J.dateRange(wo))}${wo.scheduled_start || wo.sand_scheduled_start ? " · dia inteiro" : ""}</dd>
             <dt>Endereço</dt><dd>${wo.address ? `<a href="${J.esc(maps)}" target="_blank" rel="noopener">${J.esc(wo.address)}</a>` : '<span class="jx-mu">Sem endereço</span>'}</dd>
             ${wo.quote_number ? `<dt>Quote</dt><dd>${J.esc(wo.quote_number)}</dd>` : ""}
             ${J.builderName(wo) ? `<dt>Builder</dt><dd>${J.esc(J.builderName(wo))}</dd>` : ""}
@@ -1027,7 +1109,10 @@
       const act = b.getAttribute("data-jx-act");
       const id = selId;
       try {
-        if (act === "edit") await window.__crmJobModal.openEdit(id);
+        if (act === "start-date") {
+          const wo = all.find((w) => String(w.id) === String(id)) || detailWo;
+          if (wo) await window.__crmJobModal.openStartDate(wo);
+        } else if (act === "edit") await window.__crmJobModal.openEdit(id);
         else if (act === "services") await window.__crmJobModal.openEdit(id, { section: "services" });
         else if (act === "schedule") await window.__crmJobModal.openEdit(id, { section: "schedule" });
         else if (act === "team") await window.__crmJobModal.openEdit(id, { section: "team" });
@@ -1079,8 +1164,25 @@
       applyStep(Number(stepEl.getAttribute("data-jx-step"))).catch((err) => notify(err.message || "Erro", "error"));
     });
     $("btnNewJob")?.addEventListener("click", () => {
-      // Jobs nascem de Quotes: abre o builder para montar o orçamento e depois transformar.
-      location.href = "quote-builder.html";
+      window.__crmJobModal.openCreate({ allDay: true, openServices: true }).catch((e) => notify(e.message, "error"));
+    });
+    $("jxCal")?.addEventListener("click", (e) => {
+      const day = e.target.closest("[data-jx-day]");
+      const act = e.target.closest("[data-jx-cal]");
+      if (day) {
+        const raw = day.getAttribute("data-jx-day");
+        const [yy, mm, dd] = String(raw || "").split("-").map(Number);
+        if (!yy) return;
+        weekFilter = weekSunday(new Date(yy, mm - 1, dd));
+        renderList();
+        return;
+      }
+      if (!act) return;
+      const k = act.getAttribute("data-jx-cal");
+      if (k === "prev") calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1);
+      else if (k === "next") calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
+      else if (k === "all") weekFilter = null;
+      renderList();
     });
     window.__crmJobModal.onSaved((data) => {
       if (data && data.id) {
