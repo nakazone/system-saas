@@ -175,7 +175,7 @@ export function buildAgentPrompt(p: {
     refs || "(empty)",
     "",
     "Quote items shape: items: [{\"service_ref\": \"S3\"|null, \"service_text\": \"user's words\", \"quantity\": 1350, \"unit\": \"sq_ft\"}].",
-    "When there is an existing quote in the current screen or recent conversation and the user changes its rate/price/quantity, use quote.edit with line_item plus unit_price/quantity. Do NOT run quote.create or search the service catalog for an edit. A unit-only reference like \"sqft\" is valid; the system will match the quote's line or ask which one if several match.",
+    "When the user changes the rate/price/quantity of a CONFIRMED quote in the current screen or recent conversation, use quote.edit with line_item plus unit_price/quantity. A unit-only reference like \"sqft\" is valid; the system will match the quote's line or ask which one if several match.",
     "",
     pendingBlock(p.pending),
     "Quote items may carry unit_price (dollars per unit) when the user states a price for a line — e.g. \"a remoção de carpete é 1 dólar o pé\" → that line's unit_price: 1.",
@@ -213,6 +213,9 @@ function pendingBlock(pending: Pending): string {
       : "",
     `Its current args: ${args}`,
     "If the user's message continues, corrects or answers this item (a price, a quantity, a date, a name, \"sim\", \"não, 1500\", \"o preço é 1 dólar\", \"tira a remoção\", \"pro Mike também\"), propose the SAME action with the COMPLETE updated args: copy every existing arg and change only what they said.",
+    pending.action === "quote.create"
+      ? "For a price or quantity change to a line on this open quote card, keep quote.create and update that item in its args, preserving its catalog_item_id and catalog_source. This card is not a saved quote: do not call quote.edit or look up a saved quote."
+      : "",
     pending.action === "quote.create"
       ? "If they ask to SEND this quote (\"envia por e-mail\", \"manda pro cliente\", \"esse quote você envia\"), propose quote.create again with the same args plus send: \"email\" (or \"sms\" / \"link\") — it creates and sends with one confirmation. Never pick an older existing quote for this."
       : "",
@@ -495,9 +498,74 @@ function quoteRateFollowUp(text: string, ctx: AgentCtx): Extract<AgentPick, { ki
   return { kind: "action", action: "quote.edit", args: { quote_id: quoteId, line_item: "sq ft", unit_price: unitPrice }, source: "rules" };
 }
 
+/**
+ * A quote.create card is still a proposal, so edits must rebuild that proposal rather than
+ * search for or mutate a saved quote. Handle the common single-line rate change deterministically
+ * before asking the model to choose an action; this also preserves the resolved catalog IDs.
+ */
+function pendingQuoteRateFollowUp(text: string, ctx: AgentCtx): Extract<AgentPick, { kind: "action" }> | null {
+  const pending = ctx.pending;
+  if (pending?.action !== "quote.create" || pending.status !== "card") return null;
+
+  const folded = foldText(text);
+  const change = /\b(muda|mude|mudar|altera|altere|alterar|atualiza|atualize|atualizar|troca|troque|trocar|change|update|set|make)\b/.test(folded);
+  const price = /\b(preco|valor|price|rate|custa|cost)\b/.test(folded);
+  if (!change || !price) return null;
+
+  const amountMatch = folded.match(/\b(?:para|pra|por|to|at|em)\s*\$?\s*(\d+(?:[.,]\d{1,2})?)(?!\d)/) || folded.match(/\$\s*(\d+(?:[.,]\d{1,2})?)(?!\d)/);
+  if (!amountMatch) return null;
+  const unitPrice = Number(amountMatch[1]!.replace(",", "."));
+  if (!Number.isFinite(unitPrice) || unitPrice <= 0 || unitPrice > 1_000_000) return null;
+
+  const rawItems = pending.args.items;
+  if (!Array.isArray(rawItems) || rawItems.some((item) => !item || typeof item !== "object" || Array.isArray(item))) return null;
+  const items = rawItems as Array<Record<string, unknown>>;
+  const requestedUnit = /\b(sq\s*ft|sqft|square\s*(foot|feet|footage)|square\s*ft|pes?\s+quadrad[oa]s?)\b/.test(folded.replace(/_/g, " "))
+    ? "sq_ft"
+    : /\b(linear\s*(foot|feet|ft)|lin\s*ft|lf|pes?\s+lineares?)\b/.test(folded)
+      ? "linear_ft"
+      : null;
+  let matches = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
+      if (!requestedUnit) return items.length === 1;
+      const catalogItem = ctx.catalog.find((candidate) => candidate.id === item.catalog_item_id && candidate.source === item.catalog_source);
+      const unit = normalizeMateAiUnit(String(item.unit || catalogItem?.unit || ""));
+      return unit === requestedUnit;
+    });
+
+  // If multiple lines share a unit, use a service name the user repeated to select one.
+  if (matches.length > 1) {
+    const ignored = new Set(["preco", "valor", "price", "rate", "sq", "ft", "sqft", "square", "foot", "feet", "footage", "linear", "lin", "para", "pra", "por", "the", "per", "de", "da", "do", "no", "na", "uma", "um", "muda", "mude", "alterar", "altera", "troca", "trocar", "atualiza", "atualizar"]);
+    const words = folded.split(/[^a-z0-9]+/).filter((word) => word.length > 2 && !ignored.has(word));
+    const named = matches.filter(({ item }) => {
+      const catalogItem = ctx.catalog.find((candidate) => candidate.id === item.catalog_item_id && candidate.source === item.catalog_source);
+      const line = foldText([item.service_text, catalogItem?.name].filter(Boolean).join(" "));
+      return words.some((word) => line.includes(word));
+    });
+    if (named.length) matches = named;
+  }
+  if (matches.length !== 1) return null;
+
+  const nextItems = items.map((item) => ({ ...item }));
+  nextItems[matches[0]!.index]!.unit_price = unitPrice;
+  const args = { ...pending.args, items: nextItems };
+  const priceLabel = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(unitPrice);
+  const selected = matches[0]!.item;
+  const catalogItem = ctx.catalog.find((candidate) => candidate.id === selected.catalog_item_id && candidate.source === selected.catalog_source);
+  const unit = requestedUnit || normalizeMateAiUnit(String(selected.unit || catalogItem?.unit || ""));
+  const unitLabel = unit === "linear_ft" ? "linear ft" : unit === "sq_ft" ? "sq ft" : unit === "step" ? "degraus" : unit === "each" ? "unidade" : unit === "box" ? "caixa" : unit === "hour" ? "hora" : "unidade";
+  const reply = /\b(change|update|set|make|price|rate)\b/.test(folded) && !/\b(muda|mude|mudar|altera|altere|alterar|atualiza|atualize|troca|troque|trocar|preco|valor)\b/.test(folded)
+    ? `Done — I updated the draft to ${priceLabel} per ${unitLabel}. The revised total is below.`
+    : `Certo — atualizei o rascunho para ${priceLabel} por ${unitLabel}. O novo total está abaixo.`;
+  return { kind: "action", action: "quote.create", args, source: "rules", reply };
+}
+
 async function pickActionRaw(text: string, ctx: AgentCtx): Promise<AgentPick> {
   const { date, weekday } = todayInTimezone(ctx.timezone);
   const allowed = new Set(ctx.actions.map((a) => a.name));
+  const pendingQuoteEdit = pendingQuoteRateFollowUp(text, ctx);
+  if (pendingQuoteEdit && allowed.has(pendingQuoteEdit.action)) return pendingQuoteEdit;
   const quoteEdit = quoteRateFollowUp(text, ctx);
   if (quoteEdit && allowed.has(quoteEdit.action)) return quoteEdit;
   const local = (aiError?: string): AgentPick => {

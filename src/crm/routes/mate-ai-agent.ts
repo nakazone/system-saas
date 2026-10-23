@@ -4,7 +4,7 @@
  *                               (or action + args + patch → re-prepare without the AI)
  *   POST /api/mate-ai/execute   run a confirmed card (signed token, once)
  *   POST /api/mate-ai/undo      revert within 30 s (reversible actions only)
- *   GET  /api/mate-ai/suggestions  proactive cards for the Início / panel
+ *   GET  /api/mate-ai/suggestions  proactive cards and deduped office notifications
  *   GET  /api/mate-ai/context   label for the record on screen
  */
 import { Prisma } from "@prisma/client";
@@ -55,6 +55,7 @@ import { jobCustomerName, jobLabel, quoteLabel } from "../../lib/mate-ai/actions
 import type { ActionContext, ActionDef, Card, ExecuteContext, PrepareResult, ScreenContext } from "../../lib/mate-ai/actions/types.js";
 import { money, unitLabel } from "../../lib/mate-ai/actions/types.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import { notifyUsersPush } from "../../lib/push/notify.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth } from "../http.js";
 import { loadCatalog, previewInvoice, previewQuote } from "./mate-ai.js";
@@ -947,9 +948,87 @@ async function officeSuggestions(req: AuthedRequest): Promise<Suggestion[]> {
     return suggestions;
 }
 
+async function notifyOfficeSuggestions(req: AuthedRequest, suggestions: Suggestion[]): Promise<void> {
+  const organizationId = req.organizationId!;
+  const userId = req.user!.id;
+  const priority = { critical: 0, warning: 1, accent: 2, neutral: 3 } as const;
+  const pending = suggestions
+    .filter((suggestion) => suggestion.run?.action)
+    .slice()
+    .sort((a, b) => priority[a.tone] - priority[b.tone]);
+  if (!pending.length) return;
+
+  const today = todayInTimezone(await orgTimezone(organizationId)).date;
+  const departmentByAction: Record<string, string> = {
+    "quote.send": "commercial",
+    "quotes.followup": "commercial",
+    "job.create": "operations",
+    "jobs.uninvoiced": "finance",
+    "invoices.overdue": "finance",
+  };
+  const defaultNames: Record<string, string> = {
+    central: "Mate",
+    commercial: "Lara",
+    operations: "Rafael",
+    finance: "Marina",
+  };
+
+  const prepared = await withTenantTransaction(organizationId, async (tx) => {
+    const agents = await tx.virtualAgent.findMany({
+      where: { organizationId, enabled: true },
+      select: { department: true, name: true },
+    });
+    const ownerByDepartment = new Map(agents.map((agent) => [agent.department, agent.name] as const));
+    return pending.map((suggestion) => {
+      const department = departmentByAction[suggestion.run!.action] || "central";
+      const owner = ownerByDepartment.get(department) || defaultNames[department] || "Mate";
+      const label = String(suggestion.run?.label || "revisar").toLowerCase();
+      const body = [
+        `Oi, aqui é ${owner}.`,
+        suggestion.detail,
+        `O próximo passo é ${label}. Abra o Escritório para revisar isso comigo.`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return {
+        notification: {
+          organizationId,
+          userId,
+          type: "mate.pending_action",
+          title: `${owner}: ${suggestion.title}`.slice(0, 180),
+          body: body.slice(0, 2000),
+          url: "/escritorio-ia.html",
+          dedupeKey: `office-pending:${today}:${suggestion.id}`.slice(0, 180),
+        },
+        owner,
+        suggestion,
+        nextStep: label,
+      };
+    });
+  });
+
+  const created = await withTenantTransaction(organizationId, (tx) =>
+    tx.staffNotification.createMany({ data: prepared.map((item) => item.notification), skipDuplicates: true }),
+  );
+  if (created.count > 0 && prepared[0]) {
+    const first = prepared[0];
+    void notifyUsersPush(organizationId, [userId], {
+      title: `${first.owner}: ${first.suggestion.title}`.slice(0, 180),
+      body: [
+        `Oi, aqui é ${first.owner}.`,
+        first.suggestion.detail,
+        `O próximo passo é ${first.nextStep}. Abra o Escritório para revisar comigo${pending.length > 1 ? `; há mais ${pending.length - 1} ${pending.length === 2 ? "ação" : "ações"} esperando` : ""}.`,
+      ].filter(Boolean).join(" ").slice(0, 180),
+      url: "/escritorio-ia.html",
+      tag: `office-pending-${today}`,
+    }).catch((error) => console.error("[mate-ai] office pending push failed", error));
+  }
+}
+
 mateAiAgentRouter.get("/api/mate-ai/suggestions", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const suggestions = await officeSuggestions(req);
+    await notifyOfficeSuggestions(req, suggestions);
     res.json({ success: true, data: suggestions });
   } catch (error) {
     next(error);

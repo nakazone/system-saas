@@ -52,6 +52,7 @@ Note: `gpt-4o`, `gpt-4o-mini` and `gpt-4.1` leave the OpenAI API on 2027-01-14; 
 ## Conversa reativa (out/2026)
 
 - **Item pendente**: o painel envia em `pending` o último card / pergunta / erro ainda aberto (`action`, `args`, `status`, `summary`). Uma resposta solta ("é 1 dólar por sq ft", "muda pra 1500") completa esse item — o modelo devolve a MESMA ação com os args completos.
+- **Alterar quote em aberto**: mudar preço ou quantidade num card de `quote.create` atualiza a proposta ainda não confirmada, preservando a seleção do catálogo e recalculando o total. Só uma quote já confirmada usa `quote.edit`; o painel confirma a mudança com uma mensagem curta e o card atualizado.
 - **Consultas antes de responder**: o modelo pode chamar ferramentas somente-leitura (`find_customers`, `find_leads`, `find_jobs`, `find_quotes`, `find_invoices`, `find_prices`) por até 4 rodadas e termina com `propose_action` ou `reply`. Se o provedor recusar tools, cai para JSON mode, depois para o modelo padrão, e só então para a leitura local.
 - **Preço que falta**: linha de Quote sem preço na Tabela vira pergunta (`items.N.unit_price`). O preço informado vale só para aquele Quote (`priceOverride`) e, depois de criado, o Mate oferece **Salvar preço na Tabela** (`pricing.set`, permissão `builders.edit`; coluna pelo tipo do cliente).
 - **Diagnóstico**: `GET /api/mate-ai/diagnostics?probe=1` (admin) mostra provedor, modelo, último erro e testa JSON mode e tools mode. Quando a IA falha, administradores veem o motivo no painel em vez de uma resposta genérica.

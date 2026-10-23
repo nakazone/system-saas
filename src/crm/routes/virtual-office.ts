@@ -1,11 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
 import { recordActivity, diffFields } from "../../lib/activity/record.js";
+import { aiListElevenLabsVoices, aiTextToSpeech } from "../../lib/ai/client.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
 
 export const virtualOfficeRouter = Router();
+
+const voiceRequestSchema = z.object({
+  text: z.string().trim().min(1).max(2000),
+  voice_id: z.string().trim().min(1).max(128).optional(),
+});
 
 const departments = ["central", "commercial", "operations", "finance"] as const;
 const avatars = Array.from({ length: 14 }, (_, index) => `avatar-${index + 1}`) as [string, ...string[]];
@@ -150,3 +156,56 @@ virtualOfficeRouter.patch(
     }
   },
 );
+
+virtualOfficeRouter.get("/api/virtual-office/voices", requireCrmAuth, async (_req, res, next) => {
+  try {
+    const result = await aiListElevenLabsVoices();
+    if (!result.ok) {
+      res.status(result.status === 429 ? 429 : result.provider === "none" ? 503 : 502)
+        .json({ success: false, error: result.error });
+      return;
+    }
+    res.json({
+      success: true,
+      data: { voices: result.voices, default_voice_id: result.defaultVoiceId },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+virtualOfficeRouter.post("/api/virtual-office/speech", requireCrmAuth, async (req, res, next) => {
+  try {
+    const parsed = voiceRequestSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: "A fala precisa ter até 2.000 caracteres." });
+      return;
+    }
+
+    if (parsed.data.voice_id) {
+      const voices = await aiListElevenLabsVoices();
+      if (!voices.ok) {
+        res.status(voices.status === 429 ? 429 : voices.provider === "none" ? 503 : 502)
+          .json({ success: false, error: voices.error });
+        return;
+      }
+      if (!voices.voices.some((voice) => voice.voiceId === parsed.data.voice_id)) {
+        res.status(400).json({ success: false, error: "Essa voz não está disponível para esta conta." });
+        return;
+      }
+    }
+
+    const result = await aiTextToSpeech({ text: parsed.data.text, voiceId: parsed.data.voice_id });
+    if (!result.ok) {
+      res.status(result.status === 429 ? 429 : result.provider === "none" ? 503 : 502)
+        .json({ success: false, error: result.error });
+      return;
+    }
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.status(200).send(result.audio);
+  } catch (error) {
+    next(error);
+  }
+});

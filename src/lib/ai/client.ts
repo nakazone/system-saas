@@ -59,6 +59,158 @@ function whisperModel(): string {
   return process.env.JOB_MEDIA_WHISPER_MODEL?.trim() || "whisper-1";
 }
 
+function elevenLabsApiKey(): string | undefined {
+  return process.env.ELEVENLABS_API_KEY?.trim() || undefined;
+}
+
+export type ElevenLabsVoice = {
+  voiceId: string;
+  name: string;
+  category: string;
+  description: string;
+  labels: Record<string, string>;
+  languages: string[];
+};
+
+export type ElevenLabsVoiceListResult =
+  | { ok: true; voices: ElevenLabsVoice[]; defaultVoiceId: string | null }
+  | AiErrorResult;
+
+let elevenLabsVoicesCache: { expiresAt: number; voices: ElevenLabsVoice[] } | null = null;
+
+/** Lists account voices without exposing the ElevenLabs key to the browser. */
+export async function aiListElevenLabsVoices(): Promise<ElevenLabsVoiceListResult> {
+  const key = elevenLabsApiKey();
+  if (!key) {
+    return { ok: false, error: "Configure ELEVENLABS_API_KEY no servidor para listar as vozes.", provider: "none" };
+  }
+  if (elevenLabsVoicesCache && elevenLabsVoicesCache.expiresAt > Date.now()) {
+    return {
+      ok: true,
+      voices: elevenLabsVoicesCache.voices,
+      defaultVoiceId: process.env.ELEVENLABS_VOICE_ID?.trim() || null,
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const url = new URL("https://api.elevenlabs.io/v2/voices");
+    url.searchParams.set("page_size", "100");
+    url.searchParams.set("include_total_count", "false");
+    const response = await fetch(url, {
+      headers: { "xi-api-key": key },
+      signal: controller.signal,
+    });
+    const raw = (await response.json().catch(() => ({}))) as {
+      voices?: Array<{
+        voice_id?: string;
+        name?: string;
+        category?: string;
+        description?: string;
+        labels?: Record<string, unknown>;
+        verified_languages?: Array<{ language?: string; locale?: string }>;
+      }>;
+      detail?: { message?: string } | string;
+    };
+    if (!response.ok) {
+      const detail = typeof raw.detail === "string" ? raw.detail : raw.detail?.message;
+      return {
+        ok: false,
+        error: detail || `ElevenLabs não conseguiu listar as vozes (HTTP ${response.status}).`,
+        status: response.status,
+        provider: "elevenlabs",
+      };
+    }
+    const voices = (raw.voices || []).filter((voice) => voice.voice_id && voice.name).map((voice) => ({
+      voiceId: String(voice.voice_id),
+      name: String(voice.name).slice(0, 100),
+      category: String(voice.category || "").slice(0, 40),
+      description: String(voice.description || "").slice(0, 240),
+      labels: Object.fromEntries(Object.entries(voice.labels || {}).filter((entry): entry is [string, string] => typeof entry[1] === "string").map(([name, value]) => [name.slice(0, 40), value.slice(0, 80)])),
+      languages: (voice.verified_languages || []).map((language) => String(language.locale || language.language || "").slice(0, 40)).filter(Boolean),
+    }));
+    elevenLabsVoicesCache = { expiresAt: Date.now() + 5 * 60_000, voices };
+    return {
+      ok: true,
+      voices,
+      defaultVoiceId: process.env.ELEVENLABS_VOICE_ID?.trim() || null,
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Falha ao listar vozes ElevenLabs.";
+    return {
+      ok: false,
+      error: /abort/i.test(message) ? "A consulta de vozes ElevenLabs expirou." : "Não foi possível consultar as vozes ElevenLabs.",
+      provider: "elevenlabs",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Converts text to MP3 on the server. The API key is never sent to the browser. */
+export async function aiTextToSpeech(params: {
+  text: string;
+  voiceId?: string;
+  timeoutMs?: number;
+}): Promise<{ ok: true; audio: Buffer; model: string } | AiErrorResult> {
+  const key = elevenLabsApiKey();
+  if (!key) {
+    return { ok: false, error: "Configure ELEVENLABS_API_KEY no servidor para ativar a voz.", provider: "none" };
+  }
+  const voiceId = params.voiceId?.trim() || process.env.ELEVENLABS_VOICE_ID?.trim();
+  if (!voiceId) {
+    return { ok: false, error: "Escolha uma voz para gerar o áudio.", provider: "elevenlabs" };
+  }
+  const text = String(params.text || "").trim();
+  if (!text) return { ok: false, error: "O texto para narração está vazio.", provider: "elevenlabs" };
+
+  const blocked = await takeAiUse();
+  if (blocked) return { ok: false, error: blocked, provider: "none" };
+
+  const model = process.env.ELEVENLABS_TTS_MODEL?.trim() || "eleven_multilingual_v2";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 45_000);
+  try {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`, {
+      method: "POST",
+      headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        text,
+        model_id: model,
+        voice_settings: {
+          stability: 0.45,
+          similarity_boost: 0.75,
+          style: 0.15,
+          speed: 0.97,
+          ...(model === "eleven_v3" ? {} : { use_speaker_boost: true }),
+        },
+      }),
+    });
+    if (!response.ok) {
+      const raw = (await response.json().catch(() => ({}))) as { detail?: { message?: string } | string; message?: string };
+      const detail = typeof raw.detail === "string" ? raw.detail : raw.detail?.message;
+      return {
+        ok: false,
+        error: detail || raw.message || `ElevenLabs não conseguiu gerar o áudio (HTTP ${response.status}).`,
+        status: response.status,
+        provider: "elevenlabs",
+      };
+    }
+    return { ok: true, audio: Buffer.from(await response.arrayBuffer()), model };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Falha ao gerar áudio.";
+    return {
+      ok: false,
+      error: /abort/i.test(message) ? "A geração da voz demorou demais. Tente novamente." : "Não foi possível gerar o áudio da voz.",
+      provider: "elevenlabs",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function isAiConfigured(): boolean {
   return Boolean(aiApiKey());
 }

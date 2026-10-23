@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261015-refnav1" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" />
-  <link rel="stylesheet" href="mate-panel.css?v=20261022-officechat1" />
-  <link rel="stylesheet" href="escritorio-ia.css?v=20261022-officechat3" />
+  <link rel="stylesheet" href="mate-panel.css?v=20261023-officevoice1" />
+  <link rel="stylesheet" href="escritorio-ia.css?v=20261023-officevoice1" />
 </head>
 <body class="dashboard-app-body office-page-body">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -60,12 +60,23 @@
           </div>
           <div class="office-header__actions">
             <span class="office-refresh-label" id="officeUpdated" aria-live="polite">Carregando dados…</span>
+            <button class="office-button office-button--quiet office-voice-trigger" id="officeVoiceSettings" type="button" aria-haspopup="dialog" aria-controls="officeVoiceDialog">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+              Voz e alertas <span id="officeVoiceStatus">Desativada</span>
+            </button>
             <button class="office-button office-button--quiet" id="officeRefresh" type="button">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.7-2L20 12M4 12l2.7 5a7 7 0 0 0 11.7-2"/></svg>
               Atualizar
             </button>
           </div>
         </header>
+
+        <div class="office-alert-toast" id="officeAlertToast" role="status" aria-live="polite" aria-atomic="true" hidden>
+          <span class="office-alert-toast__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4M12 16h.01"/></svg></span>
+          <span class="office-alert-toast__copy"><strong id="officeAlertTitle">A equipe precisa de você</strong><span id="officeAlertMessage"></span></span>
+          <button class="office-button office-button--quiet" id="officeAlertOpen" type="button">Ver pendência</button>
+          <button class="office-icon-button" id="officeAlertDismiss" type="button" aria-label="Dispensar aviso"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        </div>
 
         <section class="office-summary" aria-label="Resumo do escritório">
           <article class="office-summary-card office-summary-card--primary">
@@ -183,6 +194,29 @@
     </main>
   </div>
 
+  <dialog class="office-voice-dialog" id="officeVoiceDialog" aria-labelledby="officeVoiceTitle" aria-describedby="officeVoiceIntro">
+    <form method="dialog" class="office-voice-form">
+      <header class="office-agent-dialog__header">
+        <div>
+          <span class="office-section-kicker">VOZ DA EQUIPE</span>
+          <h2 id="officeVoiceTitle">Como o escritório fala com você</h2>
+        </div>
+        <button class="office-icon-button" type="submit" aria-label="Fechar configurações de voz"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </header>
+      <p class="office-voice-intro" id="officeVoiceIntro">Escolha uma voz para cada pessoa. Os avisos são objetivos e falados somente quando você ativar essa opção.</p>
+      <label class="office-voice-auto" for="officeVoiceAlerts">
+        <input id="officeVoiceAlerts" type="checkbox" />
+        <span><strong>Falar novos avisos prioritários</strong><small>Quando surgir uma ação que precise de você, o responsável avisa o que aconteceu e qual é o próximo passo.</small></span>
+      </label>
+      <div class="office-voice-rows" id="officeVoiceRows" aria-live="polite"><p>Carregando vozes disponíveis…</p></div>
+      <p class="office-voice-message" id="officeVoiceMessage" role="status" aria-live="polite"></p>
+      <footer class="office-agent-dialog__actions">
+        <button class="office-button office-button--quiet" id="officeVoiceTest" type="button">Ouvir teste</button>
+        <button class="office-button office-button--primary" type="submit">Pronto</button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog class="office-agent-dialog" id="agentDialog" aria-labelledby="agentDialogTitle">
     <form class="office-agent-form" id="agentForm">
       <header class="office-agent-dialog__header">
@@ -245,9 +279,9 @@
     </form>
   </dialog>
 
-  <script src="crm-shell.js?v=20261022-inbox1"></script>
+  <script src="crm-shell.js?v=20261023-officevoice1"></script>
   <script src="crm-shared-nav.js?v=20261022-office3"></script>
-  <script src="mate-panel.js?v=20261022-officechat2"></script>
-  <script src="escritorio-ia.js?v=20261022-officechat3"></script>
+  <script src="mate-panel.js?v=20261023-officevoice1"></script>
+  <script src="escritorio-ia.js?v=20261023-officevoice1"></script>
 </body>
 </html>

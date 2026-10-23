@@ -56,11 +56,14 @@
     offline: !navigator.onLine,
     saveTimer: null,
     sheet: null, // { kind, ... }
+    ai: { measureProposal: null, photoProposal: null, selectedPhotoIds: [], review: null, assistQuestion: '', assistResult: null, conversationBusy: false, conversationOpen: false, conversationRecognition: null, conversationSpeakReplies: true, speechVoices: [], speechVoiceId: '', speechVoicesLoading: false, speechVoicesLoaded: false, speechVoicesError: '', speechAudio: null, speechUrl: null, speechRequestId: 0, speechCache: new Map(), presentation: null, presentationSlide: 0 },
+    presentationQuoteOnly: false,
+    presentationQuoteId: null,
   };
   const LS = (id) => 'om_fq_' + id;
 
   function blankData() {
-    return { version: 1, services: [], svc: { installation: { material: 'lvp', pattern: 'straight', supply: false, waste: null }, sanding: { type: 'sand_finish' }, demolition: {} }, rooms: [], extras: {}, custom: [], answers: { general: {}, demolition: {}, installation: {}, sanding: {} }, rates: {}, notes: '', photos: [] };
+    return { version: 1, services: [], svc: { installation: { material: 'lvp', pattern: 'straight', supply: false, waste: null }, sanding: { type: 'sand_finish' }, demolition: {} }, rooms: [], extras: {}, custom: [], answers: { general: {}, demolition: {}, installation: {}, sanding: {} }, rates: {}, notes: '', photos: [], floorplan: null, photo_analysis: null, ai_conversation: [] };
   }
   function normalizeData(raw) {
     const b = blankData();
@@ -72,6 +75,9 @@
     ['rooms', 'custom', 'photos', 'services'].forEach((k) => (d[k] = Array.isArray(d[k]) ? d[k] : []));
     d.extras = d.extras && typeof d.extras === 'object' && !Array.isArray(d.extras) ? d.extras : {};
     d.rates = d.rates && typeof d.rates === 'object' && !Array.isArray(d.rates) ? d.rates : {};
+    d.floorplan = d.floorplan && typeof d.floorplan === 'object' && !Array.isArray(d.floorplan) ? d.floorplan : null;
+    d.photo_analysis = d.photo_analysis && typeof d.photo_analysis === 'object' && !Array.isArray(d.photo_analysis) ? d.photo_analysis : null;
+    d.ai_conversation = Array.isArray(d.ai_conversation) ? d.ai_conversation.filter((m) => m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string').slice(-40) : [];
     return d;
   }
 
@@ -249,6 +255,7 @@
   }
   function markDirty() {
     S.dirty = true;
+    if (S.ai) { S.ai.review = null; S.ai.assistResult = null; }
     S.rev = (S.rev || 0) + 1;
     S.d.attention_summary = attentionSummary(S.d);
     cacheLocal();
@@ -416,7 +423,9 @@
         <h1 class="fq-h1">${esc(fq.client_name)}</h1>
         <p class="fq-sub">${esc(fq.address || 'Adicionar endereço')} · ${esc(ct.pt)} <span class="fq-edit">Editar</span></p>
       </button>
-      ${quoted ? `<div class="fq-banner">Orçamento <b>${esc(fq.quote.number)}</b> gerado · ${esc(quoteStatusPt(fq.quote.status))}<a href="quote-builder.html?id=${esc(fq.quote_id)}${fq.lead_id ? '&lead_id=' + esc(fq.lead_id) : ''}">Abrir</a></div>` : ''}
+      ${quoted ? `<div class="fq-banner">Orçamento <b>${esc(fq.quote.number)}</b> gerado · ${esc(quoteStatusPt(fq.quote.status))}<a href="quote-builder.html?id=${esc(fq.quote_id)}${fq.lead_id ? '&lead_id=' + esc(fq.lead_id) : ''}">Abrir orçamento</a></div>
+        <button type="button" class="fq-present-cta" data-fq-present-existing><span class="fq-present-cta__badge" aria-hidden="true">IA</span><span class="fq-present-cta__copy"><b>Apresentar proposta ao cliente</b><small>A IA explica cada serviço do quote, item por item.</small></span><span class="fq-present-cta__action">Começar</span></button>` : ''}
+      ${!quoted ? `<button type="button" class="fq-ai-start" data-fq-ai-conversation><span class="fq-ai-start__badge" aria-hidden="true">IA</span><span class="fq-ai-start__copy"><b>Vamos falar da obra</b><small>Me conte o que será feito. A gente monta os cômodos, serviços e medidas durante a conversa.</small></span><span class="fq-ai-start__action">Começar</span></button>` : ''}
       <div class="fq-cards">
         <button type="button" class="fq-card fq-card--btn" data-fq-open="services"><span class="fq-ic">🧰</span><div><b>Serviços</b><small>${esc(svcTxt)}</small></div>${d.services.length ? '<span class="fq-ok">✓</span>' : '<span class="fq-todo"></span>'}</button>
         <div class="fq-card">
@@ -428,7 +437,7 @@
                 .join('')}${photosOf(r.id).length ? `<i>📷 ${photosOf(r.id).length}</i>` : ''}</span></div><span class="fq-chev">›</span></button>`
             )
             .join('')}
-          <button type="button" class="fq-btn fq-btn--block" data-fq-room-new ${d.services.length ? '' : 'disabled'}>+ Medir cômodo</button>
+          <div class="fq-row2 fq-room-actions"><button type="button" class="fq-btn" data-fq-room-new ${d.services.length ? '' : 'disabled'}>+ Medir cômodo</button><button type="button" class="fq-btn fq-btn--ghost" data-fq-ai-measure ${d.services.length ? '' : 'disabled'}>Ditar medidas</button></div>
           ${!d.services.length ? '<p class="fq-hint">Escolha os serviços primeiro.</p>' : ''}
         </div>
         <button type="button" class="fq-card fq-card--btn" data-fq-open="extras"><span class="fq-ic">➕</span><div><b>Extras</b><small>${extrasOn.length || d.custom.length ? esc([...extrasOn.map((e) => e.pt), ...d.custom.map((c) => c.name)].join(' · ')) : 'Escada, rodapé, transições, descarte…'}</small></div><span class="fq-chev">›</span></button>
@@ -437,7 +446,10 @@
           <div class="fq-card__head"><span class="fq-ic">📷</span><div><b>Fotos</b><small>${d.photos.length ? `${d.photos.length} foto${d.photos.length > 1 ? 's' : ''} · vão para o ObraCam do job` : 'Piso atual, danos, acesso'}</small></div></div>
           ${d.photos.length ? `<div class="fq-photos">${d.photos.slice(-8).map((p) => `<button type="button" class="fq-photo" data-fq-photo="${esc(p.id)}" style="background-image:url('${esc(p.url)}')"></button>`).join('')}</div>` : ''}
           <button type="button" class="fq-btn fq-btn--block" data-fq-shoot>📷 Tirar foto</button>
+          <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-ai-photos ${d.photos.length ? '' : 'disabled'}>Analisar fotos e sugerir planta</button>
+          ${d.photo_analysis && d.photo_analysis.observations ? `<p class="fq-hint">Última análise: ${d.photo_analysis.observations.length} observação${d.photo_analysis.observations.length === 1 ? '' : 'ões'} · sugestões para confirmar</p>` : ''}
         </div>
+        ${d.floorplan && Array.isArray(d.floorplan.rooms) && d.floorplan.rooms.length ? `<div class="fq-card fq-plan-card"><div class="fq-card__head"><span class="fq-ic" aria-hidden="true">⌂</span><div><b>Planta preliminar</b><small>Esboço visual · sem escala</small></div></div>${renderFloorplanSvg(d.floorplan)}<p class="fq-hint">${esc(d.floorplan.note || 'Confira a planta e meça cada cômodo antes de gerar o orçamento.')}</p><div class="fq-plan-rooms">${d.floorplan.rooms.map((r) => { const measured = d.rooms.find((room) => room.id === r.measured_room_id); return `<div class="fq-plan-room"><span>${esc(r.label)}</span>${measured ? `<small>Medido · ${fmtN(roomArea(measured))} pé²</small>` : `<button type="button" class="fq-mini" data-fq-plan-measure="${esc(r.id)}" ${d.services.length ? '' : 'disabled'}>Medir cômodo</button>`}</div>`; }).join('')}</div></div>` : ''}
         <label class="fq-card fq-notes"><b>Notas internas</b><textarea id="fqNotes" data-crm-rich="off" rows="3" placeholder="O que a equipe precisa saber (não vai para o cliente)">${esc(d.notes || '')}</textarea></label>
       </div>
       <footer class="fq-bar"><div class="fq-bar__tot"><small>Total</small><b id="fqTotal">${esc(money(t.total))}</b></div><button type="button" class="fq-btn fq-btn--pri fq-btn--big" data-fq-open="review" ${t.lines.length ? '' : 'disabled'}>Revisar e enviar</button></footer>
@@ -447,6 +459,19 @@
   }
 
   const photosOf = (roomId) => (S.d.photos || []).filter((p) => p.room_id === roomId);
+  function renderFloorplanSvg(plan) {
+    const colors = ['#FCE8D8', '#E7EEF8', '#E7F1EC', '#F3EAF7', '#F5EFD9', '#E9EEF0'];
+    const rooms = Array.isArray(plan && plan.rooms) ? plan.rooms : [];
+    return `<svg class="fq-plan-svg" viewBox="0 0 100 100" role="img" aria-label="Esboço aproximado da planta baixa">${rooms.map((r, i) => {
+      const w = Math.max(1, Math.min(100, Number(r.w) || 1));
+      const h = Math.max(1, Math.min(100, Number(r.h) || 1));
+      const x = Math.max(0, Math.min(100 - w, Number(r.x) || 0));
+      const y = Math.max(0, Math.min(100 - h, Number(r.y) || 0));
+      const label = String(r.label || `Área ${i + 1}`);
+      const fs = Math.max(3.4, Math.min(6.2, Math.min(w, h) / 5));
+      return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.4" fill="${colors[i % colors.length]}" stroke="#7F5A42" stroke-width="0.7"/><text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-family="sans-serif" fill="#221E1A">${esc(label.slice(0, 24))}</text></g>`;
+    }).join('')}</svg>`;
+  }
   const quoteStatusPt = (s) => ({ draft: 'rascunho', sent: 'enviado', viewed: 'visualizado', approved: 'aprovado', converted: 'virou job', changes_requested: 'alteração pedida', rejected: 'recusado' })[s] || s;
   function countAnswers(d) {
     let total = 0;
@@ -474,6 +499,20 @@
   }
   function closeSheet() {
     const sh = $('#fqSheet');
+    const standaloneQuoteId = S.presentationQuoteOnly ? S.presentationQuoteId : null;
+    stopAiAudio();
+    if (S.ai) {
+      S.ai.conversationOpen = false;
+      if (S.ai.conversationRecognition) {
+        const recognition = S.ai.conversationRecognition;
+        S.ai.conversationRecognition = null;
+        try { recognition.stop(); } catch (_) {}
+      }
+    }
+    if (S.ai && S.ai.presentation) {
+      S.ai.presentation = null;
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    }
     sh.classList.remove('is-open');
     document.body.classList.remove('fq-sheet-open');
     S.sheet = null;
@@ -484,6 +523,17 @@
       }
     }, 220);
     if (S.fq) renderPanel();
+    if (standaloneQuoteId) {
+      S.presentationQuoteOnly = false;
+      if (window.opener && !window.opener.closed) {
+        window.close();
+        setTimeout(() => {
+          if (!window.closed) location.href = `quote-builder.html?id=${encodeURIComponent(standaloneQuoteId)}`;
+        }, 250);
+      } else {
+        location.href = `quote-builder.html?id=${encodeURIComponent(standaloneQuoteId)}`;
+      }
+    }
   }
   const bar = (title, right) => `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>${right === 'none' ? 'Fechar' : 'Cancelar'}</button><h2>${esc(title)}</h2>${right === 'none' ? '<span></span>' : right || '<button type="button" class="fq-link fq-link--b" data-fq-close>OK</button>'}</header>`;
 
@@ -613,6 +663,10 @@
     const i = S.d.rooms.findIndex((x) => x.id === r.id);
     if (i >= 0) S.d.rooms[i] = r;
     else S.d.rooms.push(r);
+    if (S.sheet.planRoomId && S.d.floorplan && Array.isArray(S.d.floorplan.rooms)) {
+      const planRoom = S.d.floorplan.rooms.find((x) => x.id === S.sheet.planRoomId);
+      if (planRoom) { planRoom.measured_room_id = r.id; planRoom.label = r.label; }
+    }
     markDirty();
     toast(`${r.label}: ${fmtN(roomArea(r))} pé²`, 'success');
     if (keepOpen) sheetRoom(null);
@@ -662,6 +716,7 @@
         })
         .join('')}
         <p class="fq-hint">Itens marcados como atenção (pets, acesso, cor…) vão para “Para o campo” do job quando o orçamento for aprovado.</p>
+        <div class="fq-ai-review"><button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-ai-assist>Abrir copiloto da visita</button><p class="fq-hint">Pergunte o que conferir ou o que esclarecer com o cliente, usando o contexto desta obra.</p></div>
       </div>`
     );
   }
@@ -698,7 +753,13 @@
         </div>
         ${t.lines.some((l) => l.source === 'padrao') ? '<p class="fq-hint fq-hint--warn">Linhas com <em>preço padrão</em> não acharam item na Tabela de Valores. Toque para ajustar.</p>' : '<p class="fq-hint">Toque numa linha para trocar o preço. O cliente vê os nomes em inglês.</p>'}
         ${locked ? `<div class="fq-banner">Orçamento ${esc(fq.quote.number)} já está ${esc(quoteStatusPt(fq.quote.status))}. Mudanças aqui não alteram mais o orçamento.</div>` : ''}
+        <div class="fq-ai-review">
+          <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-ai-review>Revisar proposta com IA</button>
+          <p class="fq-hint">Procura pendências e pontos para confirmar. Não altera serviços nem preços.</p>
+          ${S.ai.review ? `<div class="fq-ai-findings">${S.ai.review.checks.length ? S.ai.review.checks.map((item) => `<article class="fq-ai-finding ${item.severity === 'attention' ? 'is-attention' : ''}"><b>${esc(item.title)}</b><p>${esc(item.detail)}</p></article>`).join('') : '<p class="fq-ai-empty">Nenhuma pendência evidente nas informações atuais.</p>'}${S.ai.review.suggested_extras.length ? `<div class="fq-ai-suggestions"><b>Extras para avaliar</b>${S.ai.review.suggested_extras.map((item) => { const extra = C.EXTRAS.find((x) => x.id === item.id); return `<p><strong>${esc(extra ? extra.pt : item.id)}:</strong> ${esc(item.reason)}</p>`; }).join('')}<button type="button" class="fq-mini" data-fq-open-extras>Revisar extras</button></div>` : ''}<small class="fq-ai-source">Sugestões da IA · confira no local</small></div>` : ''}
+        </div>
         <div class="fq-acts">
+          <button type="button" class="fq-btn fq-btn--pri fq-btn--big" data-fq-finish="present" ${locked ? 'disabled' : ''}>Gerar e apresentar ao cliente</button>
           <button type="button" class="fq-btn fq-btn--ink fq-btn--big" data-fq-finish="sign" ${locked ? 'disabled' : ''}>✍️ Cliente aprova e assina agora</button>
           <div class="fq-row2"><button type="button" class="fq-btn" data-fq-finish="sms" ${locked ? 'disabled' : ''}>Enviar por SMS</button><button type="button" class="fq-btn fq-btn--pri" data-fq-finish="open">${quoted ? 'Atualizar e abrir' : 'Abrir orçamento'}</button></div>
           <p class="fq-hint">Gera o orçamento ${quoted ? esc(fq.quote.number) : 'no ObraMate'} com essas linhas${fq.lead_id ? '' : ' e cria o lead no funil'}.</p>
@@ -706,6 +767,575 @@
       </div>`,
       'fq-sheet__card--tall'
     );
+  }
+  function sheetAiAssist() {
+    S.ai.assistResult = null;
+    S.ai.assistQuestion = '';
+    renderAiAssist();
+  }
+  function renderAiAssist() {
+    const result = S.ai.assistResult;
+    openSheet(
+      `${bar('Copiloto da visita', '<button type="button" class="fq-link fq-link--b" data-fq-ai-assist-run>Consultar</button>')}
+      <div class="fq-sbody">
+        <p class="fq-hint fq-ai-lead">Faça uma pergunta sobre esta obra. O copiloto considera os serviços, medidas, respostas e observações já salvas.</p>
+        <label class="fq-field fq-field--col fq-group"><span>Sua pergunta</span><textarea id="fqAiAssistQuestion" rows="4" maxlength="1000" placeholder="Ex.: O que devo confirmar antes de instalar LVP sobre o piso atual?">${esc(S.ai.assistQuestion)}</textarea></label>
+        <button type="button" class="fq-btn fq-btn--block fq-btn--pri" data-fq-ai-assist-run>Consultar copiloto</button>
+        ${result ? `<section class="fq-ai-assist-result"><h3>Orientação</h3><p>${esc(result.answer)}</p>${result.checks.length ? `<h4>Pontos para conferir</h4>${result.checks.map((item) => `<article class="fq-ai-finding"><b>${esc(item.title)}</b><p>${esc(item.detail)}</p></article>`).join('')}` : ''}${result.questions.length ? `<h4>Perguntas para o cliente</h4>${result.questions.map((item) => `<button type="button" class="fq-ai-question-chip" data-fq-ai-assist-fill="${esc(item.question)}"><b>${esc(item.question)}</b><small>${esc(item.reason)}</small></button>`).join('')}` : ''}<small class="fq-ai-source">Orientação da IA · confirme as condições e os requisitos aplicáveis no local.</small></section>` : ''}
+        <p class="fq-hint">O copiloto não altera medidas, serviços ou preços.</p>
+      </div>`,
+      'fq-sheet__card--tall'
+    );
+  }
+  async function runAiAssist() {
+    const question = ($('#fqAiAssistQuestion') || {}).value || '';
+    if (question.trim().length < 3) return toast('Escreva uma pergunta primeiro.', 'error');
+    S.ai.assistQuestion = question.trim();
+    const buttons = $$('[data-fq-ai-assist-run]');
+    buttons.forEach((button) => { button.disabled = true; button.textContent = 'Consultando…'; });
+    try {
+      await save();
+      if (S.dirty) throw new Error('Aguarde o Field Quote salvar para consultar o contexto atual.');
+      const response = await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/ai/assist`, { method: 'POST', body: { question: S.ai.assistQuestion } });
+      S.ai.assistResult = response.data;
+      renderAiAssist();
+    } catch (e) {
+      toast(e.message, 'error');
+      const current = $$('[data-fq-ai-assist-run]');
+      current.forEach((button) => { button.disabled = false; button.textContent = button.closest('.fq-sbar') ? 'Consultar' : 'Consultar copiloto'; });
+    }
+  }
+  function sheetAiConversation() {
+    if (!Array.isArray(S.d.ai_conversation)) S.d.ai_conversation = [];
+    S.ai.conversationOpen = true;
+    renderAiConversation();
+    void loadElevenLabsVoices();
+  }
+  function renderAiConversation(focusInput) {
+    const messages = Array.isArray(S.d.ai_conversation) ? S.d.ai_conversation : [];
+    const estimate = totals(S.d);
+    const serviceCount = S.d.services.length;
+    const roomCount = S.d.rooms.length;
+    const hasSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+    const hasSpeechOutput = S.ai.speechVoices.length > 0;
+    const voiceOptions = S.ai.speechVoices.map((voice) => {
+      const details = [voice.labels && voice.labels.accent, voice.labels && voice.labels.gender].filter(Boolean).join(' · ');
+      return `<option value="${esc(voice.voiceId)}" ${voice.voiceId === S.ai.speechVoiceId ? 'selected' : ''}>${esc(voice.name)}${details ? ` · ${esc(details)}` : ''}</option>`;
+    }).join('');
+    const messageHtml = messages.map((message) => {
+      const isUser = message.role === 'user';
+      return `<article class="fq-chat__message ${isUser ? 'fq-chat__message--user' : 'fq-chat__message--assistant'}"><p>${esc(message.content)}</p></article>`;
+    }).join('');
+    openSheet(
+      `${bar('Vamos montar esse orçamento', '<span class="fq-chat__ai-label">Copiloto da obra</span>')}
+      <div class="fq-chat">
+        <div class="fq-chat__summary"><span>${serviceCount} serviço${serviceCount === 1 ? '' : 's'}</span><span>${roomCount} cômodo${roomCount === 1 ? '' : 's'}</span><b>${esc(money(estimate.total))}</b></div>
+        <div class="fq-chat__messages" id="fqAiConversationMessages" role="log" aria-label="Conversa sobre o orçamento" aria-live="polite">
+          ${messages.length ? messageHtml : `<div class="fq-chat__welcome"><b>Pode me contar como você contaria para alguém da equipe.</b><p>Vá cômodo por cômodo, diga o que sai, o que entra e as medidas que já tiver. Se faltar algo, a gente acerta no caminho.</p><small>Por exemplo: “Na sala, tira o carpete e coloca LVP. Ela tem 16 por 12 pés. No corredor vai o mesmo piso, que mede 10 por 4.”</small></div>`}
+          ${S.ai.conversationBusy ? '<div class="fq-chat__typing" role="status"><i></i><i></i><i></i><span>Um instante…</span></div>' : ''}
+        </div>
+        <div class="fq-chat__composer">
+          <textarea id="fqAiConversationInput" rows="2" maxlength="1400" aria-label="Descreva o que será feito" placeholder="O que mais vai ser feito?" ${S.ai.conversationBusy ? 'disabled' : ''}></textarea>
+          <div class="fq-chat__composer-row">
+            <label class="fq-chat__language"><span>Idioma</span><select id="fqAiConversationLanguage" aria-label="Idioma da fala"><option value="pt-BR">PT-BR</option><option value="en-US">EN-US</option></select></label>
+            <button type="button" class="fq-btn fq-btn--ghost fq-chat__mic" data-fq-ai-conversation-mic ${!hasSpeech || S.ai.conversationBusy ? 'disabled' : ''} aria-label="${S.ai.conversationRecognition ? 'Parar captura de voz' : 'Falar para a IA'}">${S.ai.conversationRecognition ? 'Parar' : 'Falar'}</button>
+            <button type="button" class="fq-btn fq-btn--pri fq-chat__send" data-fq-ai-conversation-send ${S.ai.conversationBusy ? 'disabled' : ''}>Enviar</button>
+          </div>
+          <label class="fq-chat__voice"><span>Voz da IA</span><select id="fqAiVoiceSelect" aria-label="Escolher voz da ElevenLabs" ${!hasSpeechOutput ? 'disabled' : ''}>${voiceOptions || `<option value="">${S.ai.speechVoicesLoading ? 'Carregando vozes…' : 'Vozes indisponíveis'}</option>`}</select></label>
+          <button type="button" class="fq-chat__speak" data-fq-ai-conversation-speak-toggle aria-pressed="${S.ai.conversationSpeakReplies ? 'true' : 'false'}" ${!hasSpeechOutput ? 'disabled' : ''}>${S.ai.conversationSpeakReplies ? '🔊 Ouvir resposta após ditar' : '🔈 Leitura por voz desligada'}</button>
+          <p class="fq-chat__footnote">Medidas e valores são calculados pelo Field Quote. Confira o que foi adicionado antes de gerar a proposta.</p>
+          ${!hasSpeech ? '<p class="fq-chat__footnote">Ditado por microfone não está disponível neste navegador. Você ainda pode usar o ditado do teclado do celular.</p>' : ''}
+          ${!hasSpeechOutput ? `<p class="fq-chat__footnote">${esc(S.ai.speechVoicesError || (S.ai.speechVoicesLoading ? 'Buscando vozes ElevenLabs…' : 'Configure a chave ELEVENLABS_API_KEY no servidor para ativar a leitura por voz.'))}</p>` : ''}
+        </div>
+      </div>`,
+      'fq-sheet__card--tall fq-sheet__card--conversation'
+    );
+    const stream = $('#fqAiConversationMessages');
+    if (stream) stream.scrollTop = stream.scrollHeight;
+    if (focusInput) $('#fqAiConversationInput')?.focus();
+  }
+  function applyAiConversationPatch(patch) {
+    const changes = [];
+    const serviceNames = (ids) => ids.map((id) => svcDef(id)?.pt).filter(Boolean);
+    const removeServices = [...new Set((patch.services_remove || []).filter((id) => C.SERVICES.some((service) => service.id === id)))];
+    const addServices = [...new Set((patch.services_add || []).filter((id) => C.SERVICES.some((service) => service.id === id)))];
+    S.d.services = [...new Set(S.d.services.filter((id) => !removeServices.includes(id)).concat(addServices))];
+    if (removeServices.length) {
+      S.d.rooms.forEach((room) => { room.services = (room.services || []).filter((id) => !removeServices.includes(id)); });
+      changes.push(`Removi ${serviceNames(removeServices).join(', ')}`);
+    }
+    if (addServices.length) changes.push(`Adicionei ${serviceNames(addServices).join(', ')}`);
+
+    const installation = patch.installation || {};
+    if (S.d.services.includes('installation')) {
+      if (installation.material && C.MATERIALS.some((item) => item.id === installation.material)) {
+        S.d.svc.installation.material = installation.material;
+        changes.push(`Material: ${mat(installation.material).pt}`);
+      }
+      if (installation.pattern && C.PATTERNS.some((item) => item.id === installation.pattern)) {
+        S.d.svc.installation.pattern = installation.pattern;
+        changes.push(`Paginação: ${C.PATTERNS.find((item) => item.id === installation.pattern).pt}`);
+      }
+      if (typeof installation.supply === 'boolean') {
+        S.d.svc.installation.supply = installation.supply;
+        changes.push(installation.supply ? 'Material fornecido pela equipe' : 'Material fornecido pelo cliente');
+      }
+    }
+    if (S.d.services.includes('sanding') && patch.sanding_type && C.SANDING_TYPES.some((item) => item.id === patch.sanding_type)) {
+      S.d.svc.sanding.type = patch.sanding_type;
+      changes.push(`Tipo de acabamento: ${C.SANDING_TYPES.find((item) => item.id === patch.sanding_type).pt}`);
+    }
+
+    const roomIdsToRemove = new Set(patch.rooms_remove_ids || []);
+    if (roomIdsToRemove.size) {
+      const before = S.d.rooms.length;
+      S.d.rooms = S.d.rooms.filter((room) => !roomIdsToRemove.has(room.id));
+      if (S.d.rooms.length < before) changes.push(`Removi ${before - S.d.rooms.length} cômodo${before - S.d.rooms.length === 1 ? '' : 's'}`);
+    }
+    let updatedRooms = 0;
+    (patch.rooms_update || []).forEach((update) => {
+      const room = S.d.rooms.find((candidate) => candidate.id === update.id);
+      if (!room) return;
+      const allowed = ['label', 'base', 'mode', 'l_ft', 'l_in', 'w_ft', 'w_in', 'sqft', 'parts', 'services', 'note'];
+      allowed.forEach((key) => { if (Object.prototype.hasOwnProperty.call(update, key)) room[key] = update[key]; });
+      if (Array.isArray(room.services)) room.services = room.services.filter((id) => S.d.services.includes(id));
+      const roomDef = C.ROOMS.find((item) => item.pt === room.base);
+      if (roomDef && room.base !== '__custom') {
+        const suffix = String(room.label || '').match(/\s+(\d+)$/)?.[1];
+        room.en = suffix && roomDef.numbered ? `${roomDef.en} ${suffix}` : roomDef.en;
+      }
+      updatedRooms++;
+    });
+    if (updatedRooms) changes.push(`Atualizei ${updatedRooms} cômodo${updatedRooms === 1 ? '' : 's'}`);
+
+    const newRooms = (patch.rooms_add || []).filter((room) => {
+      if (room.mode === 'area') return Number(room.sqft) > 0;
+      return toFt(room.l_ft, room.l_in) > 0 && toFt(room.w_ft, room.w_in) > 0;
+    }).map((room) => {
+      const roomDef = C.ROOMS.find((item) => item.pt === room.base);
+      const roomServices = Array.isArray(room.services) && room.services.length ? room.services : S.d.services;
+      const suffix = String(room.label || '').match(/\s+(\d+)$/)?.[1];
+      return Object.assign({}, room, {
+        id: uid(),
+        en: roomDef && room.base !== '__custom' ? `${roomDef.en}${suffix && roomDef.numbered ? ` ${suffix}` : ''}` : room.label,
+        services: roomServices.filter((id) => S.d.services.includes(id)),
+      });
+    }).filter((room) => room.services.length > 0);
+    if (newRooms.length) {
+      S.d.rooms.push(...newRooms);
+      changes.push(`Adicionei ${newRooms.length} cômodo${newRooms.length === 1 ? '' : 's'}`);
+    }
+
+    let extrasChanged = 0;
+    (patch.extras || []).forEach((item) => {
+      const definition = C.EXTRAS.find((extra) => extra.id === item.id);
+      if (!definition) return;
+      if (!item.on) {
+        if (S.d.extras[item.id]) S.d.extras[item.id].on = false;
+        extrasChanged++;
+        return;
+      }
+      if (definition.qty === 'manual' && definition.unit !== 'fixed' && !(Number(item.qty) > 0)) return;
+      const state = S.d.extras[item.id] = Object.assign({}, S.d.extras[item.id] || {}, { on: true });
+      if (definition.unit === 'fixed') Object.assign(state, { qty: 1, auto: false });
+      else if (definition.qty !== 'manual') Object.assign(state, { qty: null, auto: true });
+      else Object.assign(state, { qty: Number(item.qty), auto: false });
+      extrasChanged++;
+    });
+    if (extrasChanged) changes.push(`Atualizei ${extrasChanged} extra${extrasChanged === 1 ? '' : 's'}`);
+
+    let detailChanges = 0;
+    (patch.answers || []).forEach((answer) => {
+      const group = C.QUESTIONS[answer.group];
+      const question = group && group.find((item) => item.id === answer.id);
+      if (!question) return;
+      let valid = false;
+      if (question.type === 'bool') valid = typeof answer.value === 'boolean';
+      else if (question.type === 'number') valid = typeof answer.value === 'number' && Number.isFinite(answer.value) && answer.value >= 0;
+      else if (question.type === 'text') valid = typeof answer.value === 'string';
+      else if (question.type === 'multi') valid = Array.isArray(answer.value) && answer.value.every((value) => question.options.includes(value));
+      else if (question.type === 'choice') valid = typeof answer.value === 'string' && question.options.some((option) => (Array.isArray(option) ? option[0] : option) === answer.value);
+      if (!valid) return;
+      S.d.answers[answer.group] = S.d.answers[answer.group] || {};
+      S.d.answers[answer.group][answer.id] = answer.value;
+      detailChanges++;
+    });
+    if (detailChanges) changes.push(`Registrei ${detailChanges} detalhe${detailChanges === 1 ? '' : 's'} da obra`);
+
+    const note = String(patch.notes_append || '').trim();
+    if (note) {
+      S.d.notes = [S.d.notes, note].filter(Boolean).join('\n');
+      changes.push('Anotei o detalhe interno da obra');
+    }
+    return changes;
+  }
+  async function sendAiConversation(message, fromVoice) {
+    const input = $('#fqAiConversationInput');
+    const text = String(message == null ? (input && input.value || '') : message).trim().slice(0, 1400);
+    if (!text || S.ai.conversationBusy) return;
+    const history = (S.d.ai_conversation || []).filter((item) => !item.transient).slice(-20).map((item) => ({ role: item.role, content: item.content }));
+    S.d.ai_conversation.push({ role: 'user', content: text });
+    S.d.ai_conversation = S.d.ai_conversation.slice(-40);
+    S.ai.conversationBusy = true;
+    markDirty();
+    renderAiConversation();
+    try {
+      const saveDeadline = Date.now() + 30_000;
+      while (S.saving && Date.now() < saveDeadline) await new Promise((resolve) => setTimeout(resolve, 100));
+      if (S.saving) throw new Error('O quote ainda está salvando. Tente enviar novamente em alguns segundos.');
+      if (!navigator.onLine) throw new Error('Sem conexão: volte a ficar online para continuar a conversa.');
+      await save();
+      if (S.dirty) throw new Error('Não consegui salvar o quote. Confira sua conexão e tente novamente.');
+      const response = await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/ai/conversation`, {
+        method: 'POST',
+        body: { message: text, history },
+      });
+      applyAiConversationPatch(response.data.patch || {});
+      S.d.ai_conversation.push({ role: 'assistant', content: response.data.reply });
+      S.d.ai_conversation = S.d.ai_conversation.slice(-40);
+      S.ai.conversationBusy = false;
+      if (fromVoice) void speakAiConversation(response.data.reply);
+      markDirty();
+      renderPanel();
+      if (S.ai.conversationOpen) renderAiConversation();
+      else toast('Quote atualizado com a conversa.', 'success');
+      await save();
+    } catch (e) {
+      S.ai.conversationBusy = false;
+      S.d.ai_conversation.push({ role: 'assistant', content: e.message || 'Não consegui continuar agora. Tente novamente.', transient: true });
+      S.d.ai_conversation = S.d.ai_conversation.slice(-40);
+      markDirty();
+      if (S.ai.conversationOpen) renderAiConversation();
+      else toast(e.message || 'Não consegui continuar agora.', 'error');
+    }
+  }
+  function stopAiAudio() {
+    S.ai.speechRequestId++;
+    if (S.ai.speechAudio) {
+      S.ai.speechAudio.pause();
+      S.ai.speechAudio.src = '';
+      S.ai.speechAudio = null;
+    }
+    if (S.ai.speechUrl) {
+      URL.revokeObjectURL(S.ai.speechUrl);
+      S.ai.speechUrl = null;
+    }
+  }
+  async function loadElevenLabsVoices() {
+    if (S.ai.speechVoicesLoaded || S.ai.speechVoicesLoading) return;
+    S.ai.speechVoicesLoading = true;
+    S.ai.speechVoicesError = '';
+    try {
+      const result = await api('/api/field-quotes/ai/voices');
+      S.ai.speechVoices = Array.isArray(result.data.voices) ? result.data.voices : [];
+      let savedVoiceId = '';
+      try { savedVoiceId = localStorage.getItem('fq_ai_eleven_voice') || ''; } catch (_) {}
+      const portugueseVoice = S.ai.speechVoices.find((voice) => [...(voice.languages || []), voice.labels && voice.labels.language].filter(Boolean).some((language) => /(^pt\b|portuguese)/i.test(language)));
+      const preferred = savedVoiceId || result.data.default_voice_id || (portugueseVoice && portugueseVoice.voiceId) || '';
+      S.ai.speechVoiceId = S.ai.speechVoices.some((voice) => voice.voiceId === preferred)
+        ? preferred
+        : (S.ai.speechVoices[0] && S.ai.speechVoices[0].voiceId) || '';
+      S.ai.speechVoicesLoaded = true;
+    } catch (e) {
+      S.ai.speechVoicesError = e.message || 'Não foi possível carregar as vozes ElevenLabs.';
+    } finally {
+      S.ai.speechVoicesLoading = false;
+      if (S.ai.conversationOpen) renderAiConversation();
+      else if (S.ai.presentation) renderPresentation();
+    }
+  }
+  async function playAiAudio(text) {
+    const cleanText = String(text || '').trim();
+    if (!cleanText) return;
+    if (!S.ai.speechVoiceId) {
+      toast(S.ai.speechVoicesError || 'Configure a chave ElevenLabs no servidor e escolha uma voz.', 'error');
+      return;
+    }
+    const endpoint = S.presentationQuoteOnly
+      ? `/api/quotes/${encodeURIComponent(S.presentationQuoteId)}/ai/speech`
+      : S.fq && S.fq.id ? `/api/field-quotes/${encodeURIComponent(S.fq.id)}/ai/speech` : null;
+    if (!endpoint) return toast('Não encontrei o orçamento para gerar a narração.', 'error');
+    stopAiAudio();
+    const requestId = S.ai.speechRequestId;
+    const cacheKey = `${S.ai.speechVoiceId}\n${cleanText}`;
+    try {
+      let blob = S.ai.speechCache.get(cacheKey);
+      if (!blob) {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: cleanText, voice_id: S.ai.speechVoiceId }),
+        });
+        if (response.status === 401) {
+          location.href = '/login.html';
+          throw new Error('Sessão expirada');
+        }
+        if (!response.ok) {
+          const failure = await response.json().catch(() => ({}));
+          throw new Error(failure.message || failure.error || 'Não foi possível gerar a voz.');
+        }
+        blob = await response.blob();
+        S.ai.speechCache.set(cacheKey, blob);
+        while (S.ai.speechCache.size > 6) S.ai.speechCache.delete(S.ai.speechCache.keys().next().value);
+      }
+      if (requestId !== S.ai.speechRequestId) return;
+      const audioUrl = URL.createObjectURL(blob);
+      S.ai.speechUrl = audioUrl;
+      const audio = new Audio(audioUrl);
+      S.ai.speechAudio = audio;
+      const release = () => {
+        if (S.ai.speechAudio === audio) S.ai.speechAudio = null;
+        if (S.ai.speechUrl === audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+          S.ai.speechUrl = null;
+        }
+      };
+      audio.addEventListener('ended', release, { once: true });
+      audio.addEventListener('error', release, { once: true });
+      await audio.play();
+    } catch (e) {
+      if (requestId === S.ai.speechRequestId) {
+        stopAiAudio();
+        toast(e.message || 'Não foi possível reproduzir o áudio.', 'error');
+      }
+    }
+  }
+  async function speakAiConversation(text) {
+    if (!S.ai.conversationSpeakReplies || !S.ai.conversationOpen) return;
+    await playAiAudio(text);
+  }
+  function dictateAiConversation() {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (S.ai.conversationRecognition) {
+      try { S.ai.conversationRecognition.stop(); } catch (_) {}
+      return;
+    }
+    if (!Speech || S.ai.conversationBusy) return;
+    const language = $('#fqAiConversationLanguage');
+    const button = $('[data-fq-ai-conversation-mic]');
+    const input = $('#fqAiConversationInput');
+    if (input) input.blur();
+    const recognition = new Speech();
+    let transcript = '';
+    recognition.lang = language ? language.value : 'pt-BR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onstart = () => {
+      if (!S.ai.conversationOpen) {
+        try { recognition.stop(); } catch (_) {}
+        return;
+      }
+      S.ai.conversationRecognition = recognition;
+      if (button) { button.textContent = 'Parar'; button.setAttribute('aria-label', 'Parar captura de voz'); button.disabled = false; }
+    };
+    recognition.onresult = (event) => {
+      transcript = Array.from(event.results || []).map((result) => result[0] && result[0].transcript || '').join(' ').trim();
+    };
+    recognition.onerror = (event) => {
+      if (event.error !== 'no-speech' && event.error !== 'aborted') toast('Não consegui captar a fala. Tente novamente ou digite a mensagem.', 'error');
+    };
+    recognition.onend = () => {
+      if (S.ai.conversationRecognition === recognition) S.ai.conversationRecognition = null;
+      if (!S.ai.conversationOpen) return;
+      if (transcript) sendAiConversation(transcript, true);
+      else renderAiConversation();
+    };
+    try { recognition.start(); } catch (_) { toast('O microfone não iniciou. Digite a mensagem para continuar.', 'error'); }
+  }
+  function sheetAiMeasure() {
+    S.ai.measureProposal = null;
+    const hasSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+    openSheet(
+      `${bar('Ditar medidas', '<button type="button" class="fq-link fq-link--b" data-fq-ai-measure-generate>Interpretar</button>')}
+      <div class="fq-sbody">
+        <p class="fq-hint fq-ai-lead">Descreva os cômodos, as medidas e os serviços. A IA prepara os campos; você confere antes de adicionar.</p>
+        <label class="fq-field fq-field--col fq-group"><span>Descrição falada ou digitada</span><textarea id="fqAiMeasureText" rows="5" maxlength="2000" placeholder="Ex.: Sala 18 pés e 6 por 14, closet de 4 por 2. Instala LVP nos dois cômodos."></textarea></label>
+        <div class="fq-ai-controls"><label class="fq-ai-language"><span>Idioma da fala</span><select id="fqAiMeasureLanguage"><option value="pt-BR">Português</option><option value="en-US">English</option></select></label><button type="button" class="fq-btn fq-btn--ghost" data-fq-ai-dictate ${hasSpeech ? '' : 'disabled'} aria-label="Ditar descrição de medidas">Ditar</button></div>
+        ${hasSpeech ? '' : '<p class="fq-hint">Ditado não disponível neste navegador. Digite as medidas para continuar.</p>'}
+        <p class="fq-hint">Exemplo: “Quarto 12 por 10 pés, carpete antigo para remover e instalar LVP.” O cálculo da área e dos valores continua sendo feito pelo sistema.</p>
+        <div id="fqAiMeasureResult"></div>
+      </div>`,
+      'fq-sheet__card--tall'
+    );
+  }
+  function renderAiMeasureResult() {
+    const proposal = S.ai.measureProposal;
+    const root = $('#fqAiMeasureResult');
+    if (!root || !proposal) return;
+    const rooms = proposal.rooms || [];
+    const extras = proposal.extras || [];
+    root.innerHTML = `<div class="fq-ai-proposal"><h3>Confira antes de adicionar</h3>${rooms.map((r) => `<article class="fq-ai-proposal__row"><b>${esc(r.label)}</b><span>${esc(r.mode === 'area' ? `${fmtN(r.sqft)} pé²` : `${fmtDim(r.l_ft, r.l_in)} × ${fmtDim(r.w_ft, r.w_in)}`)}</span>${r.parts && r.parts.length ? `<small>${r.parts.map((p) => `${p.sign < 0 ? '−' : '+'} ${esc(p.label || 'área')} ${fmtN(p.l)} × ${fmtN(p.w)} pés`).join(' · ')}</small>` : ''}<small>Área calculada: ${fmtN(roomArea(r))} pé² · ${(r.services || []).map((id) => esc((svcDef(id) || {}).pt || id)).join(', ')}</small></article>`).join('')}${extras.length ? `<div class="fq-ai-suggestions"><b>Extras identificados</b>${extras.map((x) => { const extra = C.EXTRAS.find((e) => e.id === x.id); return `<p>${esc(extra ? extra.pt : x.id)} · ${fmtN(x.qty)} ${esc(C.UNIT_PT[extra && extra.unit] || '')}</p>`; }).join('')}</div>` : ''}${proposal.clarification ? `<p class="fq-ai-question">${esc(proposal.clarification)} Edite a descrição e interprete novamente.</p>` : ''}<button type="button" class="fq-btn fq-btn--block fq-btn--pri" data-fq-ai-apply ${proposal.clarification || (!rooms.length && !extras.length) ? 'disabled' : ''}>Adicionar ao Field Quote</button></div>`;
+  }
+  function dictateMeasure() {
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Speech) return;
+    const rec = new Speech();
+    const button = $('[data-fq-ai-dictate]');
+    const input = $('#fqAiMeasureText');
+    const lang = $('#fqAiMeasureLanguage');
+    rec.lang = lang ? lang.value : 'pt-BR';
+    rec.continuous = false;
+    rec.interimResults = false;
+    if (button) { button.disabled = true; button.textContent = 'Ouvindo…'; }
+    rec.onresult = (event) => {
+      const transcript = Array.from(event.results || []).map((r) => r[0] && r[0].transcript || '').join(' ').trim();
+      if (input && transcript) input.value = `${input.value.trim()}${input.value.trim() ? ' ' : ''}${transcript}`;
+    };
+    rec.onerror = () => toast('Não foi possível captar a fala. Digite as medidas para continuar.', 'error');
+    rec.onend = () => { if (button) { button.disabled = false; button.textContent = 'Ditar'; } };
+    try { rec.start(); } catch (_) { if (button) { button.disabled = false; button.textContent = 'Ditar'; } }
+  }
+  async function runAiMeasure() {
+    const text = ($('#fqAiMeasureText') || {}).value || '';
+    if (text.trim().length < 3) return toast('Descreva as medidas primeiro.', 'error');
+    const button = $('[data-fq-ai-measure-generate]');
+    if (button) { button.disabled = true; button.textContent = 'Interpretando…'; }
+    try {
+      const result = await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/ai/measure`, { method: 'POST', body: { text, services: S.d.services } });
+      S.ai.measureProposal = result.data;
+      renderAiMeasureResult();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { if (button) { button.disabled = false; button.textContent = 'Interpretar'; } }
+  }
+  function applyAiMeasure() {
+    const proposal = S.ai.measureProposal;
+    if (!proposal || proposal.clarification) return;
+    S.d.rooms.push(...(proposal.rooms || []));
+    (proposal.extras || []).forEach((item) => {
+      const def = C.EXTRAS.find((e) => e.id === item.id);
+      if (!def) return;
+      const st = S.d.extras[item.id] = Object.assign({}, S.d.extras[item.id] || {}, { on: true });
+      if (item.qty > 0) Object.assign(st, { qty: item.qty, auto: false });
+      else if (def.qty !== 'manual') Object.assign(st, { qty: null, auto: true });
+      else if (def.unit === 'fixed') Object.assign(st, { qty: 1, auto: false });
+      else Object.assign(st, { qty: 0, auto: false });
+    });
+    markDirty();
+    S.ai.measureProposal = null;
+    closeSheet();
+    toast('Medidas adicionadas. Confira as áreas calculadas.', 'success');
+  }
+  function renderAiPhotoSheet() {
+    const photos = S.d.photos || [];
+    const selected = S.ai.selectedPhotoIds || [];
+    const proposal = S.ai.photoProposal;
+    openSheet(
+      `${bar('Analisar fotos', proposal ? '<button type="button" class="fq-link fq-link--b" data-fq-ai-photo-save>Salvar planta</button>' : '<button type="button" class="fq-link fq-link--b" data-fq-ai-photo-run>Analisar</button>')}
+      <div class="fq-sbody"><p class="fq-hint fq-ai-lead">Selecione as fotos da visita. A IA sugere materiais, condições visíveis e um esboço das áreas reconhecidas.</p>
+        <div class="fq-ai-photo-grid">${photos.slice(-8).map((p) => `<label class="fq-ai-photo ${selected.includes(p.id) ? 'is-selected' : ''}"><input type="checkbox" data-fq-ai-photo-check="${esc(p.id)}" ${selected.includes(p.id) ? 'checked' : ''}/><img src="${esc(p.url)}" alt="Foto da visita" loading="lazy"/><span>${esc((S.d.rooms.find((r) => r.id === p.room_id) || {}).label || 'Foto da visita')}</span></label>`).join('')}</div>
+        ${proposal ? `<section class="fq-ai-findings">${proposal.observations.length ? proposal.observations.map((item) => `<article class="fq-ai-finding"><b>${esc(item.title)} <small>${Math.round(item.confidence * 100)}% confiança visual</small></b><p>${esc(item.detail)}</p></article>`).join('') : '<p class="fq-ai-empty">Nenhuma observação visual encontrada.</p>'}</section>${proposal.floorplan_rooms.length ? `<section class="fq-plan-preview"><h3>Planta preliminar</h3>${renderFloorplanSvg({ rooms: proposal.floorplan_rooms })}<p>${esc(proposal.floorplan_note)}</p><small>Este desenho não tem escala e não preenche as medidas do orçamento.</small></section>` : ''}${proposal.suggested_extras.length ? `<section class="fq-ai-suggestions"><b>Extras para conferir</b>${proposal.suggested_extras.map((item) => { const extra = C.EXTRAS.find((x) => x.id === item.id); return `<p><strong>${esc(extra ? extra.pt : item.id)}:</strong> ${esc(item.reason)}</p>`; }).join('')}<button type="button" class="fq-mini" data-fq-open-extras>Revisar extras</button></section>` : ''}<button type="button" class="fq-btn fq-btn--block fq-btn--pri" data-fq-ai-photo-save>Salvar planta e observações</button>` : `<button type="button" class="fq-btn fq-btn--block fq-btn--pri" data-fq-ai-photo-run ${selected.length ? '' : 'disabled'}>Analisar fotos</button>`}
+        <p class="fq-hint">O esboço é aproximado. Confira as áreas no local e registre as medidas manualmente ou por ditado antes de gerar o orçamento.</p>
+      </div>`,
+      'fq-sheet__card--tall'
+    );
+  }
+  function sheetAiPhotos() {
+    S.ai.photoProposal = null;
+    S.ai.selectedPhotoIds = (S.d.photos || []).slice(-8).map((p) => p.id);
+    renderAiPhotoSheet();
+  }
+  async function runAiPhotoAnalysis() {
+    const button = $('[data-fq-ai-photo-run]');
+    if (button) { button.disabled = true; button.textContent = 'Analisando…'; }
+    try {
+      const result = await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/ai/photos`, { method: 'POST', body: { photo_ids: S.ai.selectedPhotoIds } });
+      S.ai.photoProposal = result.data;
+      renderAiPhotoSheet();
+    } catch (e) { toast(e.message, 'error'); if (button) { button.disabled = false; button.textContent = 'Analisar fotos'; } }
+  }
+  function saveAiPhotoAnalysis() {
+    const proposal = S.ai.photoProposal;
+    if (!proposal) return;
+    S.d.floorplan = {
+      version: 1,
+      is_approximate: true,
+      scale_confirmed: false,
+      note: proposal.floorplan_note,
+      created_at: proposal.generated_at,
+      rooms: (proposal.floorplan_rooms || []).map((r) => ({ id: uid(), label: r.label, x: r.x, y: r.y, w: r.w, h: r.h, confidence: r.confidence, measured_room_id: null })),
+    };
+    S.d.photo_analysis = { observations: proposal.observations || [], suggested_extras: proposal.suggested_extras || [], photo_ids: proposal.photo_ids || [], generated_at: proposal.generated_at };
+    markDirty();
+    closeSheet();
+    toast('Planta preliminar salva. Confirme cada cômodo e registre as medidas.', 'success');
+  }
+  async function runAiReview() {
+    const button = $('[data-fq-ai-review]');
+    if (button) { button.disabled = true; button.textContent = 'Revisando…'; }
+    try {
+      await save();
+      if (S.dirty) throw new Error('Aguarde o Field Quote salvar para revisar os dados atuais.');
+      const lines = totals(S.d).lines.map((line) => ({ name: line.name, quantity: line.quantity, unit: line.unit, price_source: line.source }));
+      const result = await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/ai/review`, { method: 'POST', body: { lines } });
+      S.ai.review = result.data;
+      sheetReview();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { const current = $('[data-fq-ai-review]'); if (current) { current.disabled = false; current.textContent = 'Revisar proposta com IA'; } }
+  }
+  async function presentExistingQuote(button) {
+    const quoteId = S.fq && S.fq.quote_id;
+    if (!quoteId || !button) return;
+    button.disabled = true;
+    const label = button.textContent;
+    button.textContent = 'Preparando apresentação…';
+    try {
+      const result = await api(`/api/quotes/${encodeURIComponent(quoteId)}/ai/presentation`, { method: 'POST', body: {} });
+      S.ai.presentation = result.data;
+      S.ai.presentationSlide = 0;
+      S.presentationQuoteOnly = false;
+      renderPresentation();
+      void loadElevenLabsVoices();
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = label;
+      }
+    }
+  }
+  function sheetRoomFromPlan(planRoomId) {
+    const planRoom = S.d.floorplan && S.d.floorplan.rooms && S.d.floorplan.rooms.find((r) => r.id === planRoomId);
+    if (!planRoom) return;
+    const label = String(planRoom.label || 'Novo cômodo');
+    const room = { id: uid(), base: '__custom', label, en: label, mode: 'dims', l_ft: '', l_in: '', w_ft: '', w_in: '', sqft: '', parts: [], services: S.d.services.slice(), note: '' };
+    S.sheet = { kind: 'room', room, isNew: true, planRoomId };
+    renderRoomSheet();
+  }
+  function renderPresentation() {
+    const p = S.ai.presentation;
+    if (!p) return;
+    const canSpeak = S.ai.speechVoices.length > 0;
+    const voiceOptions = S.ai.speechVoices.map((voice) => {
+      const details = [voice.labels && voice.labels.accent, voice.labels && voice.labels.gender].filter(Boolean).join(' · ');
+      return `<option value="${esc(voice.voiceId)}" ${voice.voiceId === S.ai.speechVoiceId ? 'selected' : ''}>${esc(voice.name)}${details ? ` · ${esc(details)}` : ''}</option>`;
+    }).join('');
+    const totalSlides = (p.items || []).length + 2;
+    const index = Math.max(0, Math.min(totalSlides - 1, Number(S.ai.presentationSlide) || 0));
+    S.ai.presentationSlide = index;
+    const isOpening = index === 0;
+    const isClosing = index === totalSlides - 1;
+    const item = !isOpening && !isClosing ? p.items[index - 1] : null;
+    const countText = item ? `${index} de ${totalSlides - 2} itens` : isOpening ? 'Apresentação da proposta' : 'Resumo';
+    const slide = isOpening
+      ? `<div class="fq-present__copy"><p>${esc(p.opening)}</p><div class="fq-present__total"><small>Total da proposta</small><b>${esc(money(p.total))}</b></div></div>`
+      : isClosing
+        ? `<div class="fq-present__copy"><p>${esc(p.closing)}</p><div class="fq-present__total"><small>Total da proposta</small><b>${esc(money(p.total))}</b></div></div>`
+        : `<article class="fq-present__service"><p class="fq-present__eyebrow">${esc(item.item_type === 'product' ? 'Material' : 'Serviço')} ${index}</p><h2>${esc(item.title)}</h2><p class="fq-present__qty">${esc(fmtN(item.quantity))} ${esc(String(item.unit || '').replace(/_/g, ' '))}<span>${esc(money(item.amount))}</span></p><div class="fq-present__explanation">${esc(item.explanation)}</div>${item.next_step ? `<p class="fq-present__next">${esc(item.next_step)}</p>` : ''}</article>`;
+    openSheet(
+      `<header class="fq-present__header"><button type="button" class="fq-present__text-btn" data-fq-close>Encerrar</button><div><span>PROPOSTA ${esc(p.quote_number || '')}</span><b>Apresentação ao cliente</b></div><button type="button" class="fq-present__text-btn" data-fq-present-fullscreen>Expandir tela</button></header>
+      <main class="fq-present__main" aria-live="polite"><p class="fq-present__eyebrow">${esc(countText)}</p>${slide}</main>
+      <footer class="fq-present__footer"><div class="fq-present__audio"><button type="button" class="fq-btn fq-btn--ghost" data-fq-present-speak ${canSpeak ? '' : 'disabled'}>Ouvir apresentação</button><button type="button" class="fq-btn fq-btn--ghost" data-fq-present-stop>Parar áudio</button></div><label class="fq-present__voice"><span>Voz da IA</span><select id="fqAiVoiceSelect" aria-label="Escolher voz da ElevenLabs" ${canSpeak ? '' : 'disabled'}>${voiceOptions || `<option value="">${S.ai.speechVoicesLoading ? 'Carregando vozes…' : 'Vozes indisponíveis'}</option>`}</select></label><div class="fq-present__nav"><button type="button" class="fq-btn" data-fq-present-prev ${index <= 0 ? 'disabled' : ''}>Voltar</button><span>${index + 1} / ${totalSlides}</span><button type="button" class="fq-btn fq-btn--pri" data-fq-present-next ${index >= totalSlides - 1 ? 'disabled' : ''}>Próximo</button></div><p class="fq-present__hint">${p.source === 'ai' ? 'Roteiro preparado pela IA a partir dos itens do orçamento.' : 'Roteiro resumido dos itens do orçamento.'} Os nomes, quantidades e valores vêm do quote. ${canSpeak ? '' : esc(S.ai.speechVoicesError || (S.ai.speechVoicesLoading ? 'Buscando vozes ElevenLabs…' : 'Configure ELEVENLABS_API_KEY no servidor para habilitar a narração.'))}</p></footer>`,
+      'fq-sheet__card--present'
+    );
+  }
+  async function speakPresentation() {
+    const p = S.ai.presentation;
+    if (!p) return;
+    const text = [p.opening, ...(p.items || []).flatMap((item) => [item.title, `${fmtN(item.quantity)} ${String(item.unit || '').replace(/_/g, ' ')}`, item.explanation, item.next_step]), `The proposal total is ${money(p.total)}.`, p.closing].filter(Boolean).join('. ');
+    await playAiAudio(text);
   }
   function sheetRate(key) {
     const t = totals(S.d);
@@ -766,6 +1396,7 @@
     try {
       S.dirty = true;
       await save();
+      if (S.dirty) throw new Error('Aguarde o salvamento do Field Quote antes de gerar o orçamento.');
       const leadId = await ensureLead();
       const fq = S.fq;
       const d = S.d;
@@ -796,6 +1427,13 @@
       const linked = await api(`/api/field-quotes/${encodeURIComponent(fq.id)}/link-quote`, { method: 'POST', body: { quote_id: quoteId, lead_id: leadId } });
       S.fq = Object.assign(S.fq, linked.data, { data: undefined });
       cacheLocal();
+      if (mode === 'present') {
+        const result = await api(`/api/field-quotes/${encodeURIComponent(fq.id)}/ai/presentation`, { method: 'POST', body: {} });
+        S.ai.presentation = result.data;
+        S.ai.presentationSlide = 0;
+        renderPresentation();
+        return;
+      }
       if (mode === 'open') {
         location.href = `quote-builder.html?id=${encodeURIComponent(quoteId)}&lead_id=${encodeURIComponent(leadId)}`;
         return;
@@ -872,6 +1510,42 @@
       const t = ev.target;
       let el;
       if ((el = t.closest('[data-fq-close]'))) return closeSheet();
+      if (t.closest('[data-fq-ai-measure]')) return sheetAiMeasure();
+      if (t.closest('[data-fq-ai-dictate]')) return dictateMeasure();
+      if (t.closest('[data-fq-ai-measure-generate]')) return runAiMeasure();
+      if (t.closest('[data-fq-ai-apply]')) return applyAiMeasure();
+      if (t.closest('[data-fq-ai-photos]')) return sheetAiPhotos();
+      if (t.closest('[data-fq-ai-photo-run]')) return runAiPhotoAnalysis();
+      if (t.closest('[data-fq-ai-photo-save]')) return saveAiPhotoAnalysis();
+      if (t.closest('[data-fq-ai-review]')) return runAiReview();
+      if ((el = t.closest('[data-fq-present-existing]'))) return presentExistingQuote(el);
+      if (t.closest('[data-fq-ai-assist]')) return sheetAiAssist();
+      if (t.closest('[data-fq-ai-assist-run]')) return runAiAssist();
+      if (t.closest('[data-fq-ai-conversation]')) return sheetAiConversation();
+      if (t.closest('[data-fq-ai-conversation-send]')) return sendAiConversation();
+      if (t.closest('[data-fq-ai-conversation-mic]')) return dictateAiConversation();
+      if (t.closest('[data-fq-ai-conversation-speak-toggle]')) {
+        S.ai.conversationSpeakReplies = !S.ai.conversationSpeakReplies;
+        if (!S.ai.conversationSpeakReplies) stopAiAudio();
+        return renderAiConversation();
+      }
+      if ((el = t.closest('[data-fq-ai-assist-fill]'))) {
+        S.ai.assistQuestion = el.dataset.fqAiAssistFill || '';
+        const input = $('#fqAiAssistQuestion');
+        if (input) { input.value = S.ai.assistQuestion; input.focus(); }
+        return;
+      }
+      if (t.closest('[data-fq-open-extras]')) return sheetExtras();
+      if ((el = t.closest('[data-fq-plan-measure]'))) return sheetRoomFromPlan(el.dataset.fqPlanMeasure);
+      if (t.closest('[data-fq-present-speak]')) return speakPresentation();
+      if (t.closest('[data-fq-present-stop]')) { stopAiAudio(); return; }
+      if (t.closest('[data-fq-present-prev]')) { stopAiAudio(); S.ai.presentationSlide = Math.max(0, S.ai.presentationSlide - 1); return renderPresentation(); }
+      if (t.closest('[data-fq-present-next]')) { stopAiAudio(); S.ai.presentationSlide += 1; return renderPresentation(); }
+      if (t.closest('[data-fq-present-fullscreen]')) {
+        if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => toast('Não foi possível abrir em tela cheia.', 'error'));
+        else toast('Tela cheia não disponível neste navegador.', 'info');
+        return;
+      }
       if (t.closest('[data-fq-new]')) return newVisit();
       if ((el = t.closest('[data-fq-open]'))) {
         const k = el.dataset.fqOpen;
@@ -1137,6 +1811,18 @@
 
     document.addEventListener('change', (ev) => {
       const t = ev.target;
+      if (t.id === 'fqAiVoiceSelect') {
+        S.ai.speechVoiceId = t.value || '';
+        try { localStorage.setItem('fq_ai_eleven_voice', S.ai.speechVoiceId); } catch (_) {}
+        stopAiAudio();
+        return;
+      }
+      if (t.matches('[data-fq-ai-photo-check]')) {
+        const id = t.dataset.fqAiPhotoCheck;
+        S.ai.selectedPhotoIds = t.checked ? [...new Set([...(S.ai.selectedPhotoIds || []), id])] : (S.ai.selectedPhotoIds || []).filter((x) => x !== id);
+        S.ai.photoProposal = null;
+        return renderAiPhotoSheet();
+      }
       if (t.id === 'fqPhotoInput') {
         const files = Array.from(t.files || []);
         t.value = '';
@@ -1162,6 +1848,10 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !$('#fqSheet').hidden) closeSheet();
+      if (e.key === 'Enter' && !e.shiftKey && e.target.id === 'fqAiConversationInput') {
+        e.preventDefault();
+        sendAiConversation();
+      }
       if (e.key === 'Enter' && S.sheet && S.sheet.kind === 'room' && e.target.matches('input')) {
         e.preventDefault();
         const order = $$('.fq-sheet input[inputmode]');
@@ -1225,6 +1915,27 @@
     }
     const leadId = p.get('lead_id');
     const meetingId = p.get('meeting_id');
+    const presentationQuoteId = p.get('presentation_quote');
+    if (presentationQuoteId) {
+      S.presentationQuoteOnly = true;
+      S.presentationQuoteId = presentationQuoteId;
+      try {
+        const result = await api(`/api/quotes/${encodeURIComponent(presentationQuoteId)}/ai/presentation`, { method: 'POST', body: {} });
+        S.ai.presentation = result.data;
+        S.ai.presentationSlide = 0;
+        $('#fqLoading').hidden = true;
+        renderPresentation();
+        void loadElevenLabsVoices();
+      } catch (e) {
+        const loading = $('#fqLoading');
+        loading.textContent = `${e.message} `;
+        const back = document.createElement('a');
+        back.href = `quote-builder.html?id=${encodeURIComponent(presentationQuoteId)}`;
+        back.textContent = 'Voltar ao orçamento';
+        loading.append(back);
+      }
+      return;
+    }
     if (!p.get('id') && (leadId || meetingId)) {
       try {
         const j = await api('/api/field-quotes', { method: 'POST', body: { lead_id: leadId || undefined, meeting_id: meetingId || undefined } });

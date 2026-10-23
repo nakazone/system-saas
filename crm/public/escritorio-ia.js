@@ -3,6 +3,7 @@
 
   const API_SUGGESTIONS = '/api/mate-ai/suggestions';
   const API_AGENTS = '/api/virtual-office/agents';
+  const VOICE_PREFS_KEY = 'om.office.voice.v1';
   const DEPARTMENTS = {
     all: { label: 'Coordenação', icon: '✦', href: 'mate-ai.html', link: 'Abrir Mate AI' },
     commercial: { label: 'Comercial', icon: '↗', href: 'quotes.html', link: 'Ver quotes' },
@@ -68,6 +69,8 @@
     activeAgentKey: /^[a-z0-9_-]{1,60}$/i.test(requestedAgent) ? requestedAgent.toLowerCase() : 'mate',
     contextRequest: 0, entityShown: false, meetingShown: 0, meetingTimer: 0, bubbleTick: 0, suggestionRun: false,
     chatKey: '', chatTyping: false, planScale: 1, pedidoRun: false,
+    organizationId: '', userId: '', voicePrefs: { speakPending: false, voices: {} }, voiceOptions: [], defaultVoiceId: '',
+    voiceLoading: false, voiceLoaded: false, voiceLoadPromise: null, voiceError: '', speechAudio: null, speechUrl: '', suggestionsLoaded: false, alertTimer: 0,
   };
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (selector, root) => (root || document).querySelector(selector);
@@ -82,6 +85,226 @@
     image.loading = 'lazy';
     image.decoding = 'async';
     return image;
+  }
+
+  function voicePrefsStorageKey() {
+    return `${VOICE_PREFS_KEY}:${state.organizationId || location.host}:${state.userId || 'user'}`;
+  }
+
+  function loadVoicePrefs() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(voicePrefsStorageKey()) || '{}');
+      state.voicePrefs = {
+        speakPending: saved.speakPending === true,
+        voices: saved.voices && typeof saved.voices === 'object' ? saved.voices : {},
+      };
+    } catch {
+      state.voicePrefs = { speakPending: false, voices: {} };
+    }
+    updateVoiceStatus();
+  }
+
+  function saveVoicePrefs() {
+    try { localStorage.setItem(voicePrefsStorageKey(), JSON.stringify(state.voicePrefs)); } catch (_) {}
+    updateVoiceStatus();
+  }
+
+  function updateVoiceStatus() {
+    const button = $('#officeVoiceSettings');
+    const status = $('#officeVoiceStatus');
+    const enabled = state.voicePrefs.speakPending === true;
+    if (button) button.dataset.enabled = String(enabled);
+    if (status) status.textContent = enabled ? 'Avisos ativos' : 'Sob demanda';
+  }
+
+  function portugueseVoices() {
+    return state.voiceOptions.filter((voice) => [...(voice.languages || []), voice.labels?.language].filter(Boolean)
+      .some((language) => /(^pt\b|portuguese)/i.test(language)));
+  }
+
+  function preferredVoiceId(agent) {
+    const saved = state.voicePrefs.voices?.[agent.key];
+    if (saved === 'browser') return '';
+    if (saved) return saved;
+    if (agent.key === 'mate' && state.defaultVoiceId) return state.defaultVoiceId;
+    const portuguese = portugueseVoices();
+    const otherAgents = state.agents.filter((item) => item.key !== 'mate');
+    const index = agent.key === 'mate' ? 0 : Math.max(0, otherAgents.findIndex((item) => item.key === agent.key)) + (state.defaultVoiceId ? 0 : 1);
+    const distinctPortuguese = portuguese.filter((voice) => voice.voiceId !== state.defaultVoiceId);
+    const voicePool = agent.key === 'mate' || !distinctPortuguese.length ? portuguese : distinctPortuguese;
+    if (voicePool.length) return voicePool[index % voicePool.length]?.voiceId || '';
+    return state.voiceOptions.length ? state.voiceOptions[index % state.voiceOptions.length]?.voiceId || '' : '';
+  }
+
+  function setVoiceMessage(message, isError) {
+    const status = $('#officeVoiceMessage');
+    if (!status) return;
+    status.textContent = message || '';
+    if (isError) status.dataset.error = 'true';
+    else delete status.dataset.error;
+  }
+
+  function loadVoiceOptions() {
+    if (state.voiceLoaded) return Promise.resolve();
+    if (state.voiceLoadPromise) return state.voiceLoadPromise;
+    state.voiceLoading = true;
+    setVoiceMessage('Buscando as vozes disponíveis…');
+    state.voiceLoadPromise = (async () => {
+      try {
+        const response = await fetch('/api/virtual-office/voices', { credentials: 'include', cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.success === false) throw new Error(data.error || 'Não consegui carregar as vozes agora.');
+        state.voiceOptions = Array.isArray(data.data?.voices) ? data.data.voices : [];
+        state.defaultVoiceId = String(data.data?.default_voice_id || '');
+        state.voiceError = '';
+        setVoiceMessage(state.voiceOptions.length
+          ? 'ElevenLabs está pronto. Você também pode escolher a voz do navegador.'
+          : 'Nenhuma voz ElevenLabs foi encontrada. A voz do navegador continua disponível.');
+      } catch (error) {
+        state.voiceOptions = [];
+        state.defaultVoiceId = '';
+        state.voiceError = String(error?.message || 'ElevenLabs está indisponível.');
+        setVoiceMessage(`${state.voiceError} Você ainda pode usar a voz do navegador.`, true);
+      } finally {
+        state.voiceLoaded = true;
+        state.voiceLoading = false;
+        state.voiceLoadPromise = null;
+        renderVoiceRows();
+      }
+    })();
+    return state.voiceLoadPromise;
+  }
+
+  function renderVoiceRows() {
+    const host = $('#officeVoiceRows');
+    if (!host) return;
+    const agents = enabledAgents();
+    if (!agents.length) {
+      host.replaceChildren(makeNode('p', '', 'Não há funcionários ativos para configurar.'));
+      return;
+    }
+    host.replaceChildren(...agents.map((agent) => {
+      const row = makeNode('div', 'office-voice-row');
+      const identity = makeNode('div', 'office-voice-row__identity');
+      const face = makeNode('span', 'office-voice-row__face');
+      face.appendChild(makeFace(agent.avatarKey, agent.key));
+      face.setAttribute('aria-hidden', 'true');
+      const identityCopy = makeNode('span');
+      identityCopy.append(makeNode('strong', '', agent.name), makeNode('small', '', agent.title || AGENT_DEPARTMENTS[agent.department] || 'Equipe'));
+      identity.append(face, identityCopy);
+
+      const label = makeNode('label', 'office-voice-row__select');
+      const selectId = `officeVoice-${agent.key.replace(/[^a-z0-9_-]/gi, '')}`;
+      const caption = makeNode('span', '', `Voz de ${agent.name}`);
+      const select = makeNode('select');
+      select.id = selectId;
+      select.dataset.officeVoiceAgent = agent.key;
+      select.setAttribute('aria-label', `Voz de ${agent.name}`);
+      select.appendChild(new Option('Voz do navegador', 'browser'));
+      state.voiceOptions.forEach((voice) => {
+        const language = (voice.languages || []).find((item) => /^pt/i.test(item));
+        select.appendChild(new Option(`${voice.name}${language ? ` · ${language}` : ''}`, voice.voiceId));
+      });
+      label.htmlFor = selectId;
+      label.append(caption, select);
+
+      const test = makeNode('button', 'office-voice-row__test', 'Ouvir');
+      test.type = 'button';
+      test.dataset.officeVoiceTest = agent.key;
+      test.setAttribute('aria-label', `Testar a voz de ${agent.name}`);
+      row.append(identity, label, test);
+
+      const chosen = state.voicePrefs.voices?.[agent.key]
+        || preferredVoiceId(agent)
+        || 'browser';
+      select.value = chosen;
+      if (!Array.from(select.options).some((option) => option.value === chosen)) select.value = 'browser';
+      return row;
+    }));
+  }
+
+  function stopAgentSpeech() {
+    if (state.speechAudio) {
+      state.speechAudio.pause();
+      state.speechAudio.src = '';
+      state.speechAudio = null;
+    }
+    if (state.speechUrl) {
+      URL.revokeObjectURL(state.speechUrl);
+      state.speechUrl = '';
+    }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  function speakWithBrowser(text) {
+    if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') return false;
+    stopAgentSpeech();
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 0.98;
+    const voices = window.speechSynthesis.getVoices();
+    utterance.voice = voices.find((voice) => /^pt(-|_)?br$/i.test(voice.lang))
+      || voices.find((voice) => /^pt/i.test(voice.lang))
+      || null;
+    window.speechSynthesis.speak(utterance);
+    return true;
+  }
+
+  async function speakAgent(agent, text) {
+    const cleanText = String(text || '').trim().slice(0, 2000);
+    if (!agent || !cleanText) return false;
+    stopAgentSpeech();
+    if (!state.voiceLoaded) await loadVoiceOptions();
+    const voiceId = preferredVoiceId(agent);
+    if (!voiceId) return speakWithBrowser(cleanText);
+    try {
+      const response = await fetch('/api/virtual-office/speech', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: cleanText, voice_id: voiceId }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'ElevenLabs não conseguiu gerar este áudio.');
+      }
+      const blob = await response.blob();
+      if (!blob.size) throw new Error('O áudio retornou vazio.');
+      state.speechUrl = URL.createObjectURL(blob);
+      state.speechAudio = new Audio(state.speechUrl);
+      state.speechAudio.addEventListener('ended', stopAgentSpeech, { once: true });
+      await state.speechAudio.play();
+      return true;
+    } catch (_) {
+      stopAgentSpeech();
+      return speakWithBrowser(cleanText);
+    }
+  }
+
+  function showOfficeAlert(suggestions) {
+    const first = suggestions[0];
+    const owner = ownerFor(first);
+    if (!first || !owner) return;
+    const toast = $('#officeAlertToast');
+    if (!toast) return;
+    const title = suggestions.length > 1
+      ? `${suggestions.length} ações aguardam sua revisão`
+      : `Uma atualização da ${owner.name}`;
+    const greeting = state.userName ? `Oi, ${state.userName}!` : 'Oi!';
+    const area = ({ central: 'da Coordenação', commercial: 'do Comercial', operations: 'de Operações', finance: 'do Financeiro' })[owner.department] || 'da equipe';
+    const detail = `${greeting} Aqui é ${owner.name}, ${area}. ${first.title}${first.detail ? ` — ${first.detail}` : ''}. O próximo passo é ${first.run?.label || 'revisar com a equipe'}.`;
+    setText('#officeAlertTitle', title);
+    setText('#officeAlertMessage', suggestions.length > 1 ? `${detail} Também há outras ações esperando sua revisão.` : detail);
+    toast.hidden = false;
+    if (state.alertTimer) window.clearTimeout(state.alertTimer);
+    state.alertTimer = window.setTimeout(() => { toast.hidden = true; }, 14_000);
+
+    if (state.voicePrefs.speakPending) {
+      const intro = `${greeting} Aqui é ${owner.name}, ${area}.`;
+      const spoken = `${intro} ${first.title}. ${first.detail ? `${first.detail}. ` : ''}O próximo passo é ${first.run?.label || 'revisar isso comigo'}.${suggestions.length > 1 ? ` Também há mais ${suggestions.length - 1} ${suggestions.length === 2 ? 'ação' : 'ações'} esperando.` : ''}`;
+      void speakAgent(owner, spoken);
+    }
   }
 
   function setText(selector, value) {
@@ -873,6 +1096,19 @@
         open.href = agentHref(agent, { pedido: message.pedido });
         row.appendChild(open);
       }
+      if (message.role === 'assistant' && message.text) {
+        const listen = makeNode('button', 'office-chat__speak', 'Ouvir resposta');
+        listen.type = 'button';
+        listen.setAttribute('aria-label', `Ouvir resposta de ${agent.name}`);
+        listen.addEventListener('click', async () => {
+          listen.disabled = true;
+          listen.textContent = 'Preparando voz…';
+          const played = await speakAgent(agent, message.text);
+          listen.disabled = false;
+          listen.textContent = played ? 'Repetir resposta' : 'Voz indisponível';
+        });
+        row.appendChild(listen);
+      }
       return row;
     });
     if (state.chatTyping) {
@@ -899,6 +1135,7 @@
     const agent = state.agents.find((item) => item.key === key && item.enabled);
     const chat = $('#officeChat');
     if (!agent || !chat) return;
+    stopAgentSpeech();
     state.chatKey = agent.key;
     const room = roomById(agent.department);
     if (room && window.matchMedia('(min-width: 761px)').matches) placeMe(doorPoint(room));
@@ -939,6 +1176,7 @@
   }
 
   function closeChat() {
+    stopAgentSpeech();
     const chat = $('#officeChat');
     if (chat) chat.hidden = true;
     state.chatKey = '';
@@ -984,7 +1222,7 @@
         if (data.type !== 'error') reply.pedido = message;
       }
     } catch (error) {
-      reply.text = `Ih, travei aqui: ${String(error?.message || 'tente de novo em instantes.')}`;
+      reply.text = 'Tive um problema ao preparar isso. Tente novamente daqui a pouco.';
     }
     const next = chatThread(key);
     next.push(reply);
@@ -1408,6 +1646,9 @@
     state.userName = userName;
     state.userInitial = userName ? userName.charAt(0).toUpperCase() : '';
     state.orgName = data.organization?.name || '';
+    state.organizationId = String(data.organization?.id || location.host);
+    state.userId = String(data.user?.id || 'user');
+    loadVoicePrefs();
     setText('#officeWelcome', userName
       ? `Olá, ${userName}. A equipe trabalha aqui; tudo o que vai para o cliente passa por você.`
       : 'A equipe trabalha aqui; tudo o que vai para o cliente passa por você.');
@@ -1421,9 +1662,12 @@
       throw new Error(data.error || 'Não foi possível carregar os funcionários virtuais.');
     }
     state.agents = Array.isArray(data.data) ? data.data : [];
+    if ($('#officeVoiceDialog')?.open) renderVoiceRows();
   }
 
   async function loadSuggestions() {
+    const suggestionKey = (item) => `${item.id}:${item.title}`;
+    const previousIds = new Set(state.suggestions.map(suggestionKey));
     const response = await fetch(API_SUGGESTIONS, { credentials: 'include', cache: 'no-store' });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.success === false) {
@@ -1433,6 +1677,14 @@
     state.suggestions = (Array.isArray(data.data) ? data.data : []).slice().sort((a, b) =>
       (priority[a.tone] ?? 4) - (priority[b.tone] ?? 4),
     );
+    if (state.suggestionsLoaded) {
+      const newUrgent = state.suggestions.filter((item) =>
+        !previousIds.has(suggestionKey(item)) && (item.tone === 'critical' || item.tone === 'warning'),
+      );
+      if (newUrgent.length) showOfficeAlert(newUrgent);
+    }
+    state.suggestionsLoaded = true;
+    if (typeof window.pullCrmNotifications === 'function') window.pullCrmNotifications();
   }
 
   async function refresh(first) {
@@ -1477,6 +1729,62 @@
       showCurrentWork(entity);
     }
     $('#officeRefresh')?.addEventListener('click', () => refresh(false));
+    $('#officeVoiceSettings')?.addEventListener('click', async () => {
+      const dialog = $('#officeVoiceDialog');
+      if (!dialog) return;
+      if (!dialog.open) dialog.showModal();
+      const toggle = $('#officeVoiceAlerts');
+      if (toggle) toggle.checked = state.voicePrefs.speakPending === true;
+      await loadVoiceOptions();
+    });
+    $('#officeVoiceAlerts')?.addEventListener('change', (event) => {
+      state.voicePrefs.speakPending = Boolean(event.target.checked);
+      saveVoicePrefs();
+      setVoiceMessage(state.voicePrefs.speakPending
+        ? 'Pronto. Avisos prioritários novos serão falados enquanto o Escritório estiver aberto.'
+        : 'Os avisos continuam no sino e na mesa. A fala automática está desativada.');
+    });
+    $('#officeVoiceRows')?.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLSelectElement) || !target.dataset.officeVoiceAgent) return;
+      state.voicePrefs.voices[target.dataset.officeVoiceAgent] = target.value || 'browser';
+      saveVoicePrefs();
+      const agent = state.agents.find((item) => item.key === target.dataset.officeVoiceAgent);
+      setVoiceMessage(`A voz de ${agent?.name || 'funcionário'} foi atualizada.`);
+    });
+    $('#officeVoiceRows')?.addEventListener('click', async (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest('[data-office-voice-test]');
+      if (!button) return;
+      const agent = state.agents.find((item) => item.key === button.dataset.officeVoiceTest);
+      if (!agent) return;
+      button.disabled = true;
+      button.textContent = 'Preparando…';
+      const played = await speakAgent(agent, `Oi, aqui é ${agent.name}, ${agent.title.toLowerCase()}. Vou avisar você com clareza quando houver um próximo passo importante na minha área.`);
+      button.disabled = false;
+      button.textContent = played ? 'Ouvir' : 'Indisponível';
+      setVoiceMessage(played ? `Você ouviu a voz de ${agent.name}.` : 'Este navegador não tem uma voz disponível.');
+    });
+    $('#officeVoiceTest')?.addEventListener('click', async () => {
+      const agent = activeAgent();
+      if (!agent) return;
+      const played = await speakAgent(agent, `Oi${state.userName ? `, ${state.userName}` : ''}! Aqui é ${agent.name}. Esta é a voz que vou usar para conversar e avisar você sobre ações pendentes.`);
+      setVoiceMessage(played ? `Você ouviu a voz de ${agent.name}.` : 'Este navegador não tem uma voz disponível.');
+    });
+    $('#officeAlertDismiss')?.addEventListener('click', () => {
+      const toast = $('#officeAlertToast');
+      if (toast) toast.hidden = true;
+      if (state.alertTimer) window.clearTimeout(state.alertTimer);
+      state.alertTimer = 0;
+    });
+    $('#officeAlertOpen')?.addEventListener('click', () => {
+      const panel = $('#officeApprovals');
+      panel?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+      panel?.focus({ preventScroll: true });
+      const toast = $('#officeAlertToast');
+      if (toast) toast.hidden = true;
+    });
     $('#officePlan')?.addEventListener('click', onRoomClick);
     $('#officeCorridor')?.addEventListener('click', onRoomClick);
     $('#officeTasks')?.addEventListener('click', onTaskClick);
@@ -1500,6 +1808,12 @@
       if (target instanceof Element && target.closest('[data-meeting="start"]')) startMeeting();
     });
     window.setInterval(rotateBubbles, 3200);
+    window.setInterval(() => {
+      if (document.visibilityState === 'visible') refresh(false);
+    }, 60_000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && !state.busy) refresh(false);
+    });
     window.addEventListener('resize', fitPlan);
 
     const avatarChoices = $('#agentAvatarChoices');
@@ -1540,6 +1854,7 @@
     }
   }
 
+  window.OfficeAgentVoice = { speak: speakAgent };
   bindControls();
   refresh(true);
 })();

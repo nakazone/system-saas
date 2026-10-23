@@ -4,6 +4,8 @@
 (function () {
   const STORAGE_KEY = 'sf_crm_notifications_v1';
   const MAX_ITEMS = 300;
+  const OFFICE_PENDING_POLL_KEY = 'om.office.pending-poll.v1';
+  const OFFICE_PENDING_POLL_MS = 5 * 60 * 1000;
 
   function genId() {
     return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
@@ -232,6 +234,21 @@
       .catch(function () {});
   }
 
+  function pullOfficePendingActions() {
+    if (document.body && document.body.classList.contains('office-page-body')) return Promise.resolve();
+    var last = 0;
+    try { last = Number(localStorage.getItem(OFFICE_PENDING_POLL_KEY)) || 0; } catch (_) {}
+    if (Date.now() - last < OFFICE_PENDING_POLL_MS) return Promise.resolve();
+    try { localStorage.setItem(OFFICE_PENDING_POLL_KEY, String(Date.now())); } catch (_) {}
+    return fetch('/api/mate-ai/suggestions', { credentials: 'include', cache: 'no-store' })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (json) {
+        if (json && json.success) return pullServerNotifications();
+        return null;
+      })
+      .catch(function () {});
+  }
+
   function onDocClick(e) {
     if (!wrapEl || !panelOpen) return;
     if (!wrapEl.contains(e.target)) setPanelOpen(false);
@@ -267,9 +284,16 @@
 
     updateBellBadge();
     pullServerNotifications();
-    if (!pollTimer) pollTimer = setInterval(pullServerNotifications, 20000);
+    pullOfficePendingActions();
+    if (!pollTimer) pollTimer = setInterval(function () {
+      pullServerNotifications();
+      pullOfficePendingActions();
+    }, 20000);
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') pullServerNotifications();
+      if (document.visibilityState === 'visible') {
+        pullServerNotifications();
+        pullOfficePendingActions();
+      }
     });
     if (navigator.serviceWorker) {
       navigator.serviceWorker.addEventListener('message', function (event) {

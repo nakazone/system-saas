@@ -199,6 +199,27 @@
     return data;
   }
 
+  function speakAgentReply(agent, text) {
+    if (window.OfficeAgentVoice && typeof window.OfficeAgentVoice.speak === 'function') {
+      return Promise.resolve(window.OfficeAgentVoice.speak(agent, text));
+    }
+    if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') return Promise.resolve(false);
+    try {
+      window.speechSynthesis.cancel();
+      var utterance = new window.SpeechSynthesisUtterance(String(text || '').slice(0, 2000));
+      utterance.lang = voiceLang();
+      utterance.rate = 0.98;
+      var voices = window.speechSynthesis.getVoices();
+      utterance.voice = voices.find(function (voice) { return String(voice.lang || '').toLowerCase() === utterance.lang.toLowerCase(); })
+        || voices.find(function (voice) { return String(voice.lang || '').toLowerCase().indexOf(utterance.lang.slice(0, 2).toLowerCase()) === 0; })
+        || null;
+      window.speechSynthesis.speak(utterance);
+      return Promise.resolve(true);
+    } catch (_) {
+      return Promise.resolve(false);
+    }
+  }
+
   /** The record on screen, from the URL. */
   function detectScreen() {
     var file = (location.pathname.split('/').pop() || '').toLowerCase();
@@ -1132,7 +1153,10 @@
     else if (m.kind === 'clarify') inner = renderClarify(m);
     else if (m.kind === 'card' || m.kind === 'answer') inner = renderCard(m);
     else if (m.kind === 'done') inner = renderDone(m);
-    return '<div class="mate-msg" data-id="' + esc(m.id) + '">' + inner + '</div>';
+    var listen = agentMode && agentProfile && m.message && m.kind !== 'thinking'
+      ? '<button type="button" class="mate-agent-speak" data-mate="speak" data-msg="' + esc(m.id) + '" aria-label="Ouvir resposta de ' + esc(agentProfile.name) + '">Ouvir resposta</button>'
+      : '';
+    return '<div class="mate-msg" data-id="' + esc(m.id) + '">' + inner + listen + '</div>';
   }
 
   function editButton(m, edit, label) {
@@ -1617,7 +1641,17 @@
     if (!el || !panel.contains(el)) return;
     var what = el.getAttribute('data-mate');
     var m = el.hasAttribute('data-msg') ? find(el.getAttribute('data-msg')) : null;
-    if (what === 'close') close();
+    if (what === 'speak' && agentMode && m && m.message) {
+      el.disabled = true;
+      el.textContent = 'Preparando voz…';
+      speakAgentReply(agentProfile, m.message).then(function (played) {
+        el.disabled = false;
+        el.textContent = played ? 'Repetir resposta' : 'Voz indisponível';
+      }).catch(function () {
+        el.disabled = false;
+        el.textContent = 'Tente novamente';
+      });
+    } else if (what === 'close') close();
     else if (what === 'pick-all' && m) {
       var sec = (m.card.sections || []).find(function (x) { return x.type === 'pick'; });
       var allIds = sec ? sec.items.map(function (it) { return it.id; }) : [];

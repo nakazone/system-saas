@@ -47,6 +47,48 @@
     return Number.isNaN(d.getTime()) ? null : d;
   };
   const hm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  /** Nearest :00 or :30, as 24h HH:mm. */
+  function snapHalf(value) {
+    const tm = /^(\d{1,2}):(\d{2})/.exec(String(value || ''));
+    let h = tm ? Number(tm[1]) : 9;
+    let m = tm ? Number(tm[2]) : 0;
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return '09:00';
+    let total = h * 60 + m;
+    total = Math.round(total / 30) * 30;
+    total = ((total % 1440) + 1440) % 1440;
+    h = Math.floor(total / 60);
+    m = total % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  function timeParts(value) {
+    const v = snapHalf(value);
+    const h = Number(v.slice(0, 2));
+    const m = Number(v.slice(3, 5));
+    return { h24: h, h12: h % 12 || 12, m, ap: h < 12 ? 'AM' : 'PM', value: v };
+  }
+  function wheelCol(part, buttons) {
+    return `<div class="ag-wheel" data-part="${part}"><div class="ag-wheel__col"><div class="ag-wheel__pad"></div>${buttons}<div class="ag-wheel__pad"></div></div></div>`;
+  }
+  function timeWheelHtml(name, value, opts) {
+    const o = opts || {};
+    const p = timeParts(value || '09:00');
+    const extra = o.inline
+      ? ` data-ag-inline="${esc(name)}" data-ag-id="${esc(o.id)}" data-ag-type="${esc(o.type)}"`
+      : ` name="${esc(name)}"`;
+    const hours = Array.from({ length: 12 }, (_, i) => i + 1)
+      .map((h) => `<button type="button" data-v="${h}">${h}</button>`)
+      .join('');
+    const mins = [0, 30]
+      .map((m) => `<button type="button" data-v="${m}">${String(m).padStart(2, '0')}</button>`)
+      .join('');
+    const aps = ['AM', 'PM'].map((a) => `<button type="button" data-v="${a}">${a}</button>`).join('');
+    return `<div class="ag-wheels" data-ag-wheel>
+      <input type="hidden"${extra} value="${esc(p.value)}" ${o.disabled ? 'disabled' : ''} />
+      ${wheelCol('hour', hours)}
+      ${wheelCol('min', mins)}
+      ${wheelCol('ap', aps)}
+    </div>`;
+  }
   const fmtTime = (d) => {
     const h = d.getHours();
     const m = d.getMinutes();
@@ -254,9 +296,21 @@
 
   // ---------------------------------------------------------------- data
   function normalize(raw) {
-    const start = new Date(raw.start);
+    let start = new Date(raw.start);
     let end = new Date(raw.end || raw.start);
     if (!(end > start)) end = new Date(start.getTime() + 3600e3);
+    const m0 = raw.meta || {};
+    const flaggedAllDay = Boolean(raw.all_day ?? m0.all_day);
+    if (flaggedAllDay) {
+      // All-day is one calendar date. A UTC midnight stored on the server
+      // otherwise covers the previous local evening and the chosen day.
+      const a = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+      const b = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+      let days = Math.round((b - a) / DAY);
+      if (days < 1) days = 1;
+      start = new Date(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+      end = addDays(start, days);
+    }
     const type = TYPES[raw.type] ? raw.type : 'meeting';
     const m = raw.meta || {};
     const visitCalId =
@@ -276,7 +330,6 @@
     );
     const lastDay = sod(new Date(end.getTime() - 1));
     const multi = !sameDay(start, lastDay);
-    const flaggedAllDay = Boolean(raw.all_day ?? m.all_day);
     const assignees = [];
     if (m.assigned_user_id) assignees.push(String(m.assigned_user_id));
     (m.members || []).forEach((x) => x.user_id && assignees.push(String(x.user_id)));
@@ -1234,8 +1287,8 @@
     if (field === 'when') {
       return `<div class="ag-dtl__when" data-ag-when-wrap>
         <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
-        <input type="time" class="ag-dtl__in" data-ag-inline="start" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${hm(e.start)}" step="900" />
-        ${e.type === 'visit' ? '' : `<input type="time" class="ag-dtl__in" data-ag-inline="end" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${hm(e.end)}" step="900" />`}
+        ${timeWheelHtml('start', hm(e.start), { inline: true, id: e.id, type: e.type })}
+        ${e.type === 'visit' ? '' : timeWheelHtml('end', hm(e.end), { inline: true, id: e.id, type: e.type })}
       </div>`;
     }
     if (field === 'calendar') {
@@ -1340,7 +1393,8 @@
       }
     }
 
-    const focusEl = wrap.querySelector('input, select, textarea');
+    const focusEl = wrap.querySelector('input:not([type="hidden"]), select, textarea');
+    if (field === 'when') wireTimeWheels(wrap);
     if (focusEl) {
       focusEl.focus();
       if (focusEl.tagName === 'SELECT' && typeof focusEl.showPicker === 'function') {
@@ -1624,10 +1678,10 @@
       `<header class="ag-sheet__bar"><button type="button" class="ag-pillbtn ag-pillbtn--ghost" data-ag-close>Cancelar</button><h2>${esc(mtg)} · Apple</h2><button type="submit" form="agAppleForm" class="ag-pillbtn ag-pillbtn--pri">Abrir Calendar</button></header>
       <form class="ag-sheet__body ag-form" id="agAppleForm" novalidate>
         <div class="ag-card ag-form__grp"><input name="title" class="ag-form__title" placeholder="Título" required maxlength="200" /></div>
-        <div class="ag-card ag-form__grp ag-form__when">
-          <label>Data<input type="date" name="date" value="${esc(ymd(s))}" required /></label>
-          <label>Início<input type="time" name="start" value="${esc(hm(s))}" required /></label>
-          <label>Fim<input type="time" name="end" value="${esc(hm(e))}" required /></label>
+        <div class="ag-card ag-form__grp">
+          <label class="ag-form__row"><span>Data</span><input type="date" name="date" value="${esc(ymd(s))}" required /></label>
+          <label class="ag-form__row ag-form__row--col"><span>Início</span>${timeWheelHtml('start', hm(s))}</label>
+          <label class="ag-form__row ag-form__row--col"><span>Fim</span>${timeWheelHtml('end', hm(e))}</label>
         </div>
         <div class="ag-card ag-form__grp"><label>Local<input type="text" name="location" maxlength="500" placeholder="Endereço ou local" /></label></div>
         <div class="ag-card ag-form__grp"><label>Notas<textarea name="notes" rows="2" maxlength="2000" placeholder="Opcional"></textarea></label></div>
@@ -1635,6 +1689,7 @@
       </form>`,
       'ag-sheet__card--form'
     );
+    wireTimeWheels($('#agAppleForm'));
   }
 
   function openDetail(id, anchor) {
@@ -1925,8 +1980,8 @@
         <div class="ag-card ag-form__grp">
           <label class="ag-form__row"><span>Data</span><input type="date" name="date" required value="${ymd(s)}" /></label>
           <label class="ag-form__check"><input type="checkbox" name="all_day" value="1" id="agAllDay" ${isAllDay ? 'checked' : ''}/><span>Dia inteiro</span></label>
-          <label class="ag-form__row ag-form__time" data-ag-time><span>Início</span><input type="time" name="start" ${isAllDay ? '' : 'required'} value="${hm(s)}" step="900" ${isAllDay ? 'disabled' : ''} /></label>
-          ${isVisit && !ev ? '' : `<label class="ag-form__row ag-form__time" data-ag-time><span>Fim</span><input type="time" name="end" ${isAllDay ? '' : 'required'} value="${hm(e)}" step="900" ${isAllDay ? 'disabled' : ''} /></label>`}
+          <label class="ag-form__row ag-form__row--col ag-form__time" data-ag-time><span>Início</span>${timeWheelHtml('start', hm(s), { disabled: isAllDay })}</label>
+          ${isVisit && !ev ? '' : `<label class="ag-form__row ag-form__row--col ag-form__time" data-ag-time><span>Fim</span>${timeWheelHtml('end', hm(e), { disabled: isAllDay })}</label>`}
         </div>
         <div class="ag-card ag-form__grp">
           <label class="ag-form__row ag-form__row--col"><span>Local</span><input name="location" data-ag-address autocomplete="off" placeholder="Endereço" value="${esc(ev ? ev.address : '')}" /></label>
@@ -1954,6 +2009,7 @@
       window.sfAttachAddressAutocomplete(addr, { map: { combined: addr } }).catch(() => {});
     }
     wireAllDayToggle();
+    wireTimeWheels($('#agForm'));
     if (isVisit) wireVisitHour();
     if (isVisit && !ev) wireLeadPicker();
   }
@@ -1968,8 +2024,11 @@
       if (!Number.isFinite(h)) return;
       const d = new Date(2000, 0, 1, h || 0, m || 0, 0, 0);
       d.setHours(d.getHours() + 1);
-      const next = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      if (end) end.value = next;
+      const next = snapHalf(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+      if (end && end.value !== next) {
+        end.value = next;
+        end.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     };
     start.addEventListener('change', sync);
     start.addEventListener('input', sync);
@@ -2186,7 +2245,7 @@
   function slotTimeFromClick(col, ev) {
     const r = col.getBoundingClientRect();
     const hours = (ev.clientY - r.top) / HOUR_PX;
-    const q = Math.max(0, Math.min(23.75, Math.floor(hours * 4) / 4));
+    const q = Math.max(0, Math.min(23.5, Math.round(hours * 2) / 2));
     const d = parseYmd(col.dataset.agCol);
     d.setHours(Math.floor(q), Math.round((q % 1) * 60));
     return d;

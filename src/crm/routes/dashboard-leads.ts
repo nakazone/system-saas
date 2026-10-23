@@ -843,7 +843,8 @@ dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), asy
       let end: Date | null = null;
       if (start && !Number.isNaN(start.getTime())) {
         if (allDay) {
-          start = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0);
+          // Keep the instant the browser sent (local midnight as UTC).
+          // Rebuilding it with the server's local date shifts the visit to the previous evening.
           end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
         } else {
           end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -897,6 +898,7 @@ dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), asy
         seller_id: assigneeId,
         assigned_to_name: null as string | null,
         status: String(body.status || "scheduled"),
+        all_day: allDay,
         meeting_id: meetingId,
         created_at: new Date().toISOString(),
       };
@@ -968,7 +970,6 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
         let end: Date | null = null;
         if (start && !Number.isNaN(start.getTime())) {
           if (allDay) {
-            start = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0);
             end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
           } else {
             end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -1043,6 +1044,7 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
           notes: body.notes != null ? String(body.notes) : prev.notes,
           seller_id: assigneeId,
           status: body.status != null ? String(body.status) : prev.status || "scheduled",
+          all_day: allDay,
           meeting_id: meetingId,
           updated_at: new Date().toISOString(),
           id: visitId,

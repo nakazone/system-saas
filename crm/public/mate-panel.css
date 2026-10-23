@@ -519,6 +519,25 @@ body.mate-open .mate-fab {
   justify-content: flex-end;
 }
 
+.mate-agent-speak {
+  display: block;
+  min-height: 44px;
+  margin: 6px 0 0 10px;
+  padding: 0 12px;
+  border: 1px solid var(--mate-line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--mate-ink-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mate-agent-speak:hover { border-color: var(--mate-accent); background: var(--mate-accent-soft); }
+.mate-agent-speak:disabled { opacity: 0.58; cursor: wait; }
+.mate-agent-speak:focus-visible { outline: 3px solid rgba(231, 121, 44, 0.38); outline-offset: 2px; }
+
 .mate-say {
   max-width: 92%;
   padding: 10px 13px;

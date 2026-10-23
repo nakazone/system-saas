@@ -7009,6 +7009,7 @@
     let title = '';
     let text = '';
     let btn = '';
+    const presentationBtn = quoteId ? '<button type="button" class="btn qb-next__alt" data-qb-present>Apresentar ao cliente com IA</button>' : '';
     if (!quoteId && !jobReady) {
       title = 'Monte o orçamento';
       text = 'Escolha o cliente, adicione os serviços e salve — ou transforme em job quando estiver pronto.';
@@ -7062,7 +7063,7 @@
       text = 'Adicione cliente e serviços para transformar em job, ou envie o link ao cliente.';
       btn = '<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Enviar ao cliente</button>';
     }
-    box.innerHTML = `<b>${title}</b><p>${text}</p>${btn}`;
+    box.innerHTML = `<b>${title}</b><p>${text}</p>${btn}${presentationBtn}`;
     syncCreateJobButton();
   }
 
@@ -7080,6 +7081,8 @@
       proxy.disabled = !src || !!src.disabled;
       proxy.hidden = !src || src.classList.contains('hidden') || !!src.hidden;
     });
+    const presentButton = menu.querySelector('[data-qb-present]');
+    if (presentButton) presentButton.disabled = !quoteId;
     menu.classList.remove('hidden');
     anchor.setAttribute('aria-expanded', 'true');
     const mobile = window.matchMedia('(max-width: 1099px)').matches;
@@ -7095,7 +7098,7 @@
   }
 
   function initQbPanel() {
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', async (e) => {
       const more = e.target.closest('[data-qb-more]');
       if (more) {
         e.preventDefault();
@@ -7105,6 +7108,35 @@
       const menu = $('qbMoreMenu');
       if (menu && !menu.classList.contains('hidden') && !e.target.closest('#qbMoreMenu')) menu.classList.add('hidden');
       if (menu && e.target.closest('#qbMoreMenu [data-qb-proxy]')) setTimeout(() => menu.classList.add('hidden'), 0);
+      const presentButton = e.target.closest('[data-qb-present]');
+      if (presentButton) {
+        e.preventDefault();
+        menu?.classList.add('hidden');
+        if (!quoteId) return;
+        const presenter = window.open('about:blank', '_blank');
+        if (!presenter) {
+          qbToast('Permita abrir uma nova aba para iniciar a apresentação.', 'error');
+          return;
+        }
+        presentButton.disabled = true;
+        try { presenter.document.title = 'Preparando apresentação…'; } catch (_) {}
+        if (qbDirtyFlag) {
+          const saved = await saveQuote();
+          if (!saved) {
+            presenter.close();
+            presentButton.disabled = !quoteId;
+            return;
+          }
+        }
+        try {
+          presenter.location.href = `field-quote.html?presentation_quote=${encodeURIComponent(quoteId)}`;
+        } catch (error) {
+          presenter.close();
+          presentButton.disabled = !quoteId;
+          qbToast(error.message || 'Não foi possível abrir a apresentação.', 'error');
+        }
+        return;
+      }
       const openJobBtn = e.target.closest('[data-qb-open-job]');
       if (openJobBtn) {
         e.preventDefault();
