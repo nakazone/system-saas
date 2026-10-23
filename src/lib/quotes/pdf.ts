@@ -567,6 +567,10 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
   const PAL = resolvePalette(input);
   const systemLogoBuf = loadSystemLogoBuffer();
   const tenantLogoBuf = await loadLogoBuffer(input.organizationLogoUrl);
+  const ownerSignatureBuf = await loadLogoBuffer(
+    input.ownerSignature?.imageUrl || input.ownerSignature?.image_url,
+  );
+  const clientSignatureBuf = await loadLogoBuffer(input.signatureUrl);
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -1165,9 +1169,8 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     doc.text("CLIENT APPROVAL", totalsX, y, { lineBreak: false });
     y += 14;
 
-    const ownerSrc = input.ownerSignature?.imageUrl || input.ownerSignature?.image_url;
-    const ownerBuf = await loadLogoBuffer(ownerSrc);
-    const clientBuf = await loadLogoBuffer(input.signatureUrl);
+    const ownerBuf = ownerSignatureBuf;
+    const clientBuf = clientSignatureBuf;
     const sigBoxH = 40;
 
     if (ownerBuf) {
