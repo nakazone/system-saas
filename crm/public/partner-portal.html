@@ -6,13 +6,13 @@
   <meta name="theme-color" content="#f7f8fa" />
   <title>Portal do parceiro · ObraMate</title>
   <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="stylesheet" href="partner-portal.css?v=20261023-2" />
+  <link rel="stylesheet" href="partner-portal.css?v=20261023-3" />
 </head>
 <body class="partner-portal-page">
   <header class="partner-topbar">
     <a class="partner-brand" href="partner-portal.html" aria-label="ObraMate">
-      <img src="/assets/obramate-logo.png" alt="" width="38" height="38" />
-      <span>ObraMate <small>Portal do parceiro</small></span>
+      <img src="/assets/obramate-logo.png" alt="ObraMate" width="128" height="52" />
+      <span class="partner-brand-context">Portal do parceiro</span>
     </a>
     <div class="partner-account">
       <span id="partnerAccountName">Carregando…</span>
@@ -44,12 +44,24 @@
     </section>
 
     <nav id="partnerPortalTabs" class="partner-portal-tabs" role="tablist" aria-label="Navegação do portal" hidden>
-      <button type="button" id="partnerJobsTab" role="tab" aria-selected="true" aria-controls="partnerProjectsSection">Jobs</button>
-      <button type="button" id="partnerCalendarTab" role="tab" aria-selected="false" aria-controls="partnerCalendarSection" tabindex="-1">Calendário</button>
-      <button type="button" id="partnerHistoryTab" role="tab" aria-selected="false" aria-controls="partnerHistorySection" tabindex="-1">Histórico</button>
-      <button type="button" id="partnerInvoicesTab" role="tab" aria-selected="false" aria-controls="partnerInvoicesSection" tabindex="-1">Invoices</button>
-      <button type="button" id="partnerRequestsTab" role="tab" aria-selected="false" aria-controls="partnerRequestsSection" tabindex="-1">Solicitar job</button>
-      <button type="button" id="partnerDocumentsTab" role="tab" aria-selected="false" aria-controls="partnerDocumentsSection" tabindex="-1">Documentos</button>
+      <button type="button" id="partnerJobsTab" role="tab" aria-selected="true" aria-controls="partnerProjectsSection">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/></svg><span>Jobs</span>
+      </button>
+      <button type="button" id="partnerCalendarTab" role="tab" aria-selected="false" aria-controls="partnerCalendarSection" tabindex="-1">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg><span>Calendário</span>
+      </button>
+      <button type="button" id="partnerHistoryTab" role="tab" aria-selected="false" aria-controls="partnerHistorySection" tabindex="-1">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8M3 3v5h5M12 7v5l3 2"/></svg><span>Histórico</span>
+      </button>
+      <button type="button" id="partnerInvoicesTab" role="tab" aria-selected="false" aria-controls="partnerInvoicesSection" tabindex="-1">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V8z"/><path d="M14 2v6h6M8 12h6M8 16h6"/></svg><span>Invoices</span>
+      </button>
+      <button type="button" id="partnerRequestsTab" role="tab" aria-selected="false" aria-controls="partnerRequestsSection" tabindex="-1">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span>Solicitar job</span>
+      </button>
+      <button type="button" id="partnerDocumentsTab" role="tab" aria-selected="false" aria-controls="partnerDocumentsSection" tabindex="-1">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9h18"/></svg><span>Documentos</span>
+      </button>
     </nav>
 
     <section id="partnerProjectsSection" role="tabpanel" aria-labelledby="partnerJobsTab" hidden>
@@ -120,6 +132,6 @@
 
     <p id="partnerPortalError" class="partner-error partner-page-error" role="alert" hidden></p>
   </main>
-  <script src="partner-portal.js?v=20261023-1" defer></script>
+  <script src="partner-portal.js?v=20261023-2" defer></script>
 </body>
 </html>

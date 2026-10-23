@@ -334,6 +334,7 @@
       $('changePasswordPanel').hidden = !user.must_change_password;
       $('partnerProjectsSection').hidden = Boolean(user.must_change_password);
       $('partnerPortalTabs').hidden = Boolean(user.must_change_password);
+      document.body.classList.toggle('partner-nav-ready', !user.must_change_password);
       if (user.must_change_password) return;
 
       const overview = await request('/api/partner-portal/overview');
