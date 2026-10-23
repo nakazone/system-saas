@@ -2014,6 +2014,102 @@
     if (isVisit && !ev) wireLeadPicker();
   }
 
+  function wireTimeWheels(root) {
+    if (!root) return;
+    root.querySelectorAll('[data-ag-wheel]').forEach((box) => {
+      if (box.dataset.wired) return;
+      box.dataset.wired = '1';
+      const hidden = box.querySelector('input');
+      const cols = {
+        hour: box.querySelector('[data-part="hour"] .ag-wheel__col'),
+        min: box.querySelector('[data-part="min"] .ag-wheel__col'),
+        ap: box.querySelector('[data-part="ap"] .ag-wheel__col'),
+      };
+      if (!hidden || !cols.hour || !cols.min || !cols.ap) return;
+      const read = () => {
+        const h12 = Number((cols.hour.querySelector('.is-on') || {}).dataset?.v || cols.hour.querySelector('.is-on')?.getAttribute('data-v') || 12);
+        const m = Number((cols.min.querySelector('.is-on') || {}).getAttribute?.('data-v') || 0);
+        const ap = (cols.ap.querySelector('.is-on') || {}).getAttribute?.('data-v') || 'AM';
+        let h = (Number.isFinite(h12) ? h12 : 12) % 12;
+        if (ap === 'PM') h += 12;
+        const mm = m === 30 ? 30 : 0;
+        return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      };
+      const center = (col, btn) => {
+        if (!btn) return;
+        col.scrollTop = Math.max(0, btn.offsetTop - (col.clientHeight - btn.offsetHeight) / 2);
+      };
+      const mark = (col, v) => {
+        let on = null;
+        col.querySelectorAll('button').forEach((b) => {
+          const hit = String(b.getAttribute('data-v')) === String(v);
+          b.classList.toggle('is-on', hit);
+          if (hit) on = b;
+        });
+        center(col, on);
+      };
+      const paint = () => {
+        const p = timeParts(hidden.value);
+        mark(cols.hour, p.h12);
+        mark(cols.min, p.m);
+        mark(cols.ap, p.ap);
+      };
+      let lock = false;
+      const commit = () => {
+        const next = read();
+        if (hidden.value === next) return;
+        lock = true;
+        hidden.value = next;
+        hidden.dispatchEvent(new Event('input', { bubbles: true }));
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        lock = false;
+      };
+      box.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button[data-v]');
+        if (!btn || hidden.disabled) return;
+        const col = btn.closest('.ag-wheel__col');
+        if (!col) return;
+        col.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b === btn));
+        center(col, btn);
+        commit();
+      });
+      hidden.addEventListener('input', () => {
+        if (!lock) paint();
+      });
+      Object.values(cols).forEach((col) => {
+        let timer = 0;
+        let userMoved = false;
+        col.addEventListener('pointerdown', () => {
+          userMoved = true;
+        });
+        col.addEventListener(
+          'scroll',
+          () => {
+            if (!userMoved || hidden.disabled) return;
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+              const mid = col.scrollTop + col.clientHeight / 2;
+              let best = null;
+              let bestD = 1e9;
+              col.querySelectorAll('button').forEach((b) => {
+                const d = Math.abs(b.offsetTop + b.offsetHeight / 2 - mid);
+                if (d < bestD) {
+                  bestD = d;
+                  best = b;
+                }
+              });
+              if (!best) return;
+              col.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b === best));
+              commit();
+            }, 80);
+          },
+          { passive: true },
+        );
+      });
+      paint();
+    });
+  }
+
   function wireVisitHour() {
     const start = $('#agForm [name="start"]');
     const end = $('#agForm [name="end"]');
