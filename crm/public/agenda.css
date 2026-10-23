@@ -687,6 +687,60 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-form__row:last-child { border-bottom: 0; }
 .ag-form__row--col { flex-direction: column; align-items: stretch; gap: 4px; }
 .ag-form__row input, .ag-form__row select { border: 0; background: #F7F8FA; border-radius: 9px; padding: 7px 10px; font: inherit; font-size: 15px; color: var(--ink); min-width: 0; }
+.ag-wheels {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  height: 148px;
+  margin-top: 4px;
+  border-radius: 12px;
+  background: #f2f2f7;
+  overflow: hidden;
+}
+.ag-wheels::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 56px;
+  height: 36px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(33, 29, 26, 0.06);
+  z-index: 0;
+  pointer-events: none;
+}
+.ag-wheel { position: relative; z-index: 1; flex: 1 1 0; min-width: 0; max-width: 88px; }
+.ag-wheel__col {
+  height: 148px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  touch-action: pan-y;
+  -webkit-mask-image: linear-gradient(transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(transparent, #000 22%, #000 78%, transparent);
+}
+.ag-wheel__col::-webkit-scrollbar { display: none; }
+.ag-wheel__pad { height: 56px; }
+.ag-wheel__col button {
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  scroll-snap-align: center;
+  font: 600 22px/36px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: var(--ink, #211d1a);
+  cursor: pointer;
+}
+.ag-wheel__col button.is-on { font-weight: 700; }
+.ag-form__time .ag-wheels,
+.ag-dtl__when .ag-wheels { width: 100%; }
+.ag-dtl__when { align-items: stretch; }
+.ag-dtl__when .ag-dtl__in { align-self: center; }
 .ag-form__row--col input { width: 100%; }
 .ag-form__title, .ag-form__lead input { border: 0; background: transparent; font: inherit; font-size: 17px; font-weight: 700; padding: 10px 0; width: 100%; outline: 0; color: var(--ink); }
 .ag-form__lead { display: grid; font-size: 12px; font-weight: 800; color: var(--mut); padding-top: 8px; }

@@ -2026,10 +2026,14 @@
         ap: box.querySelector('[data-part="ap"] .ag-wheel__col'),
       };
       if (!hidden || !cols.hour || !cols.min || !cols.ap) return;
+      const picked = (col, fallback) => {
+        const on = col.querySelector('.is-on');
+        return on ? on.getAttribute('data-v') : fallback;
+      };
       const read = () => {
-        const h12 = Number((cols.hour.querySelector('.is-on') || {}).dataset?.v || cols.hour.querySelector('.is-on')?.getAttribute('data-v') || 12);
-        const m = Number((cols.min.querySelector('.is-on') || {}).getAttribute?.('data-v') || 0);
-        const ap = (cols.ap.querySelector('.is-on') || {}).getAttribute?.('data-v') || 'AM';
+        const h12 = Number(picked(cols.hour, '12'));
+        const m = Number(picked(cols.min, '0'));
+        const ap = picked(cols.ap, 'AM');
         let h = (Number.isFinite(h12) ? h12 : 12) % 12;
         if (ap === 'PM') h += 12;
         const mm = m === 30 ? 30 : 0;
